@@ -13,7 +13,16 @@ import {
   History,
 } from 'lucide-react'
 import { AGENT } from '../agents'
+import { getStoredAuth } from '../api'
 import type { KodyTask } from '../types'
+
+/** Build fetch headers including client auth when available */
+function authHeaders(): Record<string, string> {
+  const auth = getStoredAuth()
+  return auth
+    ? { 'x-kody-token': auth.token, 'x-kody-owner': auth.owner, 'x-kody-repo': auth.repo }
+    : {}
+}
 import type { ChatMessage, ChatSession } from '../chat-types'
 import { ConfirmDialog } from './ConfirmDialog'
 import { useRemoteStatus } from '../hooks/useRemoteStatus'
@@ -294,7 +303,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
 
       await fetch('/api/kody/chat/save', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           taskId: selectedTask.id,
           messages: messagesForApi,
@@ -342,7 +351,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
     if (isTaskMode && selectedTask) {
       fetch('/api/kody/chat/save', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
         body: JSON.stringify({
           taskId: selectedTask.id,
           messages: [], // Clear by saving empty
@@ -441,7 +450,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
         try {
           const taskRes = await fetch('/api/kody/tasks', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
             body: JSON.stringify({
               title: `Chat ${new Date().toLocaleDateString()}`,
               body: 'Auto-created task for global chat session',
@@ -473,7 +482,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
       try {
         const triggerRes = await fetch('/api/kody/chat/trigger', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
           body: JSON.stringify({
             taskId: sessionId,
             messages: allMessages,
@@ -520,7 +529,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
       try {
         await fetch('/api/kody/action/instruction', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
           body: JSON.stringify({
             runId: selectedTask.id,
             instruction: userMessage,

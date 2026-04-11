@@ -53,7 +53,10 @@ export async function POST(req: NextRequest) {
     }
 
     if (!branch) {
-      return NextResponse.json({ error: 'Task has no branch yet' }, { status: 400 })
+      // Global chat creates tasks without a branch (no pipeline run yet).
+      // The session is already persisted by chat/trigger → .kody/sessions/{taskId}.jsonl.
+      // Return success so the UI doesn't show an error for this expected case.
+      return NextResponse.json({ success: true, skipped: 'no-branch' })
     }
 
     // Use bot token for reads, user token for writes
