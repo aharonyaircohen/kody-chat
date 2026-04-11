@@ -50,7 +50,14 @@ export async function POST(req: NextRequest) {
 
   if (!event) return NextResponse.json({ error: "event required" }, { status: 400 });
 
-  const entry = await logEvent(event, payload ?? {}, actionState, channel ?? "pipeline");
+  let entry;
+  try {
+    entry = await logEvent(event, payload ?? {}, actionState, channel ?? "pipeline");
+  } catch (err) {
+    // logEvent may fail in serverless envs with ephemeral filesystems (e.g. Vercel).
+    // Return ok=true so the engine can continue even if local logging fails.
+    entry = null;
+  }
 
   return NextResponse.json({ ok: true, entry });
 }
