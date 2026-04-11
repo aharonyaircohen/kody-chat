@@ -1,20 +1,16 @@
 /**
- * @fileOverview Kody Action State Store (Dashboard-side)
+ * @fileOverview Kody Action State Store — GitHub-backed
  * @fileType store
  * @domain kody
  *
- * File-based store for action polling state on the dashboard.
+ * Stores action polling state in `.kody/action-state.json` in the repo via GitHub API.
+ * Replaces the old local-FS store that didn't survive Vercel serverless cold starts.
  *
- * NOTE: Vercel serverless functions have ephemeral filesystem.
- * For production, replace this with Vercel KV, Upstash Redis, or Postgres.
- * For local development, this JSON file works fine.
+ * Uses SHA-based upsert for safe concurrent writes (createOrUpdateFileContents).
  */
 
-import { promises as fs } from "fs";
-import path from "path";
-
-const DATA_DIR = path.join(process.cwd(), ".kody-action-store");
-const FILE = path.join(DATA_DIR, "action-state.json");
+import { createUserOctokit } from "@dashboard/lib/github-client";
+import type { Octokit } from "@octokit/rest";
 
 export type ActionStatus = "running" | "waiting" | "complete" | "cancelled";
 
@@ -32,76 +28,170 @@ export interface ActionState {
   createdAt: string;
 }
 
-async function load(): Promise<Map<string, ActionState>> {
+// ─── Repo config ───────────────────────────────────────────────────────────────
+
+function getDefaultOwner(): string {
+  return process.env.GITHUB_OWNER ?? "aharonyaircohen";
+}
+
+function getDefaultRepo(): string {
+  return process.env.GITHUB_REPO ?? "Kody-Dashboard";
+}
+
+function getDefaultBranch(): string {
+  return process.env.KODY_STORE_BRANCH ?? "main";
+}
+
+// ─── Internal Octokit ─────────────────────────────────────────────────────────
+
+function getOrCreateOctokit(octokit?: Octokit | null): Octokit | null {
+  if (octokit) return octokit;
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) return null;
+  return createUserOctokit(token);
+}
+
+// ─── GitHub file helpers ───────────────────────────────────────────────────────
+
+const STORE_FILE = ".kody/action-state.json";
+
+async function readMap(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  branch: string,
+): Promise<Map<string, ActionState>> {
   const map = new Map<string, ActionState>();
   try {
-    const raw = await fs.readFile(FILE, "utf-8");
-    const arr: ActionState[] = JSON.parse(raw);
-    for (const s of arr) map.set(s.runId, s);
-  } catch {
-    // File doesn't exist or is corrupt — start fresh
+    const { data } = await octokit.rest.repos.getContent({ owner, repo, path: STORE_FILE, ref: branch });
+    if ("content" in data && data.content) {
+      const json = Buffer.from(data.content, "base64").toString("utf-8");
+      const arr: ActionState[] = JSON.parse(json);
+      for (const s of arr) map.set(s.runId, s);
+    }
+  } catch (err: unknown) {
+    const e = err as { status?: number };
+    if (e.status !== 404) throw err;
+    // File doesn't exist yet — return empty map
   }
   return map;
 }
 
-async function save(map: Map<string, ActionState>): Promise<void> {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  await fs.writeFile(FILE, JSON.stringify([...map.values()], null, 2));
+async function writeMap(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  branch: string,
+  map: Map<string, ActionState>,
+  existingSha?: string,
+): Promise<void> {
+  const content = Buffer.from(JSON.stringify([...map.values()], null, 2)).toString("base64");
+  await octokit.rest.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: STORE_FILE,
+    message: `kody: update action state`,
+    content,
+    branch,
+    ...(existingSha ? { sha: existingSha } : {}),
+  });
 }
+
+async function getSha(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  branch: string,
+): Promise<string | undefined> {
+  try {
+    const { data } = await octokit.rest.repos.getContent({ owner, repo, path: STORE_FILE, ref: branch });
+    if ("sha" in data && typeof data.sha === "string") return data.sha;
+  } catch (err: unknown) {
+    const e = err as { status?: number };
+    if (e.status !== 404) throw err;
+  }
+  return undefined;
+}
+
+// ─── Public API ───────────────────────────────────────────────────────────────
 
 /** Register or update an action's state. */
 export async function upsertActionState(
   update: Partial<ActionState> & { runId: string; actionId: string },
+  opts: { owner?: string; repo?: string; branch?: string; octokit?: Octokit | null } = {},
 ): Promise<ActionState> {
-  const map = await load();
+  const octokit = getOrCreateOctokit(opts.octokit);
+  if (!octokit) throw new Error("No GitHub token available for action state store");
+
+  const owner = opts.owner ?? getDefaultOwner();
+  const repo = opts.repo ?? getDefaultRepo();
+  const branch = opts.branch ?? getDefaultBranch();
+
+  const map = await readMap(octokit, owner, repo, branch);
   const existing = map.get(update.runId);
 
+  let updated: ActionState;
   if (existing) {
     if (update.actionId !== existing.actionId) return existing; // Reject different instance
-    const updated: ActionState = {
+    updated = {
       ...existing,
       ...update,
       lastHeartbeat: new Date().toISOString(),
     };
     map.set(update.runId, updated);
-    await save(map);
-    return updated;
+  } else {
+    updated = {
+      runId: update.runId,
+      actionId: update.actionId,
+      sessionId: update.sessionId,
+      taskId: update.taskId,
+      status: update.status ?? "running",
+      step: update.step ?? "",
+      instructions: update.instructions ?? [],
+      cancel: false,
+      cancelledBy: undefined,
+      lastHeartbeat: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    };
+    map.set(update.runId, updated);
   }
 
-  const created: ActionState = {
-    runId: update.runId,
-    actionId: update.actionId,
-    sessionId: update.sessionId,
-    taskId: update.taskId,
-    status: update.status ?? "running",
-    step: update.step ?? "",
-    instructions: update.instructions ?? [],
-    cancel: false,
-    cancelledBy: undefined,
-    lastHeartbeat: new Date().toISOString(),
-    createdAt: new Date().toISOString(),
-  };
-  map.set(update.runId, created);
-  await save(map);
-  return created;
+  const sha = existing ? await getSha(octokit, owner, repo, branch) : undefined;
+  await writeMap(octokit, owner, repo, branch, map, sha);
+  return updated;
 }
 
-/** Poll for the next instruction (FIFO). */
+/** Poll for the next instruction (FIFO). Returns instruction + cancel state. */
 export async function pollInstruction(
   runId: string,
   callerActionId: string,
+  opts: { owner?: string; repo?: string; branch?: string; octokit?: Octokit | null } = {},
 ): Promise<{
   instruction: string | null;
   cancel: boolean;
   cancelledBy: string | null;
   actionId: string;
 }> {
-  const map = await load();
+  const octokit = getOrCreateOctokit(opts.octokit);
+  if (!octokit) return { instruction: null, cancel: false, cancelledBy: null, actionId: "" };
+
+  const owner = opts.owner ?? getDefaultOwner();
+  const repo = opts.repo ?? getDefaultRepo();
+  const branch = opts.branch ?? getDefaultBranch();
+
+  const map = await readMap(octokit, owner, repo, branch);
   const state = map.get(runId);
   if (!state) return { instruction: null, cancel: false, cancelledBy: null, actionId: "" };
 
+  // Dequeue first instruction
+  const instruction = state.instructions.shift() ?? null;
+  map.set(runId, state);
+
+  const sha = await getSha(octokit, owner, repo, branch);
+  await writeMap(octokit, owner, repo, branch, map, sha);
+
   return {
-    instruction: state.instructions.shift() ?? null,
+    instruction,
     cancel: state.cancel,
     cancelledBy: state.cancelledBy ?? null,
     actionId: state.actionId,
@@ -109,45 +199,105 @@ export async function pollInstruction(
 }
 
 /** Enqueue an instruction for an action. */
-export async function enqueueInstruction(runId: string, instruction: string): Promise<boolean> {
-  const map = await load();
+export async function enqueueInstruction(
+  runId: string,
+  instruction: string,
+  opts: { owner?: string; repo?: string; branch?: string; octokit?: Octokit | null } = {},
+): Promise<boolean> {
+  const octokit = getOrCreateOctokit(opts.octokit);
+  if (!octokit) return false;
+
+  const owner = opts.owner ?? getDefaultOwner();
+  const repo = opts.repo ?? getDefaultRepo();
+  const branch = opts.branch ?? getDefaultBranch();
+
+  const map = await readMap(octokit, owner, repo, branch);
   const state = map.get(runId);
   if (!state) return false;
+
   state.instructions.push(instruction);
   map.set(runId, state);
-  await save(map);
+
+  const sha = await getSha(octokit, owner, repo, branch);
+  await writeMap(octokit, owner, repo, branch, map, sha);
   return true;
 }
 
 /** Get full state for a runId. */
-export async function getActionState(runId: string): Promise<ActionState | null> {
-  return (await load()).get(runId) ?? null;
+export async function getActionState(
+  runId: string,
+  opts: { owner?: string; repo?: string; branch?: string; octokit?: Octokit | null } = {},
+): Promise<ActionState | null> {
+  const octokit = getOrCreateOctokit(opts.octokit);
+  if (!octokit) return null;
+
+  const owner = opts.owner ?? getDefaultOwner();
+  const repo = opts.repo ?? getDefaultRepo();
+  const branch = opts.branch ?? getDefaultBranch();
+
+  const map = await readMap(octokit, owner, repo, branch);
+  return map.get(runId) ?? null;
 }
 
 /** List all action states. */
-export async function listActionStates(): Promise<ActionState[]> {
-  return [...(await load()).values()];
+export async function listActionStates(
+  opts: { owner?: string; repo?: string; branch?: string; octokit?: Octokit | null } = {},
+): Promise<ActionState[]> {
+  const octokit = getOrCreateOctokit(opts.octokit);
+  if (!octokit) return [];
+
+  const owner = opts.owner ?? getDefaultOwner();
+  const repo = opts.repo ?? getDefaultRepo();
+  const branch = opts.branch ?? getDefaultBranch();
+
+  const map = await readMap(octokit, owner, repo, branch);
+  return [...map.values()];
 }
 
 /** Cancel an action. */
 export async function cancelAction(
   runId: string,
   cancelledBy: string,
+  opts: { owner?: string; repo?: string; branch?: string; octokit?: Octokit | null } = {},
 ): Promise<ActionState | null> {
-  const map = await load();
+  const octokit = getOrCreateOctokit(opts.octokit);
+  if (!octokit) return null;
+
+  const owner = opts.owner ?? getDefaultOwner();
+  const repo = opts.repo ?? getDefaultRepo();
+  const branch = opts.branch ?? getDefaultBranch();
+
+  const map = await readMap(octokit, owner, repo, branch);
   const state = map.get(runId);
   if (!state) return null;
+
   state.cancel = true;
   state.cancelledBy = cancelledBy;
   map.set(runId, state);
-  await save(map);
+
+  const sha = await getSha(octokit, owner, repo, branch);
+  await writeMap(octokit, owner, repo, branch, map, sha);
   return state;
 }
 
 /** Delete an action state. */
-export async function deleteActionState(runId: string): Promise<boolean> {
-  const map = await load();
+export async function deleteActionState(
+  runId: string,
+  opts: { owner?: string; repo?: string; branch?: string; octokit?: Octokit | null } = {},
+): Promise<boolean> {
+  const octokit = getOrCreateOctokit(opts.octokit);
+  if (!octokit) return false;
+
+  const owner = opts.owner ?? getDefaultOwner();
+  const repo = opts.repo ?? getDefaultRepo();
+  const branch = opts.branch ?? getDefaultBranch();
+
+  const map = await readMap(octokit, owner, repo, branch);
   const deleted = map.delete(runId);
-  if (deleted) await save(map);
-  return deleted;
+  if (!deleted) return false;
+
+  const sha = await getSha(octokit, owner, repo, branch);
+  if (!sha) return false; // Nothing to delete
+  await writeMap(octokit, owner, repo, branch, map, sha);
+  return true;
 }

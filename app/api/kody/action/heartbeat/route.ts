@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { upsertActionState, getActionState } from "@dashboard/lib/kody-store/action-state";
+import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -45,16 +46,26 @@ export async function POST(req: NextRequest) {
   if (!runId) return NextResponse.json({ error: "runId required" }, { status: 400 });
   if (!actionId) return NextResponse.json({ error: "actionId required" }, { status: 400 });
 
-  const existing = await getActionState(runId);
+  // Determine repo from request auth headers (set by client from localStorage).
+  // Falls back to env vars (GITHUB_OWNER/GITHUB_REPO) if not present.
+  const headerAuth = getRequestAuth(req);
+  const owner = headerAuth?.owner ?? process.env.GITHUB_OWNER ?? "aharonyaircohen";
+  const repo = headerAuth?.repo ?? process.env.GITHUB_REPO ?? "Kody-Dashboard";
 
-  const state = await upsertActionState({
-    runId,
-    actionId,
-    status: (status as "running" | "waiting" | "complete" | "cancelled") ?? (existing?.status ?? "running"),
-    step: step ?? existing?.step ?? "",
-    sessionId: sessionId ?? existing?.sessionId,
-    taskId: taskId ?? existing?.taskId,
-  });
+  const octokit = await getUserOctokit(req);
+  const existing = await getActionState(runId, { owner, repo, octokit });
+
+  const state = await upsertActionState(
+    {
+      runId,
+      actionId,
+      status: (status as "running" | "waiting" | "complete" | "cancelled") ?? (existing?.status ?? "running"),
+      step: step ?? existing?.step ?? "",
+      sessionId: sessionId ?? existing?.sessionId,
+      taskId: taskId ?? existing?.taskId,
+    },
+    { owner, repo, octokit },
+  );
 
   return NextResponse.json({ ok: true, state });
 }

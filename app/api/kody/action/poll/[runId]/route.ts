@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { pollInstruction } from "@dashboard/lib/kody-store/action-state";
+import { getRequestAuth } from "@dashboard/lib/auth";
 
 export const runtime = "nodejs";
 
@@ -23,17 +24,22 @@ function authCheck(req: NextRequest): NextResponse | null {
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ runId: string }> },
 ) {
   const { runId } = await params;
 
-  const authError = authCheck(_req);
+  const authError = authCheck(req);
   if (authError) return authError;
 
   if (!runId) return NextResponse.json({ error: "runId required" }, { status: 400 });
 
-  const result = await pollInstruction(runId, runId);
+  // Determine repo from request auth headers. Falls back to env vars.
+  const headerAuth = getRequestAuth(req);
+  const owner = headerAuth?.owner ?? process.env.GITHUB_OWNER ?? "aharonyaircohen";
+  const repo = headerAuth?.repo ?? process.env.GITHUB_REPO ?? "Kody-Dashboard";
+
+  const result = await pollInstruction(runId, runId, { owner, repo });
 
   // If a different actionId owns this run, the caller should exit
   if (result.actionId && result.actionId !== runId) {

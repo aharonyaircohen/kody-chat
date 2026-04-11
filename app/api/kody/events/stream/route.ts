@@ -6,7 +6,7 @@
  * GET /api/kody/events/stream?taskId=xxx
  *
  * Server-Sent Events endpoint for real-time chat streaming.
- * Polls the engine's local event file for new chat events matching the sessionId.
+ * Polls the session event file (`.kody/events/{sessionId}.jsonl`) via GitHub API.
  *
  * Events are streamed in SSE format: `data: {json}\n\n`
  *
@@ -14,9 +14,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth } from "@dashboard/lib/auth";
-import * as fs from "fs";
-import * as path from "path";
+import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth";
+import { createUserOctokit } from "@dashboard/lib/github-client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,67 +40,50 @@ interface ChatEventEntry {
 
 // ─── Module-level state ────────────────────────────────────────────────────────
 
-// Track last-read position per taskId to avoid re-reading old events
+// Track last-read line index per sessionId to avoid re-reading old events
 const lastReadIndex = new Map<string, number>();
 
-// Map of sessionId → set of active controllers
-const activeControllers = new Map<string, Set<ReadableStreamDefaultController>>();
+// ─── GitHub file helpers ────────────────────────────────────────────────────────
 
-// ─── Event file path ──────────────────────────────────────────────────────────
-
-function getEventFilePath(sessionId: string): string {
-  // Path to the engine's local event file (written by the chat workflow)
-  // In production, this could be replaced with Vercel Blob or a shared Redis key
-  const engineRepoPath = process.env.KODY_ENGINE_LOCAL_PATH ??
-    path.join(process.cwd(), "..", "Kody-ADE-Engine");
-  return path.join(engineRepoPath, ".kody", "events", `${sessionId}.jsonl`);
+function getDefaultOwner(): string {
+  return process.env.GITHUB_OWNER ?? "aharonyaircohen";
 }
 
-// ─── Polling helper ───────────────────────────────────────────────────────────
+function getDefaultRepo(): string {
+  return process.env.GITHUB_REPO ?? "Kody-Dashboard";
+}
 
-function readNewEvents(sessionId: string): ChatEventEntry[] {
-  const filePath = getEventFilePath(sessionId);
-  if (!fs.existsSync(filePath)) return [];
+function getDefaultBranch(): string {
+  return process.env.KODY_STORE_BRANCH ?? "main";
+}
 
+function sessionEventFilePath(sessionId: string): string {
+  return `.kody/events/${sessionId}.jsonl`;
+}
+
+async function readEventFile(
+  octokit: Awaited<ReturnType<typeof createUserOctokit>>,
+  owner: string,
+  repo: string,
+  branch: string,
+  sessionId: string,
+): Promise<{ lines: string[]; exists: boolean }> {
+  const path = sessionEventFilePath(sessionId);
   try {
-    const content = fs.readFileSync(filePath, "utf-8");
-    const lines = content.trim().split("\n").filter(Boolean);
-
-    const startIndex = lastReadIndex.get(sessionId) ?? 0;
-    const newLines = lines.slice(startIndex);
-
-    if (newLines.length > 0) {
-      lastReadIndex.set(sessionId, lines.length);
+    const { data } = await octokit.rest.repos.getContent({ owner, repo, path, ref: branch });
+    if ("content" in data && data.content) {
+      const content = Buffer.from(data.content, "base64").toString("utf-8");
+      const lines = content.trim().split("\n").filter(Boolean);
+      return { lines, exists: true };
     }
-
-    return newLines
-      .map((line) => {
-        try { return JSON.parse(line) as ChatEventEntry; }
-        catch { return null; }
-      })
-      .filter((e): e is ChatEventEntry => e !== null);
-  } catch {
-    return [];
+  } catch (err: unknown) {
+    const e = err as { status?: number };
+    if (e.status !== 404) throw err;
   }
+  return { lines: [], exists: false };
 }
 
-// ─── Register / unregister controllers ─────────────────────────────────────────
-
-function addController(sessionId: string, controller: ReadableStreamDefaultController): () => void {
-  if (!activeControllers.has(sessionId)) {
-    activeControllers.set(sessionId, new Set());
-  }
-  activeControllers.get(sessionId)!.add(controller);
-
-  return () => {
-    activeControllers.get(sessionId)?.delete(controller);
-    if (activeControllers.get(sessionId)?.size === 0) {
-      activeControllers.delete(sessionId);
-    }
-  };
-}
-
-// ─── Handler ──────────────────────────────────────────────────────────────────
+// ─── Handler ───────────────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
@@ -112,9 +94,18 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "taskId required" }, { status: 400 });
   }
 
-  // ?test=1 — non-streaming mode for integration tests.
-  // Returns headers as a JSON body so the test can verify Content-Type
-  // without needing to consume an infinite SSE stream.
+  // Resolve owner/repo from request headers (client localStorage auth) or env
+  const headerAuth = getRequestAuth(req);
+  const owner = headerAuth?.owner ?? getDefaultOwner();
+  const repo = headerAuth?.repo ?? getDefaultRepo();
+  const branch = getDefaultBranch();
+
+  const octokit = await getUserOctokit(req);
+  if (!octokit) {
+    return NextResponse.json({ error: "No GitHub token available" }, { status: 503 });
+  }
+
+  // ?test=1 — non-streaming mode for integration tests
   if (req.nextUrl.searchParams.get("test") === "1") {
     return NextResponse.json(
       {
@@ -132,43 +123,53 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  let cleanup: (() => void) | null = null;
-  let controllerRef: ReadableStreamDefaultController | null = null;
+  const encoder = new TextEncoder();
+  let active = true;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let controllerRef: ReadableStreamDefaultController<any> | null = null;
 
-  const stream = new ReadableStream({
+  const stream = new ReadableStream<Uint8Array>({
     start(controller) {
-      controllerRef = controller as ReadableStreamDefaultController;
-      cleanup = addController(sessionId, controller as ReadableStreamDefaultController);
+      controllerRef = controller;
     },
     cancel() {
-      cleanup?.();
+      active = false;
       lastReadIndex.delete(sessionId);
     },
   });
 
-  // Stream events into the SSE response
-  const encoder = new TextEncoder();
-  let active = true;
+  const poll = setInterval(async () => {
+    // Capture narrowed type via local const — TypeScript doesn't track narrowing
+    // across async setInterval callbacks without this
+    const ctrl: ReadableStreamDefaultController | null = controllerRef;
+    if (!active || !ctrl) return;
 
-  const poll = setInterval(() => {
-    if (!active) return;
-    const events = readNewEvents(sessionId);
-    for (const event of events) {
+    const { lines } = await readEventFile(octokit, owner, repo, branch, sessionId);
+
+    const startIndex = lastReadIndex.get(sessionId) ?? 0;
+    const newLines = lines.slice(startIndex);
+
+    if (newLines.length > 0) {
+      lastReadIndex.set(sessionId, lines.length);
+    }
+
+    for (const line of newLines) {
+      if (!active) break;
+      let event: ChatEventEntry | null = null;
+      try { event = JSON.parse(line) as ChatEventEntry; }
+      catch { continue; }
+
       if (event.event === "chat.done" || event.event === "chat.error") {
         const data = event.event === "chat.done"
           ? JSON.stringify({ type: "chat.done", sessionId, runId: event.runId })
           : JSON.stringify({ type: "chat.error", sessionId, error: event.payload.error });
-        if (controllerRef) {
-          try {
-            (controllerRef as ReadableStreamDefaultController).enqueue(encoder.encode(`data: ${data}\n\n`));
-          } catch { /* closed */ }
-        }
+        try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
         active = false;
         clearInterval(poll);
-        controllerRef?.close();
-        cleanup?.();
+        try { ctrl.close(); } catch { /* already closed */ }
         return;
       }
+
       if (event.event === "chat.message") {
         const data = JSON.stringify({
           type: "chat.message",
@@ -178,19 +179,15 @@ export async function GET(req: NextRequest) {
           content: event.payload.content,
           timestamp: event.payload.timestamp,
         });
-        if (controllerRef) {
-          try {
-            (controllerRef as ReadableStreamDefaultController).enqueue(encoder.encode(`data: ${data}\n\n`));
-          } catch { /* closed */ }
-        }
+        try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
       }
     }
   }, 1000);
 
-  // Initial connected heartbeat
+  // Send initial connected heartbeat
   if (controllerRef) {
     try {
-      (controllerRef as ReadableStreamDefaultController).enqueue(encoder.encode(
+      (controllerRef as ReadableStreamDefaultController<Uint8Array>).enqueue(encoder.encode(
         `data: ${JSON.stringify({ type: "connected", sessionId })}\n\n`,
       ));
     } catch { /* closed */ }
@@ -201,7 +198,6 @@ export async function GET(req: NextRequest) {
     active = false;
     clearInterval(poll);
     lastReadIndex.delete(sessionId);
-    cleanup?.();
   });
 
   return new NextResponse(stream, {
@@ -209,7 +205,7 @@ export async function GET(req: NextRequest) {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       "Connection": "keep-alive",
-      "X-Accel-Buffering": "no", // Disable Nginx buffering for SSE
+      "X-Accel-Buffering": "no",
     },
   });
 }

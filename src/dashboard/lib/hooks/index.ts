@@ -8,7 +8,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import { kodyApi, RateLimitError, NoTokenError, SessionExpiredError } from '../api'
+import { kodyApi, RateLimitError, NoTokenError, SessionExpiredError, getStoredAuth } from '../api'
 import type { KodyTask } from '../types'
 import type { ViewMode } from '../components/FilterBar'
 import { POLLING_INTERVALS } from '../constants'
@@ -75,6 +75,8 @@ export function useKodyTasks(options: UseKodyTasksOptions = {}) {
   return useQuery({
     queryKey: queryKeys.tasks(days, includeDetails),
     queryFn: () => kodyApi.tasks.list({ days, includeDetails }),
+    // Don't fire requests when no auth token exists — avoids 401 on mount
+    enabled: !!getStoredAuth(),
     refetchInterval: (query): number | false => {
       if (refetchInterval === false) return false
 
@@ -90,7 +92,12 @@ export function useKodyTasks(options: UseKodyTasksOptions = {}) {
       return POLLING_INTERVALS[refetchInterval]
     },
     refetchIntervalInBackground: false, // Don't poll when tab is hidden
-    refetchOnWindowFocus: 'always', // Refresh when user tabs back (even if not stale)
+    refetchOnWindowFocus: (query) => {
+      // Don't refetch on focus when auth has failed — prevents 401 spam
+      if (query.state.error instanceof SessionExpiredError) return false
+      if (query.state.error instanceof NoTokenError) return false
+      return true
+    },
     staleTime: 30_000, // 30s — prevents rapid re-fetches from invalidations; polling handles freshness
     retry: (failureCount, error) => {
       if (error instanceof RateLimitError) return false

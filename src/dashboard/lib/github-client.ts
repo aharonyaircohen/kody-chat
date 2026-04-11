@@ -863,7 +863,7 @@ export async function fetchCheckRunsForRun(runId: number): Promise<CheckRunResul
  * Used by the dashboard to match PRs to issues without N per-issue calls.
  */
 export async function fetchOpenPRs(): Promise<GitHubPR[]> {
-  const cacheKey = 'open-prs'
+  const cacheKey = `open-prs:${getOwner()}:${getRepo()}`
   const cached = getCached<GitHubPR[]>(cacheKey)
   if (cached) return cached
 
@@ -908,7 +908,7 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
 export async function fetchDeploymentPreviews(prShas: string[]): Promise<Map<string, string>> {
   if (prShas.length === 0) return new Map()
 
-  const cacheKey = `previews:${prShas.sort().join(',')}`
+  const cacheKey = `previews:${getOwner()}:${getRepo()}:${prShas.sort().join(',')}`
   const cached = getCached<Map<string, string>>(cacheKey)
   if (cached) return cached
 
@@ -1046,7 +1046,7 @@ export async function findAssociatedPR(taskId: string): Promise<GitHubPR | null>
  * Kody-generated branches like fix/260312-auto-781-title.
  */
 export async function findAssociatedPRByIssueNumber(issueNumber: number): Promise<GitHubPR | null> {
-  const cacheKey = `pr:issue:${issueNumber}`
+  const cacheKey = `pr:issue:${getOwner()}:${getRepo()}:${issueNumber}`
   const cached = getCached<GitHubPR | null>(cacheKey)
   if (cached !== null) return cached
 

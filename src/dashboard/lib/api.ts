@@ -23,7 +23,7 @@ const API_BASE = "/api/kody";
 
 // ============ Auth Headers ============
 
-function getStoredAuth(): {
+export function getStoredAuth(): {
   token: string;
   owner: string;
   repo: string;

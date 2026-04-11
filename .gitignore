@@ -32,6 +32,9 @@ pnpm-debug.log*
 # Vercel
 .vercel
 
+# Kody action state (legacy local-FS store — now GitHub-backed)
+.kody-action-store/
+
 # Test results
 test-results/
 

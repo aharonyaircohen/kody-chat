@@ -394,7 +394,14 @@ export function KodyDashboard({
     (task: KodyTask) => {
       queryClient.prefetchQuery({
         queryKey: queryKeys.taskDetails(task.issueNumber),
-        queryFn: () => kodyApi.tasks.get(task.issueNumber),
+        queryFn: async () => {
+          // Catch and swallow errors — GitHub API 502s are transient and shouldn't log as errors
+          try {
+            return await kodyApi.tasks.get(task.issueNumber);
+          } catch {
+            return undefined;
+          }
+        },
         staleTime: 60_000, // 60s — don't re-prefetch on rapid hovers
       });
     },

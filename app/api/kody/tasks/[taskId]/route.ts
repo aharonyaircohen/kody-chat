@@ -258,7 +258,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ task
     console.error('[Kody] Error fetching task detail:', error)
 
     if (error.status === 401) {
-      return NextResponse.json({ error: 'GitHub token expired' }, { status: 502 })
+      return NextResponse.json({ error: 'GitHub token expired' }, { status: 401 })
     }
     if (error.status === 403) {
       const msg = error?.message || error?.response?.data?.message || 'Forbidden'

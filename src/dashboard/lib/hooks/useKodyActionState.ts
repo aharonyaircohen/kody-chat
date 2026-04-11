@@ -45,12 +45,20 @@ export function useKodyActionState(
   const [state, setState] = useState<ActionState | null>(null);
   const [isWaiting, setIsWaiting] = useState(false);
   const prevWaitingRef = useRef(false);
+  // Stops polling once the action is confirmed to not exist (404)
+  const notFoundRef = useRef(false);
 
   const fetchState = useCallback(async () => {
     if (!runId) return;
+    if (notFoundRef.current) return; // Already confirmed not found — stop polling
 
     try {
       const res = await fetch(`/api/kody/action/state/${encodeURIComponent(runId)}`);
+      // 404 = no active action for this runId — stop polling to avoid log spam
+      if (res.status === 404) {
+        notFoundRef.current = true;
+        return;
+      }
       if (!res.ok) return;
 
       const data = (await res.json()) as { state: ActionState };
@@ -77,6 +85,8 @@ export function useKodyActionState(
   }, [runId, onWaiting, onResumed]);
 
   useEffect(() => {
+    notFoundRef.current = false; // Reset not-found flag when runId changes (new task selected)
+
     if (!runId || pollInterval === 0) return;
 
     fetchState();
