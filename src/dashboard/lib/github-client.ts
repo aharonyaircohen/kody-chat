@@ -1642,28 +1642,40 @@ export async function removeLabel(
 }
 
 /**
- * Fetch repository collaborators (for assignee picker)
+ * Fetch repository collaborators (for assignee picker).
+ * Returns [] if the token lacks permission to list collaborators (e.g., private repo
+ * where user is not an explicit collaborator, or insufficient scopes).
  */
 export async function fetchCollaborators(): Promise<GitHubCollaborator[]> {
-  const cacheKey = 'collaborators'
+  const cacheKey = `collaborators:${getOwner()}:${getRepo()}`
   const cached = getCached<GitHubCollaborator[]>(cacheKey)
   if (cached) return cached
 
   const octokit = getOctokit()
 
-  const { data } = await octokit.repos.listCollaborators({
-    owner: getOwner(),
-    repo: getRepo(),
-    per_page: 100,
-  })
+  try {
+    const { data } = await octokit.repos.listCollaborators({
+      owner: getOwner(),
+      repo: getRepo(),
+      per_page: 100,
+    })
 
-  const collaborators: GitHubCollaborator[] = data.map((user) => ({
-    login: user.login ?? '',
-    avatar_url: user.avatar_url ?? '',
-  }))
+    const collaborators: GitHubCollaborator[] = data.map((user) => ({
+      login: user.login ?? '',
+      avatar_url: user.avatar_url ?? '',
+    }))
 
-  setCache(cacheKey, CACHE_TTL.boards, collaborators)
-  return collaborators
+    setCache(cacheKey, CACHE_TTL.boards, collaborators)
+    return collaborators
+  } catch (error: unknown) {
+    // Permission denied (403) or not found (404) — user is not a collaborator or token lacks scope
+    const status = (error as { status?: number })?.status
+    if (status === 403 || status === 404) {
+      console.warn(`[Kody] Cannot list collaborators (${status}), returning empty list`)
+      return []
+    }
+    throw error
+  }
 }
 
 // ============ Utility ============
