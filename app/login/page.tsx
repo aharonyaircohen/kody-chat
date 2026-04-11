@@ -19,29 +19,23 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10_000);
-
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ repoUrl: repoUrl.trim(), token: token.trim() }),
-        signal: controller.signal,
       });
-
-      clearTimeout(timeout);
 
       let data: { ok?: boolean; error?: string; owner?: string; repo?: string; user?: unknown };
       try {
         data = await res.json();
       } catch {
-        setError("Unexpected response from server. Please try again.");
+        setError("Server returned an unreadable response. Please try again.");
         setLoading(false);
         return;
       }
 
-      if (!data.ok) {
-        setError(data.error ?? "Login failed. Please check your token and repository.");
+      if (!res.ok || !data.ok) {
+        setError(data?.error ?? `Login failed (${res.status}). Please check your token and repository.`);
         setLoading(false);
         return;
       }
@@ -61,12 +55,7 @@ export default function LoginPage() {
 
       router.push("/");
     } catch (err) {
-      // AbortError = timeout, show a clearer message
-      if (err instanceof Error && err.name === "AbortError") {
-        setError("Request timed out. Check your network and try again.");
-      } else {
-        setError("Network error. Please check your connection and try again.");
-      }
+      setError("Network error. Please check your connection and try again.");
       setLoading(false);
     }
   }

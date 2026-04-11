@@ -6,6 +6,7 @@
  *
  * Validates a GitHub token and repo URL.
  * Checks that the token has the `repo` scope (required for all dashboard operations).
+ * Verifies the user can access the specific repository.
  * Returns the authenticated user info and parsed repo owner/name.
  *
  * Body: { repoUrl: string, token: string }
@@ -13,6 +14,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { logger } from "@dashboard/lib/logger";
 
 export async function POST(req: NextRequest) {
   let body: { repoUrl?: string; token?: string };
@@ -109,6 +111,47 @@ export async function POST(req: NextRequest) {
 
   const user = (await ghRes.json()) as { login: string; avatar_url: string; id: number };
 
+  // Verify the user can access this specific repo (not just that the token is valid)
+  const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+  });
+
+  if (!repoRes.ok) {
+    if (repoRes.status === 404) {
+      logger.warn({ owner, repo }, "login: repo not found");
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `Repository not found: ${owner}/${repo}. Check the URL and make sure it exists.`,
+        },
+        { status: 403 },
+      );
+    }
+    if (repoRes.status === 403) {
+      logger.warn({ owner, repo }, "login: repo access denied");
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `Access denied to ${owner}/${repo}. Your token may not have access to this repository. Make sure the repo is accessible to your token or is a public repository.`,
+        },
+        { status: 403 },
+      );
+    }
+    logger.error({ owner, repo, status: repoRes.status }, "login: repo check failed");
+    return NextResponse.json(
+      {
+        ok: false,
+        error: `Cannot access repository ${owner}/${repo} (${repoRes.status}). Check that the repository URL is correct.`,
+      },
+      { status: 502 },
+    );
+  }
+
+  logger.info({ owner, repo, user: user.login }, "login: success");
   return NextResponse.json({
     ok: true,
     user: { login: user.login, avatar_url: user.avatar_url, id: user.id },
