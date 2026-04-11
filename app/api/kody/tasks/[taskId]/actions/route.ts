@@ -32,7 +32,7 @@ import {
   setGitHubContext,
   clearGitHubContext,
 } from '@dashboard/lib/github-client'
-import { GITHUB_OWNER, GITHUB_REPO } from '@dashboard/lib/constants'
+import { getOwner, getRepo } from '@dashboard/lib/github-client'
 
 const actionSchema = z.object({
   action: z.enum([
@@ -396,8 +396,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tas
         const octokit = userOctokit ?? getOctokit()
         try {
           await octokit.pulls.createReview({
-            owner: GITHUB_OWNER,
-            repo: GITHUB_REPO,
+            owner: getOwner(),
+            repo: getRepo(),
             pull_number: associatedPR.number,
             event: 'APPROVE',
             body: `✅ PR approved by @${actor} via Kody dashboard.`,

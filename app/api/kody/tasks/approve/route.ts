@@ -7,9 +7,8 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireKodyAuth, verifyActorLogin, getUserOctokit } from '@dashboard/lib/auth'
-import { GITHUB_OWNER, GITHUB_REPO } from '@dashboard/lib/constants'
-import { getOctokit } from '@dashboard/lib/github-client'
+import { requireKodyAuth, verifyActorLogin, getUserOctokit, getRequestAuth } from '@dashboard/lib/auth'
+import { getOctokit, setGitHubContext, clearGitHubContext, getOwner, getRepo } from '@dashboard/lib/github-client'
 
 const GATE_LABELS = {
   HARD_STOP: 'hard-stop',
@@ -27,6 +26,11 @@ const ApproveRequestSchema = z.object({
 export async function POST(req: NextRequest) {
   const authResult = await requireKodyAuth(req)
   if (authResult instanceof NextResponse) return authResult
+
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+  }
 
   try {
     const body = await req.json()
@@ -56,8 +60,8 @@ export async function POST(req: NextRequest) {
     // 1. Approve and merge the PR (squash)
     try {
       await octokit.pulls.createReview({
-        owner: GITHUB_OWNER,
-        repo: GITHUB_REPO,
+        owner: getOwner(),
+        repo: getRepo(),
         pull_number: prNumber,
         event: 'APPROVE',
         body: `✅ Gate approved by @${verifiedLogin} via Kody dashboard.`,
@@ -68,8 +72,8 @@ export async function POST(req: NextRequest) {
 
     try {
       await octokit.pulls.merge({
-        owner: GITHUB_OWNER,
-        repo: GITHUB_REPO,
+        owner: getOwner(),
+        repo: getRepo(),
         pull_number: prNumber,
         merge_method: 'squash',
       })
@@ -88,8 +92,8 @@ export async function POST(req: NextRequest) {
     if (branchName && branchName !== 'dev' && branchName !== 'main') {
       try {
         await octokit.git.deleteRef({
-          owner: GITHUB_OWNER,
-          repo: GITHUB_REPO,
+          owner: getOwner(),
+          repo: getRepo(),
           ref: `heads/${branchName}`,
         })
         results.push(`Deleted branch ${branchName}`)
@@ -102,8 +106,8 @@ export async function POST(req: NextRequest) {
     // 3. Close the issue
     try {
       await octokit.issues.update({
-        owner: GITHUB_OWNER,
-        repo: GITHUB_REPO,
+        owner: getOwner(),
+        repo: getRepo(),
         issue_number: issueNumber,
         state: 'closed',
       })
@@ -117,8 +121,8 @@ export async function POST(req: NextRequest) {
     for (const label of [GATE_LABELS.HARD_STOP, GATE_LABELS.RISK_GATED]) {
       try {
         await octokit.issues.removeLabel({
-          owner: GITHUB_OWNER,
-          repo: GITHUB_REPO,
+          owner: getOwner(),
+          repo: getRepo(),
           issue_number: issueNumber,
           name: label,
         })
@@ -150,5 +154,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ error: msg }, { status: 500 })
+  } finally {
+    clearGitHubContext()
   }
 }

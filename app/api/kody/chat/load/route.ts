@@ -7,8 +7,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { requireKodyAuth, getRequestAuth } from '@dashboard/lib/auth'
-import { findTaskBranch, findBranchByIssueNumber, getOctokit, setGitHubContext, clearGitHubContext } from '@dashboard/lib/github-client'
-import { GITHUB_OWNER, GITHUB_REPO, TASK_ID_REGEX } from '@dashboard/lib/constants'
+import { findTaskBranch, findBranchByIssueNumber, getOctokit, setGitHubContext, clearGitHubContext, getOwner, getRepo } from '@dashboard/lib/github-client'
+import { TASK_ID_REGEX } from '@dashboard/lib/constants'
 
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req)
@@ -44,8 +44,8 @@ export async function GET(req: NextRequest) {
 
     try {
       const { data } = await octokit.repos.getContent({
-        owner: GITHUB_OWNER,
-        repo: GITHUB_REPO,
+        owner: getOwner(),
+        repo: getRepo(),
         path: `.tasks/${taskId}/chat.json`,
         ref: branch,
       })

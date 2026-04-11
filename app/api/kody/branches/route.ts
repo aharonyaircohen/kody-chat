@@ -8,8 +8,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { requireKodyAuth, getUserOctokit, getRequestAuth } from '@dashboard/lib/auth'
-import { GITHUB_OWNER, GITHUB_REPO } from '@dashboard/lib/constants'
-import { getOctokit, setGitHubContext, clearGitHubContext } from '@dashboard/lib/github-client'
+import { getOctokit, setGitHubContext, clearGitHubContext, getOwner, getRepo } from '@dashboard/lib/github-client'
 
 const DELETE_BRANCH_SCHEMA = z.object({
   branch: z.string(),
@@ -34,15 +33,15 @@ export async function GET(req: NextRequest) {
 
     // Get all branches from the repository
     const { data: branches } = await octokit.rest.repos.listBranches({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       per_page: 100,
     })
 
     // Get all PRs to map branches to their status
     const { data: prs } = await octokit.rest.pulls.list({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       state: 'all',
       per_page: 100,
     })
@@ -103,8 +102,8 @@ export async function DELETE(req: NextRequest) {
 
     try {
       await octokit.rest.git.deleteRef({
-        owner: GITHUB_OWNER,
-        repo: GITHUB_REPO,
+        owner: getOwner(),
+        repo: getRepo(),
         ref: `heads/${branch}`,
       })
       return NextResponse.json({ success: true, branch })
@@ -150,8 +149,8 @@ export async function POST(req: NextRequest) {
 
       try {
         await octokit.rest.git.deleteRef({
-          owner: GITHUB_OWNER,
-          repo: GITHUB_REPO,
+          owner: getOwner(),
+          repo: getRepo(),
           ref: `heads/${branch}`,
         })
         results.push({ branch, success: true })

@@ -113,8 +113,8 @@ export function invalidateBranchCache(): void {
 // In Vercel serverless (Fluid Compute), each request is processed sequentially,
 // so this module-level state is safe as long as routes clear it after use.
 
-let _owner: string = getOwner()
-let _repo: string = getRepo()
+let _owner: string = GITHUB_OWNER
+let _repo: string = GITHUB_REPO
 let _octokit: Octokit | null = null
 
 export function getOwner(): string {

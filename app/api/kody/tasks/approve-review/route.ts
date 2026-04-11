@@ -8,9 +8,8 @@
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { requireKodyAuth, verifyActorLogin, getUserOctokit } from '@dashboard/lib/auth'
-import { getOctokit } from '@dashboard/lib/github-client'
-import { GITHUB_OWNER, GITHUB_REPO } from '@dashboard/lib/constants'
+import { requireKodyAuth, verifyActorLogin, getUserOctokit, getRequestAuth } from '@dashboard/lib/auth'
+import { getOctokit, setGitHubContext, clearGitHubContext, getOwner, getRepo } from '@dashboard/lib/github-client'
 
 const DEV_BRANCH = 'dev'
 const PROD_BRANCH = 'main'
@@ -18,6 +17,11 @@ const PROD_BRANCH = 'main'
 export async function POST(req: NextRequest) {
   const authResult = await requireKodyAuth(req)
   if (authResult instanceof NextResponse) return authResult
+
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token)
+  }
 
   // Zod validation schema
   const bodySchema = z.object({
@@ -44,8 +48,8 @@ export async function POST(req: NextRequest) {
 
     // Fetch PR data once, reuse throughout
     const { data: prData } = await octokit.pulls.get({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       pull_number: Number(prNumber),
     })
 
@@ -54,8 +58,8 @@ export async function POST(req: NextRequest) {
     // 1. Approve the PR review
     try {
       await octokit.pulls.createReview({
-        owner: GITHUB_OWNER,
-        repo: GITHUB_REPO,
+        owner: getOwner(),
+        repo: getRepo(),
         pull_number: Number(prNumber),
         event: 'APPROVE',
         body: `✅ Approved by @${verifiedLogin} via Kody dashboard.`,
@@ -70,8 +74,8 @@ export async function POST(req: NextRequest) {
     try {
       const mergeMethod = isPublishPR ? 'merge' : 'squash'
       await octokit.pulls.merge({
-        owner: GITHUB_OWNER,
-        repo: GITHUB_REPO,
+        owner: getOwner(),
+        repo: getRepo(),
         pull_number: Number(prNumber),
         merge_method: mergeMethod,
       })
@@ -97,8 +101,8 @@ export async function POST(req: NextRequest) {
         const branchRef = prData.head.ref
         if (branchRef !== DEV_BRANCH && branchRef !== PROD_BRANCH) {
           await octokit.git.deleteRef({
-            owner: GITHUB_OWNER,
-            repo: GITHUB_REPO,
+            owner: getOwner(),
+            repo: getRepo(),
             ref: `heads/${branchRef}`,
           })
           results.push(`Deleted branch ${branchRef}`)
@@ -143,5 +147,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ error: msg }, { status: 500 })
+  } finally {
+    clearGitHubContext()
   }
 }

@@ -9,8 +9,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 
 import { requireKodyAuth, getUserOctokit, getRequestAuth } from '@dashboard/lib/auth'
-import { findTaskBranch, findBranchByIssueNumber, getOctokit, setGitHubContext, clearGitHubContext } from '@dashboard/lib/github-client'
-import { GITHUB_OWNER, GITHUB_REPO, TASK_ID_REGEX } from '@dashboard/lib/constants'
+import { findTaskBranch, findBranchByIssueNumber, getOctokit, setGitHubContext, clearGitHubContext, getOwner, getRepo } from '@dashboard/lib/github-client'
+import { TASK_ID_REGEX } from '@dashboard/lib/constants'
 import type { ChatHistory } from '@dashboard/lib/chat-types'
 
 const saveChatSchema = z.object({
@@ -70,8 +70,8 @@ export async function POST(req: NextRequest) {
 
     try {
       const { data } = await readOctokit.repos.getContent({
-        owner: GITHUB_OWNER,
-        repo: GITHUB_REPO,
+        owner: getOwner(),
+        repo: getRepo(),
         path: filePath,
         ref: branch,
       })
@@ -125,8 +125,8 @@ export async function POST(req: NextRequest) {
     }
 
     await writeOctokit.repos.createOrUpdateFileContents({
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
+      owner: getOwner(),
+      repo: getRepo(),
       path: filePath,
       message: `kody: update chat history for ${taskId}`,
       content,
