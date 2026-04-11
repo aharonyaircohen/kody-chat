@@ -31,10 +31,17 @@ export default function LoginPage() {
 
       clearTimeout(timeout);
 
-      const data = await res.json();
+      let data: { ok?: boolean; error?: string; owner?: string; repo?: string; user?: unknown };
+      try {
+        data = await res.json();
+      } catch {
+        setError("Unexpected response from server. Please try again.");
+        setLoading(false);
+        return;
+      }
 
       if (!data.ok) {
-        setError(data.error ?? "Login failed");
+        setError(data.error ?? "Login failed. Please check your token and repository.");
         setLoading(false);
         return;
       }
@@ -53,8 +60,13 @@ export default function LoginPage() {
       );
 
       router.push("/");
-    } catch {
-      setError("Network error. Please try again.");
+    } catch (err) {
+      // AbortError = timeout, show a clearer message
+      if (err instanceof Error && err.name === "AbortError") {
+        setError("Request timed out. Check your network and try again.");
+      } else {
+        setError("Network error. Please check your connection and try again.");
+      }
       setLoading(false);
     }
   }
