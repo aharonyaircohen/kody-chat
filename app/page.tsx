@@ -5,7 +5,7 @@
  * @ai-summary Main Kody dashboard page. Auth handled client-side via SessionExpiredError.
  *   Force static for OG tags - social media crawlers need metadata without auth.
  */
-import { KodyDashboard } from "@dashboard/lib/components/KodyDashboard";
+import { AuthGate } from "@dashboard/lib/components/AuthGate";
 import { buildKodyMetadata } from "./metadata";
 
 // Force static generation so OG tags are available without authentication
@@ -21,5 +21,5 @@ export const metadata = buildKodyMetadata({
 });
 
 export default async function KodyPage() {
-  return <KodyDashboard />;
+  return <AuthGate />;
 }

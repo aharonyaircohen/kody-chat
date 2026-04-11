@@ -10,8 +10,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth, getUserOctokit } from "@dashboard/lib/auth";
-import { GITHUB_OWNER, GITHUB_REPO } from "@dashboard/lib/constants";
+import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
 
 export const runtime = "nodejs";
@@ -23,14 +22,22 @@ interface ChatMessage {
   toolCalls?: unknown[];
 }
 
-// The engine repo where session files live.
-function getEngineRepo(): { owner: string; repo: string } {
+// The engine repo is determined from auth headers (client's repo).
+function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
+  const headerAuth = getRequestAuth(req);
+  if (headerAuth) {
+    return { owner: headerAuth.owner, repo: headerAuth.repo };
+  }
   const override = process.env.KODY_CHAT_WORKFLOW_REPO;
   if (override && override.includes("/")) {
     const [owner, repo] = override.split("/");
     return { owner, repo };
   }
-  return { owner: GITHUB_OWNER, repo: GITHUB_REPO };
+  const { GITHUB_OWNER, GITHUB_REPO } = process.env as Record<string, string>;
+  return {
+    owner: GITHUB_OWNER ?? "aharonyaircohen",
+    repo: GITHUB_REPO ?? "Kody-Dashboard",
+  };
 }
 
 export async function GET(req: NextRequest) {
@@ -42,7 +49,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "taskId required" }, { status: 400 });
   }
 
-  const { owner, repo } = getEngineRepo();
+  const { owner, repo } = getEngineRepo(req);
   const sessionPath = `.kody/sessions/${taskId}.jsonl`;
 
   const octokit = await getUserOctokit(req);

@@ -21,6 +21,40 @@ import type {
 
 const API_BASE = "/api/kody";
 
+// ============ Auth Headers ============
+
+function getStoredAuth(): {
+  token: string;
+  owner: string;
+  repo: string;
+} | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("kody_auth");
+    if (!raw) return null;
+    const auth = JSON.parse(raw) as { token?: string; owner?: string; repo?: string };
+    if (!auth.token || !auth.owner || !auth.repo) return null;
+    return { token: auth.token, owner: auth.owner, repo: auth.repo };
+  } catch {
+    return null;
+  }
+}
+
+function buildHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  const auth = getStoredAuth();
+  return {
+    "Content-Type": "application/json",
+    ...(auth
+      ? {
+          "x-kody-token": auth.token,
+          "x-kody-owner": auth.owner,
+          "x-kody-repo": auth.repo,
+        }
+      : {}),
+    ...extra,
+  };
+}
+
 // ============ Error Types ============
 
 export class RateLimitError extends Error {
@@ -37,7 +71,7 @@ export class RateLimitError extends Error {
 
 export class NoTokenError extends Error {
   constructor(
-    message = "GitHub token is not configured. Set GITHUB_TOKEN, KODY_BOT_TOKEN, or GH_PAT in environment variables.",
+    message = "GitHub token is not configured. Please log in.",
   ) {
     super(message);
     this.name = "NoTokenError";
@@ -64,12 +98,12 @@ export class ApiError extends Error {
 }
 
 /**
- * Redirect to GitHub OAuth login when session expires.
- * No-op in token-only auth mode — kept for backwards compatibility.
+ * Redirect to the login page.
  */
-export function redirectToLogin(_returnTo = "/"): void {
-  // Token-only auth: no login flow available
-  // OAuth redirect removed — operator should configure GITHUB_TOKEN
+export function redirectToLogin(returnTo = "/"): void {
+  if (typeof window !== "undefined") {
+    window.location.href = `/login?returnTo=${encodeURIComponent(returnTo)}`;
+  }
 }
 
 // ============ Helpers ============
@@ -86,14 +120,7 @@ export async function handleResponse<T>(res: Response): Promise<T> {
   }
 
   if (res.status === 401) {
-    // Distinguish server token config errors from user session auth errors.
-    // The tasks route returns { error: 'no_token' } when KODY_BOT_TOKEN/GITHUB_TOKEN is missing.
-    // The auth middleware returns { message: 'Not authenticated...' } for expired sessions.
-    if (data.error === "no_token") {
-      throw new NoTokenError(data.message);
-    }
-    // Session expired — throw SessionExpiredError so the UI can show a login prompt.
-    // Do NOT redirect here — that causes infinite redirect loops.
+    // Token-based auth: all 401s mean the user needs to log in again.
     throw new SessionExpiredError(
       data.message || "Your session has expired. Please log in again.",
     );
@@ -119,7 +146,7 @@ export const tasksApi = {
       searchParams.set("includeDetails", "false");
 
     const url = `${API_BASE}/tasks${searchParams.toString() ? `?${searchParams}` : ""}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: buildHeaders() });
     const data = await handleResponse<TasksResponse>(res);
     return data.tasks;
   },
@@ -131,7 +158,7 @@ export const tasksApi = {
     assignees: Array<{ login: string; avatar_url: string }>;
     comments: unknown[];
   }> => {
-    const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}`);
+    const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}`, { headers: buildHeaders() });
     return handleResponse(res);
   },
 
@@ -146,7 +173,7 @@ export const tasksApi = {
   }): Promise<KodyTask> => {
     const res = await fetch(`${API_BASE}/tasks`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify(data),
     });
     return handleResponse(res);
@@ -164,7 +191,7 @@ export const tasksApi = {
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         action: "update",
         title: data.title,
@@ -183,7 +210,7 @@ export const tasksApi = {
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         action: "execute",
         ...(actorLogin && { actorLogin }),
@@ -198,7 +225,7 @@ export const tasksApi = {
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         action: "rerun",
         ...(actorLogin && { actorLogin }),
@@ -213,7 +240,7 @@ export const tasksApi = {
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         action: "close",
         ...(actorLogin && { actorLogin }),
@@ -228,7 +255,7 @@ export const tasksApi = {
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         action: "close-pr",
         ...(actorLogin && { actorLogin }),
@@ -243,7 +270,7 @@ export const tasksApi = {
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         action: "reset",
         ...(actorLogin && { actorLogin }),
@@ -258,7 +285,7 @@ export const tasksApi = {
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         action: "reopen",
         ...(actorLogin && { actorLogin }),
@@ -273,7 +300,7 @@ export const tasksApi = {
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         action: "abort",
         ...(actorLogin && { actorLogin }),
@@ -288,7 +315,7 @@ export const tasksApi = {
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         action: "approve",
         ...(actorLogin && { actorLogin }),
@@ -303,7 +330,7 @@ export const tasksApi = {
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         action: "reject",
         ...(actorLogin && { actorLogin }),
@@ -318,7 +345,7 @@ export const tasksApi = {
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         action: "approve-ui",
         ...(actorLogin && { actorLogin }),
@@ -333,7 +360,7 @@ export const tasksApi = {
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         action: "approve-pr",
         ...(actorLogin && { actorLogin }),
@@ -349,7 +376,7 @@ export const tasksApi = {
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         action: "comment",
         comment,
@@ -372,7 +399,7 @@ export const tasksApi = {
 
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         action: "comment",
         comment,
@@ -389,7 +416,7 @@ export const tasksApi = {
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         action: "fix",
         comment: fixDescription,
@@ -408,7 +435,7 @@ export const tasksApi = {
     }
     const res = await fetch(`${API_BASE}/tasks/approve`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         issueNumber: task.issueNumber,
         prNumber: task.associatedPR.number,
@@ -428,7 +455,7 @@ export const tasksApi = {
     }
     const res = await fetch(`${API_BASE}/tasks/approve-review`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         prNumber: task.associatedPR.number,
         ...(actorLogin && { actorLogin }),
@@ -444,7 +471,7 @@ export const tasksApi = {
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         action: "assign",
         assignees,
@@ -461,7 +488,7 @@ export const tasksApi = {
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         action: "unassign",
         assignees,
@@ -477,7 +504,7 @@ export const tasksApi = {
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         action: "add-label",
         label: "kody:queued",
@@ -493,7 +520,7 @@ export const tasksApi = {
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         action: "remove-label",
         label: "kody:queued",
@@ -508,7 +535,7 @@ export const tasksApi = {
 
 export const prsApi = {
   files: async (prNumber: number): Promise<FileChange[]> => {
-    const res = await fetch(`${API_BASE}/prs/files?prNumber=${prNumber}`);
+    const res = await fetch(`${API_BASE}/prs/files?prNumber=${prNumber}`, { headers: buildHeaders() });
     const data = await handleResponse<{ files: FileChange[] }>(res);
     return data.files;
   },
@@ -519,11 +546,11 @@ export const prsApi = {
     mergeable: boolean;
     hasConflicts: boolean;
   }> => {
-    const res = await fetch(`${API_BASE}/prs/status?prNumber=${prNumber}`);
+    const res = await fetch(`${API_BASE}/prs/status?prNumber=${prNumber}`, { headers: buildHeaders() });
     return handleResponse(res);
   },
   comments: async (prNumber: number): Promise<PRComment[]> => {
-    const res = await fetch(`${API_BASE}/prs/comments?prNumber=${prNumber}`);
+    const res = await fetch(`${API_BASE}/prs/comments?prNumber=${prNumber}`, { headers: buildHeaders() });
     const data = await handleResponse<{ comments: PRComment[] }>(res);
     return data.comments;
   },
@@ -534,7 +561,7 @@ export const prsApi = {
   ): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/prs/comments`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({
         prNumber,
         body,
@@ -549,7 +576,7 @@ export const prsApi = {
 export const taskDocsApi = {
   list: async (taskId: string, branch?: string): Promise<TaskDocument[]> => {
     const params = branch ? `?branch=${encodeURIComponent(branch)}` : "";
-    const res = await fetch(`${API_BASE}/tasks/${taskId}/docs${params}`);
+    const res = await fetch(`${API_BASE}/tasks/${taskId}/docs${params}`, { headers: buildHeaders() });
     const data = await handleResponse<{ documents: TaskDocument[] }>(res);
     return data.documents;
   },
@@ -559,7 +586,7 @@ export const taskDocsApi = {
 
 export const boardsApi = {
   list: async (): Promise<Board[]> => {
-    const res = await fetch(`${API_BASE}/boards`);
+    const res = await fetch(`${API_BASE}/boards`, { headers: buildHeaders() });
     const data = await handleResponse<BoardsResponse>(res);
     return data.boards;
   },
@@ -569,7 +596,7 @@ export const boardsApi = {
 
 export const collaboratorsApi = {
   list: async (): Promise<GitHubCollaborator[]> => {
-    const res = await fetch(`${API_BASE}/collaborators`);
+    const res = await fetch(`${API_BASE}/collaborators`, { headers: buildHeaders() });
     const data = await handleResponse<CollaboratorsResponse>(res);
     return data.collaborators;
   },
@@ -582,7 +609,7 @@ export const workflowsApi = {
     const searchParams = new URLSearchParams();
     if (params?.status) searchParams.set("status", params.status);
     const url = `${API_BASE}/workflows${searchParams.toString() ? `?${searchParams}` : ""}`;
-    const res = await fetch(url);
+    const res = await fetch(url, { headers: buildHeaders() });
     const data = await handleResponse<{ runs: WorkflowRun[] }>(res);
     return data.runs;
   },
@@ -594,7 +621,7 @@ export const publishApi = {
   publish: async (actorLogin?: string): Promise<ActionResponse> => {
     const res = await fetch(`${API_BASE}/publish`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({ ...(actorLogin && { actorLogin }) }),
     });
     return handleResponse(res);
@@ -635,6 +662,7 @@ export const remoteApi = {
   status: async (actorLogin: string): Promise<RemoteStatus> => {
     const res = await fetch(
       `${API_BASE}/remote/status?actorLogin=${encodeURIComponent(actorLogin)}`,
+      { headers: buildHeaders() },
     );
     // The API returns { configured: false } for non-configured users (200 OK)
     return handleResponse<RemoteStatus>(res);
@@ -650,7 +678,7 @@ export const remoteApi = {
   ): Promise<RemoteExecResult> => {
     const res = await fetch(`${API_BASE}/remote/exec`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildHeaders(),
       body: JSON.stringify({ actorLogin, action, payload }),
     });
     return handleResponse<RemoteExecResult>(res);

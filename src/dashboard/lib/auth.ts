@@ -3,8 +3,13 @@
  * @domain kody
  * @pattern auth
  * @ai-summary Token-based authentication for the Kody Operations Dashboard.
- *   Uses GITHUB_TOKEN / KODY_BOT_TOKEN env var for all API operations.
- *   OAuth session is optional — falls back to env token when no session exists.
+ *
+ * Auth priority:
+ * 1. Request headers from client (x-kody-token, x-kody-owner, x-kody-repo)
+ * 2. Env vars (KODY_BOT_TOKEN, GITHUB_TOKEN) — server-side only, no client access
+ *
+ * The client stores credentials in localStorage after login.
+ * All API calls pass credentials via custom headers.
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { verifyKodySession } from '@dashboard/lib/auth/kody_session'
@@ -12,52 +17,100 @@ import { createUserOctokit } from '@dashboard/lib/github-client'
 import { logger } from '@dashboard/lib/logger'
 import type { Octokit } from '@octokit/rest'
 
+// ─── Header constants (must match auth-context.ts buildAuthHeaders) ─────────────
+
+const HDR_TOKEN = 'x-kody-token'
+const HDR_OWNER = 'x-kody-owner'
+const HDR_REPO = 'x-kody-repo'
+
+// ─── Per-request auth from headers ────────────────────────────────────────────
+
+export interface RequestAuth {
+  token: string
+  owner: string
+  repo: string
+}
+
+/**
+ * Extract auth from request headers (set by client from localStorage).
+ * Returns null if headers are missing or incomplete.
+ */
+export function getRequestAuth(req: NextRequest): RequestAuth | null {
+  const token = req.headers.get(HDR_TOKEN)
+  const owner = req.headers.get(HDR_OWNER)
+  const repo = req.headers.get(HDR_REPO)
+
+  if (!token || !owner || !repo) return null
+  return { token, owner, repo }
+}
+
+// ─── Server-side env token (fallback for CI / token-only deployments) ────────
+
 function getEnvToken(): string | null {
   return process.env.KODY_BOT_TOKEN || process.env.GITHUB_TOKEN || process.env.GH_PAT || null
 }
 
+// ─── Require auth — 401 if neither header token nor env token present ─────────
+
 /**
- * Require GitHub API token (env var) for Kody API routes.
- * OAuth session is optional — this check only verifies the env token exists.
- * Returns null on success, or a 503 NextResponse if no token is configured.
+ * Require auth for a route. Checks:
+ * 1. x-kody-token header (client localStorage auth)
+ * 2. KODY_BOT_TOKEN / GITHUB_TOKEN env var (server-side fallback)
+ *
+ * Returns null on success, or a NextResponse on failure.
  */
-export async function requireKodyAuth(_req: NextRequest): Promise<null | NextResponse> {
-  const token = getEnvToken()
-  if (!token) {
+export async function requireKodyAuth(req: NextRequest): Promise<null | NextResponse> {
+  const headerAuth = getRequestAuth(req)
+  const envToken = getEnvToken()
+
+  if (!headerAuth && !envToken) {
     return NextResponse.json(
-      { message: 'GitHub token not configured. Set GITHUB_TOKEN, KODY_BOT_TOKEN, or GH_PAT.' },
-      { status: 503 },
+      { message: 'Not authenticated. Provide x-kody-token header or set KODY_BOT_TOKEN env var.' },
+      { status: 401 },
     )
   }
   return null
 }
 
+// ─── Get Octokit instance ──────────────────────────────────────────────────────
+
 /**
  * Get a per-request Octokit instance.
  *
  * Priority:
- * 1. User's own GitHub token from OAuth session (if logged in with repo scope)
- * 2. KODY_BOT_TOKEN / GITHUB_TOKEN env var (token-only auth)
+ * 1. Client token from x-kody-token header (localStorage auth)
+ * 2. Env token fallback (CI / token-only deployments)
+ * 3. OAuth session (legacy, from cookie)
  *
- * Callers should always prefer this over getOctokit() when the route is authenticated,
- * so write operations are attributed to the actual user rather than the bot account.
+ * Callers should prefer the header token so operations are attributed
+ * to the actual user rather than the bot account.
  */
 export async function getUserOctokit(req: NextRequest): Promise<Octokit | null> {
+  // 1. Client header token (localStorage auth)
+  const headerAuth = getRequestAuth(req)
+  if (headerAuth) {
+    return createUserOctokit(headerAuth.token)
+  }
+
+  // 2. Env token fallback
+  const envToken = getEnvToken()
+  if (envToken) {
+    return createUserOctokit(envToken)
+  }
+
+  // 3. OAuth session (legacy)
   const identity = await verifyKodySession(req)
   if (identity?.ghToken) {
     return createUserOctokit(identity.ghToken)
   }
-  // Token-only auth — use env token
-  const token = getEnvToken()
-  if (!token) return null
-  return createUserOctokit(token)
+
+  return null
 }
+
+// ─── Actor login verification ───────────────────────────────────────────────────
 
 /**
  * Verify that the supplied actorLogin matches the authenticated session.
- *
- * With OAuth: requires session + exact login match (prevents impersonation)
- * Token-only:  accepts any actorLogin since there's no session to impersonate
  */
 export async function verifyActorLogin(
   req: NextRequest,
@@ -70,16 +123,15 @@ export async function verifyActorLogin(
 
   const identity = await verifyKodySession(req)
 
-  // Token-only auth (no OAuth session) — actorLogin check is skipped
-  // since there's no session identity to impersonate
+  // Header or env token auth — actorLogin check is skipped
   if (!identity) {
-    const token = getEnvToken()
+    const headerAuth = getRequestAuth(req)
+    const token = headerAuth?.token ?? getEnvToken()
     if (token) {
       logger.info(
         { actorLogin: suppliedLogin, path: req.nextUrl.pathname },
-        'Token-only auth: actorLogin verification skipped',
+        'Token auth: actorLogin verification skipped',
       )
-      // Return a placeholder identity — callers use actorLogin from request body
       return {
         identity: {
           login: suppliedLogin || 'token-user',

@@ -16,22 +16,32 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth, getUserOctokit } from "@dashboard/lib/auth";
-import { GITHUB_OWNER, GITHUB_REPO } from "@dashboard/lib/constants";
+import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
 import { Buffer } from "buffer";
 
 export const runtime = "nodejs";
 
-// The engine repo where the chat workflow and session files live.
-// Override with KODY_CHAT_WORKFLOW_REPO env var (format: "owner/repo").
-function getEngineRepo(): { owner: string; repo: string } {
+// The engine repo is determined from auth headers (client's repo).
+// Chat workflow must live in the same repo as the dashboard.
+function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
+  // 1. From client header (localStorage auth)
+  const headerAuth = getRequestAuth(req);
+  if (headerAuth) {
+    return { owner: headerAuth.owner, repo: headerAuth.repo };
+  }
+  // 2. Fallback to env var
   const override = process.env.KODY_CHAT_WORKFLOW_REPO;
   if (override && override.includes("/")) {
     const [owner, repo] = override.split("/");
     return { owner, repo };
   }
-  return { owner: GITHUB_OWNER, repo: GITHUB_REPO };
+  // 3. Fallback to GITHUB_OWNER/GITHUB_REPO constants
+  const { GITHUB_OWNER, GITHUB_REPO } = process.env as Record<string, string>;
+  return {
+    owner: GITHUB_OWNER ?? "aharonyaircohen",
+    repo: GITHUB_REPO ?? "Kody-Dashboard",
+  };
 }
 
 function getChatWorkflowId(): string {
@@ -69,7 +79,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "messages required" }, { status: 400 });
   }
 
-  const { owner, repo } = getEngineRepo();
+  const { owner, repo } = getEngineRepo(req);
   const workflowId = getChatWorkflowId();
   const sessionPath = `.kody/sessions/${taskId}.jsonl`;
 
