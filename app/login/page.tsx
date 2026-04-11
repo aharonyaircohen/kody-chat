@@ -19,11 +19,17 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000);
+
       const res = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ repoUrl: repoUrl.trim(), token: token.trim() }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeout);
 
       const data = await res.json();
 

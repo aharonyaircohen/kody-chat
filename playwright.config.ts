@@ -13,7 +13,7 @@ export default defineConfig({
   testDir: "./tests/e2e",
 
   /* Run tests in parallel — safe since each test uses a fresh context */
-  fullyParallel: true,
+  fullyParallel: false, // Disabled: parallel workers can cause "Access denied" on localStorage in some Playwright versions
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
 
@@ -25,7 +25,7 @@ export default defineConfig({
 
   use: {
     /* Target URL — set via BASE_URL env var */
-    baseURL: process.env.BASE_URL ?? "http://localhost:3333",
+    baseURL: process.env.BASE_URL ?? "http://127.0.0.1:3333",
 
     /* Capture trace on first retry for debugging */
     trace: "on-first-retry",
@@ -44,6 +44,10 @@ export default defineConfig({
       name: "chromium",
       use: {
         ...devices["Desktop Chrome"],
+        /* Disable HTTPS upgrade for localhost — needed for local dev against HTTP server */
+        launchOptions: {
+          args: ["--host-rules=MAP localhost 127.0.0.1", "--disable-extensions"],
+        },
         /* Use the bot token cookie for auth — enables real dashboard interactions */
         extraHTTPHeaders: {
           /* Pass bot token so API routes accept requests without OAuth session */

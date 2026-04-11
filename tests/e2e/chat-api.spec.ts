@@ -13,12 +13,14 @@
 
 import { test, expect } from "@playwright/test";
 
-const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
+const BASE_URL = process.env.BASE_URL ?? "https://kody-dashboard-sable.vercel.app";
 const TEST_SESSION_ID = `pw-test-session-${Date.now()}`;
 
 function authHeaders(): Record<string, string> {
+  // The new auth system reads from x-kody-token header (set by client localStorage auth).
+  // The API routes also fall back to KODY_BOT_TOKEN env var.
   return process.env.KODY_BOT_TOKEN
-    ? { Authorization: `Bearer ${process.env.KODY_BOT_TOKEN}` }
+    ? { "x-kody-token": process.env.KODY_BOT_TOKEN }
     : {};
 }
 
