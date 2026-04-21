@@ -12,7 +12,15 @@ import { GITHUB_OWNER, GITHUB_REPO } from './constants'
 // ===========================================
 
 export const AGENT_ID = 'kody-assistant' as const
-export type AgentId = typeof AGENT_ID
+
+/**
+ * Which backend runs a given agent.
+ * - 'kody-engine': async via GH Actions workflow (chat.yml) + Kody Engine. Current default.
+ * - 'brain': sync SSE to the Brain chat server (Claude Agent SDK, session-resumed).
+ */
+export type ChatBackend = 'kody-engine' | 'brain'
+
+export type AgentId = 'kody-assistant' | 'brain'
 
 export interface AgentConfig {
   id: AgentId
@@ -21,6 +29,7 @@ export interface AgentConfig {
   icon: string
   capabilities: string[]
   systemPrompt: string
+  backend: ChatBackend
 }
 
 export const AGENT: AgentConfig = {
@@ -28,6 +37,7 @@ export const AGENT: AgentConfig = {
   name: 'Kody',
   description: 'AI assistant for the Kody Operations Dashboard',
   icon: '🤖',
+  backend: 'kody-engine',
   capabilities: [
     'List and explain tasks and their status',
     'Show pipeline stage progress',
@@ -163,27 +173,55 @@ You have access to four additional tools for interacting with the user's remote 
 `
 
 // ===========================================
-// LEGACY EXPORTS (for backward compat during migration)
+// BRAIN AGENT
 // ===========================================
 
-/** Legacy export — prefer AGENT directly */
-export const AGENTS = { [AGENT_ID]: AGENT }
+/**
+ * Brain runs on a dedicated VPS with Claude Agent SDK, a live worktree of the
+ * connected repo, and persistent session memory. Messages bypass the GH Actions
+ * pipeline and stream directly over SSE.
+ *
+ * The system prompt is applied server-side by Brain's own profile; this one is
+ * shown only for UI listing purposes.
+ */
+export const AGENT_BRAIN: AgentConfig = {
+  id: 'brain',
+  name: 'Brain',
+  description: 'Claude-powered code research with a live repo checkout and session memory',
+  icon: '🧠',
+  backend: 'brain',
+  capabilities: [
+    'Explore the repository with real Grep, Glob, and Read',
+    'Follow code across files to answer architectural questions',
+    'Remember context across turns within the same chat',
+    'Run gh CLI for GitHub data (issues, PRs, workflows)',
+    'Summarize and explain unfamiliar areas of the codebase',
+  ],
+  systemPrompt: 'Handled by the Brain server profile.',
+}
 
-/** Legacy export — always contains just the single agent ID */
-export const AGENT_IDS = [AGENT_ID] as const
+// ===========================================
+// REGISTRY + LOOKUP
+// ===========================================
 
-/** Legacy export — always returns the single agent */
-export function getAgent(_id?: unknown): AgentConfig {
+export const AGENTS: Record<AgentId, AgentConfig> = {
+  [AGENT_ID]: AGENT,
+  brain: AGENT_BRAIN,
+}
+
+export const AGENT_IDS = [AGENT_ID, 'brain'] as const
+
+export function getAgent(id: unknown): AgentConfig {
+  if (typeof id === 'string' && id in AGENTS) {
+    return AGENTS[id as AgentId]
+  }
   return AGENT
 }
 
-/** Legacy export — always returns the single agent */
 export function isValidAgentId(id: unknown): id is AgentId {
-  return id === AGENT_ID
+  return typeof id === 'string' && id in AGENTS
 }
 
-/** Legacy export — returns agent list without systemPrompt */
 export function getPublicAgentList(): Omit<AgentConfig, 'systemPrompt'>[] {
-  const { systemPrompt: _sp, ...rest } = AGENT
-  return [rest]
+  return Object.values(AGENTS).map(({ systemPrompt: _sp, ...rest }) => rest)
 }

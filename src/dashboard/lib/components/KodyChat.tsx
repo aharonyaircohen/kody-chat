@@ -12,7 +12,14 @@ import {
   MessageSquare,
   History,
 } from 'lucide-react'
-import { AGENT } from '../agents'
+import { AGENT, AGENTS, type AgentId } from '../agents'
+
+const AGENT_LIST = Object.values(AGENTS).map(({ id, name, description, icon }) => ({
+  id,
+  name,
+  description,
+  icon,
+}))
 import { getStoredAuth } from '../api'
 import type { KodyTask } from '../types'
 
@@ -127,6 +134,10 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
   const [attachments, setAttachments] = useState<Attachment[]>([])
   const [loading, setLoading] = useState(false)
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([])
+  const [selectedAgentId, setSelectedAgentId] = useState<AgentId>(AGENT.id)
+  const [agentMenuOpen, setAgentMenuOpen] = useState(false)
+  const brainAbortRef = useRef<AbortController | null>(null)
+  const currentAgent = AGENTS[selectedAgentId] ?? AGENT
   const [showClearConfirm, setShowClearConfirm] = useState(false)
   const [voiceMuted, setVoiceMuted] = useState(false)
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false)
@@ -479,6 +490,105 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
         { role: 'assistant', content: '', isLoading: true, timestamp: new Date().toISOString() },
       ])
 
+      // ─── Brain backend: sync SSE stream directly from /api/kody/chat/brain ───
+      if (selectedAgentId === 'brain') {
+        brainAbortRef.current?.abort()
+        const abort = new AbortController()
+        brainAbortRef.current = abort
+
+        try {
+          const res = await fetch('/api/kody/chat/brain', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({ chatId: sessionId, message: fullContent }),
+            signal: abort.signal,
+          })
+          if (!res.ok || !res.body) {
+            const errorData = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+            throw new Error(errorData.error || `HTTP ${res.status}`)
+          }
+
+          const reader = res.body.getReader()
+          const decoder = new TextDecoder()
+          let buf = ''
+
+          const applyEvent = (parsed: { type?: string; role?: string; content?: string; timestamp?: string; error?: string }) => {
+            if (parsed.type === 'chat.message') {
+              setMessages((prev) => {
+                const copy = [...prev]
+                const idx = copy.findIndex((m) => m.role === 'assistant' && m.isLoading)
+                const next: Message = {
+                  role: (parsed.role === 'user' ? 'user' : 'assistant') as Message['role'],
+                  content: parsed.content ?? '',
+                  timestamp: parsed.timestamp ?? new Date().toISOString(),
+                  isLoading: true,
+                }
+                if (idx >= 0) copy[idx] = next
+                else copy.push(next)
+                return copy
+              })
+            } else if (parsed.type === 'chat.done') {
+              setLoading(false)
+              setMessages((prev) =>
+                prev.map((m) => (m.isLoading ? { ...m, isLoading: false } : m)),
+              )
+            } else if (parsed.type === 'chat.error') {
+              setLoading(false)
+              setMessages((prev) => {
+                const filtered = prev.filter((m) => !(m.role === 'assistant' && m.isLoading))
+                return [
+                  ...filtered,
+                  {
+                    role: 'assistant',
+                    content: `Error: ${parsed.error ?? 'Unknown error'}`,
+                    isLoading: false,
+                  },
+                ]
+              })
+            }
+          }
+
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            buf += decoder.decode(value, { stream: true })
+            const lastNewline = buf.lastIndexOf('\n')
+            if (lastNewline === -1) continue
+            const chunk = buf.slice(0, lastNewline + 1)
+            buf = buf.slice(lastNewline + 1)
+            for (const line of chunk.split('\n')) {
+              if (!line.startsWith('data: ')) continue
+              const raw = line.slice(6).trim()
+              if (!raw) continue
+              try {
+                applyEvent(JSON.parse(raw))
+              } catch {
+                /* skip malformed */
+              }
+            }
+          }
+          setLoading(false)
+          setMessages((prev) => prev.map((m) => (m.isLoading ? { ...m, isLoading: false } : m)))
+          return null
+        } catch (error) {
+          if (error instanceof Error && error.name === 'AbortError') {
+            setMessages((prev) => prev.slice(0, -1))
+            return null
+          }
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+          setLoading(false)
+          setMessages((prev) => {
+            const filtered = prev.filter((m) => !(m.role === 'assistant' && m.isLoading))
+            return [
+              ...filtered,
+              { role: 'assistant', content: `Error: ${errorMessage}`, isLoading: false },
+            ]
+          })
+          return null
+        }
+      }
+
+      // ─── Kody engine backend: async via GH Actions workflow ───
       try {
         const triggerRes = await fetch('/api/kody/chat/trigger', {
           method: 'POST',
@@ -514,7 +624,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
         return null
       }
     },
-    [selectedTask, setMessages, messages],
+    [selectedTask, setMessages, messages, selectedAgentId],
   )
 
   const sendMessage = async () => {
@@ -635,7 +745,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
           turnCount={voiceChat.turnCount}
           error={voiceChat.error}
           messages={messages}
-          agentName={AGENT.name}
+          agentName={currentAgent.name}
           onStop={() => {
             voiceChat.stopConversation()
             setVoiceOverlayOpen(false)
@@ -651,16 +761,70 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
       {/* Header with context */}
       <div className="pl-4 pr-4 py-3 border-b bg-gradient-to-r from-muted/80 to-muted/40">
         <div className="flex items-center justify-between">
-          {/* Left: Kody branding */}
-          <div className="flex items-center gap-2">
-            <span className="text-xl" role="img" aria-label={AGENT.name}>
-              {AGENT.icon}
-            </span>
-            <span className="font-semibold text-base">{AGENT.name}</span>
+          {/* Left: agent picker */}
+          <div className="relative flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setAgentMenuOpen((v) => !v)}
+              className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+              aria-haspopup="listbox"
+              aria-expanded={agentMenuOpen}
+              title={`Switch assistant (current: ${currentAgent.name})`}
+            >
+              <span className="text-xl" role="img" aria-label={currentAgent.name}>
+                {currentAgent.icon}
+              </span>
+              <span className="font-semibold text-base">{currentAgent.name}</span>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="m6 9 6 6 6-6" />
+              </svg>
+            </button>
             {messages.length > 0 && (
               <span className="ml-1 px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
                 {messages.length}
               </span>
+            )}
+            {agentMenuOpen && (
+              <ul
+                role="listbox"
+                className="absolute top-full left-0 mt-1 z-30 min-w-[260px] rounded-md border bg-popover shadow-md"
+              >
+                {AGENT_LIST.map((a) => (
+                  <li key={a.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedAgentId(a.id)
+                        setAgentMenuOpen(false)
+                      }}
+                      className={`w-full text-left px-3 py-2 hover:bg-accent text-sm flex items-start gap-2 ${
+                        a.id === selectedAgentId ? 'bg-accent/50' : ''
+                      }`}
+                      role="option"
+                      aria-selected={a.id === selectedAgentId}
+                    >
+                      <span className="text-lg" aria-hidden="true">
+                        {a.icon}
+                      </span>
+                      <span className="flex flex-col">
+                        <span className="font-medium">{a.name}</span>
+                        <span className="text-xs text-muted-foreground">{a.description}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
             )}
           </div>
 
