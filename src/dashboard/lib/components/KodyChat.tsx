@@ -153,12 +153,17 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
   const currentAgent = AGENTS[selectedAgentId] ?? AGENT
   const agentList = buildAgentList(brainConfigured)
 
-  // Read Brain config once on mount so the dropdown knows whether to show it.
+  // Read Brain config once on mount. When Brain credentials were provided at
+  // login, Brain becomes the default selection; otherwise Gemini is the default.
   useEffect(() => {
-    setBrainConfigured(getStoredBrainConfig() !== null)
+    const configured = getStoredBrainConfig() !== null
+    setBrainConfigured(configured)
+    if (configured) {
+      setSelectedAgentId('brain')
+    }
   }, [])
 
-  // If the user had Brain selected but then removed the config, fall back to Kody.
+  // If the user had Brain selected but then removed the config, fall back to Gemini.
   useEffect(() => {
     if (selectedAgentId === 'brain' && !brainConfigured) {
       setSelectedAgentId(AGENT.id)

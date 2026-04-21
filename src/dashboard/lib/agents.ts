@@ -34,7 +34,7 @@ export interface AgentConfig {
 
 export const AGENT: AgentConfig = {
   id: AGENT_ID,
-  name: 'Kody',
+  name: 'Gemini',
   description: 'AI assistant for the Kody Operations Dashboard',
   icon: '🤖',
   backend: 'kody-engine',
@@ -186,7 +186,7 @@ You have access to four additional tools for interacting with the user's remote 
  */
 export const AGENT_BRAIN: AgentConfig = {
   id: 'brain',
-  name: 'Brain',
+  name: 'Kody Brain',
   description: 'Claude-powered code research with a live repo checkout and session memory',
   icon: '🧠',
   backend: 'brain',
