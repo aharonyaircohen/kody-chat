@@ -633,6 +633,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
           const reader = res.body.getReader()
           const decoder = new TextDecoder()
           let buf = ''
+          let latestAssistantText = ''
 
           const applyEvent = (parsed: {
             type?: string
@@ -645,6 +646,9 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
             input?: Record<string, unknown>
           }) => {
             if (parsed.type === 'chat.message') {
+              if (parsed.role !== 'user' && typeof parsed.content === 'string') {
+                latestAssistantText = parsed.content
+              }
               setMessages((prev) => {
                 const copy = [...prev]
                 const idx = copy.findIndex((m) => m.role === 'assistant' && m.isLoading)
@@ -742,7 +746,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
           }
           setLoading(false)
           setMessages((prev) => prev.map((m) => (m.isLoading ? { ...m, isLoading: false } : m)))
-          return null
+          return latestAssistantText || null
         } catch (error) {
           if (error instanceof Error && error.name === 'AbortError') {
             setMessages((prev) => prev.slice(0, -1))
