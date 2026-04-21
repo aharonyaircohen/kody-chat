@@ -414,6 +414,7 @@ export async function POST(req: NextRequest) {
       )
       .optional(),
     actorLogin: z.string().optional(),
+    autoTrigger: z.boolean().optional().default(true),
   })
 
   try {
@@ -422,7 +423,15 @@ export async function POST(req: NextRequest) {
     // Validate with Zod
     const validated = createTaskSchema.parse(body)
 
-    const { title, body: issueBody, labels, assignees, attachments, actorLogin } = validated
+    const {
+      title,
+      body: issueBody,
+      labels,
+      assignees,
+      attachments,
+      actorLogin,
+      autoTrigger,
+    } = validated
 
     // Verify actorLogin matches the authenticated session (prevents impersonation)
     const actorResult = await verifyActorLogin(req, actorLogin)
@@ -452,12 +461,18 @@ export async function POST(req: NextRequest) {
     console.log('[Kody] Created issue:', issue.number, issue.title)
 
     // Auto-trigger pipeline by commenting @kody on the issue
-    try {
-      await postComment(issue.number, '@kody', userOctokit ?? undefined)
-      console.log('[Kody] Triggered pipeline for issue:', issue.number)
-    } catch (triggerError: any) {
-      console.error('[Kody] Failed to trigger pipeline:', triggerError.message)
-      // Don't fail the whole request if trigger fails - task was still created
+    // Skipped when caller opts out (e.g., the chat auto-creates a task purely
+    // as a session anchor and should NOT kick off the Kody pipeline).
+    if (autoTrigger) {
+      try {
+        await postComment(issue.number, '@kody', userOctokit ?? undefined)
+        console.log('[Kody] Triggered pipeline for issue:', issue.number)
+      } catch (triggerError: any) {
+        console.error('[Kody] Failed to trigger pipeline:', triggerError.message)
+        // Don't fail the whole request if trigger fails - task was still created
+      }
+    } else {
+      console.log('[Kody] autoTrigger=false; skipping @kody comment for issue:', issue.number)
     }
 
     // Upload attachments if provided

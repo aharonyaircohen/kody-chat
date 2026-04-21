@@ -491,6 +491,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
             body: JSON.stringify({
               title: `Chat ${new Date().toLocaleDateString()}`,
               body: 'Auto-created task for global chat session',
+              autoTrigger: false,
             }),
           })
           if (!taskRes.ok) throw new Error(`Task creation failed: ${taskRes.status}`)

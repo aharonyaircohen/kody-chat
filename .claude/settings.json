@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s https://kody-dashboard-sable.vercel.app/api/kody/prs)"
+    ]
+  }
+}

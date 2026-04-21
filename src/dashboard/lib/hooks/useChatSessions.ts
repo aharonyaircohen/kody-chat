@@ -297,31 +297,53 @@ export function useChatSessions(): UseChatSessionsResult {
     })
   }, [activeSession])
 
-  // Set messages (with auto-update of session metadata)
+  // Set messages (with auto-update of session metadata).
+  // If no active session exists, auto-create one on the spot. This matters for
+  // first-send flows in global mode — without this, the very first setMessages
+  // call from the chat UI would silently no-op and nothing would ever render.
   const setMessages = useCallback(
     (newMessagesOrUpdater: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[])) => {
-      if (!activeSession) return
-
       setStore((prev) => {
         if (!prev) return prev
 
-        const newMessages =
+        // Ensure an active session — create one if missing.
+        let currentActiveId = prev.activeSessionId
+        let nextSessions = prev.sessions
+        let nextMessages = prev.messages
+        if (!currentActiveId || !nextSessions.some((s) => s.id === currentActiveId)) {
+          const now = new Date().toISOString()
+          const newId = generateSessionId()
+          const newSession: SessionMeta = {
+            id: newId,
+            title: 'New conversation',
+            createdAt: now,
+            updatedAt: now,
+            messageCount: 0,
+            pinned: false,
+          }
+          currentActiveId = newId
+          nextSessions = [...nextSessions, newSession]
+          nextMessages = { ...nextMessages, [newId]: [] }
+        }
+
+        const computedNew =
           typeof newMessagesOrUpdater === 'function'
-            ? newMessagesOrUpdater(prev.messages[activeSession.id] || [])
+            ? newMessagesOrUpdater(nextMessages[currentActiveId] || [])
             : newMessagesOrUpdater
 
         const newStore: GlobalChatStore = {
           ...prev,
-          messages: { ...prev.messages, [activeSession.id]: newMessages },
-          sessions: prev.sessions.map((s) =>
-            s.id === activeSession.id
+          activeSessionId: currentActiveId,
+          messages: { ...nextMessages, [currentActiveId]: computedNew },
+          sessions: nextSessions.map((s) =>
+            s.id === currentActiveId
               ? {
                   ...s,
-                  messageCount: newMessages.length,
+                  messageCount: computedNew.length,
                   updatedAt: new Date().toISOString(),
                   title:
-                    s.title === 'New conversation' && newMessages.length > 0
-                      ? newMessages.find((m: ChatMessage) => m.role === 'user')?.text?.slice(0, 60) ||
+                    s.title === 'New conversation' && computedNew.length > 0
+                      ? computedNew.find((m: ChatMessage) => m.role === 'user')?.text?.slice(0, 60) ||
                         s.title
                       : s.title,
                 }
@@ -332,7 +354,7 @@ export function useChatSessions(): UseChatSessionsResult {
         return newStore
       })
     },
-    [activeSession],
+    [],
   )
 
   return {
