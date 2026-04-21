@@ -53,7 +53,18 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  let body: { chatId?: string; message?: string }
+  interface TaskContextInput {
+    issueNumber?: number
+    title?: string
+    body?: string
+    state?: string
+    labels?: string[]
+    column?: string
+    pipeline?: { state?: string; currentStage?: string | null }
+    associatedPR?: { number?: number; state?: string; html_url?: string }
+  }
+
+  let body: { chatId?: string; message?: string; taskContext?: TaskContextInput }
   try {
     body = await req.json()
   } catch {
@@ -69,6 +80,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'message required' }, { status: 400 })
   }
 
+  // Build a compact task-context preamble. Brain's session memory carries this
+  // forward on later turns, so we always include it when a task is selected —
+  // cheap compared to context loss if the user references "this task".
+  function formatTaskContext(tc: TaskContextInput | undefined): string | null {
+    if (!tc || !tc.issueNumber) return null
+    const parts: string[] = []
+    parts.push(`[Current task context]`)
+    parts.push(`- Issue: #${tc.issueNumber}${tc.title ? ` — ${tc.title}` : ''}`)
+    if (tc.state) parts.push(`- State: ${tc.state}`)
+    if (tc.column) parts.push(`- Column: ${tc.column}`)
+    if (tc.labels?.length) parts.push(`- Labels: ${tc.labels.join(', ')}`)
+    if (tc.pipeline?.state) {
+      const stage = tc.pipeline.currentStage ? ` (stage: ${tc.pipeline.currentStage})` : ''
+      parts.push(`- Pipeline: ${tc.pipeline.state}${stage}`)
+    }
+    if (tc.associatedPR?.number) {
+      parts.push(
+        `- PR: #${tc.associatedPR.number}${tc.associatedPR.state ? ` (${tc.associatedPR.state})` : ''}${
+          tc.associatedPR.html_url ? ` — ${tc.associatedPR.html_url}` : ''
+        }`,
+      )
+    }
+    if (tc.body) {
+      const truncated = tc.body.length > 1500 ? `${tc.body.slice(0, 1500)}…` : tc.body
+      parts.push(`\n[Description]\n${truncated}`)
+    }
+    return parts.join('\n')
+  }
+
+  const preamble = formatTaskContext(body.taskContext)
+  const decoratedMessage = preamble ? `${preamble}\n\n[User]\n${message}` : message
+
   const requestId = crypto.randomUUID()
   const target = `${brainUrl.replace(/\/+$/, '')}/chats/${encodeURIComponent(chatId)}/messages`
 
@@ -80,7 +123,7 @@ export async function POST(req: NextRequest) {
         'Content-Type': 'application/json',
         'X-Api-Key': brainKey,
       },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message: decoratedMessage }),
     })
   } catch (err) {
     logger.error({ err, requestId, chatId }, 'Brain proxy: fetch failed')

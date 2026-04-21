@@ -534,6 +534,41 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
         const abort = new AbortController()
         brainAbortRef.current = abort
 
+        // Scope chat memory per user + per task so every issue gets its own
+        // Brain session. `sessionId` alone (a bare issue number) would collide
+        // across users working on the same task.
+        const userKey = actorLogin ?? 'anon'
+        const brainChatId = selectedTask
+          ? `${userKey}--task-${selectedTask.id}`
+          : `${userKey}--global-${sessionId}`
+
+        // When chatting about a specific task, pass a compact context blob so
+        // Brain answers in the context of that issue. Brain's route injects it
+        // server-side before forwarding to the Brain chat server.
+        const taskContext = selectedTask
+          ? {
+              issueNumber: selectedTask.issueNumber,
+              title: selectedTask.title,
+              body: selectedTask.body,
+              state: selectedTask.state,
+              labels: selectedTask.labels,
+              column: selectedTask.column,
+              pipeline: selectedTask.pipeline
+                ? {
+                    state: selectedTask.pipeline.state,
+                    currentStage: selectedTask.pipeline.currentStage,
+                  }
+                : undefined,
+              associatedPR: selectedTask.associatedPR
+                ? {
+                    number: selectedTask.associatedPR.number,
+                    state: selectedTask.associatedPR.state,
+                    html_url: selectedTask.associatedPR.html_url,
+                  }
+                : undefined,
+            }
+          : undefined
+
         try {
           const res = await fetch('/api/kody/chat/brain', {
             method: 'POST',
@@ -542,7 +577,11 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
               ...authHeaders(),
               ...brainHeaders(),
             },
-            body: JSON.stringify({ chatId: sessionId, message: fullContent }),
+            body: JSON.stringify({
+              chatId: brainChatId,
+              message: fullContent,
+              ...(taskContext ? { taskContext } : {}),
+            }),
             signal: abort.signal,
           })
           if (!res.ok || !res.body) {
@@ -666,7 +705,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
         return null
       }
     },
-    [selectedTask, setMessages, messages, selectedAgentId],
+    [selectedTask, setMessages, messages, selectedAgentId, actorLogin],
   )
 
   const sendMessage = async () => {
