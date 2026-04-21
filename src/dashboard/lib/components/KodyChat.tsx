@@ -137,6 +137,25 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
+function TypingIndicator({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2 py-1" role="status" aria-live="polite">
+      <span className="flex gap-1" aria-hidden="true">
+        <span
+          className="w-2 h-2 rounded-full bg-primary/70 animate-bounce"
+          style={{ animationDelay: '-0.3s' }}
+        />
+        <span
+          className="w-2 h-2 rounded-full bg-primary/70 animate-bounce"
+          style={{ animationDelay: '-0.15s' }}
+        />
+        <span className="w-2 h-2 rounded-full bg-primary/70 animate-bounce" />
+      </span>
+      <span className="text-xs text-muted-foreground">{label} is thinking…</span>
+    </div>
+  )
+}
+
 export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
   // Task-scoped messages (loaded from / saved to API)
   const [taskMessages, setTaskMessages] = useState<Message[]>([])
@@ -482,11 +501,18 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
         { role: 'user', content: fullContent, timestamp },
       ])
 
-      // In task mode, use the selected task as sessionId.
-      // In global mode, auto-create a task first so every chat has a sessionId.
+      // Resolve the session id used downstream:
+      //   • task mode → the selected task's id.
+      //   • Brain + global → the persisted UI chat session id. Reusing it
+      //     keeps Brain's memory continuous across turns (Brain's chat server
+      //     scopes history by chatId) and avoids littering the repo with an
+      //     auto-created GitHub issue per message.
+      //   • Kody engine + global → auto-create a GitHub task as before.
       let sessionId: string
       if (selectedTask) {
         sessionId = selectedTask.id
+      } else if (selectedAgentId === 'brain') {
+        sessionId = sessionHook.activeSession?.id || sessionHook.createSession()
       } else {
         // Auto-create a task for global chat
         try {
@@ -771,7 +797,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
         return null
       }
     },
-    [selectedTask, setMessages, messages, selectedAgentId, actorLogin],
+    [selectedTask, setMessages, messages, selectedAgentId, actorLogin, sessionHook],
   )
 
   const sendMessage = async () => {
@@ -1154,21 +1180,34 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
                       isStreaming={!!msg.isLoading}
                     />
                   )}
-                  <div className="prose prose-base dark:prose-invert max-w-none">
-                    <ReactMarkdown>
-                      {msg.content || (msg.isLoading ? '_Thinking..._' : '')}
-                    </ReactMarkdown>
-                  </div>
+                  {msg.isLoading && !msg.content ? (
+                    <TypingIndicator label={currentAgent.name} />
+                  ) : (
+                    <div className="prose prose-base dark:prose-invert max-w-none">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                  )}
                 </>
               ) : (
                 msg.content
               )}
-              {msg.isLoading && msg.role === 'assistant' && (
+              {msg.isLoading && msg.role === 'assistant' && msg.content && (
                 <span className="inline-block ml-2 animate-pulse text-primary">●</span>
               )}
             </div>
           </div>
         ))}
+
+        {/* Typing indicator shown before an assistant placeholder exists.
+            Covers the Kody-engine first-byte window where the placeholder is
+            only pushed once the first SSE event arrives. */}
+        {loading && messages.length > 0 && messages[messages.length - 1]?.role === 'user' && (
+          <div className="flex justify-start">
+            <div className="max-w-[85%] rounded-lg px-3 py-2 bg-muted">
+              <TypingIndicator label={currentAgent.name} />
+            </div>
+          </div>
+        )}
 
         {/* Tool calls display - using ToolCallList component */}
         {toolCalls.length > 0 && (
