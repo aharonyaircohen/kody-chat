@@ -10,7 +10,6 @@
 'use client'
 
 import { useCallback, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 
 export interface GitHubIdentity {
@@ -74,7 +73,6 @@ async function fetchIdentity(): Promise<{ identity: GitHubIdentity | null; repo:
  */
 export function useGitHubIdentity() {
   const queryClient = useQueryClient()
-  const router = useRouter()
 
   const { data, isLoading } = useQuery({
     queryKey: QUERY_KEY,
@@ -118,10 +116,14 @@ export function useGitHubIdentity() {
     // Clear localStorage and React Query cache
     localStorage.removeItem('kody_auth')
     queryClient.setQueryData(QUERY_KEY, null)
-    queryClient.invalidateQueries({ queryKey: QUERY_KEY })
-    // Soft navigation to login — no full page reload
-    router.push('/login')
-  }, [queryClient, router])
+    queryClient.removeQueries({ queryKey: QUERY_KEY })
+    // Hard navigation so AuthProvider re-reads localStorage and all React Query
+    // caches holding authenticated data are dropped — soft push('/login') leaves
+    // the AuthContext in-memory state stale, which the AuthGuard then trusts.
+    if (typeof window !== 'undefined') {
+      window.location.href = '/login'
+    }
+  }, [queryClient])
 
   return { githubUser, connectedRepo, authError, isLoaded, setGitHubUser, clearGitHubUser }
 }
