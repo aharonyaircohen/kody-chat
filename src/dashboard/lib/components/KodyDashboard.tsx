@@ -996,9 +996,16 @@ export function KodyDashboard({
             <>
               {/* Header — action buttons only, no filters */}
               <div className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-white/[0.06] bg-black/20">
-                <h1 className="text-lg md:text-xl font-semibold text-foreground">
-                  Kody Operations
-                </h1>
+                <div className="flex items-baseline gap-2">
+                  <h1 className="text-lg md:text-xl font-semibold text-foreground">
+                    Kody Operations
+                  </h1>
+                  {process.env.NEXT_PUBLIC_APP_VERSION ? (
+                    <span className="text-xs text-muted-foreground font-mono">
+                      v{process.env.NEXT_PUBLIC_APP_VERSION}
+                    </span>
+                  ) : null}
+                </div>
 
                 {/* Desktop controls */}
                 <div className="hidden md:flex items-center gap-3">
