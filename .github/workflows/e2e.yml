@@ -26,6 +26,23 @@ env:
   KODY_BOT_TOKEN: ${{ secrets.KODY_BOT_TOKEN }}
 
 jobs:
+  # ─── Vitest: unit + integration (fast, no deploy needed) ─────────────────
+  vitest:
+    name: Vitest (unit + integration)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 10 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Run vitest
+        run: pnpm test
+        env:
+          # chat-trigger.int.spec.ts needs this to mint the HMAC token.
+          KODY_SESSION_SECRET: ci-test-secret-do-not-use-in-prod
+
   # ─── Deploy to Vercel Preview ──────────────────────────────────────────────
   deploy-preview:
     name: Deploy Preview
@@ -108,8 +125,8 @@ jobs:
       - name: Install Playwright Browsers
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Run E2E Tests
-        run: pnpm test:e2e
+      - name: Run E2E Tests (fast + mocked, excludes chat-real-system)
+        run: pnpm exec playwright test --grep-invert "@real"
         env:
           # Point to the preview URL from the deploy step
           BASE_URL: ${{ needs.deploy-preview.outputs.preview_url }}
@@ -143,9 +160,20 @@ jobs:
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Run API smoke tests against production
-        run: pnpm test:e2e
+        run: pnpm exec playwright test --grep-invert "@real"
         env:
           # Test against production
           BASE_URL: https://kody-dashboard-mwoy3ttr6-aharon-yair-cohens-projects.vercel.app
           KODY_BOT_TOKEN: ${{ secrets.KODY_BOT_TOKEN }}
+          CI: "true"
+
+      - name: Run real-system chat e2e (nightly only)
+        if: github.event_name == 'schedule'
+        run: pnpm exec playwright test tests/e2e/chat-real-system.spec.ts
+        env:
+          BASE_URL: https://kody-dashboard-mwoy3ttr6-aharon-yair-cohens-projects.vercel.app
+          E2E_GITHUB_TOKEN: ${{ secrets.E2E_GITHUB_TOKEN }}
+          E2E_GITHUB_REPO: ${{ secrets.E2E_GITHUB_REPO }}
+          E2E_CHAT_MODEL: ${{ vars.E2E_CHAT_MODEL }}
+          RUN_REAL_E2E: "1"
           CI: "true"
