@@ -5,151 +5,122 @@
  *
  * POST /api/kody/chat/trigger
  *
- * Persists the chat session file to the target repo, then dispatches the
- * engine's `kody2.yml` workflow with chat-mode inputs. The engine reads
- * `.kody/sessions/{sessionId}.jsonl`, runs `kody2 dispatch` → chat flow,
- * and streams events back to the dashboard via the ingest endpoint using
- * the inline HMAC token embedded in `dashboardUrl`.
+ * Appends the user's latest message to the in-memory session store and
+ * ensures a runner is active. If the last dispatch was more than
+ * RUNNER_FRESHNESS_MS ago (or no dispatch ever), fires a new
+ * workflow_dispatch on kody2.yml; otherwise the existing runner picks
+ * the message up on its next pull.
+ *
+ * This path no longer commits `.kody/sessions/<id>.jsonl` to git — chat
+ * is ephemeral. Session state lives in memory; the runner pulls it via
+ * /api/kody/chat/pull and streams events back via /api/kody/events/ingest.
  *
  * Body: {
  *   taskId: string       // sessionId (= taskId)
  *   messages: Array<{ role: "user" | "assistant"; content: string; timestamp: string }>
- *   dashboardUrl?: string // base dashboard URL; the ingest token is appended server-side
+ *   dashboardUrl?: string // base dashboard URL; the session token is appended
  * }
  */
 
-import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth";
-import { logger } from "@dashboard/lib/logger";
-import { mintSessionToken } from "@dashboard/lib/chat-token";
-import { Buffer } from "buffer";
+import { NextRequest, NextResponse } from "next/server"
+import { requireKodyAuth, getUserOctokit, getRequestAuth } from "@dashboard/lib/auth"
+import { logger } from "@dashboard/lib/logger"
+import { mintSessionToken } from "@dashboard/lib/chat-token"
+import { appendUserTurn, markDispatched, needsDispatch, turnCount } from "@dashboard/lib/chat-session-store"
 
-export const runtime = "nodejs";
+export const runtime = "nodejs"
 
-// The chat workflow dispatches against the connected repo by default — that's
-// where the user wants chat to operate (reads their code, runs tools on it).
-// `KODY_CHAT_WORKFLOW_REPO` is an explicit override for deployments that
-// centralize the engine workflow in one repo.
+/** Must match the runner's idle exit threshold (kody2 chat loop). */
+const RUNNER_FRESHNESS_MS = 3 * 60 * 1000
+
 function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
-  const override = process.env.KODY_CHAT_WORKFLOW_REPO;
+  const override = process.env.KODY_CHAT_WORKFLOW_REPO
   if (override && override.includes("/")) {
-    const [owner, repo] = override.split("/");
-    return { owner, repo };
+    const [owner, repo] = override.split("/")
+    return { owner, repo }
   }
-  const headerAuth = getRequestAuth(req);
+  const headerAuth = getRequestAuth(req)
   if (headerAuth) {
-    return { owner: headerAuth.owner, repo: headerAuth.repo };
+    return { owner: headerAuth.owner, repo: headerAuth.repo }
   }
-  const { GITHUB_OWNER, GITHUB_REPO } = process.env as Record<string, string>;
+  const { GITHUB_OWNER, GITHUB_REPO } = process.env as Record<string, string>
   return {
     owner: GITHUB_OWNER ?? "aharonyaircohen",
     repo: GITHUB_REPO ?? "Kody-Dashboard",
-  };
+  }
 }
 
 function getChatWorkflowId(): string {
-  return process.env.KODY_CHAT_WORKFLOW_ID ?? "kody2.yml";
+  return process.env.KODY_CHAT_WORKFLOW_ID ?? "kody2.yml"
 }
 
-function appendIngestToken(baseUrl: string, sessionId: string): string {
-  const token = mintSessionToken(sessionId);
-  const joiner = baseUrl.includes("?") ? "&" : "?";
-  return `${baseUrl}${joiner}token=${token}`;
+function appendToken(baseUrl: string, token: string): string {
+  // The runner uses this base URL for both /api/kody/chat/pull (long-poll for
+  // new user turns) and /api/kody/events/ingest (push assistant events). The
+  // HMAC token is shared across both endpoints so we ship it inline.
+  const joiner = baseUrl.includes("?") ? "&" : "?"
+  return `${baseUrl}${joiner}token=${token}`
 }
 
 interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-  timestamp: string;
-  toolCalls?: unknown[];
+  role: "user" | "assistant"
+  content: string
+  timestamp: string
 }
 
 export async function POST(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
+  const authError = await requireKodyAuth(req)
+  if (authError) return authError
 
   let body: {
-    taskId?: string;
-    messages?: ChatMessage[];
-    dashboardUrl?: string;
-  };
+    taskId?: string
+    messages?: ChatMessage[]
+    dashboardUrl?: string
+  }
   try {
-    body = await req.json();
+    body = await req.json()
   } catch {
-    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
 
-  const { taskId, messages = [], dashboardUrl } = body;
+  const { taskId, messages = [], dashboardUrl } = body
 
   if (!taskId) {
-    return NextResponse.json({ error: "taskId required" }, { status: 400 });
+    return NextResponse.json({ error: "taskId required" }, { status: 400 })
   }
   if (messages.length === 0) {
-    return NextResponse.json({ error: "messages required" }, { status: 400 });
+    return NextResponse.json({ error: "messages required" }, { status: 400 })
   }
 
-  const { owner, repo } = getEngineRepo(req);
-  const workflowId = getChatWorkflowId();
-  const sessionPath = `.kody/sessions/${taskId}.jsonl`;
+  const latestUser = [...messages].reverse().find((m) => m.role === "user")
+  if (!latestUser) {
+    return NextResponse.json({ error: "no user message in payload" }, { status: 400 })
+  }
 
-  // Serialize messages as JSONL
-  const jsonlContent = messages
-    .map((m) => JSON.stringify({
-      role: m.role,
-      content: m.content,
-      timestamp: m.timestamp,
-      toolCalls: m.toolCalls ?? [],
-    }))
-    .join("\n") + "\n";
+  appendUserTurn(taskId, latestUser.content)
 
-  const octokit = await getUserOctokit(req);
+  const shouldDispatch = needsDispatch(taskId, RUNNER_FRESHNESS_MS)
+
+  if (!shouldDispatch) {
+    logger.info({ taskId, turns: turnCount(taskId) }, "chat: message queued, runner still warm")
+    return NextResponse.json({ ok: true, taskId, dispatched: false })
+  }
+
+  const { owner, repo } = getEngineRepo(req)
+  const workflowId = getChatWorkflowId()
+
+  const octokit = await getUserOctokit(req)
   if (!octokit) {
-    return NextResponse.json({ error: "No GitHub token available" }, { status: 503 });
+    return NextResponse.json({ error: "No GitHub token available" }, { status: 503 })
   }
-
-  const encodedContent = Buffer.from(jsonlContent).toString("base64");
 
   try {
-    logger.info({ taskId, owner, repo, messageCount: messages.length }, "chat: writing session file");
-
-    let sha: string | undefined;
-    try {
-      const existing = await octokit.rest.repos.getContent({
-        owner,
-        repo,
-        path: sessionPath,
-        ref: "main",
-      });
-      if ("sha" in existing.data && typeof existing.data.sha === "string") {
-        sha = existing.data.sha;
-      }
-    } catch (err: unknown) {
-      const e = err as { status?: number };
-      if (e.status !== 404) {
-        logger.warn({ err, taskId }, "chat: could not check existing session file");
-      }
-    }
-
-    await octokit.rest.repos.createOrUpdateFileContents({
-      owner,
-      repo,
-      path: sessionPath,
-      message: `chat: update session ${taskId}`,
-      content: encodedContent,
-      ...(sha ? { sha } : {}),
-      branch: "main",
-    });
-
-    logger.info({ taskId, owner, repo }, "chat: triggering workflow");
-
-    const lastUserMessage = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
-
+    const token = mintSessionToken(taskId)
     const workflowInputs: Record<string, string> = {
       sessionId: taskId,
-      message: lastUserMessage,
-    };
+    }
     if (dashboardUrl) {
-      workflowInputs.dashboardUrl = appendIngestToken(dashboardUrl, taskId);
+      workflowInputs.dashboardUrl = appendToken(dashboardUrl, token)
     }
 
     await octokit.rest.actions.createWorkflowDispatch({
@@ -158,16 +129,16 @@ export async function POST(req: NextRequest) {
       workflow_id: workflowId,
       ref: "main",
       inputs: workflowInputs,
-    });
+    })
 
-    logger.info({ taskId, workflowId }, "chat: workflow dispatched");
-
-    return NextResponse.json({ ok: true, taskId, workflowId });
+    markDispatched(taskId)
+    logger.info({ taskId, owner, repo, workflowId }, "chat: workflow dispatched")
+    return NextResponse.json({ ok: true, taskId, dispatched: true, workflowId })
   } catch (err) {
-    logger.error({ err, taskId }, "chat: trigger failed");
+    logger.error({ err, taskId }, "chat: dispatch failed")
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Trigger failed" },
+      { error: err instanceof Error ? err.message : "Dispatch failed" },
       { status: 500 },
-    );
+    )
   }
 }
