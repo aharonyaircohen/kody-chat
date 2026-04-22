@@ -71,13 +71,21 @@ export async function POST(req: NextRequest) {
   const google = createGoogleGenerativeAI({ apiKey })
 
   try {
+    logger.info({ modelId, messageCount: messages.length }, "kody-direct: streaming")
     const result = streamText({
       model: google(modelId),
       system: AGENT_KODY.systemPrompt,
       messages,
+      onError: ({ error }) => {
+        // streamText swallows per-chunk errors into the stream unless we
+        // surface them here — without this a bad API key / quota /
+        // 429 silently produces a zero-byte response.
+        logger.error({ err: error, modelId }, "kody-direct: stream onError")
+      },
     })
-    logger.info({ modelId, messageCount: messages.length }, "kody-direct: streaming")
-    return result.toTextStreamResponse()
+    return result.toTextStreamResponse({
+      headers: { "content-type": "text/plain; charset=utf-8" },
+    })
   } catch (err) {
     logger.error({ err }, "kody-direct: stream failed")
     return NextResponse.json(
