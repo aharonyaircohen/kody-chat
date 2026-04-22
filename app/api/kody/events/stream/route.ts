@@ -37,6 +37,12 @@ function promoteAuthFromQuery(req: NextRequest): NextRequest {
 }
 
 export const runtime = "nodejs";
+// A chat reply commonly takes 60–120 s (runner boot + LLM). The default
+// Vercel function timeout (10 s hobby / 60 s pro) cuts the SSE stream
+// before the engine commits its reply, so the UI never receives it.
+// Bump to the max the Pro plan allows — on a hobby plan this still
+// applies but is silently clamped.
+export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
