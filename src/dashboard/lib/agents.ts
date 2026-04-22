@@ -18,9 +18,9 @@ export const AGENT_ID = 'kody-assistant' as const
  * - 'kody-engine': async via GH Actions workflow (chat.yml) + Kody Engine. Current default.
  * - 'brain': sync SSE to the Brain chat server (Claude Agent SDK, session-resumed).
  */
-export type ChatBackend = 'kody-engine' | 'brain'
+export type ChatBackend = 'kody-engine' | 'brain' | 'kody-direct'
 
-export type AgentId = 'kody-assistant' | 'brain'
+export type AgentId = 'kody-assistant' | 'brain' | 'kody'
 
 export interface AgentConfig {
   id: AgentId
@@ -201,15 +201,51 @@ export const AGENT_BRAIN: AgentConfig = {
 }
 
 // ===========================================
+// KODY DIRECT AGENT
+// ===========================================
+
+/**
+ * Kody runs in-process inside the dashboard's Vercel deployment — no
+ * GitHub Actions, no VPS, no external service. The `/api/kody/chat/kody`
+ * route streams replies from the configured provider (Gemini by default)
+ * via the Vercel AI SDK. Sub-second time-to-first-token, per-message
+ * ~5–30 s depending on response length and tool calls.
+ *
+ * Short chat sessions only (a few minutes). Conversation history lives
+ * in the browser's state + the request payload — no server-side session.
+ */
+export const AGENT_KODY: AgentConfig = {
+  id: 'kody',
+  name: 'Kody',
+  description: 'In-process dashboard assistant — direct provider call, no runner, no VPS',
+  icon: '⚡',
+  backend: 'kody-direct',
+  capabilities: [
+    'Answer questions about the codebase from conversation context',
+    'Explain architecture, flows, and design decisions',
+    'Summarize PRs, issues, and activity you paste in',
+    'Reply in under a second to first token (no Actions cold start)',
+  ],
+  systemPrompt: `You are Kody, the in-dashboard assistant for the Kody Operations Dashboard.
+
+You reply quickly and concisely in Markdown. You do not have direct code-execution
+or git-write access — for agentic flows (edits, PRs, test runs) the user should
+switch to the Gemini (GitHub Actions) or Brain (worktree) agents. You are
+optimized for reasoning, architecture Q&A, and quick lookups within the
+conversation context the user provides.`,
+}
+
+// ===========================================
 // REGISTRY + LOOKUP
 // ===========================================
 
 export const AGENTS: Record<AgentId, AgentConfig> = {
   [AGENT_ID]: AGENT,
   brain: AGENT_BRAIN,
+  kody: AGENT_KODY,
 }
 
-export const AGENT_IDS = [AGENT_ID, 'brain'] as const
+export const AGENT_IDS = [AGENT_ID, 'brain', 'kody'] as const
 
 export function getAgent(id: unknown): AgentConfig {
   if (typeof id === 'string' && id in AGENTS) {

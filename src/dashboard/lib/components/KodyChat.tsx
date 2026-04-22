@@ -521,7 +521,9 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
       let sessionId: string
       if (selectedTask) {
         sessionId = selectedTask.id
-      } else if (selectedAgentId === 'brain') {
+      } else if (selectedAgentId === 'brain' || selectedAgentId === 'kody') {
+        // Kody-direct has no server-side session; reuse the local chat
+        // session id purely for local history/key continuity.
         sessionId = sessionHook.activeSession?.id || sessionHook.createSession()
       } else {
         // Auto-create a task for global chat
@@ -763,6 +765,65 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
             return null
           }
           const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+          setLoading(false)
+          setMessages((prev) => {
+            const filtered = prev.filter((m) => !(m.role === 'assistant' && m.isLoading))
+            return [
+              ...filtered,
+              { role: 'assistant', content: `Error: ${errorMessage}`, isLoading: false },
+            ]
+          })
+          return null
+        }
+      }
+
+      // ─── Kody direct backend: in-process LLM stream, no Actions/Brain ───
+      if (selectedAgentId === 'kody') {
+        try {
+          const res = await fetch('/api/kody/chat/kody', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({
+              messages: allMessages.map((m) => ({ role: m.role, content: m.content })),
+            }),
+          })
+
+          if (!res.ok || !res.body) {
+            const errText = await res.text().catch(() => '')
+            throw new Error(errText || `HTTP ${res.status}`)
+          }
+
+          const reader = res.body.getReader()
+          const decoder = new TextDecoder()
+          let acc = ''
+
+          // eslint-disable-next-line no-constant-condition
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            acc += decoder.decode(value, { stream: true })
+            const text = acc
+            setMessages((prev) => {
+              const copy = [...prev]
+              const idx = copy.findIndex((m) => m.role === 'assistant' && m.isLoading)
+              if (idx >= 0) {
+                copy[idx] = { ...copy[idx], content: text, isLoading: true }
+              }
+              return copy
+            })
+          }
+
+          // Terminal — mark not loading.
+          setMessages((prev) => {
+            const copy = [...prev]
+            const idx = copy.findIndex((m) => m.role === 'assistant' && m.isLoading)
+            if (idx >= 0) copy[idx] = { ...copy[idx], isLoading: false }
+            return copy
+          })
+          setLoading(false)
+          return null
+        } catch (err) {
+          const errorMessage = err instanceof Error ? err.message : 'Unknown error'
           setLoading(false)
           setMessages((prev) => {
             const filtered = prev.filter((m) => !(m.role === 'assistant' && m.isLoading))
