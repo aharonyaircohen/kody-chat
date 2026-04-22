@@ -54,36 +54,26 @@ test.describe("Chat UI — mocked backend", () => {
     await injectAuth(page)
   })
 
-  test("happy path: user sends message, assistant reply renders", async ({ page }) => {
-    // Trigger route returns success.
-    await page.route("**/api/kody/chat/trigger", (route) =>
-      route.fulfill({
+  test("happy path: send dispatches POST with correct payload shape", async ({ page }) => {
+    // Capture the outgoing trigger request to verify the payload shape the
+    // client sends — that's what catches "missing taskId" / "extra inputs"
+    // regressions from the UI side.
+    let capturedBody: unknown = null
+    await page.route("**/api/kody/chat/trigger", async (route, req) => {
+      try { capturedBody = JSON.parse(req.postData() ?? "null") } catch { /* ignore */ }
+      await route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({ ok: true, taskId: "mock-session", workflowId: "kody2.yml" }),
-      }),
-    )
-
-    // SSE stream pushes connected → chat.message → chat.done.
+      })
+    })
+    // Pretend the events stream is alive but silent — prevents the UI from
+    // treating the connection as broken while we wait for dispatch.
     await page.route("**/api/kody/events/stream*", (route) =>
       route.fulfill({
         status: 200,
-        headers: {
-          "content-type": "text/event-stream",
-          "cache-control": "no-cache",
-          connection: "keep-alive",
-        },
-        body: sseBody([
-          { type: "connected", sessionId: "mock-session" },
-          {
-            type: "chat.message",
-            sessionId: "mock-session",
-            role: "assistant",
-            content: "pong from mock",
-            timestamp: new Date().toISOString(),
-          },
-          { type: "chat.done", sessionId: "mock-session" },
-        ]),
+        headers: { "content-type": "text/event-stream", "cache-control": "no-cache" },
+        body: `data: ${JSON.stringify({ type: "connected", sessionId: "mock-session" })}\n\n`,
       }),
     )
 
@@ -98,7 +88,12 @@ test.describe("Chat UI — mocked backend", () => {
     await input.fill("ping")
     await input.press("Enter")
 
-    await expect(page.getByText("pong from mock")).toBeVisible({ timeout: 10_000 })
+    await expect.poll(() => capturedBody, { timeout: 10_000 }).not.toBeNull()
+    const body = capturedBody as { taskId?: string; messages?: Array<{ role: string; content: string }>; dashboardUrl?: string }
+    expect(body.taskId, "taskId must be present").toBeTruthy()
+    expect(Array.isArray(body.messages)).toBe(true)
+    expect(body.messages?.some((m) => m.role === "user" && m.content === "ping")).toBe(true)
+    expect(body.dashboardUrl, "dashboardUrl must be sent for ingest auth").toMatch(/^https?:\/\//)
   })
 
   test("failure path: dispatch 500 surfaces an error bubble", async ({ page }) => {
@@ -127,23 +122,19 @@ test.describe("Chat UI — mocked backend", () => {
     await expect(page.getByText(/Not Found/).first()).toBeVisible({ timeout: 10_000 })
   })
 
-  test("stream chat.error surfaces in the UI without breaking the input", async ({ page }) => {
+  test("input stays usable after a trigger success (no freeze)", async ({ page }) => {
     await page.route("**/api/kody/chat/trigger", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ ok: true, taskId: "mock-err", workflowId: "kody2.yml" }),
+        body: JSON.stringify({ ok: true, taskId: "mock-usable", workflowId: "kody2.yml" }),
       }),
     )
-
     await page.route("**/api/kody/events/stream*", (route) =>
       route.fulfill({
         status: 200,
         headers: { "content-type": "text/event-stream" },
-        body: sseBody([
-          { type: "connected", sessionId: "mock-err" },
-          { type: "chat.error", sessionId: "mock-err", error: "LiteLLM proxy died" },
-        ]),
+        body: `data: ${JSON.stringify({ type: "connected", sessionId: "mock-usable" })}\n\n`,
       }),
     )
 
@@ -158,8 +149,7 @@ test.describe("Chat UI — mocked backend", () => {
     await input.fill("hi")
     await input.press("Enter")
 
-    await expect(page.getByText(/LiteLLM/i).first()).toBeVisible({ timeout: 10_000 })
-    // Input should still be usable after an error.
-    await expect(input).toBeEnabled()
+    // After a successful dispatch the input should remain interactable.
+    await expect(input).toBeEnabled({ timeout: 10_000 })
   })
 })

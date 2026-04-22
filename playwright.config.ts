@@ -1,4 +1,10 @@
 import { defineConfig, devices } from "@playwright/test";
+import { config as loadDotenv } from "dotenv";
+
+// Load .env so local runs pick up E2E_GITHUB_TOKEN / E2E_GITHUB_REPO /
+// RUN_REAL_E2E / BASE_URL etc. without requiring `source .env`. CI sets
+// these via repo secrets and won't find a .env file — that's fine.
+loadDotenv({ path: ".env", override: false });
 
 /**
  * Playwright E2E test configuration.

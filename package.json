@@ -1,6 +1,6 @@
 {
   "name": "kody-dashboard",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "private": true,
   "license": "MIT",
   "description": "Kody Dashboard — Operations dashboard for the Kody CI/CD pipeline",
@@ -63,6 +63,7 @@
     "@typescript-eslint/parser": "^8.57.2",
     "@vitest/coverage-v8": "^4.0.16",
     "autoprefixer": "^10.4.19",
+    "dotenv": "^17.4.2",
     "eslint": "^9.16.0",
     "eslint-config-next": "15.4.7",
     "eslint-plugin-import": "^2.32.0",
