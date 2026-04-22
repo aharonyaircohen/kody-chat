@@ -31,10 +31,10 @@ export const runtime = "nodejs";
 // `KODY_CHAT_WORKFLOW_REPO` is an explicit override for deployments that
 // centralize the engine workflow in one repo.
 function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
-  const override = process.env.KODY_CHAT_WORKFLOW_REPO;
+  const override = (process.env.KODY_CHAT_WORKFLOW_REPO ?? "").trim();
   if (override && override.includes("/")) {
-    const [owner, repo] = override.split("/");
-    return { owner, repo };
+    const [owner, repo] = override.split("/").map((s) => s.trim());
+    if (owner && repo) return { owner, repo };
   }
   const headerAuth = getRequestAuth(req);
   if (headerAuth) {
@@ -42,13 +42,16 @@ function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
   }
   const { GITHUB_OWNER, GITHUB_REPO } = process.env as Record<string, string>;
   return {
-    owner: GITHUB_OWNER ?? "aharonyaircohen",
-    repo: GITHUB_REPO ?? "Kody-Dashboard",
+    owner: (GITHUB_OWNER ?? "aharonyaircohen").trim(),
+    repo: (GITHUB_REPO ?? "Kody-Dashboard").trim(),
   };
 }
 
+// Chat workflow file is always `kody2.yml`. The KODY_CHAT_WORKFLOW_ID env
+// var is intentionally ignored — it was a debugging knob that accumulated
+// stale values across Vercel projects and caused hard-to-diagnose 404s.
 function getChatWorkflowId(): string {
-  return process.env.KODY_CHAT_WORKFLOW_ID ?? "kody2.yml";
+  return "kody2.yml";
 }
 
 function appendIngestToken(baseUrl: string, sessionId: string): string {
