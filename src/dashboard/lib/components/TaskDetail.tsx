@@ -28,6 +28,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { CommentEditor } from "./CommentEditor";
 import { CommentList } from "./CommentList";
 import { AssigneePicker, type AssigneeChangeEvent } from "./AssigneePicker";
+import { KodyPhaseChip, KodyFlowChip } from "./KodyLabelChips";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { WorkflowRunsPopover } from "./WorkflowRunsPopover";
 import { Button } from "@dashboard/ui/button";
@@ -1394,6 +1395,19 @@ export function TaskDetail({
             </div>
           </div>
 
+          {/* Kody status — phase + flow derived from kody:* / kody-flow:* labels */}
+          {(task.kodyPhase || task.kodyFlow) && (
+            <div className="space-y-2">
+              <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-0.5">
+                Kody
+              </h4>
+              <div className="flex flex-wrap gap-1 px-0.5">
+                <KodyFlowChip flow={task.kodyFlow} />
+                <KodyPhaseChip phase={task.kodyPhase} />
+              </div>
+            </div>
+          )}
+
           {/* Priority */}
           {task.labels
             .filter((l) => l.startsWith("priority:"))
@@ -1446,24 +1460,34 @@ export function TaskDetail({
               );
             })}
 
-          {/* Labels */}
-          {task.labels.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-0.5">
-                Labels
-              </h4>
-              <div className="flex flex-wrap gap-1 px-0.5">
-                {task.labels.map((label) => (
-                  <span
-                    key={label}
-                    className="inline-flex px-2 py-0.5 text-[11px] font-medium rounded-md bg-white/[0.08] text-zinc-300 border border-white/[0.1]"
-                  >
-                    {label}
-                  </span>
-                ))}
+          {/* Labels — hide kody:* and kody-flow:* (already shown above as chips)
+              and priority:* (already shown above as its own block) */}
+          {(() => {
+            const rest = task.labels.filter(
+              (l) =>
+                !l.startsWith("kody:") &&
+                !l.startsWith("kody-flow:") &&
+                !l.startsWith("priority:"),
+            );
+            if (rest.length === 0) return null;
+            return (
+              <div className="space-y-2">
+                <h4 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider px-0.5">
+                  Labels
+                </h4>
+                <div className="flex flex-wrap gap-1 px-0.5">
+                  {rest.map((label) => (
+                    <span
+                      key={label}
+                      className="inline-flex px-2 py-0.5 text-[11px] font-medium rounded-md bg-white/[0.08] text-zinc-300 border border-white/[0.1]"
+                    >
+                      {label}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* Pipeline — refined card */}
           {task.pipeline && (
@@ -1632,20 +1656,32 @@ export function TaskDetail({
               {quickLinks}
             </div>
 
-            {/* Labels */}
-            {task.labels.length > 0 && (
+            {/* Kody status + labels (mobile) */}
+            {(task.kodyPhase || task.kodyFlow) && (
               <div className="flex flex-wrap gap-1.5">
-                {task.labels.map((label) => (
-                  <Badge
-                    key={label}
-                    variant="outline"
-                    className="text-xs font-normal py-0.5"
-                  >
-                    {label}
-                  </Badge>
-                ))}
+                <KodyFlowChip flow={task.kodyFlow} />
+                <KodyPhaseChip phase={task.kodyPhase} />
               </div>
             )}
+            {(() => {
+              const rest = task.labels.filter(
+                (l) => !l.startsWith("kody:") && !l.startsWith("kody-flow:"),
+              );
+              if (rest.length === 0) return null;
+              return (
+                <div className="flex flex-wrap gap-1.5">
+                  {rest.map((label) => (
+                    <Badge
+                      key={label}
+                      variant="outline"
+                      className="text-xs font-normal py-0.5"
+                    >
+                      {label}
+                    </Badge>
+                  ))}
+                </div>
+              );
+            })()}
 
             {/* Assignee picker */}
             <AssigneePicker

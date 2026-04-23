@@ -211,9 +211,7 @@ export async function GET(req: NextRequest) {
       const isLikelyActive =
         workflowRun?.status === 'in_progress' ||
         workflowRun?.status === 'queued' ||
-        labelNames.includes('kody:running') ||
-        labelNames.includes('kody:planning') ||
-        labelNames.includes('kody:failed')
+        labelNames.some((n) => n.startsWith('kody:'))
 
       if (isLikelyActive && issue.number) {
         activeIssueNumbers.push(issue.number)
