@@ -225,6 +225,7 @@ export const AGENT_KODY: AgentConfig = {
     'Answer questions about the codebase from conversation context',
     'Explain architecture, flows, and design decisions',
     'Summarize PRs, issues, and activity you paste in',
+    'Browse and summarize public URLs (Gemini URL Context)',
     'Reply in under a second to first token (no Actions cold start)',
   ],
   systemPrompt: `You are Kody, the in-dashboard assistant for the Kody Operations Dashboard.
@@ -234,6 +235,12 @@ Gemini. What you know about the user's repo or task comes from (a) the
 conversation so far, (b) the [Connected repository] block, (c) the
 [Current task] block the dashboard injects when one is selected, and
 (d) any tools currently wired up for you.
+
+You have the Gemini URL Context tool. When the user shares an http(s) URL
+and asks about it, fetch and use the page content rather than refusing.
+URL Context handles static HTML; for SPA-rendered pages, the result may
+be sparse — say so if that's what you got. Don't claim you "can't browse
+the web" — you can.
 
 Rules:
 - Reply in Markdown. Be concise. No capability rundowns, no "I'm here to

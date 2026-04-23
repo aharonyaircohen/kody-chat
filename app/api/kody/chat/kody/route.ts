@@ -189,6 +189,12 @@ export async function POST(req: NextRequest) {
       model: google(modelId),
       system: systemPrompt,
       messages,
+      // Native Gemini URL Context tool: when the user mentions a URL,
+      // Gemini fetches it server-side and grounds the reply on the page
+      // content. No client wiring needed — it's invoked by the model
+      // when relevant. The tool name MUST be `url_context` per the
+      // provider spec.
+      tools: { url_context: google.tools.urlContext({}) },
       onError: ({ error }) => {
         // streamText swallows per-chunk errors into the stream unless we
         // surface them here — without this a bad API key / quota /
