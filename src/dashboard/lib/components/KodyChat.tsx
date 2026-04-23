@@ -1053,9 +1053,10 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
               aria-expanded={agentMenuOpen}
               title={`Switch assistant (current: ${currentAgent.name})`}
             >
-              <span className="text-xl" role="img" aria-label={currentAgent.name}>
-                {currentAgent.icon}
-              </span>
+              {(() => {
+                const Icon = currentAgent.icon
+                return <Icon className="w-5 h-5" aria-label={currentAgent.name} />
+              })()}
               <span className="font-semibold text-base">{currentAgent.name}</span>
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -1096,9 +1097,10 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
                       role="option"
                       aria-selected={a.id === selectedAgentId}
                     >
-                      <span className="text-lg" aria-hidden="true">
-                        {a.icon}
-                      </span>
+                      {(() => {
+                        const Icon = a.icon
+                        return <Icon className="w-4 h-4 mt-0.5" aria-hidden="true" />
+                      })()}
                       <span className="flex flex-col">
                         <span className="font-medium">{a.name}</span>
                         <span className="text-xs text-muted-foreground">{a.description}</span>

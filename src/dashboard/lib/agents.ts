@@ -5,6 +5,7 @@
  * @ai-summary Single unified agent definition for Kody chat
  */
 
+import { Bot, Brain, Zap, type LucideIcon } from 'lucide-react'
 import { GITHUB_OWNER, GITHUB_REPO } from './constants'
 
 // ===========================================
@@ -26,7 +27,7 @@ export interface AgentConfig {
   id: AgentId
   name: string
   description: string
-  icon: string
+  icon: LucideIcon
   capabilities: string[]
   systemPrompt: string
   backend: ChatBackend
@@ -36,7 +37,7 @@ export const AGENT: AgentConfig = {
   id: AGENT_ID,
   name: 'Gemini',
   description: 'AI assistant for the Kody Operations Dashboard',
-  icon: '🤖',
+  icon: Bot,
   backend: 'kody-engine',
   capabilities: [
     'List and explain tasks and their status',
@@ -188,7 +189,7 @@ export const AGENT_BRAIN: AgentConfig = {
   id: 'brain',
   name: 'Kody Brain',
   description: 'Claude-powered code research with a live repo checkout and session memory',
-  icon: '🧠',
+  icon: Brain,
   backend: 'brain',
   capabilities: [
     'Explore the repository with real Grep, Glob, and Read',
@@ -218,7 +219,7 @@ export const AGENT_KODY: AgentConfig = {
   id: 'kody',
   name: 'Kody',
   description: 'In-process dashboard assistant — direct provider call, no runner, no VPS',
-  icon: '⚡',
+  icon: Zap,
   backend: 'kody-direct',
   capabilities: [
     'Answer questions about the codebase from conversation context',
