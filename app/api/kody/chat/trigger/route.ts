@@ -6,8 +6,8 @@
  * POST /api/kody/chat/trigger
  *
  * Persists the chat session file to the target repo, then dispatches the
- * engine's `kody2.yml` workflow with chat-mode inputs. The engine reads
- * `.kody/sessions/{sessionId}.jsonl`, runs `kody2 dispatch` → chat flow,
+ * engine's `kody.yml` workflow with chat-mode inputs. The engine reads
+ * `.kody/sessions/{sessionId}.jsonl`, runs `kody dispatch` → chat flow,
  * and streams events back to the dashboard via the ingest endpoint using
  * the inline HMAC token embedded in `dashboardUrl`.
  *
@@ -47,11 +47,11 @@ function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
   };
 }
 
-// Chat workflow file is always `kody2.yml`. The KODY_CHAT_WORKFLOW_ID env
+// Chat workflow file is always `kody.yml`. The KODY_CHAT_WORKFLOW_ID env
 // var is intentionally ignored — it was a debugging knob that accumulated
 // stale values across Vercel projects and caused hard-to-diagnose 404s.
 function getChatWorkflowId(): string {
-  return "kody2.yml";
+  return "kody.yml";
 }
 
 function appendIngestToken(baseUrl: string, sessionId: string): string {

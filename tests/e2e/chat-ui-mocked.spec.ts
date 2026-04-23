@@ -64,7 +64,7 @@ test.describe("Chat UI — mocked backend", () => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ ok: true, taskId: "mock-session", workflowId: "kody2.yml" }),
+        body: JSON.stringify({ ok: true, taskId: "mock-session", workflowId: "kody.yml" }),
       })
     })
     // Pretend the events stream is alive but silent — prevents the UI from
@@ -127,7 +127,7 @@ test.describe("Chat UI — mocked backend", () => {
       route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ ok: true, taskId: "mock-usable", workflowId: "kody2.yml" }),
+        body: JSON.stringify({ ok: true, taskId: "mock-usable", workflowId: "kody.yml" }),
       }),
     )
     await page.route("**/api/kody/events/stream*", (route) =>

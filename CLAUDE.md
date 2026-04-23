@@ -30,13 +30,13 @@ Next.js dashboard for monitoring and managing the Kody CI/CD pipeline.
 | `GITHUB_APP_CLIENT_SECRET` | Yes | GitHub OAuth App client secret |
 | `NEXT_PUBLIC_SERVER_URL` | Dev | Public URL for OAuth redirects |
 | `KODY_CHAT_WORKFLOW_REPO` | No | Central engine repo for chat (default: the connected repo from login) |
-| `KODY_CHAT_WORKFLOW_ID` | No | Chat workflow file name (default: `kody2.yml`) |
+| `KODY_CHAT_WORKFLOW_ID` | No | Chat workflow file name (default: `kody.yml`) |
 | `JINA_API_KEY` | No | Jina Reader key for the `fetch_url` tool (falls back to anonymous tier) |
 
 ## Chat flow
 
-Chat dispatches `kody2.yml` in the connected repo with the session ID and an
-inline HMAC token in `dashboardUrl`. The kody2 engine runs `kody2 dispatch`,
+Chat dispatches `kody.yml` in the connected repo with the session ID and an
+inline HMAC token in `dashboardUrl`. The kody engine runs `kody dispatch`,
 which branches to the chat executable, streams events back to
 `/api/kody/events/ingest` (real-time), and commits them to
 `.kody/events/{sessionId}.jsonl` (durable fallback, polled by

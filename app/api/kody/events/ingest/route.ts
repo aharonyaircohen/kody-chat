@@ -5,7 +5,7 @@
  *
  * POST /api/kody/events/ingest?sessionId=xxx&token=yyy
  *
- * Public endpoint the kody2 engine posts chat events to during a session.
+ * Public endpoint the kody engine posts chat events to during a session.
  * Auth is the HMAC session token (minted at dispatch, embedded inline in
  * the dashboardUrl passed to the workflow). No GitHub or Kody cookie auth —
  * this is called from Actions runners.

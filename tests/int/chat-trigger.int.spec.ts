@@ -4,7 +4,7 @@
  * @domain chat-contract
  *
  * Covers the regressions we hit live:
- *  - `kody2.yml` is the workflow id (not chat.yml, not a stale numeric id).
+ *  - `kody.yml` is the workflow id (not chat.yml, not a stale numeric id).
  *  - Dispatch payload is `sessionId` + `dashboardUrl` (no unknown inputs).
  *  - `dashboardUrl` carries an HMAC token query param.
  *  - `ref` is `main`.
@@ -74,7 +74,7 @@ describe("POST /api/kody/chat/trigger", () => {
     expect(await res.json()).toMatchObject({ error: /messages/ })
   })
 
-  it("dispatches kody2.yml against the connected repo with only sessionId+message+dashboardUrl", async () => {
+  it("dispatches kody.yml against the connected repo with only sessionId+message+dashboardUrl", async () => {
     // Session file write: getContent (404 = new) + createOrUpdateFileContents.
     nock(GITHUB_API)
       .get(/\/repos\/test-owner\/test-repo\/contents\/\.kody.*sessions.*sess-42\.jsonl/)
@@ -85,7 +85,7 @@ describe("POST /api/kody/chat/trigger", () => {
 
     // The dispatch assertion — this is the core regression guard.
     const dispatch = nock(GITHUB_API)
-      .post("/repos/test-owner/test-repo/actions/workflows/kody2.yml/dispatches", (payload) => {
+      .post("/repos/test-owner/test-repo/actions/workflows/kody.yml/dispatches", (payload) => {
         expect(payload.ref).toBe("main")
         expect(Object.keys(payload.inputs).sort()).toEqual(["dashboardUrl", "message", "sessionId"])
         expect(payload.inputs.sessionId).toBe("sess-42")
@@ -98,7 +98,7 @@ describe("POST /api/kody/chat/trigger", () => {
     const res = await triggerPOST(makeRequest(body))
     expect(res.status).toBe(200)
     const data = await res.json()
-    expect(data).toMatchObject({ ok: true, taskId: "sess-42", workflowId: "kody2.yml" })
+    expect(data).toMatchObject({ ok: true, taskId: "sess-42", workflowId: "kody.yml" })
     expect(dispatch.isDone()).toBe(true)
   })
 
@@ -110,9 +110,9 @@ describe("POST /api/kody/chat/trigger", () => {
       .get(/\/repos\/test-owner\/test-repo\/contents\/\.kody.*sessions.*sess-42\.jsonl/).query(true).reply(404)
       .put(/\/repos\/test-owner\/test-repo\/contents\/\.kody.*sessions.*sess-42\.jsonl/).reply(201, { content: { sha: "x" } })
 
-    // Expect the hardcoded kody2.yml path — NOT the stale numeric id.
+    // Expect the hardcoded kody.yml path — NOT the stale numeric id.
     const goodDispatch = nock(GITHUB_API)
-      .post("/repos/test-owner/test-repo/actions/workflows/kody2.yml/dispatches")
+      .post("/repos/test-owner/test-repo/actions/workflows/kody.yml/dispatches")
       .reply(204)
 
     const res = await triggerPOST(makeRequest(body))
@@ -128,7 +128,7 @@ describe("POST /api/kody/chat/trigger", () => {
       .put(/\/repos\/override-owner\/override-repo\/contents\/\.kody.*sessions.*sess-42\.jsonl/).reply(201, { content: { sha: "x" } })
 
     const dispatch = nock(GITHUB_API)
-      .post("/repos/override-owner/override-repo/actions/workflows/kody2.yml/dispatches")
+      .post("/repos/override-owner/override-repo/actions/workflows/kody.yml/dispatches")
       .reply(204)
 
     const res = await triggerPOST(makeRequest(body))
@@ -140,7 +140,7 @@ describe("POST /api/kody/chat/trigger", () => {
     nock(GITHUB_API)
       .get(/\/repos\/test-owner\/test-repo\/contents\/\.kody.*sessions.*sess-42\.jsonl/).query(true).reply(404)
       .put(/\/repos\/test-owner\/test-repo\/contents\/\.kody.*sessions.*sess-42\.jsonl/).reply(201, { content: { sha: "x" } })
-      .post("/repos/test-owner/test-repo/actions/workflows/kody2.yml/dispatches")
+      .post("/repos/test-owner/test-repo/actions/workflows/kody.yml/dispatches")
       .reply(422, { message: "Unexpected inputs provided" })
 
     const res = await triggerPOST(makeRequest(body))

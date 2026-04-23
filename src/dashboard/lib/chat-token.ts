@@ -4,7 +4,7 @@
  * @pattern chat-session-token
  *
  * Stateless HMAC tokens for authenticating chat event ingest POSTs from the
- * kody2 engine back to the dashboard. Generated server-side at dispatch time,
+ * kody engine back to the dashboard. Generated server-side at dispatch time,
  * appended inline to the dashboardUrl query string, and verified on /ingest.
  *
  * Signed with KODY_SESSION_SECRET — rotating the secret invalidates all

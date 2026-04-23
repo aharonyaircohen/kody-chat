@@ -1,7 +1,7 @@
 /**
  * @fileoverview Real-system e2e — exercises the full pipeline:
- *   dashboard UI → /api/kody/chat/trigger → GitHub Actions (kody2.yml) →
- *   @kody-ade/kody-engine kody2 chat → LLM → events committed back →
+ *   dashboard UI → /api/kody/chat/trigger → GitHub Actions (kody.yml) →
+ *   @kody-ade/kody-engine kody chat → LLM → events committed back →
  *   SSE stream → UI render.
  *
  * @testFramework playwright
@@ -95,7 +95,7 @@ test.describe("Real chat flow @real", () => {
 
     // Phase 1 — engine-side ground truth: poll the target repo's events
     // file via GitHub API. If this fails, the server pipeline is broken
-    // (dispatch / workflow / kody2 / commit).
+    // (dispatch / workflow / kody / commit).
     const { owner, repo } = parseRepo(TEST_REPO)
     const eventsPath = `.kody/events/${sessionId}.jsonl`
     const deadline = Date.now() + 150_000
