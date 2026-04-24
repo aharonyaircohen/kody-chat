@@ -446,7 +446,12 @@ export function GoalGroupedView({
               </header>
 
               {!isCollapsed ? (
-                <div className={cn(!isUngrouped && 'bg-background/40')}>
+                <div
+                  className={cn(
+                    !isUngrouped &&
+                      (palette ? palette.rowBg : 'bg-background/40'),
+                  )}
+                >
                   {total > 0 ? (
                     <TaskList
                       tasks={group.tasks}
