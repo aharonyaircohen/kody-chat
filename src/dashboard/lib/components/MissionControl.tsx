@@ -76,8 +76,8 @@ function MissionControlInner() {
   const deleteMutation = useDeleteMission(githubUser?.login)
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col">
-      <header className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-white/[0.06] bg-black/20">
+    <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden">
+      <header className="shrink-0 flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-white/[0.06] bg-black/20">
         <div className="flex items-center gap-3">
           <Link
             href="/"
@@ -114,7 +114,7 @@ function MissionControlInner() {
       </header>
 
       {error ? (
-        <div className="px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">
+        <div className="shrink-0 px-4 py-3 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">
           Failed to load missions: {(error as Error).message}
         </div>
       ) : null}
