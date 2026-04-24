@@ -77,28 +77,29 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
 
   return (
     <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden">
-      <header className="shrink-0 flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-white/[0.06] bg-black/20">
-        <div className="flex items-center gap-3">
+      <header className="shrink-0 flex items-center justify-between gap-2 px-3 md:px-6 py-2 md:py-4 border-b border-white/[0.06] bg-black/20">
+        <div className="flex items-center gap-2 md:gap-3 min-w-0">
           <Link
             href="/"
-            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
+            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm shrink-0"
+            aria-label="Back to dashboard"
           >
             <ArrowLeft className="w-4 h-4" />
-            Dashboard
+            <span className="hidden sm:inline">Dashboard</span>
           </Link>
-          <span className="h-4 w-px bg-border" />
+          <span className="hidden sm:block h-4 w-px bg-border" />
           {titleSlot ?? (
             <h1 className="inline-flex items-center gap-2 text-lg md:text-xl font-semibold">
               <Target className="w-5 h-5 text-emerald-400" />
               Mission Control
             </h1>
           )}
-          <span className="text-xs text-muted-foreground">
+          <span className="hidden md:inline text-xs text-muted-foreground">
             {missions.length} {missions.length === 1 ? 'mission' : 'missions'}
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
           <Button
             variant="outline"
             size="sm"
@@ -110,7 +111,7 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
           </Button>
           <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1">
             <Plus className="w-4 h-4" />
-            New mission
+            <span className="hidden sm:inline">New mission</span>
           </Button>
         </div>
       </header>
@@ -123,7 +124,12 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
 
       <div className="flex-1 min-h-0 flex">
         {/* Left: mission list */}
-        <aside className="w-72 md:w-80 border-r border-border overflow-y-auto">
+        <aside
+          className={cn(
+            'w-full md:w-80 md:border-r md:border-border overflow-y-auto',
+            selectedMission && 'hidden md:block',
+          )}
+        >
           {isLoading ? (
             <EmptyState icon={<FileText />} title="Loading missions…" />
           ) : missions.length === 0 ? (
@@ -157,10 +163,16 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
         </aside>
 
         {/* Right: mission detail */}
-        <section className="flex-1 min-w-0 overflow-y-auto">
+        <section
+          className={cn(
+            'flex-1 min-w-0 overflow-y-auto',
+            !selectedMission && 'hidden md:block',
+          )}
+        >
           {selectedMission ? (
             <MissionDetail
               mission={selectedMission}
+              onBack={() => setSelectedNumber(null)}
               onEdit={() => setEditingMission(selectedMission)}
               onDelete={() => setPendingDelete(selectedMission)}
             />
@@ -221,18 +233,29 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
 
 function MissionDetail({
   mission,
+  onBack,
   onEdit,
   onDelete,
 }: {
   mission: Mission
+  onBack: () => void
   onEdit: () => void
   onDelete: () => void
 }) {
   return (
-    <article className="p-6 max-w-3xl">
-      <header className="flex items-start justify-between gap-4 mb-4">
-        <div className="min-w-0">
-          <h2 className="text-xl font-semibold break-words">{mission.title}</h2>
+    <article className="p-4 md:p-6 max-w-3xl">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onBack}
+        className="md:hidden gap-1 -ml-2 mb-2 text-muted-foreground"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        All missions
+      </Button>
+      <header className="flex items-start justify-between gap-3 mb-4 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-lg md:text-xl font-semibold break-words">{mission.title}</h2>
           <p className="text-xs text-muted-foreground mt-1">
             #{mission.number} · created {new Date(mission.createdAt).toLocaleDateString()}
           </p>
@@ -246,15 +269,15 @@ function MissionDetail({
             title="Open on GitHub"
           >
             <ExternalLink className="w-3.5 h-3.5" />
-            GitHub
+            <span className="hidden sm:inline">GitHub</span>
           </a>
           <Button variant="outline" size="sm" onClick={onEdit} className="gap-1">
             <Pencil className="w-3.5 h-3.5" />
-            Edit
+            <span className="hidden sm:inline">Edit</span>
           </Button>
           <Button variant="outline" size="sm" onClick={onDelete} className="gap-1 text-red-400">
             <Trash2 className="w-3.5 h-3.5" />
-            Close
+            <span className="hidden sm:inline">Close</span>
           </Button>
         </div>
       </header>

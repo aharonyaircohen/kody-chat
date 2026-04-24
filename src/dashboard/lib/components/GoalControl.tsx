@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import {
   ArrowLeft,
   Calendar,
@@ -20,9 +21,11 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  Search,
   Trash2,
 } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
+import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@dashboard/ui/button'
 import { Input } from '@dashboard/ui/input'
 import { Label } from '@dashboard/ui/label'
@@ -104,28 +107,29 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
 
   return (
     <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden">
-      <header className="shrink-0 flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-white/[0.06] bg-black/20">
-        <div className="flex items-center gap-3">
+      <header className="shrink-0 flex items-center justify-between gap-2 px-3 md:px-6 py-2 md:py-4 border-b border-white/[0.06] bg-black/20">
+        <div className="flex items-center gap-2 md:gap-3 min-w-0">
           <Link
             href="/"
-            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm"
+            className="text-muted-foreground hover:text-foreground inline-flex items-center gap-1 text-sm shrink-0"
+            aria-label="Back to dashboard"
           >
             <ArrowLeft className="w-4 h-4" />
-            Dashboard
+            <span className="hidden sm:inline">Dashboard</span>
           </Link>
-          <span className="h-4 w-px bg-border" />
+          <span className="hidden sm:block h-4 w-px bg-border" />
           {titleSlot ?? (
             <h1 className="inline-flex items-center gap-2 text-lg md:text-xl font-semibold">
               <Flag className="w-5 h-5 text-sky-400" />
               Goals
             </h1>
           )}
-          <span className="text-xs text-muted-foreground">
+          <span className="hidden md:inline text-xs text-muted-foreground">
             {goals.length} {goals.length === 1 ? 'goal' : 'goals'}
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 md:gap-2 shrink-0">
           <Button
             variant="outline"
             size="sm"
@@ -137,7 +141,7 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
           </Button>
           <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1">
             <Plus className="w-4 h-4" />
-            New goal
+            <span className="hidden sm:inline">New goal</span>
           </Button>
         </div>
       </header>
@@ -149,7 +153,12 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
       ) : null}
 
       <div className="flex-1 min-h-0 flex">
-        <aside className="w-72 md:w-80 border-r border-border overflow-y-auto">
+        <aside
+          className={cn(
+            'w-full md:w-80 md:border-r md:border-border overflow-y-auto',
+            selectedGoal && 'hidden md:block',
+          )}
+        >
           {isLoading ? (
             <EmptyState icon={<Flag />} title="Loading goals…" />
           ) : goals.length === 0 ? (
@@ -207,10 +216,16 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
           )}
         </aside>
 
-        <section className="flex-1 min-w-0 overflow-y-auto">
+        <section
+          className={cn(
+            'flex-1 min-w-0 overflow-y-auto',
+            !selectedGoal && 'hidden md:block',
+          )}
+        >
           {selectedGoal ? (
             <GoalDetail
               goal={selectedGoal}
+              allTasks={tasks}
               progress={
                 progressByGoal.get(selectedGoal.id) ?? {
                   total: 0,
@@ -218,6 +233,7 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
                   tasks: [],
                 }
               }
+              onBack={() => setSelectedId(null)}
               onEdit={() => setEditingGoal(selectedGoal)}
               onDelete={() => setPendingDelete(selectedGoal)}
             />
@@ -275,15 +291,20 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
 
 function GoalDetail({
   goal,
+  allTasks,
   progress,
+  onBack,
   onEdit,
   onDelete,
 }: {
   goal: Goal
+  allTasks: KodyTask[]
   progress: GoalProgress
+  onBack: () => void
   onEdit: () => void
   onDelete: () => void
 }) {
+  const [showAttach, setShowAttach] = useState(false)
   const pct = progress.total > 0 ? (progress.done / progress.total) * 100 : 0
   const openTasks = progress.tasks.filter(
     (t) => !(t.state === 'closed' || t.column === 'done'),
@@ -291,11 +312,21 @@ function GoalDetail({
   const doneTasks = progress.tasks.filter(
     (t) => t.state === 'closed' || t.column === 'done',
   )
+  const attachedIds = new Set(progress.tasks.map((t) => t.issueNumber))
   return (
-    <article className="p-6 max-w-3xl space-y-6">
-      <header className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h2 className="text-xl font-semibold break-words">{goal.name}</h2>
+    <article className="p-4 md:p-6 max-w-3xl space-y-6">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={onBack}
+        className="md:hidden gap-1 -ml-2 text-muted-foreground"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        All goals
+      </Button>
+      <header className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <h2 className="text-lg md:text-xl font-semibold break-words">{goal.name}</h2>
           <p className="text-xs text-muted-foreground mt-1 flex items-center gap-3 flex-wrap">
             <span className="font-mono">{goal.id}</span>
             <span>created {new Date(goal.createdAt).toLocaleDateString()}</span>
@@ -310,11 +341,11 @@ function GoalDetail({
         <div className="flex items-center gap-2 shrink-0">
           <Button variant="outline" size="sm" onClick={onEdit} className="gap-1">
             <Pencil className="w-3.5 h-3.5" />
-            Edit
+            <span className="hidden sm:inline">Edit</span>
           </Button>
           <Button variant="outline" size="sm" onClick={onDelete} className="gap-1 text-red-400">
             <Trash2 className="w-3.5 h-3.5" />
-            Remove
+            <span className="hidden sm:inline">Remove</span>
           </Button>
         </div>
       </header>
@@ -354,10 +385,22 @@ function GoalDetail({
 
       {/* Tasks */}
       <section className="space-y-3">
-        <h3 className="text-sm font-semibold text-foreground">Tasks</h3>
+        <div className="flex items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-foreground">Tasks</h3>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAttach(true)}
+            className="gap-1"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Attach tasks
+          </Button>
+        </div>
         {progress.total === 0 ? (
           <p className="text-xs text-muted-foreground">
-            No tasks attached yet. Open a task and use the Goals picker to attach it.
+            No tasks attached yet. Use <span className="font-medium">Attach tasks</span>{' '}
+            to link any open issues to this goal.
           </p>
         ) : (
           <div className="space-y-4">
@@ -373,7 +416,172 @@ function GoalDetail({
           </div>
         )}
       </section>
+
+      <AttachTasksDialog
+        open={showAttach}
+        goal={goal}
+        availableTasks={allTasks.filter(
+          (t) => !attachedIds.has(t.issueNumber) && t.state === 'open',
+        )}
+        onClose={() => setShowAttach(false)}
+      />
     </article>
+  )
+}
+
+function AttachTasksDialog({
+  open,
+  goal,
+  availableTasks,
+  onClose,
+}: {
+  open: boolean
+  goal: Goal
+  availableTasks: KodyTask[]
+  onClose: () => void
+}) {
+  const queryClient = useQueryClient()
+  const [query, setQuery] = useState('')
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const [pending, setPending] = useState(false)
+
+  useEffect(() => {
+    if (open) {
+      setQuery('')
+      setSelected(new Set())
+    }
+  }, [open])
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return availableTasks
+    return availableTasks.filter(
+      (t) =>
+        t.title.toLowerCase().includes(q) ||
+        String(t.issueNumber).includes(q),
+    )
+  }, [availableTasks, query])
+
+  const toggle = (issueNumber: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(issueNumber)) next.delete(issueNumber)
+      else next.add(issueNumber)
+      return next
+    })
+  }
+
+  const handleSubmit = async () => {
+    if (selected.size === 0 || pending) return
+    setPending(true)
+    const label = `${GOAL_LABEL_PREFIX}${goal.id}`
+    const ids = Array.from(selected)
+    const results = await Promise.allSettled(
+      ids.map((issueNumber) =>
+        fetch(`/api/kody/tasks/issue-${issueNumber}/actions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'add-label', label }),
+        }).then((res) => {
+          if (!res.ok) throw new Error(`Issue ${issueNumber} failed`)
+          return issueNumber
+        }),
+      ),
+    )
+    const ok = results.filter((r) => r.status === 'fulfilled').length
+    const failed = results.length - ok
+    setPending(false)
+
+    if (ok > 0) {
+      queryClient.invalidateQueries({ queryKey: ['kody-tasks'] })
+      toast.success(`Attached ${ok} ${ok === 1 ? 'task' : 'tasks'} to ${goal.name}`)
+    }
+    if (failed > 0) {
+      toast.error(`${failed} ${failed === 1 ? 'attach' : 'attaches'} failed`)
+    }
+    if (failed === 0) onClose()
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Attach tasks to {goal.name}</DialogTitle>
+          <DialogDescription>
+            Selected tasks get the <code className="font-mono text-xs">
+              {`${GOAL_LABEL_PREFIX}${goal.id}`}
+            </code>{' '}
+            label so they show up under this goal.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="relative mt-2">
+          <Search className="w-4 h-4 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search open tasks…"
+            className="pl-8"
+          />
+        </div>
+
+        <div className="max-h-80 overflow-y-auto rounded-md border border-border divide-y divide-border">
+          {filtered.length === 0 ? (
+            <div className="px-3 py-6 text-center text-xs text-muted-foreground">
+              {availableTasks.length === 0
+                ? 'No unattached open tasks.'
+                : 'No tasks match that search.'}
+            </div>
+          ) : (
+            filtered.map((task) => {
+              const isSelected = selected.has(task.issueNumber)
+              return (
+                <button
+                  key={task.issueNumber}
+                  type="button"
+                  onClick={() => toggle(task.issueNumber)}
+                  className={cn(
+                    'w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-accent/30 transition-colors',
+                    isSelected && 'bg-sky-500/10',
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    readOnly
+                    className="w-4 h-4 shrink-0 accent-sky-400"
+                  />
+                  <span className="font-mono text-xs text-muted-foreground shrink-0">
+                    #{task.issueNumber}
+                  </span>
+                  <span className="text-sm truncate flex-1">{task.title}</span>
+                </button>
+              )
+            })
+          )}
+        </div>
+
+        <div className="flex items-center justify-between gap-2 mt-2">
+          <span className="text-xs text-muted-foreground">
+            {selected.size} selected
+          </span>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={onClose} disabled={pending}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={handleSubmit}
+              disabled={selected.size === 0 || pending}
+            >
+              {pending
+                ? 'Attaching…'
+                : `Attach ${selected.size || ''} ${selected.size === 1 ? 'task' : 'tasks'}`.trim()}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }
 
