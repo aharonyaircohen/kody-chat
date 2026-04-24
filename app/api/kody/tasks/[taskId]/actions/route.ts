@@ -20,6 +20,7 @@ import {
   removeAssignees,
   addLabels,
   removeLabel,
+  ensureLabel,
   closePR,
   findAssociatedPRByIssueNumber,
   findTaskBranch,
@@ -32,6 +33,7 @@ import {
   setGitHubContext,
   clearGitHubContext,
 } from '@dashboard/lib/github-client'
+import { GOAL_LABEL_PREFIX } from '@dashboard/lib/goals'
 import { getOwner, getRepo } from '@dashboard/lib/github-client'
 
 const actionSchema = z.object({
@@ -323,6 +325,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tas
         if (!label) {
           return NextResponse.json({ error: 'Label is required' }, { status: 400 })
         }
+        // GitHub's addLabels endpoint 422s on unknown labels — auto-create
+        // goal:* labels defensively so attaches always succeed.
+        if (label.startsWith(GOAL_LABEL_PREFIX)) {
+          try {
+            await ensureLabel(
+              label,
+              { color: '38bdf8', description: `Tasks attached to ${label}` },
+              userOctokit ?? undefined,
+            )
+          } catch (labelErr) {
+            console.warn('[Kody] ensureLabel failed (continuing):', labelErr)
+          }
+        }
         await addLabels(issueNumber, [label], userOctokit ?? undefined)
         return NextResponse.json({ success: true, message: `Label "${label}" added` })
       }
@@ -483,6 +498,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tas
       return NextResponse.json(
         { error: 'github_forbidden', message: `GitHub API: ${msg}` },
         { status: 403 },
+      )
+    }
+
+    // Validation (422) — e.g. label doesn't exist in repo — surface the
+    // GitHub message so the client can show something useful instead of 500.
+    if (error?.status === 422) {
+      const ghMsg =
+        error?.response?.data?.message ||
+        error?.message ||
+        'GitHub validation failed'
+      return NextResponse.json(
+        { error: 'github_validation_failed', message: ghMsg },
+        { status: 422 },
+      )
+    }
+    if (error?.status === 404) {
+      return NextResponse.json(
+        {
+          error: 'github_not_found',
+          message: error?.response?.data?.message || 'Resource not found on GitHub',
+        },
+        { status: 404 },
       )
     }
 

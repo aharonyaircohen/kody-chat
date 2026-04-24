@@ -20,6 +20,7 @@ import {
   fetchIssue,
   createIssue,
   updateIssue,
+  ensureLabel,
   setGitHubContext,
   clearGitHubContext,
 } from '@dashboard/lib/github-client'
@@ -27,6 +28,7 @@ import {
   EMPTY_MANIFEST,
   GOALS_MANIFEST_LABEL,
   MANIFEST_ISSUE_TITLE,
+  goalLabel,
   parseManifestBody,
   serializeManifestBody,
   slugifyGoalName,
@@ -34,6 +36,8 @@ import {
   type Goal,
   type GoalsManifest,
 } from '@dashboard/lib/goals'
+
+const GOAL_LABEL_COLOR = '38bdf8' // Tailwind sky-400
 import { Octokit } from '@octokit/rest'
 
 type ManifestIssueRef = { number: number; body: string }
@@ -161,6 +165,22 @@ export async function POST(req: NextRequest) {
     }
 
     await writeManifest(nextManifest, issue, userOctokit ?? undefined)
+
+    // Pre-create the `goal:<id>` repo label so attach operations later don't
+    // 422. GitHub's addLabels endpoint requires the label to exist already.
+    try {
+      await ensureLabel(
+        goalLabel(newGoal.id),
+        {
+          color: GOAL_LABEL_COLOR,
+          description: `Tasks attached to goal: ${newGoal.name}`,
+        },
+        userOctokit ?? undefined,
+      )
+    } catch (labelErr) {
+      // Non-fatal — the add-label action route will ensure on-demand too
+      console.warn('[Goals] ensureLabel failed (continuing):', labelErr)
+    }
 
     return NextResponse.json({ goal: newGoal })
   } catch (error: any) {

@@ -1637,6 +1637,32 @@ export async function addLabels(
 }
 
 /**
+ * Create a repo label if it does not already exist. Idempotent — a 422 from
+ * GitHub ("already_exists") is treated as success. GitHub's addLabels endpoint
+ * does NOT auto-create labels, so callers that attach ad-hoc labels (e.g.
+ * `goal:<id>`) should ensure the label first.
+ */
+export async function ensureLabel(
+  name: string,
+  options: { color?: string; description?: string } = {},
+  userOctokit?: Octokit,
+): Promise<void> {
+  const octokit = userOctokit ?? getOctokit()
+  try {
+    await octokit.issues.createLabel({
+      owner: getOwner(),
+      repo: getRepo(),
+      name,
+      color: (options.color ?? 'cccccc').replace(/^#/, ''),
+      description: options.description,
+    })
+  } catch (err: unknown) {
+    const status = (err as { status?: number })?.status
+    if (status !== 422) throw err
+  }
+}
+
+/**
  * Remove a label from an issue
  */
 export async function removeLabel(
