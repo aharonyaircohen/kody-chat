@@ -123,3 +123,26 @@ export function createEmptyGlobalStore(): GlobalChatStore {
     activeSessionId: '',
   }
 }
+
+/**
+ * Discriminated union describing what the chat is "about".
+ *
+ * `null`/absent prop on KodyChat = global chat (no scoped context).
+ */
+export type ChatContext =
+  | { kind: 'task'; task: import('./types').KodyTask }
+  | {
+      kind: 'mission-draft'
+      /**
+       * Stable session id used to anchor SSE / engine sessions for this
+       * draft. Generated client-side when the draft is opened; the chat
+       * itself is ephemeral — nothing is persisted to disk.
+       */
+      draftId: string
+      /**
+       * Fired when the user picks a specific assistant response as the
+       * basis for a new mission. The consumer should pop its own "create
+       * mission" UI (e.g. pre-filled dialog) with this body.
+       */
+      onFinalize?: (assistantContent: string) => void
+    }

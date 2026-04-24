@@ -45,9 +45,11 @@ import {
 } from '../hooks/useMissions'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import type { Mission } from '../api'
+import type { ChatContext } from '../chat-types'
 import { MISSION_TEMPLATE } from '../mission-template'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MarkdownEditor } from './MarkdownEditor'
+import { KodyChat } from './KodyChat'
 
 export function MissionControl({ titleSlot }: { titleSlot?: React.ReactNode } = {}) {
   return (
@@ -65,6 +67,13 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
   const [editingMission, setEditingMission] = useState<Mission | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Mission | null>(null)
   const [pendingRun, setPendingRun] = useState<Mission | null>(null)
+
+  // Mission draft chat state. `showDraft` toggles the draft dialog; each
+  // open generates a fresh `draftId` so KodyChat treats it as a new
+  // ephemeral session. `draftPrefill` carries an assistant response the user
+  // picked via "Use as mission" into the CreateMissionDialog body.
+  const [draftSession, setDraftSession] = useState<{ id: string } | null>(null)
+  const [draftPrefill, setDraftPrefill] = useState<string | null>(null)
 
   const selectedMission = useMemo(
     () => missions.find((m) => m.number === selectedNumber) ?? null,
@@ -114,6 +123,23 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
             aria-label="Refresh missions"
           >
             <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              // Fresh session id per open so KodyChat resets its buffer.
+              const id =
+                typeof crypto !== 'undefined' && 'randomUUID' in crypto
+                  ? crypto.randomUUID()
+                  : `draft-${Date.now()}-${Math.random().toString(36).slice(2)}`
+              setDraftSession({ id })
+            }}
+            className="gap-1"
+            title="Chat with Kody to shape a new mission"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span className="hidden sm:inline">Draft with Kody</span>
           </Button>
           <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1">
             <Plus className="w-4 h-4" />
@@ -216,13 +242,33 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
         </section>
       </div>
 
+      {/* Draft with Kody — chat-first mission creation */}
+      {draftSession ? (
+        <DraftMissionDialog
+          draftId={draftSession.id}
+          onClose={() => setDraftSession(null)}
+          onFinalize={(assistantContent) => {
+            // Close the draft dialog and hand the assistant's reply to the
+            // existing create flow pre-filled in the body field.
+            setDraftSession(null)
+            setDraftPrefill(assistantContent)
+            setShowCreate(true)
+          }}
+        />
+      ) : null}
+
       {/* Create */}
       <CreateMissionDialog
         open={showCreate}
-        onClose={() => setShowCreate(false)}
+        initialBody={draftPrefill}
+        onClose={() => {
+          setShowCreate(false)
+          setDraftPrefill(null)
+        }}
         onCreated={(mission) => {
           setSelectedNumber(mission.number)
           setShowCreate(false)
+          setDraftPrefill(null)
         }}
       />
 
@@ -415,10 +461,16 @@ function MissionDetail({
 
 function CreateMissionDialog({
   open,
+  initialBody,
   onClose,
   onCreated,
 }: {
   open: boolean
+  /**
+   * Optional pre-filled body (e.g. from a "Draft with Kody" chat). When
+   * provided, replaces the default MISSION_TEMPLATE starter.
+   */
+  initialBody?: string | null
   onClose: () => void
   onCreated: (mission: Mission) => void
 }) {
@@ -431,9 +483,9 @@ function CreateMissionDialog({
   useEffect(() => {
     if (open) {
       setTitle('')
-      setBody(MISSION_TEMPLATE)
+      setBody(initialBody && initialBody.trim() ? initialBody : MISSION_TEMPLATE)
     }
-  }, [open])
+  }, [open, initialBody])
 
   const handleSubmit = () => {
     if (!title.trim() || createMutation.isPending) return
@@ -558,6 +610,51 @@ function EditMissionDialog({
           >
             {updateMutation.isPending ? 'Saving…' : 'Save changes'}
           </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
+ * Host dialog for the chat-assisted mission drafting flow. Mounts KodyChat
+ * in `mission-draft` mode so the existing chat primitives (SSE, agents,
+ * attachments, voice) all work — the dialog itself just owns layout,
+ * lifecycle, and the finalize handoff.
+ */
+function DraftMissionDialog({
+  draftId,
+  onClose,
+  onFinalize,
+}: {
+  draftId: string
+  onClose: () => void
+  onFinalize: (assistantContent: string) => void
+}) {
+  const chatContext: ChatContext = {
+    kind: 'mission-draft',
+    draftId,
+    onFinalize,
+  }
+  const { githubUser } = useGitHubIdentity()
+
+  return (
+    <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
+      <DialogContent className="max-w-3xl p-0 overflow-hidden h-[80vh] flex flex-col">
+        <DialogHeader className="px-5 pt-4 pb-2 border-b border-white/[0.06]">
+          <DialogTitle className="flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-emerald-400" />
+            Draft a mission with Kody
+          </DialogTitle>
+          <DialogDescription>
+            Chat through the mission&apos;s intent, allowed commands, and
+            restrictions. When a reply looks right, click{' '}
+            <span className="font-medium">Use as mission</span> to pre-fill the
+            create form.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex-1 min-h-0">
+          <KodyChat context={chatContext} actorLogin={githubUser?.login} />
         </div>
       </DialogContent>
     </Dialog>

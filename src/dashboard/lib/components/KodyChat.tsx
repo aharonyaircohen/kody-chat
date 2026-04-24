@@ -11,6 +11,8 @@ import {
   FileCode,
   MessageSquare,
   History,
+  Target,
+  CheckCircle2,
 } from 'lucide-react'
 import { AGENT, AGENTS, type AgentId, type AgentConfig } from '../agents'
 
@@ -42,7 +44,7 @@ function brainHeaders(): Record<string, string> {
   const b = getStoredBrainConfig()
   return b ? { 'x-brain-url': b.url, 'x-brain-key': b.apiKey } : {}
 }
-import type { AttachmentRef, ChatMessage, ChatSession } from '../chat-types'
+import type { AttachmentRef, ChatContext, ChatMessage, ChatSession } from '../chat-types'
 import {
   putAttachment,
   getAttachmentDataUrl,
@@ -126,7 +128,15 @@ interface Attachment {
 }
 
 interface KodyChatProps {
-  selectedTask?: KodyTask | null
+  /**
+   * What this chat is "about". Today only task-scoped chat is supported;
+   * the discriminated union leaves room for other kinds (e.g. mission
+   * drafting) to be added in later phases without touching every access
+   * site in this component.
+   *
+   * `null`/`undefined` = global chat (no scoped context).
+   */
+  context?: ChatContext | null
   /** GitHub login of the current user — used for remote dev status */
   actorLogin?: string | null
 }
@@ -243,10 +253,23 @@ function TypingIndicator({ label }: { label: string }) {
   )
 }
 
-export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
+export function KodyChat({ context, actorLogin }: KodyChatProps) {
+  // Context-kind derivations. `selectedTask` stays around as the local alias
+  // downstream code already depends on; `draftId` / `onFinalize` are the
+  // mission-draft equivalents.
+  const selectedTask: KodyTask | null =
+    context?.kind === 'task' ? context.task : null
+  const draftId: string | null =
+    context?.kind === 'mission-draft' ? context.draftId : null
+  const onFinalizeDraft =
+    context?.kind === 'mission-draft' ? context.onFinalize : undefined
+
   // Task-scoped messages (loaded from / saved to API)
   const [taskMessages, setTaskMessages] = useState<Message[]>([])
   const [isLoadingTaskChat, setIsLoadingTaskChat] = useState(false)
+  // Draft-scoped messages (ephemeral — no persistence). Cleared whenever a
+  // new draft session opens (fresh draftId).
+  const [draftMessages, setDraftMessages] = useState<Message[]>([])
 
   const [input, setInput] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
@@ -298,21 +321,30 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
   // Poll action state — detects when Kody is waiting for instructions
   const { state: actionState, isWaiting: isKodyWaiting } = useKodyActionState(selectedTask?.id)
 
-  // Determine if we're in task mode or global mode
+  // Mode discriminator. `isTaskMode` keeps its original meaning (gates the
+  // branches that persist to a real task). `isDraftMode` is the new mission
+  // drafting mode — ephemeral, no task, no localStorage session hook.
   const isTaskMode = !!selectedTask
+  const isDraftMode = !!draftId
+  const isGlobalMode = !isTaskMode && !isDraftMode
 
-  // Current messages — from task or global history (via session hook)
-  // Convert ChatMessage[] from session storage to Message[] for UI
-  const messages: Message[] = isTaskMode ? taskMessages : sessionHook.messages.map(chatToMessage)
+  // Current messages — three stores, picked by mode.
+  //  • task mode       → `taskMessages`      (loaded/saved via API)
+  //  • draft mode      → `draftMessages`     (ephemeral React state)
+  //  • global mode     → `sessionHook`       (localStorage-backed)
+  const messages: Message[] = isTaskMode
+    ? taskMessages
+    : isDraftMode
+      ? draftMessages
+      : sessionHook.messages.map(chatToMessage)
 
-  // Set messages function - uses session hook in global mode
   const setMessages = useCallback(
     (updater: Message[] | ((prev: Message[]) => Message[])) => {
       if (isTaskMode) {
-        // Task mode: update task messages directly
         setTaskMessages((prev) => (typeof updater === 'function' ? updater(prev) : updater))
+      } else if (isDraftMode) {
+        setDraftMessages((prev) => (typeof updater === 'function' ? updater(prev) : updater))
       } else {
-        // Global mode: convert Message[] to ChatMessage[] before storing
         sessionHook.setMessages((prevChat: ChatMessage[]) => {
           const newMessages =
             typeof updater === 'function' ? updater(prevChat.map(chatToMessage)) : updater
@@ -320,7 +352,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
         })
       }
     },
-    [isTaskMode, sessionHook],
+    [isTaskMode, isDraftMode, sessionHook],
   )
 
   // ─── SSE for chat streaming ────────────────────────────────────────────────
@@ -398,15 +430,23 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
     [setMessages],
   )
 
-  // Open SSE when a task is selected
+  // Open SSE whenever we have a scoped session id — task id for task mode,
+  // draft id for mission drafting. Global-mode streams are opened on demand
+  // inside the send path.
   useEffect(() => {
-    if (selectedTask?.id) {
-      connectSSE(selectedTask.id)
+    const sid = selectedTask?.id ?? draftId ?? null
+    if (sid) {
+      connectSSE(sid)
     }
     return () => {
       eventSourceRef.current?.close()
     }
-  }, [selectedTask?.id, connectSSE])
+  }, [selectedTask?.id, draftId, connectSSE])
+
+  // Reset the ephemeral draft buffer whenever a new draft session opens.
+  useEffect(() => {
+    if (isDraftMode) setDraftMessages([])
+  }, [draftId, isDraftMode])
 
   // Load task chat when task changes
   useEffect(() => {
@@ -520,8 +560,9 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
   }, [])
 
   const executeClearHistory = () => {
-    // Clear active session when clearing history in non-task mode
-    if (!isTaskMode) {
+    // Only touch the localStorage session store in real global mode — draft
+    // mode is ephemeral and shares nothing with sessionHook.
+    if (isGlobalMode) {
       sessionHook.clearActiveSession()
     }
 
@@ -666,6 +707,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
       // splitting user/assistant across two sessions.
       const resolveSessionId = (): string => {
         if (selectedTask) return selectedTask.id
+        if (draftId) return draftId
         return sessionHook.activeSession?.id ?? sessionHook.createSession()
       }
 
@@ -691,7 +733,9 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
         const brainSessionId = resolveSessionId()
         const brainChatId = selectedTask
           ? `${userKey}--task-${selectedTask.id}`
-          : `${userKey}--global-${brainSessionId}`
+          : draftId
+            ? `${userKey}--mission-draft-${draftId}`
+            : `${userKey}--global-${brainSessionId}`
 
         // When chatting about a specific task, pass a compact context blob so
         // Brain answers in the context of that issue. Brain's route injects it
@@ -1068,7 +1112,16 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
         return null
       }
     },
-    [selectedTask, setMessages, messages, selectedAgentId, actorLogin, sessionHook, connectSSE],
+    [
+      selectedTask,
+      draftId,
+      setMessages,
+      messages,
+      selectedAgentId,
+      actorLogin,
+      sessionHook,
+      connectSSE,
+    ],
   )
 
   const sendMessage = async () => {
@@ -1161,15 +1214,17 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
   const placeholder = isKodyWaiting
     ? `Give Kody instructions...`
     : isTaskMode
-    ? `Ask about task #${selectedTask?.issueNumber}...`
-    : `Ask Kody...`
+      ? `Ask about task #${selectedTask?.issueNumber}...`
+      : isDraftMode
+        ? `Describe the mission you want Kody to run...`
+        : `Ask Kody...`
 
   const canSend = input.trim() || attachments.length > 0
 
   return (
     <div className="relative flex flex-col h-full border-l bg-background">
       {/* Session Sidebar */}
-      {showSessionSidebar && !isTaskMode && (
+      {showSessionSidebar && isGlobalMode && (
         <SessionSidebar
           sessions={sessionHook.sessions}
           activeSessionId={sessionHook.activeSession?.id || null}
@@ -1291,7 +1346,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
           {/* Right: Action buttons (session sidebar, task history) */}
           <div className="flex items-center gap-1">
             {/* Session sidebar toggle (global mode only) */}
-            {!isTaskMode && (
+            {isGlobalMode && (
               <button
                 onClick={() => setShowSessionSidebar(!showSessionSidebar)}
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border transition-all ${
@@ -1324,7 +1379,7 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
           </div>
         </div>
 
-        {/* Context bar: task or global */}
+        {/* Context bar: task, mission draft, or global */}
         <div className="mt-2">
           {isTaskMode && selectedTask ? (
             <div className="flex items-center gap-2 text-sm">
@@ -1332,6 +1387,11 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
                 #{selectedTask.issueNumber}
               </span>
               <span className="truncate text-muted-foreground">{selectedTask.title}</span>
+            </div>
+          ) : isDraftMode ? (
+            <div className="text-sm text-emerald-400 flex items-center gap-1.5">
+              <Target className="w-3 h-3" />
+              Drafting a new mission
             </div>
           ) : (
             <div className="text-sm text-muted-foreground flex items-center gap-1.5">
@@ -1364,6 +1424,16 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
               <>
                 <p className="font-medium">Chat about this task</p>
                 <p className="text-sm mt-1">Messages will be saved to the task</p>
+              </>
+            ) : isDraftMode ? (
+              <>
+                <p className="font-medium text-foreground">Let&apos;s plan a new mission</p>
+                <p className="text-sm mt-1">
+                  Describe what you want Kody to do. I&apos;ll help scope the intent,
+                  allowed commands, and restrictions. When a draft looks good, pick
+                  <span className="font-medium"> Use as mission</span> to turn it
+                  into a real mission.
+                </p>
               </>
             ) : (
               <>
@@ -1460,6 +1530,23 @@ export function KodyChat({ selectedTask, actorLogin }: KodyChatProps) {
                       <ReactMarkdown>{msg.content}</ReactMarkdown>
                     </div>
                   )}
+                  {/* Draft-mode finalize action: hand this assistant reply back
+                      to the caller (MissionControl) as the body of a new
+                      mission. Hidden while the reply is still streaming in. */}
+                  {isDraftMode &&
+                    onFinalizeDraft &&
+                    !msg.isLoading &&
+                    msg.content.trim().length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => onFinalizeDraft(msg.content)}
+                        className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors"
+                        title="Use this response as the body of a new mission"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        Use as mission
+                      </button>
+                    )}
                 </>
               ) : (
                 <>

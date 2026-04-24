@@ -289,16 +289,6 @@ export function KodyDashboard({
   // Goals — drive the goal-first dashboard grouping
   const { data: goals = [] } = useGoals();
   const deleteGoalMutation = useDeleteGoal(githubUser?.login);
-  // Collapse state for the goal-grouped view, kept in KodyDashboard so the
-  // expand/collapse toolbar and the list share the same state.
-  const {
-    collapsed: collapsedGoalKeys,
-    toggle: toggleGoalCollapsed,
-    allCollapsed: allGoalsCollapsed,
-    expandAll: expandAllGoals,
-    collapseAll: collapseAllGoals,
-    hasMultipleGroups: hasMultipleGoalGroups,
-  } = useGoalCollapse(goals, tasks);
 
   // Mutations for assign/unassign
   const assignMutation = useMutation({
@@ -603,7 +593,14 @@ export function KodyDashboard({
 
   // Shared goal collapse controller — drives both the section headers and the
   // expand/collapse toggle that lives in the Kody status banner.
-  const goalCollapse = useGoalCollapse(goals, filteredTasks);
+  const {
+    collapsed: collapsedGoalKeys,
+    toggle: toggleGoalCollapsed,
+    allCollapsed: allGoalsCollapsed,
+    expandAll: expandAllGoals,
+    collapseAll: collapseAllGoals,
+    hasMultipleGroups: hasMultipleGoalGroups,
+  } = useGoalCollapse(goals, filteredTasks);
 
   // Keyboard shortcuts (after sortedTasks is defined)
   useKeyboardShortcuts({
@@ -1008,7 +1005,7 @@ export function KodyDashboard({
           className="relative hidden md:block border-r border-border shrink-0"
           style={{ width: `${chatPanelWidth}px` }}
         >
-          <KodyChat selectedTask={null} actorLogin={githubUser?.login} />
+          <KodyChat context={null} actorLogin={githubUser?.login} />
           <div
             role="separator"
             aria-orientation="vertical"
@@ -1040,7 +1037,7 @@ export function KodyDashboard({
                 Close
               </Button>
             </div>
-            <KodyChat selectedTask={null} actorLogin={githubUser?.login} />
+            <KodyChat context={null} actorLogin={githubUser?.login} />
           </SheetContent>
         </Sheet>
       )}
@@ -1153,7 +1150,7 @@ export function KodyDashboard({
           style={{ width: `${chatPanelWidth}px` }}
         >
           <KodyChat
-            selectedTask={selectedTask}
+            context={selectedTask ? { kind: 'task', task: selectedTask } : null}
             actorLogin={githubUser?.login}
           />
           <div
@@ -1405,6 +1402,30 @@ export function KodyDashboard({
                 tasks={tasks}
                 isFetching={isFetching}
                 dataUpdatedAt={dataUpdatedAt}
+                trailing={
+                  hasMultipleGoalGroups ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={
+                        allGoalsCollapsed ? expandAllGoals : collapseAllGoals
+                      }
+                      className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground shrink-0"
+                    >
+                      {allGoalsCollapsed ? (
+                        <>
+                          <ChevronsUpDown className="w-3.5 h-3.5" />
+                          Expand all
+                        </>
+                      ) : (
+                        <>
+                          <ChevronsDownUp className="w-3.5 h-3.5" />
+                          Collapse all
+                        </>
+                      )}
+                    </Button>
+                  ) : null
+                }
               />
 
               {/* Task List */}
@@ -1414,36 +1435,11 @@ export function KodyDashboard({
                     <div className="text-muted-foreground">Loading...</div>
                   </div>
                 ) : (
-                  <>
-                    {hasMultipleGoalGroups ? (
-                      <div className="flex items-center justify-end px-4 md:px-6 pt-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={
-                            allGoalsCollapsed ? expandAllGoals : collapseAllGoals
-                          }
-                          className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-                        >
-                          {allGoalsCollapsed ? (
-                            <>
-                              <ChevronsUpDown className="w-3.5 h-3.5" />
-                              Expand all
-                            </>
-                          ) : (
-                            <>
-                              <ChevronsDownUp className="w-3.5 h-3.5" />
-                              Collapse all
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    ) : null}
-                    <GoalGroupedView
-                      collapsed={collapsedGoalKeys}
-                      onToggleCollapsed={toggleGoalCollapsed}
-                      goals={goals}
-                      tasks={filteredTasks}
+                  <GoalGroupedView
+                    collapsed={collapsedGoalKeys}
+                    onToggleCollapsed={toggleGoalCollapsed}
+                    goals={goals}
+                    tasks={filteredTasks}
                     selectedTask={selectedTask}
                     executingTaskId={executingTaskId}
                     mergingTaskId={mergingTaskId}
@@ -1489,8 +1485,7 @@ export function KodyDashboard({
                     onCreateTaskInGoal={handleCreateInGoal}
                     onReportBugInGoal={handleReportBugInGoal}
                     onMoveTask={handleMoveTask}
-                    />
-                  </>
+                  />
                 )}
               </div>
             </>
@@ -1655,7 +1650,7 @@ export function KodyDashboard({
                 </Button>
               </div>
               <KodyChat
-                selectedTask={selectedTask}
+                context={selectedTask ? { kind: 'task', task: selectedTask } : null}
                 actorLogin={githubUser?.login}
               />
             </SheetContent>
