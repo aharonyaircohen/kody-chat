@@ -41,6 +41,8 @@ interface BugReportDialogProps {
   open: boolean;
   onClose: () => void;
   onCreated?: () => void;
+  /** Additional labels to apply on submission (e.g. ["goal:<id>"]). */
+  presetLabels?: string[];
 }
 
 interface AttachmentFile {
@@ -54,6 +56,7 @@ export function BugReportDialog({
   open,
   onClose,
   onCreated,
+  presetLabels,
 }: BugReportDialogProps) {
   // Title field
   const [title, setTitle] = useState("");
@@ -211,12 +214,15 @@ export function BugReportDialog({
     // Format body as markdown using the template
     const body = formatBugReport();
 
+    const mergedLabels = Array.from(
+      new Set(["bug", `priority:${priority}`, ...(presetLabels ?? [])]),
+    );
     createBug.mutate(
       {
         title,
         body,
         mode: "bug",
-        labels: ["bug", `priority:${priority}`],
+        labels: mergedLabels,
         assignees,
         attachments: attachments.map((a) => ({
           name: a.name,

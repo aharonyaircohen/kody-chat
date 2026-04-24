@@ -11,6 +11,7 @@
 
 import { useMemo, useState } from 'react'
 import {
+  Bug,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -55,6 +56,8 @@ interface GoalGroupedViewProps {
   onDeleteGoal?: (goal: Goal) => void
   /** Create a task scoped to this goal (or null for Ungrouped). */
   onCreateTaskInGoal?: (goal: Goal | null) => void
+  /** Report a bug scoped to this goal (or null for Ungrouped). */
+  onReportBugInGoal?: (goal: Goal | null) => void
   /** Move a task between goals (null targetGoalId = Ungrouped). */
   onMoveTask?: (task: KodyTask, targetGoalId: string | null) => void
 }
@@ -114,6 +117,7 @@ export function GoalGroupedView({
   onEditGoal,
   onDeleteGoal,
   onCreateTaskInGoal,
+  onReportBugInGoal,
   onMoveTask,
   ...taskListProps
 }: GoalGroupedViewProps) {
@@ -331,51 +335,33 @@ export function GoalGroupedView({
                   </div>
                 </button>
 
-                {/* Action cluster — primary New task + goal-management actions (goals only) */}
-                <div className="flex items-center gap-1 shrink-0">
-                  {onCreateTaskInGoal ? (
-                    <Button
-                      size="sm"
-                      onClick={() => onCreateTaskInGoal(group.goal)}
-                      className={cn(
-                        'h-8 gap-1.5',
-                        isUngrouped
-                          ? ''
-                          : 'bg-sky-500 hover:bg-sky-400 text-white',
-                      )}
-                      aria-label={
-                        group.goal
-                          ? `Create task in ${group.goal.name}`
-                          : 'Create task (no goal)'
-                      }
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span className="hidden md:inline">New task</span>
-                    </Button>
-                  ) : null}
-                  {group.goal && onEditGoal ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                      onClick={() => onEditGoal(group.goal!)}
-                      aria-label={`Edit ${group.goal.name}`}
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Button>
-                  ) : null}
-                  {group.goal && onDeleteGoal ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 w-8 p-0 text-muted-foreground hover:text-red-400"
-                      onClick={() => onDeleteGoal(group.goal!)}
-                      aria-label={`Delete ${group.goal.name}`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  ) : null}
-                </div>
+                {/* Goal management actions (edit / delete) — creation lives in the card footer */}
+                {group.goal ? (
+                  <div className="flex items-center gap-1 shrink-0">
+                    {onEditGoal ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                        onClick={() => onEditGoal(group.goal!)}
+                        aria-label={`Edit ${group.goal.name}`}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                    ) : null}
+                    {onDeleteGoal ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-red-400"
+                        onClick={() => onDeleteGoal(group.goal!)}
+                        aria-label={`Delete ${group.goal.name}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
               </header>
 
               {!isCollapsed ? (
@@ -392,23 +378,47 @@ export function GoalGroupedView({
                       }}
                     />
                   ) : (
-                    <div className="px-4 md:px-6 py-6 text-center">
+                    <div className="px-4 md:px-6 py-5 text-center">
                       <p className="text-xs text-muted-foreground">
-                        No tasks yet — create one or drag a task here.
+                        No tasks yet — create one below or drag a task here.
                       </p>
+                    </div>
+                  )}
+                  {/* Footer — dashed New task / Report bug actions, always visible */}
+                  {onCreateTaskInGoal || onReportBugInGoal ? (
+                    <div
+                      className={cn(
+                        'grid gap-2 p-3 border-t',
+                        onCreateTaskInGoal && onReportBugInGoal
+                          ? 'grid-cols-2'
+                          : 'grid-cols-1',
+                        isUngrouped
+                          ? 'border-white/[0.04] bg-black/10'
+                          : 'border-sky-500/10 bg-sky-500/[0.02]',
+                      )}
+                    >
                       {onCreateTaskInGoal ? (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="mt-3 gap-1.5"
+                        <button
+                          type="button"
                           onClick={() => onCreateTaskInGoal(group.goal)}
+                          className="group flex items-center justify-center gap-2 py-3 rounded-lg border border-dashed border-white/[0.1] bg-white/[0.01] text-muted-foreground text-sm hover:border-sky-500/40 hover:bg-sky-500/[0.04] hover:text-sky-300 transition-colors"
                         >
                           <Plus className="w-3.5 h-3.5" />
                           New task
-                        </Button>
+                        </button>
+                      ) : null}
+                      {onReportBugInGoal ? (
+                        <button
+                          type="button"
+                          onClick={() => onReportBugInGoal(group.goal)}
+                          className="group flex items-center justify-center gap-2 py-3 rounded-lg border border-dashed border-white/[0.1] bg-white/[0.01] text-muted-foreground text-sm hover:border-rose-500/40 hover:bg-rose-500/[0.04] hover:text-rose-300 transition-colors"
+                        >
+                          <Bug className="w-3.5 h-3.5" />
+                          Report bug
+                        </button>
                       ) : null}
                     </div>
-                  )}
+                  ) : null}
                 </div>
               ) : null}
             </section>

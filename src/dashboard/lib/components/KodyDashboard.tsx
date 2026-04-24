@@ -137,6 +137,8 @@ export function KodyDashboard({
   const [presetGoalForCreate, setPresetGoalForCreate] = useState<Goal | null>(
     null,
   );
+  // When set, the BugReportDialog pre-applies this goal's label. Null = no scope.
+  const [presetGoalForBug, setPresetGoalForBug] = useState<Goal | null>(null);
   const [sortField, setSortField] = useState<string>("updatedAt");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -769,13 +771,21 @@ export function KodyDashboard({
   );
 
   const handleOpenBug = useCallback(() => {
+    setPresetGoalForBug(null);
     setShowBugDialog(true);
     window.history.pushState(null, "", "/bug");
   }, []);
 
   const handleCloseBug = useCallback(() => {
     setShowBugDialog(false);
+    setPresetGoalForBug(null);
     pushKodyBase();
+  }, []);
+
+  const handleReportBugInGoal = useCallback((goal: Goal | null) => {
+    setPresetGoalForBug(goal);
+    setShowBugDialog(true);
+    window.history.pushState(null, "", "/bug");
   }, []);
 
   const handleOpenChat = useCallback(() => {
@@ -1478,6 +1488,7 @@ export function KodyDashboard({
                     onEditGoal={setEditingGoal}
                     onDeleteGoal={setPendingDeleteGoal}
                     onCreateTaskInGoal={handleCreateInGoal}
+                    onReportBugInGoal={handleReportBugInGoal}
                     onMoveTask={handleMoveTask}
                   />
                 )}
@@ -1689,6 +1700,9 @@ export function KodyDashboard({
           open={showBugDialog}
           onClose={handleCloseBug}
           onCreated={refetch}
+          presetLabels={
+            presetGoalForBug ? [`goal:${presetGoalForBug.id}`] : undefined
+          }
         />
 
         {/* Keyboard Shortcuts Dialog */}
