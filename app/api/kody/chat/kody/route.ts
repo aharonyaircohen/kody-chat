@@ -166,6 +166,8 @@ export async function POST(req: NextRequest) {
     task?: TaskContext
     /** GitHub login of the requester — gates remote_* tools. Optional. */
     actorLogin?: string
+    /** When true, append a mission-drafting block to the system prompt. */
+    missionDraft?: boolean
   }
   try {
     body = (await req.json()) as typeof body
@@ -185,6 +187,7 @@ export async function POST(req: NextRequest) {
     AGENT_KODY.systemPrompt,
     repo ? { owner: repo.owner, repo: repo.repo } : null,
     body.task,
+    { missionDraft: body.missionDraft === true },
   )
 
   // Build the per-request tool set. GitHub + pipeline tools require a

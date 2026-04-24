@@ -106,4 +106,18 @@ describe("POST /api/kody/chat/kody", () => {
     const prompt = buildSystemPrompt("base", null, undefined)
     expect(prompt).toBe("base")
   })
+
+  it("appends a mission-drafting block when opts.missionDraft is set", async () => {
+    const { buildSystemPrompt } = await import("../../app/api/kody/chat/kody/system-prompt")
+    const prompt = buildSystemPrompt("base", null, undefined, { missionDraft: true })
+    expect(prompt).toContain("Mission drafting mode")
+    expect(prompt).toContain("drafting a new Kody mission")
+    expect(prompt).toContain("Use as mission")
+  })
+
+  it("omits the mission-drafting block by default", async () => {
+    const { buildSystemPrompt } = await import("../../app/api/kody/chat/kody/system-prompt")
+    const prompt = buildSystemPrompt("base", null, undefined)
+    expect(prompt).not.toContain("Mission drafting mode")
+  })
 })

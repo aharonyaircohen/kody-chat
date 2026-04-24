@@ -786,6 +786,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
               message: messageContent,
               ...(taskContext ? { taskContext } : {}),
               ...(brainAttachments.length > 0 ? { attachments: brainAttachments } : {}),
+              ...(isDraftMode ? { missionDraft: true } : {}),
             }),
             signal: abort.signal,
           })
@@ -998,6 +999,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
               messages: kodyMessages,
               task: kodyTaskContext,
               ...(actorLogin ? { actorLogin } : {}),
+              ...(isDraftMode ? { missionDraft: true } : {}),
             }),
           })
 

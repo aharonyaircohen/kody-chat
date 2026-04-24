@@ -77,6 +77,8 @@ export async function POST(req: NextRequest) {
     message?: string
     taskContext?: TaskContextInput
     attachments?: AttachmentInput[]
+    /** When true, prepend a mission-drafting preamble to the user message. */
+    missionDraft?: boolean
   }
   try {
     body = await req.json()
@@ -122,7 +124,12 @@ export async function POST(req: NextRequest) {
     return parts.join('\n')
   }
 
-  const preamble = formatTaskContext(body.taskContext)
+  const taskPreamble = formatTaskContext(body.taskContext)
+  const draftPreamble = body.missionDraft
+    ? `[Mission drafting mode]
+The user is drafting a new Kody mission — there is no existing mission to look up. A Kody mission is a GitHub issue (labelled kody:mission) whose markdown body describes intent, system prompt, allowed commands, and restrictions. Ask concrete scoping questions one turn at a time, then produce a copy-ready markdown draft with those four sections so the user can click "Use as mission" on your reply.`
+    : null
+  const preamble = [draftPreamble, taskPreamble].filter(Boolean).join('\n\n') || null
   const decoratedMessage = preamble ? `${preamble}\n\n[User]\n${message}` : message
 
   // Forward attachments unchanged; Brain server converts them to multimodal

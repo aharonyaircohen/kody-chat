@@ -24,11 +24,26 @@ export function buildSystemPrompt(
   base: string,
   repo: { owner: string; repo: string } | null,
   task: TaskContext | undefined,
+  opts?: { missionDraft?: boolean },
 ): string {
   const sections: string[] = [base]
   if (repo) {
     sections.push(
       `## Connected repository\n\nYou are helping the user with the repository **${repo.owner}/${repo.repo}**. When the user refers to "the repo", "this repo", "the codebase", or a file path, they mean this repository. Ground your answers in the conversation context the user provides — do not invent file contents or PR numbers you haven't seen.`,
+    )
+  }
+  if (opts?.missionDraft) {
+    sections.push(
+      `## Mission drafting mode
+
+The user is **drafting a new Kody mission** — they are not asking about an existing one. A Kody mission is a GitHub issue (labelled \`kody:mission\`) whose markdown body describes:
+
+- **Intent** — what the mission should accomplish
+- **System prompt** — how Kody should behave when the mission runs
+- **Allowed commands / tools** — what Kody is permitted to do
+- **Restrictions** — what Kody must not do
+
+Your job: help the user scope their mission. Ask short, concrete clarifying questions one turn at a time (goal, inputs, outputs, constraints). When you have enough context, produce a clean, copy-ready markdown draft with those four sections, so the user can hit **Use as mission** on your reply to turn it into a real mission. Never claim a mission already exists; there is no current mission to look up.`,
     )
   }
   if (task) {
