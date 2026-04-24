@@ -761,6 +761,10 @@ export function TaskDetail({
     },
   });
 
+  // Goal manifest — hook must run on every render, above the `!task` early
+  // return, otherwise React throws rules-of-hooks.
+  const { data: goals = [] } = useGoals();
+
   const fullDetails: FullTaskDetails | null = (() => {
     if (!details?.task || !task) return null;
     return {
@@ -1071,8 +1075,7 @@ export function TaskDetail({
     </>
   );
 
-  // Goals attached to this task (matched against manifest)
-  const { data: goals = [] } = useGoals();
+  // Goals attached to this task (matched against the manifest pulled above)
   const attachedGoalIds = task.labels
     .filter((l) => l.startsWith(GOAL_LABEL_PREFIX))
     .map((l) => l.slice(GOAL_LABEL_PREFIX.length));
