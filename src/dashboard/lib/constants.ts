@@ -283,13 +283,6 @@ export const TASK_TYPE_PREFIX: Record<string, string> = {
   spec_only: "feat",
 };
 
-// ============ Site URLs ============
-
-export const SITE_URLS = {
-  dev: process.env.NEXT_PUBLIC_DEV_SITE_URL ?? "https://dev.aguy.co.il",
-  prod: process.env.NEXT_PUBLIC_PROD_SITE_URL ?? "https://aguy.co.il",
-};
-
 // ============ Branch Names ============
 
 export const DEV_BRANCH = "dev";

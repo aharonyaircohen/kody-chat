@@ -633,18 +633,6 @@ export const workflowsApi = {
   },
 };
 
-// ============ Publish API ============
-
-export const publishApi = {
-  publish: async (actorLogin?: string): Promise<ActionResponse> => {
-    const res = await fetch(`${API_BASE}/publish`, {
-      method: "POST",
-      headers: buildHeaders(),
-      body: JSON.stringify({ ...(actorLogin && { actorLogin }) }),
-    });
-    return handleResponse(res);
-  },
-};
 // ============ Remote Dev API ============
 
 export interface RemoteExecPayload {
@@ -873,7 +861,6 @@ export const kodyApi = {
   boards: boardsApi,
   collaborators: collaboratorsApi,
   workflows: workflowsApi,
-  publish: publishApi.publish,
   remote: remoteApi,
   missions: missionsApi,
   goals: goalsApi,

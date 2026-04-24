@@ -54,7 +54,6 @@ import {
   Bug,
   Menu,
   RefreshCw,
-  Globe,
   AlertCircle,
   X as XIcon,
   Sun,
@@ -82,13 +81,12 @@ import {
 } from "../api";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { EnvironmentToolbar } from "./EnvironmentToolbar";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useTheme } from "@dashboard/providers/Theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { SimpleTooltip } from "./SimpleTooltip";
-import { SITE_URLS, PRIORITY_LEVELS, PRIORITY_META } from "../constants";
+import { PRIORITY_LEVELS, PRIORITY_META } from "../constants";
 
 interface KodyDashboardProps {
   initialIssueNumber?: number;
@@ -1302,9 +1300,6 @@ export function KodyDashboard({
                 />
               </div>
 
-              {/* Environment Toolbar */}
-              <EnvironmentToolbar />
-
               {/* Error banner (rate limit / generic errors — dismissible, stale data still shown) */}
               {errorBannerMessage && (
                 <div className="flex items-center gap-3 px-4 py-2.5 bg-red-500/10 border-b border-red-500/20 text-sm text-red-400">
@@ -1477,41 +1472,6 @@ export function KodyDashboard({
                   Filters
                 </span>
                 {mobileFilterControls}
-              </div>
-
-              {/* Environment Links */}
-              <div className="space-y-2 pt-2 border-t border-border">
-                <span className="text-xs font-medium text-muted-foreground uppercase">
-                  Environment
-                </span>
-                <a
-                  href={SITE_URLS.dev}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block"
-                >
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start gap-2"
-                  >
-                    <Globe className="w-4 h-4" />
-                    Dev Site
-                  </Button>
-                </a>
-                <a
-                  href={SITE_URLS.prod}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="block"
-                >
-                  <Button
-                    variant="outline"
-                    className="w-full justify-start gap-2"
-                  >
-                    <Globe className="w-4 h-4" />
-                    Prod Site
-                  </Button>
-                </a>
               </div>
 
               {/* Actions */}
