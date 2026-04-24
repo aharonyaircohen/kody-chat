@@ -11,6 +11,15 @@ import type { KodyTask, SortField } from "../types";
 import { filterTasksByView, getViewModeCounts, sortTasks } from "../utils";
 import { TaskList } from "./TaskList";
 import { QueueView } from "./QueueView";
+import { GoalGroupedView } from "./GoalGroupedView";
+import {
+  AttachTasksDialog,
+  CreateGoalDialog,
+  EditGoalDialog,
+} from "./GoalControl";
+import { ConfirmDialog } from "./ConfirmDialog";
+import { useGoals, useDeleteGoal } from "../hooks/useGoals";
+import type { Goal } from "../api";
 
 import { CreateTaskDialog } from "./CreateTaskDialog";
 import { EditTaskDialog } from "./EditTaskDialog";
@@ -124,6 +133,11 @@ export function KodyDashboard({
   const [errorDismissed, setErrorDismissed] = useState(false);
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  // Goal-first: inline CRUD + attach dialog state
+  const [showCreateGoal, setShowCreateGoal] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [pendingDeleteGoal, setPendingDeleteGoal] = useState<Goal | null>(null);
+  const [attachTargetGoal, setAttachTargetGoal] = useState<Goal | null>(null);
   const [sortField, setSortField] = useState<string>("updatedAt");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -277,6 +291,10 @@ export function KodyDashboard({
     queryFn: () => kodyApi.collaborators.list(),
     staleTime: 10 * 60 * 1000, // 10 minutes
   });
+
+  // Goals — drive the goal-first dashboard grouping
+  const { data: goals = [] } = useGoals();
+  const deleteGoalMutation = useDeleteGoal(githubUser?.login);
 
   // Mutations for assign/unassign
   const assignMutation = useMutation({
@@ -1249,6 +1267,10 @@ export function KodyDashboard({
                         <Plus className="w-4 h-4 mr-2" />
                         New Task
                       </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setShowCreateGoal(true)}>
+                        <Layers className="w-4 h-4 mr-2" />
+                        New Goal
+                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={handleOpenBug}>
                         <Bug className="w-4 h-4 mr-2" />
                         Report Bug
@@ -1352,7 +1374,8 @@ export function KodyDashboard({
                     selectedTask={selectedTask}
                   />
                 ) : (
-                  <TaskList
+                  <GoalGroupedView
+                    goals={goals}
                     tasks={filteredTasks}
                     selectedTask={selectedTask}
                     executingTaskId={executingTaskId}
@@ -1393,6 +1416,10 @@ export function KodyDashboard({
                         refetch();
                       });
                     }}
+                    onCreateGoal={() => setShowCreateGoal(true)}
+                    onEditGoal={setEditingGoal}
+                    onDeleteGoal={setPendingDeleteGoal}
+                    onAttachTasks={setAttachTargetGoal}
                   />
                 )}
               </div>
@@ -1610,6 +1637,51 @@ export function KodyDashboard({
         <BranchCleanupDialog
           open={showBranchCleanup}
           onClose={() => setShowBranchCleanup(false)}
+        />
+
+        {/* Goal-first: inline goal dialogs */}
+        <CreateGoalDialog
+          open={showCreateGoal}
+          onClose={() => setShowCreateGoal(false)}
+          onCreated={() => setShowCreateGoal(false)}
+        />
+        {editingGoal ? (
+          <EditGoalDialog
+            goal={editingGoal}
+            onClose={() => setEditingGoal(null)}
+            onSaved={() => setEditingGoal(null)}
+          />
+        ) : null}
+        {attachTargetGoal ? (
+          <AttachTasksDialog
+            open
+            goal={attachTargetGoal}
+            availableTasks={tasks.filter(
+              (t) =>
+                t.state === "open" &&
+                !t.labels.includes(`goal:${attachTargetGoal.id}`),
+            )}
+            onClose={() => setAttachTargetGoal(null)}
+          />
+        ) : null}
+        <ConfirmDialog
+          open={!!pendingDeleteGoal}
+          title="Remove this goal?"
+          description={
+            pendingDeleteGoal
+              ? `"${pendingDeleteGoal.name}" will be removed from the goals manifest. Tasks attached to it keep their goal:${pendingDeleteGoal.id} label until you remove it manually.`
+              : ""
+          }
+          variant="destructive"
+          confirmLabel="Remove goal"
+          onConfirm={() => {
+            if (!pendingDeleteGoal) return;
+            const target = pendingDeleteGoal;
+            deleteGoalMutation.mutate(target.id, {
+              onSuccess: () => setPendingDeleteGoal(null),
+            });
+          }}
+          onClose={() => setPendingDeleteGoal(null)}
         />
       </div>
     </ErrorBoundary>

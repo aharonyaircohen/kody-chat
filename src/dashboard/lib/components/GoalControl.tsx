@@ -510,7 +510,7 @@ function TaskSection({
   )
 }
 
-function AttachTasksDialog({
+export function AttachTasksDialog({
   open,
   goal,
   availableTasks,
@@ -712,7 +712,7 @@ function TaskGroup({
   )
 }
 
-function CreateGoalDialog({
+export function CreateGoalDialog({
   open,
   onClose,
   onCreated,
@@ -803,7 +803,7 @@ function CreateGoalDialog({
   )
 }
 
-function EditGoalDialog({
+export function EditGoalDialog({
   goal,
   onClose,
   onSaved,
