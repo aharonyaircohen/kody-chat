@@ -247,7 +247,7 @@ export function GoalGroupedView({
                 'relative rounded-xl overflow-hidden ring-1 transition-all',
                 isUngrouped
                   ? 'ring-white/[0.06] bg-white/[0.01]'
-                  : 'ring-sky-500/20 bg-sky-500/[0.015] shadow-[0_0_0_1px_rgba(56,189,248,0.04),0_20px_40px_-20px_rgba(56,189,248,0.08)]',
+                  : 'ring-sky-500/25 bg-sky-500/[0.015]',
                 isHotDropZone &&
                   'ring-2 ring-sky-400 shadow-[0_0_0_4px_rgba(56,189,248,0.18)]',
                 canDropHere &&
@@ -255,20 +255,12 @@ export function GoalGroupedView({
                   'ring-sky-400/40 ring-dashed',
               )}
             >
-              {/* Continuous left cascade rail — runs the full length of the section */}
-              {!isUngrouped ? (
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-sky-400 via-sky-500 to-sky-500/20"
-                />
-              ) : null}
-
               <header
                 className={cn(
-                  'relative flex items-center gap-3 pl-5 pr-4 md:pl-7 md:pr-6 py-4 md:py-5 transition-colors',
+                  'relative flex items-center gap-3 px-4 md:px-6 py-4 md:py-5 transition-colors',
                   isUngrouped
                     ? 'bg-black/30'
-                    : 'bg-gradient-to-r from-sky-500/[0.14] via-sky-500/[0.05] to-transparent',
+                    : 'bg-gradient-to-r from-sky-500/[0.1] via-sky-500/[0.04] to-transparent',
                 )}
               >
 
@@ -387,37 +379,18 @@ export function GoalGroupedView({
               </header>
 
               {!isCollapsed ? (
-                <div
-                  className={cn(
-                    'relative',
-                    !isUngrouped && 'pl-8 md:pl-12 pr-0 pb-1 bg-background/40',
-                  )}
-                >
-                  {/* Cascade rail — inner guide line running through the task area */}
-                  {!isUngrouped ? (
-                    <span
-                      aria-hidden
-                      className="pointer-events-none absolute left-[22px] md:left-[32px] top-0 bottom-3 w-px bg-gradient-to-b from-sky-500/40 via-sky-500/20 to-transparent"
-                    />
-                  ) : null}
+                <div className={cn(!isUngrouped && 'bg-background/40')}>
                   {total > 0 ? (
-                    <div
-                      className={cn(
-                        !isUngrouped &&
-                          'rounded-tl-md overflow-hidden border-t border-l border-sky-500/15',
-                      )}
-                    >
-                      <TaskList
-                        tasks={group.tasks}
-                        {...taskListProps}
-                        draggable={!!onMoveTask}
-                        onDragStartTask={(task) => setDragTask(task)}
-                        onDragEndTask={() => {
-                          setDragTask(null)
-                          setDropTargetKey(null)
-                        }}
-                      />
-                    </div>
+                    <TaskList
+                      tasks={group.tasks}
+                      {...taskListProps}
+                      draggable={!!onMoveTask}
+                      onDragStartTask={(task) => setDragTask(task)}
+                      onDragEndTask={() => {
+                        setDragTask(null)
+                        setDropTargetKey(null)
+                      }}
+                    />
                   ) : (
                     <div className="px-4 md:px-6 py-6 text-center">
                       <p className="text-xs text-muted-foreground">
