@@ -55,6 +55,12 @@ interface CreateTaskDialogProps {
     labels?: string[]
     assignees?: string[]
   }
+  /**
+   * Labels to pre-apply without triggering the duplicate flow (no "Copy of"
+   * title prefix, no body/assignee prefill). Use this for goal-scoped task
+   * creation — pass [`goal:<id>`] so the new task lands under that goal.
+   */
+  presetLabels?: string[]
 }
 
 interface AttachmentFile {
@@ -111,7 +117,7 @@ const SCOPE_OPTIONS: { value: TaskScope; label: string }[] = [
   { value: 'ci-cd', label: 'CI / CD' },
 ]
 
-export function CreateTaskDialog({ open, onClose, onCreated, initialData }: CreateTaskDialogProps) {
+export function CreateTaskDialog({ open, onClose, onCreated, initialData, presetLabels }: CreateTaskDialogProps) {
   // --- Form state ---
   const [title, setTitle] = useState('')
   const [category, setCategory] = useState<TaskCategory>('feature')
@@ -180,6 +186,16 @@ export function CreateTaskDialog({ open, onClose, onCreated, initialData }: Crea
       setAssignees(initialData.assignees || [])
     }
   }, [open, initialData])
+
+  // --- Apply presetLabels (goal-scoped create, separate from duplicate flow) ---
+  useEffect(() => {
+    if (open && !initialData && presetLabels && presetLabels.length > 0) {
+      setLabels((prev) => {
+        const merged = new Set([...prev, ...presetLabels])
+        return Array.from(merged)
+      })
+    }
+  }, [open, initialData, presetLabels])
 
   // --- File handling ---
   const processFile = useCallback((file: File): Promise<AttachmentFile> => {

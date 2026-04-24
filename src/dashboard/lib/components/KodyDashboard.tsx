@@ -12,11 +12,7 @@ import { filterTasksByView, getViewModeCounts, sortTasks } from "../utils";
 import { TaskList } from "./TaskList";
 import { QueueView } from "./QueueView";
 import { GoalGroupedView } from "./GoalGroupedView";
-import {
-  AttachTasksDialog,
-  CreateGoalDialog,
-  EditGoalDialog,
-} from "./GoalControl";
+import { CreateGoalDialog, EditGoalDialog } from "./GoalControl";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useGoals, useDeleteGoal } from "../hooks/useGoals";
 import type { Goal } from "../api";
@@ -137,7 +133,10 @@ export function KodyDashboard({
   const [showCreateGoal, setShowCreateGoal] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [pendingDeleteGoal, setPendingDeleteGoal] = useState<Goal | null>(null);
-  const [attachTargetGoal, setAttachTargetGoal] = useState<Goal | null>(null);
+  // When set, the CreateTaskDialog pre-applies this goal's label. Null = no scope.
+  const [presetGoalForCreate, setPresetGoalForCreate] = useState<Goal | null>(
+    null,
+  );
   const [sortField, setSortField] = useState<string>("updatedAt");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -696,6 +695,7 @@ export function KodyDashboard({
 
   // Open/close modal dialogs with URL sync
   const handleOpenCreate = useCallback(() => {
+    setPresetGoalForCreate(null);
     setShowCreateDialog(true);
     window.history.pushState(null, "", "/new");
   }, []);
@@ -703,8 +703,70 @@ export function KodyDashboard({
   const handleCloseCreate = useCallback(() => {
     setShowCreateDialog(false);
     setDuplicateSource(null);
+    setPresetGoalForCreate(null);
     pushKodyBase();
   }, []);
+
+  const handleCreateInGoal = useCallback((goal: Goal | null) => {
+    setPresetGoalForCreate(goal);
+    setShowCreateDialog(true);
+    window.history.pushState(null, "", "/new");
+  }, []);
+
+  // Goal-to-goal DnD: remove all existing goal:* labels, then add the target (if any)
+  const handleMoveTask = useCallback(
+    async (task: KodyTask, targetGoalId: string | null) => {
+      const existingGoalLabels = task.labels.filter((l) =>
+        l.startsWith("goal:"),
+      );
+      const targetLabel = targetGoalId ? `goal:${targetGoalId}` : null;
+
+      // Optimistic: update the tasks cache so the row jumps to the new group immediately
+      queryClient.setQueryData<KodyTask[]>(queryKeys.tasks(days), (old) =>
+        old?.map((t) => {
+          if (t.id !== task.id) return t;
+          const nextLabels = t.labels.filter((l) => !l.startsWith("goal:"));
+          if (targetLabel) nextLabels.push(targetLabel);
+          return { ...t, labels: nextLabels };
+        }),
+      );
+
+      try {
+        // Remove all existing goal:* labels that aren't the target
+        await Promise.all(
+          existingGoalLabels
+            .filter((l) => l !== targetLabel)
+            .map((l) =>
+              kodyApi.tasks.removeLabel(
+                task.issueNumber,
+                l,
+                githubUser?.login,
+              ),
+            ),
+        );
+        // Add the target label (if we have one and the task doesn't already carry it)
+        if (targetLabel && !existingGoalLabels.includes(targetLabel)) {
+          await kodyApi.tasks.addLabel(
+            task.issueNumber,
+            targetLabel,
+            githubUser?.login,
+          );
+        }
+        toast.success(
+          targetGoalId
+            ? `Moved to ${goals.find((g) => g.id === targetGoalId)?.name ?? "goal"}`
+            : "Moved to Ungrouped",
+        );
+        refetch();
+      } catch (error) {
+        toast.error("Failed to move task", {
+          description: (error as Error).message,
+        });
+        refetch();
+      }
+    },
+    [queryClient, days, githubUser?.login, goals, refetch],
+  );
 
   const handleOpenBug = useCallback(() => {
     setShowBugDialog(true);
@@ -1263,10 +1325,6 @@ export function KodyDashboard({
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={handleOpenCreate}>
-                        <Plus className="w-4 h-4 mr-2" />
-                        New Task
-                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => setShowCreateGoal(true)}>
                         <Layers className="w-4 h-4 mr-2" />
                         New Goal
@@ -1419,7 +1477,8 @@ export function KodyDashboard({
                     onCreateGoal={() => setShowCreateGoal(true)}
                     onEditGoal={setEditingGoal}
                     onDeleteGoal={setPendingDeleteGoal}
-                    onAttachTasks={setAttachTargetGoal}
+                    onCreateTaskInGoal={handleCreateInGoal}
+                    onMoveTask={handleMoveTask}
                   />
                 )}
               </div>
@@ -1607,6 +1666,11 @@ export function KodyDashboard({
                 }
               : undefined
           }
+          presetLabels={
+            presetGoalForCreate
+              ? [`goal:${presetGoalForCreate.id}`]
+              : undefined
+          }
         />
 
         {/* Edit Task Dialog */}
@@ -1650,18 +1714,6 @@ export function KodyDashboard({
             goal={editingGoal}
             onClose={() => setEditingGoal(null)}
             onSaved={() => setEditingGoal(null)}
-          />
-        ) : null}
-        {attachTargetGoal ? (
-          <AttachTasksDialog
-            open
-            goal={attachTargetGoal}
-            availableTasks={tasks.filter(
-              (t) =>
-                t.state === "open" &&
-                !t.labels.includes(`goal:${attachTargetGoal.id}`),
-            )}
-            onClose={() => setAttachTargetGoal(null)}
           />
         ) : null}
         <ConfirmDialog

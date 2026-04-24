@@ -73,6 +73,10 @@ interface TaskListProps {
   onDuplicate?: (task: KodyTask) => void
   onRerun?: (task: KodyTask) => void
   onToggleQueue?: (task: KodyTask) => void
+  /** If true, each row is draggable (for goal-to-goal DnD). */
+  draggable?: boolean
+  onDragStartTask?: (task: KodyTask, event: React.DragEvent) => void
+  onDragEndTask?: (task: KodyTask) => void
 }
 
 // ── Status colors — single source of truth ──
@@ -170,6 +174,9 @@ export function TaskList({
   onRerun,
   onToggleQueue,
   collaborators = [],
+  draggable,
+  onDragStartTask,
+  onDragEndTask,
 }: TaskListProps) {
   const handleTaskClick = useCallback(
     (task: KodyTask) => {
@@ -227,6 +234,22 @@ export function TaskList({
             role="option"
             aria-selected={isSelected}
             tabIndex={0}
+            draggable={draggable}
+            onDragStart={(e) => {
+              if (!draggable) return
+              e.dataTransfer.effectAllowed = 'move'
+              // Payload — any consumer can read `task-id`
+              try {
+                e.dataTransfer.setData('text/plain', String(task.issueNumber))
+              } catch {
+                /* some browsers restrict setData during drag */
+              }
+              onDragStartTask?.(task, e)
+            }}
+            onDragEnd={() => {
+              if (!draggable) return
+              onDragEndTask?.(task)
+            }}
             onClick={() => handleTaskClick(task)}
             onMouseEnter={() => onTaskHover?.(task)}
             onKeyDown={(e) => {
@@ -242,6 +265,7 @@ export function TaskList({
               isSelected && cn('bg-white/[0.06] border-l-2', colors.border),
               isFocused && 'ring-1 ring-blue-500/40 bg-blue-500/5',
               isHardStop && 'ring-1 ring-red-500/30 ring-inset',
+              draggable && 'cursor-grab active:cursor-grabbing',
             )}
           >
             {/* Main row */}

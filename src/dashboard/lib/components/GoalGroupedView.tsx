@@ -18,7 +18,6 @@ import {
   ChevronsUpDown,
   Flag,
   Inbox,
-  ListPlus,
   Pencil,
   Plus,
   Trash2,
@@ -54,7 +53,10 @@ interface GoalGroupedViewProps {
   onCreateGoal?: () => void
   onEditGoal?: (goal: Goal) => void
   onDeleteGoal?: (goal: Goal) => void
-  onAttachTasks?: (goal: Goal) => void
+  /** Create a task scoped to this goal (or null for Ungrouped). */
+  onCreateTaskInGoal?: (goal: Goal | null) => void
+  /** Move a task between goals (null targetGoalId = Ungrouped). */
+  onMoveTask?: (task: KodyTask, targetGoalId: string | null) => void
 }
 
 interface Group {
@@ -111,9 +113,12 @@ export function GoalGroupedView({
   onCreateGoal,
   onEditGoal,
   onDeleteGoal,
-  onAttachTasks,
+  onCreateTaskInGoal,
+  onMoveTask,
   ...taskListProps
 }: GoalGroupedViewProps) {
+  const [dragTask, setDragTask] = useState<KodyTask | null>(null)
+  const [dropTargetKey, setDropTargetKey] = useState<string | null>(null)
   const groups = useMemo(() => buildGroups(goals, tasks), [goals, tasks])
   // Collapse "Ungrouped" by default when goals exist; keep goals expanded.
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
@@ -207,15 +212,47 @@ export function GoalGroupedView({
           const isUngrouped = group.goal === null
           const total = group.tasks.length
           const pct = total > 0 ? (group.done / total) * 100 : 0
+          const targetGoalId = group.goal?.id ?? null
+          const isDragSource =
+            dragTask !== null &&
+            (isUngrouped
+              ? dragTask.labels.every((l) => !l.startsWith(GOAL_LABEL_PREFIX))
+              : dragTask.labels.includes(`${GOAL_LABEL_PREFIX}${targetGoalId}`))
+          const canDropHere = dragTask !== null && !isDragSource
+          const isHotDropZone = canDropHere && dropTargetKey === group.key
           return (
             <section
               key={group.key}
               aria-label={group.goal?.name ?? 'Ungrouped'}
+              onDragOver={(e) => {
+                if (!canDropHere || !onMoveTask) return
+                e.preventDefault()
+                e.dataTransfer.dropEffect = 'move'
+                if (dropTargetKey !== group.key) setDropTargetKey(group.key)
+              }}
+              onDragLeave={(e) => {
+                // Only clear if leaving the section entirely
+                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                  setDropTargetKey((k) => (k === group.key ? null : k))
+                }
+              }}
+              onDrop={(e) => {
+                if (!canDropHere || !onMoveTask || !dragTask) return
+                e.preventDefault()
+                onMoveTask(dragTask, targetGoalId)
+                setDragTask(null)
+                setDropTargetKey(null)
+              }}
               className={cn(
-                'relative rounded-xl overflow-hidden ring-1 transition-colors',
+                'relative rounded-xl overflow-hidden ring-1 transition-all',
                 isUngrouped
                   ? 'ring-white/[0.06] bg-white/[0.01]'
                   : 'ring-sky-500/20 bg-sky-500/[0.015] shadow-[0_0_0_1px_rgba(56,189,248,0.04),0_20px_40px_-20px_rgba(56,189,248,0.08)]',
+                isHotDropZone &&
+                  'ring-2 ring-sky-400 shadow-[0_0_0_4px_rgba(56,189,248,0.18)]',
+                canDropHere &&
+                  !isHotDropZone &&
+                  'ring-sky-400/40 ring-dashed',
               )}
             >
               {/* Continuous left cascade rail — runs the full length of the section */}
@@ -302,45 +339,51 @@ export function GoalGroupedView({
                   </div>
                 </button>
 
-                {/* Goal actions */}
-                {group.goal ? (
-                  <div className="flex items-center gap-1 shrink-0">
-                    {onAttachTasks ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 gap-1.5 text-xs text-sky-300 hover:bg-sky-500/10 hover:text-sky-200"
-                        onClick={() => onAttachTasks(group.goal!)}
-                        aria-label={`Attach tasks to ${group.goal.name}`}
-                      >
-                        <ListPlus className="w-3.5 h-3.5" />
-                        <span className="hidden md:inline">Attach</span>
-                      </Button>
-                    ) : null}
-                    {onEditGoal ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                        onClick={() => onEditGoal(group.goal!)}
-                        aria-label={`Edit ${group.goal.name}`}
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </Button>
-                    ) : null}
-                    {onDeleteGoal ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-muted-foreground hover:text-red-400"
-                        onClick={() => onDeleteGoal(group.goal!)}
-                        aria-label={`Delete ${group.goal.name}`}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-                    ) : null}
-                  </div>
-                ) : null}
+                {/* Action cluster — primary New task + goal-management actions (goals only) */}
+                <div className="flex items-center gap-1 shrink-0">
+                  {onCreateTaskInGoal ? (
+                    <Button
+                      size="sm"
+                      onClick={() => onCreateTaskInGoal(group.goal)}
+                      className={cn(
+                        'h-8 gap-1.5',
+                        isUngrouped
+                          ? ''
+                          : 'bg-sky-500 hover:bg-sky-400 text-white',
+                      )}
+                      aria-label={
+                        group.goal
+                          ? `Create task in ${group.goal.name}`
+                          : 'Create task (no goal)'
+                      }
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span className="hidden md:inline">New task</span>
+                    </Button>
+                  ) : null}
+                  {group.goal && onEditGoal ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                      onClick={() => onEditGoal(group.goal!)}
+                      aria-label={`Edit ${group.goal.name}`}
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </Button>
+                  ) : null}
+                  {group.goal && onDeleteGoal ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-muted-foreground hover:text-red-400"
+                      onClick={() => onDeleteGoal(group.goal!)}
+                      aria-label={`Delete ${group.goal.name}`}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  ) : null}
+                </div>
               </header>
 
               {!isCollapsed ? (
@@ -364,22 +407,31 @@ export function GoalGroupedView({
                           'rounded-tl-md overflow-hidden border-t border-l border-sky-500/15',
                       )}
                     >
-                      <TaskList tasks={group.tasks} {...taskListProps} />
+                      <TaskList
+                        tasks={group.tasks}
+                        {...taskListProps}
+                        draggable={!!onMoveTask}
+                        onDragStartTask={(task) => setDragTask(task)}
+                        onDragEndTask={() => {
+                          setDragTask(null)
+                          setDropTargetKey(null)
+                        }}
+                      />
                     </div>
                   ) : (
                     <div className="px-4 md:px-6 py-6 text-center">
                       <p className="text-xs text-muted-foreground">
-                        No tasks match the current filters in this goal.
+                        No tasks yet — create one or drag a task here.
                       </p>
-                      {onAttachTasks && group.goal ? (
+                      {onCreateTaskInGoal ? (
                         <Button
                           size="sm"
                           variant="outline"
                           className="mt-3 gap-1.5"
-                          onClick={() => onAttachTasks(group.goal!)}
+                          onClick={() => onCreateTaskInGoal(group.goal)}
                         >
-                          <ListPlus className="w-3.5 h-3.5" />
-                          Attach tasks
+                          <Plus className="w-3.5 h-3.5" />
+                          New task
                         </Button>
                       ) : null}
                     </div>
