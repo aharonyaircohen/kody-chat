@@ -68,6 +68,9 @@ interface ChatEventEntry {
 // Track last-read line index per sessionId to avoid re-reading old events
 const lastReadIndex = new Map<string, number>();
 
+// ETag cache so unchanged GitHub reads return 304 (does not count against rate limit)
+const etagCache = new Map<string, { etag: string; lines: string[] }>();
+
 // ─── GitHub file helpers ────────────────────────────────────────────────────────
 
 function getDefaultOwner(): string {
@@ -94,15 +97,28 @@ async function readEventFile(
   sessionId: string,
 ): Promise<{ lines: string[]; exists: boolean }> {
   const path = sessionEventFilePath(sessionId);
+  const cached = etagCache.get(sessionId);
   try {
-    const { data } = await octokit.rest.repos.getContent({ owner, repo, path, ref: branch });
+    const response = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path,
+      ref: branch,
+      headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
+    });
+    const { data, headers } = response;
+    const newEtag = (headers as Record<string, string> | undefined)?.etag;
     if ("content" in data && data.content) {
       const content = Buffer.from(data.content, "base64").toString("utf-8");
       const lines = content.trim().split("\n").filter(Boolean);
+      if (newEtag) etagCache.set(sessionId, { etag: newEtag, lines });
       return { lines, exists: true };
     }
   } catch (err: unknown) {
     const e = err as { status?: number };
+    // 304 Not Modified — file is unchanged, reuse cached lines (this response
+    // does NOT count against the GitHub rate limit).
+    if (e.status === 304 && cached) return { lines: cached.lines, exists: true };
     if (e.status !== 404) throw err;
   }
   return { lines: [], exists: false };
@@ -155,6 +171,9 @@ export async function GET(rawReq: NextRequest) {
   let controllerRef: ReadableStreamDefaultController<any> | null = null;
   let unsubscribe: (() => void) | null = null;
   const seenEventIds = new Set<string>();
+  // Timestamp of last in-memory push delivery. While this is recent, the poll
+  // is suppressed entirely — no GitHub call at all.
+  let lastPushAt = 0;
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -164,6 +183,7 @@ export async function GET(rawReq: NextRequest) {
       active = false;
       unsubscribe?.();
       lastReadIndex.delete(sessionId);
+      etagCache.delete(sessionId);
     },
   });
 
@@ -173,6 +193,7 @@ export async function GET(rawReq: NextRequest) {
   unsubscribe = subscribe(sessionId, (raw) => {
     const ctrl = controllerRef;
     if (!active || !ctrl) return;
+    lastPushAt = Date.now();
     const event = raw as ChatEventEntry;
     const eventKey = `${event.runId ?? ""}:${event.emittedAt ?? ""}:${event.event}`;
     if (seenEventIds.has(eventKey)) return;
@@ -206,6 +227,11 @@ export async function GET(rawReq: NextRequest) {
     // across async setInterval callbacks without this
     const ctrl: ReadableStreamDefaultController | null = controllerRef;
     if (!active || !ctrl) return;
+
+    // Skip GitHub entirely while the in-memory push channel is live. The poll
+    // is a fallback for cross-instance SSE; when push is delivering, it's pure
+    // waste. 5s grace covers brief gaps between engine events.
+    if (Date.now() - lastPushAt < 5000) return;
 
     const { lines } = await readEventFile(octokit, owner, repo, branch, sessionId);
 
@@ -249,7 +275,7 @@ export async function GET(rawReq: NextRequest) {
         try { ctrl.enqueue(encoder.encode(`data: ${data}\n\n`)); } catch { /* closed */ }
       }
     }
-  }, 1000);
+  }, 3000);
 
   // Send initial connected heartbeat
   if (controllerRef) {
@@ -266,6 +292,7 @@ export async function GET(rawReq: NextRequest) {
     clearInterval(poll);
     unsubscribe?.();
     lastReadIndex.delete(sessionId);
+    etagCache.delete(sessionId);
   });
 
   return new NextResponse(stream, {

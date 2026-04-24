@@ -48,8 +48,20 @@ function getCached<T>(key: string): T | null {
   if (entry && entry.expires > Date.now()) {
     return entry.data as T
   }
-  cache.delete(key)
+  // Keep expired entries so their ETag survives for conditional GETs.
+  // The next setCache (or invalidateCache) will overwrite / evict them.
   return null
+}
+
+/**
+ * Return a stale (expired) cache entry + its ETag, for use with
+ * `If-None-Match` conditional GitHub requests. Returning 304 (free — does
+ * not count against the rate limit) lets us refresh the TTL on the existing
+ * data without re-downloading it.
+ */
+function getStale<T>(key: string): { data: T; etag?: string } | null {
+  const entry = cache.get(key)
+  return entry ? { data: entry.data as T, etag: entry.etag } : null
 }
 
 /**
@@ -257,40 +269,57 @@ export function createUserOctokit(token: string): Octokit {
 // ============ Branch Discovery ============
 
 /**
- * Find the branch for a task by trying all possible prefixes
+ * Load (and cache) the full list of branches under a prefix. Cached for
+ * BRANCH_CACHE_TTL so subsequent lookups hit memory, not the GitHub API.
+ * Shared by findTaskBranch and findBranchesByIssueNumbers.
+ */
+async function getBranchesForPrefix(prefix: string): Promise<string[]> {
+  const cacheKey = `branches:prefix:${prefix}`
+  const cached = getCached<string[]>(cacheKey)
+  if (cached) return cached
+
+  const octokit = getOctokit()
+  try {
+    const { data } = await octokit.git.listMatchingRefs({
+      owner: getOwner(),
+      repo: getRepo(),
+      ref: `heads/${prefix}/`,
+    })
+    const branches = data.map((ref: any) => ref.ref.replace('refs/heads/', ''))
+    setCache(cacheKey, BRANCH_CACHE_TTL, branches)
+    return branches
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Find the branch for a task across all known prefixes.
+ * Uses cached per-prefix listings — on a warm cache this makes zero API calls.
  */
 export async function findTaskBranch(taskId: string): Promise<string | null> {
   if (!TASK_ID_REGEX.test(taskId)) {
     return null
   }
 
-  const octokit = getOctokit()
+  const cacheKey = `branch:task:${taskId}`
+  const cached = getCached<string | null>(cacheKey)
+  if (cached !== null) return cached
 
-  // Try all prefixes in parallel
-  const results = await Promise.allSettled(
+  const results = await Promise.all(
     BRANCH_PREFIXES.map(async (prefix) => {
-      const branchName = `${prefix}/${taskId}`
-      try {
-        await octokit.repos.getBranch({
-          owner: getOwner(),
-          repo: getRepo(),
-          branch: branchName,
-        })
-        return branchName
-      } catch {
-        return null
-      }
+      const branches = await getBranchesForPrefix(prefix)
+      const exact = `${prefix}/${taskId}`
+      const withSuffix = `${prefix}/${taskId}-`
+      return (
+        branches.find((b) => b === exact || b.startsWith(withSuffix)) ?? null
+      )
     }),
   )
 
-  // Return first successful result
-  for (const result of results) {
-    if (result.status === 'fulfilled' && result.value) {
-      return result.value
-    }
-  }
-
-  return null
+  const found = results.find((r) => r !== null) ?? null
+  setCache(cacheKey, BRANCH_CACHE_TTL, found)
+  return found
 }
 
 /**
@@ -306,42 +335,20 @@ export async function findBranchByIssueNumber(
   const cached = getCached<string>(cacheKey)
   if (cached) return cached
 
-  const octokit = getOctokit()
   const issueStr = String(issueNumber)
+  const pattern = new RegExp(`-${issueStr}-`)
 
-  // Search each prefix in parallel using the matching-refs API
-  const results = await Promise.allSettled(
+  // Reuse the shared prefix-branch cache
+  const results = await Promise.all(
     BRANCH_PREFIXES.map(async (prefix) => {
-      try {
-        const { data } = await octokit.git.listMatchingRefs({
-          owner: getOwner(),
-          repo: getRepo(),
-          ref: `heads/${prefix}/`,
-        })
-
-        // Find branches containing -<issueNumber>- in their name
-        // e.g., fix/260228-auto-635-fix-conversation-delete-endpoint-b
-        const pattern = new RegExp(`-${issueStr}-`)
-        const match = data.find((ref: any) => {
-          const branchName = ref.ref.replace('refs/heads/', '')
-          return pattern.test(branchName)
-        })
-
-        return match ? match.ref.replace('refs/heads/', '') : null
-      } catch {
-        return null
-      }
+      const branches = await getBranchesForPrefix(prefix)
+      return branches.find((b) => pattern.test(b)) ?? null
     }),
   )
 
-  for (const result of results) {
-    if (result.status === 'fulfilled' && result.value) {
-      setCache(cacheKey, BRANCH_CACHE_TTL, result.value)
-      return result.value
-    }
-  }
-
-  return null
+  const found = results.find((r) => r !== null) ?? null
+  if (found) setCache(cacheKey, BRANCH_CACHE_TTL, found)
+  return found
 }
 
 /**
@@ -358,49 +365,24 @@ export async function findBranchesByIssueNumbers(
 
   const result = new Map<number, string>()
   const issueStrs = issueNumbers.map((n) => String(n))
-  const octokit = getOctokit()
 
-  // Fetch all branches for each prefix in parallel
-  // Map updates + caching happen in-place, results not needed
+  // Fetch (or hit cache for) each prefix's branch list in parallel
   void (await Promise.allSettled(
     BRANCH_PREFIXES.map(async (prefix) => {
-      // Check cache first for this prefix's branch list
-      const prefixCacheKey = `branches:prefix:${prefix}`
-      let branches: string[] | null = getCached<string[]>(prefixCacheKey)
+      const branches = await getBranchesForPrefix(prefix)
 
-      if (!branches) {
-        // Not cached, fetch from GitHub
-        try {
-          const { data } = await octokit.git.listMatchingRefs({
-            owner: getOwner(),
-            repo: getRepo(),
-            ref: `heads/${prefix}/`,
-          })
-          branches = data.map((ref: any) => ref.ref.replace('refs/heads/', ''))
-          // Cache the full branch list for this prefix (10 min)
-          setCache(prefixCacheKey, BRANCH_CACHE_TTL, branches)
-        } catch {
-          branches = []
-        }
-      }
-
-      // Now search for each issue number in this prefix's branches
       for (const issueStr of issueStrs) {
         const pattern = new RegExp(`-${issueStr}-`)
-        const match = branches!.find((branchName) => pattern.test(branchName))
+        const match = branches.find((branchName) => pattern.test(branchName))
         if (match) {
           const issueNum = parseInt(issueStr, 10)
-          // Only set if not already found (first match wins)
           if (!result.has(issueNum)) {
             result.set(issueNum, match)
-            // Also cache individual branch lookup for future single-issue lookups
             const individualCacheKey = `branch:issue:${issueStr}`
             setCache(individualCacheKey, BRANCH_CACHE_TTL, match)
           }
         }
       }
-
-      return branches
     }),
   ))
 
@@ -684,19 +666,34 @@ export async function fetchIssues(options?: {
   const cached = getCached<GitHubIssue[]>(cacheKey)
   if (cached) return cached
 
+  const stale = getStale<GitHubIssue[]>(cacheKey)
   const octokit = getOctokit()
 
-  const { data } = await octokit.issues.listForRepo({
-    owner: getOwner(),
-    repo: getRepo(),
-    state: options?.state || 'open',
-    labels: options?.labels,
-    milestone: options?.milestone ? String(options.milestone) : undefined,
-    per_page: options?.perPage || 50,
-    sort: 'updated',
-    direction: 'desc',
-    since: options?.since as any, // Octokit accepts ISO string
-  })
+  let response
+  try {
+    response = await octokit.issues.listForRepo({
+      owner: getOwner(),
+      repo: getRepo(),
+      state: options?.state || 'open',
+      labels: options?.labels,
+      milestone: options?.milestone ? String(options.milestone) : undefined,
+      per_page: options?.perPage || 50,
+      sort: 'updated',
+      direction: 'desc',
+      since: options?.since as any, // Octokit accepts ISO string
+      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
+    })
+  } catch (err: any) {
+    // 304 Not Modified — reuse stale data, refresh TTL, no rate cost
+    if (err.status === 304 && stale) {
+      setCache(cacheKey, CACHE_TTL.tasks, stale.data, { etag: stale.etag })
+      return stale.data
+    }
+    throw err
+  }
+
+  const data = response.data
+  const newEtag = (response.headers as Record<string, string | undefined>)?.etag
 
   const excludeSet = new Set((options?.excludeLabels ?? []).map((l) => l.toLowerCase()))
 
@@ -740,7 +737,7 @@ export async function fetchIssues(options?: {
         ) ?? false,
     }))
 
-  setCache(cacheKey, CACHE_TTL.tasks, issues)
+  setCache(cacheKey, CACHE_TTL.tasks, issues, { etag: newEtag })
   return issues
 }
 
@@ -790,15 +787,29 @@ export async function fetchWorkflowRuns(options?: {
   const cached = getCached<WorkflowRun[]>(cacheKey)
   if (cached) return cached
 
+  const stale = getStale<WorkflowRun[]>(cacheKey)
   const octokit = getOctokit()
 
-  const { data } = await octokit.actions.listWorkflowRuns({
-    owner: getOwner(),
-    repo: getRepo(),
-    workflow_id: WORKFLOW_ID,
-    status: options?.status,
-    per_page: options?.perPage || 20,
-  })
+  let response
+  try {
+    response = await octokit.actions.listWorkflowRuns({
+      owner: getOwner(),
+      repo: getRepo(),
+      workflow_id: WORKFLOW_ID,
+      status: options?.status,
+      per_page: options?.perPage || 20,
+      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
+    })
+  } catch (err: any) {
+    if (err.status === 304 && stale) {
+      setCache(cacheKey, CACHE_TTL.pipeline, stale.data, { etag: stale.etag })
+      return stale.data
+    }
+    throw err
+  }
+
+  const data = response.data
+  const newEtag = (response.headers as Record<string, string | undefined>)?.etag
 
   const runs: WorkflowRun[] = data.workflow_runs.map((run) => ({
     id: run.id,
@@ -811,7 +822,7 @@ export async function fetchWorkflowRuns(options?: {
     head_branch: (run as any).head_branch ?? undefined,
   }))
 
-  setCache(cacheKey, CACHE_TTL.pipeline, runs)
+  setCache(cacheKey, CACHE_TTL.pipeline, runs, { etag: newEtag })
   return runs
 }
 
@@ -883,16 +894,30 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
   const cached = getCached<GitHubPR[]>(cacheKey)
   if (cached) return cached
 
+  const stale = getStale<GitHubPR[]>(cacheKey)
   const octokit = getOctokit()
 
-  const { data } = await octokit.pulls.list({
-    owner: getOwner(),
-    repo: getRepo(),
-    state: 'open',
-    per_page: 50,
-    sort: 'updated',
-    direction: 'desc',
-  })
+  let response
+  try {
+    response = await octokit.pulls.list({
+      owner: getOwner(),
+      repo: getRepo(),
+      state: 'open',
+      per_page: 50,
+      sort: 'updated',
+      direction: 'desc',
+      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
+    })
+  } catch (err: any) {
+    if (err.status === 304 && stale) {
+      setCache(cacheKey, CACHE_TTL.prs, stale.data, { etag: stale.etag })
+      return stale.data
+    }
+    throw err
+  }
+
+  const data = response.data
+  const newEtag = (response.headers as Record<string, string | undefined>)?.etag
 
   const prs: GitHubPR[] = data.map((pr) => ({
     id: pr.id,
@@ -908,7 +933,7 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
     labels: pr.labels?.map((l) => l.name ?? '').filter(Boolean) ?? [],
   }))
 
-  setCache(cacheKey, CACHE_TTL.prs, prs)
+  setCache(cacheKey, CACHE_TTL.prs, prs, { etag: newEtag })
   return prs
 }
 
@@ -916,10 +941,12 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
 
 /**
  * Fetch Vercel preview URLs for a set of PR head SHAs.
- * Strategy: 1 bulk call for recent deployments, then 1 status call per matched deployment.
- * For SHAs not found in the bulk fetch (older deployments beyond the 30-item window),
- * falls back to individual SHA-based lookups.
- * Returns a Map of SHA -> preview URL.
+ * Strategy: 1 bulk call for the 100 most recent Preview deployments (GitHub's
+ * max page size), then 1 status call per matched deployment.
+ *
+ * Older SHAs that fall outside the 100-deployment window simply don't get a
+ * preview URL — accepted tradeoff to avoid the previous per-SHA fanout, which
+ * cost 2 extra REST calls per missed PR on every tasks-list poll.
  */
 export async function fetchDeploymentPreviews(prShas: string[]): Promise<Map<string, string>> {
   if (prShas.length === 0) return new Map()
@@ -932,19 +959,16 @@ export async function fetchDeploymentPreviews(prShas: string[]): Promise<Map<str
   const result = new Map<string, string>()
 
   try {
-    // 1. Bulk fetch recent Preview deployments (1 API call)
     const { data: deployments } = await octokit.repos.listDeployments({
       owner: getOwner(),
       repo: getRepo(),
       environment: 'Preview',
-      per_page: 30,
+      per_page: 100,
     })
 
-    // 2. Match deployments to our PR SHAs
     const shaSet = new Set(prShas)
     const matched = deployments.filter((d) => shaSet.has(d.sha))
 
-    // 3. Fetch status for each matched deployment (1 call per match, typically 1-3)
     await Promise.all(
       matched.map(async (deployment) => {
         try {
@@ -962,44 +986,10 @@ export async function fetchDeploymentPreviews(prShas: string[]): Promise<Map<str
         }
       }),
     )
-
-    // 4. For SHAs not found in bulk fetch (older deployments), look up individually.
-    // The bulk fetch only returns the most recent 30 deployments, so older PRs
-    // won't be found. The individual lookup uses the ?sha= query parameter.
-    const missedShas = prShas.filter((sha) => !result.has(sha))
-    if (missedShas.length > 0) {
-      await Promise.all(
-        missedShas.map(async (sha) => {
-          try {
-            const { data: shaDeployments } = await octokit.repos.listDeployments({
-              owner: getOwner(),
-              repo: getRepo(),
-              sha,
-              environment: 'Preview',
-              per_page: 1,
-            })
-            if (shaDeployments.length > 0) {
-              const { data: statuses } = await octokit.repos.listDeploymentStatuses({
-                owner: getOwner(),
-                repo: getRepo(),
-                deployment_id: shaDeployments[0].id,
-                per_page: 1,
-              })
-              if (statuses.length > 0 && statuses[0].environment_url) {
-                result.set(sha, statuses[0].environment_url)
-              }
-            }
-          } catch {
-            // Skip individual failures
-          }
-        }),
-      )
-    }
   } catch (error) {
     console.error('[Kody] Error fetching deployment previews:', error)
   }
 
-  // Cache for 2 minutes (deployments don't change often)
   setCache(cacheKey, CACHE_TTL.prs, result)
   return result
 }
@@ -1772,194 +1762,139 @@ export function getCacheStats(): { size: number; keys: string[] } {
 
 // ============ PR CI Status ============
 
-/**
- * Fetch the combined CI status for a PR's head commit.
- * Uses the combined status API + check runs to determine overall state.
- */
-export async function fetchPRCIStatus(prNumber: number): Promise<{
-  ciStatus: 'pending' | 'success' | 'failure' | 'running'
+type CIStatus = 'pending' | 'success' | 'failure' | 'running'
+
+interface PRCIStatusResult {
+  ciStatus: CIStatus
   mergeable: boolean
   hasConflicts: boolean
-}> {
+}
+
+interface PRCIStatusGraphQL {
+  repository: {
+    pullRequest: {
+      mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN'
+      mergeStateStatus:
+        | 'CLEAN'
+        | 'DIRTY'
+        | 'BLOCKED'
+        | 'BEHIND'
+        | 'UNKNOWN'
+        | 'UNSTABLE'
+        | 'HAS_HOOKS'
+      commits: {
+        nodes: Array<{
+          commit: {
+            statusCheckRollup: {
+              state: 'SUCCESS' | 'FAILURE' | 'PENDING' | 'ERROR' | 'EXPECTED'
+            } | null
+          }
+        }>
+      }
+    } | null
+  } | null
+}
+
+function mapRollupState(state: string | null | undefined): CIStatus {
+  if (!state) return 'success' // no checks configured — nothing to wait for
+  switch (state) {
+    case 'SUCCESS':
+      return 'success'
+    case 'FAILURE':
+    case 'ERROR':
+      return 'failure'
+    case 'PENDING':
+      return 'running'
+    case 'EXPECTED':
+    default:
+      return 'pending'
+  }
+}
+
+/**
+ * Fetch mergeability + CI rollup for a PR in a single GraphQL call.
+ *
+ * GraphQL's `statusCheckRollup` aggregates both status contexts (Vercel etc.)
+ * and check runs (GitHub Actions), already deduped to the latest run per name —
+ * identical semantics to the previous REST 3-call combo (pulls.get +
+ * getCombinedStatusForRef + checks.listForRef), at 1 GraphQL point budget.
+ */
+export async function fetchPRCIStatus(prNumber: number): Promise<PRCIStatusResult> {
   const cacheKey = `pr-ci-status:${prNumber}`
-  const cached = getCached<{
-    ciStatus: 'pending' | 'success' | 'failure' | 'running'
-    mergeable: boolean
-    hasConflicts: boolean
-  }>(cacheKey)
+  const cached = getCached<PRCIStatusResult>(cacheKey)
   if (cached) return cached
 
   const octokit = getOctokit()
 
+  const query = `
+    query PRCIStatus($owner: String!, $repo: String!, $number: Int!) {
+      repository(owner: $owner, name: $repo) {
+        pullRequest(number: $number) {
+          mergeable
+          mergeStateStatus
+          commits(last: 1) {
+            nodes {
+              commit {
+                statusCheckRollup { state }
+              }
+            }
+          }
+        }
+      }
+    }
+  `
+
   try {
-    // 1. Get the PR — GitHub computes mergeable state for us
-    const { data: pr } = await octokit.pulls.get({
+    const data = await octokit.graphql<PRCIStatusGraphQL>(query, {
       owner: getOwner(),
       repo: getRepo(),
-      pull_number: prNumber,
+      number: prNumber,
     })
 
-    // 2. Map GitHub's mergeable_state to our CI status.
-    //    GitHub's mergeable_state accounts for ALL required checks + branch protection + conflicts.
-    //    See: https://docs.github.com/en/rest/pulls/pulls#get-a-pull-request
-    //    Values: "clean" | "dirty" | "unstable" | "blocked" | "behind" | "unknown"
-    const ghState = pr.mergeable_state
-    let ciStatus: 'pending' | 'success' | 'failure' | 'running'
+    const pr = data.repository?.pullRequest
+    if (!pr) {
+      return { ciStatus: 'pending', mergeable: false, hasConflicts: false }
+    }
+
+    const rollupState = pr.commits.nodes[0]?.commit.statusCheckRollup?.state ?? null
+    const noConflicts = pr.mergeable === 'MERGEABLE'
+    let ciStatus: CIStatus
     let hasConflicts = false
 
-    switch (ghState) {
-      case 'clean':
-        // All checks passed, no conflicts, meets branch protection — ready to merge
+    switch (pr.mergeStateStatus) {
+      case 'CLEAN':
+      case 'UNSTABLE':
+        // All required checks passed; 'UNSTABLE' = non-required check failed but mergeable.
         ciStatus = 'success'
         break
-      case 'unstable':
-        // Some non-required checks failed, but required ones passed — still mergeable
-        ciStatus = 'success'
+      case 'BLOCKED':
+        // Steady state for repos without branch protection — fall back to rollup.
+        ciStatus = noConflicts ? mapRollupState(rollupState) : 'running'
         break
-      case 'blocked':
-        // GitHub returns 'blocked' when branch protection has required checks that haven't
-        // completed, OR when there's NO branch protection at all (can't evaluate as 'clean').
-        // Since this repo has no branch protection, 'blocked' is the steady state for all PRs.
-        // Fall back to checking actual commit status to determine CI state.
-        if (pr.mergeable === true) {
-          ciStatus = await resolveCommitCIStatus(octokit, pr.head.sha)
-        } else {
-          ciStatus = 'running'
-        }
-        break
-      case 'behind':
-        // Branch is behind base — needs update but may be mergeable
+      case 'BEHIND':
+      case 'HAS_HOOKS':
         ciStatus = 'running'
         break
-      case 'dirty':
-        // Merge conflicts exist — distinct from CI failure
+      case 'DIRTY':
         ciStatus = 'failure'
         hasConflicts = true
         break
-      case 'unknown':
-        // GitHub is computing — retry soon
-        ciStatus = 'pending'
-        break
+      case 'UNKNOWN':
       default:
         ciStatus = 'pending'
     }
 
-    // 3. Mergeable = GitHub says no conflicts AND CI is in a good state
     const mergeable =
-      pr.mergeable === true &&
-      (ciStatus === 'success' || ghState === 'clean' || ghState === 'unstable')
+      noConflicts &&
+      (ciStatus === 'success' ||
+        pr.mergeStateStatus === 'CLEAN' ||
+        pr.mergeStateStatus === 'UNSTABLE')
 
-    const result = { ciStatus, mergeable, hasConflicts }
-
-    // Short cache — 15s to stay responsive while CI runs
+    const result: PRCIStatusResult = { ciStatus, mergeable, hasConflicts }
     setCache(cacheKey, 15_000, result)
     return result
   } catch (error) {
     console.error('[Kody] Error fetching PR CI status:', error)
     return { ciStatus: 'pending', mergeable: false, hasConflicts: false }
   }
-}
-
-/**
- * Check the combined commit status and check runs for a given SHA.
- * Used as fallback when mergeable_state is 'blocked' (no branch protection configured).
- *
- * Strategy:
- * - Combined status API (status checks like Vercel) is used as-is (already aggregated by GitHub)
- * - Check runs (GitHub Actions) are deduplicated by name, keeping only the latest run per check
- *   to avoid stale/superseded failures from blocking merge
- * - If combined status is 'success', individual check run failures are treated as non-essential
- *   (mirrors GitHub's own 'unstable' state behavior)
- */
-async function resolveCommitCIStatus(
-  octokit: Octokit,
-  sha: string,
-): Promise<'pending' | 'success' | 'failure' | 'running'> {
-  try {
-    // Get combined status (covers status API integrations like Vercel)
-    const { data: combinedStatus } = await octokit.repos.getCombinedStatusForRef({
-      owner: getOwner(),
-      repo: getRepo(),
-      ref: sha,
-    })
-
-    // Get check runs (covers GitHub Actions checks)
-    const { data: checkRuns } = await octokit.checks.listForRef({
-      owner: getOwner(),
-      repo: getRepo(),
-      ref: sha,
-      per_page: 100,
-    })
-
-    const hasChecks = combinedStatus.statuses.length > 0 || checkRuns.check_runs.length > 0
-    if (!hasChecks) {
-      // No CI checks at all — consider it ready (nothing to wait for)
-      return 'success'
-    }
-
-    // Deduplicate check runs by name, keeping only the latest run per check.
-    // This prevents stale/superseded failures from blocking merge when a re-run passed.
-    const latestCheckRuns = deduplicateCheckRuns(checkRuns.check_runs)
-
-    // If the combined status API reports success, trust it as the primary signal.
-    // Individual check run failures are treated as non-essential (mirrors 'unstable' behavior).
-    if (combinedStatus.state === 'success' && combinedStatus.statuses.length > 0) {
-      // Still check if any latest check runs are pending/running
-      const anyRunning = latestCheckRuns.some(
-        (cr) => cr.status === 'queued' || cr.status === 'in_progress',
-      )
-      return anyRunning ? 'running' : 'success'
-    }
-
-    // Check for failures in latest check runs only
-    const statusFailed = combinedStatus.state === 'failure'
-    const checkRunFailed = latestCheckRuns.some(
-      (cr) => cr.conclusion === 'failure' || cr.conclusion === 'timed_out',
-    )
-
-    if (statusFailed || checkRunFailed) {
-      return 'failure'
-    }
-
-    // Check if any are still running/pending
-    const statusPending = combinedStatus.state === 'pending'
-    const checkRunPending = latestCheckRuns.some(
-      (cr) => cr.status === 'queued' || cr.status === 'in_progress',
-    )
-
-    if (statusPending || checkRunPending) {
-      return 'running'
-    }
-
-    // All passed
-    return 'success'
-  } catch (error) {
-    console.error('[Kody] Error resolving commit CI status:', error)
-    return 'pending'
-  }
-}
-
-/**
- * Deduplicate check runs by name, keeping only the latest run per unique check name.
- * GitHub can return multiple runs for the same check (e.g., after a re-run), and
- * stale failures should not block merge when the latest run succeeded.
- */
-function deduplicateCheckRuns<
-  T extends { name: string; started_at?: string | null; completed_at?: string | null },
->(checkRuns: T[]): T[] {
-  const latestByName = new Map<string, T>()
-  for (const cr of checkRuns) {
-    const existing = latestByName.get(cr.name)
-    if (!existing) {
-      latestByName.set(cr.name, cr)
-    } else {
-      // Keep the one with the later started_at timestamp
-      const existingTime = existing.started_at ? new Date(existing.started_at).getTime() : 0
-      const crTime = cr.started_at ? new Date(cr.started_at).getTime() : 0
-      if (crTime > existingTime) {
-        latestByName.set(cr.name, cr)
-      }
-    }
-  }
-  return Array.from(latestByName.values())
 }
