@@ -14,6 +14,8 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  ChevronsDownUp,
+  ChevronsUpDown,
   Flag,
   Inbox,
   ListPlus,
@@ -167,128 +169,243 @@ export function GoalGroupedView({
     )
   }
 
+  const allKeys = visibleGroups.map((g) => g.key)
+  const allCollapsed =
+    allKeys.length > 0 && allKeys.every((k) => collapsed.has(k))
+  const handleExpandAll = () => setCollapsed(new Set())
+  const handleCollapseAll = () => setCollapsed(new Set(allKeys))
+
   return (
-    <div className="divide-y divide-white/[0.06]">
-      {visibleGroups.map((group) => {
-        const isCollapsed = collapsed.has(group.key)
-        const isUngrouped = group.goal === null
-        const total = group.tasks.length
-        const pct = total > 0 ? (group.done / total) * 100 : 0
-        return (
-          <section key={group.key} aria-label={group.goal?.name ?? 'Ungrouped'}>
-            <header
+    <div>
+      {/* Expand / collapse toolbar */}
+      {visibleGroups.length > 1 ? (
+        <div className="flex items-center justify-end gap-1 px-4 md:px-6 py-2 border-b border-white/[0.04] bg-black/10">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={allCollapsed ? handleExpandAll : handleCollapseAll}
+            className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+          >
+            {allCollapsed ? (
+              <>
+                <ChevronsUpDown className="w-3.5 h-3.5" />
+                Expand all
+              </>
+            ) : (
+              <>
+                <ChevronsDownUp className="w-3.5 h-3.5" />
+                Collapse all
+              </>
+            )}
+          </Button>
+        </div>
+      ) : null}
+
+      <div className="space-y-4 md:space-y-5 px-2 md:px-4 pt-3">
+        {visibleGroups.map((group) => {
+          const isCollapsed = collapsed.has(group.key)
+          const isUngrouped = group.goal === null
+          const total = group.tasks.length
+          const pct = total > 0 ? (group.done / total) * 100 : 0
+          return (
+            <section
+              key={group.key}
+              aria-label={group.goal?.name ?? 'Ungrouped'}
               className={cn(
-                'flex items-center gap-3 px-4 md:px-6 py-3 bg-black/20 border-b border-white/[0.04] sticky top-0 z-10',
-                isUngrouped && 'bg-black/30',
+                'relative rounded-xl overflow-hidden ring-1 transition-colors',
+                isUngrouped
+                  ? 'ring-white/[0.06] bg-white/[0.01]'
+                  : 'ring-sky-500/20 bg-sky-500/[0.015] shadow-[0_0_0_1px_rgba(56,189,248,0.04),0_20px_40px_-20px_rgba(56,189,248,0.08)]',
               )}
             >
-              <button
-                type="button"
-                onClick={() => toggle(group.key)}
-                className="flex items-center gap-2 min-w-0 flex-1 text-left hover:text-foreground transition-colors"
-                aria-expanded={!isCollapsed}
+              {/* Continuous left cascade rail — runs the full length of the section */}
+              {!isUngrouped ? (
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-sky-400 via-sky-500 to-sky-500/20"
+                />
+              ) : null}
+
+              <header
+                className={cn(
+                  'relative flex items-center gap-3 pl-5 pr-4 md:pl-7 md:pr-6 py-4 md:py-5 transition-colors',
+                  isUngrouped
+                    ? 'bg-black/30'
+                    : 'bg-gradient-to-r from-sky-500/[0.14] via-sky-500/[0.05] to-transparent',
+                )}
               >
-                {isCollapsed ? (
-                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                ) : (
-                  <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
-                )}
-                {isUngrouped ? (
-                  <Inbox className="w-4 h-4 text-muted-foreground shrink-0" />
-                ) : (
-                  <Flag className="w-4 h-4 text-sky-400 shrink-0" />
-                )}
-                <span className="font-medium text-sm truncate">
-                  {group.goal?.name ?? 'Ungrouped'}
-                </span>
-                {total > 0 ? (
-                  <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums shrink-0">
-                    <CheckCircle2 className="w-3 h-3 text-emerald-400/70" />
-                    {group.done}/{total}
-                  </span>
-                ) : (
-                  <span className="text-xs text-muted-foreground shrink-0">
-                    empty
-                  </span>
-                )}
-              </button>
 
-              {/* Progress bar — only for real goals with tasks */}
-              {group.goal && total > 0 ? (
-                <div className="hidden md:block w-28 h-1 rounded-full bg-white/[0.06] overflow-hidden shrink-0">
-                  <div
-                    className="h-full bg-gradient-to-r from-sky-500 to-sky-400 transition-[width] duration-500"
-                    style={{ width: `${pct}%` }}
-                  />
+                <button
+                  type="button"
+                  onClick={() => toggle(group.key)}
+                  className="flex items-center gap-3 min-w-0 flex-1 text-left group"
+                  aria-expanded={!isCollapsed}
+                >
+                  {isCollapsed ? (
+                    <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 group-hover:text-foreground transition-colors" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0 group-hover:text-foreground transition-colors" />
+                  )}
+                  <span
+                    className={cn(
+                      'w-8 h-8 md:w-9 md:h-9 rounded-lg flex items-center justify-center shrink-0 ring-1',
+                      isUngrouped
+                        ? 'bg-white/[0.04] ring-white/[0.06] text-muted-foreground'
+                        : 'bg-sky-500/15 ring-sky-500/30 text-sky-300',
+                    )}
+                  >
+                    {isUngrouped ? (
+                      <Inbox className="w-4 h-4" />
+                    ) : (
+                      <Flag className="w-4 h-4" />
+                    )}
+                  </span>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span
+                        className={cn(
+                          'text-base md:text-lg font-semibold truncate',
+                          isUngrouped ? 'text-foreground/80' : 'text-foreground',
+                        )}
+                      >
+                        {group.goal?.name ?? 'Ungrouped'}
+                      </span>
+                      {total > 0 ? (
+                        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums shrink-0">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400/70" />
+                          {group.done}/{total}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-muted-foreground shrink-0">
+                          empty
+                        </span>
+                      )}
+                    </div>
+                    {/* One-line description */}
+                    {group.goal?.description?.trim() ? (
+                      <p
+                        className="text-xs text-muted-foreground truncate max-w-2xl"
+                        title={group.goal.description}
+                      >
+                        {group.goal.description.split('\n')[0]}
+                      </p>
+                    ) : null}
+                    {/* Progress bar beneath the title */}
+                    {group.goal && total > 0 ? (
+                      <div className="w-full max-w-sm h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-sky-500 to-sky-300 transition-[width] duration-500"
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                </button>
+
+                {/* Goal actions */}
+                {group.goal ? (
+                  <div className="flex items-center gap-1 shrink-0">
+                    {onAttachTasks ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 gap-1.5 text-xs text-sky-300 hover:bg-sky-500/10 hover:text-sky-200"
+                        onClick={() => onAttachTasks(group.goal!)}
+                        aria-label={`Attach tasks to ${group.goal.name}`}
+                      >
+                        <ListPlus className="w-3.5 h-3.5" />
+                        <span className="hidden md:inline">Attach</span>
+                      </Button>
+                    ) : null}
+                    {onEditGoal ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                        onClick={() => onEditGoal(group.goal!)}
+                        aria-label={`Edit ${group.goal.name}`}
+                      >
+                        <Pencil className="w-3.5 h-3.5" />
+                      </Button>
+                    ) : null}
+                    {onDeleteGoal ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-red-400"
+                        onClick={() => onDeleteGoal(group.goal!)}
+                        aria-label={`Delete ${group.goal.name}`}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
+              </header>
+
+              {!isCollapsed ? (
+                <div
+                  className={cn(
+                    'relative',
+                    !isUngrouped && 'pl-8 md:pl-12 pr-0 pb-1 bg-background/40',
+                  )}
+                >
+                  {/* Cascade rail — inner guide line running through the task area */}
+                  {!isUngrouped ? (
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute left-[22px] md:left-[32px] top-0 bottom-3 w-px bg-gradient-to-b from-sky-500/40 via-sky-500/20 to-transparent"
+                    />
+                  ) : null}
+                  {total > 0 ? (
+                    <div
+                      className={cn(
+                        !isUngrouped &&
+                          'rounded-tl-md overflow-hidden border-t border-l border-sky-500/15',
+                      )}
+                    >
+                      <TaskList tasks={group.tasks} {...taskListProps} />
+                    </div>
+                  ) : (
+                    <div className="px-4 md:px-6 py-6 text-center">
+                      <p className="text-xs text-muted-foreground">
+                        No tasks match the current filters in this goal.
+                      </p>
+                      {onAttachTasks && group.goal ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="mt-3 gap-1.5"
+                          onClick={() => onAttachTasks(group.goal!)}
+                        >
+                          <ListPlus className="w-3.5 h-3.5" />
+                          Attach tasks
+                        </Button>
+                      ) : null}
+                    </div>
+                  )}
                 </div>
               ) : null}
+            </section>
+          )
+        })}
+      </div>
 
-              {/* Goal actions */}
-              {group.goal ? (
-                <div className="flex items-center gap-1 shrink-0">
-                  {onAttachTasks ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 gap-1 text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => onAttachTasks(group.goal!)}
-                      aria-label={`Attach tasks to ${group.goal.name}`}
-                    >
-                      <ListPlus className="w-3.5 h-3.5" />
-                      <span className="hidden md:inline">Attach</span>
-                    </Button>
-                  ) : null}
-                  {onEditGoal ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                      onClick={() => onEditGoal(group.goal!)}
-                      aria-label={`Edit ${group.goal.name}`}
-                    >
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Button>
-                  ) : null}
-                  {onDeleteGoal ? (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 w-7 p-0 text-muted-foreground hover:text-red-400"
-                      onClick={() => onDeleteGoal(group.goal!)}
-                      aria-label={`Delete ${group.goal.name}`}
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  ) : null}
-                </div>
-              ) : null}
-            </header>
-
-            {!isCollapsed ? (
-              total > 0 ? (
-                <TaskList tasks={group.tasks} {...taskListProps} />
-              ) : (
-                <div className="px-4 md:px-6 py-6 text-center">
-                  <p className="text-xs text-muted-foreground">
-                    No tasks match the current filters in this goal.
-                  </p>
-                  {onAttachTasks && group.goal ? (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="mt-3 gap-1.5"
-                      onClick={() => onAttachTasks(group.goal!)}
-                    >
-                      <ListPlus className="w-3.5 h-3.5" />
-                      Attach tasks
-                    </Button>
-                  ) : null}
-                </div>
-              )
-            ) : null}
-          </section>
-        )
-      })}
+      {/* Big dashed "+ New goal" footer */}
+      {onCreateGoal ? (
+        <div className="p-4 md:p-6">
+          <button
+            type="button"
+            onClick={onCreateGoal}
+            className="w-full group flex items-center justify-center gap-3 py-6 md:py-8 rounded-xl border-2 border-dashed border-white/[0.08] bg-white/[0.01] text-muted-foreground hover:border-sky-500/40 hover:bg-sky-500/[0.04] hover:text-sky-300 transition-colors"
+          >
+            <span className="w-8 h-8 rounded-lg bg-white/[0.04] ring-1 ring-white/[0.08] flex items-center justify-center group-hover:bg-sky-500/10 group-hover:ring-sky-500/40 transition-colors">
+              <Plus className="w-4 h-4" />
+            </span>
+            <span className="text-sm font-medium">New goal</span>
+          </button>
+        </div>
+      ) : null}
     </div>
   )
 }
