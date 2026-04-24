@@ -887,79 +887,94 @@ export function KodyDashboard({
     </>
   );
 
+  // Wrap error takeovers in a layout that keeps the chat sidebar mounted
+  // so users can still talk to Kody (e.g. ask it to unblock a GitHub rate limit)
+  // even when task fetching is broken.
+  const renderErrorTakeover = (content: React.ReactNode) => (
+    <div className="flex h-screen bg-background overflow-hidden">
+      <div
+        className="relative hidden md:block border-r border-border shrink-0"
+        style={{ width: `${chatPanelWidth}px` }}
+      >
+        <KodyChat selectedTask={null} actorLogin={githubUser?.login} />
+        <div
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize chat panel"
+          onMouseDown={startChatResize}
+          onDoubleClick={() => setChatPanelWidth(getDefaultChatWidth())}
+          className="absolute top-0 right-0 h-full w-1 translate-x-1/2 cursor-col-resize z-20 hover:bg-primary/40 active:bg-primary/60 transition-colors"
+          title="Drag to resize • Double-click to reset"
+        />
+      </div>
+      <div className="flex-1 flex items-center justify-center">{content}</div>
+    </div>
+  );
+
   // Session expired — only possible when using OAuth sessions (token-only mode shouldn't reach here)
   if (isSessionExpired) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center max-w-md p-6">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h2 className="text-xl font-semibold text-foreground mb-2">
-            Authentication Error
-          </h2>
-          <p className="text-muted-foreground mb-4">
-            Your session is invalid. Ensure <code>GITHUB_TOKEN</code> is set in your environment variables.
-          </p>
-          <Button onClick={() => refetch()}>Retry</Button>
-        </div>
+    return renderErrorTakeover(
+      <div className="text-center max-w-md p-6">
+        <div className="text-6xl mb-4">⚠️</div>
+        <h2 className="text-xl font-semibold text-foreground mb-2">
+          Authentication Error
+        </h2>
+        <p className="text-muted-foreground mb-4">
+          Your session is invalid. Ensure <code>GITHUB_TOKEN</code> is set in your environment variables.
+        </p>
+        <Button onClick={() => refetch()}>Retry</Button>
       </div>
     );
   }
 
-  // No token error — full-page (can't function without token)
+  // No token error — can't function without token, but keep chat available
   if (isNoToken) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center max-w-md p-6">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h2 className="text-xl font-semibold text-foreground mb-2">
-            Unable to Load Tasks
-          </h2>
-          <p className="text-muted-foreground mb-4">
-            {error?.message ||
-              "GitHub token is not configured. Set GITHUB_TOKEN, KODY_BOT_TOKEN, or GH_PAT in environment variables."}
-          </p>
-          <Button onClick={() => refetch()}>Retry</Button>
-        </div>
+    return renderErrorTakeover(
+      <div className="text-center max-w-md p-6">
+        <div className="text-6xl mb-4">⚠️</div>
+        <h2 className="text-xl font-semibold text-foreground mb-2">
+          Unable to Load Tasks
+        </h2>
+        <p className="text-muted-foreground mb-4">
+          {error?.message ||
+            "GitHub token is not configured. Set GITHUB_TOKEN, KODY_BOT_TOKEN, or GH_PAT in environment variables."}
+        </p>
+        <Button onClick={() => refetch()}>Retry</Button>
       </div>
     );
   }
 
   // Auth error from /api/kody/auth/me (token valid but repo access denied)
   if (authError) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center max-w-md p-6">
-          <div className="text-6xl mb-4">🔒</div>
-          <h2 className="text-xl font-semibold text-foreground mb-2">
-            Authentication Failed
-          </h2>
-          <p className="text-muted-foreground mb-4">
-            {authError}
-          </p>
-          <p className="text-sm text-muted-foreground mb-4">
-            Check that your token has access to the repository and try logging in again.
-          </p>
-          <Button onClick={() => { localStorage.removeItem('kody_auth'); window.location.href = '/login' }}>
-            Log in again
-          </Button>
-        </div>
+    return renderErrorTakeover(
+      <div className="text-center max-w-md p-6">
+        <div className="text-6xl mb-4">🔒</div>
+        <h2 className="text-xl font-semibold text-foreground mb-2">
+          Authentication Failed
+        </h2>
+        <p className="text-muted-foreground mb-4">{authError}</p>
+        <p className="text-sm text-muted-foreground mb-4">
+          Check that your token has access to the repository and try logging in again.
+        </p>
+        <Button onClick={() => { localStorage.removeItem('kody_auth'); window.location.href = '/login' }}>
+          Log in again
+        </Button>
       </div>
     );
   }
 
-  // Generic error fallback
+  // Generic error fallback (covers GitHub rate-limit responses that arrive
+  // as ApiError rather than RateLimitError)
   if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center max-w-md p-6">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h2 className="text-xl font-semibold text-foreground mb-2">
-            Failed to Load Tasks
-          </h2>
-          <p className="text-muted-foreground mb-4">{error.message}</p>
-          <div className="flex gap-2 justify-center">
-            <Button onClick={() => refetch()}>Retry</Button>
-          </div>
+    return renderErrorTakeover(
+      <div className="text-center max-w-md p-6">
+        <div className="text-6xl mb-4">⚠️</div>
+        <h2 className="text-xl font-semibold text-foreground mb-2">
+          Failed to Load Tasks
+        </h2>
+        <p className="text-muted-foreground mb-4">{error.message}</p>
+        <div className="flex gap-2 justify-center">
+          <Button onClick={() => refetch()}>Retry</Button>
         </div>
       </div>
     );
