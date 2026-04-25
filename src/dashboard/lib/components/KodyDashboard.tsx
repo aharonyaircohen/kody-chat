@@ -61,6 +61,8 @@ import {
   Layers,
   ChevronsDownUp,
   ChevronsUpDown,
+  List,
+  Plus,
 } from "lucide-react";
 import Link from "next/link";
 import { useKodyTasks, queryKeys } from "../hooks";
@@ -137,6 +139,18 @@ export function KodyDashboard({
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const CHAT_WIDTH_KEY = "kody.chatPanelWidth";
+  const VIEW_MODE_KEY = "kody.taskListViewMode";
+  type TaskListLayout = "grouped" | "flat";
+  const [taskListLayout, setTaskListLayout] = useState<TaskListLayout>(() => {
+    if (typeof window === "undefined") return "grouped";
+    const stored = window.localStorage.getItem(VIEW_MODE_KEY);
+    return stored === "flat" ? "flat" : "grouped";
+  });
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(VIEW_MODE_KEY, taskListLayout);
+    }
+  }, [taskListLayout]);
   const CHAT_WIDTH_MIN = 320;
   const CHAT_WIDTH_MAX = 1600;
   const CHAT_WIDTH_SSR_FALLBACK = 600;
@@ -1403,28 +1417,61 @@ export function KodyDashboard({
                 isFetching={isFetching}
                 dataUpdatedAt={dataUpdatedAt}
                 trailing={
-                  hasMultipleGoalGroups ? (
+                  <div className="flex items-center gap-1 shrink-0">
+                    {/* View toggle: grouped-by-goal vs. flat task list. The
+                        flat view is the legacy layout — useful when the
+                        user wants every task in one stream regardless of
+                        goal. */}
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={
-                        allGoalsCollapsed ? expandAllGoals : collapseAllGoals
+                      onClick={() =>
+                        setTaskListLayout(
+                          taskListLayout === "grouped" ? "flat" : "grouped",
+                        )
                       }
-                      className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground shrink-0"
+                      className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                      title={
+                        taskListLayout === "grouped"
+                          ? "Switch to flat task list (hide goals)"
+                          : "Switch to goal-grouped view"
+                      }
                     >
-                      {allGoalsCollapsed ? (
+                      {taskListLayout === "grouped" ? (
                         <>
-                          <ChevronsUpDown className="w-3.5 h-3.5" />
-                          Expand all
+                          <List className="w-3.5 h-3.5" />
+                          Flat list
                         </>
                       ) : (
                         <>
-                          <ChevronsDownUp className="w-3.5 h-3.5" />
-                          Collapse all
+                          <Layers className="w-3.5 h-3.5" />
+                          Group by goal
                         </>
                       )}
                     </Button>
-                  ) : null
+                    {taskListLayout === "grouped" && hasMultipleGoalGroups ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={
+                          allGoalsCollapsed ? expandAllGoals : collapseAllGoals
+                        }
+                        className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                      >
+                        {allGoalsCollapsed ? (
+                          <>
+                            <ChevronsUpDown className="w-3.5 h-3.5" />
+                            Expand all
+                          </>
+                        ) : (
+                          <>
+                            <ChevronsDownUp className="w-3.5 h-3.5" />
+                            Collapse all
+                          </>
+                        )}
+                      </Button>
+                    ) : null}
+                  </div>
                 }
               />
 
@@ -1433,6 +1480,72 @@ export function KodyDashboard({
                 {isLoading && tasks.length === 0 ? (
                   <div className="flex items-center justify-center h-full">
                     <div className="text-muted-foreground">Loading...</div>
+                  </div>
+                ) : taskListLayout === "flat" ? (
+                  <div>
+                    {/* Legacy flat view: actions pinned at the top so the
+                        user can create a task or report a bug without
+                        scrolling into a goal section. */}
+                    <div className="grid gap-2 grid-cols-2 px-3 pt-3">
+                      <button
+                        type="button"
+                        onClick={handleOpenCreate}
+                        className="flex items-center justify-center gap-1.5 rounded-md border border-dashed border-white/[0.12] bg-white/[0.02] px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-white/[0.04] hover:border-white/[0.18] transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        New task
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleReportBugInGoal(null)}
+                        className="flex items-center justify-center gap-1.5 rounded-md border border-dashed border-white/[0.12] bg-white/[0.02] px-3 py-2 text-sm text-muted-foreground hover:text-foreground hover:bg-white/[0.04] hover:border-white/[0.18] transition-colors"
+                      >
+                        <Bug className="w-4 h-4" />
+                        Report a bug
+                      </button>
+                    </div>
+                    <TaskList
+                      tasks={filteredTasks}
+                      selectedTask={selectedTask}
+                      executingTaskId={executingTaskId}
+                      mergingTaskId={mergingTaskId}
+                      focusedIndex={focusedIndex}
+                      onTaskSelect={handleTaskSelect}
+                      onExecuteTask={handleExecuteTask}
+                      onStopTask={handleStopTask}
+                      onApproveReview={handleMerge}
+                      onTaskHover={handleTaskHover}
+                      collaborators={collaborators}
+                      onAssign={(issueNumber, assignees) =>
+                        assignMutation.mutate({ issueNumber, assignees })
+                      }
+                      onUnassign={(issueNumber, assignees) =>
+                        unassignMutation.mutate({ issueNumber, assignees })
+                      }
+                      onOpenPreview={handleOpenPreview}
+                      onCreateTask={handleOpenCreate}
+                      onEditTask={setEditingTask}
+                      onDuplicate={handleDuplicateTask}
+                      onRerun={(task) => rerunMutation.mutate(task)}
+                      onToggleQueue={(task) => {
+                        const isQueued = task.labels.includes("kody:queued");
+                        const action = isQueued
+                          ? tasksApi.removeFromQueue(
+                              task.issueNumber,
+                              githubUser?.login,
+                            )
+                          : tasksApi.addToQueue(
+                              task.issueNumber,
+                              githubUser?.login,
+                            );
+                        action.then(() => {
+                          toast.success(
+                            isQueued ? "Removed from queue" : "Added to queue",
+                          );
+                          refetch();
+                        });
+                      }}
+                    />
                   </div>
                 ) : (
                   <GoalGroupedView
