@@ -1163,11 +1163,20 @@ export async function findAssociatedPRByIssueNumber(issueNumber: number): Promis
   const cached = getCached<GitHubPR | null>(cacheKey)
   if (cached !== null) return cached
 
-  // 1. Check open PRs (fast, uses cached bulk list)
+  // 1. Check open PRs (fast, uses cached bulk list).
+  // Matching precedence MUST stay in sync with app/api/kody/tasks/route.ts —
+  // if the task list shows an associatedPR via one path and this function
+  // misses that path, dashboard buttons (approve-pr, close-pr, fix) 404
+  // even though the badge is visible.
   const openPRs = await fetchOpenPRs()
   const issueStr = String(issueNumber)
 
   for (const pr of openPRs) {
+    // Strongest signal: GraphQL "Closes/Fixes/Resolves #N" links from the PR body.
+    if (pr.closingIssueNumbers?.includes(issueNumber)) {
+      setCache(cacheKey, CACHE_TTL.prs, pr)
+      return pr
+    }
     // Kody-auto branches put the issue number after "-auto-", so check that
     // before the generic first-digits pattern (which would capture YYMMDD).
     const autoMatch = pr.head.ref.match(/-auto-(\d+)-/)
@@ -1178,6 +1187,12 @@ export async function findAssociatedPRByIssueNumber(issueNumber: number): Promis
     // Traditional: {prefix}/{issueNumber}-{title}
     const branchMatch = pr.head.ref.match(/\/(\d{3,})-/)
     if (!autoMatch && branchMatch && branchMatch[1] === issueStr) {
+      setCache(cacheKey, CACHE_TTL.prs, pr)
+      return pr
+    }
+    // Flat: {issueNumber}-{title} (no prefix)
+    const flatMatch = pr.head.ref.match(/^(\d{3,})-/)
+    if (flatMatch && flatMatch[1] === issueStr) {
       setCache(cacheKey, CACHE_TTL.prs, pr)
       return pr
     }
@@ -1970,9 +1985,14 @@ export async function fetchPRCIStatus(prNumber: number): Promise<PRCIStatusResul
 
     switch (pr.mergeStateStatus) {
       case 'CLEAN':
-      case 'UNSTABLE':
-        // All required checks passed; 'UNSTABLE' = non-required check failed but mergeable.
+        // All required checks passed and no failing non-required checks.
         ciStatus = 'success'
+        break
+      case 'UNSTABLE':
+        // Mergeable, but some non-required check failed. The PR is still mergeable
+        // (GitHub doesn't block it) — but the user wants to see real CI status,
+        // not gate status, so surface the rollup (FAILURE → failure, etc.).
+        ciStatus = mapRollupState(rollupState)
         break
       case 'BLOCKED':
         // Steady state for repos without branch protection — fall back to rollup.
