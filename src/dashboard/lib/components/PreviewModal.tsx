@@ -14,6 +14,8 @@ import { PRCommentList } from "./PRCommentList";
 import { MarkdownViewer } from "./MarkdownViewer";
 import { CIStatusBadge } from "./CIStatusBadge";
 import { MergeConflictBanner } from "./MergeConflictBanner";
+import { KodyChat } from "./KodyChat";
+import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { cn, getPreviewBypassUrl } from "../utils";
 import {
   ArrowLeft,
@@ -27,6 +29,7 @@ import {
   AlertCircle,
   RefreshCw,
   Monitor,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 import {
@@ -37,7 +40,7 @@ import {
   DialogDescription,
 } from "@dashboard/ui/dialog";
 
-type PreviewTab = "preview" | "changes" | "docs" | "comments";
+type PreviewTab = "preview" | "changes" | "docs" | "comments" | "chat";
 
 interface PreviewModalProps {
   task: KodyTask;
@@ -58,8 +61,10 @@ export function PreviewModal({
     if (path.endsWith("/preview")) return "preview";
     if (path.endsWith("/docs")) return "docs";
     if (path.endsWith("/comments")) return "comments";
+    if (path.endsWith("/chat")) return "chat";
     return "changes";
   });
+  const { githubUser } = useGitHubIdentity();
   const [changes, setChanges] = useState<FileChange[]>([]);
   const [documents, setDocuments] = useState<TaskDocument[]>([]);
   const [loading, setLoading] = useState(false);
@@ -169,6 +174,7 @@ export function PreviewModal({
       if (path.endsWith("/preview")) setActiveTab("preview");
       else if (path.endsWith("/docs")) setActiveTab("docs");
       else if (path.endsWith("/comments")) setActiveTab("comments");
+      else if (path.endsWith("/chat")) setActiveTab("chat");
       else setActiveTab("changes");
 
       // Sync doc dialog
@@ -219,6 +225,7 @@ export function PreviewModal({
       icon: MessageSquare,
       count: commentCount ?? undefined,
     },
+    { key: "chat", label: "Chat", icon: Sparkles },
   ];
 
   return (
@@ -308,7 +315,12 @@ export function PreviewModal({
       </div>
 
       {/* Tab content */}
-      <div className="flex-1 min-h-0 overflow-y-auto pb-20">
+      <div
+        className={cn(
+          "flex-1 min-h-0",
+          activeTab === "chat" ? "flex flex-col" : "overflow-y-auto pb-20",
+        )}
+      >
         {/* Preview tab - iframe */}
         {activeTab === "preview" && (
           <div className="h-full flex flex-col">
@@ -551,6 +563,21 @@ export function PreviewModal({
               key={commentsKey}
               prNumber={pr.number}
               onCountChange={setCommentCount}
+            />
+          </div>
+        )}
+
+        {/* Chat tab — task-scoped Kody chat (PR context comes via task.associatedPR) */}
+        {activeTab === "chat" && (
+          <div
+            role="tabpanel"
+            id="preview-panel-chat"
+            aria-labelledby="preview-tab-chat"
+            className="flex-1 min-h-0"
+          >
+            <KodyChat
+              context={{ kind: "task", task }}
+              actorLogin={githubUser?.login}
             />
           </div>
         )}
