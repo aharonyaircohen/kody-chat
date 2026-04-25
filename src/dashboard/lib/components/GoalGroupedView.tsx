@@ -13,7 +13,6 @@ import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import {
   Bug,
   Calendar,
-  CheckCircle2,
   ChevronDown,
   ChevronRight,
   Flag,
@@ -50,6 +49,7 @@ import { goalPalette } from '../goal-palette'
 import { useReorderGoals } from '../hooks/useGoals'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import { TaskList } from './TaskList'
+import { GoalProgressRing } from './GoalProgressRing'
 
 interface GoalGroupedViewProps {
   goals: Goal[]
@@ -320,7 +320,6 @@ export function GoalGroupedView({
     const isCollapsed = collapsed.has(group.key)
     const isUngrouped = group.goal === null
     const total = group.tasks.length
-    const pct = total > 0 ? (group.done / total) * 100 : 0
     const targetGoalId = group.goal?.id ?? null
     const palette = group.goal ? goalPalette(group.goal.id) : null
     const isDragSource =
@@ -420,16 +419,11 @@ export function GoalGroupedView({
                       >
                         {group.goal?.name ?? 'Ungrouped'}
                       </span>
-                      {total > 0 ? (
-                        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground tabular-nums shrink-0">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-400/70" />
-                          {group.done}/{total}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-muted-foreground shrink-0">
-                          empty
-                        </span>
-                      )}
+                      <GoalProgressRing
+                        done={group.done}
+                        total={total}
+                        paletteKey={palette?.key}
+                      />
                       {(() => {
                         const chip = describeDueDate(group.goal?.dueDate)
                         if (!chip) return null
@@ -455,18 +449,6 @@ export function GoalGroupedView({
                       >
                         {group.goal.description.split('\n')[0]}
                       </p>
-                    ) : null}
-                    {/* Progress bar beneath the title */}
-                    {group.goal && palette && total > 0 ? (
-                      <div className="w-full max-w-sm h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
-                        <div
-                          className={cn(
-                            'h-full bg-gradient-to-r transition-[width] duration-500',
-                            palette.progress,
-                          )}
-                          style={{ width: `${pct}%` }}
-                        />
-                      </div>
                     ) : null}
                   </div>
                 </button>
