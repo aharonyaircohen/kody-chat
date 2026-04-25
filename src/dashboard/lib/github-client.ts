@@ -903,55 +903,76 @@ export async function fetchCheckRunsForRun(runId: number): Promise<CheckRunResul
 
 // ============ Bulk PR Fetch ============
 
+interface OpenPRsGraphQL {
+  repository: {
+    pullRequests: {
+      nodes: Array<{
+        databaseId: number
+        number: number
+        title: string
+        state: 'OPEN' | 'CLOSED' | 'MERGED'
+        url: string
+        mergedAt: string | null
+        headRefName: string
+        headRefOid: string
+        labels: { nodes: Array<{ name: string }> }
+        closingIssuesReferences: { nodes: Array<{ number: number }> }
+      }>
+    }
+  }
+}
+
 /**
- * Fetch all open PRs in one call (cheap: single API request).
- * Used by the dashboard to match PRs to issues without N per-issue calls.
+ * Fetch all open PRs in one GraphQL call. Returns each PR with the issue
+ * numbers it links via "Closes/Fixes/Resolves #N" so the dashboard can match
+ * PRs to tasks without parsing branch names.
  */
 export async function fetchOpenPRs(): Promise<GitHubPR[]> {
   const cacheKey = `open-prs:${getOwner()}:${getRepo()}`
   const cached = getCached<GitHubPR[]>(cacheKey)
   if (cached) return cached
 
-  const stale = getStale<GitHubPR[]>(cacheKey)
   const octokit = getOctokit()
 
-  let response
-  try {
-    response = await octokit.pulls.list({
-      owner: getOwner(),
-      repo: getRepo(),
-      state: 'open',
-      per_page: 50,
-      sort: 'updated',
-      direction: 'desc',
-      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
-    })
-  } catch (err: any) {
-    if (err.status === 304 && stale) {
-      setCache(cacheKey, CACHE_TTL.prs, stale.data, { etag: stale.etag })
-      return stale.data
+  const query = `
+    query OpenPRs($owner: String!, $repo: String!) {
+      repository(owner: $owner, name: $repo) {
+        pullRequests(first: 50, states: OPEN, orderBy: { field: UPDATED_AT, direction: DESC }) {
+          nodes {
+            databaseId
+            number
+            title
+            state
+            url
+            mergedAt
+            headRefName
+            headRefOid
+            labels(first: 20) { nodes { name } }
+            closingIssuesReferences(first: 10) { nodes { number } }
+          }
+        }
+      }
     }
-    throw err
-  }
+  `
 
-  const data = response.data
-  const newEtag = (response.headers as Record<string, string | undefined>)?.etag
+  const data = await octokit.graphql<OpenPRsGraphQL>(query, {
+    owner: getOwner(),
+    repo: getRepo(),
+  })
 
-  const prs: GitHubPR[] = data.map((pr) => ({
-    id: pr.id,
+  const prs: GitHubPR[] = data.repository.pullRequests.nodes.map((pr) => ({
+    id: pr.databaseId,
     number: pr.number,
     title: pr.title,
-    state: pr.state,
-    head: {
-      ref: pr.head.ref,
-      sha: pr.head.sha,
-    },
-    merged_at: pr.merged_at,
-    html_url: pr.html_url,
-    labels: pr.labels?.map((l) => l.name ?? '').filter(Boolean) ?? [],
+    state: pr.state.toLowerCase(),
+    head: { ref: pr.headRefName, sha: pr.headRefOid },
+    merged_at: pr.mergedAt,
+    html_url: pr.url,
+    labels: pr.labels.nodes.map((l) => l.name).filter(Boolean),
+    closingIssueNumbers: pr.closingIssuesReferences.nodes.map((n) => n.number),
   }))
 
-  setCache(cacheKey, CACHE_TTL.prs, prs, { etag: newEtag })
+  setCache(cacheKey, CACHE_TTL.prs, prs)
   return prs
 }
 

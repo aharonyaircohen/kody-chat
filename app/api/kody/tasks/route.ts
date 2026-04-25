@@ -171,27 +171,32 @@ export async function GET(req: NextRequest) {
     // Workflow runs are matched per-task below using matchWorkflowRunToTask()
     // which prefers active (in_progress/queued) runs over stale completed ones.
 
-    // Build PR lookup: match by title or by issue number in branch name
+    // Build PR lookup. Primary key: GitHub's structured "Closes #N" links from
+    // the PR body (closingIssueNumbers, fetched via GraphQL). Fallbacks: branch
+    // name patterns for PRs that don't use a closing keyword.
     const prsByIssueTitle = new Map<string, (typeof openPRs)[number]>()
     const prsByIssueNumber = new Map<number, (typeof openPRs)[number]>()
     for (const pr of openPRs) {
       prsByIssueTitle.set(pr.title, pr)
-      // Kody-generated branches: "{prefix}/{YYMMDD}-auto-{issueNumber}-{title}".
-      // The issue number lives after "-auto-", not at the start — check it first
-      // so the YYMMDD prefix doesn't get captured as a bogus issue number.
+      for (const linkedIssue of pr.closingIssueNumbers ?? []) {
+        prsByIssueNumber.set(linkedIssue, pr)
+      }
+      if ((pr.closingIssueNumbers?.length ?? 0) > 0) continue
+
+      // Fallbacks for PRs without a closing keyword.
       const autoMatch = pr.head.ref.match(/-auto-(\d+)-/)
       if (autoMatch) {
         prsByIssueNumber.set(parseInt(autoMatch[1], 10), pr)
-      } else {
-        // Traditional: "{prefix}/{issueNumber}-{title}"
-        const branchMatch = pr.head.ref.match(/\/(\d{3,})-/)
-        if (branchMatch) {
-          prsByIssueNumber.set(parseInt(branchMatch[1], 10), pr)
-        }
+        continue
       }
-      const closesMatch = pr.title.match(/(?:closes|fixes|resolves)\s+#(\d+)/i)
-      if (closesMatch) {
-        prsByIssueNumber.set(parseInt(closesMatch[1], 10), pr)
+      const slashMatch = pr.head.ref.match(/\/(\d{3,})-/)
+      if (slashMatch) {
+        prsByIssueNumber.set(parseInt(slashMatch[1], 10), pr)
+        continue
+      }
+      const flatMatch = pr.head.ref.match(/^(\d{3,})-/)
+      if (flatMatch) {
+        prsByIssueNumber.set(parseInt(flatMatch[1], 10), pr)
       }
     }
 

@@ -208,6 +208,8 @@ export interface GitHubPR {
   merged_at: string | null
   html_url: string
   labels?: string[]
+  /** Issue numbers linked via "Closes/Fixes/Resolves #N" in the PR body. */
+  closingIssueNumbers?: number[]
   ciStatus?: 'pending' | 'success' | 'failure' | 'running'
   mergeable?: boolean
 }
