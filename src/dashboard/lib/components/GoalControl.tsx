@@ -19,12 +19,31 @@ import {
   CircleDashed,
   ExternalLink,
   Flag,
+  GripVertical,
   Pencil,
   Plus,
   RefreshCw,
   Search,
   Trash2,
 } from 'lucide-react'
+import {
+  DndContext,
+  type DragEndEvent,
+  PointerSensor,
+  TouchSensor,
+  KeyboardSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import ReactMarkdown from 'react-markdown'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@dashboard/ui/button'
@@ -43,6 +62,7 @@ import {
   useCreateGoal,
   useDeleteGoal,
   useGoals,
+  useReorderGoals,
   useUpdateGoal,
 } from '../hooks/useGoals'
 import { useKodyTasks } from '../hooks'
@@ -106,6 +126,29 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
 
   const { githubUser } = useGitHubIdentity()
   const deleteMutation = useDeleteGoal(githubUser?.login)
+  const reorderMutation = useReorderGoals(githubUser?.login)
+
+  const sensors = useSensors(
+    // Pointer (mouse): require small movement so a click still selects.
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    // Touch: long-press to start dragging, so vertical scroll still works.
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 250, tolerance: 8 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = goals.findIndex((g) => g.id === active.id)
+    const newIndex = goals.findIndex((g) => g.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    const next = arrayMove(goals, oldIndex, newIndex)
+    reorderMutation.mutate(next.map((g) => g.id))
+  }
 
   return (
     <div className="h-screen bg-background text-foreground flex flex-col overflow-hidden">
@@ -170,51 +213,35 @@ export function GoalControlInner({ titleSlot }: { titleSlot?: React.ReactNode })
               hint="Create your first goal to describe an outcome the system is working toward."
             />
           ) : (
-            <ul className="divide-y divide-border">
-              {goals.map((goal) => {
-                const progress = progressByGoal.get(goal.id) ?? {
-                  total: 0,
-                  done: 0,
-                  tasks: [],
-                }
-                const pct =
-                  progress.total > 0 ? (progress.done / progress.total) * 100 : 0
-                return (
-                  <li key={goal.id}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedId(goal.id)}
-                      className={cn(
-                        'w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors',
-                        selectedId === goal.id && 'bg-accent/70',
-                      )}
-                    >
-                      <div className="font-medium text-sm truncate">{goal.name}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
-                        <span className="inline-flex items-center gap-1 tabular-nums">
-                          <CheckCircle className="w-3 h-3" />
-                          {progress.done}/{progress.total}
-                        </span>
-                        {goal.dueDate ? (
-                          <span className="inline-flex items-center gap-1">
-                            <Calendar className="w-3 h-3" />
-                            {formatDueDate(goal.dueDate)}
-                          </span>
-                        ) : null}
-                      </div>
-                      {progress.total > 0 ? (
-                        <div className="mt-2 h-1 rounded-full bg-white/[0.06] overflow-hidden">
-                          <div
-                            className="h-full bg-sky-400/70 transition-[width] duration-300"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                      ) : null}
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext
+                items={goals.map((g) => g.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                <ul className="divide-y divide-border">
+                  {goals.map((goal) => {
+                    const progress = progressByGoal.get(goal.id) ?? {
+                      total: 0,
+                      done: 0,
+                      tasks: [],
+                    }
+                    return (
+                      <SortableGoalItem
+                        key={goal.id}
+                        goal={goal}
+                        progress={progress}
+                        selected={selectedId === goal.id}
+                        onSelect={() => setSelectedId(goal.id)}
+                      />
+                    )
+                  })}
+                </ul>
+              </SortableContext>
+            </DndContext>
           )}
         </aside>
 
@@ -895,6 +922,88 @@ export function EditGoalDialog({
         </div>
       </DialogContent>
     </Dialog>
+  )
+}
+
+function SortableGoalItem({
+  goal,
+  progress,
+  selected,
+  onSelect,
+}: {
+  goal: Goal
+  progress: GoalProgress
+  selected: boolean
+  onSelect: () => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: goal.id })
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.6 : undefined,
+    zIndex: isDragging ? 10 : undefined,
+  }
+
+  const pct = progress.total > 0 ? (progress.done / progress.total) * 100 : 0
+
+  return (
+    <li
+      ref={setNodeRef}
+      style={style}
+      className={cn('relative bg-background', isDragging && 'shadow-lg')}
+    >
+      <div
+        className={cn(
+          'flex items-stretch hover:bg-accent/50 transition-colors',
+          selected && 'bg-accent/70',
+        )}
+      >
+        <button
+          type="button"
+          aria-label={`Reorder ${goal.name}`}
+          className="touch-none cursor-grab active:cursor-grabbing px-2 flex items-center text-muted-foreground/60 hover:text-foreground"
+          {...attributes}
+          {...listeners}
+        >
+          <GripVertical className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onClick={onSelect}
+          className="flex-1 text-left pr-4 py-3"
+        >
+          <div className="font-medium text-sm truncate">{goal.name}</div>
+          <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
+            <span className="inline-flex items-center gap-1 tabular-nums">
+              <CheckCircle className="w-3 h-3" />
+              {progress.done}/{progress.total}
+            </span>
+            {goal.dueDate ? (
+              <span className="inline-flex items-center gap-1">
+                <Calendar className="w-3 h-3" />
+                {formatDueDate(goal.dueDate)}
+              </span>
+            ) : null}
+          </div>
+          {progress.total > 0 ? (
+            <div className="mt-2 h-1 rounded-full bg-white/[0.06] overflow-hidden">
+              <div
+                className="h-full bg-sky-400/70 transition-[width] duration-300"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+          ) : null}
+        </button>
+      </div>
+    </li>
   )
 }
 

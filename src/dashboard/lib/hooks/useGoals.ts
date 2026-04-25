@@ -92,6 +92,50 @@ export function useUpdateGoal(id: string, actorLogin?: string) {
   })
 }
 
+export function useReorderGoals(actorLogin?: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation<Goal[], Error, string[], { previous: Goal[] | undefined }>(
+    {
+      mutationFn: (orderedIds) =>
+        kodyApi.goals.reorder(orderedIds, actorLogin),
+      onMutate: async (orderedIds) => {
+        await queryClient.cancelQueries({ queryKey: goalQueryKeys.list })
+        const previous = queryClient.getQueryData<Goal[]>(goalQueryKeys.list)
+        if (previous) {
+          const byId = new Map(previous.map((g) => [g.id, g]))
+          const next: Goal[] = []
+          const seen = new Set<string>()
+          for (const id of orderedIds) {
+            const g = byId.get(id)
+            if (g && !seen.has(id)) {
+              next.push(g)
+              seen.add(id)
+            }
+          }
+          for (const g of previous) {
+            if (!seen.has(g.id)) next.push(g)
+          }
+          queryClient.setQueryData<Goal[]>(goalQueryKeys.list, next)
+        }
+        return { previous }
+      },
+      onError: (error, _ids, context) => {
+        if (context?.previous) {
+          queryClient.setQueryData(goalQueryKeys.list, context.previous)
+        }
+        toast.error('Failed to reorder goals', { description: error.message })
+      },
+      onSuccess: (goals) => {
+        queryClient.setQueryData<Goal[]>(goalQueryKeys.list, goals)
+      },
+      onSettled: () => {
+        queryClient.invalidateQueries({ queryKey: goalQueryKeys.list })
+      },
+    },
+  )
+}
+
 export function useDeleteGoal(actorLogin?: string) {
   const queryClient = useQueryClient()
 

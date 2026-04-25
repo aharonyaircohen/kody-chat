@@ -892,6 +892,22 @@ export const goalsApi = {
     );
     await handleResponse<{ success: boolean }>(res);
   },
+
+  reorder: async (
+    orderedIds: string[],
+    actorLogin?: string,
+  ): Promise<Goal[]> => {
+    const res = await fetch(`${API_BASE}/goals/reorder`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify({
+        orderedIds,
+        ...(actorLogin && { actorLogin }),
+      }),
+    });
+    const payload = await handleResponse<{ goals: Goal[] }>(res);
+    return payload.goals;
+  },
 };
 
 // ============ Combined API ============
