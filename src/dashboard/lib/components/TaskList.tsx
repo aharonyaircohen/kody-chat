@@ -49,7 +49,6 @@ import {
   Inbox,
   Pencil,
   Copy,
-  ListPlus,
   MoreHorizontal,
 } from 'lucide-react'
 
@@ -496,7 +495,7 @@ export function TaskList({
               </div>
 
               {/* Actions */}
-              <div className="hidden sm:flex items-center gap-1 shrink-0">
+              <div className="flex items-center gap-1 shrink-0">
                 {hasPR && onOpenPreview && (
                   <SimpleTooltip content="Open PR preview" side="bottom">
                     <Button
@@ -641,31 +640,6 @@ export function TaskList({
                       </DropdownMenuItem>
                     )}
 
-                    {/* Queue toggle */}
-                    {onToggleQueue &&
-                      (() => {
-                        const isQueued = task.labels.includes('kody:queued')
-                        const isQueueActive = task.labels.includes('kody:queue-active')
-                        const isQueueFailed = task.labels.includes('kody:queue-failed')
-                        if (isQueueActive) return null
-                        return (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              onClick={() => {
-                                onToggleQueue(task)
-                              }}
-                            >
-                              <ListPlus className="w-4 h-4 mr-2" />
-                              {isQueued
-                                ? 'Remove from queue'
-                                : isQueueFailed
-                                  ? 'Re-add to queue'
-                                  : 'Add to queue'}
-                            </DropdownMenuItem>
-                          </>
-                        )
-                      })()}
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>

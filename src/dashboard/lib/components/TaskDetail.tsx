@@ -394,7 +394,7 @@ function getOverflowActions(
   // Close / Reopen Issue
   actions.push({
     icon: task.state === "open" ? XCircle : RotateCcw,
-    label: task.state === "open" ? "Close Issue" : "Reopen Issue",
+    label: task.state === "open" ? "Close task" : "Reopen task",
     pendingLabel: task.state === "open" ? "Closing…" : "Reopening…",
     onClick: () =>
       task.state === "open" ? taskActions.close() : taskActions.reopen(),
