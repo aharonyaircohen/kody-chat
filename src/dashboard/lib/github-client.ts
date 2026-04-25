@@ -598,10 +598,15 @@ export async function getStatusFromArtifact(
 /**
  * Fetch a single issue by number (optimized for detail view)
  */
-export async function fetchIssue(issueNumber: number): Promise<GitHubIssue | null> {
+export async function fetchIssue(
+  issueNumber: number,
+  options?: { noCache?: boolean },
+): Promise<GitHubIssue | null> {
   const cacheKey = `issue:${issueNumber}`
-  const cached = getCached<GitHubIssue>(cacheKey)
-  if (cached) return cached
+  if (!options?.noCache) {
+    const cached = getCached<GitHubIssue>(cacheKey)
+    if (cached) return cached
+  }
 
   const octokit = getOctokit()
 
@@ -641,7 +646,9 @@ export async function fetchIssue(issueNumber: number): Promise<GitHubIssue | nul
     }
 
     // Single issue, cache for longer
-    setCache(cacheKey, CACHE_TTL.tasks, issue)
+    if (!options?.noCache) {
+      setCache(cacheKey, CACHE_TTL.tasks, issue)
+    }
     return issue
   } catch (error: any) {
     if (error.status === 404) {

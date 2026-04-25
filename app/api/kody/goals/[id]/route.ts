@@ -33,14 +33,18 @@ async function readManifest(): Promise<{
   manifest: GoalsManifest
   issueNumber: number | null
 }> {
+  // Skip the in-process issue cache: serverless instances cache independently,
+  // so a freshly-mutated manifest can be invisible from another instance for
+  // the full 2-minute TTL otherwise.
   const issues = await fetchIssues({
     state: 'open',
     labels: GOALS_MANIFEST_LABEL,
     perPage: 5,
+    noCache: true,
   })
   if (!issues.length) return { manifest: { version: 1, goals: [] }, issueNumber: null }
   const first = [...issues].sort((a, b) => a.number - b.number)[0]
-  const full = await fetchIssue(first.number)
+  const full = await fetchIssue(first.number, { noCache: true })
   return {
     manifest: parseManifestBody(full?.body ?? ''),
     issueNumber: first.number,

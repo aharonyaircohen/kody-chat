@@ -43,16 +43,20 @@ import { Octokit } from '@octokit/rest'
 type ManifestIssueRef = { number: number; body: string }
 
 async function findManifestIssue(): Promise<ManifestIssueRef | null> {
+  // Skip the in-process issue cache: serverless instances cache independently,
+  // so a fresh goal written on one instance can be invisible from another for
+  // the full 2-minute TTL otherwise.
   const issues = await fetchIssues({
     state: 'open',
     labels: GOALS_MANIFEST_LABEL,
     perPage: 5,
+    noCache: true,
   })
   if (!issues.length) return null
   // If multiple exist, prefer the earliest created (stable anchor).
   const sorted = [...issues].sort((a, b) => a.number - b.number)
   const first = sorted[0]
-  const full = await fetchIssue(first.number)
+  const full = await fetchIssue(first.number, { noCache: true })
   return { number: first.number, body: full?.body ?? '' }
 }
 
