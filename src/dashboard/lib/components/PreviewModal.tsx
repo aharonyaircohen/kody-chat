@@ -6,7 +6,7 @@
  */
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { KodyTask, FileChange, TaskDocument } from "../types";
 import { prsApi, taskDocsApi } from "../api";
 import { PreviewActions } from "./PreviewActions";
@@ -29,7 +29,6 @@ import {
   AlertCircle,
   RefreshCw,
   Monitor,
-  Sparkles,
 } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 import {
@@ -40,7 +39,28 @@ import {
   DialogDescription,
 } from "@dashboard/ui/dialog";
 
-type PreviewTab = "preview" | "changes" | "docs" | "comments" | "chat";
+type PreviewTab = "preview" | "changes" | "docs" | "comments";
+
+const CHAT_WIDTH_KEY = "kody.chatPanelWidth";
+const CHAT_WIDTH_MIN = 320;
+const CHAT_WIDTH_MAX = 1600;
+const CHAT_WIDTH_SSR_FALLBACK = 600;
+
+function getInitialChatWidth(): number {
+  if (typeof window === "undefined") return CHAT_WIDTH_SSR_FALLBACK;
+  const stored = Number(window.localStorage.getItem(CHAT_WIDTH_KEY));
+  if (!Number.isFinite(stored) || stored <= 0) {
+    const half = Math.floor(window.innerWidth / 2);
+    return Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, half));
+  }
+  return Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, stored));
+}
+
+function getDefaultChatWidth(): number {
+  if (typeof window === "undefined") return CHAT_WIDTH_SSR_FALLBACK;
+  const half = Math.floor(window.innerWidth / 2);
+  return Math.min(CHAT_WIDTH_MAX, Math.max(CHAT_WIDTH_MIN, half));
+}
 
 interface PreviewModalProps {
   task: KodyTask;
@@ -61,10 +81,47 @@ export function PreviewModal({
     if (path.endsWith("/preview")) return "preview";
     if (path.endsWith("/docs")) return "docs";
     if (path.endsWith("/comments")) return "comments";
-    if (path.endsWith("/chat")) return "chat";
     return "changes";
   });
   const { githubUser } = useGitHubIdentity();
+  const [chatPanelWidth, setChatPanelWidth] =
+    useState<number>(getInitialChatWidth);
+  const isResizingChatRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(CHAT_WIDTH_KEY, String(chatPanelWidth));
+    }
+  }, [chatPanelWidth]);
+
+  const startChatResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    isResizingChatRef.current = true;
+    const prevUserSelect = document.body.style.userSelect;
+    const prevCursor = document.body.style.cursor;
+    document.body.style.userSelect = "none";
+    document.body.style.cursor = "col-resize";
+
+    const onMove = (ev: MouseEvent) => {
+      if (!isResizingChatRef.current) return;
+      const clamped = Math.min(
+        CHAT_WIDTH_MAX,
+        Math.max(CHAT_WIDTH_MIN, ev.clientX),
+      );
+      setChatPanelWidth(clamped);
+    };
+
+    const onUp = () => {
+      isResizingChatRef.current = false;
+      document.body.style.userSelect = prevUserSelect;
+      document.body.style.cursor = prevCursor;
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, []);
   const [changes, setChanges] = useState<FileChange[]>([]);
   const [documents, setDocuments] = useState<TaskDocument[]>([]);
   const [loading, setLoading] = useState(false);
@@ -174,7 +231,6 @@ export function PreviewModal({
       if (path.endsWith("/preview")) setActiveTab("preview");
       else if (path.endsWith("/docs")) setActiveTab("docs");
       else if (path.endsWith("/comments")) setActiveTab("comments");
-      else if (path.endsWith("/chat")) setActiveTab("chat");
       else setActiveTab("changes");
 
       // Sync doc dialog
@@ -225,7 +281,6 @@ export function PreviewModal({
       icon: MessageSquare,
       count: commentCount ?? undefined,
     },
-    { key: "chat", label: "Chat", icon: Sparkles },
   ];
 
   return (
@@ -266,6 +321,30 @@ export function PreviewModal({
         </div>
       </div>
 
+      {/* Body: chat panel (left) + main column (tabs + content + actions) */}
+      <div className="flex-1 min-h-0 flex">
+        {/* Chat panel — left, resizable, desktop only (matches dashboard) */}
+        <div
+          className="relative hidden md:block border-r border-zinc-800 shrink-0"
+          style={{ width: `${chatPanelWidth}px` }}
+        >
+          <KodyChat
+            context={{ kind: "task", task }}
+            actorLogin={githubUser?.login}
+          />
+          <div
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize chat panel"
+            onMouseDown={startChatResize}
+            onDoubleClick={() => setChatPanelWidth(getDefaultChatWidth())}
+            className="absolute top-0 right-0 h-full w-1 translate-x-1/2 cursor-col-resize z-20 hover:bg-primary/40 active:bg-primary/60 transition-colors"
+            title="Drag to resize • Double-click to reset"
+          />
+        </div>
+
+        {/* Main column */}
+        <div className="flex-1 min-w-0 flex flex-col">
       {/* Tab bar */}
       <div
         role="tablist"
@@ -315,12 +394,7 @@ export function PreviewModal({
       </div>
 
       {/* Tab content */}
-      <div
-        className={cn(
-          "flex-1 min-h-0",
-          activeTab === "chat" ? "flex flex-col" : "overflow-y-auto pb-20",
-        )}
-      >
+      <div className="flex-1 min-h-0 overflow-y-auto pb-20">
         {/* Preview tab - iframe */}
         {activeTab === "preview" && (
           <div className="h-full flex flex-col">
@@ -567,20 +641,6 @@ export function PreviewModal({
           </div>
         )}
 
-        {/* Chat tab — task-scoped Kody chat (PR context comes via task.associatedPR) */}
-        {activeTab === "chat" && (
-          <div
-            role="tabpanel"
-            id="preview-panel-chat"
-            aria-labelledby="preview-tab-chat"
-            className="flex-1 min-h-0"
-          >
-            <KodyChat
-              context={{ kind: "task", task }}
-              actorLogin={githubUser?.login}
-            />
-          </div>
-        )}
       </div>
 
       {/* Conflict banner — only renders when hasConflicts === true */}
@@ -594,6 +654,8 @@ export function PreviewModal({
         onCancelPR={onClose}
         onCommentAdded={handleCommentAdded}
       />
+        </div>
+      </div>
     </div>
   );
 }
