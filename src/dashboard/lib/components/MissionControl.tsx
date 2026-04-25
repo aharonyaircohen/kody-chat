@@ -73,14 +73,20 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
   const [pendingDelete, setPendingDelete] = useState<Mission | null>(null)
   const [pendingRun, setPendingRun] = useState<Mission | null>(null)
 
-  // Mission-draft chat state. A fresh `draftId` is generated on mount so the
-  // left chat panel is ready to help draft a mission the moment the user
-  // lands on /missions. Clicking "New draft" rotates the id which resets
-  // KodyChat's ephemeral buffer. `draftPrefill` carries an assistant reply
-  // the user picked via "Use as mission" into CreateMissionDialog.
+  // Chat-panel state. The left rail switches between three modes:
+  //  • mission mode  — when a mission is selected and we're not drafting
+  //  • draft mode    — when "Draft new mission" is active (rotates draftId)
+  //  • disabled      — neither (e.g. no missions yet)
+  // `draftPrefill` carries an assistant reply the user picked via
+  // "Use as mission" into CreateMissionDialog.
+  const [isDrafting, setIsDrafting] = useState(false)
   const [draftId, setDraftId] = useState<string>(() => newDraftId())
   const [draftPrefill, setDraftPrefill] = useState<string | null>(null)
-  const startNewDraft = () => setDraftId(newDraftId())
+  const startNewDraft = () => {
+    setIsDrafting(true)
+    setDraftId(newDraftId())
+  }
+  const cancelDraft = () => setIsDrafting(false)
 
   const selectedMission = useMemo(
     () => missions.find((m) => m.number === selectedNumber) ?? null,
@@ -131,16 +137,29 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
           >
             <RefreshCw className={cn('w-4 h-4', isFetching && 'animate-spin')} />
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={startNewDraft}
-            className="gap-1"
-            title="Start a fresh mission-drafting chat"
-          >
-            <Sparkles className="w-4 h-4" />
-            <span className="hidden sm:inline">New draft</span>
-          </Button>
+          {isDrafting ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={cancelDraft}
+              className="gap-1"
+              title="Stop drafting; chat returns to the selected mission"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span className="hidden sm:inline">Back to mission</span>
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={startNewDraft}
+              className="gap-1"
+              title="Chat with Kody to scope a brand-new mission"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span className="hidden sm:inline">Draft new</span>
+            </Button>
+          )}
           <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1">
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">New mission</span>
@@ -155,19 +174,26 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
       ) : null}
 
       <div className="flex-1 min-h-0 flex">
-        {/* Desktop left rail: persistent mission-drafting chat, same pattern
-            as KodyDashboard's task chat panel. Hidden on mobile to preserve
-            room for the list/detail — a mobile drawer can come later. */}
+        {/* Desktop left rail: persistent chat, same pattern as
+            KodyDashboard's task chat panel. The chat's context follows the
+            user's intent: drafting a new mission, or chatting about the
+            currently selected one. */}
         <div className="hidden md:block w-[400px] shrink-0 border-r border-border">
           <KodyChat
-            context={{
-              kind: 'mission-draft',
-              draftId,
-              onFinalize: (assistantContent) => {
-                setDraftPrefill(assistantContent)
-                setShowCreate(true)
-              },
-            }}
+            context={
+              isDrafting
+                ? {
+                    kind: 'mission-draft',
+                    draftId,
+                    onFinalize: (assistantContent) => {
+                      setDraftPrefill(assistantContent)
+                      setShowCreate(true)
+                    },
+                  }
+                : selectedMission
+                  ? { kind: 'mission', mission: selectedMission }
+                  : null
+            }
             actorLogin={githubUser?.login}
           />
         </div>
@@ -271,6 +297,9 @@ export function MissionControlInner({ titleSlot }: { titleSlot?: React.ReactNode
           setSelectedNumber(mission.number)
           setShowCreate(false)
           setDraftPrefill(null)
+          // Drop out of draft mode so the chat is now scoped to the
+          // newly-created mission instead of the old draft session.
+          setIsDrafting(false)
         }}
       />
 

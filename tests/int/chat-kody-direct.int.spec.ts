@@ -120,4 +120,22 @@ describe("POST /api/kody/chat/kody", () => {
     const prompt = buildSystemPrompt("base", null, undefined)
     expect(prompt).not.toContain("Mission drafting mode")
   })
+
+  it("appends a current-mission block when opts.mission is set", async () => {
+    const { buildSystemPrompt } = await import("../../app/api/kody/chat/kody/system-prompt")
+    const prompt = buildSystemPrompt("base", null, undefined, {
+      mission: {
+        number: 7,
+        title: "Auto-triage stale issues",
+        body: "## Intent\nClose stale issues",
+        state: "open",
+        labels: ["kody:mission"],
+      },
+    })
+    expect(prompt).toContain("Current mission")
+    expect(prompt).toContain("Mission #7")
+    expect(prompt).toContain("Auto-triage stale issues")
+    expect(prompt).toContain("Close stale issues")
+    expect(prompt).toContain("kody:mission")
+  })
 })

@@ -26,7 +26,7 @@ import { AGENT_KODY } from "@dashboard/lib/agents"
 import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth"
 import { createUserOctokit, setGitHubContext, clearGitHubContext } from "@dashboard/lib/github-client"
 import { logger } from "@dashboard/lib/logger"
-import { buildSystemPrompt, type TaskContext } from "./system-prompt"
+import { buildSystemPrompt, type MissionContext, type TaskContext } from "./system-prompt"
 import { createGitHubTools } from "../tools/github-tools"
 import { createPipelineTools } from "../tools/pipeline-tools"
 import { createRemoteTools } from "../tools/remote-tools"
@@ -168,6 +168,8 @@ export async function POST(req: NextRequest) {
     actorLogin?: string
     /** When true, append a mission-drafting block to the system prompt. */
     missionDraft?: boolean
+    /** Current mission context — scopes the chat to a specific mission issue. */
+    mission?: MissionContext
   }
   try {
     body = (await req.json()) as typeof body
@@ -187,7 +189,7 @@ export async function POST(req: NextRequest) {
     AGENT_KODY.systemPrompt,
     repo ? { owner: repo.owner, repo: repo.repo } : null,
     body.task,
-    { missionDraft: body.missionDraft === true },
+    { missionDraft: body.missionDraft === true, mission: body.mission },
   )
 
   // Build the per-request tool set. GitHub + pipeline tools require a

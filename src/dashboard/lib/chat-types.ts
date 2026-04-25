@@ -132,6 +132,15 @@ export function createEmptyGlobalStore(): GlobalChatStore {
 export type ChatContext =
   | { kind: 'task'; task: import('./types').KodyTask }
   | {
+      /**
+       * Chat scoped to an existing mission — analogous to `task` mode.
+       * The agent is given the mission's title/body/labels so it can answer
+       * questions about that specific mission.
+       */
+      kind: 'mission'
+      mission: import('./api').Mission
+    }
+  | {
       kind: 'mission-draft'
       /**
        * Stable session id used to anchor SSE / engine sessions for this

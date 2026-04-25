@@ -20,17 +20,41 @@ export interface TaskContext {
   associatedPR?: { number?: number; state?: string; html_url?: string }
 }
 
+export interface MissionContext {
+  number?: number
+  title?: string
+  body?: string
+  state?: string
+  labels?: string[]
+}
+
 export function buildSystemPrompt(
   base: string,
   repo: { owner: string; repo: string } | null,
   task: TaskContext | undefined,
-  opts?: { missionDraft?: boolean },
+  opts?: { missionDraft?: boolean; mission?: MissionContext },
 ): string {
   const sections: string[] = [base]
   if (repo) {
     sections.push(
       `## Connected repository\n\nYou are helping the user with the repository **${repo.owner}/${repo.repo}**. When the user refers to "the repo", "this repo", "the codebase", or a file path, they mean this repository. Ground your answers in the conversation context the user provides — do not invent file contents or PR numbers you haven't seen.`,
     )
+  }
+  if (opts?.mission) {
+    const m = opts.mission
+    const lines: string[] = ['## Current mission']
+    if (m.number != null) lines.push(`- Mission #${m.number}`)
+    if (m.title) lines.push(`- Title: ${m.title}`)
+    if (m.state) lines.push(`- State: ${m.state}`)
+    if (m.labels?.length) lines.push(`- Labels: ${m.labels.join(', ')}`)
+    if (m.body) {
+      const bodyPreview = m.body.length > 2000 ? `${m.body.slice(0, 2000)}…` : m.body
+      lines.push(`\n### Mission body\n\n${bodyPreview}`)
+    }
+    lines.push(
+      '\nThe user is chatting about **this specific mission**. A Kody mission is a GitHub issue (label `kody:mission`) whose body describes intent, system prompt, allowed commands, and restrictions. Answer their questions grounded in the mission body above — do NOT claim the mission does not exist. If they want to edit the mission, help them draft changes to the markdown body.',
+    )
+    sections.push(lines.join('\n'))
   }
   if (opts?.missionDraft) {
     sections.push(
@@ -43,7 +67,7 @@ The user is **drafting a new Kody mission** — they are not asking about an exi
 - **Allowed commands / tools** — what Kody is permitted to do
 - **Restrictions** — what Kody must not do
 
-Your job: help the user scope their mission. Ask short, concrete clarifying questions one turn at a time (goal, inputs, outputs, constraints). When you have enough context, produce a clean, copy-ready markdown draft with those four sections, so the user can hit **Use as mission** on your reply to turn it into a real mission. Never claim a mission already exists; there is no current mission to look up.`,
+Your job: **interview the user about every aspect of this mission until you reach a shared understanding** — do not draft until they signal they're ready. Ask short, concrete questions one turn at a time, drilling into goal, inputs, outputs, constraints, edge cases, success criteria, allowed tools, and restrictions. Prefer one focused question per turn over multi-part checklists. When the user explicitly says they're ready (or asks you to draft), produce a clean, copy-ready markdown draft with the four sections — Intent, System prompt, Allowed commands / tools, Restrictions — so they can hit **Use as mission** on your reply to turn it into a real mission. Never claim a mission already exists; there is no current mission to look up.`,
     )
   }
   if (task) {
