@@ -1486,7 +1486,7 @@ export function KodyDashboard({
                     {/* Legacy flat view: actions pinned at the top so the
                         user can create a task or report a bug without
                         scrolling into a goal section. */}
-                    <div className="grid gap-2 grid-cols-2 px-3 pt-3">
+                    <div className="grid gap-2 grid-cols-2 p-3">
                       <button
                         type="button"
                         onClick={handleOpenCreate}
