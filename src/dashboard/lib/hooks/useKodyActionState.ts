@@ -21,7 +21,7 @@ export interface ActionState {
   lastHeartbeat: string;
 }
 
-const POLL_INTERVAL = 3000; // 3s
+const POLL_INTERVAL = 20000; // 20s — waiting transitions happen at pipeline boundaries (minutes), not seconds
 
 interface UseKodyActionStateOptions {
   /** Poll interval in ms. Set to 0 to disable polling. */
@@ -89,9 +89,32 @@ export function useKodyActionState(
 
     if (!runId || pollInterval === 0) return;
 
-    fetchState();
-    const interval = setInterval(fetchState, pollInterval);
-    return () => clearInterval(interval);
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    const start = () => {
+      if (interval !== null) return;
+      fetchState();
+      interval = setInterval(fetchState, pollInterval);
+    };
+
+    const stop = () => {
+      if (interval === null) return;
+      clearInterval(interval);
+      interval = null;
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") start();
+      else stop();
+    };
+
+    if (document.visibilityState === "visible") start();
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      stop();
+    };
   }, [runId, pollInterval, fetchState]);
 
   /** Manually refresh the state (e.g., after sending an instruction). */
