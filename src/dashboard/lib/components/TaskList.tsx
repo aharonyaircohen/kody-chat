@@ -604,8 +604,8 @@ export function TaskList({
                       </>
                     )}
 
-                    {/* Edit — only for backlog items */}
-                    {onEditTask && task.column === 'open' && (
+                    {/* Edit task */}
+                    {onEditTask && (
                       <DropdownMenuItem
                         onClick={() => {
                           onEditTask(task)
