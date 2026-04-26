@@ -63,6 +63,7 @@ export function BugReportDialog({
 
   // Environment fields
   const [environment, setEnvironment] = useState("dev");
+  const [pageUrl, setPageUrl] = useState("");
   const [browser, setBrowser] = useState("");
   const [userRole, setUserRole] = useState("");
 
@@ -126,11 +127,12 @@ export function BugReportDialog({
     },
   });
 
-  // Reset form when dialog closes
+  // Reset form when dialog closes; auto-fill page URL from referrer when it opens.
   useEffect(() => {
     if (!open) {
       setTitle("");
       setEnvironment("dev");
+      setPageUrl("");
       setBrowser("");
       setUserRole("");
       setPreconditions("");
@@ -141,6 +143,18 @@ export function BugReportDialog({
       setPriority("P2");
       setAssignees([]);
       setAttachments([]);
+      return;
+    }
+    if (typeof window === "undefined") return;
+    const referrer = document.referrer;
+    if (!referrer) return;
+    try {
+      const ref = new URL(referrer);
+      if (ref.origin !== window.location.origin) return;
+      if (ref.pathname === "/bug") return;
+      setPageUrl((current) => current || referrer);
+    } catch {
+      // ignore malformed referrer
     }
   }, [open]);
 
@@ -250,6 +264,7 @@ export function BugReportDialog({
 
     report += "## 2. Environment\n";
     report += `- Environment: ${environment}\n`;
+    if (pageUrl) report += `- Page URL: ${pageUrl}\n`;
     if (browser) report += `- Browser / Device: ${browser}\n`;
     if (userRole) report += `- User Role / Tenant: ${userRole}\n`;
     report += "\n";
@@ -326,6 +341,25 @@ export function BugReportDialog({
             />
             <p className="text-xs text-muted-foreground">
               Format: [Component] Short description
+            </p>
+          </div>
+
+          {/* Page URL */}
+          <div className="grid gap-2">
+            <Label htmlFor="bug-page-url">
+              Page URL <span className="text-destructive">*</span>
+            </Label>
+            <Input
+              id="bug-page-url"
+              type="url"
+              value={pageUrl}
+              onChange={(e) => setPageUrl(e.target.value)}
+              placeholder="https://app.example.com/path/where/bug/happens"
+              required
+            />
+            <p className="text-xs text-muted-foreground">
+              Where did the bug occur? Auto-filled from referrer when opened
+              from inside the app.
             </p>
           </div>
 
