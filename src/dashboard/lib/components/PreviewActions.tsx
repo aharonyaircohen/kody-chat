@@ -35,6 +35,7 @@ import {
   DropdownMenuItem,
 } from '@dashboard/ui/dropdown-menu'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
+import { usePRCIStatus } from '../hooks/usePRCIStatus'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { cn } from '../utils'
@@ -89,6 +90,8 @@ export function PreviewActions({
   const isPRApproved = task.labels?.includes('pr-approved')
 
   const pr = task.associatedPR
+  const { data: ciData } = usePRCIStatus(pr?.number)
+  const hasConflicts = ciData?.hasConflicts ?? false
   if (!pr) return null
 
   const handleCancelPR = async () => {
@@ -198,18 +201,20 @@ export function PreviewActions({
           </Button>
         )}
 
-        {/* Merge */}
-        <div className="flex items-center gap-1.5">
-          <MergeButton
-            prNumber={pr.number}
-            prTitle={pr.title}
-            branchName={pr.head.ref}
-            isMerging={isMerging}
-            onMerge={onMerge}
-            labels={task.labels}
-          />
-          <span className="text-xs text-zinc-500 hidden sm:inline">Merge</span>
-        </div>
+        {/* Merge — hidden when PR has conflicts (Resolve takes its place) */}
+        {!hasConflicts && (
+          <div className="flex items-center gap-1.5">
+            <MergeButton
+              prNumber={pr.number}
+              prTitle={pr.title}
+              branchName={pr.head.ref}
+              isMerging={isMerging}
+              onMerge={onMerge}
+              labels={task.labels}
+            />
+            <span className="text-xs text-zinc-500 hidden sm:inline">Merge</span>
+          </div>
+        )}
 
         {/* Fix */}
         <Button
@@ -270,50 +275,52 @@ export function PreviewActions({
           <span className="hidden sm:inline">Fix CI</span>
         </Button>
 
-        {/* Resolve — split menu for ours/theirs */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 text-slate-300 border-slate-500/30 hover:bg-slate-500/10"
-              title="Resolve merge conflicts"
-            >
-              <GitMerge className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Resolve</span>
-              <ChevronDown className="w-3 h-3 opacity-60" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onSelect={() =>
-                postKodyCommand('@kody resolve', 'Resolve requested')
-              }
-            >
-              Auto
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() =>
-                postKodyCommand(
-                  '@kody resolve --prefer ours',
-                  'Resolve requested (prefer mine)',
-                )
-              }
-            >
-              Prefer mine (PR branch)
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onSelect={() =>
-                postKodyCommand(
-                  '@kody resolve --prefer theirs',
-                  'Resolve requested (prefer base)',
-                )
-              }
-            >
-              Prefer base
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {/* Resolve — only when there are merge conflicts; replaces Merge */}
+        {hasConflicts && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-orange-300 border-orange-500/30 hover:bg-orange-500/10"
+                title="Resolve merge conflicts"
+              >
+                <GitMerge className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Resolve</span>
+                <ChevronDown className="w-3 h-3 opacity-60" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onSelect={() =>
+                  postKodyCommand('@kody resolve', 'Resolve requested')
+                }
+              >
+                Auto
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() =>
+                  postKodyCommand(
+                    '@kody resolve --prefer ours',
+                    'Resolve requested (prefer mine)',
+                  )
+                }
+              >
+                Prefer mine (PR branch)
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() =>
+                  postKodyCommand(
+                    '@kody resolve --prefer theirs',
+                    'Resolve requested (prefer base)',
+                  )
+                }
+              >
+                Prefer base
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
         {/* Comment */}
         <Button
