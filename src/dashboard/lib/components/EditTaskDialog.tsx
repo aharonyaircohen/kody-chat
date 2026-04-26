@@ -52,8 +52,9 @@ interface EditTaskDialogProps {
   onSaved?: () => void;
 }
 
+const NO_PRIORITY = "none";
 const PRIORITY_OPTIONS = [
-  { label: "No Priority", value: "" },
+  { label: "No Priority", value: NO_PRIORITY },
   { label: "P0 - Critical", value: "priority:P0" },
   { label: "P1 - High", value: "priority:P1" },
   { label: "P2 - Medium", value: "priority:P2" },
@@ -71,7 +72,7 @@ export function EditTaskDialog({
   const [showPreview, setShowPreview] = useState(false);
   const [labels, setLabels] = useState<string[]>([]);
   const [assignees, setAssignees] = useState<string[]>([]);
-  const [priority, setPriority] = useState("");
+  const [priority, setPriority] = useState(NO_PRIORITY);
 
   // Use hooks for data fetching
   const { data: collaborators = [] } = useCollaborators();
@@ -99,7 +100,7 @@ export function EditTaskDialog({
       setAssignees(task.assignees?.map((a) => a.login) || []);
       // Extract priority from labels
       const priorityLabel = task.labels?.find((l) => l.startsWith("priority:"));
-      setPriority(priorityLabel || "");
+      setPriority(priorityLabel || NO_PRIORITY);
     }
   }, [task, open]);
 
@@ -112,9 +113,10 @@ export function EditTaskDialog({
     const labelsWithoutPriority = labels.filter(
       (l) => !l.startsWith("priority:"),
     );
-    const finalLabels = priority
-      ? [...labelsWithoutPriority, priority]
-      : labelsWithoutPriority;
+    const finalLabels =
+      priority && priority !== NO_PRIORITY
+        ? [...labelsWithoutPriority, priority]
+        : labelsWithoutPriority;
 
     try {
       await updateTask.mutateAsync({
