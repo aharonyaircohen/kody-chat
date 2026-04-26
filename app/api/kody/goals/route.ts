@@ -4,7 +4,9 @@
  * @pattern goals-api
  * @ai-summary Goals API — GET lists goals from the manifest issue; POST creates
  *   a goal (creating the manifest issue on first use). Goals are JSON entries
- *   inside a single GitHub issue labelled `kody:goals-manifest`.
+ *   inside a single GitHub issue labelled `kody:goals-manifest`. Writes go
+ *   through `mutateGoalsManifest` so concurrent goal mutations can't silently
+ *   overwrite each other (per-instance mutex + verify-after-write retry).
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server'
@@ -18,28 +20,23 @@ import {
 import {
   fetchIssues,
   fetchIssue,
-  createIssue,
-  updateIssue,
   ensureLabel,
-  invalidateIssueCache,
   setGitHubContext,
   clearGitHubContext,
 } from '@dashboard/lib/github-client'
 import {
   EMPTY_MANIFEST,
   GOALS_MANIFEST_LABEL,
-  MANIFEST_ISSUE_TITLE,
   goalLabel,
   parseManifestBody,
-  serializeManifestBody,
   slugifyGoalName,
   uniqueGoalId,
   type Goal,
   type GoalsManifest,
 } from '@dashboard/lib/goals'
+import { mutateGoalsManifest } from '@dashboard/lib/goals-server'
 
 const GOAL_LABEL_COLOR = '38bdf8' // Tailwind sky-400
-import { Octokit } from '@octokit/rest'
 
 type ManifestIssueRef = { number: number; body: string }
 
@@ -70,27 +67,6 @@ async function readManifest(): Promise<{
     ? parseManifestBody(issue.body)
     : { ...EMPTY_MANIFEST, goals: [] }
   return { manifest, issue }
-}
-
-async function writeManifest(
-  next: GoalsManifest,
-  existing: ManifestIssueRef | null,
-  userOctokit?: Octokit,
-): Promise<ManifestIssueRef> {
-  const body = serializeManifestBody(next)
-  if (existing) {
-    await updateIssue(existing.number, { body }, userOctokit)
-    return { number: existing.number, body }
-  }
-  const created = await createIssue(
-    {
-      title: MANIFEST_ISSUE_TITLE,
-      body,
-      labels: [GOALS_MANIFEST_LABEL],
-    },
-    userOctokit,
-  )
-  return { number: created.number, body }
 }
 
 function mapGithubError(error: any, fallback: string, status = 500) {
@@ -156,27 +132,31 @@ export async function POST(req: NextRequest) {
 
     const userOctokit = await getUserOctokit(req)
 
-    const { manifest, issue } = await readManifest()
-    const id = uniqueGoalId(slugifyGoalName(parsed.name), manifest.goals)
-    const now = new Date().toISOString()
-    const newGoal: Goal = {
-      id,
-      name: parsed.name.trim(),
-      description: parsed.description?.trim() || undefined,
-      dueDate: parsed.dueDate?.trim() || undefined,
-      createdAt: now,
-      updatedAt: now,
-    }
-    const nextManifest: GoalsManifest = {
-      version: 1,
-      goals: [...manifest.goals, newGoal],
-    }
+    const outcome = await mutateGoalsManifest<Goal>(
+      (current) => {
+        const id = uniqueGoalId(slugifyGoalName(parsed.name), current.goals)
+        const now = new Date().toISOString()
+        const newGoal: Goal = {
+          id,
+          name: parsed.name.trim(),
+          description: parsed.description?.trim() || undefined,
+          dueDate: parsed.dueDate?.trim() || undefined,
+          createdAt: now,
+          updatedAt: now,
+        }
+        return {
+          next: { version: 1, goals: [...current.goals, newGoal] },
+          result: newGoal,
+        }
+      },
+      { userOctokit: userOctokit ?? undefined },
+    )
 
-    const written = await writeManifest(nextManifest, issue, userOctokit ?? undefined)
-
-    // Same-instance writes: drop cached issue/listings so the next read on
-    // this instance reflects the new manifest immediately.
-    invalidateIssueCache(written.number)
+    if ('kind' in outcome) {
+      // Mutator never returns noop in the create path.
+      return NextResponse.json({ error: 'create_failed' }, { status: 500 })
+    }
+    const newGoal = outcome.result
 
     // Pre-create the `goal:<id>` repo label so attach operations later don't
     // 422. GitHub's addLabels endpoint requires the label to exist already.

@@ -13,6 +13,7 @@ import { ALL_STAGES } from '../../constants'
 import {
   derivePipelineDisplayState,
   formatElapsed,
+  getStageBoundaries,
   getWeightedActiveProgress,
   stageLabels,
 } from '../../pipeline-utils'
@@ -100,10 +101,11 @@ export function AnimatedStatusBar({ task, className }: AnimatedStatusBarProps) {
   const isActive =
     task.column === 'building' || task.column === 'retrying' || task.column === 'gate-waiting'
 
-  // Tick every 3s to keep elapsed time fresh
+  // Tick every 1s so the live-elapsed asymptotic fill advances visibly.
+  // Cheap because re-render is local to this component; CSS transition smooths.
   useEffect(() => {
     if (!isActive) return
-    const interval = setInterval(() => setTick((t) => t + 1), 3000)
+    const interval = setInterval(() => setTick((t) => t + 1), 1000)
     return () => clearInterval(interval)
   }, [isActive])
 
@@ -164,6 +166,7 @@ export function AnimatedStatusBar({ task, className }: AnimatedStatusBarProps) {
   // ── Active states: building, retrying, gate-waiting ──
   const displayState = derivePipelineDisplayState(task)
   const percent = getActivePercent(displayState, task, totalStages)
+  const boundaries = getStageBoundaries(task)
 
   return (
     <div className={cn('relative', className)}>
@@ -184,6 +187,21 @@ export function AnimatedStatusBar({ task, className }: AnimatedStatusBarProps) {
             <div className="absolute right-0 top-0 h-full w-3 bg-gradient-to-l from-white/40 to-transparent rounded-r-full animate-kody-leading-edge" />
           )}
         </div>
+
+        {/* Stage tick markers — vertical lines at each stage boundary so
+            users can see discrete steps inside the smooth fill. */}
+        {boundaries.length > 1 &&
+          boundaries.slice(0, -1).map((b) => (
+            <div
+              key={b.stage}
+              className={cn(
+                'absolute top-0 h-full w-px pointer-events-none',
+                b.isCompleted ? 'bg-white/40' : 'bg-zinc-500/40',
+              )}
+              style={{ left: `${b.position * 100}%` }}
+              title={stageLabels[b.stage] || b.stage}
+            />
+          ))}
 
         {/* Shimmer overlay for building state */}
         {task.column === 'building' && (
@@ -215,7 +233,20 @@ export function AnimatedStatusBar({ task, className }: AnimatedStatusBarProps) {
 
 function BarLabel({ task, style: _style }: { task: KodyTask; style: StatusBarStyle }) {
   const displayState = derivePipelineDisplayState(task)
-  const totalStages = ALL_STAGES.length
+  // Prefer the actual count of stages tracked for THIS pipeline (e.g.
+  // spec_only runs ~5 stages, not 12) so "step N of M" reflects reality.
+  const trackedCount = task.pipeline?.stages
+    ? ALL_STAGES.filter((s) => task.pipeline!.stages[s]).length
+    : 0
+  const totalStages = trackedCount > 0 ? trackedCount : ALL_STAGES.length
+
+  // Re-derive step number against tracked stages when we have them.
+  const trackedStepNumber = (() => {
+    if (displayState.kind !== 'stage-progress' || trackedCount === 0) return null
+    const tracked = ALL_STAGES.filter((s) => task.pipeline!.stages[s])
+    const idx = tracked.findIndex((s) => s === task.pipeline?.currentStage)
+    return idx >= 0 ? idx + 1 : null
+  })()
 
   const labelText = (() => {
     if (task.column === 'review') {
@@ -229,8 +260,10 @@ function BarLabel({ task, style: _style }: { task: KodyTask; style: StatusBarSty
     }
 
     switch (displayState.kind) {
-      case 'stage-progress':
-        return `${displayState.label} · ${displayState.stepNumber}/${totalStages}`
+      case 'stage-progress': {
+        const step = trackedStepNumber ?? displayState.stepNumber
+        return `${displayState.label} · ${step}/${totalStages}`
+      }
       case 'gate-paused': {
         const gateLabel =
           task.gateType === 'hard-stop'

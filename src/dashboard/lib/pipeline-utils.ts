@@ -105,30 +105,84 @@ export function calculatePipelineProgress(pipeline: KodyPipelineStatus): Pipelin
 }
 
 /**
+ * Compute live elapsed-ms for a stage. For a running stage, uses
+ * `Date.now() - startedAt` so the value advances continuously between polls.
+ * Falls back to the snapshotted `elapsed` field when `startedAt` is missing.
+ */
+function getStageElapsedMs(data: StageStatus): number {
+  if (data.state === 'running' && data.startedAt) {
+    return Math.max(0, Date.now() - new Date(data.startedAt).getTime())
+  }
+  if (data.elapsed) return data.elapsed * 1000
+  if (data.startedAt && data.completedAt) {
+    return Math.max(0, new Date(data.completedAt).getTime() - new Date(data.startedAt).getTime())
+  }
+  return 0
+}
+
+/**
+ * Asymptotic fill curve for the running stage: 1 - exp(-elapsed/median).
+ *
+ * At elapsed = median, fill = 0.63. At 2× median, 0.86. At 3× median, 0.95.
+ * Feels responsive at the start (avoids the "stuck" feel of linear elapsed/max
+ * with very generous max durations) without ever exceeding the segment.
+ */
+function stageFillFraction(stage: string, data: StageStatus): number {
+  const max = stageMaxDurations[stage] || DEFAULT_MAX_MS
+  const median = max / 3
+  const elapsedMs = getStageElapsedMs(data)
+  if (elapsedMs <= 0) return 0
+  const frac = 1 - Math.exp(-elapsedMs / median)
+  return Math.min(0.95, frac)
+}
+
+/**
+ * Cumulative-weight stage boundaries (0-1) for tick marks on the progress bar.
+ *
+ * Returns one entry per stage tracked in `pipeline.stages` (the actual scope
+ * for this pipeline mode), with `position` = fraction-of-total-weight where
+ * that stage *ends*. The last entry will be at 1.0.
+ */
+export function getStageBoundaries(
+  task: KodyTask,
+): Array<{ stage: string; position: number; isCompleted: boolean }> {
+  const pipeline = task.pipeline
+  if (!pipeline) return []
+  const stages = pipeline.stages || {}
+  const tracked = ALL_STAGES.filter((s) => stages[s])
+  const totalWeight = tracked.reduce((sum, s) => sum + (stageMaxDurations[s] || DEFAULT_MAX_MS), 0)
+  if (totalWeight === 0) return []
+
+  let cumulative = 0
+  return tracked.map((stage) => {
+    cumulative += stageMaxDurations[stage] || DEFAULT_MAX_MS
+    const data = stages[stage]
+    const isCompleted = data.state === 'completed' || data.state === 'skipped'
+    return { stage, position: cumulative / totalWeight, isCompleted }
+  })
+}
+
+/**
  * Weighted overall progress (0-99) for an active task.
  *
- * Each stage contributes weight proportional to its typical duration
- * (`stageMaxDurations`), so a long `build` stage advances more bar pixels than
- * a short `commit`. The currently running stage is fractionally filled by
- * `elapsed / weight` (capped at 0.95) so the bar moves smoothly within a stage
- * instead of jumping in 12 equal steps. Skipped stages count as completed.
+ * Denominator = sum of weights of stages actually tracked in `pipeline.stages`
+ * (so a 5-stage `spec_only` pipeline can reach 99%, not just 40%). The current
+ * stage uses a live, asymptotic fill curve so the bar advances every render
+ * even between engine polls. Skipped stages count as completed.
  */
 export function getWeightedActiveProgress(task: KodyTask): number {
   const pipeline = task.pipeline
   if (!pipeline) return 0
 
   const stages = pipeline.stages || {}
-  const totalWeight = ALL_STAGES.reduce(
-    (sum, s) => sum + (stageMaxDurations[s] || DEFAULT_MAX_MS),
-    0,
-  )
+  const tracked = ALL_STAGES.filter((s) => stages[s])
+  const totalWeight = tracked.reduce((sum, s) => sum + (stageMaxDurations[s] || DEFAULT_MAX_MS), 0)
   if (totalWeight === 0) return 0
 
   let cumulative = 0
-  for (const stage of ALL_STAGES) {
+  for (const stage of tracked) {
     const weight = stageMaxDurations[stage] || DEFAULT_MAX_MS
     const data = stages[stage]
-    if (!data) continue
 
     if (data.state === 'completed' || data.state === 'skipped') {
       cumulative += weight
@@ -136,9 +190,7 @@ export function getWeightedActiveProgress(task: KodyTask): number {
     }
 
     if (data.state === 'running') {
-      const elapsedMs = (data.elapsed || 0) * 1000
-      const frac = Math.min(0.95, elapsedMs / weight)
-      cumulative += weight * frac
+      cumulative += weight * stageFillFraction(stage, data)
       break
     }
 
