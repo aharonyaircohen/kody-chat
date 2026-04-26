@@ -31,6 +31,7 @@ import { createGitHubTools } from "../tools/github-tools"
 import { createPipelineTools } from "../tools/pipeline-tools"
 import { createRemoteTools } from "../tools/remote-tools"
 import { createBugTools } from "../tools/bug-tools"
+import { createReleaseTools } from "../tools/release-tools"
 import { fetchUrlTool } from "../tools/fetch-url"
 
 export const runtime = "nodejs"
@@ -213,6 +214,7 @@ export async function POST(req: NextRequest) {
       ...extraTools,
       ...createGitHubTools({ octokit, owner: repo.owner, repo: repo.repo }),
       ...createBugTools({ octokit, owner: repo.owner, repo: repo.repo }),
+      ...createReleaseTools({ octokit, owner: repo.owner, repo: repo.repo }),
     }
     // Pipeline tools currently use github-client's module-level context
     // (setGitHubContext below) — they do *not* take the per-request
