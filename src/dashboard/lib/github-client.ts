@@ -1312,6 +1312,25 @@ export async function findAssociatedPRByIssueNumber(issueNumber: number): Promis
   const openPRs = await fetchOpenPRs()
   const issueStr = String(issueNumber)
 
+  // Highest priority: engine-written `<!-- kody-release-pr: #N -->` marker
+  // in the issue body. Persisted by release-prepare/release-deploy so the
+  // link survives @kody fix overwrites of the PR body. Mirrors the bulk
+  // task list's primary lookup in app/api/kody/tasks/route.ts.
+  try {
+    const issue = await fetchIssue(issueNumber, { ttl: CACHE_TTL.tasks })
+    const marker = issue?.body?.match(/<!--\s*kody-release-pr:\s*#?(\d+)\s*-->/i)
+    if (marker) {
+      const target = parseInt(marker[1]!, 10)
+      const matched = openPRs.find((p) => p.number === target)
+      if (matched) {
+        setCache(cacheKey, CACHE_TTL.prs, matched)
+        return matched
+      }
+    }
+  } catch {
+    // Body lookup is best-effort — fall through to bulk-list signals below.
+  }
+
   for (const pr of openPRs) {
     // Strongest signal: GraphQL "Closes/Fixes/Resolves #N" links from the PR body.
     if (pr.closingIssueNumbers?.includes(issueNumber)) {

@@ -178,6 +178,11 @@ export async function GET(req: NextRequest) {
     // name patterns for PRs that don't use a closing keyword.
     const prsByIssueTitle = new Map<string, (typeof openPRs)[number]>()
     const prsByIssueNumber = new Map<number, (typeof openPRs)[number]>()
+    // Direct PR-number lookup, used by the kody-release-pr issue-body marker
+    // (engine-written, durable across @kody fix on the PR side — see
+    // kody2/src/executables/release-{prepare,deploy}/*.sh).
+    const prByNumber = new Map<number, (typeof openPRs)[number]>()
+    for (const pr of openPRs) prByNumber.set(pr.number, pr)
     for (const pr of openPRs) {
       prsByIssueTitle.set(pr.title, pr)
       for (const linkedIssue of pr.closingIssueNumbers ?? []) {
@@ -265,8 +270,21 @@ export async function GET(req: NextRequest) {
         // Match workflow run — prefers active (in_progress) runs over stale completed ones
         const workflowRun = matchWorkflowRunToTask(workflowRuns, issue.title, issue.number, taskId)
 
-        // Match PR from pre-fetched bulk data (cheap, no extra API calls)
-        const pr = prsByIssueTitle.get(issue.title) ?? prsByIssueNumber.get(issue.number) ?? null
+        // Match PR. Highest priority: engine-written `<!-- kody-release-pr: #N -->`
+        // marker in the issue body (release-prepare/deploy persist this so the
+        // link survives @kody fix overwriting the PR body). Falls back to
+        // closing/tracking refs and branch heuristics from the bulk PR list.
+        let pr: (typeof openPRs)[number] | null = null
+        const releaseMarker = issue.body
+          ? issue.body.match(/<!--\s*kody-release-pr:\s*#?(\d+)\s*-->/i)
+          : null
+        if (releaseMarker) {
+          const markedPr = prByNumber.get(parseInt(releaseMarker[1]!, 10))
+          if (markedPr) pr = markedPr
+        }
+        if (!pr) {
+          pr = prsByIssueTitle.get(issue.title) ?? prsByIssueNumber.get(issue.number) ?? null
+        }
 
         // Fetch pipeline status for tasks with active workflows or pipeline labels.
         // Uses pre-fetched branch map (batch call above) instead of per-task API calls.
