@@ -130,6 +130,7 @@ export function PreviewModal({
   const [selectedDoc, setSelectedDoc] = useState<TaskDocument | null>(null);
   const [commentCount, setCommentCount] = useState<number | null>(null);
   const [previewView, setPreviewView] = useState<"web" | "admin">("web");
+  const [previewKey, setPreviewKey] = useState(0); // Bump to force iframe remount/refresh
   const [commentsKey, setCommentsKey] = useState(0); // Used to force-refresh comment list
 
   const pr = task.associatedPR;
@@ -427,21 +428,34 @@ export function PreviewModal({
                     Admin
                   </button>
                 </div>
-                <a
-                  href={getPreviewBypassUrl(getPreviewUrl()) || undefined}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/20 transition-colors"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  Open
-                </a>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPreviewKey((k) => k + 1)}
+                    title="Refresh preview"
+                    aria-label="Refresh preview"
+                    className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Refresh
+                  </button>
+                  <a
+                    href={getPreviewBypassUrl(getPreviewUrl()) || undefined}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/20 transition-colors"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    Open
+                  </a>
+                </div>
               </div>
             )}
             {/* iframe */}
             <div className="flex-1 min-h-0">
               {task.previewUrl ? (
                 <iframe
+                  key={`${previewView}-${previewKey}`}
                   src={getPreviewBypassUrl(getPreviewUrl()) || undefined}
                   title="Preview Deployment"
                   className="w-full h-full border-0 bg-white"
