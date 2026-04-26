@@ -14,6 +14,7 @@ import { AnimatedStatusBar } from './v2/AnimatedStatusBar'
 import { SimpleTooltip } from './SimpleTooltip'
 import { StatusTooltipContent, SubStatusTooltipContent } from './tooltip-content'
 import { KodyPhaseChip, KodyFlowChip } from './KodyLabelChips'
+import { CIStatusBadge } from './CIStatusBadge'
 import type { KodyTask, ColumnId } from '../types'
 import { Button } from '@dashboard/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@dashboard/ui/avatar'
@@ -544,18 +545,21 @@ const TaskRow = memo(function TaskRow({
                   )}
 
                   {hasPR && (
-                    <SimpleTooltip content="Open PR in GitHub" side="bottom">
-                      <a
-                        href={task.associatedPR!.html_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors font-medium"
-                      >
-                        <GitPullRequest className="w-3 h-3" />
-                        PR
-                      </a>
-                    </SimpleTooltip>
+                    <span className="inline-flex items-center gap-1">
+                      <SimpleTooltip content="Open PR in GitHub" side="bottom">
+                        <a
+                          href={task.associatedPR!.html_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors font-medium"
+                        >
+                          <GitPullRequest className="w-3 h-3" />
+                          PR
+                        </a>
+                      </SimpleTooltip>
+                      <CIStatusBadge prNumber={task.associatedPR!.number} />
+                    </span>
                   )}
                 </div>
               </div>
