@@ -334,6 +334,17 @@ export function useTaskActions({
     onSuccess?.()
   }
 
+  // For destructive / column-changing actions (close, closePR, abort) the user
+  // expects the task list to reflect the change immediately rather than wait
+  // for the next 30–120s poll. The cost is one extra task-list fetch per
+  // action, which is bounded and rate-limit-cheap (304 on no diff via ETag).
+  const handleListChangingSuccess = (label: string) => () => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.taskDetails(issueNumber) })
+    queryClient.invalidateQueries({ queryKey: ['kody-tasks'] })
+    toast.success(label)
+    onSuccess?.()
+  }
+
   const execute = useMutation({
     mutationFn: () => kodyApi.tasks.execute(issueNumber, actorLogin),
     onSuccess: handleSuccess('Task started'),
@@ -348,25 +359,25 @@ export function useTaskActions({
 
   const close = useMutation({
     mutationFn: () => kodyApi.tasks.close(issueNumber, actorLogin),
-    onSuccess: handleSuccess('Issue closed'),
+    onSuccess: handleListChangingSuccess('Issue closed'),
     onError: handleError('close issue'),
   })
 
   const reopen = useMutation({
     mutationFn: () => kodyApi.tasks.reopen(issueNumber, actorLogin),
-    onSuccess: handleSuccess('Issue reopened'),
+    onSuccess: handleListChangingSuccess('Issue reopened'),
     onError: handleError('reopen issue'),
   })
 
   const abort = useMutation({
     mutationFn: () => kodyApi.tasks.abort(issueNumber, actorLogin),
-    onSuccess: handleSuccess('Task stopped'),
+    onSuccess: handleListChangingSuccess('Task stopped'),
     onError: handleError('stop task'),
   })
 
   const closePR = useMutation({
     mutationFn: () => kodyApi.tasks.closePR(issueNumber, actorLogin),
-    onSuccess: handleSuccess('PR closed'),
+    onSuccess: handleListChangingSuccess('PR closed'),
     onError: handleError('close PR'),
   })
 

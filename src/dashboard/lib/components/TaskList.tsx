@@ -6,7 +6,7 @@
  */
 'use client'
 
-import { useCallback, useState, useEffect } from 'react'
+import { memo, useCallback, useState, useEffect } from 'react'
 import { cn, formatRelativeTime } from '../utils'
 import { getGitHubIssueUrl, parsePriorityLabel, PRIORITY_META } from '../constants'
 import { MiniPipelineProgress } from './MiniPipelineProgress'
@@ -227,69 +227,135 @@ export function TaskList({
       role="listbox"
       aria-label="Tasks"
     >
-      {tasks.map((task, index) => {
-        const isSelected = task.id === selectedTask?.id
-        const isFocused = index === focusedIndex
-        const canExecute = task.state === 'open' && onExecuteTask
-        const isExecuting = executingTaskId === task.id
-        const hasPR = !!task.associatedPR
-        const isHardStop = task.column === 'gate-waiting' && task.gateType === 'hard-stop'
-        // gate-waiting tasks also show pipeline progress (they're paused mid-pipeline)
-        const isActive =
-          task.column === 'building' || task.column === 'retrying' || task.column === 'gate-waiting'
-        const colors = statusColors[task.column]
-        const gateLabel =
-          task.column === 'gate-waiting' && task.gateType === 'hard-stop'
-            ? 'Hard Stop'
-            : task.column === 'gate-waiting' && task.gateType === 'risk-gated'
-              ? 'Risk Gated'
-              : statusLabel[task.column]
+      {tasks.map((task, index) => (
+        <TaskRow
+          key={task.id}
+          task={task}
+          isSelected={task.id === selectedTask?.id}
+          isFocused={index === focusedIndex}
+          isExecuting={executingTaskId === task.id}
+          onClick={handleTaskClick}
+          onTaskHover={onTaskHover}
+          onExecuteTask={onExecuteTask}
+          onStopTask={onStopTask}
+          onAssign={onAssign}
+          onOpenPreview={onOpenPreview}
+          onEditTask={onEditTask}
+          onDuplicate={onDuplicate}
+          onRerun={onRerun}
+          onToggleQueue={onToggleQueue}
+          collaborators={collaborators}
+          draggable={draggable}
+          onDragStartTask={onDragStartTask}
+          onDragEndTask={onDragEndTask}
+          accent={accent}
+        />
+      ))}
+    </div>
+  )
+}
 
-        return (
-          <div
-            key={task.id}
-            role="option"
-            aria-selected={isSelected}
-            tabIndex={0}
-            draggable={draggable}
-            onDragStart={(e) => {
-              if (!draggable) return
-              e.dataTransfer.effectAllowed = 'move'
-              // Payload — any consumer can read `task-id`
-              try {
-                e.dataTransfer.setData('text/plain', String(task.issueNumber))
-              } catch {
-                /* some browsers restrict setData during drag */
-              }
-              onDragStartTask?.(task, e)
-            }}
-            onDragEnd={() => {
-              if (!draggable) return
-              onDragEndTask?.(task)
-            }}
-            onClick={() => handleTaskClick(task)}
-            onMouseEnter={() => onTaskHover?.(task)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                handleTaskClick(task)
-              }
-            }}
-            className={cn(
-              'group relative cursor-pointer transition-colors duration-100 border-l-2 border-l-transparent',
-              // Hover: palette-tinted if provided, otherwise the default neutral hover
-              accent?.rowHover ?? 'hover:bg-white/[0.04]',
-              // Status-driven bg wins when set; otherwise fall back to the
-              // palette-tinted neutral row bg (so 'open' rows pick up the goal color)
-              colors.bg || accent?.rowBg || '',
-              isSelected && cn('bg-white/[0.06] border-l-2', colors.border),
-              isFocused && 'ring-1 ring-blue-500/40 bg-blue-500/5',
-              isHardStop && 'ring-1 ring-red-500/30 ring-inset',
-              draggable && 'cursor-grab active:cursor-grabbing',
-            )}
-          >
-            {/* Main row */}
-            <div className="flex items-center gap-3 px-4 py-3">
+interface TaskRowProps {
+  task: KodyTask
+  isSelected: boolean
+  isFocused: boolean
+  isExecuting: boolean
+  onClick: (task: KodyTask) => void
+  onTaskHover?: (task: KodyTask) => void
+  onExecuteTask?: (taskId: string) => void
+  onStopTask?: (task: KodyTask) => void
+  onAssign?: (issueNumber: number, assignees: string[]) => void
+  onOpenPreview?: (task: KodyTask) => void
+  onEditTask?: (task: KodyTask) => void
+  onDuplicate?: (task: KodyTask) => void
+  onRerun?: (task: KodyTask) => void
+  onToggleQueue?: (task: KodyTask) => void
+  collaborators: { login: string; avatar_url: string }[]
+  draggable?: boolean
+  onDragStartTask?: (task: KodyTask, event: React.DragEvent) => void
+  onDragEndTask?: (task: KodyTask) => void
+  accent?: { divide: string; rowBg: string; rowHover: string }
+}
+
+const TaskRow = memo(function TaskRow({
+  task,
+  isSelected,
+  isFocused,
+  isExecuting,
+  onClick,
+  onTaskHover,
+  onExecuteTask,
+  onStopTask,
+  onAssign,
+  onOpenPreview,
+  onEditTask,
+  onDuplicate,
+  onRerun,
+  onToggleQueue: _onToggleQueue,
+  collaborators,
+  draggable,
+  onDragStartTask,
+  onDragEndTask,
+  accent,
+}: TaskRowProps) {
+  const canExecute = task.state === 'open' && onExecuteTask
+  const hasPR = !!task.associatedPR
+  const isHardStop = task.column === 'gate-waiting' && task.gateType === 'hard-stop'
+  // gate-waiting tasks also show pipeline progress (they're paused mid-pipeline)
+  const isActive =
+    task.column === 'building' || task.column === 'retrying' || task.column === 'gate-waiting'
+  const colors = statusColors[task.column]
+  const gateLabel =
+    task.column === 'gate-waiting' && task.gateType === 'hard-stop'
+      ? 'Hard Stop'
+      : task.column === 'gate-waiting' && task.gateType === 'risk-gated'
+        ? 'Risk Gated'
+        : statusLabel[task.column]
+
+  return (
+    <div
+      role="option"
+      aria-selected={isSelected}
+      tabIndex={0}
+      draggable={draggable}
+      onDragStart={(e) => {
+        if (!draggable) return
+        e.dataTransfer.effectAllowed = 'move'
+        // Payload — any consumer can read `task-id`
+        try {
+          e.dataTransfer.setData('text/plain', String(task.issueNumber))
+        } catch {
+          /* some browsers restrict setData during drag */
+        }
+        onDragStartTask?.(task, e)
+      }}
+      onDragEnd={() => {
+        if (!draggable) return
+        onDragEndTask?.(task)
+      }}
+      onClick={() => onClick(task)}
+      onMouseEnter={() => onTaskHover?.(task)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault()
+          onClick(task)
+        }
+      }}
+      className={cn(
+        'group relative cursor-pointer transition-colors duration-100 border-l-2 border-l-transparent',
+        // Hover: palette-tinted if provided, otherwise the default neutral hover
+        accent?.rowHover ?? 'hover:bg-white/[0.04]',
+        // Status-driven bg wins when set; otherwise fall back to the
+        // palette-tinted neutral row bg (so 'open' rows pick up the goal color)
+        colors.bg || accent?.rowBg || '',
+        isSelected && cn('bg-white/[0.06] border-l-2', colors.border),
+        isFocused && 'ring-1 ring-blue-500/40 bg-blue-500/5',
+        isHardStop && 'ring-1 ring-red-500/30 ring-inset',
+        draggable && 'cursor-grab active:cursor-grabbing',
+      )}
+    >
+      {/* Main row */}
+      <div className="flex items-center gap-3 px-4 py-3">
               {/* Status icon */}
               <div className="shrink-0">{statusIcon[task.column]}</div>
 
@@ -652,15 +718,12 @@ export function TaskList({
               </div>
             )}
 
-            {/* Non-active states: show compact animated bar for visual status at a glance */}
-            {!isActive && task.column !== 'open' && (
-              <div className="pb-2 px-4 pl-[52px]">
-                <AnimatedStatusBar task={task} />
-              </div>
-            )}
-          </div>
-        )
-      })}
+      {/* Non-active states: show compact animated bar for visual status at a glance */}
+      {!isActive && task.column !== 'open' && (
+        <div className="pb-2 px-4 pl-[52px]">
+          <AnimatedStatusBar task={task} />
+        </div>
+      )}
     </div>
   )
-}
+})
