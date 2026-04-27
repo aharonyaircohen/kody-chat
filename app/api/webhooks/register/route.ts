@@ -7,13 +7,16 @@
  *
  * Explicit, manual webhook registration entry point. Login flow already
  * calls this automatically (see app/api/oauth/github/callback/route.ts);
- * this endpoint exists for re-running registration without re-logging-in,
- * targeting a different repo, or recovering from rotation of the secret.
+ * this endpoint exists for re-running registration without re-logging-in
+ * or for targeting a different repo.
  *
  * Body (optional): { owner?: string, repo?: string, events?: string[] }
  * Defaults to GITHUB_OWNER/GITHUB_REPO and the standard event set.
  *
  * Caller's PAT (from session) must have `admin:repo_hook` scope.
+ *
+ * No shared secret — webhook deliveries are verified by GitHub source IP
+ * (see src/dashboard/lib/webhooks/github-ip.ts).
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -27,14 +30,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const secret = process.env.KODY_WEBHOOK_SECRET?.trim();
-  if (!secret) {
-    return NextResponse.json(
-      { error: "KODY_WEBHOOK_SECRET not configured" },
-      { status: 503 },
-    );
-  }
-
   const session = await verifyKodySession(req);
   if (!session) {
     return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
@@ -65,7 +60,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     owner,
     repo,
     hookUrl,
-    secret,
     events: body.events,
   });
 

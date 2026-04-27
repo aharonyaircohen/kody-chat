@@ -209,50 +209,47 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   );
 
   // STEP 6: Auto-register the GitHub webhook (idempotent, fire-and-forget).
-  // If KODY_WEBHOOK_SECRET is unset, the user's PAT lacks admin:repo_hook,
-  // or anything else fails — log and move on. Login must not be blocked.
-  const webhookSecret = process.env.KODY_WEBHOOK_SECRET?.trim();
-  if (webhookSecret) {
-    const hookUrl = `${baseUrl}/api/webhooks/github`;
-    void ensureWebhook({
-      token: userAccessToken,
-      owner: GITHUB_OWNER,
-      repo: GITHUB_REPO,
-      hookUrl,
-      secret: webhookSecret,
-    })
-      .then((result) => {
-        if (result.ok) {
-          logger.info(
-            {
-              correlationId,
-              event: "webhook_registered_on_login",
-              hookId: result.hookId,
-              created: result.created,
-              login: userinfo.login,
-            },
-            "Webhook ensured for repo on login",
-          );
-        } else {
-          logger.warn(
-            {
-              correlationId,
-              event: "webhook_register_on_login_failed",
-              status: result.status,
-              error: result.error,
-              login: userinfo.login,
-            },
-            "Webhook registration on login failed (non-fatal)",
-          );
-        }
-      })
-      .catch((err) => {
-        logger.warn(
-          { correlationId, event: "webhook_register_on_login_threw", err },
-          "Webhook registration on login threw (non-fatal)",
+  // No shared secret — verification is by source IP. If the user's PAT
+  // lacks admin:repo_hook or anything else fails, log and move on. Login
+  // must not be blocked.
+  const hookUrl = `${baseUrl}/api/webhooks/github`;
+  void ensureWebhook({
+    token: userAccessToken,
+    owner: GITHUB_OWNER,
+    repo: GITHUB_REPO,
+    hookUrl,
+  })
+    .then((result) => {
+      if (result.ok) {
+        logger.info(
+          {
+            correlationId,
+            event: "webhook_registered_on_login",
+            hookId: result.hookId,
+            created: result.created,
+            login: userinfo.login,
+          },
+          "Webhook ensured for repo on login",
         );
-      });
-  }
+      } else {
+        logger.warn(
+          {
+            correlationId,
+            event: "webhook_register_on_login_failed",
+            status: result.status,
+            error: result.error,
+            login: userinfo.login,
+          },
+          "Webhook registration on login failed (non-fatal)",
+        );
+      }
+    })
+    .catch((err) => {
+      logger.warn(
+        { correlationId, event: "webhook_register_on_login_threw", err },
+        "Webhook registration on login threw (non-fatal)",
+      );
+    });
 
   res.headers.set("Location", returnTo || "/");
   return res;

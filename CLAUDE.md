@@ -32,27 +32,29 @@ Next.js dashboard for monitoring and managing the Kody CI/CD pipeline.
 | `KODY_CHAT_WORKFLOW_REPO` | No | Central engine repo for chat (default: the connected repo from login) |
 | `KODY_CHAT_WORKFLOW_ID` | No | Chat workflow file name (default: `kody.yml`) |
 | `JINA_API_KEY` | No | Jina Reader key for the `fetch_url` tool (falls back to anonymous tier) |
-| `KODY_WEBHOOK_SECRET` | Yes (push path) | HMAC secret for verifying GitHub webhook deliveries |
 
 ## GitHub webhooks (push-based cache invalidation)
 
 To replace polling with push, the dashboard receives webhooks from GitHub
-and invalidates its in-memory cache when resources change.
+and invalidates its in-memory cache when resources change. **No shared
+secret needed.** The receiver verifies the source IP against GitHub's
+published webhook CIDR ranges (`https://api.github.com/meta`); deliveries
+from anywhere else return 403.
 
+- IP verification: [src/dashboard/lib/webhooks/github-ip.ts](src/dashboard/lib/webhooks/github-ip.ts)
+  — fetches and caches the CIDR list for 24h, with IPv4/IPv6 matching.
 - Receiver: [app/api/webhooks/github/route.ts](app/api/webhooks/github/route.ts)
-  Verifies HMAC against `KODY_WEBHOOK_SECRET`, dedupes by `X-GitHub-Delivery`,
-  dispatches to `invalidateIssueCache` / `invalidatePRCache` /
-  `invalidateWorkflowCache` / `invalidateBranchCache` based on event type.
+  — verifies IP, dedupes by `X-GitHub-Delivery`, dispatches to
+  `invalidateIssueCache` / `invalidatePRCache` / `invalidateWorkflowCache`
+  / `invalidateBranchCache` based on event type.
 - Registrar: [src/dashboard/lib/webhooks/register.ts](src/dashboard/lib/webhooks/register.ts)
-  Shared `ensureWebhook` helper. Idempotent — lists existing hooks on the
-  repo and either PATCHes the matching one (refreshing secret + events)
-  or creates a new one. Caller's PAT must have `admin:repo_hook` (the
-  classic `repo` scope already includes it).
+  — shared `ensureWebhook` helper. Idempotent: lists existing hooks on the
+  repo and PATCHes the matching one or creates a new one. Caller's PAT
+  must have `admin:repo_hook` (the classic `repo` scope already includes it).
   - Auto-called from the OAuth callback ([app/api/oauth/github/callback/route.ts](app/api/oauth/github/callback/route.ts))
     after session creation. Fire-and-forget; failure does not block login.
   - Manual endpoint: [app/api/webhooks/register/route.ts](app/api/webhooks/register/route.ts)
-    for re-running registration without a fresh login (e.g. after rotating
-    `KODY_WEBHOOK_SECRET`).
+    for re-running registration without re-logging-in.
 
 Subscribed events: `issues`, `issue_comment`, `pull_request`,
 `pull_request_review`, `pull_request_review_comment`, `workflow_run`,

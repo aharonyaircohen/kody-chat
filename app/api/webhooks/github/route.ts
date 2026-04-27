@@ -5,10 +5,13 @@
  *
  * POST /api/webhooks/github
  *
- * GitHub webhook receiver. Verifies HMAC-SHA256 signature against
- * KODY_WEBHOOK_SECRET, then invalidates the in-memory cache for the
- * affected resource so the next read picks up the change without waiting
- * for TTL.
+ * GitHub webhook receiver. Verifies the source IP against GitHub's
+ * published webhook CIDR ranges (https://api.github.com/meta) instead
+ * of using a shared HMAC secret — no env var to manage. See
+ * src/dashboard/lib/webhooks/github-ip.ts for rationale.
+ *
+ * On accepted delivery, invalidates the in-memory cache for the affected
+ * resource so the next read picks up the change without waiting for TTL.
  *
  * This is the foundation of the push-based architecture that replaces
  * polling. See CLAUDE.md > "GitHub API rate-limit rules".
@@ -23,13 +26,13 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import crypto from "node:crypto";
 import {
   invalidateIssueCache,
   invalidatePRCache,
   invalidateBranchCache,
   invalidateWorkflowCache,
 } from "@dashboard/lib/github-client";
+import { getClientIp, isFromGitHub } from "@dashboard/lib/webhooks/github-ip";
 import { logger } from "@dashboard/lib/logger";
 
 export const runtime = "nodejs";
@@ -50,18 +53,6 @@ function rememberDelivery(id: string): boolean {
     if (evicted) seenDeliveries.delete(evicted);
   }
   return false;
-}
-
-// ============ HMAC verification ============
-
-function verifySignature(rawBody: string, signatureHeader: string | null, secret: string): boolean {
-  if (!signatureHeader) return false;
-  const expected = "sha256=" +
-    crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
-  const a = Buffer.from(signatureHeader);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  return crypto.timingSafeEqual(a, b);
 }
 
 // ============ Event dispatch ============
@@ -120,17 +111,14 @@ function dispatch(event: string, payload: unknown): { handled: boolean; detail: 
 // ============ Handler ============
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
-  const secret = process.env.KODY_WEBHOOK_SECRET?.trim();
-  if (!secret) {
-    logger.error({ event: "webhook_not_configured" }, "KODY_WEBHOOK_SECRET missing");
-    return NextResponse.json({ error: "not configured" }, { status: 503 });
-  }
-
-  const rawBody = await req.text();
-  const signature = req.headers.get("x-hub-signature-256");
-  if (!verifySignature(rawBody, signature, secret)) {
-    logger.warn({ event: "webhook_bad_signature" }, "Webhook signature invalid");
-    return NextResponse.json({ error: "invalid signature" }, { status: 401 });
+  const ip = getClientIp(req.headers);
+  const allowed = await isFromGitHub(ip);
+  if (!allowed) {
+    logger.warn(
+      { event: "webhook_unauthorized_ip", ip: ip ?? "(none)" },
+      "Webhook rejected: source IP not in GitHub's hook CIDRs",
+    );
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
   const eventType = req.headers.get("x-github-event") ?? "";
@@ -142,7 +130,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   let payload: unknown;
   try {
-    payload = JSON.parse(rawBody);
+    payload = await req.json();
   } catch {
     return NextResponse.json({ error: "invalid JSON" }, { status: 400 });
   }

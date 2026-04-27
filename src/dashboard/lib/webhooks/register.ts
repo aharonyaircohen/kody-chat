@@ -5,7 +5,9 @@
  *
  * Idempotently registers a GitHub repo webhook pointing at the dashboard's
  * /api/webhooks/github endpoint. Safe to call repeatedly — if a hook
- * already points at the URL, it's PATCHed to refresh secret + events.
+ * already points at the URL, it's PATCHed to refresh the events list.
+ *
+ * No webhook secret. Verification is by source IP — see github-ip.ts.
  *
  * Used by:
  * - POST /api/webhooks/register (explicit)
@@ -39,7 +41,6 @@ export interface EnsureWebhookInput {
   owner: string;
   repo: string;
   hookUrl: string;
-  secret: string;
   events?: string[];
 }
 
@@ -71,13 +72,13 @@ async function gh(
 export async function ensureWebhook(
   input: EnsureWebhookInput,
 ): Promise<EnsureWebhookResult> {
-  const { token, owner, repo, hookUrl, secret } = input;
+  const { token, owner, repo, hookUrl } = input;
   const events = input.events?.length ? input.events : DEFAULT_WEBHOOK_EVENTS;
 
+  // No `secret` field — verification is by source IP, see github-ip.ts.
   const config = {
     url: hookUrl,
     content_type: "json",
-    secret,
     insecure_ssl: "0",
   };
 
@@ -101,7 +102,7 @@ export async function ensureWebhook(
   const hooks = (await listRes.json()) as GitHubHook[];
   const existing = hooks.find((h) => h?.config?.url === hookUrl);
 
-  // 2a) Update existing hook to refresh secret + events.
+  // 2a) Update existing hook to refresh events list / clear any legacy secret.
   if (existing) {
     const patchRes = await gh(
       token,
