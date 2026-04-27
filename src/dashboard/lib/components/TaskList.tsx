@@ -457,12 +457,9 @@ const TaskRow = memo(function TaskRow({
                       l !== 'ui-approved' &&
                       l !== 'pr-approved',
                   )
-                  const hasUIApproved = task.labels.includes('ui-approved')
-                  const hasPRApproved = task.labels.includes('pr-approved')
                   const showTypeGroup = !!task.kodyFlow || !!priorityMeta
                   // Progress group always renders (relative time always shows).
-                  const showOutcomesGroup =
-                    hasUIApproved || hasPRApproved || hasPR || !!firstOtherLabel
+                  const showOutcomesGroup = !!firstOtherLabel
 
                   return (
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-zinc-500">
@@ -581,50 +578,12 @@ const TaskRow = memo(function TaskRow({
                         </span>
                       </div>
 
-                      {/* Group D — Outcomes: approvals · other label · PR + CI */}
-                      {showOutcomesGroup && (
+                      {/* Group D — Outcomes: other label */}
+                      {showOutcomesGroup && firstOtherLabel && (
                         <div className="inline-flex items-center gap-1.5">
-                          {hasUIApproved && (
-                            <SimpleTooltip content="UI approved from preview" side="bottom">
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[10px] font-semibold cursor-default">
-                                <CheckCircle2 className="w-3 h-3" />
-                                UI
-                              </span>
-                            </SimpleTooltip>
-                          )}
-
-                          {hasPRApproved && (
-                            <SimpleTooltip content="PR approved from preview" side="bottom">
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/30 text-purple-300 text-[10px] font-semibold cursor-default">
-                                <CheckCircle2 className="w-3 h-3" />
-                                PR
-                              </span>
-                            </SimpleTooltip>
-                          )}
-
-                          {firstOtherLabel && (
-                            <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[10px] font-medium truncate max-w-24">
-                              {firstOtherLabel}
-                            </span>
-                          )}
-
-                          {hasPR && (
-                            <span className="inline-flex items-center gap-1">
-                              <SimpleTooltip content="Open PR in GitHub" side="bottom">
-                                <a
-                                  href={task.associatedPR!.html_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors font-medium"
-                                >
-                                  <GitPullRequest className="w-3 h-3" />
-                                  PR
-                                </a>
-                              </SimpleTooltip>
-                              <CIStatusBadge prNumber={task.associatedPR!.number} />
-                            </span>
-                          )}
+                          <span className="hidden sm:inline-flex items-center px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 text-[10px] font-medium truncate max-w-24">
+                            {firstOtherLabel}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -634,6 +593,43 @@ const TaskRow = memo(function TaskRow({
 
               {/* Actions */}
               <div className="flex items-center gap-1 shrink-0">
+                {/* PR-related cluster: approvals · PR link · CI · preview */}
+                {task.labels.includes('ui-approved') && (
+                  <SimpleTooltip content="UI approved from preview" side="bottom">
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[10px] font-semibold cursor-default">
+                      <CheckCircle2 className="w-3 h-3" />
+                      UI
+                    </span>
+                  </SimpleTooltip>
+                )}
+
+                {task.labels.includes('pr-approved') && (
+                  <SimpleTooltip content="PR approved from preview" side="bottom">
+                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-purple-500/10 border border-purple-500/30 text-purple-300 text-[10px] font-semibold cursor-default">
+                      <CheckCircle2 className="w-3 h-3" />
+                      PR
+                    </span>
+                  </SimpleTooltip>
+                )}
+
+                {hasPR && (
+                  <>
+                    <SimpleTooltip content="Open PR in GitHub" side="bottom">
+                      <a
+                        href={task.associatedPR!.html_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors text-[10px] font-medium"
+                      >
+                        <GitPullRequest className="w-3 h-3" />
+                        PR
+                      </a>
+                    </SimpleTooltip>
+                    <CIStatusBadge prNumber={task.associatedPR!.number} />
+                  </>
+                )}
+
                 {hasPR && onOpenPreview && (
                   <SimpleTooltip content="Open PR preview" side="bottom">
                     <Button
