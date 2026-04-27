@@ -377,12 +377,20 @@ export function derivePipelineDisplayState(task: KodyTask): PipelineDisplayState
     return { kind: 'gate-paused', stageIndex: pauseIdx, gateType, label }
   }
 
-  // Case 2: Pipeline running with a known current stage
+  // Case 2: Pipeline running with a known current stage.
+  // currentStage may be an engine stage not in ALL_STAGES (e.g. `gsd-execute`,
+  // `spec`, `test`, `ship`). Compute step N relative to the engine's actual
+  // tracked stages so the label matches reality even for unknown stages.
   if (pipeline?.state === 'running' && pipeline.currentStage) {
-    const stageIndex = ALL_STAGES.indexOf(pipeline.currentStage as (typeof ALL_STAGES)[number])
+    const engineStages = pipeline.stages ? Object.keys(pipeline.stages) : []
+    const allStagesIdx = ALL_STAGES.indexOf(pipeline.currentStage as (typeof ALL_STAGES)[number])
+    const engineIdx = engineStages.indexOf(pipeline.currentStage)
+    // Prefer ALL_STAGES index for known stages (so MiniPipelineProgress dots
+    // light up correctly); fall back to the engine index for unknown stages.
+    const stageIndex = allStagesIdx >= 0 ? allStagesIdx : engineIdx
     const label = stageLabels[pipeline.currentStage] || pipeline.currentStage
     const totalStages = ALL_STAGES.length
-    const stepNumber = stageIndex >= 0 ? stageIndex + 1 : 1
+    const stepNumber = engineIdx >= 0 ? engineIdx + 1 : allStagesIdx >= 0 ? allStagesIdx + 1 : 1
     return { kind: 'stage-progress', stageIndex, label, stepNumber, totalStages }
   }
 
