@@ -78,6 +78,13 @@ function getColumnForIssue(
 ): ColumnId {
   const labelNames = issue.labels.map((l) => l.name.toLowerCase())
 
+  // -1. Fresh activity overrides terminal state. When the user runs `@kody sync`
+  //     or `@kody fix-ci` on a done/failed task, a new workflow dispatches but
+  //     the kody:done/failed label persists. The active run is the truer signal.
+  if (workflowRun?.status === 'in_progress' || workflowRun?.status === 'queued') {
+    return 'building'
+  }
+
   // 0. Terminal lifecycle labels (highest priority)
   if (labelNames.includes('kody:failed')) return 'failed'
   if (labelNames.includes('kody:done')) return 'done'
@@ -99,8 +106,7 @@ function getColumnForIssue(
     return 'building'
   }
 
-  // 4. Active workflow run (only reached when NOT gated and no kody:* label)
-  if (workflowRun?.status === 'in_progress') return 'building'
+  // 4. (Active workflow handled at step -1; only completed runs reach here.)
 
   // 5. Explicit state labels (only checked when no active workflow run)
   if (labelNames.includes('failed')) return 'failed'
@@ -244,13 +250,17 @@ export async function GET(req: NextRequest) {
       const taskId = taskIdMatch ? taskIdMatch[0].replace(/[\[\]]/g, '') : ''
       const workflowRun = matchWorkflowRunToTask(workflowRuns, issue.title, issue.number, taskId)
       const labelNames = issue.labels.map((l) => l.name.toLowerCase())
+      // Active workflow run overrides terminal labels — `@kody sync` /
+      // `@kody fix-ci` re-trigger work on done/failed tasks without removing
+      // the kody:done label, so the running workflow is the truer signal.
+      const hasActiveRun =
+        workflowRun?.status === 'in_progress' || workflowRun?.status === 'queued'
       const isTerminal =
-        labelNames.includes('kody:done') || labelNames.includes('kody:failed')
+        !hasActiveRun &&
+        (labelNames.includes('kody:done') || labelNames.includes('kody:failed'))
       const isLikelyActive =
         !isTerminal &&
-        (workflowRun?.status === 'in_progress' ||
-          workflowRun?.status === 'queued' ||
-          labelNames.some((n) => n.startsWith('kody:')))
+        (hasActiveRun || labelNames.some((n) => n.startsWith('kody:')))
 
       if (isLikelyActive && issue.number) {
         activeIssueNumbers.push(issue.number)
@@ -292,12 +302,16 @@ export async function GET(req: NextRequest) {
         // is settled and re-reading it on every poll wastes the rate-limit budget.
         let pipelineStatus = undefined
         const labelNames = issue.labels.map((l) => l.name.toLowerCase())
+        // Same logic as the branch-lookup pass: an in-flight run trumps the
+        // kody:done/failed label so sync/fix-ci progress shows up immediately.
+        const hasActiveRun =
+          workflowRun?.status === 'in_progress' || workflowRun?.status === 'queued'
         const isTerminal =
-          labelNames.includes('kody:done') || labelNames.includes('kody:failed')
+          !hasActiveRun &&
+          (labelNames.includes('kody:done') || labelNames.includes('kody:failed'))
         const isLikelyActive =
           !isTerminal &&
-          (workflowRun?.status === 'in_progress' ||
-            workflowRun?.status === 'queued' ||
+          (hasActiveRun ||
             labelNames.includes('kody:building') ||
             labelNames.includes('kody:planning') ||
             labelNames.includes('hard-stop') ||
@@ -322,10 +336,21 @@ export async function GET(req: NextRequest) {
         }
 
         // Column derivation: pipeline status is authoritative when fresh,
-        // falling back to label-based derivation.
-        const column: ColumnId = pipelineStatus
+        // falling back to label-based derivation. Exception: when a new
+        // workflow run is in-flight (sync/fix-ci) but the cached pipeline
+        // JSON still reflects the previous completed/failed run, prefer the
+        // active workflow signal so the task moves back to "building".
+        const pipelineLooksStale =
+          pipelineStatus &&
+          (pipelineStatus.state === 'completed' ||
+            pipelineStatus.state === 'failed' ||
+            pipelineStatus.state === 'timeout') &&
+          (workflowRun?.status === 'in_progress' || workflowRun?.status === 'queued')
+        const column: ColumnId = pipelineStatus && !pipelineLooksStale
           ? deriveColumnFromPipeline(pipelineStatus)
-          : getColumnForIssue(issue, workflowRun ?? undefined, pr ?? null)
+          : pipelineLooksStale
+            ? 'building'
+            : getColumnForIssue(issue, workflowRun ?? undefined, pr ?? null)
 
         // Derive gate type: prefer pipeline controlMode, fall back to issue labels
         const gateType = deriveGateType(pipelineStatus)

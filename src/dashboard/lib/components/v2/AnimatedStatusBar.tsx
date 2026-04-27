@@ -294,9 +294,18 @@ function BarLabel({ task, style: _style }: { task: KodyTask; style: StatusBarSty
     }
   })()
 
-  const startForElapsed =
-    task.pipeline?.startedAt ?? task.workflowRun?.created_at ?? task.updatedAt
-  const elapsed = startForElapsed ? formatElapsed(new Date(startForElapsed)) : null
+  // Use the most recent start signal so re-runs (sync/fix-ci) reset the timer
+  // instead of showing days-old elapsed time from the original run.
+  const elapsed = (() => {
+    const candidates = [
+      task.pipeline?.startedAt,
+      task.workflowRun?.created_at,
+      task.updatedAt,
+    ].filter((s): s is string => Boolean(s))
+    if (candidates.length === 0) return null
+    const latestMs = Math.max(...candidates.map((s) => new Date(s).getTime()))
+    return formatElapsed(new Date(latestMs))
+  })()
 
   // Color text to match the bar
   const textColorMap: Partial<Record<ColumnId, string>> = {
@@ -330,10 +339,18 @@ function BarLabel({ task, style: _style }: { task: KodyTask; style: StatusBarSty
  * or task.updatedAt so the bar still advances visibly during that window.
  */
 function getTimeFloor(task: KodyTask): number {
-  const startStr =
-    task.pipeline?.startedAt ?? task.workflowRun?.created_at ?? task.updatedAt ?? null
-  if (!startStr) return 0
-  const elapsedMs = Math.max(0, Date.now() - new Date(startStr).getTime())
+  // Prefer the most recent start signal. For `@kody sync` / `@kody fix-ci`
+  // re-runs on done/failed tasks, the cached pipeline.startedAt points at the
+  // ORIGINAL run (potentially days ago) and would peg the floor at 95%.
+  // workflowRun.created_at reflects the new run; pick whichever is later.
+  const candidates = [
+    task.pipeline?.startedAt,
+    task.workflowRun?.created_at,
+    task.updatedAt,
+  ].filter((s): s is string => Boolean(s))
+  if (candidates.length === 0) return 0
+  const latestMs = Math.max(...candidates.map((s) => new Date(s).getTime()))
+  const elapsedMs = Math.max(0, Date.now() - latestMs)
   if (elapsedMs <= 0) return 0
   const median = 30 * 60 * 1000
   return Math.min(95, (1 - Math.exp(-elapsedMs / median)) * 100)
