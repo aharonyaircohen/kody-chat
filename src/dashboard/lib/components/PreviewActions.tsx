@@ -92,6 +92,7 @@ export function PreviewActions({
   const pr = task.associatedPR
   const { data: ciData } = usePRCIStatus(pr?.number)
   const hasConflicts = ciData?.hasConflicts ?? false
+  const ciFailed = ciData?.ciStatus === 'failure'
   if (!pr) return null
 
   const handleCancelPR = async () => {
@@ -201,8 +202,8 @@ export function PreviewActions({
           </Button>
         )}
 
-        {/* Merge — hidden when PR has conflicts (Resolve takes its place) */}
-        {!hasConflicts && (
+        {/* Merge — hidden when PR has conflicts (Resolve takes its place) or CI failed (Fix CI takes its place) */}
+        {!hasConflicts && !ciFailed && (
           <div className="flex items-center gap-1.5">
             <MergeButton
               prNumber={pr.number}
@@ -263,17 +264,19 @@ export function PreviewActions({
           <span className="hidden sm:inline">Sync</span>
         </Button>
 
-        {/* Fix CI — posts @kody fix-ci */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => postKodyCommand('@kody fix-ci', 'Fix CI requested')}
-          className="gap-1.5 cursor-pointer text-yellow-200 bg-yellow-500/10 border-yellow-500/40 shadow-sm shadow-yellow-500/10 transition-all hover:bg-yellow-500/20 hover:border-yellow-400/60 hover:text-yellow-100 hover:shadow-yellow-500/20 active:scale-[0.97]"
-          title="Fix failing CI"
-        >
-          <Activity className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Fix CI</span>
-        </Button>
+        {/* Fix CI — only visible when CI is failing; posts @kody fix-ci */}
+        {ciFailed && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => postKodyCommand('@kody fix-ci', 'Fix CI requested')}
+            className="gap-1.5 cursor-pointer text-yellow-200 bg-yellow-500/10 border-yellow-500/40 shadow-sm shadow-yellow-500/10 transition-all hover:bg-yellow-500/20 hover:border-yellow-400/60 hover:text-yellow-100 hover:shadow-yellow-500/20 active:scale-[0.97]"
+            title="Fix failing CI"
+          >
+            <Activity className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Fix CI</span>
+          </Button>
+        )}
 
         {/* Resolve — only when there are merge conflicts; replaces Merge */}
         {hasConflicts && (
