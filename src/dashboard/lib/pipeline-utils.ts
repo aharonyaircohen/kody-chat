@@ -5,8 +5,65 @@
  * @ai-summary Shared pipeline progress utilities — stage labels, progress calculation, elapsed formatting, tooltips
  */
 
-import { ALL_STAGES } from './constants'
+import { ALL_STAGES, SPEC_STAGES, IMPL_STAGES, AUTOFIX_STAGE } from './constants'
 import type { KodyPipelineStatus, KodyTask, StageStatus } from './types'
+
+// ══════════════════════════════════════════════════════
+// PHASE GROUPING — color pipeline stages by phase group
+// ══════════════════════════════════════════════════════
+
+export type PipelinePhase = 'spec' | 'impl' | 'autofix'
+
+const SPEC_SET = new Set<string>(SPEC_STAGES)
+const IMPL_SET = new Set<string>(IMPL_STAGES)
+
+/**
+ * Map a stage name to its phase group. Unknown/engine-specific stages
+ * (e.g. `gsd-execute`, `test`, `ship`) default to 'impl' since most
+ * non-spec runtime stages are part of the build phase.
+ */
+export function getStagePhase(stage: string | null | undefined): PipelinePhase {
+  if (!stage) return 'impl'
+  if (SPEC_SET.has(stage)) return 'spec'
+  if (stage === AUTOFIX_STAGE) return 'autofix'
+  if (IMPL_SET.has(stage)) return 'impl'
+  return 'impl'
+}
+
+/**
+ * Tailwind classes per phase. Sky = planning/spec, violet = build/impl,
+ * amber = recovery/autofix. Yellow stays reserved for gate-paused, red for
+ * failure — don't use those here.
+ */
+export const PHASE_CLASSES: Record<
+  PipelinePhase,
+  { bar: string; dot: string; dotActive: string; glow: string; text: string; label: string }
+> = {
+  spec: {
+    bar: 'bg-sky-400',
+    dot: 'bg-sky-500',
+    dotActive: 'bg-sky-300',
+    glow: 'shadow-[0_0_4px_rgba(56,189,248,0.6)]',
+    text: 'text-sky-300',
+    label: 'Spec',
+  },
+  impl: {
+    bar: 'bg-violet-400',
+    dot: 'bg-violet-500',
+    dotActive: 'bg-violet-300',
+    glow: 'shadow-[0_0_4px_rgba(167,139,250,0.6)]',
+    text: 'text-violet-300',
+    label: 'Build',
+  },
+  autofix: {
+    bar: 'bg-amber-400',
+    dot: 'bg-amber-500',
+    dotActive: 'bg-amber-300',
+    glow: 'shadow-[0_0_4px_rgba(251,191,36,0.6)]',
+    text: 'text-amber-300',
+    label: 'Auto-fix',
+  },
+}
 
 /**
  * Human-readable labels for each pipeline stage

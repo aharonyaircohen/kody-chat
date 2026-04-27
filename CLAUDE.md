@@ -43,11 +43,16 @@ and invalidates its in-memory cache when resources change.
   Verifies HMAC against `KODY_WEBHOOK_SECRET`, dedupes by `X-GitHub-Delivery`,
   dispatches to `invalidateIssueCache` / `invalidatePRCache` /
   `invalidateWorkflowCache` / `invalidateBranchCache` based on event type.
-- Registrar: [app/api/webhooks/register/route.ts](app/api/webhooks/register/route.ts)
-  Idempotent. Authenticates via Kody session, lists hooks on the repo, and
-  either updates the existing one or creates a new one pointing at
-  `${baseUrl}/api/webhooks/github`. Caller's PAT must have `admin:repo_hook`
-  (the classic `repo` scope already includes it).
+- Registrar: [src/dashboard/lib/webhooks/register.ts](src/dashboard/lib/webhooks/register.ts)
+  Shared `ensureWebhook` helper. Idempotent — lists existing hooks on the
+  repo and either PATCHes the matching one (refreshing secret + events)
+  or creates a new one. Caller's PAT must have `admin:repo_hook` (the
+  classic `repo` scope already includes it).
+  - Auto-called from the OAuth callback ([app/api/oauth/github/callback/route.ts](app/api/oauth/github/callback/route.ts))
+    after session creation. Fire-and-forget; failure does not block login.
+  - Manual endpoint: [app/api/webhooks/register/route.ts](app/api/webhooks/register/route.ts)
+    for re-running registration without a fresh login (e.g. after rotating
+    `KODY_WEBHOOK_SECRET`).
 
 Subscribed events: `issues`, `issue_comment`, `pull_request`,
 `pull_request_review`, `pull_request_review_comment`, `workflow_run`,

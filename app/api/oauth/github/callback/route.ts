@@ -3,6 +3,7 @@ import { validateOAuthState } from "@dashboard/lib/auth/oauth/state";
 import { getPublicBaseUrl } from "@dashboard/lib/auth/oauth-url";
 import { createKodySession } from "@dashboard/lib/auth/kody_session";
 import { GITHUB_OWNER, GITHUB_REPO } from "@dashboard/lib/constants";
+import { ensureWebhook } from "@dashboard/lib/webhooks/register";
 import { logger } from "@dashboard/lib/logger";
 
 interface GitHubUserInfo {
@@ -206,6 +207,52 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     { correlationId, event: "github_oauth_success", login: userinfo.login },
     "GitHub OAuth login successful",
   );
+
+  // STEP 6: Auto-register the GitHub webhook (idempotent, fire-and-forget).
+  // If KODY_WEBHOOK_SECRET is unset, the user's PAT lacks admin:repo_hook,
+  // or anything else fails — log and move on. Login must not be blocked.
+  const webhookSecret = process.env.KODY_WEBHOOK_SECRET?.trim();
+  if (webhookSecret) {
+    const hookUrl = `${baseUrl}/api/webhooks/github`;
+    void ensureWebhook({
+      token: userAccessToken,
+      owner: GITHUB_OWNER,
+      repo: GITHUB_REPO,
+      hookUrl,
+      secret: webhookSecret,
+    })
+      .then((result) => {
+        if (result.ok) {
+          logger.info(
+            {
+              correlationId,
+              event: "webhook_registered_on_login",
+              hookId: result.hookId,
+              created: result.created,
+              login: userinfo.login,
+            },
+            "Webhook ensured for repo on login",
+          );
+        } else {
+          logger.warn(
+            {
+              correlationId,
+              event: "webhook_register_on_login_failed",
+              status: result.status,
+              error: result.error,
+              login: userinfo.login,
+            },
+            "Webhook registration on login failed (non-fatal)",
+          );
+        }
+      })
+      .catch((err) => {
+        logger.warn(
+          { correlationId, event: "webhook_register_on_login_threw", err },
+          "Webhook registration on login threw (non-fatal)",
+        );
+      });
+  }
 
   res.headers.set("Location", returnTo || "/");
   return res;
