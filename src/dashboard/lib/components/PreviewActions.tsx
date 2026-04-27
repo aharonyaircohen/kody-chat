@@ -23,16 +23,8 @@ import {
   Eye,
   Camera,
   RefreshCw,
-  GitMerge,
-  ChevronDown,
 } from 'lucide-react'
 import { tasksApi, prsApi } from '../api'
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from '@dashboard/ui/dropdown-menu'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import { usePRCIStatus } from '../hooks/usePRCIStatus'
 import { useQueryClient } from '@tanstack/react-query'
@@ -262,53 +254,6 @@ export function PreviewActions({
           <RefreshCw className="w-3.5 h-3.5" />
           <span className="hidden sm:inline">Sync</span>
         </Button>
-
-        {/* Resolve — only when there are merge conflicts; replaces Merge */}
-        {hasConflicts && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                size="sm"
-                className="gap-1.5 cursor-pointer text-orange-200 bg-orange-500/10 border-orange-500/40 shadow-sm shadow-orange-500/10 transition-all hover:bg-orange-500/20 hover:border-orange-400/60 hover:text-orange-100 hover:shadow-orange-500/20 active:scale-[0.97]"
-                title="Resolve merge conflicts"
-              >
-                <GitMerge className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Resolve</span>
-                <ChevronDown className="w-3 h-3 opacity-60" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onSelect={() =>
-                  postKodyCommand('@kody resolve', 'Resolve requested')
-                }
-              >
-                Auto
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() =>
-                  postKodyCommand(
-                    '@kody resolve --prefer ours',
-                    'Resolve requested (prefer mine)',
-                  )
-                }
-              >
-                Prefer mine (PR branch)
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() =>
-                  postKodyCommand(
-                    '@kody resolve --prefer theirs',
-                    'Resolve requested (prefer base)',
-                  )
-                }
-              >
-                Prefer base
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
 
         {/* Comment */}
         <Button
