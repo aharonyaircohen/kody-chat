@@ -272,14 +272,31 @@ function BarLabel({ task, style: _style }: { task: KodyTask; style: StatusBarSty
               : 'needs approval'
         return `${gateLabel} · ${displayState.label}`
       }
-      case 'starting':
+      case 'starting': {
+        // After ~2 min without engine data, "starting..." is misleading —
+        // the workflow is running but the dashboard hasn't fetched the
+        // pipeline JSON yet (or the engine hasn't written it).
+        const startStr =
+          task.pipeline?.startedAt ?? task.workflowRun?.created_at ?? task.updatedAt
+        if (startStr && Date.now() - new Date(startStr).getTime() > 2 * 60 * 1000) {
+          return 'running...'
+        }
         return 'starting...'
-      case 'no-data':
-        return displayState.workflowStatus === 'queued' ? 'queued...' : 'starting...'
+      }
+      case 'no-data': {
+        if (displayState.workflowStatus === 'queued') return 'queued...'
+        const startStr = task.workflowRun?.created_at ?? task.updatedAt
+        if (startStr && Date.now() - new Date(startStr).getTime() > 2 * 60 * 1000) {
+          return 'running...'
+        }
+        return 'starting...'
+      }
     }
   })()
 
-  const elapsed = task.pipeline?.startedAt ? formatElapsed(new Date(task.pipeline.startedAt)) : null
+  const startForElapsed =
+    task.pipeline?.startedAt ?? task.workflowRun?.created_at ?? task.updatedAt
+  const elapsed = startForElapsed ? formatElapsed(new Date(startForElapsed)) : null
 
   // Color text to match the bar
   const textColorMap: Partial<Record<ColumnId, string>> = {
@@ -306,30 +323,53 @@ function BarLabel({ task, style: _style }: { task: KodyTask; style: StatusBarSty
 // HELPERS
 // ═══════════════════════════════════════════
 
+/**
+ * Time-based asymptotic floor (0-95) using whatever start timestamp we have.
+ * Pipeline JSON load can lag the task list (separate fetch, cached separately,
+ * or skipped for not-yet-active tasks), so we fall back to workflowRun start
+ * or task.updatedAt so the bar still advances visibly during that window.
+ */
+function getTimeFloor(task: KodyTask): number {
+  const startStr =
+    task.pipeline?.startedAt ?? task.workflowRun?.created_at ?? task.updatedAt ?? null
+  if (!startStr) return 0
+  const elapsedMs = Math.max(0, Date.now() - new Date(startStr).getTime())
+  if (elapsedMs <= 0) return 0
+  const median = 30 * 60 * 1000
+  return Math.min(95, (1 - Math.exp(-elapsedMs / median)) * 100)
+}
+
 function getActivePercent(
   displayState: ReturnType<typeof derivePipelineDisplayState>,
   task: KodyTask,
   totalStages: number,
 ): number {
+  const floor = getTimeFloor(task)
   switch (displayState.kind) {
     case 'stage-progress': {
       // Prefer duration-weighted progress with within-stage elapsed fill.
       // Fall back to equal-segment estimate when stages map is empty.
       const weighted = getWeightedActiveProgress(task)
-      if (weighted > 0) return Math.round(weighted)
-      return Math.round(((displayState.stageIndex + 0.5) / totalStages) * 100)
+      if (weighted > 0) return Math.round(Math.max(weighted, floor))
+      return Math.round(
+        Math.max(((displayState.stageIndex + 0.5) / totalStages) * 100, floor),
+      )
     }
     case 'gate-paused': {
       const weighted = getWeightedActiveProgress(task)
-      if (weighted > 0) return Math.round(weighted)
-      return displayState.stageIndex >= 0
-        ? Math.round(((displayState.stageIndex + 0.5) / totalStages) * 100)
-        : 15
+      if (weighted > 0) return Math.round(Math.max(weighted, floor))
+      const fallback =
+        displayState.stageIndex >= 0
+          ? ((displayState.stageIndex + 0.5) / totalStages) * 100
+          : 15
+      return Math.round(Math.max(fallback, floor))
     }
     case 'starting':
-      return 5
+      // Pipeline JSON not loaded yet — use time floor (or 5% minimum) so the
+      // bar doesn't sit at the start while the engine is actually working.
+      return Math.round(Math.max(5, floor))
     case 'no-data':
-      return 3
+      return Math.round(Math.max(3, floor))
   }
 }
 
