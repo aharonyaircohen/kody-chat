@@ -469,7 +469,18 @@ export function PreviewModal({
                 />
               ) : (
                 <div className="flex items-center justify-center h-full">
-                  <p className="text-zinc-500">No preview URL available</p>
+                  <div className="flex flex-col items-center gap-3 text-center">
+                    <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
+                    <div className="space-y-1">
+                      <p className="text-sm text-zinc-300">
+                        Preview is being built by Vercel…
+                      </p>
+                      <p className="text-xs text-zinc-500">
+                        This usually takes a minute. The preview will appear
+                        here automatically when ready.
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
