@@ -127,7 +127,7 @@ export function BugReportDialog({
     },
   });
 
-  // Reset form when dialog closes; auto-fill page URL from referrer when it opens.
+  // Reset form when dialog closes.
   useEffect(() => {
     if (!open) {
       setTitle("");
@@ -143,18 +143,6 @@ export function BugReportDialog({
       setPriority("P2");
       setAssignees([]);
       setAttachments([]);
-      return;
-    }
-    if (typeof window === "undefined") return;
-    const referrer = document.referrer;
-    if (!referrer) return;
-    try {
-      const ref = new URL(referrer);
-      if (ref.origin !== window.location.origin) return;
-      if (ref.pathname === "/bug") return;
-      setPageUrl((current) => current || referrer);
-    } catch {
-      // ignore malformed referrer
     }
   }, [open]);
 
@@ -358,8 +346,7 @@ export function BugReportDialog({
               required
             />
             <p className="text-xs text-muted-foreground">
-              Where did the bug occur? Auto-filled from referrer when opened
-              from inside the app.
+              Where did the bug occur? Paste the URL of the page.
             </p>
           </div>
 
