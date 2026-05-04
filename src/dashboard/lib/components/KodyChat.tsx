@@ -61,7 +61,7 @@ import { useChatSessions } from '../hooks/useChatSessions'
 import { useKodyActionState } from '../hooks/useKodyActionState'
 import { SessionSidebar } from './SessionSidebar'
 import { TaskSessionHistory } from './TaskSessionHistory'
-import { ToolCallList, ThinkingPanel } from './ToolCallCard'
+import { ToolCallList, ThinkingPanel, ReasoningPanel, parseReasoning } from './ToolCallCard'
 import { MessageActions } from './MessageActions'
 
 interface Message {
@@ -1640,9 +1640,22 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
                   {!msg.content && loading && i === messages.length - 1 ? (
                     <TypingIndicator label={currentAgent.name} />
                   ) : (
-                    <div className="prose prose-base dark:prose-invert max-w-none break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words">
-                      <ReactMarkdown>{msg.content}</ReactMarkdown>
-                    </div>
+                    (() => {
+                      const { reasoning, answer } = parseReasoning(msg.content)
+                      return (
+                        <>
+                          {reasoning && (
+                            <ReasoningPanel
+                              content={reasoning}
+                              isStreaming={!!msg.isLoading}
+                            />
+                          )}
+                          <div className="prose prose-base dark:prose-invert max-w-none break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words">
+                            <ReactMarkdown>{answer}</ReactMarkdown>
+                          </div>
+                        </>
+                      )
+                    })()
                   )}
                   {/* Draft-mode finalize action: hand this assistant reply back
                       to the caller (MissionControl) as the body of a new

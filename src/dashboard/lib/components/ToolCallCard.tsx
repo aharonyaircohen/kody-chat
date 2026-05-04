@@ -193,3 +193,63 @@ export function ThinkingPanel({ toolCalls, isStreaming, className }: ThinkingPan
     </div>
   )
 }
+
+/**
+ * Collapsible panel for model reasoning extracted from <think>...</think>
+ * blocks in the assistant content. Defaults closed so the chat stays focused
+ * on the final answer; user can expand to audit the chain of thought.
+ */
+interface ReasoningPanelProps {
+  content: string
+  isStreaming?: boolean
+  className?: string
+}
+
+export function ReasoningPanel({ content, isStreaming, className }: ReasoningPanelProps) {
+  const [isOpen, setIsOpen] = useState(false)
+  const trimmed = content.trim()
+  if (!trimmed) return null
+
+  const label = isStreaming ? 'Thinking' : 'Thought'
+
+  return (
+    <div className={cn('my-1 rounded-md border border-border/60 bg-background/50', className)}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full px-2 py-1 flex items-center gap-2 text-left text-xs text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5"
+        aria-expanded={isOpen}
+      >
+        <span>{isStreaming ? '⏳' : '💭'}</span>
+        <span className="flex-1 italic">{label}</span>
+        <span>{isOpen ? '▼' : '▶'}</span>
+      </button>
+      {isOpen && (
+        <div className="px-2 pb-2 text-xs whitespace-pre-wrap break-words text-muted-foreground">
+          {trimmed}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * Split assistant content into reasoning blocks (inside <think>...</think>)
+ * and the visible answer (everything outside). Tolerates an unclosed final
+ * <think> block during streaming — that tail is treated as live reasoning.
+ */
+export function parseReasoning(raw: string): { reasoning: string; answer: string } {
+  if (!raw) return { reasoning: '', answer: '' }
+  const reasoningParts: string[] = []
+  let answer = ''
+  let cursor = 0
+  const re = /<think>([\s\S]*?)(?:<\/think>|$)/gi
+  let match: RegExpExecArray | null
+  while ((match = re.exec(raw)) !== null) {
+    answer += raw.slice(cursor, match.index)
+    reasoningParts.push(match[1])
+    cursor = re.lastIndex
+    if (!raw.slice(match.index).match(/<\/think>/i)) break
+  }
+  answer += raw.slice(cursor)
+  return { reasoning: reasoningParts.join('\n\n'), answer }
+}
