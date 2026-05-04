@@ -144,65 +144,68 @@ export function PreviewActions({
     <>
       <div
         className={cn(
-          'flex flex-wrap items-center gap-2 px-4 py-3 border-t border-zinc-800 bg-zinc-950/80 backdrop-blur-sm max-h-[40vh] overflow-y-auto',
+          'flex flex-wrap items-end gap-x-3 gap-y-3 px-4 py-3 border-t border-zinc-800 bg-zinc-950/80 backdrop-blur-sm max-h-[40vh] overflow-y-auto',
           className,
         )}
       >
         {/* ── Group: Approve & Merge (happy path) ── */}
-        <div className="flex items-center gap-2" aria-label="Approve and merge">
-          {/* Approve UI */}
-          {isUIApproved ? (
-            <div className="flex items-center gap-1.5 text-emerald-400">
-              <CheckCircle className="w-3.5 h-3.5" />
-              <span className="text-xs hidden sm:inline">UI Approved</span>
-            </div>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleApproveUI}
-              disabled={isApprovingUI}
-              className="gap-1.5 cursor-pointer text-emerald-300 bg-emerald-500/10 border-emerald-500/40 shadow-sm shadow-emerald-500/10 transition-all hover:bg-emerald-500/20 hover:border-emerald-400/60 hover:text-emerald-200 hover:shadow-emerald-500/20 active:scale-[0.97]"
-            >
-              {isApprovingUI ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
+        <div className="flex flex-col gap-1" aria-label="Approve and merge">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 px-0.5">
+            Approve
+          </span>
+          <div className="flex items-center gap-2">
+            {/* Approve UI — outline only, emerald icon/text */}
+            {isUIApproved ? (
+              <div className="flex items-center gap-1.5 text-emerald-400 px-2.5">
                 <CheckCircle className="w-3.5 h-3.5" />
-              )}
-              <span className="hidden sm:inline">
-                {isApprovingUI ? 'Approving…' : 'Approve UI'}
-              </span>
-            </Button>
-          )}
+                <span className="text-xs hidden sm:inline">UI Approved</span>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleApproveUI}
+                disabled={isApprovingUI}
+                className="gap-1.5 cursor-pointer text-emerald-300 bg-transparent border-zinc-700 transition-all hover:bg-emerald-500/10 hover:border-emerald-500/50 hover:text-emerald-200 active:scale-[0.97]"
+              >
+                {isApprovingUI ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <CheckCircle className="w-3.5 h-3.5" />
+                )}
+                <span className="hidden sm:inline">
+                  {isApprovingUI ? 'Approving…' : 'Approve UI'}
+                </span>
+              </Button>
+            )}
 
-          {/* Approve PR */}
-          {isPRApproved ? (
-            <div className="flex items-center gap-1.5 text-purple-400">
-              <CheckCircle className="w-3.5 h-3.5" />
-              <span className="text-xs hidden sm:inline">PR Approved</span>
-            </div>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleApprovePR}
-              disabled={isApprovingPR}
-              className="gap-1.5 cursor-pointer text-purple-300 bg-purple-500/10 border-purple-500/40 shadow-sm shadow-purple-500/10 transition-all hover:bg-purple-500/20 hover:border-purple-400/60 hover:text-purple-200 hover:shadow-purple-500/20 active:scale-[0.97]"
-            >
-              {isApprovingPR ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <GitPullRequest className="w-3.5 h-3.5" />
-              )}
-              <span className="hidden sm:inline">
-                {isApprovingPR ? 'Approving…' : 'Approve PR'}
-              </span>
-            </Button>
-          )}
+            {/* Approve PR — outline only, purple icon/text */}
+            {isPRApproved ? (
+              <div className="flex items-center gap-1.5 text-purple-400 px-2.5">
+                <CheckCircle className="w-3.5 h-3.5" />
+                <span className="text-xs hidden sm:inline">PR Approved</span>
+              </div>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleApprovePR}
+                disabled={isApprovingPR}
+                className="gap-1.5 cursor-pointer text-purple-300 bg-transparent border-zinc-700 transition-all hover:bg-purple-500/10 hover:border-purple-500/50 hover:text-purple-200 active:scale-[0.97]"
+              >
+                {isApprovingPR ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <GitPullRequest className="w-3.5 h-3.5" />
+                )}
+                <span className="hidden sm:inline">
+                  {isApprovingPR ? 'Approving…' : 'Approve PR'}
+                </span>
+              </Button>
+            )}
 
-          {/* Merge — hidden when PR has conflicts (Resolve takes its place) or CI failed (Fix CI takes its place) */}
-          {!hasConflicts && !ciFailed && (
-            <div className="flex items-center gap-1.5">
+            {/* Merge — the only filled button in the bar (primary happy-path action) */}
+            {!hasConflicts && !ciFailed && (
               <MergeButton
                 prNumber={pr.number}
                 prTitle={pr.title}
@@ -211,66 +214,73 @@ export function PreviewActions({
                 onMerge={onMerge}
                 labels={task.labels}
               />
-              <span className="text-xs text-zinc-500 hidden sm:inline">Merge</span>
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Divider */}
-        <span aria-hidden className="hidden sm:block w-px h-6 bg-zinc-800" />
+        <span aria-hidden className="self-stretch w-px bg-zinc-800 my-1" />
 
         {/* ── Group: Review (inspect & request feedback) ── */}
-        <div className="flex items-center gap-2" aria-label="Review">
-          {/* Review — posts @kody review */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => postKodyCommand('@kody review', 'Review requested')}
-            className="gap-1.5 cursor-pointer text-zinc-300 bg-transparent border-zinc-700 transition-all hover:bg-zinc-800/60 hover:border-zinc-600 hover:text-zinc-100 active:scale-[0.97]"
-            title="Structured diff review"
-          >
-            <Eye className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Review</span>
-          </Button>
+        <div className="flex flex-col gap-1" aria-label="Review">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 px-0.5">
+            Review
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => postKodyCommand('@kody review', 'Review requested')}
+              className="gap-1.5 cursor-pointer text-zinc-300 bg-transparent border-zinc-700 transition-all hover:bg-zinc-800/60 hover:border-zinc-600 hover:text-zinc-100 active:scale-[0.97]"
+              title="Structured diff review"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Review</span>
+            </Button>
 
-          {/* UI Review — posts @kody ui-review */}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => postKodyCommand('@kody ui-review', 'UI review requested')}
-            className="gap-1.5 cursor-pointer text-zinc-300 bg-transparent border-zinc-700 transition-all hover:bg-zinc-800/60 hover:border-zinc-600 hover:text-zinc-100 active:scale-[0.97]"
-            title="Playwright-based UI review"
-          >
-            <Camera className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">UI Review</span>
-          </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => postKodyCommand('@kody ui-review', 'UI review requested')}
+              className="gap-1.5 cursor-pointer text-zinc-300 bg-transparent border-zinc-700 transition-all hover:bg-zinc-800/60 hover:border-zinc-600 hover:text-zinc-100 active:scale-[0.97]"
+              title="Playwright-based UI review"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">UI Review</span>
+            </Button>
+          </div>
         </div>
 
         {/* Divider */}
-        <span aria-hidden className="hidden sm:block w-px h-6 bg-zinc-800" />
+        <span aria-hidden className="self-stretch w-px bg-zinc-800 my-1" />
 
         {/* ── Group: Fix (corrective) ── */}
-        <div className="flex items-center gap-2" aria-label="Fix">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowFixDialog(true)}
-            className="gap-1.5 cursor-pointer text-orange-300 bg-orange-500/10 border-orange-500/40 shadow-sm shadow-orange-500/10 transition-all hover:bg-orange-500/20 hover:border-orange-400/60 hover:text-orange-200 hover:shadow-orange-500/20 active:scale-[0.97]"
-          >
-            <Wrench className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Fix</span>
-          </Button>
+        <div className="flex flex-col gap-1" aria-label="Fix">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 px-0.5">
+            Fix
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowFixDialog(true)}
+              className="gap-1.5 cursor-pointer text-orange-300 bg-transparent border-zinc-700 transition-all hover:bg-orange-500/10 hover:border-orange-500/50 hover:text-orange-200 active:scale-[0.97]"
+            >
+              <Wrench className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Fix</span>
+            </Button>
+          </div>
         </div>
 
         {/* Sync moved to BranchBehindBanner — only renders when behind base. */}
 
-        {/* Cancel PR — destructive, pushed to the far right */}
+        {/* Cancel PR — destructive ghost, pushed to the far right */}
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setShowCancelConfirm(true)}
           disabled={isCancelling}
-          className="gap-1.5 cursor-pointer text-red-300/80 bg-transparent border border-red-500/20 transition-all hover:bg-red-500/15 hover:border-red-500/40 hover:text-red-200 active:scale-[0.97] ml-auto"
+          className="gap-1.5 cursor-pointer text-red-300/70 bg-transparent border border-transparent transition-all hover:bg-red-500/10 hover:border-red-500/30 hover:text-red-200 active:scale-[0.97] ml-auto self-end"
         >
           {isCancelling ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
