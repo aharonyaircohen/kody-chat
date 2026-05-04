@@ -15,6 +15,7 @@ import { AddCommentDialog } from "./AddCommentDialog";
 import { toast } from "sonner";
 import { CIStatusBadge } from "./CIStatusBadge";
 import { ActionStatusBadge } from "./ActionStatusBadge";
+import { FileDiff } from "./FileDiff";
 import { MergeConflictBanner } from "./MergeConflictBanner";
 import { CIFailureBanner } from "./CIFailureBanner";
 import { BranchBehindBanner } from "./BranchBehindBanner";
@@ -31,6 +32,8 @@ import {
   AlertCircle,
   RefreshCw,
   Monitor,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 
@@ -117,6 +120,7 @@ export function PreviewModal({
     window.addEventListener("mouseup", onUp);
   }, []);
   const [changes, setChanges] = useState<FileChange[]>([]);
+  const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [commentCount, setCommentCount] = useState<number | null>(null);
@@ -168,7 +172,13 @@ export function PreviewModal({
       try {
         if (activeTab === "changes") {
           const files = await prsApi.files(pr.number);
-          if (!cancelled) setChanges(files);
+          if (!cancelled) {
+            setChanges(files);
+            // Auto-expand all when small PR; otherwise collapsed by default.
+            if (files.length <= 5) {
+              setExpandedFiles(new Set(files.map((f) => f.filename)));
+            }
+          }
         }
         // comments tab loads its own data via PRCommentList
       } catch (err) {
@@ -490,61 +500,142 @@ export function PreviewModal({
             ) : (
               <div className="space-y-2">
                 <div className="flex items-center justify-between px-2 py-1">
-                  <span className="text-xs text-zinc-500">
-                    {changes.length} file{changes.length !== 1 ? "s" : ""}{" "}
-                    changed{" "}
-                    <span className="text-green-500">+{totalAdditions}</span>{" "}
-                    <span className="text-red-500">-{totalDeletions}</span>
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-zinc-500">
+                      {changes.length} file{changes.length !== 1 ? "s" : ""}{" "}
+                      changed{" "}
+                      <span className="text-green-500">+{totalAdditions}</span>{" "}
+                      <span className="text-red-500">-{totalDeletions}</span>
+                    </span>
+                    <button
+                      onClick={() => {
+                        if (expandedFiles.size === changes.length) {
+                          setExpandedFiles(new Set());
+                        } else {
+                          setExpandedFiles(
+                            new Set(changes.map((f) => f.filename)),
+                          );
+                        }
+                      }}
+                      className="text-xs text-zinc-500 hover:text-zinc-300"
+                    >
+                      {expandedFiles.size === changes.length
+                        ? "Collapse all"
+                        : "Expand all"}
+                    </button>
+                  </div>
                   <a
                     href={prFilesUrl}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"
                   >
-                    View diffs on GitHub
+                    View on GitHub
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
-                <div className="space-y-0.5">
-                  {changes.map((file) => (
-                    <a
-                      key={file.filename}
-                      href={prFilesUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="w-full flex items-center justify-between p-2 hover:bg-zinc-800/50 rounded text-left group"
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span
-                          className={cn(
-                            "text-xs font-mono",
-                            file.status === "added"
-                              ? "text-green-400"
-                              : file.status === "removed"
-                                ? "text-red-400"
-                                : "text-yellow-400",
-                          )}
+                <div className="space-y-2">
+                  {changes.map((file) => {
+                    const isOpen = expandedFiles.has(file.filename);
+                    const fileGitHubUrl = `${prFilesUrl}#diff-${file.filename}`;
+                    return (
+                      <div
+                        key={file.filename}
+                        className="border border-zinc-800 rounded overflow-hidden"
+                      >
+                        <button
+                          onClick={() => {
+                            setExpandedFiles((prev) => {
+                              const next = new Set(prev);
+                              if (next.has(file.filename)) {
+                                next.delete(file.filename);
+                              } else {
+                                next.add(file.filename);
+                              }
+                              return next;
+                            });
+                          }}
+                          className="w-full flex items-center justify-between p-2 hover:bg-zinc-800/50 text-left group bg-zinc-900/50"
                         >
-                          {file.status === "added"
-                            ? "A"
-                            : file.status === "removed"
-                              ? "D"
-                              : "M"}
-                        </span>
-                        <span className="text-sm truncate group-hover:text-blue-400">
-                          {file.filename}
-                        </span>
+                          <div className="flex items-center gap-2 min-w-0">
+                            {isOpen ? (
+                              <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" />
+                            ) : (
+                              <ChevronRight className="w-3 h-3 text-zinc-500 shrink-0" />
+                            )}
+                            <span
+                              className={cn(
+                                "text-xs font-mono shrink-0",
+                                file.status === "added"
+                                  ? "text-green-400"
+                                  : file.status === "removed"
+                                    ? "text-red-400"
+                                    : file.status === "renamed"
+                                      ? "text-blue-400"
+                                      : "text-yellow-400",
+                              )}
+                            >
+                              {file.status === "added"
+                                ? "A"
+                                : file.status === "removed"
+                                  ? "D"
+                                  : file.status === "renamed"
+                                    ? "R"
+                                    : "M"}
+                            </span>
+                            <span className="text-sm truncate">
+                              {file.previousFilename ? (
+                                <>
+                                  <span className="text-zinc-500 line-through">
+                                    {file.previousFilename}
+                                  </span>{" "}
+                                  →{" "}
+                                </>
+                              ) : null}
+                              {file.filename}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-zinc-500 shrink-0">
+                            <span className="text-green-500">
+                              +{file.additions}
+                            </span>
+                            <span className="text-red-500">
+                              -{file.deletions}
+                            </span>
+                            <a
+                              href={fileGitHubUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              aria-label="Open on GitHub"
+                              className="opacity-0 group-hover:opacity-100 hover:text-blue-400"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                            </a>
+                          </div>
+                        </button>
+                        {isOpen && (
+                          <div className="border-t border-zinc-800">
+                            {file.patch ? (
+                              <FileDiff patch={file.patch} />
+                            ) : (
+                              <div className="p-3 text-xs text-zinc-500 text-center">
+                                Diff not available (binary or too large).{" "}
+                                <a
+                                  href={fileGitHubUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-blue-400 hover:text-blue-300"
+                                >
+                                  View on GitHub
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 text-xs text-zinc-500 shrink-0">
-                        <span className="text-green-500">
-                          +{file.additions}
-                        </span>
-                        <span className="text-red-500">-{file.deletions}</span>
-                        <ExternalLink className="w-3 h-3 opacity-0 group-hover:opacity-100" />
-                      </div>
-                    </a>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}

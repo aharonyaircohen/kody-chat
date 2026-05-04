@@ -336,6 +336,8 @@ export interface FileChange {
   status: 'added' | 'removed' | 'modified' | 'renamed'
   additions: number
   deletions: number
+  patch?: string | null
+  previousFilename?: string
 }
 
 export interface TaskDocument {

@@ -1795,6 +1795,8 @@ export async function fetchPRFileChanges(prNumber: number): Promise<FileChange[]
       status: file.status as FileChange['status'],
       additions: file.additions,
       deletions: file.deletions,
+      patch: file.patch ?? null,
+      previousFilename: file.previous_filename,
     }))
 
     setCache(cacheKey, CACHE_TTL.tasks, changes)
