@@ -21,6 +21,7 @@ import { EditTaskDialog } from "./EditTaskDialog";
 import { BugReportDialog } from "./BugReportDialog";
 import { KeyboardShortcutsDialog } from "./KeyboardShortcutsDialog";
 import { BranchCleanupDialog } from "./BranchCleanupDialog";
+import { PublishButton } from "./PublishButton";
 import { KodyChat } from "./KodyChat";
 import { KodyStatusBanner } from "./KodyStatusBanner";
 import {
@@ -1391,6 +1392,12 @@ export function KodyDashboard({
                       </Link>
                     </Button>
                   </SimpleTooltip>
+
+                  {/* Publish a release */}
+                  <PublishButton
+                    actorLogin={githubUser?.login}
+                    onPublished={(n) => setSelectedIssueNumber(n)}
+                  />
 
                   {/* Branch cleanup */}
                   <SimpleTooltip content="Clean up branches" side="bottom">
