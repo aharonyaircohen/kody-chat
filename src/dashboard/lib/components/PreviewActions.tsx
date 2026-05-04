@@ -25,6 +25,7 @@ import {
 import { tasksApi, prsApi } from '../api'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
 import { usePRCIStatus } from '../hooks/usePRCIStatus'
+import { usePRBehind } from '../hooks/usePRBehind'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { cn } from '../utils'
@@ -79,8 +80,10 @@ export function PreviewActions({
 
   const pr = task.associatedPR
   const { data: ciData } = usePRCIStatus(pr?.number)
+  const { data: behindBy } = usePRBehind(pr?.number)
   const hasConflicts = ciData?.hasConflicts ?? false
   const ciFailed = ciData?.ciStatus === 'failure'
+  const isBehind = (behindBy ?? 0) > 0
   if (!pr) return null
 
   const handleCancelPR = async () => {
@@ -249,17 +252,19 @@ export function PreviewActions({
           <span className="hidden sm:inline">UI Review</span>
         </Button>
 
-        {/* Sync — posts @kody sync */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => postKodyCommand('@kody sync', 'Sync requested')}
-          className="gap-1.5 cursor-pointer text-cyan-200 bg-cyan-500/10 border-cyan-500/40 shadow-sm shadow-cyan-500/10 transition-all hover:bg-cyan-500/20 hover:border-cyan-400/60 hover:text-cyan-100 hover:shadow-cyan-500/20 active:scale-[0.97]"
-          title="Merge default branch into PR branch"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Sync</span>
-        </Button>
+        {/* Sync — posts @kody sync. Hidden when branch is up to date with base. */}
+        {isBehind && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => postKodyCommand('@kody sync', 'Sync requested')}
+            className="gap-1.5 cursor-pointer text-cyan-200 bg-cyan-500/10 border-cyan-500/40 shadow-sm shadow-cyan-500/10 transition-all hover:bg-cyan-500/20 hover:border-cyan-400/60 hover:text-cyan-100 hover:shadow-cyan-500/20 active:scale-[0.97]"
+            title={`Branch is ${behindBy} commit${behindBy === 1 ? '' : 's'} behind base — merge base into PR branch`}
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Sync</span>
+          </Button>
+        )}
 
         {/* Cancel PR */}
         <Button

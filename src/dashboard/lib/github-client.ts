@@ -123,6 +123,15 @@ export function invalidateBranchCache(): void {
 }
 
 /**
+ * Wipe the per-PR "behind base" cache. Called on any push/PR webhook so the
+ * next read sees fresh `behind_by` without waiting for TTL — a push to the
+ * base branch leaves every open PR potentially out of date.
+ */
+export function invalidatePRBehindCache(): void {
+  invalidateCache('prbehind:')
+}
+
+/**
  * Invalidate cache entries for a single issue plus every cached issues listing.
  * Use after a write that mutates an issue (or a manifest stored in an issue),
  * so the next read on this serverless instance picks up the change without
@@ -1186,6 +1195,7 @@ interface OpenPRsGraphQL {
         mergedAt: string | null
         headRefName: string
         headRefOid: string
+        baseRefName: string
         body: string | null
         mergeable: 'MERGEABLE' | 'CONFLICTING' | 'UNKNOWN'
         mergeStateStatus: MergeStateStatus
@@ -1322,6 +1332,7 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
             mergedAt
             headRefName
             headRefOid
+            baseRefName
             body
             mergeable
             mergeStateStatus
@@ -1360,6 +1371,7 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
           title: pr.title,
           state: pr.state.toLowerCase(),
           head: { ref: pr.headRefName, sha: pr.headRefOid },
+          base: { ref: pr.baseRefName },
           merged_at: pr.mergedAt,
           html_url: pr.url,
           labels: pr.labels.nodes.map((l) => l.name).filter(Boolean),
@@ -1388,6 +1400,51 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
 
   inflightOpenPRs.set(cacheKey, promise)
   return promise
+}
+
+/**
+ * Returns how many commits the PR head branch is behind its base. Used to
+ * gate the Preview "Sync" button — when 0, the branch is already up to date
+ * and the button is hidden.
+ *
+ * Cheap to call: 60s TTL with ETag/304 revalidation, so subsequent polls
+ * only re-bill the rate limit when the comparison actually changes. Fails
+ * soft to 0 (treat as up-to-date) on transient errors so we don't surface
+ * a stale Sync button.
+ */
+const PR_BEHIND_TTL = 60_000
+
+export async function fetchPRBehind(base: string, head: string): Promise<number> {
+  const cacheKey = `prbehind:${getOwner()}:${getRepo()}:${base}...${head}`
+  const cached = getCached<number>(cacheKey)
+  if (cached !== null) return cached
+
+  const stale = getStale<number>(cacheKey)
+  const octokit = getOctokit()
+
+  try {
+    const response = await octokit.repos.compareCommitsWithBasehead({
+      owner: getOwner(),
+      repo: getRepo(),
+      basehead: `${base}...${head}`,
+      headers: stale?.etag ? { 'If-None-Match': stale.etag } : undefined,
+    })
+    const behindBy = response.data.behind_by ?? 0
+    const newEtag = (response.headers as Record<string, string | undefined>)?.etag
+    setCache(cacheKey, PR_BEHIND_TTL, behindBy, { etag: newEtag })
+    return behindBy
+  } catch (err) {
+    const status = (err as { status?: number })?.status
+    if (status === 304 && stale) {
+      setCache(cacheKey, PR_BEHIND_TTL, stale.data, { etag: stale.etag })
+      return stale.data
+    }
+    if (stale) {
+      setCache(cacheKey, PR_BEHIND_TTL, stale.data)
+      return stale.data
+    }
+    throw err
+  }
 }
 
 // ============ Vercel Preview URLs ============

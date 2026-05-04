@@ -31,6 +31,7 @@ import {
   invalidatePRCache,
   invalidateBranchCache,
   invalidateWorkflowCache,
+  invalidatePRBehindCache,
 } from "@dashboard/lib/github-client";
 import { getClientIp, isFromGitHub } from "@dashboard/lib/webhooks/github-ip";
 import { logger } from "@dashboard/lib/logger";
@@ -85,6 +86,7 @@ function dispatch(event: string, payload: unknown): { handled: boolean; detail: 
     case "pull_request_review_comment": {
       const p = payload as PullRequestPayload;
       invalidatePRCache();
+      invalidatePRBehindCache();
       // PRs are also exposed as issues in the GitHub API; clear that too.
       invalidateIssueCache(p?.pull_request?.number);
       return { handled: true, detail: `pr#${p?.pull_request?.number ?? "?"}` };
@@ -101,6 +103,9 @@ function dispatch(event: string, payload: unknown): { handled: boolean; detail: 
     case "create":
     case "delete":
       invalidateBranchCache();
+      // A push to base branch makes every open PR potentially behind; clear
+      // the per-PR behind-by cache so the Preview Sync button updates.
+      invalidatePRBehindCache();
       return { handled: true, detail: event };
 
     default:

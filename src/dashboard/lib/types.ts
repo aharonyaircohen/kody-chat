@@ -205,6 +205,7 @@ export interface GitHubPR {
   title: string
   state: string
   head: { ref: string; sha: string }
+  base?: { ref: string }
   merged_at: string | null
   html_url: string
   labels?: string[]
