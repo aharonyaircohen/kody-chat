@@ -36,27 +36,22 @@ export function BranchBehindBanner({ prNumber }: BranchBehindBannerProps) {
     setIsSyncing(true);
     try {
       await prsApi.postComment(prNumber, "@kody sync", githubUser?.login);
-      toast.success("Sync requested — Kody will merge base into the PR branch");
+      toast.success("Update requested");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to request sync");
+      toast.error(err instanceof Error ? err.message : "Failed to request update");
     } finally {
       setIsSyncing(false);
     }
   };
 
-  const plural = behindBy === 1 ? "commit" : "commits";
+  const plural = behindBy === 1 ? "change" : "changes";
 
   return (
     <div className="shrink-0 flex items-center gap-3 px-4 py-2.5 border-t border-cyan-500/30 bg-cyan-500/10">
       <GitPullRequestArrow className="w-4 h-4 text-cyan-300 shrink-0" />
-      <div className="flex-1 min-w-0">
-        <p className="text-sm text-cyan-200 font-medium">
-          Branch is {behindBy} {plural} behind base
-        </p>
-        <p className="text-xs text-cyan-300/80">
-          Safe to merge, but the preview was built against an older base.
-        </p>
-      </div>
+      <p className="flex-1 min-w-0 text-sm text-cyan-200 font-medium">
+        Preview is {behindBy} {plural} out of date.
+      </p>
       <Button
         variant="outline"
         size="sm"
@@ -69,7 +64,7 @@ export function BranchBehindBanner({ prNumber }: BranchBehindBannerProps) {
         ) : (
           <RefreshCw className="w-3.5 h-3.5" />
         )}
-        <span>Sync</span>
+        <span>Update</span>
       </Button>
     </div>
   );
