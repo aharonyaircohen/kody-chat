@@ -11,7 +11,6 @@ import type { KodyTask } from '../types'
 import { Button } from '@dashboard/ui/button'
 import { MergeButton } from './MergeButton'
 import { FixRequestDialog } from './FixRequestDialog'
-import { AddCommentDialog } from './AddCommentDialog'
 import { ConfirmDialog } from './ConfirmDialog'
 import {
   XCircle,
@@ -19,7 +18,6 @@ import {
   Loader2,
   CheckCircle,
   GitPullRequest,
-  MessageSquare,
   Eye,
   Camera,
   RefreshCw,
@@ -55,7 +53,6 @@ interface PreviewActionsProps {
   onMerge: () => Promise<void>
   isMerging: boolean
   onCancelPR: () => void
-  onCommentAdded?: () => void
   className?: string
 }
 
@@ -64,11 +61,9 @@ export function PreviewActions({
   onMerge,
   isMerging,
   onCancelPR,
-  onCommentAdded,
   className,
 }: PreviewActionsProps) {
   const [showFixDialog, setShowFixDialog] = useState(false)
-  const [showCommentDialog, setShowCommentDialog] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
   const [isApprovingUI, setIsApprovingUI] = useState(false)
@@ -143,17 +138,6 @@ export function PreviewActions({
       toast.success(successMessage)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : `Failed to post ${command}`)
-    }
-  }
-
-  const handleCommentSubmit = async (body: string) => {
-    try {
-      await prsApi.postComment(pr.number, body, actorLogin)
-      toast.success('Comment added')
-      onCommentAdded?.()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to add comment')
-      throw err // re-throw so dialog keeps open
     }
   }
 
@@ -277,17 +261,6 @@ export function PreviewActions({
           <span className="hidden sm:inline">Sync</span>
         </Button>
 
-        {/* Comment */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setShowCommentDialog(true)}
-          className="gap-1.5 cursor-pointer text-blue-300 bg-blue-500/10 border-blue-500/40 shadow-sm shadow-blue-500/10 transition-all hover:bg-blue-500/20 hover:border-blue-400/60 hover:text-blue-200 hover:shadow-blue-500/20 active:scale-[0.97]"
-        >
-          <MessageSquare className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Comment</span>
-        </Button>
-
         {/* Cancel PR */}
         <Button
           variant="outline"
@@ -309,13 +282,6 @@ export function PreviewActions({
         isOpen={showFixDialog}
         onClose={() => setShowFixDialog(false)}
         onSubmit={handleFixSubmit}
-        prNumber={pr.number}
-      />
-
-      <AddCommentDialog
-        isOpen={showCommentDialog}
-        onClose={() => setShowCommentDialog(false)}
-        onSubmit={handleCommentSubmit}
         prNumber={pr.number}
       />
 

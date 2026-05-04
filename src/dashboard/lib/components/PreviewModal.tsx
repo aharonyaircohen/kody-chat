@@ -11,6 +11,8 @@ import type { KodyTask, FileChange, TaskDocument } from "../types";
 import { prsApi, taskDocsApi } from "../api";
 import { PreviewActions } from "./PreviewActions";
 import { PRCommentList } from "./PRCommentList";
+import { AddCommentDialog } from "./AddCommentDialog";
+import { toast } from "sonner";
 import { MarkdownViewer } from "./MarkdownViewer";
 import { CIStatusBadge } from "./CIStatusBadge";
 import { ActionStatusBadge } from "./ActionStatusBadge";
@@ -133,12 +135,26 @@ export function PreviewModal({
   const [previewView, setPreviewView] = useState<"web" | "admin">("web");
   const [previewKey, setPreviewKey] = useState(0); // Bump to force iframe remount/refresh
   const [commentsKey, setCommentsKey] = useState(0); // Used to force-refresh comment list
+  const [showCommentDialog, setShowCommentDialog] = useState(false);
 
   const pr = task.associatedPR;
+  const actorLogin = githubUser?.login;
 
   // Callback to refresh comment list after adding a comment
   const handleCommentAdded = () => {
     setCommentsKey((k) => k + 1);
+  };
+
+  const handleCommentSubmit = async (body: string) => {
+    if (!pr) return;
+    try {
+      await prsApi.postComment(pr.number, body, actorLogin);
+      toast.success("Comment added");
+      handleCommentAdded();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add comment");
+      throw err; // re-throw so dialog stays open
+    }
   };
 
   // Get preview URL based on current view (web or admin)
@@ -665,8 +681,26 @@ export function PreviewModal({
             role="tabpanel"
             id="preview-panel-comments"
             aria-labelledby="preview-tab-comments"
-            className="p-4"
+            className="p-4 space-y-4"
           >
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                Conversation
+                {commentCount !== null && commentCount > 0 && (
+                  <span className="ml-2 text-zinc-600 normal-case tracking-normal">
+                    {commentCount}
+                  </span>
+                )}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowCommentDialog(true)}
+                className="group inline-flex items-center gap-1.5 rounded-md border border-zinc-700/60 bg-zinc-900/60 px-3 py-1.5 text-xs font-medium text-zinc-300 transition-all hover:border-blue-500/50 hover:bg-blue-500/10 hover:text-blue-200 active:scale-[0.97]"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-zinc-500 transition-colors group-hover:text-blue-300" />
+                Add comment
+              </button>
+            </div>
             <PRCommentList
               key={commentsKey}
               prNumber={pr.number}
@@ -689,10 +723,16 @@ export function PreviewModal({
         onMerge={onMerge}
         isMerging={isMerging}
         onCancelPR={onClose}
-        onCommentAdded={handleCommentAdded}
       />
         </div>
       </div>
+
+      <AddCommentDialog
+        isOpen={showCommentDialog}
+        onClose={() => setShowCommentDialog(false)}
+        onSubmit={handleCommentSubmit}
+        prNumber={pr.number}
+      />
     </div>
   );
 }
