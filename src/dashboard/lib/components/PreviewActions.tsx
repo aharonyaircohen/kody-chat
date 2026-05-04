@@ -149,15 +149,15 @@ export function PreviewActions({
           className,
         )}
       >
-        {/* ── Approval column: vertical stack, progressive disclosure ── */}
-        <div className="flex flex-col items-stretch gap-1.5 min-w-[140px]" aria-label="Approve and merge">
+        {/* ── Approval row: horizontal, progressive disclosure ── */}
+        <div className="flex flex-row items-center gap-1.5" aria-label="Approve and merge">
           {/* Step 1: Approve UI — visible until done */}
           {isUIApproved ? (
             <Button
               variant="outline"
               size="sm"
               disabled
-              className="gap-1.5 text-emerald-400 bg-transparent border-emerald-900/60 disabled:opacity-100 justify-start"
+              className="gap-1.5 text-emerald-400 bg-transparent border-emerald-900/60 disabled:opacity-100"
             >
               <CheckCircle className="w-3.5 h-3.5" />
               <span>UI Approved</span>
@@ -168,7 +168,7 @@ export function PreviewActions({
               size="sm"
               onClick={handleApproveUI}
               disabled={isApprovingUI}
-              className="gap-1.5 cursor-pointer text-zinc-200 bg-transparent border-zinc-700 transition-all hover:bg-zinc-800/60 hover:border-zinc-600 hover:text-zinc-50 active:scale-[0.97] justify-start"
+              className="gap-1.5 cursor-pointer text-zinc-200 bg-transparent border-zinc-700 transition-all hover:bg-zinc-800/60 hover:border-zinc-600 hover:text-zinc-50 active:scale-[0.97]"
             >
               {isApprovingUI ? (
                 <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -186,7 +186,7 @@ export function PreviewActions({
                 variant="outline"
                 size="sm"
                 disabled
-                className="gap-1.5 text-emerald-400 bg-transparent border-emerald-900/60 disabled:opacity-100 justify-start"
+                className="gap-1.5 text-emerald-400 bg-transparent border-emerald-900/60 disabled:opacity-100"
               >
                 <CheckCircle className="w-3.5 h-3.5" />
                 <span>PR Approved</span>
@@ -197,7 +197,7 @@ export function PreviewActions({
                 size="sm"
                 onClick={handleApprovePR}
                 disabled={isApprovingPR}
-                className="gap-1.5 cursor-pointer text-zinc-200 bg-transparent border-zinc-700 transition-all hover:bg-zinc-800/60 hover:border-zinc-600 hover:text-zinc-50 active:scale-[0.97] justify-start"
+                className="gap-1.5 cursor-pointer text-zinc-200 bg-transparent border-zinc-700 transition-all hover:bg-zinc-800/60 hover:border-zinc-600 hover:text-zinc-50 active:scale-[0.97]"
               >
                 {isApprovingPR ? (
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
