@@ -67,10 +67,23 @@ Follow-up: swap the in-memory cache for Vercel's Data Cache (`fetch` +
 
 ## Chat flow
 
-Chat dispatches `kody.yml` in the connected repo with the session ID and an
-inline HMAC token in `dashboardUrl`. The kody engine runs `kody dispatch`,
-which branches to the chat executable, streams events back to
-`/api/kody/events/ingest` (real-time), and commits them to
+The dashboard has **three** chat backends, picked by the UI's `selectedAgentId`
+(default `'kody'`, see [KodyChat.tsx](src/dashboard/lib/components/KodyChat.tsx)).
+Don't assume "the chat" means the engine — most user traffic hits the in-process
+Gemini path.
+
+| `selectedAgentId` | Endpoint | Backend | System prompt lives in |
+|---|---|---|---|
+| `kody` (**default**) | [`/api/kody/chat/kody`](app/api/kody/chat/kody/route.ts) | In-process Gemini via `@ai-sdk/google` | [`src/dashboard/lib/agents.ts`](src/dashboard/lib/agents.ts) (`AGENT_KODY.systemPrompt`) |
+| `brain` | [`/api/kody/chat/brain`](app/api/kody/chat/brain/route.ts) | External Brain chat server (proxied) | Brain server profile (out of repo) |
+| anything else | [`/api/kody/chat/trigger`](app/api/kody/chat/trigger/route.ts) | GitHub Actions + `@kody-ade/kody-engine` | `kody2/src/chat/loop.ts` (`CHAT_SYSTEM_PROMPT`) |
+
+The legacy `/api/kody/chat` endpoint is deprecated and returns 410.
+
+**Engine path details** (when used): dispatches `kody.yml` in the connected
+repo with the session ID and an inline HMAC token in `dashboardUrl`. The kody
+engine runs `kody dispatch`, which branches to the chat executable, streams
+events back to `/api/kody/events/ingest` (real-time), and commits them to
 `.kody/events/{sessionId}.jsonl` (durable fallback, polled by
 `/api/kody/events/stream`). Token is verified via HMAC of sessionId with
 `KODY_SESSION_SECRET` — no shared DB lookup.
