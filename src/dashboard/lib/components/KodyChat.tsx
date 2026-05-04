@@ -1125,21 +1125,58 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
             throw new Error(errText || `HTTP ${res.status}`)
           }
 
+          // The kody route streams Vercel AI SDK UI messages as SSE
+          // (`data: {json}\n\n`). Parse incrementally and split into two
+          // buffers: `reasoning` (Gemini thought summaries — wrapped in
+          // <think>…</think> so ReasoningPanel renders them collapsed)
+          // and `text` (the visible answer).
           const reader = res.body.getReader()
           const decoder = new TextDecoder()
-          let acc = ''
+          let sseBuf = ''
+          let reasoningBuf = ''
+          let textBuf = ''
+
+          const composeContent = () =>
+            (reasoningBuf ? `<think>${reasoningBuf}</think>\n\n` : '') + textBuf
 
           // eslint-disable-next-line no-constant-condition
           while (true) {
             const { done, value } = await reader.read()
             if (done) break
-            acc += decoder.decode(value, { stream: true })
-            const text = acc
+            sseBuf += decoder.decode(value, { stream: true })
+
+            // Process complete SSE events (separated by blank lines).
+            let sep: number
+            while ((sep = sseBuf.indexOf('\n\n')) !== -1) {
+              const event = sseBuf.slice(0, sep)
+              sseBuf = sseBuf.slice(sep + 2)
+              if (!event.startsWith('data:')) continue
+              const payload = event.slice(5).trim()
+              if (!payload || payload === '[DONE]') continue
+              try {
+                const chunk = JSON.parse(payload) as
+                  | { type: 'text-delta'; delta: string }
+                  | { type: 'reasoning-delta'; delta: string }
+                  | { type: 'error'; errorText: string }
+                  | { type: string }
+                if (chunk.type === 'text-delta' && 'delta' in chunk) {
+                  textBuf += chunk.delta
+                } else if (chunk.type === 'reasoning-delta' && 'delta' in chunk) {
+                  reasoningBuf += chunk.delta
+                } else if (chunk.type === 'error' && 'errorText' in chunk) {
+                  textBuf += `\n\n[Error] ${chunk.errorText}`
+                }
+              } catch {
+                // Ignore malformed chunks rather than aborting the stream.
+              }
+            }
+
+            const content = composeContent()
             setMessages((prev) => {
               const copy = [...prev]
               const idx = copy.findIndex((m) => m.role === 'assistant' && m.isLoading)
               if (idx >= 0) {
-                copy[idx] = { ...copy[idx], content: text, isLoading: true }
+                copy[idx] = { ...copy[idx], content, isLoading: true }
               }
               return copy
             })

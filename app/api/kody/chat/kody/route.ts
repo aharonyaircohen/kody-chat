@@ -253,6 +253,14 @@ export async function POST(req: NextRequest) {
       // Allow up to 5 tool-calling rounds so the model can chain
       // (e.g. listIssues → getIssue → getFile in one turn).
       stopWhen: stepCountIs(5),
+      // Ask Gemini 2.5+ to surface its thought summaries. The provider emits
+      // them as reasoning parts; `sendReasoning: true` below forwards them on
+      // the wire so the client can render a collapsed "Thinking" panel.
+      providerOptions: {
+        google: {
+          thinkingConfig: { includeThoughts: true },
+        },
+      },
       onError: ({ error }) => {
         // streamText swallows per-chunk errors into the stream unless we
         // surface them here — without this a bad API key / quota /
@@ -263,8 +271,8 @@ export async function POST(req: NextRequest) {
         clearGitHubContext()
       },
     })
-    return result.toTextStreamResponse({
-      headers: { "content-type": "text/plain; charset=utf-8" },
+    return result.toUIMessageStreamResponse({
+      sendReasoning: true,
     })
   } catch (err) {
     clearGitHubContext()
