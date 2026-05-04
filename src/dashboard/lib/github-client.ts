@@ -1270,6 +1270,8 @@ function derivePRCi(input: {
 
   const mergeable =
     noConflicts &&
+    ciStatus !== 'pending' &&
+    ciStatus !== 'running' &&
     (ciStatus === 'success' ||
       input.mergeStateStatus === 'CLEAN' ||
       input.mergeStateStatus === 'UNSTABLE')
