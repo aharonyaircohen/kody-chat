@@ -249,6 +249,10 @@ Available when a repo is connected (the dashboard injects [Connected repository]
 - github_get_issue, github_get_pull_request, github_get_file,
   github_search_code, github_list_issues — scoped to the connected repo,
   use the user's GitHub token.
+- github_close_issue — close a GitHub issue (with optional closing
+  comment and reason: "completed" or "not_planned"). Only call when the
+  user explicitly asks to close/resolve an issue. Refuses to close pull
+  requests. Confirm before closing if the request is ambiguous.
 - report_bug — open a structured bug report as a GitHub issue (same
   template as the dashboard's bug-report form). Use when the user asks
   to "open a bug", "file a ticket", "report this", etc. Requires a

@@ -13,6 +13,7 @@ import { tool } from 'ai'
 import { z } from 'zod'
 import type { Octokit } from '@octokit/rest'
 import { logger } from '@dashboard/lib/logger'
+import { invalidateIssueCache } from '@dashboard/lib/github-client'
 
 interface Ctx {
   octokit: Octokit
@@ -227,6 +228,86 @@ export function createGitHubTools(ctx: Ctx) {
         } catch (err) {
           logger.warn({ err, owner, repo }, 'github_list_issues failed')
           return { error: err instanceof Error ? err.message : 'Failed to list issues' }
+        }
+      },
+    }),
+
+    github_close_issue: tool({
+      description:
+        `Close an issue in ${owner}/${repo}. Use only when the user explicitly asks ` +
+        'to close/resolve an issue, or after they confirm a fix is verified. ' +
+        'Optionally post a closing comment and set the close reason ' +
+        '("completed" for fixed/done, "not_planned" for wont-fix/duplicate). ' +
+        'Do NOT call this on pull requests — use the GitHub UI for PRs.',
+      inputSchema: z.object({
+        number: z.number().int().positive().describe('The issue number to close'),
+        comment: z
+          .string()
+          .max(8_000)
+          .optional()
+          .describe('Optional closing comment posted before the state change.'),
+        reason: z
+          .enum(['completed', 'not_planned'])
+          .optional()
+          .default('completed')
+          .describe('GitHub close reason. "completed" = done/fixed, "not_planned" = wont-fix.'),
+      }),
+      execute: async ({ number, comment, reason }) => {
+        try {
+          const existing = await octokit.rest.issues.get({
+            owner,
+            repo,
+            issue_number: number,
+          })
+          if (existing.data.pull_request) {
+            return {
+              error:
+                'Refusing to close: #' +
+                number +
+                ' is a pull request, not an issue. Close PRs via the GitHub UI.',
+            }
+          }
+          if (existing.data.state === 'closed') {
+            return {
+              ok: true,
+              alreadyClosed: true,
+              number,
+              url: existing.data.html_url,
+            }
+          }
+
+          if (comment && comment.trim().length > 0) {
+            await octokit.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: number,
+              body: comment,
+            })
+          }
+
+          const res = await octokit.rest.issues.update({
+            owner,
+            repo,
+            issue_number: number,
+            state: 'closed',
+            state_reason: reason,
+          })
+
+          invalidateIssueCache(number)
+
+          return {
+            ok: true,
+            number: res.data.number,
+            state: res.data.state,
+            stateReason: res.data.state_reason ?? reason,
+            url: res.data.html_url,
+            commented: !!(comment && comment.trim().length > 0),
+          }
+        } catch (err) {
+          logger.warn({ err, owner, repo, number }, 'github_close_issue failed')
+          return {
+            error: err instanceof Error ? err.message : 'Failed to close issue',
+          }
         }
       },
     }),
