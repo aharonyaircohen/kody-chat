@@ -10,13 +10,11 @@ import { useState } from 'react'
 import type { KodyTask } from '../types'
 import { Button } from '@dashboard/ui/button'
 import { MergeButton } from './MergeButton'
-import { FixRequestDialog } from './FixRequestDialog'
 import { ReportIssueDialog } from './ReportIssueDialog'
 import { ConfirmDialog } from './ConfirmDialog'
 import { SimpleTooltip } from './SimpleTooltip'
 import {
   XCircle,
-  Wrench,
   Loader2,
   CheckCircle,
   GitPullRequest,
@@ -83,7 +81,6 @@ export function PreviewActions({
   onCancelPR,
   className,
 }: PreviewActionsProps) {
-  const [showFixDialog, setShowFixDialog] = useState(false)
   const [showReportDialog, setShowReportDialog] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [isCancelling, setIsCancelling] = useState(false)
@@ -115,16 +112,6 @@ export function PreviewActions({
       toast.error(err instanceof Error ? err.message : 'Failed to close PR')
     } finally {
       setIsCancelling(false)
-    }
-  }
-
-  const handleFixSubmit = async (description: string) => {
-    try {
-      await tasksApi.fixRequest(task.issueNumber, description, actorLogin)
-      toast.success('Fix requested — Kody will work on it')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to request fix')
-      throw err // re-throw so dialog keeps open
     }
   }
 
@@ -304,19 +291,12 @@ export function PreviewActions({
               <Camera className="w-4 h-4" />
             </Button>
           </SimpleTooltip>
-
-          <SimpleTooltip content="Request a fix">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setShowFixDialog(true)}
-              className="h-8 w-8 cursor-pointer text-zinc-300 hover:bg-zinc-800/60 hover:text-zinc-100 active:scale-[0.97]"
-              aria-label="Fix"
-            >
-              <Wrench className="w-4 h-4" />
-            </Button>
-          </SimpleTooltip>
         </div>
+
+        {/* The standalone "Request a fix" wrench icon was removed in favor
+            of per-issue "Send to Kody to fix" buttons in the Issues panel
+            (see CommentList). Free-form fixes go through chat or a manual
+            @kody fix comment on the PR. */}
 
         {/* Sync moved to BranchBehindBanner — only renders when behind base. */}
 
@@ -338,13 +318,6 @@ export function PreviewActions({
           </Button>
         </SimpleTooltip>
       </div>
-
-      <FixRequestDialog
-        isOpen={showFixDialog}
-        onClose={() => setShowFixDialog(false)}
-        onSubmit={handleFixSubmit}
-        prNumber={pr.number}
-      />
 
       <ReportIssueDialog
         isOpen={showReportDialog}
