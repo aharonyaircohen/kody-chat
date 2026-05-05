@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import { Rocket } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@dashboard/ui/button";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { SimpleTooltip } from "./SimpleTooltip";
@@ -22,12 +23,12 @@ interface PublishButtonProps {
 export function PublishButton({ actorLogin, onPublished }: PublishButtonProps) {
   const [showConfirm, setShowConfirm] = useState(false);
   const [pending, setPending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const createTask = useCreateTask();
 
   async function publish() {
-    setError(null);
+    if (pending) return;
     setPending(true);
+    const toastId = toast.loading("Creating release task…");
     try {
       const today = new Date().toISOString().slice(0, 10);
       // Step 1: create the issue WITHOUT auto-triggering @kody — bare @kody
@@ -41,7 +42,10 @@ export function PublishButton({ actorLogin, onPublished }: PublishButtonProps) {
         mode: "release",
         labels: ["release"],
         autoTrigger: false,
+        actorLogin,
       });
+
+      toast.loading("Triggering @kody release…", { id: toastId });
 
       // Step 2: post the explicit `@kody release` trigger. See kody2/src/
       // dispatch.ts (extractAfterTag → first token) and src/executables/
@@ -49,9 +53,14 @@ export function PublishButton({ actorLogin, onPublished }: PublishButtonProps) {
       // from the comment context.
       await kodyApi.tasks.comment(task.issueNumber, "@kody release", actorLogin);
 
+      toast.success(`Release task #${task.issueNumber} created and triggered`, {
+        id: toastId,
+      });
       onPublished?.(task.issueNumber);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to publish");
+      const message = err instanceof Error ? err.message : "Failed to publish";
+      console.error("[PublishButton] publish failed", err);
+      toast.error(`Publish failed: ${message}`, { id: toastId });
     } finally {
       setPending(false);
     }
@@ -63,10 +72,7 @@ export function PublishButton({ actorLogin, onPublished }: PublishButtonProps) {
         <Button
           variant="outline"
           size="sm"
-          onClick={() => {
-            setError(null);
-            setShowConfirm(true);
-          }}
+          onClick={() => setShowConfirm(true)}
           disabled={pending}
           aria-label="Publish a release"
           className="gap-1"
@@ -79,11 +85,7 @@ export function PublishButton({ actorLogin, onPublished }: PublishButtonProps) {
       <ConfirmDialog
         open={showConfirm}
         title="Publish a release?"
-        description={
-          error
-            ? `Last attempt failed: ${error}. Confirm to retry.`
-            : "This creates a release-request task and triggers @kody release. The orchestrator runs prepare → merge PR → publish → deploy."
-        }
+        description="This creates a release-request task and triggers @kody release. The orchestrator runs prepare → merge PR → publish → deploy."
         confirmLabel="Publish"
         variant="default"
         onConfirm={publish}
