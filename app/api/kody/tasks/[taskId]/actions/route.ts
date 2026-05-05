@@ -14,7 +14,7 @@ import {
   postComment,
   triggerWorkflow,
   cancelWorkflowRun,
-  fetchWorkflowRuns,
+  fetchComments,
   updateIssue,
   addAssignees,
   removeAssignees,
@@ -187,31 +187,94 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tas
       }
 
       case 'abort': {
-        // Try to find and cancel in-progress workflow runs for this task
-        const runs = await fetchWorkflowRuns({ perPage: 30 })
-        const run = runs.find(
-          (r) =>
-            r.status === 'in_progress' &&
-            (r.display_title?.includes(taskId) ||
-              r.html_url.includes(taskId) ||
-              r.html_url.includes(issueNumber.toString())),
-        )
+        // Find runs the engine has linked to this issue. Each kody flow posts
+        // [logs](.../actions/runs/RUNID) markdown links into the issue, so the
+        // comment timeline is the authoritative task→run mapping. Earlier
+        // attempts at matching display_title / html_url against the taskId
+        // never matched (workflow_dispatch keeps display_title="kody" and the
+        // run html_url is /actions/runs/<numeric runId>), so the cancel call
+        // never fired.
+        const comments = await fetchComments(issueNumber)
+        const runUrlRegex = /\/actions\/runs\/(\d+)/g
+        const seen = new Set<number>()
+        const runIds: number[] = []
+        for (let i = comments.length - 1; i >= 0 && runIds.length < 5; i--) {
+          const body = comments[i]?.body ?? ''
+          let match: RegExpExecArray | null
+          runUrlRegex.lastIndex = 0
+          while ((match = runUrlRegex.exec(body)) !== null) {
+            const id = Number(match[1])
+            if (!Number.isFinite(id) || seen.has(id)) continue
+            seen.add(id)
+            runIds.push(id)
+          }
+        }
 
-        // Post comment regardless of whether we found a running workflow
-        await postWithFallback(
-          issueNumber,
-          '## 🛑 Operation stopped - Run aborted by user.',
-          actor,
-          userOctokit,
-        )
+        const octokit = userOctokit ?? getOctokit()
+        let cancelledCount = 0
+        for (const runId of runIds) {
+          try {
+            const { data: runDetail } = await octokit.actions.getWorkflowRun({
+              owner: getOwner(),
+              repo: getRepo(),
+              run_id: runId,
+            })
+            if (runDetail.status === 'in_progress' || runDetail.status === 'queued') {
+              await cancelWorkflowRun(runId, userOctokit ?? undefined)
+              cancelledCount += 1
+            }
+          } catch (err) {
+            console.warn(`[Kody] abort: failed to inspect/cancel run ${runId}:`, err)
+          }
+        }
 
-        if (run) {
-          await cancelWorkflowRun(run.id, userOctokit ?? undefined)
-          return NextResponse.json({ success: true, message: 'Workflow cancelled' })
+        // Clear in-progress lifecycle labels so the task moves out of "building"
+        // immediately. Without this the next poll re-derives the column from
+        // the stale label and the card flips back to running.
+        const lifecycleLabels = [
+          'kody:running',
+          'kody:planning',
+          'kody:reviewing',
+          'kody:building',
+        ]
+        let removedLabel = false
+        for (const lbl of lifecycleLabels) {
+          try {
+            await removeLabel(issueNumber, lbl, userOctokit ?? undefined)
+            removedLabel = true
+          } catch {
+            // 404 = label wasn't applied; ignore
+          }
+        }
+
+        const stopped = cancelledCount > 0 || removedLabel
+        if (stopped) {
+          await postWithFallback(
+            issueNumber,
+            '## 🛑 Operation stopped - Run aborted by user.',
+            actor,
+            userOctokit,
+          )
+        }
+
+        invalidateTaskCache()
+        invalidateBoardCache()
+
+        if (cancelledCount > 0) {
+          return NextResponse.json({
+            success: true,
+            message: `Cancelled ${cancelledCount} workflow run${cancelledCount === 1 ? '' : 's'}`,
+          })
+        }
+        if (removedLabel) {
+          return NextResponse.json({
+            success: true,
+            message: 'Cleared running labels (no live workflow run found)',
+          })
         }
         return NextResponse.json({
           success: true,
-          message: 'Marked as stopped (no running workflow)',
+          message: 'Nothing to stop (task was not running)',
         })
       }
 
