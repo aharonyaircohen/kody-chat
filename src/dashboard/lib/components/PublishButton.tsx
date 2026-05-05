@@ -33,7 +33,10 @@ export function PublishButton({ actorLogin, onPublished }: PublishButtonProps) {
       const today = new Date().toISOString().slice(0, 10);
       // Step 1: create the issue WITHOUT auto-triggering @kody — bare @kody
       // routes to `classify`/`fix`, but we want the `release` orchestrator.
-      const task = await createTask.mutateAsync({
+      // The /api/kody/tasks POST returns { success, issue: { number, ... } }
+      // even though tasksApi.create is typed as Promise<KodyTask>. Read the
+      // raw shape defensively in case the typing ever gets fixed.
+      const raw = (await createTask.mutateAsync({
         title: `Release: ${today}`,
         body:
           `## Release request\n\n` +
@@ -43,7 +46,15 @@ export function PublishButton({ actorLogin, onPublished }: PublishButtonProps) {
         labels: ["release"],
         autoTrigger: false,
         actorLogin,
-      });
+      })) as unknown as {
+        issue?: { number?: number };
+        issueNumber?: number;
+      };
+
+      const issueNumber = raw.issue?.number ?? raw.issueNumber;
+      if (typeof issueNumber !== "number" || Number.isNaN(issueNumber)) {
+        throw new Error("Server did not return an issue number");
+      }
 
       toast.loading("Triggering @kody release…", { id: toastId });
 
@@ -51,12 +62,12 @@ export function PublishButton({ actorLogin, onPublished }: PublishButtonProps) {
       // dispatch.ts (extractAfterTag → first token) and src/executables/
       // release/profile.json — the orchestrator picks up the issue number
       // from the comment context.
-      await kodyApi.tasks.comment(task.issueNumber, "@kody release", actorLogin);
+      await kodyApi.tasks.comment(issueNumber, "@kody release", actorLogin);
 
-      toast.success(`Release task #${task.issueNumber} created and triggered`, {
+      toast.success(`Release task #${issueNumber} created and triggered`, {
         id: toastId,
       });
-      onPublished?.(task.issueNumber);
+      onPublished?.(issueNumber);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to publish";
       console.error("[PublishButton] publish failed", err);
