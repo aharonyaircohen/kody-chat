@@ -314,14 +314,19 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const eventSourceRef = useRef<EventSource | null>(null)
 
-  // Kody Live (long-lived runner) — see useInteractiveSession hook docs.
-  // Refs (not state) because the SSE callback captures these in a closure
-  // that mounts once; state would be stale by the time chat.ready arrives.
+  // Kody Live (long-lived runner) — explicit warm-up flow:
+  //   1. user picks 'kody-live' agent → chat input is disabled, banner shows
+  //      "Start Live Runner" button.
+  //   2. user clicks button → /start dispatches kody.yml → state='booting'.
+  //   3. runner emits chat.ready (~90s) → state='ready', input enables.
+  //   4. user chats normally; every send hits /append (no new dispatch).
+  //   5. chat.exit (idle/cap) → state='ended', input disables, banner shows
+  //      a re-start button.
+  //
+  // Refs (not state) because the SSE callback captures these in a closure;
+  // state alone would be stale by the time chat.ready arrives.
   const interactiveSessionIdRef = useRef<string | null>(null)
   const interactiveStateRef = useRef<'idle' | 'booting' | 'ready' | 'ended'>('idle')
-  // Queue for the first user message — we capture it before the runner
-  // boots and dispatch it via /append the moment chat.ready lands.
-  const pendingFirstMessageRef = useRef<string | null>(null)
   // Display state mirrors the ref so React re-renders the input lock + banner.
   const [interactiveState, setInteractiveState] = useState<
     'idle' | 'booting' | 'ready' | 'ended'
@@ -423,24 +428,6 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
             case 'chat.ready': {
               interactiveStateRef.current = 'ready'
               setInteractiveState('ready')
-              // Flush queued first user message — the runner is now polling
-              // for new lines, so this /append will land on the next poll.
-              const pending = pendingFirstMessageRef.current
-              const id = interactiveSessionIdRef.current
-              if (pending && id) {
-                pendingFirstMessageRef.current = null
-                void fetch('/api/kody/chat/interactive/append', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                  body: JSON.stringify({
-                    taskId: id,
-                    content: pending,
-                    timestamp: new Date().toISOString(),
-                  }),
-                }).catch(() => {
-                  /* surface in next chat.error or via setError */
-                })
-              }
               break
             }
             case 'chat.exit': {
@@ -1254,13 +1241,25 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
       }
 
       // ─── Kody Live: long-lived interactive runner ───
-      // First send: warm up the runner (start endpoint writes meta line +
-      // dispatches kody.yml) and queue the user message until chat.ready
-      // arrives via SSE. Subsequent sends: append directly — same runner
-      // stays alive up to 5min idle / 30min hard cap.
+      // The session must be warmed up (Start button → chat.ready) before the
+      // user can send. The input is disabled until interactiveState='ready',
+      // so by the time we get here in kody-live mode, the runner is alive
+      // and we just /append.
       if (selectedAgentId === 'kody-live') {
-        const liveSessionId =
-          interactiveSessionIdRef.current ?? `live-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+        const liveSessionId = interactiveSessionIdRef.current
+        if (interactiveStateRef.current !== 'ready' || !liveSessionId) {
+          // Defensive: input should already be disabled. Surface as a hint.
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: 'assistant',
+              content: 'The live runner is not ready yet. Click "Start Live Runner" first.',
+              isLoading: false,
+            },
+          ])
+          return null
+        }
+
         const liveUserContent =
           currentAttachments.length > 0
             ? currentAttachments
@@ -1272,51 +1271,20 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
                 .join('\n\n') + (messageContent ? `\n\n${messageContent}` : '')
             : messageContent
 
-        const live = interactiveStateRef.current
-
         try {
-          if (live === 'idle' || live === 'ended') {
-            interactiveSessionIdRef.current = liveSessionId
-            interactiveStateRef.current = 'booting'
-            setInteractiveState('booting')
-            pendingFirstMessageRef.current = liveUserContent
-
-            const startRes = await fetch('/api/kody/chat/interactive/start', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...authHeaders() },
-              body: JSON.stringify({
-                taskId: liveSessionId,
-                idleExitMs: 5 * 60_000,
-                hardCapMs: 30 * 60_000,
-              }),
-            })
-            if (!startRes.ok) {
-              const body = (await startRes.json().catch(() => ({}))) as { error?: string }
-              throw new Error(body.error ?? `HTTP ${startRes.status}`)
-            }
-            connectSSE(liveSessionId, { interactive: true })
-            return null
+          const appendRes = await fetch('/api/kody/chat/interactive/append', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+            body: JSON.stringify({
+              taskId: liveSessionId,
+              content: liveUserContent,
+              timestamp,
+            }),
+          })
+          if (!appendRes.ok) {
+            const body = (await appendRes.json().catch(() => ({}))) as { error?: string }
+            throw new Error(body.error ?? `HTTP ${appendRes.status}`)
           }
-
-          if (live === 'ready') {
-            const appendRes = await fetch('/api/kody/chat/interactive/append', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', ...authHeaders() },
-              body: JSON.stringify({
-                taskId: liveSessionId,
-                content: liveUserContent,
-                timestamp,
-              }),
-            })
-            if (!appendRes.ok) {
-              const body = (await appendRes.json().catch(() => ({}))) as { error?: string }
-              throw new Error(body.error ?? `HTTP ${appendRes.status}`)
-            }
-            return null
-          }
-
-          // booting — queue and wait for chat.ready
-          pendingFirstMessageRef.current = liveUserContent
           return null
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error'
@@ -1410,6 +1378,43 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     ],
   )
 
+  // Kody Live: warm-up the long-lived runner. Wires the dispatch + SSE
+  // for an interactive session. Chat input stays disabled until the runner
+  // emits chat.ready (handled in connectSSE).
+  const startInteractiveSession = useCallback(async () => {
+    if (interactiveStateRef.current === 'booting' || interactiveStateRef.current === 'ready') return
+
+    const sessionId = `live-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    interactiveSessionIdRef.current = sessionId
+    interactiveStateRef.current = 'booting'
+    setInteractiveState('booting')
+
+    try {
+      const startRes = await fetch('/api/kody/chat/interactive/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+        body: JSON.stringify({
+          taskId: sessionId,
+          idleExitMs: 5 * 60_000,
+          hardCapMs: 30 * 60_000,
+        }),
+      })
+      if (!startRes.ok) {
+        const body = (await startRes.json().catch(() => ({}))) as { error?: string }
+        throw new Error(body.error ?? `HTTP ${startRes.status}`)
+      }
+      connectSSE(sessionId, { interactive: true })
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+      interactiveStateRef.current = 'ended'
+      setInteractiveState('ended')
+      setMessages((prev) => [
+        ...prev,
+        { role: 'assistant', content: `Failed to start live runner: ${errorMessage}`, isLoading: false },
+      ])
+    }
+  }, [connectSSE, setMessages])
+
   const sendMessage = async () => {
     if (!input.trim() && attachments.length === 0) return
     const userMessage = input.trim()
@@ -1496,18 +1501,29 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     })
   }
 
-  // Generate placeholder based on mode
-  const placeholder = isKodyWaiting
-    ? `Give Kody instructions...`
-    : isTaskMode
-      ? `Ask about task #${selectedTask?.issueNumber}...`
-      : isMissionMode
-        ? `Ask about mission \`${selectedMission?.slug ?? ''}\`...`
-        : isDraftMode
-          ? `Describe the mission you want Kody to run...`
-          : `Ask Kody...`
+  // Kody Live blocks the input until the runner is ready. Other agents
+  // are unaffected — only the explicit warm-up flow uses this gate.
+  const isKodyLive = selectedAgentId === 'kody-live'
+  const liveLocked = isKodyLive && interactiveState !== 'ready'
 
-  const canSend = input.trim() || attachments.length > 0
+  // Generate placeholder based on mode
+  const placeholder = isKodyLive
+    ? interactiveState === 'idle' || interactiveState === 'ended'
+      ? 'Click "Start Live Runner" above to warm up the runner...'
+      : interactiveState === 'booting'
+        ? 'Booting runner... ~90s'
+        : 'Ask Kody (live runner)...'
+    : isKodyWaiting
+      ? `Give Kody instructions...`
+      : isTaskMode
+        ? `Ask about task #${selectedTask?.issueNumber}...`
+        : isMissionMode
+          ? `Ask about mission \`${selectedMission?.slug ?? ''}\`...`
+          : isDraftMode
+            ? `Describe the mission you want Kody to run...`
+            : `Ask Kody...`
+
+  const canSend = (input.trim() || attachments.length > 0) && !liveLocked
 
   return (
     <div className="relative flex flex-col h-full border-l bg-background">
@@ -1956,6 +1972,47 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
 
       {/* Input area */}
       <div className="p-3 border-t">
+        {/* Kody Live warm-up banner — only visible when the live agent is
+            selected and the runner isn't currently ready to accept messages. */}
+        {isKodyLive && interactiveState !== 'ready' ? (
+          <div
+            className={`mb-2 flex items-center justify-between rounded-md border p-2 text-sm ${
+              interactiveState === 'booting'
+                ? 'border-yellow-500/50 bg-yellow-500/10 text-yellow-900 dark:text-yellow-100'
+                : 'border-border bg-muted/40'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {interactiveState === 'booting' ? (
+                <>
+                  <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-yellow-500" />
+                  <span>Booting live runner... (~90s on first dispatch)</span>
+                </>
+              ) : interactiveState === 'ended' ? (
+                <span className="text-muted-foreground">Live runner ended. Start a new session to chat.</span>
+              ) : (
+                <span className="text-muted-foreground">
+                  Live runner is offline. Start it to enable chat.
+                </span>
+              )}
+            </div>
+            {interactiveState !== 'booting' ? (
+              <button
+                type="button"
+                onClick={() => void startInteractiveSession()}
+                className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+              >
+                {interactiveState === 'ended' ? 'Start new session' : 'Start Live Runner'}
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+        {isKodyLive && interactiveState === 'ready' ? (
+          <div className="mb-2 flex items-center gap-2 rounded-md border border-green-500/40 bg-green-500/10 p-2 text-xs text-green-900 dark:text-green-100">
+            <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+            <span>Live runner ready. Chat normally — replies arrive via the long-lived workflow.</span>
+          </div>
+        ) : null}
         <div className="flex gap-2 items-end">
           {/* Attachment button */}
           <input
@@ -2021,8 +2078,8 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             rows={1}
-            className="flex-1 px-3 py-2 text-base rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none overflow-hidden"
-            disabled={loading}
+            className="flex-1 px-3 py-2 text-base rounded-md border bg-background focus:outline-none focus:ring-1 focus:ring-primary resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={loading || liveLocked}
             style={{ height: 'auto' }}
           />
           {loading ? (

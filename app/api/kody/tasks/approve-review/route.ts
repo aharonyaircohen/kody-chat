@@ -126,7 +126,7 @@ export async function POST(req: NextRequest) {
     // 4. Close the linked task issue (best-effort — GitHub usually auto-closes
     //    via "Closes #N" in the PR body, but we close explicitly so the UI
     //    state is deterministic and the user returns to a clean dashboard).
-    if (issueNumber && !isPublishPR) {
+    if (issueNumber) {
       try {
         await updateIssue(issueNumber, { state: 'closed' }, userOctokit ?? undefined)
         invalidateIssueCache(issueNumber)
