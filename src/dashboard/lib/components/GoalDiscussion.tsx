@@ -476,7 +476,10 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
             />
 
             {showMentions && filteredMentions.length > 0 ? (
-              <div className="absolute z-10 w-64 max-h-48 overflow-y-auto border border-border rounded-md shadow-lg bg-popover">
+              // Float above the textarea — inside a modal with vertical
+              // overflow, dropping below clips the list. Bottom-anchored
+              // also keeps the cursor-character relationship intuitive.
+              <div className="absolute bottom-full left-0 mb-1 z-50 w-64 max-h-48 overflow-y-auto border border-border rounded-md shadow-lg bg-popover">
                 {filteredMentions.map((mention, index) => (
                   <button
                     key={mention.login}
@@ -503,27 +506,37 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
         )}
       </div>
 
-      <div className="flex justify-end items-center gap-1">
-        {error ? (
-          <span className="text-destructive text-xs mr-auto">
-            {error.message}
-          </span>
-        ) : null}
-        <Button
-          onClick={handleSubmit}
-          disabled={isPending || !body.trim()}
-          size="sm"
-          variant="default"
-          className="h-7 px-2 bg-emerald-600 hover:bg-emerald-700 gap-1.5"
-          title="Post comment"
-        >
-          {isPending ? (
-            <Loader2 className="w-3 h-3 animate-spin" />
-          ) : (
-            <Send className="w-3 h-3" />
-          )}
-          <span>{isPending ? 'Posting…' : 'Comment'}</span>
-        </Button>
+      <div className="flex justify-between items-center gap-2">
+        <p className="text-[11px] text-muted-foreground leading-snug">
+          Tip: type{' '}
+          <code className="px-1 py-0.5 rounded bg-muted text-foreground/80 font-mono text-[10px]">
+            @
+          </code>{' '}
+          to mention a teammate — they&apos;ll get a GitHub notification and
+          can join the thread.
+        </p>
+        <div className="flex items-center gap-1 shrink-0">
+          {error ? (
+            <span className="text-destructive text-xs mr-2">
+              {error.message}
+            </span>
+          ) : null}
+          <Button
+            onClick={handleSubmit}
+            disabled={isPending || !body.trim()}
+            size="sm"
+            variant="default"
+            className="h-7 px-2 bg-emerald-600 hover:bg-emerald-700 gap-1.5"
+            title="Post comment"
+          >
+            {isPending ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <Send className="w-3 h-3" />
+            )}
+            <span>{isPending ? 'Posting…' : 'Comment'}</span>
+          </Button>
+        </div>
       </div>
     </div>
   )
