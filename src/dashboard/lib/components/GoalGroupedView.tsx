@@ -18,6 +18,7 @@ import {
   Flag,
   GripVertical,
   Inbox,
+  MessageSquare,
   Pencil,
   Plus,
   Trash2,
@@ -75,6 +76,8 @@ interface GoalGroupedViewProps {
   onCreateGoal?: () => void
   onEditGoal?: (goal: Goal) => void
   onDeleteGoal?: (goal: Goal) => void
+  /** Open the goal's discussion thread (modal). */
+  onOpenGoalDiscussion?: (goal: Goal) => void
   /** Create a task scoped to this goal (or null for Ungrouped). */
   onCreateTaskInGoal?: (goal: Goal | null) => void
   /** Report a bug scoped to this goal (or null for Ungrouped). */
@@ -237,6 +240,7 @@ export function GoalGroupedView({
   onCreateGoal,
   onEditGoal,
   onDeleteGoal,
+  onOpenGoalDiscussion,
   onCreateTaskInGoal,
   onReportBugInGoal,
   onMoveTask,
@@ -456,6 +460,18 @@ export function GoalGroupedView({
                 {/* Goal management actions (edit / delete) — creation lives in the card footer */}
                 {group.goal ? (
                   <div className="flex items-center gap-1 shrink-0">
+                    {onOpenGoalDiscussion ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-muted-foreground hover:text-sky-400"
+                        onClick={() => onOpenGoalDiscussion(group.goal!)}
+                        aria-label={`Open ${group.goal.name} discussion`}
+                        title="Open discussion"
+                      >
+                        <MessageSquare className="w-3.5 h-3.5" />
+                      </Button>
+                    ) : null}
                     {onEditGoal ? (
                       <Button
                         variant="ghost"

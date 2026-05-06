@@ -12,6 +12,7 @@ import { filterTasksByView, getViewModeCounts, sortTasks } from "../utils";
 import { TaskList } from "./TaskList";
 import { GoalGroupedView, useGoalCollapse } from "./GoalGroupedView";
 import { CreateGoalDialog, EditGoalDialog } from "./GoalControl";
+import { GoalDiscussionDialog } from "./GoalDiscussionDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useGoals, useDeleteGoal, goalQueryKeys } from "../hooks/useGoals";
 import type { Goal } from "../api";
@@ -129,6 +130,8 @@ export function KodyDashboard({
   const [showCreateGoal, setShowCreateGoal] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [pendingDeleteGoal, setPendingDeleteGoal] = useState<Goal | null>(null);
+  // Goal whose discussion thread is currently open in a modal. Null = closed.
+  const [discussingGoal, setDiscussingGoal] = useState<Goal | null>(null);
   // When set, the CreateTaskDialog pre-applies this goal's label. Null = no scope.
   const [presetGoalForCreate, setPresetGoalForCreate] = useState<Goal | null>(
     null,
@@ -1682,6 +1685,7 @@ export function KodyDashboard({
                     onCreateGoal={() => setShowCreateGoal(true)}
                     onEditGoal={setEditingGoal}
                     onDeleteGoal={setPendingDeleteGoal}
+                    onOpenGoalDiscussion={setDiscussingGoal}
                     onCreateTaskInGoal={handleCreateInGoal}
                     onReportBugInGoal={handleReportBugInGoal}
                     onMoveTask={handleMoveTask}
@@ -1925,6 +1929,10 @@ export function KodyDashboard({
             onSaved={() => setEditingGoal(null)}
           />
         ) : null}
+        <GoalDiscussionDialog
+          goal={discussingGoal}
+          onClose={() => setDiscussingGoal(null)}
+        />
         <ConfirmDialog
           open={!!pendingDeleteGoal}
           title="Remove this goal?"
