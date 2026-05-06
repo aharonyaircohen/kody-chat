@@ -13,7 +13,7 @@ import { TaskList } from "./TaskList";
 import { GoalGroupedView, useGoalCollapse } from "./GoalGroupedView";
 import { CreateGoalDialog, EditGoalDialog } from "./GoalControl";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { useGoals, useDeleteGoal } from "../hooks/useGoals";
+import { useGoals, useDeleteGoal, goalQueryKeys } from "../hooks/useGoals";
 import type { Goal } from "../api";
 
 import { CreateTaskDialog } from "./CreateTaskDialog";
@@ -1412,13 +1412,16 @@ export function KodyDashboard({
                       Cleanup
                     </Button>
                   </SimpleTooltip>
-                  <SimpleTooltip content="Refresh tasks" side="bottom">
+                  <SimpleTooltip content="Refresh" side="bottom">
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => refetch()}
+                      onClick={() => {
+                        refetch();
+                        queryClient.invalidateQueries({ queryKey: goalQueryKeys.list });
+                      }}
                       disabled={isFetching}
-                      aria-label="Refresh tasks"
+                      aria-label="Refresh"
                       className="gap-1"
                     >
                       <RefreshCw
