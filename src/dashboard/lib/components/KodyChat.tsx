@@ -1513,6 +1513,20 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
     }
   }, [connectSSE, setMessages])
 
+  // Cancel a Kody Live session locally. Closes the SSE, clears the saved
+  // record, and flips state to 'idle' so the user can start a fresh one.
+  // Does NOT actively cancel the GitHub Actions run — the runner idle-exits
+  // on its own (default 5min) so leaving it alone is cheap.
+  const endInteractiveSession = useCallback(() => {
+    eventSourceRef.current?.close()
+    eventSourceRef.current = null
+    interactiveSessionIdRef.current = null
+    interactiveStateRef.current = 'idle'
+    setInteractiveState('idle')
+    setBootStartedAt(null)
+    clearLiveSession()
+  }, [])
+
   // Restore on page refresh. Runs once after connectSSE is stable. If the
   // user had a live session in flight, switch to kody-live, rehydrate the
   // refs from localStorage, and reconnect the SSE so the rest of the
@@ -2091,7 +2105,7 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
             selected and the runner isn't currently ready to accept messages. */}
         {isKodyLive && interactiveState !== 'ready' ? (
           <div
-            className={`mb-2 flex items-center justify-between rounded-md border p-2 text-sm ${
+            className={`mb-2 flex items-center justify-between gap-2 rounded-md border p-2 text-sm ${
               interactiveState === 'booting'
                 ? 'border-yellow-500/50 bg-yellow-500/10 text-yellow-900 dark:text-yellow-100'
                 : 'border-border bg-muted/40'
@@ -2113,21 +2127,47 @@ export function KodyChat({ context, actorLogin }: KodyChatProps) {
                 </span>
               )}
             </div>
-            {interactiveState !== 'booting' ? (
-              <button
-                type="button"
-                onClick={() => void startInteractiveSession()}
-                className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
-              >
-                {interactiveState === 'ended' ? 'Start new session' : 'Start Live Runner'}
-              </button>
-            ) : null}
+            <div className="flex items-center gap-1">
+              {interactiveState !== 'booting' ? (
+                <button
+                  type="button"
+                  onClick={() => void startInteractiveSession()}
+                  className="rounded-md bg-primary px-3 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90"
+                >
+                  {interactiveState === 'ended' ? 'Start new session' : 'Start Live Runner'}
+                </button>
+              ) : null}
+              {interactiveState === 'booting' || interactiveState === 'ended' ? (
+                <button
+                  type="button"
+                  onClick={endInteractiveSession}
+                  className="rounded-md border px-3 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
+                  title={
+                    interactiveState === 'booting'
+                      ? 'Abandon this boot attempt and reset. The GitHub runner will idle-exit on its own (~5min).'
+                      : 'Clear this ended session and reset.'
+                  }
+                >
+                  Cancel
+                </button>
+              ) : null}
+            </div>
           </div>
         ) : null}
         {isKodyLive && interactiveState === 'ready' ? (
-          <div className="mb-2 flex items-center gap-2 rounded-md border border-green-500/40 bg-green-500/10 p-2 text-xs text-green-900 dark:text-green-100">
-            <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-            <span>Live runner ready. Chat normally — replies arrive via the long-lived workflow.</span>
+          <div className="mb-2 flex items-center justify-between gap-2 rounded-md border border-green-500/40 bg-green-500/10 p-2 text-xs text-green-900 dark:text-green-100">
+            <div className="flex items-center gap-2">
+              <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
+              <span>Live runner ready. Chat normally — replies arrive via the long-lived workflow.</span>
+            </div>
+            <button
+              type="button"
+              onClick={endInteractiveSession}
+              className="rounded-md border border-green-700/30 px-2 py-0.5 text-xs font-medium text-green-900 hover:bg-green-500/20 dark:text-green-100"
+              title="End this live session. The runner will idle-exit on its own."
+            >
+              End session
+            </button>
           </div>
         ) : null}
         <div className="flex gap-2 items-end">
