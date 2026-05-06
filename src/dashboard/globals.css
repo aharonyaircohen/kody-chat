@@ -271,9 +271,10 @@
   }
 
   /* black/x backgrounds → light mode equivalents
-     Used for chat headers, modal backdrops. On a light bg these need to
-     either invert (overlay tints) or stay dark (true backdrops). */
-  .bg-black\/5 {
+     Used for chat headers, modal backdrops, and (importantly) the
+     Notifications page background. */
+  .bg-black\/5,
+  .bg-black\/10 {
     background-color: rgb(15 23 42 / 0.04);
   }
   .bg-black\/20,
@@ -281,10 +282,77 @@
     /* Used as section header tints — pick a soft surface, not gray haze */
     background-color: hsl(220 16% 93%);
   }
-  /* Modal/popover backdrops keep the dimming effect */
-  .bg-black\/80,
+  /* bg-black/95 is used as a page-level background on /notifications.
+     In light mode it must become the page bg, not a dim overlay. */
   .bg-black\/95 {
-    background-color: rgb(15 23 42 / 0.6);
+    background-color: hsl(220 20% 96%);
+  }
+  /* bg-black/80 and bg-black/90 are genuine modal/preview dimming overlays
+     — keep them as a dark scrim so modals still pop above content. */
+  .bg-black\/80,
+  .bg-black\/90 {
+    background-color: rgb(15 23 42 / 0.55);
+  }
+
+  /* ----- Text on previously-dark surfaces -----
+     `text-white/X` is everywhere on pages designed dark-first. In light
+     mode these need to flip to dark-on-light with matching contrast. */
+  .text-white {
+    color: hsl(222 25% 12%);
+  }
+  .text-white\/90 {
+    color: hsl(222 25% 14%);
+  }
+  .text-white\/70,
+  .text-white\/60 {
+    color: hsl(220 12% 32%);
+  }
+  .text-white\/50,
+  .text-white\/40 {
+    color: hsl(220 9% 45%);
+  }
+  .text-white\/30,
+  .text-white\/20 {
+    color: hsl(220 9% 58%);
+  }
+
+  /* white solid fills used for toggle thumbs, progress bars — keep light */
+  .bg-white\/40,
+  .bg-white\/15 {
+    background-color: hsl(220 13% 75%);
+  }
+
+  /* ----- Sky / rose accent palettes used on this page ----- */
+  .text-sky-400,
+  .text-sky-300 {
+    color: rgb(2 132 199); /* sky-600 */
+  }
+  .bg-sky-400,
+  .bg-sky-400\/70 {
+    background-color: rgb(56 189 248);
+  }
+  .bg-sky-500\/10,
+  .bg-sky-500\/\[0\.04\] {
+    background-color: rgb(14 165 233 / 0.1);
+  }
+  .bg-sky-500\/15 {
+    background-color: rgb(14 165 233 / 0.14);
+  }
+
+  .text-rose-400,
+  .text-rose-300,
+  .text-rose-200\/70 {
+    color: rgb(190 18 60); /* rose-700 */
+  }
+  .bg-rose-500\/\[0\.04\] {
+    background-color: rgb(244 63 94 / 0.08);
+  }
+  .bg-rose-950\/20 {
+    background-color: rgb(244 63 94 / 0.08);
+  }
+  .border-rose-500\/30,
+  .border-rose-500\/40 {
+    border-color: rgb(244 63 94 / 0.3);
   }
 
   /* ----- Status text colors -----
