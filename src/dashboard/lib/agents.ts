@@ -19,9 +19,9 @@ export const AGENT_ID = 'kody-assistant' as const
  * - 'kody-engine': async via GH Actions workflow (chat.yml) + Kody Engine. Current default.
  * - 'brain': sync SSE to the Brain chat server (Claude Agent SDK, session-resumed).
  */
-export type ChatBackend = 'kody-engine' | 'brain' | 'kody-direct'
+export type ChatBackend = 'kody-engine' | 'brain' | 'kody-direct' | 'kody-live'
 
-export type AgentId = 'kody-assistant' | 'brain' | 'kody'
+export type AgentId = 'kody-assistant' | 'brain' | 'kody' | 'kody-live'
 
 export interface AgentConfig {
   id: AgentId
@@ -410,6 +410,35 @@ Creating issues (PRD-style):
 }
 
 // ===========================================
+// KODY LIVE AGENT (long-lived interactive runner)
+// ===========================================
+
+/**
+ * Kody Live runs a single long-lived GitHub Actions runner that polls the
+ * session JSONL for new user messages. First message warms up the runner
+ * (~90s boot). Subsequent messages get a reply within ~30s without a
+ * fresh workflow dispatch — same runner stays alive up to 6h or 5min idle.
+ *
+ * The auto-warm flow is invisible: select this agent, type, send. The
+ * dashboard starts the session in the background and queues the first
+ * message until chat.ready arrives.
+ */
+export const AGENT_KODY_LIVE: AgentConfig = {
+  id: 'kody-live',
+  name: 'Kody Live',
+  description: 'Long-lived runner — warm-up once, chat for hours without dispatch overhead',
+  icon: Zap,
+  backend: 'kody-live',
+  capabilities: [
+    'Multi-turn chat in a single GitHub Actions runner (no per-message dispatch)',
+    'Same tools as Kody engine: Read, Edit, Write, Bash, Grep on your repo',
+    'Faster turn latency after the initial ~90s warm-up',
+    'Up to 6 hours per session (or 5 minutes of idle, whichever comes first)',
+  ],
+  systemPrompt: 'Inherits the engine chat prompt — see kody2/src/chat/loop.ts CHAT_SYSTEM_PROMPT.',
+}
+
+// ===========================================
 // REGISTRY + LOOKUP
 // ===========================================
 
@@ -417,9 +446,10 @@ export const AGENTS: Record<AgentId, AgentConfig> = {
   [AGENT_ID]: AGENT,
   brain: AGENT_BRAIN,
   kody: AGENT_KODY,
+  'kody-live': AGENT_KODY_LIVE,
 }
 
-export const AGENT_IDS = [AGENT_ID, 'brain', 'kody'] as const
+export const AGENT_IDS = [AGENT_ID, 'brain', 'kody', 'kody-live'] as const
 
 export function getAgent(id: unknown): AgentConfig {
   if (typeof id === 'string' && id in AGENTS) {
