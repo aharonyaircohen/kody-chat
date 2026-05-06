@@ -74,6 +74,7 @@ import { getGitHubIssueUrl } from '../constants'
 import { ConfirmDialog } from './ConfirmDialog'
 import { MarkdownEditor } from './MarkdownEditor'
 import { TaskList } from './TaskList'
+import { GoalDiscussion } from './GoalDiscussion'
 
 interface GoalProgress {
   total: number
@@ -446,6 +447,14 @@ function GoalDetail({
             </section>
           ) : null}
         </div>
+      </div>
+
+      {/* Discussion */}
+      <div className="max-w-4xl mx-auto p-4 md:p-8 pb-0 space-y-3">
+        <h3 className="text-sm font-semibold text-foreground uppercase tracking-wider">
+          Discussion
+        </h3>
+        <GoalDiscussion goalId={goal.id} />
       </div>
 
       {/* Tasks */}

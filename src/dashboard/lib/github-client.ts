@@ -2385,3 +2385,426 @@ export function getCacheStats(): { size: number; keys: string[] } {
 
 // CI status now lives on each GitHubPR returned by `fetchOpenPRs` — no separate
 // per-PR fetch. See `derivePRCi` and the OpenPRs GraphQL query above.
+
+// ============ Discussions (for Goal threads) ============
+//
+// Each goal can have a backing GitHub Discussion under a "Goals" category that
+// the dashboard ensures exists. Comments live as native discussion comments —
+// threading, reactions, edits all come for free.
+//
+// All discussion ops are GraphQL only (no REST). GraphQL has no ETag/304 path,
+// so the rate-limit story matches `fetchOpenPRs`: TTL cache + in-flight dedup
+// + stale-on-error refresh.
+
+export interface GoalDiscussionComment {
+  id: string
+  databaseId: number
+  body: string
+  createdAt: string
+  updatedAt: string
+  url: string
+  author: { login: string; avatarUrl?: string } | null
+}
+
+export interface GoalDiscussionRef {
+  /** GraphQL node ID (used for comment mutations). */
+  id: string
+  /** Numeric discussion number, for the github.com URL. */
+  number: number
+  url: string
+  commentsCount: number
+}
+
+interface RepoDiscussionMeta {
+  enabled: boolean
+  /** GraphQL node ID for the "Goals" discussion category — null if not yet ensured. */
+  goalsCategoryId: string | null
+}
+
+const DISCUSSIONS_META_TTL = 10 * 60_000 // 10min — flips rarely, webhook invalidates
+const DISCUSSION_COMMENTS_TTL = 60_000 // 1min — UI-driven re-reads
+const GOALS_CATEGORY_NAME = 'Goals'
+const GOALS_CATEGORY_DESCRIPTION =
+  'Discussions backing Kody goals. The dashboard creates one discussion per goal here.'
+
+const inflightDiscussionsMeta = new Map<string, Promise<RepoDiscussionMeta>>()
+const inflightDiscussionComments = new Map<string, Promise<GoalDiscussionComment[]>>()
+
+/**
+ * Wipe discussion caches. Called from the webhook receiver on `discussion`,
+ * `discussion_comment`, and `repository` events.
+ */
+export function invalidateDiscussionCache(): void {
+  invalidateCache('discussions-meta:')
+  invalidateCache('discussion-comments:')
+}
+
+/**
+ * Read the repo's discussion capability metadata: whether Discussions are
+ * enabled at all, and (if so) the GraphQL node ID of the "Goals" category.
+ *
+ * Caches the result for 10min in-process. Cross-instance cache is not needed
+ * because the value flips at most once per repo lifecycle.
+ */
+export async function fetchRepoDiscussionMeta(): Promise<RepoDiscussionMeta> {
+  const cacheKey = `discussions-meta:${getOwner()}:${getRepo()}`
+  const cached = getCached<RepoDiscussionMeta>(cacheKey)
+  if (cached) return cached
+
+  const existing = inflightDiscussionsMeta.get(cacheKey)
+  if (existing) return existing
+
+  const stale = getStale<RepoDiscussionMeta>(cacheKey)
+  const octokit = getOctokit()
+
+  const query = `
+    query RepoDiscussionMeta($owner: String!, $repo: String!) {
+      repository(owner: $owner, name: $repo) {
+        hasDiscussionsEnabled
+        discussionCategories(first: 25) {
+          nodes { id name }
+        }
+      }
+    }
+  `
+
+  const promise = (async () => {
+    try {
+      const data = await octokit.graphql<{
+        repository: {
+          hasDiscussionsEnabled: boolean
+          discussionCategories: { nodes: { id: string; name: string }[] } | null
+        }
+      }>(query, { owner: getOwner(), repo: getRepo() })
+
+      const enabled = !!data.repository.hasDiscussionsEnabled
+      const cats = data.repository.discussionCategories?.nodes ?? []
+      const goals = cats.find(
+        (c) => c.name.toLowerCase() === GOALS_CATEGORY_NAME.toLowerCase(),
+      )
+
+      const meta: RepoDiscussionMeta = {
+        enabled,
+        goalsCategoryId: enabled && goals ? goals.id : null,
+      }
+      setCache(cacheKey, DISCUSSIONS_META_TTL, meta)
+      return meta
+    } catch (err) {
+      if (stale) {
+        // Refresh TTL on stale to dampen GraphQL throttling under load.
+        setCache(cacheKey, Math.min(DISCUSSIONS_META_TTL, 60_000), stale.data)
+        return stale.data
+      }
+      throw err
+    } finally {
+      inflightDiscussionsMeta.delete(cacheKey)
+    }
+  })()
+
+  inflightDiscussionsMeta.set(cacheKey, promise)
+  return promise
+}
+
+interface CreateGoalsCategoryInput {
+  /**
+   * Repository GraphQL node ID. We don't fetch this for the meta query so it
+   * isn't on the cached meta — pass it explicitly when we need to create.
+   */
+  repositoryId: string
+  userOctokit?: Octokit
+}
+
+/**
+ * Best-effort create the "Goals" discussion category. Requires the user PAT
+ * to be a repo admin; on lack of permission we surface a helpful error so
+ * the UI can fall back to "Discussions off (no Goals category)".
+ */
+export async function ensureGoalsDiscussionCategory(
+  input: CreateGoalsCategoryInput,
+): Promise<string> {
+  const meta = await fetchRepoDiscussionMeta()
+  if (!meta.enabled) {
+    throw new Error('discussions_disabled')
+  }
+  if (meta.goalsCategoryId) return meta.goalsCategoryId
+
+  const octokit = input.userOctokit ?? getOctokit()
+  // GraphQL `createDiscussionCategory` is not in the public schema — only
+  // REST has the equivalent: POST /repos/{owner}/{repo}/discussions/categories
+  // (still in preview). For now we surface a clear error and require the
+  // user to create the "Goals" category once via repo settings.
+  // We deliberately keep the helper around so the error can be improved
+  // later once the GraphQL mutation is GA.
+  void octokit
+  throw new Error('goals_category_missing')
+}
+
+/**
+ * Look up the GraphQL repository ID. Cached forever per (owner,repo) — IDs
+ * never change.
+ */
+const repoIdCache = new Map<string, string>()
+export async function fetchRepositoryId(): Promise<string> {
+  const key = `${getOwner()}/${getRepo()}`
+  const hit = repoIdCache.get(key)
+  if (hit) return hit
+  const octokit = getOctokit()
+  const data = await octokit.graphql<{ repository: { id: string } }>(
+    `query RepoId($owner: String!, $repo: String!) { repository(owner: $owner, name: $repo) { id } }`,
+    { owner: getOwner(), repo: getRepo() },
+  )
+  repoIdCache.set(key, data.repository.id)
+  return data.repository.id
+}
+
+/**
+ * Create a discussion under the goals category and return its IDs.
+ *
+ * Uses `userOctokit` so the discussion is attributed to the human who
+ * triggered the create — never the shared polling token.
+ */
+export async function createGoalDiscussion(
+  args: {
+    title: string
+    body: string
+    categoryId: string
+  },
+  userOctokit?: Octokit,
+): Promise<GoalDiscussionRef> {
+  const octokit = userOctokit ?? getOctokit()
+  const repoId = await fetchRepositoryId()
+
+  const data = await octokit.graphql<{
+    createDiscussion: {
+      discussion: {
+        id: string
+        number: number
+        url: string
+        comments: { totalCount: number }
+      }
+    }
+  }>(
+    `mutation CreateGoalDiscussion(
+       $repoId: ID!,
+       $categoryId: ID!,
+       $title: String!,
+       $body: String!
+     ) {
+       createDiscussion(input: {
+         repositoryId: $repoId,
+         categoryId: $categoryId,
+         title: $title,
+         body: $body
+       }) {
+         discussion {
+           id
+           number
+           url
+           comments(first: 0) { totalCount }
+         }
+       }
+     }`,
+    {
+      repoId,
+      categoryId: args.categoryId,
+      title: args.title,
+      body: args.body,
+    },
+  )
+  const d = data.createDiscussion.discussion
+  invalidateDiscussionCache()
+  return { id: d.id, number: d.number, url: d.url, commentsCount: d.comments.totalCount }
+}
+
+/**
+ * Update the discussion title/body — used when the goal name or description
+ * changes.
+ */
+export async function updateGoalDiscussion(
+  args: { discussionId: string; title?: string; body?: string },
+  userOctokit?: Octokit,
+): Promise<void> {
+  const octokit = userOctokit ?? getOctokit()
+  const updates: Record<string, unknown> = { discussionId: args.discussionId }
+  if (typeof args.title === 'string') updates.title = args.title
+  if (typeof args.body === 'string') updates.body = args.body
+  if (Object.keys(updates).length === 1) return // nothing to change
+
+  await octokit.graphql(
+    `mutation UpdateGoalDiscussion($discussionId: ID!, $title: String, $body: String) {
+       updateDiscussion(input: { discussionId: $discussionId, title: $title, body: $body }) {
+         discussion { id }
+       }
+     }`,
+    updates,
+  )
+  invalidateDiscussionCache()
+}
+
+/**
+ * Close (lock) a discussion — used when a goal is removed. We never delete
+ * to preserve history.
+ */
+export async function closeGoalDiscussion(
+  discussionId: string,
+  userOctokit?: Octokit,
+): Promise<void> {
+  const octokit = userOctokit ?? getOctokit()
+  try {
+    await octokit.graphql(
+      `mutation CloseGoalDiscussion($discussionId: ID!) {
+         closeDiscussion(input: { discussionId: $discussionId, reason: RESOLVED }) {
+           discussion { id }
+         }
+       }`,
+      { discussionId },
+    )
+  } catch {
+    // Older repos / permission limits — non-fatal.
+  }
+  invalidateDiscussionCache()
+}
+
+/**
+ * Fetch comments on a goal's discussion. Cached + in-flight-deduped + stale-
+ * on-error, mirroring the `fetchOpenPRs` pattern (GraphQL has no ETag).
+ */
+export async function fetchGoalDiscussionComments(
+  discussionNumber: number,
+): Promise<GoalDiscussionComment[]> {
+  const cacheKey = `discussion-comments:${getOwner()}:${getRepo()}:${discussionNumber}`
+  const cached = getCached<GoalDiscussionComment[]>(cacheKey)
+  if (cached) return cached
+
+  const existing = inflightDiscussionComments.get(cacheKey)
+  if (existing) return existing
+
+  const stale = getStale<GoalDiscussionComment[]>(cacheKey)
+  const octokit = getOctokit()
+
+  const query = `
+    query DiscussionComments($owner: String!, $repo: String!, $number: Int!) {
+      repository(owner: $owner, name: $repo) {
+        discussion(number: $number) {
+          comments(first: 100) {
+            nodes {
+              id
+              databaseId
+              body
+              createdAt
+              updatedAt
+              url
+              author { login avatarUrl }
+            }
+          }
+        }
+      }
+    }
+  `
+
+  const promise = (async () => {
+    try {
+      const data = await octokit.graphql<{
+        repository: {
+          discussion: {
+            comments: {
+              nodes: {
+                id: string
+                databaseId: number
+                body: string
+                createdAt: string
+                updatedAt: string
+                url: string
+                author: { login: string; avatarUrl?: string } | null
+              }[]
+            }
+          } | null
+        }
+      }>(query, { owner: getOwner(), repo: getRepo(), number: discussionNumber })
+
+      const nodes = data.repository.discussion?.comments.nodes ?? []
+      const comments: GoalDiscussionComment[] = nodes.map((n) => ({
+        id: n.id,
+        databaseId: n.databaseId,
+        body: n.body ?? '',
+        createdAt: n.createdAt,
+        updatedAt: n.updatedAt,
+        url: n.url,
+        author: n.author
+          ? { login: n.author.login, avatarUrl: n.author.avatarUrl }
+          : null,
+      }))
+      setCache(cacheKey, DISCUSSION_COMMENTS_TTL, comments)
+      return comments
+    } catch (err) {
+      if (stale) {
+        setCache(cacheKey, Math.min(DISCUSSION_COMMENTS_TTL, 30_000), stale.data)
+        return stale.data
+      }
+      throw err
+    } finally {
+      inflightDiscussionComments.delete(cacheKey)
+    }
+  })()
+
+  inflightDiscussionComments.set(cacheKey, promise)
+  return promise
+}
+
+/**
+ * Post a comment on a goal's discussion. Always uses `userOctokit` so the
+ * comment is attributed to the actual user — never the shared polling token.
+ */
+export async function postGoalDiscussionComment(
+  args: { discussionId: string; body: string; discussionNumber?: number },
+  userOctokit?: Octokit,
+): Promise<GoalDiscussionComment> {
+  const octokit = userOctokit ?? getOctokit()
+  const data = await octokit.graphql<{
+    addDiscussionComment: {
+      comment: {
+        id: string
+        databaseId: number
+        body: string
+        createdAt: string
+        updatedAt: string
+        url: string
+        author: { login: string; avatarUrl?: string } | null
+      }
+    }
+  }>(
+    `mutation PostGoalDiscussionComment($discussionId: ID!, $body: String!) {
+       addDiscussionComment(input: { discussionId: $discussionId, body: $body }) {
+         comment {
+           id
+           databaseId
+           body
+           createdAt
+           updatedAt
+           url
+           author { login avatarUrl }
+         }
+       }
+     }`,
+    { discussionId: args.discussionId, body: args.body },
+  )
+  if (typeof args.discussionNumber === 'number') {
+    invalidateCache(
+      `discussion-comments:${getOwner()}:${getRepo()}:${args.discussionNumber}`,
+    )
+  } else {
+    invalidateDiscussionCache()
+  }
+  const c = data.addDiscussionComment.comment
+  return {
+    id: c.id,
+    databaseId: c.databaseId,
+    body: c.body ?? '',
+    createdAt: c.createdAt,
+    updatedAt: c.updatedAt,
+    url: c.url,
+    author: c.author ? { login: c.author.login, avatarUrl: c.author.avatarUrl } : null,
+  }
+}
+
+void GOALS_CATEGORY_DESCRIPTION // exported placeholder for future create-category mutation

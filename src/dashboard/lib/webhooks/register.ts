@@ -29,6 +29,12 @@ export const DEFAULT_WEBHOOK_EVENTS = [
   "push",
   "create",
   "delete",
+  // Goal-discussion threads — invalidates the goal-discussion cache so
+  // comments posted on github.com show up in the dashboard immediately.
+  "discussion",
+  "discussion_comment",
+  // Repo capability changes (Discussions toggled on/off, category renamed).
+  "repository",
 ];
 
 interface GitHubHook {

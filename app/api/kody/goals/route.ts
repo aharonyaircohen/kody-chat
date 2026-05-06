@@ -22,6 +22,8 @@ import {
   ensureLabel,
   setGitHubContext,
   clearGitHubContext,
+  fetchRepoDiscussionMeta,
+  createGoalDiscussion,
 } from '@dashboard/lib/github-client'
 import {
   EMPTY_MANIFEST,
@@ -30,6 +32,7 @@ import {
   parseManifestBody,
   slugifyGoalName,
   uniqueGoalId,
+  goalDiscussionSeedBody,
   type Goal,
   type GoalsManifest,
 } from '@dashboard/lib/goals'
@@ -95,10 +98,21 @@ export async function GET(req: NextRequest) {
 
   try {
     const { manifest, issue } = await readManifest()
+    // Best-effort capability lookup. Cached 10min, so this doesn't add a
+    // GraphQL hit per poll. Failures (rate limit, no perms) just mean the UI
+    // assumes Discussions are off and shows the disabled badge.
+    let discussionsEnabled = false
+    try {
+      const meta = await fetchRepoDiscussionMeta()
+      discussionsEnabled = meta.enabled && !!meta.goalsCategoryId
+    } catch (capErr) {
+      console.warn('[Goals] discussion capability lookup failed:', capErr)
+    }
     return NextResponse.json(
       {
         goals: manifest.goals,
         manifest: { issueNumber: issue?.number ?? null },
+        capabilities: { discussionsEnabled },
       },
       { headers: { 'Cache-Control': 'no-store' } },
     )
@@ -133,6 +147,40 @@ export async function POST(req: NextRequest) {
 
     const userOctokit = await getUserOctokit(req)
 
+    // Try to provision a backing discussion *before* the manifest write so
+    // both halves land in one CAS. Failures are non-fatal — the goal is
+    // still created without a thread (UI shows the "Discussions off" badge).
+    let discussionRef:
+      | { id: string; number: number }
+      | null = null
+    let discussionTitle = ''
+    let discussionBody = ''
+    try {
+      const meta = await fetchRepoDiscussionMeta()
+      if (meta.enabled && meta.goalsCategoryId) {
+        discussionTitle = `Goal: ${parsed.name.trim()}`
+        discussionBody = goalDiscussionSeedBody({
+          name: parsed.name.trim(),
+          description: parsed.description?.trim(),
+          dueDate: parsed.dueDate?.trim(),
+        })
+        const created = await createGoalDiscussion(
+          {
+            title: discussionTitle,
+            body: discussionBody,
+            categoryId: meta.goalsCategoryId,
+          },
+          userOctokit ?? undefined,
+        )
+        discussionRef = { id: created.id, number: created.number }
+      }
+    } catch (discErr) {
+      console.warn(
+        '[Goals] createGoalDiscussion failed (continuing without thread):',
+        discErr,
+      )
+    }
+
     const outcome = await mutateGoalsManifest<Goal>(
       (current) => {
         const id = uniqueGoalId(slugifyGoalName(parsed.name), current.goals)
@@ -144,6 +192,8 @@ export async function POST(req: NextRequest) {
           dueDate: parsed.dueDate?.trim() || undefined,
           createdAt: now,
           updatedAt: now,
+          discussionId: discussionRef?.id,
+          discussionNumber: discussionRef?.number,
         }
         return {
           next: { version: 1, goals: [...current.goals, newGoal] },

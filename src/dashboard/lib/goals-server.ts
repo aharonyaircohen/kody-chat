@@ -122,7 +122,9 @@ function manifestsEqual(a: GoalsManifest, b: GoalsManifest): boolean {
       (ga.description ?? null) !== (gb.description ?? null) ||
       (ga.dueDate ?? null) !== (gb.dueDate ?? null) ||
       ga.createdAt !== gb.createdAt ||
-      (ga.updatedAt ?? null) !== (gb.updatedAt ?? null)
+      (ga.updatedAt ?? null) !== (gb.updatedAt ?? null) ||
+      (ga.discussionId ?? null) !== (gb.discussionId ?? null) ||
+      (ga.discussionNumber ?? null) !== (gb.discussionNumber ?? null)
     ) {
       return false
     }
@@ -151,13 +153,13 @@ export interface MutationOutcome<T> {
   issueNumber: number
 }
 
+export type MutatorReturn<T> =
+  | { next: GoalsManifest; result: T }
+  | { kind: 'noop'; result: T }
+
 export type Mutator<T> = (
   current: GoalsManifest,
-) =>
-  | { next: GoalsManifest; result: T }
-  | Promise<{ next: GoalsManifest; result: T }>
-  | { kind: 'noop'; result: T }
-  | Promise<{ kind: 'noop'; result: T }>
+) => MutatorReturn<T> | Promise<MutatorReturn<T>>
 
 /**
  * Read the manifest fresh, run the mutator to compute the next state, write

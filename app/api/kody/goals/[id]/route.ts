@@ -19,8 +19,14 @@ import {
 import {
   setGitHubContext,
   clearGitHubContext,
+  updateGoalDiscussion,
+  closeGoalDiscussion,
 } from '@dashboard/lib/github-client'
-import { type Goal, type GoalsManifest } from '@dashboard/lib/goals'
+import {
+  type Goal,
+  type GoalsManifest,
+  goalDiscussionSeedBody,
+} from '@dashboard/lib/goals'
 import { mutateGoalsManifest } from '@dashboard/lib/goals-server'
 
 function mapGithubError(error: any, fallback: string, status = 500) {
@@ -107,6 +113,27 @@ export async function PATCH(
     if (!result.ok) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 })
     }
+    // Mirror name/description/dueDate changes into the backing discussion if
+    // one exists. Failures are non-fatal — the goal is already updated and
+    // the next visit can resync via lazy-create / manual edit.
+    if (result.goal.discussionId) {
+      try {
+        await updateGoalDiscussion(
+          {
+            discussionId: result.goal.discussionId,
+            title: `Goal: ${result.goal.name}`,
+            body: goalDiscussionSeedBody({
+              name: result.goal.name,
+              description: result.goal.description,
+              dueDate: result.goal.dueDate,
+            }),
+          },
+          userOctokit ?? undefined,
+        )
+      } catch (discErr) {
+        console.warn('[Goals] updateGoalDiscussion failed (non-fatal):', discErr)
+      }
+    }
     return NextResponse.json({ goal: result.goal })
   } catch (error: any) {
     console.error('[Goals] Error updating goal:', error)
@@ -123,7 +150,7 @@ export async function PATCH(
 }
 
 type DeleteOutcome =
-  | { ok: true }
+  | { ok: true; discussionId?: string }
   | { ok: false; reason: 'not_found' }
 
 export async function DELETE(
@@ -148,12 +175,16 @@ export async function DELETE(
 
     const outcome = await mutateGoalsManifest<DeleteOutcome>(
       (current) => {
+        const removed = current.goals.find((g) => g.id === id)
         const nextGoals = current.goals.filter((g) => g.id !== id)
         if (nextGoals.length === current.goals.length) {
           return { kind: 'noop' as const, result: { ok: false, reason: 'not_found' } as const }
         }
         const next: GoalsManifest = { version: 1, goals: nextGoals }
-        return { next, result: { ok: true } }
+        return {
+          next,
+          result: { ok: true, discussionId: removed?.discussionId },
+        }
       },
       { userOctokit: userOctokit ?? undefined },
     )
@@ -162,6 +193,14 @@ export async function DELETE(
       'kind' in outcome ? outcome.result : (outcome.result as DeleteOutcome)
     if (!result.ok) {
       return NextResponse.json({ error: 'not_found' }, { status: 404 })
+    }
+    // Close the backing discussion to preserve history (never delete).
+    if (result.discussionId) {
+      try {
+        await closeGoalDiscussion(result.discussionId, userOctokit ?? undefined)
+      } catch (discErr) {
+        console.warn('[Goals] closeGoalDiscussion failed (non-fatal):', discErr)
+      }
     }
     return NextResponse.json({ success: true })
   } catch (error: any) {

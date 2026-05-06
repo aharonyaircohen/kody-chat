@@ -12,6 +12,8 @@ import { toast } from 'sonner'
 import {
   kodyApi,
   type Goal,
+  type GoalDiscussionComment,
+  type GoalDiscussionPayload,
   NoTokenError,
   SessionExpiredError,
   getStoredAuth,
@@ -19,6 +21,8 @@ import {
 
 export const goalQueryKeys = {
   list: ['kody-goals'] as const,
+  capabilities: ['kody-goals', 'capabilities'] as const,
+  discussion: (id: string) => ['kody-goals', 'discussion', id] as const,
 }
 
 export function useGoals() {
@@ -31,6 +35,72 @@ export function useGoals() {
       if (error instanceof SessionExpiredError) return false
       if (error instanceof NoTokenError) return false
       return failureCount < 2
+    },
+  })
+}
+
+/**
+ * Fetches the goals list along with capability flags (e.g. discussionsEnabled).
+ * Separate query key so the simple `useGoals()` consumers don't see the
+ * extra payload, and so the cap query can have a longer stale time.
+ */
+export function useGoalsCapabilities() {
+  return useQuery({
+    queryKey: goalQueryKeys.capabilities,
+    queryFn: () => kodyApi.goals.listWithCapabilities(),
+    enabled: !!getStoredAuth(),
+    staleTime: 5 * 60_000,
+    retry: (failureCount, error) => {
+      if (error instanceof SessionExpiredError) return false
+      if (error instanceof NoTokenError) return false
+      return failureCount < 2
+    },
+  })
+}
+
+/**
+ * Discussion thread for a single goal. Lazy-creates the backing GitHub
+ * Discussion on first read if the repo supports it. Returns `enabled: false`
+ * with a reason when the thread can't be provisioned.
+ */
+export function useGoalDiscussion(goalId: string | null) {
+  return useQuery<GoalDiscussionPayload>({
+    queryKey: goalId ? goalQueryKeys.discussion(goalId) : ['kody-goals', 'discussion', '__none__'],
+    queryFn: () => kodyApi.goals.fetchDiscussion(goalId!),
+    enabled: !!goalId && !!getStoredAuth(),
+    // Comments cache 60s on the server too — match here so stale UI doesn't
+    // pile on extra GraphQL hits.
+    staleTime: 60_000,
+    retry: (failureCount, error) => {
+      if (error instanceof SessionExpiredError) return false
+      if (error instanceof NoTokenError) return false
+      return failureCount < 2
+    },
+  })
+}
+
+export function usePostGoalDiscussionComment(
+  goalId: string,
+  actorLogin?: string,
+) {
+  const queryClient = useQueryClient()
+  return useMutation<GoalDiscussionComment, Error, string>({
+    mutationFn: (body) =>
+      kodyApi.goals.postDiscussionComment(goalId, body, actorLogin),
+    onSuccess: (created) => {
+      queryClient.setQueryData<GoalDiscussionPayload>(
+        goalQueryKeys.discussion(goalId),
+        (prev) => {
+          if (!prev) return prev
+          if (!prev.enabled) return prev
+          if (prev.comments.some((c) => c.id === created.id)) return prev
+          return { ...prev, comments: [...prev.comments, created] }
+        },
+      )
+      queryClient.invalidateQueries({ queryKey: goalQueryKeys.discussion(goalId) })
+    },
+    onError: (error) => {
+      toast.error('Failed to post comment', { description: error.message })
     },
   })
 }

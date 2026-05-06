@@ -32,6 +32,7 @@ import {
   invalidateBranchCache,
   invalidateWorkflowCache,
   invalidatePRBehindCache,
+  invalidateDiscussionCache,
 } from "@dashboard/lib/github-client";
 import { getClientIp, isFromGitHub } from "@dashboard/lib/webhooks/github-ip";
 import { logger } from "@dashboard/lib/logger";
@@ -106,6 +107,20 @@ function dispatch(event: string, payload: unknown): { handled: boolean; detail: 
       // A push to base branch makes every open PR potentially behind; clear
       // the per-PR behind-by cache so the Preview Sync button updates.
       invalidatePRBehindCache();
+      return { handled: true, detail: event };
+
+    case "discussion":
+    case "discussion_comment":
+      // New comment on a goal-backing discussion → wipe both the comment
+      // cache and the meta cache (the discussion event payload doesn't carry
+      // the discussion number, and the meta is cheap to refetch).
+      invalidateDiscussionCache();
+      return { handled: true, detail: event };
+
+    case "repository":
+      // Repo capabilities (Discussions toggled, categories renamed) may have
+      // changed. Drop the cached meta so the next read re-checks GitHub.
+      invalidateDiscussionCache();
       return { handled: true, detail: event };
 
     default:

@@ -849,6 +849,50 @@ export interface Goal {
   dueDate?: string;
   createdAt: string;
   updatedAt?: string;
+  discussionId?: string;
+  discussionNumber?: number;
+}
+
+export interface GoalDiscussionAuthor {
+  login: string;
+  avatarUrl?: string;
+}
+
+export interface GoalDiscussionComment {
+  id: string;
+  databaseId: number;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+  url: string;
+  author: GoalDiscussionAuthor | null;
+}
+
+/**
+ * Reasons the discussion thread is unavailable. Used by the UI to render
+ * the appropriate badge / tooltip.
+ */
+export type DiscussionDisabledReason =
+  | "discussions_disabled"
+  | "category_missing"
+  | "provision_failed";
+
+export type GoalDiscussionPayload =
+  | {
+      enabled: true;
+      discussion: { id: string; number: number; url: string };
+      comments: GoalDiscussionComment[];
+    }
+  | {
+      enabled: false;
+      reason: DiscussionDisabledReason;
+      message?: string;
+      comments: never[];
+    };
+
+export interface GoalsListResponse {
+  goals: Goal[];
+  capabilities?: { discussionsEnabled: boolean };
 }
 
 export const goalsApi = {
@@ -859,6 +903,54 @@ export const goalsApi = {
     });
     const data = await handleResponse<{ goals: Goal[] }>(res);
     return data.goals;
+  },
+
+  /**
+   * List goals along with capability flags (e.g. whether the repo has
+   * Discussions enabled). The dashboard uses the capability to decide
+   * whether to render the discussion thread or the "off" badge.
+   */
+  listWithCapabilities: async (): Promise<GoalsListResponse> => {
+    const res = await fetch(`${API_BASE}/goals`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
+    return handleResponse<GoalsListResponse>(res);
+  },
+
+  fetchDiscussion: async (
+    id: string,
+  ): Promise<GoalDiscussionPayload> => {
+    const res = await fetch(
+      `${API_BASE}/goals/${encodeURIComponent(id)}/discussion`,
+      {
+        headers: buildHeaders(),
+        cache: "no-store",
+      },
+    );
+    return handleResponse<GoalDiscussionPayload>(res);
+  },
+
+  postDiscussionComment: async (
+    id: string,
+    body: string,
+    actorLogin?: string,
+  ): Promise<GoalDiscussionComment> => {
+    const res = await fetch(
+      `${API_BASE}/goals/${encodeURIComponent(id)}/discussion`,
+      {
+        method: "POST",
+        headers: buildHeaders(),
+        body: JSON.stringify({
+          body,
+          ...(actorLogin && { actorLogin }),
+        }),
+      },
+    );
+    const payload = await handleResponse<{ comment: GoalDiscussionComment }>(
+      res,
+    );
+    return payload.comment;
   },
 
   create: async (data: {

@@ -22,6 +22,15 @@ export interface Goal {
   dueDate?: string
   createdAt: string
   updatedAt?: string
+  /**
+   * GraphQL node ID of the backing GitHub Discussion that hosts this goal's
+   * comment thread. Optional — only populated when the repo has Discussions
+   * enabled and a "Goals" category exists. When missing, the UI shows a
+   * "Discussions off" badge instead of a thread.
+   */
+  discussionId?: string
+  /** Numeric discussion number (for the github.com URL). */
+  discussionNumber?: number
 }
 
 export interface GoalsManifest {
@@ -71,6 +80,14 @@ export function parseManifestBody(body: string | null | undefined): GoalsManifes
         dueDate: g.dueDate,
         createdAt: g.createdAt ?? new Date().toISOString(),
         updatedAt: g.updatedAt,
+        discussionId:
+          typeof (g as Goal).discussionId === 'string'
+            ? (g as Goal).discussionId
+            : undefined,
+        discussionNumber:
+          typeof (g as Goal).discussionNumber === 'number'
+            ? (g as Goal).discussionNumber
+            : undefined,
       }))
     return { version: 1, goals }
   } catch {
@@ -93,6 +110,26 @@ export function slugifyGoalName(name: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 60)
   return slug || 'goal'
+}
+
+/**
+ * Seed body posted to the backing GitHub Discussion so the thread has a
+ * meaningful first post (otherwise GitHub shows "(no body)" until the first
+ * comment lands). Mirrors the goal's name, description, and due date.
+ */
+export function goalDiscussionSeedBody(args: {
+  name: string
+  description?: string
+  dueDate?: string
+}): string {
+  const lines: string[] = [`# ${args.name}`]
+  if (args.dueDate) lines.push(`> Due ${args.dueDate}`)
+  lines.push('')
+  if (args.description?.trim()) lines.push(args.description.trim())
+  else lines.push('_No description yet — edit the goal in the dashboard to update this thread._')
+  lines.push('')
+  lines.push('<sub>Comments here are mirrored into the Kody dashboard goal panel.</sub>')
+  return lines.join('\n')
 }
 
 export function uniqueGoalId(base: string, existing: Goal[]): string {
