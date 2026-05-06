@@ -37,6 +37,7 @@ import {
   usePostGoalDiscussionComment,
 } from '../hooks/useGoals'
 import { useGitHubIdentity } from '../hooks/useGitHubIdentity'
+import { kodyApi } from '../api'
 import type {
   DiscussionDisabledReason,
   GoalDiscussionComment,
@@ -250,18 +251,50 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const { githubUser } = useGitHubIdentity()
 
-  // @mention autofill — same backing endpoint as the issue CommentEditor.
+  // @mention autofill — uses the typed kodyApi client (which forwards the
+  // localStorage auth headers). Plain `fetch` falls back to the bot token,
+  // which isn't a collaborator on per-user repos and gets 403 → empty list.
   const [mentions, setMentions] = useState<Mention[]>([])
   const [mentionQuery, setMentionQuery] = useState('')
   const [showMentions, setShowMentions] = useState(false)
   const [selectedMentionIndex, setSelectedMentionIndex] = useState(0)
 
   useEffect(() => {
-    fetch('/api/kody/collaborators')
-      .then((res) => res.json())
-      .then((data) => setMentions(data.collaborators || []))
-      .catch(console.error)
-  }, [])
+    let cancelled = false
+    kodyApi.collaborators
+      .list()
+      .then((collabs) => {
+        if (cancelled) return
+        // Always include the signed-in user so they can self-mention even
+        // if the collaborators list is empty (private repos / bot-only token).
+        const merged: Mention[] = [...collabs]
+        if (
+          githubUser?.login &&
+          !merged.some((m) => m.login === githubUser.login)
+        ) {
+          merged.unshift({
+            login: githubUser.login,
+            avatar_url: githubUser.avatar_url ?? '',
+          })
+        }
+        setMentions(merged)
+      })
+      .catch((err) => {
+        console.warn('[GoalDiscussion] collaborators load failed', err)
+        // Still allow self-mention.
+        if (githubUser?.login) {
+          setMentions([
+            {
+              login: githubUser.login,
+              avatar_url: githubUser.avatar_url ?? '',
+            },
+          ])
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [githubUser?.login, githubUser?.avatar_url])
 
   const filteredMentions = mentions
     .filter((m) =>
@@ -475,31 +508,52 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
               className="resize-none text-sm"
             />
 
-            {showMentions && filteredMentions.length > 0 ? (
+            {showMentions ? (
               // Float above the textarea — inside a modal with vertical
               // overflow, dropping below clips the list. Bottom-anchored
               // also keeps the cursor-character relationship intuitive.
-              <div className="absolute bottom-full left-0 mb-1 z-50 w-64 max-h-48 overflow-y-auto border border-border rounded-md shadow-lg bg-popover">
-                {filteredMentions.map((mention, index) => (
-                  <button
-                    key={mention.login}
-                    type="button"
-                    onClick={() => selectMention(mention)}
-                    className={cn(
-                      'w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-accent',
-                      index === selectedMentionIndex && 'bg-accent',
-                    )}
-                  >
-                    <Image
-                      src={mention.avatar_url}
-                      alt={mention.login}
-                      width={24}
-                      height={24}
-                      className="rounded-full"
-                    />
-                    <span className="text-sm">{mention.login}</span>
-                  </button>
-                ))}
+              <div className="absolute bottom-full left-0 mb-1 z-50 w-72 max-h-48 overflow-y-auto border border-border rounded-md shadow-lg bg-popover">
+                {filteredMentions.length > 0 ? (
+                  filteredMentions.map((mention, index) => (
+                    <button
+                      key={mention.login}
+                      type="button"
+                      onClick={() => selectMention(mention)}
+                      className={cn(
+                        'w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-accent',
+                        index === selectedMentionIndex && 'bg-accent',
+                      )}
+                    >
+                      {mention.avatar_url ? (
+                        <Image
+                          src={mention.avatar_url}
+                          alt={mention.login}
+                          width={24}
+                          height={24}
+                          className="rounded-full"
+                        />
+                      ) : (
+                        <span className="w-6 h-6 rounded-full bg-muted flex items-center justify-center text-xs text-muted-foreground">
+                          {mention.login[0]?.toUpperCase()}
+                        </span>
+                      )}
+                      <span className="text-sm">{mention.login}</span>
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-3 py-3 text-xs text-muted-foreground space-y-1">
+                    <div>
+                      No matches for{' '}
+                      <code className="font-mono bg-muted px-1 rounded">
+                        @{mentionQuery}
+                      </code>
+                    </div>
+                    <div className="text-[10px] opacity-80">
+                      You can still type the full GitHub username — they&apos;ll
+                      get a notification on post.
+                    </div>
+                  </div>
+                )}
               </div>
             ) : null}
           </div>
