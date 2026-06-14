@@ -17,6 +17,10 @@ import {
   type ChatModelEntry,
 } from "@dashboard/lib/chat/agent-entries";
 import { AGENTS } from "@dashboard/lib/agents";
+import {
+  FALLBACK_REASONING,
+  resolveReasoning,
+} from "@dashboard/lib/chat/reasoning-adapter";
 
 const model = (
   over: Partial<ChatModelEntry> & { id: string },
@@ -76,7 +80,8 @@ describe("buildAgentList", () => {
       model({ id: "claude-y", label: "Claude Y", enabled: true }),
     ]);
     const byKey = new Map(list.map((e) => [e.key, e]));
-    expect(byKey.get("kody:gpt-x")).toEqual({
+    const gptX = byKey.get("kody:gpt-x");
+    expect(gptX).toMatchObject({
       key: "kody:gpt-x",
       agentId: "kody",
       modelId: "gpt-x",
@@ -84,7 +89,13 @@ describe("buildAgentList", () => {
       description: "gpt-x",
       icon: AGENTS.kody.icon,
     });
-    expect(byKey.get("kody:claude-y")).toEqual({
+    expect(gptX?.reasoning).toEqual(FALLBACK_REASONING);
+    expect(gptX?.reasoning).toEqual(
+      resolveReasoning({ id: "gpt-x", label: "GPT X" }),
+    );
+
+    const claudeY = byKey.get("kody:claude-y");
+    expect(claudeY).toMatchObject({
       key: "kody:claude-y",
       agentId: "kody",
       modelId: "claude-y",
@@ -92,6 +103,10 @@ describe("buildAgentList", () => {
       description: "claude-y",
       icon: AGENTS.kody.icon,
     });
+    expect(claudeY?.reasoning).toEqual(
+      resolveReasoning({ id: "claude-y", label: "Claude Y" }),
+    );
+
     expect(byKey.has("kody:off")).toBe(false);
   });
 
