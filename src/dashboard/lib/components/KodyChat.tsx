@@ -88,7 +88,7 @@ import {
 import {
   chatToMessage,
   messageToChat,
-  ISSUE_CREATION_TOOL_NAMES,
+  getCreatedIssueNumberFromToolOutput,
   type Message,
   type ToolCall,
   type Attachment,
@@ -933,6 +933,12 @@ export function KodyChat({
   const activeSessionHasLiveTerminal = terminalRegistry.hasLiveTerminal(
     activeSessionIdForReset,
   );
+  const terminalStatusLabel =
+    activeTerminalConnectionState === "connected"
+      ? "On"
+      : activeTerminalConnectionState === "connecting"
+        ? "Starting"
+        : "Off";
   const [localSandboxes, setLocalSandboxes] = useState<LocalSandboxSummary[]>(
     [],
   );
@@ -2998,21 +3004,10 @@ export function KodyChat({
                   // they'd falsely flag a creation and the post-stream
                   // handler would wipe the whole session. Creation is only
                   // ever one of our whitelisted tools, so require the name.
-                  if (
-                    name &&
-                    ISSUE_CREATION_TOOL_NAMES.has(name) &&
-                    chunk.output &&
-                    typeof chunk.output === "object" &&
-                    "number" in chunk.output
-                  ) {
-                    const out = chunk.output as { number?: unknown };
-                    const isIssueNumber =
-                      typeof out.number === "number" &&
-                      Number.isInteger(out.number) &&
-                      out.number > 0;
-                    if (isIssueNumber) {
-                      pendingCreatedIssue = out.number as number;
-                    }
+                  const createdIssueNumber =
+                    getCreatedIssueNumberFromToolOutput(name, chunk.output);
+                  if (createdIssueNumber !== null) {
+                    pendingCreatedIssue = createdIssueNumber;
                   }
                   void name;
                   // Flip the matching running chip to "success".
@@ -5660,10 +5655,29 @@ export function KodyChat({
                 }`}
                 aria-pressed={chatMode === "terminal"}
                 title="Terminal"
-                aria-label="Terminal"
+                aria-label={`Terminal ${terminalStatusLabel}`}
               >
                 <SquareTerminal className="w-3.5 h-3.5" aria-hidden="true" />
-                {activeSessionHasLiveTerminal && chatMode === "ai" && (
+                <span
+                  className={`text-[10px] font-semibold uppercase leading-none ${
+                    activeTerminalConnectionState === "connected"
+                      ? chatMode === "terminal"
+                        ? "text-primary-foreground"
+                        : "text-emerald-600"
+                      : activeTerminalConnectionState === "connecting"
+                        ? chatMode === "terminal"
+                          ? "text-primary-foreground"
+                          : "text-amber-600"
+                        : chatMode === "terminal"
+                          ? "text-primary-foreground/80"
+                          : "text-muted-foreground"
+                  }`}
+                >
+                  {terminalStatusLabel}
+                </span>
+                {activeSessionHasLiveTerminal &&
+                  chatMode === "ai" &&
+                  activeTerminalConnectionState === "connected" && (
                   <span
                     className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500"
                     aria-hidden="true"

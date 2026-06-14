@@ -200,3 +200,20 @@ export const ISSUE_CREATION_TOOL_NAMES = new Set<string>([
   "create_chore",
   "report_bug",
 ]);
+
+export function getCreatedIssueNumberFromToolOutput(
+  toolName: string | undefined,
+  output: unknown,
+): number | null {
+  if (!toolName || !ISSUE_CREATION_TOOL_NAMES.has(toolName)) {
+    return null;
+  }
+  if (!output || typeof output !== "object" || !("number" in output)) {
+    return null;
+  }
+
+  const number = (output as { number?: unknown }).number;
+  return typeof number === "number" && Number.isInteger(number) && number > 0
+    ? number
+    : null;
+}
