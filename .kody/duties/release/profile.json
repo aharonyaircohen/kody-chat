@@ -8,7 +8,7 @@
   "executables": [
     "release-prepare",
     "release-merge",
-    "release-publish",
-    "release-deploy"
+    "release-tag",
+    "release-promote"
   ]
 }
