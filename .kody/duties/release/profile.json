@@ -2,6 +2,7 @@
   "name": "release",
   "describe": "Release",
   "action": "release",
+  "executable": "release-prepare",
   "every": "manual",
   "staff": "kody",
   "runner": "kody",
