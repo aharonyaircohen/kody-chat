@@ -4,7 +4,10 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { loadChatDefaults, composeChatPrompt } from "@dashboard/lib/chat-defaults";
+import {
+  loadChatDefaults,
+  composeChatPrompt,
+} from "@dashboard/lib/chat-defaults";
 import {
   DEFAULT_PERSONA_MD,
   DEFAULT_EXECUTABLE,
@@ -44,6 +47,21 @@ describe("chat-defaults bundle", () => {
     for (const p of phrases) {
       expect(DEFAULT_PERSONA_MD).toContain(p);
     }
+  });
+
+  it("persona instructs the model to emit a ≤8-word status line as the first word (issue #330)", () => {
+    // The persona's status-line rule is the in-process side of the fix; the
+    // UI backstop (TypingIndicator after 800ms) lives in KodyChat.tsx and
+    // also gates on this rule. If a future refactor drops the ≤8-word cap
+    // or the "very first word" wording, the bubble flashes blank again.
+    expect(DEFAULT_PERSONA_MD).toContain(
+      "Emit a status line as the very first word",
+    );
+    expect(DEFAULT_PERSONA_MD).toContain("≤8 words");
+    // Example phrases the user sees in the wild — drift here is a regression.
+    expect(DEFAULT_PERSONA_MD).toContain("Reading the repo");
+    expect(DEFAULT_PERSONA_MD).toContain("Checking PR #315");
+    expect(DEFAULT_PERSONA_MD).toContain("Looking at the chat route");
   });
 
   it("exposes 4 duties — kody-analyzer, kody-operator, kody-vibe, kody-mem", () => {

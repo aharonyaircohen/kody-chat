@@ -42,7 +42,11 @@ import {
   Unplug,
 } from "lucide-react";
 import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
-import { buildAgentList, type ChatDropdownEntry, type ChatModelEntry } from "../chat/agent-entries";
+import {
+  buildAgentList,
+  type ChatDropdownEntry,
+  type ChatModelEntry,
+} from "../chat/agent-entries";
 import { readDefaultChatEntry } from "../chat/default-entry";
 import {
   readReasoningEffort,
@@ -589,7 +593,9 @@ export function KodyChat({
       if (entry) return entry;
     }
     return (
-      agentList.find((e) => e.key === "kody-live-fly" || e.key === "kody-live") ??
+      agentList.find(
+        (e) => e.key === "kody-live-fly" || e.key === "kody-live",
+      ) ??
       agentList[0] ??
       null
     );
@@ -885,8 +891,7 @@ export function KodyChat({
     const session = sessionHook.activeSession;
     let targetEntry: ChatDropdownEntry | null = null;
     if (session?.agentKey) {
-      targetEntry =
-        agentList.find((e) => e.key === session.agentKey) ?? null;
+      targetEntry = agentList.find((e) => e.key === session.agentKey) ?? null;
       if (!targetEntry) {
         targetEntry = familySnap(session.agentKey);
       }
@@ -1289,6 +1294,25 @@ export function KodyChat({
     [sessionHook],
   );
   const activeLoading = messages.some((m) => m.isLoading);
+
+  // 800ms grace period for the typing indicator (issue #330). The persona
+  // tells the model to emit a short status line (≤8 words) as the very first
+  // word of every reply so the bubble is never blank. The grace timer is the
+  // UI backstop for that prompt — if the model is still silent after 800ms
+  // (engine first-byte lag, slow cold start, no status line), we surface the
+  // existing TypingIndicator. The moment the first visible token lands, the
+  // per-bubble `!hasAnswer` check hides it again. Resets on every new turn
+  // (any change in `activeLoading`).
+  const [showTypingAfterGrace, setShowTypingAfterGrace] = useState(false);
+  useEffect(() => {
+    if (!activeLoading) {
+      setShowTypingAfterGrace(false);
+      return;
+    }
+    setShowTypingAfterGrace(false);
+    const t = setTimeout(() => setShowTypingAfterGrace(true), 800);
+    return () => clearTimeout(t);
+  }, [activeLoading]);
 
   const addTerminalContextToChat = useCallback(
     (context: string) => {
@@ -4806,7 +4830,9 @@ export function KodyChat({
                     // users who expect a "new chat" to start where the
                     // last one left off.
                     const seed = currentEntry?.key;
-                    sessionHook.createSession(seed ? { agentKey: seed } : undefined);
+                    sessionHook.createSession(
+                      seed ? { agentKey: seed } : undefined,
+                    );
                     setToolCalls([]);
                   }}
                   disabled={activeLoading}
@@ -5255,11 +5281,18 @@ export function KodyChat({
                               )}
                               {/* Never a blank bubble: while the turn is in flight and
                             no visible answer text has arrived yet, show the
-                            thinking indicator. Covers the reasoning-only /
-                            tool-call phase where content is just <think> blocks. */}
-                              {isActive && !hasAnswer && (
-                                <TypingIndicator label={currentAgent.name} />
-                              )}
+                            thinking indicator — but only after the 800ms grace
+                            timer (issue #330). The persona's status-line rule
+                            should already have given the model a chance to
+                            emit a first-line within that window; the indicator
+                            is the backstop for when it didn't. Covers the
+                            reasoning-only / tool-call phase where content is
+                            just <think> blocks. */}
+                              {isActive &&
+                                showTypingAfterGrace &&
+                                !hasAnswer && (
+                                  <TypingIndicator label={currentAgent.name} />
+                                )}
                             </>
                           );
                         })()}
@@ -5294,9 +5327,13 @@ export function KodyChat({
 
           {/* Typing indicator shown before an assistant placeholder exists.
             Covers the Kody-engine first-byte window where the placeholder is
-            only pushed once the first SSE event arrives. */}
+            only pushed once the first SSE event arrives. Gated on the same
+            800ms grace timer as the in-bubble indicator (#330) so a fast
+            model that emits the persona's status line quickly never flashes
+            the typing bubble. */}
           {chatMode === "ai" &&
             activeLoading &&
+            showTypingAfterGrace &&
             messages.length > 0 &&
             messages[messages.length - 1]?.role === "user" && (
               <div className="flex justify-start">
