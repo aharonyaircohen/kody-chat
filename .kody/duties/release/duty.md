@@ -2,7 +2,7 @@
 
 ## Job
 
-Trigger the four-stage release container. Chains release-prepare, release-merge, release-publish, release-deploy in order via the engine's task-jobs mechanism.
+Trigger the four-stage release container. Chains release-prepare, release-merge, release-tag, release-promote in order via the engine's task-jobs mechanism.
 
 ## Executables
 
@@ -10,8 +10,8 @@ This duty runs the following executables in order:
 
 - `release-prepare`
 - `release-merge`
-- `release-publish`
-- `release-deploy`
+- `release-tag`
+- `release-promote`
 
 Each executable's skills and scripts own its implementation details.
 
@@ -19,8 +19,8 @@ Each executable's skills and scripts own its implementation details.
 
 - Run the `release-prepare` executable.
 - Run the `release-merge` executable.
-- Run the `release-publish` executable.
-- Run the `release-deploy` executable.
+- Run the `release-tag` executable.
+- Run the `release-promote` executable.
 
 ## Restrictions
 
