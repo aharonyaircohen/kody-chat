@@ -26,11 +26,28 @@ describe("release executable config", () => {
   it("keeps the four release skills inside the single executable", () => {
     const profile = readJson<{
       name: string;
+      inputs: Array<{ name: string; flag: string; type: string }>;
       claudeCode: { skills: string[] };
       scripts: { preflight: Array<Record<string, string>> };
     }>(".kody/executables/release/profile.json");
 
     expect(profile.name).toBe("release");
+    expect(profile.inputs).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "issue", flag: "--issue", type: "int" }),
+        expect.objectContaining({ name: "bump", flag: "--bump", type: "enum" }),
+        expect.objectContaining({
+          name: "dry-run",
+          flag: "--dry-run",
+          type: "bool",
+        }),
+        expect.objectContaining({
+          name: "prefer",
+          flag: "--prefer",
+          type: "enum",
+        }),
+      ]),
+    );
     expect(profile.claudeCode.skills).toEqual([
       "release-prepare",
       "release-merge",
