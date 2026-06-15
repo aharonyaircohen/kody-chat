@@ -14,6 +14,7 @@ import {
   Boxes,
   Brain,
   Building2,
+  CheckCircle2,
   Cpu,
   FileText,
   FolderOpen,
@@ -124,6 +125,15 @@ export const PRIMARY_VIEW_ITEMS: readonly SettingsNavItem[] = [
 export const PRIMARY_NAV_TITLE = "Workspace" as const;
 
 export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
+  {
+    href: "/todos",
+    label: "Todos",
+    icon: CheckCircle2,
+    description:
+      "Repo worklist — lightweight action items Kody should keep visible.",
+    tint: "text-emerald-300 bg-emerald-500/10",
+  },
+
   {
     href: "/messages",
     label: "Messages",
