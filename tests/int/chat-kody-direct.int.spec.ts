@@ -153,9 +153,10 @@ describe("POST /api/kody/chat/kody", () => {
     // Regression: model used to ignore ## Current task / Current duty /
     // Current page / Goals / Remembered context blocks and answer as if it
     // were a fresh session. Hard rule #2 now explicitly grounds answers
-    // in those blocks.
-    const { AGENT_KODY } = await import("../../src/dashboard/lib/agents");
-    const prompt = AGENT_KODY.systemPrompt;
+    // in those blocks. Prompt lives in the chat-defaults bundle persona.
+    const { loadChatDefaults } =
+      await import("../../src/dashboard/lib/chat-defaults");
+    const prompt = (await loadChatDefaults("acme", "repo")).persona;
     expect(prompt).toMatch(/injected context block/i);
     expect(prompt).toMatch(/do NOT re-ask for facts the block already states/i);
     expect(prompt).toContain("## Current task");
@@ -169,9 +170,11 @@ describe("POST /api/kody/chat/kody", () => {
   it("base kody prompt requires prose to match the tool result, with 'my read:' for inferences", async () => {
     // Regression: model used to read a tool result and then write a
     // confident summary that drifted. Hard rule #1 now requires the
-    // prose to match the tool result and to prefix inferences.
-    const { AGENT_KODY } = await import("../../src/dashboard/lib/agents");
-    const prompt = AGENT_KODY.systemPrompt;
+    // prose to match the tool result and to prefix inferences. Prompt
+    // lives in the chat-defaults bundle persona.
+    const { loadChatDefaults } =
+      await import("../../src/dashboard/lib/chat-defaults");
+    const prompt = (await loadChatDefaults("acme", "repo")).persona;
     expect(prompt).toMatch(/Your prose must match the tool result/i);
     expect(prompt).toContain("my read:");
   });
@@ -180,9 +183,10 @@ describe("POST /api/kody/chat/kody", () => {
     // Regression: model used to close replies with no follow-up and start
     // with "Great question!" / "Sure!". Hard rule #5 now requires a
     // forward-driving question on every reply and bans a specific list of
-    // sycophantic openers.
-    const { AGENT_KODY } = await import("../../src/dashboard/lib/agents");
-    const prompt = AGENT_KODY.systemPrompt;
+    // sycophantic openers. Prompt lives in the chat-defaults bundle persona.
+    const { loadChatDefaults } =
+      await import("../../src/dashboard/lib/chat-defaults");
+    const prompt = (await loadChatDefaults("acme", "repo")).persona;
     expect(prompt).toMatch(/Always end with a forward-driving question/i);
     for (const banned of [
       "Great question",
@@ -203,26 +207,39 @@ describe("POST /api/kody/chat/kody", () => {
   it("base kody prompt disambiguates dispatch from 'implement this' and enumerates the full read-tool catalog", async () => {
     // Regression: model sometimes called kody_run_issue in response to
     // "implement X" (a request for change, not a dispatch ask). Tool
-    // policy now spells out the disambiguation. Also: hard rule #3's
-    // read-tools list now covers the 4 discovery tools that were missing.
-    const { AGENT_KODY } = await import("../../src/dashboard/lib/agents");
-    const prompt = AGENT_KODY.systemPrompt;
+    // policy now spells out the disambiguation. Also: the persona's
+    // read-tools list must match the chat registry's actual tool names —
+    // phantom tools in the prompt cause the model to call non-existent
+    // tools and hallucinate the result. Prompt lives in the chat-defaults
+    // bundle persona.
+    const { loadChatDefaults } =
+      await import("../../src/dashboard/lib/chat-defaults");
+    const prompt = (await loadChatDefaults("acme", "repo")).persona;
     expect(prompt).toMatch(/Disambiguate dispatch vs\. create-issue/i);
     expect(prompt).toMatch(/implement this/i);
     expect(prompt).toMatch(/requests for change/i);
     expect(prompt).toMatch(/do NOT auto-dispatch/i);
-    expect(prompt).toContain("github_get_pull_request_files");
-    expect(prompt).toContain("github_list_branches");
-    expect(prompt).toContain("github_get_commit");
-    expect(prompt).toContain("github_get_tree");
+    // The 4 read tools the model must know it can call.
+    expect(prompt).toContain("github_search_code");
+    expect(prompt).toContain("github_get_file");
+    expect(prompt).toContain("github_list_tree");
+    expect(prompt).toContain("github_blame");
+    expect(prompt).toContain("github_commits_for_path");
+    expect(prompt).toContain("github_get_pull_request");
   });
 
   it("base kody prompt memory section: full tool list, write freely during bootstrap", async () => {
     // Regression: memory section used to only mention `recall`, and the
     // bootstrap rule ("wait until 5+ memories exist") prevented growth.
     // Section now lists all 5 memory tools and inverts the bootstrap.
-    const { AGENT_KODY } = await import("../../src/dashboard/lib/agents");
-    const prompt = AGENT_KODY.systemPrompt;
+    // The memory section lives in the `memory` skill of the chat-defaults
+    // bundle (extracted out of the persona).
+    const { loadChatDefaults } =
+      await import("../../src/dashboard/lib/chat-defaults");
+    const bundle = await loadChatDefaults("acme", "repo");
+    const prompt = `${bundle.persona}\n${Object.values(bundle.skills)
+      .map((s) => s.body)
+      .join("\n")}`;
     expect(prompt).toMatch(/recall_search/);
     expect(prompt).toMatch(/list_memories/);
     expect(prompt).toMatch(/update_memory/);

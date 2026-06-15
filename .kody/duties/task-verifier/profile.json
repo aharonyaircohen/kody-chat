@@ -1,0 +1,12 @@
+{
+  "name": "task-verifier",
+  "describe": "Task Verifier",
+  "action": "task-verifier",
+  "executable": "task-verifier",
+  "every": "1h",
+  "staff": "kody",
+  "runner": "kody",
+  "backlogScopeRule": "open issues with zero labels",
+  "sortOrder": "oldest first",
+  "onePerTick": "true"
+}

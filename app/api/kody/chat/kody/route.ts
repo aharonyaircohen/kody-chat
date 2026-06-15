@@ -21,7 +21,13 @@
 
 import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { streamText, stepCountIs, type ModelMessage } from "ai";
+import {
+  streamText,
+  stepCountIs,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  type ModelMessage,
+} from "ai";
 import {
   AGENT_KODY,
   getAgent,
@@ -49,6 +55,13 @@ import {
   type DutyContext,
   type TaskContext,
 } from "./system-prompt";
+import {
+  loadChatDefaults,
+  composeBasePrompt,
+  filterToolsByAllowlist,
+  buildToolIndex,
+  CRITICAL_REMINDERS_MD,
+} from "@dashboard/lib/chat-defaults";
 import { createGitHubTools } from "../tools/github-tools";
 import { createPipelineTools } from "../tools/pipeline-tools";
 import { createRemoteTools } from "../tools/remote-tools";
@@ -571,40 +584,16 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const assembledPrompt = buildSystemPrompt(
-    agent.systemPrompt,
-    repo ? { owner: repo.owner, repo: repo.repo } : null,
-    body.task,
-    {
-      duty: body.duty,
-      goalPlanner: goalPlannerActive,
-      goal: goalPlannerActive ? body.goal : undefined,
-      report: body.report,
-      currentPage: body.currentPage,
-      memoryIndex,
-      vibeMode,
-      flyConfigured,
-      userInstructions,
-      context,
-    },
-  );
+  // Load the chat defaults bundle — persona + executable + duties + skills.
+  // The bundle is the source of truth for the chat's prompt base + tool
+  // allowlist. Repo-stored with a TS fallback; step 1 returns TS defaults.
+  const chatBundle = await loadChatDefaults(repo?.owner, repo?.repo);
 
-  // Voice modality is layered onto the FULLY-ASSEMBLED prompt, appended
-  // LAST so its rules ("no markdown, short sentences, symbols-as-words")
-  // win by recency over the research/issue-creation/memory blocks above
-  // which otherwise teach the model to reply in bullet-heavy markdown.
-  // The agent's brain and tools are untouched — the user picks the brain
-  // in the dropdown; only the output shape changes.
-  const systemPrompt = applyVoiceOverlay(assembledPrompt, voiceMode);
-
-  // Build the per-request tool set. GitHub + pipeline tools require a
-  // resolved repo; remote tools require a configured actorLogin. The
-  // built-in `fetch_url` is always wired so the model can browse links.
-  //
-  // We never wire provider-defined tools (provider-native URL context or
-  // web search, etc.) — many providers forbid combining them
-  // with custom function tools, which would silently disable everything
-  // else. `fetch_url` is the universal swap-in replacement.
+  // Build the per-request tool set FIRST. The tool list feeds into the
+  // system prompt as a `## Tool index` block (item 1 of the accuracy
+  // improvements) — the model picks the right tool from the descriptions,
+  // not by guessing from names. Tool building requires repo + actor
+  // resolution done above.
   const baseTools: Record<string, unknown> = {
     fetch_url: fetchUrlTool,
     ...featureTools,
@@ -786,7 +775,76 @@ export async function POST(req: NextRequest) {
     { ...baseTools, ...extraTools },
     { vibeMode, hasCurrentTask: body.task?.issueNumber != null },
   );
-  const tools = mergedTools as Parameters<typeof streamText>[0]["tools"];
+  // Bundle allowlist — the executable's `tools` field is the single source
+  // of truth for which tools the chat exposes. Empty list = expose all
+  // (preserves current behavior when the bundle is unconfigured).
+  const allowlistedTools = filterToolsByAllowlist(
+    mergedTools,
+    chatBundle.executable.tools,
+  );
+  const tools = allowlistedTools as Parameters<typeof streamText>[0]["tools"];
+
+  // Build the system prompt. The tool index (name + description) is
+  // computed from the FINAL allowlisted tools and injected into the
+  // bundle's base prompt — the model sees a `## Tool index` block
+  // listing every callable with a one-sentence description, so it
+  // picks the right tool instead of guessing by name.
+  const toolIndex = buildToolIndex(allowlistedTools);
+
+  const basePrompt = composeBasePrompt(chatBundle, { toolIndex });
+  const assembledPrompt = buildSystemPrompt(
+    basePrompt,
+    repo ? { owner: repo.owner, repo: repo.repo } : null,
+    body.task,
+    {
+      duty: body.duty,
+      goalPlanner: goalPlannerActive,
+      goal: goalPlannerActive ? body.goal : undefined,
+      report: body.report,
+      currentPage: body.currentPage,
+      memoryIndex,
+      vibeMode,
+      flyConfigured,
+      userInstructions,
+      context,
+    },
+  );
+
+  // Critical reminders appended LAST among the static rules (recency
+  // bias) so the model holds them through the runtime blocks. The voice
+  // overlay still wins over these when voice is on (applied next).
+  const promptWithReminders = voiceMode
+    ? assembledPrompt
+    : `${assembledPrompt}\n\n${CRITICAL_REMINDERS_MD}`;
+
+  // Voice modality is layered onto the FULLY-ASSEMBLED prompt, appended
+  // LAST so its rules ("no markdown, short sentences, symbols-as-words")
+  // win by recency over the research/issue-creation/memory blocks above
+  // which otherwise teach the model to reply in bullet-heavy markdown.
+  // The agent's brain and tools are untouched — the user picks the brain
+  // in the dropdown; only the output shape changes.
+  const systemPrompt = applyVoiceOverlay(promptWithReminders, voiceMode);
+
+  // Build a tool-name → description map from the merged tool set. Every
+  // tool in this repo calls `tool({ description, inputSchema, execute })`
+  // from the AI SDK, which returns a runtime object with `description` as
+  // a first-class field. We ship the map to the client as a single
+  // `data-tools-index` event at the start of the stream so the thinking
+  // panel can render the tool description (the same string the model uses
+  // to decide whether to call a tool) as a muted one-liner under the tool
+  // name. One event for the whole turn, not one per call — see issue #321.
+  // Brain/Engine chats don't populate this; the client field is optional
+  // and the card gracefully omits the line when missing.
+  const toolDescriptionByName: Record<string, string> = {};
+  for (const [name, t] of Object.entries(tools ?? {})) {
+    const desc =
+      t && typeof t === "object" && "description" in t
+        ? (t as { description?: unknown }).description
+        : undefined;
+    if (typeof desc === "string" && desc.trim().length > 0) {
+      toolDescriptionByName[name] = desc;
+    }
+  }
 
   let stepNum = 0;
 
@@ -835,9 +893,7 @@ export async function POST(req: NextRequest) {
       // Optimized for deep analysis: see DEFAULT_MAX_STEPS for the cap
       // rationale and the per-model override path. The constant lives at
       // module level so tests can assert the value.
-      stopWhen: stepCountIs(
-        resolvedModel.maxSteps ?? DEFAULT_MAX_STEPS,
-      ),
+      stopWhen: stepCountIs(resolvedModel.maxSteps ?? DEFAULT_MAX_STEPS),
       // Per-provider thinking config so reasoning-delta chunks actually
       // reach the client. Without this, `sendReasoning: true` below has
       // nothing to stream and the chat looks idle until the final answer.
@@ -849,9 +905,7 @@ export async function POST(req: NextRequest) {
       // as `body.reasoningEffort` and validated against the model's
       // declared `efforts` list. Returns `{}` for models that don't
       // reason, so non-reasoning providers stay untouched.
-      ...(voiceMode
-        ? {}
-        : applyReasoning(resolvedModel, body.reasoningEffort)),
+      ...(voiceMode ? {} : applyReasoning(resolvedModel, body.reasoningEffort)),
       // Per-tool tracing. `experimental_onToolCallStart` fires before the
       // tool's `execute` is invoked; `experimental_onToolCallFinish`
       // afterward with the SDK-measured `durationMs` and a success flag.
@@ -933,12 +987,21 @@ export async function POST(req: NextRequest) {
         );
       },
     });
-    return result.toUIMessageStreamResponse({
-      sendReasoning: true,
-      // Without this the SDK ships a generic "An error occurred." string.
-      // Returning the real message turns silent hangs into visible failures
-      // (rate limits, quota, bad tool args, etc.) — both for the user and
-      // for support sessions where they paste the message back to us.
+    // Prepend a single `data-tools-index` event to the UI stream so the
+    // client can hydrate a name→description lookup for the thinking panel.
+    // One event for the whole turn (not one per tool call) — see the
+    // `toolDescriptionByName` build above for the why. We do this through
+    // `createUIMessageStream` so the description map is the first chunk the
+    // client sees; the rest of the stream is the same `result.toUIMessageStream`
+    // the SDK would have produced on its own.
+    const uiStream = createUIMessageStream({
+      execute: ({ writer }) => {
+        writer.write({
+          type: "data-tools-index",
+          data: toolDescriptionByName,
+        });
+        writer.merge(result.toUIMessageStream({ sendReasoning: true }));
+      },
       onError: (error) => {
         clearHeartbeats();
         const msg = formatProviderError(error);
@@ -949,6 +1012,7 @@ export async function POST(req: NextRequest) {
         return `[trace ${traceId}] ${msg}`;
       },
     });
+    return createUIMessageStreamResponse({ stream: uiStream });
   } catch (err) {
     clearHeartbeats();
     clearGitHubContext();

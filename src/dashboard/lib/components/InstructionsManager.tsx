@@ -65,9 +65,17 @@ export const instructionsQueryKeys = {
   file: (scope: InstructionsQueryScope = {}) =>
     ["kody-instructions", scope.owner ?? null, scope.repo ?? null] as const,
   basePrompt: (scope: InstructionsQueryScope = {}) =>
-    ["kody-instructions-base", scope.owner ?? null, scope.repo ?? null] as const,
+    [
+      "kody-instructions-base",
+      scope.owner ?? null,
+      scope.repo ?? null,
+    ] as const,
   fullPrompt: (scope: InstructionsQueryScope = {}) =>
-    ["kody-instructions-full", scope.owner ?? null, scope.repo ?? null] as const,
+    [
+      "kody-instructions-full",
+      scope.owner ?? null,
+      scope.repo ?? null,
+    ] as const,
 };
 
 type PromptView = "base" | "full";
@@ -326,7 +334,27 @@ function InstructionsManagerInner() {
         )}
 
         {!isLoading && !error && (
-          <div className="space-y-2">
+          <div className="space-y-3">
+            <div className="rounded-md border border-white/[0.08] bg-white/[0.03] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-medium text-white/70">
+                  Active file
+                </p>
+                <code className="font-mono text-[11px] text-cyan-200">
+                  .kody/instructions.md
+                </code>
+              </div>
+              <div className="mt-3 space-y-1.5">
+                <p className="text-xs font-medium text-white/70">
+                  Current saved content
+                </p>
+                <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded border border-white/[0.06] bg-black/30 p-3 font-mono text-xs leading-relaxed text-white/65">
+                  {data?.body?.trim()
+                    ? data.body
+                    : "No instructions file exists yet."}
+                </pre>
+              </div>
+            </div>
             <Label
               htmlFor="instructions-body"
               className="text-sm text-white/70"

@@ -119,8 +119,7 @@ function collapseBlankLines(text: string): string {
 
 const FINAL_ANSWER_MARKER_RE =
   /(?:^|\n)\s*(?:final\s+answer|final|answer)\s*:\s*/i;
-const LEADING_ANSWER_MARKER_RE =
-  /^\s*(?:final\s+answer|final|answer)\s*:\s*/i;
+const LEADING_ANSWER_MARKER_RE = /^\s*(?:final\s+answer|final|answer)\s*:\s*/i;
 const SCRATCHPAD_LABEL_RE =
   /^\s*(?:analysis|reasoning|thinking|thoughts?|scratchpad)\s*[:.-]/i;
 // First/second-person reasoning preambles the model commonly emits as raw
@@ -176,10 +175,7 @@ function stripDuplicatedReasoningPrefix(
   };
 }
 
-function appendLeaked(
-  collected: string,
-  next: string,
-): string {
+function appendLeaked(collected: string, next: string): string {
   const trimmed = next.trim();
   if (!trimmed) return collected;
   return collected ? `${collected}\n\n${trimmed}` : trimmed;
@@ -215,25 +211,53 @@ function stripLeakedReasoning(
     }
   }
 
-  // Untagged thinking preamble: a leading paragraph (everything before the
-  // first blank line) that matches a clear "I'm thinking" pattern, followed
-  // by a real answer paragraph. Gated by a blank-line separator + non-empty
-  // rest so legitimate first-person prose isn't touched. Catches the common
-  // case where the model just outputs "Let me think about this...\n\n<answer>"
-  // without any marker.
-  const preambleMatch = trimmed.match(/^([\s\S]+?)\n\s*\n([\s\S]+)$/);
-  if (preambleMatch) {
-    const preamble = preambleMatch[1].trim();
-    const rest = preambleMatch[2].trim();
-    if (rest.length > 0 && looksLikeLeakedReasoning(preamble)) {
-      return {
-        text: rest,
-        leaked: appendLeaked(leaked, preamble),
-      };
-    }
+  // Multi-segment thinking. The model often narrates a chain of thought
+  // across several paragraphs ("Let me think about X.\n\nAnswer for X.\n\n
+  // Now let me think about Y.\n\nAnswer for Y.") — the chat only has ONE
+  // ReasoningPanel at the top, so anything after the first thinking
+  // segment would otherwise stay in the reply bubble. Sweep every blank-
+  // line-separated paragraph and move any recognisably-thinking ones into
+  // the reasoning. Guard: only strip if at least one non-thinking
+  // paragraph remains, so an all-thinking reply is never silenced.
+  const swept = stripAllLeakedParagraphs(trimmed);
+  if (swept.leaked) {
+    return {
+      text: swept.text,
+      leaked: appendLeaked(leaked, swept.leaked),
+    };
   }
 
   return { text: trimmed, leaked };
+}
+
+function stripAllLeakedParagraphs(
+  text: string,
+): { text: string; leaked: string } {
+  const paragraphs = text.split(/\n\s*\n/);
+  if (paragraphs.length < 2) return { text, leaked: "" };
+
+  const thinkingFlags = paragraphs.map((p) => {
+    const trimmed = p.trim();
+    return trimmed.length > 0 && looksLikeLeakedReasoning(trimmed);
+  });
+  const hasNonThinking = thinkingFlags.some((t) => !t);
+  if (!hasNonThinking) return { text, leaked: "" };
+
+  const kept: string[] = [];
+  const leaked: string[] = [];
+  for (let i = 0; i < paragraphs.length; i++) {
+    if (thinkingFlags[i]) {
+      const trimmed = paragraphs[i].trim();
+      if (trimmed) leaked.push(trimmed);
+    } else {
+      kept.push(paragraphs[i]);
+    }
+  }
+
+  return {
+    text: kept.join("\n\n").trim(),
+    leaked: leaked.join("\n\n").trim(),
+  };
 }
 
 /**
