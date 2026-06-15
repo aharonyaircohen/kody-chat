@@ -82,6 +82,7 @@ import { featureTools } from "../tools/feature-tools";
 import { uiTools } from "../tools/ui-tools";
 import { createCommandTools } from "../tools/commands-tools";
 import { createContextTools } from "../tools/context-tools";
+import { createTodoTools } from "../tools/todo-tools";
 import { createInstructionsTools } from "../tools/instructions-tools";
 import { createVariableTools } from "../tools/variables-tools";
 import { createSecretTools } from "../tools/secrets-tools";
@@ -665,6 +666,12 @@ export async function POST(req: NextRequest) {
         actorLogin: verifiedActorLogin,
       }),
       ...createContextTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: verifiedActorLogin,
+      }),
+      ...createTodoTools({
         octokit,
         owner: repo.owner,
         repo: repo.repo,
