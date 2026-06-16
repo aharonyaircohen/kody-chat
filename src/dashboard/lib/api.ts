@@ -2033,6 +2033,15 @@ export const activityApi = {
     });
     return handleResponse(res);
   },
+  /** Kody run timelines loaded from GitHub Actions artifacts. */
+  runLogs: async (): Promise<
+    import("./activity/run-logs").KodyRunLogsSnapshot
+  > => {
+    const res = await fetch(`${API_BASE}/activity/run-logs`, {
+      headers: buildHeaders(),
+    });
+    return handleResponse(res);
+  },
   /** Dashboard-native action log (in-memory; free to poll). */
   log: async (): Promise<{
     entries: import("./activity/action-log").ActionLogEntry[];

@@ -1,1 +1,50 @@
-{"version":1,"variables":{"LLM_MODELS":{"value":"[{\"id\":\"minimax/MiniMax-M3\",\"label\":\"MiniMax\",\"provider\":\"custom\",\"protocol\":\"openai\",\"baseURL\":\"https://api.minimax.io/v1\",\"modelName\":\"MiniMax-M3\",\"apiKeySecret\":\"MINIMAX_API_KEY\",\"enabled\":true,\"default\":true,\"maxSteps\":200}]","updatedAt":"2026-06-07T19:54:23.724Z","updatedBy":"aharonyaircohen"},"RELEASE_FLOW":{"value":"{\"integrationBranch\":\"main\",\"productionBranch\":\"main\"}","updatedAt":"2026-06-15T00:00:00.000Z","updatedBy":"codex"}}}
+{
+  "version": 1,
+  "variables": {
+    "LLM_MODELS": {
+      "value": "[{\"id\":\"minimax/MiniMax-M3\",\"label\":\"MiniMax\",\"provider\":\"custom\",\"protocol\":\"openai\",\"baseURL\":\"https://api.minimax.io/v1\",\"modelName\":\"MiniMax-M3\",\"apiKeySecret\":\"MINIMAX_API_KEY\",\"enabled\":true,\"default\":true,\"maxSteps\":200}]",
+      "updatedAt": "2026-06-07T19:54:23.724Z",
+      "updatedBy": "aharonyaircohen"
+    },
+    "RELEASE_FLOW": {
+      "value": "{\"integrationBranch\":\"main\",\"productionBranch\":\"main\"}",
+      "updatedAt": "2026-06-15T00:00:00.000Z",
+      "updatedBy": "codex"
+    },
+    "VERCEL_ORG_ID": {
+      "value": "team_I5OEeDKS7oRaELnZp5bdJWpL",
+      "updatedAt": "2026-06-15T12:45:00.000Z",
+      "updatedBy": "codex"
+    },
+    "VERCEL_PROJECT_ID": {
+      "value": "prj_VUAH5HAYNBkZb4AWC9gYhOYRhKTA",
+      "updatedAt": "2026-06-15T12:45:00.000Z",
+      "updatedBy": "codex"
+    },
+    "VERCEL_SCOPE": {
+      "value": "aguy",
+      "updatedAt": "2026-06-15T12:45:00.000Z",
+      "updatedBy": "codex"
+    },
+    "VERCEL_DEV_ALIAS": {
+      "value": "kody-dashboard-dev-aguy.vercel.app",
+      "updatedAt": "2026-06-15T12:45:00.000Z",
+      "updatedBy": "codex"
+    },
+    "VERCEL_DEV_BRANCH": {
+      "value": "dev",
+      "updatedAt": "2026-06-15T12:45:00.000Z",
+      "updatedBy": "codex"
+    },
+    "VERCEL_DEV_TARGET": {
+      "value": "preview",
+      "updatedAt": "2026-06-15T12:45:00.000Z",
+      "updatedBy": "codex"
+    },
+    "VERCEL_PRODUCTION_BRANCH": {
+      "value": "main",
+      "updatedAt": "2026-06-15T12:45:00.000Z",
+      "updatedBy": "codex"
+    }
+  }
+}

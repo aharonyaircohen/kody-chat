@@ -1,0 +1,12 @@
+{
+  "name": "vercel-dev-deploy",
+  "describe": "Deploy Vercel dev preview",
+  "action": "vercel-dev-deploy",
+  "executable": "vercel-dev-deploy",
+  "every": "manual",
+  "runner": "cto",
+  "reviewer": "cto",
+  "mentions": [
+    "aguyaharonyair"
+  ]
+}

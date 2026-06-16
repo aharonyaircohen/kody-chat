@@ -25,6 +25,10 @@ import {
   sortActivityNewestFirst,
   type CompanyActivityRecord,
 } from "./activity/company";
+import {
+  parseKodyRunLogZip,
+  type KodyRunLogsRun,
+} from "./activity/run-logs";
 import type {
   KodyPipelineStatus,
   GitHubIssue,
@@ -948,6 +952,123 @@ export async function getStatusFromArtifact(
   }
 
   return null;
+}
+
+/**
+ * Read Kody run events from the Actions artifact named
+ * kody-run-logs-<run_id>-<run_attempt>.
+ */
+export async function fetchKodyRunLogArtifact(
+  run: WorkflowRun,
+): Promise<KodyRunLogsRun> {
+  const runAttempt = run.run_attempt ?? 1;
+  const artifactName = `kody-run-logs-${run.id}-${runAttempt}`;
+  const base: KodyRunLogsRun = {
+    runId: run.id,
+    runAttempt,
+    runNumber: run.run_number ?? null,
+    title: run.display_title?.trim() || `Run ${run.id}`,
+    status: run.status,
+    conclusion: run.conclusion,
+    createdAt: run.created_at,
+    updatedAt: run.updated_at,
+    htmlUrl: run.html_url,
+    artifactName,
+    artifactStatus: "missing",
+    artifactUrl: null,
+    message:
+      "Run log artifact is missing or expired. Artifacts are retained for 30 days.",
+    events: [],
+    timeline: [],
+  };
+
+  const cacheKey = `run-log-artifact:${getOwner()}:${getRepo()}:${run.id}:${runAttempt}`;
+  const cached = getCached<KodyRunLogsRun>(cacheKey);
+  if (cached) return cached;
+
+  const octokit = getOctokit();
+
+  try {
+    const { data } = await octokit.actions.listWorkflowRunArtifacts({
+      owner: getOwner(),
+      repo: getRepo(),
+      run_id: run.id,
+      per_page: 100,
+    });
+
+    const artifact = data.artifacts.find((a) => a.name === artifactName);
+    if (!artifact) {
+      setCache(cacheKey, CACHE_TTL.pipeline, base);
+      return base;
+    }
+
+    if (artifact.expired) {
+      const expired = {
+        ...base,
+        artifactStatus: "expired" as const,
+        artifactUrl: artifact.archive_download_url ?? null,
+      };
+      setCache(cacheKey, CACHE_TTL.pipeline, expired);
+      return expired;
+    }
+
+    const response = await octokit.actions.downloadArtifact({
+      owner: getOwner(),
+      repo: getRepo(),
+      artifact_id: artifact.id,
+      archive_format: "zip",
+    });
+    const parsed = parseKodyRunLogZip(
+      await artifactResponseToBuffer(response.data),
+      run.id,
+    );
+
+    const result: KodyRunLogsRun = {
+      ...base,
+      artifactStatus: parsed ? "available" : "error",
+      artifactUrl: artifact.archive_download_url ?? null,
+      message: parsed
+        ? null
+        : "Run log artifact did not contain .kody/runs/<runId>/events.jsonl.",
+      events: parsed?.events ?? [],
+      timeline: parsed?.timeline ?? [],
+    };
+    setCache(cacheKey, CACHE_TTL.pipeline, result);
+    return result;
+  } catch (error: any) {
+    if (error.status !== 404 && error.status !== 410) {
+      console.warn("[Kody] Error fetching run log artifact:", error);
+      const result = {
+        ...base,
+        artifactStatus: "error" as const,
+        message:
+          error?.message ??
+          "Run log artifact could not be downloaded from GitHub Actions.",
+      };
+      setCache(cacheKey, CACHE_TTL.pipeline, result);
+      return result;
+    }
+    setCache(cacheKey, CACHE_TTL.pipeline, base);
+    return base;
+  }
+}
+
+async function artifactResponseToBuffer(data: unknown): Promise<Buffer> {
+  if (Buffer.isBuffer(data)) return data;
+  if (data instanceof ArrayBuffer) return Buffer.from(data);
+  if (ArrayBuffer.isView(data)) {
+    return Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+  }
+  if (
+    data &&
+    typeof data === "object" &&
+    "arrayBuffer" in data &&
+    typeof (data as Blob).arrayBuffer === "function"
+  ) {
+    return Buffer.from(await (data as Blob).arrayBuffer());
+  }
+  if (typeof data === "string") return Buffer.from(data, "binary");
+  return Buffer.from([]);
 }
 
 // ============ Issue & Comment Fetching ============

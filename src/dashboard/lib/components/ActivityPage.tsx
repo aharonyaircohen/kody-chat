@@ -33,10 +33,15 @@ import { useAuth } from "../auth-context";
 import { useActivity } from "../hooks/useActivity";
 import { useActivityFeed } from "../hooks/useActivityFeed";
 import { useActivityLog } from "../hooks/useActivityLog";
+import { useActivityRunLogs } from "../hooks/useActivityRunLogs";
 import { useAutonomousActivity } from "../hooks/useAutonomousActivity";
 import { cn, formatDuration } from "../utils";
 import type { ActivityRun } from "../activity/types";
 import type { ActionLogEntry } from "../activity/action-log";
+import type {
+  KodyRunLogsRun,
+  KodyRunTimelineItem,
+} from "../activity/run-logs";
 import type {
   FeedEvent,
   FeedSession,
@@ -46,7 +51,7 @@ import type {
 import { ACTIVITY_CATEGORY_LABELS } from "../activity/categorize";
 
 type RunFilter = "all" | "active" | "failed";
-type ActivityTab = "log" | "auto" | "runs" | "feed";
+type ActivityTab = "log" | "auto" | "runs" | "runLogs" | "feed";
 
 const FEED_SOURCE_STYLES: Record<FeedSource, string> = {
   engine: "bg-sky-500/15 text-sky-200/80",
@@ -352,6 +357,157 @@ function SessionCard({ s }: { s: FeedSession }) {
         </div>
       )}
     </li>
+  );
+}
+
+function timelineTone(item: KodyRunTimelineItem): string {
+  if (item.category === "failure") return "bg-rose-500/15 text-rose-200/90";
+  if (item.category === "stage") return "bg-sky-500/15 text-sky-200/85";
+  if (item.category === "preflight")
+    return "bg-amber-500/15 text-amber-200/85";
+  if (item.category === "postflight")
+    return "bg-emerald-500/15 text-emerald-200/85";
+  return "bg-white/[0.06] text-white/65";
+}
+
+function fmtMs(ms: number | null): string | null {
+  if (ms == null) return null;
+  if (ms < 1000) return `${ms}ms`;
+  return formatDuration(ms / 1000);
+}
+
+function RunTimelineItem({ item }: { item: KodyRunTimelineItem }) {
+  const duration = fmtMs(item.durationMs);
+  return (
+    <li className="flex items-start gap-2 text-xs">
+      <span
+        className={cn(
+          "mt-0.5 rounded px-1.5 py-0.5 text-[10px] uppercase",
+          timelineTone(item),
+        )}
+      >
+        {item.category}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span className="text-white/80">{item.summary}</span>
+          {duration && (
+            <span className="text-[10px] tabular-nums text-white/35">
+              {duration}
+            </span>
+          )}
+          {item.outcome && (
+            <span className="text-[10px] text-white/35">{item.outcome}</span>
+          )}
+        </div>
+        {(item.detail || item.exitCode != null) && (
+          <div className="mt-0.5 text-[11px] text-white/45">
+            {item.detail}
+            {item.detail && item.exitCode != null ? " · " : ""}
+            {item.exitCode != null ? `exit ${item.exitCode}` : ""}
+          </div>
+        )}
+      </div>
+      {item.ts && (
+        <span className="shrink-0 text-[10px] text-white/35">
+          {new Date(item.ts).toLocaleTimeString()}
+        </span>
+      )}
+    </li>
+  );
+}
+
+function RunLogCard({ run }: { run: KodyRunLogsRun }) {
+  const isAvailable = run.artifactStatus === "available";
+  return (
+    <li className="rounded-lg border border-white/[0.06] bg-white/[0.02]">
+      <div className="flex flex-wrap items-start gap-3 px-3 py-2.5">
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm text-white/85">{run.title}</div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-white/40">
+            <span>run {run.runId}</span>
+            {run.runNumber != null && <span>#{run.runNumber}</span>}
+            <span>attempt {run.runAttempt}</span>
+            <span>{relTime(run.createdAt)}</span>
+          </div>
+        </div>
+        <span
+          className={cn(
+            "rounded px-2 py-0.5 text-[11px]",
+            isAvailable
+              ? "bg-emerald-500/15 text-emerald-200/85"
+              : run.artifactStatus === "error"
+                ? "bg-rose-500/15 text-rose-200/85"
+                : "bg-white/[0.06] text-white/50",
+          )}
+        >
+          {isAvailable ? `${run.timeline.length} events` : run.artifactStatus}
+        </span>
+        <a
+          href={run.htmlUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1 text-xs text-sky-200/70 hover:text-sky-100"
+        >
+          Actions <ExternalLink className="h-3 w-3" />
+        </a>
+      </div>
+      <div className="border-t border-white/[0.06] px-3 py-2.5">
+        {!isAvailable ? (
+          <p className="text-xs text-white/45">
+            {run.message ??
+              "Run log artifact is unavailable. Open the workflow run for logs."}
+          </p>
+        ) : run.timeline.length === 0 ? (
+          <p className="text-xs text-white/45">
+            Artifact found, but no timeline events matched.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {run.timeline.map((item) => (
+              <RunTimelineItem key={item.id} item={item} />
+            ))}
+          </ul>
+        )}
+      </div>
+    </li>
+  );
+}
+
+function RunLogsView({ active }: { active: boolean }) {
+  const { data, isLoading, error } = useActivityRunLogs(active);
+
+  return (
+    <div>
+      {error && (
+        <div className="mb-3 rounded-lg border border-rose-500/30 bg-rose-500/[0.06] p-3 text-xs text-rose-200">
+          {error instanceof Error ? error.message : "Failed to load run logs"}
+        </div>
+      )}
+
+      <div className="mb-3 grid grid-cols-3 gap-3">
+        <StatCard label="Runs" value={data?.total ?? "—"} />
+        <StatCard label="Artifacts" value={data?.available ?? "—"} tone="good" />
+        <StatCard label="Fallbacks" value={data?.missing ?? "—"} />
+      </div>
+
+      {isLoading ? (
+        <p className="py-6 text-center text-xs italic text-white/40">
+          <Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" />
+          Loading run logs…
+        </p>
+      ) : !data || data.runs.length === 0 ? (
+        <p className="py-6 text-center text-xs italic text-white/40">
+          No workflow runs found.
+        </p>
+      ) : (
+        <ul className="space-y-1.5">
+          {data.runs.map((run) => (
+            <RunLogCard key={`${run.runId}:${run.runAttempt}`} run={run} />
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -832,7 +988,8 @@ export function ActivityPage() {
       <HealthBanner />
 
       <div className="mb-4 flex items-center gap-1">
-        {(["log", "auto", "runs", "feed"] as ActivityTab[]).map((t) => (
+        {(["log", "auto", "runs", "runLogs", "feed"] as ActivityTab[]).map(
+          (t) => (
           <button
             key={t}
             type="button"
@@ -848,6 +1005,8 @@ export function ActivityPage() {
               <ActivityIcon className="w-3.5 h-3.5" />
             ) : t === "auto" ? (
               <Bot className="w-3.5 h-3.5" />
+            ) : t === "runLogs" ? (
+              <Clock className="w-3.5 h-3.5" />
             ) : (
               <ScrollText className="w-3.5 h-3.5" />
             )}
@@ -857,14 +1016,19 @@ export function ActivityPage() {
                 ? "Auto"
                 : t === "runs"
                   ? "Runs"
+                  : t === "runLogs"
+                    ? "Run Logs"
                   : "Feed"}
           </button>
-        ))}
+          ),
+        )}
       </div>
 
       {tab === "log" && <LogView active={tab === "log"} />}
 
       {tab === "auto" && <AutoView active={tab === "auto"} />}
+
+      {tab === "runLogs" && <RunLogsView active={tab === "runLogs"} />}
 
       {tab === "feed" && <FeedView active={tab === "feed"} />}
 
