@@ -1,6 +1,7 @@
 /**
- * Verifies the chat-defaults bundle structure: persona, executable,
- * duties, skills. Step 1 — TS-embedded defaults only, no repo read.
+ * Verifies chat-defaults bundle structure: persona, executable, duties,
+ * skills. Repo-backed duties/executables are source truth; TS defaults are
+ * fallback data.
  */
 
 import { describe, expect, it } from "vitest";
@@ -21,12 +22,24 @@ import {
 import { AGENT_KODY } from "@dashboard/lib/agents";
 
 describe("chat-defaults bundle", () => {
-  it("returns the TS-embedded defaults from the loader", async () => {
+  it("loads repo-backed chat duties that use the kody-chat executable", async () => {
     const bundle = await loadChatDefaults("acme", "widget");
-    expect(bundle.persona).toBe(DEFAULT_PERSONA_MD);
-    expect(bundle.executable).toEqual(DEFAULT_EXECUTABLE);
-    expect(bundle.duties).toEqual(DEFAULT_DUTIES);
-    expect(bundle.skills).toEqual(DEFAULT_SKILLS);
+    const executableProfile = JSON.parse(
+      readFileSync(".kody/executables/kody-chat/profile.json", "utf8"),
+    );
+    const analyzerProfile = JSON.parse(
+      readFileSync(".kody/duties/kody-analyzer/profile.json", "utf8"),
+    );
+
+    expect(bundle.executable.slug).toBe("kody-chat");
+    expect(bundle.executable).toMatchObject(executableProfile);
+    expect(analyzerProfile.executable).toBe("kody-chat");
+    expect(bundle.duties.some((duty) => duty.slug === "kody-analyzer")).toBe(
+      true,
+    );
+    expect(bundle.skills["diagnose-pr"]?.body).toContain(
+      'Triggers: "diagnose PR #N"',
+    );
   });
 
   it("persona preserves the legacy AGENT_KODY.systemPrompt hard rules + tool policy (regression guard)", () => {
@@ -49,12 +62,12 @@ describe("chat-defaults bundle", () => {
       "github_search_code",
       "github_get_file",
       "github_list_tree",
-    "github_blame",
-    "github_commits_for_path",
-    "github_get_pull_request",
-    "status line",
-    "≤8 words",
-  ];
+      "github_blame",
+      "github_commits_for_path",
+      "github_get_pull_request",
+      "status line",
+      "≤8 words",
+    ];
     for (const p of phrases) {
       expect(DEFAULT_PERSONA_MD).toContain(p);
     }
@@ -181,6 +194,20 @@ describe("chat-defaults bundle", () => {
 
     expect(vibe!.body).toContain("vibe");
     expect(mem!.body).toContain("memory");
+  });
+
+  it("memory workflow treats explicit remember requests as write triggers", async () => {
+    const bundle = await loadChatDefaults("acme", "widget");
+    const trigger = 'Explicit memory command ("remember X"';
+
+    expect(DEFAULT_SKILLS.memory.body).toContain(trigger);
+    expect(DEFAULT_DUTIES.find((d) => d.slug === "kody-mem")!.body).toContain(
+      "explicit memory command",
+    );
+    expect(bundle.skills.memory.body).toContain(trigger);
+    expect(
+      bundle.duties.find((duty) => duty.slug === "kody-mem")!.body,
+    ).toContain("explicit memory command");
   });
 
   it("exposes 8 skills — diagnose-pr, report-advise, goal-planner, create-issue, create-duty, create-staff, vibe, memory", () => {

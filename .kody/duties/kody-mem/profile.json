@@ -1,0 +1,8 @@
+{
+  "name": "kody-mem",
+  "describe": "kody-mem",
+  "action": "kody-mem",
+  "every": "manual",
+  "runner": "kody",
+  "executable": "kody-chat"
+}

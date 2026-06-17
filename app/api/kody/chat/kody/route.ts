@@ -96,9 +96,15 @@ import { applyReasoning } from "@dashboard/lib/chat/reasoning-adapter";
 import { createStaffAdminTools } from "../tools/staff-admin-tools";
 import { createDutyAdminTools } from "../tools/duty-admin-tools";
 import { createMacroTools } from "../tools/macros-tools";
-import { loadMemoryIndexForPrompt } from "@dashboard/lib/memory-files";
+import {
+  invalidateMemoryIndexPromptCache,
+  loadMemoryIndexForPrompt,
+  readMemoryFile,
+  writeMemoryFile,
+} from "@dashboard/lib/memory-files";
 import { loadInstructionsForPrompt } from "@dashboard/lib/instructions/files";
 import { loadContextForPrompt } from "@dashboard/lib/context/files";
+import { buildExplicitMemoryDraft } from "./explicit-memory";
 
 export const runtime = "nodejs";
 // Research turns can chain up to ~10 tool rounds (search → read → blame → …)
@@ -382,6 +388,22 @@ function normalizeMessages(raw: IncomingMessage[]): ModelMessage[] {
   return out;
 }
 
+function getLatestUserText(messages: ModelMessage[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (message.role !== "user") continue;
+    if (typeof message.content === "string") return message.content;
+    if (!Array.isArray(message.content)) continue;
+    const text = message.content
+      .map((part) => (part.type === "text" ? part.text : ""))
+      .filter(Boolean)
+      .join("\n\n")
+      .trim();
+    if (text.length > 0) return text;
+  }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   // Short trace ID lets us follow a single chat request through every log
   // line (start, per-tool start/finish, per-step finish, errors, finish).
@@ -493,7 +515,7 @@ export async function POST(req: NextRequest) {
   // so the attachment still rides along instead of being dropped/rejected.
   const modelIsVision =
     supportsVision(resolvedModel.id) || supportsVision(resolvedModel.modelName);
-  const modelMessages = modelIsVision
+  let modelMessages = modelIsVision
     ? messages
     : inlineImagePartsForTextModel(messages);
   const repo = getRequestAuth(req);
@@ -564,6 +586,54 @@ export async function POST(req: NextRequest) {
       },
       { status: 400 },
     );
+  }
+
+  const explicitMemoryDraft = buildExplicitMemoryDraft(
+    getLatestUserText(messages) ?? "",
+  );
+  if (repo && explicitMemoryDraft) {
+    try {
+      const octokit = createUserOctokit(repo.token);
+      const existing = await readMemoryFile(explicitMemoryDraft.id);
+      const file = await writeMemoryFile({
+        octokit,
+        id: explicitMemoryDraft.id,
+        sha: existing?.sha,
+        meta: {
+          name: explicitMemoryDraft.name,
+          description: explicitMemoryDraft.description,
+          type: explicitMemoryDraft.type,
+          created: existing?.meta.created ?? new Date().toISOString(),
+        },
+        body: explicitMemoryDraft.body,
+        message: `chore(memory): ${existing ? "update" : "add"} ${
+          explicitMemoryDraft.id
+        }${verifiedActorLogin ? ` (via chat by @${verifiedActorLogin})` : ""}`,
+      });
+      invalidateMemoryIndexPromptCache();
+      modelMessages = [
+        ...modelMessages,
+        {
+          role: "system",
+          content:
+            `Explicit memory request already persisted to .kody/memory/${file.id}.md ` +
+            `as ${file.meta.type}. Do not call remember/update_memory again. ` +
+            "Briefly confirm it was saved.",
+        },
+      ];
+    } catch (err) {
+      modelMessages = [
+        ...modelMessages,
+        {
+          role: "system",
+          content:
+            "Explicit memory request could not be persisted before response. " +
+            `Tell the user it failed and include this error: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+        },
+      ];
+    }
   }
   const agent: AgentConfig =
     requestedAgent.backend === "kody-direct" ? requestedAgent : AGENT_KODY;

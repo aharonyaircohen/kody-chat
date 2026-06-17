@@ -10,9 +10,8 @@
  *   + duties (kody-analyzer, kody-operator, kody-vibe, kody-mem) → workflow index
  *   + skills (diagnose-pr, report-advise, goal-planner, create-issue, …) → reusable method
  *
- * The bundle is repo-stored (`.kody/chat/defaults/`) with a TS-embedded
- * default as fallback. Step 1 returns the TS defaults only; the repo read
- * is gated on a future flag so existing chat behavior is unchanged.
+ * The bundle is repo-stored in `.kody/executables/kody-chat/` and
+ * `.kody/duties/kody-*` folders, with TS-embedded defaults as fallback.
  */
 
 import {
@@ -24,6 +23,7 @@ import {
   type ExecutableEntry,
   type SkillEntry,
 } from "./defaults";
+import { loadChatDefaultsFromFiles } from "./files";
 
 export interface ChatDefaults {
   /** Base persona text — who the agent is, hard rules, style. */
@@ -37,8 +37,8 @@ export interface ChatDefaults {
 }
 
 /**
- * Load the chat defaults bundle. Step 1 returns the TS-embedded defaults
- * only; the repo read will be added in step 2 and gated by an env flag.
+ * Load the chat defaults bundle from repo-backed duties/executables first,
+ * falling back to TS-embedded defaults when files are absent or invalid.
  *
  * @param owner GitHub owner — reserved for the future repo-read path.
  * @param repo GitHub repo — reserved for the future repo-read path.
@@ -47,6 +47,9 @@ export async function loadChatDefaults(
   owner?: string,
   repo?: string,
 ): Promise<ChatDefaults> {
+  const fileBackedBundle = await loadChatDefaultsFromFiles();
+  if (fileBackedBundle) return fileBackedBundle;
+
   return {
     persona: DEFAULT_PERSONA_MD,
     executable: DEFAULT_EXECUTABLE,
