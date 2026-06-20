@@ -73,6 +73,7 @@ describe("POST /api/kody/goals/[id]/manage", () => {
     const createRefCalls: unknown[] = [];
     const getRefCalls: unknown[] = [];
     let capturedWriteBranch: string | undefined;
+    let capturedWritePath: string | undefined;
     let capturedDispatchInputs: unknown;
 
     const mockOctokit = {
@@ -88,7 +89,8 @@ describe("POST /api/kody/goals/[id]/manage", () => {
           createOrUpdateFileContents: vi
             .fn()
             .mockImplementation((opts: unknown) => {
-              capturedWriteBranch = (opts as { branch?: string }).branch;
+capturedWriteBranch = (opts as { branch?: string }).branch;
+capturedWritePath = (opts as { path?: string }).path;
               return Promise.resolve({ status: 200 });
             }),
         },
@@ -128,6 +130,21 @@ describe("POST /api/kody/goals/[id]/manage", () => {
     const json = await res.json();
     expect(json.state?.managed).toBe(true);
     expect(json.state?.state).toBe("active");
+    expect(json.state?.type).toBe("simple");
+    expect(json.state?.sourceTemplate).toBe("simple");
+    expect(json.state?.destination).toEqual({
+      outcome: "Tasks labelled goal:duty-migration are complete.",
+      evidence: ["labelledTasksComplete"],
+    });
+    expect(json.state?.duties).toEqual([]);
+    expect(json.state?.route).toEqual([]);
+    expect(json.state?.stage).toBe("waiting");
+    expect(json.state?.facts).toEqual({
+      simpleAttachedTaskCount: 0,
+      simpleOpenTaskCount: 0,
+      labelledTasksComplete: false,
+    });
+    expect(json.state?.blockers).toEqual([]);
 
     expect(
       getRefCalls.some(
@@ -140,7 +157,10 @@ describe("POST /api/kody/goals/[id]/manage", () => {
       ref: "refs/heads/kody-state",
       sha: "main-sha-abc",
     });
-    expect(capturedWriteBranch).toBe("kody-state");
+expect(capturedWriteBranch).toBe("kody-state");
+expect(capturedWritePath).toBe(
+  ".kody/goals/instances/duty-migration/state.json",
+);
 
     // The dispatch must pass the goal slug as issue_number so the engine can
     // detect it is a goal (not a GitHub issue number) and read goal state.

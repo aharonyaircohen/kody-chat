@@ -191,6 +191,7 @@ const bundle = {
   contexts: [],
   commands: [{ slug: "review", description: "d", argumentHint: "", body: "B" }],
   executables: [],
+  goals: [],
   instructions: "Be terse.",
   config: null,
 };

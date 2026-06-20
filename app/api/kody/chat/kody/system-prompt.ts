@@ -73,10 +73,10 @@ export function buildSystemPrompt(
   task: TaskContext | undefined,
   opts?: {
     duty?: DutyContext;
-  goalPlanner?: boolean;
-  goal?: GoalContext;
-  report?: ReportContext;
-  org?: OrgContext;
+    goalPlanner?: boolean;
+    goal?: GoalContext;
+    report?: ReportContext;
+    org?: OrgContext;
     /**
      * The dashboard page the user is currently viewing, as a noun phrase
      * (e.g. "the Variables page (/variables)"). Lets the agent answer "what
@@ -176,13 +176,14 @@ ${opts.context.trim()}`,
   }
   if (repo) {
     sections.push(
-      `## Goals (NOT issues)
+      `## Goals
 
-A "goal" is a high-level objective surfaced as a GitHub **Discussion** and referenced as **#<number>** (e.g. "goal 1533", "#1533"). Goal numbers are a separate namespace from issue/PR numbers — \`github_get_issue\` will NOT find a goal and must never be used for one.
+There are two goal surfaces.
 
-- To answer anything about a goal (explain it, its status, its tasks), call \`get_goal\` with the number (or \`list_goals\` to discover it). Never assume a goal "doesn't exist" because an issue lookup failed.
-- A goal's tasks are issues carrying its \`taskLabel\` (\`goal:<id>\`, returned by \`get_goal\`/\`list_goals\`); pass that label to \`github_list_issues\` to enumerate them.
-- Use \`attach_task_to_goal\` / \`detach_task_from_goal\` to change which task issues belong to a goal.`,
+1. Managed company goals are the new engine model. They have outcome, evidence, route, facts, and blockers. Use \`list_managed_goals\`, \`get_managed_goal\`, and \`create_managed_goal\` for these. When the user asks to create a goal, prefer \`create_managed_goal\`.
+2. Task-group goals are older dashboard groupings surfaced as GitHub Discussions referenced by **#<number>**. Goal numbers are not issue/PR numbers — \`github_get_issue\` will NOT find them. Use \`list_goals\` / \`get_goal\` for these, and \`attach_task_to_goal\` / \`detach_task_from_goal\` to change task membership.
+
+For managed goals, ask for missing outcome or proof steps if needed. Keep the route simple: one evidence key, one stage, one duty, and one executable is enough for a first goal.`,
     );
     if (opts?.memoryIndex && opts.memoryIndex.trim().length > 0) {
       sections.push(

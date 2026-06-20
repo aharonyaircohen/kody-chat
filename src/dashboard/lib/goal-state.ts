@@ -5,7 +5,7 @@
  * @ai-summary Goal runtime state — separate from the goals manifest. The
  *   manifest (kody:goals-manifest issue) describes goals; this state file
  *   tracks whether a goal is being actively driven by the engine. One file
- *   per goal at `.kody/goals/<id>/state.json` keeps engine and dashboard
+ *   per goal at `.kody/goals/instances/<id>/state.json` keeps engine and dashboard
  *   writes from racing on the manifest, and matches the per-entity-file
  *   convention the engine uses for duties.
  */
@@ -70,12 +70,45 @@ export function goalStatePath(goalId: string): string {
   if (!goalId || /[\\/]/.test(goalId)) {
     throw new Error(`Invalid goalId for state path: ${JSON.stringify(goalId)}`);
   }
-  return `.kody/goals/${goalId}/state.json`;
+return `.kody/goals/instances/${goalId}/state.json`;
 }
 
 export function makeInitialActiveState(now = new Date()): GoalRunState {
   const iso = now.toISOString();
   return { version: 1, state: "active", startedAt: iso, updatedAt: iso };
+}
+
+export const SIMPLE_COMPANY_GOAL_TYPE = "simple";
+export const SIMPLE_COMPANY_GOAL_EVIDENCE = "labelledTasksComplete";
+
+/**
+ * Company-store simple goal: legacy dashboard behavior via `goal:<id>` task
+ * labels rather than a routed managed-goal workflow.
+ */
+export function makeInitialSimpleGoalState(
+  goalId: string,
+  now = new Date(),
+): GoalRunState {
+  return {
+    ...makeInitialActiveState(now),
+    type: SIMPLE_COMPANY_GOAL_TYPE,
+    sourceTemplate: SIMPLE_COMPANY_GOAL_TYPE,
+    description:
+      "Legacy dashboard goal: group tasks by goal label and let the existing goal runner close when labelled tasks are done.",
+    destination: {
+      outcome: `Tasks labelled goal:${goalId} are complete.`,
+      evidence: [SIMPLE_COMPANY_GOAL_EVIDENCE],
+    },
+    duties: [],
+    route: [],
+    stage: "waiting",
+    facts: {
+      simpleAttachedTaskCount: 0,
+      simpleOpenTaskCount: 0,
+      [SIMPLE_COMPANY_GOAL_EVIDENCE]: false,
+    },
+    blockers: [],
+  };
 }
 
 /**

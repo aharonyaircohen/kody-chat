@@ -46,6 +46,7 @@ export const queryKeys = {
 export interface UseKodyTasksOptions {
   days?: number;
   includeDetails?: boolean;
+  enabled?: boolean;
   /**
    * Current API view mode. "all" returns the full Kody-owned task set.
    * When 'backlog', polling slows to 120s since backlog tasks change rarely.
@@ -91,6 +92,7 @@ export function useKodyTasks(options: UseKodyTasksOptions = {}) {
   const {
     days,
     includeDetails = false,
+    enabled = true,
     viewMode = "all",
     refetchInterval = "auto",
   } = options;
@@ -99,7 +101,7 @@ export function useKodyTasks(options: UseKodyTasksOptions = {}) {
     queryKey: queryKeys.tasks(days, includeDetails, viewMode),
     queryFn: () => kodyApi.tasks.list({ days, includeDetails, viewMode }),
     // Don't fire requests when no auth token exists — avoids 401 on mount
-    enabled: !!getStoredAuth(),
+    enabled: enabled && !!getStoredAuth(),
     refetchInterval: (query): number | false => {
       if (refetchInterval === false) return false;
 

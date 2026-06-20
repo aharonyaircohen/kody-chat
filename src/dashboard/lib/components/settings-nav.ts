@@ -32,6 +32,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   SquareTerminal,
+  Target,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -202,6 +203,14 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: "Automation",
     items: [
+      {
+        href: "/goals",
+        label: "Goals",
+        icon: Target,
+        exact: true,
+        description: "Company goals driven by Kody engine.",
+        tint: "text-sky-300 bg-sky-500/10",
+      },
       {
         href: "/duties",
         label: "Duties",

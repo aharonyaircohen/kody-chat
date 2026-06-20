@@ -1,11 +1,12 @@
 {
   "name": "kody-dashboard",
-  "version": "0.1.1124",
+  "version": "0.1.1125",
   "private": true,
   "license": "MIT",
   "description": "Kody Dashboard — Operations dashboard for the Kody CI/CD pipeline",
   "scripts": {
     "dev": "next dev --turbopack -p 3333",
+    "dev:webpack": "next dev --webpack -p 3333",
     "dev:brain": "concurrently -k -n brain,web 'BRAIN_API_KEY=local-dev-key pnpm brain:local' 'BRAIN_CHAT_URL=http://localhost:8080 BRAIN_CHAT_API_KEY=local-dev-key pnpm dev'",
     "build": "next build",
     "build:turbo": "next build --turbopack",

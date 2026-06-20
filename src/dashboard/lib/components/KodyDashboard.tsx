@@ -243,6 +243,7 @@ export function KodyDashboard({
   } = useKodyTasks({
     days,
     viewMode: "all",
+    enabled: !showingUnassigned,
     // Pause list polling while a task is open OR a full-screen modal is up
     // (/new, /bug). The modal owns the foreground; background list will
     // refresh on close via invalidation.
@@ -265,6 +266,7 @@ export function KodyDashboard({
   } = useKodyTasks({
     days,
     viewMode: "unassigned",
+    enabled: showingUnassigned,
     refetchInterval:
       selectedIssueNumber ||
       showCreateDialog ||
@@ -281,9 +283,9 @@ export function KodyDashboard({
     ? unassignedDataUpdatedAt
     : ownedDataUpdatedAt;
   const refetch = useCallback(() => {
-    void refetchOwned();
-    void refetchUnassigned();
-  }, [refetchOwned, refetchUnassigned]);
+    if (showingUnassigned) void refetchUnassigned();
+    else void refetchOwned();
+  }, [refetchOwned, refetchUnassigned, showingUnassigned]);
 
   // Default-branch CI roll-up — banner uses this as its primary signal so
   // operators can see whether main is green/red before drilling into tasks.

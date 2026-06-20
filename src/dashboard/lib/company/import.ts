@@ -25,6 +25,10 @@ import {
   readExecutableFolderFiles,
   writeExecutableFolderFiles,
 } from "../executables";
+import {
+  readManagedGoalFile,
+  writeManagedGoalFile,
+} from "../managed-goals-files";
 import { getOwner, getRepo } from "../github-client";
 import {
   getEngineConfig,
@@ -42,6 +46,7 @@ import type {
   CompanyCommandEntry,
   CompanyContextEntry,
   CompanyExecutableEntry,
+  CompanyGoalEntry,
   CompanyTickEntry,
   ParsedCompanyBundle,
 } from "./types";
@@ -223,6 +228,44 @@ async function importExecutables(
  * clobbers a deliberately-set value). Returns "absent" when the bundle carried
  * no config, "skipped" when skip-mode left every field, else "applied".
  */
+async function importGoals(
+  octokit: Octokit,
+  entries: CompanyGoalEntry[],
+  mode: CompanyImportMode,
+  notes: string[],
+): Promise<CompanyImportCounts> {
+  const counts = emptyCounts();
+  const owner = getOwner();
+  const repo = getRepo();
+
+  for (const entry of entries) {
+    try {
+      const existing = await readManagedGoalFile(entry.id, octokit, owner, repo);
+      if (existing && mode === "skip") {
+        counts.skipped++;
+        continue;
+      }
+      await writeManagedGoalFile({
+        octokit,
+        owner,
+        repo,
+        id: entry.id,
+        state: entry.state,
+        sha: existing?.sha,
+        message: `chore(goals): import managed goal ${entry.id}`,
+      });
+      if (existing) counts.updated++;
+      else counts.created++;
+    } catch (err) {
+      counts.failed++;
+      const msg = err instanceof Error ? err.message : String(err);
+      notes.push(`goal "${entry.id}" failed: ${msg}`);
+    }
+  }
+
+  return counts;
+}
+
 async function importConfig(
   octokit: Octokit,
   config: CompanyConfigBundle | null,
@@ -324,6 +367,7 @@ export async function applyCompanyBundle(
     mode,
     notes,
   );
+  const goals = await importGoals(octokit, bundle.goals, mode, notes);
 
   let instructions: CompanyImportResult["instructions"] = "absent";
   if (bundle.instructions && bundle.instructions.trim().length > 0) {
@@ -356,6 +400,7 @@ export async function applyCompanyBundle(
     contexts,
     commands,
     executables,
+    goals,
     instructions,
     config,
     notes,

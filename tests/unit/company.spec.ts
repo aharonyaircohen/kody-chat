@@ -44,6 +44,17 @@ const h = vi.hoisted(() => ({
   ),
   writeExecutableFolderFiles: vi.fn(),
   fieldsFromProfile: vi.fn(() => ({})),
+  // managed-goals-files
+  listManagedGoalFiles: vi.fn(
+    async () =>
+      [] as Array<{
+        id: string;
+        path: string;
+        state: Record<string, unknown>;
+      }>,
+  ),
+  readManagedGoalFile: vi.fn(async () => null),
+  writeManagedGoalFile: vi.fn(),
   // github-client
   getOwner: vi.fn(() => "acme"),
   getRepo: vi.fn(() => "widgets"),
@@ -85,6 +96,11 @@ vi.mock("@dashboard/lib/executables", () => ({
   writeExecutableFolderFiles: h.writeExecutableFolderFiles,
   fieldsFromProfile: h.fieldsFromProfile,
 }));
+vi.mock("@dashboard/lib/managed-goals-files", () => ({
+  listManagedGoalFiles: h.listManagedGoalFiles,
+  readManagedGoalFile: h.readManagedGoalFile,
+  writeManagedGoalFile: h.writeManagedGoalFile,
+}));
 vi.mock("@dashboard/lib/github-client", () => ({
   getOwner: h.getOwner,
   getRepo: h.getRepo,
@@ -102,8 +118,31 @@ import {
 } from "@dashboard/lib/company/types";
 import { buildCompanyBundle } from "@dashboard/lib/company/export";
 import { applyCompanyBundle } from "@dashboard/lib/company/import";
+import type { ManagedGoalState } from "@dashboard/lib/managed-goals";
 
 const octokit = {} as never;
+
+const goalState: ManagedGoalState = {
+  version: 1,
+  state: "active",
+  type: "growth",
+  destination: {
+    outcome: "Ship the new goals page.",
+    evidence: ["goals-page-live"],
+  },
+  duties: ["release"],
+  route: [
+    {
+      stage: "ship",
+      evidence: "goals-page-live",
+      duty: "release",
+      executable: "release",
+    },
+  ],
+  stage: "ship",
+  facts: {},
+  blockers: [],
+};
 
 function tickFile(over: Record<string, unknown> = {}) {
   return {
@@ -145,6 +184,7 @@ describe("companyBundleSchema", () => {
     contexts: [],
     commands: [],
     executables: [],
+    goals: [],
     instructions: null,
     config: null,
   };
@@ -155,6 +195,7 @@ describe("companyBundleSchema", () => {
     expect(parsed.duties).toEqual([]);
     expect(parsed.contexts).toEqual([]);
     expect(parsed.commands).toEqual([]);
+    expect(parsed.goals).toEqual([]);
     expect(parsed.instructions).toBeNull();
   });
 
@@ -274,6 +315,13 @@ describe("buildCompanyBundle", () => {
       updatedAt: "",
       htmlUrl: "",
     });
+    h.listManagedGoalFiles.mockResolvedValueOnce([
+      {
+        id: "ship-goals-page",
+        path: ".kody/goals/instances/ship-goals-page/state.json",
+        state: goalState,
+      },
+    ]);
 
     const bundle = await buildCompanyBundle();
 
@@ -322,6 +370,12 @@ describe("buildCompanyBundle", () => {
     // built-in command filtered out; only the repo one survives
     expect(bundle.commands).toHaveLength(1);
     expect(bundle.commands[0].slug).toBe("review");
+    expect(bundle.goals).toEqual([
+      {
+        id: "ship-goals-page",
+        state: goalState,
+      },
+    ]);
     expect(bundle.instructions).toBe("Be terse.");
     // repo-specific fields are not leaked into the bundle
     expect(bundle.staff[0]).not.toHaveProperty("sha");
@@ -432,6 +486,7 @@ describe("applyCompanyBundle", () => {
       },
     ],
     executables: [],
+    goals: [],
     instructions: "Be terse.",
     config: null,
   };
@@ -477,6 +532,33 @@ describe("applyCompanyBundle", () => {
         writesTo: ["ci-health-graph"],
       }),
     );
+  });
+
+  it("imports managed goals", async () => {
+    const result = await applyCompanyBundle(
+      octokit,
+      {
+        ...bundle,
+        staff: [],
+        duties: [],
+        contexts: [],
+        commands: [],
+        goals: [{ id: "ship-goals-page", state: goalState }],
+        instructions: null,
+      },
+      "skip",
+    );
+
+    expect(result.goals).toMatchObject({ created: 1, failed: 0 });
+    expect(h.writeManagedGoalFile).toHaveBeenCalledWith({
+      octokit,
+      owner: "acme",
+      repo: "widgets",
+      id: "ship-goals-page",
+      state: goalState,
+      sha: undefined,
+      message: "chore(goals): import managed goal ship-goals-page",
+    });
   });
 
   it("skips existing artifacts in skip mode (no writes)", async () => {
@@ -573,6 +655,7 @@ describe("applyCompanyBundle", () => {
         contexts: [],
         commands: [],
         executables: [{ slug: "repo-graph", files }],
+        goals: [],
         instructions: null,
       },
       "skip",

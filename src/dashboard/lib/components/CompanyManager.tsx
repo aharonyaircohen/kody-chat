@@ -24,6 +24,7 @@ import {
   ScrollText,
   SlidersHorizontal,
   BookOpenText,
+  Target,
 } from "lucide-react";
 import { PageShell } from "./PageShell";
 import { Button } from "@dashboard/ui/button";
@@ -80,10 +81,11 @@ function CompanyManagerInner() {
         bundle.contexts.length +
         bundle.commands.length +
         bundle.executables.length +
+        bundle.goals.length +
         (bundle.instructions ? 1 : 0) +
         (bundle.config ? 1 : 0);
       toast.success(
-        `Exported ${bundle.staff.length} staff, ${bundle.duties.length} duties, ${bundle.contexts.length} contexts, ${bundle.commands.length} commands, ${bundle.executables.length} executables${
+        `Exported ${bundle.staff.length} staff, ${bundle.duties.length} duties, ${bundle.goals.length} goals, ${bundle.contexts.length} contexts, ${bundle.commands.length} commands, ${bundle.executables.length} executables${
           bundle.instructions ? ", instructions" : ""
         }${bundle.config ? ", config" : ""} (${total} items)`,
       );
@@ -112,7 +114,8 @@ function CompanyManagerInner() {
         result.duties.failed +
         result.contexts.failed +
         result.commands.failed +
-        result.executables.failed;
+        result.executables.failed +
+        result.goals.failed;
       if (failed > 0) {
         toast.warning(`Imported with ${failed} failure(s) — see details below`);
       } else {
@@ -137,16 +140,17 @@ function CompanyManagerInner() {
         <p className="text-sm text-white/60 max-w-2xl">
           A <span className="text-white/80">Company</span> is your org&apos;s
           portable operating manual — its{" "}
-          <span className="text-white/80">staff</span>,{" "}
-          <span className="text-white/80">duties</span>,{" "}
-          <span className="text-white/80">context</span>,{" "}
+            <span className="text-white/80">staff</span>,{" "}
+            <span className="text-white/80">duties</span>,{" "}
+            <span className="text-white/80">goals</span>,{" "}
+            <span className="text-white/80">context</span>,{" "}
           <span className="text-white/80">commands</span>,{" "}
           <span className="text-white/80">instructions</span>, and portable{" "}
           <span className="text-white/80">config</span> (quality commands,
           aliases, access gate, model routing). Export it from one repo and
           import it into another to stand up the same team instantly.
-          Repo-specific state (memory, secrets, variables, goals, default
-          branch) stays behind by design.
+            Repo-specific state (memory, secrets, variables, default branch)
+            stays behind by design.
         </p>
 
         {/* Export */}
@@ -159,7 +163,8 @@ function CompanyManagerInner() {
               </p>
               <p className="text-xs text-white/50 mt-1">
                 Download a JSON bundle of this repo&apos;s staff, duties,
-                context, repo-defined commands, executables, and instructions.
+                goals, context, repo-defined commands, executables, and
+                instructions.
               </p>
             </div>
             <Button size="sm" onClick={handleExport} disabled={exporting}>
@@ -241,6 +246,7 @@ function CompanyManagerInner() {
                 <p>{countLine("Contexts", lastImport.contexts)}</p>
                 <p>{countLine("Commands", lastImport.commands)}</p>
                 <p>{countLine("Executables", lastImport.executables)}</p>
+                <p>{countLine("Goals", lastImport.goals)}</p>
                 <p>Instructions: {lastImport.instructions}</p>
                 <p>Config: {lastImport.config}</p>
                 {lastImport.notes.length > 0 && (
@@ -257,9 +263,10 @@ function CompanyManagerInner() {
 
         {/* What's included */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-white/45">
-          <Included icon={Users} label="Staff" />
-          <Included icon={ListChecks} label="Duties" />
-          <Included icon={BookOpenText} label="Context" />
+            <Included icon={Users} label="Staff" />
+            <Included icon={ListChecks} label="Duties" />
+            <Included icon={Target} label="Goals" />
+            <Included icon={BookOpenText} label="Context" />
           <Included icon={Bot} label="Commands" />
           <Included icon={Boxes} label="Executables" />
           <Included icon={ScrollText} label="Instructions" />

@@ -4226,7 +4226,11 @@ export function KodyChat({
     [sendText],
   );
 
-  const voiceChat = useVoiceChat({ onSendMessage: handleVoiceSend, voiceId });
+  const voiceChat = useVoiceChat({
+    enabled: voiceOverlayOpen,
+    onSendMessage: handleVoiceSend,
+    voiceId,
+  });
   const voiceChatRef = useRef(voiceChat);
   useEffect(() => {
     voiceChatRef.current = voiceChat;

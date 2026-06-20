@@ -17,6 +17,7 @@
  */
 
 import { z } from "zod";
+import { isManagedGoalState, type ManagedGoalState } from "../managed-goals";
 import type { ScheduleEvery } from "../ticked/frontmatter";
 
 /** Bump when the on-disk bundle shape changes incompatibly. */
@@ -94,6 +95,12 @@ export interface CompanyExecutableEntry {
   files: Record<string, string>;
 }
 
+/** A managed company goal under `kody-state:.kody/goals/instances/<id>/`. */
+export interface CompanyGoalEntry {
+  id: string;
+  state: ManagedGoalState;
+}
+
 /**
  * The portable engine-config slice of a Company. Only repo-agnostic policy is
  * carried — quality commands, comment aliases, the `@kody` access gate,
@@ -127,7 +134,8 @@ export interface CompanyBundle {
   duties: CompanyTickEntry[];
   contexts: CompanyContextEntry[];
   commands: CompanyCommandEntry[];
-  executables: CompanyExecutableEntry[];
+ executables: CompanyExecutableEntry[];
+ goals: CompanyGoalEntry[];
   /** Repo instructions body, or `null` when the source repo had none. */
   instructions: string | null;
   /** Portable engine config (omitted by older bundles → `null`). */
@@ -165,6 +173,7 @@ export interface CompanyImportResult {
   contexts: CompanyImportCounts;
   commands: CompanyImportCounts;
   executables: CompanyImportCounts;
+  goals: CompanyImportCounts;
   instructions: CompanyInstructionsOutcome;
   config: CompanyConfigOutcome;
   /** Human-readable per-item notes (e.g. failures), newest last. */
@@ -214,6 +223,11 @@ const executableEntrySchema = z.object({
   files: z.record(z.string(), z.string()),
 });
 
+const goalEntrySchema = z.object({
+  id: slugSchema,
+  state: z.custom<ManagedGoalState>(isManagedGoalState, "invalid goal state"),
+});
+
 /** Portable engine config. Every field optional + bounded; an unknown or
  * malformed shape is rejected so a junk bundle can't poison kody.config.json. */
 const configBundleSchema = z.object({
@@ -253,6 +267,7 @@ export const companyBundleSchema = z
      */
     prompts: z.array(commandEntrySchema).optional(),
     executables: z.array(executableEntrySchema).default([]),
+    goals: z.array(goalEntrySchema).default([]),
     instructions: z.string().nullable().default(null),
     config: configBundleSchema.nullish(),
   })

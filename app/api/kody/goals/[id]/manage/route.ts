@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern goal-runtime-state
  * @ai-summary Toggle "let Kody manage this goal end-to-end". Writes the
- *   `managed` boolean into `.kody/goals/<id>/state.json`. When enabling on
+ *   `managed` boolean into `.kody/goals/instances/<id>/state.json`. When enabling on
  *   a goal that was never started, it also creates the state file as
  *   `active` + `managed` and dispatches the engine so both `goal-tick`
  *   and the `goal-manager` staff member pick it up within seconds. Separate
@@ -27,7 +27,7 @@ import {
 import { logger } from "@dashboard/lib/logger";
 import {
   goalStatePath,
-  makeInitialActiveState,
+  makeInitialSimpleGoalState,
   type GoalRunState,
 } from "@dashboard/lib/goal-state";
 import { STATE_BRANCH } from "@dashboard/lib/state-branch";
@@ -199,7 +199,8 @@ export async function POST(
       );
     }
 
-    const base: GoalRunState = previous ?? makeInitialActiveState(new Date());
+    const base: GoalRunState =
+      previous ?? makeInitialSimpleGoalState(id, new Date(now));
     const next: GoalRunState = {
       ...base,
       version: 1,

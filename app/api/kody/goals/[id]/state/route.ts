@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern goal-runtime-state
  * @ai-summary Goal runtime state API. Reads/writes
- *   `.kody/goals/<id>/state.json` directly via the GitHub Contents API so
+ *   `.kody/goals/instances/<id>/state.json` directly via the GitHub Contents API so
  *   the state lives in the repo (engine and dashboard share one source of
  *   truth). GET returns 404 when the file doesn't exist (= "not started").
  *   PUT creates or updates the file with the user's GitHub token, so the
@@ -28,6 +28,7 @@ import { logger } from "@dashboard/lib/logger";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import {
   goalStatePath,
+  makeInitialSimpleGoalState,
   type GoalRunState,
   type GoalRunStateValue,
 } from "@dashboard/lib/goal-state";
@@ -254,7 +255,7 @@ export async function PUT(
     // engine has to re-derive them — which on `goalIssueNumber` means
     // creating a duplicate umbrella issue on the next goal-tick.
     const next: GoalRunState = {
-      ...(previous ?? {}),
+      ...(previous ?? makeInitialSimpleGoalState(id, new Date(now))),
       version: 1,
       state: parsed.data.state,
       startedAt: previous?.startedAt ?? now,

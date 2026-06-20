@@ -836,7 +836,7 @@ export async function findStatusOnBranch(
 }
 
 /**
- * Read `.kody/goals/<id>/state.json` from the default branch with cache +
+ * Read `.kody/goals/instances/<id>/state.json` from the state branch with cache +
  * ETag/304 revalidation. Returns `null` when the file is missing (= the
  * engine has never ticked this goal) or unparseable.
  *
@@ -850,7 +850,7 @@ export async function fetchGoalStateFromRepo(goalId: string): Promise<{
   goalPrUrl?: string;
 } | null> {
   if (!goalId || /[\\/]|\.\./.test(goalId)) return null;
-  const path = `.kody/goals/${goalId}/state.json`;
+  const path = `.kody/goals/instances/${goalId}/state.json`;
   const cacheKey = `goal-state:${getOwner()}:${getRepo()}:${goalId}`;
   const cached = getCached<{
     goalIssueNumber?: number;

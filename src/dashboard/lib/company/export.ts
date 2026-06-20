@@ -17,6 +17,7 @@ import { listRepoCommandFiles } from "../commands/files";
 import { listContextFiles } from "../context/files";
 import { readInstructionsFile } from "../instructions/files";
 import { listExecutableFiles, readExecutableFolderFiles } from "../executables";
+import { listManagedGoalFiles } from "../managed-goals-files";
 import { getEngineConfig } from "../engine/config";
 import {
   COMPANY_BUNDLE_VERSION,
@@ -25,6 +26,7 @@ import {
   type CompanyTickEntry,
   type CompanyCommandEntry,
   type CompanyExecutableEntry,
+  type CompanyGoalEntry,
   type CompanyContextEntry,
 } from "./types";
 import type { TickFile } from "../ticked/files";
@@ -80,6 +82,11 @@ async function buildExecutableEntries(): Promise<CompanyExecutableEntry[]> {
   return entries.filter((e): e is NonNullable<typeof e> => e !== null);
 }
 
+async function buildGoalEntries(): Promise<CompanyGoalEntry[]> {
+  const goals = await listManagedGoalFiles();
+  return goals.map((goal) => ({ id: goal.id, state: goal.state }));
+}
+
 /**
  * Read the portable engine-config slice from kody.config.json. Only fields
  * that are actually set are emitted, so an unconfigured repo exports `null`
@@ -126,6 +133,7 @@ export async function buildCompanyBundle(): Promise<CompanyBundle> {
     contexts,
     commandsResult,
     executables,
+    goals,
     instructions,
     config,
   ] = await Promise.all([
@@ -134,6 +142,7 @@ export async function buildCompanyBundle(): Promise<CompanyBundle> {
     listContextFiles(),
     listRepoCommandFiles(),
     buildExecutableEntries(),
+    buildGoalEntries(),
     readInstructionsFile(),
     buildConfigBundle(),
   ]);
@@ -149,6 +158,7 @@ export async function buildCompanyBundle(): Promise<CompanyBundle> {
       .filter((p) => p.source === "repo")
       .map(toCommandEntry),
     executables,
+    goals,
     instructions: instructions?.body?.trim() ? instructions.body : null,
     config,
   };

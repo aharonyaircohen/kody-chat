@@ -21,6 +21,14 @@ import { logger } from "@dashboard/lib/logger";
 import { invalidateIssueCache } from "@dashboard/lib/github-client";
 import { readGoalsManifestFresh } from "@dashboard/lib/goals-server";
 import { GOAL_LABEL_PREFIX, type Goal } from "@dashboard/lib/goals";
+import { STATE_BRANCH } from "@dashboard/lib/state-branch";
+import {
+  buildManagedGoalState,
+  isManagedGoalState,
+  managedGoalPath,
+  slugifyManagedGoalId,
+  type ManagedGoalRecord,
+} from "@dashboard/lib/managed-goals";
 
 interface Ctx {
   octokit: Octokit;
@@ -30,6 +38,140 @@ interface Ctx {
 
 const MAX_DESC_CHARS = 4_000;
 const MAX_ATTACHED_TASKS = 50;
+
+interface ContentFile {
+  type?: string;
+  name?: string;
+  encoding?: string;
+  content?: string;
+  sha?: string;
+}
+
+async function ensureStateBranch(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+): Promise<void> {
+  try {
+    await octokit.rest.git.getRef({
+      owner,
+      repo,
+      ref: `heads/${STATE_BRANCH}`,
+    });
+  } catch (err) {
+    if ((err as { status?: number }).status !== 404) throw err;
+    const { data: repoMeta } = await octokit.rest.repos.get({ owner, repo });
+    const defaultBranch = repoMeta.default_branch || "main";
+    const { data: refData } = await octokit.rest.git.getRef({
+      owner,
+      repo,
+      ref: `heads/${defaultBranch}`,
+    });
+    await octokit.rest.git.createRef({
+      owner,
+      repo,
+      ref: `refs/heads/${STATE_BRANCH}`,
+      sha: refData.object.sha,
+    });
+  }
+}
+
+async function readManagedGoalFile(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  goalId: string,
+): Promise<{ raw: string; sha: string } | null> {
+  try {
+    const res = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: managedGoalPath(goalId),
+      ref: STATE_BRANCH,
+      headers: { "If-None-Match": "" },
+    });
+    const data = res.data as ContentFile | ContentFile[];
+    if (Array.isArray(data) || data.type !== "file" || !data.content) {
+      return null;
+    }
+    return {
+      raw: Buffer.from(
+        data.content,
+        (data.encoding ?? "base64") as BufferEncoding,
+      ).toString("utf8"),
+      sha: data.sha ?? "",
+    };
+  } catch (err) {
+    if ((err as { status?: number }).status === 404) return null;
+    throw err;
+  }
+}
+
+async function listManagedGoalDirs(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+): Promise<ContentFile[]> {
+  try {
+    const res = await octokit.rest.repos.getContent({
+      owner,
+      repo,
+      path: ".kody/goals",
+      ref: STATE_BRANCH,
+      headers: { "If-None-Match": "" },
+    });
+    const data = res.data as ContentFile | ContentFile[];
+    return Array.isArray(data)
+      ? data.filter((item) => item.type === "dir")
+      : [];
+  } catch (err) {
+    if ((err as { status?: number }).status === 404) return [];
+    throw err;
+  }
+}
+
+async function listManagedGoals(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+): Promise<ManagedGoalRecord[]> {
+  const dirs = await listManagedGoalDirs(octokit, owner, repo);
+  const goals: ManagedGoalRecord[] = [];
+  for (const dir of dirs) {
+    if (!dir.name) continue;
+    const file = await readManagedGoalFile(octokit, owner, repo, dir.name);
+    if (!file) continue;
+    const parsed = JSON.parse(file.raw) as unknown;
+    if (!isManagedGoalState(parsed)) continue;
+    goals.push({
+      id: dir.name,
+      path: managedGoalPath(dir.name),
+      state: parsed,
+    });
+  }
+  return goals.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+async function dispatchGoalWorkflow(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+): Promise<boolean> {
+  try {
+    const repoMeta = await octokit.rest.repos.get({ owner, repo });
+    const defaultBranch = repoMeta.data.default_branch || "main";
+    await octokit.rest.actions.createWorkflowDispatch({
+      owner,
+      repo,
+      workflow_id: "kody.yml",
+      ref: defaultBranch,
+    });
+    return true;
+  } catch (err) {
+    logger.warn({ err, owner, repo }, "create_managed_goal dispatch failed");
+    return false;
+  }
+}
 
 function clip(s: string | null | undefined, n: number): string {
   if (!s) return "";
@@ -158,6 +300,157 @@ export function createGoalTools(ctx: Ctx) {
         } catch (err) {
           logger.warn({ err, owner, repo, number, id }, "get_goal failed");
           return { error: "Could not read the goals manifest." };
+        }
+      },
+    }),
+
+    list_managed_goals: tool({
+      description:
+        "List engine-managed goals stored in kody-state .kody/goals/<id>/state.json. " +
+        "Use for company goals with outcome, evidence, route, facts, and blockers.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        try {
+          const goals = await listManagedGoals(octokit, owner, repo);
+          return {
+            goals: goals.map((goal) => ({
+              id: goal.id,
+              path: goal.path,
+              state: goal.state.state,
+              type: goal.state.type,
+              outcome: goal.state.destination.outcome,
+              evidence: goal.state.destination.evidence,
+              stage: goal.state.stage ?? null,
+              blockers: goal.state.blockers,
+            })),
+          };
+        } catch (err) {
+          logger.warn({ err, owner, repo }, "list_managed_goals failed");
+          return { error: "Could not list managed goals." };
+        }
+      },
+    }),
+
+    get_managed_goal: tool({
+      description:
+        "Read one engine-managed goal by slug id from kody-state. " +
+        "Use this for a goal's outcome, evidence, route, facts, and blockers.",
+      inputSchema: z.object({
+        id: z.string().min(1).max(100).describe("Managed goal slug id"),
+      }),
+      execute: async ({ id }) => {
+        try {
+          const file = await readManagedGoalFile(octokit, owner, repo, id);
+          if (!file) return { error: `Managed goal "${id}" not found.` };
+          const parsed = JSON.parse(file.raw) as unknown;
+          if (!isManagedGoalState(parsed)) {
+            return { error: `Goal "${id}" is not a managed-goal file.` };
+          }
+          return {
+            goal: {
+              id,
+              path: managedGoalPath(id),
+              state: parsed,
+            },
+          };
+        } catch (err) {
+          logger.warn({ err, owner, repo, id }, "get_managed_goal failed");
+          return { error: "Could not read managed goal." };
+        }
+      },
+    }),
+
+    create_managed_goal: tool({
+      description:
+        "Create an engine-managed company goal. Provide a finish-line outcome, " +
+        "proof/evidence keys, and route steps that name duty/executable work. " +
+        "Writes kody-state .kody/goals/<id>/state.json and wakes Kody.",
+      inputSchema: z.object({
+        id: z
+          .string()
+          .min(1)
+          .max(100)
+          .optional()
+          .describe("Optional slug id. If omitted, derived from outcome."),
+        type: z
+          .string()
+          .min(1)
+          .max(80)
+          .default("general")
+          .describe("Goal kind, e.g. release, qa, docs, test."),
+        outcome: z
+          .string()
+          .min(1)
+          .max(500)
+          .describe("Human finish line. Example: Version 1.2.3 is published."),
+        evidence: z
+          .array(z.string().min(1).max(80))
+          .min(1)
+          .describe("Proof keys required for done, e.g. qaPassed."),
+        route: z
+          .array(
+            z.object({
+              stage: z.string().min(1).max(80),
+              evidence: z.string().min(1).max(80),
+              duty: z.string().min(1).max(80),
+              executable: z.string().min(1).max(80).optional(),
+            }),
+          )
+          .min(1)
+          .describe("One route step per evidence key."),
+      }),
+      execute: async (input) => {
+        try {
+          const goalId =
+            slugifyManagedGoalId(input.id ?? "") ||
+            slugifyManagedGoalId(input.outcome);
+          if (!goalId) return { error: "Could not derive a valid goal id." };
+
+          const path = managedGoalPath(goalId);
+          const existing = await readManagedGoalFile(
+            octokit,
+            owner,
+            repo,
+            goalId,
+          );
+          if (existing) {
+            return { error: `Managed goal "${goalId}" already exists.` };
+          }
+
+          const state = buildManagedGoalState(input);
+          await ensureStateBranch(octokit, owner, repo);
+          await octokit.rest.repos.createOrUpdateFileContents({
+            owner,
+            repo,
+            path,
+            message: `chore(goals): create managed goal ${goalId}`,
+            content: Buffer.from(
+              JSON.stringify(state, null, 2),
+              "utf8",
+            ).toString("base64"),
+            branch: STATE_BRANCH,
+          });
+
+          const engineDispatched = await dispatchGoalWorkflow(
+            octokit,
+            owner,
+            repo,
+          );
+
+          return {
+            ok: true,
+            goal: { id: goalId, path, state },
+            engineDispatched,
+            note: engineDispatched
+              ? "Managed goal created and Kody was woken."
+              : "Managed goal created. Kody scheduler can pick it up later.",
+          };
+        } catch (err) {
+          logger.warn({ err, owner, repo }, "create_managed_goal failed");
+          return {
+            error:
+              err instanceof Error ? err.message : "Could not create goal.",
+          };
         }
       },
     }),

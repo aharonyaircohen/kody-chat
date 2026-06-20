@@ -1515,6 +1515,11 @@ export interface GoalsListResponse {
   capabilities?: { discussionsEnabled: boolean };
 }
 
+import type {
+  CreateManagedGoalInput,
+  ManagedGoalRecord,
+} from "./managed-goals";
+
 export const goalsApi = {
   list: async (): Promise<Goal[]> => {
     const res = await fetch(`${API_BASE}/goals`, {
@@ -1536,6 +1541,25 @@ export const goalsApi = {
       cache: "no-store",
     });
     return handleResponse<GoalsListResponse>(res);
+  },
+  listManaged: async (): Promise<ManagedGoalRecord[]> => {
+    const res = await fetch(`${API_BASE}/goals/managed`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
+    const payload = await handleResponse<{ goals: ManagedGoalRecord[] }>(res);
+    return payload.goals;
+  },
+  createManaged: async (
+    data: CreateManagedGoalInput & { actorLogin?: string },
+  ): Promise<ManagedGoalRecord> => {
+    const res = await fetch(`${API_BASE}/goals/managed`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(data),
+    });
+    const payload = await handleResponse<{ goal: ManagedGoalRecord }>(res);
+    return payload.goal;
   },
 
   fetchDiscussion: async (id: string): Promise<GoalDiscussionPayload> => {
