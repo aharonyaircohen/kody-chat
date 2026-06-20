@@ -43,27 +43,31 @@ const calloutStyles: Record<
   note: {
     label: "Note",
     icon: Info,
-    className: "border-blue-400/40 bg-blue-500/10 text-blue-100",
+    className:
+      "border-blue-400/40 bg-blue-500/10 text-blue-900 dark:text-blue-100",
   },
   tip: {
     label: "Tip",
     icon: Lightbulb,
-    className: "border-emerald-400/40 bg-emerald-500/10 text-emerald-100",
+    className:
+      "border-emerald-400/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-100",
   },
   important: {
     label: "Important",
     icon: AlertCircle,
-    className: "border-violet-400/40 bg-violet-500/10 text-violet-100",
+    className:
+      "border-violet-400/40 bg-violet-500/10 text-violet-900 dark:text-violet-100",
   },
   warning: {
     label: "Warning",
     icon: AlertTriangle,
-    className: "border-amber-400/40 bg-amber-500/10 text-amber-100",
+    className:
+      "border-amber-400/40 bg-amber-500/10 text-amber-900 dark:text-amber-100",
   },
   caution: {
     label: "Caution",
     icon: ShieldAlert,
-    className: "border-red-400/40 bg-red-500/10 text-red-100",
+    className: "border-red-400/40 bg-red-500/10 text-red-900 dark:text-red-100",
   },
 };
 
@@ -309,7 +313,7 @@ function RichBlockquote({ children }: { children?: React.ReactNode }) {
 
   if (!calloutKind) {
     return (
-      <blockquote className="border-l-2 border-emerald-500/70 pl-4 text-white/60">
+      <blockquote className="border-l-2 border-emerald-500/70 pl-4 text-muted-foreground">
         {children}
       </blockquote>
     );
@@ -346,7 +350,7 @@ function Heading({
     <Tag id={id} className="group scroll-mt-20">
       <a
         href={`#${id}`}
-        className="no-underline after:ml-2 after:text-white/25 after:content-['#'] hover:after:text-white/60"
+        className="no-underline after:ml-2 after:text-muted-foreground/35 after:content-['#'] hover:after:text-muted-foreground/70"
       >
         {children}
       </a>
@@ -388,21 +392,21 @@ export function MarkdownPreview({
     <div
       dir={dir}
       className={cn(
-        "prose prose-invert prose-sm max-w-none",
+        "prose prose-sm max-w-none dark:prose-invert",
         variant === "compact" &&
           "text-sm prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-li:my-0 prose-blockquote:my-2",
-        "prose-headings:text-white/90",
-        "prose-p:text-white/70",
-        "prose-a:text-blue-400 prose-a:no-underline hover:prose-a:underline",
+        "prose-headings:text-foreground",
+        "prose-p:text-muted-foreground",
+        "prose-a:text-blue-600 prose-a:no-underline hover:prose-a:underline dark:prose-a:text-blue-400",
         "prose-code:before:content-none prose-code:after:content-none",
         "prose-pre:bg-transparent prose-pre:p-0",
-        "prose-strong:text-white/90",
-        "prose-ul:text-white/70 prose-ol:text-white/70",
-        "prose-li:marker:text-white/40",
-        "prose-table:text-white/70",
-        "prose-th:text-white/80 prose-th:border-white/20",
-        "prose-td:border-white/10",
-        "prose-hr:border-white/10",
+        "prose-strong:text-foreground",
+        "prose-ul:text-muted-foreground prose-ol:text-muted-foreground",
+        "prose-li:marker:text-muted-foreground/60",
+        "prose-table:text-muted-foreground",
+        "prose-th:text-foreground prose-th:border-border",
+        "prose-td:border-border",
+        "prose-hr:border-border",
         "prose-img:max-w-full prose-img:rounded-md",
         className,
       )}
