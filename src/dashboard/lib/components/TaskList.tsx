@@ -84,6 +84,7 @@ interface TaskListProps {
   onApproveReview?: (task: KodyTask) => Promise<void>;
   onTaskHover?: (task: KodyTask) => void;
   onAssign?: (issueNumber: number, assignees: string[]) => void;
+  onAssignToKody?: (task: KodyTask) => void;
   onUnassign?: (issueNumber: number, assignees: string[]) => void;
   collaborators?: { login: string; avatar_url: string }[];
   onOpenPreview?: (task: KodyTask) => void;
@@ -94,6 +95,7 @@ interface TaskListProps {
   onShowTask?: (task: KodyTask) => void;
   onRerun?: (task: KodyTask) => void;
   onToggleQueue?: (task: KodyTask) => void;
+  intakeMode?: boolean;
   /** If true, each row is draggable (for goal-to-goal DnD). */
   draggable?: boolean;
   onDragStartTask?: (task: KodyTask, event: React.DragEvent) => void;
@@ -206,6 +208,7 @@ export function TaskList({
   onApproveReview: _onApproveReview,
   onTaskHover,
   onAssign,
+  onAssignToKody,
   onUnassign: _onUnassign,
   focusedIndex,
   onOpenPreview,
@@ -216,6 +219,7 @@ export function TaskList({
   onShowTask,
   onRerun,
   onToggleQueue,
+  intakeMode = false,
   collaborators = [],
   draggable,
   onDragStartTask,
@@ -330,6 +334,7 @@ export function TaskList({
           onExecuteTask={onExecuteTask}
           onStopTask={onStopTask}
           onAssign={onAssign}
+          onAssignToKody={onAssignToKody}
           onOpenPreview={onOpenPreview}
           onEditTask={onEditTask}
           onDuplicate={onDuplicate}
@@ -337,6 +342,7 @@ export function TaskList({
           onShowTask={handleShowTask}
           onRerun={onRerun}
           onToggleQueue={onToggleQueue}
+          intakeMode={intakeMode}
           collaborators={collaborators}
           draggable={draggable}
           onDragStartTask={onDragStartTask}
@@ -358,6 +364,7 @@ interface TaskRowProps {
   onExecuteTask?: (taskId: string) => void;
   onStopTask?: (task: KodyTask) => void;
   onAssign?: (issueNumber: number, assignees: string[]) => void;
+  onAssignToKody?: (task: KodyTask) => void;
   onOpenPreview?: (task: KodyTask) => void;
   onEditTask?: (task: KodyTask) => void;
   onDuplicate?: (task: KodyTask) => void;
@@ -365,6 +372,7 @@ interface TaskRowProps {
   onShowTask?: (task: KodyTask) => void;
   onRerun?: (task: KodyTask) => void;
   onToggleQueue?: (task: KodyTask) => void;
+  intakeMode?: boolean;
   collaborators: { login: string; avatar_url: string }[];
   draggable?: boolean;
   onDragStartTask?: (task: KodyTask, event: React.DragEvent) => void;
@@ -382,6 +390,7 @@ const TaskRow = memo(function TaskRow({
   onExecuteTask,
   onStopTask,
   onAssign,
+  onAssignToKody,
   onOpenPreview,
   onEditTask,
   onDuplicate,
@@ -389,6 +398,7 @@ const TaskRow = memo(function TaskRow({
   onShowTask,
   onRerun,
   onToggleQueue: _onToggleQueue,
+  intakeMode = false,
   collaborators,
   draggable,
   onDragStartTask,
@@ -400,7 +410,8 @@ const TaskRow = memo(function TaskRow({
   // shouldn't offer execute/run actions, and they get a distinct slate
   // palette + "Closed" word so users can tell them apart from in-flight
   // `done`-column tasks at a glance.
-  const canExecute = !isClosed && task.column === "open" && onExecuteTask;
+  const canExecute =
+    !intakeMode && !isClosed && task.column === "open" && onExecuteTask;
   const hasPR = !!task.associatedPR;
   const isHardStop =
     !isClosed &&
@@ -834,6 +845,24 @@ const TaskRow = memo(function TaskRow({
                 </Button>
               </SimpleTooltip>
             )}
+
+          {intakeMode && onAssignToKody && !isClosed && (
+            <SimpleTooltip content="Assign to Kody backlog" side="bottom">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAssignToKody(task);
+                }}
+                aria-label="Assign to Kody"
+                className="h-7 gap-1.5 px-2 text-xs text-blue-300 hover:bg-blue-500/20"
+              >
+                <Bot className="w-3.5 h-3.5" />
+                Assign
+              </Button>
+            </SimpleTooltip>
+          )}
 
           {(task.column === "building" &&
             task.workflowRun?.status === "in_progress" &&

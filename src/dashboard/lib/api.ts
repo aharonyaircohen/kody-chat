@@ -211,9 +211,11 @@ export const tasksApi = {
   list: async (params?: {
     days?: number;
     includeDetails?: boolean;
+    viewMode?: "all" | "running" | "backlog" | "unassigned" | "queue";
   }): Promise<KodyTask[]> => {
     const searchParams = new URLSearchParams();
     if (params?.days) searchParams.set("days", String(params.days));
+    if (params?.viewMode) searchParams.set("view", params.viewMode);
     if (params?.includeDetails === false)
       searchParams.set("includeDetails", "false");
 

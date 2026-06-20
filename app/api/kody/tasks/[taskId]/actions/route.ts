@@ -446,7 +446,8 @@ export async function POST(
         // dashboard-managed labels defensively so first use always succeeds.
         if (
           label.startsWith(GOAL_LABEL_PREFIX) ||
-          label === HIDDEN_TASK_LABEL
+          label === HIDDEN_TASK_LABEL ||
+          label.startsWith("kody:")
         ) {
           try {
             await ensureLabel(

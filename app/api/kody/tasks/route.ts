@@ -48,7 +48,10 @@ import {
   deriveTaskColumn,
   getColumnForIssue,
 } from "@dashboard/lib/tasks/derive-column";
-import { isTaskListExcludedIssue } from "@dashboard/lib/tasks/visibility";
+import {
+  isDashboardKodyOwnedIssue,
+  isDashboardUnassignedIssue,
+} from "@dashboard/lib/tasks/visibility";
 import {
   parseKodyPhase,
   parseKodyFlow,
@@ -99,6 +102,19 @@ function deriveGateType(
   return undefined;
 }
 
+function getKodyAssigneeLogins(): string[] {
+  const raw =
+    process.env.KODY_ASSIGNEE_LOGINS ?? process.env.KODY_ASSIGNEE_LOGIN;
+  if (!raw) return ["kody"];
+
+  const configured = raw
+    .split(",")
+    .map((login) => login.trim())
+    .filter(Boolean);
+
+  return configured.length > 0 ? configured : ["kody"];
+}
+
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
@@ -140,14 +156,20 @@ export async function GET(req: NextRequest) {
       fetchWorkflowRuns({ perPage: 30 }),
       fetchOpenPRs(),
     ]);
-    const issues = rawIssues.filter(
-      (issue) =>
-        !isTaskListExcludedIssue({
-          labels: issue.labels.map((label) => label.name),
-          title: issue.title,
-          body: issue.body,
-        }),
-    );
+    const kodyAssigneeLogins = getKodyAssigneeLogins();
+    const issues = rawIssues.filter((issue) => {
+      const visibilityIssue = {
+        labels: issue.labels.map((label) => label.name),
+        assignees: issue.assignees,
+        isKodyAssigned: issue.isKodyAssigned,
+        title: issue.title,
+        body: issue.body,
+      };
+
+      return view === "unassigned"
+        ? isDashboardUnassignedIssue(visibilityIssue, kodyAssigneeLogins)
+        : isDashboardKodyOwnedIssue(visibilityIssue, kodyAssigneeLogins);
+    });
 
     // Workflow runs are matched per-task below using matchWorkflowRunToTask()
     // which prefers active (in_progress/queued) runs over stale completed ones.
