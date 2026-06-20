@@ -23,6 +23,7 @@ vi.mock("@dashboard/lib/auth", () => ({
 vi.mock("@dashboard/lib/duties-files", () => ({
   isValidSlug: vi.fn((slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug)),
   readDutyFile: vi.fn(),
+  readResolvedDutyFile: vi.fn(),
 }));
 
 vi.mock("@dashboard/lib/github-client", () => ({
@@ -34,16 +35,13 @@ vi.mock("@dashboard/lib/activity/audit", () => ({
   recordAudit: vi.fn(),
 }));
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const auth = await import("@dashboard/lib/auth");
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const dutyFiles = await import("@dashboard/lib/duties-files");
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const githubClient = await import("@dashboard/lib/github-client");
 
-const { getUserOctokit } = auth as any;
-const { readDutyFile } = dutyFiles as any;
-const { clearGitHubContext } = githubClient as any;
+const getUserOctokit = vi.mocked(auth.getUserOctokit);
+const readResolvedDutyFile = vi.mocked(dutyFiles.readResolvedDutyFile);
+const clearGitHubContext = vi.mocked(githubClient.clearGitHubContext);
 
 import { POST } from "../../app/api/kody/duties/[slug]/run/route";
 
@@ -80,12 +78,31 @@ describe("POST /api/kody/duties/[slug]/run", () => {
           createWorkflowDispatch,
         },
       },
-    };
+    } as unknown as Awaited<ReturnType<typeof getUserOctokit>>;
     getUserOctokit.mockResolvedValue(mockOctokit);
-    readDutyFile.mockResolvedValue({
+    readResolvedDutyFile.mockResolvedValue({
       slug: "repo-graph",
+      title: "Repo Graph",
+      body: "",
+      sha: "sha",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      lastTickAt: null,
+      nextEligibleAt: null,
+      lastOutcome: null,
+      lastDurationMs: null,
+      schedule: null,
+      disabled: false,
+      runner: null,
+      reviewer: null,
       action: "repo-graph",
+      mentions: [],
       executable: "refresh-repo-graph",
+      executables: [],
+      dutyTools: [],
+      tickScript: null,
+      readsFrom: [],
+      writesTo: [],
+      htmlUrl: "https://example.test/repo-graph",
     });
 
     const res = await POST(
@@ -102,7 +119,10 @@ describe("POST /api/kody/duties/[slug]/run", () => {
       duty: "repo-graph",
       force: true,
     });
-    expect(readDutyFile).toHaveBeenCalledWith("repo-graph", mockOctokit);
+    expect(readResolvedDutyFile).toHaveBeenCalledWith(
+      "repo-graph",
+      mockOctokit,
+    );
     expect(createWorkflowDispatch).toHaveBeenCalledWith({
       owner: "test-owner",
       repo: "test-repo",

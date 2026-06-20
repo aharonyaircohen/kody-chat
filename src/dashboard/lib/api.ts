@@ -903,6 +903,10 @@ export interface Duty {
   htmlUrl: string;
   /** Legacy folder-duty flag; current executable files live under `.kody/executables/`. */
   folder?: boolean;
+  /** Runtime resolution source. Local repo assets win over store assets. */
+  source?: "local" | "store";
+  /** Store-linked duties are visible and runnable, but not editable locally. */
+  readOnly?: boolean;
 }
 
 export const dutiesApi = {

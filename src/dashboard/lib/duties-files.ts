@@ -27,6 +27,13 @@ import {
   type TickFile,
   type TickWriteOptions,
 } from "./ticked/files";
+import {
+  buildCompanyStoreHtmlUrl,
+  companyStoreUpdatedAt,
+  listCompanyStoreAssetSlugs,
+  mergeAssetsBySlug,
+  readCompanyStoreText,
+} from "./company-store/assets";
 
 const DUTIES_DIR = ".kody/duties";
 const PROFILE_FILE = "profile.json";
@@ -309,9 +316,38 @@ export async function listDutyFiles(): Promise<DutyFile[]> {
       .filter((e) => e.type === "dir" && isValidSlug(e.name))
       .map((e) => readDutyFile(e.name, octokit)),
   );
-  return duties
-    .filter((d): d is DutyFile => d !== null)
-    .sort((a, b) => a.slug.localeCompare(b.slug));
+  const local = duties.filter((d): d is DutyFile => d !== null);
+  const store = await listStoreDutyFiles(
+    octokit,
+    new Set(local.map((d) => d.slug)),
+  );
+  return mergeAssetsBySlug(local, store);
+}
+
+async function listStoreDutyFiles(
+  octokit: Octokit,
+  localSlugs: Set<string>,
+): Promise<DutyFile[]> {
+  const slugs = await listCompanyStoreAssetSlugs(
+    octokit,
+    "duties",
+    isValidSlug,
+  );
+  const duties = await Promise.all(
+    slugs
+      .filter((slug) => !localSlugs.has(slug))
+      .map((slug) => readStoreDutyFile(slug, octokit)),
+  );
+  return duties.filter((d): d is DutyFile => d !== null);
+}
+
+export async function readResolvedDutyFile(
+  slug: string,
+  octokitOverride?: Octokit,
+): Promise<DutyFile | null> {
+  const local = await readDutyFile(slug, octokitOverride);
+  if (local) return local;
+  return readStoreDutyFile(slug, octokitOverride ?? getOctokit());
 }
 
 export async function readDutyFile(
@@ -410,6 +446,49 @@ export async function readDutyFile(
     if ((error as { status?: number })?.status === 404) return null;
     throw error;
   }
+}
+
+async function readStoreDutyFile(
+  slug: string,
+  octokit: Octokit,
+): Promise<DutyFile | null> {
+  if (!isValidSlug(slug)) return null;
+  const profilePath = `.kody/duties/${slug}/${PROFILE_FILE}`;
+  const bodyPath = `.kody/duties/${slug}/${BODY_FILE}`;
+  const [profileRaw, rawBody, updatedAt] = await Promise.all([
+    readCompanyStoreText(octokit, profilePath),
+    readCompanyStoreText(octokit, bodyPath),
+    companyStoreUpdatedAt(octokit, "duties", slug),
+  ]);
+  if (!profileRaw || rawBody === null) return null;
+  const profile = parseDutyProfile(JSON.parse(profileRaw), slug);
+  const { title, body } = parseTickedMarkdown(rawBody, slug);
+  return {
+    slug,
+    title,
+    body,
+    sha: "",
+    updatedAt,
+    lastTickAt: null,
+    nextEligibleAt: null,
+    lastOutcome: null,
+    lastDurationMs: null,
+    schedule: profile.every ?? null,
+    disabled: profile.disabled === true,
+    runner: profile.runner ?? null,
+    reviewer: profile.reviewer ?? null,
+    action: profile.action ?? slug,
+    mentions: profile.mentions ?? [],
+    executable: profile.executable ?? null,
+    executables: profile.executables ?? [],
+    dutyTools: profile.tools ?? [],
+    tickScript: profile.tickScript ?? null,
+    readsFrom: profile.readsFrom ?? [],
+    writesTo: profile.writesTo ?? [],
+    htmlUrl: buildCompanyStoreHtmlUrl("duties", slug),
+    source: "store",
+    readOnly: true,
+  };
 }
 
 export async function writeDutyFile(opts: TickWriteOptions): Promise<DutyFile> {

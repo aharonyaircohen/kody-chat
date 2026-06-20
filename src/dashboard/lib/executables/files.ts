@@ -23,6 +23,13 @@ import {
   type ExecutableLanding,
   type McpServerSpec,
 } from "./profile";
+import {
+  buildCompanyStoreHtmlUrl,
+  listCompanyStoreAssetSlugs,
+  listCompanyStoreDirectorySafe,
+  mergeAssetsBySlug,
+  readCompanyStoreText,
+} from "../company-store/assets";
 
 export { isValidSlug } from "./profile";
 
@@ -57,6 +64,10 @@ export interface ExecutableSummary {
   staff: string | null;
   /** Recurrence cadence from profile.every, or null. */
   every?: string | null;
+  /** Runtime resolution source. Local repo assets win over store assets. */
+  source?: "local" | "store";
+  /** Store-linked assets are visible and runnable, but not editable locally. */
+  readOnly?: boolean;
 }
 
 export interface ExecutableDetail extends ExecutableSummary {
@@ -124,6 +135,35 @@ function parseProfileJson(raw: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+function summaryFromProfile(
+  slug: string,
+  profile: Record<string, unknown>,
+  htmlUrl: string,
+  extra: Partial<Pick<ExecutableSummary, "source" | "readOnly">> = {},
+): ExecutableSummary {
+  const describe = typeof profile.describe === "string" ? profile.describe : "";
+  const landing: ExecutableLanding =
+    profile.lifecycle === "pr-branch" ? "pr" : "comment";
+  const staff =
+    typeof profile.staff === "string" && profile.staff.trim()
+      ? profile.staff.trim()
+      : null;
+  const every =
+    typeof profile.every === "string" && profile.every.trim()
+      ? profile.every.trim()
+      : null;
+  return {
+    slug,
+    describe,
+    landing,
+    updatedAt: null,
+    htmlUrl,
+    staff,
+    every,
+    ...extra,
+  };
 }
 
 async function readFileText(
@@ -212,8 +252,60 @@ export async function listExecutableFiles(): Promise<ExecutableSummary[]> {
   const octokit = getOctokit();
   const branch = await getDefaultBranch(octokit).catch(() => null);
 
-  const summaries = await listExecutableFolders(octokit, branch);
-  return summaries.sort((a, b) => a.slug.localeCompare(b.slug));
+  const local = await listExecutableFolders(octokit, branch);
+  const store = await listStoreExecutableFiles(
+    octokit,
+    new Set(local.map((e) => e.slug)),
+  );
+  return mergeAssetsBySlug(local, store);
+}
+
+async function listStoreExecutableFiles(
+  octokit: Octokit,
+  localSlugs: Set<string>,
+): Promise<ExecutableSummary[]> {
+  const slugs = await listCompanyStoreAssetSlugs(
+    octokit,
+    "executables",
+    isValidSlug,
+  );
+  const summaries = await Promise.all(
+    slugs
+      .filter((slug) => !localSlugs.has(slug))
+      .map((slug) => readStoreExecutableSummary(slug, octokit)),
+  );
+  return summaries.filter((s): s is ExecutableSummary => s !== null);
+}
+
+async function readStoreExecutableSummary(
+  slug: string,
+  octokit: Octokit,
+): Promise<ExecutableSummary | null> {
+  const profileRaw = await readCompanyStoreText(
+    octokit,
+    `.kody/executables/${slug}/profile.json`,
+  );
+  if (!profileRaw) return null;
+  const profile = parseProfileJson(profileRaw);
+  if (!profile) return null;
+  return summaryFromProfile(
+    slug,
+    profile,
+    buildCompanyStoreHtmlUrl("executables", slug),
+    {
+      source: "store",
+      readOnly: true,
+    },
+  );
+}
+
+export async function readResolvedExecutableFile(
+  slug: string,
+  octokitOverride?: Octokit,
+): Promise<ExecutableDetail | null> {
+  const local = await readExecutableFile(slug, octokitOverride);
+  if (local) return local;
+  return readStoreExecutableFile(slug, octokitOverride ?? getOctokit());
 }
 
 /** Read a single executable folder into the full editable detail. */
@@ -288,6 +380,85 @@ export async function readExecutableFile(
     mcpServers: fields.mcpServers,
     profileJson: profileRaw,
   };
+}
+
+async function readStoreExecutableFile(
+  slug: string,
+  octokit: Octokit,
+): Promise<ExecutableDetail | null> {
+  if (!isValidSlug(slug)) return null;
+  const base = `.kody/executables/${slug}`;
+  const profileRaw = await readCompanyStoreText(
+    octokit,
+    `${base}/profile.json`,
+  );
+  if (profileRaw === null) return null;
+  const profile = parseProfileJson(profileRaw);
+  if (!profile) return null;
+  const prompt = stripContract(
+    (await readCompanyStoreText(octokit, `${base}/prompt.md`)) ?? "",
+  );
+  const entries = await listCompanyStoreDirectorySafe(octokit, base);
+  const shellScripts = await Promise.all(
+    entries
+      .filter((entry) => entry.type === "file" && entry.name.endsWith(".sh"))
+      .map(
+        async (entry): Promise<ExecutableShellScript> => ({
+          name: entry.name,
+          content:
+            (await readCompanyStoreText(octokit, `${base}/${entry.name}`)) ??
+            "",
+        }),
+      ),
+  );
+  const skills = entries.some(
+    (entry) => entry.type === "dir" && entry.name === "skills",
+  )
+    ? await readStoreSkills(octokit, `${base}/skills`)
+    : [];
+  const fields = fieldsFromProfile(slug, profile);
+  const summary = summaryFromProfile(
+    slug,
+    profile,
+    buildCompanyStoreHtmlUrl("executables", slug),
+    {
+      source: "store",
+      readOnly: true,
+    },
+  );
+  return {
+    ...summary,
+    prompt,
+    model: fields.model,
+    permissionMode: fields.permissionMode,
+    tools: fields.tools,
+    skills,
+    shellScripts,
+    mcpServers: fields.mcpServers,
+    profileJson: profileRaw,
+  };
+}
+
+async function readStoreSkills(
+  octokit: Octokit,
+  skillsPath: string,
+): Promise<ExecutableSkill[]> {
+  const dirs = await listCompanyStoreDirectorySafe(octokit, skillsPath);
+  const skills = await Promise.all(
+    dirs
+      .filter((entry) => entry.type === "dir")
+      .map(
+        async (entry): Promise<ExecutableSkill> => ({
+          name: entry.name,
+          body:
+            (await readCompanyStoreText(
+              octokit,
+              `${skillsPath}/${entry.name}/SKILL.md`,
+            )) ?? "",
+        }),
+      ),
+  );
+  return skills.sort((a, b) => a.name.localeCompare(b.name));
 }
 
 async function readSkills(

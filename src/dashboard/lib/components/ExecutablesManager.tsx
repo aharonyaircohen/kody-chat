@@ -99,6 +99,8 @@ interface ExecutableSummary {
   htmlUrl: string;
   /** Legacy/profile staff field, if present. Duties normally own staff. */
   staff?: string | null;
+  source?: "local" | "store";
+  readOnly?: boolean;
 }
 interface ExecutableDetail extends ExecutableSummary {
   /** Engine file is still prompt.md; product concept is "instructions". */
@@ -488,8 +490,12 @@ function ExecutablesManagerInner() {
                     : null
                 }
                 onBack={() => setSelectedSlug(null)}
-                onEdit={() => setEditingSlug(selected.slug)}
-                onDelete={() => setDeleting(selected.slug)}
+                onEdit={() => {
+                  if (!selected.readOnly) setEditingSlug(selected.slug);
+                }}
+                onDelete={() => {
+                  if (!selected.readOnly) setDeleting(selected.slug);
+                }}
               />
             )
           ) : (
@@ -585,6 +591,11 @@ function ExecutableRow({
         <span className="font-mono text-sm truncate flex-1 text-white/90">
           {e.slug}
         </span>
+        {e.source === "store" ? (
+          <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-amber-500/10 text-amber-300 border border-amber-500/20">
+            Store
+          </span>
+        ) : null}
       </div>
       <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
         <span className="inline-flex items-center gap-1">
@@ -641,6 +652,11 @@ function ExecutableDetail({
             <div className="min-w-0 flex-1 space-y-2">
               <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words font-mono inline-flex items-center gap-3 flex-wrap">
                 <span>{e.slug}</span>
+                {e.source === "store" ? (
+                  <span className="text-[11px] font-sans uppercase tracking-wide bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2 py-0.5 rounded">
+                    Store
+                  </span>
+                ) : null}
                 <span className="text-[11px] font-sans uppercase tracking-wide bg-white/[0.06] text-white/50 px-2 py-0.5 rounded">
                   {e.landing === "pr" ? "PR result" : "comment result"}
                 </span>
@@ -681,8 +697,13 @@ function ExecutableDetail({
                 variant="outline"
                 size="sm"
                 onClick={onEdit}
+                disabled={e.readOnly}
                 className="w-9 px-0"
-                title="Edit executable"
+                title={
+                  e.readOnly
+                    ? "Store-linked executables are read-only"
+                    : "Edit executable"
+                }
                 aria-label="Edit executable"
               >
                 <Pencil className="w-3.5 h-3.5" />
@@ -691,8 +712,13 @@ function ExecutableDetail({
                 variant="outline"
                 size="sm"
                 onClick={onDelete}
+                disabled={e.readOnly}
                 className="w-9 px-0 text-red-400"
-                title="Delete executable"
+                title={
+                  e.readOnly
+                    ? "Store-linked executables are read-only"
+                    : "Delete executable"
+                }
                 aria-label="Delete executable"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -1087,6 +1113,7 @@ function ExecutableEditorForm({
   showHeader?: boolean;
 }) {
   const [slug, setSlug] = useState(initial?.slug ?? "");
+  const isReadOnly = initial?.readOnly === true;
   const [touchedSlug, setTouchedSlug] = useState(false);
   const [describe, setDescribe] = useState(initial?.describe ?? "");
   const [prompt, setPrompt] = useState(initial?.prompt ?? DEFAULT_INSTRUCTIONS);
@@ -1272,6 +1299,7 @@ function ExecutableEditorForm({
   // referenced skill/shell file is malformed — not just slug/instructions.
   const canSave =
     !saving &&
+    !isReadOnly &&
     !slugError &&
     !promptError &&
     validation.errors.length === 0 &&
@@ -1293,8 +1321,9 @@ function ExecutableEditorForm({
                 : `Edit implementation ${initial?.slug}`}
             </h2>
             <p className="text-xs text-white/50">
-              Stored at .kody/executables/&lt;slug&gt;/. Duties reference this
-              slug as their implementation.
+              {isReadOnly
+                ? "Store-linked executable. Visible here, edited in kody-store."
+                : "Stored at .kody/executables/<slug>/. Duties reference this slug as their implementation."}
             </p>
           </div>
           <Button

@@ -16,7 +16,7 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@dashboard/lib/auth";
-import { isValidSlug, readDutyFile } from "@dashboard/lib/duties-files";
+import { isValidSlug, readResolvedDutyFile } from "@dashboard/lib/duties-files";
 import {
   setGitHubContext,
   clearGitHubContext,
@@ -76,7 +76,7 @@ export async function POST(
   }
 
   try {
-    const duty = await readDutyFile(slug, octokit);
+    const duty = await readResolvedDutyFile(slug, octokit);
     if (!duty) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }

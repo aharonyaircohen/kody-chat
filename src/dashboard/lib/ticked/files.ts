@@ -108,6 +108,10 @@ export interface TickFile {
   writesTo: string[];
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
+  /** Runtime resolution source. Local repo assets win over store assets. */
+  source?: "local" | "store";
+  /** Store-linked assets are visible and runnable, but not editable locally. */
+  readOnly?: boolean;
 }
 
 export interface TickWriteOptions {

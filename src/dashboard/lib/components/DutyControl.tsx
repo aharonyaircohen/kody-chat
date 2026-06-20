@@ -334,14 +334,20 @@ export function DutyControlInner() {
             <DutyDetail
               duty={selectedDuty}
               onBack={() => setSelectedSlug(null)}
-              onEdit={() => setEditingDuty(selectedDuty)}
-              onDelete={() => setPendingDelete(selectedDuty)}
+              onEdit={() => {
+                if (!selectedDuty.readOnly) setEditingDuty(selectedDuty);
+              }}
+              onDelete={() => {
+                if (!selectedDuty.readOnly) setPendingDelete(selectedDuty);
+              }}
               onRun={() =>
                 runMutation.mutate({ slug: selectedDuty.slug, force: true })
               }
-              onToggleEnabled={() =>
-                updateMutation.mutate({ disabled: !selectedDuty.disabled })
-              }
+              onToggleEnabled={() => {
+                if (!selectedDuty.readOnly) {
+                  updateMutation.mutate({ disabled: !selectedDuty.disabled });
+                }
+              }}
               isRunning={
                 runMutation.isPending &&
                 runMutation.variables?.slug === selectedDuty.slug
@@ -401,6 +407,11 @@ export function DutyControlInner() {
                       <span className="font-medium text-sm truncate flex-1">
                         {duty.title}
                       </span>
+                      {duty.source === "store" ? (
+                        <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                          Store
+                        </span>
+                      ) : null}
                       {duty.disabled ? (
                         <span
                           className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-white/[0.06] text-muted-foreground border border-white/[0.08]"
@@ -551,6 +562,11 @@ function DutyDetail({
             <div className="min-w-0 flex-1 space-y-2">
               <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words inline-flex items-center gap-3 flex-wrap">
                 <span>{duty.title}</span>
+                {duty.source === "store" ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium uppercase tracking-wide bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                    Store
+                  </span>
+                ) : null}
                 {duty.disabled ? (
                   <span
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium uppercase tracking-wide bg-white/[0.06] text-muted-foreground border border-white/[0.08]"
@@ -666,9 +682,13 @@ function DutyDetail({
                 variant={duty.disabled ? "default" : "outline"}
                 size="sm"
                 onClick={onToggleEnabled}
-                disabled={isToggling}
+                disabled={isToggling || duty.readOnly}
                 className="w-9 px-0"
-                title={`${toggleLabel} duty`}
+                title={
+                  duty.readOnly
+                    ? "Store-linked duties are read-only"
+                    : `${toggleLabel} duty`
+                }
                 aria-label={`${toggleLabel} duty`}
               >
                 {isToggling ? (
@@ -697,8 +717,13 @@ function DutyDetail({
                 variant="outline"
                 size="sm"
                 onClick={onEdit}
+                disabled={duty.readOnly}
                 className="w-9 px-0"
-                title="Edit duty"
+                title={
+                  duty.readOnly
+                    ? "Store-linked duties are read-only"
+                    : "Edit duty"
+                }
                 aria-label="Edit duty"
               >
                 <Pencil className="w-3.5 h-3.5" />
@@ -707,8 +732,13 @@ function DutyDetail({
                 variant="outline"
                 size="sm"
                 onClick={onDelete}
+                disabled={duty.readOnly}
                 className="w-9 px-0 text-red-400"
-                title="Delete duty"
+                title={
+                  duty.readOnly
+                    ? "Store-linked duties are read-only"
+                    : "Delete duty"
+                }
                 aria-label="Delete duty"
               >
                 <Trash2 className="w-3.5 h-3.5" />
@@ -748,6 +778,7 @@ function DutyDetail({
               size="sm"
               variant="outline"
               onClick={onEdit}
+              disabled={duty.readOnly}
               className="gap-1.5 mt-1"
             >
               <Pencil className="w-3.5 h-3.5" />

@@ -21,6 +21,7 @@ import {
 } from "@dashboard/lib/github-client";
 import {
   readDutyFile,
+  readResolvedDutyFile,
   writeDutyFile,
   deleteDutyFile,
   isValidSlug,
@@ -44,7 +45,7 @@ export async function GET(
     if (!isValidSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    const duty = await readDutyFile(slug);
+    const duty = await readResolvedDutyFile(slug);
     if (!duty) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }

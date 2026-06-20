@@ -22,6 +22,7 @@ import {
 } from "@dashboard/lib/github-client";
 import {
   readExecutableFile,
+  readResolvedExecutableFile,
   writeExecutableFile,
   deleteExecutableFile,
   isValidSlug,
@@ -45,7 +46,7 @@ export async function GET(
     if (!isValidSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    const executable = await readExecutableFile(slug);
+    const executable = await readResolvedExecutableFile(slug);
     if (!executable)
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     return NextResponse.json({ executable });
