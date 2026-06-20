@@ -1562,6 +1562,33 @@ export const goalsApi = {
     return payload.goal;
   },
 
+  updateManaged: async (
+    id: string,
+    data: import("./managed-goals").UpdateManagedGoalInput,
+  ): Promise<ManagedGoalRecord> => {
+    const res = await fetch(
+      `${API_BASE}/goals/managed/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        headers: buildHeaders(),
+        body: JSON.stringify(data),
+      },
+    );
+    const payload = await handleResponse<{ goal: ManagedGoalRecord }>(res);
+    return payload.goal;
+  },
+
+  removeManaged: async (id: string): Promise<void> => {
+    const res = await fetch(
+      `${API_BASE}/goals/managed/${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+        headers: buildHeaders(),
+      },
+    );
+    await handleResponse<{ success: boolean }>(res);
+  },
+
   fetchDiscussion: async (id: string): Promise<GoalDiscussionPayload> => {
     const res = await fetch(
       `${API_BASE}/goals/${encodeURIComponent(id)}/discussion`,

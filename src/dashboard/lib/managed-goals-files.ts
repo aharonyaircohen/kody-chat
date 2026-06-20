@@ -200,3 +200,29 @@ export async function writeManagedGoalFile({
     ...(sha ? { sha } : {}),
   });
 }
+
+export async function deleteManagedGoalFile({
+  octokit,
+  owner = getOwner(),
+  repo = getRepo(),
+  id,
+  sha,
+  message,
+}: {
+  octokit: Octokit;
+  owner?: string;
+  repo?: string;
+  id: string;
+  sha: string;
+  message?: string;
+}): Promise<void> {
+  await ensureStateBranch(octokit, owner, repo);
+  await octokit.rest.repos.deleteFile({
+    owner,
+    repo,
+    path: managedGoalPath(id),
+    message: message ?? `chore(goals): delete managed goal ${id}`,
+    sha,
+    branch: STATE_BRANCH,
+  });
+}

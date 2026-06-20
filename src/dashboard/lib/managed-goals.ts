@@ -54,6 +54,13 @@ export interface CreateManagedGoalInput {
   route?: ManagedGoalRouteStep[];
 }
 
+export interface UpdateManagedGoalInput {
+  type?: string;
+  outcome?: string;
+  evidence?: string[];
+  route?: ManagedGoalRouteStep[];
+}
+
 export function managedGoalPath(goalId: string): string {
   if (!goalId || /[\\/]/.test(goalId) || goalId.includes("..")) {
     throw new Error(`Invalid goalId path: ${JSON.stringify(goalId)}`);

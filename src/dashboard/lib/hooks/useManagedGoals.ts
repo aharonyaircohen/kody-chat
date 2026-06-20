@@ -17,7 +17,9 @@ import {
 } from "../api";
 import type {
   CreateManagedGoalInput,
+  ManagedGoalState,
   ManagedGoalRecord,
+  UpdateManagedGoalInput,
 } from "../managed-goals";
 
 export const managedGoalQueryKeys = {
@@ -40,14 +42,10 @@ export function useManagedGoals() {
   });
 }
 
-export function useCreateManagedGoal(actorLogin?: string | null) {
+export function useCreateManagedGoal() {
   const queryClient = useQueryClient();
   return useMutation<ManagedGoalRecord, Error, CreateManagedGoalInput>({
-    mutationFn: (data) =>
-      kodyApi.goals.createManaged({
-        ...data,
-        ...(actorLogin ? { actorLogin } : {}),
-      }),
+    mutationFn: (data) => kodyApi.goals.createManaged(data),
     onSuccess: (created) => {
       queryClient.setQueryData<ManagedGoalRecord[]>(
         managedGoalQueryKeys.list,
@@ -62,6 +60,87 @@ export function useCreateManagedGoal(actorLogin?: string | null) {
     },
     onError: (error) => {
       toast.error("Failed to create goal", { description: error.message });
+    },
+  });
+}
+
+export function useUpdateManagedGoal(id: string) {
+  const queryClient = useQueryClient();
+  return useMutation<ManagedGoalRecord, Error, UpdateManagedGoalInput>({
+    mutationFn: (data) => kodyApi.goals.updateManaged(id, data),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<ManagedGoalRecord[]>(
+        managedGoalQueryKeys.list,
+        (prev) =>
+          prev
+            ? prev.map((goal) => (goal.id === updated.id ? updated : goal))
+            : [updated],
+      );
+      queryClient.invalidateQueries({ queryKey: managedGoalQueryKeys.list });
+      toast.success("Goal updated");
+    },
+    onError: (error) => {
+      toast.error("Failed to update goal", { description: error.message });
+    },
+  });
+}
+
+export function useDeleteManagedGoal() {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, string>({
+    mutationFn: (id) => kodyApi.goals.removeManaged(id),
+    onSuccess: (_unused, id) => {
+      queryClient.setQueryData<ManagedGoalRecord[]>(
+        managedGoalQueryKeys.list,
+        (prev) => prev?.filter((goal) => goal.id !== id) ?? [],
+      );
+      queryClient.invalidateQueries({ queryKey: managedGoalQueryKeys.list });
+      toast.success("Goal deleted");
+    },
+    onError: (error) => {
+      toast.error("Failed to delete goal", { description: error.message });
+    },
+  });
+}
+
+export function useSetManagedGoalState() {
+  const queryClient = useQueryClient();
+  return useMutation<
+    ManagedGoalRecord,
+    Error,
+    { id: string; state: "active" | "paused"; pausedReason?: string }
+  >({
+    mutationFn: async ({ id, state, pausedReason }) => {
+      const next = await kodyApi.goals.setState(id, {
+        state,
+        ...(pausedReason ? { pausedReason } : {}),
+      });
+      const current = queryClient
+        .getQueryData<ManagedGoalRecord[]>(managedGoalQueryKeys.list)
+        ?.find((goal) => goal.id === id);
+      return {
+        id,
+        path: current?.path ?? `.kody/goals/instances/${id}/state.json`,
+        source: current?.source,
+        recordType: current?.recordType,
+        state: next as unknown as ManagedGoalState,
+      };
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData<ManagedGoalRecord[]>(
+        managedGoalQueryKeys.list,
+        (prev) =>
+          prev
+            ? prev.map((goal) => (goal.id === updated.id ? updated : goal))
+            : [updated],
+      );
+      queryClient.invalidateQueries({ queryKey: managedGoalQueryKeys.list });
+      toast.success(
+        updated.state.state === "active" ? "Goal activated" : "Goal paused",
+      );
+    },
+    onError: (error) => {
+      toast.error("Failed to update goal", { description: error.message });
     },
   });
 }

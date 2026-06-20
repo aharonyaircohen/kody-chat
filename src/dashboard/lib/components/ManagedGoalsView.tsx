@@ -13,16 +13,17 @@ import {
   CircleDot,
   FileText,
   Loader2,
+  Pencil,
+  Power,
+  PowerOff,
   Plus,
   RefreshCw,
   Route,
   ShieldAlert,
-  Sparkles,
   Target,
   Trash2,
 } from "lucide-react";
 
-import { Badge } from "@dashboard/ui/badge";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import {
@@ -34,16 +35,26 @@ import {
 } from "@dashboard/ui/dialog";
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@dashboard/ui/select";
 import { Textarea } from "@dashboard/ui/textarea";
 
-import { useAuth } from "../auth-context";
 import {
   useCreateManagedGoal,
+  useDeleteManagedGoal,
   useManagedGoals,
+  useSetManagedGoalState,
+  useUpdateManagedGoal,
 } from "../hooks/useManagedGoals";
 import type {
   CreateManagedGoalInput,
   ManagedGoalRecord,
+  UpdateManagedGoalInput,
 } from "../managed-goals";
 import { cn } from "../utils";
 import { EmptyState } from "./EmptyState";
@@ -98,21 +109,84 @@ const templateRows = {
   ],
 } satisfies Record<string, EvidenceRow[]>;
 
+type GoalPresetId = "general" | "docs" | "plan";
+
+interface GoalPreset {
+  id: GoalPresetId;
+  label: string;
+  description: string;
+  type: string;
+  defaultOutcome: string;
+  rows: EvidenceRow[];
+}
+
+const goalPresets = [
+  {
+    id: "general",
+    label: "General check",
+    description: "One normal verification step.",
+    type: "general",
+    defaultOutcome: "Goal is complete and verified.",
+    rows: templateRows.simple,
+  },
+  {
+    id: "docs",
+    label: "Docs check",
+    description: "Check documentation and report drift.",
+    type: "docs",
+    defaultOutcome: "Documentation is checked and any drift is reported.",
+    rows: templateRows.docs,
+  },
+  {
+    id: "plan",
+    label: "Planning",
+    description: "Produce a plan for the requested work.",
+    type: "plan",
+    defaultOutcome: "A plan exists for requested work.",
+    rows: templateRows.plan,
+  },
+] satisfies GoalPreset[];
+const defaultGoalPreset = goalPresets[0]!;
+
 function cloneRows(rows: EvidenceRow[]): EvidenceRow[] {
   return rows.map((row) => ({ ...row, id: newRowId() }));
 }
 
-function stateClasses(state: string): string {
-  if (state === "inactive") {
-    return "border-white/10 bg-white/[0.04] text-white/55";
+function slugifyGoalInput(value: string): string {
+  return value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 64);
+}
+
+function newInstanceId(sourceId: string): string {
+  const stamp = new Date()
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\..+$/, "")
+    .replace("T", "-");
+  return `${slugifyGoalInput(sourceId) || "goal"}-${stamp}`.slice(0, 80);
+}
+
+function rowsFromGoal(goal: ManagedGoalRecord): EvidenceRow[] {
+  if (goal.state.route.length > 0) {
+    return goal.state.route.map((step) => ({
+      id: newRowId(),
+      evidence: step.evidence,
+      stage: step.stage,
+      duty: step.duty,
+      executable: step.executable ?? "",
+    }));
   }
-  if (state === "done") {
-    return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
-  }
-  if (state === "paused") {
-    return "border-amber-500/30 bg-amber-500/10 text-amber-200";
-  }
-  return "border-sky-500/30 bg-sky-500/10 text-sky-200";
+  return goal.state.destination.evidence.map((evidence) => ({
+    id: newRowId(),
+    evidence,
+    stage: "",
+    duty: "",
+    executable: "",
+  }));
 }
 
 function completedEvidence(goal: ManagedGoalRecord): number {
@@ -132,6 +206,14 @@ function nextEvidence(goal: ManagedGoalRecord): string | null {
 function currentRouteStep(goal: ManagedGoalRecord) {
   const next = nextEvidence(goal);
   return next ? goal.state.route.find((step) => step.evidence === next) : null;
+}
+
+function GoalStateText({ state }: { state: string }) {
+  if (state === "active") return null;
+  const label = state.charAt(0).toUpperCase() + state.slice(1);
+  return (
+    <span className="font-medium text-amber-200">{label}</span>
+  );
 }
 
 function goalSearchText(goal: ManagedGoalRecord): string {
@@ -160,18 +242,28 @@ function goalSearchText(goal: ManagedGoalRecord): string {
 function NewGoalDialog({
   open,
   onOpenChange,
+  instanceSources,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  instanceSources: ManagedGoalRecord[];
 }) {
-  const { auth } = useAuth();
-  const createGoal = useCreateManagedGoal(auth?.user.login);
+  const createGoal = useCreateManagedGoal();
+  const [mode, setMode] = useState<"new" | "instance">("new");
+  const [timing, setTiming] = useState<"now">("now");
+  const [sourceId, setSourceId] = useState("");
   const [goalId, setGoalId] = useState("");
+  const [presetId, setPresetId] = useState<GoalPresetId>("general");
   const [type, setType] = useState("general");
   const [outcome, setOutcome] = useState("");
   const [rows, setRows] = useState<EvidenceRow[]>(
     cloneRows(templateRows.simple),
   );
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  const selectedPreset =
+    goalPresets.find((preset) => preset.id === presetId) ?? defaultGoalPreset;
+  const selectedSource = instanceSources.find((goal) => goal.id === sourceId);
 
   const validRows = useMemo(
     () =>
@@ -180,27 +272,39 @@ function NewGoalDialog({
       ),
     [rows],
   );
-  const duties = useMemo(
-    () => Array.from(new Set(validRows.map((row) => row.duty.trim()))),
-    [validRows],
-  );
   const canSubmit = outcome.trim().length > 0 && validRows.length > 0;
 
   const reset = () => {
+    setMode("new");
+    setTiming("now");
+    setSourceId("");
     setGoalId("");
+    setPresetId("general");
     setType("general");
     setOutcome("");
     setRows(cloneRows(templateRows.simple));
+    setShowAdvanced(false);
   };
 
-  const applyTemplate = (
-    nextType: string,
-    nextOutcome: string,
-    nextRows: EvidenceRow[],
-  ) => {
-    setType(nextType);
-    if (!outcome.trim()) setOutcome(nextOutcome);
-    setRows(cloneRows(nextRows));
+  const applyPreset = (nextPresetId: GoalPresetId) => {
+    const nextPreset =
+      goalPresets.find((preset) => preset.id === nextPresetId) ??
+      defaultGoalPreset;
+    setPresetId(nextPreset.id);
+    setType(nextPreset.type);
+    if (!outcome.trim()) setOutcome(nextPreset.defaultOutcome);
+    setRows(cloneRows(nextPreset.rows));
+  };
+
+  const applyInstanceSource = (nextSourceId: string) => {
+    const source = instanceSources.find((goal) => goal.id === nextSourceId);
+    setSourceId(nextSourceId);
+    if (!source) return;
+    setGoalId(newInstanceId(source.id));
+    setType(source.state.type || "general");
+    setOutcome(source.state.destination.outcome);
+    setRows(rowsFromGoal(source));
+    setShowAdvanced(false);
   };
 
   const updateRow = (id: string, patch: Partial<Omit<EvidenceRow, "id">>) => {
@@ -235,75 +339,151 @@ function NewGoalDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>New goal</DialogTitle>
           <DialogDescription>
-            Name the finish line, then list the proof Kody needs.
+            Write the finish line. Defaults handle the rest.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <div className="space-y-5">
-            <section className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-4 space-y-4">
-              <div className="flex items-start gap-2">
-                <Target className="mt-0.5 h-4 w-4 text-sky-300" />
-                <div>
-                  <h3 className="text-sm font-medium text-white/90">Goal</h3>
-                  <p className="text-xs text-muted-foreground">
-                    The outcome this repo should reach.
-                  </p>
-                </div>
-              </div>
+        <div className="space-y-4">
+          <div className="grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
+            <div className="space-y-2">
+              <Label htmlFor="goal-create-mode">Mode</Label>
+              <Select
+                value={mode}
+                onValueChange={(value) => {
+                const nextMode = value as "new" | "instance";
+                setMode(nextMode);
+                if (nextMode === "new") {
+                  reset();
+                } else if (instanceSources.length > 0) {
+                  applyInstanceSource(sourceId || instanceSources[0]!.id);
+                }
+              }}
+              >
+                <SelectTrigger id="goal-create-mode">
+                  <SelectValue placeholder="Choose mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="new">New goal</SelectItem>
+                  <SelectItem
+                    value="instance"
+                    disabled={instanceSources.length === 0}
+                  >
+                    New instance
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-              <div className="grid gap-3 md:grid-cols-[1fr_180px]">
+            {mode === "instance" ? (
+              <div className="space-y-2">
+                <Label htmlFor="goal-instance-source">Goal</Label>
+                <Select value={sourceId} onValueChange={applyInstanceSource}>
+                  <SelectTrigger id="goal-instance-source">
+                    <SelectValue placeholder="Choose goal" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {instanceSources.map((goal) => (
+                      <SelectItem key={goal.id} value={goal.id}>
+                        {goal.id}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+
+            {mode === "instance" ? (
+              <div className="space-y-2">
+                <Label htmlFor="goal-instance-timing">Timing</Label>
+                <Select value={timing} onValueChange={() => setTiming("now")}>
+                  <SelectTrigger id="goal-instance-timing">
+                    <SelectValue placeholder="Choose timing" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="now">Run now</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="goal-outcome">Finish line</Label>
+            <Textarea
+              id="goal-outcome"
+              value={outcome}
+              onChange={(event) => setOutcome(event.target.value)}
+              placeholder="Example: Users can create goals, attach tasks, and see progress update in the dashboard."
+              className="min-h-32"
+              autoFocus
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground">
+            <span>
+              {mode === "instance" && selectedSource
+                ? `Instance from ${selectedSource.id} · Run now`
+                : `Defaults: ${selectedPreset.label.toLowerCase()}`}{" "}
+              ·{" "}
+              {validRows.length} proof step
+              {validRows.length === 1 ? "" : "s"}
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowAdvanced((value) => !value)}
+            >
+              {showAdvanced ? "Hide advanced" : "Advanced"}
+            </Button>
+          </div>
+
+          {showAdvanced ? (
+            <section className="space-y-4 rounded-lg border border-white/[0.08] bg-white/[0.02] p-4">
+              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
                 <div className="space-y-2">
-                  <Label htmlFor="goal-id">Name</Label>
+                  <Label htmlFor="goal-id">Name (optional)</Label>
                   <Input
                     id="goal-id"
                     value={goalId}
                     onChange={(event) => setGoalId(event.target.value)}
                     placeholder="verify-goals-page"
                   />
-                  <p className="text-[11px] text-muted-foreground">
-                    Used as the goal file name. Leave empty to auto-name it.
-                  </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="goal-type">Kind</Label>
-                  <Input
-                    id="goal-type"
-                    value={type}
-                    onChange={(event) => setType(event.target.value)}
-                    placeholder="release"
-                  />
+                  <Label htmlFor="goal-preset">Goal type</Label>
+                  <Select
+                    value={presetId}
+                    onValueChange={(value) =>
+                      applyPreset(value as GoalPresetId)
+                    }
+                  >
+                    <SelectTrigger id="goal-preset">
+                      <SelectValue placeholder="Choose type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {goalPresets.map((preset) => (
+                        <SelectItem key={preset.id} value={preset.id}>
+                          {preset.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="goal-outcome">Finish line</Label>
-                <Textarea
-                  id="goal-outcome"
-                  value={outcome}
-                  onChange={(event) => setOutcome(event.target.value)}
-                  placeholder="The Goals page can create and show a managed goal."
-                  className="min-h-24"
-                />
-              </div>
-            </section>
-
-            <section className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-4 space-y-4">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div className="flex items-start gap-2">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-300" />
-                  <div>
-                    <h3 className="text-sm font-medium text-white/90">
-                      Proof steps
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      Each row says what proof is needed and who should get it.
-                    </p>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-medium text-white/90">
+                    Proof route
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Only change this when the default route is wrong.
+                  </p>
                 </div>
                 <Button
                   type="button"
@@ -314,39 +494,6 @@ function NewGoalDialog({
                   <Plus className="h-4 w-4" />
                   Add proof
                 </Button>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <TemplateButton
-                  label="Simple check"
-                  onClick={() =>
-                    applyTemplate(
-                      "test",
-                      "Verify the Goals page can create and show a managed goal.",
-                      templateRows.simple,
-                    )
-                  }
-                />
-                <TemplateButton
-                  label="Docs check"
-                  onClick={() =>
-                    applyTemplate(
-                      "docs",
-                      "Documentation is checked and any drift is reported.",
-                      templateRows.docs,
-                    )
-                  }
-                />
-                <TemplateButton
-                  label="Planning"
-                  onClick={() =>
-                    applyTemplate(
-                      "plan",
-                      "A plan exists for the requested work.",
-                      templateRows.plan,
-                    )
-                  }
-                />
               </div>
 
               <div className="space-y-3">
@@ -425,88 +572,278 @@ function NewGoalDialog({
                   </div>
                 ))}
               </div>
-            </section>
-          </div>
 
-          <aside className="space-y-3">
-            <div className="rounded-lg border border-sky-500/20 bg-sky-500/[0.05] p-4">
-              <div className="mb-3 flex items-center gap-2 text-sm font-medium text-sky-100">
-                <Sparkles className="h-4 w-4" />
-                Goal preview
-              </div>
-              <dl className="space-y-3 text-sm">
-                <PreviewLine label="State" value="active" />
-                <PreviewLine label="Kind" value={type || "general"} />
-                <PreviewLine
-                  label="Proof"
-                  value={`${validRows.length} item${
-                    validRows.length === 1 ? "" : "s"
-                  }`}
-                />
-                <PreviewLine
-                  label="Duties"
-                  value={duties.length ? duties.join(", ") : "none"}
-                />
-              </dl>
-            </div>
-
-            <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-4">
-              <div className="mb-2 text-sm font-medium text-white/85">
-                Created file
-              </div>
-              <p className="break-words font-mono text-xs text-white/55">
+              <p className="break-words font-mono text-xs text-white/45">
                 .kody/goals/{goalId.trim() || "auto-name"}/state.json
               </p>
-            </div>
+            </section>
+          ) : null}
 
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => onOpenChange(false)}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                onClick={() => void submit()}
-                disabled={!canSubmit || createGoal.isPending}
-              >
-                {createGoal.isPending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Plus className="h-4 w-4" />
-                )}
-                Create
-              </Button>
-            </div>
-          </aside>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void submit()}
+              disabled={!canSubmit || createGoal.isPending}
+            >
+              {createGoal.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4" />
+              )}
+              Create
+            </Button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-function TemplateButton({
-  label,
-  onClick,
+function EditManagedGoalDialog({
+  goal,
+  open,
+  onOpenChange,
 }: {
-  label: string;
-  onClick: () => void;
+  goal: ManagedGoalRecord | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
-  return (
-    <Button type="button" variant="outline" size="sm" onClick={onClick}>
-      {label}
-    </Button>
-  );
-}
+  const updateGoal = useUpdateManagedGoal(goal?.id ?? "");
+  const [type, setType] = useState("");
+  const [outcome, setOutcome] = useState("");
+  const [rows, setRows] = useState<EvidenceRow[]>([]);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
-function PreviewLine({ label, value }: { label: string; value: string }) {
+  useEffect(() => {
+    if (!goal || !open) return;
+    setType(goal.state.type);
+    setOutcome(goal.state.destination.outcome);
+    setRows(rowsFromGoal(goal));
+    setShowAdvanced(false);
+  }, [goal, open]);
+
+  const validRows = useMemo(
+    () =>
+      rows.filter(
+        (row) => row.evidence.trim() && row.stage.trim() && row.duty.trim(),
+      ),
+    [rows],
+  );
+  const canSubmit = !!goal && outcome.trim().length > 0;
+
+  const updateRow = (id: string, patch: Partial<Omit<EvidenceRow, "id">>) => {
+    setRows((prev) =>
+      prev.map((row) => (row.id === id ? { ...row, ...patch } : row)),
+    );
+  };
+
+  const removeRow = (id: string) => {
+    setRows((prev) =>
+      prev.length === 1 ? prev : prev.filter((row) => row.id !== id),
+    );
+  };
+
+  const submit = async () => {
+    if (!goal) return;
+    const payload: UpdateManagedGoalInput = {
+      type: type.trim() || goal.state.type,
+      outcome: outcome.trim(),
+      ...(validRows.length > 0
+        ? {
+            evidence: validRows.map((row) => row.evidence.trim()),
+            route: validRows.map((row) => ({
+              stage: row.stage.trim(),
+              evidence: row.evidence.trim(),
+              duty: row.duty.trim(),
+              ...(row.executable.trim()
+                ? { executable: row.executable.trim() }
+                : {}),
+            })),
+          }
+        : {}),
+    };
+    await updateGoal.mutateAsync(payload);
+    onOpenChange(false);
+  };
+
   return (
-    <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="mt-0.5 break-words text-white/80">{value}</dd>
-    </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>Edit goal</DialogTitle>
+          <DialogDescription>
+            Update the finish line. Advanced settings are optional.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="edit-goal-outcome">Finish line</Label>
+            <Textarea
+              id="edit-goal-outcome"
+              value={outcome}
+              onChange={(event) => setOutcome(event.target.value)}
+              className="min-h-32"
+              autoFocus
+            />
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground">
+            <span>{goal?.id ?? "Goal"}</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowAdvanced((value) => !value)}
+            >
+              {showAdvanced ? "Hide advanced" : "Advanced"}
+            </Button>
+          </div>
+
+          {showAdvanced ? (
+            <section className="space-y-4 rounded-lg border border-white/[0.08] bg-white/[0.02] p-4">
+              <div className="space-y-2">
+                <Label htmlFor="edit-goal-type">Goal type</Label>
+                <Input
+                  id="edit-goal-type"
+                  value={type}
+                  onChange={(event) => setType(event.target.value)}
+                  placeholder="general"
+                />
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-sm font-medium text-white/90">
+                    Proof route
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Only change when the current route is wrong.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setRows((prev) => [...prev, blankRow()])}
+                >
+                  <Plus className="h-4 w-4" />
+                  Add proof
+                </Button>
+              </div>
+
+              <div className="space-y-3">
+                {rows.map((row, index) => (
+                  <div
+                    key={row.id}
+                    className="rounded-lg border border-white/[0.08] bg-black/20 p-3 space-y-3"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        Proof {index + 1}
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeRow(row.id)}
+                        disabled={rows.length === 1}
+                        aria-label="Remove proof"
+                        className="h-7 w-7 px-0"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor={`edit-evidence-${row.id}`}>
+                          Proof key
+                        </Label>
+                        <Input
+                          id={`edit-evidence-${row.id}`}
+                          value={row.evidence}
+                          onChange={(event) =>
+                            updateRow(row.id, { evidence: event.target.value })
+                          }
+                          placeholder="qaPassed"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`edit-stage-${row.id}`}>Stage</Label>
+                        <Input
+                          id={`edit-stage-${row.id}`}
+                          value={row.stage}
+                          onChange={(event) =>
+                            updateRow(row.id, { stage: event.target.value })
+                          }
+                          placeholder="qa"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`edit-duty-${row.id}`}>Duty</Label>
+                        <Input
+                          id={`edit-duty-${row.id}`}
+                          value={row.duty}
+                          onChange={(event) =>
+                            updateRow(row.id, { duty: event.target.value })
+                          }
+                          placeholder="qa-goal"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor={`edit-executable-${row.id}`}>
+                          Executable
+                        </Label>
+                        <Input
+                          id={`edit-executable-${row.id}`}
+                          value={row.executable}
+                          onChange={(event) =>
+                            updateRow(row.id, {
+                              executable: event.target.value,
+                            })
+                          }
+                          placeholder="qa-goal"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void submit()}
+              disabled={!canSubmit || updateGoal.isPending}
+            >
+              {updateGoal.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Pencil className="h-4 w-4" />
+              )}
+              Save
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -546,23 +883,24 @@ function GoalRow({
         <span className="font-mono text-sm truncate flex-1 text-white/90">
           {goal.id}
         </span>
-        <Badge
-          className={cn("shrink-0 border", stateClasses(goal.state.state))}
-        >
-          {goal.state.state}
-        </Badge>
         {goal.source === "store" ? (
-          <Badge className="shrink-0 border border-violet-500/30 bg-violet-500/10 text-violet-200">
+          <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
             Store
-          </Badge>
+          </span>
         ) : null}
       </div>
 
-      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
-        <span>{goal.state.type}</span>
-        <span>·</span>
-        <span>
-          {done}/{total} evidence
+        <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+          <span>{goal.state.type}</span>
+          {goal.state.state !== "active" ? (
+            <>
+              <span>·</span>
+              <GoalStateText state={goal.state.state} />
+            </>
+          ) : null}
+          <span>·</span>
+          <span>
+            {done}/{total} evidence
         </span>
         {step ? (
           <>
@@ -582,13 +920,26 @@ function GoalRow({
 function GoalDetail({
   goal,
   onBack,
+  onActivate,
+  onPause,
+  onEdit,
+  onDelete,
+  isUpdating,
 }: {
   goal: ManagedGoalRecord;
   onBack: () => void;
+  onActivate: () => void;
+  onPause: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+  isUpdating: boolean;
 }) {
   const done = completedEvidence(goal);
   const total = goal.state.destination.evidence.length;
   const step = currentRouteStep(goal);
+  const canActivate =
+    goal.state.state === "inactive" || goal.state.state === "paused";
+  const canPause = goal.state.state === "active";
 
   return (
     <article className="min-h-full">
@@ -608,12 +959,9 @@ function GoalDetail({
             <div className="min-w-0 flex-1 space-y-2">
               <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words font-mono inline-flex items-center gap-3 flex-wrap">
                 <span>{goal.id}</span>
-                <Badge className={cn("border", stateClasses(goal.state.state))}>
-                  {goal.state.state}
-                </Badge>
                 {goal.source === "store" ? (
-                  <span className="text-[11px] font-sans uppercase tracking-wide bg-violet-500/10 text-violet-200 border border-violet-500/30 px-2 py-0.5 rounded">
-                    Store template
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium uppercase tracking-wide bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                    Store
                   </span>
                 ) : null}
                 <span className="text-[11px] font-sans uppercase tracking-wide bg-white/[0.06] text-white/50 px-2 py-0.5 rounded">
@@ -625,6 +973,12 @@ function GoalDetail({
                   <CheckCircle2 className="w-3 h-3" />
                   {done}/{total} evidence
                 </span>
+                {goal.state.state !== "active" ? (
+                  <>
+                    <span>·</span>
+                    <GoalStateText state={goal.state.state} />
+                  </>
+                ) : null}
                 {goal.state.stage ? (
                   <>
                     <span>·</span>
@@ -637,6 +991,67 @@ function GoalDetail({
                 <span>·</span>
                 <span className="font-mono opacity-80">{goal.path}</span>
               </div>
+            </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {goal.source !== "store" ? (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onEdit}
+                  className="h-8 w-8 px-0"
+                  title="Edit goal"
+                  aria-label="Edit goal"
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onDelete}
+                  className="h-8 w-8 px-0 text-red-300 hover:text-red-200"
+                  title="Delete goal"
+                  aria-label="Delete goal"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </Button>
+              </>
+            ) : null}
+
+          {canActivate ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onActivate}
+              disabled={isUpdating}
+              className="h-8 w-8 px-0"
+              title="Activate goal"
+              aria-label="Activate goal"
+            >
+              {isUpdating ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Power className="w-3.5 h-3.5" />
+              )}
+            </Button>
+          ) : null}
+          {canPause ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onPause}
+              disabled={isUpdating}
+              className="h-8 w-8 px-0"
+              title="Pause goal"
+              aria-label="Pause goal"
+            >
+              {isUpdating ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <PowerOff className="w-3.5 h-3.5" />
+              )}
+            </Button>
+          ) : null}
             </div>
           </header>
 
@@ -783,6 +1198,10 @@ function EmptyHint({ text }: { text: string }) {
 
 export function ManagedGoalsView() {
   const [createOpen, setCreateOpen] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<ManagedGoalRecord | null>(
+    null,
+  );
+  const [deleteGoal, setDeleteGoal] = useState<ManagedGoalRecord | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const {
@@ -792,6 +1211,8 @@ export function ManagedGoalsView() {
     refetch,
     error,
   } = useManagedGoals();
+  const setGoalState = useSetManagedGoalState();
+  const deleteManagedGoal = useDeleteManagedGoal();
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -859,6 +1280,22 @@ export function ManagedGoalsView() {
             <GoalDetail
               goal={selectedGoal}
               onBack={() => setSelectedId(null)}
+              onEdit={() => setEditingGoal(selectedGoal)}
+              onDelete={() => setDeleteGoal(selectedGoal)}
+              onActivate={() =>
+                setGoalState.mutate({
+                  id: selectedGoal.id,
+                  state: "active",
+                })
+              }
+              onPause={() =>
+                setGoalState.mutate({
+                  id: selectedGoal.id,
+                  state: "paused",
+                  pausedReason: "Paused from dashboard",
+                })
+              }
+              isUpdating={setGoalState.isPending}
             />
           ) : (
             <EmptyState
@@ -904,7 +1341,69 @@ export function ManagedGoalsView() {
         )}
       </MasterDetailShell>
 
-      <NewGoalDialog open={createOpen} onOpenChange={setCreateOpen} />
+      <NewGoalDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        instanceSources={goals}
+      />
+      <EditManagedGoalDialog
+        goal={editingGoal}
+        open={!!editingGoal}
+        onOpenChange={(open) => {
+          if (!open) setEditingGoal(null);
+        }}
+      />
+      <Dialog
+        open={!!deleteGoal}
+        onOpenChange={(open) => {
+          if (!open) setDeleteGoal(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete goal?</DialogTitle>
+            <DialogDescription>
+              This removes the managed goal state file. It does not delete
+              GitHub issues.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-sm text-white/75">
+            {deleteGoal?.id}
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setDeleteGoal(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="text-red-300 hover:text-red-200"
+              disabled={!deleteGoal || deleteManagedGoal.isPending}
+              onClick={() => {
+                if (!deleteGoal) return;
+                const id = deleteGoal.id;
+                deleteManagedGoal.mutate(id, {
+                  onSuccess: () => {
+                    if (selectedId === id) setSelectedId(null);
+                    setDeleteGoal(null);
+                  },
+                });
+              }}
+            >
+              {deleteManagedGoal.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              Delete
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
