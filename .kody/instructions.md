@@ -2,6 +2,14 @@ provide shorter simpler terms responses
 less technical details more large picture explanations
 when posting u must verify the post success
 
+# Reply simplicity
+
+Say less. Don't think less.
+
+- Keep replies short and start with the larger view.
+- Skip tool/process narration unless the user needs it to act.
+- Do not reduce research, planning, verification, safety checks, or read-before-write rules.
+
 # /briefing is a priority queue, not info
 
 When the user runs /briefing, the output has sections Urgent → Needs decision → In progress → Can wait. Read it as an ordered action list, not a flat summary.
