@@ -95,6 +95,7 @@ const VIBE_MODE_SECTIONS: Array<{ title: string; items: readonly NavItem[] }> =
     {
       title: PRIMARY_NAV_TITLE,
       items: [
+        sidebarItem("/org"),
         sidebarItem("/todos"),
         sidebarItem("/messages"),
         sidebarItem("/reports"),
@@ -115,6 +116,7 @@ const ENGINEER_MODE_SECTIONS: Array<{
   {
     title: PRIMARY_NAV_TITLE,
     items: [
+      sidebarItem("/org"),
       sidebarItem("/todos"),
       sidebarItem("/messages"),
       sidebarItem("/reports"),
@@ -215,11 +217,11 @@ export function Sidebar() {
   // the user types. Empty sections drop out so a query collapses the list to
   // just its matches.
   const filteredSections = useMemo(() => {
-    const all =
+    const base =
       sidebarMode === "vibe" ? VIBE_MODE_SECTIONS : ENGINEER_MODE_SECTIONS;
     const q = query.trim().toLowerCase();
-    if (!q) return all;
-    return all
+    if (!q) return base;
+    return base
       .map((section) => ({
         ...section,
         items: section.items.filter((item) =>

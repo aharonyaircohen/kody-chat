@@ -217,6 +217,7 @@ export function KodyChat({
   const currentPageRef = useRef<string | null>(currentPage);
   currentPageRef.current = currentPage;
   // Context-kind derivations.
+  const selectedOrg = context?.kind === "org" ? context : null;
   const selectedTask: KodyTask | null =
     context?.kind === "task" ? context.task : null;
   const selectedDuty = context?.kind === "duty" ? context.duty : null;
@@ -2852,6 +2853,14 @@ export function KodyChat({
               ...(currentPageRef.current
                 ? { currentPage: currentPageRef.current }
                 : {}),
+              ...(selectedOrg
+                ? {
+                    org: {
+                      owner: selectedOrg.org,
+                      repositories: selectedOrg.repositories ?? [],
+                    },
+                  }
+                : {}),
               ...(selectedDuty
                 ? {
                     duty: {
@@ -4911,7 +4920,7 @@ export function KodyChat({
             </div>
           </div>
 
-          {/* Context bar: task, duty, duty draft, or global */}
+          {/* Context bar: task, duty, planner, or global */}
           <div className="mt-1 sm:mt-2">
             {isTaskMode && selectedTask ? (
               <div className="flex items-center gap-2 text-sm">

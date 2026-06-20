@@ -151,6 +151,15 @@ export function createEmptyGlobalStore(): GlobalChatStore {
  * `null`/absent prop on KodyChat = global chat (no scoped context).
  */
 export type ChatContext =
+  | {
+      /**
+       * Chat scoped to a GitHub owner workspace in the dashboard.
+       * Broad reads can span repos; writes must still target a concrete repo.
+       */
+      kind: "org";
+      org: string;
+      repositories?: Array<{ owner: string; repo: string }>;
+    }
   | { kind: "task"; task: import("./types").KodyTask }
   | {
       /**

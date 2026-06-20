@@ -43,6 +43,11 @@ export interface ReportContext {
   body: string;
 }
 
+export interface OrgContext {
+  owner: string;
+  repositories?: Array<{ owner: string; repo: string }>;
+}
+
 /**
  * Cap on how many lines of the memory INDEX we inject into the system prompt.
  * Each line is ~150 chars (one bullet per memory), so 300 lines ≈ 45KB of
@@ -68,9 +73,10 @@ export function buildSystemPrompt(
   task: TaskContext | undefined,
   opts?: {
     duty?: DutyContext;
-    goalPlanner?: boolean;
-    goal?: GoalContext;
-    report?: ReportContext;
+  goalPlanner?: boolean;
+  goal?: GoalContext;
+  report?: ReportContext;
+  org?: OrgContext;
     /**
      * The dashboard page the user is currently viewing, as a noun phrase
      * (e.g. "the Variables page (/variables)"). Lets the agent answer "what
@@ -132,6 +138,26 @@ export function buildSystemPrompt(
       `## Current page
 
 The user is currently viewing **${opts.currentPage.trim()}** in the dashboard. When they say "this page", "here", "what am I viewing", or "what is this", they mean this page — answer about it directly. Use your dashboard knowledge to describe it (call \`describe_feature\` with the matching id, e.g. the page slug, when you need the full rundown).`,
+    );
+  }
+  if (opts?.org) {
+    const repos = opts.org.repositories ?? [];
+    const repoLines =
+      repos.length > 0
+        ? repos.map((r) => `- ${r.owner}/${r.repo}`).join("\n")
+        : "- No repositories are attached in this dashboard org yet.";
+    sections.push(
+      `## Org workspace scope
+
+You are helping user with dashboard org **${opts.org.owner}** across its Kody-managed repositories.
+
+Attached repositories:
+${repoLines}
+
+Rules:
+- Read and summary questions can use the org as the scope.
+- Any write action, repo mutation, issue creation, duty run, config change, or comment must target one concrete repository. If the user did not name one, ask which repository.
+- The connected repository in auth may only be the browser credential anchor. Do not treat it as the only repo when the current page is the org workspace.`,
     );
   }
   if (opts?.context && opts.context.trim().length > 0) {

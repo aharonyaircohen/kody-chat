@@ -336,6 +336,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   const isChatRoute = pathname === "/chat";
   const isVibeRoute =
     pathname === "/vibe" || (pathname?.startsWith("/vibe/") ?? false);
+  const isOrgRoute = pathname === "/org" || (pathname?.startsWith("/org/") ?? false);
   // Routes whose page renders its OWN in-pane header (KodyDashboard on the
   // tasks list, new-task / report-bug modals, and issue detail at /<number>;
   // plus Vibe). The shared AppHeader must NOT render on these or two headers
@@ -345,7 +346,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   // modal opens, so they must be listed even though no route file navigates
   // here directly.
   const pageOwnsHeader = routeOwnsAppHeader(pathname) || pageHeaderOwnedByChild;
-  const lockedAgentId = undefined;
+  const lockedAgentId = isOrgRoute ? "kody" : undefined;
 
   const chatPane = auth ? (
     <KodyChat

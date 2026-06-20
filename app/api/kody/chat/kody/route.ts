@@ -54,6 +54,7 @@ import {
   type GoalContext,
   type DutyContext,
   type TaskContext,
+  type OrgContext,
 } from "./system-prompt";
 import {
   loadChatDefaults,
@@ -436,6 +437,8 @@ export async function POST(req: NextRequest) {
     goal?: GoalContext;
     /** Currently-viewed report on /reports — scopes the chat to advise on it. */
     report?: { slug: string; title: string; body: string };
+    /** Org workspace scope from /org/:org. */
+    org?: OrgContext;
     /**
      * The dashboard page the user is currently viewing, as a noun phrase
      * (e.g. "the Variables page (/variables)"). Surfaced as a `## Current
@@ -878,6 +881,7 @@ export async function POST(req: NextRequest) {
       goalPlanner: goalPlannerActive,
       goal: goalPlannerActive ? body.goal : undefined,
       report: body.report,
+      org: body.org,
       currentPage: body.currentPage,
       memoryIndex,
       vibeMode,

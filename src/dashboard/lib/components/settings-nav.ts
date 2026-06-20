@@ -126,6 +126,14 @@ export const PRIMARY_NAV_TITLE = "Workspace" as const;
 
 export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
   {
+    href: "/org",
+    label: "Org",
+    icon: Building2,
+    description: "Org workspace — manage attached repositories.",
+    tint: "text-emerald-300 bg-emerald-500/10",
+  },
+
+  {
     href: "/todos",
     label: "Todos",
     icon: CheckCircle2,
