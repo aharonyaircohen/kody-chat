@@ -90,6 +90,7 @@ export function collapseManagedGoalRecordsForList(
 ): ManagedGoalRecord[] {
   const generatedByTemplate = new Map<string, ManagedGoalRecord[]>();
   const directGoals: ManagedGoalRecord[] = [];
+  const directGoalById = new Map<string, ManagedGoalRecord>();
 
   for (const goal of goals) {
     const sourceTemplate =
@@ -98,6 +99,7 @@ export function collapseManagedGoalRecordsForList(
         : "";
     if (!sourceTemplate || sourceTemplate === goal.id) {
       directGoals.push(goal);
+      directGoalById.set(goal.id, goal);
       continue;
     }
     const existing = generatedByTemplate.get(sourceTemplate) ?? [];
@@ -112,18 +114,17 @@ export function collapseManagedGoalRecordsForList(
         managedGoalRecordTime(b).localeCompare(managedGoalRecordTime(a)),
       );
       const latest = sorted[0]!;
+      const base = directGoalById.get(templateId) ?? latest;
       const instanceIds = instances.map((goal) => goal.id).sort();
 
       return {
-        ...latest,
+        ...base,
         id: templateId,
         recordType: "template" as const,
-        updatedAt: managedGoalRecordTime(latest),
+        updatedAt: managedGoalRecordTime(base) || managedGoalRecordTime(latest),
         state: {
-          ...latest.state,
-          state: instances.some((goal) => goal.state.state === "active")
-            ? "active"
-            : latest.state.state,
+          ...base.state,
+          state: base.state.state,
           sourceTemplate: templateId,
           latestInstanceId: latest.id,
           instanceCount: instances.length,

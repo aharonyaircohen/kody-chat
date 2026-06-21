@@ -32,21 +32,10 @@ describe("Kody goal and duty assets", () => {
   });
 
 
-  it("activates a five-minute recurring smoke goal", () => {
-    const config = readJson("kody.config.json");
-    const company = config.company as { activeGoals: Array<Record<string, unknown> | string> };
-    const activation = company.activeGoals.find(
-      (goal): goal is Record<string, unknown> =>
-        typeof goal === "object" && goal !== null && goal.template === "five-minute-goal-smoke",
-    );
+  it("keeps a reusable five-minute recurring smoke template", () => {
     const template = readJson(".kody/goals/templates/five-minute-goal-smoke/state.json");
     const route = template.route as Array<Record<string, unknown>>;
 
-    expect(activation).toMatchObject({
-      template: "five-minute-goal-smoke",
-      every: "5m",
-      idPrefix: "five-minute-goal-smoke",
-    });
     expect(template).toMatchObject({
       kind: "template",
       templateId: "five-minute-goal-smoke",

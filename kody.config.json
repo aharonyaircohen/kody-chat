@@ -21,12 +21,7 @@
   },
   "company": {
     "activeGoals": [
-      "hourly-monitor-goal-smoke",
-      {
-        "template": "five-minute-goal-smoke",
-        "every": "5m",
-        "idPrefix": "five-minute-goal-smoke"
-      }
+      "hourly-monitor-goal-smoke"
     ]
   },
   "executables": {
