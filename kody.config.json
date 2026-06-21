@@ -21,11 +21,7 @@
   },
   "company": {
     "activeGoals": [
-      {
-        "template": "hourly-monitor-goal-smoke",
-        "every": "1h",
-        "idPrefix": "hourly-monitor-goal-smoke"
-      }
+      "hourly-monitor-goal-smoke"
     ]
   },
   "executables": {
