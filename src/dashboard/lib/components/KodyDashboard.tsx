@@ -1595,8 +1595,8 @@ export function KodyDashboard({
                       className="h-7 gap-1.5 text-xs text-muted-foreground hover:text-foreground"
                       title={
                         isGroupedTaskList
-                          ? "Switch to flat task list (hide goals)"
-                          : "Switch to goal-grouped view"
+                          ? "Switch to flat task list (hide missions)"
+                          : "Switch to mission-grouped view"
                       }
                     >
                       {isGroupedTaskList ? (
@@ -1607,7 +1607,7 @@ export function KodyDashboard({
                       ) : (
                         <>
                           <Layers className="w-3.5 h-3.5" />
-                          Group by goal
+                          Group by mission
                         </>
                       )}
                     </Button>
@@ -2014,14 +2014,14 @@ export function KodyDashboard({
         />
         <ConfirmDialog
           open={!!pendingDeleteGoal}
-          title="Remove this goal?"
+          title="Remove this mission?"
           description={
             pendingDeleteGoal
-              ? `"${pendingDeleteGoal.name}" will be removed from the goals manifest. Tasks attached to it keep their goal:${pendingDeleteGoal.id} label until you remove it manually.`
+              ? `"${pendingDeleteGoal.name}" will be removed from missions. Tasks attached to it keep their goal:${pendingDeleteGoal.id} label until you remove it manually.`
               : ""
           }
           variant="destructive"
-          confirmLabel="Remove goal"
+          confirmLabel="Remove mission"
           onConfirm={() => {
             if (!pendingDeleteGoal) return;
             const target = pendingDeleteGoal;

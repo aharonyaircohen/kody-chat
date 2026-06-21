@@ -429,7 +429,7 @@ export async function POST(req: NextRequest) {
     /** Current duty context — scopes the chat to a specific duty folder. */
     duty?: DutyContext;
     /**
-     * When true, append the goal-planning block to the system prompt and
+     * When true, append the mission-planning block to the system prompt and
      * wire the planner tools (`create_task_for_goal`). `goal` must be set.
      */
     goalPlanner?: boolean;

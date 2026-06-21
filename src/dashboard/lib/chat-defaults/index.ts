@@ -64,7 +64,7 @@ export async function loadChatDefaults(
  * refactor is provably equivalent to the hardcoded version.
  *
  * The runtime-mode blocks (Current task / Current duty / Current report /
- * Goal planning mode / Vibe mode) are composed by the existing
+ * Mission planning mode / Vibe mode) are composed by the existing
  * `buildSystemPrompt` in `app/api/kody/chat/kody/system-prompt.ts` and
  * stay there — they're runtime state, not authorable content.
  */
@@ -74,7 +74,7 @@ export async function loadChatDefaults(
  * skills (+ optional tool index). This is the `base` arg passed into
  * the existing `buildSystemPrompt`, which then layers the runtime-mode
  * blocks (Connected repository, Current page, Context, Memory, Current
- * task, Current duty, Current report, Goal planning, Vibe mode, User
+ * task, Current duty, Current report, Mission planning, Vibe mode, User
  * instructions) on top.
  */
 export function composeBasePrompt(
@@ -231,7 +231,7 @@ export function composeChatPrompt(
   // Goals namespace + memory index (only when a repo is connected).
   if (sections.repo) {
     parts.push(
-      `## Goals (NOT issues)\n\nA "goal" is a high-level objective surfaced as a GitHub **Discussion** and referenced as **#<number>** (e.g. "goal 1533", "#1533"). Goal numbers are a separate namespace from issue/PR numbers — \`github_get_issue\` will NOT find a goal and must never be used for one.\n\n- To answer anything about a goal (explain it, its status, its tasks), call \`get_goal\` with the number (or \`list_goals\` to discover it). Never assume a goal "doesn't exist" because an issue lookup failed.\n- A goal's tasks are issues carrying its \`taskLabel\` (\`goal:<id>\`, returned by \`get_goal\`/\`list_goals\`); pass that label to \`github_list_issues\` to enumerate them.\n- Use \`attach_task_to_goal\` / \`detach_task_from_goal\` to change which task issues belong to a goal.`,
+      `## Goals and missions\n\nKody has two separate planning surfaces. Keep the words distinct.\n\n1. **Goal** means the managed company-level outcome model: outcome, evidence, route, facts, and blockers. Use \`list_managed_goals\`, \`get_managed_goal\`, and \`create_managed_goal\` for these. When the user asks to create a goal, prefer \`create_managed_goal\`.\n2. **Mission** means the older task grouping on the task page. Missions are stored in the legacy goal manifest, surfaced as GitHub Discussions referenced by **#<number>**, and still use \`goal:<id>\` labels for task membership. Use \`list_goals\` / \`get_goal\` when the user says mission or references one of those discussion numbers. Use \`attach_task_to_goal\` / \`detach_task_from_goal\` to change mission task membership.\n\n\`/goal\` should create a managed company goal. \`/mission\` should create the old task-group mission. If the user says "old goal", "task-page goal", "goal group", or "task group", treat it as a mission.`,
     );
     if (sections.memoryIndex && sections.memoryIndex.trim().length > 0) {
       parts.push(

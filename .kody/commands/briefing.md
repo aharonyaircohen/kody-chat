@@ -13,6 +13,6 @@ Use available read-only tools to gather current state:
 - `kody_list_open_prs` for PRs in review
 - `kody_list_workflow_runs` for recent failures or running CI
 - `list_inbox` for waiting decisions
-- `list_goals` for active goals
+- `list_goals` for active missions (legacy task groups)
 
 Return the briefing in chat. Do not create, assign, close, edit, or solve anything.

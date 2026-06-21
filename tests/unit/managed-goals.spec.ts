@@ -8,7 +8,13 @@ import { describe, expect, it } from "vitest";
 
 import { goalStatePath } from "../../src/dashboard/lib/goal-state";
 import {
+  MANAGED_GOAL_TYPES,
+  SIMPLE_MANAGED_GOAL_EVIDENCE,
+  SIMPLE_MANAGED_GOAL_TEMPLATE,
+  buildManagedGoalState,
+  buildSimpleManagedGoalCreateInput,
   collapseManagedGoalRecordsForList,
+  isStoreBackedManagedGoal,
   isManagedGoalState,
   managedGoalPath,
   type ManagedGoalRecord,
@@ -49,6 +55,130 @@ describe("isManagedGoalState", () => {
         blockers: [],
       }),
     ).toBe(true);
+  });
+});
+
+describe("simple managed goal creation", () => {
+  it("exposes simple goal types for the create form", () => {
+    expect(MANAGED_GOAL_TYPES.map((type) => type.id)).toEqual([
+      "improve",
+      "maintain",
+      "monitor",
+      "release",
+      "checklist",
+    ]);
+  });
+
+  it("describes every goal type without adding user inputs", () => {
+    for (const type of MANAGED_GOAL_TYPES) {
+      expect(type.description.trim().length).toBeGreaterThan(20);
+      expect(type.bestFor.trim().length).toBeGreaterThan(20);
+      expect(type.systemSummary.trim().length).toBeGreaterThan(20);
+    }
+  });
+
+  it("builds a create payload from only type, schedule, and prompt", () => {
+    const input = buildSimpleManagedGoalCreateInput({
+      goalType: "release",
+      schedule: "1h",
+      prompt: "Publish Kody Dashboard to production safely.",
+    });
+
+    expect(input).toEqual({
+      type: "release",
+      schedule: "1h",
+      outcome: "Publish Kody Dashboard to production safely.",
+    });
+  });
+
+  it("expands selected type into system-filled goal structure", () => {
+    const state = buildManagedGoalState(
+      buildSimpleManagedGoalCreateInput({
+        goalType: "release",
+        schedule: "1h",
+        prompt: "Publish Kody Dashboard to production safely.",
+      }),
+    );
+
+    expect(state).toMatchObject({
+      type: "release",
+      schedule: "1h",
+      destination: {
+        outcome: "Publish Kody Dashboard to production safely.",
+        evidence: ["releasePrExists", "mainMerged", "productionDeployed"],
+      },
+      duties: ["release", "task-leader", "vercel-production-deploy"],
+      route: [
+        {
+          stage: "release",
+          evidence: "releasePrExists",
+          duty: "release",
+          executable: "release-prepare",
+        },
+        {
+          stage: "merge",
+          evidence: "mainMerged",
+          duty: "task-leader",
+          executable: "task-leader",
+        },
+        {
+          stage: "publish",
+          evidence: "productionDeployed",
+          duty: "vercel-production-deploy",
+          executable: "vercel-production-deploy",
+        },
+      ],
+      facts: {
+        goalType: "release",
+      },
+    });
+  });
+
+  it("keeps legacy simple template goals route-free", () => {
+    const state = buildManagedGoalState({
+      templateId: SIMPLE_MANAGED_GOAL_TEMPLATE,
+      type: SIMPLE_MANAGED_GOAL_TEMPLATE,
+      schedule: "1d",
+      outcome: "Watch production health.",
+    });
+
+    expect(state).toMatchObject({
+      type: SIMPLE_MANAGED_GOAL_TEMPLATE,
+      sourceTemplate: SIMPLE_MANAGED_GOAL_TEMPLATE,
+      route: [],
+      facts: {
+        simpleAttachedTaskCount: 0,
+        simpleOpenTaskCount: 0,
+        [SIMPLE_MANAGED_GOAL_EVIDENCE]: false,
+      },
+    });
+  });
+});
+
+describe("isStoreBackedManagedGoal", () => {
+  it("treats sourceTemplate copies as Store-backed", () => {
+    const goal: ManagedGoalRecord = {
+      id: "simple",
+      path: ".kody/goals/instances/simple/state.json",
+      source: "local",
+      recordType: "instance",
+      state: {
+        version: 1,
+        sourceTemplate: "simple",
+        state: "active",
+        type: "simple",
+        destination: {
+          outcome: "Keep a simple goal tracked.",
+          evidence: ["labelledTasksComplete"],
+        },
+        duties: [],
+        route: [],
+        facts: {},
+        blockers: [],
+      },
+    };
+
+    expect(isStoreBackedManagedGoal(goal)).toBe(true);
   });
 });
 
@@ -97,6 +227,22 @@ describe("collapseManagedGoalRecordsForList", () => {
         instanceIds: [
           "five-minute-goal-smoke-b5940142",
           "five-minute-goal-smoke-b5940143",
+        ],
+        instances: [
+          {
+            id: "five-minute-goal-smoke-b5940143",
+            state: "active",
+            updatedAt: "2026-06-21T11:58:23Z",
+            facts: {},
+            blockers: [],
+          },
+          {
+            id: "five-minute-goal-smoke-b5940142",
+            state: "active",
+            updatedAt: "2026-06-21T11:50:54Z",
+            facts: {},
+            blockers: [],
+          },
         ],
       },
     });

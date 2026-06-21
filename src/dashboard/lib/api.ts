@@ -1589,6 +1589,24 @@ export const goalsApi = {
     await handleResponse<{ success: boolean }>(res);
   },
 
+  runManaged: async (
+    id: string,
+  ): Promise<{
+    ok: true;
+    workflowId: string;
+    ref: string;
+    goal: ManagedGoalRecord;
+  }> => {
+    const res = await fetch(
+      `${API_BASE}/goals/managed/${encodeURIComponent(id)}/run`,
+      {
+        method: "POST",
+        headers: buildHeaders(),
+      },
+    );
+    return handleResponse(res);
+  },
+
   fetchDiscussion: async (id: string): Promise<GoalDiscussionPayload> => {
     const res = await fetch(
       `${API_BASE}/goals/${encodeURIComponent(id)}/discussion`,

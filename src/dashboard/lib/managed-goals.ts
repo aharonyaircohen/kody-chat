@@ -8,9 +8,145 @@
 
 export type ManagedGoalStateValue = "inactive" | "active" | "paused" | "done";
 export type ManagedGoalSchedule = "manual" | "1h" | "1d" | "7d" | "30d";
+export type ManagedGoalTypeId =
+  | "improve"
+  | "maintain"
+  | "monitor"
+  | "release"
+  | "checklist";
 
 export const SIMPLE_MANAGED_GOAL_TEMPLATE = "simple";
 export const SIMPLE_MANAGED_GOAL_EVIDENCE = "labelledTasksComplete";
+
+export interface ManagedGoalTypeDefinition {
+  id: ManagedGoalTypeId;
+  label: string;
+  description: string;
+  bestFor: string;
+  systemSummary: string;
+  promptPlaceholder: string;
+  evidence: string[];
+  duties: string[];
+  route: ManagedGoalRouteStep[];
+}
+
+export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
+  {
+    id: "improve",
+    label: "Improve",
+    description: "Change something in the product or codebase and verify the result.",
+    bestFor: "Feature work, cleanup, UX improvements, and focused fixes.",
+    systemSummary: "Kody plans the work, applies the change, and reviews the result.",
+    promptPlaceholder: "Example: Make goal creation simple enough to use daily.",
+    evidence: ["planReady", "changeImplemented", "changeVerified"],
+    duties: ["plan", "fix", "review"],
+    route: [
+      {
+        stage: "plan",
+        evidence: "planReady",
+        duty: "plan",
+        executable: "plan",
+      },
+      {
+        stage: "implement",
+        evidence: "changeImplemented",
+        duty: "fix",
+        executable: "fix",
+      },
+      {
+        stage: "review",
+        evidence: "changeVerified",
+        duty: "review",
+        executable: "review",
+      },
+    ],
+  },
+  {
+    id: "maintain",
+    label: "Maintain",
+    description: "Keep an existing area healthy and surface drift before it becomes urgent.",
+    bestFor: "Ongoing code health, documentation health, cleanup, and repo hygiene.",
+    systemSummary: "Kody runs maintenance duties and reports issues that need attention.",
+    promptPlaceholder: "Example: Keep the codebase healthy and report drift.",
+    evidence: [],
+    duties: [
+      "cleanup",
+      "code-health",
+      "docs-health",
+      "documentation-maintenance",
+      "memory-compaction",
+      "repo-graph",
+      "skills-research",
+    ],
+    route: [],
+  },
+  {
+    id: "monitor",
+    label: "Monitor",
+    description: "Watch a system, product area, or workflow and report problems.",
+    bestFor: "Recurring checks, production health, QA sweeps, and operational signals.",
+    systemSummary: "Kody runs monitoring duties on the selected schedule and records findings.",
+    promptPlaceholder: "Example: Watch production health and report problems.",
+    evidence: [],
+    duties: ["health-check", "pr-health-triage", "qa-sweep"],
+    route: [],
+  },
+  {
+    id: "release",
+    label: "Release",
+    description: "Prepare and publish a release while tracking the important proof points.",
+    bestFor: "Web releases, production publishing, and release readiness checks.",
+    systemSummary: "Kody tracks release PR, merge, and production deployment evidence.",
+    promptPlaceholder: "Example: Publish Kody Dashboard to production safely.",
+    evidence: ["releasePrExists", "mainMerged", "productionDeployed"],
+    duties: ["release", "task-leader", "vercel-production-deploy"],
+    route: [
+      {
+        stage: "release",
+        evidence: "releasePrExists",
+        duty: "release",
+        executable: "release-prepare",
+        args: {
+          issue: { fact: "issue" },
+          goal: "web-release",
+        },
+      },
+      {
+        stage: "merge",
+        evidence: "mainMerged",
+        duty: "task-leader",
+        executable: "task-leader",
+        args: {
+          issue: { fact: "issue" },
+        },
+      },
+      {
+        stage: "publish",
+        evidence: "productionDeployed",
+        duty: "vercel-production-deploy",
+        executable: "vercel-production-deploy",
+      },
+    ],
+  },
+  {
+    id: "checklist",
+    label: "Checklist",
+    description: "Verify a concrete list of conditions and mark the goal complete when checked.",
+    bestFor: "Readiness reviews, launch checks, and one-off verification lists.",
+    systemSummary: "Kody verifies the requested checklist and records completion evidence.",
+    promptPlaceholder: "Example: Verify release readiness before launch.",
+    evidence: ["checklistComplete"],
+    duties: ["task-verifier"],
+    route: [
+      {
+        stage: "verify",
+        evidence: "checklistComplete",
+        duty: "task-verifier",
+        executable: "task-verifier",
+      },
+    ],
+  },
+];
 
 export interface ManagedGoalDestination {
   outcome: string;
@@ -64,7 +200,21 @@ export interface ManagedGoalState {
   blockers: string[];
   scheduleMode?: "duty-cadence" | string;
   scheduleState?: ManagedGoalDutyScheduleState;
+  latestInstanceId?: string;
+  instanceCount?: number;
+  instanceIds?: string[];
+  instances?: ManagedGoalInstanceSummary[];
   [extraField: string]: unknown;
+}
+
+export interface ManagedGoalInstanceSummary {
+  id: string;
+  state: ManagedGoalStateValue;
+  createdAt?: string;
+  updatedAt?: string;
+  stage?: string;
+  facts: Record<string, unknown>;
+  blockers: string[];
 }
 
 export interface ManagedGoalRecord {
@@ -76,6 +226,15 @@ export interface ManagedGoalRecord {
   updatedAt?: string;
 }
 
+export function isStoreBackedManagedGoal(goal: ManagedGoalRecord): boolean {
+  return (
+    goal.source === "store" ||
+    goal.state.kind === "template" ||
+    goal.state.template === true ||
+    typeof goal.state.sourceTemplate === "string"
+  );
+}
+
 function managedGoalRecordTime(goal: ManagedGoalRecord): string {
   const updatedAt =
     goal.updatedAt ??
@@ -83,6 +242,24 @@ function managedGoalRecordTime(goal: ManagedGoalRecord): string {
   const createdAt =
     typeof goal.state.createdAt === "string" ? goal.state.createdAt : "";
   return updatedAt || createdAt || "";
+}
+
+function managedGoalInstanceSummary(
+  goal: ManagedGoalRecord,
+): ManagedGoalInstanceSummary {
+  return {
+    id: goal.id,
+    state: goal.state.state,
+    ...(typeof goal.state.createdAt === "string"
+      ? { createdAt: goal.state.createdAt }
+      : {}),
+    ...(typeof goal.state.updatedAt === "string"
+      ? { updatedAt: goal.state.updatedAt }
+      : {}),
+    ...(typeof goal.state.stage === "string" ? { stage: goal.state.stage } : {}),
+    facts: goal.state.facts,
+    blockers: goal.state.blockers,
+  };
 }
 
 export function collapseManagedGoalRecordsForList(
@@ -97,7 +274,11 @@ export function collapseManagedGoalRecordsForList(
       typeof goal.state.sourceTemplate === "string"
         ? goal.state.sourceTemplate.trim()
         : "";
-    if (!sourceTemplate || sourceTemplate === goal.id) {
+    if (
+      !sourceTemplate ||
+      sourceTemplate === goal.id ||
+      sourceTemplate === SIMPLE_MANAGED_GOAL_TEMPLATE
+    ) {
       directGoals.push(goal);
       directGoalById.set(goal.id, goal);
       continue;
@@ -116,6 +297,7 @@ export function collapseManagedGoalRecordsForList(
       const latest = sorted[0]!;
       const base = directGoalById.get(templateId) ?? latest;
       const instanceIds = instances.map((goal) => goal.id).sort();
+      const instanceSummaries = sorted.map(managedGoalInstanceSummary);
 
       return {
         ...base,
@@ -129,6 +311,7 @@ export function collapseManagedGoalRecordsForList(
           latestInstanceId: latest.id,
           instanceCount: instances.length,
           instanceIds,
+          instances: instanceSummaries,
         },
       };
     },
@@ -148,6 +331,13 @@ export interface CreateManagedGoalInput {
   schedule?: ManagedGoalSchedule;
   evidence?: string[];
   route?: ManagedGoalRouteStep[];
+}
+
+export interface SimpleManagedGoalCreateFields {
+  id?: string;
+  goalType: ManagedGoalTypeId;
+  schedule: ManagedGoalSchedule;
+  prompt: string;
 }
 
 export interface UpdateManagedGoalInput {
@@ -184,12 +374,51 @@ export function normalizeEvidenceKey(value: string): string {
     .slice(0, 80);
 }
 
+export function isManagedGoalTypeId(value: unknown): value is ManagedGoalTypeId {
+  return (
+    typeof value === "string" &&
+    MANAGED_GOAL_TYPES.some((type) => type.id === value)
+  );
+}
+
+export function managedGoalTypeDefinition(
+  id: ManagedGoalTypeId,
+): ManagedGoalTypeDefinition {
+  return MANAGED_GOAL_TYPES.find((type) => type.id === id)!;
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
+}
+
+function cloneRouteStep(step: ManagedGoalRouteStep): ManagedGoalRouteStep {
+  return {
+    stage: step.stage,
+    evidence: step.evidence,
+    duty: step.duty,
+    ...(step.executable ? { executable: step.executable } : {}),
+    ...(step.args ? { args: step.args } : {}),
+  };
+}
+
+export function buildSimpleManagedGoalCreateInput(
+  fields: SimpleManagedGoalCreateFields,
+): CreateManagedGoalInput {
+  return {
+    ...(fields.id?.trim() ? { id: fields.id.trim() } : {}),
+    type: fields.goalType,
+    schedule: fields.schedule,
+    outcome: fields.prompt.trim(),
+  };
+}
+
 export function buildManagedGoalState(
   input: CreateManagedGoalInput,
 ): ManagedGoalState {
+  const requestedGoalType = input.type.trim();
   if (
     input.templateId === SIMPLE_MANAGED_GOAL_TEMPLATE ||
-    input.type === SIMPLE_MANAGED_GOAL_TEMPLATE
+    requestedGoalType === SIMPLE_MANAGED_GOAL_TEMPLATE
   ) {
     return {
       version: 1,
@@ -205,6 +434,9 @@ export function buildManagedGoalState(
       route: [],
       stage: "waiting",
       facts: {
+        ...(requestedGoalType && requestedGoalType !== SIMPLE_MANAGED_GOAL_TEMPLATE
+          ? { goalType: requestedGoalType }
+          : {}),
         simpleAttachedTaskCount: 0,
         simpleOpenTaskCount: 0,
         [SIMPLE_MANAGED_GOAL_EVIDENCE]: false,
@@ -213,11 +445,18 @@ export function buildManagedGoalState(
     };
   }
 
-  const evidence = (input.evidence ?? [])
+  const selectedGoalType = isManagedGoalTypeId(requestedGoalType)
+    ? managedGoalTypeDefinition(requestedGoalType)
+    : null;
+  const evidenceInput = input.evidence ?? selectedGoalType?.evidence ?? [];
+  const routeInput = input.route ?? selectedGoalType?.route ?? [];
+  const dutyInput = selectedGoalType?.duties ?? [];
+  const evidence = evidenceInput
     .map(normalizeEvidenceKey)
     .filter(Boolean);
   const evidenceSet = new Set(evidence);
-  const route = (input.route ?? [])
+  const route = routeInput
+    .map(cloneRouteStep)
     .map((step) => ({
       stage: step.stage.trim(),
       evidence: normalizeEvidenceKey(step.evidence),
@@ -234,7 +473,10 @@ export function buildManagedGoalState(
         step.duty &&
         evidenceSet.has(step.evidence),
     );
-  const duties = Array.from(new Set(route.map((step) => step.duty))).sort();
+  const duties = uniqueStrings([
+    ...dutyInput,
+    ...route.map((step) => step.duty),
+  ]);
 
   return {
     version: 1,
@@ -248,7 +490,7 @@ export function buildManagedGoalState(
     duties,
     route,
     stage: route[0]?.stage,
-    facts: {},
+    facts: selectedGoalType ? { goalType: selectedGoalType.id } : {},
     blockers: [],
   };
 }

@@ -72,6 +72,47 @@ const updateManagedGoalSchema = z.object({
   actorLogin: z.string().optional(),
 });
 
+function isStoreBackedGoalState(state: ManagedGoalState): boolean {
+  return state.kind === "template" || state.template === true;
+}
+
+function isStateOnlyUpdate(data: z.infer<typeof updateManagedGoalSchema>): boolean {
+  return (
+    data.state !== undefined &&
+    data.type === undefined &&
+    data.outcome === undefined &&
+    data.schedule === undefined &&
+    data.evidence === undefined &&
+    data.route === undefined
+  );
+}
+
+function instantiateStoreGoalState(
+  storeState: ManagedGoalState,
+  id: string,
+  state: ManagedGoalState["state"],
+  pausedReason?: string,
+): ManagedGoalState {
+  const nextState: ManagedGoalState = {
+    version: 1,
+    sourceTemplate:
+      typeof storeState.sourceTemplate === "string" ? storeState.sourceTemplate : id,
+    state,
+    type: storeState.type,
+    destination: storeState.destination,
+    duties: storeState.duties,
+    route: storeState.route,
+    schedule: storeState.schedule ?? "manual",
+    ...(typeof storeState.stage === "string" ? { stage: storeState.stage } : {}),
+    facts: { ...storeState.facts },
+    blockers: [],
+  };
+  if (state === "paused" && pausedReason) {
+    nextState.pausedReason = pausedReason;
+  }
+  return nextState;
+}
+
 async function getContext(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
@@ -121,58 +162,70 @@ export async function PATCH(
       context.headerAuth.owner,
       context.headerAuth.repo,
     );
-    if (!existing) {
-      if (parsed.data.state) {
-        const storeGoals = await listCompanyStoreGoalTemplateFiles(
-          context.octokit,
-        );
-        const storeGoal = storeGoals.find((goal) => goal.id === id);
-        if (storeGoal) {
-          const nextState: ManagedGoalState = {
-            ...storeGoal.state,
-            sourceTemplate:
-              typeof storeGoal.state.sourceTemplate === "string"
-                ? storeGoal.state.sourceTemplate
-                : id,
-            state: parsed.data.state,
-            ...(parsed.data.state === "paused" && parsed.data.pausedReason
-              ? { pausedReason: parsed.data.pausedReason }
-              : {}),
-          };
-          if (parsed.data.state !== "paused") delete nextState.pausedReason;
+  if (!existing) {
+    const storeGoals = await listCompanyStoreGoalTemplateFiles(
+      context.octokit,
+    );
+      const storeGoal = storeGoals.find((goal) => goal.id === id);
+      if (storeGoal) {
+        if (isStateOnlyUpdate(parsed.data)) {
+          const nextState = instantiateStoreGoalState(
+            storeGoal.state,
+            id,
+            parsed.data.state ?? storeGoal.state.state,
+            parsed.data.pausedReason,
+          );
           const path = managedGoalPath(id);
           await writeManagedGoalFile({
             octokit: context.octokit,
-            owner: context.headerAuth.owner,
-            repo: context.headerAuth.repo,
-            id,
-            state: nextState,
-            message: `chore(goals): ${parsed.data.state} managed goal ${id}`,
-          });
-          return NextResponse.json({
-            goal: {
-              id,
-              path,
-              state: nextState,
-              source: "local",
-              recordType: "instance",
-            },
-          });
-        }
+          owner: context.headerAuth.owner,
+          repo: context.headerAuth.repo,
+          id,
+          state: nextState,
+          message: `chore(goals): update managed goal ${id}`,
+        });
+        return NextResponse.json({ goal: { id, path, state: nextState } });
       }
-      const storeGoals = await listCompanyStoreGoalTemplateFiles(
-        context.octokit,
-      );
-      if (storeGoals.some((goal) => goal.id === id)) {
-        return NextResponse.json(
-          {
-            error: "store_goal_protected",
+      return NextResponse.json(
+        {
+          error: "store_goal_protected",
             message: "Store goals cannot be edited directly.",
           },
           { status: 409 },
         );
       }
       return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+
+    if (isStoreBackedGoalState(existing.state)) {
+      if (!isStateOnlyUpdate(parsed.data)) {
+        return NextResponse.json(
+          {
+            error: "store_goal_protected",
+            message: "Store goals cannot be edited from this repo.",
+          },
+          { status: 409 },
+        );
+      }
+
+      const nextState = instantiateStoreGoalState(
+        existing.state,
+        id,
+        parsed.data.state ?? existing.state.state,
+        parsed.data.pausedReason,
+      );
+      await writeManagedGoalFile({
+        octokit: context.octokit,
+        owner: context.headerAuth.owner,
+        repo: context.headerAuth.repo,
+        id,
+        state: nextState,
+        sha: existing.sha,
+        message: `chore(goals): update managed goal ${id}`,
+      });
+      return NextResponse.json({
+        goal: { id, path: existing.path, state: nextState },
+      });
     }
 
     const rebuilt = buildManagedGoalState({
@@ -189,9 +242,12 @@ export async function PATCH(
       type: rebuilt.type,
       destination: rebuilt.destination,
       schedule: rebuilt.schedule,
-      duties: rebuilt.duties,
-      route: rebuilt.route,
-      stage: rebuilt.stage,
+      duties:
+        parsed.data.route === undefined ? existing.state.duties : rebuilt.duties,
+      route:
+        parsed.data.route === undefined ? existing.state.route : rebuilt.route,
+      stage:
+        parsed.data.route === undefined ? existing.state.stage : rebuilt.stage,
       facts: Object.fromEntries(
         Object.entries(existing.state.facts).filter(([key]) =>
           evidenceSet.has(key),

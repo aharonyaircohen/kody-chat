@@ -285,8 +285,8 @@ describe("composeChatPrompt", () => {
     // Repo block.
     expect(prompt).toContain("## Connected repository");
     expect(prompt).toContain("acme/widget");
-    // Goals namespace block.
-    expect(prompt).toContain("## Goals (NOT issues)");
+    // Goals / missions namespace block.
+    expect(prompt).toContain("## Goals and missions");
     // Workflows header + all 4 duties.
     expect(prompt).toContain("## Workflows");
     expect(prompt).toContain("### kody-analyzer");
@@ -313,7 +313,7 @@ describe("composeChatPrompt", () => {
     const bundle = await loadChatDefaults();
     const prompt = composeChatPrompt(bundle, { repo: null });
     expect(prompt).not.toContain("## Connected repository");
-    expect(prompt).not.toContain("## Goals (NOT issues)");
+    expect(prompt).not.toContain("## Goals and missions");
   });
 
   it("appends the Current page block when currentPage is set", async () => {

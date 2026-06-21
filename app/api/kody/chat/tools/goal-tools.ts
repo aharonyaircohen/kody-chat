@@ -216,9 +216,9 @@ export function createGoalTools(ctx: Ctx) {
   return {
     list_goals: tool({
       description:
-        "List all goals in this repo. Goals are NOT issues — they are " +
+        "List all missions in this repo. Missions are legacy task-page groupings, not issues — they are " +
         "surfaced as GitHub Discussions referenced by #<number>. Use this " +
-        "to map a goal number/name to its details, or to enumerate goals.",
+        "to map a mission number/name to its details, or to enumerate missions.",
       inputSchema: z.object({}),
       execute: async () => {
         try {
@@ -233,11 +233,11 @@ export function createGoalTools(ctx: Ctx) {
 
     get_goal: tool({
       description:
-        "Fetch a single goal by its #<number> (the Discussion number shown " +
-        "next to the goal title) or by its slug id, including its " +
+        "Fetch a single mission by its #<number> (the Discussion number shown " +
+        "next to the mission title) or by its slug id, including its " +
         "description and the task issues currently attached to it. Use " +
-        "this — NOT github_get_issue — whenever the user references a goal " +
-        '(e.g. "explain goal 1533"); goal numbers are not issue numbers.',
+        "this — NOT github_get_issue — whenever the user references a mission, old goal, task-page goal, or goal group " +
+        '(e.g. "explain mission 1533"); mission numbers are not issue numbers.',
       inputSchema: z.object({
         number: z
           .number()
@@ -457,8 +457,8 @@ export function createGoalTools(ctx: Ctx) {
 
     attach_task_to_goal: tool({
       description:
-        "Attach an existing task issue to a goal by adding the goal's " +
-        "membership label to the issue. Identify the goal by its " +
+        "Attach an existing task issue to a mission by adding the mission's " +
+        "membership label to the issue. Identify the mission by its " +
         "#<number> or slug id.",
       inputSchema: z.object({
         taskNumber: z
@@ -483,7 +483,7 @@ export function createGoalTools(ctx: Ctx) {
           const goal = resolveGoal(manifest.goals, goalNumber, goalId);
           if (!goal) {
             return {
-              error: "Goal not found. Call list_goals to see goals.",
+            error: "Mission not found. Call list_goals to see missions.",
             };
           }
           const label = `${GOAL_LABEL_PREFIX}${goal.id}`;
@@ -496,7 +496,7 @@ export function createGoalTools(ctx: Ctx) {
           invalidateIssueCache(taskNumber);
           return {
             ok: true,
-            message: `Attached #${taskNumber} to goal "${goal.name}".`,
+          message: `Attached #${taskNumber} to mission "${goal.name}".`,
             taskLabel: label,
           };
         } catch (err) {
@@ -513,7 +513,7 @@ export function createGoalTools(ctx: Ctx) {
 
     detach_task_from_goal: tool({
       description:
-        "Detach a task issue from a goal by removing the goal's " +
+        "Detach a task issue from a mission by removing the mission's " +
         "membership label from the issue. No-op if it wasn't attached.",
       inputSchema: z.object({
         taskNumber: z
@@ -538,7 +538,7 @@ export function createGoalTools(ctx: Ctx) {
           const goal = resolveGoal(manifest.goals, goalNumber, goalId);
           if (!goal) {
             return {
-              error: "Goal not found. Call list_goals to see goals.",
+            error: "Mission not found. Call list_goals to see missions.",
             };
           }
           const label = `${GOAL_LABEL_PREFIX}${goal.id}`;
@@ -557,7 +557,7 @@ export function createGoalTools(ctx: Ctx) {
           invalidateIssueCache(taskNumber);
           return {
             ok: true,
-            message: `Detached #${taskNumber} from goal "${goal.name}".`,
+          message: `Detached #${taskNumber} from mission "${goal.name}".`,
           };
         } catch (err) {
           logger.warn(

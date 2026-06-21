@@ -185,11 +185,11 @@ export function GoalControlInner({
           {titleSlot ?? (
             <h1 className="inline-flex items-center gap-2 text-lg md:text-xl font-semibold">
               <Flag className="w-5 h-5 text-sky-400" />
-              Goals
+              Missions
             </h1>
           )}
           <span className="hidden md:inline text-xs text-muted-foreground">
-            {goals.length} {goals.length === 1 ? "goal" : "goals"}
+            {goals.length} {goals.length === 1 ? "mission" : "missions"}
           </span>
         </div>
 
@@ -199,7 +199,7 @@ export function GoalControlInner({
             size="sm"
             onClick={() => refetch()}
             disabled={isFetching}
-            aria-label="Refresh goals"
+            aria-label="Refresh missions"
           >
             <RefreshCw
               className={cn("w-4 h-4", isFetching && "animate-spin")}
@@ -211,7 +211,7 @@ export function GoalControlInner({
             className="gap-1"
           >
             <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">New goal</span>
+            <span className="hidden sm:inline">New mission</span>
           </Button>
         </div>
       </header>
@@ -234,7 +234,7 @@ export function GoalControlInner({
           ) : goals.length === 0 ? (
             <EmptyState
               icon={<Flag />}
-              title="No goals yet"
+              title="No missions yet"
               hint="Create your first goal to describe an outcome the system is working toward."
             />
           ) : (
@@ -320,14 +320,14 @@ export function GoalControlInner({
 
       <ConfirmDialog
         open={!!pendingDelete}
-        title="Remove this goal?"
+        title="Remove this mission?"
         description={
           pendingDelete
-            ? `Goal "${pendingDelete.name}" will be removed from the manifest. Tasks labelled with this goal keep their labels (you can clean them up on GitHub).`
+              ? `Mission "${pendingDelete.name}" will be removed from the manifest. Tasks labelled with this mission keep their labels (you can clean them up on GitHub).`
             : ""
         }
         variant="destructive"
-        confirmLabel="Remove goal"
+        confirmLabel="Remove mission"
         onConfirm={() => {
           if (!pendingDelete) return;
           const target = pendingDelete;
@@ -404,7 +404,7 @@ function GoalDetail({
                   <>
                     <span
                       className="font-mono opacity-80"
-                      title="Goal id — mention #{number} or goal:{number} in chat to direct the conversation here"
+ title="Mission id — mention #{number} or goal:{number} in chat to direct the conversation here"
                     >
                       #{goal.discussionNumber}
                     </span>
@@ -530,7 +530,7 @@ function GoalDetail({
                 setShowPlanner(true);
               }}
               className="gap-1.5"
-              title="Open the planner chat: it proposes tasks from this goal's description and creates them on approval."
+              title="Open the planner chat: it proposes tasks from this mission's description and creates them on approval."
             >
               <Sparkles className="w-3.5 h-3.5 text-sky-400" />
               Plan with chat
@@ -560,7 +560,7 @@ function GoalDetail({
                 <span className="font-medium text-foreground">
                   Attach tasks
                 </span>{" "}
-                to link open issues to this goal and start tracking progress.
+              to link open issues to this mission and start tracking progress.
               </p>
             </div>
           </div>
@@ -648,9 +648,9 @@ export function PlanGoalDialog({
             Plan tasks for &ldquo;{goal.name}&rdquo;
           </DialogTitle>
           <DialogDescription>
-            Pass 1: I propose a task list from the goal description. Pass 2
+            Pass 1: I propose a task list from the mission description. Pass 2
             (after you approve): I deepen each spec from the codebase and open
-            the issues attached to this goal.
+            the issues attached to this mission.
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 min-h-0">
@@ -772,7 +772,7 @@ export function AttachTasksDialog({
             <code className="font-mono text-xs">
               {`${GOAL_LABEL_PREFIX}${goal.id}`}
             </code>{" "}
-            label so they show up under this goal.
+            label so they show up under this mission.
           </DialogDescription>
         </DialogHeader>
 
@@ -951,9 +951,9 @@ export function CreateGoalDialog({
     <Dialog open={open} onOpenChange={(o) => (!o ? onClose() : null)}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>New goal</DialogTitle>
+          <DialogTitle>New mission</DialogTitle>
           <DialogDescription>
-            Describe the outcome. Tasks can later be attached to this goal via a
+            Describe the outcome. Tasks can later be attached to this mission via a
             label.
           </DialogDescription>
         </DialogHeader>
@@ -1001,7 +1001,7 @@ export function CreateGoalDialog({
             onClick={handleSubmit}
             disabled={!name.trim() || createMutation.isPending}
           >
-            {createMutation.isPending ? "Creating…" : "Create goal"}
+            {createMutation.isPending ? "Creating…" : "Create mission"}
           </Button>
         </div>
       </DialogContent>
@@ -1064,9 +1064,9 @@ export function EditGoalDialog({
     <Dialog open onOpenChange={(o) => (!o ? onClose() : null)}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Edit goal</DialogTitle>
+          <DialogTitle>Edit mission</DialogTitle>
           <DialogDescription>
-            Update the goal name, due date, or description. Changes are written
+            Update the mission name, due date, or description. Changes are written
             back to the manifest issue.
           </DialogDescription>
         </DialogHeader>

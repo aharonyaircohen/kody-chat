@@ -5,7 +5,7 @@
  * @ai-summary CRUD UI for slash-command commands stored at
  *   `.kody/commands/<slug>.md` in the connected repo. Dashboard ships
  *   built-ins (`/plan`, `/review`, `/explain`, `/issue`, `/goal`,
- *   `/analyze`, `/duty`); editing a built-in transparently writes a
+ *   `/mission`, `/analyze`, `/duty`); editing a built-in transparently writes a
  *   same-slug copy into the repo so the repo wins by slug — the UI just
  *   says "Edit", the fork happens silently.
  */

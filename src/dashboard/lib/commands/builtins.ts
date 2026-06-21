@@ -46,7 +46,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
       "- `kody_list_open_prs` for PRs in review\n" +
       "- `kody_list_workflow_runs` for recent failures or running CI\n" +
       "- `list_inbox` for waiting decisions\n" +
-      "- `list_goals` for active goals\n\n" +
+      "- `list_goals` for active missions (legacy task groups)\n\n" +
       "Return the briefing in chat. Do not create, assign, close, edit, or solve anything.",
   },
   {
@@ -110,12 +110,21 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
   },
   {
     slug: "goal",
-    description: "Create a new goal",
+    description: "Create a company goal",
+    argumentHint: "<outcome>",
+    body:
+      'Create a new company-level goal for "$ARGUMENTS".\n\n' +
+      "Use the managed goal model: outcome, proof/evidence, route, facts, and blockers. " +
+      "Prefer managed-goal tools when available. Keep the first route simple.",
+  },
+  {
+    slug: "mission",
+    description: "Create a mission task group",
     argumentHint: "<title>",
     body:
-      'Create a new goal titled "$ARGUMENTS".\n\n' +
-      "Capture the motivation, the success metric, and a rough first milestone. " +
-      "Keep it tight — one paragraph each, no fluff.",
+      'Create a new mission titled "$ARGUMENTS".\n\n' +
+      "A mission is the old task grouping under the task page: it collects concrete tasks toward one focused effort. " +
+      "Capture motivation, success metric, and rough first milestone. Keep it tight — one paragraph each, no fluff.",
   },
   {
     slug: "analyze",

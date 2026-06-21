@@ -11,6 +11,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   CircleDot,
+  Clock3,
   FileText,
   Loader2,
   Package,
@@ -53,107 +54,25 @@ import {
   useCreateManagedGoal,
   useDeleteManagedGoal,
   useManagedGoals,
+  useRunManagedGoal,
   useSetManagedGoalState,
   useUpdateManagedGoal,
 } from "../hooks/useManagedGoals";
-import type {
-  CreateManagedGoalInput,
-  ManagedGoalRecord,
-  ManagedGoalSchedule,
-  UpdateManagedGoalInput,
+import {
+  MANAGED_GOAL_TYPES,
+  buildSimpleManagedGoalCreateInput,
+  isStoreBackedManagedGoal,
+  type ManagedGoalInstanceSummary,
+  type ManagedGoalRecord,
+  type ManagedGoalSchedule,
+  type ManagedGoalTypeId,
 } from "../managed-goals";
 import { scheduleEveryLabel, type ScheduleEvery } from "../ticked/frontmatter";
 import { cn } from "../utils";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
 
-interface EvidenceRow {
-  id: string;
-  evidence: string;
-  stage: string;
-  duty: string;
-  executable: string;
-}
-
-const newRowId = () =>
-  globalThis.crypto?.randomUUID?.() ?? `row-${Date.now()}-${Math.random()}`;
-
-const blankRow = (): EvidenceRow => ({
-  id: newRowId(),
-  evidence: "",
-  stage: "",
-  duty: "",
-  executable: "",
-});
-
-const templateRows = {
-  simple: [
-    {
-      id: newRowId(),
-      evidence: "goalVerified",
-      stage: "verify",
-      duty: "research",
-      executable: "research",
-    },
-  ],
-  docs: [
-    {
-      id: newRowId(),
-      evidence: "docsChecked",
-      stage: "docs-health",
-      duty: "docs-health",
-      executable: "docs-health",
-    },
-  ],
-  plan: [
-    {
-      id: newRowId(),
-      evidence: "planReady",
-      stage: "plan",
-      duty: "plan",
-      executable: "plan",
-    },
-  ],
-} satisfies Record<string, EvidenceRow[]>;
-
-type GoalPresetId = "general" | "docs" | "plan";
-
-interface GoalPreset {
-  id: GoalPresetId;
-  label: string;
-  description: string;
-  type: string;
-  defaultOutcome: string;
-  rows: EvidenceRow[];
-}
-
-const goalPresets = [
-  {
-    id: "general",
-    label: "General check",
-    description: "One normal verification step.",
-    type: "general",
-    defaultOutcome: "Goal is complete and verified.",
-    rows: templateRows.simple,
-  },
-  {
-    id: "docs",
-    label: "Docs check",
-    description: "Check documentation and report drift.",
-    type: "docs",
-    defaultOutcome: "Documentation is checked and any drift is reported.",
-    rows: templateRows.docs,
-  },
-  {
-    id: "plan",
-    label: "Planning",
-    description: "Produce a plan for the requested work.",
-    type: "plan",
-    defaultOutcome: "A plan exists for requested work.",
-    rows: templateRows.plan,
-  },
-] satisfies GoalPreset[];
-const defaultGoalPreset = goalPresets[0]!;
+const defaultGoalType = MANAGED_GOAL_TYPES[0]!;
 
 const scheduleOptions = [
   { value: "manual", label: "Manual" },
@@ -168,47 +87,6 @@ function scheduleLabel(schedule: unknown): string {
     scheduleOptions.find((option) => option.value === schedule)?.label ??
     "Manual"
   );
-}
-
-function cloneRows(rows: EvidenceRow[]): EvidenceRow[] {
-  return rows.map((row) => ({ ...row, id: newRowId() }));
-}
-
-function slugifyGoalInput(value: string): string {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 64);
-}
-
-function newInstanceId(sourceId: string): string {
-  const stamp = new Date()
-    .toISOString()
-    .replace(/[-:]/g, "")
-    .replace(/\..+$/, "")
-    .replace("T", "-");
-  return `${slugifyGoalInput(sourceId) || "goal"}-${stamp}`.slice(0, 80);
-}
-
-function rowsFromGoal(goal: ManagedGoalRecord): EvidenceRow[] {
-  if (goal.state.route.length > 0) {
-    return goal.state.route.map((step) => ({
-      id: newRowId(),
-      evidence: step.evidence,
-      stage: step.stage,
-      duty: step.duty,
-      executable: step.executable ?? "",
-    }));
-  }
-  return goal.state.destination.evidence.map((evidence) => ({
-    id: newRowId(),
-    evidence,
-    stage: "",
-    duty: "",
-    executable: "",
-  }));
 }
 
 function completedEvidence(goal: ManagedGoalRecord): number {
@@ -230,10 +108,40 @@ function currentRouteStep(goal: ManagedGoalRecord) {
   return next ? goal.state.route.find((step) => step.evidence === next) : null;
 }
 
-function isStoreBackedGoal(goal: ManagedGoalRecord): boolean {
-  return (
-    goal.source === "store" || typeof goal.state.sourceTemplate === "string"
-  );
+function instanceSummaries(goal: ManagedGoalRecord): ManagedGoalInstanceSummary[] {
+  if (Array.isArray(goal.state.instances)) {
+    return goal.state.instances.filter(
+      (instance): instance is ManagedGoalInstanceSummary =>
+        !!instance &&
+        typeof instance === "object" &&
+        typeof instance.id === "string" &&
+        typeof instance.state === "string" &&
+        !!instance.facts &&
+        typeof instance.facts === "object" &&
+        !Array.isArray(instance.facts) &&
+        Array.isArray(instance.blockers),
+    );
+  }
+
+  const ids = Array.isArray(goal.state.instanceIds)
+    ? goal.state.instanceIds.filter((id): id is string => typeof id === "string")
+    : [];
+
+  return ids.map((id) => ({
+    id,
+    state: "active",
+    facts: {},
+    blockers: [],
+  }));
+}
+
+function completedInstanceEvidence(
+  goal: ManagedGoalRecord,
+  instance: ManagedGoalInstanceSummary,
+): number {
+  return goal.state.destination.evidence.filter(
+    (evidence) => instance.facts[evidence] === true,
+  ).length;
 }
 
 function goalActivityTone(state: string) {
@@ -365,184 +273,103 @@ function goalSearchText(goal: ManagedGoalRecord): string {
 function NewGoalDialog({
   open,
   onOpenChange,
-  instanceSources,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  instanceSources: ManagedGoalRecord[];
 }) {
   const createGoal = useCreateManagedGoal();
-  const [mode, setMode] = useState<"new" | "instance">("new");
+  const [goalType, setGoalType] = useState<ManagedGoalTypeId>(
+    defaultGoalType.id,
+  );
   const [schedule, setSchedule] = useState<ManagedGoalSchedule>("manual");
-  const [sourceId, setSourceId] = useState("");
-  const [goalId, setGoalId] = useState("");
-  const [presetId, setPresetId] = useState<GoalPresetId>("general");
-  const [type, setType] = useState("general");
   const [outcome, setOutcome] = useState("");
-  const [rows, setRows] = useState<EvidenceRow[]>(
-    cloneRows(templateRows.simple),
-  );
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
-  const selectedPreset =
-    goalPresets.find((preset) => preset.id === presetId) ?? defaultGoalPreset;
-  const selectedSource = instanceSources.find((goal) => goal.id === sourceId);
-
-  const validRows = useMemo(
-    () =>
-      rows.filter(
-        (row) => row.evidence.trim() && row.stage.trim() && row.duty.trim(),
-      ),
-    [rows],
-  );
-  const canSubmit = outcome.trim().length > 0 && validRows.length > 0;
+  const selectedGoalType =
+    MANAGED_GOAL_TYPES.find((type) => type.id === goalType) ?? defaultGoalType;
+  const canSubmit = outcome.trim().length > 0;
 
   const reset = () => {
-    setMode("new");
+    setGoalType(defaultGoalType.id);
     setSchedule("manual");
-    setSourceId("");
-    setGoalId("");
-    setPresetId("general");
-    setType("general");
     setOutcome("");
-    setRows(cloneRows(templateRows.simple));
-    setShowAdvanced(false);
-  };
-
-  const applyPreset = (nextPresetId: GoalPresetId) => {
-    const nextPreset =
-      goalPresets.find((preset) => preset.id === nextPresetId) ??
-      defaultGoalPreset;
-    setPresetId(nextPreset.id);
-    setType(nextPreset.type);
-    if (!outcome.trim()) setOutcome(nextPreset.defaultOutcome);
-    setRows(cloneRows(nextPreset.rows));
-  };
-
-  const applyInstanceSource = (nextSourceId: string) => {
-    const source = instanceSources.find((goal) => goal.id === nextSourceId);
-    setSourceId(nextSourceId);
-    if (!source) return;
-    setGoalId(newInstanceId(source.id));
-    setType(source.state.type || "general");
-    setSchedule("manual");
-    setOutcome(source.state.destination.outcome);
-    setRows(rowsFromGoal(source));
-    setShowAdvanced(false);
-  };
-
-  const updateRow = (id: string, patch: Partial<Omit<EvidenceRow, "id">>) => {
-    setRows((prev) =>
-      prev.map((row) => (row.id === id ? { ...row, ...patch } : row)),
-    );
-  };
-
-  const removeRow = (id: string) => {
-    setRows((prev) =>
-      prev.length === 1 ? prev : prev.filter((row) => row.id !== id),
-    );
   };
 
   const submit = async () => {
-    const payload: CreateManagedGoalInput = {
-      ...(goalId.trim() ? { id: goalId.trim() } : {}),
-      type: type.trim() || "general",
-      outcome: outcome.trim(),
-      schedule,
-      evidence: validRows.map((row) => row.evidence.trim()),
-      route: validRows.map((row) => ({
-        stage: row.stage.trim(),
-        evidence: row.evidence.trim(),
-        duty: row.duty.trim(),
-        ...(row.executable.trim() ? { executable: row.executable.trim() } : {}),
-      })),
-    };
-    await createGoal.mutateAsync(payload);
+    await createGoal.mutateAsync(
+      buildSimpleManagedGoalCreateInput({
+        goalType,
+        schedule,
+        prompt: outcome,
+      }),
+    );
     reset();
     onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>New goal</DialogTitle>
           <DialogDescription>
-            Write the finish line. Defaults handle the rest.
+            Choose type and schedule, then describe the finish line.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-[220px_minmax(0,1fr)]">
+          <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="goal-create-mode">Mode</Label>
+              <Label htmlFor="goal-type">Type</Label>
               <Select
-                value={mode}
-                onValueChange={(value) => {
-                  const nextMode = value as "new" | "instance";
-                  setMode(nextMode);
-                  if (nextMode === "new") {
-                    reset();
-                  } else if (instanceSources.length > 0) {
-                    applyInstanceSource(sourceId || instanceSources[0]!.id);
-                  }
-                }}
+                value={goalType}
+                onValueChange={(value) => setGoalType(value as ManagedGoalTypeId)}
               >
-                <SelectTrigger id="goal-create-mode">
-                  <SelectValue placeholder="Choose mode" />
+                <SelectTrigger id="goal-type">
+                  <SelectValue placeholder="Choose type" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="new">New goal</SelectItem>
-                  <SelectItem
-                    value="instance"
-                    disabled={instanceSources.length === 0}
-                  >
-                    New instance
-                  </SelectItem>
+                  {MANAGED_GOAL_TYPES.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="space-y-2 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-muted-foreground">
+                <p className="text-sm font-medium text-white/85">
+                  {selectedGoalType.description}
+                </p>
+                <p>
+                  <span className="text-white/65">Best for: </span>
+                  {selectedGoalType.bestFor}
+                </p>
+                <p>
+                  <span className="text-white/65">Kody will: </span>
+                  {selectedGoalType.systemSummary}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="goal-schedule">Schedule</Label>
+              <Select
+                value={schedule}
+                onValueChange={(value) =>
+                  setSchedule(value as ManagedGoalSchedule)
+                }
+              >
+                <SelectTrigger id="goal-schedule">
+                  <SelectValue placeholder="Choose schedule" />
+                </SelectTrigger>
+                <SelectContent>
+                  {scheduleOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
-
-            {mode === "instance" ? (
-              <div className="space-y-2">
-                <Label htmlFor="goal-instance-source">Goal</Label>
-                <Select value={sourceId} onValueChange={applyInstanceSource}>
-                  <SelectTrigger id="goal-instance-source">
-                    <SelectValue placeholder="Choose goal" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {instanceSources.map((goal) => (
-                      <SelectItem key={goal.id} value={goal.id}>
-                        {goal.id}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : null}
-
-            {mode === "new" ? (
-              <div className="space-y-2">
-                <Label htmlFor="goal-schedule">Schedule</Label>
-                <Select
-                  value={schedule}
-                  onValueChange={(value) =>
-                    setSchedule(value as ManagedGoalSchedule)
-                  }
-                >
-                  <SelectTrigger id="goal-schedule">
-                    <SelectValue placeholder="Choose schedule" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {scheduleOptions.map((option) => (
-                      <SelectItem key={option.value} value={option.value}>
-                        {option.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : null}
           </div>
 
           <div className="space-y-2">
@@ -551,173 +378,13 @@ function NewGoalDialog({
               id="goal-outcome"
               value={outcome}
               onChange={(event) => setOutcome(event.target.value)}
-              placeholder="Example: Users can create goals, attach tasks, and see progress update in the dashboard."
-              className="min-h-32"
-              autoFocus
+              placeholder={selectedGoalType.promptPlaceholder}
+              rows={4}
             />
           </div>
 
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground">
-            <span>
-              {mode === "instance" && selectedSource
-                ? `Instance from ${selectedSource.id}`
-                : `Defaults: ${selectedPreset.label.toLowerCase()} · ${scheduleLabel(schedule)}`}{" "}
-              · {validRows.length} proof step
-              {validRows.length === 1 ? "" : "s"}
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAdvanced((value) => !value)}
-            >
-              {showAdvanced ? "Hide advanced" : "Advanced"}
-            </Button>
-          </div>
-
-          {showAdvanced ? (
-            <section className="space-y-4 rounded-lg border border-white/[0.08] bg-white/[0.02] p-4">
-              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
-                <div className="space-y-2">
-                  <Label htmlFor="goal-id">Name (optional)</Label>
-                  <Input
-                    id="goal-id"
-                    value={goalId}
-                    onChange={(event) => setGoalId(event.target.value)}
-                    placeholder="verify-goals-page"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="goal-preset">Goal type</Label>
-                  <Select
-                    value={presetId}
-                    onValueChange={(value) =>
-                      applyPreset(value as GoalPresetId)
-                    }
-                  >
-                    <SelectTrigger id="goal-preset">
-                      <SelectValue placeholder="Choose type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {goalPresets.map((preset) => (
-                        <SelectItem key={preset.id} value={preset.id}>
-                          {preset.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <div className="text-sm font-medium text-white/90">
-                    Proof route
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Only change this when the default route is wrong.
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setRows((prev) => [...prev, blankRow()])}
-                >
-                  <Plus className="h-4 w-4" />
-                  Add proof
-                </Button>
-              </div>
-
-              <div className="space-y-3">
-                {rows.map((row, index) => (
-                  <div
-                    key={row.id}
-                    className="rounded-lg border border-white/[0.08] bg-black/20 p-3 space-y-3"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Proof {index + 1}
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeRow(row.id)}
-                        disabled={rows.length === 1}
-                        aria-label="Remove proof"
-                        className="h-7 w-7 px-0"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor={`evidence-${row.id}`}>Proof key</Label>
-                        <Input
-                          id={`evidence-${row.id}`}
-                          value={row.evidence}
-                          onChange={(event) =>
-                            updateRow(row.id, { evidence: event.target.value })
-                          }
-                          placeholder="qaPassed"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`stage-${row.id}`}>Stage</Label>
-                        <Input
-                          id={`stage-${row.id}`}
-                          value={row.stage}
-                          onChange={(event) =>
-                            updateRow(row.id, { stage: event.target.value })
-                          }
-                          placeholder="qa"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`duty-${row.id}`}>Duty</Label>
-                        <Input
-                          id={`duty-${row.id}`}
-                          value={row.duty}
-                          onChange={(event) =>
-                            updateRow(row.id, { duty: event.target.value })
-                          }
-                          placeholder="qa-goal"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`executable-${row.id}`}>
-                          Executable
-                        </Label>
-                        <Input
-                          id={`executable-${row.id}`}
-                          value={row.executable}
-                          onChange={(event) =>
-                            updateRow(row.id, {
-                              executable: event.target.value,
-                            })
-                          }
-                          placeholder="qa-goal"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <p className="break-words font-mono text-xs text-white/45">
-                .kody/goals/{goalId.trim() || "auto-name"}/state.json
-              </p>
-            </section>
-          ) : null}
-
           <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button
@@ -749,80 +416,38 @@ function EditManagedGoalDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const updateGoal = useUpdateManagedGoal(goal?.id ?? "");
-  const [type, setType] = useState("");
   const [outcome, setOutcome] = useState("");
   const [schedule, setSchedule] = useState<ManagedGoalSchedule>("manual");
-  const [rows, setRows] = useState<EvidenceRow[]>([]);
-  const [showAdvanced, setShowAdvanced] = useState(false);
 
   useEffect(() => {
     if (!goal || !open) return;
-    setType(goal.state.type);
     setOutcome(goal.state.destination.outcome);
     setSchedule(
       scheduleOptions.some((option) => option.value === goal.state.schedule)
         ? (goal.state.schedule as ManagedGoalSchedule)
         : "manual",
     );
-    setRows(rowsFromGoal(goal));
-    setShowAdvanced(false);
   }, [goal, open]);
 
-  const validRows = useMemo(
-    () =>
-      rows.filter(
-        (row) => row.evidence.trim() && row.stage.trim() && row.duty.trim(),
-      ),
-    [rows],
-  );
   const canSubmit = !!goal && outcome.trim().length > 0;
-
-  const updateRow = (id: string, patch: Partial<Omit<EvidenceRow, "id">>) => {
-    setRows((prev) =>
-      prev.map((row) => (row.id === id ? { ...row, ...patch } : row)),
-    );
-  };
-
-  const removeRow = (id: string) => {
-    setRows((prev) =>
-      prev.length === 1 ? prev : prev.filter((row) => row.id !== id),
-    );
-  };
 
   const submit = async () => {
     if (!goal) return;
-    const payload: UpdateManagedGoalInput = {
-      type: type.trim() || goal.state.type,
+    await updateGoal.mutateAsync({
+      type: goal.state.type,
       outcome: outcome.trim(),
       schedule,
-      ...(validRows.length > 0
-        ? {
-            evidence: validRows.map((row) => row.evidence.trim()),
-            route: validRows.map((row) => ({
-              stage: row.stage.trim(),
-              evidence: row.evidence.trim(),
-              duty: row.duty.trim(),
-              ...(row.executable.trim()
-                ? { executable: row.executable.trim() }
-                : {}),
-            })),
-          }
-        : {}),
-    };
-    await updateGoal.mutateAsync(payload);
+    });
     onOpenChange(false);
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Edit goal</DialogTitle>
-          <DialogDescription>
-            Update the finish line. Advanced settings are optional.
-          </DialogDescription>
+          <DialogDescription>Update finish line and schedule.</DialogDescription>
         </DialogHeader>
-
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="edit-goal-outcome">Finish line</Label>
@@ -830,8 +455,7 @@ function EditManagedGoalDialog({
               id="edit-goal-outcome"
               value={outcome}
               onChange={(event) => setOutcome(event.target.value)}
-              className="min-h-32"
-              autoFocus
+              rows={4}
             />
           </div>
 
@@ -839,9 +463,7 @@ function EditManagedGoalDialog({
             <Label htmlFor="edit-goal-schedule">Schedule</Label>
             <Select
               value={schedule}
-              onValueChange={(value) =>
-                setSchedule(value as ManagedGoalSchedule)
-              }
+              onValueChange={(value) => setSchedule(value as ManagedGoalSchedule)}
             >
               <SelectTrigger id="edit-goal-schedule">
                 <SelectValue placeholder="Choose schedule" />
@@ -856,139 +478,8 @@ function EditManagedGoalDialog({
             </Select>
           </div>
 
-          <div className="flex items-center justify-between gap-3 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground">
-            <span>
-              {goal?.id ?? "Goal"} · {scheduleLabel(schedule)}
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowAdvanced((value) => !value)}
-            >
-              {showAdvanced ? "Hide advanced" : "Advanced"}
-            </Button>
-          </div>
-
-          {showAdvanced ? (
-            <section className="space-y-4 rounded-lg border border-white/[0.08] bg-white/[0.02] p-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-goal-type">Goal type</Label>
-                <Input
-                  id="edit-goal-type"
-                  value={type}
-                  onChange={(event) => setType(event.target.value)}
-                  placeholder="general"
-                />
-              </div>
-
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <div className="text-sm font-medium text-white/90">
-                    Proof route
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Only change when the current route is wrong.
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setRows((prev) => [...prev, blankRow()])}
-                >
-                  <Plus className="h-4 w-4" />
-                  Add proof
-                </Button>
-              </div>
-
-              <div className="space-y-3">
-                {rows.map((row, index) => (
-                  <div
-                    key={row.id}
-                    className="rounded-lg border border-white/[0.08] bg-black/20 p-3 space-y-3"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                        Proof {index + 1}
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeRow(row.id)}
-                        disabled={rows.length === 1}
-                        aria-label="Remove proof"
-                        className="h-7 w-7 px-0"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="space-y-2">
-                        <Label htmlFor={`edit-evidence-${row.id}`}>
-                          Proof key
-                        </Label>
-                        <Input
-                          id={`edit-evidence-${row.id}`}
-                          value={row.evidence}
-                          onChange={(event) =>
-                            updateRow(row.id, { evidence: event.target.value })
-                          }
-                          placeholder="qaPassed"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`edit-stage-${row.id}`}>Stage</Label>
-                        <Input
-                          id={`edit-stage-${row.id}`}
-                          value={row.stage}
-                          onChange={(event) =>
-                            updateRow(row.id, { stage: event.target.value })
-                          }
-                          placeholder="qa"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`edit-duty-${row.id}`}>Duty</Label>
-                        <Input
-                          id={`edit-duty-${row.id}`}
-                          value={row.duty}
-                          onChange={(event) =>
-                            updateRow(row.id, { duty: event.target.value })
-                          }
-                          placeholder="qa-goal"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor={`edit-executable-${row.id}`}>
-                          Executable
-                        </Label>
-                        <Input
-                          id={`edit-executable-${row.id}`}
-                          value={row.executable}
-                          onChange={(event) =>
-                            updateRow(row.id, {
-                              executable: event.target.value,
-                            })
-                          }
-                          placeholder="qa-goal"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
-          ) : null}
-
           <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
             <Button
@@ -1024,7 +515,7 @@ function GoalRow({
   const done = completedEvidence(goal);
   const total = goal.state.destination.evidence.length;
   const step = currentRouteStep(goal);
-  const storeBacked = isStoreBackedGoal(goal);
+  const storeBacked = isStoreBackedManagedGoal(goal);
   const tone = goalActivityTone(goal.state.state);
 
   return (
@@ -1092,34 +583,99 @@ function GoalRow({
   );
 }
 
+function GoalInstancesSection({ goal }: { goal: ManagedGoalRecord }) {
+  const instances = instanceSummaries(goal);
+  const totalEvidence = goal.state.destination.evidence.length;
+
+  return (
+    <ContentSection
+      icon={Clock3}
+      title="Instances"
+      subtitle="Recent scheduled runs for this goal"
+      count={instances.length}
+    >
+      {instances.length ? (
+        <div className="space-y-2">
+          {instances.map((instance) => {
+            const done = completedInstanceEvidence(goal, instance);
+            const updatedAt = compactDateTime(instance.updatedAt);
+            const createdAt = compactDateTime(instance.createdAt);
+            const blockers = instance.blockers.length;
+
+            return (
+              <div
+                key={instance.id}
+                className="grid gap-3 rounded-md border border-white/[0.08] bg-black/20 px-3 py-3 text-sm md:grid-cols-[minmax(0,1fr)_auto]"
+              >
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate font-mono text-white/80">
+                      {instance.id}
+                    </span>
+                    {goal.state.latestInstanceId === instance.id ? (
+                      <span className="text-[11px] uppercase tracking-wide text-sky-200">
+                        Latest
+                      </span>
+                    ) : null}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    <span>created {createdAt}</span>
+                    <span>·</span>
+                    <span>updated {updatedAt}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground md:justify-end">
+                  <span>{instance.state}</span>
+                  <span>{done}/{totalEvidence} evidence</span>
+                  {blockers ? (
+                    <span className="text-amber-300">{blockers} blocker(s)</span>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <EmptyHint text="No instances yet." />
+      )}
+    </ContentSection>
+  );
+}
+
 function GoalDetail({
   goal,
   duties,
-  onBack,
-  onActivate,
-  onPause,
-  onEdit,
-  onDelete,
-  isUpdating,
+ onBack,
+ onActivate,
+ onPause,
+ onRun,
+ onEdit,
+ onDelete,
+ isUpdating,
+ isRunning,
 }: {
   goal: ManagedGoalRecord;
   duties: Duty[];
-  onBack: () => void;
-  onActivate: () => void;
-  onPause: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-  isUpdating: boolean;
+ onBack: () => void;
+ onActivate: () => void;
+ onPause: () => void;
+ onRun: () => void;
+ onEdit: () => void;
+ onDelete: () => void;
+ isUpdating: boolean;
+ isRunning: boolean;
 }) {
   const done = completedEvidence(goal);
   const total = goal.state.destination.evidence.length;
   const step = currentRouteStep(goal);
-  const storeBacked = isStoreBackedGoal(goal);
+  const storeBacked = isStoreBackedManagedGoal(goal);
   const tone = goalActivityTone(goal.state.state);
   const canActivate =
     goal.state.state === "inactive" || goal.state.state === "paused";
   const canPause = goal.state.state === "active";
-  const runDuty = useRunDuty();
+  const canRun =
+    goal.state.state === "active" || goal.state.state === "inactive";
+ const runDuty = useRunDuty();
 
   return (
     <article className="min-h-full">
@@ -1165,8 +721,24 @@ function GoalDetail({
                 <span className="font-mono opacity-80">{goal.path}</span>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              {!storeBacked ? (
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRun}
+              disabled={!canRun || isRunning}
+              className="h-8 w-8 px-0"
+              title={canRun ? "Run goal now" : "Goal cannot be run"}
+              aria-label="Run goal now"
+            >
+              {isRunning ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Play className="w-3.5 h-3.5" />
+              )}
+            </Button>
+
+            {!storeBacked ? (
                 <>
                   <Button
                     variant="outline"
@@ -1250,6 +822,7 @@ function GoalDetail({
           }
           onRun={(slug) => runDuty.mutate({ slug, force: true })}
         />
+        <GoalInstancesSection goal={goal} />
         <ContentSection
           icon={CheckCircle2}
           title="Evidence"
@@ -1569,6 +1142,7 @@ export function ManagedGoalsView() {
   } = useManagedGoals();
   const { data: duties = [] } = useDuties();
   const setGoalState = useSetManagedGoalState();
+  const runManagedGoal = useRunManagedGoal();
   const deleteManagedGoal = useDeleteManagedGoal();
 
   const filtered = useMemo(() => {
@@ -1652,7 +1226,12 @@ export function ManagedGoalsView() {
                   state: "inactive",
                 })
               }
+              onRun={() => runManagedGoal.mutate(selectedGoal.id)}
               isUpdating={setGoalState.isPending}
+              isRunning={
+                runManagedGoal.isPending &&
+                runManagedGoal.variables === selectedGoal.id
+              }
             />
           ) : (
             <EmptyState
@@ -1702,7 +1281,6 @@ export function ManagedGoalsView() {
       <NewGoalDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        instanceSources={goals}
       />
       <EditManagedGoalDialog
         goal={editingGoal}
