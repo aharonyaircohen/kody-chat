@@ -3,7 +3,7 @@
   "describe": "Task Verifier",
   "action": "task-verifier",
   "executable": "task-verifier",
-  "every": "1h",
+  "every": "manual",
   "staff": "kody",
   "runner": "kody",
   "backlogScopeRule": "open issues with zero labels",
