@@ -56,8 +56,7 @@ describe("chat-defaults bundle", () => {
     const phrases = [
       "Your prose must match the tool result",
       "injected context block",
-      "Always end with a forward-driving question",
-      "Never start with sycophancy",
+      "one direct proceed-style question",
       "Disambiguate dispatch vs. create-issue",
       "github_search_code",
       "github_get_file",
@@ -65,8 +64,8 @@ describe("chat-defaults bundle", () => {
       "github_blame",
       "github_commits_for_path",
       "github_get_pull_request",
-      "status line",
-      "≤8 words",
+      "No preambles",
+      "Small factual answers",
     ];
     for (const p of phrases) {
       expect(DEFAULT_PERSONA_MD).toContain(p);
@@ -400,11 +399,11 @@ describe("CRITICAL_REMINDERS_MD", () => {
     expect(typeof CRITICAL_REMINDERS_MD).toBe("string");
     expect(CRITICAL_REMINDERS_MD.length).toBeGreaterThan(100);
     expect(CRITICAL_REMINDERS_MD).toContain("## Critical reminders");
-    expect(CRITICAL_REMINDERS_MD).toContain("Read the repo before answering");
+    expect(CRITICAL_REMINDERS_MD).toContain("Read repo before answering");
     expect(CRITICAL_REMINDERS_MD).toContain("Verify before claiming");
     expect(CRITICAL_REMINDERS_MD).toContain("No fabrication");
     expect(CRITICAL_REMINDERS_MD).toContain("Cite your evidence");
-    expect(CRITICAL_REMINDERS_MD).toContain("forward-driving question");
+    expect(CRITICAL_REMINDERS_MD).toContain("one direct proceed-style question");
     expect(CRITICAL_REMINDERS_MD).toContain("No sycophantic openers");
   });
 });

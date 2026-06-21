@@ -23,16 +23,21 @@ import {
 import {
   buildManagedGoalState,
   managedGoalPath,
+  type ManagedGoalState,
 } from "@dashboard/lib/managed-goals";
 import {
   deleteManagedGoalFile,
+  listCompanyStoreGoalTemplateFiles,
   readManagedGoalFile,
   writeManagedGoalFile,
 } from "@dashboard/lib/managed-goals-files";
 
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
-    return NextResponse.json({ error: "github_token_expired" }, { status: 401 });
+    return NextResponse.json(
+      { error: "github_token_expired" },
+      { status: 401 },
+    );
   }
   if (error?.status === 403 || error?.message?.includes("rate limit")) {
     return NextResponse.json(
@@ -57,6 +62,8 @@ const routeStepSchema = z.object({
 const managedGoalScheduleSchema = z.enum(["manual", "1h", "1d", "7d", "30d"]);
 
 const updateManagedGoalSchema = z.object({
+  state: z.enum(["inactive", "active", "paused"]).optional(),
+  pausedReason: z.string().max(500).optional(),
   type: z.string().min(1).max(80).optional(),
   outcome: z.string().min(1).max(500).optional(),
   schedule: managedGoalScheduleSchema.optional(),
@@ -115,6 +122,56 @@ export async function PATCH(
       context.headerAuth.repo,
     );
     if (!existing) {
+      if (parsed.data.state) {
+        const storeGoals = await listCompanyStoreGoalTemplateFiles(
+          context.octokit,
+        );
+        const storeGoal = storeGoals.find((goal) => goal.id === id);
+        if (storeGoal) {
+          const nextState: ManagedGoalState = {
+            ...storeGoal.state,
+            sourceTemplate:
+              typeof storeGoal.state.sourceTemplate === "string"
+                ? storeGoal.state.sourceTemplate
+                : id,
+            state: parsed.data.state,
+            ...(parsed.data.state === "paused" && parsed.data.pausedReason
+              ? { pausedReason: parsed.data.pausedReason }
+              : {}),
+          };
+          if (parsed.data.state !== "paused") delete nextState.pausedReason;
+          const path = managedGoalPath(id);
+          await writeManagedGoalFile({
+            octokit: context.octokit,
+            owner: context.headerAuth.owner,
+            repo: context.headerAuth.repo,
+            id,
+            state: nextState,
+            message: `chore(goals): ${parsed.data.state} managed goal ${id}`,
+          });
+          return NextResponse.json({
+            goal: {
+              id,
+              path,
+              state: nextState,
+              source: "local",
+              recordType: "instance",
+            },
+          });
+        }
+      }
+      const storeGoals = await listCompanyStoreGoalTemplateFiles(
+        context.octokit,
+      );
+      if (storeGoals.some((goal) => goal.id === id)) {
+        return NextResponse.json(
+          {
+            error: "store_goal_protected",
+            message: "Store goals cannot be edited directly.",
+          },
+          { status: 409 },
+        );
+      }
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
@@ -126,8 +183,9 @@ export async function PATCH(
       route: parsed.data.route ?? existing.state.route,
     });
     const evidenceSet = new Set(rebuilt.destination.evidence);
-    const nextState = {
+    const nextState: ManagedGoalState = {
       ...existing.state,
+      state: parsed.data.state ?? existing.state.state,
       type: rebuilt.type,
       destination: rebuilt.destination,
       schedule: rebuilt.schedule,
@@ -140,6 +198,12 @@ export async function PATCH(
         ),
       ),
     };
+    if (parsed.data.state === "paused" && parsed.data.pausedReason) {
+      nextState.pausedReason = parsed.data.pausedReason;
+    }
+    if (parsed.data.state && parsed.data.state !== "paused") {
+      delete nextState.pausedReason;
+    }
 
     await writeManagedGoalFile({
       octokit: context.octokit,
@@ -182,7 +246,28 @@ export async function DELETE(
       context.headerAuth.repo,
     );
     if (!existing) {
+      const storeGoals = await listCompanyStoreGoalTemplateFiles(
+        context.octokit,
+      );
+      if (storeGoals.some((goal) => goal.id === id)) {
+        return NextResponse.json(
+          {
+            error: "store_goal_protected",
+            message: "Store goals cannot be deleted from this repo.",
+          },
+          { status: 409 },
+        );
+      }
       return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+    if (typeof existing.state.sourceTemplate === "string") {
+      return NextResponse.json(
+        {
+          error: "store_goal_protected",
+          message: "Store goals cannot be deleted from this repo.",
+        },
+        { status: 409 },
+      );
     }
 
     await deleteManagedGoalFile({

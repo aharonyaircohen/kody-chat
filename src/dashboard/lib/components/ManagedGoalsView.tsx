@@ -13,6 +13,8 @@ import {
   CircleDot,
   FileText,
   Loader2,
+  Package,
+  Pause,
   Pencil,
   Play,
   Power,
@@ -228,10 +230,112 @@ function currentRouteStep(goal: ManagedGoalRecord) {
   return next ? goal.state.route.find((step) => step.evidence === next) : null;
 }
 
-function GoalStateText({ state }: { state: string }) {
-  if (state === "active") return null;
-  const label = state.charAt(0).toUpperCase() + state.slice(1);
-  return <span className="font-medium text-amber-200">{label}</span>;
+function isStoreBackedGoal(goal: ManagedGoalRecord): boolean {
+  return (
+    goal.source === "store" || typeof goal.state.sourceTemplate === "string"
+  );
+}
+
+function goalActivityTone(state: string) {
+  if (state === "active") {
+    return {
+      label: "Active",
+      rowClass:
+        "border-l-2 border-l-sky-400 bg-sky-500/[0.06] hover:bg-sky-500/[0.09]",
+      selectedClass: "bg-sky-500/[0.12]",
+      iconClass: "text-sky-300",
+      badgeClass: "border-sky-400/30 bg-sky-400/10 text-sky-200",
+      headerClass:
+        "border-sky-400/20 bg-gradient-to-b from-sky-500/[0.12] via-sky-500/[0.04] to-transparent",
+      outcomeClass: "border-sky-400/15 bg-sky-400/[0.04]",
+    };
+  }
+  if (state === "paused") {
+    return {
+      label: "Paused",
+      rowClass:
+        "border-l-2 border-l-amber-400/60 bg-amber-500/[0.045] hover:bg-amber-500/[0.07]",
+      selectedClass: "bg-amber-500/[0.1]",
+      iconClass: "text-amber-300",
+      badgeClass: "border-amber-400/25 bg-amber-400/10 text-amber-200",
+      headerClass:
+        "border-amber-400/18 bg-gradient-to-b from-amber-500/[0.1] via-amber-500/[0.035] to-transparent",
+      outcomeClass: "border-amber-400/15 bg-amber-400/[0.035]",
+    };
+  }
+  if (state === "done") {
+    return {
+      label: "Done",
+      rowClass:
+        "border-l-2 border-l-emerald-400/60 bg-emerald-500/[0.045] hover:bg-emerald-500/[0.07]",
+      selectedClass: "bg-emerald-500/[0.1]",
+      iconClass: "text-emerald-300",
+      badgeClass: "border-emerald-400/25 bg-emerald-400/10 text-emerald-200",
+      headerClass:
+        "border-emerald-400/18 bg-gradient-to-b from-emerald-500/[0.1] via-emerald-500/[0.035] to-transparent",
+      outcomeClass: "border-emerald-400/15 bg-emerald-400/[0.035]",
+    };
+  }
+  return {
+    label: "Inactive",
+    rowClass:
+      "border-l-2 border-l-white/10 bg-white/[0.012] opacity-70 hover:bg-white/[0.035] hover:opacity-90",
+    selectedClass: "bg-white/[0.06] opacity-100",
+    iconClass: "text-white/35",
+    badgeClass: "border-white/10 bg-white/[0.035] text-white/45",
+    headerClass:
+      "border-white/[0.06] bg-gradient-to-b from-white/[0.035] via-white/[0.012] to-transparent",
+    outcomeClass: "border-white/[0.06] bg-white/[0.015]",
+  };
+}
+
+function GoalActivityBadge({
+  state,
+  className,
+}: {
+  state: string;
+  className?: string;
+}) {
+  const tone = goalActivityTone(state);
+  const Icon =
+    state === "active"
+      ? Power
+      : state === "paused"
+        ? Pause
+        : state === "done"
+          ? CheckCircle2
+          : PowerOff;
+
+  return (
+    <span
+      className={cn(
+        "shrink-0 inline-flex h-6 w-6 items-center justify-center rounded border",
+        tone.badgeClass,
+        className,
+      )}
+      title={tone.label}
+      aria-label={tone.label}
+      role="img"
+    >
+      <Icon className="h-3.5 w-3.5" />
+    </span>
+  );
+}
+
+function StoreGoalBadge({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        "shrink-0 inline-flex h-6 w-6 items-center justify-center rounded border border-emerald-500/20 bg-emerald-500/10 text-emerald-300",
+        className,
+      )}
+      title="Store goal"
+      aria-label="Store goal"
+      role="img"
+    >
+      <Package className="h-3.5 w-3.5" />
+    </span>
+  );
 }
 
 function goalSearchText(goal: ManagedGoalRecord): string {
@@ -910,71 +1014,81 @@ function GoalRow({
   goal,
   isActive,
   onSelect,
+  onDelete,
 }: {
   goal: ManagedGoalRecord;
   isActive: boolean;
   onSelect: () => void;
+  onDelete: () => void;
 }) {
   const done = completedEvidence(goal);
   const total = goal.state.destination.evidence.length;
   const step = currentRouteStep(goal);
+  const storeBacked = isStoreBackedGoal(goal);
+  const tone = goalActivityTone(goal.state.state);
 
   return (
-    <button
-      type="button"
-      onClick={onSelect}
+    <div
       className={cn(
-        "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
-        isActive && "bg-accent/70",
+        "relative flex items-stretch transition-colors",
+        tone.rowClass,
+        isActive && tone.selectedClass,
       )}
     >
-      {isActive ? (
-        <span className="absolute inset-y-0 left-0 w-0.5 bg-sky-400" />
-      ) : null}
-
-      <div className="flex items-center gap-2">
-        <Target
-          className={cn(
-            "w-3.5 h-3.5 shrink-0",
-            isActive ? "text-sky-400" : "text-muted-foreground",
-          )}
-        />
-        <span className="font-mono text-sm truncate flex-1 text-white/90">
-          {goal.id}
-        </span>
-        {goal.source === "store" ? (
-          <span className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-            Store
+      <button
+        type="button"
+        onClick={onSelect}
+        className={cn(
+          "min-w-0 flex-1 px-4 py-3 text-left",
+          !storeBacked && "pr-14",
+        )}
+      >
+        <div className="flex items-center gap-2">
+          <Target className={cn("w-3.5 h-3.5 shrink-0", tone.iconClass)} />
+          <span className="font-mono text-sm truncate flex-1 text-white/90">
+            {goal.id}
           </span>
-        ) : null}
-      </div>
+          <GoalActivityBadge state={goal.state.state} />
+          {storeBacked ? <StoreGoalBadge /> : null}
+        </div>
 
-      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
-        <span>{goal.state.type}</span>
-        <span>·</span>
-        <span>{scheduleLabel(goal.state.schedule)}</span>
-        {goal.state.state !== "active" ? (
-          <>
-            <span>·</span>
-            <GoalStateText state={goal.state.state} />
-          </>
-        ) : null}
-        <span>·</span>
-        <span>
-          {done}/{total} evidence
-        </span>
-        {step ? (
-          <>
-            <span>·</span>
-            <span>{step.stage}</span>
-          </>
-        ) : null}
-      </div>
+        <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+          <span>{goal.state.type}</span>
+          <span>·</span>
+          <span>{scheduleLabel(goal.state.schedule)}</span>
+          <span>·</span>
+          <span>
+            {done}/{total} evidence
+          </span>
+          {step ? (
+            <>
+              <span>·</span>
+              <span>{step.stage}</span>
+            </>
+          ) : null}
+        </div>
 
-      <p className="text-xs text-white/55 mt-1 truncate">
-        {goal.state.destination.outcome}
-      </p>
-    </button>
+        <p className="text-xs text-white/55 mt-1 truncate">
+          {goal.state.destination.outcome}
+        </p>
+      </button>
+      {!storeBacked ? (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={(event) => {
+            event.stopPropagation();
+            onDelete();
+          }}
+          className="absolute right-3 top-3 h-8 w-8 px-0 text-red-300 hover:text-red-200"
+          title="Delete goal"
+          aria-label={`Delete ${goal.id}`}
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </Button>
+      ) : null}
+    </div>
   );
 }
 
@@ -1000,16 +1114,16 @@ function GoalDetail({
   const done = completedEvidence(goal);
   const total = goal.state.destination.evidence.length;
   const step = currentRouteStep(goal);
-  const canChangeState = goal.recordType !== "template";
+  const storeBacked = isStoreBackedGoal(goal);
+  const tone = goalActivityTone(goal.state.state);
   const canActivate =
-    canChangeState &&
-    (goal.state.state === "inactive" || goal.state.state === "paused");
-  const canPause = canChangeState && goal.state.state === "active";
+    goal.state.state === "inactive" || goal.state.state === "paused";
+  const canPause = goal.state.state === "active";
   const runDuty = useRunDuty();
 
   return (
     <article className="min-h-full">
-      <div className="border-b border-white/[0.06] bg-gradient-to-b from-sky-500/[0.06] via-sky-500/[0.02] to-transparent">
+      <div className={cn("border-b", tone.headerClass)}>
         <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
           <Button
             variant="ghost"
@@ -1025,11 +1139,8 @@ function GoalDetail({
             <div className="min-w-0 flex-1 space-y-2">
               <h1 className="text-2xl md:text-3xl font-semibold tracking-tight break-words font-mono inline-flex items-center gap-3 flex-wrap">
                 <span>{goal.id}</span>
-                {goal.source === "store" ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium uppercase tracking-wide bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
-                    Store
-                  </span>
-                ) : null}
+                {storeBacked ? <StoreGoalBadge /> : null}
+                <GoalActivityBadge state={goal.state.state} />
                 <span className="text-[11px] font-sans uppercase tracking-wide bg-white/[0.06] text-white/50 px-2 py-0.5 rounded">
                   {goal.state.type}
                 </span>
@@ -1041,12 +1152,6 @@ function GoalDetail({
                 </span>
                 <span>·</span>
                 <span>{scheduleLabel(goal.state.schedule)}</span>
-                {goal.state.state !== "active" ? (
-                  <>
-                    <span>·</span>
-                    <GoalStateText state={goal.state.state} />
-                  </>
-                ) : null}
                 {goal.state.stage ? (
                   <>
                     <span>·</span>
@@ -1061,7 +1166,7 @@ function GoalDetail({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {goal.source !== "store" ? (
+              {!storeBacked ? (
                 <>
                   <Button
                     variant="outline"
@@ -1110,8 +1215,8 @@ function GoalDetail({
                   onClick={onPause}
                   disabled={isUpdating}
                   className="h-8 w-8 px-0"
-                  title="Pause goal"
-                  aria-label="Pause goal"
+                  title="Deactivate goal"
+                  aria-label="Deactivate goal"
                 >
                   {isUpdating ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -1123,7 +1228,9 @@ function GoalDetail({
             </div>
           </header>
 
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 md:p-5">
+          <div
+            className={cn("rounded-xl border p-4 md:p-5", tone.outcomeClass)}
+          >
             <p className="text-sm text-white/80">
               {goal.state.destination.outcome}
             </p>
@@ -1542,8 +1649,7 @@ export function ManagedGoalsView() {
               onPause={() =>
                 setGoalState.mutate({
                   id: selectedGoal.id,
-                  state: "paused",
-                  pausedReason: "Paused from dashboard",
+                  state: "inactive",
                 })
               }
               isUpdating={setGoalState.isPending}
@@ -1585,6 +1691,7 @@ export function ManagedGoalsView() {
                   goal={goal}
                   isActive={selectedId === goal.id}
                   onSelect={() => setSelectedId(goal.id)}
+                  onDelete={() => setDeleteGoal(goal)}
                 />
               </li>
             ))}

@@ -27,7 +27,7 @@ describe("Kody goal and duty assets", () => {
       evidence: "companyGraphRefreshed",
       duty: "company-graph",
       executable: "company-graph",
-      args: { goal: "hourly-monitor-goal-smoke" },
+      args: { goal: { fact: "goalId" } },
     });
   });
 
@@ -57,7 +57,7 @@ describe("Kody goal and duty assets", () => {
       evidence: "companyGraphRefreshed",
       duty: "company-graph",
       executable: "company-graph",
-      args: { goal: "five-minute-goal-smoke" },
+      args: { goal: { fact: "goalId" } },
     });
   });
 

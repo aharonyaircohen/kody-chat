@@ -17,7 +17,6 @@ import {
 } from "../api";
 import type {
   CreateManagedGoalInput,
-  ManagedGoalState,
   ManagedGoalRecord,
   UpdateManagedGoalInput,
 } from "../managed-goals";
@@ -108,24 +107,17 @@ export function useSetManagedGoalState() {
   return useMutation<
     ManagedGoalRecord,
     Error,
-    { id: string; state: "active" | "paused"; pausedReason?: string }
+    {
+      id: string;
+      state: "inactive" | "active" | "paused";
+      pausedReason?: string;
+    }
   >({
-    mutationFn: async ({ id, state, pausedReason }) => {
-      const next = await kodyApi.goals.setState(id, {
+    mutationFn: ({ id, state, pausedReason }) =>
+      kodyApi.goals.updateManaged(id, {
         state,
         ...(pausedReason ? { pausedReason } : {}),
-      });
-      const current = queryClient
-        .getQueryData<ManagedGoalRecord[]>(managedGoalQueryKeys.list)
-        ?.find((goal) => goal.id === id);
-      return {
-        id,
-        path: current?.path ?? `.kody/goals/instances/${id}/state.json`,
-        source: current?.source,
-        recordType: current?.recordType,
-        state: next as unknown as ManagedGoalState,
-      };
-    },
+      }),
     onSuccess: (updated) => {
       queryClient.setQueryData<ManagedGoalRecord[]>(
         managedGoalQueryKeys.list,

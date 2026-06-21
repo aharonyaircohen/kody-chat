@@ -76,6 +76,69 @@ export interface ManagedGoalRecord {
   updatedAt?: string;
 }
 
+function managedGoalRecordTime(goal: ManagedGoalRecord): string {
+  const updatedAt =
+    goal.updatedAt ??
+    (typeof goal.state.updatedAt === "string" ? goal.state.updatedAt : "");
+  const createdAt =
+    typeof goal.state.createdAt === "string" ? goal.state.createdAt : "";
+  return updatedAt || createdAt || "";
+}
+
+export function collapseManagedGoalRecordsForList(
+  goals: ManagedGoalRecord[],
+): ManagedGoalRecord[] {
+  const generatedByTemplate = new Map<string, ManagedGoalRecord[]>();
+  const directGoals: ManagedGoalRecord[] = [];
+
+  for (const goal of goals) {
+    const sourceTemplate =
+      typeof goal.state.sourceTemplate === "string"
+        ? goal.state.sourceTemplate.trim()
+        : "";
+    if (!sourceTemplate || sourceTemplate === goal.id) {
+      directGoals.push(goal);
+      continue;
+    }
+    const existing = generatedByTemplate.get(sourceTemplate) ?? [];
+    existing.push(goal);
+    generatedByTemplate.set(sourceTemplate, existing);
+  }
+
+  const groupedTemplateIds = new Set(generatedByTemplate.keys());
+  const groupedGoals = Array.from(generatedByTemplate.entries()).map(
+    ([templateId, instances]) => {
+      const sorted = [...instances].sort((a, b) =>
+        managedGoalRecordTime(b).localeCompare(managedGoalRecordTime(a)),
+      );
+      const latest = sorted[0]!;
+      const instanceIds = instances.map((goal) => goal.id).sort();
+
+      return {
+        ...latest,
+        id: templateId,
+        recordType: "template" as const,
+        updatedAt: managedGoalRecordTime(latest),
+        state: {
+          ...latest.state,
+          state: instances.some((goal) => goal.state.state === "active")
+            ? "active"
+            : latest.state.state,
+          sourceTemplate: templateId,
+          latestInstanceId: latest.id,
+          instanceCount: instances.length,
+          instanceIds,
+        },
+      };
+    },
+  );
+
+  return [
+    ...directGoals.filter((goal) => !groupedTemplateIds.has(goal.id)),
+    ...groupedGoals,
+  ].sort((a, b) => a.id.localeCompare(b.id));
+}
+
 export interface CreateManagedGoalInput {
   id?: string;
   templateId?: string;
@@ -87,6 +150,8 @@ export interface CreateManagedGoalInput {
 }
 
 export interface UpdateManagedGoalInput {
+  state?: Exclude<ManagedGoalStateValue, "done">;
+  pausedReason?: string;
   type?: string;
   outcome?: string;
   schedule?: ManagedGoalSchedule;

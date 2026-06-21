@@ -16,7 +16,7 @@
       "duty": "company-graph",
       "executable": "company-graph",
       "args": {
-        "goal": "five-minute-goal-smoke"
+        "goal": { "fact": "goalId" }
       }
     }
   ],

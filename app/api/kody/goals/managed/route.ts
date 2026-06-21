@@ -23,6 +23,7 @@ import {
 import { logger } from "@dashboard/lib/logger";
 import {
   buildManagedGoalState,
+  collapseManagedGoalRecordsForList,
   managedGoalPath,
   SIMPLE_MANAGED_GOAL_TEMPLATE,
   slugifyManagedGoalId,
@@ -97,10 +98,11 @@ export async function GET(req: NextRequest) {
       headerAuth.owner,
       headerAuth.repo,
     );
+    const visibleLocalGoals = collapseManagedGoalRecordsForList(localGoals);
     const storeGoals = await listCompanyStoreGoalTemplateFiles(octokit);
-    const localIds = new Set(localGoals.map((goal) => goal.id));
+    const localIds = new Set(visibleLocalGoals.map((goal) => goal.id));
     const goals = [
-      ...localGoals,
+      ...visibleLocalGoals,
       ...storeGoals.filter((goal) => !localIds.has(goal.id)),
     ].sort((a, b) => a.id.localeCompare(b.id));
 
