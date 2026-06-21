@@ -532,20 +532,17 @@ fi
 
 put_report() {
   local sha="${1:-}"
-  local content
-  content="$(base64 <"$REPORT_BODY" | tr -d '\n')"
-  local args=(
-    api
-    -X PUT
-    "/repos/$repo/contents/$REPORT_PATH"
-    -f "message=chore(reports): refresh company-graph"
-    -f "content=$content"
-    -f "branch=$branch"
-  )
-  if [[ -n "$sha" ]]; then
-    args+=(-f "sha=$sha")
-  fi
-  gh "${args[@]}"
+  local content_file="$TMP_DIR/report.b64"
+  local payload_file="$TMP_DIR/put-report.json"
+  base64 <"$REPORT_BODY" | tr -d '\n' >"$content_file"
+  jq -n \
+    --arg message "chore(reports): refresh company-graph" \
+    --arg branch "$branch" \
+    --arg sha "$sha" \
+    --rawfile content "$content_file" \
+    '{message: $message, content: $content, branch: $branch} + (if $sha == "" then {} else {sha: $sha} end)' \
+    >"$payload_file"
+  gh api -X PUT "/repos/$repo/contents/$REPORT_PATH" --input "$payload_file"
 }
 
 if ! put_report "$remote_sha" 2>"$TMP_DIR/put.err"; then

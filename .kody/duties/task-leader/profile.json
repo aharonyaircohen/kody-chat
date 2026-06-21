@@ -3,7 +3,7 @@
   "describe": "Task Leader",
   "action": "task-leader",
   "executable": "task-leader",
-  "every": "15m",
+  "every": "manual",
   "staff": "kody",
   "runner": "kody",
   "readyPreviewCap": "15",
