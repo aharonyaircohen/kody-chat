@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern managed-goals
  * @ai-summary Engine managed goal contract. These goals live as one JSON file
- *   per goal at `kody-state:.kody/goals/instances/<id>/state.json`.
+ * per goal at `kody-state:.kody/goals/instances/<id>/state.json`.
  */
 
 export type ManagedGoalStateValue = "inactive" | "active" | "paused" | "done";
@@ -25,6 +25,32 @@ export interface ManagedGoalRouteStep {
   args?: Record<string, unknown>;
 }
 
+export interface ManagedGoalDutyScheduleStatus {
+  slug: string;
+  title?: string;
+  cadence?: string;
+  lastFiredAt?: string;
+  nextEligibleAt?: string;
+  state: "due" | "waiting" | "manual" | "disabled" | "blocked";
+  reason: string;
+}
+
+export interface ManagedGoalDutyScheduleState {
+  mode: "duty-cadence";
+  lastGoalTickAt: string;
+  lastDecision:
+    | {
+        kind: "dispatch";
+        duty: string;
+        executable: string;
+        reason: string;
+        at: string;
+      }
+    | { kind: "idle"; reason: string; at: string }
+    | { kind: "blocked"; reason: string; at: string };
+  duties: Record<string, ManagedGoalDutyScheduleStatus>;
+}
+
 export interface ManagedGoalState {
   version: 1;
   state: ManagedGoalStateValue;
@@ -36,6 +62,8 @@ export interface ManagedGoalState {
   stage?: string;
   facts: Record<string, unknown>;
   blockers: string[];
+  scheduleMode?: "duty-cadence" | string;
+  scheduleState?: ManagedGoalDutyScheduleState;
   [extraField: string]: unknown;
 }
 
@@ -90,24 +118,6 @@ export function normalizeEvidenceKey(value: string): string {
     .slice(0, 80);
 }
 
-export function isManagedGoalState(value: unknown): value is ManagedGoalState {
-  if (!value || typeof value !== "object") return false;
-  const goal = value as Partial<ManagedGoalState>;
-  return (
-    goal.version === 1 &&
-    typeof goal.state === "string" &&
-    typeof goal.type === "string" &&
-    !!goal.destination &&
-    typeof goal.destination.outcome === "string" &&
-    Array.isArray(goal.destination.evidence) &&
-    Array.isArray(goal.duties) &&
-    Array.isArray(goal.route) &&
-    !!goal.facts &&
-    typeof goal.facts === "object" &&
-    Array.isArray(goal.blockers)
-  );
-}
-
 export function buildManagedGoalState(
   input: CreateManagedGoalInput,
 ): ManagedGoalState {
@@ -137,7 +147,9 @@ export function buildManagedGoalState(
     };
   }
 
-  const evidence = (input.evidence ?? []).map(normalizeEvidenceKey).filter(Boolean);
+  const evidence = (input.evidence ?? [])
+    .map(normalizeEvidenceKey)
+    .filter(Boolean);
   const evidenceSet = new Set(evidence);
   const route = (input.route ?? [])
     .map((step) => ({
@@ -173,4 +185,25 @@ export function buildManagedGoalState(
     facts: {},
     blockers: [],
   };
+}
+
+export function isManagedGoalState(value: unknown): value is ManagedGoalState {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const goal = value as Partial<ManagedGoalState>;
+  return (
+    goal.version === 1 &&
+    typeof goal.state === "string" &&
+    typeof goal.type === "string" &&
+    !!goal.destination &&
+    typeof goal.destination === "object" &&
+    Array.isArray(
+      (goal.destination as Partial<ManagedGoalDestination>).evidence,
+    ) &&
+    Array.isArray(goal.duties) &&
+    Array.isArray(goal.route) &&
+    !!goal.facts &&
+    typeof goal.facts === "object" &&
+    !Array.isArray(goal.facts) &&
+    Array.isArray(goal.blockers)
+  );
 }

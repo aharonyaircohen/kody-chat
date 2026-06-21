@@ -14,6 +14,7 @@ import {
   FileText,
   Loader2,
   Pencil,
+  Play,
   Power,
   PowerOff,
   Plus,
@@ -44,6 +45,8 @@ import {
 } from "@dashboard/ui/select";
 import { Textarea } from "@dashboard/ui/textarea";
 
+import type { Duty } from "../api";
+import { useDuties, useRunDuty } from "../hooks/useDuties";
 import {
   useCreateManagedGoal,
   useDeleteManagedGoal,
@@ -57,6 +60,7 @@ import type {
   ManagedGoalSchedule,
   UpdateManagedGoalInput,
 } from "../managed-goals";
+import { scheduleEveryLabel, type ScheduleEvery } from "../ticked/frontmatter";
 import { cn } from "../utils";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
@@ -227,9 +231,7 @@ function currentRouteStep(goal: ManagedGoalRecord) {
 function GoalStateText({ state }: { state: string }) {
   if (state === "active") return null;
   const label = state.charAt(0).toUpperCase() + state.slice(1);
-  return (
-    <span className="font-medium text-amber-200">{label}</span>
-  );
+  return <span className="font-medium text-amber-200">{label}</span>;
 }
 
 function goalSearchText(goal: ManagedGoalRecord): string {
@@ -373,14 +375,14 @@ function NewGoalDialog({
               <Select
                 value={mode}
                 onValueChange={(value) => {
-                const nextMode = value as "new" | "instance";
-                setMode(nextMode);
-                if (nextMode === "new") {
-                  reset();
-                } else if (instanceSources.length > 0) {
-                  applyInstanceSource(sourceId || instanceSources[0]!.id);
-                }
-              }}
+                  const nextMode = value as "new" | "instance";
+                  setMode(nextMode);
+                  if (nextMode === "new") {
+                    reset();
+                  } else if (instanceSources.length > 0) {
+                    applyInstanceSource(sourceId || instanceSources[0]!.id);
+                  }
+                }}
               >
                 <SelectTrigger id="goal-create-mode">
                   <SelectValue placeholder="Choose mode" />
@@ -456,8 +458,7 @@ function NewGoalDialog({
               {mode === "instance" && selectedSource
                 ? `Instance from ${selectedSource.id}`
                 : `Defaults: ${selectedPreset.label.toLowerCase()} · ${scheduleLabel(schedule)}`}{" "}
-              ·{" "}
-              {validRows.length} proof step
+              · {validRows.length} proof step
               {validRows.length === 1 ? "" : "s"}
             </span>
             <Button
@@ -948,19 +949,19 @@ function GoalRow({
         ) : null}
       </div>
 
-        <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
-          <span>{goal.state.type}</span>
-          <span>·</span>
-          <span>{scheduleLabel(goal.state.schedule)}</span>
-          {goal.state.state !== "active" ? (
-            <>
-              <span>·</span>
-              <GoalStateText state={goal.state.state} />
-            </>
-          ) : null}
-          <span>·</span>
-          <span>
-            {done}/{total} evidence
+      <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
+        <span>{goal.state.type}</span>
+        <span>·</span>
+        <span>{scheduleLabel(goal.state.schedule)}</span>
+        {goal.state.state !== "active" ? (
+          <>
+            <span>·</span>
+            <GoalStateText state={goal.state.state} />
+          </>
+        ) : null}
+        <span>·</span>
+        <span>
+          {done}/{total} evidence
         </span>
         {step ? (
           <>
@@ -979,6 +980,7 @@ function GoalRow({
 
 function GoalDetail({
   goal,
+  duties,
   onBack,
   onActivate,
   onPause,
@@ -987,6 +989,7 @@ function GoalDetail({
   isUpdating,
 }: {
   goal: ManagedGoalRecord;
+  duties: Duty[];
   onBack: () => void;
   onActivate: () => void;
   onPause: () => void;
@@ -997,9 +1000,12 @@ function GoalDetail({
   const done = completedEvidence(goal);
   const total = goal.state.destination.evidence.length;
   const step = currentRouteStep(goal);
+  const canChangeState = goal.recordType !== "template";
   const canActivate =
-    goal.state.state === "inactive" || goal.state.state === "paused";
-  const canPause = goal.state.state === "active";
+    canChangeState &&
+    (goal.state.state === "inactive" || goal.state.state === "paused");
+  const canPause = canChangeState && goal.state.state === "active";
+  const runDuty = useRunDuty();
 
   return (
     <article className="min-h-full">
@@ -1029,13 +1035,13 @@ function GoalDetail({
                 </span>
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
-            <span className="inline-flex items-center gap-1">
-              <CheckCircle2 className="w-3 h-3" />
-              {done}/{total} evidence
-            </span>
-            <span>·</span>
-            <span>{scheduleLabel(goal.state.schedule)}</span>
-            {goal.state.state !== "active" ? (
+                <span className="inline-flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" />
+                  {done}/{total} evidence
+                </span>
+                <span>·</span>
+                <span>{scheduleLabel(goal.state.schedule)}</span>
+                {goal.state.state !== "active" ? (
                   <>
                     <span>·</span>
                     <GoalStateText state={goal.state.state} />
@@ -1054,66 +1060,66 @@ function GoalDetail({
                 <span className="font-mono opacity-80">{goal.path}</span>
               </div>
             </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {goal.source !== "store" ? (
-              <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onEdit}
-                  className="h-8 w-8 px-0"
-                  title="Edit goal"
-                  aria-label="Edit goal"
-                >
-                  <Pencil className="w-3.5 h-3.5" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onDelete}
-                  className="h-8 w-8 px-0 text-red-300 hover:text-red-200"
-                  title="Delete goal"
-                  aria-label="Delete goal"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </Button>
-              </>
-            ) : null}
+            <div className="flex items-center gap-2 shrink-0">
+              {goal.source !== "store" ? (
+                <>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onEdit}
+                    className="h-8 w-8 px-0"
+                    title="Edit goal"
+                    aria-label="Edit goal"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={onDelete}
+                    className="h-8 w-8 px-0 text-red-300 hover:text-red-200"
+                    title="Delete goal"
+                    aria-label="Delete goal"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </>
+              ) : null}
 
-          {canActivate ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onActivate}
-              disabled={isUpdating}
-              className="h-8 w-8 px-0"
-              title="Activate goal"
-              aria-label="Activate goal"
-            >
-              {isUpdating ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <Power className="w-3.5 h-3.5" />
-              )}
-            </Button>
-          ) : null}
-          {canPause ? (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onPause}
-              disabled={isUpdating}
-              className="h-8 w-8 px-0"
-              title="Pause goal"
-              aria-label="Pause goal"
-            >
-              {isUpdating ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : (
-                <PowerOff className="w-3.5 h-3.5" />
-              )}
-            </Button>
-          ) : null}
+              {canActivate ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onActivate}
+                  disabled={isUpdating}
+                  className="h-8 w-8 px-0"
+                  title="Activate goal"
+                  aria-label="Activate goal"
+                >
+                  {isUpdating ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Power className="w-3.5 h-3.5" />
+                  )}
+                </Button>
+              ) : null}
+              {canPause ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onPause}
+                  disabled={isUpdating}
+                  className="h-8 w-8 px-0"
+                  title="Pause goal"
+                  aria-label="Pause goal"
+                >
+                  {isUpdating ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <PowerOff className="w-3.5 h-3.5" />
+                  )}
+                </Button>
+              ) : null}
             </div>
           </header>
 
@@ -1126,6 +1132,17 @@ function GoalDetail({
       </div>
 
       <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
+        <GoalDutiesSection
+          goal={goal}
+          duties={duties}
+          runningSlug={
+            runDuty.isPending
+              ? ((runDuty.variables as { slug?: string } | undefined)?.slug ??
+                null)
+              : null
+          }
+          onRun={(slug) => runDuty.mutate({ slug, force: true })}
+        />
         <ContentSection
           icon={CheckCircle2}
           title="Evidence"
@@ -1222,6 +1239,176 @@ function GoalDetail({
   );
 }
 
+const scheduleEveryValues = new Set<ScheduleEvery>([
+  "15m",
+  "30m",
+  "1h",
+  "2h",
+  "6h",
+  "12h",
+  "1d",
+  "3d",
+  "7d",
+  "manual",
+]);
+
+function isScheduleEvery(value: unknown): value is ScheduleEvery {
+  return (
+    typeof value === "string" && scheduleEveryValues.has(value as ScheduleEvery)
+  );
+}
+
+function dutyCadenceLabel(value: string | null | undefined): string {
+  if (isScheduleEvery(value)) return scheduleEveryLabel(value);
+  if (value) return value;
+  return "default cadence";
+}
+
+function compactDateTime(value: string | null | undefined): string {
+  if (!value) return "never";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function dutyStateClass(state: string): string {
+  if (state === "due") return "border-sky-400/25 bg-sky-400/10 text-sky-200";
+  if (state === "waiting")
+    return "border-white/10 bg-white/[0.04] text-white/60";
+  if (state === "manual")
+    return "border-violet-400/25 bg-violet-400/10 text-violet-200";
+  if (state === "disabled")
+    return "border-white/10 bg-white/[0.02] text-white/35";
+  return "border-amber-400/25 bg-amber-400/10 text-amber-200";
+}
+
+function GoalDutiesSection({
+  goal,
+  duties,
+  runningSlug,
+  onRun,
+}: {
+  goal: ManagedGoalRecord;
+  duties: Duty[];
+  runningSlug: string | null;
+  onRun: (slug: string) => void;
+}) {
+  const dutyBySlug = useMemo(
+    () => new Map(duties.map((duty) => [duty.slug, duty])),
+    [duties],
+  );
+  const scheduleDuties = goal.state.scheduleState?.duties ?? {};
+  const dutySlugs = useMemo(() => {
+    const ordered = new Set<string>();
+    for (const slug of goal.state.duties) ordered.add(slug);
+    for (const step of goal.state.route) ordered.add(step.duty);
+    for (const slug of Object.keys(scheduleDuties)) ordered.add(slug);
+    return Array.from(ordered);
+  }, [goal.state.duties, goal.state.route, scheduleDuties]);
+  const lastDecision = goal.state.scheduleState?.lastDecision;
+
+  return (
+    <ContentSection
+      icon={Play}
+      title="Duties"
+      subtitle="What this goal checks and chose last tick"
+      count={dutySlugs.length}
+    >
+      {lastDecision ? (
+        <div className="mb-3 rounded-md border border-white/[0.08] bg-black/20 px-3 py-2 text-xs text-muted-foreground">
+          <span className="text-white/70">{lastDecision.kind}</span>
+          <span className="mx-2 text-white/25">·</span>
+          <span>{lastDecision.reason}</span>
+        </div>
+      ) : null}
+
+      {dutySlugs.length ? (
+        <div className="space-y-2">
+          {dutySlugs.map((slug) => {
+            const duty = dutyBySlug.get(slug);
+            const schedule = scheduleDuties[slug];
+            const state =
+              schedule?.state ??
+              (duty?.disabled
+                ? "disabled"
+                : duty?.schedule === "manual"
+                  ? "manual"
+                  : "waiting");
+            const title = schedule?.title ?? duty?.title ?? slug;
+            const cadence = schedule?.cadence ?? duty?.schedule ?? null;
+            const reason =
+              schedule?.reason ??
+              (duty ? "Not selected by last goal tick" : "Duty not loaded");
+
+            return (
+              <div
+                key={slug}
+                className="grid gap-3 rounded-md border border-white/[0.08] bg-black/20 px-3 py-3 text-sm md:grid-cols-[minmax(0,1fr)_auto]"
+              >
+                <div className="min-w-0 space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate font-medium text-white/85">
+                      {title}
+                    </span>
+                    <span
+                      className={cn(
+                        "shrink-0 rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
+                        dutyStateClass(state),
+                      )}
+                    >
+                      {state}
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                    <span className="font-mono">{slug}</span>
+                    <span>{dutyCadenceLabel(cadence)}</span>
+                    <span>
+                      last{" "}
+                      {compactDateTime(
+                        schedule?.lastFiredAt ?? duty?.lastTickAt,
+                      )}
+                    </span>
+                    <span>
+                      next{" "}
+                      {compactDateTime(
+                        schedule?.nextEligibleAt ?? duty?.nextEligibleAt,
+                      )}
+                    </span>
+                  </div>
+                  <p className="text-xs text-white/45">{reason}</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onRun(slug)}
+                  disabled={runningSlug === slug}
+                  className="h-8 w-8 px-0"
+                  title={`Run ${slug}`}
+                  aria-label={`Run ${slug}`}
+                >
+                  {runningSlug === slug ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Play className="h-3.5 w-3.5" />
+                  )}
+                </Button>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <EmptyHint text="No duties are attached to this goal." />
+      )}
+    </ContentSection>
+  );
+}
+
 function ContentSection({
   icon: Icon,
   title,
@@ -1273,6 +1460,7 @@ export function ManagedGoalsView() {
     refetch,
     error,
   } = useManagedGoals();
+  const { data: duties = [] } = useDuties();
   const setGoalState = useSetManagedGoalState();
   const deleteManagedGoal = useDeleteManagedGoal();
 
@@ -1341,6 +1529,7 @@ export function ManagedGoalsView() {
           selectedGoal ? (
             <GoalDetail
               goal={selectedGoal}
+              duties={duties}
               onBack={() => setSelectedId(null)}
               onEdit={() => setEditingGoal(selectedGoal)}
               onDelete={() => setDeleteGoal(selectedGoal)}
