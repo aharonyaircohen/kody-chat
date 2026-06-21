@@ -19,7 +19,32 @@
     "plugins": [],
     "mcpServers": []
   },
-  "cliTools": ["gh", "jq"],
+  "cliTools": [
+    {
+      "name": "gh",
+      "install": {
+        "required": true,
+        "checkCommand": "gh --version"
+      },
+      "verify": "gh auth status",
+      "usage": "Read repository metadata for the company graph report.",
+      "allowedUses": [
+        "read repository data"
+      ]
+    },
+    {
+      "name": "jq",
+      "install": {
+        "required": true,
+        "checkCommand": "jq --version"
+      },
+      "verify": "jq --version",
+      "usage": "Parse JSON while refreshing the company graph report.",
+      "allowedUses": [
+        "parse local command output"
+      ]
+    }
+  ],
   "scripts": {
     "preflight": [
       { "script": "buildSyntheticPlugin" },
