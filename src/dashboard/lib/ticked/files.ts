@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern ticked-files
  * @ai-summary Markdown-backed store for ticked-file shaped records.
- *   Agent still use `<dir>/<slug>.md`; duties use folder-backed storage in
- *   `duties-files.ts` and share only the exported `TickFile` UI shape.
+ *   Agent still use `<dir>/<slug>.md`; agentResponsibilities use folder-backed storage in
+ *   `agentResponsibilities-files.ts` and share only the exported `TickFile` UI shape.
  *
  *   One file per definition. Path is the source of truth for identity
  *   (slug), file body is the markdown. Metadata (title, lastModified,
@@ -21,7 +21,7 @@ import {
 } from "../github-client";
 import { STATE_BRANCH } from "../state-branch";
 import {
-  latestActivityByDuty,
+  latestActivityByAgentResponsibility,
   type CompanyActivityRecord,
 } from "../activity/company";
 import {
@@ -31,7 +31,7 @@ import {
   type ScheduleEvery,
 } from "./frontmatter";
 
-export type DutyCapabilityKind = "observe" | "act" | "verify";
+export type AgentResponsibilityCapabilityKind = "observe" | "act" | "verify";
 
 export interface TickFile {
   /** Stable identity slug. */
@@ -69,7 +69,7 @@ export interface TickFile {
    * whatever the file declares.
    */
   schedule: ScheduleEvery | null;
-  capabilityKind: DutyCapabilityKind | null;
+  capabilityKind: AgentResponsibilityCapabilityKind | null;
   /**
    * Mirrors `disabled: true` in metadata. When `true` the engine
    * skips this file on every cron wake; manual triggers still fire. The
@@ -79,17 +79,17 @@ export interface TickFile {
   disabled: boolean;
   /**
    * Assigned agent agent (agentIdentity) slug from metadata, or
-   * `null` if none. Duty-only in practice — agent are agent identities and never
+   * `null` if none. AgentResponsibility-only in practice — agent are agent identities and never
    * declare a agent. The dashboard reads this to render/seed the
-   * duty's agent picker; the engine scheduler skips duties with no agent.
+   * agentResponsibility's agent picker; the engine scheduler skips agentResponsibilities with no agent.
    */
   agent: string | null;
   /**
-   * Agent slug responsible for reviewing this duty's output after it is
-   * produced. Duty-only in practice; agent files return `null`.
+   * Agent slug responsible for reviewing this agentResponsibility's output after it is
+   * produced. AgentResponsibility-only in practice; agent files return `null`.
    */
   reviewer: string | null;
-  /** Public `@kody <action>` name for duties; null for agent files. */
+  /** Public `@kody <action>` name for agentResponsibilities; null for agent files. */
   action: string | null;
   /**
    * GitHub logins this file's output should `@`-mention, parsed from metadata.
@@ -97,17 +97,17 @@ export interface TickFile {
    * the mentions input.
    */
   mentions: string[];
-  /** Primary implementation executable for this duty, or null when unset. */
-  executable: string | null;
-  /** Multi-run executable slugs. */
-  executables: string[];
-  /** Duty tool names from engine-facing metadata. */
-  dutyTools: string[];
+  /** Primary implementation agentAction for this agentResponsibility, or null when unset. */
+  agentAction: string | null;
+  /** Multi-run agentAction slugs. */
+  agentActions: string[];
+  /** AgentResponsibility tool names from engine-facing metadata. */
+  agentResponsibilityTools: string[];
   /** Optional tick script path. */
   tickScript: string | null;
-  /** Context/report/duty slugs this duty reads. */
+  /** Context/report/agentResponsibility slugs this agentResponsibility reads. */
   readsFrom: string[];
-  /** Report/context slugs this duty writes. */
+  /** Report/context slugs this agentResponsibility writes. */
   writesTo: string[];
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
@@ -132,7 +132,7 @@ export interface TickWriteOptions {
    * on every cron wake. Absent or `false` keeps it active.
    */
   disabled?: boolean;
-  capabilityKind?: DutyCapabilityKind | null;
+  capabilityKind?: AgentResponsibilityCapabilityKind | null;
   /**
    * Agent member (agentIdentity) slug. `null`/absent writes no agent assignment.
    * Aliased to `agent` in the input; the engine reads `config.agent` from
@@ -146,7 +146,7 @@ export interface TickWriteOptions {
    */
   reviewer?: string | null;
   /**
-   * Public `@kody <action>` name. Duties should set this; agent files leave it
+   * Public `@kody <action>` name. AgentResponsibilities should set this; agent files leave it
    * absent.
    */
   action?: string | null;
@@ -155,15 +155,15 @@ export interface TickWriteOptions {
    * no mentions metadata.
    */
   mentions?: string[];
-  /** Primary implementation executable to persist. */
-  executable?: string | null;
-  /** Multi-run executable slugs to persist. */
-  executables?: string[];
-  /** Duty tools to persist. */
-  dutyTools?: string[];
+  /** Primary implementation agentAction to persist. */
+  agentAction?: string | null;
+  /** Multi-run agentAction slugs to persist. */
+  agentActions?: string[];
+  /** AgentResponsibility tools to persist. */
+  agentResponsibilityTools?: string[];
   /** Optional tick script path to persist. */
   tickScript?: string | null;
-  /** Context/report/duty slugs to persist as reads-from metadata. */
+  /** Context/report/agentResponsibility slugs to persist as reads-from metadata. */
   readsFrom?: string[];
   /** Report/context slugs to persist as writes-to metadata. */
   writesTo?: string[];
@@ -173,17 +173,17 @@ export interface TickWriteOptions {
   message?: string;
   /**
    * Raw profile.json field overrides. Keys are profile.json field names
-   * (e.g. `tickScript`, `readsFrom`, `writesTo`, `mentions`, `dutyTools`,
+   * (e.g. `tickScript`, `readsFrom`, `writesTo`, `mentions`, `agentResponsibilityTools`,
    * or any engine field the typed schema doesn't expose). Merged on top
    * of the typed fields — typed values still win for the well-known keys
    * the build function manages directly (name, describe, action, agent,
-   * reviewer, executable, schedule, disabled). Use this for advanced
+   * reviewer, agentAction, schedule, disabled). Use this for advanced
    * shapes the typed schema doesn't cover; pass `null` to clear a key.
    */
   extraProfile?: Record<string, unknown>;
 }
 
-/** Config that distinguishes one ticked-file kind (e.g. duties) from another. */
+/** Config that distinguishes one ticked-file kind (e.g. agentResponsibilities) from another. */
 export interface TickedFilesConfig {
   /** Repo-relative directory holding markdown definitions. */
   dir: string;
@@ -388,11 +388,11 @@ async function fetchTickState(
 
 const DUTY_ACTIVITY_DAY_FILES = 14;
 
-async function fetchRecentDutyActivity(): Promise<
+async function fetchRecentAgentResponsibilityActivity(): Promise<
   Map<string, CompanyActivityRecord>
 > {
   const records = await fetchCompanyActivity(1000, DUTY_ACTIVITY_DAY_FILES);
-  return latestActivityByDuty(records);
+  return latestActivityByAgentResponsibility(records);
 }
 
 function activityOutcome(
@@ -420,10 +420,10 @@ function buildFileContent(
   agent: string | null,
   reviewer: string | null,
   action: string | null,
-  executable: string | null,
+  agentAction: string | null,
   mentions: string[],
-  executables: string[],
-  dutyTools: string[],
+  agentActions: string[],
+  agentResponsibilityTools: string[],
   tickScript: string | null,
   readsFrom: string[],
   writesTo: string[],
@@ -437,13 +437,13 @@ function buildFileContent(
       : `# ${title.trim()}\n`;
   const fm: TickFrontmatter = {};
   if (action?.trim()) fm.action = action.trim();
-  if (executable?.trim()) fm.executable = executable.trim();
+  if (agentAction?.trim()) fm.agentAction = agentAction.trim();
   if (schedule) fm.every = schedule;
   if (agent) fm.agent = agent;
   if (reviewer) fm.reviewer = reviewer.replace(/^@/, "");
   if (mentions.length > 0) fm.mentions = mentions;
-  if (executables.length > 0) fm.executables = executables;
-  if (dutyTools.length > 0) fm.dutyTools = dutyTools;
+  if (agentActions.length > 0) fm.agentActions = agentActions;
+  if (agentResponsibilityTools.length > 0) fm.agentResponsibilityTools = agentResponsibilityTools;
   if (tickScript?.trim()) fm.tickScript = tickScript.trim();
   if (readsFrom.length > 0) fm.readsFrom = readsFrom;
   if (writesTo.length > 0) fm.writesTo = writesTo;
@@ -456,34 +456,34 @@ function effectiveAction(
   slug: string,
   frontmatter: TickFrontmatter,
 ): string | null {
-  return frontmatter.action ?? (dir === ".kody/duties" ? slug : null);
+  return frontmatter.action ?? (dir === ".kody/agent-responsibilities" ? slug : null);
 }
 
-function effectiveExecutable(frontmatter: TickFrontmatter): string | null {
+function effectiveAgentAction(frontmatter: TickFrontmatter): string | null {
   return (
-    frontmatter.executable ??
-    (frontmatter.executables?.length === 1 ? frontmatter.executables[0]! : null)
+    frontmatter.agentAction ??
+    (frontmatter.agentActions?.length === 1 ? frontmatter.agentActions[0]! : null)
   );
 }
 
-function legacyExecutables(frontmatter: TickFrontmatter): string[] {
-  if (!frontmatter.executables?.length) return [];
-  if (!frontmatter.executable && frontmatter.executables.length === 1) {
+function legacyAgentActions(frontmatter: TickFrontmatter): string[] {
+  if (!frontmatter.agentActions?.length) return [];
+  if (!frontmatter.agentAction && frontmatter.agentActions.length === 1) {
     return [];
   }
-  return frontmatter.executables;
+  return frontmatter.agentActions;
 }
 
 /**
  * Bind a directory, commit scope, and cache invalidator to produce the
- * file API for one ticked-file kind. Do not use this for duties; duties are
- * folder-backed and must go through `duties-files.ts`.
+ * file API for one ticked-file kind. Do not use this for agentResponsibilities; agentResponsibilities are
+ * folder-backed and must go through `agentResponsibilities-files.ts`.
  */
 export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
   const { dir, commitScope, invalidateCache } = config;
-  if (dir === ".kody/duties") {
+  if (dir === ".kody/agent-responsibilities") {
     throw new Error(
-      "createTickedFiles: duties are folder-backed; use duties-files.ts",
+      "createTickedFiles: agentResponsibilities are folder-backed; use agentResponsibilities-files.ts",
     );
   }
 
@@ -546,9 +546,9 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
         .map((e) => e.name.slice(0, -".state.json".length))
         .filter((s) => s.length > 0),
     );
-    const activityByDuty =
-      dir === ".kody/duties"
-        ? await fetchRecentDutyActivity()
+    const activityByAgentResponsibility =
+      dir === ".kody/agent-responsibilities"
+        ? await fetchRecentAgentResponsibilityActivity()
         : new Map<string, CompanyActivityRecord>();
 
     const files = await Promise.all(
@@ -578,7 +578,7 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
               ? fetchTickState(octokit, dir, slug)
               : Promise.resolve(EMPTY_TICK_STATE),
           ]);
-          const activity = activityByDuty.get(slug);
+          const activity = activityByAgentResponsibility.get(slug);
           const useActivity =
             activity?.ts != null && isSameOrNewer(activity.ts, lastTickAt);
           return {
@@ -602,9 +602,9 @@ capabilityKind: null,
             reviewer: frontmatter.reviewer ?? null,
             action: effectiveAction(dir, slug, frontmatter),
             mentions: frontmatter.mentions ?? [],
-            executable: effectiveExecutable(frontmatter),
-            executables: legacyExecutables(frontmatter),
-            dutyTools: frontmatter.dutyTools ?? [],
+            agentAction: effectiveAgentAction(frontmatter),
+            agentActions: legacyAgentActions(frontmatter),
+            agentResponsibilityTools: frontmatter.agentResponsibilityTools ?? [],
             tickScript: frontmatter.tickScript ?? null,
             readsFrom: frontmatter.readsFrom ?? [],
             writesTo: frontmatter.writesTo ?? [],
@@ -651,7 +651,7 @@ capabilityKind: null,
         return null;
       const raw = Buffer.from(data.content, "base64").toString("utf-8");
       const { title, body, frontmatter } = parseTickedMarkdown(raw, slug);
-      const [updatedAt, lastTickAt, tickState, activityByDuty] =
+      const [updatedAt, lastTickAt, tickState, activityByAgentResponsibility] =
         await Promise.all([
           fetchLastCommitDate(octokit, filePath),
           fetchLastCommitDateOrNull(
@@ -660,11 +660,11 @@ capabilityKind: null,
             STATE_BRANCH,
           ),
           fetchTickState(octokit, dir, slug),
-          dir === ".kody/duties"
-            ? fetchRecentDutyActivity()
+          dir === ".kody/agent-responsibilities"
+            ? fetchRecentAgentResponsibilityActivity()
             : Promise.resolve(new Map<string, CompanyActivityRecord>()),
         ]);
-      const activity = activityByDuty.get(slug);
+      const activity = activityByAgentResponsibility.get(slug);
       const useActivity =
         activity?.ts != null && isSameOrNewer(activity.ts, lastTickAt);
       return {
@@ -688,9 +688,9 @@ capabilityKind: null,
         reviewer: frontmatter.reviewer ?? null,
         action: effectiveAction(dir, slug, frontmatter),
         mentions: frontmatter.mentions ?? [],
-        executable: effectiveExecutable(frontmatter),
-        executables: legacyExecutables(frontmatter),
-        dutyTools: frontmatter.dutyTools ?? [],
+        agentAction: effectiveAgentAction(frontmatter),
+        agentActions: legacyAgentActions(frontmatter),
+        agentResponsibilityTools: frontmatter.agentResponsibilityTools ?? [],
         tickScript: frontmatter.tickScript ?? null,
         readsFrom: frontmatter.readsFrom ?? [],
         writesTo: frontmatter.writesTo ?? [],
@@ -721,10 +721,10 @@ capabilityKind: null,
       opts.agent ?? null,
       opts.reviewer ?? null,
       opts.action ?? null,
-      opts.executable ?? null,
+      opts.agentAction ?? null,
       opts.mentions ?? [],
-      opts.executables ?? [],
-      opts.dutyTools ?? [],
+      opts.agentActions ?? [],
+      opts.agentResponsibilityTools ?? [],
       opts.tickScript ?? null,
       opts.readsFrom ?? [],
       opts.writesTo ?? [],

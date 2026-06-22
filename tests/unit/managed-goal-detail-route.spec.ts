@@ -70,7 +70,7 @@ function localGoalState(): ManagedGoalState {
       outcome: "The codebase stays maintainable.",
       evidence: [],
     },
-    duties: ["code-health", "docs-health"],
+    agentResponsibilities: ["code-health", "docs-health"],
     route: [],
     stage: "watching",
     facts: {},
@@ -84,7 +84,7 @@ afterEach(() => {
 });
 
 describe("PATCH /api/kody/goals/managed/[id]", () => {
-  it("preserves standalone duties when route is not edited", async () => {
+  it("preserves standalone agentResponsibilities when route is not edited", async () => {
     h.getUserOctokit.mockResolvedValue({ rest: {} });
     h.readManagedGoalFile.mockResolvedValue({
       state: localGoalState(),
@@ -101,12 +101,12 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
     expect(res.status).toBe(200);
     expect(h.writeManagedGoalFile).toHaveBeenCalledTimes(1);
     const write = h.writeManagedGoalFile.mock.calls[0]![0];
-    expect(write.state.duties).toEqual(["code-health", "docs-health"]);
+    expect(write.state.agentResponsibilities).toEqual(["code-health", "docs-health"]);
     expect(write.state.route).toEqual([]);
     expect(write.state.stage).toBe("watching");
   });
 
-  it("updates standalone duties when duties are edited", async () => {
+  it("updates standalone agentResponsibilities when agentResponsibilities are edited", async () => {
     h.getUserOctokit.mockResolvedValue({ rest: {} });
     h.readManagedGoalFile.mockResolvedValue({
       state: localGoalState(),
@@ -116,15 +116,62 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
     h.writeManagedGoalFile.mockResolvedValue(undefined);
 
     const res = await PATCH(
-      patchRequest({ duties: ["qa-sweep", "docs-health"] }),
+      patchRequest({ agentResponsibilities: ["qa-sweep", "docs-health"] }),
       params(),
     );
 
     expect(res.status).toBe(200);
     const write = h.writeManagedGoalFile.mock.calls[0]![0];
-    expect(write.state.duties).toEqual(["qa-sweep", "docs-health"]);
+    expect(write.state.agentResponsibilities).toEqual(["qa-sweep", "docs-health"]);
     expect(write.state.route).toEqual([]);
     expect(write.state.stage).toBe("watching");
+  });
+
+  it("updates route setup when agentGoal type changes", async () => {
+    h.getUserOctokit.mockResolvedValue({ rest: {} });
+    h.readManagedGoalFile.mockResolvedValue({
+      state: {
+        ...localGoalState(),
+        type: "improve",
+        destination: {
+          outcome: "Improve release flow.",
+          evidence: ["planReady", "changeImplemented", "changeVerified"],
+        },
+        agentResponsibilities: ["plan", "fix", "review"],
+        route: [
+          {
+            stage: "plan",
+            evidence: "planReady",
+            agentResponsibility: "plan",
+            agentAction: "plan",
+          },
+        ],
+        stage: "plan",
+      },
+      sha: "goal-sha",
+      path: ".kody/goals/instances/codebase-health/state.json",
+    });
+    h.writeManagedGoalFile.mockResolvedValue(undefined);
+
+    const res = await PATCH(patchRequest({ type: "release" }), params());
+
+    expect(res.status).toBe(200);
+    const write = h.writeManagedGoalFile.mock.calls[0]![0];
+    expect(write.state.type).toBe("release");
+    expect(write.state.destination.evidence).toEqual([
+      "releasePrExists",
+      "mainMerged",
+      "productionDeployed",
+    ]);
+    expect(write.state.agentResponsibilities).toEqual([
+      "release",
+      "task-leader",
+      "vercel-production-deploy",
+    ]);
+    expect(
+      write.state.route.map((step: { stage: string }) => step.stage),
+    ).toEqual(["release", "merge", "publish"]);
+    expect(write.state.stage).toBe("release");
   });
 
   it("creates repo instance when toggling Store goals without copying template fields", async () => {

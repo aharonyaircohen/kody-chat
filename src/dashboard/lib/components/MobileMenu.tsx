@@ -43,7 +43,7 @@ const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
 interface MobileMenuProps {
   open: boolean;
   onOpenChange: (next: boolean) => void;
-  /** Primary action shown above the Duties/Reports tiles (e.g. "Chat with Kody",
+  /** Primary action shown above the AgentResponsibilities/Reports tiles (e.g. "Chat with Kody",
    *  or "Open issues" on the Vibe page). */
   workspacePrimary?: ReactNode;
   /** Extra sections rendered between Settings and the bottom CTA — Dashboard

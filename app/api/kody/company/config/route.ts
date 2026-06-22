@@ -8,8 +8,8 @@
  *   (`access.allowedAssociations`), and the default branch (`git.defaultBranch`).
  *   GET reads the current values; PATCH applies a partial update, preserving
  *   every untouched config key. Mirrors the operators route's auth +
- *   merge-not-overwrite pattern. Per-executable model overrides live on the
- *   models route; default PR executable on the executables route.
+ *   merge-not-overwrite pattern. Per-agentAction model overrides live on the
+ *   models route; default PR agentAction on the agentActions route.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       aliases: config.aliases ?? {},
       allowedAssociations: config.access?.allowedAssociations ?? [],
       defaultBranch: config.git?.defaultBranch ?? "",
-      perExecutable: config.agent?.perExecutable ?? {},
+      perAgentAction: config.agent?.perAgentAction ?? {},
       reasoningEffort: config.agent?.reasoningEffort ?? null,
     });
   } catch (err) {
@@ -86,9 +86,9 @@ const PatchSchema = z
       .nullable()
       .optional(),
     defaultBranch: z.string().max(255).nullable().optional(),
-    // Executable slug → `provider/model` override. Bounded so a paste can't
+    // AgentAction slug → `provider/model` override. Bounded so a paste can't
     // bloat the config blob.
-    perExecutable: z
+    perAgentAction: z
       .record(z.string().max(64), z.string().max(128))
       .nullable()
       .optional(),
@@ -108,7 +108,7 @@ const PatchSchema = z
       b.aliases !== undefined ||
       b.allowedAssociations !== undefined ||
       b.defaultBranch !== undefined ||
-      b.perExecutable !== undefined ||
+      b.perAgentAction !== undefined ||
       b.reasoningEffort !== undefined,
     { message: "no_fields" },
   );
@@ -150,7 +150,7 @@ export async function PATCH(req: NextRequest) {
     aliases,
     allowedAssociations,
     defaultBranch,
-    perExecutable,
+    perAgentAction,
     reasoningEffort,
   } = parsed.data;
 
@@ -170,7 +170,7 @@ export async function PATCH(req: NextRequest) {
         aliases,
         allowedAssociations,
         defaultBranch,
-        perExecutable,
+        perAgentAction,
         reasoningEffort,
       },
       `chore(kody): update config (${actorLogin})`,
@@ -184,7 +184,7 @@ export async function PATCH(req: NextRequest) {
       aliases: config.aliases ?? {},
       allowedAssociations: config.access?.allowedAssociations ?? [],
       defaultBranch: config.git?.defaultBranch ?? "",
-      perExecutable: config.agent?.perExecutable ?? {},
+      perAgentAction: config.agent?.perAgentAction ?? {},
       reasoningEffort: config.agent?.reasoningEffort ?? null,
     });
   } catch (err) {

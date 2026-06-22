@@ -16,7 +16,7 @@ vi.mock("@dashboard/lib/issue-attachments", () => ({
 
 import {
   buildDecoratedMessage,
-  formatDutyContext,
+  formatAgentResponsibilityContext,
   formatTaskContext,
   streamBrainChat,
 } from "@dashboard/lib/brain-proxy";
@@ -65,24 +65,24 @@ describe("formatTaskContext", () => {
   });
 });
 
-describe("formatDutyContext", () => {
+describe("formatAgentResponsibilityContext", () => {
   it("returns null when number is missing", () => {
-    expect(formatDutyContext(undefined)).toBeNull();
-    expect(formatDutyContext({ title: "no number" })).toBeNull();
+    expect(formatAgentResponsibilityContext(undefined)).toBeNull();
+    expect(formatAgentResponsibilityContext({ title: "no number" })).toBeNull();
   });
 
-  it("renders a duty with title, state, labels, and body", () => {
-    const out = formatDutyContext({
+  it("renders a agentResponsibility with title, state, labels, and body", () => {
+    const out = formatAgentResponsibilityContext({
       number: 7,
       title: "Weekly cleanup",
       state: "open",
-      labels: ["kody:duty"],
+      labels: ["kody:agentResponsibility"],
       body: "Body text.",
     })!;
     expect(out).toContain("#7 — Weekly cleanup");
     expect(out).toContain("State: open");
-    expect(out).toContain("kody:duty");
-    expect(out).toContain("[Duty body]\nBody text.");
+    expect(out).toContain("kody:agentResponsibility");
+    expect(out).toContain("[AgentResponsibility body]\nBody text.");
     expect(out).toContain("grounded in the body above");
   });
 });
@@ -92,12 +92,12 @@ describe("buildDecoratedMessage", () => {
     expect(buildDecoratedMessage("hi", {})).toBe("hi");
   });
 
-  it("combines duty + task preambles in the documented order", () => {
+  it("combines agentResponsibility + task preambles in the documented order", () => {
     const out = buildDecoratedMessage("user text", {
-      dutyContext: { number: 1, title: "J" },
+      agentResponsibilityContext: { number: 1, title: "J" },
       taskContext: { issueNumber: 2, title: "T" },
     });
-    const jobIdx = out.indexOf("[Current duty]");
+    const jobIdx = out.indexOf("[Current agentResponsibility]");
     const taskIdx = out.indexOf("[Current task context]");
     const userIdx = out.indexOf("[User]\nuser text");
     expect(jobIdx).toBeGreaterThan(-1);
@@ -373,13 +373,13 @@ describe("streamBrainChat — SSE translation", () => {
       chatId: "c1",
       message: "user message",
       taskContext: { issueNumber: 42, title: "Fix it" },
-      dutyContext: { number: 7, title: "Daily report" },
+      agentResponsibilityContext: { number: 7, title: "Daily report" },
     });
     const body = JSON.parse(calls[0]!.init!.body as string) as {
       message: string;
     };
     expect(body.message).toContain("[Current task context]");
-    expect(body.message).toContain("[Current duty]");
+    expect(body.message).toContain("[Current agentResponsibility]");
     expect(body.message).toContain("[User]\nuser message");
   });
 

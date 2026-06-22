@@ -21,7 +21,7 @@ Rules:
 - Add `done` when closing or completing work.
 - Keep marker text short and factual.
 - Do not add markers for tiny status updates.
-- Treat a claim older than 4 hours with no done marker and no newer activity as stale unless the duty says otherwise.
+- Treat a claim older than 4 hours with no done marker and no newer activity as stale unless the agentResponsibility says otherwise.
 
 ## Reports
 

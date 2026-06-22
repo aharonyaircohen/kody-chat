@@ -5,7 +5,7 @@ import { buildExplicitMemoryDraft } from "../../../app/api/kody/chat/kody/explic
 describe("explicit memory requests", () => {
   it("turns Remember: repo guidance into a project memory draft", () => {
     const draft = buildExplicitMemoryDraft(
-      "Remember: for this repo, chat prompt workflows should live as duties that use executables",
+      "Remember: for this repo, chat prompt workflows should live as agentResponsibilities that use agentActions",
     );
 
     expect(draft).toMatchObject({
@@ -13,7 +13,7 @@ describe("explicit memory requests", () => {
       type: "project",
     });
     expect(draft?.body).toContain(
-      "chat prompt workflows should live as duties that use executables",
+      "chat prompt workflows should live as agentResponsibilities that use agentActions",
     );
     expect(draft?.body).toContain("**How apply:**");
   });

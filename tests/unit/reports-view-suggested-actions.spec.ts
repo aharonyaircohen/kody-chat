@@ -38,8 +38,8 @@ describe("ReportsView suggested actions", () => {
       "ReportsView must define runSuggestedAction",
     ).not.toBeNull();
     expect(runBlock![0]).toMatch(/kodyApi\.jobs\.run\(/);
-    expect(runBlock![0]).toMatch(/duty,/);
-    expect(runBlock![0]).toMatch(/executable: action\.executable/);
+    expect(runBlock![0]).toMatch(/agentResponsibility,/);
+    expect(runBlock![0]).toMatch(/agentAction: action\.agentAction/);
     expect(runBlock![0]).toMatch(/target: action\.target/);
     expect(runBlock![0]).toMatch(/flavor: "instant"/);
     expect(runBlock![0]).toMatch(/from report \$\{report\.slug\}/);

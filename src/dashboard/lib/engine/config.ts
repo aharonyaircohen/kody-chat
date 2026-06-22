@@ -22,11 +22,11 @@ export interface KodyQuality {
 export interface KodyConfig {
   /** The model the engine runs, as `provider/model`. This is the key the
    * kody-engine actually reads (`parseProviderModel(cfg.agent.model)`).
-   * `perExecutable` overrides the model for a specific executable slug
+   * `perAgentAction` overrides the model for a specific agentAction slug
    * (e.g. `{ "research": "anthropic/claude-opus-4-7" }`). */
   agent?: {
     model?: string;
-    perExecutable?: Record<string, string>;
+    perAgentAction?: Record<string, string>;
     /**
      * Thinking level for the engine. Written by the dashboard's
      * `/engine` page and read by the engine's chat turn as the
@@ -35,19 +35,19 @@ export interface KodyConfig {
      */
     reasoningEffort?: string;
   };
-  executables: {
+  agentActions: {
     default: string;
   };
-  /** Executable that runs for a bare `@kody` comment on an **issue**. This is
-   * the field the engine actually reads (`config.defaultExecutable`, defaults
-   * to `classify`) — distinct from the dashboard's `executables.default`
+  /** AgentAction that runs for a bare `@kody` comment on an **issue**. This is
+   * the field the engine actually reads (`config.defaultAgentAction`, defaults
+   * to `classify`) — distinct from the dashboard's `agentActions.default`
    * seed, which the engine ignores for dispatch. */
-  defaultExecutable?: string;
-  /** Executable that runs for a bare `@kody` comment on a **PR**
-   * (`config.defaultPrExecutable`, defaults to `fix`). */
-  defaultPrExecutable?: string;
+  defaultAgentAction?: string;
+  /** AgentAction that runs for a bare `@kody` comment on a **PR**
+   * (`config.defaultPrAgentAction`, defaults to `fix`). */
+  defaultPrAgentAction?: string;
   /** Engine repo context plus the operator list. `operators` is the set of
-   * GitHub logins that recommendation duties (pr-health/CTO) @-mention so the
+   * GitHub logins that recommendation agentResponsibilities (pr-health/CTO) @-mention so the
    * comment routes into their dashboard inbox. Empty/absent = nobody is
    * tagged, so recommendations post but reach no inbox. */
   github?: {
@@ -58,7 +58,7 @@ export interface KodyConfig {
   /** Verification commands the engine runs (typecheck/lint/format/test). */
   quality?: KodyQuality;
   /** Comment subcommand aliases, e.g. `{ "build": "run" }` lets `@kody build`
-   * dispatch the `run` executable. */
+   * dispatch the `run` agentAction. */
   aliases?: Record<string, string>;
   /** Who may trigger `@kody`. `allowedAssociations` gates by GitHub author
    * association (OWNER/MEMBER/COLLABORATOR/CONTRIBUTOR/NONE). Absent = engine
@@ -157,7 +157,7 @@ export function resolveFlyPreviews(cfg: KodyConfig): ResolvedFlyPreviews {
 
 /** Default config when no kody.config.json exists in the repo. */
 export const defaultConfig: KodyConfig = {
-  executables: {
+  agentActions: {
     default: "run",
   },
 };
@@ -198,11 +198,11 @@ async function fetchConfig(
     const parsed = JSON.parse(content) as KodyConfig;
     return {
       config: {
-        executables: parsed.executables ?? { default: "run" },
+        agentActions: parsed.agentActions ?? { default: "run" },
         agent: parsed.agent,
         github: parsed.github,
-        defaultExecutable: parsed.defaultExecutable,
-        defaultPrExecutable: parsed.defaultPrExecutable,
+        defaultAgentAction: parsed.defaultAgentAction,
+        defaultPrAgentAction: parsed.defaultPrAgentAction,
         quality: parsed.quality,
         aliases: parsed.aliases,
         access: parsed.access,
@@ -270,9 +270,9 @@ export function invalidateEngineConfigCache(owner: string, repo: string): void {
  * `model` key (the engine never read it) and commits.
  *
  * Every config writer goes through here so the merge-not-overwrite contract —
- * never clobber the engine's required keys (`github`, `executables`,
+ * never clobber the engine's required keys (`github`, `agentActions`,
  * `quality`, …) — lives in exactly one place. Mutators are responsible for
- * seeding the engine-required defaults (`executables`, `github`) on a fresh
+ * seeding the engine-required defaults (`agentActions`, `github`) on a fresh
  * file; `mutate` always receives the full existing object to spread from.
  */
 async function mutateConfig(
@@ -331,7 +331,7 @@ async function mutateConfig(
  * other field. This is the ONLY key the engine reads for its model
  * (`parseProviderModel(cfg.agent.model)`), so writing anything else is a no-op
  * from the engine's perspective. When the file doesn't exist yet we seed the
- * minimum the engine needs (`github`, `executables`).
+ * minimum the engine needs (`github`, `agentActions`).
  */
 export async function writeEngineModel(
   octokit: Octokit,
@@ -354,7 +354,7 @@ export async function writeEngineModel(
       const agent = modelSpec ? { ...prevAgent, model: modelSpec } : prevAgent;
       const next: Record<string, unknown> = {
         ...existing,
-        executables: existing.executables ?? { default: "run" },
+        agentActions: existing.agentActions ?? { default: "run" },
         github: existing.github ?? { owner, repo },
       };
       if (Object.keys(agent).length > 0) next.agent = agent;
@@ -424,7 +424,7 @@ export async function writeOperators(
           : {};
       return {
         ...existing,
-        executables: existing.executables ?? { default: "run" },
+        agentActions: existing.agentActions ?? { default: "run" },
         github: { owner, repo, ...prevGithub, operators: normalized },
       };
     },
@@ -434,23 +434,23 @@ export async function writeOperators(
 }
 
 /**
- * Set the bare-`@kody` default executable(s) in the consumer repo's
- * kody.config.json. `target: "issue"` writes `defaultExecutable`, `"pr"`
- * writes `defaultPrExecutable` — the two top-level fields the engine reads
+ * Set the bare-`@kody` default agentAction(s) in the consumer repo's
+ * kody.config.json. `target: "issue"` writes `defaultAgentAction`, `"pr"`
+ * writes `defaultPrAgentAction` — the two top-level fields the engine reads
  * when a comment is just `@kody` with no verb (see kody2/src/dispatch.ts).
  * A `null` value clears the field, reverting to the engine's built-in default
  * (`classify` for issues, `fix` for PRs). Mirrors `writeOperators`'
  * read→merge→commit so it never clobbers other config keys.
  */
-export async function writeDefaultExecutable(
+export async function writeDefaultAgentAction(
   octokit: Octokit,
   owner: string,
   repo: string,
   target: "issue" | "pr",
-  executable: string | null,
+  agentAction: string | null,
   commitMessage?: string,
 ): Promise<{ sha: string | null }> {
-  const key = target === "issue" ? "defaultExecutable" : "defaultPrExecutable";
+  const key = target === "issue" ? "defaultAgentAction" : "defaultPrAgentAction";
   return mutateConfig(
     octokit,
     owner,
@@ -458,18 +458,18 @@ export async function writeDefaultExecutable(
     (existing) => {
       const next: Record<string, unknown> = {
         ...existing,
-        executables: existing.executables ?? { default: "run" },
+        agentActions: existing.agentActions ?? { default: "run" },
         github: existing.github ?? { owner, repo },
       };
-      if (executable && executable.trim().length > 0) {
-        next[key] = executable.trim();
+      if (agentAction && agentAction.trim().length > 0) {
+        next[key] = agentAction.trim();
       } else {
         delete next[key];
       }
       return next;
     },
     commitMessage ??
-      `chore(kody): set default ${target} executable${executable ? ` to ${executable}` : ""}`,
+      `chore(kody): set default ${target} agentAction${agentAction ? ` to ${agentAction}` : ""}`,
   );
 }
 
@@ -552,12 +552,12 @@ export interface ConfigPatch {
   aliases?: Record<string, string> | null;
   allowedAssociations?: string[] | null;
   defaultBranch?: string | null;
-  perExecutable?: Record<string, string> | null;
-  /** Bare-`@kody` issue default (`defaultExecutable`). Edited on /executables;
+  perAgentAction?: Record<string, string> | null;
+  /** Bare-`@kody` issue default (`defaultAgentAction`). Edited on /agent-actions;
    * also carried by the company bundle. */
-  defaultExecutable?: string | null;
-  /** Bare-`@kody` PR default (`defaultPrExecutable`). */
-  defaultPrExecutable?: string | null;
+  defaultAgentAction?: string | null;
+  /** Bare-`@kody` PR default (`defaultPrAgentAction`). */
+  defaultPrAgentAction?: string | null;
   /** Fly preview-machine knobs (size, idle-suspend, health-check, TTL). A
    * partial object merges field-by-field over what's stored; `null` clears
    * the whole `fly.previews` block (reverts to {@link DEFAULT_FLY_PREVIEWS}). */
@@ -591,7 +591,7 @@ export async function writeConfigPatch(
     (existing) => {
       const next: Record<string, unknown> = {
         ...existing,
-        executables: existing.executables ?? { default: "run" },
+        agentActions: existing.agentActions ?? { default: "run" },
         github: existing.github ?? { owner, repo },
       };
 
@@ -639,24 +639,24 @@ export async function writeConfigPatch(
         }
       }
 
-      if (patch.perExecutable !== undefined) {
-        const cleaned = patch.perExecutable
-          ? cleanStringMap(patch.perExecutable)
+      if (patch.perAgentAction !== undefined) {
+        const cleaned = patch.perAgentAction
+          ? cleanStringMap(patch.perAgentAction)
           : {};
         const prevAgent =
           typeof existing.agent === "object" && existing.agent !== null
             ? (existing.agent as Record<string, unknown>)
             : {};
         if (Object.keys(cleaned).length > 0) {
-          next.agent = { ...prevAgent, perExecutable: cleaned };
+          next.agent = { ...prevAgent, perAgentAction: cleaned };
         } else {
-          const { perExecutable: _drop, ...rest } = prevAgent;
+          const { perAgentAction: _drop, ...rest } = prevAgent;
           if (Object.keys(rest).length > 0) next.agent = rest;
           else delete next.agent;
         }
       }
 
-      for (const key of ["defaultExecutable", "defaultPrExecutable"] as const) {
+      for (const key of ["defaultAgentAction", "defaultPrAgentAction"] as const) {
         if (patch[key] === undefined) continue;
         const val = patch[key]?.trim();
         if (val) next[key] = val;

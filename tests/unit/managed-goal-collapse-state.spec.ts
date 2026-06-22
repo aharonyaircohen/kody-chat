@@ -29,7 +29,7 @@ function goalRecord(
         outcome: "Verify recurring scheduling.",
         evidence: ["companyGraphRefreshed"],
       },
-      duties: ["company-graph"],
+      agentResponsibilities: ["company-graph"],
       route: [],
       facts: {},
       blockers: [],

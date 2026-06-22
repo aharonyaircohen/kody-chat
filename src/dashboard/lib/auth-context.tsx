@@ -75,9 +75,9 @@ export interface KodyAuth {
    * guest mapping as flyPerf. Absent → server default (medium).
    */
   brainPerf?: "low" | "medium" | "high";
-  /** Shared Kody store repository URL used for company-level duties/executables. */
+  /** Shared Kody store repository URL used for company-level agentResponsibilities/agent-actions. */
   storeRepoUrl?: string;
-  /** Shared Kody store ref used for company-level duties/executables. */
+  /** Shared Kody store ref used for company-level agentResponsibilities/agent-actions. */
   storeRef?: string;
 }
 

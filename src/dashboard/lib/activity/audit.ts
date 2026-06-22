@@ -30,14 +30,14 @@ import {
 import { appendAuditDurable } from "./audit-store";
 
 export interface AuditSpec {
-  /** Coarse verb, e.g. "duty.run", "task.action". Becomes `AuditEvent.type`. */
+  /** Coarse verb, e.g. "agentResponsibility.run", "task.action". Becomes `AuditEvent.type`. */
   action: string;
   /** What was acted on, e.g. "changelog-verify", "#1587". Becomes `target`. */
   resource: string;
   /** Deep link to the resource (issue/PR/run), when known. */
   resourceUrl?: string | null;
-  /** Duty slug, when relevant. */
-  duty?: string | null;
+  /** AgentResponsibility slug, when relevant. */
+  agentResponsibility?: string | null;
   /** Agent (agentIdentity) slug that executed, when relevant. */
   agent?: string | null;
   /** Coarse result. Defaults to "ok". */
@@ -65,7 +65,7 @@ export function recordAudit(req: NextRequest, spec: AuditSpec): void {
       repo,
       detail: spec.detail?.trim() || null,
       actorType: "user",
-      duty: spec.duty ?? null,
+      agentResponsibility: spec.agentResponsibility ?? null,
       agent: spec.agent ?? null,
       outcome: spec.outcome ?? "ok",
       resourceUrl: spec.resourceUrl ?? null,

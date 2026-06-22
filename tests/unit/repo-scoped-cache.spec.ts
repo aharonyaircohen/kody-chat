@@ -7,7 +7,7 @@ import {
   staffApi,
 } from "@dashboard/lib/api";
 import { commandsQueryKeys } from "@dashboard/lib/components/CommandsManager";
-import { executableQueryKeys } from "@dashboard/lib/components/ExecutablesManager";
+import { agentActionQueryKeys } from "@dashboard/lib/components/AgentActionsManager";
 import { instructionsQueryKeys } from "@dashboard/lib/components/InstructionsManager";
 import { modelsQueryKeys } from "@dashboard/lib/components/ModelsManager";
 import { secretsQueryKeys } from "@dashboard/lib/components/SecretsManager";
@@ -60,8 +60,8 @@ describe("repo-scoped dashboard caches", () => {
       "A-Guy-educ",
       "A-Guy",
     ]);
-    expect(executableQueryKeys.list(scope)).toEqual([
-      "kody-executables",
+    expect(agentActionQueryKeys.list(scope)).toEqual([
+      "kody-agentActions",
       "A-Guy-educ",
       "A-Guy",
     ]);
@@ -101,8 +101,8 @@ describe("repo-scoped dashboard caches", () => {
     expect(reportQueryKeys.list(scope)).not.toEqual(
       reportQueryKeys.list(other),
     );
-    expect(executableQueryKeys.list(scope)).not.toEqual(
-      executableQueryKeys.list(other),
+    expect(agentActionQueryKeys.list(scope)).not.toEqual(
+      agentActionQueryKeys.list(other),
     );
     expect(commandsQueryKeys.list(scope)).not.toEqual(
       commandsQueryKeys.list(other),

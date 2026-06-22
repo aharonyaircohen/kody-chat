@@ -10,7 +10,7 @@
 import type { Octokit } from "@octokit/rest";
 import { getStoreRef, getStoreRepoUrl } from "../github-client";
 
-export type StoreAssetKind = "duties" | "executables" | "agent";
+export type StoreAssetKind = "agent-responsibilities" | "agent-actions" | "agent";
 export type AssetSource = "local" | "store";
 
 export interface CompanyStoreTarget {

@@ -4,16 +4,16 @@
  * @pattern ai-sdk-tool
  * @ai-summary Kody-pipeline dispatch tools for the kody-direct chat agent.
  *
- * Each tool posts a `@kody <duty>` comment on an existing issue or pull
- * request. The duty owns the public action; its profile links to the
- * implementation executable.
+ * Each tool posts a `@kody <agentResponsibility>` comment on an existing issue or pull
+ * request. The agentResponsibility owns the public action; its profile links to the
+ * implementation agentAction.
  *
  * These tools DO trigger the pipeline. They must only be called when
  * the user explicitly asks to run a kody command (e.g. "kody fix #45",
  * "have kody review this PR", "rerun fix-ci on the PR"). Each tool's
  * description repeats this gate so the model carries it through.
  *
- * Supported PR-targeted duty actions:
+ * Supported PR-targeted agentResponsibility actions:
  *   fix         — apply fixes; bare = use PR review body
  *   fix-ci      — fix failing CI on the PR
  *   review      — code review
@@ -21,7 +21,7 @@
  *   revert      — revert the PR's merge commit
  *   sync        — merge the PR's base branch into it and push
  *
- * Issue-targeted dispatch (kody_run_issue): posts `@kody <duty>` on an
+ * Issue-targeted dispatch (kody_run_issue): posts `@kody <agentResponsibility>` on an
  * issue so the engine picks it up and executes the work — clone, edit,
  * commit, PR. This is the "execute the plan" handoff: the chat model does
  * research + planning, then on user confirmation calls this tool to hand
@@ -35,7 +35,7 @@ import {
   invalidateIssueCache,
   invalidatePRCache,
 } from "@dashboard/lib/github-client";
-import { isValidSlug, readDutyFile } from "@dashboard/lib/duties-files";
+import { isValidSlug, readAgentResponsibilityFile } from "@dashboard/lib/agent-responsibilities-files";
 
 interface Ctx {
   octokit: Octokit;
@@ -63,24 +63,24 @@ interface DispatchError {
   error: string;
 }
 
-async function resolveDutyAction(
+async function resolveAgentResponsibilityAction(
   ctx: Ctx,
-  dutySlug: string,
+  agentResponsibilitySlug: string,
 ): Promise<{ slug: string; action: string } | DispatchError> {
-  const slug = dutySlug.trim();
+  const slug = agentResponsibilitySlug.trim();
   if (!slug || !isValidSlug(slug)) {
     return {
       error:
-        "Refusing to dispatch: duty must be lowercase letters, digits, dashes, or underscores.",
+        "Refusing to dispatch: agentResponsibility must be lowercase letters, digits, dashes, or underscores.",
     };
   }
-  const duty = await readDutyFile(slug, ctx.octokit);
-  if (!duty) {
+  const agentResponsibility = await readAgentResponsibilityFile(slug, ctx.octokit);
+  if (!agentResponsibility) {
     return {
-      error: `Refusing to dispatch: duty "${slug}" was not found.`,
+      error: `Refusing to dispatch: agentResponsibility "${slug}" was not found.`,
     };
   }
-  return { slug: duty.slug, action: duty.action ?? duty.slug };
+  return { slug: agentResponsibility.slug, action: agentResponsibility.action ?? agentResponsibility.slug };
 }
 
 async function dispatchOnPr(
@@ -90,11 +90,11 @@ async function dispatchOnPr(
   notes: string | undefined,
 ): Promise<DispatchResult | DispatchError> {
   const { octokit, owner, repo } = ctx;
-  const dutyAction = await resolveDutyAction(ctx, command);
-  if ("error" in dutyAction) return dutyAction;
+  const agentResponsibilityAction = await resolveAgentResponsibilityAction(ctx, command);
+  if ("error" in agentResponsibilityAction) return agentResponsibilityAction;
   const commentBody = notes?.trim()
-    ? `@kody ${dutyAction.action}\n\n${notes.trim()}`
-    : `@kody ${dutyAction.action}`;
+    ? `@kody ${agentResponsibilityAction.action}\n\n${notes.trim()}`
+    : `@kody ${agentResponsibilityAction.action}`;
 
   try {
     const existing = await octokit.rest.issues.get({
@@ -124,16 +124,16 @@ async function dispatchOnPr(
     invalidateIssueCache(prNumber);
 
     logger.info(
-      { owner, repo, number: prNumber, duty: dutyAction.slug },
+      { owner, repo, number: prNumber, agentResponsibility: agentResponsibilityAction.slug },
       "kody-dispatch: posted trigger comment",
     );
 
     return {
       number: prNumber,
       url: existing.data.html_url,
-      command: `@kody ${dutyAction.action}`,
+      command: `@kody ${agentResponsibilityAction.action}`,
       triggered: true,
-      note: `Posted \`@kody ${dutyAction.action}\` on PR #${prNumber}. Engine should pick it up shortly.`,
+      note: `Posted \`@kody ${agentResponsibilityAction.action}\` on PR #${prNumber}. Engine should pick it up shortly.`,
     };
   } catch (err) {
     logger.warn(
@@ -144,7 +144,7 @@ async function dispatchOnPr(
       error:
         err instanceof Error
           ? err.message
-          : `Failed to dispatch @kody ${dutyAction.action}`,
+          : `Failed to dispatch @kody ${agentResponsibilityAction.action}`,
     };
   }
 }
@@ -152,13 +152,13 @@ async function dispatchOnPr(
 async function dispatchOnIssue(
   ctx: Ctx,
   issueNumber: number,
-  duty: string,
+  agentResponsibility: string,
   notes: string | undefined,
 ): Promise<DispatchResult | DispatchError> {
   const { octokit, owner, repo } = ctx;
-  const dutyAction = await resolveDutyAction(ctx, duty);
-  if ("error" in dutyAction) return dutyAction;
-  const header = `@kody ${dutyAction.action}`;
+  const agentResponsibilityAction = await resolveAgentResponsibilityAction(ctx, agentResponsibility);
+  if ("error" in agentResponsibilityAction) return agentResponsibilityAction;
+  const header = `@kody ${agentResponsibilityAction.action}`;
   const commentBody = notes?.trim() ? `${header}\n\n${notes.trim()}` : header;
 
   try {
@@ -185,7 +185,7 @@ async function dispatchOnIssue(
     invalidateIssueCache(issueNumber);
 
     logger.info(
-      { owner, repo, number: issueNumber, duty: dutyAction.slug },
+      { owner, repo, number: issueNumber, agentResponsibility: agentResponsibilityAction.slug },
       "kody-dispatch: posted issue trigger",
     );
 
@@ -198,7 +198,7 @@ async function dispatchOnIssue(
     };
   } catch (err) {
     logger.warn(
-      { err, owner, repo, number: issueNumber, duty: dutyAction.slug },
+      { err, owner, repo, number: issueNumber, agentResponsibility: agentResponsibilityAction.slug },
       "kody-dispatch (issue) failed",
     );
     return {
@@ -227,7 +227,7 @@ const DUTY_SCHEMA = z
   .max(64)
   .optional()
   .describe(
-    "Which Kody duty to run. Defaults to `classify`. The duty folder must exist under `.kody/duties/<slug>/`.",
+    "Which Kody agentResponsibility to run. Defaults to `classify`. The agentResponsibility folder must exist under `.kody/agent-responsibilities/<slug>/`.",
   );
 
 const NOTES_SCHEMA = z
@@ -339,7 +339,7 @@ export function createKodyTools(ctx: Ctx) {
     kody_run_issue: tool({
       description:
         `EXECUTE a plan on an issue in ${owner}/${repo}. Posts ` +
-        "`@kody <duty>` (default: `classify`) as a comment on the issue. " +
+        "`@kody <agentResponsibility>` (default: `classify`) as a comment on the issue. " +
         "The Kody engine in GitHub Actions then clones the repo, edits " +
         "files, commits, and opens a PR for that issue. THIS IS THE ONLY " +
         "way to actually execute code work from this chat — you do not " +
@@ -352,17 +352,17 @@ export function createKodyTools(ctx: Ctx) {
         "tool in the same turn. Use `notes` to pass the plan inline.",
       inputSchema: z.object({
         issueNumber: ISSUE_NUMBER_SCHEMA,
-        duty: DUTY_SCHEMA,
-        executable: DUTY_SCHEMA.describe(
-          "Deprecated alias for `duty`. Kept only for older tool calls.",
+        agentResponsibility: DUTY_SCHEMA,
+        agentAction: DUTY_SCHEMA.describe(
+          "Deprecated alias for `agentResponsibility`. Kept only for older tool calls.",
         ),
         notes: NOTES_SCHEMA,
       }),
-      execute: ({ issueNumber, duty, executable, notes }) =>
+      execute: ({ issueNumber, agentResponsibility, agentAction, notes }) =>
         dispatchOnIssue(
           ctx,
           issueNumber,
-          duty ?? executable ?? "classify",
+          agentResponsibility ?? agentAction ?? "classify",
           notes,
         ),
     }),

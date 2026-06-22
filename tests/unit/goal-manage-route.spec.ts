@@ -123,8 +123,8 @@ capturedWritePath = (opts as { path?: string }).path;
 
     vi.mocked(getUserOctokit).mockResolvedValue(mockOctokit as any);
 
-    const req = makeManageRequest("duty-migration", true);
-    const res = await POST(req, makeParams("duty-migration"));
+    const req = makeManageRequest("agentResponsibility-migration", true);
+    const res = await POST(req, makeParams("agentResponsibility-migration"));
 
     expect(res.status).toBe(200);
     const json = await res.json();
@@ -133,10 +133,10 @@ capturedWritePath = (opts as { path?: string }).path;
     expect(json.state?.type).toBe("simple");
     expect(json.state?.sourceTemplate).toBe("simple");
     expect(json.state?.destination).toEqual({
-      outcome: "Tasks labelled goal:duty-migration are complete.",
+      outcome: "Tasks labelled goal:agentResponsibility-migration are complete.",
       evidence: ["labelledTasksComplete"],
     });
-    expect(json.state?.duties).toEqual([]);
+    expect(json.state?.agentResponsibilities).toEqual([]);
     expect(json.state?.route).toEqual([]);
     expect(json.state?.stage).toBe("waiting");
     expect(json.state?.facts).toEqual({
@@ -159,7 +159,7 @@ capturedWritePath = (opts as { path?: string }).path;
     });
 expect(capturedWriteBranch).toBe("kody-state");
 expect(capturedWritePath).toBe(
-  ".kody/goals/instances/duty-migration/state.json",
+  ".kody/goals/instances/agentResponsibility-migration/state.json",
 );
 
     // The dispatch must pass the goal slug as issue_number so the engine can
@@ -169,7 +169,7 @@ expect(capturedWritePath).toBe(
       repo: "test-repo",
       workflow_id: "kody.yml",
       ref: "main",
-      inputs: { issue_number: { value: "duty-migration" } },
+      inputs: { issue_number: { value: "agentResponsibility-migration" } },
     });
   });
 
@@ -220,8 +220,8 @@ expect(capturedWritePath).toBe(
 
     vi.mocked(getUserOctokit).mockResolvedValue(mockOctokit as any);
 
-    const req = makeManageRequest("duty-migration", false);
-    const res = await POST(req, makeParams("duty-migration"));
+    const req = makeManageRequest("agentResponsibility-migration", false);
+    const res = await POST(req, makeParams("agentResponsibility-migration"));
 
     expect(res.status).toBe(200);
     const json = await res.json();

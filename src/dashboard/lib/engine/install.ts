@@ -57,8 +57,8 @@ name: kody
 on:
   workflow_dispatch:
     inputs:
-      executable:
-        description: "Executable name (e.g. ui-review, run, fix)"
+      agentAction:
+        description: "AgentAction name (e.g. ui-review, run, fix)"
         type: string
         default: ""
       issue_number:
@@ -414,7 +414,7 @@ export async function installEngine(
 
     // Write the engine model into kody.config.json (`agent.model` — the key
     // the engine actually reads), preserving any hand-authored config. Always
-    // writes a baseline (executables + github) even when no model is
+    // writes a baseline (agentActions + github) even when no model is
     // configured yet, so the file exists for the engine to extend.
     const { models } = await readVariablesJson(octokit, owner, repo);
     const engineModel = pickEngineDefaultModel(models);

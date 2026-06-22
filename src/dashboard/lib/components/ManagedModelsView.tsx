@@ -2,13 +2,15 @@
  * @fileType component
  * @domain kody
  * @pattern managed-models
- * @ai-summary Shared Objective/Routine page backed by engine state files.
+ * @ai-summary Shared AgentGoal/AgentLoop page backed by engine state files.
  */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
   CheckCircle2,
   CircleDot,
   Clock3,
@@ -48,8 +50,8 @@ import {
 } from "@dashboard/ui/select";
 import { Textarea } from "@dashboard/ui/textarea";
 
-import type { Duty } from "../api";
-import { useDuties, useRunDuty } from "../hooks/useDuties";
+import type { AgentResponsibility } from "../api";
+import { useAgentResponsibilities, useRunAgentResponsibility } from "../hooks/useAgentResponsibilities";
 import {
   useCreateManagedGoal,
   useDeleteManagedGoal,
@@ -63,9 +65,11 @@ import {
   buildSimpleManagedGoalCreateInput,
   isStoreBackedManagedGoal,
   managedGoalModel,
+  normalizeEvidenceKey,
   type ManagedGoalInstanceSummary,
   type ManagedGoalModel,
   type ManagedGoalRecord,
+  type ManagedGoalRouteStep,
   type ManagedGoalSchedule,
   type ManagedGoalTypeDefinition,
   type ManagedGoalTypeId,
@@ -80,6 +84,15 @@ import {
 } from "./SearchableSelect";
 
 const defaultGoalType = MANAGED_GOAL_TYPES[0]!;
+const USER_VISIBLE_OBJECTIVE_TYPE_IDS = new Set<ManagedGoalTypeId>(["improve"]);
+
+function userVisibleObjectiveGoalTypes(): ManagedGoalTypeDefinition[] {
+  return MANAGED_GOAL_TYPES.filter(
+    (type) =>
+      type.model === "agentGoal" &&
+      USER_VISIBLE_OBJECTIVE_TYPE_IDS.has(type.id),
+  );
+}
 
 type ManagedModelViewCopy = {
   title: string;
@@ -95,30 +108,30 @@ type ManagedModelViewCopy = {
 };
 
 const viewCopy: Record<ManagedGoalModel, ManagedModelViewCopy> = {
-  objective: {
-    title: "Objectives",
-    singular: "objective",
-    plural: "objectives",
-    kindLabel: "Objective type",
-    selectTitle: "Select an objective",
-    selectHint: "Choose an objective from the list.",
-    emptyTitle: "No objectives yet",
-    emptyHint: "Create the first evidence-driven objective for this repo.",
-    searchPlaceholder: "Search objectives...",
-    newLabel: "New objective",
+  agentGoal: {
+  title: "Goals",
+    singular: "goal",
+    plural: "goals",
+    kindLabel: "",
+    selectTitle: "Select a goal",
+    selectHint: "Choose a goal from the list.",
+    emptyTitle: "No goals yet",
+    emptyHint: "Create the first evidence-driven goal for this repo.",
+    searchPlaceholder: "Search goals...",
+    newLabel: "New goal",
   },
-  routine: {
-    title: "Routines",
-    singular: "routine",
-    plural: "routines",
-    kindLabel: "Routine type",
-    selectTitle: "Select a routine",
-    selectHint: "Choose a routine from the list.",
-    emptyTitle: "No routines yet",
+  agentLoop: {
+    title: "Loops",
+    singular: "loop",
+    plural: "loops",
+    kindLabel: "Loop type",
+    selectTitle: "Select loop",
+    selectHint: "Choose loop from the list.",
+    emptyTitle: "No loops yet",
     emptyHint:
-      "Create the first schedule or health driven routine for this repo.",
-    searchPlaceholder: "Search routines...",
-    newLabel: "New routine",
+      "Create the first schedule or health driven loop for this repo.",
+    searchPlaceholder: "Search loops...",
+    newLabel: "New loop",
   },
 };
 
@@ -326,12 +339,12 @@ function goalSearchText(goal: ManagedGoalRecord): string {
     goal.state.stage ?? "",
     goal.state.destination.outcome,
     ...goal.state.destination.evidence,
-    ...goal.state.duties,
+    ...goal.state.agentResponsibilities,
     ...goal.state.route.flatMap((step) => [
       step.stage,
       step.evidence,
-      step.duty,
-      step.executable ?? "",
+      step.agentResponsibility,
+      step.agentAction ?? "",
     ]),
     ...goal.state.blockers,
   ]
@@ -339,15 +352,15 @@ function goalSearchText(goal: ManagedGoalRecord): string {
     .toLowerCase();
 }
 
-function compactDutyLabel(value: string): string {
+function compactAgentResponsibilityLabel(value: string): string {
   return value
     .trim()
     .replace(/[-_]+/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function dutySelectOptions(
-  duties: Duty[],
+function agentResponsibilitySelectOptions(
+  agentResponsibilities: AgentResponsibility[],
   seedSlugs: string[],
 ): SearchableSelectOption[] {
   const bySlug = new Map<string, SearchableSelectOption>();
@@ -355,45 +368,155 @@ function dutySelectOptions(
     bySlug.set(slug, {
       value: slug,
       label: slug,
-      selectedLabel: compactDutyLabel(slug),
+      selectedLabel: compactAgentResponsibilityLabel(slug),
       searchText: slug,
     });
   }
-  for (const duty of duties) {
-    const label = duty.title || duty.slug;
-    const source = duty.source ? ` / ${duty.source}` : "";
-    bySlug.set(duty.slug, {
-      value: duty.slug,
+  for (const agentResponsibility of agentResponsibilities) {
+    const label = agentResponsibility.title || agentResponsibility.slug;
+    const source = agentResponsibility.source ? ` / ${agentResponsibility.source}` : "";
+    bySlug.set(agentResponsibility.slug, {
+      value: agentResponsibility.slug,
       label,
-      selectedLabel: compactDutyLabel(duty.slug),
-      description: `${duty.slug}${source}`,
-      searchText: `${label} ${duty.slug} ${duty.source ?? ""}`,
+      selectedLabel: compactAgentResponsibilityLabel(agentResponsibility.slug),
+      description: `${agentResponsibility.slug}${source}`,
+      searchText: `${label} ${agentResponsibility.slug} ${agentResponsibility.source ?? ""}`,
     });
   }
   return Array.from(bySlug.values()).sort((a, b) =>
     (a.value ?? "").localeCompare(b.value ?? ""),
-  );
+    );
 }
 
-function ObjectiveTypeInfo({
-  goalType,
+function mergeOrderedSlugs(current: string[], next: string[]): string[] {
+  const nextSet = new Set(next);
+  return [
+    ...current.filter((slug) => nextSet.has(slug)),
+    ...next.filter((slug) => !current.includes(slug)),
+  ];
+}
+
+function moveItem<T>(items: readonly T[], index: number, direction: -1 | 1): T[] {
+  const target = index + direction;
+  if (target < 0 || target >= items.length) return [...items];
+  const next = [...items];
+  const [item] = next.splice(index, 1);
+  next.splice(target, 0, item);
+  return next;
+}
+
+function fallbackRouteStep(slug: string): ManagedGoalRouteStep {
+  return {
+    stage: slug,
+    evidence: normalizeEvidenceKey(`${slug}Complete`) || `${slug}Complete`,
+    agentResponsibility: slug,
+    agentAction: slug,
+  };
+}
+
+function routeStepsForAgentResponsibilities(
+  goalType: ManagedGoalTypeDefinition,
+  slugs: string[],
+  existingRoute: ManagedGoalRouteStep[] = [],
+): ManagedGoalRouteStep[] {
+  const existingByResponsibility = new Map(
+    existingRoute.map((step) => [step.agentResponsibility, step]),
+  );
+  const defaultsByResponsibility = new Map(
+    goalType.route.map((step) => [step.agentResponsibility, step]),
+  );
+
+  return slugs.map((slug) => ({
+    ...(existingByResponsibility.get(slug) ??
+      defaultsByResponsibility.get(slug) ??
+      fallbackRouteStep(slug)),
+  }));
+}
+
+function evidenceForRoute(route: ManagedGoalRouteStep[]): string[] {
+  return Array.from(new Set(route.map((step) => step.evidence)));
+}
+
+function OrderedPathSection({
+  title,
+  hint,
+  route,
+  agentResponsibilitySlugs,
+  onMove,
 }: {
-  goalType: ManagedGoalTypeDefinition;
+  title: string;
+  hint: string;
+  route?: ManagedGoalRouteStep[];
+  agentResponsibilitySlugs: string[];
+  onMove: (index: number, direction: -1 | 1) => void;
 }) {
+  const rows = route ?? agentResponsibilitySlugs.map(fallbackRouteStep);
+  if (rows.length === 0) return null;
+
   return (
-    <div className="space-y-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-      <p className="text-sm font-medium text-foreground">
-        {goalType.description}
-      </p>
-      <p>
-        <span className="text-foreground/70">Best for: </span>
-        {goalType.bestFor}
-      </p>
-      <p>
-        <span className="text-foreground/70">Kody will: </span>
-        {goalType.systemSummary}
-      </p>
-    </div>
+    <section className="space-y-2 rounded-md border border-white/[0.08] bg-black/20 px-3 py-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="text-sm font-medium text-white/90">{title}</h3>
+          <p className="text-xs text-muted-foreground">{hint}</p>
+        </div>
+        <span className="font-mono text-xs text-white/45">{rows.length}</span>
+      </div>
+      <div className="space-y-2">
+        {rows.map((step, index) => (
+          <div
+            key={`${step.agentResponsibility}:${step.evidence}:${index}`}
+            className="grid gap-3 rounded border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-sm md:grid-cols-[minmax(0,1fr)_auto]"
+          >
+            <div className="min-w-0 space-y-1">
+              <div className="flex min-w-0 items-center gap-2 text-white/80">
+                <Route className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
+                <span className="font-mono text-xs text-white/45">
+                  {index + 1}
+                </span>
+                <span className="truncate">{step.stage}</span>
+                {route ? (
+                  <>
+                    <span className="text-white/30">{"->"}</span>
+                    <span className="truncate font-mono">{step.evidence}</span>
+                  </>
+                ) : null}
+              </div>
+              <p className="truncate text-xs text-white/45">
+                agentResponsibility: {step.agentResponsibility}
+                {route && step.agentAction ? ` · agentAction: ${step.agentAction}` : ""}
+              </p>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 px-0"
+                onClick={() => onMove(index, -1)}
+                disabled={index === 0}
+                aria-label={`Move ${step.agentResponsibility} up`}
+                title="Move up"
+              >
+                <ArrowUp className="h-3.5 w-3.5" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-7 w-7 px-0"
+                onClick={() => onMove(index, 1)}
+                disabled={index === rows.length - 1}
+                aria-label={`Move ${step.agentResponsibility} down`}
+                title="Move down"
+              >
+                <ArrowDown className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -426,7 +549,7 @@ function ObjectiveEvidenceRouteSummary({
 
       <div className="space-y-2 rounded-md border border-white/[0.08] bg-black/20 px-3 py-2 text-xs text-muted-foreground">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-white/65">Route</p>
+          <p className="text-white/65">Route setup</p>
           <span className="font-mono text-white/45">
             {goalType.route.length}
           </span>
@@ -444,8 +567,8 @@ function ObjectiveEvidenceRouteSummary({
                 <span className="font-mono">{step.evidence}</span>
               </div>
               <div className="mt-1 text-[11px] text-white/45">
-                duty: {step.duty}
-                {step.executable ? ` · executable: ${step.executable}` : ""}
+                agentResponsibility: {step.agentResponsibility}
+                {step.agentAction ? ` · agentAction: ${step.agentAction}` : ""}
               </div>
             </div>
           ))}
@@ -467,38 +590,47 @@ function NewGoalDialog({
   label: string;
 }) {
   const createGoal = useCreateManagedGoal();
-  const { data: duties = [], isLoading: dutiesLoading } = useDuties();
+  const { data: agentResponsibilities = [], isLoading: agentResponsibilitiesLoading } = useAgentResponsibilities();
   const goalTypes = useMemo(
-    () => MANAGED_GOAL_TYPES.filter((type) => type.model === model),
+    () =>
+      model === "agentGoal"
+        ? userVisibleObjectiveGoalTypes()
+        : MANAGED_GOAL_TYPES.filter((type) => type.model === model),
     [model],
   );
   const defaultType = goalTypes[0] ?? defaultGoalType;
-  const isRoutine = model === "routine";
+  const isRoutine = model === "agentLoop";
   const defaultSchedule: ManagedGoalSchedule = isRoutine ? "1d" : "manual";
   const [goalType, setGoalType] = useState<ManagedGoalTypeId>(defaultType.id);
   const [schedule, setSchedule] =
     useState<ManagedGoalSchedule>(defaultSchedule);
   const [outcome, setOutcome] = useState("");
-  const [selectedDutySlugs, setSelectedDutySlugs] = useState<string[]>(
-    isRoutine ? [] : defaultType.duties,
-  );
+  const [selectedAgentResponsibilitySlugs, setSelectedAgentResponsibilitySlugs] = useState<string[]>([]);
 
   const selectedGoalType =
     goalTypes.find((type) => type.id === goalType) ?? defaultType;
   const scheduleChoices = isRoutine
     ? scheduleOptions.filter((option) => option.value !== "manual")
     : scheduleOptions;
-  const routineDutyOptions = useMemo(
-    () => dutySelectOptions(duties, selectedGoalType.duties),
-    [duties, selectedGoalType.duties],
+  const agentResponsibilityOptions = useMemo(
+    () => agentResponsibilitySelectOptions(agentResponsibilities, selectedGoalType.agentResponsibilities),
+    [agentResponsibilities, selectedGoalType.agentResponsibilities],
   );
-  const canSubmit =
-    outcome.trim().length > 0 && (!isRoutine || selectedDutySlugs.length > 0);
-  const showTypeSelect = !isRoutine && goalTypes.length > 1;
+  const routeSteps = useMemo(
+    () =>
+      isRoutine
+        ? []
+        : routeStepsForAgentResponsibilities(
+            selectedGoalType,
+            selectedAgentResponsibilitySlugs,
+          ),
+    [isRoutine, selectedAgentResponsibilitySlugs, selectedGoalType],
+  );
+  const canSubmit = outcome.trim().length > 0 && selectedAgentResponsibilitySlugs.length > 0;
   const intentLabel = isRoutine ? "Scope" : "Finish line";
   const dialogDescription = isRoutine
-    ? "Create one ongoing loop with a clear scope, cadence, and duties."
-    : "Define the finish line and evidence Kody must close.";
+    ? "Create one ongoing loop with a clear scope, cadence, and agentResponsibilities."
+    : "Define the finish line and attach the agentResponsibilities Kody should use.";
   const intentPlaceholder = isRoutine
     ? "Example: Keep codebase healthy and surface drift."
     : selectedGoalType.promptPlaceholder;
@@ -518,11 +650,27 @@ function NewGoalDialog({
     }
   }, [defaultSchedule, isRoutine, schedule]);
 
-  const reset = () => {
+  const reset = useCallback(() => {
     setGoalType(defaultType.id);
     setSchedule(defaultSchedule);
     setOutcome("");
-    setSelectedDutySlugs(isRoutine ? [] : defaultType.duties);
+    setSelectedAgentResponsibilitySlugs([]);
+  }, [defaultSchedule, defaultType.id]);
+
+  useEffect(() => {
+    if (open) reset();
+  }, [open, reset]);
+
+  const selectAgentResponsibilities = (next: string[]) => {
+    setSelectedAgentResponsibilitySlugs((current) =>
+      mergeOrderedSlugs(current, next),
+    );
+  };
+
+  const moveSelectedAgentResponsibility = (index: number, direction: -1 | 1) => {
+    setSelectedAgentResponsibilitySlugs((current) =>
+      moveItem(current, index, direction),
+    );
   };
 
   const submit = async () => {
@@ -531,7 +679,9 @@ function NewGoalDialog({
         goalType,
         schedule,
         prompt: outcome,
-        ...(isRoutine ? { duties: selectedDutySlugs } : {}),
+        agentResponsibilities: selectedAgentResponsibilitySlugs,
+        evidence: isRoutine ? [] : evidenceForRoute(routeSteps),
+        route: isRoutine ? [] : routeSteps,
       }),
     );
     reset();
@@ -559,82 +709,65 @@ function NewGoalDialog({
           </div>
 
           <div className="grid min-w-0 gap-3 md:grid-cols-2">
-            <div className="min-w-0 space-y-3">
-              {showTypeSelect ? (
-                <div className="space-y-2">
-                  <Label htmlFor="goal-type">Objective type</Label>
-                  <Select
-                    value={goalType}
-                    onValueChange={(value) =>
-                      setGoalType(value as ManagedGoalTypeId)
-                    }
-                  >
-                    <SelectTrigger id="goal-type">
-                      <SelectValue placeholder="Choose type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {goalTypes.map((type) => (
-                        <SelectItem key={type.id} value={type.id}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : null}
+            {isRoutine ? (
+              <div className="space-y-2">
+                <Label htmlFor="goal-schedule">Cadence</Label>
+                <Select
+                  value={schedule}
+                  onValueChange={(value) =>
+                    setSchedule(value as ManagedGoalSchedule)
+                  }
+                >
+                  <SelectTrigger id="goal-schedule">
+                    <SelectValue placeholder="Choose cadence" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {scheduleChoices.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
 
-              {isRoutine ? (
-                <div className="space-y-2">
-                  <Label htmlFor="goal-schedule">Cadence</Label>
-                  <Select
-                    value={schedule}
-                    onValueChange={(value) =>
-                      setSchedule(value as ManagedGoalSchedule)
-                    }
-                  >
-                    <SelectTrigger id="goal-schedule">
-                      <SelectValue placeholder="Choose cadence" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {scheduleChoices.map((option) => (
-                        <SelectItem key={option.value} value={option.value}>
-                          {option.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              ) : (
-                <ObjectiveTypeInfo goalType={selectedGoalType} />
-              )}
+            <div className="min-w-0 space-y-2 md:col-span-2">
+              <Label
+                htmlFor={isRoutine ? "agentLoop-agentResponsibilities" : "agentGoal-agentResponsibilities"}
+              >
+                AgentResponsibilities
+              </Label>
+              <SearchableMultiSelect
+                id={isRoutine ? "agentLoop-agentResponsibilities" : "agentGoal-agentResponsibilities"}
+                options={agentResponsibilityOptions}
+                value={selectedAgentResponsibilitySlugs}
+                onChange={selectAgentResponsibilities}
+                placeholder={
+                  agentResponsibilitiesLoading ? "Loading agentResponsibilities..." : "Select agentResponsibilities"
+                }
+                searchPlaceholder="Search agentResponsibilities..."
+                emptyLabel="No agentResponsibilities found"
+                disabled={agentResponsibilitiesLoading}
+                selectedLabel="agentResponsibilities selected"
+                selectedSingularLabel="agentResponsibility selected"
+                selectedHeading="Selected agentResponsibilities"
+                selectedTone="info"
+                maxVisibleSelected={4}
+              />
+              <OrderedPathSection
+                title={isRoutine ? "Run order" : "Route"}
+                hint={
+                  isRoutine
+                    ? "The recurring sequence this loop runs."
+                    : "The ordered path Kody follows to collect evidence."
+                }
+                route={isRoutine ? undefined : routeSteps}
+                agentResponsibilitySlugs={selectedAgentResponsibilitySlugs}
+                onMove={moveSelectedAgentResponsibility}
+              />
             </div>
 
-            {isRoutine ? (
-              <div className="min-w-0 space-y-3 md:col-span-2">
-                <div className="space-y-2">
-                  <Label htmlFor="routine-duties">Duties</Label>
-                  <SearchableMultiSelect
-                    id="routine-duties"
-                    options={routineDutyOptions}
-                    value={selectedDutySlugs}
-                    onChange={setSelectedDutySlugs}
-                    placeholder={
-                      dutiesLoading ? "Loading duties..." : "Select duties"
-                    }
-                    searchPlaceholder="Search duties..."
-                    emptyLabel="No duties found"
-                    disabled={dutiesLoading}
-                    selectedLabel="duties selected"
-                    selectedSingularLabel="duty selected"
-                    selectedHeading="Selected duties"
-                    selectedTone="info"
-                    maxVisibleSelected={4}
-                  />
-                </div>
-              </div>
-            ) : (
-              <ObjectiveEvidenceRouteSummary goalType={selectedGoalType} />
-            )}
           </div>
 
           <div className="flex justify-end gap-2">
@@ -655,7 +788,7 @@ function NewGoalDialog({
               ) : (
                 <Plus className="h-4 w-4" />
               )}
-              {isRoutine ? "Create routine" : `Create ${label}`}
+              {`Create ${label}`}
             </Button>
           </div>
         </div>
@@ -669,36 +802,52 @@ function EditManagedGoalDialog({
   open,
   onOpenChange,
   label,
-  duties,
+  agentResponsibilities,
 }: {
   goal: ManagedGoalRecord | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   label: string;
-  duties: Duty[];
+  agentResponsibilities: AgentResponsibility[];
 }) {
   const updateGoal = useUpdateManagedGoal(goal?.id ?? "");
-  const isRoutine = goal ? managedGoalModel(goal) === "routine" : false;
+  const isRoutine = goal ? managedGoalModel(goal) === "agentLoop" : false;
+  const objectiveGoalTypes = useMemo(() => userVisibleObjectiveGoalTypes(), []);
   const selectedGoalType = goal
     ? MANAGED_GOAL_TYPES.find((type) => type.id === goal.state.type)
     : null;
-  const objectiveGoalType =
-    !isRoutine && selectedGoalType?.model === "objective"
-      ? selectedGoalType
-      : null;
+  const selectedVisibleObjectiveGoalType = selectedGoalType
+    ? objectiveGoalTypes.find((type) => type.id === selectedGoalType.id)
+    : null;
+  const initialObjectiveGoalType =
+    selectedVisibleObjectiveGoalType ??
+    objectiveGoalTypes[0] ??
+    defaultGoalType;
   const intentLabel = isRoutine ? "Scope" : "Finish line";
   const editDescription = isRoutine
-    ? "Update routine scope, cadence, and duties."
-    : "Update objective finish line and evidence route.";
+    ? "Update agentLoop scope, cadence, and agentResponsibilities."
+    : "Update the finish line and attached agentResponsibilities.";
   const [outcome, setOutcome] = useState("");
   const [schedule, setSchedule] = useState<ManagedGoalSchedule>("manual");
-  const [selectedDutySlugs, setSelectedDutySlugs] = useState<string[]>([]);
+  const [selectedAgentResponsibilitySlugs, setSelectedAgentResponsibilitySlugs] = useState<string[]>([]);
+  const objectiveGoalType = initialObjectiveGoalType;
   const scheduleChoices = isRoutine
     ? scheduleOptions.filter((option) => option.value !== "manual")
     : scheduleOptions;
-  const routineDutyOptions = useMemo(
-    () => dutySelectOptions(duties, goal?.state.duties ?? []),
-    [duties, goal?.state.duties],
+  const agentResponsibilityOptions = useMemo(
+    () => agentResponsibilitySelectOptions(agentResponsibilities, goal?.state.agentResponsibilities ?? []),
+    [agentResponsibilities, goal?.state.agentResponsibilities],
+  );
+  const routeSteps = useMemo(
+    () =>
+      !goal || isRoutine
+        ? []
+        : routeStepsForAgentResponsibilities(
+            objectiveGoalType,
+            selectedAgentResponsibilitySlugs,
+            goal.state.route,
+          ),
+    [goal, isRoutine, objectiveGoalType, selectedAgentResponsibilitySlugs],
   );
 
   useEffect(() => {
@@ -712,21 +861,37 @@ function EditManagedGoalDialog({
     setSchedule(
       isRoutine && currentSchedule === "manual" ? "1d" : currentSchedule,
     );
-    setSelectedDutySlugs(isRoutine ? goal.state.duties : []);
+    setSelectedAgentResponsibilitySlugs(goal.state.agentResponsibilities);
   }, [goal, isRoutine, open]);
 
+  const selectAgentResponsibilities = (next: string[]) => {
+    setSelectedAgentResponsibilitySlugs((current) =>
+      mergeOrderedSlugs(current, next),
+    );
+  };
+
+  const moveSelectedAgentResponsibility = (index: number, direction: -1 | 1) => {
+    setSelectedAgentResponsibilitySlugs((current) =>
+      moveItem(current, index, direction),
+    );
+  };
+
   const canSubmit =
-    !!goal &&
-    outcome.trim().length > 0 &&
-    (!isRoutine || selectedDutySlugs.length > 0);
+    !!goal && outcome.trim().length > 0 && selectedAgentResponsibilitySlugs.length > 0;
 
   const submit = async () => {
     if (!goal) return;
     await updateGoal.mutateAsync({
-      type: goal.state.type,
+      type: isRoutine ? goal.state.type : objectiveGoalType.id,
       outcome: outcome.trim(),
       schedule,
-      ...(isRoutine ? { duties: selectedDutySlugs } : {}),
+        ...(isRoutine
+          ? { agentResponsibilities: selectedAgentResponsibilitySlugs }
+          : {
+              agentResponsibilities: selectedAgentResponsibilitySlugs,
+              evidence: evidenceForRoute(routeSteps),
+              route: routeSteps,
+            }),
     });
     onOpenChange(false);
   };
@@ -771,46 +936,44 @@ function EditManagedGoalDialog({
                   </SelectContent>
                 </Select>
               </div>
-            ) : (
-              <div className="min-w-0 space-y-2">
-                <Label>Objective type</Label>
-                {objectiveGoalType ? (
-                  <>
-                    <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm font-medium text-foreground">
-                      {objectiveGoalType.label}
-                    </div>
-                    <ObjectiveTypeInfo goalType={objectiveGoalType} />
-                  </>
-                ) : (
-                  <div className="rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-sm font-medium text-foreground">
-                    {goal?.state.type ?? "Objective"}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {isRoutine ? (
-              <div className="min-w-0 space-y-2 md:col-span-2">
-                <Label htmlFor="edit-routine-duties">Duties</Label>
-                <SearchableMultiSelect
-                  id="edit-routine-duties"
-                  options={routineDutyOptions}
-                  value={selectedDutySlugs}
-                  onChange={setSelectedDutySlugs}
-                  placeholder="Select duties"
-                  searchPlaceholder="Search duties..."
-                  emptyLabel="No duties found"
-                  selectedLabel="duties selected"
-                  selectedSingularLabel="duty selected"
-                  selectedHeading="Selected duties"
-                  selectedTone="info"
-                  maxVisibleSelected={4}
-                />
-              </div>
-            ) : objectiveGoalType ? (
-              <ObjectiveEvidenceRouteSummary goalType={objectiveGoalType} />
             ) : null}
-          </div>
+
+            <div className="min-w-0 space-y-2 md:col-span-2">
+              <Label
+                htmlFor={
+                  isRoutine ? "edit-agentLoop-agentResponsibilities" : "edit-agentGoal-agentResponsibilities"
+                }
+              >
+                AgentResponsibilities
+              </Label>
+              <SearchableMultiSelect
+                id={isRoutine ? "edit-agentLoop-agentResponsibilities" : "edit-agentGoal-agentResponsibilities"}
+                options={agentResponsibilityOptions}
+                value={selectedAgentResponsibilitySlugs}
+                onChange={selectAgentResponsibilities}
+                placeholder="Select agentResponsibilities"
+                searchPlaceholder="Search agentResponsibilities..."
+                emptyLabel="No agentResponsibilities found"
+                selectedLabel="agentResponsibilities selected"
+                selectedSingularLabel="agentResponsibility selected"
+                selectedHeading="Selected agentResponsibilities"
+                selectedTone="info"
+                maxVisibleSelected={4}
+              />
+            </div>
+
+              <OrderedPathSection
+                title={isRoutine ? "Run order" : "Route"}
+                hint={
+                  isRoutine
+                    ? "The recurring sequence this loop runs."
+                    : "The ordered path Kody follows to collect evidence."
+                }
+                route={isRoutine ? undefined : routeSteps}
+                agentResponsibilitySlugs={selectedAgentResponsibilitySlugs}
+                onMove={moveSelectedAgentResponsibility}
+              />
+            </div>
 
           <div className="flex justify-end gap-2">
             <Button
@@ -1003,7 +1166,7 @@ function GoalInstancesSection({
 
 function GoalDetail({
   goal,
-  duties,
+  agentResponsibilities,
   copy,
   onBack,
   onActivate,
@@ -1015,7 +1178,7 @@ function GoalDetail({
   isRunning,
 }: {
   goal: ManagedGoalRecord;
-  duties: Duty[];
+  agentResponsibilities: AgentResponsibility[];
   copy: ManagedModelViewCopy;
   onBack: () => void;
   onActivate: () => void;
@@ -1033,13 +1196,13 @@ function GoalDetail({
   const tone = goalActivityTone(goal.state.state);
   const kind = modelTypeLabel(goal);
   const factEntries = goalFactEntries(goal);
-  const isRoutine = managedGoalModel(goal) === "routine";
+  const isRoutine = managedGoalModel(goal) === "agentLoop";
   const canActivate =
     goal.state.state === "inactive" || goal.state.state === "paused";
   const canPause = goal.state.state === "active";
   const canRun =
     goal.state.state === "active" || goal.state.state === "inactive";
-  const runDuty = useRunDuty();
+  const runAgentResponsibility = useRunAgentResponsibility();
 
   return (
     <article className="min-h-full">
@@ -1061,12 +1224,14 @@ function GoalDetail({
                 <span>{goal.id}</span>
                 {storeBacked ? <StoreModelBadge label={copy.singular} /> : null}
                 <GoalActivityBadge state={goal.state.state} />
-                <span
-                  className="text-[11px] font-sans uppercase tracking-wide bg-white/[0.06] text-white/50 px-2 py-0.5 rounded"
-                  title={copy.kindLabel}
-                >
-                  {kind}
-                </span>
+                {copy.kindLabel ? (
+                  <span
+                    className="text-[11px] font-sans uppercase tracking-wide bg-white/[0.06] text-white/50 px-2 py-0.5 rounded"
+                    title={copy.kindLabel}
+                  >
+                    {kind}
+                  </span>
+                ) : null}
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
                 <span className="inline-flex items-center gap-1">
@@ -1182,17 +1347,17 @@ function GoalDetail({
       </div>
 
       <div className="max-w-4xl mx-auto p-4 md:p-8 space-y-6">
-        <GoalDutiesSection
+        <GoalAgentResponsibilitiesSection
           goal={goal}
           label={copy.singular}
-          duties={duties}
+          agentResponsibilities={agentResponsibilities}
           runningSlug={
-            runDuty.isPending
-              ? ((runDuty.variables as { slug?: string } | undefined)?.slug ??
+            runAgentResponsibility.isPending
+              ? ((runAgentResponsibility.variables as { slug?: string } | undefined)?.slug ??
                 null)
               : null
           }
-          onRun={(slug) => runDuty.mutate({ slug, force: true })}
+          onRun={(slug) => runAgentResponsibility.mutate({ slug, force: true })}
         />
         <GoalInstancesSection goal={goal} label={copy.singular} />
         <ContentSection
@@ -1200,7 +1365,7 @@ function GoalDetail({
           title={isRoutine ? "Health" : "Evidence"}
           subtitle={
             isRoutine
-              ? "Runtime facts reported by routine duties"
+              ? "Runtime facts reported by agentLoop agentResponsibilities"
               : `What proves this ${copy.singular} is done`
           }
           count={
@@ -1254,7 +1419,7 @@ function GoalDetail({
           <ContentSection
             icon={Route}
             title="Route"
-            subtitle="Duties and executables used to collect evidence"
+            subtitle="AgentResponsibilities and agentActions used to collect evidence"
             count={goal.state.route.length}
           >
             <div className="space-y-2">
@@ -1278,11 +1443,11 @@ function GoalDetail({
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground flex gap-2 flex-wrap">
-                      <span>duty: {routeStep.duty}</span>
-                      {routeStep.executable ? (
+                      <span>agentResponsibility: {routeStep.agentResponsibility}</span>
+                      {routeStep.agentAction ? (
                         <>
                           <span>·</span>
-                          <span>executable: {routeStep.executable}</span>
+                          <span>agentAction: {routeStep.agentAction}</span>
                         </>
                       ) : null}
                     </div>
@@ -1338,7 +1503,7 @@ function isScheduleEvery(value: unknown): value is ScheduleEvery {
   );
 }
 
-function dutyCadenceLabel(value: string | null | undefined): string {
+function agentResponsibilityCadenceLabel(value: string | null | undefined): string {
   if (isScheduleEvery(value)) return scheduleEveryLabel(value);
   if (value) return value;
   return "default cadence";
@@ -1356,7 +1521,7 @@ function compactDateTime(value: string | null | undefined): string {
   });
 }
 
-function dutyStateClass(state: string): string {
+function agentResponsibilityStateClass(state: string): string {
   if (state === "due") return "border-sky-400/25 bg-sky-400/10 text-sky-200";
   if (state === "waiting")
     return "border-white/10 bg-white/[0.04] text-white/60";
@@ -1367,39 +1532,39 @@ function dutyStateClass(state: string): string {
   return "border-amber-400/25 bg-amber-400/10 text-amber-200";
 }
 
-function GoalDutiesSection({
+function GoalAgentResponsibilitiesSection({
   goal,
   label,
-  duties,
+  agentResponsibilities,
   runningSlug,
   onRun,
 }: {
   goal: ManagedGoalRecord;
   label: string;
-  duties: Duty[];
+  agentResponsibilities: AgentResponsibility[];
   runningSlug: string | null;
   onRun: (slug: string) => void;
 }) {
-  const dutyBySlug = useMemo(
-    () => new Map(duties.map((duty) => [duty.slug, duty])),
-    [duties],
+  const agentResponsibilityBySlug = useMemo(
+    () => new Map(agentResponsibilities.map((agentResponsibility) => [agentResponsibility.slug, agentResponsibility])),
+    [agentResponsibilities],
   );
-  const scheduleDuties = goal.state.scheduleState?.duties ?? {};
-  const dutySlugs = useMemo(() => {
+  const scheduleAgentResponsibilities = goal.state.scheduleState?.agentResponsibilities ?? {};
+  const agentResponsibilitySlugs = useMemo(() => {
     const ordered = new Set<string>();
-    for (const slug of goal.state.duties) ordered.add(slug);
-    for (const step of goal.state.route) ordered.add(step.duty);
-    for (const slug of Object.keys(scheduleDuties)) ordered.add(slug);
+    for (const slug of goal.state.agentResponsibilities) ordered.add(slug);
+    for (const step of goal.state.route) ordered.add(step.agentResponsibility);
+    for (const slug of Object.keys(scheduleAgentResponsibilities)) ordered.add(slug);
     return Array.from(ordered);
-  }, [goal.state.duties, goal.state.route, scheduleDuties]);
+  }, [goal.state.agentResponsibilities, goal.state.route, scheduleAgentResponsibilities]);
   const lastDecision = goal.state.scheduleState?.lastDecision;
 
   return (
     <ContentSection
       icon={Play}
-      title="Duties"
+      title="AgentResponsibilities"
       subtitle={`What this ${label} checks and chose last tick`}
-      count={dutySlugs.length}
+      count={agentResponsibilitySlugs.length}
     >
       {lastDecision ? (
         <div className="mb-3 rounded-md border border-white/[0.08] bg-black/20 px-3 py-2 text-xs text-muted-foreground">
@@ -1409,23 +1574,23 @@ function GoalDutiesSection({
         </div>
       ) : null}
 
-      {dutySlugs.length ? (
+      {agentResponsibilitySlugs.length ? (
         <div className="space-y-2">
-          {dutySlugs.map((slug) => {
-            const duty = dutyBySlug.get(slug);
-            const schedule = scheduleDuties[slug];
+          {agentResponsibilitySlugs.map((slug) => {
+            const agentResponsibility = agentResponsibilityBySlug.get(slug);
+            const schedule = scheduleAgentResponsibilities[slug];
             const state =
               schedule?.state ??
-              (duty?.disabled
+              (agentResponsibility?.disabled
                 ? "disabled"
-                : duty?.schedule === "manual"
+                : agentResponsibility?.schedule === "manual"
                   ? "manual"
                   : "waiting");
-            const title = schedule?.title ?? duty?.title ?? slug;
-            const cadence = schedule?.cadence ?? duty?.schedule ?? null;
+            const title = schedule?.title ?? agentResponsibility?.title ?? slug;
+            const cadence = schedule?.cadence ?? agentResponsibility?.schedule ?? null;
             const reason =
               schedule?.reason ??
-              (duty ? `Not selected by last ${label} tick` : "Duty not loaded");
+              (agentResponsibility ? `Not selected by last ${label} tick` : "AgentResponsibility not loaded");
 
             return (
               <div
@@ -1440,7 +1605,7 @@ function GoalDutiesSection({
                     <span
                       className={cn(
                         "shrink-0 rounded border px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
-                        dutyStateClass(state),
+                        agentResponsibilityStateClass(state),
                       )}
                     >
                       {state}
@@ -1448,17 +1613,17 @@ function GoalDutiesSection({
                   </div>
                   <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     <span className="font-mono">{slug}</span>
-                    <span>{dutyCadenceLabel(cadence)}</span>
+                    <span>{agentResponsibilityCadenceLabel(cadence)}</span>
                     <span>
                       last{" "}
                       {compactDateTime(
-                        schedule?.lastFiredAt ?? duty?.lastTickAt,
+                        schedule?.lastFiredAt ?? agentResponsibility?.lastTickAt,
                       )}
                     </span>
                     <span>
                       next{" "}
                       {compactDateTime(
-                        schedule?.nextEligibleAt ?? duty?.nextEligibleAt,
+                        schedule?.nextEligibleAt ?? agentResponsibility?.nextEligibleAt,
                       )}
                     </span>
                   </div>
@@ -1485,7 +1650,7 @@ function GoalDutiesSection({
           })}
         </div>
       ) : (
-        <EmptyHint text="No duties are attached to this goal." />
+        <EmptyHint text="No agentResponsibilities are attached to this goal." />
       )}
     </ContentSection>
   );
@@ -1542,7 +1707,7 @@ export function ManagedModelsView({ model }: { model: ManagedGoalModel }) {
     refetch,
     error,
   } = useManagedGoals();
-  const { data: duties = [] } = useDuties();
+  const { data: agentResponsibilities = [] } = useAgentResponsibilities();
   const setGoalState = useSetManagedGoalState();
   const runManagedGoal = useRunManagedGoal();
   const deleteManagedGoal = useDeleteManagedGoal();
@@ -1621,7 +1786,7 @@ export function ManagedModelsView({ model }: { model: ManagedGoalModel }) {
           selectedGoal ? (
             <GoalDetail
               goal={selectedGoal}
-              duties={duties}
+              agentResponsibilities={agentResponsibilities}
               copy={copy}
               onBack={() => setSelectedId(null)}
               onEdit={() => setEditingGoal(selectedGoal)}
@@ -1702,7 +1867,7 @@ export function ManagedModelsView({ model }: { model: ManagedGoalModel }) {
         goal={editingGoal}
         open={!!editingGoal}
         label={copy.singular}
-        duties={duties}
+        agentResponsibilities={agentResponsibilities}
         onOpenChange={(open) => {
           if (!open) setEditingGoal(null);
         }}

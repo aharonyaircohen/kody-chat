@@ -12,4 +12,4 @@ Use it to understand pull request flow:
 - authors, labels, branches, review state, and checks
 - stale PRs, blocked checks, missing review, and weak issue linkage
 
-The graph is a state report. Duties and agents should read it when deciding where delivery flow is blocked, but they should not hand-edit the report.
+The graph is a state report. AgentResponsibilities and agents should read it when deciding where delivery flow is blocked, but they should not hand-edit the report.

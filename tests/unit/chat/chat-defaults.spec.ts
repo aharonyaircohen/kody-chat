@@ -1,6 +1,6 @@
 /**
- * Verifies chat-defaults bundle structure: agentIdentity, executable, duties,
- * skills. Repo-backed duties/executables are source truth; TS defaults are
+ * Verifies chat-defaults bundle structure: agentIdentity, agentAction, agentResponsibilities,
+ * skills. Repo-backed agentResponsibilities/agent-actions are source truth; TS defaults are
  * fallback data.
  */
 
@@ -22,21 +22,21 @@ import {
 import { AGENT_KODY } from "@dashboard/lib/agents";
 
 describe("chat-defaults bundle", () => {
-  it("loads repo-backed chat duties when present, otherwise uses defaults", async () => {
+  it("loads repo-backed chat agentResponsibilities when present, otherwise uses defaults", async () => {
     const bundle = await loadChatDefaults("acme", "widget");
-    const executablePath = ".kody/executables/kody-chat/profile.json";
-    const analyzerPath = ".kody/duties/kody-analyzer/profile.json";
+    const agentActionPath = ".kody/agent-actions/kody-chat/profile.json";
+    const analyzerPath = ".kody/agent-responsibilities/kody-analyzer/profile.json";
 
-    expect(bundle.executable.slug).toBe("kody-chat");
-    if (existsSync(executablePath) && existsSync(analyzerPath)) {
-      const executableProfile = JSON.parse(readFileSync(executablePath, "utf8"));
+    expect(bundle.agentAction.slug).toBe("kody-chat");
+    if (existsSync(agentActionPath) && existsSync(analyzerPath)) {
+      const agentActionProfile = JSON.parse(readFileSync(agentActionPath, "utf8"));
       const analyzerProfile = JSON.parse(readFileSync(analyzerPath, "utf8"));
-      expect(bundle.executable).toMatchObject(executableProfile);
-      expect(analyzerProfile.executable).toBe("kody-chat");
+      expect(bundle.agentAction).toMatchObject(agentActionProfile);
+      expect(analyzerProfile.agentAction).toBe("kody-chat");
     } else {
-      expect(bundle.executable).toMatchObject(DEFAULT_EXECUTABLE);
+      expect(bundle.agentAction).toMatchObject(DEFAULT_EXECUTABLE);
     }
-    expect(bundle.duties.some((duty) => duty.slug === "kody-analyzer")).toBe(
+    expect(bundle.agentResponsibilities.some((agentResponsibility) => agentResponsibility.slug === "kody-analyzer")).toBe(
       true,
     );
     expect(bundle.skills["diagnose-pr"]?.body).toContain(
@@ -89,7 +89,7 @@ describe("chat-defaults bundle", () => {
     }
   });
 
-  it("executable's tools list contains only names that exist in the chat registry", () => {
+  it("agentAction's tools list contains only names that exist in the chat registry", () => {
     // Every name in DEFAULT_EXECUTABLE.tools must match a tool the
     // route actually wires. If we add a name here that the registry
     // doesn't have, the model is told about a tool that doesn't
@@ -103,11 +103,11 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/task-tools.ts",
       "app/api/kody/chat/tools/bug-tools.ts",
       "app/api/kody/chat/tools/goal-tools.ts",
-      "app/api/kody/chat/tools/duty-tools.ts",
-      "app/api/kody/chat/tools/duty-admin-tools.ts",
+      "app/api/kody/chat/tools/agentResponsibility-tools.ts",
+      "app/api/kody/chat/tools/agentResponsibility-admin-tools.ts",
       "app/api/kody/chat/tools/agent-tools.ts",
       "app/api/kody/chat/tools/agent-admin-tools.ts",
-      "app/api/kody/chat/tools/executable-tools.ts",
+      "app/api/kody/chat/tools/agentAction-tools.ts",
       "app/api/kody/chat/tools/commands-tools.ts",
       "app/api/kody/chat/tools/context-tools.ts",
       "app/api/kody/chat/tools/instructions-tools.ts",
@@ -162,14 +162,14 @@ describe("chat-defaults bundle", () => {
     for (const name of DEFAULT_EXECUTABLE.tools) {
       expect(
         toolKeys.has(name),
-        `Tool "${name}" is in the executable's allowlist but not in any chat tool file. ` +
+        `Tool "${name}" is in the agentAction's allowlist but not in any chat tool file. ` +
           "The model will be told it can call this tool but the call will fail. " +
           "Either implement the tool or remove it from the allowlist.",
       ).toBe(true);
     }
   });
 
-  it("exposes 4 duties — kody-analyzer, kody-operator, kody-vibe, kody-mem", () => {
+  it("exposes 4 agentResponsibilities — kody-analyzer, kody-operator, kody-vibe, kody-mem", () => {
     const slugs = DEFAULT_DUTIES.map((d) => d.slug).sort();
     expect(slugs).toEqual([
       "kody-analyzer",
@@ -179,7 +179,7 @@ describe("chat-defaults bundle", () => {
     ]);
   });
 
-  it("groups the right skills under the right duty", () => {
+  it("groups the right skills under the right agentResponsibility", () => {
     const analyzer = DEFAULT_DUTIES.find((d) => d.slug === "kody-analyzer");
     const operator = DEFAULT_DUTIES.find((d) => d.slug === "kody-operator");
     const vibe = DEFAULT_DUTIES.find((d) => d.slug === "kody-vibe");
@@ -190,7 +190,7 @@ describe("chat-defaults bundle", () => {
     expect(analyzer!.body).toContain("goal-planner");
 
     expect(operator!.body).toContain("create-issue");
-    expect(operator!.body).toContain("create-duty");
+    expect(operator!.body).toContain("create-agentResponsibility");
     expect(operator!.body).toContain("create-agent");
 
     expect(vibe!.body).toContain("vibe");
@@ -207,14 +207,14 @@ describe("chat-defaults bundle", () => {
     );
     expect(bundle.skills.memory.body).toContain(trigger);
     expect(
-      bundle.duties.find((duty) => duty.slug === "kody-mem")!.body,
+      bundle.agentResponsibilities.find((agentResponsibility) => agentResponsibility.slug === "kody-mem")!.body,
     ).toContain("explicit memory command");
   });
 
-  it("exposes 8 skills — diagnose-pr, report-advise, goal-planner, create-issue, create-duty, create-agent, vibe, memory", () => {
+  it("exposes 8 skills — diagnose-pr, report-advise, goal-planner, create-issue, create-agentResponsibility, create-agent, vibe, memory", () => {
     expect(Object.keys(DEFAULT_SKILLS).sort()).toEqual([
       "create-agent",
-      "create-duty",
+      "create-agentResponsibility",
       "create-issue",
       "diagnose-pr",
       "goal-planner",
@@ -224,25 +224,25 @@ describe("chat-defaults bundle", () => {
     ]);
   });
 
-  it("executable's skills array matches the keys of DEFAULT_SKILLS", () => {
+  it("agentAction's skills array matches the keys of DEFAULT_SKILLS", () => {
     const skillSlugs = Object.keys(DEFAULT_SKILLS).sort();
     const execSkills = [...DEFAULT_EXECUTABLE.skills].sort();
     expect(execSkills).toEqual(skillSlugs);
   });
 
-  it("executable's tools array is a flat list of names (no objects)", () => {
+  it("agentAction's tools array is a flat list of names (no objects)", () => {
     for (const t of DEFAULT_EXECUTABLE.tools) {
       expect(typeof t).toBe("string");
     }
     expect(DEFAULT_EXECUTABLE.tools.length).toBeGreaterThan(0);
   });
 
-  it("executable's tools list is deduped", () => {
+  it("agentAction's tools list is deduped", () => {
     const seen = new Set(DEFAULT_EXECUTABLE.tools);
     expect(seen.size).toBe(DEFAULT_EXECUTABLE.tools.length);
   });
 
-  it("executable exposes the workflow/pipeline status tools (regression: chat must recognize workflow status)", () => {
+  it("agentAction exposes the workflow/pipeline status tools (regression: chat must recognize workflow status)", () => {
     // Regression guard — the chat used to lose these and started telling
     // users it had no access to workflow runs. If a future refactor drops
     // any of these, this test fails.
@@ -256,17 +256,17 @@ describe("chat-defaults bundle", () => {
     }
   });
 
-  it("executable's tool names match the chat registry naming (no camelCase drift)", () => {
+  it("agentAction's tool names match the chat registry naming (no camelCase drift)", () => {
     // Guard against future renames that don't update the bundle — known
-    // drift: `remoteExec` vs registry's `remote_exec`, `read_duty_creation_guide`
-    // vs the real `read_executable_creation_guide`, etc.
+    // drift: `remoteExec` vs registry's `remote_exec`, `read_agent_responsibility_creation_guide`
+    // vs the real `read_agentAction_creation_guide`, etc.
     const known = new Set([
       "remote_exec",
       "remote_read",
       "remote_write",
       "remote_ls",
-      "read_duty_creation_guide",
-      "read_executable_creation_guide",
+      "read_agent_responsibility_creation_guide",
+      "read_agentAction_creation_guide",
     ]);
     for (const t of DEFAULT_EXECUTABLE.tools) {
       if (t.startsWith("remote") || t.includes("creation_guide")) {
@@ -289,7 +289,7 @@ describe("composeChatPrompt", () => {
     expect(prompt).toContain("acme/widget");
     // Goals / missions namespace block.
     expect(prompt).toContain("## Goals and missions");
-    // Workflows header + all 4 duties.
+    // Workflows header + all 4 agentResponsibilities.
     expect(prompt).toContain("## Workflows");
     expect(prompt).toContain("### kody-analyzer");
     expect(prompt).toContain("### kody-operator");
@@ -301,7 +301,7 @@ describe("composeChatPrompt", () => {
     expect(prompt).toContain("### report-advise");
     expect(prompt).toContain("### goal-planner");
     expect(prompt).toContain("### create-issue");
-    expect(prompt).toContain("### create-duty");
+    expect(prompt).toContain("### create-agentResponsibility");
     expect(prompt).toContain("### create-agent");
     expect(prompt).toContain("### vibe");
     expect(prompt).toContain("### memory");

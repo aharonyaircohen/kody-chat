@@ -28,7 +28,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { PageShell } from "./PageShell";
-import { PerExecutableModelCard } from "./PerExecutableModelCard";
+import { PerAgentActionModelCard } from "./PerAgentActionModelCard";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
@@ -372,8 +372,8 @@ function ModelsManagerInner() {
           <strong className="text-white/60">Kody Live</strong>.
         </p>
 
-        {/* Per-executable model overrides (agent.perExecutable) */}
-        {!isLoading && !error && <PerExecutableModelCard models={models} />}
+        {/* Per-agentAction model overrides (agent.perAgentAction) */}
+        {!isLoading && !error && <PerAgentActionModelCard models={models} />}
       </div>
 
       {editing && (

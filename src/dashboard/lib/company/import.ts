@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern company-import
  * @ai-summary Apply a portable Company bundle to the connected repo.
- *   Writes agent, duties, and commands via their existing file helpers,
+ *   Writes agent, agentResponsibilities, and commands via their existing file helpers,
  *   plus the single instructions file. On a slug/file that already
  *   exists, `mode` decides: "skip" (default, non-destructive) leaves the
  *   target untouched; "overwrite" replaces it. Returns a structured
@@ -13,7 +13,7 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import { readDutyFile, writeDutyFile } from "../duties-files";
+import { readAgentResponsibilityFile, writeAgentResponsibilityFile } from "../agent-responsibilities-files";
 import { readAgentFile, writeAgentFile } from "../agent-files";
 import { readCommandFile, writeCommandFile } from "../commands/files";
 import { readContextFile, writeContextFile } from "../context/files";
@@ -22,9 +22,9 @@ import {
   writeInstructionsFile,
 } from "../instructions/files";
 import {
-  readExecutableFolderFiles,
-  writeExecutableFolderFiles,
-} from "../executables";
+  readAgentActionFolderFiles,
+  writeAgentActionFolderFiles,
+} from "../agent-actions";
 import {
   readManagedGoalFile,
   writeManagedGoalFile,
@@ -45,7 +45,7 @@ import type {
   CompanyImportResult,
   CompanyCommandEntry,
   CompanyContextEntry,
-  CompanyExecutableEntry,
+  CompanyAgentActionEntry,
   CompanyGoalEntry,
   CompanyTickEntry,
   ParsedCompanyBundle,
@@ -61,7 +61,7 @@ interface TickWriter {
 }
 
 /**
- * Import one ticked collection (agent or duties). For each entry: skip or
+ * Import one ticked collection (agent or agentResponsibilities). For each entry: skip or
  * overwrite if it already exists, otherwise create. Failures are caught
  * per-entry so one bad file doesn't abort the whole import.
  */
@@ -95,9 +95,9 @@ async function importTickCollection(
         reviewer: entry.reviewer,
         action: entry.action,
         mentions: entry.mentions,
-        executable: entry.executable,
-        executables: entry.executables,
-        dutyTools: entry.dutyTools,
+        agentAction: entry.agentAction,
+        agentActions: entry.agentActions,
+        agentResponsibilityTools: entry.agentResponsibilityTools,
         tickScript: entry.tickScript,
         readsFrom: entry.readsFrom,
         writesTo: entry.writesTo,
@@ -180,12 +180,12 @@ async function importContexts(
 }
 
 /**
- * Import executables. Each entry is a folder (a path→content map); write the
+ * Import agentActions. Each entry is a folder (a path→content map); write the
  * whole folder exactly so nested scripts, templates, and helper files survive.
  */
-async function importExecutables(
+async function importAgentActions(
   octokit: Octokit,
-  entries: CompanyExecutableEntry[],
+  entries: CompanyAgentActionEntry[],
   mode: CompanyImportMode,
   notes: string[],
 ): Promise<CompanyImportCounts> {
@@ -195,16 +195,16 @@ async function importExecutables(
       const profileJson = entry.files["profile.json"];
       if (!profileJson) {
         counts.failed++;
-        notes.push(`executable "${entry.slug}" failed: missing profile.json`);
+        notes.push(`agentAction "${entry.slug}" failed: missing profile.json`);
         continue;
       }
-      const existing = await readExecutableFolderFiles(entry.slug, octokit);
+      const existing = await readAgentActionFolderFiles(entry.slug, octokit);
       if (existing && mode === "skip") {
         counts.skipped++;
         continue;
       }
 
-      await writeExecutableFolderFiles({
+      await writeAgentActionFolderFiles({
         octokit,
         slug: entry.slug,
         files: entry.files,
@@ -215,7 +215,7 @@ async function importExecutables(
     } catch (err) {
       counts.failed++;
       const msg = err instanceof Error ? err.message : String(err);
-      notes.push(`executable "${entry.slug}" failed: ${msg}`);
+      notes.push(`agentAction "${entry.slug}" failed: ${msg}`);
     }
   }
   return counts;
@@ -291,11 +291,11 @@ async function importConfig(
       allowedAssociations:
         Array.isArray(existing?.access?.allowedAssociations) &&
         existing.access.allowedAssociations.length > 0,
-      defaultExecutable: !!existing?.defaultExecutable,
-      defaultPrExecutable: !!existing?.defaultPrExecutable,
-      perExecutable:
-        !!existing?.agent?.perExecutable &&
-        Object.keys(existing.agent.perExecutable).length > 0,
+      defaultAgentAction: !!existing?.defaultAgentAction,
+      defaultPrAgentAction: !!existing?.defaultPrAgentAction,
+      perAgentAction:
+        !!existing?.agent?.perAgentAction &&
+        Object.keys(existing.agent.perAgentAction).length > 0,
     };
 
     const patch: ConfigPatch = {};
@@ -304,14 +304,14 @@ async function importConfig(
     if (config.allowedAssociations && !has.allowedAssociations) {
       patch.allowedAssociations = config.allowedAssociations;
     }
-    if (config.defaultExecutable && !has.defaultExecutable) {
-      patch.defaultExecutable = config.defaultExecutable;
+    if (config.defaultAgentAction && !has.defaultAgentAction) {
+      patch.defaultAgentAction = config.defaultAgentAction;
     }
-    if (config.defaultPrExecutable && !has.defaultPrExecutable) {
-      patch.defaultPrExecutable = config.defaultPrExecutable;
+    if (config.defaultPrAgentAction && !has.defaultPrAgentAction) {
+      patch.defaultPrAgentAction = config.defaultPrAgentAction;
     }
-    if (config.perExecutable && !has.perExecutable) {
-      patch.perExecutable = config.perExecutable;
+    if (config.perAgentAction && !has.perAgentAction) {
+      patch.perAgentAction = config.perAgentAction;
     }
 
     if (Object.keys(patch).length === 0) return "skipped";
@@ -333,7 +333,7 @@ async function importConfig(
 
 /**
  * Apply a validated bundle to the connected repo. Agent first, then
- * duties — so a duty that names an agent lands after its executor
+ * agentResponsibilities — so a agentResponsibility that names an agent lands after its executor
  * exists (cosmetic ordering; the engine resolves at tick time regardless).
  */
 export async function applyCompanyBundle(
@@ -351,19 +351,19 @@ export async function applyCompanyBundle(
     { read: readAgentFile, write: writeAgentFile },
     notes,
   );
-  const duties = await importTickCollection(
+  const agentResponsibilities = await importTickCollection(
     octokit,
-    "duty",
-    bundle.duties,
+    "agentResponsibility",
+    bundle.agentResponsibilities,
     mode,
-    { read: readDutyFile, write: writeDutyFile },
+    { read: readAgentResponsibilityFile, write: writeAgentResponsibilityFile },
     notes,
   );
   const contexts = await importContexts(octokit, bundle.contexts, mode, notes);
   const commands = await importCommands(octokit, bundle.commands, mode, notes);
-  const executables = await importExecutables(
+  const agentActions = await importAgentActions(
     octokit,
-    bundle.executables,
+    bundle.agentActions,
     mode,
     notes,
   );
@@ -389,17 +389,17 @@ export async function applyCompanyBundle(
     }
   }
 
-  // Config last: it may reference executables (default*Executable slugs) that
+  // Config last: it may reference agentActions (default*AgentAction slugs) that
   // the steps above just created.
   const config = await importConfig(octokit, bundle.config, mode, notes);
 
   return {
     mode,
     agent,
-    duties,
+    agentResponsibilities,
     contexts,
     commands,
-    executables,
+    agentActions,
     goals,
     instructions,
     config,

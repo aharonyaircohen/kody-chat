@@ -62,14 +62,14 @@ describe("activity run logs", () => {
         JSON.stringify({
           ts: "2026-06-16T10:00:00Z",
           runId: "123",
-          executable: "build",
+          agentAction: "build",
           kind: "stage_start",
           name: "execute",
         }),
         JSON.stringify({
           ts: "2026-06-16T10:00:02Z",
           runId: "123",
-          executable: "preflight",
+          agentAction: "preflight",
           kind: "step",
           name: "checkout",
           durationMs: 1250,
@@ -78,7 +78,7 @@ describe("activity run logs", () => {
         JSON.stringify({
           ts: "2026-06-16T10:00:05Z",
           runId: "123",
-          executable: "agent",
+          agentAction: "agent",
           kind: "container",
           name: "codex",
           meta: { exitCode: 2, reason: "tests failed" },
@@ -111,9 +111,9 @@ describe("activity run logs", () => {
       name: "execute",
       durationMs: 3000,
     })}\n`;
-    const zip = makeStoredZip(".kody/runs/123/events.jsonl", jsonl);
+    const zip = makeStoredZip(".kody/agent-runs/123/events.jsonl", jsonl);
 
-    expect(extractZipEntryText(zip, ".kody/runs/123/events.jsonl")).toBe(jsonl);
+    expect(extractZipEntryText(zip, ".kody/agent-runs/123/events.jsonl")).toBe(jsonl);
     const parsed = parseKodyRunLogZip(zip, 123);
 
     expect(parsed?.events).toHaveLength(1);

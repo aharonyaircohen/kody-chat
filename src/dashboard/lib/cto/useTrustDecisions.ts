@@ -4,7 +4,7 @@
  * @domain kody
  * @pattern trust-decisions-client
  * @ai-summary TanStack Query binding over GET /api/kody/cto/decision.
- *   Exposes the latest verdict per `${duty}:${taskNumber}:${action}` plus a
+ *   Exposes the latest verdict per `${agentResponsibility}:${taskNumber}:${action}` plus a
  *   typed lookup so the inbox can show a verdict badge instead of
  *   Approve/Reject once a recommendation was decided on any device.
  *
@@ -33,7 +33,7 @@ export interface UseTrustDecisionsResult {
    * BEFORE this rec was posted is not applied to it.
    */
   verdictFor: (
-    duty: string,
+    agentResponsibility: string,
     taskNumber: number,
     action: CtoActionable,
     sinceIso?: string,
@@ -59,8 +59,8 @@ export function useTrustDecisions(): UseTrustDecisionsResult {
   const decided = useMemo(() => query.data ?? {}, [query.data]);
 
   return {
-    verdictFor: (duty, taskNumber, action, sinceIso) => {
-      const v = decided[trustDecisionKey(duty, taskNumber, action)];
+    verdictFor: (agentResponsibility, taskNumber, action, sinceIso) => {
+      const v = decided[trustDecisionKey(agentResponsibility, taskNumber, action)];
       if (!v) return null;
       if (sinceIso) {
         const since = Date.parse(sinceIso);

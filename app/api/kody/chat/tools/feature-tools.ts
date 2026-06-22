@@ -113,23 +113,23 @@ session ID and an inline HMAC token. The engine streams events back to
 Each stage's status is committed to a per-task \`status.json\` on the work branch.`,
   },
   {
-    id: "kody-duties",
-    name: "Kody Duties (scheduled duty folders)",
+    id: "kody-agentResponsibilities",
+    name: "Kody AgentResponsibilities (scheduled agentResponsibility folders)",
     summary:
-      "Folders at .kody/duties/<slug>/ that the engine duty-scheduler ticks.",
-    details: `A Kody Duty is a folder at \`.kody/duties/<slug>/\`:
+      "Folders at .kody/agent-responsibilities/<slug>/ that the engine agent-responsibility-scheduler ticks.",
+    details: `A Kody AgentResponsibility is a folder at \`.kody/agent-responsibilities/<slug>/\`:
 
-- \`profile.json\` stores action, executable, cadence, agent, mentions, and data-contract metadata.
-- \`duty.md\` stores the human-readable purpose, output, allowed commands, and restrictions.
+- \`profile.json\` stores action, agentAction, cadence, agent, mentions, and data-contract metadata.
+- \`agent-responsibility.md\` stores the human-readable purpose, output, allowed commands, and restrictions.
 
-The engine duty-scheduler enumerates duty folders and ticks due duties. Each
-duty profile's \`every\` value decides whether it may take action on a given tick.
+The engine agent-responsibility-scheduler enumerates agentResponsibility folders and ticks due agentResponsibilities. Each
+agentResponsibility profile's \`every\` value decides whether it may take action on a given tick.
 
-Format (must match existing duties in \`.kody/duties/\`):
+Format (must match existing agentResponsibilities in \`.kody/agent-responsibilities/\`):
 - \`profile.json\` metadata
-- \`duty.md\` with an H1 title
+- \`agent-responsibility.md\` with an H1 title
 - \`## Job\` — purpose and outcome
-- \`## Executable\` when relevant
+- \`## AgentAction\` when relevant
 - \`## Output\`
 - \`## Allowed Commands\`
 - \`## Restrictions\`
@@ -138,14 +138,14 @@ Default chat template is REPORT-PRODUCER: each active tick gathers inputs,
 composes a YAML \`findings:\` report, and refreshes
 \`kody-state:.kody/reports/<slug>.md\`.
 
-Do not put metadata or raw state keys in \`duty.md\`. Runtime state stays
+Do not put metadata or raw state keys in \`agent-responsibility.md\`. Runtime state stays
 engine-owned.
 
-The chat exposes \`read_duty_creation_guide\` and \`create_or_update_kody_duty\` to
-scaffold a new duty after a gap-analysis conversation. The same
-\`create_or_update_kody_duty\` tool patches an existing duty in place —
+The chat exposes \`read_agent_responsibility_creation_guide\` and \`create_or_update_agent_responsibility\` to
+scaffold a new agentResponsibility after a gap-analysis conversation. The same
+\`create_or_update_agent_responsibility\` tool patches an existing agentResponsibility in place —
 read-merge: omit a field to preserve it, pass \`body\` to replace the
-markdown, never first turn and always call \`read_duty\` first to surface
+markdown, never first turn and always call \`read_agent_responsibility\` first to surface
 the current profile.`,
   },
   {
@@ -268,7 +268,7 @@ function featureFromAgent(agent: AgentConfig): FeatureEntry {
 const NAV_HREF_TO_HANDWRITTEN: Readonly<Record<string, string>> = {
   "/": "task-dashboard",
   "/secrets": "secrets-vault",
-  "/duties": "kody-duties",
+  "/agent-responsibilities": "kody-agentResponsibilities",
   "/agents": "kody-agent",
 };
 

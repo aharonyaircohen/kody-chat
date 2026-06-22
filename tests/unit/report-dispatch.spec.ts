@@ -8,9 +8,9 @@ import {
 describe("stripVolatileLines", () => {
   it("treats a timestamp-only re-save as unchanged", () => {
     const before = [
-      "# Duty Call",
+      "# AgentResponsibility Call",
       "",
-      "_Cadence: daily — one proposed duty per cycle, advisory only._",
+      "_Cadence: daily — one proposed agentResponsibility per cycle, advisory only._",
       "",
       "_Last updated: 2026-05-31T09:21:35Z_",
       "",
@@ -61,13 +61,13 @@ describe("extractTouchedReportSlugs", () => {
       commits: [
         {
           added: [".kody/reports/security-audit.md"],
-          modified: [".kody/reports/duty-call.md", "README.md"],
+          modified: [".kody/reports/agent-responsibility-call.md", "README.md"],
         },
-        { modified: [".kody/reports/duty-call.md"] },
+        { modified: [".kody/reports/agent-responsibility-call.md"] },
       ],
     };
     expect(extractTouchedReportSlugs(payload).sort()).toEqual([
-      "duty-call",
+      "agent-responsibility-call",
       "security-audit",
     ]);
   });

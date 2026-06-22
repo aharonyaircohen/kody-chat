@@ -22,13 +22,13 @@ describe("managed goals API client", () => {
                 outcome: "Users can create goals from the dashboard.",
                 evidence: ["goalVerified"],
               },
-              duties: ["research"],
+              agentResponsibilities: ["research"],
               route: [
                 {
                   stage: "verify",
                   evidence: "goalVerified",
-                  duty: "research",
-                  executable: "research",
+                  agentResponsibility: "research",
+                  agentAction: "research",
                 },
               ],
               facts: {},
@@ -50,8 +50,8 @@ describe("managed goals API client", () => {
         {
           stage: "verify",
           evidence: "goalVerified",
-          duty: "research",
-          executable: "research",
+          agentResponsibility: "research",
+          agentAction: "research",
         },
       ],
     });
@@ -77,13 +77,13 @@ describe("managed goals API client", () => {
                 outcome: "Run this goal again.",
                 evidence: ["goalVerified"],
               },
-              duties: ["research"],
+              agentResponsibilities: ["research"],
               route: [
                 {
                   stage: "verify",
                   evidence: "goalVerified",
-                  duty: "research",
-                  executable: "research",
+                  agentResponsibility: "research",
+                  agentAction: "research",
                 },
               ],
               facts: {},
@@ -105,8 +105,8 @@ describe("managed goals API client", () => {
         {
           stage: "verify",
           evidence: "goalVerified",
-          duty: "research",
-          executable: "research",
+          agentResponsibility: "research",
+          agentAction: "research",
         },
       ],
     });
@@ -134,13 +134,13 @@ describe("managed goals API client", () => {
                   outcome: "Edited goal.",
                   evidence: ["goalVerified"],
                 },
-                duties: ["research"],
+                agentResponsibilities: ["research"],
                 route: [
                   {
                     stage: "verify",
                     evidence: "goalVerified",
-                    duty: "research",
-                    executable: "research",
+                    agentResponsibility: "research",
+                    agentAction: "research",
                   },
                 ],
                 facts: {},

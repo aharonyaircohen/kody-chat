@@ -3,13 +3,13 @@
  * @domain kody
  * @pattern ticked-frontmatter
  * @ai-summary Tiny YAML-frontmatter parser/serializer for legacy
- *   "ticked markdown" records. Duties now store metadata in
- *   `.kody/duties/<slug>/profile.json`; this module remains for agent and
- *   for schedule/type helpers reused by the folder-backed duty UI.
+ *   "ticked markdown" records. AgentResponsibilities now store metadata in
+ *   `.kody/agent-responsibilities/<slug>/profile.json`; this module remains for agent and
+ *   for schedule/type helpers reused by the folder-backed agentResponsibility UI.
  *
  *   No `gray-matter` dep on purpose — the format is intentionally
  *   restricted (flat, scalar values only) and a 30-line parser keeps
- *   the bundle small. `duties-frontmatter.ts` is a thin re-export shim
+ *   the bundle small. `agentResponsibilities-frontmatter.ts` is a thin re-export shim
  *   over this single implementation.
  */
 
@@ -45,15 +45,15 @@ const SCHEDULE_EVERY_VALUES: readonly ScheduleEvery[] = [
 
 export interface TickFrontmatter {
   /**
-   * Public `@kody <action>` name for a duty. Duties own the command surface;
-   * executables remain implementation units.
+   * Public `@kody <action>` name for a agentResponsibility. AgentResponsibilities own the command surface;
+   * agentActions remain implementation units.
    */
   action?: string;
   /**
-   * Primary implementation executable for a duty. This is the normal
-   * duty→executable link; `executables:` remains for legacy/multi-run duties.
+   * Primary implementation agentAction for a agentResponsibility. This is the normal
+   * agentResponsibility→agentAction link; `agentActions:` remains for legacy/multi-run agentResponsibilities.
    */
-  executable?: string;
+  agentAction?: string;
   /** Cadence between ticks. Absent = "every cron wake" (legacy default). */
   every?: ScheduleEvery;
   /**
@@ -65,40 +65,40 @@ export interface TickFrontmatter {
   disabled?: boolean;
   /**
    * Slug of the agent (agentIdentity) under `.kody/agents/<agent>.md` that
-   * executes this duty in legacy markdown metadata. Folder-backed duties store
+   * executes this agentResponsibility in legacy markdown metadata. Folder-backed agentResponsibilities store
    * the same value in `profile.json.agent`.
    */
   agent?: string;
   /**
-   * Agent slug responsible for reviewing this duty's output. Folder-backed
-   * duties store the same value in `profile.json.reviewer`.
+   * Agent slug responsible for reviewing this agentResponsibility's output. Folder-backed
+   * agentResponsibilities store the same value in `profile.json.reviewer`.
    */
   reviewer?: string;
   /**
    * GitHub logins this file's output should `@`-mention. Stored as a
    * comma-separated list on one line (`mentions: alice, bob`), no leading
-   * `@`. The engine reads it to ping the listed users in the duty's report.
+   * `@`. The engine reads it to ping the listed users in the agentResponsibility's report.
    * Absent / empty array = no mentions (the line is omitted on write).
    */
   mentions?: string[];
   /**
-   * Legacy or multi-run executable slugs this duty can dispatch. New single
-   * implementation duties should use `executable: <slug>`.
+   * Legacy or multi-run agentAction slugs this agentResponsibility can dispatch. New single
+   * implementation agentResponsibilities should use `agentAction: <slug>`.
    */
-  executables?: string[];
+  agentActions?: string[];
   /**
-   * Tool names exposed to the duty tick agent. Stored on the engine-facing
+   * Tool names exposed to the agentResponsibility tick agent. Stored on the engine-facing
    * `tools:` metadata line in legacy markdown records.
    */
-  dutyTools?: string[];
+  agentResponsibilityTools?: string[];
   /**
    * Optional script path the engine runs before/for the tick. `null` writes
    * no line; a non-empty string emits `tickScript: <path>`.
    */
   tickScript?: string | null;
-  /** Context/report/duty slugs this duty reads. */
+  /** Context/report/agentResponsibility slugs this agentResponsibility reads. */
   readsFrom?: string[];
-  /** Report/context slugs this duty writes. */
+  /** Report/context slugs this agentResponsibility writes. */
   writesTo?: string[];
 }
 
@@ -218,8 +218,8 @@ function parseFlatYaml(text: string): TickFrontmatter {
     const value = stripQuotes(line.slice(colon + 1).trim());
     if (key === "action" && value.length > 0) {
       out.action = value;
-    } else if (key === "executable" && value.length > 0) {
-      out.executable = value;
+    } else if (key === "agentAction" && value.length > 0) {
+      out.agentAction = value;
     } else if (key === "every" && isScheduleEvery(value)) {
       out.every = value;
     } else if (key === "disabled") {
@@ -236,12 +236,12 @@ function parseFlatYaml(text: string): TickFrontmatter {
       // `@`, drop empties. Only set the field when at least one login remains.
       const mentions = parseCommaList(value).map((m) => m.replace(/^@/, ""));
       if (mentions.length > 0) out.mentions = mentions;
-    } else if (key === "executables") {
-      const executables = parseCommaList(value);
-      if (executables.length > 0) out.executables = executables;
+    } else if (key === "agentActions") {
+      const agentActions = parseCommaList(value);
+      if (agentActions.length > 0) out.agentActions = agentActions;
     } else if (key === "tools") {
       const tools = parseCommaList(value);
-      if (tools.length > 0) out.dutyTools = tools;
+      if (tools.length > 0) out.agentResponsibilityTools = tools;
     } else if (key === "tickScript" && value.length > 0) {
       out.tickScript = value;
     } else if (key === "reads_from") {
@@ -261,8 +261,8 @@ function parseFlatYaml(text: string): TickFrontmatter {
 function serializeFlatYaml(frontmatter: TickFrontmatter): string[] {
   const lines: string[] = [];
   if (frontmatter.action) lines.push(`action: ${frontmatter.action}`);
-  if (frontmatter.executable)
-    lines.push(`executable: ${frontmatter.executable}`);
+  if (frontmatter.agentAction)
+    lines.push(`agentAction: ${frontmatter.agentAction}`);
   if (frontmatter.every) lines.push(`every: ${frontmatter.every}`);
   if (frontmatter.agent) lines.push(`agent: ${frontmatter.agent}`);
   if (frontmatter.reviewer)
@@ -271,10 +271,10 @@ function serializeFlatYaml(frontmatter: TickFrontmatter): string[] {
   // so an unchanged file stays byte-identical.
   if (frontmatter.mentions?.length)
     lines.push(`mentions: ${frontmatter.mentions.join(", ")}`);
-  if (frontmatter.executables?.length)
-    lines.push(`executables: ${frontmatter.executables.join(", ")}`);
-  if (frontmatter.dutyTools?.length)
-    lines.push(`tools: ${frontmatter.dutyTools.join(", ")}`);
+  if (frontmatter.agentActions?.length)
+    lines.push(`agentActions: ${frontmatter.agentActions.join(", ")}`);
+  if (frontmatter.agentResponsibilityTools?.length)
+    lines.push(`tools: ${frontmatter.agentResponsibilityTools.join(", ")}`);
   if (frontmatter.tickScript?.trim())
     lines.push(`tickScript: ${frontmatter.tickScript.trim()}`);
   if (frontmatter.readsFrom?.length)

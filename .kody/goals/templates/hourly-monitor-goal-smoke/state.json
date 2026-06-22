@@ -8,13 +8,13 @@
     "outcome": "Every hour, refresh the company graph report so there is visible output for schedule verification.",
     "evidence": ["companyGraphRefreshed"]
   },
-  "duties": ["company-graph"],
+  "agentResponsibilities": ["company-graph"],
   "route": [
     {
       "stage": "refresh-company-graph",
       "evidence": "companyGraphRefreshed",
-      "duty": "company-graph",
-      "executable": "company-graph",
+      "agentResponsibility": "company-graph",
+      "agentAction": "company-graph",
       "args": {
         "goal": { "fact": "goalId" }
       }

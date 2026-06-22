@@ -4,7 +4,7 @@
  * @pattern agent-control-hooks
  * @ai-summary React Query hooks for the Agent Control page.
  *   Backed by `.kody/agents/<slug>.md` files in the connected repo via
- *   the contents API. Duplicated from useDuties.ts.
+ *   the contents API. Duplicated from useAgentResponsibilities.ts.
  */
 "use client";
 
@@ -166,7 +166,7 @@ export function useDeleteAgent(actorLogin?: string) {
 
 /**
  * Dispatch an ad-hoc message to an agent — runs the agent one-shot
- * (like a duty) and replies on the control issue. When `actorLogin` is set,
+ * (like a agentResponsibility) and replies on the control issue. When `actorLogin` is set,
  * the reply @-mentions the requester so it lands in their inbox.
  */
 export function useDispatchAgent(actorLogin?: string) {

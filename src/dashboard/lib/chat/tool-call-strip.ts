@@ -32,8 +32,8 @@ const KNOWN_TOOL_NAMES: ReadonlySet<string> = new Set([
   "create_refactor",
   "create_documentation",
   "create_chore",
-  "read_duty_creation_guide",
-  "create_or_update_kody_duty",
+  "read_agent_responsibility_creation_guide",
+  "create_or_update_agent_responsibility",
   "create_kody_agent",
   "github_search_code",
   "github_get_file",
@@ -53,7 +53,7 @@ const KNOWN_TOOL_NAMES: ReadonlySet<string> = new Set([
   "recall",
   "update_memory",
   "preview_act",
-  "read_executable_creation_guide",
+  "read_agentAction_creation_guide",
 ]);
 
 /**

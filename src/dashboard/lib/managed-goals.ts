@@ -8,8 +8,8 @@
 
 export type ManagedGoalStateValue = "inactive" | "active" | "paused" | "done";
 export type ManagedGoalSchedule = "manual" | "1h" | "1d" | "7d" | "30d";
-export type ManagedGoalTypeId = "improve" | "routine" | "release" | "checklist";
-export type ManagedGoalModel = "objective" | "routine";
+export type ManagedGoalTypeId = "improve" | "agentLoop" | "release" | "checklist";
+export type ManagedGoalModel = "agentGoal" | "agentLoop";
 
 const LEGACY_ROUTINE_TYPE_IDS = new Set(["maintain", "monitor"]);
 
@@ -24,14 +24,14 @@ export interface ManagedGoalTypeDefinition {
   systemSummary: string;
   promptPlaceholder: string;
   evidence: string[];
-  duties: string[];
+  agentResponsibilities: string[];
   route: ManagedGoalRouteStep[];
 }
 
 export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
   {
     id: "improve",
-    model: "objective",
+    model: "agentGoal",
     label: "Improve",
     description:
       "Change something in the product or codebase and verify the result.",
@@ -41,41 +41,41 @@ export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
     promptPlaceholder:
       "Example: Make goal creation simple enough to use daily.",
     evidence: ["planReady", "changeImplemented", "changeVerified"],
-    duties: ["plan", "fix", "review"],
+    agentResponsibilities: ["plan", "fix", "review"],
     route: [
       {
         stage: "plan",
         evidence: "planReady",
-        duty: "plan",
-        executable: "plan",
+        agentResponsibility: "plan",
+        agentAction: "plan",
       },
       {
         stage: "implement",
         evidence: "changeImplemented",
-        duty: "fix",
-        executable: "fix",
+        agentResponsibility: "fix",
+        agentAction: "fix",
       },
       {
         stage: "review",
         evidence: "changeVerified",
-        duty: "review",
-        executable: "review",
+        agentResponsibility: "review",
+        agentAction: "review",
       },
     ],
   },
   {
-    id: "routine",
-    model: "routine",
-    label: "Routine",
+    id: "agentLoop",
+    model: "agentLoop",
+    label: "AgentLoop",
     description:
-      "Run recurring duties on schedule and surface health or drift.",
+      "Run recurring agentResponsibilities on schedule and surface health or drift.",
     bestFor:
       "Ongoing health, maintenance, QA sweeps, monitoring, and repo hygiene.",
     systemSummary:
-      "Kody runs routine duties on selected schedule and records findings.",
+      "Kody runs agentLoop agentResponsibilities on selected schedule and records findings.",
     promptPlaceholder: "Example: Keep codebase healthy and report drift.",
     evidence: [],
-    duties: [
+    agentResponsibilities: [
       "cleanup",
       "code-health",
       "docs-health",
@@ -92,7 +92,7 @@ export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
 
   {
     id: "release",
-    model: "objective",
+    model: "agentGoal",
     label: "Release",
     description:
       "Prepare and publish a release while tracking the important proof points.",
@@ -102,13 +102,13 @@ export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
       "Kody tracks release PR, merge, and production deployment evidence.",
     promptPlaceholder: "Example: Publish Kody Dashboard to production safely.",
     evidence: ["releasePrExists", "mainMerged", "productionDeployed"],
-    duties: ["release", "task-leader", "vercel-production-deploy"],
+    agentResponsibilities: ["release", "task-leader", "vercel-production-deploy"],
     route: [
       {
         stage: "release",
         evidence: "releasePrExists",
-        duty: "release",
-        executable: "release-prepare",
+        agentResponsibility: "release",
+        agentAction: "release-prepare",
         args: {
           issue: { fact: "issue" },
           goal: "web-release",
@@ -117,8 +117,8 @@ export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
       {
         stage: "merge",
         evidence: "mainMerged",
-        duty: "task-leader",
-        executable: "task-leader",
+        agentResponsibility: "task-leader",
+        agentAction: "task-leader",
         args: {
           issue: { fact: "issue" },
         },
@@ -126,14 +126,14 @@ export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
       {
         stage: "publish",
         evidence: "productionDeployed",
-        duty: "vercel-production-deploy",
-        executable: "vercel-production-deploy",
+        agentResponsibility: "vercel-production-deploy",
+        agentAction: "vercel-production-deploy",
       },
     ],
   },
   {
     id: "checklist",
-    model: "objective",
+    model: "agentGoal",
     label: "Checklist",
     description:
       "Verify a concrete list of conditions and mark the goal complete when checked.",
@@ -143,13 +143,13 @@ export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
       "Kody verifies the requested checklist and records completion evidence.",
     promptPlaceholder: "Example: Verify release readiness before launch.",
     evidence: ["checklistComplete"],
-    duties: ["task-verifier"],
+    agentResponsibilities: ["task-verifier"],
     route: [
       {
         stage: "verify",
         evidence: "checklistComplete",
-        duty: "task-verifier",
-        executable: "task-verifier",
+        agentResponsibility: "task-verifier",
+        agentAction: "task-verifier",
       },
     ],
   },
@@ -163,12 +163,12 @@ export interface ManagedGoalDestination {
 export interface ManagedGoalRouteStep {
   stage: string;
   evidence: string;
-  duty: string;
-  executable?: string;
+  agentResponsibility: string;
+  agentAction?: string;
   args?: Record<string, unknown>;
 }
 
-export interface ManagedGoalDutyScheduleStatus {
+export interface ManagedGoalAgentResponsibilityScheduleStatus {
   slug: string;
   title?: string;
   cadence?: string;
@@ -178,20 +178,20 @@ export interface ManagedGoalDutyScheduleStatus {
   reason: string;
 }
 
-export interface ManagedGoalDutyScheduleState {
-  mode: "duty-cadence";
+export interface ManagedGoalAgentResponsibilityScheduleState {
+  mode: "agentLoop";
   lastGoalTickAt: string;
   lastDecision:
     | {
         kind: "dispatch";
-        duty: string;
-        executable: string;
+        agentResponsibility: string;
+        agentAction: string;
         reason: string;
         at: string;
       }
     | { kind: "idle"; reason: string; at: string }
     | { kind: "blocked"; reason: string; at: string };
-  duties: Record<string, ManagedGoalDutyScheduleStatus>;
+  agentResponsibilities: Record<string, ManagedGoalAgentResponsibilityScheduleStatus>;
 }
 
 export interface ManagedGoalState {
@@ -199,14 +199,14 @@ export interface ManagedGoalState {
   state: ManagedGoalStateValue;
   type: string;
   destination: ManagedGoalDestination;
-  duties: string[];
+  agentResponsibilities: string[];
   route: ManagedGoalRouteStep[];
   schedule?: ManagedGoalSchedule;
   stage?: string;
   facts: Record<string, unknown>;
   blockers: string[];
-  scheduleMode?: "duty-cadence" | string;
-  scheduleState?: ManagedGoalDutyScheduleState;
+  scheduleMode?: "agentLoop" | string;
+  scheduleState?: ManagedGoalAgentResponsibilityScheduleState;
   latestInstanceId?: string;
   instanceCount?: number;
   instanceIds?: string[];
@@ -243,8 +243,8 @@ export function isStoreBackedManagedGoal(goal: ManagedGoalRecord): boolean {
 }
 
 export function managedGoalModel(goal: ManagedGoalRecord): ManagedGoalModel {
-  if (goal.state.scheduleMode === "duty-cadence") return "routine";
-  if (LEGACY_ROUTINE_TYPE_IDS.has(goal.state.type)) return "routine";
+  if (goal.state.scheduleMode === "agentLoop") return "agentLoop";
+  if (LEGACY_ROUTINE_TYPE_IDS.has(goal.state.type)) return "agentLoop";
 
   const goalType = MANAGED_GOAL_TYPES.find(
     (type) => type.id === goal.state.type,
@@ -254,10 +254,10 @@ export function managedGoalModel(goal: ManagedGoalRecord): ManagedGoalModel {
     goal.state.route.length > 0 ||
     goal.state.destination.evidence.length > 0
   ) {
-    return "objective";
+    return "agentGoal";
   }
 
-  return "routine";
+  return "agentLoop";
 }
 
 function managedGoalRecordTime(goal: ManagedGoalRecord): string {
@@ -356,7 +356,7 @@ export interface CreateManagedGoalInput {
   type: string;
   outcome: string;
   schedule?: ManagedGoalSchedule;
-  duties?: string[];
+  agentResponsibilities?: string[];
   evidence?: string[];
   route?: ManagedGoalRouteStep[];
 }
@@ -366,7 +366,9 @@ export interface SimpleManagedGoalCreateFields {
   goalType: ManagedGoalTypeId;
   schedule: ManagedGoalSchedule;
   prompt: string;
-  duties?: string[];
+  agentResponsibilities?: string[];
+  evidence?: string[];
+  route?: ManagedGoalRouteStep[];
 }
 
 export interface UpdateManagedGoalInput {
@@ -375,7 +377,7 @@ export interface UpdateManagedGoalInput {
   type?: string;
   outcome?: string;
   schedule?: ManagedGoalSchedule;
-  duties?: string[];
+  agentResponsibilities?: string[];
   evidence?: string[];
   route?: ManagedGoalRouteStep[];
 }
@@ -429,8 +431,8 @@ function cloneRouteStep(step: ManagedGoalRouteStep): ManagedGoalRouteStep {
   return {
     stage: step.stage,
     evidence: step.evidence,
-    duty: step.duty,
-    ...(step.executable ? { executable: step.executable } : {}),
+    agentResponsibility: step.agentResponsibility,
+    ...(step.agentAction ? { agentAction: step.agentAction } : {}),
     ...(step.args ? { args: step.args } : {}),
   };
 }
@@ -443,7 +445,9 @@ export function buildSimpleManagedGoalCreateInput(
     type: fields.goalType,
     schedule: fields.schedule,
     outcome: fields.prompt.trim(),
-    ...(fields.duties ? { duties: fields.duties } : {}),
+    ...(fields.agentResponsibilities ? { agentResponsibilities: fields.agentResponsibilities } : {}),
+    ...(fields.evidence ? { evidence: fields.evidence } : {}),
+    ...(fields.route ? { route: fields.route } : {}),
   };
 }
 
@@ -465,7 +469,7 @@ export function buildManagedGoalState(
         evidence: [SIMPLE_MANAGED_GOAL_EVIDENCE],
       },
       schedule: input.schedule ?? "manual",
-      duties: [],
+      agentResponsibilities: [],
       route: [],
       stage: "waiting",
       facts: {
@@ -486,9 +490,9 @@ export function buildManagedGoalState(
     : null;
   const evidenceInput = input.evidence ?? selectedGoalType?.evidence ?? [];
   const routeInput = input.route ?? selectedGoalType?.route ?? [];
-  const dutyInput = input.duties?.length
-    ? input.duties
-    : (selectedGoalType?.duties ?? []);
+  const agentResponsibilityInput = input.agentResponsibilities?.length
+    ? input.agentResponsibilities
+    : (selectedGoalType?.agentResponsibilities ?? []);
   const evidence = evidenceInput.map(normalizeEvidenceKey).filter(Boolean);
   const evidenceSet = new Set(evidence);
   const route = routeInput
@@ -496,9 +500,9 @@ export function buildManagedGoalState(
     .map((step) => ({
       stage: step.stage.trim(),
       evidence: normalizeEvidenceKey(step.evidence),
-      duty: step.duty.trim(),
-      ...(step.executable?.trim()
-        ? { executable: step.executable.trim() }
+      agentResponsibility: step.agentResponsibility.trim(),
+      ...(step.agentAction?.trim()
+        ? { agentAction: step.agentAction.trim() }
         : {}),
       ...(step.args ? { args: step.args } : {}),
     }))
@@ -506,14 +510,14 @@ export function buildManagedGoalState(
       (step) =>
         step.stage &&
         step.evidence &&
-        step.duty &&
+        step.agentResponsibility &&
         evidenceSet.has(step.evidence),
     );
-  const duties = uniqueStrings([
-    ...dutyInput,
-    ...route.map((step) => step.duty),
+  const agentResponsibilities = uniqueStrings([
+    ...agentResponsibilityInput,
+    ...route.map((step) => step.agentResponsibility),
   ]);
-  const isRoutine = selectedGoalType?.model === "routine";
+  const isRoutine = selectedGoalType?.model === "agentLoop";
 
   return {
     version: 1,
@@ -524,8 +528,8 @@ export function buildManagedGoalState(
       evidence,
     },
     schedule: input.schedule ?? "manual",
-    ...(isRoutine ? { scheduleMode: "duty-cadence" as const } : {}),
-    duties,
+    ...(isRoutine ? { scheduleMode: "agentLoop" as const } : {}),
+    agentResponsibilities,
     route,
     stage: route[0]?.stage,
     facts: selectedGoalType ? { goalType: selectedGoalType.id } : {},
@@ -545,7 +549,7 @@ export function isManagedGoalState(value: unknown): value is ManagedGoalState {
     Array.isArray(
       (goal.destination as Partial<ManagedGoalDestination>).evidence,
     ) &&
-    Array.isArray(goal.duties) &&
+    Array.isArray(goal.agentResponsibilities) &&
     Array.isArray(goal.route) &&
     !!goal.facts &&
     typeof goal.facts === "object" &&

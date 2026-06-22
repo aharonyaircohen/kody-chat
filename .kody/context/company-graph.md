@@ -11,8 +11,8 @@ The live graph data is written to `.kody/reports/company-graph.md`.
 ## What It Shows
 
 - Agent
-- Duties
-- Executables
+- AgentResponsibilities
+- AgentActions
 - Skills
 - Scripts
 - Reports
@@ -27,12 +27,12 @@ Read nodes as things that exist. Read edges as relationships between them.
 
 Common edges:
 
-- `assigned_to`: duty to agent
-- `runs`: duty to executable
-- `reads_from`: duty to context or report
-- `writes_to`: duty to report
-- `uses_skill`: executable to skill
-- `runs_preflight`: executable to script
+- `assigned_to`: agentResponsibility to agent
+- `runs`: agentResponsibility to agentAction
+- `reads_from`: agentResponsibility to context or report
+- `writes_to`: agentResponsibility to report
+- `uses_skill`: agentAction to skill
+- `runs_preflight`: agentAction to script
 
 ## Boundaries
 

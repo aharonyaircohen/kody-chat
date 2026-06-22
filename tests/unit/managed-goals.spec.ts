@@ -50,7 +50,7 @@ describe("isManagedGoalState", () => {
           outcome: "Release is deployed.",
           evidence: ["productionDeployed"],
         },
-        duties: ["vercel-production-deploy"],
+        agentResponsibilities: ["vercel-production-deploy"],
         route: [],
         facts: {},
         blockers: [],
@@ -63,7 +63,7 @@ describe("simple managed goal creation", () => {
   it("exposes simple goal types for the create form", () => {
     expect(MANAGED_GOAL_TYPES.map((type) => type.id)).toEqual([
       "improve",
-      "routine",
+      "agentLoop",
       "release",
       "checklist",
     ]);
@@ -107,25 +107,25 @@ describe("simple managed goal creation", () => {
         outcome: "Publish Kody Dashboard to production safely.",
         evidence: ["releasePrExists", "mainMerged", "productionDeployed"],
       },
-      duties: ["release", "task-leader", "vercel-production-deploy"],
+      agentResponsibilities: ["release", "task-leader", "vercel-production-deploy"],
       route: [
         {
           stage: "release",
           evidence: "releasePrExists",
-          duty: "release",
-          executable: "release-prepare",
+          agentResponsibility: "release",
+          agentAction: "release-prepare",
         },
         {
           stage: "merge",
           evidence: "mainMerged",
-          duty: "task-leader",
-          executable: "task-leader",
+          agentResponsibility: "task-leader",
+          agentAction: "task-leader",
         },
         {
           stage: "publish",
           evidence: "productionDeployed",
-          duty: "vercel-production-deploy",
-          executable: "vercel-production-deploy",
+          agentResponsibility: "vercel-production-deploy",
+          agentAction: "vercel-production-deploy",
         },
       ],
       facts: {
@@ -134,42 +134,76 @@ describe("simple managed goal creation", () => {
     });
   });
 
-  it("builds route-free routine structure", () => {
+  it("builds route-free agentLoop structure", () => {
     const state = buildManagedGoalState(
       buildSimpleManagedGoalCreateInput({
-        goalType: "routine",
+        goalType: "agentLoop",
         schedule: "1d",
         prompt: "Keep codebase healthy report drift.",
       }),
     );
 
     expect(state).toMatchObject({
-      type: "routine",
+      type: "agentLoop",
       schedule: "1d",
-      scheduleMode: "duty-cadence",
+      scheduleMode: "agentLoop",
       destination: {
         outcome: "Keep codebase healthy report drift.",
         evidence: [],
       },
       route: [],
-      facts: { goalType: "routine" },
+      facts: { goalType: "agentLoop" },
     });
-    expect(state.duties).toContain("code-health");
-    expect(state.duties).toContain("health-check");
+    expect(state.agentResponsibilities).toContain("code-health");
+    expect(state.agentResponsibilities).toContain("health-check");
   });
 
-  it("uses selected duties when creating a routine", () => {
+  it("uses selected agentResponsibilities when creating a agentLoop", () => {
     const state = buildManagedGoalState(
       buildSimpleManagedGoalCreateInput({
-        goalType: "routine",
+        goalType: "agentLoop",
         schedule: "1d",
         prompt: "Keep docs healthy.",
-        duties: ["docs-health", "qa-sweep"],
+        agentResponsibilities: ["docs-health", "qa-sweep"],
       }),
     );
 
-    expect(state.duties).toEqual(["docs-health", "qa-sweep"]);
-    expect(state.scheduleMode).toBe("duty-cadence");
+    expect(state.agentResponsibilities).toEqual(["docs-health", "qa-sweep"]);
+    expect(state.scheduleMode).toBe("agentLoop");
+  });
+
+  it("preserves user-managed route order for agentGoal creation", () => {
+    const state = buildManagedGoalState(
+      buildSimpleManagedGoalCreateInput({
+        goalType: "improve",
+        schedule: "manual",
+        prompt: "Make goal creation predictable.",
+        agentResponsibilities: ["review", "plan"],
+        evidence: ["changeVerified", "planReady"],
+        route: [
+          {
+            stage: "review",
+            evidence: "changeVerified",
+            agentResponsibility: "review",
+            agentAction: "review",
+          },
+          {
+            stage: "plan",
+            evidence: "planReady",
+            agentResponsibility: "plan",
+            agentAction: "plan",
+          },
+        ],
+      }),
+    );
+
+    expect(state.destination.evidence).toEqual(["changeVerified", "planReady"]);
+    expect(state.route.map((step) => step.agentResponsibility)).toEqual([
+      "review",
+      "plan",
+    ]);
+    expect(state.agentResponsibilities).toEqual(["review", "plan"]);
+    expect(state.stage).toBe("review");
   });
 
   it("keeps legacy simple template goals route-free", () => {
@@ -209,7 +243,7 @@ describe("isStoreBackedManagedGoal", () => {
           outcome: "Keep a simple goal tracked.",
           evidence: ["labelledTasksComplete"],
         },
-        duties: [],
+        agentResponsibilities: [],
         route: [],
         facts: {},
         blockers: [],
@@ -237,12 +271,12 @@ describe("managedGoalModel", () => {
           outcome: "Release safely.",
           evidence: ["releasePrExists"],
         },
-        duties: ["release"],
+        agentResponsibilities: ["release"],
         route: [
           {
             stage: "release",
             evidence: "releasePrExists",
-            duty: "release",
+            agentResponsibility: "release",
           },
         ],
         facts: {},
@@ -252,25 +286,25 @@ describe("managedGoalModel", () => {
     };
   }
 
-  it("classifies routed evidence goals as objectives", () => {
-    expect(managedGoalModel(goal({ type: "release" }))).toBe("objective");
+  it("classifies routed evidence goals as agentGoals", () => {
+    expect(managedGoalModel(goal({ type: "release" }))).toBe("agentGoal");
   });
 
-  it("classifies duty-cadence goals as routines", () => {
+  it("classifies agentLoop goals as agentLoops", () => {
     expect(
       managedGoalModel(
         goal({
           type: "release",
-          scheduleMode: "duty-cadence",
+          scheduleMode: "agentLoop",
         }),
       ),
-    ).toBe("routine");
+    ).toBe("agentLoop");
   });
 
-  it("classifies routine and legacy routine types as routines", () => {
-    expect(managedGoalModel(goal({ type: "routine" }))).toBe("routine");
-    expect(managedGoalModel(goal({ type: "maintain" }))).toBe("routine");
-    expect(managedGoalModel(goal({ type: "monitor" }))).toBe("routine");
+  it("classifies agentLoop and legacy agentLoop types as agentLoops", () => {
+    expect(managedGoalModel(goal({ type: "agentLoop" }))).toBe("agentLoop");
+    expect(managedGoalModel(goal({ type: "maintain" }))).toBe("agentLoop");
+    expect(managedGoalModel(goal({ type: "monitor" }))).toBe("agentLoop");
   });
 });
 
@@ -292,7 +326,7 @@ describe("collapseManagedGoalRecordsForList", () => {
           outcome: "Verify recurring scheduling.",
           evidence: ["companyGraphRefreshed"],
         },
-        duties: ["company-graph"],
+        agentResponsibilities: ["company-graph"],
         route: [],
         facts: {},
         blockers: [],

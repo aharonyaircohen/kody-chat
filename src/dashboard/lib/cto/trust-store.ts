@@ -1,8 +1,8 @@
 /**
  * @fileType utility
  * @domain kody
- * @pattern duty-trust-file-store
- * @ai-summary Server-only read/CAS-write of the duty trust ledger as a single
+ * @pattern agentResponsibility-trust-file-store
+ * @ai-summary Server-only read/CAS-write of the agentResponsibility trust ledger as a single
  *   JSON file on the `kody-state` branch (`.kody/state/trust.json`) — NOT an
  *   issue. Modeled on `notifications/prefs-store.ts`:
  *     - reads use ETag/If-None-Match (free 304 when unchanged) + a short cache;
@@ -129,7 +129,7 @@ export async function mutateTrust(
         owner,
         repo,
         path: TRUST_FILE_PATH,
-        message: "chore(trust): update duty trust ledger",
+        message: "chore(trust): update agentResponsibility trust ledger",
         content: Buffer.from(body, "utf-8").toString("base64"),
         sha: current?.sha,
         branch: STATE_BRANCH,

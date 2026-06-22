@@ -6,18 +6,18 @@ findings:
   - id: company-graph.snapshot
     severity: low
     title: "Graph snapshot emitted"
-    data: {"nodeCounts":{"context":4,"duties":28,"staff":7,"executables":14,"scripts":7,"skills":3,"reports":5,"goals":2,"issues":13},"graphHash":"7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b"}
+    data: {"nodeCounts":{"context":4,"agent-responsibilities":28,"staff":7,"agentActions":14,"scripts":7,"skills":3,"reports":5,"goals":2,"issues":13},"graphHash":"7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b"}
   - id: company-graph.stale-context.ai-company-orchestration-plan
     severity: low
-    title: "ai-company-orchestration-plan - not declared as reads_from by any duty"
+    title: "ai-company-orchestration-plan - not declared as reads_from by any agentResponsibility"
     data: {"context":"ai-company-orchestration-plan"}
   - id: company-graph.stale-context.ideas
     severity: low
-    title: "ideas - not declared as reads_from by any duty"
+    title: "ideas - not declared as reads_from by any agentResponsibility"
     data: {"context":"ideas"}
   - id: company-graph.stale-context.plan-and-split-execution
     severity: low
-    title: "plan-and-split-execution - not declared as reads_from by any duty"
+    title: "plan-and-split-execution - not declared as reads_from by any agentResponsibility"
     data: {"context":"plan-and-split-execution"}
   - id: company-graph.coverage-gap.commands
     severity: low
@@ -50,9 +50,9 @@ findings:
 | Node type | Count |
 |---|---:|
 | context | 4 |
-| duties | 28 |
+| agentResponsibilities | 28 |
 | staff | 7 |
-| executables | 14 |
+| agentActions | 14 |
 | scripts | 7 |
 | skills | 3 |
 | reports | 5 |
@@ -103,61 +103,61 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       "headingCount": 6
     },
     {
-      "id": "duty:approval-gate",
-      "type": "duty",
+      "id": "agentResponsibility:approval-gate",
+      "type": "agentResponsibility",
       "slug": "approval-gate",
       "staff": "cto",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:architecture-audit",
-      "type": "duty",
+      "id": "agentResponsibility:architecture-audit",
+      "type": "agentResponsibility",
       "slug": "architecture-audit",
       "staff": "cto",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:ceo-performance-review",
-      "type": "duty",
+      "id": "agentResponsibility:ceo-performance-review",
+      "type": "agentResponsibility",
       "slug": "ceo-performance-review",
       "staff": "ceo",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": false
     },
     {
-      "id": "duty:cleanup-branches",
-      "type": "duty",
+      "id": "agentResponsibility:cleanup-branches",
+      "type": "agentResponsibility",
       "slug": "cleanup-branches",
       "staff": "kody",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:clear-empty-goals",
-      "type": "duty",
+      "id": "agentResponsibility:clear-empty-goals",
+      "type": "agentResponsibility",
       "slug": "clear-empty-goals",
       "staff": "",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": false
     },
     {
-      "id": "duty:company-graph",
-      "type": "duty",
+      "id": "agentResponsibility:company-graph",
+      "type": "agentResponsibility",
       "slug": "company-graph",
       "staff": "coo",
-      "executables": [
+      "agentActions": [
         "company-graph"
       ],
       "readsFrom": [
@@ -169,228 +169,228 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       "disabled": false
     },
     {
-      "id": "duty:coverage-floor",
-      "type": "duty",
+      "id": "agentResponsibility:coverage-floor",
+      "type": "agentResponsibility",
       "slug": "coverage-floor",
       "staff": "kody",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:dead-code-sweep",
-      "type": "duty",
+      "id": "agentResponsibility:dead-code-sweep",
+      "type": "agentResponsibility",
       "slug": "dead-code-sweep",
       "staff": "kody",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:dependency-bump",
-      "type": "duty",
+      "id": "agentResponsibility:dependency-bump",
+      "type": "agentResponsibility",
       "slug": "dependency-bump",
       "staff": "kody",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:design-review",
-      "type": "duty",
+      "id": "agentResponsibility:design-review",
+      "type": "agentResponsibility",
       "slug": "design-review",
       "staff": "ux-designer",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:dev-ci-health",
-      "type": "duty",
+      "id": "agentResponsibility:dev-ci-health",
+      "type": "agentResponsibility",
       "slug": "dev-ci-health",
       "staff": "cto",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": false
     },
     {
-      "id": "duty:docs-code",
-      "type": "duty",
+      "id": "agentResponsibility:docs-code",
+      "type": "agentResponsibility",
       "slug": "docs-code",
       "staff": "tech-writer",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": false
     },
     {
-      "id": "duty:docs-readme",
-      "type": "duty",
+      "id": "agentResponsibility:docs-readme",
+      "type": "agentResponsibility",
       "slug": "docs-readme",
       "staff": "tech-writer",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": false
     },
     {
-      "id": "duty:duty-review",
-      "type": "duty",
-      "slug": "duty-review",
+      "id": "agentResponsibility:agent-responsibility-review",
+      "type": "agentResponsibility",
+      "slug": "agent-responsibility-review",
       "staff": "coo",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:flaky-test-quarantine",
-      "type": "duty",
+      "id": "agentResponsibility:flaky-test-quarantine",
+      "type": "agentResponsibility",
       "slug": "flaky-test-quarantine",
       "staff": "kody",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:health-check",
-      "type": "duty",
+      "id": "agentResponsibility:health-check",
+      "type": "agentResponsibility",
       "slug": "health-check",
       "staff": "kody",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:inbox-ping",
-      "type": "duty",
+      "id": "agentResponsibility:inbox-ping",
+      "type": "agentResponsibility",
       "slug": "inbox-ping",
       "staff": "kody",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:job-gap-scan",
-      "type": "duty",
+      "id": "agentResponsibility:job-gap-scan",
+      "type": "agentResponsibility",
       "slug": "job-gap-scan",
       "staff": "ceo",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:pr-health-triage",
-      "type": "duty",
+      "id": "agentResponsibility:pr-health-triage",
+      "type": "agentResponsibility",
       "slug": "pr-health-triage",
       "staff": "cto",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:publish-release",
-      "type": "duty",
+      "id": "agentResponsibility:publish-release",
+      "type": "agentResponsibility",
       "slug": "publish-release",
       "staff": "kody",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:qa",
-      "type": "duty",
+      "id": "agentResponsibility:qa",
+      "type": "agentResponsibility",
       "slug": "qa",
       "staff": "qa",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:qa-sweep",
-      "type": "duty",
+      "id": "agentResponsibility:qa-sweep",
+      "type": "agentResponsibility",
       "slug": "qa-sweep",
       "staff": "qa",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:qa-verify",
-      "type": "duty",
+      "id": "agentResponsibility:qa-verify",
+      "type": "agentResponsibility",
       "slug": "qa-verify",
       "staff": "qa",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": false
     },
     {
-      "id": "duty:redispatch",
-      "type": "duty",
+      "id": "agentResponsibility:redispatch",
+      "type": "agentResponsibility",
       "slug": "redispatch",
       "staff": "kody",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:security-audit",
-      "type": "duty",
+      "id": "agentResponsibility:security-audit",
+      "type": "agentResponsibility",
       "slug": "security-audit",
       "staff": "kody",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:system-audit",
-      "type": "duty",
+      "id": "agentResponsibility:system-audit",
+      "type": "agentResponsibility",
       "slug": "system-audit",
       "staff": "coo",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:task-memory-extractor",
-      "type": "duty",
+      "id": "agentResponsibility:task-memory-extractor",
+      "type": "agentResponsibility",
       "slug": "task-memory-extractor",
       "staff": "coo",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "duty:type-debt",
-      "type": "duty",
+      "id": "agentResponsibility:type-debt",
+      "type": "agentResponsibility",
       "slug": "type-debt",
       "staff": "kody",
-      "executables": [],
+      "agentActions": [],
       "readsFrom": [],
       "writesTo": [],
       "disabled": true
     },
     {
-      "id": "executable:bug",
-      "type": "executable",
+      "id": "agentAction:bug",
+      "type": "agentAction",
       "slug": "bug",
       "role": "primitive",
       "kind": "",
@@ -404,8 +404,8 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       ]
     },
     {
-      "id": "executable:chore",
-      "type": "executable",
+      "id": "agentAction:chore",
+      "type": "agentAction",
       "slug": "chore",
       "role": "primitive",
       "kind": "",
@@ -415,8 +415,8 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       "shellScripts": []
     },
     {
-      "id": "executable:classify",
-      "type": "executable",
+      "id": "agentAction:classify",
+      "type": "agentAction",
       "slug": "classify",
       "role": "primitive",
       "kind": "",
@@ -426,8 +426,8 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       "shellScripts": []
     },
     {
-      "id": "executable:company-graph",
-      "type": "executable",
+      "id": "agentAction:company-graph",
+      "type": "agentAction",
       "slug": "company-graph",
       "role": "primitive",
       "kind": "oneshot",
@@ -441,8 +441,8 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       ]
     },
     {
-      "id": "executable:feature",
-      "type": "executable",
+      "id": "agentAction:feature",
+      "type": "agentAction",
       "slug": "feature",
       "role": "primitive",
       "kind": "",
@@ -454,8 +454,8 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       ]
     },
     {
-      "id": "executable:fix",
-      "type": "executable",
+      "id": "agentAction:fix",
+      "type": "agentAction",
       "slug": "fix",
       "role": "primitive",
       "kind": "",
@@ -467,8 +467,8 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       "shellScripts": []
     },
     {
-      "id": "executable:fix-ci",
-      "type": "executable",
+      "id": "agentAction:fix-ci",
+      "type": "agentAction",
       "slug": "fix-ci",
       "role": "primitive",
       "kind": "",
@@ -478,8 +478,8 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       "shellScripts": []
     },
     {
-      "id": "executable:plan",
-      "type": "executable",
+      "id": "agentAction:plan",
+      "type": "agentAction",
       "slug": "plan",
       "role": "primitive",
       "kind": "",
@@ -491,8 +491,8 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       ]
     },
     {
-      "id": "executable:qa-engineer",
-      "type": "executable",
+      "id": "agentAction:qa-engineer",
+      "type": "agentAction",
       "slug": "qa-engineer",
       "role": "primitive",
       "kind": "oneshot",
@@ -502,8 +502,8 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       "shellScripts": []
     },
     {
-      "id": "executable:reproduce",
-      "type": "executable",
+      "id": "agentAction:reproduce",
+      "type": "agentAction",
       "slug": "reproduce",
       "role": "primitive",
       "kind": "",
@@ -513,8 +513,8 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       "shellScripts": []
     },
     {
-      "id": "executable:research",
-      "type": "executable",
+      "id": "agentAction:research",
+      "type": "agentAction",
       "slug": "research",
       "role": "primitive",
       "kind": "",
@@ -526,8 +526,8 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       ]
     },
     {
-      "id": "executable:review",
-      "type": "executable",
+      "id": "agentAction:review",
+      "type": "agentAction",
       "slug": "review",
       "role": "primitive",
       "kind": "",
@@ -539,8 +539,8 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       ]
     },
     {
-      "id": "executable:spec",
-      "type": "executable",
+      "id": "agentAction:spec",
+      "type": "agentAction",
       "slug": "spec",
       "role": "orchestrator",
       "kind": "",
@@ -550,8 +550,8 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       "shellScripts": []
     },
     {
-      "id": "executable:ui-review",
-      "type": "executable",
+      "id": "agentAction:ui-review",
+      "type": "agentAction",
       "slug": "ui-review",
       "role": "primitive",
       "kind": "oneshot",
@@ -625,7 +625,7 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       "id": "issue:92",
       "type": "issue",
       "number": 92,
-      "title": "[Orchestration] Duty contracts — `reads_from` / `writes_to` / `done_when` in duty frontmatter",
+      "title": "[Orchestration] AgentResponsibility contracts — `reads_from` / `writes_to` / `done_when` in agentResponsibility frontmatter",
       "state": "OPEN"
     },
     {
@@ -646,7 +646,7 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       "id": "issue:95",
       "type": "issue",
       "number": 95,
-      "title": "[Orchestration] Aggregated report layer — CEO digest duty reading all chief reports",
+      "title": "[Orchestration] Aggregated report layer — CEO digest agentResponsibility reading all chief reports",
       "state": "CLOSED"
     },
     {
@@ -693,43 +693,43 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       "id": "script:bug/install-codegraph.sh",
       "type": "script",
       "slug": "bug/install-codegraph.sh",
-      "path": ".kody/executables/bug/install-codegraph.sh",
-      "scope": "executable"
+      "path": ".kody/agent-actions/bug/install-codegraph.sh",
+      "scope": "agentAction"
     },
     {
       "id": "script:company-graph/refresh-company-graph.sh",
       "type": "script",
       "slug": "company-graph/refresh-company-graph.sh",
-      "path": ".kody/executables/company-graph/refresh-company-graph.sh",
-      "scope": "executable"
+      "path": ".kody/agent-actions/company-graph/refresh-company-graph.sh",
+      "scope": "agentAction"
     },
     {
       "id": "script:feature/install-codegraph.sh",
       "type": "script",
       "slug": "feature/install-codegraph.sh",
-      "path": ".kody/executables/feature/install-codegraph.sh",
-      "scope": "executable"
+      "path": ".kody/agent-actions/feature/install-codegraph.sh",
+      "scope": "agentAction"
     },
     {
       "id": "script:plan/install-codegraph.sh",
       "type": "script",
       "slug": "plan/install-codegraph.sh",
-      "path": ".kody/executables/plan/install-codegraph.sh",
-      "scope": "executable"
+      "path": ".kody/agent-actions/plan/install-codegraph.sh",
+      "scope": "agentAction"
     },
     {
       "id": "script:research/install-codegraph.sh",
       "type": "script",
       "slug": "research/install-codegraph.sh",
-      "path": ".kody/executables/research/install-codegraph.sh",
-      "scope": "executable"
+      "path": ".kody/agent-actions/research/install-codegraph.sh",
+      "scope": "agentAction"
     },
     {
       "id": "script:review/install-codegraph.sh",
       "type": "script",
       "slug": "review/install-codegraph.sh",
-      "path": ".kody/executables/review/install-codegraph.sh",
-      "scope": "executable"
+      "path": ".kody/agent-actions/review/install-codegraph.sh",
+      "scope": "agentAction"
     },
     {
       "id": "script:validate-reports",
@@ -743,24 +743,24 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       "type": "skill",
       "slug": "bug/systematic-debugging",
       "name": "systematic-debugging",
-      "path": ".kody/executables/bug/skills/systematic-debugging/SKILL.md",
-      "scope": "executable"
+      "path": ".kody/agent-actions/bug/skills/systematic-debugging/SKILL.md",
+      "scope": "agentAction"
     },
     {
       "id": "skill:company-graph/company-graph",
       "type": "skill",
       "slug": "company-graph/company-graph",
       "name": "company-graph",
-      "path": ".kody/executables/company-graph/skills/company-graph/SKILL.md",
-      "scope": "executable"
+      "path": ".kody/agent-actions/company-graph/skills/company-graph/SKILL.md",
+      "scope": "agentAction"
     },
     {
       "id": "skill:fix/systematic-debugging",
       "type": "skill",
       "slug": "fix/systematic-debugging",
       "name": "systematic-debugging",
-      "path": ".kody/executables/fix/skills/systematic-debugging/SKILL.md",
-      "scope": "executable"
+      "path": ".kody/agent-actions/fix/skills/systematic-debugging/SKILL.md",
+      "scope": "agentAction"
     },
     {
       "id": "staff:ceo",
@@ -867,236 +867,236 @@ Graph hash: `7870b91838a38509df865b9283a1a42b51c4ff270aecc50b782dbd6c187c5e7b`
       "relation": "audience"
     },
     {
-      "id": "duty:approval-gate->assigned_to->staff:cto",
-      "from": "duty:approval-gate",
+      "id": "agentResponsibility:approval-gate->assigned_to->staff:cto",
+      "from": "agentResponsibility:approval-gate",
       "to": "staff:cto",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:architecture-audit->assigned_to->staff:cto",
-      "from": "duty:architecture-audit",
+      "id": "agentResponsibility:architecture-audit->assigned_to->staff:cto",
+      "from": "agentResponsibility:architecture-audit",
       "to": "staff:cto",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:ceo-performance-review->assigned_to->staff:ceo",
-      "from": "duty:ceo-performance-review",
+      "id": "agentResponsibility:ceo-performance-review->assigned_to->staff:ceo",
+      "from": "agentResponsibility:ceo-performance-review",
       "to": "staff:ceo",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:cleanup-branches->assigned_to->staff:kody",
-      "from": "duty:cleanup-branches",
+      "id": "agentResponsibility:cleanup-branches->assigned_to->staff:kody",
+      "from": "agentResponsibility:cleanup-branches",
       "to": "staff:kody",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:company-graph->assigned_to->staff:coo",
-      "from": "duty:company-graph",
+      "id": "agentResponsibility:company-graph->assigned_to->staff:coo",
+      "from": "agentResponsibility:company-graph",
       "to": "staff:coo",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:company-graph->reads_from->context:orchestration-conventions",
-      "from": "duty:company-graph",
+      "id": "agentResponsibility:company-graph->reads_from->context:orchestration-conventions",
+      "from": "agentResponsibility:company-graph",
       "to": "context:orchestration-conventions",
       "relation": "reads_from"
     },
     {
-      "id": "duty:company-graph->runs->executable:company-graph",
-      "from": "duty:company-graph",
-      "to": "executable:company-graph",
+      "id": "agentResponsibility:company-graph->runs->agentAction:company-graph",
+      "from": "agentResponsibility:company-graph",
+      "to": "agentAction:company-graph",
       "relation": "runs"
     },
     {
-      "id": "duty:company-graph->writes_to->report:company-graph",
-      "from": "duty:company-graph",
+      "id": "agentResponsibility:company-graph->writes_to->report:company-graph",
+      "from": "agentResponsibility:company-graph",
       "to": "report:company-graph",
       "relation": "writes_to"
     },
     {
-      "id": "duty:coverage-floor->assigned_to->staff:kody",
-      "from": "duty:coverage-floor",
+      "id": "agentResponsibility:coverage-floor->assigned_to->staff:kody",
+      "from": "agentResponsibility:coverage-floor",
       "to": "staff:kody",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:dead-code-sweep->assigned_to->staff:kody",
-      "from": "duty:dead-code-sweep",
+      "id": "agentResponsibility:dead-code-sweep->assigned_to->staff:kody",
+      "from": "agentResponsibility:dead-code-sweep",
       "to": "staff:kody",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:dependency-bump->assigned_to->staff:kody",
-      "from": "duty:dependency-bump",
+      "id": "agentResponsibility:dependency-bump->assigned_to->staff:kody",
+      "from": "agentResponsibility:dependency-bump",
       "to": "staff:kody",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:design-review->assigned_to->staff:ux-designer",
-      "from": "duty:design-review",
+      "id": "agentResponsibility:design-review->assigned_to->staff:ux-designer",
+      "from": "agentResponsibility:design-review",
       "to": "staff:ux-designer",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:dev-ci-health->assigned_to->staff:cto",
-      "from": "duty:dev-ci-health",
+      "id": "agentResponsibility:dev-ci-health->assigned_to->staff:cto",
+      "from": "agentResponsibility:dev-ci-health",
       "to": "staff:cto",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:docs-code->assigned_to->staff:tech-writer",
-      "from": "duty:docs-code",
+      "id": "agentResponsibility:docs-code->assigned_to->staff:tech-writer",
+      "from": "agentResponsibility:docs-code",
       "to": "staff:tech-writer",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:docs-readme->assigned_to->staff:tech-writer",
-      "from": "duty:docs-readme",
+      "id": "agentResponsibility:docs-readme->assigned_to->staff:tech-writer",
+      "from": "agentResponsibility:docs-readme",
       "to": "staff:tech-writer",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:duty-review->assigned_to->staff:coo",
-      "from": "duty:duty-review",
+      "id": "agentResponsibility:agent-responsibility-review->assigned_to->staff:coo",
+      "from": "agentResponsibility:agent-responsibility-review",
       "to": "staff:coo",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:flaky-test-quarantine->assigned_to->staff:kody",
-      "from": "duty:flaky-test-quarantine",
+      "id": "agentResponsibility:flaky-test-quarantine->assigned_to->staff:kody",
+      "from": "agentResponsibility:flaky-test-quarantine",
       "to": "staff:kody",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:health-check->assigned_to->staff:kody",
-      "from": "duty:health-check",
+      "id": "agentResponsibility:health-check->assigned_to->staff:kody",
+      "from": "agentResponsibility:health-check",
       "to": "staff:kody",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:inbox-ping->assigned_to->staff:kody",
-      "from": "duty:inbox-ping",
+      "id": "agentResponsibility:inbox-ping->assigned_to->staff:kody",
+      "from": "agentResponsibility:inbox-ping",
       "to": "staff:kody",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:job-gap-scan->assigned_to->staff:ceo",
-      "from": "duty:job-gap-scan",
+      "id": "agentResponsibility:job-gap-scan->assigned_to->staff:ceo",
+      "from": "agentResponsibility:job-gap-scan",
       "to": "staff:ceo",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:pr-health-triage->assigned_to->staff:cto",
-      "from": "duty:pr-health-triage",
+      "id": "agentResponsibility:pr-health-triage->assigned_to->staff:cto",
+      "from": "agentResponsibility:pr-health-triage",
       "to": "staff:cto",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:publish-release->assigned_to->staff:kody",
-      "from": "duty:publish-release",
+      "id": "agentResponsibility:publish-release->assigned_to->staff:kody",
+      "from": "agentResponsibility:publish-release",
       "to": "staff:kody",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:qa->assigned_to->staff:qa",
-      "from": "duty:qa",
+      "id": "agentResponsibility:qa->assigned_to->staff:qa",
+      "from": "agentResponsibility:qa",
       "to": "staff:qa",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:qa-sweep->assigned_to->staff:qa",
-      "from": "duty:qa-sweep",
+      "id": "agentResponsibility:qa-sweep->assigned_to->staff:qa",
+      "from": "agentResponsibility:qa-sweep",
       "to": "staff:qa",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:qa-verify->assigned_to->staff:qa",
-      "from": "duty:qa-verify",
+      "id": "agentResponsibility:qa-verify->assigned_to->staff:qa",
+      "from": "agentResponsibility:qa-verify",
       "to": "staff:qa",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:redispatch->assigned_to->staff:kody",
-      "from": "duty:redispatch",
+      "id": "agentResponsibility:redispatch->assigned_to->staff:kody",
+      "from": "agentResponsibility:redispatch",
       "to": "staff:kody",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:security-audit->assigned_to->staff:kody",
-      "from": "duty:security-audit",
+      "id": "agentResponsibility:security-audit->assigned_to->staff:kody",
+      "from": "agentResponsibility:security-audit",
       "to": "staff:kody",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:system-audit->assigned_to->staff:coo",
-      "from": "duty:system-audit",
+      "id": "agentResponsibility:system-audit->assigned_to->staff:coo",
+      "from": "agentResponsibility:system-audit",
       "to": "staff:coo",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:task-memory-extractor->assigned_to->staff:coo",
-      "from": "duty:task-memory-extractor",
+      "id": "agentResponsibility:task-memory-extractor->assigned_to->staff:coo",
+      "from": "agentResponsibility:task-memory-extractor",
       "to": "staff:coo",
       "relation": "assigned_to"
     },
     {
-      "id": "duty:type-debt->assigned_to->staff:kody",
-      "from": "duty:type-debt",
+      "id": "agentResponsibility:type-debt->assigned_to->staff:kody",
+      "from": "agentResponsibility:type-debt",
       "to": "staff:kody",
       "relation": "assigned_to"
     },
     {
-      "id": "executable:bug->runs_preflight->script:bug/install-codegraph.sh",
-      "from": "executable:bug",
+      "id": "agentAction:bug->runs_preflight->script:bug/install-codegraph.sh",
+      "from": "agentAction:bug",
       "to": "script:bug/install-codegraph.sh",
       "relation": "runs_preflight"
     },
     {
-      "id": "executable:bug->uses_skill->skill:bug/systematic-debugging",
-      "from": "executable:bug",
+      "id": "agentAction:bug->uses_skill->skill:bug/systematic-debugging",
+      "from": "agentAction:bug",
       "to": "skill:bug/systematic-debugging",
       "relation": "uses_skill"
     },
     {
-      "id": "executable:company-graph->runs_preflight->script:company-graph/refresh-company-graph.sh",
-      "from": "executable:company-graph",
+      "id": "agentAction:company-graph->runs_preflight->script:company-graph/refresh-company-graph.sh",
+      "from": "agentAction:company-graph",
       "to": "script:company-graph/refresh-company-graph.sh",
       "relation": "runs_preflight"
     },
     {
-      "id": "executable:company-graph->uses_skill->skill:company-graph/company-graph",
-      "from": "executable:company-graph",
+      "id": "agentAction:company-graph->uses_skill->skill:company-graph/company-graph",
+      "from": "agentAction:company-graph",
       "to": "skill:company-graph/company-graph",
       "relation": "uses_skill"
     },
     {
-      "id": "executable:feature->runs_preflight->script:feature/install-codegraph.sh",
-      "from": "executable:feature",
+      "id": "agentAction:feature->runs_preflight->script:feature/install-codegraph.sh",
+      "from": "agentAction:feature",
       "to": "script:feature/install-codegraph.sh",
       "relation": "runs_preflight"
     },
     {
-      "id": "executable:fix->uses_skill->skill:fix/systematic-debugging",
-      "from": "executable:fix",
+      "id": "agentAction:fix->uses_skill->skill:fix/systematic-debugging",
+      "from": "agentAction:fix",
       "to": "skill:fix/systematic-debugging",
       "relation": "uses_skill"
     },
     {
-      "id": "executable:plan->runs_preflight->script:plan/install-codegraph.sh",
-      "from": "executable:plan",
+      "id": "agentAction:plan->runs_preflight->script:plan/install-codegraph.sh",
+      "from": "agentAction:plan",
       "to": "script:plan/install-codegraph.sh",
       "relation": "runs_preflight"
     },
     {
-      "id": "executable:research->runs_preflight->script:research/install-codegraph.sh",
-      "from": "executable:research",
+      "id": "agentAction:research->runs_preflight->script:research/install-codegraph.sh",
+      "from": "agentAction:research",
       "to": "script:research/install-codegraph.sh",
       "relation": "runs_preflight"
     },
     {
-      "id": "executable:review->runs_preflight->script:review/install-codegraph.sh",
-      "from": "executable:review",
+      "id": "agentAction:review->runs_preflight->script:review/install-codegraph.sh",
+      "from": "agentAction:review",
       "to": "script:review/install-codegraph.sh",
       "relation": "runs_preflight"
     },

@@ -5,7 +5,7 @@
  * @ai-summary Agent detail API — GET reads a single agent file, PATCH
  *   updates the title/body, DELETE removes the file. Backed by
  *   `.kody/agents/<slug>.md` via the GitHub contents API. Duplicated
- *   from the duties detail API.
+ *   from the agentResponsibilities detail API.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
@@ -70,7 +70,7 @@ export async function GET(
   }
 }
 
-const updateStaffSchema = z.object({
+const updateAgentSchema = z.object({
   title: z.string().min(1).optional(),
   body: z.string().optional(),
   actorLogin: z.string().optional(),
@@ -105,7 +105,7 @@ export async function PATCH(
     }
 
     const payload = await req.json();
-    const { title, body, actorLogin } = updateStaffSchema.parse(payload);
+    const { title, body, actorLogin } = updateAgentSchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;

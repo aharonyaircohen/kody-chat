@@ -1,5 +1,5 @@
 /**
- * @fileoverview Structural regression tests managed model create form.
+ * @fileoverview Structural regression tests for the managed model dialogs.
  * @testFramework vitest
  * @domain goals
  */
@@ -13,50 +13,41 @@ const source = readFileSync(
   "utf8",
 );
 
-describe("ManagedModelsView new model form", () => {
-  it("keeps objective creation evidence-driven and routine creation cadence-driven", () => {
+describe("ManagedModelsView model form", () => {
+  it("keeps agentGoal creation evidence-driven while sharing the agentResponsibilities control", () => {
     const dialog = source.slice(
       source.indexOf("function NewGoalDialog"),
       source.indexOf("function EditManagedGoalDialog"),
     );
 
-    expect(dialog).toContain('const isRoutine = model === "routine"');
+    expect(dialog).toContain('const isRoutine = model === "agentLoop"');
     expect(dialog).toContain(
       'const defaultSchedule: ManagedGoalSchedule = isRoutine ? "1d" : "manual"',
     );
+    expect(source).toContain('kindLabel: "",');
+    expect(source).toContain("{copy.kindLabel ? (");
     expect(dialog).toContain(
-      "const showTypeSelect = !isRoutine && goalTypes.length > 1",
+      "Define the finish line and attach the agentResponsibilities Kody should use.",
     );
-    expect(dialog).toContain(
-      "Define the finish line and evidence Kody must close.",
-    );
-    expect(dialog).toContain(
-      '<Label htmlFor="goal-type">Objective type</Label>',
-    );
-    expect(source).toContain("Missing evidence");
-    expect(source).toContain("goalType.evidence.map");
-    expect(source).toContain("goalType.route.map");
-    expect(dialog).toContain('<Label htmlFor="goal-schedule">Cadence</Label>');
-    expect(dialog).not.toContain("Routine loop");
-    expect(dialog).toContain("Duties");
+    expect(dialog).toContain("AgentResponsibilities");
     expect(dialog).toContain("SearchableMultiSelect");
-    expect(dialog).toContain("options={routineDutyOptions}");
-    expect(source).toContain("function compactDutyLabel");
-    expect(source).toContain("selectedLabel: compactDutyLabel(duty.slug)");
-    expect(dialog).toContain("isRoutine ? [] : defaultType.duties");
-    expect(dialog).not.toContain(
-      "setSelectedDutySlugs(selectedGoalType.duties)",
+    expect(dialog).toContain(
+      'id={isRoutine ? "agentLoop-agentResponsibilities" : "agentGoal-agentResponsibilities"}',
     );
-    expect(dialog).toContain('selectedLabel="duties selected"');
-    expect(dialog).toContain('selectedSingularLabel="duty selected"');
-    expect(dialog).toContain('selectedHeading="Selected duties"');
-    expect(dialog).toContain('selectedTone="info"');
-    expect(dialog).toContain("md:col-span-2");
-    expect(dialog).toContain("selectedDutySlugs.length");
-    expect(dialog).toContain('isRoutine ? "Scope" : "Finish line"');
-    expect(dialog.indexOf('htmlFor="goal-outcome"')).toBeLessThan(
-      dialog.indexOf('className="grid min-w-0 gap-3 md:grid-cols-2"'),
-    );
+    expect(dialog).toContain("options={agentResponsibilityOptions}");
+    expect(dialog).toContain("agentResponsibilities: selectedAgentResponsibilitySlugs");
+    expect(dialog).toContain("useState<string[]>([])");
+    expect(dialog).toContain("if (open) reset();");
+    expect(dialog).toContain("setSelectedAgentResponsibilitySlugs([]);");
+    expect(dialog).not.toContain("isRoutine ? [] : defaultType.agentResponsibilities");
+    expect(dialog).toContain("selectedAgentResponsibilitySlugs.length > 0");
+    expect(dialog).not.toContain("ObjectiveEvidenceRouteSummary");
+    expect(dialog).not.toContain("Missing evidence");
+    expect(dialog).not.toContain("Route setup");
+    expect(dialog).not.toContain("AgentGoal type");
+    expect(dialog).not.toContain("<SearchableSelect");
+    expect(dialog).not.toContain("ObjectiveTypeSelectedSummary");
+    expect(dialog).not.toContain("ObjectiveTypeInfo");
     expect(dialog).not.toContain("goal-create-mode");
     expect(dialog).not.toContain("New instance");
     expect(dialog).not.toContain("goal-id");
@@ -66,7 +57,32 @@ describe("ManagedModelsView new model form", () => {
     expect(dialog).not.toContain("Advanced");
   });
 
-  it("keeps edit away from route proof internals while using model-aware labels", () => {
+  it("keeps non-model flows out of user-facing agentGoal controls", () => {
+    const visibleTypeBlock = source.slice(
+      source.indexOf("const USER_VISIBLE_OBJECTIVE_TYPE_IDS"),
+      source.indexOf("function userVisibleObjectiveGoalTypes"),
+    );
+    const createDialog = source.slice(
+      source.indexOf("function NewGoalDialog"),
+      source.indexOf("function EditManagedGoalDialog"),
+    );
+    const editDialog = source.slice(
+      source.indexOf("function EditManagedGoalDialog"),
+      source.indexOf("function GoalRow"),
+    );
+
+    expect(visibleTypeBlock).toContain('"improve"');
+    expect(visibleTypeBlock).not.toContain('"release"');
+    expect(visibleTypeBlock).not.toContain('"checklist"');
+    expect(createDialog).toContain("userVisibleObjectiveGoalTypes()");
+    expect(createDialog).not.toContain("<SearchableSelect");
+    expect(editDialog).toContain("userVisibleObjectiveGoalTypes()");
+    expect(editDialog).toContain("selectedVisibleObjectiveGoalType");
+    expect(editDialog).not.toContain("showObjectiveTypeSelect");
+    expect(editDialog).not.toContain("<SearchableSelect");
+  });
+
+  it("keeps agentGoal edits agentResponsibility-driven without exposing type labels", () => {
     const dialog = source.slice(
       source.indexOf("function EditManagedGoalDialog"),
       source.indexOf("function GoalRow"),
@@ -75,27 +91,33 @@ describe("ManagedModelsView new model form", () => {
     expect(dialog).toContain(
       'const intentLabel = isRoutine ? "Scope" : "Finish line"',
     );
-    expect(dialog).toContain(
-      "Update objective finish line and evidence route.",
-    );
+    expect(dialog).toContain("Update the finish line and attached agentResponsibilities.");
     expect(dialog).toContain("const objectiveGoalType =");
-    expect(dialog).toContain("<Label>Objective type</Label>");
-    expect(dialog).toContain(
-      "<ObjectiveTypeInfo goalType={objectiveGoalType} />",
-    );
-    expect(dialog).toContain(
-      "<ObjectiveEvidenceRouteSummary goalType={objectiveGoalType} />",
-    );
-    expect(dialog.indexOf('htmlFor="edit-goal-outcome"')).toBeLessThan(
-      dialog.indexOf('className="grid min-w-0 gap-3 md:grid-cols-2"'),
-    );
+    expect(dialog).toContain('"edit-agentLoop-agentResponsibilities"');
+    expect(dialog).toContain('"edit-agentGoal-agentResponsibilities"');
+    expect(dialog).toContain("options={agentResponsibilityOptions}");
+    expect(dialog).toContain("setSelectedAgentResponsibilitySlugs(goal.state.agentResponsibilities)");
+    expect(dialog).toContain("mergeOrderedSlugs(current, next)");
+    expect(dialog).toContain("moveSelectedAgentResponsibility");
+    expect(dialog).toContain("agentResponsibilities: selectedAgentResponsibilitySlugs");
+    expect(dialog).toContain("evidence: evidenceForRoute(routeSteps)");
+    expect(dialog).toContain("route: routeSteps");
+    expect(dialog).toContain("title={isRoutine ? \"Run order\" : \"Route\"}");
+    expect(dialog).toContain("OrderedPathSection");
+    expect(dialog).not.toContain("ObjectiveEvidenceRouteSummary");
+    expect(dialog).not.toContain("AgentGoal type");
+    expect(dialog).not.toContain("setEditGoalType");
+    expect(dialog).not.toContain("objectiveGoalTypeOptions");
+    expect(dialog).not.toContain("ObjectiveTypeSelectedSummary");
+    expect(dialog).not.toContain("ObjectiveTypeInfo");
+    expect(dialog).not.toContain('<SelectTrigger id="edit-goal-type">');
     expect(dialog).not.toContain('{isRoutine ? "Cadence" : "Schedule"}');
     expect(dialog).not.toContain("Proof key");
     expect(dialog).not.toContain("Proof route");
     expect(dialog).not.toContain("Advanced");
   });
 
-  it("uses the same duty picker shape for routine edits", () => {
+  it("uses the same selected agentResponsibility tag picker for agentLoop edits", () => {
     const dialog = source.slice(
       source.indexOf("function EditManagedGoalDialog"),
       source.indexOf("function GoalRow"),
@@ -105,16 +127,13 @@ describe("ManagedModelsView new model form", () => {
       'const intentLabel = isRoutine ? "Scope" : "Finish line"',
     );
     expect(dialog).toContain(
-      "dutySelectOptions(duties, goal?.state.duties ?? [])",
-    );
-    expect(dialog).toContain(
-      '<Label htmlFor="edit-routine-duties">Duties</Label>',
+      "agentResponsibilitySelectOptions(agentResponsibilities, goal?.state.agentResponsibilities ?? [])",
     );
     expect(dialog).toContain("SearchableMultiSelect");
-    expect(dialog).toContain("selectedDutySlugs.length");
-    expect(dialog).toContain(
-      "...(isRoutine ? { duties: selectedDutySlugs } : {})",
-    );
+    expect(dialog).toContain("selectedAgentResponsibilitySlugs.length > 0");
+    expect(dialog).toContain("? { agentResponsibilities: selectedAgentResponsibilitySlugs }");
+    expect(dialog).toContain('selectedHeading="Selected agentResponsibilities"');
+    expect(dialog).toContain('selectedTone="info"');
     expect(dialog).toContain("md:col-span-2");
   });
 });

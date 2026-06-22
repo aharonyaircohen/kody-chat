@@ -154,7 +154,7 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
     href: "/reports",
     label: "Reports",
     icon: FileText,
-    description: "Outputs from duty runs.",
+    description: "Outputs from agentResponsibility runs.",
     tint: "text-sky-300 bg-sky-500/10",
   },
   PREVIEW_NAV_ITEM,
@@ -204,42 +204,43 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     title: "Automation",
     items: [
       {
-        href: "/objectives",
-        label: "Objectives",
+        href: "/agents",
+        label: "Agents",
+        icon: Users,
+        description: "Agent identities that execute your agentResponsibilities.",
+        tint: "text-violet-300 bg-violet-500/10",
+      },
+
+      {
+        href: "/agent-goals",
+        label: "Goals",
         icon: Target,
         exact: true,
         description: "Finite outcomes driven by missing evidence.",
         tint: "text-sky-300 bg-sky-500/10",
       },
       {
-        href: "/routines",
-        label: "Routines",
+        href: "/agent-loops",
+        label: "Loops",
         icon: History,
         exact: true,
         description: "Operational loops driven by schedule and health.",
         tint: "text-emerald-300 bg-emerald-500/10",
       },
       {
-        href: "/duties",
-        label: "Duties",
+        href: "/agent-responsibilities",
+        label: "Responsibilities",
         icon: Layers,
         exact: true,
-        description: "Run and edit recurring duties.",
+        description: "Run and edit recurring agentResponsibilities.",
         tint: "text-amber-300 bg-amber-500/10",
       },
       {
-        href: "/agents",
-        label: "Agent",
-        icon: Users,
-        description: "Agent identities that execute your duties.",
-        tint: "text-violet-300 bg-violet-500/10",
-      },
-      {
-        href: "/executables",
-        label: "Executables",
+        href: "/agent-actions",
+        label: "Actions",
         icon: Boxes,
         exact: true,
-        description: "Manage custom executable implementations.",
+        description: "Manage custom agentAction implementations.",
         tint: "text-amber-300 bg-amber-500/10",
       },
     ],
@@ -308,7 +309,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         label: "Import / Export",
         icon: Building2,
         description:
-          "Move your agent, duties, prompts, and instructions between repos as a portable bundle.",
+          "Move your agent, agentResponsibilities, prompts, and instructions between repos as a portable bundle.",
         tint: "text-emerald-300 bg-emerald-500/10",
       },
     ],
@@ -389,7 +390,7 @@ const ALL_NAV_ITEMS: readonly SettingsNavItem[] = [
   ...SETTINGS_NAV_SECTIONS.flatMap((section) => section.items),
 ];
 
-/** Strip a query string off an href so "/reports" → "/duties". */
+/** Strip a query string off an href so "/reports" → "/agent-responsibilities". */
 function navPath(href: string): string {
   const q = href.indexOf("?");
   return q === -1 ? href : href.slice(0, q);

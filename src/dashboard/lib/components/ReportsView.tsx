@@ -4,7 +4,7 @@
  * @pattern reports-page
  * @ai-summary Reports view — list and read system reports under
  *   `kody-state:.kody/reports/<slug>.md`. Read-only. Mobile-first responsive
- *   layout that mirrors DutyControl: master/detail with a back button on
+ *   layout that mirrors AgentResponsibilityControl: master/detail with a back button on
  *   small viewports.
  */
 "use client";
@@ -41,7 +41,7 @@ import { PageHeader } from "./PageShell";
 const DISMISSED_REPORT_ACTIONS_KEY = "kody.report-actions.dismissed";
 
 interface ReportsViewProps {
-  /** Render without the built-in PageHeader (e.g. when hosted in DutiesPageTabs). */
+  /** Render without the built-in PageHeader (e.g. when hosted in AgentResponsibilitiesPageTabs). */
   embedded?: boolean;
 }
 
@@ -84,7 +84,7 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
         r.title.toLowerCase().includes(q) ||
         r.body.toLowerCase().includes(q) ||
         (r.suggestedActions ?? []).some((a) =>
-          [a.label, a.reason ?? "", a.executable ?? "", a.title ?? ""]
+          [a.label, a.reason ?? "", a.agentAction ?? "", a.title ?? ""]
             .join(" ")
             .toLowerCase()
             .includes(q),
@@ -139,10 +139,10 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
     report: Report,
     action: ReportSuggestedAction,
   ) => {
-    const duty = action.executable;
+    const agentResponsibility = action.agentAction;
     if (
       action.type !== "dispatch" ||
-      !duty ||
+      !agentResponsibility ||
       typeof action.target !== "number"
     ) {
       toast.error("This report action cannot be dispatched");
@@ -153,8 +153,8 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
     try {
       await kodyApi.jobs.run(
         {
-          duty,
-          executable: action.executable,
+          agentResponsibility,
+          agentAction: action.agentAction,
           target: action.target,
           flavor: "instant",
           cliArgs: {},
@@ -162,7 +162,7 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
         },
         auth?.user?.login,
       );
-      toast.success(`Dispatched ${duty} on #${action.target}`);
+      toast.success(`Dispatched ${agentResponsibility} on #${action.target}`);
     } catch (err) {
       toast.error("Dispatch failed", {
         description: err instanceof Error ? err.message : "Unknown error",
@@ -250,7 +250,7 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
               <EmptyState
                 icon={<FileText />}
                 title="No reports yet"
-                hint="Reports appear here once Kody duties (doc-drift, coverage-floor, etc.) commit them to kody state."
+                hint="Reports appear here once Kody agentResponsibilities (doc-drift, coverage-floor, etc.) commit them to kody state."
               />
             ) : filtered.length === 0 ? (
               <EmptyState
@@ -553,7 +553,7 @@ function ReportDetail({
                 Empty report
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                The duty that produces this report hasn&apos;t written content
+                The agentResponsibility that produces this report hasn&apos;t written content
                 yet.
               </p>
             </div>
@@ -613,9 +613,9 @@ function SuggestedActions({
                     {action.reason}
                   </p>
                 ) : null}
-                {action.type === "dispatch" && action.executable ? (
+                {action.type === "dispatch" && action.agentAction ? (
                   <p className="mt-1 font-mono text-[11px] text-white/45">
-                    {action.executable}
+                    {action.agentAction}
                     {typeof action.target === "number"
                       ? ` on #${action.target}`
                       : ""}
@@ -629,7 +629,7 @@ function SuggestedActions({
                     size="sm"
                     disabled={
                       running ||
-                      !action.executable ||
+                      !action.agentAction ||
                       typeof action.target !== "number"
                     }
                     onClick={() => onRun(action)}

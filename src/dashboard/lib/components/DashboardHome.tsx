@@ -5,7 +5,7 @@
  * @ai-summary The operations overview rendered at `/` (the "Dashboard" view).
  *   An at-a-glance control panel built top-to-bottom around "what needs me,
  *   what's broken": an attention row (reports + failures), a task
- *   pulse, duties health, latest reports, and engine health. Every section
+ *   pulse, agentResponsibilities health, latest reports, and engine health. Every section
  *   rides a hook the rest of the dashboard already polls, so it adds no new
  *   GitHub load — it just composes existing caches into one screen. `/` used
  *   to redirect to /tasks; it now lands here, with Tasks/Vibe one click away
@@ -453,7 +453,7 @@ function LatestReports() {
         <p className="text-sm text-muted-foreground">Loading reports…</p>
       ) : reports.length === 0 ? (
         <Card className="p-4 text-sm text-muted-foreground">
-          No reports yet — duty runs write them here.
+          No reports yet — agentResponsibility runs write them here.
         </Card>
       ) : (
         <Card className="divide-y divide-white/[0.04] overflow-hidden">
@@ -630,40 +630,40 @@ function ModelsOverview() {
     .sort((a, b) => managedModelTime(b) - managedModelTime(a))
     .slice(0, 4);
   const objectiveCount = models.filter(
-    (model) => managedGoalModel(model) === "objective",
+    (model) => managedGoalModel(model) === "agentGoal",
   ).length;
   const routineCount = models.filter(
-    (model) => managedGoalModel(model) === "routine",
+    (model) => managedGoalModel(model) === "agentLoop",
   ).length;
 
   return (
     <section>
       <SectionHeader
-        title="Objectives / routines"
-        href="/objectives"
+        title="AgentGoals / agentLoops"
+        href="/agent-goals"
         cta="Open"
       />
       {isLoading ? (
         <p className="text-sm text-muted-foreground">Loading models...</p>
       ) : models.length === 0 ? (
         <Card className="p-4 text-sm text-muted-foreground">
-          No objectives or routines yet.
+          No agentGoals or agentLoops yet.
         </Card>
       ) : (
         <Card className="overflow-hidden">
           <div className="grid grid-cols-2 divide-x divide-white/[0.04] border-b border-white/[0.04] text-xs">
             <Link
-              href="/objectives"
+              href="/agent-goals"
               className="flex items-center justify-between px-4 py-3 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
             >
-              <span>Objectives</span>
+              <span>AgentGoals</span>
               <span className="font-mono text-white/70">{objectiveCount}</span>
             </Link>
             <Link
-              href="/routines"
+              href="/agent-loops"
               className="flex items-center justify-between px-4 py-3 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
             >
-              <span>Routines</span>
+              <span>AgentLoops</span>
               <span className="font-mono text-white/70">{routineCount}</span>
             </Link>
           </div>
@@ -689,7 +689,7 @@ function managedModelTime(model: ManagedGoalRecord): number {
 
 function ManagedModelOverviewRow({ model }: { model: ManagedGoalRecord }) {
   const kind = managedGoalModel(model);
-  const href = kind === "routine" ? "/routines" : "/objectives";
+  const href = kind === "agentLoop" ? "/agent-loops" : "/agent-goals";
   const state = model.state.state;
 
   return (
@@ -698,7 +698,7 @@ function ManagedModelOverviewRow({ model }: { model: ManagedGoalRecord }) {
       className="flex items-center gap-2 px-4 py-3 hover:bg-white/[0.04] transition-colors"
     >
       <div className="flex items-center gap-2 min-w-0 flex-1">
-        {kind === "routine" ? (
+        {kind === "agentLoop" ? (
           <Activity className="w-3.5 h-3.5 text-sky-400 shrink-0" />
         ) : (
           <Target className="w-3.5 h-3.5 text-emerald-400 shrink-0" />

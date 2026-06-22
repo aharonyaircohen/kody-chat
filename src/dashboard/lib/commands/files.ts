@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern commands-files
  * @ai-summary Read/write command files under `.kody/commands/<slug>.md`
- *   via the GitHub contents API. Same shape as `duties-files.ts`:
+ *   via the GitHub contents API. Same shape as `agentResponsibilities-files.ts`:
  *   filename is the slug, frontmatter holds description/argument-hint,
  *   body is the command template that gets substituted with $ARGUMENTS.
  *

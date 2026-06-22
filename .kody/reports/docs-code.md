@@ -5,21 +5,21 @@ findings:
   - id: docs-code.no-under-documented-folder
     severity: low
     title: "No under-documented source folder qualifies this tick"
-  - id: docs-code.missing-chore-executable
+  - id: docs-code.missing-chore-agentAction
     severity: medium
-    title: "Configured chore executable is not available in the engine"
+    title: "Configured chore agentAction is not available in the engine"
 ---
 
 # docs-code — setup check (2026-06-09)
 
-Duty prerequisites checked on first tick (state was `seed`, no prior
+AgentResponsibility prerequisites checked on first tick (state was `seed`, no prior
 `lastRunISO`). The operator flipped `disabled: true` → `disabled: false`
 in commit `481863fc` on 2026-05-27 to enable verification.
 
 ## Pass — coverage heuristic
 
 Sweep across `src/dashboard/lib/*/` (excluding `components/` and `utils/`,
-per the duty body) for folders with ≥ 4 source files. Every candidate
+per the agentResponsibility body) for folders with ≥ 4 source files. Every candidate
 folder carries `@ai-summary` on virtually every module — the codebase
 is well-documented:
 
@@ -47,17 +47,17 @@ at or near full coverage; the worst case is `hooks/useMediaQuery.ts` —
 a 1-line gap on a small utility hook, not load-bearing and not worth a
 tracking issue on its own.
 
-Per the duty body, the sweep should idle when no folder qualifies.
+Per the agentResponsibility body, the sweep should idle when no folder qualifies.
 There is nothing to recommend this tick.
 
 ## Fail — engine verb `chore --issue` not present
 
-Same blocker as the sibling `docs-readme` duty (see
+Same blocker as the sibling `docs-readme` agentResponsibility (see
 [`.kody/reports/docs-readme.md`](./docs-readme.md)). Engine README
 [aharonyaircohen/kody-engine](https://github.com/aharonyaircohen/kody-engine/blob/main/README.md)
 lists built-in verbs only: `run`, `resolve`, `sync`, `merge`, `revert`,
 `release`, `release-prepare`, `release-publish`, `release-deploy`,
-`preview-build`, `duty-tick`, `duty-tick-scripted`, `duty-scheduler`,
+`preview-build`, `agent-responsibility-tick`, `agent-responsibility-tick-scripted`, `agent-responsibility-scheduler`,
 `goal-scheduler`, `goal-tick`, `init`, `worker-ask`, `chat`, `serve`,
 `brain-serve`, `pool-serve`, `runner-serve`, `stats`, `ci`.
 **No `chore`.**
@@ -71,11 +71,11 @@ The only `--issue`-taking verbs are:
 
 Per the persona hard rule, dispatching `@kody chore --issue <N>` would
 post a phantom command — the engine has no handler, the operators
-approve would do nothing. The duty cannot safely recommend that verb.
+approve would do nothing. The agentResponsibility cannot safely recommend that verb.
 
 ## To enable
 
-Either (a) add a `chore` (or equivalent) executable to the engine that
+Either (a) add a `chore` (or equivalent) agentAction to the engine that
 takes `--issue <N>` and opens a PR scoped to the issue body, then
 update the `<!-- kody-cmd -->` line in the recommendation template in
 `docs-code.md` to the new verb; or (b) replace `chore --issue` with
@@ -83,7 +83,7 @@ update the `<!-- kody-cmd -->` line in the recommendation template in
 that a doc-coverage issue body is small enough to scope cleanly when
 the agent implements it end-to-end.
 
-Until one of those lands, this duty is a **no-op**: it does not flag
+Until one of those lands, this agentResponsibility is a **no-op**: it does not flag
 a folder, does not open a coverage issue, does not post inbox recs.
 The cadence guard (`data.lastRunISO`) was set to "now" on this tick so
 the next wake hits the 24h backstop and exits without re-running the
@@ -98,11 +98,11 @@ State on this tick: `cursor: "seed"`, `data: {}`, `done: false` — the
 reset between runs, or the previous tick never persisted). With no
 `lastRunISO` set, the cadence guard does not apply and the sweep ran.
 
-The duty body still reads `disabled: true` and the recommendation
+The agentResponsibility body still reads `disabled: true` and the recommendation
 template still hard-codes the phantom `chore --issue` verb. The
 operator has not yet applied fix (a) or fix (b) from the previous
 section. The previous reports "no-op until the verb lands" stance
-remains technically correct for the strict reading of the duty body,
+remains technically correct for the strict reading of the agentResponsibility body,
 but:
 
 - The persona hard rule explicitly authorizes the writer to "use
@@ -112,7 +112,7 @@ but:
   describes a single folder, a small, scoped edit, no test churn
   expected. The engine can implement it end-to-end.
 - The state was re-armed (`seed`, no backstop) — the operator
-  appears to want this duty active, not dormant.
+  appears to want this agentResponsibility active, not dormant.
 
 The writer therefore proceeded and made a pick this tick. Operator
 can dismiss issue #168 if the conservative "no-op" stance is
@@ -164,12 +164,12 @@ the job"), per the writers "document the why and the trap" doctrine.
 1. **Approve or dismiss the rec on #168** via the dashboard inbox.
    The engine dispatch line is `@kody run --issue 168`. If approved,
    the engine will implement the folder-level header and open a PR.
-2. **Update the duty body** — replace the templates
+2. **Update the agentResponsibility body** — replace the templates
    `<!-- kody-cmd: @kody chore --issue <tracking> -->` with
    `<!-- kody-cmd: @kody run --issue <tracking> -->`, OR land
    fix (a) from the 2026-06-09 section (add a `chore` verb to the
    engine). This is option (b) from the previous report; the writer
    has already used it in practice, but the template still
    hard-codes the wrong verb for future ticks.
-3. **Flip the `disabled` flag** in `.kody/duties/docs-code.md` from
+3. **Flip the `disabled` flag** in `.kody/agent-responsibilities/docs-code.md` from
    `true` to `false` once satisfied with the verb fix.

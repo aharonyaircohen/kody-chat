@@ -2,12 +2,12 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern jobs-api
- * @ai-summary Run an INSTANT duty job. A job may link an executable as the
- *   implementation, but the dashboard only dispatches duties: it posts
- *   `@kody <duty> [why]` on the target issue/PR.
+ * @ai-summary Run an INSTANT agentResponsibility job. A job may link an agentAction as the
+ *   implementation, but the dashboard only dispatches agentResponsibilities: it posts
+ *   `@kody <agentResponsibility> [why]` on the target issue/PR.
  *
- *   Scheduled jobs are NOT dispatched here — their source of truth is a duty
- *   file (agent + every + intent), created via the duties API. This endpoint
+ *   Scheduled jobs are NOT dispatched here — their source of truth is a agentResponsibility
+ *   file (agent + every + intent), created via the agentResponsibilities API. This endpoint
  *   rejects `flavor: "scheduled"` so the two paths never blur.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -24,7 +24,7 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { recordAudit } from "@dashboard/lib/activity/audit";
-import { readDutyFile } from "@dashboard/lib/duties-files";
+import { readAgentResponsibilityFile } from "@dashboard/lib/agent-responsibilities-files";
 import {
   validateKodyJob,
   resolveJobProfile,
@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     const actorLogin =
       typeof raw?.actorLogin === "string" ? raw.actorLogin : undefined;
 
-    // Dashboard boundary: duty is required. Executable-only jobs are rejected.
+    // Dashboard boundary: agentResponsibility is required. AgentAction-only jobs are rejected.
     const job = validateKodyJob(raw);
 
     if (job.flavor !== "instant") {
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
         {
           error: "not_instant",
           message:
-            "Only instant jobs run here. Save a scheduled job as a duty (agent + schedule + executable).",
+            "Only instant jobs run here. Save a scheduled job as a agentResponsibility (agent + schedule + agentAction).",
         },
         { status: 400 },
       );
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     }
     if (!resolveJobProfile(job)) {
       return NextResponse.json(
-        { error: "no_duty", message: "Pick a duty to run." },
+        { error: "no_agentResponsibility", message: "Pick a agentResponsibility to run." },
         { status: 400 },
       );
     }
@@ -89,12 +89,12 @@ export async function POST(req: NextRequest) {
         { status: 401 },
       );
     }
-    const duty = await readDutyFile(job.duty!, userOctokit);
-    if (!duty) {
+    const agentResponsibility = await readAgentResponsibilityFile(job.agentResponsibility!, userOctokit);
+    if (!agentResponsibility) {
       return NextResponse.json(
         {
-          error: "duty_not_found",
-          message: `Duty "${job.duty}" does not exist.`,
+          error: "agentResponsibility_not_found",
+          message: `AgentResponsibility "${job.agentResponsibility}" does not exist.`,
         },
         { status: 400 },
       );

@@ -20,7 +20,7 @@ export interface TaskContext {
   associatedPR?: { number?: number; state?: string; html_url?: string };
 }
 
-export interface DutyContext {
+export interface AgentResponsibilityContext {
   number?: number;
   title?: string;
   body?: string;
@@ -72,7 +72,7 @@ export function buildSystemPrompt(
   repo: { owner: string; repo: string } | null,
   task: TaskContext | undefined,
   opts?: {
-    duty?: DutyContext;
+    agentResponsibility?: AgentResponsibilityContext;
     goalPlanner?: boolean;
     goal?: GoalContext;
     report?: ReportContext;
@@ -156,7 +156,7 @@ ${repoLines}
 
 Rules:
 - Read and summary questions can use the org as the scope.
-- Any write action, repo mutation, issue creation, duty run, config change, or comment must target one concrete repository. If the user did not name one, ask which repository.
+- Any write action, repo mutation, issue creation, agentResponsibility run, config change, or comment must target one concrete repository. If the user did not name one, ask which repository.
 - The connected repository in auth may only be the browser credential anchor. Do not treat it as the only repo when the current page is the org workspace.`,
     );
   }
@@ -185,7 +185,7 @@ Kody has two separate planning surfaces. Keep the words distinct.
 
 \`/goal\` should create a managed company goal. \`/mission\` should create the old task-group mission. If the user says "old goal", "task-page goal", "goal group", or "task group", treat it as a mission.
 
-For managed goals, ask for missing outcome/proof steps if needed. Keep the route simple: one evidence key, one stage, one duty, and one executable is enough for a first goal.`,
+For managed goals, ask for missing outcome/proof steps if needed. Keep the route simple: one evidence key, one stage, one agentResponsibility, and one agentAction is enough for a first goal.`,
     );
     if (opts?.memoryIndex && opts.memoryIndex.trim().length > 0) {
       sections.push(
@@ -215,20 +215,20 @@ ${truncateMemoryIndex(opts.memoryIndex.trim())}`,
       );
     }
   }
-  if (opts?.duty) {
-    const m = opts.duty;
-    const lines: string[] = ["## Current duty"];
-    if (m.number != null) lines.push(`- Duty #${m.number}`);
+  if (opts?.agentResponsibility) {
+    const m = opts.agentResponsibility;
+    const lines: string[] = ["## Current agentResponsibility"];
+    if (m.number != null) lines.push(`- AgentResponsibility #${m.number}`);
     if (m.title) lines.push(`- Title: ${m.title}`);
     if (m.state) lines.push(`- State: ${m.state}`);
     if (m.labels?.length) lines.push(`- Labels: ${m.labels.join(", ")}`);
     if (m.body) {
       const bodyPreview =
         m.body.length > 2000 ? `${m.body.slice(0, 2000)}…` : m.body;
-      lines.push(`\n### Duty body\n\n${bodyPreview}`);
+      lines.push(`\n### AgentResponsibility body\n\n${bodyPreview}`);
     }
     lines.push(
-      "\nThe user is chatting about **this specific duty**. A Kody duty is a folder at `.kody/duties/<slug>/`: `profile.json` holds action/cadence/agents metadata, and `duty.md` describes purpose, output, allowed commands, and restrictions. Answer their questions grounded in the duty body above — do NOT claim the duty does not exist. If they want to edit the duty, help them draft changes to the profile and body.",
+      "\nThe user is chatting about **this specific agentResponsibility**. A Kody agentResponsibility is a folder at `.kody/agent-responsibilities/<slug>/`: `profile.json` holds action/cadence/agents metadata, and `agent-responsibility.md` describes purpose, output, allowed commands, and restrictions. Answer their questions grounded in the agentResponsibility body above — do NOT claim the agentResponsibility does not exist. If they want to edit the agentResponsibility, help them draft changes to the profile and body.",
     );
     sections.push(lines.join("\n"));
   }
@@ -302,7 +302,7 @@ If the user's approval is partial ("approve 1, 3, 4 but skip 2"), only create th
     const r = opts.report;
     const lines: string[] = ["## Current report"];
     lines.push(
-      `The user is viewing the report **${r.title}** (slug \`${r.slug}\`) on the dashboard's \`/reports\` page. Reports are markdown files at \`kody-state:.kody/reports/<slug>.md\` produced by Kody duties and other engine pipelines — diagnostic output, never the source of truth for code.`,
+      `The user is viewing the report **${r.title}** (slug \`${r.slug}\`) on the dashboard's \`/reports\` page. Reports are markdown files at \`kody-state:.kody/reports/<slug>.md\` produced by Kody agentResponsibilities and other engine pipelines — diagnostic output, never the source of truth for code.`,
     );
     const bodyPreview =
       r.body.length > 4000 ? `${r.body.slice(0, 4000)}…` : r.body;
@@ -313,7 +313,7 @@ When the user asks what to do with this report, recommend one of three paths and
 
 1. **Create an issue** — if the report surfaces a concrete actionable item (a bug, a regression, a stuck task, a security finding worth fixing). Use \`report_bug\` or \`create_task\` per the issue-creation rules above. Reference specific line items from the report body.
 2. **Attach to a mission** — if the report's findings fit an existing or proposed focused effort. Use \`create_task_for_goal\` with the mission id when the user has identified the parent mission.
-3. **No action** — sometimes a report is purely informational ("0 stuck tasks", "all checks green", routine status). Say so plainly and do not invent work to justify a follow-up.
+3. **No action** — sometimes a report is purely informational ("0 stuck tasks", "all checks green", agentLoop status). Say so plainly and do not invent work to justify a follow-up.
 
 Pick honestly. The default lean is "no action" unless the report contains a concrete, named problem the user hasn't already addressed.`);
     sections.push(lines.join("\n"));

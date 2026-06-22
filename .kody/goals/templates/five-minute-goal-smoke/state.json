@@ -8,13 +8,13 @@
     "outcome": "Every 5 minutes, refresh company graph report so recurring goal scheduling can be verified quickly.",
     "evidence": ["companyGraphRefreshed"]
   },
-  "duties": ["company-graph"],
+  "agentResponsibilities": ["company-graph"],
   "route": [
     {
       "stage": "refresh-company-graph",
       "evidence": "companyGraphRefreshed",
-      "duty": "company-graph",
-      "executable": "company-graph",
+      "agentResponsibility": "company-graph",
+      "agentAction": "company-graph",
       "args": {
         "goal": { "fact": "goalId" }
       }

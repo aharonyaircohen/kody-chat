@@ -4,7 +4,7 @@
  * @pattern ai-sdk-tool
  * @ai-summary Memory tools for the kody-direct chat agent. Persist
  *   facts/feedback/project-context/references as `.kody/memory/<id>.md`
- *   files in the connected repo. Mirrors the create_or_update_kody_duty tool: each
+ *   files in the connected repo. Mirrors the create_or_update_agent_responsibility tool: each
  *   write commits a markdown file via the GitHub contents API and rebuilds
  *   the sibling `INDEX.md` so the next chat turn can see the new entry.
  *
@@ -75,7 +75,7 @@ export function createMemoryTools(ctx: Ctx) {
         '- User points to an external system ("bugs are tracked in Linear INGEST") → type `reference`.\n' +
         "- User reveals their role / expertise / how they want to be addressed → type `user`.\n\n" +
         "DO NOT save: code patterns, file paths, architecture, anything in CLAUDE.md, " +
-        "ephemeral task state, or routine successes. If the next reader could derive it " +
+        "ephemeral task state, or agentLoop successes. If the next reader could derive it " +
         "from `git log` or by reading the code, do not save it.\n\n" +
         "Before calling: check the injected `## Remembered context` block. If a similar " +
         "memory already exists, call `update_memory` instead of creating a duplicate. " +

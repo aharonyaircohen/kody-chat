@@ -18,7 +18,7 @@ export type KodyRunTimelineCategory =
 export interface KodyRunLogEvent {
   ts?: string;
   runId?: string;
-  executable?: string;
+  agentAction?: string;
   kind?: string;
   name?: string;
   durationMs?: number;
@@ -30,7 +30,7 @@ export interface KodyRunTimelineItem {
   id: string;
   ts: string | null;
   runId: string | null;
-  executable: string | null;
+  agentAction: string | null;
   kind: string;
   name: string | null;
   durationMs: number | null;
@@ -77,7 +77,7 @@ export interface KodyRunLogsSnapshot {
 const STAGE_KINDS = new Set(["stage_start", "stage_end"]);
 
 function textOf(event: KodyRunLogEvent): string {
-  return [event.kind, event.name, event.executable]
+  return [event.kind, event.name, event.agentAction]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
@@ -124,7 +124,7 @@ function categoryFor(event: KodyRunLogEvent): KodyRunTimelineCategory | null {
 }
 
 function labelFor(event: KodyRunLogEvent): string {
-  return event.name || event.executable || event.kind || "event";
+  return event.name || event.agentAction || event.kind || "event";
 }
 
 function summaryFor(
@@ -176,7 +176,7 @@ export function buildRunTimeline(
         id: `${event.runId ?? "run"}:${event.ts ?? index}:${event.kind ?? "event"}:${event.name ?? index}`,
         ts: event.ts ?? null,
         runId: event.runId ?? null,
-        executable: event.executable ?? null,
+        agentAction: event.agentAction ?? null,
         kind: event.kind ?? "event",
         name: event.name ?? null,
         durationMs: numberOrNull(event.durationMs),
@@ -235,7 +235,7 @@ export function parseKodyRunLogZip(
   zip: Buffer,
   runId: number | string,
 ): ParsedKodyRunLog | null {
-  const jsonl = extractZipEntryText(zip, `.kody/runs/${runId}/events.jsonl`);
+  const jsonl = extractZipEntryText(zip, `.kody/agent-runs/${runId}/events.jsonl`);
   if (jsonl == null) return null;
   const events = parseKodyRunEventsJsonl(jsonl);
   return {

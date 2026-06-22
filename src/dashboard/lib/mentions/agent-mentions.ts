@@ -8,7 +8,7 @@
  *   `agent-ask` tick instead of (only) notifying a person. Agent wins
  *   on collision with a GitHub login — the same precedence rule repo
  *   prompts use over built-ins (the more specific, repo-owned thing wins).
- *   (`agent-ask` is the unchanged engine executable name; the dashboard
+ *   (`agent-ask` is the unchanged engine agentAction name; the dashboard
  *   feature noun is "agent".)
  */
 

@@ -2,12 +2,12 @@
  * @fileType component
  * @domain kody
  * @pattern agent-page-tabs
- * @ai-summary Tabbed shell for the Agent page — mirrors DutiesPageTabs.
+ * @ai-summary Tabbed shell for the Agent page — mirrors AgentResponsibilitiesPageTabs.
  *   Hosts Agent Control under a single route. Only the Agent tab is
  *   present: the Reports tab is intentionally omitted because reports
- *   live at `.kody/reports/` and are already surfaced on the Duties page —
+ *   live at `.kody/reports/` and are already surfaced on the AgentResponsibilities page —
  *   duplicating them here would show the same data twice. Active tab is
- *   mirrored to the URL (`?tab=`) for parity with the Duties shell.
+ *   mirrored to the URL (`?tab=`) for parity with the AgentResponsibilities shell.
  */
 "use client";
 

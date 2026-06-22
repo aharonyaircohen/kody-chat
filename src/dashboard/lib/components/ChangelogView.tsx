@@ -17,7 +17,7 @@ import { PageHeader } from "./PageShell";
 import { MarkdownPreview } from "./MarkdownPreview";
 
 interface ChangelogViewProps {
-  /** Render without the built-in PageHeader (e.g. when hosted in DutiesPageTabs). */
+  /** Render without the built-in PageHeader (e.g. when hosted in AgentResponsibilitiesPageTabs). */
   embedded?: boolean;
 }
 

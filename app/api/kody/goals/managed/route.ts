@@ -59,8 +59,8 @@ function mapGithubError(error: any, fallback: string, status = 500) {
 const routeStepSchema = z.object({
   stage: z.string().min(1).max(80),
   evidence: z.string().min(1).max(80),
-  duty: z.string().min(1).max(80),
-  executable: z.string().min(1).max(80).optional(),
+  agentResponsibility: z.string().min(1).max(80),
+  agentAction: z.string().min(1).max(80).optional(),
   args: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -72,7 +72,7 @@ const createManagedGoalSchema = z.object({
   type: z.string().min(1).max(80).default("general"),
   outcome: z.string().min(1).max(500),
   schedule: managedGoalScheduleSchema.default("manual"),
-  duties: z.array(z.string().min(1).max(80)).optional(),
+  agentResponsibilities: z.array(z.string().min(1).max(80)).optional(),
   evidence: z.array(z.string().min(1).max(80)).default([]),
   route: z.array(routeStepSchema).default([]),
   actorLogin: z.string().optional(),
@@ -144,7 +144,7 @@ export async function POST(req: NextRequest) {
     const selectedType = isManagedGoalTypeId(parsed.data.type)
       ? managedGoalTypeDefinition(parsed.data.type)
       : null;
-    const routeFreeRoutine = selectedType?.model === "routine";
+    const routeFreeRoutine = selectedType?.model === "agentLoop";
     if (
       !routeFreeRoutine &&
       !usesTemplate &&

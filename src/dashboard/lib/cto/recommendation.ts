@@ -40,7 +40,7 @@ export const CTO_ACTIONS = [
   "qa-review",
   // Dashboard-executed (NOT an `@kody` command — the engine never auto-merges).
   // Approve on a `merge` rec squash-merges the PR via the GitHub API; the
-  // QA-verify duty emits these once ui-review confirms the fix/feature works.
+  // QA-verify agentResponsibility emits these once ui-review confirms the fix/feature works.
   "merge",
   "approve",
   "comment",
@@ -73,8 +73,8 @@ const FALLBACK_COMMAND: Partial<Record<CtoAction, string>> = {
 const MAX_COMMAND_LEN = 300;
 
 /**
- * Verbs the engine has no executable for. A `kody-cmd` naming one is an agentIdentity
- * bug — e.g. the QA duty emitting `@kody approve` for a PASS/CONCERNS result.
+ * Verbs the engine has no agentAction for. A `kody-cmd` naming one is an agentIdentity
+ * bug — e.g. the QA agentResponsibility emitting `@kody approve` for a PASS/CONCERNS result.
  * `approve`/`reject`/`dismiss` are human inbox gates, not engine commands, so
  * posting them verbatim makes the engine reply "I don't recognize approve."
  * Treat any such command as invalid so the rec surfaces read-only instead.
@@ -115,14 +115,14 @@ export function parseCtoAgent(rawBody: string): string | null {
 }
 
 /**
- * Read the emitting DUTY slug from a rec's `<!-- kody-duty: <slug> -->` line —
- * the engine stamps this (code, not the LLM) so trust can be keyed per duty,
- * not just per agentIdentity. Sibling duties of one agentIdentity (e.g. `qa-sweep` vs
+ * Read the emitting AGENT_RESPONSIBILITY slug from a rec's `<!-- kody-agentResponsibility: <slug> -->` line —
+ * the engine stamps this (code, not the LLM) so trust can be keyed per agentResponsibility,
+ * not just per agentIdentity. Sibling agentResponsibilities of one agentIdentity (e.g. `qa-sweep` vs
  * `qa-verify`, both `qa`) thus earn autonomy independently. Returns null on
  * legacy recs that predate the line; callers fall back to the agentIdentity slug.
  */
-export function parseCtoDuty(rawBody: string): string | null {
-  const m = rawBody.match(/<!--\s*kody-duty:\s*([a-z0-9][a-z0-9-]*)\s*-->/i);
+export function parseCtoAgentResponsibility(rawBody: string): string | null {
+  const m = rawBody.match(/<!--\s*kody-agentResponsibility:\s*([a-z0-9][a-z0-9-]*)\s*-->/i);
   return m ? m[1].toLowerCase() : null;
 }
 
@@ -139,10 +139,10 @@ export interface CtoRecommendation {
   /** Slug of the agent that emitted the rec (legacy → "cto"). */
   agent: string;
   /**
-   * Slug of the DUTY that emitted the rec — the trust key. Falls back to the
-   * agentIdentity slug for legacy recs the engine hasn't stamped with `kody-duty`.
+   * Slug of the AGENT_RESPONSIBILITY that emitted the rec — the trust key. Falls back to the
+   * agentIdentity slug for legacy recs the engine hasn't stamped with `kody-agentResponsibility`.
    */
-  duty: string;
+  agentResponsibility: string;
   taskNumber: number;
   action: CtoAction;
   /** The exact `@kody …` command Approve will post, or null if none. */
@@ -306,14 +306,14 @@ export function detectCtoRecommendation(
   // slug line) default to the CTO so their trust keeps accruing under `cto`.
   const agent = entry.ctoAgent ?? DEFAULT_AGENT_SLUG;
 
-  // Duty slug is the trust key. The engine stamps `kody-duty` on every rec;
+  // AgentResponsibility slug is the trust key. The engine stamps `kody-agentResponsibility` on every rec;
   // recs that predate it fall back to the agentIdentity slug so trust still records
   // somewhere coherent (per-agentIdentity) until the engine ships the stamp.
-  const duty = entry.ctoDuty ?? agent;
+  const agentResponsibility = entry.ctoAgentResponsibility ?? agent;
 
   // `merge` is dashboard-executed (no `@kody` command) but still actionable —
   // Approve squash-merges the PR. Other actions are dispatchable iff they
   // resolved to a command to post.
   const dispatchable = isDashboardAction(action) || command !== null;
-  return { agent, duty, taskNumber, action, command, dispatchable };
+  return { agent, agentResponsibility, taskNumber, action, command, dispatchable };
 }

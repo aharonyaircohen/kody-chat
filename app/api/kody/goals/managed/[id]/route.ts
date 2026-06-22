@@ -22,6 +22,8 @@ import {
 } from "@dashboard/lib/github-client";
 import {
   buildManagedGoalState,
+  isManagedGoalTypeId,
+  managedGoalTypeDefinition,
   managedGoalPath,
   type ManagedGoalState,
 } from "@dashboard/lib/managed-goals";
@@ -54,8 +56,8 @@ function mapGithubError(error: any, fallback: string, status = 500) {
 const routeStepSchema = z.object({
   stage: z.string().min(1).max(80),
   evidence: z.string().min(1).max(80),
-  duty: z.string().min(1).max(80),
-  executable: z.string().min(1).max(80).optional(),
+  agentResponsibility: z.string().min(1).max(80),
+  agentAction: z.string().min(1).max(80).optional(),
   args: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -67,7 +69,7 @@ const updateManagedGoalSchema = z.object({
   type: z.string().min(1).max(80).optional(),
   outcome: z.string().min(1).max(500).optional(),
   schedule: managedGoalScheduleSchema.optional(),
-  duties: z.array(z.string().min(1).max(80)).optional(),
+  agentResponsibilities: z.array(z.string().min(1).max(80)).optional(),
   evidence: z.array(z.string().min(1).max(80)).optional(),
   route: z.array(routeStepSchema).optional(),
   actorLogin: z.string().optional(),
@@ -85,7 +87,7 @@ function isStateOnlyUpdate(
     data.type === undefined &&
     data.outcome === undefined &&
     data.schedule === undefined &&
-    data.duties === undefined &&
+    data.agentResponsibilities === undefined &&
     data.evidence === undefined &&
     data.route === undefined
   );
@@ -106,7 +108,7 @@ function instantiateStoreGoalState(
     state,
     type: storeState.type,
     destination: storeState.destination,
-    duties: storeState.duties,
+    agentResponsibilities: storeState.agentResponsibilities,
     route: storeState.route,
     schedule: storeState.schedule ?? "manual",
     ...(typeof storeState.stage === "string"
@@ -236,13 +238,41 @@ export async function PATCH(
       });
     }
 
+    const selectedGoalType =
+      parsed.data.type && isManagedGoalTypeId(parsed.data.type)
+        ? managedGoalTypeDefinition(parsed.data.type)
+        : null;
+    const typeChanged =
+      parsed.data.type !== undefined &&
+      parsed.data.type !== existing.state.type;
+    const shouldUseTypeDefaults = Boolean(typeChanged && selectedGoalType);
+    const nextEvidence =
+      parsed.data.evidence ??
+      (shouldUseTypeDefaults && selectedGoalType
+        ? selectedGoalType.evidence
+        : existing.state.destination.evidence);
+    const nextRoute =
+      parsed.data.route ??
+      (shouldUseTypeDefaults && selectedGoalType
+        ? selectedGoalType.route
+        : existing.state.route);
+    const nextAgentResponsibilities =
+      parsed.data.agentResponsibilities ??
+      (shouldUseTypeDefaults && selectedGoalType
+        ? selectedGoalType.agentResponsibilities
+        : existing.state.agentResponsibilities);
+    const routeChanged =
+      parsed.data.route !== undefined || shouldUseTypeDefaults;
+    const agentResponsibilitiesChanged =
+      parsed.data.agentResponsibilities !== undefined || shouldUseTypeDefaults;
+
     const rebuilt = buildManagedGoalState({
       type: parsed.data.type ?? existing.state.type,
       outcome: parsed.data.outcome ?? existing.state.destination.outcome,
       schedule: parsed.data.schedule ?? existing.state.schedule ?? "manual",
-      duties: parsed.data.duties ?? existing.state.duties,
-      evidence: parsed.data.evidence ?? existing.state.destination.evidence,
-      route: parsed.data.route ?? existing.state.route,
+      agentResponsibilities: nextAgentResponsibilities,
+      evidence: nextEvidence,
+      route: nextRoute,
     });
     const evidenceSet = new Set(rebuilt.destination.evidence);
     const nextState: ManagedGoalState = {
@@ -251,14 +281,12 @@ export async function PATCH(
       type: rebuilt.type,
       destination: rebuilt.destination,
       schedule: rebuilt.schedule,
-      duties:
-        parsed.data.duties === undefined && parsed.data.route === undefined
-          ? existing.state.duties
-          : rebuilt.duties,
-      route:
-        parsed.data.route === undefined ? existing.state.route : rebuilt.route,
-      stage:
-        parsed.data.route === undefined ? existing.state.stage : rebuilt.stage,
+      agentResponsibilities:
+        !agentResponsibilitiesChanged && !routeChanged
+          ? existing.state.agentResponsibilities
+          : rebuilt.agentResponsibilities,
+      route: routeChanged ? rebuilt.route : existing.state.route,
+      stage: routeChanged ? rebuilt.stage : existing.state.stage,
       facts: Object.fromEntries(
         Object.entries(existing.state.facts).filter(([key]) =>
           evidenceSet.has(key),

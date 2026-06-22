@@ -163,13 +163,13 @@ export type ChatContext =
   | { kind: "task"; task: import("./types").KodyTask }
   | {
       /**
-       * Chat scoped to an existing duty (or agent — an agent
-       * is a pure agent file that's structurally a subset of a duty and
+       * Chat scoped to an existing agentResponsibility (or agent — an agent
+       * is a pure agent file that's structurally a subset of a agentResponsibility and
        * reuses this scope kind). The agent is given the title/body so
-       * it can answer questions about that specific duty/agents.
+       * it can answer questions about that specific agentResponsibility/agents.
        */
-      kind: "duty";
-      duty: import("./api").Duty | import("./api").Agent;
+      kind: "agentResponsibility";
+      agentResponsibility: import("./api").AgentResponsibility | import("./api").Agent;
     }
   | {
       /**

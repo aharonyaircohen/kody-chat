@@ -5,30 +5,30 @@ findings:
   - id: docs-readme.area-map-in-sync
     severity: low
     title: "Area to docs map is in sync"
-  - id: docs-readme.missing-chore-executable
+  - id: docs-readme.missing-chore-agentAction
     severity: medium
-    title: "Configured chore executable is not available in the engine"
+    title: "Configured chore agentAction is not available in the engine"
 ---
 
 # docs-readme — recheck (2026-06-10)
 
-Duty is `disabled: true` in the body; prerequisites re-verified on this tick.
+AgentResponsibility is `disabled: true` in the body; prerequisites re-verified on this tick.
 The state from the 2026-06-09 setup check still holds — the engine verb
 issue is unchanged.
 
 ## Pass — area→doc map
 
 All 15 mapped docs exist at the repo root (`inbox.md`, `tasks.md`, `runners.md`,
-`vibe-and-voice.md`, `activity.md`, `executables.md`, `company.md`, `context.md`,
+`vibe-and-voice.md`, `activity.md`, `agentActions.md`, `company.md`, `context.md`,
 `engine-config.md`, `messages-and-mentions.md`, `changelog.md`, `commands.md`,
 `secrets-vault.md`, `notifications.md`, `webhooks.md`). The map is in sync
 with the live `docs/` tree.
 
 ## Fail — engine verb `chore --issue` not present
 
-Re-verified via `gh api repos/aharonyaircohen/kody-engine/contents/src/executables`
-on 2026-06-10. Built-in executables are: `duty-scheduler`, `duty-tick`,
-`duty-tick-scripted`, `fix`, `fix-ci`, `goal-scheduler`, `goal-tick`, `init`,
+Re-verified via `gh api repos/aharonyaircohen/kody-engine/contents/src/agent-actions`
+on 2026-06-10. Built-in agentActions are: `agent-responsibility-scheduler`, `agent-responsibility-tick`,
+`agent-responsibility-tick-scripted`, `fix`, `fix-ci`, `goal-scheduler`, `goal-tick`, `init`,
 `job-live-verify`, `merge`, `plan-verify`, `preview-build`, `probe-skill`,
 `qa-goal`, `release*`, `resolve`, `revert`, `run`, `sync`, `worker-ask`. **No
 `chore`.**
@@ -39,7 +39,7 @@ heavy for a doc-update issue (it implements end-to-end: code + tests + PR);
 
 ## To enable
 
-Either add a `chore` (or equivalent) executable to the engine that takes
+Either add a `chore` (or equivalent) agentAction to the engine that takes
 `--issue <N>` and opens a PR scoped to the issue body, then update the
 recommendation template in `docs-readme.md` to the new verb; or accept
 `run --issue <N>` in the recommendation template on the assumption a
@@ -48,7 +48,7 @@ implements it end-to-end.
 
 ## Current behavior
 
-Until one of those lands, this duty is a **no-op**: it does not scan merged
+Until one of those lands, this agentResponsibility is a **no-op**: it does not scan merged
 PRs, does not open drift issues, does not post inbox recs. The
 anti-re-scan guard (`data.lastCheckedMergedAt`) is set to "now" on this
 tick so a future enable won't retro-scan history.

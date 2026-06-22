@@ -219,7 +219,7 @@ export function KodyChat({
   const selectedOrg = context?.kind === "org" ? context : null;
   const selectedTask: KodyTask | null =
     context?.kind === "task" ? context.task : null;
-  const selectedDuty = context?.kind === "duty" ? context.duty : null;
+  const selectedAgentResponsibility = context?.kind === "agentResponsibility" ? context.agentResponsibility : null;
   // Goal-planner mode: chat scoped to a Goal, used for the "Plan this goal"
   // workflow (Pass 1 list-in-chat → user approves → Pass 2 create issues).
   const plannerGoal = context?.kind === "goal-planner" ? context.goal : null;
@@ -235,9 +235,9 @@ export function KodyChat({
   // is framed to advise: create issue, attach to a goal, or no action.
   const selectedReport = context?.kind === "report" ? context.report : null;
 
-  // Per-scope (task / duty / planner / global) scope blocks flow through
+  // Per-scope (task / agentResponsibility / planner / global) scope blocks flow through
   // the existing per-turn system-prompt blocks (## Current task / ## Current
-  // duty / ## Goal planning mode / ## Current report). The thread itself is
+  // agentResponsibility / ## Goal planning mode / ## Current report). The thread itself is
   // one global store keyed by sessionId — no per-scope parallel stores.
 
   const [input, setInput] = useState("");
@@ -1244,14 +1244,14 @@ export function KodyChat({
   );
 
   // Mode discriminator. Used to drive per-turn system-prompt scope blocks
-  // (## Current task / ## Current duty / ## Goal planning mode / ## Current
+  // (## Current task / ## Current agentResponsibility / ## Goal planning mode / ## Current
   // report) and the context bar in the chat header. The thread itself is
   // the unified global store — these flags do NOT change which messages
   // render or which store receives writes.
   const isTaskMode = !!selectedTask;
-  const isDutyMode = !!selectedDuty;
+  const isAgentResponsibilityMode = !!selectedAgentResponsibility;
   const isPlannerMode = !!plannerGoal && !!plannerSessionId;
-  const isGlobalMode = !isTaskMode && !isDutyMode && !isPlannerMode;
+  const isGlobalMode = !isTaskMode && !isAgentResponsibilityMode && !isPlannerMode;
 
   useEffect(() => {
     if (railFullscreen && isGlobalMode) {
@@ -1261,9 +1261,9 @@ export function KodyChat({
 
   // All chat messages live in the global session store. The sessionHook
   // owns a single `messages` list per active session; the page/scope
-  // (task, duty, planner, report) flows through the per-turn system
+  // (task, agentResponsibility, planner, report) flows through the per-turn system
   // prompt, not a separate message store.
-  const dutySlug: string | null = selectedDuty?.slug ?? null;
+  const agentResponsibilitySlug: string | null = selectedAgentResponsibility?.slug ?? null;
   const messages: Message[] = sessionHook.messages.map(chatToMessage);
 
   const setMessages = useCallback(
@@ -1884,7 +1884,7 @@ export function KodyChat({
   );
 
   // Open SSE whenever we have a scoped session id — task id for task mode,
-  // `duty-{slug}` for duty mode.
+  // `agentResponsibility-{slug}` for agentResponsibility mode.
   // Global-mode streams are opened on demand inside the send path.
   //
   // Tab-visibility gate: the server-side SSE handler polls GitHub every 3s as
@@ -1897,7 +1897,7 @@ export function KodyChat({
   useEffect(() => {
     const sid =
       selectedTask?.id ??
-      (dutySlug != null ? `duty-${dutySlug}` : null) ??
+      (agentResponsibilitySlug != null ? `agentResponsibility-${agentResponsibilitySlug}` : null) ??
       null;
     if (!sid) {
       return () => {
@@ -1930,10 +1930,10 @@ export function KodyChat({
       document.removeEventListener("visibilitychange", handleVisibility);
       close();
     };
-  }, [selectedTask?.id, dutySlug, connectSSE, activeSessionIdForReset]);
+  }, [selectedTask?.id, agentResponsibilitySlug, connectSSE, activeSessionIdForReset]);
 
   // Unified thread: the global session store (useChatSessions) owns the
-  // message list. Per-page scope (task / duty / planner / report) flows
+  // message list. Per-page scope (task / agentResponsibility / planner / report) flows
   // through the per-turn system-prompt blocks, not separate stores. The
   // "New conversation" button is the only way to reset the thread.
 
@@ -1984,7 +1984,7 @@ export function KodyChat({
 
   const executeClearHistory = () => {
     // Unified thread: the global session store owns the messages. Clearing
-    // is just `clearActiveSession()` regardless of scope (task / duty /
+    // is just `clearActiveSession()` regardless of scope (task / agentResponsibility /
     // planner / report); the per-scope system-prompt blocks keep their
     // context on the next turn.
     sessionHook.clearActiveSession();
@@ -2269,7 +2269,7 @@ export function KodyChat({
       // splitting user/assistant across two sessions.
       const resolveSessionId = (): string => {
         if (selectedTask) return selectedTask.id;
-        if (dutySlug != null) return `duty-${dutySlug}`;
+        if (agentResponsibilitySlug != null) return `agentResponsibility-${agentResponsibilitySlug}`;
         return uiSessionId;
       };
 
@@ -2337,8 +2337,8 @@ export function KodyChat({
         })();
         const brainLogicalKey = selectedTask
           ? `${repoScope}::task-${selectedTask.id}`
-          : selectedDuty
-            ? `${repoScope}::duty-${selectedDuty.slug}`
+          : selectedAgentResponsibility
+            ? `${repoScope}::agentResponsibility-${selectedAgentResponsibility.slug}`
             : `${repoScope}::global-${brainSessionId}`;
         // First turn = no chatId pinned yet for this conversation. Must be
         // read *before* stickyBrainChatId (which pins). Used to send the
@@ -2450,12 +2450,12 @@ export function KodyChat({
                       // the chat's life, so later turns skip the token cost.
                       ...(brainFirstTurn ? { includeContext: true } : {}),
                       ...(taskContext ? { taskContext } : {}),
-                      ...(selectedDuty
+                      ...(selectedAgentResponsibility
                         ? {
-                            dutyContext: {
-                              slug: selectedDuty.slug,
-                              title: selectedDuty.title,
-                              body: selectedDuty.body,
+                            agentResponsibilityContext: {
+                              slug: selectedAgentResponsibility.slug,
+                              title: selectedAgentResponsibility.title,
+                              body: selectedAgentResponsibility.body,
                             },
                           }
                         : {}),
@@ -2860,12 +2860,12 @@ export function KodyChat({
                     },
                   }
                 : {}),
-              ...(selectedDuty
+              ...(selectedAgentResponsibility
                 ? {
-                    duty: {
-                      slug: selectedDuty.slug,
-                      title: selectedDuty.title,
-                      body: selectedDuty.body,
+                    agentResponsibility: {
+                      slug: selectedAgentResponsibility.slug,
+                      title: selectedAgentResponsibility.title,
+                      body: selectedAgentResponsibility.body,
                     },
                   }
                 : {}),
@@ -3602,8 +3602,8 @@ export function KodyChat({
     },
     [
       selectedTask,
-      selectedDuty,
-      dutySlug,
+      selectedAgentResponsibility,
+      agentResponsibilitySlug,
       isPlannerMode,
       plannerGoal,
       plannerExistingTasks,
@@ -4463,13 +4463,13 @@ export function KodyChat({
           ? "cancel"
           : "start";
 
-  // Generate placeholder based on mode. The generic (non-task/duty/draft)
+  // Generate placeholder based on mode. The generic (non-task/agentResponsibility/draft)
   // case is page-aware: on any sidebar page, hint that Kody can answer about
-  // that page — Kody knows every dashboard concept, not just duties/tasks.
+  // that page — Kody knows every dashboard concept, not just agentResponsibilities/tasks.
   // `pageLabel` is derived once at the top of the component.
   const genericPlaceholder = pageLabel
     ? `Ask Kody about ${pageLabel}...`
-    : `Ask Kody about any page, duty, or feature...`;
+    : `Ask Kody about any page, agentResponsibility, or feature...`;
   const placeholder =
     chatMode === "terminal"
       ? "Send command to terminal..."
@@ -4487,8 +4487,8 @@ export function KodyChat({
           ? `Give Kody instructions...`
           : isTaskMode
             ? `Ask about task #${selectedTask?.issueNumber}...`
-            : isDutyMode
-              ? `Ask about duty \`${selectedDuty?.slug ?? ""}\`...`
+            : isAgentResponsibilityMode
+              ? `Ask about agentResponsibility \`${selectedAgentResponsibility?.slug ?? ""}\`...`
               : genericPlaceholder;
 
   return (
@@ -4923,7 +4923,7 @@ export function KodyChat({
             </div>
           </div>
 
-          {/* Context bar: task, duty, planner, or global */}
+          {/* Context bar: task, agentResponsibility, planner, or global */}
           <div className="mt-1 sm:mt-2">
             {isTaskMode && selectedTask ? (
               <div className="flex items-center gap-2 text-sm">
@@ -4934,14 +4934,14 @@ export function KodyChat({
                   {selectedTask.title}
                 </span>
               </div>
-            ) : isDutyMode && selectedDuty ? (
+            ) : isAgentResponsibilityMode && selectedAgentResponsibility ? (
               <div className="flex items-center gap-2 text-sm">
                 <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 rounded font-medium inline-flex items-center gap-1">
                   <Target className="w-3 h-3" />
-                  {selectedDuty.slug}
+                  {selectedAgentResponsibility.slug}
                 </span>
                 <span className="truncate text-muted-foreground">
-                  {selectedDuty.title}
+                  {selectedAgentResponsibility.title}
                 </span>
               </div>
             ) : isPlannerMode && plannerGoal ? (
@@ -5065,14 +5065,14 @@ export function KodyChat({
                     </li>
                   </ul>
                 </>
-              ) : isDutyMode && selectedDuty ? (
+              ) : isAgentResponsibilityMode && selectedAgentResponsibility ? (
                 <>
                   <p className="font-medium text-foreground">
-                    Chat about `{selectedDuty.slug}`
+                    Chat about `{selectedAgentResponsibility.slug}`
                   </p>
                   <p className="text-sm mt-1 max-w-sm mx-auto">
-                    Ask anything about this duty&apos;s intent, scope, or rules.
-                    Each duty has its own thread.
+                    Ask anything about this agentResponsibility&apos;s intent, scope, or rules.
+                    Each agentResponsibility has its own thread.
                   </p>
                 </>
               ) : isPlannerMode && plannerGoal ? (

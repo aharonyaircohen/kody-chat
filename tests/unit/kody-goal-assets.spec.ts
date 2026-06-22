@@ -6,13 +6,13 @@ function readJson(path: string): Record<string, unknown> {
   return JSON.parse(readFileSync(path, "utf8")) as Record<string, unknown>;
 }
 
-describe("Kody goal and duty assets", () => {
-  it("keeps issue-bound task duties manual-only", () => {
-    const leader = readJson(".kody/duties/task-leader/profile.json");
-    const verifier = readJson(".kody/duties/task-verifier/profile.json");
+describe("Kody goal and agentResponsibility assets", () => {
+  it("keeps issue-bound task agentResponsibilities manual-only", () => {
+    const leader = readJson(".kody/agent-responsibilities/task-leader/profile.json");
+    const verifier = readJson(".kody/agent-responsibilities/task-verifier/profile.json");
 
-    expect(leader).toMatchObject({ executable: "task-leader", every: "manual" });
-    expect(verifier).toMatchObject({ executable: "task-verifier", every: "manual" });
+    expect(leader).toMatchObject({ agentAction: "task-leader", every: "manual" });
+    expect(verifier).toMatchObject({ agentAction: "task-verifier", every: "manual" });
   });
 
   it("routes the hourly monitor into company-graph with goal context", () => {
@@ -25,8 +25,8 @@ describe("Kody goal and duty assets", () => {
     });
     expect(route[0]).toMatchObject({
       evidence: "companyGraphRefreshed",
-      duty: "company-graph",
-      executable: "company-graph",
+      agentResponsibility: "company-graph",
+      agentAction: "company-graph",
       args: { goal: { fact: "goalId" } },
     });
   });
@@ -44,26 +44,26 @@ describe("Kody goal and duty assets", () => {
     });
     expect(route[0]).toMatchObject({
       evidence: "companyGraphRefreshed",
-      duty: "company-graph",
-      executable: "company-graph",
+      agentResponsibility: "company-graph",
+      agentAction: "company-graph",
       args: { goal: { fact: "goalId" } },
     });
   });
 
   it("lets company-graph report goal evidence after refresh", () => {
-    const profile = readJson(".kody/executables/company-graph/profile.json");
-    const script = readFileSync(".kody/executables/company-graph/refresh-company-graph.sh", "utf8");
-    const syntax = spawnSync("bash", ["-n", ".kody/executables/company-graph/refresh-company-graph.sh"], {
+    const profile = readJson(".kody/agent-actions/company-graph/profile.json");
+    const script = readFileSync(".kody/agent-actions/company-graph/refresh-company-graph.sh", "utf8");
+    const syntax = spawnSync("bash", ["-n", ".kody/agent-actions/company-graph/refresh-company-graph.sh"], {
       encoding: "utf8",
     });
 
     expect(syntax.status).toBe(0);
     expect(profile).toMatchObject({
       inputs: [{ name: "goal", flag: "--goal", required: false }],
-      scripts: { postflight: [{ script: "applyDutyReports" }] },
+      scripts: { postflight: [{ script: "applyAgentResponsibilityReports" }] },
     });
     expect(script).toContain("KODY_ARG_GOAL");
-    expect(script).toContain("KODY_DUTY_REPORT=");
+    expect(script).toContain("KODY_AGENT_RESPONSIBILITY_REPORT=");
     expect(script).toContain('"companyGraphRefreshed":true');
     expect(script).toContain("gh api -X PUT");
     expect(script).toContain('--input "$payload_file"');

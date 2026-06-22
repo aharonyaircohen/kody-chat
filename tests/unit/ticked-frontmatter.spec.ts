@@ -1,6 +1,6 @@
 /**
  * Unit tests for the legacy ticked-markdown frontmatter parser
- * (src/dashboard/lib/ticked/frontmatter.ts). Folder-backed duties use
+ * (src/dashboard/lib/ticked/frontmatter.ts). Folder-backed agentResponsibilities use
  * profile.json; these helpers remain for markdown records and shared cadence
  * validation.
  */
@@ -58,7 +58,7 @@ describe("splitFrontmatter", () => {
     ).toBeUndefined();
   });
 
-  it("ignores comments, unknown keys, and legacy duty stage metadata", () => {
+  it("ignores comments, unknown keys, and legacy agentResponsibility stage metadata", () => {
     const { frontmatter } = splitFrontmatter(
       "---\n# a comment\nevery: 6h\nstage: report-refresh\nunknown: value\n---\nbody",
     );
@@ -97,15 +97,15 @@ describe("splitFrontmatter", () => {
     ).toBeUndefined();
   });
 
-  it("parses multi-executable, duty-tool, and scripted duty fields", () => {
+  it("parses multi-agentAction, agentResponsibility-tool, and scripted agentResponsibility fields", () => {
     const { frontmatter } = splitFrontmatter(
       [
         "---",
         "action: repo-graph",
-        "executable: repo-graph-refresh",
-        "executables: db-worker, api-worker, ui-worker",
+        "agentAction: repo-graph-refresh",
+        "agentActions: db-worker, api-worker, ui-worker",
         "tools: list_prs_to_repair, sync_pr",
-        "tickScript: .kody/scripts/check-duty.sh",
+        "tickScript: .kody/scripts/check-agentResponsibility.sh",
         "reads_from: company-graph, reports",
         "writes_to: ci-health-graph",
         "---",
@@ -113,14 +113,14 @@ describe("splitFrontmatter", () => {
       ].join("\n"),
     );
     expect(frontmatter.action).toBe("repo-graph");
-    expect(frontmatter.executable).toBe("repo-graph-refresh");
-    expect(frontmatter.executables).toEqual([
+    expect(frontmatter.agentAction).toBe("repo-graph-refresh");
+    expect(frontmatter.agentActions).toEqual([
       "db-worker",
       "api-worker",
       "ui-worker",
     ]);
-    expect(frontmatter.dutyTools).toEqual(["list_prs_to_repair", "sync_pr"]);
-    expect(frontmatter.tickScript).toBe(".kody/scripts/check-duty.sh");
+    expect(frontmatter.agentResponsibilityTools).toEqual(["list_prs_to_repair", "sync_pr"]);
+    expect(frontmatter.tickScript).toBe(".kody/scripts/check-agentResponsibility.sh");
     expect(frontmatter.readsFrom).toEqual(["company-graph", "reports"]);
     expect(frontmatter.writesTo).toEqual(["ci-health-graph"]);
   });
@@ -194,17 +194,17 @@ describe("joinFrontmatter", () => {
     expect(frontmatter).toEqual(fm);
   });
 
-  it("emits the legacy duty metadata shape in stable order", () => {
+  it("emits the legacy agentResponsibility metadata shape in stable order", () => {
     const fm: TickFrontmatter = {
       action: "repo-graph",
-      executable: "repo-graph-refresh",
+      agentAction: "repo-graph-refresh",
       every: "1h",
       agent: "kody",
       reviewer: "qa",
       mentions: ["alice"],
-      executables: ["db-worker", "api-worker"],
-      dutyTools: ["list_prs_to_repair", "sync_pr"],
-      tickScript: ".kody/scripts/check-duty.sh",
+      agentActions: ["db-worker", "api-worker"],
+      agentResponsibilityTools: ["list_prs_to_repair", "sync_pr"],
+      tickScript: ".kody/scripts/check-agentResponsibility.sh",
       readsFrom: ["company-graph", "reports"],
       writesTo: ["ci-health-graph"],
       disabled: true,
@@ -213,14 +213,14 @@ describe("joinFrontmatter", () => {
       [
         "---",
         "action: repo-graph",
-        "executable: repo-graph-refresh",
+        "agentAction: repo-graph-refresh",
         "every: 1h",
         "agent: kody",
         "reviewer: qa",
         "mentions: alice",
-        "executables: db-worker, api-worker",
+        "agentActions: db-worker, api-worker",
         "tools: list_prs_to_repair, sync_pr",
-        "tickScript: .kody/scripts/check-duty.sh",
+        "tickScript: .kody/scripts/check-agentResponsibility.sh",
         "reads_from: company-graph, reports",
         "writes_to: ci-health-graph",
         "disabled: true",
@@ -231,10 +231,10 @@ describe("joinFrontmatter", () => {
     );
   });
 
-  it("omits empty new duty arrays and null tick scripts", () => {
+  it("omits empty new agentResponsibility arrays and null tick scripts", () => {
     expect(
       joinFrontmatter(
-        { every: "1h", executables: [], dutyTools: [], tickScript: null },
+        { every: "1h", agentActions: [], agentResponsibilityTools: [], tickScript: null },
         "body",
       ),
     ).toBe("---\nevery: 1h\n---\n\nbody");

@@ -28,5 +28,5 @@ Closed: 0 goals
 
 - Pulled the goal list from the goals manifest (issue #49, labeled `kody:goals-manifest`). The manifest JSON block lists one active goal: `kody-state-split`.
 - Counted tasks per goal via `gh issue list --state all --json labels` — returned 5 open issues (#50–#54, all titled `[kody-state-split] N/5 — ...`).
-- Cross-checked for orphan `goal:*` labels not in the manifest: `goal:release-version` exists in the repo's label set but has zero issues and is not listed in the goals manifest, so it is not an active goal (no close action required — closing a non-manifest label is out of scope for this duty).
+- Cross-checked for orphan `goal:*` labels not in the manifest: `goal:release-version` exists in the repo's label set but has zero issues and is not listed in the goals manifest, so it is not an active goal (no close action required — closing a non-manifest label is out of scope for this agentResponsibility).
 - A goal is "empty" if it has zero tasks (open or closed). None matched, so no closes were issued.

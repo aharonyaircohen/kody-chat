@@ -131,7 +131,7 @@ export async function POST(
       repo: headerAuth.repo,
       workflow_id: "kody.yml",
       ref,
-      inputs: { executable: "goal-manager", message: id },
+      inputs: { agentAction: "goal-manager", message: id },
     });
 
     recordAudit(req, {

@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern company-bundle
  * @ai-summary Portable "Company" bundle — the repo-agnostic operating
- *   manual of an org: its agent (agent identities), duties (recurring work),
+ *   manual of an org: its agent (agent identities), agentResponsibilities (recurring work),
  *   context, commands (slash-command SOPs), and instructions (tone/behaviour).
  *   Deliberately excludes repo-specific state (memory, secrets,
  *   variables, dashboard config, goals, inbox, notifications) — those
@@ -23,7 +23,7 @@ import type { ScheduleEvery } from "../ticked/frontmatter";
 /** Bump when the on-disk bundle shape changes incompatibly. */
 export const COMPANY_BUNDLE_VERSION = 1 as const;
 
-/** Cadence tokens accepted in a duty profile's `every` field. */
+/** Cadence tokens accepted in a agentResponsibility profile's `every` field. */
 const SCHEDULE_TOKENS = [
   "15m",
   "30m",
@@ -38,9 +38,9 @@ const SCHEDULE_TOKENS = [
 ] as const;
 
 /**
- * An agent or duty entry. They share the same portable API shape even
- * though agent are markdown files and duties are folders. `agent` (the executor agentIdentity slug)
- * is only ever set on duties; agent files always carry `null`.
+ * An agent or agentResponsibility entry. They share the same portable API shape even
+ * though agent are markdown files and agentResponsibilities are folders. `agent` (the executor agentIdentity slug)
+ * is only ever set on agentResponsibilities; agent files always carry `null`.
  */
 export interface CompanyTickEntry {
   slug: string;
@@ -48,25 +48,25 @@ export interface CompanyTickEntry {
   body: string;
   schedule: ScheduleEvery | null;
   disabled: boolean;
-  /** Executor agentIdentity slug — duties only; agent entries are always null. */
+  /** Executor agentIdentity slug — agentResponsibilities only; agent entries are always null. */
   agent: string | null;
-  /** Agent slug responsible for reviewing duty output; agent entries are null. */
+  /** Agent slug responsible for reviewing agentResponsibility output; agent entries are null. */
   reviewer: string | null;
-  /** Public `@kody <action>` name — duties only; agent entries are null. */
+  /** Public `@kody <action>` name — agentResponsibilities only; agent entries are null. */
   action: string | null;
-  /** GitHub logins to mention from duty output. */
+  /** GitHub logins to mention from agentResponsibility output. */
   mentions: string[];
-  /** Primary implementation executable assigned to a duty. */
-  executable: string | null;
-  /** Legacy/multi-run executable slugs assigned to a duty. */
-  executables: string[];
-  /** Duty tool names exposed to the tick agent. */
-  dutyTools: string[];
-  /** Optional tick script path for the duty agent. */
+  /** Primary implementation agentAction assigned to a agentResponsibility. */
+  agentAction: string | null;
+  /** Legacy/multi-run agentAction slugs assigned to a agentResponsibility. */
+  agentActions: string[];
+  /** AgentResponsibility tool names exposed to the tick agent. */
+  agentResponsibilityTools: string[];
+  /** Optional tick script path for the agentResponsibility agent. */
   tickScript: string | null;
-  /** Context/report/duty slugs read by the duty. */
+  /** Context/report/agentResponsibility slugs read by the agentResponsibility. */
   readsFrom: string[];
-  /** Report/context slugs written by the duty. */
+  /** Report/context slugs written by the agentResponsibility. */
   writesTo: string[];
 }
 
@@ -86,11 +86,11 @@ export interface CompanyContextEntry {
 }
 
 /**
- * A custom executable. Unlike the single-file concepts above, an executable
+ * A custom agentAction. Unlike the single-file concepts above, an agentAction
  * is a *folder*, so it ships as a path→content map of every file under
- * `.kody/executables/<slug>/`. Paths are relative to the folder.
+ * `.kody/agent-actions/<slug>/`. Paths are relative to the folder.
  */
-export interface CompanyExecutableEntry {
+export interface CompanyAgentActionEntry {
   slug: string;
   files: Record<string, string>;
 }
@@ -104,8 +104,8 @@ export interface CompanyGoalEntry {
 /**
  * The portable engine-config slice of a Company. Only repo-agnostic policy is
  * carried — quality commands, comment aliases, the `@kody` access gate,
- * per-executable model routing, and the bare-`@kody` default executables
- * (slugs that resolve against the bundled executables). The default branch
+ * per-agentAction model routing, and the bare-`@kody` default agentActions
+ * (slugs that resolve against the bundled agentActions). The default branch
  * (`git.defaultBranch`) is deliberately excluded: it's repo-specific.
  */
 export interface CompanyConfigBundle {
@@ -117,9 +117,9 @@ export interface CompanyConfigBundle {
   };
   aliases?: Record<string, string>;
   allowedAssociations?: string[];
-  defaultExecutable?: string;
-  defaultPrExecutable?: string;
-  perExecutable?: Record<string, string>;
+  defaultAgentAction?: string;
+  defaultPrAgentAction?: string;
+  perAgentAction?: Record<string, string>;
 }
 
 /** The full portable bundle. */
@@ -131,10 +131,10 @@ export interface CompanyBundle {
   /** `owner/repo` the bundle was exported from (provenance only). */
   exportedFrom: string;
   agent: CompanyTickEntry[];
-  duties: CompanyTickEntry[];
+  agentResponsibilities: CompanyTickEntry[];
   contexts: CompanyContextEntry[];
   commands: CompanyCommandEntry[];
- executables: CompanyExecutableEntry[];
+ agentActions: CompanyAgentActionEntry[];
  goals: CompanyGoalEntry[];
   /** Repo instructions body, or `null` when the source repo had none. */
   instructions: string | null;
@@ -169,10 +169,10 @@ export type CompanyConfigOutcome = "applied" | "skipped" | "absent";
 export interface CompanyImportResult {
   mode: CompanyImportMode;
   agent: CompanyImportCounts;
-  duties: CompanyImportCounts;
+  agentResponsibilities: CompanyImportCounts;
   contexts: CompanyImportCounts;
   commands: CompanyImportCounts;
-  executables: CompanyImportCounts;
+  agentActions: CompanyImportCounts;
   goals: CompanyImportCounts;
   instructions: CompanyInstructionsOutcome;
   config: CompanyConfigOutcome;
@@ -197,9 +197,9 @@ const tickEntrySchema = z.object({
   reviewer: z.string().min(1).nullable().default(null),
   action: slugSchema.nullable().default(null),
   mentions: z.array(z.string().min(1)).default([]),
-  executable: slugSchema.nullable().default(null),
-  executables: z.array(slugSchema).default([]),
-  dutyTools: z.array(z.string().min(1)).default([]),
+  agentAction: slugSchema.nullable().default(null),
+  agentActions: z.array(slugSchema).default([]),
+  agentResponsibilityTools: z.array(z.string().min(1)).default([]),
   tickScript: z.string().min(1).nullable().default(null),
   readsFrom: z.array(z.string().min(1)).default([]),
   writesTo: z.array(z.string().min(1)).default([]),
@@ -218,7 +218,7 @@ const contextEntrySchema = z.object({
   agent: z.array(z.string().min(1)).default([]),
 });
 
-const executableEntrySchema = z.object({
+const agentActionEntrySchema = z.object({
   slug: slugSchema,
   files: z.record(z.string(), z.string()),
 });
@@ -241,9 +241,9 @@ const configBundleSchema = z.object({
     .optional(),
   aliases: z.record(z.string().max(64), z.string().max(64)).optional(),
   allowedAssociations: z.array(z.string().max(40)).max(16).optional(),
-  defaultExecutable: z.string().max(64).optional(),
-  defaultPrExecutable: z.string().max(64).optional(),
-  perExecutable: z.record(z.string().max(64), z.string().max(128)).optional(),
+  defaultAgentAction: z.string().max(64).optional(),
+  defaultPrAgentAction: z.string().max(64).optional(),
+  perAgentAction: z.record(z.string().max(64), z.string().max(128)).optional(),
 });
 
 /**
@@ -257,7 +257,7 @@ export const companyBundleSchema = z
     exportedAt: z.string().optional(),
     exportedFrom: z.string().optional(),
     agent: z.array(tickEntrySchema).default([]),
-    duties: z.array(tickEntrySchema).default([]),
+    agentResponsibilities: z.array(tickEntrySchema).default([]),
     contexts: z.array(contextEntrySchema).default([]),
     commands: z.array(commandEntrySchema).optional(),
     /**
@@ -266,7 +266,7 @@ export const companyBundleSchema = z
      * older bundles still import their slash commands.
      */
     prompts: z.array(commandEntrySchema).optional(),
-    executables: z.array(executableEntrySchema).default([]),
+    agentActions: z.array(agentActionEntrySchema).default([]),
     goals: z.array(goalEntrySchema).default([]),
     instructions: z.string().nullable().default(null),
     config: configBundleSchema.nullish(),

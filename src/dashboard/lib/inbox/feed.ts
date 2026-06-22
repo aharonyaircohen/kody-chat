@@ -73,8 +73,8 @@ export interface InboxFeedEntry {
   ctoCommand?: string;
   /** Emitting agent slug from the raw body's `kody-agent` line (recs only). */
   ctoAgent?: string;
-  /** Emitting duty slug from the raw body's `kody-duty` line — the trust key. */
-  ctoDuty?: string;
+  /** Emitting agentResponsibility slug from the raw body's `kody-agentResponsibility` line — the trust key. */
+  ctoAgentResponsibility?: string;
   /**
    * Server-classified notification category for this entry (`chat-response`,
    * `task-assigned`, …), computed from the source event at write time. Drives

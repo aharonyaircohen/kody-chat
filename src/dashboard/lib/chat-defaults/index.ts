@@ -6,12 +6,12 @@
  * Composes the Kody chat system prompt from a structured bundle:
  *
  *   agentIdentity (who the agent is)
- *   + executable (kody-chat) → glue + skill index
- *   + duties (kody-analyzer, kody-operator, kody-vibe, kody-mem) → workflow index
+ *   + agentAction (kody-chat) → glue + skill index
+ *   + agentResponsibilities (kody-analyzer, kody-operator, kody-vibe, kody-mem) → workflow index
  *   + skills (diagnose-pr, report-advise, goal-planner, create-issue, …) → reusable method
  *
- * The bundle is repo-stored in `.kody/executables/kody-chat/` and
- * `.kody/duties/kody-*` folders, with TS-embedded defaults as fallback.
+ * The bundle is repo-stored in `.kody/agent-actions/kody-chat/` and
+ * `.kody/agent-responsibilities/kody-*` folders, with TS-embedded defaults as fallback.
  */
 
 import {
@@ -19,8 +19,8 @@ import {
   DEFAULT_EXECUTABLE,
   DEFAULT_DUTIES,
   DEFAULT_SKILLS,
-  type DutyEntry,
-  type ExecutableEntry,
+  type AgentResponsibilityEntry,
+  type AgentActionEntry,
   type SkillEntry,
 } from "./defaults";
 import { loadChatDefaultsFromFiles } from "./files";
@@ -28,16 +28,16 @@ import { loadChatDefaultsFromFiles } from "./files";
 export interface ChatDefaults {
   /** Base agentIdentity text — who the agent is, hard rules, style. */
   agentIdentity: string;
-  /** The single chat executable (kody-chat) and its config. */
-  executable: ExecutableEntry;
-  /** The chat duties — workflow groupings (analyze / operator / vibe / mem). */
-  duties: DutyEntry[];
+  /** The single chat agentAction (kody-chat) and its config. */
+  agentAction: AgentActionEntry;
+  /** The chat agentResponsibilities — workflow groupings (analyze / operator / vibe / mem). */
+  agentResponsibilities: AgentResponsibilityEntry[];
   /** Skills keyed by slug — reusable method per workflow. */
   skills: Record<string, SkillEntry>;
 }
 
 /**
- * Load the chat defaults bundle from repo-backed duties/executables first,
+ * Load the chat defaults bundle from repo-backed agentResponsibilities/agent-actions first,
  * falling back to TS-embedded defaults when files are absent or invalid.
  *
  * @param owner GitHub owner — reserved for the future repo-read path.
@@ -52,8 +52,8 @@ export async function loadChatDefaults(
 
   return {
     agentIdentity: DEFAULT_IDENTITY_MD,
-    executable: DEFAULT_EXECUTABLE,
-    duties: DEFAULT_DUTIES,
+    agentAction: DEFAULT_EXECUTABLE,
+    agentResponsibilities: DEFAULT_DUTIES,
     skills: DEFAULT_SKILLS,
   };
 }
@@ -63,7 +63,7 @@ export async function loadChatDefaults(
  * blocks. Step 1 mirrors the existing `buildSystemPrompt` shape so the
  * refactor is provably equivalent to the hardcoded version.
  *
- * The runtime-mode blocks (Current task / Current duty / Current report /
+ * The runtime-mode blocks (Current task / Current agentResponsibility / Current report /
  * Mission planning mode / Vibe mode) are composed by the existing
  * `buildSystemPrompt` in `app/api/kody/chat/kody/system-prompt.ts` and
  * stay there — they're runtime state, not authorable content.
@@ -74,7 +74,7 @@ export async function loadChatDefaults(
  * skills (+ optional tool index). This is the `base` arg passed into
  * the existing `buildSystemPrompt`, which then layers the runtime-mode
  * blocks (Connected repository, Current page, Context, Memory, Current
- * task, Current duty, Current report, Mission planning, Vibe mode, User
+ * task, Current agentResponsibility, Current report, Mission planning, Vibe mode, User
  * instructions) on top.
  */
 export function composeBasePrompt(
@@ -95,10 +95,10 @@ export function composeBasePrompt(
   // 1. AgentIdentity — who the agent is (hard rules + tool policy).
   parts.push(bundle.agentIdentity.trim());
 
-  // 2. Workflows — the 4 duty wrappers, each listing the skills it owns.
+  // 2. Workflows — the 4 agentResponsibility wrappers, each listing the skills it owns.
   parts.push("## Workflows");
-  for (const duty of bundle.duties) {
-    parts.push(`### ${duty.title}\n\n${duty.body.trim()}`);
+  for (const agentResponsibility of bundle.agentResponsibilities) {
+    parts.push(`### ${agentResponsibility.title}\n\n${agentResponsibility.body.trim()}`);
   }
 
   // 3. Skills — reusable method per workflow.
@@ -176,7 +176,7 @@ These apply every turn. They protect correctness without changing the reply cont
 
 /**
  * Filter a tool set down to the names declared in the bundle's
- * executable `tools` allowlist. If the allowlist is empty, the tool
+ * agentAction `tools` allowlist. If the allowlist is empty, the tool
  * set passes through unchanged (default = everything).
  */
 export function filterToolsByAllowlist(
@@ -240,12 +240,12 @@ export function composeChatPrompt(
     }
   }
 
-  // Executable glue — the kody-chat wrapper text + tools index.
+  // AgentAction glue — the kody-chat wrapper text + tools index.
   parts.push(
-    `## Tools available\n\nThe block below is the live contents of the chat executable's \`tools\` allowlist. Use only the tools listed.\n\n${bundle.executable.tools.map((t) => `- \`${t}\``).join("\n")}`,
+    `## Tools available\n\nThe block below is the live contents of the chat agentAction's \`tools\` allowlist. Use only the tools listed.\n\n${bundle.agentAction.tools.map((t) => `- \`${t}\``).join("\n")}`,
   );
 
   return parts.join("\n\n");
 }
 
-export type { DutyEntry, ExecutableEntry, SkillEntry };
+export type { AgentResponsibilityEntry, AgentActionEntry, SkillEntry };

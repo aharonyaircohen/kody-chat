@@ -12,7 +12,7 @@
  * /api/kody/chat/brain-fly — same proxy core (`streamBrainChat`), different
  * credential source.
  *
- * Body: { chatId, message, taskContext?, attachments?, dutyContext? }
+ * Body: { chatId, message, taskContext?, attachments?, agentResponsibilityContext? }
  * Auth: requireKodyAuth.
  */
 
@@ -21,7 +21,7 @@ import { getRequestAuth, requireKodyAuth } from "@dashboard/lib/auth";
 import {
   streamBrainChat,
   type BrainAttachment,
-  type BrainDutyContext,
+  type BrainAgentResponsibilityContext,
   type BrainTaskContext,
 } from "@dashboard/lib/brain-proxy";
 import {
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
     message?: string;
     taskContext?: BrainTaskContext;
     attachments?: BrainAttachment[];
-    dutyContext?: BrainDutyContext;
+    agentResponsibilityContext?: BrainAgentResponsibilityContext;
     voiceMode?: boolean;
     resumeSince?: number;
     resumeText?: string;
@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
         ),
     taskContext: body.taskContext,
     attachments: body.attachments,
-    dutyContext: body.dutyContext,
+    agentResponsibilityContext: body.agentResponsibilityContext,
     repo,
     repoToken,
     voiceMode: body.voiceMode === true,

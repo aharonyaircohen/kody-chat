@@ -2,9 +2,9 @@
  * @fileType util
  * @domain reports
  * @pattern chat-tools
- * @ai-summary Read-only chat tools for duty reports
+ * @ai-summary Read-only chat tools for agentResponsibility reports
  *   (`kody-state:.kody/reports/<slug>.md`) — list and read. Reports are the
- *   YAML-findings output that scheduled duties commit each tick; chat can
+ *   YAML-findings output that scheduled agentResponsibilities commit each tick; chat can
  *   surface and reason over them.
  */
 import { tool } from "ai";
@@ -19,7 +19,7 @@ export function createReportTools(opts: { owner: string; repo: string }) {
   const repoRef = `${opts.owner}/${opts.repo}`;
   return {
     list_reports: tool({
-      description: `List the duty reports in ${repoRef} (kody-state:.kody/reports/). Returns slug, title, and last-updated for each report a scheduled duty has produced.`,
+      description: `List the agentResponsibility reports in ${repoRef} (kody-state:.kody/reports/). Returns slug, title, and last-updated for each report a scheduled agentResponsibility has produced.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
@@ -38,7 +38,7 @@ export function createReportTools(opts: { owner: string; repo: string }) {
     }),
 
     read_report: tool({
-      description: `Read one duty report from ${repoRef} in full (the YAML findings + markdown body).`,
+      description: `Read one agentResponsibility report from ${repoRef} in full (the YAML findings + markdown body).`,
       inputSchema: z.object({ slug: z.string().min(1).max(64) }),
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };

@@ -4,7 +4,7 @@
  * @pattern chat-tools
  * @ai-summary In-process chat tools that let Kody manage slash commands
  *   (`.kody/commands/<slug>.md`) by conversation — list, read, create/update,
- *   delete. Mirrors executable-tools: reads use the module-level GitHub
+ *   delete. Mirrors agentAction-tools: reads use the module-level GitHub
  *   context the chat route sets; writes pass the per-request octokit. Repo
  *   commands win over built-ins on slug collision.
  */

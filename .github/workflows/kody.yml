@@ -23,8 +23,8 @@ name: kody
 on:
   workflow_dispatch:
     inputs:
-      executable:
-        description: "Executable name (e.g. ui-review, run, fix)"
+      agentAction:
+        description: "AgentAction name (e.g. ui-review, run, fix)"
         type: string
         default: ""
       issue_number:
@@ -56,8 +56,8 @@ on:
   pull_request:
     types: [closed]
   schedule:
-    # Wakes every 30 minutes; kody fans out to whichever scheduled executables
-    # (job-scheduler, memorize, watch-stale-prs, …) match this tick.
+    # Wakes every 30 minutes; kody fans out to whichever scheduled agentActions
+    # (agent-responsibility-scheduler, memorize, watch-stale-prs, …) match this tick.
     #
     # `memorize` writes to `.kody/vault/` and opens a daily PR. If your
     # `.gitignore` ignores `.kody/*`, add `!.kody/vault/` and `!.kody/vault/**`

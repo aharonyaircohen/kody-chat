@@ -50,7 +50,7 @@ function classifyMemory(content: string): MemoryType {
     return "reference";
   }
   if (
-    /\b(repo|project|dashboard|kody|workflow|duty|duties|executable|team|deadline)\b/.test(
+    /\b(repo|project|dashboard|kody|workflow|agentResponsibility|agentResponsibilities|agentAction|team|deadline)\b/.test(
       text,
     )
   ) {

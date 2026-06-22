@@ -4,7 +4,7 @@
  * @pattern reports-files
  * @ai-summary Read-only access to system reports under `.kody/reports/<slug>.md`
  *   on the connected repo's dedicated state branch. Reports are produced by
- *   Kody duties (doc-drift, coverage-floor, etc.) — the dashboard surfaces
+ *   Kody agentResponsibilities (doc-drift, coverage-floor, etc.) — the dashboard surfaces
  *   them as a health view. No write operations: the engine owns this directory.
  */
 
@@ -29,8 +29,8 @@ export interface ReportFile {
   htmlUrl: string;
   /** Size in bytes (helps preview length without fetching body). */
   size: number;
-  /** Duty that produced this report, from report frontmatter. */
-  dutySlug: string | null;
+  /** AgentResponsibility that produced this report, from report frontmatter. */
+  agentResponsibilitySlug: string | null;
   /** Review routing status, from report frontmatter. */
   reviewStatus: string | null;
   /** Review routing area, from report frontmatter. */
@@ -117,7 +117,7 @@ function parseReportMarkdown(raw: string, slug: string) {
   return {
     title: deriveTitle(afterFrontmatter, slug),
     body: stripLeadingH1(afterFrontmatter),
-    dutySlug: topLevelValue(frontmatter, "dutySlug"),
+    agentResponsibilitySlug: topLevelValue(frontmatter, "agentResponsibilitySlug"),
     reviewStatus: topLevelValue(frontmatter, "reviewStatus"),
     reviewArea: topLevelValue(frontmatter, "reviewArea"),
     findingCount: countFindings(frontmatter),
@@ -212,7 +212,7 @@ export async function listReportFiles(): Promise<ReportFile[]> {
           updatedAt,
           htmlUrl: buildHtmlUrl(slug),
           size,
-          dutySlug: parsed.dutySlug,
+          agentResponsibilitySlug: parsed.agentResponsibilitySlug,
           reviewStatus: parsed.reviewStatus,
           reviewArea: parsed.reviewArea,
           findingCount: parsed.findingCount,
@@ -257,7 +257,7 @@ export async function readReportFile(slug: string): Promise<ReportFile | null> {
       updatedAt,
       htmlUrl: buildHtmlUrl(slug),
       size: typeof data.size === "number" ? data.size : raw.length,
-      dutySlug: parsed.dutySlug,
+      agentResponsibilitySlug: parsed.agentResponsibilitySlug,
       reviewStatus: parsed.reviewStatus,
       reviewArea: parsed.reviewArea,
       findingCount: parsed.findingCount,

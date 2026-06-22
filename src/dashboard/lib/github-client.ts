@@ -200,24 +200,24 @@ export function invalidateIssueCache(issueNumber?: number): void {
 }
 
 /**
- * Invalidate cache entries for duty folders. Pass a slug to scope to one
- * duty, or omit to clear the listing cache (e.g. on bulk changes).
+ * Invalidate cache entries for agentResponsibility folders. Pass a slug to scope to one
+ * agentResponsibility, or omit to clear the listing cache (e.g. on bulk changes).
  */
-export function invalidateDutiesCache(slug?: string): void {
+export function invalidateAgentResponsibilitiesCache(slug?: string): void {
   if (typeof slug === "string" && slug.length > 0) {
-    // Repo-scoped key shape: `duty:owner:repo:slug`. Wipe across repos.
-    invalidateCache("duty:");
-    revalidateTagSafe(`gh:duty:${slug}`);
+    // Repo-scoped key shape: `agentResponsibility:owner:repo:slug`. Wipe across repos.
+    invalidateCache("agentResponsibility:");
+    revalidateTagSafe(`gh:agentResponsibility:${slug}`);
   } else {
-    invalidateCache("duties:");
-    revalidateTagSafe("gh:duties");
+    invalidateCache("agentResponsibilities:");
+    revalidateTagSafe("gh:agentResponsibilities");
   }
 }
 
 /**
  * Invalidate cache entries for agent files. Pass a slug to scope to one
  * agent, or omit to clear the listing cache (e.g. on bulk changes).
- * Mirrors `invalidateDutiesCache` — agent are an independent feature
+ * Mirrors `invalidateAgentResponsibilitiesCache` — agent are an independent feature
  * stored at `.kody/agents/<slug>.md`.
  */
 export function invalidateStaffCache(slug?: string): void {
@@ -1044,7 +1044,7 @@ export async function fetchKodyRunLogArtifact(
       artifactUrl: artifact.archive_download_url ?? null,
       message: parsed
         ? null
-        : "Run log artifact did not contain .kody/runs/<runId>/events.jsonl.",
+        : "Run log artifact did not contain .kody/agent-runs/<runId>/events.jsonl.",
       events: parsed?.events ?? [],
       timeline: parsed?.timeline ?? [],
     };
@@ -1093,7 +1093,7 @@ async function artifactResponseToBuffer(data: unknown): Promise<Buffer> {
  *
  * Caching:
  * - Default TTL is `CACHE_TTL.tasks` (2min). Pass `ttl` to shorten it for
- *   endpoints that need fresher data (e.g. goals manifest, duties detail).
+ *   endpoints that need fresher data (e.g. goals manifest, agentResponsibilities detail).
  * - When the TTL expires, the cached ETag is replayed via `If-None-Match`.
  *   GitHub returns 304 (free, doesn't count against the rate limit) when the
  *   issue is unchanged, and we just refresh the TTL on the existing payload.
@@ -1178,7 +1178,7 @@ export async function fetchIssue(
  *
  * Caching:
  * - Default TTL is `CACHE_TTL.tasks` (2min). Pass `ttl` to shorten it for
- *   endpoints that need fresher data (e.g. goals/duties list).
+ *   endpoints that need fresher data (e.g. goals/agent-responsibilities list).
  * - Post-TTL revalidation replays the cached ETag via `If-None-Match`. GitHub
  *   returns 304 (free, doesn't count against the rate limit) when the listing
  *   is unchanged, and the TTL is refreshed on the existing payload.
@@ -2069,7 +2069,7 @@ function derivePRCi(input: {
 //   Tracking-Issue: #1352
 // The release-prepare script writes this so the dashboard can preview the
 // release PR on the originating issue's task without auto-closing the issue
-// on merge (see kody2/src/executables/release-prepare/prepare.sh).
+// on merge (see kody2/src/agent-actions/release-prepare/prepare.sh).
 const TRACKING_ISSUE_RE = /(?:^|\n)\s*Tracking-Issue\s*:\s*#(\d+)\b/gi;
 
 function parseTrackingIssueRefs(body: string | null | undefined): number[] {
