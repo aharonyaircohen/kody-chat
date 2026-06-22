@@ -107,7 +107,8 @@ const viewCopy: Record<ManagedGoalModel, ManagedModelViewCopy> = {
     selectTitle: "Select a routine",
     selectHint: "Choose a routine from the list.",
     emptyTitle: "No routines yet",
-    emptyHint: "Create the first schedule-driven routine for this repo.",
+    emptyHint:
+      "Create the first schedule or health driven routine for this repo.",
     searchPlaceholder: "Search routines...",
     newLabel: "New routine",
   },
