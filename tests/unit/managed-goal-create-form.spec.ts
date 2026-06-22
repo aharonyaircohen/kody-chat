@@ -39,8 +39,8 @@ describe("ManagedModelsView new model form", () => {
     expect(dialog).toContain('<Label htmlFor="goal-schedule">Cadence</Label>');
     expect(dialog).toContain("Routine loop");
     expect(dialog).toContain("Duties");
-    expect(dialog).toContain("availableRoutineDuties.map");
-    expect(dialog).toContain("toggleRoutineDuty");
+    expect(dialog).toContain("DutyMultiSelect");
+    expect(dialog).toContain("options={availableRoutineDuties}");
     expect(dialog).toContain("selectedDutySlugs.length");
     expect(dialog).toContain('isRoutine ? "Scope" : "Finish line"');
     expect(dialog).not.toContain("goal-create-mode");

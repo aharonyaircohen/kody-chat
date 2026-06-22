@@ -6,10 +6,12 @@
  */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
+  Check,
   CheckCircle2,
+  ChevronDown,
   CircleDot,
   Clock3,
   FileText,
@@ -23,6 +25,7 @@ import {
   Plus,
   RefreshCw,
   Route,
+  Search,
   ShieldAlert,
   Target,
   Trash2,
@@ -30,7 +33,6 @@ import {
 
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
-import { Checkbox } from "@dashboard/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -384,10 +386,6 @@ function NewGoalDialog({
       a.slug.localeCompare(b.slug),
     );
   }, [duties, selectedGoalType.duties]);
-  const selectedDutySet = useMemo(
-    () => new Set(selectedDutySlugs),
-    [selectedDutySlugs],
-  );
   const canSubmit =
     outcome.trim().length > 0 && (!isRoutine || selectedDutySlugs.length > 0);
   const showTypeSelect = !isRoutine && goalTypes.length > 1;
@@ -427,14 +425,6 @@ function NewGoalDialog({
     setSelectedDutySlugs(defaultType.duties);
   };
 
-  const toggleRoutineDuty = (slug: string) => {
-    setSelectedDutySlugs((current) =>
-      current.includes(slug)
-        ? current.filter((item) => item !== slug)
-        : [...current, slug].sort(),
-    );
-  };
-
   const submit = async () => {
     await createGoal.mutateAsync(
       buildSimpleManagedGoalCreateInput({
@@ -450,7 +440,7 @@ function NewGoalDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="w-[calc(100vw-2rem)] max-w-[calc(100vw-2rem)] overflow-x-hidden sm:w-full sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>New {label}</DialogTitle>
           <DialogDescription>{dialogDescription}</DialogDescription>
@@ -474,7 +464,7 @@ function NewGoalDialog({
           </div>
         ) : null}
 
-        <div className="space-y-4">
+        <div className="min-w-0 space-y-4">
           {isRoutine ? (
             <div className="space-y-2">
               <Label htmlFor="goal-outcome">{intentLabel}</Label>
@@ -488,8 +478,8 @@ function NewGoalDialog({
             </div>
           ) : null}
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-3">
+          <div className="grid min-w-0 gap-3 md:grid-cols-2">
+            <div className="min-w-0 space-y-3">
               {showTypeSelect ? (
                 <div className="space-y-2">
                   <Label htmlFor="goal-type">Objective type</Label>
@@ -552,66 +542,20 @@ function NewGoalDialog({
             </div>
 
             {isRoutine ? (
-              <div className="space-y-3">
-                <div className="space-y-2 rounded-md border border-border/70 bg-muted/30 px-3 py-3 text-xs text-muted-foreground">
-                  <div className="flex items-center justify-between gap-3">
-                    <Label className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Duties
-                    </Label>
-                    <span className="font-mono text-[11px] text-muted-foreground">
-                      {selectedDutySlugs.length} selected
-                    </span>
-                  </div>
-                  <div className="max-h-48 space-y-1 overflow-auto pr-1">
-                    {dutiesLoading ? (
-                      <div className="rounded border border-border/70 bg-background/70 px-2 py-2">
-                        Loading duties...
-                      </div>
-                    ) : availableRoutineDuties.length ? (
-                      availableRoutineDuties.map((duty) => {
-                        const checked = selectedDutySet.has(duty.slug);
-                        return (
-                          <button
-                            key={duty.slug}
-                            type="button"
-                            onClick={() => toggleRoutineDuty(duty.slug)}
-                            className={cn(
-                              "flex w-full items-start gap-2 rounded border px-2 py-2 text-left transition-colors",
-                              checked
-                                ? "border-sky-500/40 bg-sky-500/10"
-                                : "border-border/70 bg-background/70 hover:bg-muted",
-                            )}
-                          >
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={() =>
-                                toggleRoutineDuty(duty.slug)
-                              }
-                              onClick={(event) => event.stopPropagation()}
-                              className="mt-0.5"
-                            />
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm text-foreground">
-                                {duty.title}
-                              </span>
-                              <span className="block truncate font-mono text-[11px] text-muted-foreground">
-                                {duty.slug}
-                                {duty.source ? ` / ${duty.source}` : ""}
-                              </span>
-                            </span>
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <div className="rounded border border-border/70 bg-background/70 px-2 py-2">
-                        No duties found.
-                      </div>
-                    )}
-                  </div>
+              <div className="min-w-0 space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="routine-duties">Duties</Label>
+                  <DutyMultiSelect
+                    id="routine-duties"
+                    options={availableRoutineDuties}
+                    value={selectedDutySlugs}
+                    onChange={setSelectedDutySlugs}
+                    loading={dutiesLoading}
+                  />
                 </div>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="min-w-0 space-y-3">
                 <div className="space-y-2 rounded-md border border-white/[0.08] bg-black/20 px-3 py-2 text-xs text-muted-foreground">
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-white/65">Missing evidence</p>
@@ -704,6 +648,156 @@ function NewGoalDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+type DutySelectOption = Pick<Duty, "slug" | "title" | "source">;
+
+function DutyMultiSelect({
+  id,
+  options,
+  value,
+  onChange,
+  loading,
+}: {
+  id: string;
+  options: DutySelectOption[];
+  value: string[];
+  onChange: (next: string[]) => void;
+  loading: boolean;
+}) {
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const selected = useMemo(() => new Set(value), [value]);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return options;
+    return options.filter((option) =>
+      `${option.title} ${option.slug} ${option.source ?? ""}`
+        .toLowerCase()
+        .includes(q),
+    );
+  }, [options, query]);
+  const selectedOptions = useMemo(
+    () => options.filter((option) => selected.has(option.slug)),
+    [options, selected],
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    inputRef.current?.focus();
+    const onPointerDown = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("keydown", onKeyDown, true);
+    };
+  }, [open]);
+
+  const toggle = (slug: string) => {
+    onChange(
+      selected.has(slug)
+        ? value.filter((item) => item !== slug)
+        : [...value, slug].sort(),
+    );
+  };
+
+  return (
+    <div
+      ref={rootRef}
+      className="relative min-w-0"
+      data-searchable-select-open={open}
+    >
+      <Button
+        id={id}
+        type="button"
+        variant="outline"
+        className="h-auto min-h-10 w-full justify-between gap-3 overflow-hidden px-3 py-2 text-left font-normal"
+        onClick={() => setOpen((current) => !current)}
+      >
+        <span className="min-w-0 flex-1 overflow-hidden">
+          <span className="block truncate text-sm">
+            {value.length ? `${value.length} duties selected` : "Select duties"}
+          </span>
+          {selectedOptions.length ? (
+            <span className="block truncate font-mono text-[11px] text-muted-foreground">
+              {selectedOptions.map((option) => option.slug).join(", ")}
+            </span>
+          ) : null}
+        </span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+      </Button>
+
+      {open ? (
+        <div
+          className="z-[70] mt-1 w-full min-w-0 rounded-md border bg-popover p-2 text-popover-foreground shadow-elevation-3 md:absolute md:bottom-[calc(100%+4px)] md:left-0 md:right-0 md:mt-0"
+          data-duty-multi-select-menu
+        >
+          <div className="relative mb-2">
+            <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              ref={inputRef}
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search duties..."
+              className="h-8 pl-7 text-sm"
+            />
+          </div>
+
+          <div className="max-h-64 space-y-1 overflow-auto">
+            {loading ? (
+              <div className="px-2 py-3 text-sm text-muted-foreground">
+                Loading duties...
+              </div>
+            ) : filtered.length ? (
+              filtered.map((option) => {
+                const active = selected.has(option.slug);
+                return (
+                  <button
+                    key={option.slug}
+                    type="button"
+                    role="option"
+                    aria-selected={active}
+                    onClick={() => toggle(option.slug)}
+                    className={cn(
+                      "flex w-full items-start gap-2 rounded px-2 py-2 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground",
+                      active && "bg-accent/70",
+                    )}
+                  >
+                    <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
+                      {active ? <Check className="h-4 w-4" /> : null}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{option.title}</span>
+                      <span className="block truncate font-mono text-xs text-muted-foreground">
+                        {option.slug}
+                        {option.source ? ` / ${option.source}` : ""}
+                      </span>
+                    </span>
+                  </button>
+                );
+              })
+            ) : (
+              <div className="px-2 py-3 text-sm text-muted-foreground">
+                No duties found.
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
