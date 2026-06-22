@@ -351,15 +351,28 @@ function NewGoalDialog({
     [model],
   );
   const defaultType = goalTypes[0] ?? defaultGoalType;
+  const isRoutine = model === "routine";
+  const defaultSchedule: ManagedGoalSchedule = isRoutine ? "1d" : "manual";
   const [goalType, setGoalType] = useState<ManagedGoalTypeId>(defaultType.id);
-  const [schedule, setSchedule] = useState<ManagedGoalSchedule>("manual");
+  const [schedule, setSchedule] =
+    useState<ManagedGoalSchedule>(defaultSchedule);
   const [outcome, setOutcome] = useState("");
 
   const selectedGoalType =
     goalTypes.find((type) => type.id === goalType) ?? defaultType;
+  const scheduleChoices = isRoutine
+    ? scheduleOptions.filter((option) => option.value !== "manual")
+    : scheduleOptions;
   const canSubmit = outcome.trim().length > 0;
-  const kindLabel = model === "routine" ? "Routine type" : "Objective type";
-  const showTypeSelect = goalTypes.length > 1;
+  const kindLabel = isRoutine ? "Routine type" : "Objective type";
+  const showTypeSelect = !isRoutine && goalTypes.length > 1;
+  const intentLabel = isRoutine ? "Routine scope" : "Finish line";
+  const dialogDescription = isRoutine
+    ? "Set the cadence and operating scope for an ongoing loop."
+    : "Choose schedule, then describe the finish line.";
+  const intentPlaceholder = isRoutine
+    ? "Example: Keep codebase healthy and report drift."
+    : selectedGoalType.promptPlaceholder;
 
   useEffect(() => {
     if (!goalTypes.some((type) => type.id === goalType)) {
@@ -367,9 +380,15 @@ function NewGoalDialog({
     }
   }, [defaultType.id, goalType, goalTypes]);
 
+  useEffect(() => {
+    if (isRoutine && schedule === "manual") {
+      setSchedule(defaultSchedule);
+    }
+  }, [defaultSchedule, isRoutine, schedule]);
+
   const reset = () => {
     setGoalType(defaultType.id);
-    setSchedule("manual");
+    setSchedule(defaultSchedule);
     setOutcome("");
   };
 
@@ -390,9 +409,7 @@ function NewGoalDialog({
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>New {label}</DialogTitle>
-          <DialogDescription>
-            Choose schedule, then describe the operating intent.
-          </DialogDescription>
+          <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -432,11 +449,28 @@ function NewGoalDialog({
                   <span className="text-white/65">Kody will: </span>
                   {selectedGoalType.systemSummary}
                 </p>
+                {isRoutine ? (
+                  <div className="space-y-2 pt-1">
+                    <p className="text-white/65">Duties included</p>
+                    <div className="flex max-h-28 flex-wrap gap-1 overflow-auto pr-1">
+                      {selectedGoalType.duties.map((duty) => (
+                        <span
+                          key={duty}
+                          className="rounded border border-white/[0.08] bg-black/25 px-2 py-1 font-mono text-[11px] text-white/65"
+                        >
+                          {duty}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="goal-schedule">Schedule</Label>
+              <Label htmlFor="goal-schedule">
+                {isRoutine ? "Cadence" : "Schedule"}
+              </Label>
               <Select
                 value={schedule}
                 onValueChange={(value) =>
@@ -444,10 +478,10 @@ function NewGoalDialog({
                 }
               >
                 <SelectTrigger id="goal-schedule">
-                  <SelectValue placeholder="Choose schedule" />
+                  <SelectValue placeholder="Choose cadence" />
                 </SelectTrigger>
                 <SelectContent>
-                  {scheduleOptions.map((option) => (
+                  {scheduleChoices.map((option) => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
                     </SelectItem>
@@ -458,12 +492,12 @@ function NewGoalDialog({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="goal-outcome">Finish line</Label>
+            <Label htmlFor="goal-outcome">{intentLabel}</Label>
             <Textarea
               id="goal-outcome"
               value={outcome}
               onChange={(event) => setOutcome(event.target.value)}
-              placeholder={selectedGoalType.promptPlaceholder}
+              placeholder={intentPlaceholder}
               rows={4}
             />
           </div>
@@ -486,7 +520,7 @@ function NewGoalDialog({
               ) : (
                 <Plus className="h-4 w-4" />
               )}
-              Create
+              Create {label}
             </Button>
           </div>
         </div>
@@ -507,6 +541,11 @@ function EditManagedGoalDialog({
   label: string;
 }) {
   const updateGoal = useUpdateManagedGoal(goal?.id ?? "");
+  const isRoutine = goal ? managedGoalModel(goal) === "routine" : false;
+  const intentLabel = isRoutine ? "Routine scope" : "Finish line";
+  const editDescription = isRoutine
+    ? "Update routine scope and cadence."
+    : "Update finish line and schedule.";
   const [outcome, setOutcome] = useState("");
   const [schedule, setSchedule] = useState<ManagedGoalSchedule>("manual");
 
@@ -537,13 +576,11 @@ function EditManagedGoalDialog({
       <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Edit {label}</DialogTitle>
-          <DialogDescription>
-            Update finish line and schedule.
-          </DialogDescription>
+          <DialogDescription>{editDescription}</DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="edit-goal-outcome">Finish line</Label>
+            <Label htmlFor="edit-goal-outcome">{intentLabel}</Label>
             <Textarea
               id="edit-goal-outcome"
               value={outcome}

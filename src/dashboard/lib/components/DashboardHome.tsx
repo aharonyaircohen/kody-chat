@@ -28,7 +28,6 @@ import {
   Loader2,
   type LucideIcon,
   MessageCircle,
-  Play,
   Plus,
   RefreshCw,
   Target,
@@ -43,8 +42,6 @@ import { useKodyTasks } from "../hooks";
 import { useReports } from "../hooks/useReports";
 import { useDefaultBranchCI } from "../hooks/useDefaultBranchCI";
 import { useHealth } from "../hooks/useHealth";
-import { useGoals } from "../hooks/useGoals";
-import { useGoalState, useSetGoalState } from "../hooks/useGoalState";
 import { useMessageChannels } from "../hooks/useMessages";
 import { useChannelsUnread } from "../hooks/useChannelsUnread";
 import { useActivityLog } from "../hooks/useActivityLog";
@@ -55,13 +52,15 @@ import {
   useRetryTask,
 } from "../hooks/useDashboardActions";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { useManagedGoals } from "../hooks/useManagedGoals";
+import { managedGoalModel, type ManagedGoalRecord } from "../managed-goals";
 import { CreateTaskDialog } from "./CreateTaskDialog";
 import { CreateGoalDialog } from "./GoalControl";
 import { cn } from "../utils";
 import { autoDirProps } from "../text-direction";
 import type { ColumnId, KodyTask } from "../types";
 import type { HealthLevel } from "../health/types";
-import type { Goal, Report } from "../api";
+import type { Report } from "../api";
 import { getStoredAuth } from "../api";
 import type { ActionLogEntry } from "../activity/action-log";
 
@@ -479,10 +478,10 @@ function LatestReports() {
                   variant="outline"
                   className="h-6 px-2 text-[11px] gap-1"
                   onClick={() => setGoalFromReport(r)}
-                  title="Plan a new goal from this report"
+                  title="Plan a new mission from this report"
                 >
                   <Target className="w-3 h-3 text-emerald-400" />
-                  Plan goal
+                  Plan mission
                 </Button>
                 <Button
                   size="sm"
@@ -625,89 +624,106 @@ function EngineHealth() {
 
 // ── strategic & historical slices ────────────────────────────────────────────
 
-function GoalsOverview() {
-  const { data: goals = [], isLoading } = useGoals();
-  const top = [...goals]
-    .sort(
-      (a, b) =>
-        Date.parse(b.updatedAt ?? b.createdAt) -
-        Date.parse(a.updatedAt ?? a.createdAt),
-    )
+function ModelsOverview() {
+  const { data: models = [], isLoading } = useManagedGoals();
+  const top = [...models]
+    .sort((a, b) => managedModelTime(b) - managedModelTime(a))
     .slice(0, 4);
+  const objectiveCount = models.filter(
+    (model) => managedGoalModel(model) === "objective",
+  ).length;
+  const routineCount = models.filter(
+    (model) => managedGoalModel(model) === "routine",
+  ).length;
 
   return (
     <section>
-      <SectionHeader title="Goals" />
+      <SectionHeader
+        title="Objectives / routines"
+        href="/objectives"
+        cta="Open"
+      />
       {isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading goals…</p>
-      ) : goals.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Loading models...</p>
+      ) : models.length === 0 ? (
         <Card className="p-4 text-sm text-muted-foreground">
-          No goals yet — plan one from a report.
+          No objectives or routines yet.
         </Card>
       ) : (
-        <Card className="divide-y divide-white/[0.04] overflow-hidden">
-          {top.map((g: Goal) => (
-            <GoalOverviewRow key={g.id} goal={g} />
-          ))}
+        <Card className="overflow-hidden">
+          <div className="grid grid-cols-2 divide-x divide-white/[0.04] border-b border-white/[0.04] text-xs">
+            <Link
+              href="/objectives"
+              className="flex items-center justify-between px-4 py-3 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
+            >
+              <span>Objectives</span>
+              <span className="font-mono text-white/70">{objectiveCount}</span>
+            </Link>
+            <Link
+              href="/routines"
+              className="flex items-center justify-between px-4 py-3 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
+            >
+              <span>Routines</span>
+              <span className="font-mono text-white/70">{routineCount}</span>
+            </Link>
+          </div>
+          <div className="divide-y divide-white/[0.04]">
+            {top.map((model) => (
+              <ManagedModelOverviewRow key={model.id} model={model} />
+            ))}
+          </div>
         </Card>
       )}
     </section>
   );
 }
 
-function GoalOverviewRow({ goal }: { goal: Goal }) {
-  const { githubUser } = useGitHubIdentity();
-  const { data: runState } = useGoalState(goal.id);
-  const setState = useSetGoalState(goal.id, githubUser?.login);
-  const isActive = runState?.state === "active";
-  const isPaused = runState?.state === "paused";
-  const showToggle = isActive || isPaused;
+function managedModelTime(model: ManagedGoalRecord): number {
+  const raw =
+    model.updatedAt ??
+    (typeof model.state.updatedAt === "string" ? model.state.updatedAt : "") ??
+    (typeof model.state.createdAt === "string" ? model.state.createdAt : "");
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function ManagedModelOverviewRow({ model }: { model: ManagedGoalRecord }) {
+  const kind = managedGoalModel(model);
+  const href = kind === "routine" ? "/routines" : "/objectives";
+  const state = model.state.state;
 
   return (
-    <div className="flex items-center gap-2 px-4 py-3 hover:bg-white/[0.04] transition-colors">
+    <Link
+      href={href}
+      className="flex items-center gap-2 px-4 py-3 hover:bg-white/[0.04] transition-colors"
+    >
       <div className="flex items-center gap-2 min-w-0 flex-1">
-        <Target className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-        <span className="text-sm flex-1 truncate">{goal.name}</span>
-        {goal.assignee ? (
-          <span className="text-[11px] text-muted-foreground shrink-0">
-            @{goal.assignee}
-          </span>
-        ) : null}
-        {goal.dueDate ? (
-          <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
-            due {new Date(goal.dueDate).toLocaleDateString()}
-          </span>
-        ) : null}
-        {isPaused ? (
-          <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-200 shrink-0">
-            paused
-          </span>
-        ) : null}
+        {kind === "routine" ? (
+          <Activity className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+        ) : (
+          <Target className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+        )}
+        <span className="text-sm flex-1 truncate">
+          {model.state.destination.outcome || model.id}
+        </span>
+        <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/[0.06] text-white/55 shrink-0">
+          {kind}
+        </span>
+        <span className="text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded bg-white/[0.06] text-white/55 shrink-0">
+          {state}
+        </span>
       </div>
-      {showToggle ? (
-        <Button
-          size="sm"
-          variant="outline"
-          className="h-6 px-2 text-[11px] gap-1 shrink-0"
-          disabled={setState.isPending}
-          onClick={() =>
-            setState.mutate({ state: isActive ? "paused" : "active" })
-          }
-          title={
-            isActive ? "Pause this goal's runner" : "Resume this goal's runner"
-          }
-        >
-          {setState.isPending ? (
-            <Loader2 className="w-3 h-3 animate-spin" />
-          ) : isActive ? (
-            <X className="w-3 h-3" />
-          ) : (
-            <Play className="w-3 h-3" />
+      {managedModelTime(model) > 0 ? (
+        <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">
+          {timeAgo(
+            model.updatedAt ??
+              (typeof model.state.updatedAt === "string"
+                ? model.state.updatedAt
+                : undefined),
           )}
-          {isActive ? "Pause" : "Resume"}
-        </Button>
+        </span>
       ) : null}
-    </div>
+    </Link>
   );
 }
 
@@ -1021,7 +1037,7 @@ export function DashboardHome() {
               & engine health below. Keeps the page dense without long
               single-column stacks. */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-6 gap-y-10">
-          <GoalsOverview />
+          <ModelsOverview />
           <ChannelsOverview />
           <LatestReports />
           <EngineHealth />
