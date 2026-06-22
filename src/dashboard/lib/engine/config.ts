@@ -19,6 +19,15 @@ export interface KodyQuality {
   testUnit?: string;
 }
 
+export interface ActiveGoalConfigObject {
+  template: string;
+  every?: string;
+  idPrefix?: string;
+  facts?: Record<string, unknown>;
+}
+
+export type ActiveGoalConfigEntry = string | ActiveGoalConfigObject;
+
 export interface KodyConfig {
   /** The model the engine runs, as `provider/model`. This is the key the
    * kody-engine actually reads (`parseProviderModel(cfg.agent.model)`).
@@ -65,6 +74,11 @@ export interface KodyConfig {
    * default (no association gate). */
   access?: {
     allowedAssociations?: string[];
+  };
+  /** Store catalog items this repo explicitly enables. */
+  company?: {
+    activeAgentResponsibilities?: string[];
+    activeGoals?: ActiveGoalConfigEntry[];
   };
   /** Git defaults the engine reads. `defaultBranch` is the base branch new
    * work branches off / targets (engine default: `main`). */
@@ -450,7 +464,8 @@ export async function writeDefaultAgentAction(
   agentAction: string | null,
   commitMessage?: string,
 ): Promise<{ sha: string | null }> {
-  const key = target === "issue" ? "defaultAgentAction" : "defaultPrAgentAction";
+  const key =
+    target === "issue" ? "defaultAgentAction" : "defaultPrAgentAction";
   return mutateConfig(
     octokit,
     owner,
@@ -510,6 +525,83 @@ function cleanStringMap(map: Record<string, string>): Record<string, string> {
   return out;
 }
 
+function cleanSlug(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const slug = value.trim();
+  return /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(slug) ? slug : "";
+}
+
+function cleanSlugList(raw: readonly unknown[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const value of raw) {
+    const slug = cleanSlug(value);
+    if (!slug || seen.has(slug)) continue;
+    seen.add(slug);
+    out.push(slug);
+  }
+  return out;
+}
+
+function cleanActiveGoals(
+  raw: readonly ActiveGoalConfigEntry[],
+): ActiveGoalConfigEntry[] {
+  const seen = new Set<string>();
+  const out: ActiveGoalConfigEntry[] = [];
+  for (const entry of raw) {
+    if (typeof entry === "string") {
+      const slug = cleanSlug(entry);
+      if (!slug || seen.has(slug)) continue;
+      seen.add(slug);
+      out.push(slug);
+      continue;
+    }
+    if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+    const template = cleanSlug(entry.template);
+    if (!template || seen.has(template)) continue;
+    const cleaned: ActiveGoalConfigObject = { template };
+    if (
+      typeof entry.every === "string" &&
+      /^[1-9][0-9]*[mhdw]$/.test(entry.every.trim())
+    ) {
+      cleaned.every = entry.every.trim();
+    }
+    const idPrefix = cleanSlug(entry.idPrefix);
+    if (idPrefix) cleaned.idPrefix = idPrefix;
+    if (
+      entry.facts &&
+      typeof entry.facts === "object" &&
+      !Array.isArray(entry.facts)
+    ) {
+      cleaned.facts = entry.facts;
+    }
+    seen.add(template);
+    out.push(cleaned);
+  }
+  return out;
+}
+
+function companyRecordFrom(raw: unknown): Record<string, unknown> {
+  return raw && typeof raw === "object" && !Array.isArray(raw)
+    ? (raw as Record<string, unknown>)
+    : {};
+}
+
+function setCompanyField(
+  next: Record<string, unknown>,
+  key: "activeAgentResponsibilities" | "activeGoals",
+  value: string[] | ActiveGoalConfigEntry[],
+): void {
+  const prevCompany = companyRecordFrom(next.company);
+  if (value.length > 0) {
+    next.company = { ...prevCompany, [key]: value };
+    return;
+  }
+  const { [key]: _drop, ...rest } = prevCompany;
+  if (Object.keys(rest).length > 0) next.company = rest;
+  else delete next.company;
+}
+
 /** Keep only valid Fly preview knobs: positive numbers for size/ttl, real
  * booleans for the toggles. Drops anything blank/invalid so a fresh repo
  * stays at {@link DEFAULT_FLY_PREVIEWS}. */
@@ -551,6 +643,8 @@ export interface ConfigPatch {
   quality?: KodyQuality | null;
   aliases?: Record<string, string> | null;
   allowedAssociations?: string[] | null;
+  activeAgentResponsibilities?: string[] | null;
+  activeGoals?: ActiveGoalConfigEntry[] | null;
   defaultBranch?: string | null;
   perAgentAction?: Record<string, string> | null;
   /** Bare-`@kody` issue default (`defaultAgentAction`). Edited on /agent-actions;
@@ -624,6 +718,20 @@ export async function writeConfigPatch(
         }
       }
 
+      if (patch.activeAgentResponsibilities !== undefined) {
+        const list = patch.activeAgentResponsibilities
+          ? cleanSlugList(patch.activeAgentResponsibilities)
+          : [];
+        setCompanyField(next, "activeAgentResponsibilities", list);
+      }
+
+      if (patch.activeGoals !== undefined) {
+        const list = patch.activeGoals
+          ? cleanActiveGoals(patch.activeGoals)
+          : [];
+        setCompanyField(next, "activeGoals", list);
+      }
+
       if (patch.defaultBranch !== undefined) {
         const branch = patch.defaultBranch?.trim();
         const prevGit =
@@ -656,7 +764,10 @@ export async function writeConfigPatch(
         }
       }
 
-      for (const key of ["defaultAgentAction", "defaultPrAgentAction"] as const) {
+      for (const key of [
+        "defaultAgentAction",
+        "defaultPrAgentAction",
+      ] as const) {
         if (patch[key] === undefined) continue;
         const val = patch[key]?.trim();
         if (val) next[key] = val;

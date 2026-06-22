@@ -199,7 +199,11 @@ export async function handleResponse<T>(res: Response): Promise<T> {
   }
 
   if (!res.ok) {
-    throw new ApiError(data.error || "Request failed", res.status, data);
+    throw new ApiError(
+      data.message || data.error || "Request failed",
+      res.status,
+      data,
+    );
   }
 
   return data as T;
@@ -849,7 +853,7 @@ export type AgentResponsibilitySchedule =
   | "3d"
   | "7d"
   /** Sentinel: scheduler never auto-fires; only the dashboard "Run now" button executes it. */
-| "manual";
+  | "manual";
 
 export type AgentResponsibilityCapabilityKind = "observe" | "act" | "verify";
 
@@ -882,8 +886,8 @@ export interface AgentResponsibility {
    * Per-agentResponsibility cadence parsed from `profile.json`. `null` = global cron wake
    * (every 15 min). Engine-side gating ships separately.
    */
-schedule: AgentResponsibilitySchedule | null;
-capabilityKind: AgentResponsibilityCapabilityKind | null;
+  schedule: AgentResponsibilitySchedule | null;
+  capabilityKind: AgentResponsibilityCapabilityKind | null;
   /**
    * Mirrors `disabled: true` in `profile.json`. When `true` the engine
    * scheduler skips this agentResponsibility; manual "Run now" still fires.
@@ -933,15 +937,22 @@ export const agentResponsibilitiesApi = {
       headers: buildHeaders(),
       cache: "no-store",
     });
-    const data = await handleResponse<{ agentResponsibilities: AgentResponsibility[] }>(res);
+    const data = await handleResponse<{
+      agentResponsibilities: AgentResponsibility[];
+    }>(res);
     return data.agentResponsibilities;
   },
 
   get: async (slug: string): Promise<AgentResponsibility> => {
-    const res = await fetch(`${API_BASE}/agent-responsibilities/${encodeURIComponent(slug)}`, {
-      headers: buildHeaders(),
-    });
-    const data = await handleResponse<{ agentResponsibility: AgentResponsibility }>(res);
+    const res = await fetch(
+      `${API_BASE}/agent-responsibilities/${encodeURIComponent(slug)}`,
+      {
+        headers: buildHeaders(),
+      },
+    );
+    const data = await handleResponse<{
+      agentResponsibility: AgentResponsibility;
+    }>(res);
     return data.agentResponsibility;
   },
 
@@ -949,8 +960,8 @@ export const agentResponsibilitiesApi = {
     slug?: string;
     title: string;
     body: string;
-schedule?: AgentResponsibilitySchedule | null;
-capabilityKind?: AgentResponsibilityCapabilityKind | null;
+    schedule?: AgentResponsibilitySchedule | null;
+    capabilityKind?: AgentResponsibilityCapabilityKind | null;
     disabled?: boolean;
     agent?: string | null;
     reviewer?: string | null;
@@ -969,7 +980,9 @@ capabilityKind?: AgentResponsibilityCapabilityKind | null;
       headers: buildHeaders(),
       body: JSON.stringify(data),
     });
-    const payload = await handleResponse<{ agentResponsibility: AgentResponsibility }>(res);
+    const payload = await handleResponse<{
+      agentResponsibility: AgentResponsibility;
+    }>(res);
     return payload.agentResponsibility;
   },
 
@@ -978,10 +991,10 @@ capabilityKind?: AgentResponsibilityCapabilityKind | null;
     data: {
       title?: string;
       body?: string;
-schedule?: AgentResponsibilitySchedule | null;
-capabilityKind?: AgentResponsibilityCapabilityKind | null;
+      schedule?: AgentResponsibilitySchedule | null;
+      capabilityKind?: AgentResponsibilityCapabilityKind | null;
       disabled?: boolean;
-    agent?: string | null;
+      agent?: string | null;
       reviewer?: string | null;
       action?: string | null;
       mentions?: string[];
@@ -994,12 +1007,17 @@ capabilityKind?: AgentResponsibilityCapabilityKind | null;
       actorLogin?: string;
     },
   ): Promise<AgentResponsibility> => {
-    const res = await fetch(`${API_BASE}/agent-responsibilities/${encodeURIComponent(slug)}`, {
-      method: "PATCH",
-      headers: buildHeaders(),
-      body: JSON.stringify(data),
-    });
-    const payload = await handleResponse<{ agentResponsibility: AgentResponsibility }>(res);
+    const res = await fetch(
+      `${API_BASE}/agent-responsibilities/${encodeURIComponent(slug)}`,
+      {
+        method: "PATCH",
+        headers: buildHeaders(),
+        body: JSON.stringify(data),
+      },
+    );
+    const payload = await handleResponse<{
+      agentResponsibility: AgentResponsibility;
+    }>(res);
     return payload.agentResponsibility;
   },
 

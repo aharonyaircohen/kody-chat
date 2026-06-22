@@ -8,10 +8,14 @@
 
 export type ManagedGoalStateValue = "inactive" | "active" | "paused" | "done";
 export type ManagedGoalSchedule = "manual" | "1h" | "1d" | "7d" | "30d";
-export type ManagedGoalTypeId = "improve" | "agentLoop" | "release" | "checklist";
+export type ManagedGoalTypeId =
+  | "improve"
+  | "agentLoop"
+  | "release"
+  | "checklist";
 export type ManagedGoalModel = "agentGoal" | "agentLoop";
 
-const LEGACY_ROUTINE_TYPE_IDS = new Set(["maintain", "monitor"]);
+const LEGACY_ROUTINE_TYPE_IDS = new Set(["maintain", "monitor", "routine"]);
 
 export const SIMPLE_MANAGED_GOAL_TEMPLATE = "simple";
 export const SIMPLE_MANAGED_GOAL_EVIDENCE = "labelledTasksComplete";
@@ -102,7 +106,11 @@ export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
       "Kody tracks release PR, merge, and production deployment evidence.",
     promptPlaceholder: "Example: Publish Kody Dashboard to production safely.",
     evidence: ["releasePrExists", "mainMerged", "productionDeployed"],
-    agentResponsibilities: ["release", "task-leader", "vercel-production-deploy"],
+    agentResponsibilities: [
+      "release",
+      "task-leader",
+      "vercel-production-deploy",
+    ],
     route: [
       {
         stage: "release",
@@ -191,7 +199,10 @@ export interface ManagedGoalAgentResponsibilityScheduleState {
       }
     | { kind: "idle"; reason: string; at: string }
     | { kind: "blocked"; reason: string; at: string };
-  agentResponsibilities: Record<string, ManagedGoalAgentResponsibilityScheduleStatus>;
+  agentResponsibilities: Record<
+    string,
+    ManagedGoalAgentResponsibilityScheduleStatus
+  >;
 }
 
 export interface ManagedGoalState {
@@ -243,7 +254,12 @@ export function isStoreBackedManagedGoal(goal: ManagedGoalRecord): boolean {
 }
 
 export function managedGoalModel(goal: ManagedGoalRecord): ManagedGoalModel {
-  if (goal.state.scheduleMode === "agentLoop") return "agentLoop";
+  if (
+    goal.state.scheduleMode === "agentLoop" ||
+    goal.state.scheduleMode === "duty-cadence"
+  ) {
+    return "agentLoop";
+  }
   if (LEGACY_ROUTINE_TYPE_IDS.has(goal.state.type)) return "agentLoop";
 
   const goalType = MANAGED_GOAL_TYPES.find(
@@ -445,7 +461,9 @@ export function buildSimpleManagedGoalCreateInput(
     type: fields.goalType,
     schedule: fields.schedule,
     outcome: fields.prompt.trim(),
-    ...(fields.agentResponsibilities ? { agentResponsibilities: fields.agentResponsibilities } : {}),
+    ...(fields.agentResponsibilities
+      ? { agentResponsibilities: fields.agentResponsibilities }
+      : {}),
     ...(fields.evidence ? { evidence: fields.evidence } : {}),
     ...(fields.route ? { route: fields.route } : {}),
   };
@@ -556,4 +574,95 @@ export function isManagedGoalState(value: unknown): value is ManagedGoalState {
     !Array.isArray(goal.facts) &&
     Array.isArray(goal.blockers)
   );
+}
+
+export function normalizeManagedGoalState(
+  value: unknown,
+): ManagedGoalState | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const goal = value as Partial<ManagedGoalState>;
+  const destination = goal.destination as Partial<ManagedGoalDestination>;
+  if (
+    goal.version !== 1 ||
+    typeof goal.state !== "string" ||
+    typeof goal.type !== "string" ||
+    !destination ||
+    typeof destination !== "object" ||
+    !Array.isArray(destination.evidence) ||
+    !Array.isArray(goal.route) ||
+    !goal.facts ||
+    typeof goal.facts !== "object" ||
+    Array.isArray(goal.facts) ||
+    !Array.isArray(goal.blockers)
+  ) {
+    return null;
+  }
+
+  const route = goal.route
+    .map((step) => {
+      if (!step || typeof step !== "object" || Array.isArray(step)) return null;
+      const legacyStep = step as ManagedGoalRouteStep & {
+        duty?: unknown;
+        executable?: unknown;
+      };
+      const stage =
+        typeof legacyStep.stage === "string" ? legacyStep.stage : "";
+      const evidence =
+        typeof legacyStep.evidence === "string" ? legacyStep.evidence : "";
+      const agentResponsibility =
+        typeof legacyStep.agentResponsibility === "string"
+          ? legacyStep.agentResponsibility
+          : typeof legacyStep.duty === "string"
+            ? legacyStep.duty
+            : "";
+      const agentAction =
+        typeof legacyStep.agentAction === "string"
+          ? legacyStep.agentAction
+          : typeof legacyStep.executable === "string"
+            ? legacyStep.executable
+            : "";
+
+      if (!stage || !evidence || !agentResponsibility) return null;
+      return {
+        stage,
+        evidence,
+        agentResponsibility,
+        ...(agentAction ? { agentAction } : {}),
+        ...(legacyStep.args && typeof legacyStep.args === "object"
+          ? { args: legacyStep.args as Record<string, unknown> }
+          : {}),
+      };
+    })
+    .filter((step): step is ManagedGoalRouteStep => !!step);
+
+  const legacyDuties = (goal as { duties?: unknown }).duties;
+  const agentResponsibilities = uniqueStrings([
+    ...(Array.isArray(goal.agentResponsibilities)
+      ? goal.agentResponsibilities.filter(
+          (responsibility): responsibility is string =>
+            typeof responsibility === "string",
+        )
+      : []),
+    ...(Array.isArray(legacyDuties)
+      ? legacyDuties.filter(
+          (responsibility): responsibility is string =>
+            typeof responsibility === "string",
+        )
+      : []),
+    ...route.map((step) => step.agentResponsibility),
+  ]);
+
+  return {
+    ...goal,
+    destination: {
+      ...destination,
+      outcome:
+        typeof destination.outcome === "string" ? destination.outcome : "",
+      evidence: destination.evidence,
+    },
+    agentResponsibilities,
+    route,
+    facts: goal.facts,
+    blockers: goal.blockers,
+  } as ManagedGoalState;
 }

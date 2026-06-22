@@ -45,6 +45,9 @@ export async function GET(req: NextRequest) {
       quality: config.quality ?? {},
       aliases: config.aliases ?? {},
       allowedAssociations: config.access?.allowedAssociations ?? [],
+      activeAgentResponsibilities:
+        config.company?.activeAgentResponsibilities ?? [],
+      activeGoals: config.company?.activeGoals ?? [],
       defaultBranch: config.git?.defaultBranch ?? "",
       perAgentAction: config.agent?.perAgentAction ?? {},
       reasoningEffort: config.agent?.reasoningEffort ?? null,
@@ -64,6 +67,23 @@ export async function GET(req: NextRequest) {
 // A single command string; bounded so a fat-fingered paste can't bloat the
 // config blob. Empty string clears that check.
 const commandSchema = z.string().max(500);
+const slugSchema = z
+  .string()
+  .min(1)
+  .max(128)
+  .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/);
+const activeGoalSchema = z.union([
+  slugSchema,
+  z.object({
+    template: slugSchema,
+    every: z
+      .string()
+      .regex(/^[1-9][0-9]*[mhdw]$/)
+      .optional(),
+    idPrefix: slugSchema.optional(),
+    facts: z.record(z.string(), z.unknown()).optional(),
+  }),
+]);
 
 const PatchSchema = z
   .object({
@@ -85,6 +105,12 @@ const PatchSchema = z
       .max(VALID_ASSOCIATIONS.length)
       .nullable()
       .optional(),
+    activeAgentResponsibilities: z
+      .array(slugSchema)
+      .max(200)
+      .nullable()
+      .optional(),
+    activeGoals: z.array(activeGoalSchema).max(200).nullable().optional(),
     defaultBranch: z.string().max(255).nullable().optional(),
     // AgentAction slug → `provider/model` override. Bounded so a paste can't
     // bloat the config blob.
@@ -107,6 +133,8 @@ const PatchSchema = z
       b.quality !== undefined ||
       b.aliases !== undefined ||
       b.allowedAssociations !== undefined ||
+      b.activeAgentResponsibilities !== undefined ||
+      b.activeGoals !== undefined ||
       b.defaultBranch !== undefined ||
       b.perAgentAction !== undefined ||
       b.reasoningEffort !== undefined,
@@ -149,6 +177,8 @@ export async function PATCH(req: NextRequest) {
     quality,
     aliases,
     allowedAssociations,
+    activeAgentResponsibilities,
+    activeGoals,
     defaultBranch,
     perAgentAction,
     reasoningEffort,
@@ -169,6 +199,8 @@ export async function PATCH(req: NextRequest) {
         quality,
         aliases,
         allowedAssociations,
+        activeAgentResponsibilities,
+        activeGoals,
         defaultBranch,
         perAgentAction,
         reasoningEffort,
@@ -183,6 +215,9 @@ export async function PATCH(req: NextRequest) {
       quality: config.quality ?? {},
       aliases: config.aliases ?? {},
       allowedAssociations: config.access?.allowedAssociations ?? [],
+      activeAgentResponsibilities:
+        config.company?.activeAgentResponsibilities ?? [],
+      activeGoals: config.company?.activeGoals ?? [],
       defaultBranch: config.git?.defaultBranch ?? "",
       perAgentAction: config.agent?.perAgentAction ?? {},
       reasoningEffort: config.agent?.reasoningEffort ?? null,

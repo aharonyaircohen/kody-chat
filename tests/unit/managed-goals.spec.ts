@@ -18,6 +18,7 @@ import {
   isManagedGoalState,
   managedGoalModel,
   managedGoalPath,
+  normalizeManagedGoalState,
   type ManagedGoalRecord,
 } from "../../src/dashboard/lib/managed-goals";
 
@@ -56,6 +57,80 @@ describe("isManagedGoalState", () => {
         blockers: [],
       }),
     ).toBe(true);
+  });
+});
+
+describe("normalizeManagedGoalState", () => {
+  it("normalizes engine-written null agentResponsibilities from route", () => {
+    const state = normalizeManagedGoalState({
+      version: 1,
+      state: "active",
+      type: "improve",
+      destination: {
+        outcome: "Goal creation works.",
+        evidence: ["planReady"],
+      },
+      agentResponsibilities: null,
+      route: [
+        {
+          stage: "plan",
+          evidence: "planReady",
+          agentResponsibility: "plan",
+          agentAction: "plan",
+        },
+      ],
+      facts: {},
+      blockers: [],
+    });
+
+    expect(state?.agentResponsibilities).toEqual(["plan"]);
+    expect(state?.route[0]?.stage).toBe("plan");
+  });
+
+  it("accepts legacy duty goal state as agentResponsibilities", () => {
+    const state = normalizeManagedGoalState({
+      version: 1,
+      state: "active",
+      type: "routine",
+      destination: {
+        outcome: "Refresh company graph report.",
+        evidence: ["companyGraphRefreshed"],
+      },
+      schedule: "1h",
+      scheduleMode: "duty-cadence",
+      duties: ["company-graph"],
+      route: [
+        {
+          stage: "refresh-company-graph",
+          evidence: "companyGraphRefreshed",
+          duty: "company-graph",
+          executable: "company-graph",
+          args: { goal: { fact: "goalId" } },
+        },
+      ],
+      facts: {},
+      blockers: [],
+    });
+
+    expect(state).not.toBeNull();
+    expect(state).toMatchObject({
+      agentResponsibilities: ["company-graph"],
+      route: [
+        {
+          stage: "refresh-company-graph",
+          evidence: "companyGraphRefreshed",
+          agentResponsibility: "company-graph",
+          agentAction: "company-graph",
+        },
+      ],
+    });
+    expect(
+      managedGoalModel({
+        id: "legacy-loop",
+        path: ".kody/goals/instances/legacy-loop/state.json",
+        state: state!,
+      }),
+    ).toBe("agentLoop");
   });
 });
 
@@ -107,7 +182,11 @@ describe("simple managed goal creation", () => {
         outcome: "Publish Kody Dashboard to production safely.",
         evidence: ["releasePrExists", "mainMerged", "productionDeployed"],
       },
-      agentResponsibilities: ["release", "task-leader", "vercel-production-deploy"],
+      agentResponsibilities: [
+        "release",
+        "task-leader",
+        "vercel-production-deploy",
+      ],
       route: [
         {
           stage: "release",

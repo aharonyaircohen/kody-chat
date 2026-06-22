@@ -13,8 +13,8 @@ import {
   readCompanyStoreText,
 } from "./company-store/assets";
 import {
-  isManagedGoalState,
   managedGoalPath,
+  normalizeManagedGoalState,
   type ManagedGoalRecord,
   type ManagedGoalState,
 } from "./managed-goals";
@@ -83,8 +83,9 @@ export async function readManagedGoalFile(
       (data.encoding ?? "base64") as BufferEncoding,
     ).toString("utf8");
     const parsed = JSON.parse(raw) as unknown;
-    if (!isManagedGoalState(parsed)) return null;
-    return { state: parsed, sha: data.sha ?? "", path };
+    const state = normalizeManagedGoalState(parsed);
+    if (!state) return null;
+    return { state, sha: data.sha ?? "", path };
   } catch (err) {
     if ((err as { status?: number }).status === 404) return null;
     throw err;
@@ -154,11 +155,12 @@ export async function listCompanyStoreGoalTemplateFiles(
 
     try {
       const parsed = JSON.parse(raw) as unknown;
-      if (!isManagedGoalState(parsed)) continue;
+      const state = normalizeManagedGoalState(parsed);
+      if (!state) continue;
       goals.push({
         id: dir.name,
         path,
-        state: parsed,
+        state,
         source: "store",
         recordType: "template",
       });

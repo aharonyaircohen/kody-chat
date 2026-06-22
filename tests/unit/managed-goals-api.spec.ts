@@ -3,6 +3,38 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { kodyApi } from "@dashboard/lib/api";
 
 describe("managed goals API client", () => {
+  it("surfaces managed goal create failure messages", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: "failed_to_create_managed_goal",
+          message: "Invalid request: kody-state branch could not be updated.",
+        }),
+        { status: 500, headers: { "content-type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      kodyApi.goals.createManaged({
+        type: "improve",
+        schedule: "manual",
+        outcome: "Users can create goals from dashboard.",
+        evidence: ["goalVerified"],
+        route: [
+          {
+            stage: "verify",
+            evidence: "goalVerified",
+            agentResponsibility: "research",
+            agentAction: "research",
+          },
+        ],
+      }),
+    ).rejects.toThrow(
+      "Invalid request: kody-state branch could not be updated.",
+    );
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
