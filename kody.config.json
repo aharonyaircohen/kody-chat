@@ -28,6 +28,9 @@
     ],
     "activeAgentResponsibilities": [
       "agent-responsibility-call"
+    ],
+    "activeAgentActions": [
+      "agent-ask"
     ]
   },
   "agent-actions": {
