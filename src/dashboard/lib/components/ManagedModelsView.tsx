@@ -67,6 +67,7 @@ import {
   type ManagedGoalModel,
   type ManagedGoalRecord,
   type ManagedGoalSchedule,
+  type ManagedGoalTypeDefinition,
   type ManagedGoalTypeId,
 } from "../managed-goals";
 import { scheduleEveryLabel, type ScheduleEvery } from "../ticked/frontmatter";
@@ -338,6 +339,13 @@ function goalSearchText(goal: ManagedGoalRecord): string {
     .toLowerCase();
 }
 
+function compactDutyLabel(value: string): string {
+  return value
+    .trim()
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function dutySelectOptions(
   duties: Duty[],
   seedSlugs: string[],
@@ -347,6 +355,7 @@ function dutySelectOptions(
     bySlug.set(slug, {
       value: slug,
       label: slug,
+      selectedLabel: compactDutyLabel(slug),
       searchText: slug,
     });
   }
@@ -356,12 +365,93 @@ function dutySelectOptions(
     bySlug.set(duty.slug, {
       value: duty.slug,
       label,
+      selectedLabel: compactDutyLabel(duty.slug),
       description: `${duty.slug}${source}`,
       searchText: `${label} ${duty.slug} ${duty.source ?? ""}`,
     });
   }
   return Array.from(bySlug.values()).sort((a, b) =>
     (a.value ?? "").localeCompare(b.value ?? ""),
+  );
+}
+
+function ObjectiveTypeInfo({
+  goalType,
+}: {
+  goalType: ManagedGoalTypeDefinition;
+}) {
+  return (
+    <div className="space-y-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+      <p className="text-sm font-medium text-foreground">
+        {goalType.description}
+      </p>
+      <p>
+        <span className="text-foreground/70">Best for: </span>
+        {goalType.bestFor}
+      </p>
+      <p>
+        <span className="text-foreground/70">Kody will: </span>
+        {goalType.systemSummary}
+      </p>
+    </div>
+  );
+}
+
+function ObjectiveEvidenceRouteSummary({
+  goalType,
+}: {
+  goalType: ManagedGoalTypeDefinition;
+}) {
+  return (
+    <div className="min-w-0 space-y-3">
+      <div className="space-y-2 rounded-md border border-white/[0.08] bg-black/20 px-3 py-2 text-xs text-muted-foreground">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-white/65">Missing evidence</p>
+          <span className="font-mono text-white/45">
+            {goalType.evidence.length}
+          </span>
+        </div>
+        <div className="space-y-1.5">
+          {goalType.evidence.map((evidence) => (
+            <div
+              key={evidence}
+              className="flex items-center gap-2 rounded border border-white/[0.06] bg-white/[0.02] px-2 py-1.5"
+            >
+              <CircleDot className="h-3.5 w-3.5 shrink-0 text-sky-300" />
+              <span className="font-mono text-white/70">{evidence}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-2 rounded-md border border-white/[0.08] bg-black/20 px-3 py-2 text-xs text-muted-foreground">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-white/65">Route</p>
+          <span className="font-mono text-white/45">
+            {goalType.route.length}
+          </span>
+        </div>
+        <div className="space-y-1.5">
+          {goalType.route.map((step) => (
+            <div
+              key={`${step.stage}:${step.evidence}`}
+              className="rounded border border-white/[0.06] bg-white/[0.02] px-2 py-1.5"
+            >
+              <div className="flex items-center gap-2 text-white/75">
+                <Route className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
+                <span>{step.stage}</span>
+                <span className="text-white/30">{"->"}</span>
+                <span className="font-mono">{step.evidence}</span>
+              </div>
+              <div className="mt-1 text-[11px] text-white/45">
+                duty: {step.duty}
+                {step.executable ? ` · executable: ${step.executable}` : ""}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -517,19 +607,7 @@ function NewGoalDialog({
                   </Select>
                 </div>
               ) : (
-                <div className="space-y-2 rounded-md border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                  <p className="text-sm font-medium text-foreground">
-                    {selectedGoalType.description}
-                  </p>
-                  <p>
-                    <span className="text-foreground/70">Best for: </span>
-                    {selectedGoalType.bestFor}
-                  </p>
-                  <p>
-                    <span className="text-foreground/70">Kody will: </span>
-                    {selectedGoalType.systemSummary}
-                  </p>
-                </div>
+                <ObjectiveTypeInfo goalType={selectedGoalType} />
               )}
             </div>
 
@@ -557,59 +635,7 @@ function NewGoalDialog({
                 </div>
               </div>
             ) : (
-              <div className="min-w-0 space-y-3">
-                <div className="space-y-2 rounded-md border border-white/[0.08] bg-black/20 px-3 py-2 text-xs text-muted-foreground">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-white/65">Missing evidence</p>
-                    <span className="font-mono text-white/45">
-                      {selectedGoalType.evidence.length}
-                    </span>
-                  </div>
-                  <div className="space-y-1.5">
-                    {selectedGoalType.evidence.map((evidence) => (
-                      <div
-                        key={evidence}
-                        className="flex items-center gap-2 rounded border border-white/[0.06] bg-white/[0.02] px-2 py-1.5"
-                      >
-                        <CircleDot className="h-3.5 w-3.5 shrink-0 text-sky-300" />
-                        <span className="font-mono text-white/70">
-                          {evidence}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-2 rounded-md border border-white/[0.08] bg-black/20 px-3 py-2 text-xs text-muted-foreground">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-white/65">Route</p>
-                    <span className="font-mono text-white/45">
-                      {selectedGoalType.route.length}
-                    </span>
-                  </div>
-                  <div className="space-y-1.5">
-                    {selectedGoalType.route.map((step) => (
-                      <div
-                        key={`${step.stage}:${step.evidence}`}
-                        className="rounded border border-white/[0.06] bg-white/[0.02] px-2 py-1.5"
-                      >
-                        <div className="flex items-center gap-2 text-white/75">
-                          <Route className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
-                          <span>{step.stage}</span>
-                          <span className="text-white/30">{"->"}</span>
-                          <span className="font-mono">{step.evidence}</span>
-                        </div>
-                        <div className="mt-1 text-[11px] text-white/45">
-                          duty: {step.duty}
-                          {step.executable
-                            ? ` · executable: ${step.executable}`
-                            : ""}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
+              <ObjectiveEvidenceRouteSummary goalType={selectedGoalType} />
             )}
           </div>
 

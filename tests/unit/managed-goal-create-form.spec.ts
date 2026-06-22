@@ -33,14 +33,16 @@ describe("ManagedModelsView new model form", () => {
     expect(dialog).toContain(
       '<Label htmlFor="goal-type">Objective type</Label>',
     );
-    expect(dialog).toContain("Missing evidence");
-    expect(dialog).toContain("selectedGoalType.evidence.map");
-    expect(dialog).toContain("selectedGoalType.route.map");
+    expect(source).toContain("Missing evidence");
+    expect(source).toContain("goalType.evidence.map");
+    expect(source).toContain("goalType.route.map");
     expect(dialog).toContain('<Label htmlFor="goal-schedule">Cadence</Label>');
     expect(dialog).not.toContain("Routine loop");
     expect(dialog).toContain("Duties");
     expect(dialog).toContain("SearchableMultiSelect");
     expect(dialog).toContain("options={routineDutyOptions}");
+    expect(source).toContain("function compactDutyLabel");
+    expect(source).toContain("selectedLabel: compactDutyLabel(duty.slug)");
     expect(dialog).toContain("isRoutine ? [] : defaultType.duties");
     expect(dialog).not.toContain(
       "setSelectedDutySlugs(selectedGoalType.duties)",

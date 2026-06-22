@@ -9,6 +9,7 @@ import { cn } from "../utils";
 export interface SearchableSelectOption {
   value: string | null;
   label: string;
+  selectedLabel?: string;
   searchText?: string;
   description?: string;
   disabled?: boolean;
@@ -318,9 +319,12 @@ export function SearchableMultiSelect({
             {visibleSelected.map((option) => (
               <span
                 key={option.value}
-                className="inline-flex max-w-full items-center gap-1 rounded-full border border-border/70 bg-background px-2 py-1 text-foreground"
+                className="inline-flex max-w-[11rem] items-center gap-1 rounded-full border border-border/70 bg-background px-2 py-1 text-foreground sm:max-w-[14rem]"
+                title={option.label}
               >
-                <span className="truncate">{option.label}</span>
+                <span className="truncate">
+                  {option.selectedLabel ?? option.label}
+                </span>
                 <button
                   type="button"
                   className="rounded-full text-muted-foreground hover:text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
