@@ -24,6 +24,8 @@ import { logger } from "@dashboard/lib/logger";
 import {
   buildManagedGoalState,
   collapseManagedGoalRecordsForList,
+  isManagedGoalTypeId,
+  managedGoalTypeDefinition,
   managedGoalPath,
   SIMPLE_MANAGED_GOAL_TEMPLATE,
   slugifyManagedGoalId,
@@ -138,9 +140,21 @@ export async function POST(req: NextRequest) {
     const usesTemplate =
       parsed.data.templateId === SIMPLE_MANAGED_GOAL_TEMPLATE ||
       parsed.data.type === SIMPLE_MANAGED_GOAL_TEMPLATE;
-    if (!usesTemplate && (parsed.data.evidence.length === 0 || parsed.data.route.length === 0)) {
+    const selectedType = isManagedGoalTypeId(parsed.data.type)
+      ? managedGoalTypeDefinition(parsed.data.type)
+      : null;
+    const routeFreeRoutine = selectedType?.model === "routine";
+    if (
+      !routeFreeRoutine &&
+      !usesTemplate &&
+      (parsed.data.evidence.length === 0 || parsed.data.route.length === 0)
+    ) {
       return NextResponse.json(
-        { error: "invalid_body", message: "Managed goals need evidence and route unless created from a template." },
+        {
+          error: "invalid_body",
+          message:
+            "Managed goals need evidence and route unless created from a template.",
+        },
         { status: 400 },
       );
     }

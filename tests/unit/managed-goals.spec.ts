@@ -135,6 +135,29 @@ describe("simple managed goal creation", () => {
     });
   });
 
+  it("builds route-free maintain routine structure", () => {
+    const state = buildManagedGoalState(
+      buildSimpleManagedGoalCreateInput({
+        goalType: "maintain",
+        schedule: "1d",
+        prompt: "Keep codebase healthy and report drift.",
+      }),
+    );
+
+    expect(state).toMatchObject({
+      type: "maintain",
+      schedule: "1d",
+      destination: {
+        outcome: "Keep codebase healthy and report drift.",
+        evidence: [],
+      },
+      route: [],
+      facts: { goalType: "maintain" },
+    });
+    expect(state.duties).toContain("code-health");
+    expect(state.duties).not.toContain("health-check");
+  });
+
   it("keeps legacy simple template goals route-free", () => {
     const state = buildManagedGoalState({
       templateId: SIMPLE_MANAGED_GOAL_TEMPLATE,
@@ -230,7 +253,7 @@ describe("managedGoalModel", () => {
     ).toBe("routine");
   });
 
-  it("classifies maintenance and monitor types as routines", () => {
+  it("classifies routine types as routines", () => {
     expect(managedGoalModel(goal({ type: "maintain" }))).toBe("routine");
     expect(managedGoalModel(goal({ type: "monitor" }))).toBe("routine");
   });

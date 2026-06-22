@@ -18,7 +18,6 @@ export type ManagedGoalModel = "objective" | "routine";
 
 export const SIMPLE_MANAGED_GOAL_TEMPLATE = "simple";
 export const SIMPLE_MANAGED_GOAL_EVIDENCE = "labelledTasksComplete";
-
 export interface ManagedGoalTypeDefinition {
   id: ManagedGoalTypeId;
   model: ManagedGoalModel;
@@ -72,12 +71,12 @@ export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
     model: "routine",
     label: "Maintain",
     description:
-      "Keep an existing area healthy and surface drift before it becomes urgent.",
+      "Keep existing area healthy and surface drift before it becomes urgent.",
     bestFor:
       "Ongoing code health, documentation health, cleanup, and repo hygiene.",
     systemSummary:
       "Kody runs maintenance duties and reports issues that need attention.",
-    promptPlaceholder: "Example: Keep the codebase healthy and report drift.",
+    promptPlaceholder: "Example: Keep codebase healthy and report drift.",
     evidence: [],
     duties: [
       "cleanup",
@@ -94,17 +93,17 @@ export const MANAGED_GOAL_TYPES: ManagedGoalTypeDefinition[] = [
     id: "monitor",
     model: "routine",
     label: "Monitor",
-    description:
-      "Watch a system, product area, or workflow and report problems.",
+    description: "Watch system, product area, or workflow and report problems.",
     bestFor:
       "Recurring checks, production health, QA sweeps, and operational signals.",
     systemSummary:
-      "Kody runs monitoring duties on the selected schedule and records findings.",
+      "Kody runs monitoring duties on selected schedule and records findings.",
     promptPlaceholder: "Example: Watch production health and report problems.",
     evidence: [],
     duties: ["health-check", "pr-health-triage", "qa-sweep"],
     route: [],
   },
+
   {
     id: "release",
     model: "objective",
@@ -259,12 +258,10 @@ export function isStoreBackedManagedGoal(goal: ManagedGoalRecord): boolean {
 
 export function managedGoalModel(goal: ManagedGoalRecord): ManagedGoalModel {
   if (goal.state.scheduleMode === "duty-cadence") return "routine";
-
   const goalType = MANAGED_GOAL_TYPES.find(
     (type) => type.id === goal.state.type,
   );
   if (goalType) return goalType.model;
-
   if (
     goal.state.route.length > 0 ||
     goal.state.destination.evidence.length > 0

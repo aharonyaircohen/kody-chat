@@ -80,6 +80,7 @@ type ManagedModelViewCopy = {
   title: string;
   singular: string;
   plural: string;
+  kindLabel: string;
   selectTitle: string;
   selectHint: string;
   emptyTitle: string;
@@ -93,6 +94,7 @@ const viewCopy: Record<ManagedGoalModel, ManagedModelViewCopy> = {
     title: "Objectives",
     singular: "objective",
     plural: "objectives",
+    kindLabel: "Objective type",
     selectTitle: "Select an objective",
     selectHint: "Choose an objective from the list.",
     emptyTitle: "No objectives yet",
@@ -104,6 +106,7 @@ const viewCopy: Record<ManagedGoalModel, ManagedModelViewCopy> = {
     title: "Routines",
     singular: "routine",
     plural: "routines",
+    kindLabel: "Routine type",
     selectTitle: "Select a routine",
     selectHint: "Choose a routine from the list.",
     emptyTitle: "No routines yet",
@@ -127,6 +130,17 @@ function scheduleLabel(schedule: unknown): string {
     scheduleOptions.find((option) => option.value === schedule)?.label ??
     "Manual"
   );
+}
+
+function modelTypeLabel(goal: ManagedGoalRecord): string {
+  return (
+    MANAGED_GOAL_TYPES.find((type) => type.id === goal.state.type)?.label ??
+    goal.state.type
+  );
+}
+
+function goalFactEntries(goal: ManagedGoalRecord): Array<[string, unknown]> {
+  return Object.entries(goal.state.facts).filter(([key]) => key !== "goalType");
 }
 
 function completedEvidence(goal: ManagedGoalRecord): number {
@@ -344,6 +358,8 @@ function NewGoalDialog({
   const selectedGoalType =
     goalTypes.find((type) => type.id === goalType) ?? defaultType;
   const canSubmit = outcome.trim().length > 0;
+  const kindLabel = model === "routine" ? "Routine type" : "Objective type";
+  const showTypeSelect = goalTypes.length > 1;
 
   useEffect(() => {
     if (!goalTypes.some((type) => type.id === goalType)) {
@@ -375,31 +391,35 @@ function NewGoalDialog({
         <DialogHeader>
           <DialogTitle>New {label}</DialogTitle>
           <DialogDescription>
-            Choose type and schedule, then describe the operating intent.
+            Choose schedule, then describe the operating intent.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="goal-type">Type</Label>
-              <Select
-                value={goalType}
-                onValueChange={(value) =>
-                  setGoalType(value as ManagedGoalTypeId)
-                }
-              >
-                <SelectTrigger id="goal-type">
-                  <SelectValue placeholder="Choose type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {goalTypes.map((type) => (
-                    <SelectItem key={type.id} value={type.id}>
-                      {type.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {showTypeSelect ? (
+                <>
+                  <Label htmlFor="goal-type">{kindLabel}</Label>
+                  <Select
+                    value={goalType}
+                    onValueChange={(value) =>
+                      setGoalType(value as ManagedGoalTypeId)
+                    }
+                  >
+                    <SelectTrigger id="goal-type">
+                      <SelectValue placeholder="Choose type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {goalTypes.map((type) => (
+                        <SelectItem key={type.id} value={type.id}>
+                          {type.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </>
+              ) : null}
               <div className="space-y-2 rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs text-muted-foreground">
                 <p className="text-sm font-medium text-white/85">
                   {selectedGoalType.description}
@@ -586,18 +606,21 @@ function GoalRow({
   onSelect,
   onDelete,
   label,
+  kindLabel,
 }: {
   goal: ManagedGoalRecord;
   isActive: boolean;
   onSelect: () => void;
   onDelete: () => void;
   label: string;
+  kindLabel?: string;
 }) {
   const done = completedEvidence(goal);
   const total = goal.state.destination.evidence.length;
   const step = currentRouteStep(goal);
   const storeBacked = isStoreBackedManagedGoal(goal);
   const tone = goalActivityTone(goal.state.state);
+  const kind = modelTypeLabel(goal);
 
   return (
     <div
@@ -625,8 +648,14 @@ function GoalRow({
         </div>
 
         <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
-          <span>{goal.state.type}</span>
-          <span>·</span>
+          {kindLabel ? (
+            <>
+              <span>
+                {kindLabel}: {kind}
+              </span>
+              <span>·</span>
+            </>
+          ) : null}
           <span>{scheduleLabel(goal.state.schedule)}</span>
           <span>·</span>
           <span>
@@ -763,6 +792,9 @@ function GoalDetail({
   const step = currentRouteStep(goal);
   const storeBacked = isStoreBackedManagedGoal(goal);
   const tone = goalActivityTone(goal.state.state);
+  const kind = modelTypeLabel(goal);
+  const factEntries = goalFactEntries(goal);
+  const isRoutine = managedGoalModel(goal) === "routine";
   const canActivate =
     goal.state.state === "inactive" || goal.state.state === "paused";
   const canPause = goal.state.state === "active";
@@ -790,8 +822,11 @@ function GoalDetail({
                 <span>{goal.id}</span>
                 {storeBacked ? <StoreModelBadge label={copy.singular} /> : null}
                 <GoalActivityBadge state={goal.state.state} />
-                <span className="text-[11px] font-sans uppercase tracking-wide bg-white/[0.06] text-white/50 px-2 py-0.5 rounded">
-                  {goal.state.type}
+                <span
+                  className="text-[11px] font-sans uppercase tracking-wide bg-white/[0.06] text-white/50 px-2 py-0.5 rounded"
+                  title={copy.kindLabel}
+                >
+                  {kind}
                 </span>
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
@@ -922,74 +957,102 @@ function GoalDetail({
         />
         <GoalInstancesSection goal={goal} label={copy.singular} />
         <ContentSection
-          icon={CheckCircle2}
-          title="Evidence"
-          subtitle={`What proves this ${copy.singular} is done`}
-          count={goal.state.destination.evidence.length}
+          icon={isRoutine ? Clock3 : CheckCircle2}
+          title={isRoutine ? "Health" : "Evidence"}
+          subtitle={
+            isRoutine
+              ? "Runtime facts reported by routine duties"
+              : `What proves this ${copy.singular} is done`
+          }
+          count={
+            isRoutine
+              ? factEntries.length
+              : goal.state.destination.evidence.length
+          }
         >
           <div className="space-y-2">
-            {goal.state.destination.evidence.map((key) => {
-              const complete = goal.state.facts[key] === true;
-              return (
-                <div
-                  key={key}
-                  className="flex items-center justify-between gap-3 rounded-md border border-white/[0.08] bg-black/20 px-3 py-2 text-sm"
-                >
-                  <span className="font-mono text-white/75">{key}</span>
-                  <span
-                    className={cn(
-                      "text-xs",
-                      complete ? "text-emerald-300" : "text-white/40",
-                    )}
+            {isRoutine ? (
+              factEntries.length ? (
+                factEntries.map(([key, value]) => (
+                  <div
+                    key={key}
+                    className="flex items-center justify-between gap-3 rounded-md border border-white/[0.08] bg-black/20 px-3 py-2 text-sm"
                   >
-                    {complete ? "done" : "open"}
-                  </span>
-                </div>
-              );
-            })}
+                    <span className="font-mono text-white/75">{key}</span>
+                    <span className="truncate text-xs text-white/55">
+                      {String(value)}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <EmptyHint text="No health facts reported yet." />
+              )
+            ) : (
+              goal.state.destination.evidence.map((key) => {
+                const complete = goal.state.facts[key] === true;
+                return (
+                  <div
+                    key={key}
+                    className="flex items-center justify-between gap-3 rounded-md border border-white/[0.08] bg-black/20 px-3 py-2 text-sm"
+                  >
+                    <span className="font-mono text-white/75">{key}</span>
+                    <span
+                      className={cn(
+                        "text-xs",
+                        complete ? "text-emerald-300" : "text-white/40",
+                      )}
+                    >
+                      {complete ? "done" : "open"}
+                    </span>
+                  </div>
+                );
+              })
+            )}
           </div>
         </ContentSection>
 
-        <ContentSection
-          icon={Route}
-          title="Route"
-          subtitle="Duties and executables used to collect evidence"
-          count={goal.state.route.length}
-        >
-          <div className="space-y-2">
-            {goal.state.route.map((routeStep) => (
-              <Card
-                key={`${routeStep.stage}:${routeStep.evidence}`}
-                className={cn(
-                  "border-white/[0.08] bg-white/[0.02]",
-                  step?.evidence === routeStep.evidence &&
-                    "border-sky-500/30 bg-sky-500/[0.05]",
-                )}
-              >
-                <CardContent className="p-3 space-y-1.5">
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="font-medium text-white/85">
-                      {routeStep.stage}
-                    </span>
-                    <span className="text-white/30">{"->"}</span>
-                    <span className="font-mono text-white/65">
-                      {routeStep.evidence}
-                    </span>
-                  </div>
-                  <div className="text-xs text-muted-foreground flex gap-2 flex-wrap">
-                    <span>duty: {routeStep.duty}</span>
-                    {routeStep.executable ? (
-                      <>
-                        <span>·</span>
-                        <span>executable: {routeStep.executable}</span>
-                      </>
-                    ) : null}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </ContentSection>
+        {!isRoutine || goal.state.route.length > 0 ? (
+          <ContentSection
+            icon={Route}
+            title="Route"
+            subtitle="Duties and executables used to collect evidence"
+            count={goal.state.route.length}
+          >
+            <div className="space-y-2">
+              {goal.state.route.map((routeStep) => (
+                <Card
+                  key={`${routeStep.stage}:${routeStep.evidence}`}
+                  className={cn(
+                    "border-white/[0.08] bg-white/[0.02]",
+                    step?.evidence === routeStep.evidence &&
+                      "border-sky-500/30 bg-sky-500/[0.05]",
+                  )}
+                >
+                  <CardContent className="p-3 space-y-1.5">
+                    <div className="flex items-center gap-2 text-sm">
+                      <span className="font-medium text-white/85">
+                        {routeStep.stage}
+                      </span>
+                      <span className="text-white/30">{"->"}</span>
+                      <span className="font-mono text-white/65">
+                        {routeStep.evidence}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground flex gap-2 flex-wrap">
+                      <span>duty: {routeStep.duty}</span>
+                      {routeStep.executable ? (
+                        <>
+                          <span>·</span>
+                          <span>executable: {routeStep.executable}</span>
+                        </>
+                      ) : null}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </ContentSection>
+        ) : null}
 
         <ContentSection
           icon={ShieldAlert}
@@ -1380,6 +1443,7 @@ export function ManagedModelsView({ model }: { model: ManagedGoalModel }) {
                   goal={goal}
                   isActive={selectedId === goal.id}
                   label={copy.singular}
+                  kindLabel={copy.kindLabel}
                   onSelect={() => setSelectedId(goal.id)}
                   onDelete={() => setDeleteGoal(goal)}
                 />
