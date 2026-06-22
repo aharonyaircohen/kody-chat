@@ -229,7 +229,7 @@ export function StoreCatalogManager() {
     staleTime: 30_000,
   });
 
-  const items = catalog.data?.items ?? [];
+  const items = useMemo(() => catalog.data?.items ?? [], [catalog.data]);
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return items.filter((item) => {
