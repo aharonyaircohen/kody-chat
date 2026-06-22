@@ -17,7 +17,7 @@
     "model": "minimax/MiniMax-M3"
   },
   "jobs": {
-    "stateBackend": "local-file"
+    "stateBackend": "contents-api"
   },
   "company": {
     "activeGoals": [
