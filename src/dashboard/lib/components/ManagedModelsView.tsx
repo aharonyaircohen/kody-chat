@@ -363,7 +363,7 @@ function NewGoalDialog({
     useState<ManagedGoalSchedule>(defaultSchedule);
   const [outcome, setOutcome] = useState("");
   const [selectedDutySlugs, setSelectedDutySlugs] = useState<string[]>(
-    defaultType.duties,
+    isRoutine ? [] : defaultType.duties,
   );
 
   const selectedGoalType =
@@ -412,12 +412,6 @@ function NewGoalDialog({
   }, [defaultType.id, goalType, goalTypes]);
 
   useEffect(() => {
-    if (isRoutine) {
-      setSelectedDutySlugs(selectedGoalType.duties);
-    }
-  }, [isRoutine, selectedGoalType]);
-
-  useEffect(() => {
     if (isRoutine && schedule === "manual") {
       setSchedule(defaultSchedule);
     }
@@ -430,7 +424,7 @@ function NewGoalDialog({
     setGoalType(defaultType.id);
     setSchedule(defaultSchedule);
     setOutcome("");
-    setSelectedDutySlugs(defaultType.duties);
+    setSelectedDutySlugs(isRoutine ? [] : defaultType.duties);
   };
 
   const submit = async () => {
@@ -565,6 +559,7 @@ function NewGoalDialog({
                     emptyLabel="No duties found"
                     disabled={dutiesLoading}
                     selectedLabel="duties selected"
+                    selectedSingularLabel="duty selected"
                     selectedHeading="Selected duties"
                     maxVisibleSelected={4}
                   />

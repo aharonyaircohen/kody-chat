@@ -172,6 +172,7 @@ export function SearchableMultiSelect({
   emptyLabel = "No matches",
   disabled,
   selectedLabel = "selected",
+  selectedSingularLabel,
   selectedHeading = "Selected",
   maxVisibleSelected = 6,
 }: {
@@ -184,6 +185,7 @@ export function SearchableMultiSelect({
   emptyLabel?: string;
   disabled?: boolean;
   selectedLabel?: string;
+  selectedSingularLabel?: string;
   selectedHeading?: string;
   maxVisibleSelected?: number;
 }) {
@@ -218,6 +220,10 @@ export function SearchableMultiSelect({
     0,
     selectedOptions.length - visibleSelected.length,
   );
+  const selectedSummary =
+    value.length === 1 && selectedSingularLabel
+      ? `1 ${selectedSingularLabel}`
+      : `${value.length} ${selectedLabel}`;
 
   useEffect(() => {
     if (!open) return;
@@ -277,7 +283,7 @@ export function SearchableMultiSelect({
             value.length === 0 && "text-muted-foreground",
           )}
         >
-          {value.length ? `${value.length} ${selectedLabel}` : placeholder}
+          {value.length ? selectedSummary : placeholder}
         </span>
         <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
       </Button>
