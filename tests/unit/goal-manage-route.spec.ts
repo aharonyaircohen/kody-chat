@@ -26,7 +26,13 @@ vi.mock("@dashboard/lib/auth", () => ({
 
 vi.mock("@dashboard/lib/engine/config", () => ({
   getEngineConfig: vi.fn().mockResolvedValue({
-    config: { agentActions: { default: "run" }, state: { repo: "test-owner/kody-state", path: "test-repo" } },
+    config: {
+      agentActions: { default: "run" },
+      state: {
+        repo: "https://github.com/test-owner/kody-state",
+        path: "test-repo",
+      },
+    },
     sha: null,
   }),
 }));
@@ -96,8 +102,8 @@ describe("POST /api/kody/goals/[id]/manage", () => {
           createOrUpdateFileContents: vi
             .fn()
             .mockImplementation((opts: unknown) => {
-capturedWriteBranch = (opts as { branch?: string }).branch;
-capturedWritePath = (opts as { path?: string }).path;
+              capturedWriteBranch = (opts as { branch?: string }).branch;
+              capturedWritePath = (opts as { path?: string }).path;
               return Promise.resolve({ status: 200 });
             }),
         },
@@ -136,10 +142,10 @@ capturedWritePath = (opts as { path?: string }).path;
 
     expect(getRefCalls).toHaveLength(0);
     expect(createRefCalls).toHaveLength(0);
-expect(capturedWriteBranch).toBeUndefined();
-expect(capturedWritePath).toBe(
-  "test-repo/goals/instances/agentResponsibility-migration/state.json",
-);
+    expect(capturedWriteBranch).toBeUndefined();
+    expect(capturedWritePath).toBe(
+      "test-repo/goals/instances/agentResponsibility-migration/state.json",
+    );
 
     // The dispatch must pass the goal slug as issue_number so the engine can
     // detect it is a goal (not a GitHub issue number) and read goal state.

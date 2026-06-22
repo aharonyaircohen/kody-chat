@@ -190,7 +190,10 @@ describe("PATCH /api/kody/company/config — reasoningEffort handling", () => {
   });
 
   it("a PATCH with state writes the external Kody state repo config", async () => {
-    const state = { repo: "acme/kody-state", path: "widgets" };
+    const state = {
+      repo: "https://github.com/acme/kody-state",
+      path: "widgets",
+    };
     engineConfig.getEngineConfig.mockResolvedValueOnce({
       config: { ...structuredClone(STORED_CONFIG), state },
       sha: "new-sha",
@@ -228,7 +231,10 @@ describe("PATCH /api/kody/company/config — reasoningEffort handling", () => {
   it("a PATCH with unsafe state path is rejected with 400 by Zod schema", async () => {
     const res = await PATCH(
       patchReq({
-        state: { repo: "acme/kody-state", path: "../widgets" },
+        state: {
+          repo: "https://github.com/acme/kody-state",
+          path: "../widgets",
+        },
         actorLogin: "alice",
       }),
     );

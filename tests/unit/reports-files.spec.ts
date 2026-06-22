@@ -10,7 +10,7 @@ vi.mock("@dashboard/lib/engine/config", () => ({
   getEngineConfig: vi.fn().mockResolvedValue({
     config: {
       agentActions: { default: "run" },
-      state: { repo: "acme/kody-state", path: "widgets" },
+      state: { repo: "https://github.com/acme/kody-state", path: "widgets" },
     },
     sha: null,
   }),
@@ -32,7 +32,8 @@ function file(content: string, size = content.length) {
     content: b64(content),
     sha: "sha-file",
     size,
-    html_url: "https://github.com/acme/kody-state/blob/main/widgets/reports/file.md",
+    html_url:
+      "https://github.com/acme/kody-state/blob/main/widgets/reports/file.md",
   };
 }
 
@@ -58,8 +59,18 @@ describe("report files", () => {
     octokit.repos.getContent
       .mockResolvedValueOnce({
         data: [
-          { name: "daily-check.md", type: "file", path: "widgets/reports/daily-check.md", size: 42 },
-          { name: "notes.txt", type: "file", path: "widgets/reports/notes.txt", size: 12 },
+          {
+            name: "daily-check.md",
+            type: "file",
+            path: "widgets/reports/daily-check.md",
+            size: 42,
+          },
+          {
+            name: "notes.txt",
+            type: "file",
+            path: "widgets/reports/notes.txt",
+            size: 12,
+          },
         ],
       })
       .mockResolvedValueOnce({

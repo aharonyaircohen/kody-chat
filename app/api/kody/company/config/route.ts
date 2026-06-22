@@ -92,8 +92,8 @@ const stateRepoSchema = z
   .string()
   .trim()
   .min(1)
-  .max(160)
-  .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/);
+  .max(255)
+  .regex(/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?$/i);
 const statePathSchema = z
   .string()
   .trim()

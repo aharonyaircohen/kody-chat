@@ -64,9 +64,28 @@ export function parseStateRepoSlug(
   field = "stateRepo",
 ): { owner: string; repo: string } {
   const value = slug.trim();
-  const parts = value.split("/");
+  let repoPath = value;
+  if (/^https?:\/\//i.test(value)) {
+    let parsed: URL;
+    try {
+      parsed = new URL(value);
+    } catch {
+      throw new Error(
+        `kody.config.json: ${field} must be a GitHub repository URL`,
+      );
+    }
+    if (parsed.protocol !== "https:" || parsed.hostname !== "github.com") {
+      throw new Error(
+        `kody.config.json: ${field} must be a https://github.com repository URL`,
+      );
+    }
+    repoPath = parsed.pathname.replace(/^\/+|\/+$/g, "").replace(/\.git$/i, "");
+  }
+  const parts = repoPath.split("/");
   if (parts.length !== 2 || !parts[0] || !parts[1]) {
-    throw new Error(`kody.config.json: ${field} must look like "owner/repo"`);
+    throw new Error(
+      `kody.config.json: ${field} must be a https://github.com/owner/repo URL`,
+    );
   }
 
   for (const part of parts) {
@@ -108,12 +127,14 @@ export function resolveStateRepoConfig(
 ): StateRepoState {
   const cfg = config as ConfigWithStateAliases;
   const nested = cfg.state && typeof cfg.state === "object" ? cfg.state : {};
-  const repoRaw = typeof cfg.stateRepo === "string" ? cfg.stateRepo : nested.repo;
-  const pathRaw = typeof cfg.statePath === "string" ? cfg.statePath : nested.path;
+  const repoRaw =
+    typeof cfg.stateRepo === "string" ? cfg.stateRepo : nested.repo;
+  const pathRaw =
+    typeof cfg.statePath === "string" ? cfg.statePath : nested.path;
   const stateRepo =
     typeof repoRaw === "string" && repoRaw.trim().length > 0
       ? repoRaw.trim()
-      : `${owner}/kody-state`;
+      : `https://github.com/${owner}/kody-state`;
   parseStateRepoSlug(stateRepo);
 
   return {
@@ -144,7 +165,10 @@ export async function resolveStateRepo(
   return parseStateRepo(config, owner, repo);
 }
 
-export function stateRepoPath(target: StateRepoTarget, filePath: string): string {
+export function stateRepoPath(
+  target: StateRepoTarget,
+  filePath: string,
+): string {
   const relative = normalizeStatePath(filePath, "state file path");
   return [target.basePath, relative].filter(Boolean).join("/");
 }

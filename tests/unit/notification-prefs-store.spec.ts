@@ -15,7 +15,10 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@dashboard/lib/engine/config", () => ({
   getEngineConfig: vi.fn().mockResolvedValue({
-    config: { agentActions: { default: "run" }, state: { repo: "acme/kody-state", path: "widgets" } },
+    config: {
+      agentActions: { default: "run" },
+      state: { repo: "https://github.com/acme/kody-state", path: "widgets" },
+    },
     sha: null,
   }),
 }));
@@ -59,7 +62,10 @@ function mockResponse(data: unknown, etag?: string, status = 200) {
     responseData &&
     typeof responseData === "object" &&
     !Array.isArray(responseData) &&
-    !("content" in responseData && (responseData as Record<string, unknown>).content)
+    !(
+      "content" in responseData &&
+      (responseData as Record<string, unknown>).content
+    )
   ) {
     (responseData as Record<string, unknown>).content = Buffer.from(
       "{}",

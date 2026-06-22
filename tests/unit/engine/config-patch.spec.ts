@@ -188,17 +188,20 @@ describe("writeConfigPatch — state repo", () => {
     });
 
     await writeConfigPatch(octokit, "o", "r", {
-      state: { repo: "o/kody-state", path: "r" },
+      state: { repo: "https://github.com/o/kody-state", path: "r" },
     });
 
-    expect(lastWritten().state).toEqual({ repo: "o/kody-state", path: "r" });
+    expect(lastWritten().state).toEqual({
+      repo: "https://github.com/o/kody-state",
+      path: "r",
+    });
   });
 
   it("clears state repo config", async () => {
     const { octokit, lastWritten } = octokitWithConfig({
       agentActions: { default: "run" },
       github: { owner: "o", repo: "r" },
-      state: { repo: "o/kody-state", path: "r" },
+      state: { repo: "https://github.com/o/kody-state", path: "r" },
     });
 
     await writeConfigPatch(octokit, "o", "r", { state: null });
@@ -210,7 +213,7 @@ describe("writeConfigPatch — state repo", () => {
     const { octokit, lastWritten } = octokitWithConfig({
       agentActions: { default: "run" },
       github: { owner: "o", repo: "r" },
-      state: { repo: "o/kody-state", path: "r" },
+      state: { repo: "https://github.com/o/kody-state", path: "r" },
     });
 
     await writeConfigPatch(octokit, "o", "r", {

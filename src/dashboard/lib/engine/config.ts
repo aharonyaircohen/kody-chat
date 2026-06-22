@@ -649,10 +649,14 @@ function cleanStateConfig(
   raw: KodyStateConfig | null | undefined,
 ): KodyStateConfig | null {
   if (!raw) return null;
-  const repo = raw.repo?.trim() ?? "";
+  const repo = raw.repo?.trim().replace(/\/+$/, "") ?? "";
   const path = raw.path?.trim() ?? "";
   const pathSegments = path.split("/");
-  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) return null;
+  if (
+    !/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/i.test(repo)
+  ) {
+    return null;
+  }
   if (
     !path ||
     path.startsWith("/") ||

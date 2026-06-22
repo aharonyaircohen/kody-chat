@@ -57,7 +57,12 @@ const QUALITY_FIELDS: {
   { key: "testUnit", label: "Unit tests", placeholder: "pnpm test" },
 ];
 
-const STATE_REPO_PATTERN = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
+const STATE_REPO_PATTERN =
+  /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/i;
+
+function cleanStateRepoUrl(value: string): string {
+  return value.trim().replace(/\/+$/g, "");
+}
 
 function cleanStatePath(value: string): string {
   return value.trim().replace(/^\/+|\/+$/g, "");
@@ -119,7 +124,9 @@ function Loading() {
 function StateRepoCard({ cfg }: { cfg: UseEngineConfig }) {
   const { auth } = useAuth();
   const { config, loading, saving, save } = cfg;
-  const defaultRepo = auth?.owner ? `${auth.owner}/kody-state` : "";
+  const defaultRepo = auth?.owner
+    ? `https://github.com/${auth.owner}/kody-state`
+    : "";
   const defaultPath = auth?.repo ?? "";
   const savedRepo = config?.state?.repo ?? "";
   const savedPath = config?.state?.path ?? "";
@@ -132,7 +139,7 @@ function StateRepoCard({ cfg }: { cfg: UseEngineConfig }) {
     setPathDraft(savedPath || defaultPath);
   }, [config, defaultPath, defaultRepo, savedPath, savedRepo]);
 
-  const repoValue = repoDraft.trim();
+  const repoValue = cleanStateRepoUrl(repoDraft);
   const pathValue = cleanStatePath(pathDraft);
   const repoValid = STATE_REPO_PATTERN.test(repoValue);
   const pathValid = isValidStatePath(pathValue);
@@ -142,7 +149,7 @@ function StateRepoCard({ cfg }: { cfg: UseEngineConfig }) {
 
   async function handleSave() {
     if (!repoValid || !pathValid) {
-      toast.error("State repo must be owner/repo with a relative path");
+      toast.error("State repo must be a GitHub URL with a relative path");
       return;
     }
     try {
@@ -185,7 +192,7 @@ function StateRepoCard({ cfg }: { cfg: UseEngineConfig }) {
                 <Input
                   value={repoDraft}
                   onChange={(e) => setRepoDraft(e.target.value)}
-                  placeholder="owner/kody-state"
+                  placeholder="https://github.com/owner/kody-state"
                   disabled={saving}
                   className="h-8 text-sm font-mono"
                 />
@@ -236,7 +243,7 @@ function StateRepoCard({ cfg }: { cfg: UseEngineConfig }) {
             </div>
             {(!repoValid || !pathValid) && (
               <p className="text-[11px] text-rose-300">
-                Use owner/repo and a relative path.
+                Use a GitHub repository URL and a relative path.
               </p>
             )}
           </>
