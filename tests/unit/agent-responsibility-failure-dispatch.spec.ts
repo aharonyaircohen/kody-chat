@@ -3,7 +3,7 @@
  * (src/dashboard/lib/push/agent-responsibility-failure-dispatch.ts). A agentResponsibility that fails on a
  * scheduled tick has no issue to comment on and the engine has no operator
  * list, so the failure used to be silent in both the inbox and push. This
- * module turns the engine's activity-log commit (a state-branch `push`) into
+ * module turns the engine's activity-log commit (a state-repo `push`) into
  * one inbox-feed entry per operator.
  *
  * Two layers under test:
@@ -27,7 +27,6 @@ const h = vi.hoisted(() => ({
   appendInboxFeed: vi.fn().mockResolvedValue(0),
 }));
 
-vi.mock("@dashboard/lib/state-branch", () => ({ STATE_BRANCH: "kody-state" }));
 vi.mock("@dashboard/lib/github-client", () => ({
   setGitHubContext: h.setGitHubContext,
   clearGitHubContext: h.clearGitHubContext,
@@ -88,37 +87,37 @@ beforeEach(() => {
 });
 
 describe("touchesActivityLog", () => {
-  it("matches a state-branch push that adds an activity day-file", () => {
+  it("matches a state-repo push that adds an activity day-file", () => {
     expect(
       touchesActivityLog(
-        pushEvent("refs/heads/kody-state", [".kody/activity/2026-05-23.jsonl"]),
+        pushEvent("refs/heads/kody-state", ["widgets/activity/2026-05-23.jsonl"]),
       ),
     ).toBe(true);
   });
 
-  it("matches a state-branch push that modifies an activity day-file", () => {
+  it("matches a state-repo push that modifies an activity day-file", () => {
     expect(
       touchesActivityLog({
         ref: "refs/heads/kody-state",
-        commits: [{ added: [], modified: [".kody/activity/2026-05-23.jsonl"] }],
+        commits: [{ added: [], modified: ["widgets/activity/2026-05-23.jsonl"] }],
       }),
     ).toBe(true);
   });
 
-  it("ignores a state-branch push that touches unrelated files", () => {
+  it("ignores a state-repo push that touches unrelated files", () => {
     expect(
       touchesActivityLog(
-        pushEvent("refs/heads/kody-state", [".kody/events/live-1.jsonl"]),
+        pushEvent("refs/heads/kody-state", ["widgets/events/live-1.jsonl"]),
       ),
     ).toBe(false);
   });
 
-  it("ignores an activity-file change pushed to a non-state branch", () => {
+  it("matches activity-file changes by state-repo path regardless branch", () => {
     expect(
       touchesActivityLog(
-        pushEvent("refs/heads/main", [".kody/activity/2026-05-23.jsonl"]),
+        pushEvent("refs/heads/main", ["widgets/activity/2026-05-23.jsonl"]),
       ),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("ignores a payload with no ref (not a push)", () => {
@@ -209,10 +208,10 @@ describe("dispatchAgentResponsibilityFailures", () => {
     expect(h.appendInboxFeed).not.toHaveBeenCalled();
   });
 
-  it("ignores pushes to a non-state branch", async () => {
+  it("ignores pushes without activity state paths", async () => {
     await dispatchAgentResponsibilityFailures(
       "push",
-      pushEvent("refs/heads/main", [".kody/activity/2026-05-23.jsonl"]),
+      pushEvent("refs/heads/main", ["widgets/events/live-1.jsonl"]),
     );
     expect(h.resolveVaultGithubToken).not.toHaveBeenCalled();
     expect(h.appendInboxFeed).not.toHaveBeenCalled();
@@ -225,7 +224,7 @@ describe("dispatchAgentResponsibilityFailures", () => {
     ]);
     await dispatchAgentResponsibilityFailures(
       "push",
-      pushEvent("refs/heads/kody-state", [".kody/activity/2026-05-23.jsonl"]),
+      pushEvent("refs/heads/kody-state", ["widgets/activity/2026-05-23.jsonl"]),
     );
     expect(h.appendInboxFeed).toHaveBeenCalledTimes(1);
     const entries = h.appendInboxFeed.mock.calls[0][0];
@@ -242,7 +241,7 @@ describe("dispatchAgentResponsibilityFailures", () => {
     h.readOperators.mockResolvedValue([]);
     await dispatchAgentResponsibilityFailures(
       "push",
-      pushEvent("refs/heads/kody-state", [".kody/activity/2026-05-23.jsonl"]),
+      pushEvent("refs/heads/kody-state", ["widgets/activity/2026-05-23.jsonl"]),
     );
     expect(h.fetchCompanyActivity).not.toHaveBeenCalled();
     expect(h.appendInboxFeed).not.toHaveBeenCalled();
@@ -252,7 +251,7 @@ describe("dispatchAgentResponsibilityFailures", () => {
     h.resolveVaultGithubToken.mockResolvedValue(null);
     await dispatchAgentResponsibilityFailures(
       "push",
-      pushEvent("refs/heads/kody-state", [".kody/activity/2026-05-23.jsonl"]),
+      pushEvent("refs/heads/kody-state", ["widgets/activity/2026-05-23.jsonl"]),
     );
     expect(h.readOperators).not.toHaveBeenCalled();
     expect(h.appendInboxFeed).not.toHaveBeenCalled();
@@ -262,7 +261,7 @@ describe("dispatchAgentResponsibilityFailures", () => {
     h.fetchCompanyActivity.mockResolvedValue([rec({ outcome: "completed" })]);
     await dispatchAgentResponsibilityFailures(
       "push",
-      pushEvent("refs/heads/kody-state", [".kody/activity/2026-05-23.jsonl"]),
+      pushEvent("refs/heads/kody-state", ["widgets/activity/2026-05-23.jsonl"]),
     );
     expect(h.appendInboxFeed).not.toHaveBeenCalled();
   });
@@ -273,7 +272,7 @@ describe("dispatchAgentResponsibilityFailures", () => {
     ]);
     await dispatchAgentResponsibilityFailures(
       "push",
-      pushEvent("refs/heads/kody-state", [".kody/activity/2026-05-23.jsonl"]),
+      pushEvent("refs/heads/kody-state", ["widgets/activity/2026-05-23.jsonl"]),
     );
     expect(h.appendInboxFeed).not.toHaveBeenCalled();
   });

@@ -10,8 +10,8 @@
  *   no `operators` list (that lives only in the dashboard's
  *   kody.config.json). So the engine can't @-mention anyone. But it already
  *   reports every tick — including `outcome: "failed"` — into the Company
- *   Activity log (`.kody/activity/<date>.jsonl`, committed to the
- *   `kody-state` branch by `appendCompanyActivity`). That commit fires a
+ *   Activity log (`<repo>/activity/<date>.jsonl`, committed to the
+ *   Kody state repo by `appendCompanyActivity`). That commit fires a
  *   `push` webhook, which is our trigger: read the recent failed records and
  *   append one inbox-feed entry per operator, exactly like
  *   `mention-dispatch.ts` does for `@mentions`. The existing inbox watcher
@@ -23,7 +23,6 @@
  *   swallows so a feed-write failure can't break webhook delivery.
  */
 import "server-only";
-import { STATE_BRANCH } from "../state-branch";
 import {
   setGitHubContext,
   clearGitHubContext,
@@ -37,7 +36,7 @@ import type { InboxFeedEntry } from "../inbox/feed";
 import type { CompanyActivityRecord } from "../activity/company";
 import { logger } from "../logger";
 
-const ACTIVITY_PATH_PREFIX = ".kody/activity/";
+const ACTIVITY_PATH_RE = /^([^/]+)\/activity\/[^/]+\.jsonl$/;
 /** Only surface failures recorded recently. The triggering push commits the
  *  failure record the instant it happens, so this just bounds how far back a
  *  single scan looks — it never needs to reach beyond the current run. */
@@ -48,24 +47,32 @@ interface PushCommit {
   modified?: unknown;
 }
 
-/** True when this `push` event committed to the state branch and touched a
+/** True when this `push` event touched the Kody state repo and touched a
  *  Company Activity day-file (the only thing we care about). Exported for
  *  unit tests. */
-export function touchesActivityLog(payload: Record<string, unknown>): boolean {
-  const ref = typeof payload.ref === "string" ? payload.ref : "";
-  if (ref !== `refs/heads/${STATE_BRANCH}`) return false;
+export function touchedActivityRepos(payload: Record<string, unknown>): string[] {
   const commits = Array.isArray(payload.commits)
     ? (payload.commits as PushCommit[])
     : [];
-  return commits.some((c) => {
+  const repos = new Set<string>();
+  for (const c of commits) {
     const paths = [
       ...(Array.isArray(c.added) ? (c.added as unknown[]) : []),
       ...(Array.isArray(c.modified) ? (c.modified as unknown[]) : []),
     ];
-    return paths.some(
-      (p) => typeof p === "string" && p.startsWith(ACTIVITY_PATH_PREFIX),
-    );
-  });
+    for (const p of paths) {
+      if (typeof p !== "string") continue;
+      const match = ACTIVITY_PATH_RE.exec(p);
+      if (match?.[1]) repos.add(match[1]);
+    }
+  }
+  return [...repos];
+}
+
+/** True when this push event touched a Company Activity day-file. Exported for
+ *  unit tests. */
+export function touchesActivityLog(payload: Record<string, unknown>): boolean {
+  return touchedActivityRepos(payload).length > 0;
 }
 
 /** Failure kinds where the agent stopped before finishing — the run didn't
@@ -134,7 +141,7 @@ export function buildEntries(
 
 /**
  * Entry point — call from the webhook receiver on every event. Returns early
- * for anything that isn't a state-branch push touching the activity log, so
+ * for anything that isn't a state-repo push touching the activity log, so
  * it's a cheap noop on the hot mention/comment path. Never throws.
  */
 export async function dispatchAgentResponsibilityFailures(
@@ -142,68 +149,62 @@ export async function dispatchAgentResponsibilityFailures(
   payload: Record<string, unknown>,
 ): Promise<void> {
   try {
-    if (eventType !== "push" || !touchesActivityLog(payload)) return;
+    if (eventType !== "push") return;
+    const touchedRepos = touchedActivityRepos(payload);
+    if (touchedRepos.length === 0) return;
 
-    const repository = payload.repository as
-      | Record<string, unknown>
-      | undefined;
-    const repoFullName =
+    const repository = payload.repository as Record<string, unknown> | undefined;
+    const stateRepoFullName =
       typeof repository?.full_name === "string" ? repository.full_name : "";
-    const [owner, repo] = repoFullName.split("/");
-    if (!owner || !repo) return;
+    const [owner] = stateRepoFullName.split("/");
+    if (!owner) return;
 
-    // Unauthenticated webhook → App installation token (preferred) or vault
-    // GITHUB_TOKEN fallback, same as mention dispatch.
-    const bg = await resolveBackgroundToken(owner, repo);
-    if (!bg) {
-      logger.warn(
-        { event: "agentResponsibility_failure_no_token", repo: repoFullName },
-        "No App install or vault GITHUB_TOKEN for repo — cannot read activity / write inbox feed",
-      );
-      return;
-    }
-    const token = bg.token;
+    for (const repo of touchedRepos) {
+      const repoFullName = owner + "/" + repo;
+      const bg = await resolveBackgroundToken(owner, repo);
+      if (!bg) {
+        logger.warn(
+          { event: "agentResponsibility_failure_no_token", repo: repoFullName },
+          "No App install or vault GITHUB_TOKEN repo — cannot read activity / write inbox feed",
+        );
+        continue;
+      }
+      const token = bg.token;
 
-    // Operators are the audience. Empty list = nobody to notify — the same
-    // silent-inbox state the Operators card already warns about.
-    const operators = await readOperators(
-      createUserOctokit(token),
-      owner,
-      repo,
-    );
-    if (operators.length === 0) {
-      logger.info(
-        { event: "agentResponsibility_failure_no_operators", repo: repoFullName },
-        "AgentResponsibility failed but no operators configured — nothing to route",
-      );
-      return;
-    }
+      const operators = await readOperators(createUserOctokit(token), owner, repo);
+      if (operators.length === 0) {
+        logger.info(
+          { event: "agentResponsibility_failure_no_operators", repo: repoFullName },
+          "AgentResponsibility failed but no operators configured — nothing route",
+        );
+        continue;
+      }
 
-    setGitHubContext(owner, repo, token);
-    try {
-      const records = await fetchCompanyActivity(100);
-      const cutoff = Date.now() - FAILURE_LOOKBACK_MS;
-      const failures = records.filter((r) => {
-        if (r.outcome !== "failed") return false;
-        const t = Date.parse(r.ts);
-        return Number.isNaN(t) || t >= cutoff;
-      });
-      if (failures.length === 0) return;
-
-      const entries = buildEntries(owner, repo, operators, failures);
-      const added = await appendInboxFeed(entries);
-      logger.info(
-        {
-          event: "agentResponsibility_failure_inbox_appended",
-          added,
-          failures: failures.length,
-          operators: operators.length,
-          repo: repoFullName,
-        },
-        `AgentResponsibility-failure inbox: +${added} entr${added === 1 ? "y" : "ies"}`,
-      );
-    } finally {
-      clearGitHubContext();
+      setGitHubContext(owner, repo, token);
+      try {
+        const records = await fetchCompanyActivity(100);
+        const cutoff = Date.now() - FAILURE_LOOKBACK_MS;
+        const failures = records.filter((r) => {
+          if (r.outcome !== "failed") return false;
+          const t = Date.parse(r.ts);
+          return Number.isNaN(t) || t >= cutoff;
+        });
+        if (failures.length === 0) continue;
+        const entries = buildEntries(owner, repo, operators, failures);
+        const added = await appendInboxFeed(entries);
+        logger.info(
+          {
+            event: "agentResponsibility_failure_inbox_appended",
+            added,
+            failures: failures.length,
+            operators: operators.length,
+            repo: repoFullName,
+          },
+          "AgentResponsibility-failure inbox: +" + added + " entr" + (added === 1 ? "y" : "ies"),
+        );
+      } finally {
+        clearGitHubContext();
+      }
     }
   } catch (err) {
     logger.error(

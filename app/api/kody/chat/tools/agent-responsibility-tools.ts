@@ -24,7 +24,6 @@ import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
 import { logger } from "@dashboard/lib/logger";
-import { STATE_BRANCH } from "@dashboard/lib/state-branch";
 import {
   readAgentResponsibilityFile,
   writeAgentResponsibilityFile,
@@ -64,21 +63,9 @@ interface AgentResponsibilityInput {
   reviewer?: string;
   schedule?: AgentResponsibilityScheduleToken;
   purpose: string;
-  inputs: string[];
-  reportSchema: string;
+  inputs?: string[];
   extraAllowedCommands?: string[];
   extraRestrictions?: string[];
-  /**
-   * Output mode for the agentResponsibility body. `report` (default) bakes in the
-   * report-producer template (Refresh `.kody/reports/...` + report-specific
-   * restrictions); `run` produces a generic Run-style body with NO report
-   * markers — the engine appears to read body markers to route agentResponsibilities
-   * (REPORT vs Run), so multi-agentAction / dispatch-style agentResponsibilities MUST use
-   * `run` or the engine will dispatch to the report-writer path.
-   * `run` also relaxes the create-required fields: `inputs` and
-   * `reportSchema` become optional.
-   */
-  output?: "run" | "report";
 }
 
 function slugifyTitle(title: string): string {
@@ -104,7 +91,7 @@ async function readAgentResponsibilityGuide(): Promise<string> {
       "",
       "- Kody can create or update agentResponsibilities with `create_or_update_agent_responsibility`.",
       "- AgentResponsibilities live at `.kody/agent-responsibilities/<slug>/profile.json` plus `agent-responsibility.md`.",
-      "- A agentResponsibility owns public action, purpose, cadence, agent, reviewer, output, and safety rules.",
+      "- A agentResponsibility owns public action, purpose, cadence, agent, reviewer, and safety rules.",
       "- Put agentIdentity in `.kody/agents/<slug>.md`.",
       "- Put reusable action logic in `.kody/agent-actions/<slug>/`.",
       "- Do not put metadata or raw state keys in `agent-responsibility.md`; runtime state belongs to the engine.",
@@ -112,48 +99,13 @@ async function readAgentResponsibilityGuide(): Promise<string> {
   }
 }
 
-/**
- * Resolve the output mode for a agentResponsibility. The explicit `output` parameter
- * wins; otherwise we auto-detect from the agentActions list — multi-
- * agentAction (2+) agentResponsibilities are almost always Run-style (the engine reads
- * body markers to route agentResponsibilities, and Report-style bodies on multi-run
- * agentResponsibilities dispatch to the wrong path). Single-agentAction and zero-
- * agentAction agentResponsibilities default to Report-style for backwards compatibility.
- */
-function resolveOutput(input: {
-  output?: "run" | "report";
-  agentActions?: string[];
-}): "run" | "report" {
-  if (input.output === "run" || input.output === "report") return input.output;
-  if (input.agentActions && input.agentActions.length > 1) return "run";
-  return "report";
-}
-
-/**
- * Render the agentResponsibility body. Dispatches to Run-style or Report-style based on
- * the resolved output mode. Run-style is for agentResponsibilities that perform work
- * directly (no findings report); Report-style is for agentResponsibilities that
- * gather inputs and refresh a `.kody/reports/<slug>.md` file.
- */
-function buildAgentResponsibilityBody(slug: string, input: AgentResponsibilityInput): string {
-  const output = resolveOutput(input);
-  return output === "run"
-    ? buildRunStyleBody(slug, input)
-    : buildReportStyleBody(slug, input);
-}
-
-/**
- * Run-style agentResponsibility body — for agentResponsibilities that perform work directly without
- * producing a YAML findings report. NO report markers (no `## Output`,
- * no "Refresh .kody/reports/...", no "Maximum one report refresh per
- * tick" restriction). The engine appears to read body markers to route
- * agentResponsibilities; a Run-style body here is what gets dispatched as a normal
- * task-job run, NOT to the report-writer.
- */
-function buildRunStyleBody(slug: string, input: AgentResponsibilityInput): string {
+function buildAgentResponsibilityBody(input: AgentResponsibilityInput): string {
   const extraCmds = input.extraAllowedCommands ?? [];
   const extraRest = input.extraRestrictions ?? [];
   const agentActions = canonicalizeAgentActions(input);
+  const inputs = (input.inputs ?? [])
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
 
   let body = "";
   body += `## Job\n\n`;
@@ -169,6 +121,11 @@ function buildRunStyleBody(slug: string, input: AgentResponsibilityInput): strin
       body += `- \`${exe}\`\n`;
     }
     body += `\nEach agentAction's skills and scripts own its implementation details.\n\n`;
+  }
+
+  if (inputs.length > 0) {
+    body += `## Inputs\n\n`;
+    body += `${bullets(inputs)}\n\n`;
   }
 
   body += `## Allowed Commands\n\n`;
@@ -187,71 +144,7 @@ function buildRunStyleBody(slug: string, input: AgentResponsibilityInput): strin
   body += `## Restrictions\n\n`;
   body += `- Stay within the agentResponsibility's purpose and the per-agentAction rules.\n`;
   body += `- Do not perform actions outside the contract defined by this agentResponsibility.\n`;
-  for (const r of extraRest) body += `- ${r.trim()}\n`;
-
-  return body;
-}
-
-/**
- * Report-style agentResponsibility body — the default. Includes `## Output` with the
- * `.kody/reports/<slug>.md` refresh contract and the "Maximum one report
- * refresh per tick" restriction. The engine reads these markers to
- * dispatch to the report-writer path. Use this for any agentResponsibility whose
- * primary artifact is a YAML findings report on the state branch.
- */
-function buildReportStyleBody(slug: string, input: AgentResponsibilityInput): string {
-  const inputBullets =
-    input.inputs.length > 0 ? bullets(input.inputs) : "- _Not specified_";
-  const reportSchemaBlock = input.reportSchema.trim() || "_Not specified_";
-  const extraCmds = input.extraAllowedCommands ?? [];
-  const extraRest = input.extraRestrictions ?? [];
-  const agentActions = canonicalizeAgentActions(input);
-
-  let body = "";
-  body += `## Job\n\n`;
-  body += `${input.purpose.trim()}\n\n`;
-
-  if (agentActions.length === 1) {
-    body += `## AgentAction\n\n`;
-    body += `Run the \`${agentActions[0]}\` agentAction. Its skills and scripts own the implementation details.\n\n`;
-  } else if (agentActions.length > 1) {
-    body += `## AgentActions\n\n`;
-    body += `This agentResponsibility runs the following agentActions in order:\n\n`;
-    for (const exe of agentActions) {
-      body += `- \`${exe}\`\n`;
-    }
-    body += `\nEach agentAction's skills and scripts own its implementation details.\n\n`;
-  }
-
-  body += `## Inputs\n\n`;
-  body += `${inputBullets}\n\n`;
-
-  body += `## Output\n\n`;
-  body += `Refresh \`${STATE_BRANCH}:.kody/reports/${slug}.md\` with a report that follows this findings shape:\n\n`;
-  body += `\`\`\`yaml\n`;
-  body += `slug: ${slug}\n`;
-  body += `generatedAt: <ISO 8601 timestamp>\n`;
-  body += `findings:\n`;
-  body += `${reportSchemaBlock}\n`;
-  body += `\`\`\`\n\n`;
-
-  body += `## Allowed Commands\n\n`;
-  if (agentActions.length === 1) {
-    body += `- Run the \`${agentActions[0]}\` agentAction.\n`;
-  } else if (agentActions.length > 1) {
-    for (const exe of agentActions) {
-      body += `- Run the \`${exe}\` agentAction.\n`;
-    }
-  } else {
-    body += `- Use only the minimum read/write tools needed to refresh \`${STATE_BRANCH}:.kody/reports/${slug}.md\`.\n`;
-  }
-  for (const cmd of extraCmds) body += `- ${cmd.trim()}\n`;
-  body += `\n`;
-
-  body += `## Restrictions\n\n`;
-  body += `- Never edit source files from this agentResponsibility.\n`;
-  body += `- Never write outside \`${STATE_BRANCH}:.kody/reports/${slug}.md\` unless the user changes the agentResponsibility contract.\n`;
-  body += `- Maximum one report refresh per tick.\n`;
+  body += `- If this agentResponsibility needs to produce a report, run the configured report agentAction instead of writing report files directly.\n`;
   for (const r of extraRest) body += `- ${r.trim()}\n`;
 
   return body;
@@ -327,7 +220,7 @@ export const createOrUpdateKodyAgentResponsibilityInputSchema = z.object({
     .string()
     .optional()
     .describe(
-      "Optional agentIdentity slug responsible for reviewing or handling the agentResponsibility output. " +
+      "Optional agentIdentity slug responsible for reviewing or handling the agentResponsibility result. " +
         "Omit to preserve the existing reviewer on update.",
     ),
   schedule: z
@@ -349,7 +242,7 @@ export const createOrUpdateKodyAgentResponsibilityInputSchema = z.object({
     .min(1)
     .optional()
     .describe(
-      "One to three sentences describing what the agentResponsibility scans/observes and what report it produces. " +
+      "One to three sentences describing what the agentResponsibility scans, observes, or coordinates. " +
         "Required when CREATING a new agentResponsibility; only used to regenerate the body on update when " +
         "`body` is also omitted AND every other body-building field is provided. " +
         "No implementation details; those go in an agentAction skill/script when needed.",
@@ -358,20 +251,10 @@ export const createOrUpdateKodyAgentResponsibilityInputSchema = z.object({
     .array(z.string().min(1))
     .optional()
     .describe(
-      "Concrete data sources / commands the agentResponsibility runs to gather inputs. Each item is one bullet — " +
+      "Optional concrete data sources / commands the agentResponsibility uses as inputs. Each item is one bullet — " +
         'e.g. "`gh pr list --state open --json number,title,createdAt`" or ' +
         '"`gh api repos/{owner}/{repo}/actions/runs?status=failure&per_page=20`". ' +
-        "Required when CREATING a new agentResponsibility; preserve the existing inputs on update unless " +
-        "regenerating the body via the body-building fields.",
-    ),
-  reportSchema: z
-    .string()
-    .min(1)
-    .optional()
-    .describe(
-      "YAML fragment describing the `findings:` array shape that the agentResponsibility will produce. " +
-        "Required when CREATING a new agentResponsibility; preserve the existing schema on update unless " +
-        "regenerating the body via the body-building fields.",
+        "Preserve existing body content on update unless `body` is passed.",
     ),
   extraAllowedCommands: z
     .array(z.string().min(1))
@@ -391,24 +274,9 @@ export const createOrUpdateKodyAgentResponsibilityInputSchema = z.object({
     .optional()
     .describe(
       "Full markdown body for agent-responsibility.md (WITHOUT the leading H1 — the H1 is added from `title`). " +
-        "If provided on UPDATE, replaces the entire body content. " +
-        "If omitted on UPDATE, the existing body is preserved (unless `output` is also changing — see `output`). " +
-        "Ignored on CREATE — the body is built from `purpose`/`inputs`/`reportSchema` (or Run-style template when `output: 'run'`).",
-    ),
-  output: z
-    .enum(["run", "report"])
-    .optional()
-    .describe(
-      "Output mode for the agentResponsibility. `report` (default for backwards compat) bakes the report-producer " +
-        "template into agent-responsibility.md: a `## Output` section with `Refresh <state-branch>:.kody/reports/<slug>.md` " +
-        "and a `Maximum one report refresh per tick` restriction. `run` produces a generic Run-style body " +
-        "with NO report markers — the engine appears to read body markers to route agentResponsibilities, so " +
-        "multi-agentAction / dispatch-style agentResponsibilities MUST use `run` or the engine dispatches to the " +
-        "report-writer path instead of the normal task-job path. `run` also relaxes the create-required " +
-        "fields: `inputs` and `reportSchema` become optional. Auto-detected: if `agentActions` has 2+ " +
-        "items and `output` is omitted, the agentResponsibility is created as `run`. On UPDATE, changing `output` " +
-        "regenerates the body in the new mode (requires the appropriate body-building fields: `purpose` " +
-        "for `run`; `purpose` + `inputs` + `reportSchema` for `report`).",
+        "If provided on CREATE or UPDATE, uses/replaces the entire body content. " +
+        "If omitted on CREATE, the body is built from `purpose`, optional `inputs`, and agentAction fields. " +
+        "If omitted on UPDATE, the existing body is preserved.",
     ),
   profile: z
     .record(z.string(), z.unknown())
@@ -445,14 +313,10 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
     create_or_update_agent_responsibility: tool({
       description:
         `Create a new Kody AgentResponsibility in ${repoRef}, or update an existing one. Before calling it, call read_agent_responsibility_creation_guide (and read_agent_responsibility for updates) and follow that guide. Commits a agentResponsibility folder at ` +
-        "`.kody/agent-responsibilities/<slug>/` (`profile.json` + `agent-responsibility.md`). The default template is a REPORT-PRODUCER: each " +
-        "scheduled run gathers inputs, composes a YAML findings report, and refreshes " +
-        `\`${STATE_BRANCH}:.kody/reports/<slug>.md\`. The kody engine's agent-responsibility-scheduler ticks every agentResponsibility folder in ` +
+        "`.kody/agent-responsibilities/<slug>/` (`profile.json` + `agent-responsibility.md`). The responsibility body describes purpose, cadence, allowed commands, and restrictions. Report generation belongs in a configured agentAction that writes reports to the configured Kody state repo, not in the responsibility body. The kody engine's agent-responsibility-scheduler ticks every agentResponsibility folder in " +
         "`.kody/agent-responsibilities/`; the agentResponsibility profile's `every` value decides how often it may run.\n\n" +
         "MODES (resolved at call time from whether the slug already exists):\n" +
-        "- CREATE: requires `title`, `agent`, `schedule`, " +
-        "`purpose`, `inputs` (≥1), `reportSchema`. Builds a fresh agent-responsibility.md from the " +
-        "body-building fields.\n" +
+        "- CREATE: requires `title`, `agent`, `schedule`, and `purpose`. Builds a fresh agent-responsibility.md from the body fields unless `body` is passed.\n" +
         "- UPDATE: requires `slug` (the existing agentResponsibility). All other fields are optional — omitted " +
         "fields preserve the current value. Pass `body` to replace the markdown content; otherwise " +
         "the existing body is preserved.\n\n" +
@@ -460,16 +324,11 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
         "- `agent` — agentIdentity slug; matches engine's `config.agent`.\n" +
         "- `agentActions` — array of agentAction slugs for multi-run agentResponsibilities. `agentAction` is the " +
         "singular convenience alias; prefer the array for >1.\n" +
-        "- `output` — `run` (generic Run-style body, no report markers) or `report` (default; " +
-        "bakes the report-producer template into agent-responsibility.md). The engine reads body markers to " +
-        'route agentResponsibilities, so multi-agentAction / dispatch-style agentResponsibilities MUST use `output: "run"` ' +
-        "(auto-detected when `agentActions` has 2+ items). On UPDATE, switching `output` " +
-        "regenerates the body in the new mode (requires the appropriate body-building fields).\n" +
+        "- reports — if this responsibility should create reports, point it at a report agentAction; do not add report settings or report paths to the responsibility.\n" +
         "- `profile` — raw profile.json field overrides. Use for engine-specific fields the " +
         "typed schema doesn't expose (e.g. `tickScript`, `readsFrom`, `writesTo`, `mentions`, " +
         "`agentResponsibilityTools`, `version`). Typed values still win for keys the build function manages.\n\n" +
-        "BEFORE CALLING (CREATE): gather title, purpose, agent, reviewer, schedule, output path, " +
-        "inputs (data sources as concrete `gh` commands), and reportSchema. Ask the user clarifying " +
+        "BEFORE CALLING (CREATE): gather title, purpose, agent, reviewer, schedule, optional agentActions, and optional inputs. Ask the user clarifying " +
         "questions in small batches until each field is well-specified — never invent inputs or schema. " +
         "Show the proposed profile JSON and markdown body for approval before calling.\n\n" +
         "BEFORE CALLING (UPDATE): call `read_agent_responsibility` to surface the current profile + body, then pass " +
@@ -499,40 +358,29 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
           if (!existing) {
             // ── CREATE ───────────────────────────────────────────────────────
             const createAgent = input.agent;
-            // Resolve the output mode up front so validation and body
-            // building agree. Run-style agentResponsibilities have relaxed required
-            // fields (no `inputs`/`reportSchema`).
-            const output = resolveOutput(input);
             const missing: string[] = [];
             if (!input.title) missing.push("title");
             if (!createAgent) missing.push("agent");
             if (!input.schedule) missing.push("schedule");
             if (!input.purpose) missing.push("purpose");
-            if (output === "report") {
-              if (!input.inputs || input.inputs.length === 0)
-                missing.push("inputs");
-              if (!input.reportSchema) missing.push("reportSchema");
-            }
             if (missing.length > 0) {
               return {
                 error: "missing_required_fields",
                 message:
-                  `Cannot create agentResponsibility: missing required field(s): ${missing.join(", ")}. ` +
-                  `For a Report-style agentResponsibility (default), ${missing.includes("inputs") || missing.includes("reportSchema") ? "all of `inputs` and `reportSchema`" : "all the listed fields"} are required. ` +
-                  `For a Run-style agentResponsibility, only ${["title", "agent", "schedule", "purpose"].filter((f) => missing.includes(f)).join(", ")} are required — pass \`output: "run"\` to opt in.`,
+                  `Cannot create agentResponsibility: missing required field(s): ${missing.join(", ")}.`,
               };
             }
 
-            const body = buildAgentResponsibilityBody(slug, {
-              purpose: input.purpose!,
-              inputs: input.inputs ?? [],
-              reportSchema: input.reportSchema ?? "",
-              agentAction: input.agentAction,
-              agentActions: input.agentActions,
-              extraAllowedCommands: input.extraAllowedCommands,
-              extraRestrictions: input.extraRestrictions,
-              output,
-            });
+            const body =
+              input.body ??
+              buildAgentResponsibilityBody({
+                purpose: input.purpose!,
+                inputs: input.inputs,
+                agentAction: input.agentAction,
+                agentActions: input.agentActions,
+                extraAllowedCommands: input.extraAllowedCommands,
+                extraRestrictions: input.extraRestrictions,
+              });
             const action = slugifyTitle(input.action ?? slug);
             if (!isValidSlug(action)) {
               return {
@@ -606,8 +454,8 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
 
           // ── UPDATE ─────────────────────────────────────────────────────────
           // Resolve each field with the read-merge semantics: omitted = preserve.
-          // `body` is the only string that overwrites the markdown content
-          // (unless `output` is changing — see below); everything else falls
+          // `body` is the only string that overwrites the markdown content;
+          // everything else falls
           // back to the existing agentResponsibility.
           const nextTitle = input.title ?? existing.title;
           const nextSchedule = input.schedule ?? existing.schedule ?? undefined;
@@ -657,70 +505,8 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
           }
           const nextDisabled =
             input.disabled !== undefined ? input.disabled : existing.disabled;
-          // Body resolution: explicit `body` wins; otherwise, if `output`
-          // changed mode, regenerate in the new mode (requires the
-          // body-building fields appropriate for that mode); otherwise
-          // preserve the existing body. This is how you flip an existing
-          // agentResponsibility from REPORT to RUN: pass `output: "run"` + a new
-          // `purpose` (the model can pass `purpose` for regen, OR
-          // `body` to override verbatim).
-          const outputSwitched = input.output !== undefined;
-          let nextBody: string;
-          if (input.body !== undefined) {
-            nextBody = input.body;
-          } else if (outputSwitched) {
-            const targetOutput = input.output!;
-            if (targetOutput === "run") {
-              if (!input.purpose) {
-                return {
-                  error: "missing_required_fields",
-                  message:
-                    'Switching an existing agentResponsibility to `output: "run"` requires a `purpose` (used to regenerate the body) — pass `purpose` to regen, or pass `body` directly to override verbatim.',
-                };
-              }
-              nextBody = buildAgentResponsibilityBody(slug, {
-                purpose: input.purpose,
-                inputs: (input.inputs ?? existing.agentActions) ? [] : [],
-                reportSchema: input.reportSchema ?? "",
-                agentAction:
-                  input.agentAction ?? existing.agentAction ?? undefined,
-                agentActions:
-                  nextAgentActions.length > 0
-                    ? nextAgentActions
-                    : input.agentActions,
-                extraAllowedCommands: input.extraAllowedCommands,
-                extraRestrictions: input.extraRestrictions,
-                output: "run",
-              });
-            } else {
-              const purpose = input.purpose;
-              const inputs = input.inputs;
-              const reportSchema = input.reportSchema;
-              if (!purpose || !inputs || inputs.length === 0 || !reportSchema) {
-                return {
-                  error: "missing_required_fields",
-                  message:
-                    'Switching an existing agentResponsibility to `output: "report"` requires `purpose`, `inputs` (≥1), and `reportSchema` (used to regenerate the body) — pass those three to regen, or pass `body` directly to override verbatim.',
-                };
-              }
-              nextBody = buildAgentResponsibilityBody(slug, {
-                purpose,
-                inputs,
-                reportSchema,
-                agentAction:
-                  input.agentAction ?? existing.agentAction ?? undefined,
-                agentActions:
-                  nextAgentActions.length > 0
-                    ? nextAgentActions
-                    : input.agentActions,
-                extraAllowedCommands: input.extraAllowedCommands,
-                extraRestrictions: input.extraRestrictions,
-                output: "report",
-              });
-            }
-          } else {
-            nextBody = existing.body;
-          }
+          const nextBody =
+            input.body !== undefined ? input.body : existing.body;
           // Track which fields actually changed so the model can narrate
           // the diff. We compare against the existing value the user would
           // see, not the merged `next*` (those already account for read-
@@ -758,8 +544,7 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
               JSON.stringify(existing.agentActions)
           )
             changedFields.push("agentActions");
-          if (input.body !== undefined || outputSwitched)
-            changedFields.push("body");
+          if (input.body !== undefined) changedFields.push("body");
           if (input.profile !== undefined) changedFields.push("profile");
 
           const message = `chore(agentResponsibilities): update ${slug}${actorLogin ? ` (via chat by @${actorLogin})` : ""}`;
@@ -789,7 +574,6 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
               repo,
               slug,
               changedFields,
-              outputSwitched,
               schedule: nextSchedule,
               agent: nextAgent,
               disabled: nextDisabled,

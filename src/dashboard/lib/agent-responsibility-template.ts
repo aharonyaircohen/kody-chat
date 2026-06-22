@@ -10,12 +10,6 @@
  * `## Allowed Commands` / `## Restrictions` headings are parsed by the
  * engine's agent-responsibility-tick executor, so their text is a contract — do not rename.
  */
-import {
-  buildDefaultAgentResponsibilityBody,
-  DEFAULT_DUTY_OUTPUT_KIND,
-} from "./agent-responsibilities/output";
+import { buildDefaultAgentResponsibilityBody } from "./agent-responsibilities/output";
 
-export const DUTY_TEMPLATE = buildDefaultAgentResponsibilityBody(
-  DEFAULT_DUTY_OUTPUT_KIND,
-  "agentResponsibility-report",
-);
+export const DUTY_TEMPLATE = buildDefaultAgentResponsibilityBody();

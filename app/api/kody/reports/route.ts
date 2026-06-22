@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern reports-api
  * @ai-summary Reports API — GET lists system reports under
- *   `kody-state:.kody/reports/<slug>.md` in the connected repo. Read-only:
+ *   `reports/<slug>.md` in the configured Kody state repo. Read-only:
  *   reports are produced by Kody agentResponsibilities, not edited from the dashboard.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */

@@ -72,14 +72,6 @@ import {
   scheduleEveryLabel,
   ALL_SCHEDULE_EVERY_OPTIONS,
 } from "../agent-responsibilities-frontmatter";
-import {
-  buildAgentResponsibilityWritesTo,
-  defaultReportSlug,
-  agentResponsibilityOutputFromWritesTo,
-  FALLBACK_REPORT_SLUG,
-  normalizeReportSlug,
-  type AgentResponsibilityOutputKind,
-} from "../agent-responsibilities/output";
 import { type AgentResponsibility, type AgentResponsibilityCapabilityKind, type AgentResponsibilitySchedule } from "../api";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
@@ -92,14 +84,6 @@ import {
 } from "./SearchableSelect";
 import { useChatScope } from "./ChatRailShell";
 import { buildAuthHeaders, useAuth } from "../auth-context";
-
-/** Order-insensitive equality for two login lists. */
-function sameStringList(a: string[], b: string[]): boolean {
-  if (a.length !== b.length) return false;
-  const sortedA = [...a].sort();
-  const sortedB = [...b].sort();
-  return sortedA.every((v, i) => v === sortedB[i]);
-}
 
 function preventDialogEscapeWhenSearchableSelectOpen(event: {
   preventDefault: () => void;
@@ -366,7 +350,7 @@ export function AgentResponsibilityControlInner() {
           <EmptyState
             icon={<Target />}
             title="No agentResponsibilities yet"
-            hint="Create your first agentResponsibility to describe the purpose, output, and restrictions."
+            hint="Create your first agentResponsibility to describe the purpose, cadence, and restrictions."
           />
         ) : filtered.length === 0 ? (
           <EmptyState
@@ -765,7 +749,7 @@ function AgentResponsibilityDetail({
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                 Use <span className="font-medium text-foreground">Edit</span> to
-                describe the agentResponsibility&apos;s purpose, output, allowed commands, and
+                describe the agentResponsibility&apos;s purpose, cadence, allowed commands, and
                 restrictions.
               </p>
             </div>
@@ -812,7 +796,6 @@ function CreateAgentResponsibilityDialog({
         reviewer: values.reviewer,
         action: values.action || undefined,
         agentAction: values.agentAction,
-        writesTo: values.writesTo,
       },
       {
         onSuccess: (agentResponsibility) => onCreated(agentResponsibility),
@@ -829,7 +812,7 @@ function CreateAgentResponsibilityDialog({
         <DialogHeader>
           <DialogTitle>New agentResponsibility</DialogTitle>
           <DialogDescription>
-            Describe the agentResponsibility&apos;s purpose, output, allowed commands, and
+            Describe the agentResponsibility&apos;s purpose, cadence, allowed commands, and
             restrictions.
           </DialogDescription>
         </DialogHeader>
@@ -862,7 +845,6 @@ function EditAgentResponsibilityDialog({
 }) {
   const { githubUser } = useGitHubIdentity();
   const updateMutation = useUpdateAgentResponsibility(agentResponsibility.slug, githubUser?.login);
-  const initialOutput = agentResponsibilityOutputFromWritesTo(agentResponsibility.writesTo);
   const initialValues = useMemo(() => buildAgentResponsibilityFormValues(agentResponsibility), [agentResponsibility]);
 
   const handleSubmit = (values: AgentResponsibilityFormSubmitValues) => {
@@ -873,11 +855,10 @@ function EditAgentResponsibilityDialog({
     schedule?: AgentResponsibilitySchedule | null;
     capabilityKind?: AgentResponsibilityCapabilityKind | null;
     agent?: string | null;
-      reviewer?: string | null;
-      action?: string | null;
-      agentAction?: string | null;
-      writesTo?: string[];
-    } = {};
+    reviewer?: string | null;
+    action?: string | null;
+    agentAction?: string | null;
+  } = {};
     if (values.title !== agentResponsibility.title) patch.title = values.title;
   if (values.body !== agentResponsibility.body) patch.body = values.body;
   if (values.schedule !== agentResponsibility.schedule) patch.schedule = values.schedule;
@@ -886,16 +867,10 @@ function EditAgentResponsibilityDialog({
   }
     if (values.agent !== agentResponsibility.agent) patch.agent = values.agent;
     if (values.reviewer !== agentResponsibility.reviewer) patch.reviewer = values.reviewer;
-    if (values.action !== agentResponsibility.action) patch.action = values.action;
-    if (values.agentAction !== agentResponsibility.agentAction)
-      patch.agentAction = values.agentAction;
-    const outputChanged =
-      values.outputKind !== initialOutput.outputKind ||
-      normalizeReportSlug(values.reportSlug) !== initialOutput.reportSlug;
-    if (outputChanged && !sameStringList(values.writesTo, agentResponsibility.writesTo)) {
-      patch.writesTo = values.writesTo;
-    }
-    if (Object.keys(patch).length === 0) {
+  if (values.action !== agentResponsibility.action) patch.action = values.action;
+  if (values.agentAction !== agentResponsibility.agentAction)
+    patch.agentAction = values.agentAction;
+  if (Object.keys(patch).length === 0) {
       onSaved();
       return;
     }
@@ -1283,31 +1258,18 @@ const DUTY_CAPABILITY_KIND_OPTIONS: Array<{
   },
 ];
 
-function defaultOutputKindForCapabilityKind(
-  capabilityKind: AgentResponsibilityCapabilityKind | null,
-): AgentResponsibilityOutputKind {
-  return capabilityKind === "act" ? "run" : "report";
-}
-
 function buildAgentResponsibilityBodyForCapabilityKind(
   capabilityKind: AgentResponsibilityCapabilityKind | null,
-  outputKind: AgentResponsibilityOutputKind,
-  reportSlug: string,
 ): string {
-  const output =
-    outputKind === "report"
-      ? `\n## Output\n\nRefresh \`.kody/reports/${normalizeReportSlug(reportSlug)}.md\` with factual evidence.\n`
-      : "\n## Output\n\nReturn the changed resources, status, and evidence.\n";
-
   if (capabilityKind === "act") {
-    return `## Job\n\nPerform one requested change or trigger one operation.\n${output}\n## Allowed Commands\n\n- Run the selected agentAction.\n\n## Restrictions\n\n- Do not decide whether a larger goal is complete.\n- Report factual evidence only.\n`;
+    return `## Job\n\nPerform one requested change or trigger one operation.\n\n## Allowed Commands\n\n- Run the selected agentAction.\n\n## Restrictions\n\n- Do not decide whether a larger goal is complete.\n- Return factual evidence only.\n`;
   }
 
   if (capabilityKind === "verify") {
-    return `## Job\n\nConfirm whether one specific claim passed or failed.\n${output}\n## Allowed Commands\n\n- Inspect the relevant files, GitHub state, logs, reports, or preview.\n\n## Restrictions\n\n- Do not fix failures from this agentResponsibility.\n- Return blockers and evidence when verification fails.\n`;
+    return `## Job\n\nConfirm whether one specific claim passed or failed.\n\n## Allowed Commands\n\n- Inspect the relevant files, GitHub state, logs, reports, or preview.\n\n## Restrictions\n\n- Do not fix failures from this agentResponsibility.\n- Return blockers and evidence when verification fails.\n`;
   }
 
-  return `## Job\n\nInspect the target and report what is true.\n${output}\n## Allowed Commands\n\n- Read relevant files, GitHub state, logs, reports, or runtime output.\n\n## Restrictions\n\n- Do not make changes or dispatch repairs.\n- Keep findings factual and evidence-based.\n`;
+  return `## Job\n\nInspect the target and report what is true.\n\n## Allowed Commands\n\n- Read relevant files, GitHub state, logs, reports, or runtime output.\n\n## Restrictions\n\n- Do not make changes or dispatch repairs.\n- Keep findings factual and evidence-based.\n`;
 }
 
 interface AgentResponsibilityFormValues {
@@ -1319,8 +1281,6 @@ interface AgentResponsibilityFormValues {
   reviewer: string | null;
   action: string;
   agentAction: string | null;
-  outputKind: AgentResponsibilityOutputKind;
-  reportSlug: string;
 }
 
 interface AgentResponsibilityFormSubmitValues {
@@ -1332,34 +1292,23 @@ interface AgentResponsibilityFormSubmitValues {
   reviewer: string | null;
   action: string | null;
   agentAction: string | null;
-  outputKind: AgentResponsibilityOutputKind;
-  reportSlug: string;
-  writesTo: string[];
 }
 
 function buildNewAgentResponsibilityFormValues(): AgentResponsibilityFormValues {
   const capabilityKind: AgentResponsibilityCapabilityKind = "observe";
-  const outputKind = defaultOutputKindForCapabilityKind(capabilityKind);
   return {
     title: "",
-    body: buildAgentResponsibilityBodyForCapabilityKind(
-      capabilityKind,
-      outputKind,
-      FALLBACK_REPORT_SLUG,
-    ),
+    body: buildAgentResponsibilityBodyForCapabilityKind(capabilityKind),
     schedule: "manual",
     capabilityKind,
     agent: null,
     reviewer: null,
     action: "",
     agentAction: null,
-    outputKind,
-    reportSlug: FALLBACK_REPORT_SLUG,
   };
 }
 
 function buildAgentResponsibilityFormValues(agentResponsibility: AgentResponsibility): AgentResponsibilityFormValues {
-  const output = agentResponsibilityOutputFromWritesTo(agentResponsibility.writesTo);
   return {
     title: agentResponsibility.title,
     body: agentResponsibility.body || "",
@@ -1369,8 +1318,6 @@ function buildAgentResponsibilityFormValues(agentResponsibility: AgentResponsibi
     reviewer: agentResponsibility.reviewer,
     action: agentResponsibility.action,
     agentAction: agentResponsibility.agentAction,
-    outputKind: output.outputKind,
-    reportSlug: output.reportSlug,
   };
 }
 
@@ -1413,11 +1360,6 @@ function AgentResponsibilityForm({
   const [schedule, setSchedule] = useState<AgentResponsibilitySchedule | null>(
     initialValues.schedule,
   );
-  const [outputKind, setOutputKind] = useState<AgentResponsibilityOutputKind>(
-    initialValues.outputKind,
-  );
-  const [reportSlug, setReportSlug] = useState(initialValues.reportSlug);
-  const [reportSlugTouched, setReportSlugTouched] = useState(false);
   const [agentAction, setAgentAction] = useState<string | null>(
     initialValues.agentAction,
   );
@@ -1432,9 +1374,6 @@ function AgentResponsibilityForm({
     setAction(initialValues.action);
     setActionTouched(false);
     setSchedule(initialValues.schedule);
-    setOutputKind(initialValues.outputKind);
-    setReportSlug(initialValues.reportSlug);
-    setReportSlugTouched(false);
     setAgentAction(initialValues.agentAction);
   }, [initialValues]);
 
@@ -1443,18 +1382,8 @@ function AgentResponsibilityForm({
     if (!autoBuildBody) return;
     const nextAction = actionTouched ? action : slugifyAction(next);
     if (!actionTouched) setAction(nextAction);
-    if (!reportSlugTouched) {
-      const nextReportSlug = defaultReportSlug(nextAction, next);
-      setReportSlug(nextReportSlug);
-      if (!bodyTouched) {
-        setBody(
-          buildAgentResponsibilityBodyForCapabilityKind(
-            capabilityKind,
-            outputKind,
-            nextReportSlug,
-          ),
-        );
-      }
+    if (!bodyTouched) {
+      setBody(buildAgentResponsibilityBodyForCapabilityKind(capabilityKind));
     }
   };
 
@@ -1462,53 +1391,12 @@ function AgentResponsibilityForm({
     const nextAction = slugifyAction(next);
     setActionTouched(true);
     setAction(nextAction);
-    if (!autoBuildBody || reportSlugTouched) return;
-    const nextReportSlug = defaultReportSlug(nextAction, title);
-    setReportSlug(nextReportSlug);
-    if (!bodyTouched) {
-      setBody(
-        buildAgentResponsibilityBodyForCapabilityKind(
-          capabilityKind,
-          outputKind,
-          nextReportSlug,
-        ),
-      );
-    }
   };
 
   const updateCapabilityKind = (next: AgentResponsibilityCapabilityKind | null) => {
     setCapabilityKind(next);
-    const nextOutputKind = defaultOutputKindForCapabilityKind(next);
-    if (simpleCreate) setOutputKind(nextOutputKind);
     if (autoBuildBody && !bodyTouched) {
-      setBody(
-        buildAgentResponsibilityBodyForCapabilityKind(
-          next,
-          simpleCreate ? nextOutputKind : outputKind,
-          reportSlug,
-        ),
-      );
-    }
-  };
-
-  const updateOutputKind = (next: AgentResponsibilityOutputKind) => {
-    setOutputKind(next);
-    if (autoBuildBody && !bodyTouched) {
-      setBody(buildAgentResponsibilityBodyForCapabilityKind(capabilityKind, next, reportSlug));
-    }
-  };
-
-  const updateReportSlug = (next: string) => {
-    setReportSlugTouched(true);
-    setReportSlug(next);
-    if (autoBuildBody && !bodyTouched) {
-      setBody(
-        buildAgentResponsibilityBodyForCapabilityKind(
-          capabilityKind,
-          outputKind,
-          normalizeReportSlug(next),
-        ),
-      );
+      setBody(buildAgentResponsibilityBodyForCapabilityKind(next));
     }
   };
 
@@ -1523,9 +1411,6 @@ function AgentResponsibilityForm({
       reviewer,
       action: action.trim() || null,
       agentAction,
-      outputKind,
-      reportSlug,
-      writesTo: buildAgentResponsibilityWritesTo(outputKind, reportSlug),
     });
   };
 
@@ -1564,29 +1449,9 @@ function AgentResponsibilityForm({
           <AgentResponsibilityAgentActionOutputRow
             agentAction={agentAction}
             onAgentActionChange={setAgentAction}
-            outputKind={outputKind}
-            onOutputKindChange={updateOutputKind}
           />
         </>
       )}
-      {!simpleCreate && outputKind === "report" ? (
-          <div className="space-y-1.5">
-            <Label htmlFor="agentResponsibility-report-target">Report target</Label>
-            <Input
-              id="agentResponsibility-report-target"
-              value={reportSlug}
-              onChange={(e) => updateReportSlug(e.target.value)}
-              placeholder="release-notes-manager"
-            />
-            <p className="text-xs text-muted-foreground">
-              Writes{" "}
-              <strong>
-                .kody/reports/{normalizeReportSlug(reportSlug)}.md
-              </strong>
-              .
-            </p>
-          </div>
-        ) : null}
       <AgentResponsibilityAgentRoleRow
         agent={agent}
         onAgentChange={setAgent}
@@ -1627,18 +1492,13 @@ function AgentResponsibilityForm({
 function AgentResponsibilityAgentActionOutputRow({
   agentAction,
   onAgentActionChange,
-  outputKind,
-  onOutputKindChange,
 }: {
   agentAction: string | null;
   onAgentActionChange: (next: string | null) => void;
-  outputKind: AgentResponsibilityOutputKind;
-  onOutputKindChange: (next: AgentResponsibilityOutputKind) => void;
 }) {
   return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+    <div className="grid grid-cols-1 gap-4">
       <AgentActionSelect value={agentAction} onChange={onAgentActionChange} />
-      <OutputSelect value={outputKind} onChange={onOutputKindChange} />
     </div>
   );
 }
@@ -1694,41 +1554,6 @@ function AgentResponsibilityCapabilityKindSelect({
           );
         })}
       </div>
-    </div>
-  );
-}
-
-function OutputSelect({
-  value,
-  onChange,
-}: {
-  value: AgentResponsibilityOutputKind;
-  onChange: (next: AgentResponsibilityOutputKind) => void;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor="agentResponsibility-output">Output</Label>
-      <Select
-        value={value}
-        onValueChange={(next) => onChange(next as AgentResponsibilityOutputKind)}
-      >
-        <SelectTrigger id="agentResponsibility-output" className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="run" textValue="Run">
-            Run
-          </SelectItem>
-          <SelectItem value="report" textValue="Report">
-            Report
-          </SelectItem>
-        </SelectContent>
-      </Select>
-      <p className="text-xs text-muted-foreground">
-        {value === "report"
-          ? "Creates or refreshes one report."
-          : "Runs without a generated report."}
-      </p>
     </div>
   );
 }

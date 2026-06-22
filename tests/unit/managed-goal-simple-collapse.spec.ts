@@ -14,7 +14,7 @@ describe("collapseManagedGoalRecordsForList simple template", () => {
   it("keeps simple-created local goals under their own id", () => {
     const goal: ManagedGoalRecord = {
       id: "npm-release",
-      path: ".kody/goals/instances/npm-release/state.json",
+      path: "goals/instances/npm-release/state.json",
       source: "local",
       recordType: "instance",
       state: {

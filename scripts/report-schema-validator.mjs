@@ -184,7 +184,7 @@ export function validateReportFiles(files) {
 }
 
 function runCli() {
-  const reportsDir = process.argv[2] || ".kody/reports";
+  const reportsDir = process.argv[2] || "reports";
   const { schemaExists, files, error } = readReportFiles(reportsDir);
   const results = validateReportFiles(files);
   const failed = results.filter((result) => !result.ok);

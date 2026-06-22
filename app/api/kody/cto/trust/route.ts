@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern agentResponsibility-trust-management
  * @ai-summary GET/POST /api/kody/cto/trust — read + management surface for the
- *   agentResponsibility-keyed trust ledger, stored as a JSON file on the `kody-state` branch
- *   (`.kody/state/trust.json`), NOT an issue. Powers the /trust page.
+ *   agentResponsibility-keyed trust ledger, stored as a JSON file in the configured Kody state repo
+ *   (`state/trust.json`), NOT an issue. Powers the /trust page.
  *
  *   GET  → the full per-agentResponsibility trust stats (`agentResponsibilities[slug][action]`) + recent log.
  *   POST → an operator override of one agentResponsibility's action autonomy:

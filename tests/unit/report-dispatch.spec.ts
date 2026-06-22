@@ -60,10 +60,10 @@ describe("extractTouchedReportSlugs", () => {
     const payload = {
       commits: [
         {
-          added: [".kody/reports/security-audit.md"],
-          modified: [".kody/reports/agent-responsibility-call.md", "README.md"],
+          added: ["widgets/reports/security-audit.md"],
+          modified: ["widgets/reports/agent-responsibility-call.md", "README.md"],
         },
-        { modified: [".kody/reports/agent-responsibility-call.md"] },
+        { modified: ["widgets/reports/agent-responsibility-call.md"] },
       ],
     };
     expect(extractTouchedReportSlugs(payload).sort()).toEqual([
@@ -77,9 +77,9 @@ describe("extractTouchedReportSlugs", () => {
       commits: [
         {
           modified: [
-            ".kody/reports/sub/nested.md",
-            ".kody/reports/data.json",
-            ".kody/reports/.disable",
+            "widgets/reports/sub/nested.md",
+            "widgets/reports/data.json",
+            "widgets/reports/.disable",
           ],
         },
       ],
@@ -89,9 +89,17 @@ describe("extractTouchedReportSlugs", () => {
 });
 
 describe("isPushToStateBranch", () => {
-  it("is true only for a push to the kody state branch", () => {
-    expect(isPushToStateBranch({ ref: "refs/heads/kody-state" })).toBe(true);
+  it("is true only when a push touches state-repo report paths", () => {
+    expect(
+      isPushToStateBranch({
+        commits: [{ added: ["widgets/reports/security-audit.md"] }],
+      }),
+    ).toBe(true);
     expect(isPushToStateBranch({ ref: "refs/heads/main" })).toBe(false);
-    expect(isPushToStateBranch({ ref: "refs/heads/feature" })).toBe(false);
+    expect(
+      isPushToStateBranch({
+        commits: [{ added: ["widgets/docs/security-audit.md"] }],
+      }),
+    ).toBe(false);
   });
 });

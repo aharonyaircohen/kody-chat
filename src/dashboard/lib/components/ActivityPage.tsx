@@ -619,7 +619,7 @@ function autoTriggerBadge(trigger: "schedule" | "manual" | "event"): string {
 /**
  * "Auto" tab — the Company Activity feed: named, attributed actions the
  * engine performed (an agent ran a agentResponsibility, why, and the result), written
- * by the engine to `.kody/activity/*.jsonl`. NOT derived from commits/PRs —
+ * by the engine to `activity/*.jsonl` in the configured Kody state repo. NOT derived from commits/PRs —
  * those carry no agent/agentResponsibility/purpose.
  */
 function AutoView({ active }: { active: boolean }) {

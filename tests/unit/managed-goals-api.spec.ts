@@ -8,7 +8,7 @@ describe("managed goals API client", () => {
       new Response(
         JSON.stringify({
           error: "failed_to_create_managed_goal",
-          message: "Invalid request: kody-state branch could not be updated.",
+          message: "Invalid request: Kody state repo could not be updated.",
         }),
         { status: 500, headers: { "content-type": "application/json" } },
       ),
@@ -31,7 +31,7 @@ describe("managed goals API client", () => {
         ],
       }),
     ).rejects.toThrow(
-      "Invalid request: kody-state branch could not be updated.",
+      "Invalid request: Kody state repo could not be updated.",
     );
   });
 
@@ -45,7 +45,7 @@ describe("managed goals API client", () => {
         JSON.stringify({
           goal: {
             id: "verify-goal",
-            path: ".kody/goals/instances/verify-goal/state.json",
+            path: "goals/instances/verify-goal/state.json",
             state: {
               version: 1,
               state: "active",
@@ -100,7 +100,7 @@ describe("managed goals API client", () => {
         JSON.stringify({
           goal: {
             id: "source-goal-20260620-120000",
-            path: ".kody/goals/instances/source-goal-20260620-120000/state.json",
+            path: "goals/instances/source-goal-20260620-120000/state.json",
             state: {
               version: 1,
               state: "active",
@@ -157,7 +157,7 @@ describe("managed goals API client", () => {
           JSON.stringify({
             goal: {
               id: "verify-goal",
-              path: ".kody/goals/instances/verify-goal/state.json",
+              path: "goals/instances/verify-goal/state.json",
               state: {
                 version: 1,
                 state: "active",

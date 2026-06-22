@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern managed-goals-api
  * @ai-summary Managed goals API. Lists and creates engine goal files under
- *   `kody-state:.kody/goals/instances/<id>/state.json`.
+ *   `goals/instances/<id>/state.json` in the configured Kody state repo.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

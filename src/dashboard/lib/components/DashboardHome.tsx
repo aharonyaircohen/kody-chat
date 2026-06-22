@@ -506,7 +506,7 @@ function LatestReports() {
             ? {
                 title: `Address: ${issueFromReport.title}`,
                 body:
-                  `Source report: [\`.kody/reports/${issueFromReport.slug}.md\`](${issueFromReport.htmlUrl})\n\n` +
+                  `Source report: [\`reports/${issueFromReport.slug}.md\`](${issueFromReport.htmlUrl})\n\n` +
                   `---\n\n${issueFromReport.body}`,
                 labels: [`from-report:${issueFromReport.slug}`],
               }
@@ -522,7 +522,7 @@ function LatestReports() {
             ? {
                 name: goalFromReport.title,
                 description:
-                  `Source report: [\`.kody/reports/${goalFromReport.slug}.md\`](${goalFromReport.htmlUrl})\n\n` +
+                  `Source report: [\`reports/${goalFromReport.slug}.md\`](${goalFromReport.htmlUrl})\n\n` +
                   `---\n\n${goalFromReport.body}`,
               }
             : undefined

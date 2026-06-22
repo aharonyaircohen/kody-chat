@@ -16,7 +16,7 @@ import {
   getRepo,
   invalidateAgentResponsibilitiesCache,
 } from "./github-client";
-import { STATE_BRANCH } from "./state-branch";
+import { readStateText, resolveStateRepo, stateRepoPath } from "./state-repo";
 import {
   latestActivityByAgentResponsibility,
   type CompanyActivityRecord,
@@ -37,6 +37,7 @@ import {
 } from "./company-store/assets";
 
 const DUTIES_DIR = ".kody/agent-responsibilities";
+const DUTIES_STATE_DIR = "agent-responsibilities";
 const PROFILE_FILE = "profile.json";
 const BODY_FILE = "agent-responsibility.md";
 
@@ -183,17 +184,20 @@ async function fetchLastCommitDate(
   }
 }
 
-async function fetchLastCommitDateOrNull(
+function agentResponsibilityStatePath(slug: string): string {
+  return `${DUTIES_STATE_DIR}/${slug}/state.json`;
+}
+
+async function fetchStateLastCommitDate(
   octokit: Octokit,
-  filePath: string,
-  ref?: string,
+  slug: string,
 ): Promise<string | null> {
   try {
+    const target = await resolveStateRepo(octokit, getOwner(), getRepo());
     const { data } = await octokit.repos.listCommits({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
-      ...(ref ? { sha: ref } : {}),
+      owner: target.owner,
+      repo: target.repo,
+      path: stateRepoPath(target, agentResponsibilityStatePath(slug)),
       per_page: 1,
     });
     if (data.length === 0) return null;
@@ -222,17 +226,11 @@ async function fetchTickState(
   slug: string,
 ): Promise<TickStateFields> {
   try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: `${DUTIES_DIR}/${slug}.state.json`,
-      ref: STATE_BRANCH,
+    const file = await readStateText(octokit, getOwner(), getRepo(), agentResponsibilityStatePath(slug), {
+      headers: { "If-None-Match": "" },
     });
-    if (Array.isArray(data) || !("content" in data) || !data.content)
-      return EMPTY_TICK_STATE;
-    const parsed: unknown = JSON.parse(
-      Buffer.from(data.content, "base64").toString("utf-8"),
-    );
+    if (!file) return EMPTY_TICK_STATE;
+    const parsed: unknown = JSON.parse(file.content);
     if (!parsed || typeof parsed !== "object") return EMPTY_TICK_STATE;
     const inner = (parsed as { data?: unknown }).data;
     if (!inner || typeof inner !== "object") return EMPTY_TICK_STATE;
@@ -408,11 +406,7 @@ export async function readAgentResponsibilityFile(
         path: bodyPath,
       }),
       fetchLastCommitDate(octokit, bodyPath),
-      fetchLastCommitDateOrNull(
-        octokit,
-        `${DUTIES_DIR}/${slug}.state.json`,
-        STATE_BRANCH,
-      ),
+        fetchStateLastCommitDate(octokit, slug),
       fetchTickState(octokit, slug),
       fetchRecentAgentResponsibilityActivity(),
     ]);

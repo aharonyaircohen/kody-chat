@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern managed-goal-detail-api
  * @ai-summary Updates and deletes engine managed goal state files under
- * `kody-state:.kody/goals/instances/<id>/state.json`.
+ * `goals/instances/<id>/state.json` in the configured Kody state repo.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

@@ -17,7 +17,7 @@ function goalRecord(
 ): ManagedGoalRecord {
   return {
     id,
-    path: `.kody/goals/instances/${id}/state.json`,
+    path: `goals/instances/${id}/state.json`,
     source: "local",
     recordType: "instance",
     state: {

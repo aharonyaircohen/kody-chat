@@ -202,7 +202,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     ],
   },
   {
-    title: "Automation",
+    title: "Operations",
     items: [
       {
         href: "/agents",

@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern managed-goals
  * @ai-summary Engine managed goal contract. These goals live as one JSON file
- * per goal at `kody-state:.kody/goals/instances/<id>/state.json`.
+ * per goal at `<statePath>/goals/instances/<id>/state.json`.
  */
 
 export type ManagedGoalStateValue = "inactive" | "active" | "paused" | "done";
@@ -402,7 +402,7 @@ export function managedGoalPath(goalId: string): string {
   if (!goalId || /[\\/]/.test(goalId) || goalId.includes("..")) {
     throw new Error(`Invalid goalId path: ${JSON.stringify(goalId)}`);
   }
-  return `.kody/goals/instances/${goalId}/state.json`;
+  return `goals/instances/${goalId}/state.json`;
 }
 
 export function slugifyManagedGoalId(value: string): string {

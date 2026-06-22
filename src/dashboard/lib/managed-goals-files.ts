@@ -2,12 +2,17 @@
  * @fileType utility
  * @domain kody
  * @pattern managed-goals-files
- * @ai-summary Read and write managed goal state files on kody-state.
+ * @ai-summary Read and write managed goal state files in the configured Kody state repo.
  */
 
 import type { Octokit } from "@octokit/rest";
 import { getOctokit, getOwner, getRepo } from "./github-client";
-import { STATE_BRANCH } from "./state-branch";
+import {
+  deleteStateFile,
+  listStateDirectory,
+  readStateText,
+  writeStateText,
+} from "./state-repo";
 import {
   listCompanyStoreDirectorySafe,
   readCompanyStoreText,
@@ -30,35 +35,6 @@ interface ContentFile {
   sha?: string;
 }
 
-export async function ensureStateBranch(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-): Promise<void> {
-  try {
-    await octokit.rest.git.getRef({
-      owner,
-      repo,
-      ref: `heads/${STATE_BRANCH}`,
-    });
-  } catch (err) {
-    if ((err as { status?: number }).status !== 404) throw err;
-    const { data: repoMeta } = await octokit.rest.repos.get({ owner, repo });
-    const defaultBranch = repoMeta.default_branch || "main";
-    const { data: refData } = await octokit.rest.git.getRef({
-      owner,
-      repo,
-      ref: `heads/${defaultBranch}`,
-    });
-    await octokit.rest.git.createRef({
-      owner,
-      repo,
-      ref: `refs/heads/${STATE_BRANCH}`,
-      sha: refData.object.sha,
-    });
-  }
-}
-
 export async function readManagedGoalFile(
   goalId: string,
   octokit: Octokit = getOctokit(),
@@ -66,30 +42,14 @@ export async function readManagedGoalFile(
   repo = getRepo(),
 ): Promise<{ state: ManagedGoalState; sha: string; path: string } | null> {
   const path = managedGoalPath(goalId);
-  try {
-    const res = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path,
-      ref: STATE_BRANCH,
-      headers: { "If-None-Match": "" },
-    });
-    const data = res.data as ContentFile | ContentFile[];
-    if (Array.isArray(data) || data.type !== "file" || !data.content) {
-      return null;
-    }
-    const raw = Buffer.from(
-      data.content,
-      (data.encoding ?? "base64") as BufferEncoding,
-    ).toString("utf8");
-    const parsed = JSON.parse(raw) as unknown;
-    const state = normalizeManagedGoalState(parsed);
-    if (!state) return null;
-    return { state, sha: data.sha ?? "", path };
-  } catch (err) {
-    if ((err as { status?: number }).status === 404) return null;
-    throw err;
-  }
+  const file = await readStateText(octokit, owner, repo, path, {
+    headers: { "If-None-Match": "" },
+  });
+  if (!file) return null;
+  const parsed = JSON.parse(file.content) as unknown;
+  const state = normalizeManagedGoalState(parsed);
+  if (!state) return null;
+  return { state, sha: file.sha, path };
 }
 
 async function listManagedGoalDirs(
@@ -97,22 +57,14 @@ async function listManagedGoalDirs(
   owner: string,
   repo: string,
 ): Promise<ContentFile[]> {
-  try {
-    const res = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path: ".kody/goals/instances",
-      ref: STATE_BRANCH,
-      headers: { "If-None-Match": "" },
-    });
-    const data = res.data as ContentFile | ContentFile[];
-    return Array.isArray(data)
-      ? data.filter((item) => item.type === "dir")
-      : [];
-  } catch (err) {
-    if ((err as { status?: number }).status === 404) return [];
-    throw err;
-  }
+  const { entries } = await listStateDirectory(
+    octokit,
+    owner,
+    repo,
+    "goals/instances",
+    { headers: { "If-None-Match": "" } },
+  );
+  return entries.filter((item) => item.type === "dir");
 }
 
 export async function listManagedGoalFiles(
@@ -189,17 +141,14 @@ export async function writeManagedGoalFile({
   sha?: string;
   message?: string;
 }): Promise<void> {
-  await ensureStateBranch(octokit, owner, repo);
-  await octokit.rest.repos.createOrUpdateFileContents({
+  await writeStateText({
+    octokit,
     owner,
     repo,
     path: managedGoalPath(id),
     message: message ?? `chore(goals): update managed goal ${id}`,
-    content: Buffer.from(JSON.stringify(state, null, 2), "utf8").toString(
-      "base64",
-    ),
-    branch: STATE_BRANCH,
-    ...(sha ? { sha } : {}),
+    content: JSON.stringify(state, null, 2),
+    sha,
   });
 }
 
@@ -218,13 +167,12 @@ export async function deleteManagedGoalFile({
   sha: string;
   message?: string;
 }): Promise<void> {
-  await ensureStateBranch(octokit, owner, repo);
-  await octokit.rest.repos.deleteFile({
+  await deleteStateFile({
+    octokit,
     owner,
     repo,
     path: managedGoalPath(id),
     message: message ?? `chore(goals): delete managed goal ${id}`,
     sha,
-    branch: STATE_BRANCH,
   });
 }

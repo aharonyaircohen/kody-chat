@@ -3,7 +3,7 @@
  * @domain reports
  * @pattern chat-tools
  * @ai-summary Read-only chat tools for agentResponsibility reports
- *   (`kody-state:.kody/reports/<slug>.md`) — list and read. Reports are the
+ *   (`reports/<slug>.md` in the configured Kody state repo) — list and read. Reports are the
  *   YAML-findings output that scheduled agentResponsibilities commit each tick; chat can
  *   surface and reason over them.
  */
@@ -19,7 +19,7 @@ export function createReportTools(opts: { owner: string; repo: string }) {
   const repoRef = `${opts.owner}/${opts.repo}`;
   return {
     list_reports: tool({
-      description: `List the agentResponsibility reports in ${repoRef} (kody-state:.kody/reports/). Returns slug, title, and last-updated for each report a scheduled agentResponsibility has produced.`,
+      description: `List the agentResponsibility reports in ${repoRef} (state repo reports/). Returns slug, title, and last-updated for each report a scheduled agentResponsibility has produced.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {

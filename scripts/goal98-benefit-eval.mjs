@@ -9,13 +9,21 @@ const repo =
   argValue("--repo") ||
   process.env.GOAL98_REPO ||
   "aharonyaircohen/Kody-Dashboard";
-const defaultRepo = "aharonyaircohen/Kody-Dashboard";
 const since = argValue("--since") || "2026-05-25";
 const until = argValue("--until") || new Date().toISOString().slice(0, 10);
 const limit = argValue("--limit") || "200";
 const fetchComments = process.argv.includes("--comments");
-const reportSource =
-  argValue("--report-source") || (repo === defaultRepo ? "local" : "remote");
+const reportSource = argValue("--report-source") || "remote";
+const [repoOwner, repoName] = repo.split("/");
+const stateRepo =
+  argValue("--state-repo") ||
+  process.env.KODY_STATE_REPO ||
+  `${repoOwner}/kody-state`;
+const statePath = normalizePath(
+  argValue("--state-path") || process.env.KODY_STATE_PATH || repoName || repo,
+);
+const stateReportsPath = statePath ? `${statePath}/reports` : "reports";
+const localReportsDir = argValue("--reports-dir") || stateReportsPath;
 
 function argValue(name) {
   const index = process.argv.indexOf(name);
@@ -27,6 +35,16 @@ function gh(args) {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
   });
+}
+
+function normalizePath(value) {
+  return String(value || "")
+    .trim()
+    .replace(/^\/+|\/+$/g, "");
+}
+
+function encodeContentPath(path) {
+  return path.split("/").map(encodeURIComponent).join("/");
 }
 
 function labelNames(issue) {
@@ -81,7 +99,7 @@ function validateReportFiles(files, schemaExists) {
 }
 
 function localReportSchemaStatus() {
-  const dir = ".kody/reports";
+  const dir = localReportsDir;
   if (!existsSync(dir)) {
     return {
       source: "local",
@@ -106,7 +124,12 @@ function localReportSchemaStatus() {
 function remoteReportSchemaStatus() {
   let entries;
   try {
-    entries = JSON.parse(gh(["api", `repos/${repo}/contents/.kody/reports`]));
+    entries = JSON.parse(
+      gh([
+        "api",
+        `repos/${stateRepo}/contents/${encodeContentPath(stateReportsPath)}`,
+      ]),
+    );
   } catch {
     return {
       source: "remote",
@@ -114,7 +137,7 @@ function remoteReportSchemaStatus() {
       valid: 0,
       invalid: [],
       schemaExists: false,
-      error: "Could not read .kody/reports from the target repo.",
+      error: `Could not read ${stateReportsPath} from ${stateRepo}.`,
     };
   }
 

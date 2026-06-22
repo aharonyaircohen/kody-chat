@@ -6,8 +6,17 @@ vi.mock("@dashboard/lib/github-client", () => ({
   getRepo: vi.fn(() => "widgets"),
 }));
 
+vi.mock("@dashboard/lib/engine/config", () => ({
+  getEngineConfig: vi.fn().mockResolvedValue({
+    config: {
+      agentActions: { default: "run" },
+      state: { repo: "acme/kody-state", path: "widgets" },
+    },
+    sha: null,
+  }),
+}));
+
 import { getOctokit } from "@dashboard/lib/github-client";
-import { STATE_BRANCH } from "@dashboard/lib/state-branch";
 import { listReportFiles, readReportFile } from "@dashboard/lib/reports-files";
 
 const mGetOctokit = vi.mocked(getOctokit);
@@ -16,11 +25,21 @@ function b64(s: string): string {
   return Buffer.from(s, "utf-8").toString("base64");
 }
 
+function file(content: string, size = content.length) {
+  return {
+    type: "file",
+    encoding: "base64",
+    content: b64(content),
+    sha: "sha-file",
+    size,
+    html_url: "https://github.com/acme/kody-state/blob/main/widgets/reports/file.md",
+  };
+}
+
 function wireOctokit() {
   const octokit = {
     repos: {
       getContent: vi.fn(),
-      listCommits: vi.fn(),
     },
   };
   mGetOctokit.mockReturnValue(
@@ -34,45 +53,35 @@ beforeEach(() => {
 });
 
 describe("report files", () => {
-  it("lists reports from the kody state branch", async () => {
+  it("lists reports from the configured Kody state repo", async () => {
     const octokit = wireOctokit();
     octokit.repos.getContent
       .mockResolvedValueOnce({
         data: [
-          { name: "daily-check.md", type: "file", sha: "sha-1", size: 42 },
-          { name: "notes.txt", type: "file", sha: "sha-2", size: 12 },
+          { name: "daily-check.md", type: "file", path: "widgets/reports/daily-check.md", size: 42 },
+          { name: "notes.txt", type: "file", path: "widgets/reports/notes.txt", size: 12 },
         ],
       })
       .mockResolvedValueOnce({
-        data: {
-          content: b64("# Daily Check\n\nAll clear."),
-          size: 42,
-        },
+        data: file("# Daily Check\n\nAll clear.", 42),
       });
-    octokit.repos.listCommits.mockResolvedValue({
-      data: [{ commit: { committer: { date: "2026-06-01T10:00:00Z" } } }],
-    });
 
     const reports = await listReportFiles();
 
     expect(octokit.repos.getContent).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
-        path: ".kody/reports",
-        ref: STATE_BRANCH,
+        owner: "acme",
+        repo: "kody-state",
+        path: "widgets/reports",
       }),
     );
     expect(octokit.repos.getContent).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        path: ".kody/reports/daily-check.md",
-        ref: STATE_BRANCH,
-      }),
-    );
-    expect(octokit.repos.listCommits).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: ".kody/reports/daily-check.md",
-        sha: STATE_BRANCH,
+        owner: "acme",
+        repo: "kody-state",
+        path: "widgets/reports/daily-check.md",
       }),
     );
     expect(reports).toEqual([
@@ -80,38 +89,32 @@ describe("report files", () => {
         slug: "daily-check",
         title: "Daily Check",
         body: "All clear.",
-        htmlUrl:
-          "https://github.com/acme/widgets/blob/kody-state/.kody/reports/daily-check.md",
+        size: 42,
       }),
     ]);
   });
 
-  it("reads a single report from the kody state branch", async () => {
+  it("reads a single report from the configured Kody state repo", async () => {
     const octokit = wireOctokit();
     octokit.repos.getContent.mockResolvedValue({
-      data: {
-        content: b64("# Weekly Scan\n\nNeeds attention."),
-        size: 64,
-      },
-    });
-    octokit.repos.listCommits.mockResolvedValue({
-      data: [{ commit: { author: { date: "2026-06-02T09:00:00Z" } } }],
+      data: file("# Weekly Scan\n\nNeeds attention.", 64),
     });
 
     const report = await readReportFile("weekly-scan");
 
     expect(octokit.repos.getContent).toHaveBeenCalledWith(
       expect.objectContaining({
-        path: ".kody/reports/weekly-scan.md",
-        ref: STATE_BRANCH,
+        owner: "acme",
+        repo: "kody-state",
+        path: "widgets/reports/weekly-scan.md",
       }),
     );
     expect(report).toEqual(
       expect.objectContaining({
         slug: "weekly-scan",
-        updatedAt: "2026-06-02T09:00:00Z",
-        htmlUrl:
-          "https://github.com/acme/widgets/blob/kody-state/.kody/reports/weekly-scan.md",
+        title: "Weekly Scan",
+        body: "Needs attention.",
+        size: 64,
       }),
     );
   });
@@ -119,29 +122,24 @@ describe("report files", () => {
   it("strips report frontmatter and exposes review metadata", async () => {
     const octokit = wireOctokit();
     octokit.repos.getContent.mockResolvedValue({
-      data: {
-        content: b64(
-          [
-            "---",
-            'generatedAt: "2026-06-08T12:00:00Z"',
-            "agentResponsibilitySlug: skills-research",
-            "reviewStatus: action-needed",
-            "reviewArea: engineering-capability",
-            "findings:",
-            "  - id: missing-vitest",
-            "    severity: medium",
-            "    title: Add Vitest skill",
-            "---",
-            "# Skills Research",
-            "",
-            "Only Vitest is missing.",
-          ].join("\n"),
-        ),
-        size: 128,
-      },
-    });
-    octokit.repos.listCommits.mockResolvedValue({
-      data: [{ commit: { author: { date: "2026-06-02T09:00:00Z" } } }],
+      data: file(
+        [
+          "---",
+          'generatedAt: "2026-06-08T12:00:00Z"',
+          "agentResponsibilitySlug: skills-research",
+          "reviewStatus: action-needed",
+          "reviewArea: engineering-capability",
+          "findings:",
+          "  - id: missing-vitest",
+          "    severity: medium",
+          "    title: Add Vitest skill",
+          "---",
+          "# Skills Research",
+          "",
+          "Only Vitest is missing.",
+        ].join("\n"),
+        128,
+      ),
     });
 
     const report = await readReportFile("skills-research");
@@ -161,38 +159,33 @@ describe("report files", () => {
   it("parses suggested actions from report frontmatter", async () => {
     const octokit = wireOctokit();
     octokit.repos.getContent.mockResolvedValue({
-      data: {
-        content: b64(
-          [
-            "---",
-            'generatedAt: "2026-06-08T12:00:00Z"',
-            "findings:",
-            "  - id: failing-ci",
-            "    severity: high",
-            "    title: CI is red",
-            "suggestedActions:",
-            "  - id: fix-ci-42",
-            "    type: dispatch",
-            "    label: Run fix-ci on PR #42",
-            "    agentAction: fix-ci",
-            "    target: 42",
-            "    reason: Unit tests failed",
-            "  - id: task-flaky-test",
-            "    type: create-task",
-            "    label: Create task for flaky test",
-            "    title: Fix flaky dashboard test",
-            "    labels: from-report,ci",
-            "---",
-            "# CI Report",
-            "",
-            "CI is failing.",
-          ].join("\n"),
-        ),
-        size: 256,
-      },
-    });
-    octokit.repos.listCommits.mockResolvedValue({
-      data: [{ commit: { author: { date: "2026-06-02T09:00:00Z" } } }],
+      data: file(
+        [
+          "---",
+          'generatedAt: "2026-06-08T12:00:00Z"',
+          "findings:",
+          "  - id: failing-ci",
+          "    severity: high",
+          "    title: CI is red",
+          "suggestedActions:",
+          "  - id: fix-ci-42",
+          "    type: dispatch",
+          "    label: Run fix-ci on PR #42",
+          "    agentAction: fix-ci",
+          "    target: 42",
+          "    reason: Unit tests failed",
+          "  - id: task-flaky-test",
+          "    type: create-task",
+          "    label: Create task for flaky test",
+          "    title: Fix flaky dashboard test",
+          "    labels: from-report,ci",
+          "---",
+          "# CI Report",
+          "",
+          "CI is failing.",
+        ].join("\n"),
+        256,
+      ),
     });
 
     const report = await readReportFile("ci-report");

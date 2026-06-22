@@ -19,7 +19,12 @@ import {
   getOwner,
   getRepo,
 } from "../github-client";
-import { STATE_BRANCH } from "../state-branch";
+import {
+  listStateDirectory,
+  readStateText,
+  resolveStateRepo,
+  stateRepoPath,
+} from "../state-repo";
 import {
   latestActivityByAgentResponsibility,
   type CompanyActivityRecord,
@@ -293,7 +298,7 @@ async function fetchLastCommitDate(
 
 /**
  * Like `fetchLastCommitDate` but returns `null` when the file has no
- * commits (i.e. it doesn't exist yet). Used for `<slug>.state.json`
+ * commits (i.e. it doesn't exist yet). Used for `<slug>/state.json`
  * which is created by the engine on first tick — absence means
  * "never ticked," not an error.
  */
@@ -307,7 +312,7 @@ async function fetchLastCommitDateOrNull(
       owner: getOwner(),
       repo: getRepo(),
       path: filePath,
-      // State files live on the state branch — look up their history there.
+      // State files live in the Kody state repo — look up their history there.
       ...(ref ? { sha: ref } : {}),
       per_page: 1,
     });
@@ -335,8 +340,37 @@ const EMPTY_TICK_STATE: TickStateFields = {
   lastDurationMs: null,
 };
 
+function stateDirPath(dir: string): string {
+  return dir.replace(/^\.kody\/?/, "").replace(/\/+$/, "");
+}
+
+function tickStatePath(dir: string, slug: string): string {
+  return `${stateDirPath(dir)}/${slug}/state.json`;
+}
+
+async function fetchStateLastCommitDate(
+  octokit: Octokit,
+  filePath: string,
+): Promise<string | null> {
+  try {
+    const target = await resolveStateRepo(octokit, getOwner(), getRepo());
+    const { data } = await octokit.repos.listCommits({
+      owner: target.owner,
+      repo: target.repo,
+      path: stateRepoPath(target, filePath),
+      per_page: 1,
+    });
+    if (data.length === 0) return null;
+    return (
+      data[0]?.commit.committer?.date ?? data[0]?.commit.author?.date ?? null
+    );
+  } catch {
+    return null;
+  }
+}
+
 /**
- * Fetch and parse `<slug>.state.json` for the dashboard-relevant fields the
+ * Fetch and parse `<slug>/state.json` for the dashboard-relevant fields the
  * engine stamps each tick: `nextEligibleISO` (cadence guard), and — since the
  * Phase 3 engine change — `lastOutcome` / `lastDurationMs` (the last run's
  * result + duration). One fetch + parse yields all three. Missing file or
@@ -348,17 +382,11 @@ async function fetchTickState(
   slug: string,
 ): Promise<TickStateFields> {
   try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: `${dir}/${slug}.state.json`,
-      // Engine writes per-tick state to the dedicated state branch, not the
-      // default branch (where the `.md` definition lives). 404 → never ran.
-      ref: STATE_BRANCH,
+    const file = await readStateText(octokit, getOwner(), getRepo(), tickStatePath(dir, slug), {
+      headers: { "If-None-Match": "" },
     });
-    if (Array.isArray(data) || !("content" in data) || !data.content)
-      return EMPTY_TICK_STATE;
-    const raw = Buffer.from(data.content, "base64").toString("utf-8");
+    if (!file) return EMPTY_TICK_STATE;
+    const raw = file.content;
     const parsed: unknown = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return EMPTY_TICK_STATE;
     const inner = (parsed as { data?: unknown }).data;
@@ -522,28 +550,19 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
           e.slug !== null,
       );
 
-    // Build a set of slugs that have a sibling `.state.json` so we only
-    // pay for a commit-history fetch when the engine has actually ticked
-    // the file at least once. State files live on the dedicated state
-    // branch, not here — list that branch's copy of the dir to find them.
-    let stateEntries: Array<{ name: string; type: string }> = [];
-    try {
-      const { data } = await octokit.repos.getContent({
-        owner: getOwner(),
-        repo: getRepo(),
-        path: dir,
-        ref: STATE_BRANCH,
-      });
-      if (Array.isArray(data))
-        stateEntries = data as Array<{ name: string; type: string }>;
-    } catch (error: unknown) {
-      // 404 = state branch or dir doesn't exist yet (nothing ticked).
-      if ((error as { status?: number })?.status !== 404) throw error;
-    }
+    // Build a set of slugs that have state folders so we only pay for
+    // per-file state reads when the engine has actually ticked the file.
+    const { entries: stateEntries } = await listStateDirectory(
+      octokit,
+      getOwner(),
+      getRepo(),
+      stateDirPath(dir),
+      { headers: { "If-None-Match": "" } },
+    );
     const stateSlugs = new Set(
       stateEntries
-        .filter((e) => e.type === "file" && e.name.endsWith(".state.json"))
-        .map((e) => e.name.slice(0, -".state.json".length))
+        .filter((e) => e.type === "dir")
+        .map((e) => e.name)
         .filter((s) => s.length > 0),
     );
     const activityByAgentResponsibility =
@@ -568,11 +587,7 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
           const [updatedAt, lastTickAt, tickState] = await Promise.all([
             fetchLastCommitDate(octokit, filePath),
             hasState
-              ? fetchLastCommitDateOrNull(
-                  octokit,
-                  `${dir}/${slug}.state.json`,
-                  STATE_BRANCH,
-                )
+              ? fetchStateLastCommitDate(octokit, tickStatePath(dir, slug))
               : Promise.resolve(null),
             hasState
               ? fetchTickState(octokit, dir, slug)
@@ -654,11 +669,7 @@ capabilityKind: null,
       const [updatedAt, lastTickAt, tickState, activityByAgentResponsibility] =
         await Promise.all([
           fetchLastCommitDate(octokit, filePath),
-          fetchLastCommitDateOrNull(
-            octokit,
-            `${dir}/${slug}.state.json`,
-            STATE_BRANCH,
-          ),
+          fetchStateLastCommitDate(octokit, tickStatePath(dir, slug)),
           fetchTickState(octokit, dir, slug),
           dir === ".kody/agent-responsibilities"
             ? fetchRecentAgentResponsibilityActivity()

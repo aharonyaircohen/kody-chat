@@ -7,7 +7,7 @@
  *   agentResponsibility slug. Two agentResponsibilities sharing an agentIdentity earn autonomy independently.
  *
  *     - keyed by AGENT_RESPONSIBILITY slug → stats (mode/approvals/rejections/streak);
- *     - stored as a JSON FILE on the `kody-state` branch (see `trust-store.ts`),
+ *     - stored as a JSON file in the configured Kody state repo (see `trust-store.ts`),
  *       never on an issue;
  *     - read by BOTH the engine (the gate that lets a trusted agentResponsibility self-dispatch)
  *       and the dashboard (the /trust page), so this shape is a shared contract.
@@ -15,8 +15,8 @@
  *   All transforms are pure + immutable. Keep the JSON shape stable across repos.
  */
 
-/** Path of the single per-repo ledger file on the `kody-state` branch. */
-export const TRUST_FILE_PATH = ".kody/state/trust.json";
+/** Path of the single per-repo ledger file in the configured Kody state repo. */
+export const TRUST_FILE_PATH = "state/trust.json";
 export const TRUST_MANIFEST_VERSION = 1 as const;
 
 /** Bound the log — it's a recent-activity signal, not an archive. */

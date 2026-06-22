@@ -64,6 +64,11 @@ export interface KodyConfig {
     repo?: string;
     operators?: string[];
   };
+  /** External Kody runtime-state repository and per-consumer path. */
+  state?: {
+    repo?: string;
+    path?: string;
+  };
   /** Verification commands the engine runs (typecheck/lint/format/test). */
   quality?: KodyQuality;
   /** Comment subcommand aliases, e.g. `{ "build": "run" }` lets `@kody build`
@@ -212,11 +217,23 @@ async function fetchConfig(
     }
     const content = Buffer.from(data.content, "base64").toString("utf-8");
     const parsed = JSON.parse(content) as KodyConfig;
+    const parsedWithStateAliases = parsed as KodyConfig & {
+      stateRepo?: string;
+      statePath?: string;
+    };
     return {
       config: {
         agentActions: parsed.agentActions ?? { default: "run" },
         agent: parsed.agent,
         github: parsed.github,
+        state:
+          parsed.state ??
+          (parsedWithStateAliases.stateRepo || parsedWithStateAliases.statePath
+            ? {
+                repo: parsedWithStateAliases.stateRepo,
+                path: parsedWithStateAliases.statePath,
+              }
+            : undefined),
         defaultAgentAction: parsed.defaultAgentAction,
         defaultPrAgentAction: parsed.defaultPrAgentAction,
         quality: parsed.quality,

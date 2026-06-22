@@ -50,6 +50,7 @@ export async function GET(req: NextRequest) {
       activeAgentResponsibilities:
         config.company?.activeAgentResponsibilities ?? [],
       activeGoals: config.company?.activeGoals ?? [],
+      state: config.state ?? null,
       defaultBranch: config.git?.defaultBranch ?? "",
       perAgentAction: config.agent?.perAgentAction ?? {},
       reasoningEffort: config.agent?.reasoningEffort ?? null,

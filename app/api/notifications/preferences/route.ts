@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern notification-prefs-api
  * @ai-summary GET / POST per-user notification preferences.
- *   Persisted as `.kody/notifications/preferences/<login>.json` on the
- *   `kody-state` branch. Authed via `x-kody-token` header (client localStorage
+ *   Persisted as `notifications/preferences/<login>.json` in the configured Kody state repo.
+ *   configured Kody state repo. Authed via `x-kody-token` header (client localStorage
  *   auth) or env token fallback.
  */
 import { NextRequest, NextResponse } from "next/server";

@@ -18,13 +18,13 @@ import {
   ALL_STAGES,
 } from "./constants";
 import { isProtectedBranch } from "./branches";
-import { STATE_BRANCH } from "./state-branch";
 import { createIssueWithBestEffortMetadata } from "./github-issue-create";
 import {
   parseActivityJsonl,
   sortActivityNewestFirst,
   type CompanyActivityRecord,
 } from "./activity/company";
+import { listStateDirectory, readStateText } from "./state-repo";
 import { parseKodyRunLogZip, type KodyRunLogsRun } from "./activity/run-logs";
 import type {
   KodyPipelineStatus,
@@ -836,13 +836,13 @@ export async function findStatusOnBranch(
 }
 
 /**
- * Read `.kody/goals/instances/<id>/state.json` from the state branch with cache +
+ * Read `goals/instances/<id>/state.json` from the configured Kody state repo with cache +
  * ETag/304 revalidation. Returns `null` when the file is missing (= the
  * engine has never ticked this goal) or unparseable.
  *
  * Uses the polling token (no per-user octokit) because the goals listing
  * route is hot — every poll fetches goals, and per-user reads would
- * multiply the rate-limit cost. The state file lives on the kody-state
+ * multiply the rate-limit cost. The state file lives in the configured Kody state repo
  * branch (engine commits it there), so the polling token is sufficient.
  */
 export async function fetchGoalStateFromRepo(goalId: string): Promise<{
@@ -850,7 +850,7 @@ export async function fetchGoalStateFromRepo(goalId: string): Promise<{
   goalPrUrl?: string;
 } | null> {
   if (!goalId || /[\\/]|\.\./.test(goalId)) return null;
-  const path = `.kody/goals/instances/${goalId}/state.json`;
+  const path = `goals/instances/${goalId}/state.json`;
   const cacheKey = `goal-state:${getOwner()}:${getRepo()}:${goalId}`;
   const cached = getCached<{
     goalIssueNumber?: number;
@@ -865,33 +865,18 @@ export async function fetchGoalStateFromRepo(goalId: string): Promise<{
   const octokit = getOctokit();
 
   try {
-    const response = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path,
-      ref: STATE_BRANCH,
+    const file = await readStateText(octokit, getOwner(), getRepo(), path, {
       headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
     });
-    const data = response.data as {
-      type?: string;
-      encoding?: string;
-      content?: string;
-    };
-    const newEtag = (response.headers as Record<string, string | undefined>)
-      ?.etag;
-    if (Array.isArray(data) || data.type !== "file" || !data.content) {
-      setCache(cacheKey, CACHE_TTL.tasks, null, { etag: newEtag });
+    if (!file) {
+      setCache(cacheKey, CACHE_TTL.tasks, null);
       return null;
     }
-    const raw = Buffer.from(
-      data.content,
-      (data.encoding ?? "base64") as BufferEncoding,
-    ).toString("utf8");
     let parsed: Record<string, unknown>;
     try {
-      parsed = JSON.parse(raw) as Record<string, unknown>;
+      parsed = JSON.parse(file.content) as Record<string, unknown>;
     } catch {
-      setCache(cacheKey, CACHE_TTL.tasks, null, { etag: newEtag });
+      setCache(cacheKey, CACHE_TTL.tasks, null, { etag: file.etag });
       return null;
     }
     const goalIssueNumber =
@@ -903,7 +888,7 @@ export async function fetchGoalStateFromRepo(goalId: string): Promise<{
         ? parsed.goalPrUrl
         : undefined;
     const result = { goalIssueNumber, goalPrUrl };
-    setCache(cacheKey, CACHE_TTL.tasks, result, { etag: newEtag });
+    setCache(cacheKey, CACHE_TTL.tasks, result, { etag: file.etag });
     return result;
   } catch (error: any) {
     if (error.status === 304 && stale) {
@@ -2197,12 +2182,12 @@ export async function fetchOpenPRs(): Promise<GitHubPR[]> {
 
 /**
  * Read the engine-authored Company Activity log — recent
- * `.kody/activity/<date>.jsonl` files committed by `appendCompanyActivity`.
+ * `activity/<date>.jsonl` files committed by `appendCompanyActivity`.
  * Lists the dir, reads the newest few day-files, parses + merges newest-first.
  * Each file is ETag/304-cached (rate-limit rule #2). Returns [] when the dir
  * doesn't exist yet (no engine ticks recorded).
  */
-const ACTIVITY_DIR = ".kody/activity";
+const ACTIVITY_DIR = "activity";
 const ACTIVITY_DAY_FILES = 3;
 
 export async function fetchCompanyActivity(
@@ -2218,23 +2203,15 @@ export async function fetchCompanyActivity(
   const listStale = getStale<string[]>(listKey);
   let files: string[] = listStale?.data ?? [];
   try {
-    const res = await octokit.repos.getContent({
-      owner,
-      repo,
-      path: ACTIVITY_DIR,
-      // Engine commits the activity feed to the dedicated state branch.
-      ref: STATE_BRANCH,
+    const { entries, etag } = await listStateDirectory(octokit, owner, repo, ACTIVITY_DIR, {
       headers: listStale?.etag
         ? { "If-None-Match": listStale.etag }
         : undefined,
     });
-    const etag = (res.headers as Record<string, string | undefined>)?.etag;
-    if (Array.isArray(res.data)) {
-      files = res.data
-        .filter((e) => e.type === "file" && e.name.endsWith(".jsonl"))
-        .map((e) => e.name);
-      setCache(listKey, CACHE_TTL.tasks, files, { etag });
-    }
+    files = entries
+      .filter((e) => e.type === "file" && e.name.endsWith(".jsonl"))
+      .map((e) => e.name);
+    setCache(listKey, CACHE_TTL.tasks, files, { etag });
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;
     if (status === 304 && listStale) {
@@ -2258,19 +2235,12 @@ export async function fetchCompanyActivity(
       const key = `activity-file:${owner}:${repo}:${name}`;
       const stale = getStale<CompanyActivityRecord[]>(key);
       try {
-        const res = await octokit.repos.getContent({
-          owner,
-          repo,
-          path,
-          ref: STATE_BRANCH,
+        const file = await readStateText(octokit, owner, repo, path, {
           headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
         });
-        const etag = (res.headers as Record<string, string | undefined>)?.etag;
-        const data = res.data;
-        if (!Array.isArray(data) && "content" in data && data.content) {
-          const text = Buffer.from(data.content, "base64").toString("utf-8");
-          const recs = parseActivityJsonl(text);
-          setCache(key, CACHE_TTL.tasks, recs, { etag });
+        if (file) {
+          const recs = parseActivityJsonl(file.content);
+          setCache(key, CACHE_TTL.tasks, recs, { etag: file.etag });
           return recs;
         }
       } catch (error: unknown) {

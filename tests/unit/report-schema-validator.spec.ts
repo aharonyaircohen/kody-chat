@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 function makeReportsDir() {
   const root = mkdtempSync(join(tmpdir(), "kody-reports-"));
-  const reports = join(root, ".kody", "reports");
+  const reports = join(root, "reports");
   mkdirSync(reports, { recursive: true });
   return { root, reports };
 }
@@ -14,7 +14,7 @@ function makeReportsDir() {
 function runValidator(root: string) {
   return execFileSync(
     "node",
-    ["scripts/validate-reports.mjs", `${root}/.kody/reports`],
+    ["scripts/validate-reports.mjs", `${root}/reports`],
     {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],

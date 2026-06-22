@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern reports-page
  * @ai-summary Reports view — list and read system reports under
- *   `kody-state:.kody/reports/<slug>.md`. Read-only. Mobile-first responsive
+ *   `reports/<slug>.md` in the configured Kody state repo. Read-only. Mobile-first responsive
  *   layout that mirrors AgentResponsibilityControl: master/detail with a back button on
  *   small viewports.
  */
@@ -318,7 +318,7 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
             ? {
                 title: `Address: ${issueFromReport.title}`,
                 body:
-                  `Source report: [\`.kody/reports/${issueFromReport.slug}.md\`](${issueFromReport.htmlUrl})\n\n` +
+                  `Source report: [\`reports/${issueFromReport.slug}.md\`](${issueFromReport.htmlUrl})\n\n` +
                   `---\n\n${issueFromReport.body}`,
                 labels: [`from-report:${issueFromReport.slug}`],
               }
@@ -351,7 +351,7 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
             ? {
                 name: goalFromReport.title,
                 description:
-                  `Source report: [\`.kody/reports/${goalFromReport.slug}.md\`](${goalFromReport.htmlUrl})\n\n` +
+                  `Source report: [\`reports/${goalFromReport.slug}.md\`](${goalFromReport.htmlUrl})\n\n` +
                   `---\n\n${goalFromReport.body}`,
               }
             : undefined
@@ -712,7 +712,7 @@ function buildTaskPrefillFromAction(
     title: action.title ?? action.label,
     body:
       (action.body ?? action.reason ?? action.label) +
-      `\n\n---\n\nSource report: [\`.kody/reports/${report.slug}.md\`](${report.htmlUrl})`,
+      `\n\n---\n\nSource report: [\`reports/${report.slug}.md\`](${report.htmlUrl})`,
     labels: [`from-report:${report.slug}`, ...(action.labels ?? [])],
   };
 }

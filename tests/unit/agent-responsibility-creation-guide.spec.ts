@@ -91,11 +91,10 @@ describe("agentResponsibility creation guide wiring", () => {
     expect(DUTY_TOOLS_SOURCE).toMatch(
       /input\.schedule\s*\?\?\s*existing\.schedule\s*\?\?\s*undefined/,
     );
-    // Body resolution: explicit body wins; output-mode-switch regenerates
-    // the body; otherwise the existing body is preserved.
+    // Body resolution: explicit body wins; otherwise the existing body is
+    // preserved.
     expect(DUTY_TOOLS_SOURCE).toContain("input.body !== undefined");
-    expect(DUTY_TOOLS_SOURCE).toContain("outputSwitched");
-    expect(DUTY_TOOLS_SOURCE).toContain("nextBody = existing.body");
+    expect(DUTY_TOOLS_SOURCE).toContain("existing.body");
   });
   it("accepts `agent` as the agentResponsibility identity field", async () => {
     expect(DUTY_TOOLS_SOURCE).toMatch(/agent:\s*z[\s\S]*?\.string\(\)/);
@@ -152,63 +151,20 @@ describe("agentResponsibility creation guide wiring", () => {
     expect(DUTY_FILES_SOURCE).toMatch(/MANAGED_PROFILE_KEYS\.has\(key\)/);
   });
 
-  it("supports a `run` output mode with no report markers in the body", () => {
-    // The schema exposes the `output` enum.
-    expect(DUTY_TOOLS_SOURCE).toMatch(
+  it("does not expose report output mode on agentResponsibilities", () => {
+    expect(DUTY_TOOLS_SOURCE).not.toMatch(
       /output:\s*z[\s\S]*?\.enum\(\[\s*"run"\s*,\s*"report"\s*\]\)/,
     );
-    // The body builder dispatches on the resolved output mode.
-    expect(DUTY_TOOLS_SOURCE).toContain("resolveOutput");
-    expect(DUTY_TOOLS_SOURCE).toContain("buildRunStyleBody");
-    expect(DUTY_TOOLS_SOURCE).toContain("buildReportStyleBody");
-    // Run-style body MUST NOT contain the report markers that the engine
-    // appears to read to route agentResponsibilities.
-    const runStyle = extractFunctionSource(
-      DUTY_TOOLS_SOURCE,
-      "buildRunStyleBody",
+    expect(DUTY_TOOLS_SOURCE).not.toContain("resolveOutput");
+    expect(DUTY_TOOLS_SOURCE).not.toContain("buildRunStyleBody");
+    expect(DUTY_TOOLS_SOURCE).not.toContain("buildReportStyleBody");
+    expect(DUTY_TOOLS_SOURCE).not.toContain("reportSchema:");
+    expect(DUTY_TOOLS_SOURCE).not.toContain("Maximum one report refresh");
+    expect(DUTY_TOOLS_SOURCE).toContain(
+      "Report generation belongs in a configured agentAction",
     );
-    expect(runStyle).not.toContain("Refresh");
-    expect(runStyle).not.toContain(".kody/reports/");
-    expect(runStyle).not.toContain("report refresh per tick");
-    expect(runStyle).not.toContain("Maximum one report refresh");
-    // Run-style body still has the structural sections.
-    expect(runStyle).toContain("## Job");
-    expect(runStyle).toContain("## Allowed Commands");
-    expect(runStyle).toContain("## Restrictions");
-    // Report-style body keeps the markers (regression check).
-    const reportStyle = extractFunctionSource(
-      DUTY_TOOLS_SOURCE,
-      "buildReportStyleBody",
+    expect(DUTY_TOOLS_SOURCE).toContain(
+      "run the configured report agentAction",
     );
-    expect(reportStyle).toContain("Refresh");
-    expect(reportStyle).toContain(".kody/reports/");
-    expect(reportStyle).toContain("Maximum one report refresh");
-  });
-
-  it("auto-detects `run` output mode when `agentActions` has 2+ items", () => {
-    expect(DUTY_TOOLS_SOURCE).toMatch(/agentActions\.length\s*>\s*1/);
   });
 });
-
-/**
- * Slice the source of a top-level `function name(...)` out of a file.
- * Used to inspect the body of a specific helper (e.g. `buildRunStyleBody`)
- * without dragging in surrounding noise.
- */
-function extractFunctionSource(source: string, name: string): string {
-  const start = source.indexOf(`function ${name}(`);
-  if (start < 0) return "";
-  // Walk braces from the opening `{` after the parameter list.
-  let depth = 0;
-  let i = source.indexOf("{", start);
-  if (i < 0) return "";
-  const openBrace = i;
-  for (; i < source.length; i++) {
-    if (source[i] === "{") depth++;
-    else if (source[i] === "}") {
-      depth--;
-      if (depth === 0) return source.slice(openBrace, i + 1);
-    }
-  }
-  return source.slice(openBrace);
-}

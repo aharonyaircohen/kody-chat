@@ -21,7 +21,7 @@ export function validateReportsDir(reportsDir) {
 }
 
 function runCli() {
-  const reportsDir = process.argv[2] || ".kody/reports";
+  const reportsDir = process.argv[2] || "reports";
   const result = validateReportsDir(reportsDir);
 
   if (result.error) console.error(result.error);

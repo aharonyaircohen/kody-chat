@@ -1,17 +1,11 @@
 /**
- * Tests for the agentResponsibility-create output choice. The dialog itself is hook-heavy and
- * the repo does not use a DOM test environment, so pure helpers plus source
- * structure cover the behavior without jsdom.
+ * Tests the agentResponsibility create/edit form contract. The dialog itself is
+ * hook-heavy and the repo does not use a DOM test environment, so pure helpers
+ * plus source structure cover the behavior without jsdom.
  */
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import {
-  buildDefaultAgentResponsibilityBody,
-  buildAgentResponsibilityWritesTo,
-  defaultReportSlug,
-  agentResponsibilityOutputFromWritesTo,
-  normalizeReportSlug,
-} from "@dashboard/lib/agent-responsibilities/output";
+import { buildDefaultAgentResponsibilityBody } from "@dashboard/lib/agent-responsibilities/output";
 
 const DUTY_CONTROL_SOURCE = readFileSync(
   "src/dashboard/lib/components/AgentResponsibilityControl.tsx",
@@ -42,7 +36,7 @@ function editDialogSource(): string {
 
 function agentResponsibilityFormSource(): string {
   const match = DUTY_CONTROL_SOURCE.match(
-    /function AgentResponsibilityForm[\s\S]*?\nfunction OutputSelect/,
+    /function AgentResponsibilityForm[\s\S]*?\nfunction AgentResponsibilityCapabilityKindSelect/,
   );
   expect(
     match,
@@ -51,39 +45,14 @@ function agentResponsibilityFormSource(): string {
   return match![0];
 }
 
-describe("agentResponsibility create output choice", () => {
-  it("normalizes report slugs from human input", () => {
-    expect(normalizeReportSlug(" CI Health Graph ")).toBe("ci-health-graph");
-    expect(normalizeReportSlug("bad!!!slug")).toBe("bad-slug");
-    expect(defaultReportSlug("repo-graph", "Repo Graph")).toBe("repo-graph");
-    expect(defaultReportSlug("", "Weekly QA")).toBe("weekly-qa");
-  });
-
-  it("maps output choice to agentResponsibility writesTo metadata", () => {
-    expect(buildAgentResponsibilityWritesTo("run", "ci-health")).toEqual([]);
-    expect(buildAgentResponsibilityWritesTo("report", "ci-health")).toEqual([
-      "ci-health",
-    ]);
-  });
-
-  it("derives the edit output choice from existing writesTo metadata", () => {
-    expect(agentResponsibilityOutputFromWritesTo([])).toEqual({
-      outputKind: "run",
-      reportSlug: "agentresponsibility-report",
-    });
-    expect(agentResponsibilityOutputFromWritesTo(["ci-health-graph"])).toEqual({
-      outputKind: "report",
-      reportSlug: "ci-health-graph",
-    });
-  });
-
-  it("builds a report body only when report output is selected", () => {
-    expect(
-      buildDefaultAgentResponsibilityBody("run", "ci-health"),
-    ).not.toContain("## Output");
-    expect(
-      buildDefaultAgentResponsibilityBody("report", "ci-health"),
-    ).toContain("Refresh `.kody/reports/ci-health.md`.");
+describe("agentResponsibility create contract", () => {
+  it("builds the default body without report output markers", () => {
+    const body = buildDefaultAgentResponsibilityBody();
+    expect(body).toContain("## Job");
+    expect(body).toContain("## Allowed Commands");
+    expect(body).toContain("## Restrictions");
+    expect(body).not.toContain("## Output");
+    expect(body).not.toContain([".kody", "reports", ""].join("/"));
   });
 
   it("create and edit dialogs use the same agentResponsibility form", () => {
@@ -96,26 +65,24 @@ describe("agentResponsibility create output choice", () => {
     ).toHaveLength(1);
   });
 
-  it("shared agentResponsibility form exposes output and report target, not an enabled checkbox", () => {
+  it("shared agentResponsibility form omits output and report target controls", () => {
     const source = agentResponsibilityFormSource();
-    expect(source).toContain("<OutputSelect");
-    expect(source).toContain("Report target");
     expect(source).toContain("<AgentResponsibilityActionScheduleRow");
     expect(source).toContain("<AgentResponsibilityAgentRoleRow");
     expect(source).toContain("<AgentResponsibilityAgentActionOutputRow");
-    expect(source).toContain("writesTo: buildAgentResponsibilityWritesTo");
+    expect(source).not.toContain("<OutputSelect");
+    expect(source).not.toContain("Report target");
+    expect(source).not.toContain("writesTo: buildAgentResponsibilityWritesTo");
     expect(source).not.toContain("<MentionsInput");
     expect(source).not.toContain("<AgentResponsibilityEnabledCheckbox");
     expect(source).not.toContain("disabled: !enabled");
   });
 
-  it("edit dialog includes output in its initial state and patch", () => {
+  it("edit dialog does not derive or patch output metadata", () => {
     const source = editDialogSource();
-    expect(source).toContain(
-      "agentResponsibilityOutputFromWritesTo(agentResponsibility.writesTo)",
-    );
-    expect(source).toContain("writesTo");
-    expect(source).toContain("outputKind !== initialOutput.outputKind");
+    expect(source).not.toContain("agentResponsibilityOutputFromWritesTo");
+    expect(source).not.toContain("outputKind !== initialOutput.outputKind");
+    expect(source).not.toContain("buildAgentResponsibilityWritesTo");
   });
 
   it("does not expose an enabled checkbox anywhere in agentResponsibility forms", () => {
@@ -139,7 +106,7 @@ describe("agentResponsibility create output choice", () => {
     expect(DUTY_CONTROL_SOURCE).toContain("<ReviewerSelect");
   });
 
-  it("places action with schedule and agentAction with output", () => {
+  it("places action with schedule and agentAction without output controls", () => {
     expect(DUTY_CONTROL_SOURCE).toContain(
       "function AgentResponsibilityActionScheduleRow",
     );
@@ -149,7 +116,7 @@ describe("agentResponsibility create output choice", () => {
       "function AgentResponsibilityAgentActionOutputRow",
     );
     expect(DUTY_CONTROL_SOURCE).toContain("<AgentActionSelect");
-    expect(DUTY_CONTROL_SOURCE).toContain("<OutputSelect");
+    expect(DUTY_CONTROL_SOURCE).not.toContain("<OutputSelect");
     expect(DUTY_CONTROL_SOURCE).not.toContain("function MentionsInput");
   });
 

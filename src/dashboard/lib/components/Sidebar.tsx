@@ -112,7 +112,7 @@ const ENGINEER_MODE_SECTIONS: Array<{
     title: PRIMARY_VIEW_TITLE,
     items: [TASKS_NAV_ITEM, VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
   },
-  settingsSection("Automation"),
+  settingsSection("Operations"),
   {
     title: PRIMARY_NAV_TITLE,
     items: [

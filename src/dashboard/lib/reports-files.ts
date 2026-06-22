@@ -2,19 +2,17 @@
  * @fileType utility
  * @domain kody
  * @pattern reports-files
- * @ai-summary Read-only access to system reports under `.kody/reports/<slug>.md`
- *   on the connected repo's dedicated state branch. Reports are produced by
+ * @ai-summary Read-only access to system reports under `reports/<slug>.md` in the configured Kody state repo. Reports are produced by
  *   Kody agentResponsibilities (doc-drift, coverage-floor, etc.) — the dashboard surfaces
  *   them as a health view. No write operations: the engine owns this directory.
  */
 
-import type { Octokit } from "@octokit/rest";
 import { getOctokit, getOwner, getRepo } from "./github-client";
 import {
   parseReportSuggestedActions,
   type ReportSuggestedAction,
 } from "./report-suggested-actions";
-import { STATE_BRANCH } from "./state-branch";
+import { listStateDirectory, readStateText } from "./state-repo";
 
 export interface ReportFile {
   /** Filename without `.md` — stable identity. */
@@ -41,7 +39,7 @@ export interface ReportFile {
   suggestedActions: ReportSuggestedAction[];
 }
 
-const REPORTS_DIR = ".kody/reports";
+const REPORTS_DIR = "reports";
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
 
 function splitReportFrontmatter(raw: string): {
@@ -125,63 +123,16 @@ function parseReportMarkdown(raw: string, slug: string) {
   };
 }
 
-function buildHtmlUrl(slug: string): string {
-  return `https://github.com/${getOwner()}/${getRepo()}/blob/${STATE_BRANCH}/${REPORTS_DIR}/${slug}.md`;
-}
-
-async function fetchLastCommitDate(
-  octokit: Octokit,
-  filePath: string,
-): Promise<string> {
-  try {
-    const { data } = await octokit.repos.listCommits({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
-      sha: STATE_BRANCH,
-      per_page: 1,
-    });
-    return (
-      data[0]?.commit.committer?.date ??
-      data[0]?.commit.author?.date ??
-      new Date().toISOString()
-    );
-  } catch {
-    return new Date().toISOString();
-  }
-}
-
 /**
- * List every report under `.kody/reports/` on the state branch. Returns `[]`
+ * List every report under `reports/` in the configured Kody state repo. Returns `[]`
  * if the directory does not exist (fresh repo).
  */
 export async function listReportFiles(): Promise<ReportFile[]> {
   const octokit = getOctokit();
+  const owner = getOwner();
+  const repo = getRepo();
 
-  let entries: Array<{
-    name: string;
-    sha: string;
-    type: string;
-    size: number;
-  }> = [];
-  try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: REPORTS_DIR,
-      ref: STATE_BRANCH,
-    });
-    if (!Array.isArray(data)) return [];
-    entries = data as Array<{
-      name: string;
-      sha: string;
-      type: string;
-      size: number;
-    }>;
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) return [];
-    throw error;
-  }
+  const { entries } = await listStateDirectory(octokit, owner, repo, REPORTS_DIR);
 
   const slugs = entries
     .filter((e) => e.type === "file")
@@ -194,24 +145,17 @@ export async function listReportFiles(): Promise<ReportFile[]> {
     slugs.map(async ({ slug, name, size }) => {
       try {
         const filePath = `${REPORTS_DIR}/${name}`;
-        const { data } = await octokit.repos.getContent({
-          owner: getOwner(),
-          repo: getRepo(),
-          path: filePath,
-          ref: STATE_BRANCH,
-        });
-        if (Array.isArray(data) || !("content" in data) || !data.content)
-          return null;
-        const raw = Buffer.from(data.content, "base64").toString("utf-8");
+        const file = await readStateText(octokit, owner, repo, filePath);
+        if (!file) return null;
+        const raw = file.content;
         const parsed = parseReportMarkdown(raw, slug);
-        const updatedAt = await fetchLastCommitDate(octokit, filePath);
         return {
           slug,
           title: parsed.title,
           body: parsed.body,
-          updatedAt,
-          htmlUrl: buildHtmlUrl(slug),
-          size,
+          updatedAt: new Date().toISOString(),
+          htmlUrl: file.htmlUrl ?? "",
+          size: file.size ?? size,
           agentResponsibilitySlug: parsed.agentResponsibilitySlug,
           reviewStatus: parsed.reviewStatus,
           reviewArea: parsed.reviewArea,
@@ -239,24 +183,17 @@ export async function readReportFile(slug: string): Promise<ReportFile | null> {
   const filePath = `${REPORTS_DIR}/${slug}.md`;
 
   try {
-    const { data } = await octokit.repos.getContent({
-      owner: getOwner(),
-      repo: getRepo(),
-      path: filePath,
-      ref: STATE_BRANCH,
-    });
-    if (Array.isArray(data) || !("content" in data) || !data.content)
-      return null;
-    const raw = Buffer.from(data.content, "base64").toString("utf-8");
+    const file = await readStateText(octokit, getOwner(), getRepo(), filePath);
+    if (!file) return null;
+    const raw = file.content;
     const parsed = parseReportMarkdown(raw, slug);
-    const updatedAt = await fetchLastCommitDate(octokit, filePath);
     return {
       slug,
       title: parsed.title,
       body: parsed.body,
-      updatedAt,
-      htmlUrl: buildHtmlUrl(slug),
-      size: typeof data.size === "number" ? data.size : raw.length,
+      updatedAt: new Date().toISOString(),
+      htmlUrl: file.htmlUrl ?? "",
+      size: file.size ?? raw.length,
       agentResponsibilitySlug: parsed.agentResponsibilitySlug,
       reviewStatus: parsed.reviewStatus,
       reviewArea: parsed.reviewArea,

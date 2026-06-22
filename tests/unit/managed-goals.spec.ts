@@ -25,7 +25,7 @@ import {
 describe("managedGoalPath", () => {
   it("points to live goal instances, not templates or flat goal files", () => {
     expect(managedGoalPath("simple-rollout")).toBe(
-      ".kody/goals/instances/simple-rollout/state.json",
+      "goals/instances/simple-rollout/state.json",
     );
   });
 });
@@ -33,7 +33,7 @@ describe("managedGoalPath", () => {
 describe("goalStatePath", () => {
   it("points Tasks-page goals to live goal instances", () => {
     expect(goalStatePath("legacy-dashboard-goal")).toBe(
-      ".kody/goals/instances/legacy-dashboard-goal/state.json",
+      "goals/instances/legacy-dashboard-goal/state.json",
     );
   });
 });
@@ -127,7 +127,7 @@ describe("normalizeManagedGoalState", () => {
     expect(
       managedGoalModel({
         id: "legacy-loop",
-        path: ".kody/goals/instances/legacy-loop/state.json",
+        path: "goals/instances/legacy-loop/state.json",
         state: state!,
       }),
     ).toBe("agentLoop");
@@ -310,7 +310,7 @@ describe("isStoreBackedManagedGoal", () => {
   it("treats sourceTemplate copies as Store-backed", () => {
     const goal: ManagedGoalRecord = {
       id: "simple",
-      path: ".kody/goals/instances/simple/state.json",
+      path: "goals/instances/simple/state.json",
       source: "local",
       recordType: "instance",
       state: {
@@ -339,7 +339,7 @@ describe("managedGoalModel", () => {
   ): ManagedGoalRecord {
     return {
       id: "model-test",
-      path: ".kody/goals/instances/model-test/state.json",
+      path: "goals/instances/model-test/state.json",
       source: "local",
       recordType: "instance",
       state: {
@@ -391,7 +391,7 @@ describe("collapseManagedGoalRecordsForList", () => {
   function record(id: string, updatedAt: string): ManagedGoalRecord {
     return {
       id,
-      path: `.kody/goals/instances/${id}/state.json`,
+      path: `goals/instances/${id}/state.json`,
       source: "local",
       recordType: "instance",
       state: {

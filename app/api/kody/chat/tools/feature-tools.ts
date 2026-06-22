@@ -136,7 +136,7 @@ Format (must match existing agentResponsibilities in \`.kody/agent-responsibilit
 
 Default chat template is REPORT-PRODUCER: each active tick gathers inputs,
 composes a YAML \`findings:\` report, and refreshes
-\`kody-state:.kody/reports/<slug>.md\`.
+\`reports/<slug>.md in the configured Kody state repo\`.
 
 Do not put metadata or raw state keys in \`agent-responsibility.md\`. Runtime state stays
 engine-owned.

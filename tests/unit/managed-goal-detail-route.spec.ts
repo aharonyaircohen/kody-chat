@@ -103,7 +103,7 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
     h.readManagedGoalFile.mockResolvedValue({
       state: localGoalState(),
       sha: "goal-sha",
-      path: ".kody/goals/instances/codebase-health/state.json",
+      path: "goals/instances/codebase-health/state.json",
     });
     h.writeManagedGoalFile.mockResolvedValue(undefined);
 
@@ -125,7 +125,7 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
     h.readManagedGoalFile.mockResolvedValue({
       state: localGoalState(),
       sha: "goal-sha",
-      path: ".kody/goals/instances/codebase-health/state.json",
+      path: "goals/instances/codebase-health/state.json",
     });
     h.writeManagedGoalFile.mockResolvedValue(undefined);
 
@@ -163,7 +163,7 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
         stage: "plan",
       },
       sha: "goal-sha",
-      path: ".kody/goals/instances/codebase-health/state.json",
+      path: "goals/instances/codebase-health/state.json",
     });
     h.writeManagedGoalFile.mockResolvedValue(undefined);
 
@@ -239,7 +239,7 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
         templateId: "codebase-health",
       },
       sha: "goal-sha",
-      path: ".kody/goals/instances/codebase-health/state.json",
+      path: "goals/instances/codebase-health/state.json",
     });
 
     const res = await PATCH(
@@ -265,7 +265,7 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
         state: "inactive",
       },
       sha: "goal-sha",
-      path: ".kody/goals/instances/codebase-health/state.json",
+      path: "goals/instances/codebase-health/state.json",
     });
 
     const res = await PATCH(patchRequest({ state: "active" }), params());
@@ -299,7 +299,7 @@ describe("DELETE /api/kody/goals/managed/[id]", () => {
         sourceTemplate: "codebase-health",
       },
       sha: "goal-sha",
-      path: ".kody/goals/instances/codebase-health/state.json",
+      path: "goals/instances/codebase-health/state.json",
     });
     h.deleteManagedGoalFile.mockResolvedValue(undefined);
 

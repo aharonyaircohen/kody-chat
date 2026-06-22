@@ -21,7 +21,7 @@ import { logger } from "@dashboard/lib/logger";
 import { invalidateIssueCache } from "@dashboard/lib/github-client";
 import { readGoalsManifestFresh } from "@dashboard/lib/goals-server";
 import { GOAL_LABEL_PREFIX, type Goal } from "@dashboard/lib/goals";
-import { STATE_BRANCH } from "@dashboard/lib/state-branch";
+import { listStateDirectory, readStateText, writeStateText } from "@dashboard/lib/state-repo";
 import {
   buildManagedGoalState,
   isManagedGoalState,
@@ -39,95 +39,33 @@ interface Ctx {
 const MAX_DESC_CHARS = 4_000;
 const MAX_ATTACHED_TASKS = 50;
 
-interface ContentFile {
-  type?: string;
-  name?: string;
-  encoding?: string;
-  content?: string;
-  sha?: string;
-}
-
-async function ensureStateBranch(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-): Promise<void> {
-  try {
-    await octokit.rest.git.getRef({
-      owner,
-      repo,
-      ref: `heads/${STATE_BRANCH}`,
-    });
-  } catch (err) {
-    if ((err as { status?: number }).status !== 404) throw err;
-    const { data: repoMeta } = await octokit.rest.repos.get({ owner, repo });
-    const defaultBranch = repoMeta.default_branch || "main";
-    const { data: refData } = await octokit.rest.git.getRef({
-      owner,
-      repo,
-      ref: `heads/${defaultBranch}`,
-    });
-    await octokit.rest.git.createRef({
-      owner,
-      repo,
-      ref: `refs/heads/${STATE_BRANCH}`,
-      sha: refData.object.sha,
-    });
-  }
-}
-
 async function readManagedGoalFile(
   octokit: Octokit,
   owner: string,
   repo: string,
   goalId: string,
 ): Promise<{ raw: string; sha: string } | null> {
-  try {
-    const res = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path: managedGoalPath(goalId),
-      ref: STATE_BRANCH,
-      headers: { "If-None-Match": "" },
-    });
-    const data = res.data as ContentFile | ContentFile[];
-    if (Array.isArray(data) || data.type !== "file" || !data.content) {
-      return null;
-    }
-    return {
-      raw: Buffer.from(
-        data.content,
-        (data.encoding ?? "base64") as BufferEncoding,
-      ).toString("utf8"),
-      sha: data.sha ?? "",
-    };
-  } catch (err) {
-    if ((err as { status?: number }).status === 404) return null;
-    throw err;
-  }
+  const file = await readStateText(octokit, owner, repo, managedGoalPath(goalId), {
+    headers: { "If-None-Match": "" },
+  });
+  return file ? { raw: file.content, sha: file.sha } : null;
 }
 
 async function listManagedGoalDirs(
   octokit: Octokit,
   owner: string,
   repo: string,
-): Promise<ContentFile[]> {
-  try {
-    const res = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path: ".kody/goals",
-      ref: STATE_BRANCH,
-      headers: { "If-None-Match": "" },
-    });
-    const data = res.data as ContentFile | ContentFile[];
-    return Array.isArray(data)
-      ? data.filter((item) => item.type === "dir")
-      : [];
-  } catch (err) {
-    if ((err as { status?: number }).status === 404) return [];
-    throw err;
-  }
+): Promise<Array<{ name: string }>> {
+  const { entries } = await listStateDirectory(
+    octokit,
+    owner,
+    repo,
+    "goals/instances",
+    { headers: { "If-None-Match": "" } },
+  );
+  return entries
+    .filter((item) => item.type === "dir" && typeof item.name === "string")
+    .map((item) => ({ name: item.name }));
 }
 
 async function listManagedGoals(
@@ -306,7 +244,7 @@ export function createGoalTools(ctx: Ctx) {
 
     list_managed_goals: tool({
       description:
-        "List engine-managed goals stored in kody-state .kody/goals/<id>/state.json. " +
+        "List engine-managed goals stored in the configured Kody state repo at goals/instances/<id>/state.json. " +
         "Use for company goals with outcome, evidence, route, facts, and blockers.",
       inputSchema: z.object({}),
       execute: async () => {
@@ -333,7 +271,7 @@ export function createGoalTools(ctx: Ctx) {
 
     get_managed_goal: tool({
       description:
-        "Read one engine-managed goal by slug id from kody-state. " +
+        "Read one engine-managed goal by slug id from the configured Kody state repo. " +
         "Use this for a goal's outcome, evidence, route, facts, and blockers.",
       inputSchema: z.object({
         id: z.string().min(1).max(100).describe("Managed goal slug id"),
@@ -364,7 +302,7 @@ export function createGoalTools(ctx: Ctx) {
       description:
         "Create an engine-managed company goal. Provide a finish-line outcome, " +
         "proof/evidence keys, and route steps that name agentResponsibility/agentAction work. " +
-        "Writes kody-state .kody/goals/<id>/state.json and wakes Kody.",
+        "Writes the configured Kody state repo at goals/instances/<id>/state.json and wakes Kody.",
       inputSchema: z.object({
         id: z
           .string()
@@ -418,17 +356,13 @@ export function createGoalTools(ctx: Ctx) {
           }
 
           const state = buildManagedGoalState(input);
-          await ensureStateBranch(octokit, owner, repo);
-          await octokit.rest.repos.createOrUpdateFileContents({
+          await writeStateText({
+            octokit,
             owner,
             repo,
             path,
             message: `chore(goals): create managed goal ${goalId}`,
-            content: Buffer.from(
-              JSON.stringify(state, null, 2),
-              "utf8",
-            ).toString("base64"),
-            branch: STATE_BRANCH,
+            content: JSON.stringify(state, null, 2),
           });
 
           const engineDispatched = await dispatchGoalWorkflow(

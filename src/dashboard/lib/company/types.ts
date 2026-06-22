@@ -95,7 +95,7 @@ export interface CompanyAgentActionEntry {
   files: Record<string, string>;
 }
 
-/** A managed company goal under `kody-state:.kody/goals/instances/<id>/`. */
+/** A managed company goal under `goals/instances/<id>/` in the configured Kody state repo. */
 export interface CompanyGoalEntry {
   id: string;
   state: ManagedGoalState;

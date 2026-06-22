@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern company-activity-record
  * @ai-summary Shape + JSONL parser for the engine-authored Company Activity
- *   log (`.kody/activity/<date>.jsonl`). Each line is one named, attributed
+ *   log (`activity/<date>.jsonl` in the configured Kody state repo). Each line is one named, attributed
  *   action the engine performed — who (agent), what (agentResponsibility), why (trigger),
  *   and the result. The dashboard reads these into the Activity → Auto feed;
  *   it does NOT derive activity from commits/PRs (those carry no agent/agentResponsibility).

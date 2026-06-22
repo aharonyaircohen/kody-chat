@@ -4,7 +4,7 @@
  * @domain kody
  * @pattern agentResponsibility-trust-client
  * @ai-summary TanStack Query binding for the /trust page. Reads the agentResponsibility-keyed
- *   trust ledger (GET /api/kody/cto/trust, backed by a kody-state file) AND the
+ *   trust ledger (GET /api/kody/cto/trust, backed by a Kody state repo file) AND the
  *   agentResponsibility roster (to show the agentIdentity each agentResponsibility runs as), then projects both
  *   through the pure `summarizeTrust` into per-agentResponsibility view rows.
  *
