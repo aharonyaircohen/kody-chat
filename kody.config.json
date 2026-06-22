@@ -22,6 +22,9 @@
   "company": {
     "activeGoals": [
       "codebase-health"
+    ],
+    "activeAgents": [
+      "ceo"
     ]
   },
   "agent-actions": {
