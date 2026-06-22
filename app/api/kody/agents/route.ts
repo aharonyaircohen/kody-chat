@@ -21,7 +21,7 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  listResolvedAgentFiles,
+  listAgentFiles,
   writeAgentFile,
   isValidSlug,
   readAgentFile,
@@ -48,7 +48,7 @@ export async function GET(req: NextRequest) {
     );
 
   try {
-    const agent = await listResolvedAgentFiles();
+    const agent = await listAgentFiles();
     return NextResponse.json({ agent }, { headers: NO_STORE_HEADERS });
   } catch (error: any) {
     console.error("[Agent] Error fetching agent:", error);

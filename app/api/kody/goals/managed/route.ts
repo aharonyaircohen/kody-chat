@@ -31,7 +31,6 @@ import {
   slugifyManagedGoalId,
 } from "@dashboard/lib/managed-goals";
 import {
-  listCompanyStoreGoalTemplateFiles,
   listManagedGoalFiles,
   readManagedGoalFile,
   writeManagedGoalFile,
@@ -102,12 +101,7 @@ export async function GET(req: NextRequest) {
       headerAuth.repo,
     );
     const visibleLocalGoals = collapseManagedGoalRecordsForList(localGoals);
-    const storeGoals = await listCompanyStoreGoalTemplateFiles(octokit);
-    const localIds = new Set(visibleLocalGoals.map((goal) => goal.id));
-    const goals = [
-      ...visibleLocalGoals,
-      ...storeGoals.filter((goal) => !localIds.has(goal.id)),
-    ].sort((a, b) => a.id.localeCompare(b.id));
+    const goals = visibleLocalGoals.sort((a, b) => a.id.localeCompare(b.id));
 
     return NextResponse.json(
       { goals },

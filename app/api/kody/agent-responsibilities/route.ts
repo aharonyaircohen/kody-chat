@@ -21,7 +21,7 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  listAgentResponsibilityFiles,
+  listLocalAgentResponsibilityFiles,
   readAgentResponsibilityFile,
   writeAgentResponsibilityFile,
   isValidSlug,
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
     );
 
   try {
-    const agentResponsibilities = (await listAgentResponsibilityFiles()).sort((a, b) =>
+    const agentResponsibilities = (await listLocalAgentResponsibilityFiles()).sort((a, b) =>
       a.slug.localeCompare(b.slug),
     );
     return NextResponse.json({ agentResponsibilities }, { headers: NO_STORE_HEADERS });

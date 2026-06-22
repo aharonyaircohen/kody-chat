@@ -288,6 +288,37 @@ function buildHtmlUrl(slug: string, branch: string | null): string {
   return `https://github.com/${getOwner()}/${getRepo()}/tree/${ref}/${DUTIES_DIR}/${slug}`;
 }
 
+export async function listLocalAgentResponsibilityFiles(): Promise<
+  AgentResponsibilityFile[]
+> {
+  const octokit = getOctokit();
+  let entries: Array<{ name: string; type: string }> = [];
+  try {
+    const { data } = await octokit.repos.getContent({
+      owner: getOwner(),
+      repo: getRepo(),
+      path: DUTIES_DIR,
+    });
+    entries = Array.isArray(data)
+      ? (data as Array<{ name: string; type: string }>)
+      : [];
+  } catch (error: unknown) {
+    if ((error as { status?: number })?.status === 404) {
+      entries = [];
+    } else {
+      throw error;
+    }
+  }
+  const agentResponsibilities = await Promise.all(
+    entries
+      .filter((e) => e.type === "dir" && isValidSlug(e.name))
+      .map((e) => readAgentResponsibilityFile(e.name, octokit)),
+  );
+  return agentResponsibilities.filter(
+    (d): d is AgentResponsibilityFile => d !== null,
+  );
+}
+
 export async function listAgentResponsibilityFiles(): Promise<AgentResponsibilityFile[]> {
   const octokit = getOctokit();
   let entries: Array<{ name: string; type: string }> = [];

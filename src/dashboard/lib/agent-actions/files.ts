@@ -248,6 +248,14 @@ async function listAgentActionFolders(
 }
 
 /** List every agentAction under `.kody/agent-actions/`, sorted by slug. */
+export async function listLocalAgentActionFiles(): Promise<
+  AgentActionSummary[]
+> {
+  const octokit = getOctokit();
+  const branch = await getDefaultBranch(octokit).catch(() => null);
+  return listAgentActionFolders(octokit, branch);
+}
+
 export async function listAgentActionFiles(): Promise<AgentActionSummary[]> {
   const octokit = getOctokit();
   const branch = await getDefaultBranch(octokit).catch(() => null);

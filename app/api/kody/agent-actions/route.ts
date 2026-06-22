@@ -21,7 +21,7 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  listAgentActionFiles,
+  listLocalAgentActionFiles,
   readAgentActionFile,
   writeAgentActionFile,
   isValidSlug,
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
     );
 
   try {
-    const agentActions = await listAgentActionFiles();
+    const agentActions = await listLocalAgentActionFiles();
     let defaults = { issue: null as string | null, pr: null as string | null };
     if (headerAuth) {
       const userOctokit = await getUserOctokit(req);
