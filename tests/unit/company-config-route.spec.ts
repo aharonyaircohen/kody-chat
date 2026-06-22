@@ -188,4 +188,52 @@ describe("PATCH /api/kody/company/config — reasoningEffort handling", () => {
     expect(res.status).toBe(400);
     expect(engineConfig.writeConfigPatch).not.toHaveBeenCalled();
   });
+
+  it("a PATCH with state writes the external Kody state repo config", async () => {
+    const state = { repo: "acme/kody-state", path: "widgets" };
+    engineConfig.getEngineConfig.mockResolvedValueOnce({
+      config: { ...structuredClone(STORED_CONFIG), state },
+      sha: "new-sha",
+    });
+
+    const res = await PATCH(
+      patchReq({
+        state,
+        actorLogin: "alice",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ state });
+
+    const calls = engineConfig.writeConfigPatch.mock.calls as unknown as Array<
+      [unknown, unknown, unknown, Record<string, unknown>]
+    >;
+    expect(calls).toHaveLength(1);
+    expect(calls[0][3].state).toEqual(state);
+  });
+
+  it("a PATCH with invalid state repo is rejected with 400 by Zod schema", async () => {
+    const res = await PATCH(
+      patchReq({
+        state: { repo: "kody-state", path: "widgets" },
+        actorLogin: "alice",
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(engineConfig.writeConfigPatch).not.toHaveBeenCalled();
+  });
+
+  it("a PATCH with unsafe state path is rejected with 400 by Zod schema", async () => {
+    const res = await PATCH(
+      patchReq({
+        state: { repo: "acme/kody-state", path: "../widgets" },
+        actorLogin: "alice",
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(engineConfig.writeConfigPatch).not.toHaveBeenCalled();
+  });
 });

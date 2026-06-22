@@ -2399,6 +2399,10 @@ export interface EngineEditableConfig {
   };
   aliases: Record<string, string>;
   allowedAssociations: string[];
+  state: {
+    repo?: string;
+    path?: string;
+  } | null;
   defaultBranch: string;
   perAgentAction: Record<string, string>;
   /** Thinking level for the engine (off|low|medium|high). Null = unset.

@@ -28,6 +28,11 @@ export interface ActiveGoalConfigObject {
 
 export type ActiveGoalConfigEntry = string | ActiveGoalConfigObject;
 
+export interface KodyStateConfig {
+  repo?: string;
+  path?: string;
+}
+
 export interface KodyConfig {
   /** The model the engine runs, as `provider/model`. This is the key the
    * kody-engine actually reads (`parseProviderModel(cfg.agent.model)`).
@@ -65,10 +70,7 @@ export interface KodyConfig {
     operators?: string[];
   };
   /** External Kody runtime-state repository and per-consumer path. */
-  state?: {
-    repo?: string;
-    path?: string;
-  };
+  state?: KodyStateConfig;
   /** Verification commands the engine runs (typecheck/lint/format/test). */
   quality?: KodyQuality;
   /** Comment subcommand aliases, e.g. `{ "build": "run" }` lets `@kody build`
@@ -643,6 +645,27 @@ function cleanFlyPreviews(
   return out;
 }
 
+function cleanStateConfig(
+  raw: KodyStateConfig | null | undefined,
+): KodyStateConfig | null {
+  if (!raw) return null;
+  const repo = raw.repo?.trim() ?? "";
+  const path = raw.path?.trim() ?? "";
+  const pathSegments = path.split("/");
+  if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repo)) return null;
+  if (
+    !path ||
+    path.startsWith("/") ||
+    path.includes("\\") ||
+    pathSegments.some(
+      (segment) => !segment || segment === "." || segment === "..",
+    )
+  ) {
+    return null;
+  }
+  return { repo, path };
+}
+
 /** Uppercase, keep only valid GitHub associations, de-dupe (order-preserving). */
 export function normalizeAssociations(raw: readonly string[]): string[] {
   const seen = new Set<string>();
@@ -670,6 +693,7 @@ export interface ConfigPatch {
   activeAgentActions?: string[] | null;
   activeAgentResponsibilities?: string[] | null;
   activeGoals?: ActiveGoalConfigEntry[] | null;
+  state?: KodyStateConfig | null;
   defaultBranch?: string | null;
   perAgentAction?: Record<string, string> | null;
   /** Bare-`@kody` issue default (`defaultAgentAction`). Edited on /agent-actions;
@@ -744,7 +768,9 @@ export async function writeConfigPatch(
       }
 
       if (patch.activeAgents !== undefined) {
-        const list = patch.activeAgents ? cleanSlugList(patch.activeAgents) : [];
+        const list = patch.activeAgents
+          ? cleanSlugList(patch.activeAgents)
+          : [];
         setCompanyField(next, "activeAgents", list);
       }
 
@@ -767,6 +793,12 @@ export async function writeConfigPatch(
           ? cleanActiveGoals(patch.activeGoals)
           : [];
         setCompanyField(next, "activeGoals", list);
+      }
+
+      if (patch.state !== undefined) {
+        const cleaned = cleanStateConfig(patch.state);
+        if (cleaned) next.state = cleaned;
+        else delete next.state;
       }
 
       if (patch.defaultBranch !== undefined) {

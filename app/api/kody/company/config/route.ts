@@ -88,6 +88,31 @@ const activeGoalSchema = z.union([
   }),
 ]);
 
+const stateRepoSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(160)
+  .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/);
+const statePathSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(255)
+  .refine(
+    (value) =>
+      !value.startsWith("/") &&
+      !value.includes("\\") &&
+      value
+        .split("/")
+        .every((segment) => segment && segment !== "." && segment !== ".."),
+    { message: "must be a relative path without parent segments" },
+  );
+const stateSchema = z.object({
+  repo: stateRepoSchema,
+  path: statePathSchema,
+});
+
 const PatchSchema = z
   .object({
     quality: z
@@ -116,6 +141,7 @@ const PatchSchema = z
     activeAgents: z.array(slugSchema).max(200).nullable().optional(),
     activeAgentActions: z.array(slugSchema).max(200).nullable().optional(),
     activeGoals: z.array(activeGoalSchema).max(200).nullable().optional(),
+    state: stateSchema.nullable().optional(),
     defaultBranch: z.string().max(255).nullable().optional(),
     // AgentAction slug → `provider/model` override. Bounded so a paste can't
     // bloat the config blob.
@@ -142,6 +168,7 @@ const PatchSchema = z
       b.activeAgentActions !== undefined ||
       b.activeAgentResponsibilities !== undefined ||
       b.activeGoals !== undefined ||
+      b.state !== undefined ||
       b.defaultBranch !== undefined ||
       b.perAgentAction !== undefined ||
       b.reasoningEffort !== undefined,
@@ -188,6 +215,7 @@ export async function PATCH(req: NextRequest) {
     activeAgents,
     activeAgentActions,
     activeGoals,
+    state,
     defaultBranch,
     perAgentAction,
     reasoningEffort,
@@ -212,6 +240,7 @@ export async function PATCH(req: NextRequest) {
         activeAgentActions,
         activeAgentResponsibilities,
         activeGoals,
+        state,
         defaultBranch,
         perAgentAction,
         reasoningEffort,
@@ -231,6 +260,7 @@ export async function PATCH(req: NextRequest) {
       activeAgentResponsibilities:
         config.company?.activeAgentResponsibilities ?? [],
       activeGoals: config.company?.activeGoals ?? [],
+      state: config.state ?? null,
       defaultBranch: config.git?.defaultBranch ?? "",
       perAgentAction: config.agent?.perAgentAction ?? {},
       reasoningEffort: config.agent?.reasoningEffort ?? null,

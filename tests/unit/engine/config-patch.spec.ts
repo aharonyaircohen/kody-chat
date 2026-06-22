@@ -179,3 +179,44 @@ describe("writeConfigPatch — store activation", () => {
     expect(written.company).toEqual({ ownerNote: "keep" });
   });
 });
+
+describe("writeConfigPatch — state repo", () => {
+  it("writes external state repo config", async () => {
+    const { octokit, lastWritten } = octokitWithConfig({
+      agentActions: { default: "run" },
+      github: { owner: "o", repo: "r" },
+    });
+
+    await writeConfigPatch(octokit, "o", "r", {
+      state: { repo: "o/kody-state", path: "r" },
+    });
+
+    expect(lastWritten().state).toEqual({ repo: "o/kody-state", path: "r" });
+  });
+
+  it("clears state repo config", async () => {
+    const { octokit, lastWritten } = octokitWithConfig({
+      agentActions: { default: "run" },
+      github: { owner: "o", repo: "r" },
+      state: { repo: "o/kody-state", path: "r" },
+    });
+
+    await writeConfigPatch(octokit, "o", "r", { state: null });
+
+    expect(lastWritten().state).toBeUndefined();
+  });
+
+  it("drops invalid direct writer state input", async () => {
+    const { octokit, lastWritten } = octokitWithConfig({
+      agentActions: { default: "run" },
+      github: { owner: "o", repo: "r" },
+      state: { repo: "o/kody-state", path: "r" },
+    });
+
+    await writeConfigPatch(octokit, "o", "r", {
+      state: { repo: "kody-state", path: "../r" },
+    });
+
+    expect(lastWritten().state).toBeUndefined();
+  });
+});
