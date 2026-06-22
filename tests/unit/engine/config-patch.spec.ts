@@ -112,3 +112,62 @@ describe("writeConfigPatch — reasoningEffort", () => {
     expect(written.agent?.model).toBe("anthropic/claude-sonnet-4-6");
   });
 });
+
+describe("writeConfigPatch — store activation", () => {
+  it("writes active store references under company without copying assets", async () => {
+    const { octokit, lastWritten } = octokitWithConfig({
+      agentActions: { default: "run" },
+      github: { owner: "o", repo: "r" },
+      company: { ownerNote: "keep" },
+    });
+
+    await writeConfigPatch(octokit, "o", "r", {
+      activeAgentResponsibilities: ["release", "release", "qa_sweep"],
+      activeGoals: [
+        "web-release",
+        {
+          template: "weekly-check",
+          every: "1w",
+          idPrefix: "weekly",
+          facts: { issue: 123 },
+        },
+      ],
+    });
+
+    const written = lastWritten();
+    expect(written.company).toEqual({
+      ownerNote: "keep",
+      activeAgentResponsibilities: ["release", "qa_sweep"],
+      activeGoals: [
+        "web-release",
+        {
+          template: "weekly-check",
+          every: "1w",
+          idPrefix: "weekly",
+          facts: { issue: 123 },
+        },
+      ],
+    });
+    expect(written[".kody"]).toBeUndefined();
+  });
+
+  it("clears active store references without clearing other company keys", async () => {
+    const { octokit, lastWritten } = octokitWithConfig({
+      agentActions: { default: "run" },
+      github: { owner: "o", repo: "r" },
+      company: {
+        ownerNote: "keep",
+        activeAgentResponsibilities: ["release"],
+        activeGoals: ["web-release"],
+      },
+    });
+
+    await writeConfigPatch(octokit, "o", "r", {
+      activeAgentResponsibilities: null,
+      activeGoals: null,
+    });
+
+    const written = lastWritten();
+    expect(written.company).toEqual({ ownerNote: "keep" });
+  });
+});
