@@ -146,20 +146,22 @@ function goalActivationSlug(entry: ActiveGoalConfigEntry): string {
 }
 
 function updateActiveGoals(
-  entries: ActiveGoalConfigEntry[],
+  entries: ActiveGoalConfigEntry[] | undefined,
   slug: string,
   active: boolean,
 ): ActiveGoalConfigEntry[] {
-  const without = entries.filter((entry) => goalActivationSlug(entry) !== slug);
+  const without = (entries ?? []).filter(
+    (entry) => goalActivationSlug(entry) !== slug,
+  );
   return active ? [...without, slug] : without;
 }
 
 function updateActiveAgentResponsibilities(
-  entries: string[],
+  entries: string[] | undefined,
   slug: string,
   active: boolean,
 ): string[] {
-  const without = entries.filter((entry) => entry !== slug);
+  const without = (entries ?? []).filter((entry) => entry !== slug);
   return active ? [...without, slug] : without;
 }
 
