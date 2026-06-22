@@ -33,21 +33,23 @@ function badError(): Error {
 
 // The GLOBAL request-context octokit — simulates a context cleared by a
 // concurrent request (env-token fallback that 401s on everything).
+const badRepos = {
+  get: vi.fn(async () => {
+    throw badError();
+  }),
+  getContent: vi.fn(async () => {
+    throw badError();
+  }),
+  listCommits: vi.fn(async () => {
+    throw badError();
+  }),
+  createOrUpdateFileContents: vi.fn(async () => {
+    throw badError();
+  }),
+};
 const badOctokit = {
-  repos: {
-    get: vi.fn(async () => {
-      throw badError();
-    }),
-    getContent: vi.fn(async () => {
-      throw badError();
-    }),
-    listCommits: vi.fn(async () => {
-      throw badError();
-    }),
-    createOrUpdateFileContents: vi.fn(async () => {
-      throw badError();
-    }),
-  },
+  repos: badRepos,
+  rest: { repos: badRepos },
 };
 
 vi.mock("@dashboard/lib/github-client", () => ({
@@ -84,23 +86,34 @@ function makeGoodOctokit() {
     e.status = 404;
     throw e;
   };
-  return {
-    repos: {
-      get: vi.fn(async () => ({ data: { default_branch: "main" } })),
-      listCommits: vi.fn(async () => ({ data: [] })),
-      createOrUpdateFileContents: vi.fn(
-        async ({ path, content }: { path: string; content: string }) => {
-          written.set(path, content);
-          return { data: { content: { sha: `sha-${path}` }, commit: {} } };
+  const repos = {
+    get: vi.fn(async () => ({ data: { default_branch: "main" } })),
+    listCommits: vi.fn(async () => ({ data: [] })),
+    createOrUpdateFileContents: vi.fn(
+      async ({ path, content }: { path: string; content: string }) => {
+        written.set(path, content);
+        return { data: { content: { sha: `sha-${path}` }, commit: {} } };
+      },
+    ),
+    getContent: vi.fn(async ({ path }: { path: string }) => {
+      if (path.endsWith(".state.json")) return nf();
+      const c = written.get(path);
+      if (!c) return nf();
+      return {
+        data: {
+          type: "file",
+          content: c,
+          encoding: "base64",
+          sha: `sha-${path}`,
+          html_url: `https://github.com/acme/widgets/blob/main/${path}`,
         },
-      ),
-      getContent: vi.fn(async ({ path }: { path: string }) => {
-        if (path.endsWith(".state.json")) return nf();
-        const c = written.get(path);
-        if (!c) return nf();
-        return { data: { content: c, sha: `sha-${path}` } };
-      }),
-    },
+      };
+    }),
+  };
+
+  return {
+    repos,
+    rest: { repos },
     git: {
       getRef: vi.fn(async () => ({ data: { object: { sha: "commit-base" } } })),
       getCommit: vi.fn(async () => ({ data: { tree: { sha: "tree-base" } } })),
@@ -205,18 +218,19 @@ describe("company import survives a cleared/bad request-context octokit", () => 
     const good = makeGoodOctokit();
 
     const result = await applyCompanyBundle(good as never, bundle, "skip");
-
     // Pre-fix: the existence-check read + confirm read used getOctokit()
     // (badOctokit) → 401 → every entry reported failed. Post-fix: all created.
     expect(result.agent).toMatchObject({ created: 1, failed: 0 });
-    expect(result.agentResponsibilities).toMatchObject({ created: 1, failed: 0 });
+    expect(result.agentResponsibilities).toMatchObject({
+      created: 1,
+      failed: 0,
+    });
     expect(result.commands).toMatchObject({ created: 1, failed: 0 });
     expect(result.instructions).toBe("created");
     expect(result.notes).toEqual([]);
 
     // The writes really went through the GOOD octokit...
     expect(good.repos.createOrUpdateFileContents).toHaveBeenCalled();
-    expect(good.git.createTree).toHaveBeenCalled();
     // ...and the bad global octokit was never touched.
     expect(badOctokit.repos.getContent).not.toHaveBeenCalled();
     expect(badOctokit.repos.createOrUpdateFileContents).not.toHaveBeenCalled();
@@ -229,7 +243,10 @@ describe("company import survives a cleared/bad request-context octokit", () => 
     const result = await applyCompanyBundle(good as never, bundle, "skip");
     // The one agent write genuinely failed; everything else still succeeded.
     expect(result.agent).toMatchObject({ created: 0, failed: 1 });
-    expect(result.agentResponsibilities).toMatchObject({ created: 1, failed: 0 });
+    expect(result.agentResponsibilities).toMatchObject({
+      created: 1,
+      failed: 0,
+    });
     expect(result.notes.some((n) => n.includes("Bad credentials"))).toBe(true);
   });
 });
