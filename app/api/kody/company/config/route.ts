@@ -137,6 +137,8 @@ const PatchSchema = z
       b.quality !== undefined ||
       b.aliases !== undefined ||
       b.allowedAssociations !== undefined ||
+      b.activeAgents !== undefined ||
+      b.activeAgentActions !== undefined ||
       b.activeAgentResponsibilities !== undefined ||
       b.activeGoals !== undefined ||
       b.defaultBranch !== undefined ||

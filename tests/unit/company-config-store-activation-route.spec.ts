@@ -103,6 +103,38 @@ describe("PATCH /api/kody/company/config store activation", () => {
     ]);
   });
 
+  it("accepts active agents without requiring another config field", async () => {
+    const res = await PATCH(
+      patchReq({
+        activeAgents: ["cto"],
+        actorLogin: "alice",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const calls = engineConfig.writeConfigPatch.mock.calls as unknown as Array<
+      [unknown, unknown, unknown, Record<string, unknown>]
+    >;
+    expect(calls).toHaveLength(1);
+    expect(calls[0]![3].activeAgents).toEqual(["cto"]);
+  });
+
+  it("accepts active agent actions without requiring another config field", async () => {
+    const res = await PATCH(
+      patchReq({
+        activeAgentActions: ["run"],
+        actorLogin: "alice",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const calls = engineConfig.writeConfigPatch.mock.calls as unknown as Array<
+      [unknown, unknown, unknown, Record<string, unknown>]
+    >;
+    expect(calls).toHaveLength(1);
+    expect(calls[0]![3].activeAgentActions).toEqual(["run"]);
+  });
+
   it("rejects invalid active store reference slugs", async () => {
     const res = await PATCH(
       patchReq({

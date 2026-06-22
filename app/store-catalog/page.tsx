@@ -7,7 +7,7 @@
 
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { StoreCatalogManager } from "@dashboard/lib/components/StoreCatalogManager";
-import { buildKodyMetadata } from "../../metadata";
+import { buildKodyMetadata } from "../metadata";
 
 export const dynamic = "force-static";
 export const revalidate = false;

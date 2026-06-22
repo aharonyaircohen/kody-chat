@@ -428,6 +428,7 @@ function CatalogRow({
     <button
       type="button"
       onClick={onSelect}
+      data-testid={`store-catalog-row-${item.kind}-${item.slug}`}
       className={cn(
         "relative w-full px-4 py-3 text-left transition-colors hover:bg-accent/50",
         selected && "bg-accent/70",
@@ -504,6 +505,7 @@ function CatalogDetail({
                   variant={item.active ? "outline" : "default"}
                   onClick={onToggle}
                   disabled={toggling}
+                  data-testid={`store-catalog-toggle-${item.kind}-${item.slug}`}
                   className="gap-1"
                 >
                   {toggling ? (
