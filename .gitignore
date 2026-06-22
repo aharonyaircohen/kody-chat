@@ -44,3 +44,6 @@ test-results/
 # Coverage
 coverage/
 _tmp-drive.mjs
+
+# Kody runtime/state now lives in configured kody-state repo
+.kody/
