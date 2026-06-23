@@ -35,6 +35,23 @@ export async function fetchCmsConfig(
   return json.cms;
 }
 
+export async function createCmsConfig(
+  headers: Record<string, string>,
+  payload: { name?: string },
+): Promise<CmsConfigState> {
+  const res = await fetch("/api/kody/cms", {
+    method: "POST",
+    headers: { ...headers, "content-type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify(payload),
+  });
+  const json = (await res.json().catch(() => ({}))) as CmsIndexResponse;
+  if (!res.ok || !json.cms) {
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+  }
+  return json.cms;
+}
+
 export async function fetchCmsDocuments(
   headers: Record<string, string>,
   collection: string,

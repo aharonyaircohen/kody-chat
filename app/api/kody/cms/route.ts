@@ -10,11 +10,12 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
-import { CmsConfigError } from "@dashboard/lib/cms/config";
+import { CmsConfigError, invalidateCmsConfigCache } from "@dashboard/lib/cms/config";
 import {
   CmsRuntimeError,
   listCmsCollections,
 } from "@dashboard/lib/cms/service";
+import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -62,13 +63,91 @@ export async function POST(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
 
-  return NextResponse.json(
-    {
-      error: "cms_setup_not_supported",
-      message: "CMS configuration is managed in the state repo.",
-    },
-    { status: 405, headers: NO_STORE_HEADERS },
+  const headerAuth = getRequestAuth(req);
+  if (!headerAuth) {
+    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
+  }
+
+  setGitHubContext(
+    headerAuth.owner,
+    headerAuth.repo,
+    headerAuth.token,
+    headerAuth.storeRepoUrl,
+    headerAuth.storeRef,
   );
+
+  try {
+    const octokit = await getUserOctokit(req);
+    if (!octokit) {
+      return NextResponse.json({ error: "no_user_token" }, { status: 401 });
+    }
+
+    const payload = await req.json().catch(() => ({}));
+    const name = readCmsName(payload, headerAuth.repo);
+    const existing = await readStateText(
+      octokit,
+      headerAuth.owner,
+      headerAuth.repo,
+      "cms/config.json",
+    );
+    if (existing) {
+      return NextResponse.json(
+        {
+          error: "cms_already_configured",
+          message: "CMS is already configured for this repo.",
+        },
+        { status: 409, headers: NO_STORE_HEADERS },
+      );
+    }
+
+    const cms = {
+      configured: true as const,
+      version: 1 as const,
+      name,
+      environment: "default",
+      writePolicy: "read-only" as const,
+      collections: [],
+    };
+
+    await writeStateText({
+      octokit,
+      owner: headerAuth.owner,
+      repo: headerAuth.repo,
+      path: "cms/config.json",
+      content: `${JSON.stringify(
+        {
+          version: 1,
+          name,
+          environment: "default",
+          writePolicy: "read-only",
+          collections: [],
+        },
+        null,
+        2,
+      )}\n`,
+      message: "chore(cms): create CMS config",
+    });
+    invalidateCmsConfigCache(headerAuth.owner, headerAuth.repo);
+
+    return NextResponse.json({ cms }, { status: 201, headers: NO_STORE_HEADERS });
+  } catch (error) {
+    return handleCmsError(error, "failed_to_create_cms");
+  } finally {
+    clearGitHubContext();
+  }
+}
+
+function readCmsName(payload: unknown, repo: string): string {
+  const fallback = `${repo} CMS`;
+  if (!payload || typeof payload !== "object" || !("name" in payload)) {
+    return fallback;
+  }
+  const name = String((payload as { name?: unknown }).name ?? "").trim();
+  if (!name) return fallback;
+  if (name.length > 120) {
+    throw new CmsRuntimeError("invalid_body", "name must be 120 characters or fewer", 400);
+  }
+  return name;
 }
 
 function handleCmsError(error: unknown, fallback: string): NextResponse {

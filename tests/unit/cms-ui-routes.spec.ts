@@ -27,6 +27,16 @@ describe("CMS UI routes", () => {
     expect(source).toContain("Cancel");
   });
 
+  it("offers CMS config creation from the unconfigured state", () => {
+    const manager = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+    const client = readRepoFile("src/dashboard/lib/components/cms/client.ts");
+
+    expect(manager).toContain("UnconfiguredCmsState");
+    expect(manager).toContain("Create CMS config");
+    expect(manager).toContain("createConfigMutation.mutate");
+    expect(client).toContain("createCmsConfig");
+  });
+
   it("keeps CMS table filters mounted while documents load", () => {
     const source = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
     const start = source.indexOf("function CollectionWorkspace");

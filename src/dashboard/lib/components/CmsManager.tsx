@@ -55,6 +55,7 @@ import { Textarea } from "@dashboard/ui/textarea";
 
 import { PageHeader } from "./PageShell";
 import {
+  createCmsConfig,
   createCmsDocument,
   deleteCmsDocument,
   fetchCmsConfig,
@@ -164,6 +165,7 @@ export function CmsCreateManager({
 function CmsListPage() {
   const router = useRouter();
   const { auth } = useAuth();
+  const queryClient = useQueryClient();
   const headers = useMemo(() => buildAuthHeaders(auth), [auth]);
   const scope = `${auth?.owner ?? ""}/${auth?.repo ?? ""}`;
   const cmsQueryKey = ["cms-config", scope] as const;
@@ -179,6 +181,14 @@ function CmsListPage() {
     queryKey: cmsQueryKey,
     queryFn: () => fetchCmsConfig(headers),
     enabled: Boolean(auth),
+  });
+  const createConfigMutation = useMutation({
+    mutationFn: () =>
+      createCmsConfig(headers, { name: `${auth?.repo ?? "Repo"} CMS` }),
+    onSuccess: async (cms) => {
+      queryClient.setQueryData(cmsQueryKey, cms);
+      await queryClient.invalidateQueries({ queryKey: cmsQueryKey });
+    },
   });
 
   const cmsConfigured = cmsQuery.data?.configured !== false;
@@ -255,12 +265,16 @@ function CmsListPage() {
         title="CMS"
         subtitle="Not configured"
         actions={null}
-        error={null}
+        error={
+          createConfigMutation.error instanceof Error
+            ? createConfigMutation.error.message
+            : null
+        }
       >
         <div className="flex flex-1 items-center justify-center overflow-y-auto px-4 py-6 md:px-8">
-          <EmptyState
-            title="CMS is not configured"
-            detail="Add cms/config.json in the state repo to enable this view."
+          <UnconfiguredCmsState
+            loading={createConfigMutation.isPending}
+            onCreate={() => createConfigMutation.mutate()}
           />
         </div>
       </CmsShell>
@@ -2729,6 +2743,39 @@ function LoadingRows() {
     <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
       <Loader2 className="h-4 w-4 animate-spin" />
       Loading
+    </div>
+  );
+}
+
+function UnconfiguredCmsState({
+  loading,
+  onCreate,
+}: {
+  loading: boolean;
+  onCreate: () => void;
+}) {
+  return (
+    <div className="flex min-h-[220px] flex-col items-center justify-center px-4 py-8 text-center">
+      <div className="text-sm font-medium text-foreground">
+        CMS is not configured
+      </div>
+      <div className="mt-1 max-w-md text-sm text-muted-foreground">
+        Create cms/config.json in the state repo to enable this view.
+      </div>
+      <Button
+        type="button"
+        className="mt-4"
+        size="sm"
+        onClick={onCreate}
+        disabled={loading}
+      >
+        {loading ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : (
+          <Plus className="mr-2 h-4 w-4" />
+        )}
+        Create CMS config
+      </Button>
     </div>
   );
 }

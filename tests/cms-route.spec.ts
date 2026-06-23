@@ -174,13 +174,54 @@ describe("CMS API routes", () => {
     });
   });
 
-  it("does not create CMS config from the Dashboard route", async () => {
+  it("creates a neutral CMS config in the state repo", async () => {
     const res = await indexPOST(postRequest({ name: "Example CMS" }));
 
-    expect(res.status).toBe(405);
+    expect(res.status).toBe(201);
     await expect(res.json()).resolves.toMatchObject({
-      error: "cms_setup_not_supported",
-      message: "CMS configuration is managed in the state repo.",
+      cms: {
+        configured: true,
+        version: 1,
+        name: "Example CMS",
+        environment: "default",
+        writePolicy: "read-only",
+        collections: [],
+      },
+    });
+    expect(stateRepo.writeStateText).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: "A-Guy-educ",
+        repo: "A-Guy-Web",
+        path: "cms/config.json",
+        message: "chore(cms): create CMS config",
+      }),
+    );
+    const write = stateRepo.writeStateText.mock.calls[0][0] as {
+      content: string;
+    };
+    expect(JSON.parse(write.content)).toEqual({
+      version: 1,
+      name: "Example CMS",
+      environment: "default",
+      writePolicy: "read-only",
+      collections: [],
+    });
+    expect(auth.verifyActorLogin).not.toHaveBeenCalled();
+  });
+
+  it("does not overwrite an existing CMS config", async () => {
+    stateRepo.readStateText.mockResolvedValueOnce({
+      path: "A-Guy-Web/cms/config.json",
+      content: "{}",
+      sha: "sha",
+    });
+
+    const res = await indexPOST(postRequest({ name: "Example CMS" }));
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toMatchObject({
+      error: "cms_already_configured",
+      message: "CMS is already configured for this repo.",
     });
     expect(stateRepo.writeStateText).not.toHaveBeenCalled();
     expect(auth.verifyActorLogin).not.toHaveBeenCalled();
