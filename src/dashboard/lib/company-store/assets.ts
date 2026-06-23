@@ -13,9 +13,14 @@ import { getStoreRef, getStoreRepoUrl } from "../github-client";
 export type StoreAssetKind =
   | "agent-responsibilities"
   | "agent-actions"
+  | "commands"
   | "agent"
   | "agents";
-type StoreManifestKind = "agent-responsibilities" | "agent-actions" | "agent";
+type StoreManifestKind =
+  | "agent-responsibilities"
+  | "agent-actions"
+  | "commands"
+  | "agent";
 export type AssetSource = "local" | "store";
 
 export interface CompanyStoreTarget {

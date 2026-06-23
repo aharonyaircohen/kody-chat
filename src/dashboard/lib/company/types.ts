@@ -18,24 +18,10 @@
 
 import { z } from "zod";
 import { isManagedGoalState, type ManagedGoalState } from "../managed-goals";
-import type { ScheduleEvery } from "../ticked/frontmatter";
 
 /** Bump when the on-disk bundle shape changes incompatibly. */
 export const COMPANY_BUNDLE_VERSION = 1 as const;
 
-/** Cadence tokens accepted in a agentResponsibility profile's `every` field. */
-const SCHEDULE_TOKENS = [
-  "15m",
-  "30m",
-  "1h",
-  "2h",
-  "6h",
-  "12h",
-  "1d",
-  "3d",
-  "7d",
-  "manual",
-] as const;
 
 /**
  * An agent or agentResponsibility entry. They share the same portable API shape even
@@ -46,7 +32,6 @@ export interface CompanyTickEntry {
   slug: string;
   title: string;
   body: string;
-  schedule: ScheduleEvery | null;
   disabled: boolean;
   /** Executor agentIdentity slug — agentResponsibilities only; agent entries are always null. */
   agent: string | null;
@@ -191,7 +176,6 @@ const tickEntrySchema = z.object({
   slug: slugSchema,
   title: z.string().min(1),
   body: z.string().default(""),
-  schedule: z.enum(SCHEDULE_TOKENS).nullable().default(null),
   disabled: z.boolean().default(false),
   agent: z.string().min(1).nullable().default(null),
   reviewer: z.string().min(1).nullable().default(null),

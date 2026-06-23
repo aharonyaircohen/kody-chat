@@ -8,6 +8,7 @@
  */
 
 import type { Octokit } from "@octokit/rest";
+import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import { getEngineConfig, type KodyConfig } from "./engine/config";
 
 export interface StateRepoState {
@@ -277,7 +278,7 @@ export async function writeStateText({
   sha?: string;
 }): Promise<{ sha: string | null }> {
   const target = await resolveStateRepo(octokit, owner, repo);
-  const res = await octokit.repos.createOrUpdateFileContents({
+  const res = await writeGitHubFileWithRetry(octokit, {
     owner: target.owner,
     repo: target.repo,
     path: stateRepoPath(target, path),
@@ -285,7 +286,7 @@ export async function writeStateText({
     content: Buffer.from(content, "utf8").toString("base64"),
     ...(sha ? { sha } : {}),
   });
-  return { sha: res.data.content?.sha ?? null };
+  return { sha: res.sha };
 }
 
 export async function writeStateFiles({

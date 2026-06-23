@@ -154,10 +154,10 @@ export function useDeleteAgent(actorLogin?: string) {
       queryClient.removeQueries({
         queryKey: agentQueryKeys.detail(slug, scope),
       });
-      toast.success("Agent member deleted");
+      toast.success("Agent member removed");
     },
     onError: (error) => {
-      toast.error("Failed to delete agent", {
+      toast.error("Failed to remove agent", {
         description: error.message,
       });
     },

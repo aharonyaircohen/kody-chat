@@ -5,7 +5,7 @@
  * @ai-summary AgentResponsibility Control API — GET lists agentResponsibilities, POST creates one.
  *   A agentResponsibility is a folder at `.kody/agent-responsibilities/<slug>/` in the connected repo:
  *   `profile.json` holds metadata and `agent-responsibility.md` holds the readable body.
- *   The kody engine's scheduler enumerates those folders.
+ * Goals and loops dispatch these folders.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
@@ -100,10 +100,6 @@ const createAgentResponsibilitySchema = z.object({
   slug: z.string().min(1).max(64).optional(),
   title: z.string().min(1),
   body: z.string().default(""),
-  schedule: z
-    .enum(["15m", "30m", "1h", "2h", "6h", "12h", "1d", "3d", "7d", "manual"])
-    .nullable()
-    .optional(),
   disabled: z.boolean().optional(),
   capabilityKind: z.enum(["observe", "act", "verify"]).nullable().optional(),
   agent: z.string().min(1).nullable().optional(),
@@ -201,10 +197,9 @@ export async function POST(req: NextRequest) {
   try {
     const payload = await req.json();
     const {
-      slug: requestedSlug,
-      title,
-      body,
-    schedule,
+    slug: requestedSlug,
+    title,
+    body,
     disabled,
     capabilityKind,
     agent,
@@ -285,10 +280,9 @@ export async function POST(req: NextRequest) {
 
     const agentResponsibility = await writeAgentResponsibilityFile({
       octokit: userOctokit,
-      slug,
-      title,
-      body,
-    schedule: schedule ?? null,
+    slug,
+    title,
+    body,
     disabled: disabled === true,
     capabilityKind: capabilityKind ?? null,
     agent: agentSlug,
@@ -306,10 +300,10 @@ export async function POST(req: NextRequest) {
     recordAudit(req, {
       action: "agentResponsibility.create",
       resource: slug,
-      agentResponsibility: slug,
-      agent: agent ?? null,
-      detail: `created agentResponsibility "${title}"${schedule ? ` (${schedule})` : ""}`,
-    });
+    agentResponsibility: slug,
+    agent: agent ?? null,
+    detail: `created agentResponsibility "${title}"`,
+  });
 
     return NextResponse.json({ agentResponsibility });
   } catch (error: any) {

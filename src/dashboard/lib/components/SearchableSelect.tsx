@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronDown, Search, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@dashboard/ui/button";
 import { Input } from "@dashboard/ui/input";
 import { cn } from "../utils";
@@ -37,6 +37,7 @@ export function SearchableSelect({
   const rootRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = useState(false);
+  const [placement, setPlacement] = useState<"top" | "bottom">("bottom");
   const [query, setQuery] = useState("");
 
   const selected = options.find((option) => option.value === value);
@@ -50,8 +51,23 @@ export function SearchableSelect({
     );
   }, [options, query]);
 
+  const updatePlacement = useCallback(() => {
+    const rect = rootRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const viewportGap = 16;
+    const expectedMenuHeight = 288;
+    const spaceBelow = window.innerHeight - rect.bottom - viewportGap;
+    const spaceAbove = rect.top - viewportGap;
+    setPlacement(
+      spaceBelow < expectedMenuHeight && spaceAbove > spaceBelow
+        ? "top"
+        : "bottom",
+    );
+  }, []);
+
   useEffect(() => {
     if (!open) return;
+    updatePlacement();
     inputRef.current?.focus();
 
     const onPointerDown = (event: PointerEvent) => {
@@ -66,11 +82,15 @@ export function SearchableSelect({
     };
     document.addEventListener("pointerdown", onPointerDown);
     window.addEventListener("keydown", onKeyDown, true);
+    window.addEventListener("resize", updatePlacement);
+    window.addEventListener("scroll", updatePlacement, true);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("resize", updatePlacement);
+      window.removeEventListener("scroll", updatePlacement, true);
     };
-  }, [open]);
+  }, [open, updatePlacement]);
 
   return (
     <div
@@ -87,6 +107,7 @@ export function SearchableSelect({
         aria-haspopup="listbox"
         disabled={disabled}
         onClick={() => {
+          if (!open) updatePlacement();
           setOpen((next) => !next);
           setQuery("");
         }}
@@ -98,7 +119,12 @@ export function SearchableSelect({
       </Button>
 
       {open ? (
-        <div className="absolute left-0 right-0 top-full z-[80] mt-1 overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-elevation-3">
+        <div
+          className={cn(
+            "absolute left-0 right-0 z-[80] overflow-hidden rounded-md border bg-popover text-popover-foreground shadow-elevation-3",
+            placement === "top" ? "bottom-full mb-1" : "top-full mt-1",
+          )}
+        >
           <div className="relative border-b p-2">
             <Search className="pointer-events-none absolute left-4 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input

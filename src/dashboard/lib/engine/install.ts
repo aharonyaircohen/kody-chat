@@ -25,6 +25,7 @@
 import type { Octokit } from "@octokit/rest";
 import sodium from "libsodium-wrappers";
 import { logger } from "@dashboard/lib/logger";
+import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import { ensureWebhook } from "@dashboard/lib/webhooks/register";
 import { readVault } from "@dashboard/lib/vault/store";
 import { readVariables } from "@dashboard/lib/variables/store";
@@ -370,7 +371,7 @@ export async function installEngine(
     let workflowHtmlUrl: string | null = null;
 
     if (!existing) {
-      const { data } = await octokit.rest.repos.createOrUpdateFileContents({
+      const data = await writeGitHubFileWithRetry(octokit, {
         owner,
         repo,
         path: WORKFLOW_PATH,
@@ -378,13 +379,13 @@ export async function installEngine(
         content: Buffer.from(template, "utf-8").toString("base64"),
       });
       workflowAction = "created";
-      workflowCommitSha = data.commit.sha ?? null;
-      workflowHtmlUrl = data.content?.html_url ?? null;
+      workflowCommitSha = data.commitSha;
+      workflowHtmlUrl = data.htmlUrl;
     } else if (existing.content === template && !force) {
       workflowAction = "unchanged";
       workflowHtmlUrl = `https://github.com/${owner}/${repo}/blob/HEAD/${WORKFLOW_PATH}`;
     } else {
-      const { data } = await octokit.rest.repos.createOrUpdateFileContents({
+      const data = await writeGitHubFileWithRetry(octokit, {
         owner,
         repo,
         path: WORKFLOW_PATH,
@@ -393,8 +394,8 @@ export async function installEngine(
         sha: existing.sha,
       });
       workflowAction = "updated";
-      workflowCommitSha = data.commit.sha ?? null;
-      workflowHtmlUrl = data.content?.html_url ?? null;
+      workflowCommitSha = data.commitSha;
+      workflowHtmlUrl = data.htmlUrl;
     }
 
     // Write the engine model into kody.config.json (`agent.model` — the key

@@ -149,7 +149,11 @@ export function AgentsControlInner({
   // to answer questions about the selected member.
   const { setScope } = useChatScope();
   useEffect(() => {
-    setScope(selectedMember ? { kind: "agentResponsibility", agentResponsibility: selectedMember } : null);
+    setScope(
+      selectedMember
+        ? { kind: "agentResponsibility", agentResponsibility: selectedMember }
+        : null,
+    );
     return () => setScope(null);
   }, [selectedMember, setScope]);
 
@@ -326,8 +330,7 @@ export function AgentsControlInner({
                     setEditingMember(selectedMember);
                 }}
                 onDelete={() => {
-                  if (!selectedMember.readOnly)
-                    setPendingDelete(selectedMember);
+                  setPendingDelete(selectedMember);
                 }}
                 onSendTask={() => setTaskMember(selectedMember)}
               />
@@ -363,14 +366,24 @@ export function AgentsControlInner({
         {/* Delete confirm */}
         <ConfirmDialog
           open={!!pendingDelete}
-          title="Delete this agent?"
+          title={
+            pendingDelete?.source === "store"
+              ? "Remove Store agent?"
+              : "Delete this agent?"
+          }
           description={
             pendingDelete
-              ? `Agent member "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/agents/ via a commit on the default branch.`
+              ? pendingDelete.source === "store"
+                ? `Agent member "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from this repo's active Store agents. The Store asset will not be deleted.`
+                : `Agent member "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/agents/ via a commit on the default branch.`
               : ""
           }
           variant="destructive"
-          confirmLabel="Delete member"
+          confirmLabel={
+            pendingDelete?.source === "store"
+              ? "Remove member"
+              : "Delete member"
+          }
           onConfirm={() => {
             if (!pendingDelete) return;
             const target = pendingDelete;
@@ -500,14 +513,17 @@ function StaffDetail({
                   variant="outline"
                   size="sm"
                   onClick={onDelete}
-                  disabled={member.readOnly}
                   className="w-9 px-0 text-red-400"
                   title={
-                    member.readOnly
-                      ? "Store-linked agent are read-only"
+                    member.source === "store"
+                      ? "Remove Store agent from this repo"
                       : "Delete agent"
                   }
-                  aria-label="Delete agent"
+                  aria-label={
+                    member.source === "store"
+                      ? "Remove Store agent from this repo"
+                      : "Delete agent"
+                  }
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </Button>
@@ -601,8 +617,8 @@ function CreateAgentDialog({
         <DialogHeader>
           <DialogTitle>New agent</DialogTitle>
           <DialogDescription>
-            Describe the agent&apos;s intent, system prompt, allowed
-            commands, and restrictions.
+            Describe the agent&apos;s intent, system prompt, allowed commands,
+            and restrictions.
           </DialogDescription>
         </DialogHeader>
 
@@ -681,8 +697,8 @@ function EditStaffDialog({
         <DialogHeader>
           <DialogTitle>Edit agent `{member.slug}`</DialogTitle>
           <DialogDescription>
-            Update the agent&apos;s title or body. Saving commits the
-            file to the default branch.
+            Update the agent&apos;s title or body. Saving commits the file to
+            the default branch.
           </DialogDescription>
         </DialogHeader>
 
@@ -750,8 +766,8 @@ function SendTaskDialog({
           <DialogTitle>Send a task to {member.title}</DialogTitle>
           <DialogDescription>
             Runs <span className="font-mono">{member.slug}</span> once on your
-            message — like a one-off agentResponsibility. The reply is posted on the Kody
-            control issue
+            message — like a one-off agentResponsibility. The reply is posted on
+            the Kody control issue
             {githubUser?.login ? " and lands in your inbox" : ""}.
           </DialogDescription>
         </DialogHeader>

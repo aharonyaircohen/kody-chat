@@ -49,6 +49,7 @@ export async function GET(req: NextRequest) {
       activeAgentActions: config.company?.activeAgentActions ?? [],
       activeAgentResponsibilities:
         config.company?.activeAgentResponsibilities ?? [],
+      activeCommands: config.company?.activeCommands ?? [],
       activeGoals: config.company?.activeGoals ?? [],
       state: config.state ?? null,
       defaultBranch: config.git?.defaultBranch ?? "",
@@ -140,6 +141,7 @@ const PatchSchema = z
       .optional(),
     activeAgents: z.array(slugSchema).max(200).nullable().optional(),
     activeAgentActions: z.array(slugSchema).max(200).nullable().optional(),
+    activeCommands: z.array(slugSchema).max(200).nullable().optional(),
     activeGoals: z.array(activeGoalSchema).max(200).nullable().optional(),
     state: stateSchema.nullable().optional(),
     defaultBranch: z.string().max(255).nullable().optional(),
@@ -167,6 +169,7 @@ const PatchSchema = z
       b.activeAgents !== undefined ||
       b.activeAgentActions !== undefined ||
       b.activeAgentResponsibilities !== undefined ||
+      b.activeCommands !== undefined ||
       b.activeGoals !== undefined ||
       b.state !== undefined ||
       b.defaultBranch !== undefined ||
@@ -212,6 +215,7 @@ export async function PATCH(req: NextRequest) {
     aliases,
     allowedAssociations,
     activeAgentResponsibilities,
+    activeCommands,
     activeAgents,
     activeAgentActions,
     activeGoals,
@@ -239,6 +243,7 @@ export async function PATCH(req: NextRequest) {
         activeAgents,
         activeAgentActions,
         activeAgentResponsibilities,
+        activeCommands,
         activeGoals,
         state,
         defaultBranch,
@@ -259,6 +264,7 @@ export async function PATCH(req: NextRequest) {
       activeAgentActions: config.company?.activeAgentActions ?? [],
       activeAgentResponsibilities:
         config.company?.activeAgentResponsibilities ?? [],
+      activeCommands: config.company?.activeCommands ?? [],
       activeGoals: config.company?.activeGoals ?? [],
       state: config.state ?? null,
       defaultBranch: config.git?.defaultBranch ?? "",

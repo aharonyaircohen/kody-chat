@@ -219,7 +219,13 @@ export const tasksApi = {
   list: async (params?: {
     days?: number;
     includeDetails?: boolean;
-    viewMode?: "all" | "running" | "backlog" | "unassigned" | "queue";
+    viewMode?:
+      | "all"
+      | "running"
+      | "backlog"
+      | "unassigned"
+      | "intake"
+      | "queue";
   }): Promise<KodyTask[]> => {
     const searchParams = new URLSearchParams();
     if (params?.days) searchParams.set("days", String(params.days));
@@ -845,20 +851,6 @@ export const remoteApi = {
 
 // ============ AgentResponsibilities API ============
 
-/** Per-agentResponsibility cadence tokens; mirrors `ScheduleEvery` accepted by agentResponsibility profiles. */
-export type AgentResponsibilitySchedule =
-  | "15m"
-  | "30m"
-  | "1h"
-  | "2h"
-  | "6h"
-  | "12h"
-  | "1d"
-  | "3d"
-  | "7d"
-  /** Sentinel: scheduler never auto-fires; only the dashboard "Run now" button executes it. */
-  | "manual";
-
 export type AgentResponsibilityCapabilityKind = "observe" | "act" | "verify";
 
 export interface AgentResponsibility {
@@ -886,23 +878,15 @@ export interface AgentResponsibility {
   lastOutcome: "completed" | "failed" | null;
   /** Wall-clock of the most recent tick (ms) — `data.lastDurationMs`, or null. */
   lastDurationMs: number | null;
-  /**
-   * Per-agentResponsibility cadence parsed from `profile.json`. `null` = global cron wake
-   * (every 15 min). Engine-side gating ships separately.
-   */
-  schedule: AgentResponsibilitySchedule | null;
+  /** Legacy compatibility only. Responsibilities no longer own cadence. */
+  schedule: null;
   capabilityKind: AgentResponsibilityCapabilityKind | null;
   /**
    * Mirrors `disabled: true` in `profile.json`. When `true` the engine
-   * scheduler skips this agentResponsibility; manual "Run now" still fires.
+ * runner dispatch skips disabled responsibilities; manual "Run now" still works.
    */
   disabled: boolean;
-  /**
-   * Slug of the agent (agentIdentity) that executes this agentResponsibility, from
-   * `profile.json.agent`. The agentResponsibility owns the schedule; the agent is
-   * *who* the engine tick runs as. `null` = no agent assigned — the engine
-   * scheduler skips such agentResponsibilities (every agentResponsibility must name an executor).
-   */
+  /** Slug agent (agentIdentity) executes agentResponsibility. `null` means none assigned. */
   agent: string | null;
   /** Agent slug responsible for reviewing this agentResponsibility's output. */
   reviewer: string | null;
@@ -964,7 +948,6 @@ export const agentResponsibilitiesApi = {
     slug?: string;
     title: string;
     body: string;
-    schedule?: AgentResponsibilitySchedule | null;
     capabilityKind?: AgentResponsibilityCapabilityKind | null;
     disabled?: boolean;
     agent?: string | null;
@@ -995,7 +978,6 @@ export const agentResponsibilitiesApi = {
     data: {
       title?: string;
       body?: string;
-      schedule?: AgentResponsibilitySchedule | null;
       capabilityKind?: AgentResponsibilityCapabilityKind | null;
       disabled?: boolean;
       agent?: string | null;
@@ -2403,6 +2385,19 @@ export interface EngineEditableConfig {
   };
   aliases: Record<string, string>;
   allowedAssociations: string[];
+  activeAgents?: string[];
+  activeAgentActions?: string[];
+  activeAgentResponsibilities?: string[];
+  activeCommands?: string[];
+  activeGoals?: Array<
+    | string
+    | {
+        template: string;
+        every?: string;
+        idPrefix?: string;
+        facts?: Record<string, unknown>;
+      }
+  >;
   state: {
     repo?: string;
     path?: string;

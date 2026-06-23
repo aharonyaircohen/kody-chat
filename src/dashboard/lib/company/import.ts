@@ -89,7 +89,6 @@ async function importTickCollection(
         slug: entry.slug,
         title: entry.title,
         body: entry.body,
-        schedule: entry.schedule,
         disabled: entry.disabled,
         agent: entry.agent,
         reviewer: entry.reviewer,

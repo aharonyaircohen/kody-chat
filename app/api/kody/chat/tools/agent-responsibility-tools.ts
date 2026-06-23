@@ -30,21 +30,6 @@ import {
   isValidSlug,
 } from "@dashboard/lib/agent-responsibilities-files";
 
-const DUTY_SCHEDULE_VALUES = [
-  "15m",
-  "30m",
-  "1h",
-  "2h",
-  "6h",
-  "12h",
-  "1d",
-  "3d",
-  "7d",
-  "manual",
-] as const;
-
-type AgentResponsibilityScheduleToken = (typeof DUTY_SCHEDULE_VALUES)[number];
-
 interface Ctx {
   octokit: Octokit;
   owner: string;
@@ -61,7 +46,6 @@ interface AgentResponsibilityInput {
   agentActions?: string[];
   agent?: string;
   reviewer?: string;
-  schedule?: AgentResponsibilityScheduleToken;
   purpose: string;
   inputs?: string[];
   extraAllowedCommands?: string[];
@@ -91,7 +75,7 @@ async function readAgentResponsibilityGuide(): Promise<string> {
       "",
       "- Kody can create or update agentResponsibilities with `create_or_update_agent_responsibility`.",
       "- AgentResponsibilities live at `.kody/agent-responsibilities/<slug>/profile.json` plus `agent-responsibility.md`.",
-      "- A agentResponsibility owns public action, purpose, cadence, agent, reviewer, and safety rules.",
+      "- A agentResponsibility owns public action, purpose, agent, reviewer, and safety rules. Goals/loops own cadence.",
       "- Put agentIdentity in `.kody/agents/<slug>.md`.",
       "- Put reusable action logic in `.kody/agent-actions/<slug>/`.",
       "- Do not put metadata or raw state keys in `agent-responsibility.md`; runtime state belongs to the engine.",
@@ -223,14 +207,6 @@ export const createOrUpdateKodyAgentResponsibilityInputSchema = z.object({
       "Optional agentIdentity slug responsible for reviewing or handling the agentResponsibility result. " +
         "Omit to preserve the existing reviewer on update.",
     ),
-  schedule: z
-    .enum(DUTY_SCHEDULE_VALUES)
-    .optional()
-    .describe(
-      "AgentResponsibility profile cadence for `every`. Use `manual` for run-button only, or values like " +
-        "`1h`, `1d`, `7d` for auto-run. Omit to preserve the existing schedule on update; " +
-        "defaults to `1d` only when CREATING a new agentResponsibility without an explicit value.",
-    ),
   disabled: z
     .boolean()
     .optional()
@@ -288,7 +264,7 @@ export const createOrUpdateKodyAgentResponsibilityInputSchema = z.object({
         "schema doesn't expose). Values are merged on top of the typed " +
         "fields — typed values still win for the keys the build function " +
         "manages directly (name, describe, action, agent, reviewer, " +
-        "agentAction, schedule, disabled). Pass `null` to clear a key. " +
+        "agentAction, disabled). Pass `null` to clear a key. " +
         "Use this when the typed schema is too rigid for the shape the " +
         "engine needs; prefer the typed fields when they suffice.",
     ),
@@ -313,10 +289,9 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
     create_or_update_agent_responsibility: tool({
       description:
         `Create a new Kody AgentResponsibility in ${repoRef}, or update an existing one. Before calling it, call read_agent_responsibility_creation_guide (and read_agent_responsibility for updates) and follow that guide. Commits a agentResponsibility folder at ` +
-        "`.kody/agent-responsibilities/<slug>/` (`profile.json` + `agent-responsibility.md`). The responsibility body describes purpose, cadence, allowed commands, and restrictions. Report generation belongs in a configured agentAction that writes reports to the configured Kody state repo, not in the responsibility body. The kody engine's agent-responsibility-scheduler ticks every agentResponsibility folder in " +
-        "`.kody/agent-responsibilities/`; the agentResponsibility profile's `every` value decides how often it may run.\n\n" +
+        "`.kody/agent-responsibilities/<slug>/` (`profile.json` + `agent-responsibility.md`). The responsibility body describes purpose, allowed commands, and restrictions. Report generation belongs in a configured agentAction that writes reports to the configured Kody state repo, not in the responsibility body. Goals and loops dispatch agentResponsibilities from " +
         "MODES (resolved at call time from whether the slug already exists):\n" +
-        "- CREATE: requires `title`, `agent`, `schedule`, and `purpose`. Builds a fresh agent-responsibility.md from the body fields unless `body` is passed.\n" +
+        "- CREATE: requires `title`, `agent`, `purpose`. Builds a fresh agent-responsibility.md from the body fields unless `body` is passed.\n" +
         "- UPDATE: requires `slug` (the existing agentResponsibility). All other fields are optional — omitted " +
         "fields preserve the current value. Pass `body` to replace the markdown content; otherwise " +
         "the existing body is preserved.\n\n" +
@@ -328,15 +303,14 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
         "- `profile` — raw profile.json field overrides. Use for engine-specific fields the " +
         "typed schema doesn't expose (e.g. `tickScript`, `readsFrom`, `writesTo`, `mentions`, " +
         "`agentResponsibilityTools`, `version`). Typed values still win for keys the build function manages.\n\n" +
-        "BEFORE CALLING (CREATE): gather title, purpose, agent, reviewer, schedule, optional agentActions, and optional inputs. Ask the user clarifying " +
+        "BEFORE CALLING (CREATE): gather title, purpose, agent, reviewer, optional agentActions, and optional inputs. Ask the user clarifying " +
         "questions in small batches until each field is well-specified — never invent inputs or schema. " +
         "Show the proposed profile JSON and markdown body for approval before calling.\n\n" +
         "BEFORE CALLING (UPDATE): call `read_agent_responsibility` to surface the current profile + body, then pass " +
         "only the fields that should change. Show the resulting diff (what changes, what stays) " +
         "for explicit user approval.\n\n" +
         "Returns the agentResponsibility slug, title, html URL, and the resolved `action` (" +
-        "`created` or `updated`) on success. The agentResponsibility starts ticking on the next scheduler " +
-        "wake; updates take effect immediately for the next tick.",
+        "`created` or `updated`) on success. The agentResponsibility runs when a goal or loop dispatches it.",
       inputSchema: createOrUpdateKodyAgentResponsibilityInputSchema,
       execute: async (input) => {
         const slugFromInput = (input.slug ?? "").toLowerCase();
@@ -361,7 +335,6 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
             const missing: string[] = [];
             if (!input.title) missing.push("title");
             if (!createAgent) missing.push("agent");
-            if (!input.schedule) missing.push("schedule");
             if (!input.purpose) missing.push("purpose");
             if (missing.length > 0) {
               return {
@@ -416,7 +389,6 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
               slug,
               title: input.title!,
               body,
-              schedule: input.schedule!,
               agent: createAgent!,
               reviewer: input.reviewer?.trim().replace(/^@/, "") || null,
               action,
@@ -434,7 +406,6 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
                 action,
                 agentAction,
                 agentActions,
-                schedule: input.schedule,
                 agent: createAgent,
                 actorLogin,
               },
@@ -447,8 +418,7 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
               title: agentResponsibility.title,
               htmlUrl: agentResponsibility.htmlUrl,
               note:
-                "AgentResponsibility folder committed. The kody engine's agent-responsibility-scheduler will pick it up on the next " +
-                "scheduler wake. The profile `every` value controls how often it may run.",
+              "AgentResponsibility folder committed. Add it to a goal or loop to run it.",
             };
           }
 
@@ -458,7 +428,6 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
           // everything else falls
           // back to the existing agentResponsibility.
           const nextTitle = input.title ?? existing.title;
-          const nextSchedule = input.schedule ?? existing.schedule ?? undefined;
           const agentProvided = input.agent;
           const nextAgent = agentProvided ?? existing.agent;
           const nextReviewer =
@@ -515,11 +484,6 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
           if (input.title !== undefined && input.title !== existing.title)
             changedFields.push("title");
           if (
-            input.schedule !== undefined &&
-            input.schedule !== existing.schedule
-          )
-            changedFields.push("schedule");
-          if (
             input.disabled !== undefined &&
             input.disabled !== existing.disabled
           )
@@ -553,7 +517,6 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
             slug,
             title: nextTitle,
             body: nextBody,
-            schedule: nextSchedule,
             disabled: nextDisabled,
             agent: nextAgent,
             reviewer: nextReviewer,
@@ -574,7 +537,6 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
               repo,
               slug,
               changedFields,
-              schedule: nextSchedule,
               agent: nextAgent,
               disabled: nextDisabled,
               actorLogin,
@@ -590,7 +552,7 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
             changedFields,
             note:
               changedFields.length === 0
-                ? "No-op update — every supplied field matched the existing value."
+                ? "No-op update — all supplied fields matched the existing value."
                 : `Updated ${changedFields.join(", ")}. The agentResponsibility will pick up the changes on the next tick.`,
           };
         } catch (err) {

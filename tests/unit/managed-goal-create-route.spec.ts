@@ -90,6 +90,7 @@ describe("POST /api/kody/goals/managed", () => {
         evidence: "changeVerified",
         agentResponsibility: "review",
         agentAction: "review",
+        saveReport: true,
       },
       {
         stage: "implement",
@@ -143,6 +144,7 @@ describe("POST /api/kody/goals/managed", () => {
         type: "agentLoop",
         schedule: "1d",
         outcome: "Keep codebase healthy report drift.",
+        saveReport: true,
         evidence: [],
         agentResponsibilities: ["code-health", "docs-health"],
         route: [],
@@ -157,9 +159,10 @@ describe("POST /api/kody/goals/managed", () => {
     expect(write.id).toBe("keep-codebase-healthy-report-drift");
     expect(write.state).toMatchObject({
       type: "agentLoop",
-      schedule: "1d",
-      scheduleMode: "agentLoop",
-      destination: {
+        schedule: "1d",
+        scheduleMode: "agentLoop",
+        saveReport: true,
+        destination: {
         outcome: "Keep codebase healthy report drift.",
         evidence: [],
       },

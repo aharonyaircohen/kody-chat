@@ -7,6 +7,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { throttling } from "@octokit/plugin-throttling";
 import { Octokit } from "@octokit/rest";
+import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import {
   GITHUB_OWNER,
   GITHUB_REPO,
@@ -2203,11 +2204,17 @@ export async function fetchCompanyActivity(
   const listStale = getStale<string[]>(listKey);
   let files: string[] = listStale?.data ?? [];
   try {
-    const { entries, etag } = await listStateDirectory(octokit, owner, repo, ACTIVITY_DIR, {
-      headers: listStale?.etag
-        ? { "If-None-Match": listStale.etag }
-        : undefined,
-    });
+    const { entries, etag } = await listStateDirectory(
+      octokit,
+      owner,
+      repo,
+      ACTIVITY_DIR,
+      {
+        headers: listStale?.etag
+          ? { "If-None-Match": listStale.etag }
+          : undefined,
+      },
+    );
     files = entries
       .filter((e) => e.type === "file" && e.name.endsWith(".jsonl"))
       .map((e) => e.name);
@@ -3181,7 +3188,7 @@ export async function uploadCommentAttachment(
   const safeName = cleaned.replace(/^[-.]+/, "") || "file";
   const path = `.kody/attachments/${globalThis.crypto.randomUUID()}-${safeName}`;
 
-  await octokit.repos.createOrUpdateFileContents({
+  await writeGitHubFileWithRetry(octokit, {
     owner,
     repo,
     path,

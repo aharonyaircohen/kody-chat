@@ -6,6 +6,7 @@
  */
 
 import type { Octokit } from "@octokit/rest";
+import { updateGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 
 export const KODY_CONFIG_PATH = "kody.config.json";
 
@@ -87,6 +88,7 @@ export interface KodyConfig {
     activeAgents?: string[];
     activeAgentActions?: string[];
     activeAgentResponsibilities?: string[];
+    activeCommands?: string[];
     activeGoals?: ActiveGoalConfigEntry[];
   };
   /** Git defaults the engine reads. `defaultBranch` is the base branch new
@@ -243,6 +245,7 @@ async function fetchConfig(
         access: parsed.access,
         git: parsed.git,
         fly: parsed.fly,
+        company: parsed.company,
       },
       sha: data.sha ?? null,
     };
@@ -302,7 +305,9 @@ export function invalidateEngineConfigCache(owner: string, repo: string): void {
  * Shared read→merge→commit→invalidate for kody.config.json. Reads the current
  * file (tolerating 404 = new file and corrupt JSON), hands the parsed object to
  * `mutate`, which returns the next object, then strips the legacy top-level
- * `model` key (the engine never read it) and commits.
+ * `model` key (the engine never read it) and commits. If GitHub rejects the
+ * write because the contents SHA went stale, the mutation is re-applied once
+ * over a freshly read file.
  *
  * Every config writer goes through here so the merge-not-overwrite contract —
  * never clobber the engine's required keys (`github`, `agentActions`,
@@ -310,6 +315,21 @@ export function invalidateEngineConfigCache(owner: string, repo: string): void {
  * seeding the engine-required defaults (`agentActions`, `github`) on a fresh
  * file; `mutate` always receives the full existing object to spread from.
  */
+function parseConfigForWrite(
+  contentBase64: string | null,
+): Record<string, unknown> {
+  if (!contentBase64) return {};
+  try {
+    return JSON.parse(
+      Buffer.from(contentBase64, "base64").toString("utf-8"),
+    ) as Record<string, unknown>;
+  } catch {
+    // Corrupt JSON — start clean rather than propagate parse error,
+    // but keep sha so we replace the bad file.
+    return {};
+  }
+}
+
 async function mutateConfig(
   octokit: Octokit,
   owner: string,
@@ -317,48 +337,26 @@ async function mutateConfig(
   mutate: (existing: Record<string, unknown>) => Record<string, unknown>,
   commitMessage: string,
 ): Promise<{ sha: string | null }> {
-  let existing: Record<string, unknown> = {};
-  let existingSha: string | null = null;
-  try {
-    const res = await octokit.rest.repos.getContent({
-      owner,
-      repo,
-      path: KODY_CONFIG_PATH,
-    });
-    const data = res.data;
-    if (!Array.isArray(data) && "content" in data && data.content) {
-      existingSha = data.sha ?? null;
-      try {
-        existing = JSON.parse(
-          Buffer.from(data.content, "base64").toString("utf-8"),
-        ) as Record<string, unknown>;
-      } catch {
-        // Corrupt JSON — start clean rather than propagate a parse error,
-        // but keep the sha so we replace (not 409) the bad file.
-        existing = {};
-      }
-    }
-  } catch (err) {
-    const status = (err as { status?: number }).status;
-    if (status !== 404) throw err;
-  }
-
-  const next = mutate(existing);
-  delete next.model; // strip the legacy key the engine never read
-
-  const content = Buffer.from(JSON.stringify(next, null, 2), "utf-8").toString(
-    "base64",
-  );
-  const { data } = await octokit.rest.repos.createOrUpdateFileContents({
+  const result = await updateGitHubFileWithRetry(octokit, {
     owner,
     repo,
     path: KODY_CONFIG_PATH,
     message: commitMessage,
-    content,
-    ...(existingSha ? { sha: existingSha } : {}),
+    maxAttempts: 2,
+    onConflict: () => invalidateEngineConfigCache(owner, repo),
+    mutate: (current) => {
+      const existing = parseConfigForWrite(current?.contentBase64 ?? null);
+      const next = mutate(existing);
+      delete next.model; // strip the legacy key the engine never read
+      return {
+        content: Buffer.from(JSON.stringify(next, null, 2), "utf-8").toString(
+          "base64",
+        ),
+      };
+    },
   });
   invalidateEngineConfigCache(owner, repo);
-  return { sha: data.commit.sha ?? null };
+  return { sha: result.commitSha };
 }
 
 /**
@@ -614,6 +612,7 @@ function setCompanyField(
     | "activeAgents"
     | "activeAgentActions"
     | "activeAgentResponsibilities"
+    | "activeCommands"
     | "activeGoals",
   value: string[] | ActiveGoalConfigEntry[],
 ): void {
@@ -696,6 +695,7 @@ export interface ConfigPatch {
   activeAgents?: string[] | null;
   activeAgentActions?: string[] | null;
   activeAgentResponsibilities?: string[] | null;
+  activeCommands?: string[] | null;
   activeGoals?: ActiveGoalConfigEntry[] | null;
   state?: KodyStateConfig | null;
   defaultBranch?: string | null;
@@ -790,6 +790,13 @@ export async function writeConfigPatch(
           ? cleanSlugList(patch.activeAgentResponsibilities)
           : [];
         setCompanyField(next, "activeAgentResponsibilities", list);
+      }
+
+      if (patch.activeCommands !== undefined) {
+        const list = patch.activeCommands
+          ? cleanSlugList(patch.activeCommands)
+          : [];
+        setCompanyField(next, "activeCommands", list);
       }
 
       if (patch.activeGoals !== undefined) {

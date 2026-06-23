@@ -27,6 +27,10 @@ import {
   isValidSlug,
 } from "@dashboard/lib/agent-responsibilities-files";
 import { readAgentFile } from "@dashboard/lib/agent-files";
+import {
+  getEngineConfig,
+  writeConfigPatch,
+} from "@dashboard/lib/engine/config";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export async function GET(
@@ -57,7 +61,10 @@ export async function GET(
     }
     return NextResponse.json({ agentResponsibility });
   } catch (error: any) {
-    console.error("[AgentResponsibilities] Error fetching agentResponsibility:", error);
+    console.error(
+      "[AgentResponsibilities] Error fetching agentResponsibility:",
+      error,
+    );
     return NextResponse.json(
       {
         error: "fetch_failed",
@@ -73,10 +80,6 @@ export async function GET(
 const updateAgentResponsibilitySchema = z.object({
   title: z.string().min(1).optional(),
   body: z.string().optional(),
-  schedule: z
-    .enum(["15m", "30m", "1h", "2h", "6h", "12h", "1d", "3d", "7d", "manual"])
-    .nullable()
-    .optional(),
   disabled: z.boolean().optional(),
   capabilityKind: z.enum(["observe", "act", "verify"]).nullable().optional(),
   agent: z.string().min(1).nullable().optional(),
@@ -175,12 +178,11 @@ export async function PATCH(
 
     const payload = await req.json();
     const {
-      title,
-      body,
-    schedule,
+    title,
+    body,
     disabled,
-    capabilityKind,
-    agent,
+      capabilityKind,
+      agent,
       reviewer,
       action,
       mentions,
@@ -251,14 +253,13 @@ export async function PATCH(
 
     const agentResponsibility = await writeAgentResponsibilityFile({
       octokit: userOctokit,
-      slug,
-      title: title ?? existing.title,
-      body: body ?? existing.body,
-    schedule: schedule === undefined ? existing.schedule : schedule,
+    slug,
+    title: title ?? existing.title,
+    body: body ?? existing.body,
     disabled: disabled === undefined ? existing.disabled : disabled,
-    capabilityKind:
-      capabilityKind === undefined ? existing.capabilityKind : capabilityKind,
-    agent: nextAgent,
+      capabilityKind:
+        capabilityKind === undefined ? existing.capabilityKind : capabilityKind,
+      agent: nextAgent,
       reviewer: nextReviewer,
       action: nextAction,
       // Read-merge: omitting `mentions` preserves the existing list rather
@@ -273,7 +274,9 @@ export async function PATCH(
           ? existing.agentActions
           : normalizeList(agentActions),
       agentResponsibilityTools:
-        agentResponsibilityTools === undefined ? existing.agentResponsibilityTools : normalizeList(agentResponsibilityTools),
+        agentResponsibilityTools === undefined
+          ? existing.agentResponsibilityTools
+          : normalizeList(agentResponsibilityTools),
       tickScript:
         tickScript === undefined
           ? existing.tickScript
@@ -297,7 +300,10 @@ export async function PATCH(
 
     return NextResponse.json({ agentResponsibility });
   } catch (error: any) {
-    console.error("[AgentResponsibilities] Error updating agentResponsibility:", error);
+    console.error(
+      "[AgentResponsibilities] Error updating agentResponsibility:",
+      error,
+    );
 
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -346,11 +352,6 @@ export async function DELETE(
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
 
-    const existing = await readAgentResponsibilityFile(slug);
-    if (!existing) {
-      return NextResponse.json({ success: true, alreadyMissing: true });
-    }
-
     const { searchParams } = new URL(req.url);
     const actorLogin = searchParams.get("actorLogin") ?? undefined;
 
@@ -369,6 +370,49 @@ export async function DELETE(
       );
     }
 
+    const existing = await readAgentResponsibilityFile(slug);
+    if (!existing) {
+      if (!headerAuth) {
+        return NextResponse.json({ success: true, alreadyMissing: true });
+      }
+
+      const { config } = await getEngineConfig(
+        userOctokit,
+        headerAuth.owner,
+        headerAuth.repo,
+        { force: true },
+      );
+      const activeAgentResponsibilities =
+        config.company?.activeAgentResponsibilities ?? [];
+      if (!activeAgentResponsibilities.includes(slug)) {
+        return NextResponse.json({ success: true, alreadyMissing: true });
+      }
+
+      const nextActiveAgentResponsibilities =
+        activeAgentResponsibilities.filter((value) => value !== slug);
+      await writeConfigPatch(
+        userOctokit,
+        headerAuth.owner,
+        headerAuth.repo,
+        {
+          activeAgentResponsibilities:
+            nextActiveAgentResponsibilities.length > 0
+              ? nextActiveAgentResponsibilities
+              : null,
+        },
+        `chore(kody): remove store agentResponsibility ${slug}`,
+      );
+
+      recordAudit(req, {
+        action: "agentResponsibility.removeStoreReference",
+        resource: slug,
+        agentResponsibility: slug,
+        agent: null,
+        detail: "removed store agentResponsibility reference",
+      });
+      return NextResponse.json({ success: true, removedStoreReference: true });
+    }
+
     await deleteAgentResponsibilityFile(userOctokit, slug);
 
     recordAudit(req, {
@@ -381,7 +425,10 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
-    console.error("[AgentResponsibilities] Error deleting agentResponsibility:", error);
+    console.error(
+      "[AgentResponsibilities] Error deleting agentResponsibility:",
+      error,
+    );
     if (error?.status === 401) {
       return NextResponse.json(
         { error: "github_token_expired" },

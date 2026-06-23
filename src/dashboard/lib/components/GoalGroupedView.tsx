@@ -72,7 +72,7 @@ interface GoalGroupedViewProps {
   mergingTaskId?: string | null;
   focusedIndex?: number;
   onTaskSelect?: (task: KodyTask | null) => void;
-  onExecuteTask?: (taskId: string) => void;
+  onExecuteTask?: (task: KodyTask) => void;
   onStopTask?: (task: KodyTask) => void;
   onApproveReview?: (task: KodyTask) => Promise<void>;
   onTaskHover?: (task: KodyTask) => void;

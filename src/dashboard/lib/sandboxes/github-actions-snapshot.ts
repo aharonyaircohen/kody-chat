@@ -7,6 +7,7 @@ import { readFile } from "node:fs/promises";
 import type { Octokit } from "@octokit/rest";
 import type { NextRequest } from "next/server";
 import { getUserOctokit } from "@dashboard/lib/auth";
+import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import type { LocalSandbox } from "./local-sandboxes";
 
 interface GitHubRepoAuth {
@@ -68,7 +69,7 @@ export async function publishGitHubActionsSandboxSnapshotWithOctokit(
   const content = await readFile(sandbox.snapshotPath, "base64");
   const sha = await getExistingFileSha(octokit, auth, path);
 
-  await octokit.repos.createOrUpdateFileContents({
+  await writeGitHubFileWithRetry(octokit, {
     owner: auth.owner,
     repo: auth.repo,
     path,

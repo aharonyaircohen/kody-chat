@@ -22,6 +22,7 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { recordAudit } from "@dashboard/lib/activity/audit";
+import { buildKodyWorkflowDispatchInputs } from "@dashboard/lib/kody-workflow-dispatch";
 
 const runSchema = z.object({
   force: z.boolean().optional().default(true),
@@ -86,12 +87,18 @@ export async function POST(
       repo,
     });
     const ref = repoMeta.data.default_branch || "main";
+    const inputs = await buildKodyWorkflowDispatchInputs(octokit, {
+      owner,
+      repo,
+      ref,
+      action,
+    });
     await octokit.rest.actions.createWorkflowDispatch({
       owner,
       repo,
       workflow_id: "kody.yml",
       ref,
-      inputs: { agentAction: action },
+      inputs,
     });
     recordAudit(req, {
       action: "agentResponsibility.run",

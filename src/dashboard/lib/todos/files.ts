@@ -7,6 +7,7 @@
  * markdown record with its own completed state.
  */
 import type { Octokit } from "@octokit/rest";
+import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import { getOctokit, getOwner, getRepo } from "../github-client";
 
 const TODOS_DIR = ".kody/todos";
@@ -357,7 +358,7 @@ export async function writeTodoFile(opts: WriteTodoOptions): Promise<TodoFile> {
       opts.sha ? "update" : "add"
     } ${opts.slug}`;
 
-  await opts.octokit.repos.createOrUpdateFileContents({
+  await writeGitHubFileWithRetry(opts.octokit, {
     owner: getOwner(),
     repo: getRepo(),
     path: filePath,

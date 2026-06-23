@@ -28,6 +28,10 @@ import {
   isValidSlug,
   PERMISSION_MODES,
 } from "@dashboard/lib/agent-actions";
+import {
+  getEngineConfig,
+  writeConfigPatch,
+} from "@dashboard/lib/engine/config";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export async function GET(
@@ -251,6 +255,45 @@ export async function DELETE(
         },
         { status: 401 },
       );
+    }
+
+    const existing = await readAgentActionFile(slug, userOctokit);
+    if (!existing) {
+      if (!headerAuth) {
+        return NextResponse.json({ success: true, alreadyMissing: true });
+      }
+
+      const { config } = await getEngineConfig(
+        userOctokit,
+        headerAuth.owner,
+        headerAuth.repo,
+        { force: true },
+      );
+      const activeAgentActions = config.company?.activeAgentActions ?? [];
+      if (!activeAgentActions.includes(slug)) {
+        return NextResponse.json({ success: true, alreadyMissing: true });
+      }
+
+      const nextActiveAgentActions = activeAgentActions.filter(
+        (value) => value !== slug,
+      );
+      await writeConfigPatch(
+        userOctokit,
+        headerAuth.owner,
+        headerAuth.repo,
+        {
+          activeAgentActions:
+            nextActiveAgentActions.length > 0 ? nextActiveAgentActions : null,
+        },
+        `chore(kody): remove store agentAction ${slug}`,
+      );
+
+      recordAudit(req, {
+        action: "agentAction.removeStoreReference",
+        resource: slug,
+        detail: `removed store agentAction reference ${slug}`,
+      });
+      return NextResponse.json({ success: true, removedStoreReference: true });
     }
 
     await deleteAgentActionFile(userOctokit, slug);

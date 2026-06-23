@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { buildAgentResponsibilityBody, buildAgentResponsibilityProfile } from "@dashboard/lib/agent-responsibilities-files";
+import {
+  buildAgentResponsibilityBody,
+  buildAgentResponsibilityProfile,
+} from "@dashboard/lib/agent-responsibilities-files";
 
 describe("folder-backed agentResponsibility files", () => {
   it("serializes metadata into profile.json, not agent-responsibility.md frontmatter", () => {
@@ -10,7 +13,6 @@ describe("folder-backed agentResponsibility files", () => {
       body: "ignored here",
       action: "repo-graph",
       agentAction: "repo-graph",
-      schedule: "1d",
       disabled: true,
       agent: "cto",
       reviewer: "@qa",
@@ -25,7 +27,6 @@ describe("folder-backed agentResponsibility files", () => {
       describe: "Repo Graph",
       action: "repo-graph",
       agentAction: "repo-graph",
-      every: "1d",
       disabled: true,
       // The engine reads `config.agent`; the dashboard mirrors the
       agent: "cto",
@@ -57,11 +58,10 @@ describe("folder-backed agentResponsibility files", () => {
       title: "Override",
       body: "ignored",
       agent: "qa",
-      schedule: "1d",
       extraProfile: {
         version: 2,
         customFlag: "yes",
-        every: "OVERRIDDEN", // typed schedule still wins
+        every: "OVERRIDDEN",
       },
     });
     expect(profile).toMatchObject({
@@ -69,8 +69,10 @@ describe("folder-backed agentResponsibility files", () => {
       version: 2,
       customFlag: "yes",
     });
-    // Typed schedule beats the override.
-    expect(profile.every).toBe("1d");
+    // Legacy cadence is managed outside agentResponsibility profiles.
+    expect(
+      (profile as unknown as Record<string, unknown>).every,
+    ).toBeUndefined();
   });
 
   it("protects the identity keys from extraProfile overrides", () => {

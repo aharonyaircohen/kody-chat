@@ -114,16 +114,15 @@ Each stage's status is committed to a per-task \`status.json\` on the work branc
   },
   {
     id: "kody-agentResponsibilities",
-    name: "Kody AgentResponsibilities (scheduled agentResponsibility folders)",
+    name: "Kody AgentResponsibilities",
     summary:
-      "Folders at .kody/agent-responsibilities/<slug>/ that the engine agent-responsibility-scheduler ticks.",
+      "Folders at .kody/agent-responsibilities/<slug>/ that define responsibility purpose and execution binding.",
     details: `A Kody AgentResponsibility is a folder at \`.kody/agent-responsibilities/<slug>/\`:
 
-- \`profile.json\` stores action, agentAction, cadence, agent, mentions, and data-contract metadata.
+- \`profile.json\` stores action, agentAction, agent, mentions, and data-contract metadata.
 - \`agent-responsibility.md\` stores the human-readable purpose, output, allowed commands, and restrictions.
 
-The engine agent-responsibility-scheduler enumerates agentResponsibility folders and ticks due agentResponsibilities. Each
-agentResponsibility profile's \`every\` value decides whether it may take action on a given tick.
+Responsibilities do not own cadence. Goals and loops decide when to run a responsibility.
 
 Format (must match existing agentResponsibilities in \`.kody/agent-responsibilities/\`):
 - \`profile.json\` metadata

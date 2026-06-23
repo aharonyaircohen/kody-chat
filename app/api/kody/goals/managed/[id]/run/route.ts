@@ -28,6 +28,7 @@ import {
   readManagedGoalFile,
   writeManagedGoalFile,
 } from "@dashboard/lib/managed-goals-files";
+import { buildKodyWorkflowDispatchInputs } from "@dashboard/lib/kody-workflow-dispatch";
 
 function activeGoalResponse(
   goal: ManagedGoalRecord,
@@ -126,12 +127,19 @@ export async function POST(
       repo: headerAuth.repo,
     });
     const ref = repoMeta.data.default_branch || "main";
+    const inputs = await buildKodyWorkflowDispatchInputs(octokit, {
+      owner: headerAuth.owner,
+      repo: headerAuth.repo,
+      ref,
+      action: "goal-manager",
+      message: id,
+    });
     await octokit.rest.actions.createWorkflowDispatch({
       owner: headerAuth.owner,
       repo: headerAuth.repo,
       workflow_id: "kody.yml",
       ref,
-      inputs: { agentAction: "goal-manager", message: id },
+      inputs,
     });
 
     recordAudit(req, {

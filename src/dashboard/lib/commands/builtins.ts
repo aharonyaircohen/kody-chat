@@ -2,14 +2,14 @@
  * @fileType data
  * @domain kody
  * @pattern commands-builtins
- * @ai-summary Default commands shipped with the dashboard. Each entry
- *   becomes a slash command in the chat (`/<slug>`). Repo-defined files
- *   at `.kody/commands/<slug>.md` override built-ins by slug. Drop a file
- *   `.kody/commands/.disable-builtins` in the repo to hide every built-in
- *   without overriding individually.
+ * @ai-summary Fallback commands bundled with the dashboard for cold-start
+ *   and unavailable-Store cases. Shared command catalog lives in Store.
+ *   Repo and Store `.kody/commands/<slug>.md` files shadow these by slug.
+ *   Drop `.kody/commands/.disable-builtins` in the repo to hide every fallback
+ *   built-in without overriding individually.
  *
- *   `/research`, `/plan`, and `/issue` enforce the research-first flow
- *   the kody-live system prompt expects (see
+ *   Matching Store files for `/research`, `/plan`, and `/issue` enforce
+ *   the research-first flow the kody-live system prompt expects (see
  *   app/api/kody/chat/kody/system-prompt.ts "Issue creation: research
  *   before drafting"). `/issue` extends that with the executor handoff —
  *   after the issue is created the model offers to run it with Kody,

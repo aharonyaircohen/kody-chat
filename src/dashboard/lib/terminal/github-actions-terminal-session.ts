@@ -8,6 +8,7 @@
 import { randomUUID } from "node:crypto";
 import { Buffer } from "node:buffer";
 import type { Octokit } from "@octokit/rest";
+import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 import type { NextRequest } from "next/server";
 import { getUserOctokit } from "@dashboard/lib/auth";
 import {
@@ -77,7 +78,7 @@ async function writeFile(
   message: string,
 ): Promise<void> {
   const existing = await getFile(octokit, auth, path);
-  await octokit.repos.createOrUpdateFileContents({
+  await writeGitHubFileWithRetry(octokit, {
     owner: auth.owner,
     repo: auth.repo,
     path,

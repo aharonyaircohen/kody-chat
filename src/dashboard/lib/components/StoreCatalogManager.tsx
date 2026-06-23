@@ -22,6 +22,7 @@ import {
   Package,
   Plus,
   RefreshCw,
+  Bot,
   Target,
   Users,
   type LucideIcon,
@@ -40,14 +41,14 @@ type CatalogKind =
   | "agentGoal"
   | "agentLoop"
   | "agentResponsibility"
-  | "agentAction";
+  | "agentAction"
+  | "command";
 
 type CatalogItemKind = Exclude<CatalogKind, "all">;
 type CatalogStatus = "active" | "not-active" | "available" | "customized";
 
 interface ActiveGoalConfigObject {
   template: string;
-  every?: string;
   idPrefix?: string;
   facts?: Record<string, unknown>;
 }
@@ -76,6 +77,7 @@ interface StoreCatalogResponse {
   activeAgents: string[];
   activeAgentActions: string[];
   activeAgentResponsibilities: string[];
+  activeCommands: string[];
   activeGoals: ActiveGoalConfigEntry[];
 }
 
@@ -90,6 +92,7 @@ const KIND_FILTERS: Array<{
   { id: "agentLoop", label: "Loops", icon: History },
   { id: "agentResponsibility", label: "Responsibilities", icon: Layers },
   { id: "agentAction", label: "Actions", icon: Boxes },
+  { id: "command", label: "Commands", icon: Bot },
 ];
 
 const KIND_LABEL: Record<CatalogItemKind, string> = {
@@ -98,6 +101,7 @@ const KIND_LABEL: Record<CatalogItemKind, string> = {
   agentLoop: "Loop",
   agentResponsibility: "Responsibility",
   agentAction: "Action",
+  command: "Command",
 };
 
 function queryText(item: StoreCatalogItem): string {
@@ -111,7 +115,6 @@ function queryText(item: StoreCatalogItem): string {
     item.agent,
     item.agentAction,
     item.capabilityKind,
-    item.schedule,
   ]
     .filter(Boolean)
     .join(" ")
@@ -154,6 +157,7 @@ async function fetchCatalog(
     activeAgents?: string[];
     activeAgentActions?: string[];
     activeAgentResponsibilities?: string[];
+    activeCommands?: string[];
     activeGoals?: ActiveGoalConfigEntry[];
     error?: string;
     message?: string;
@@ -168,6 +172,7 @@ async function fetchCatalog(
     activeAgents: json.activeAgents ?? [],
     activeAgentActions: json.activeAgentActions ?? [],
     activeAgentResponsibilities: json.activeAgentResponsibilities ?? [],
+    activeCommands: json.activeCommands ?? [],
     activeGoals: json.activeGoals ?? [],
   };
 }
@@ -490,18 +495,18 @@ function CatalogDetail({
                   <a href={item.htmlUrl} target="_blank" rel="noreferrer">
                     <ExternalLink className="h-4 w-4" />
                     Open
-                  </a>
-                </Button>
-              ) : null}
-            </div>
+                </a>
+              </Button>
+            ) : null}
+          </div>
           </header>
 
           {item.description ? (
-            <p className="max-w-3xl text-sm leading-6 text-white/70">
-              {item.description}
-            </p>
-          ) : null}
-        </div>
+              <p className="max-w-3xl text-sm leading-6 text-white/70">
+                {item.description}
+              </p>
+            ) : null}
+          </div>
       </div>
 
       <div className="mx-auto max-w-4xl space-y-3 p-4 md:p-8">
@@ -512,13 +517,13 @@ function CatalogDetail({
         {item.agentAction ? (
           <InfoRow label="Agent action" value={item.agentAction} />
         ) : null}
-        {item.capabilityKind ? (
-          <InfoRow label="Kind" value={item.capabilityKind} />
-        ) : null}
-        {item.schedule ? (
-          <InfoRow label="Schedule" value={item.schedule} />
-        ) : null}
-      </div>
+              {item.capabilityKind ? (
+                <InfoRow label="Kind" value={item.capabilityKind} />
+              ) : null}
+              {(item.kind === "agentGoal" || item.kind === "agentLoop") && item.schedule ? (
+                <InfoRow label="Schedule" value={item.schedule} />
+              ) : null}
+            </div>
     </article>
   );
 }

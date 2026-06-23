@@ -7,6 +7,7 @@
  */
 
 import { Octokit } from "@octokit/rest";
+import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
 
 export const DOCS_FOLDER = "docs";
 export const README_PATH = "README.md";
@@ -243,7 +244,7 @@ export async function createDoc(
     throw new Error("doc_already_exists");
   }
 
-  await octokit.rest.repos.createOrUpdateFileContents({
+  await writeGitHubFileWithRetry(octokit, {
     owner,
     repo,
     path: normalizedPath,
@@ -280,7 +281,7 @@ export async function updateDoc(
 
   const nextContent = opts.content ?? existing.content;
   if (nextPath === normalizedPath) {
-    await octokit.rest.repos.createOrUpdateFileContents({
+    await writeGitHubFileWithRetry(octokit, {
       owner,
       repo,
       path: normalizedPath,
@@ -295,7 +296,7 @@ export async function updateDoc(
     throw new Error("doc_already_exists");
   }
 
-  await octokit.rest.repos.createOrUpdateFileContents({
+  await writeGitHubFileWithRetry(octokit, {
     owner,
     repo,
     path: nextPath,

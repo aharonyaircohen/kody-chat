@@ -8,6 +8,11 @@
 
 export type ManagedGoalStateValue = "inactive" | "active" | "paused" | "done";
 export type ManagedGoalSchedule = "manual" | "1h" | "1d" | "7d" | "30d";
+export type ManagedLoopTargetType = "agentResponsibility" | "goal";
+export interface ManagedLoopTarget {
+  type: ManagedLoopTargetType;
+  id: string;
+}
 export type ManagedGoalTypeId =
   | "improve"
   | "agentLoop"
@@ -173,6 +178,7 @@ export interface ManagedGoalRouteStep {
   evidence: string;
   agentResponsibility: string;
   agentAction?: string;
+  saveReport?: boolean;
   args?: Record<string, unknown>;
 }
 
@@ -217,6 +223,8 @@ export interface ManagedGoalState {
   facts: Record<string, unknown>;
   blockers: string[];
   scheduleMode?: "agentLoop" | string;
+  loopTarget?: ManagedLoopTarget;
+  saveReport?: boolean;
   scheduleState?: ManagedGoalAgentResponsibilityScheduleState;
   latestInstanceId?: string;
   instanceCount?: number;
@@ -251,6 +259,10 @@ export function isStoreBackedManagedGoal(goal: ManagedGoalRecord): boolean {
     goal.state.template === true ||
     typeof goal.state.sourceTemplate === "string"
   );
+}
+
+export function canDeleteManagedGoal(goal: ManagedGoalRecord): boolean {
+  return goal.source === "store" || goal.recordType === "instance";
 }
 
 export function managedGoalModel(goal: ManagedGoalRecord): ManagedGoalModel {
@@ -372,6 +384,8 @@ export interface CreateManagedGoalInput {
   type: string;
   outcome: string;
   schedule?: ManagedGoalSchedule;
+  loopTarget?: ManagedLoopTarget;
+  saveReport?: boolean;
   agentResponsibilities?: string[];
   evidence?: string[];
   route?: ManagedGoalRouteStep[];
@@ -382,6 +396,8 @@ export interface SimpleManagedGoalCreateFields {
   goalType: ManagedGoalTypeId;
   schedule: ManagedGoalSchedule;
   prompt: string;
+  loopTarget?: ManagedLoopTarget;
+  saveReport?: boolean;
   agentResponsibilities?: string[];
   evidence?: string[];
   route?: ManagedGoalRouteStep[];
@@ -393,6 +409,8 @@ export interface UpdateManagedGoalInput {
   type?: string;
   outcome?: string;
   schedule?: ManagedGoalSchedule;
+  loopTarget?: ManagedLoopTarget;
+  saveReport?: boolean;
   agentResponsibilities?: string[];
   evidence?: string[];
   route?: ManagedGoalRouteStep[];
@@ -443,12 +461,44 @@ function uniqueStrings(values: string[]): string[] {
   );
 }
 
+function normalizeManagedLoopTarget(
+  target: ManagedLoopTarget | undefined,
+): ManagedLoopTarget | undefined {
+  if (!target) return undefined;
+  const id = target.id.trim();
+  if (!id) return undefined;
+  return { type: target.type, id };
+}
+
+function isWebReleaseGoal(goal: Partial<ManagedGoalState>): boolean {
+  const templateId =
+    typeof goal.templateId === "string" ? goal.templateId.trim() : "";
+  const sourceTemplate =
+    typeof goal.sourceTemplate === "string" ? goal.sourceTemplate.trim() : "";
+  return (
+    goal.type === "web-release" ||
+    templateId === "web-release" ||
+    sourceTemplate === "web-release"
+  );
+}
+
+function normalizeManagedGoalResponsibility(
+  goal: Partial<ManagedGoalState>,
+  slug: string,
+): string {
+  if (isWebReleaseGoal(goal) && slug === "release") {
+    return "release-prepare";
+  }
+  return slug;
+}
+
 function cloneRouteStep(step: ManagedGoalRouteStep): ManagedGoalRouteStep {
   return {
     stage: step.stage,
     evidence: step.evidence,
     agentResponsibility: step.agentResponsibility,
     ...(step.agentAction ? { agentAction: step.agentAction } : {}),
+    ...(step.saveReport === true ? { saveReport: true } : {}),
     ...(step.args ? { args: step.args } : {}),
   };
 }
@@ -461,6 +511,10 @@ export function buildSimpleManagedGoalCreateInput(
     type: fields.goalType,
     schedule: fields.schedule,
     outcome: fields.prompt.trim(),
+    ...(fields.loopTarget ? { loopTarget: fields.loopTarget } : {}),
+    ...(typeof fields.saveReport === "boolean"
+      ? { saveReport: fields.saveReport }
+      : {}),
     ...(fields.agentResponsibilities
       ? { agentResponsibilities: fields.agentResponsibilities }
       : {}),
@@ -506,11 +560,20 @@ export function buildManagedGoalState(
   const selectedGoalType = isManagedGoalTypeId(requestedGoalType)
     ? managedGoalTypeDefinition(requestedGoalType)
     : null;
+  const isRoutine = selectedGoalType?.model === "agentLoop";
+  const loopTarget = isRoutine
+    ? normalizeManagedLoopTarget(input.loopTarget)
+    : undefined;
   const evidenceInput = input.evidence ?? selectedGoalType?.evidence ?? [];
   const routeInput = input.route ?? selectedGoalType?.route ?? [];
-  const agentResponsibilityInput = input.agentResponsibilities?.length
-    ? input.agentResponsibilities
-    : (selectedGoalType?.agentResponsibilities ?? []);
+  const agentResponsibilityInput =
+    input.agentResponsibilities !== undefined
+      ? input.agentResponsibilities
+      : loopTarget?.type === "agentResponsibility"
+        ? [loopTarget.id]
+        : isRoutine
+          ? []
+          : (selectedGoalType?.agentResponsibilities ?? []);
   const evidence = evidenceInput.map(normalizeEvidenceKey).filter(Boolean);
   const evidenceSet = new Set(evidence);
   const route = routeInput
@@ -522,6 +585,7 @@ export function buildManagedGoalState(
       ...(step.agentAction?.trim()
         ? { agentAction: step.agentAction.trim() }
         : {}),
+      ...(step.saveReport === true ? { saveReport: true } : {}),
       ...(step.args ? { args: step.args } : {}),
     }))
     .filter(
@@ -535,8 +599,6 @@ export function buildManagedGoalState(
     ...agentResponsibilityInput,
     ...route.map((step) => step.agentResponsibility),
   ]);
-  const isRoutine = selectedGoalType?.model === "agentLoop";
-
   return {
     version: 1,
     state: "active",
@@ -546,7 +608,15 @@ export function buildManagedGoalState(
       evidence,
     },
     schedule: input.schedule ?? "manual",
-    ...(isRoutine ? { scheduleMode: "agentLoop" as const } : {}),
+    ...(isRoutine
+      ? {
+        scheduleMode: "agentLoop" as const,
+        ...(loopTarget ? { loopTarget } : {}),
+        ...(typeof input.saveReport === "boolean"
+          ? { saveReport: input.saveReport }
+          : {}),
+      }
+    : {}),
     agentResponsibilities,
     route,
     stage: route[0]?.stage,
@@ -609,7 +679,7 @@ export function normalizeManagedGoalState(
         typeof legacyStep.stage === "string" ? legacyStep.stage : "";
       const evidence =
         typeof legacyStep.evidence === "string" ? legacyStep.evidence : "";
-      const agentResponsibility =
+      const rawAgentResponsibility =
         typeof legacyStep.agentResponsibility === "string"
           ? legacyStep.agentResponsibility
           : typeof legacyStep.duty === "string"
@@ -622,12 +692,17 @@ export function normalizeManagedGoalState(
             ? legacyStep.executable
             : "";
 
-      if (!stage || !evidence || !agentResponsibility) return null;
+      if (!stage || !evidence || !rawAgentResponsibility) return null;
+      const agentResponsibility = normalizeManagedGoalResponsibility(
+        goal,
+        rawAgentResponsibility,
+      );
       return {
         stage,
         evidence,
         agentResponsibility,
         ...(agentAction ? { agentAction } : {}),
+        ...(legacyStep.saveReport === true ? { saveReport: true } : {}),
         ...(legacyStep.args && typeof legacyStep.args === "object"
           ? { args: legacyStep.args as Record<string, unknown> }
           : {}),
@@ -636,21 +711,25 @@ export function normalizeManagedGoalState(
     .filter((step): step is ManagedGoalRouteStep => !!step);
 
   const legacyDuties = (goal as { duties?: unknown }).duties;
-  const agentResponsibilities = uniqueStrings([
-    ...(Array.isArray(goal.agentResponsibilities)
-      ? goal.agentResponsibilities.filter(
-          (responsibility): responsibility is string =>
-            typeof responsibility === "string",
-        )
-      : []),
-    ...(Array.isArray(legacyDuties)
-      ? legacyDuties.filter(
-          (responsibility): responsibility is string =>
-            typeof responsibility === "string",
-        )
-      : []),
-    ...route.map((step) => step.agentResponsibility),
-  ]);
+  const agentResponsibilities = uniqueStrings(
+    [
+      ...(Array.isArray(goal.agentResponsibilities)
+        ? goal.agentResponsibilities.filter(
+            (responsibility): responsibility is string =>
+              typeof responsibility === "string",
+          )
+        : []),
+      ...(Array.isArray(legacyDuties)
+        ? legacyDuties.filter(
+            (responsibility): responsibility is string =>
+              typeof responsibility === "string",
+          )
+        : []),
+      ...route.map((step) => step.agentResponsibility),
+    ].map((responsibility) =>
+      normalizeManagedGoalResponsibility(goal, responsibility),
+    ),
+  );
 
   return {
     ...goal,

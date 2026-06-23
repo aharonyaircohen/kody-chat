@@ -2,7 +2,7 @@
  * @fileType util
  * @domain agentResponsibilities
  * @pattern chat-tools
- * @ai-summary Lifecycle chat tools for scheduled agentResponsibilities, complementing
+ * @ai-summary Lifecycle chat tools for agentResponsibilities, complementing
  *   create_or_update_agent_responsibility (in agentResponsibility-tools.ts): list, read, delete, and run-now. Run
  *   dispatches kody.yml with the agentResponsibility-owned action. Kept separate from the
  *   creation flow.
@@ -30,7 +30,7 @@ export function createAgentResponsibilityAdminTools(ctx: Ctx) {
 
   return {
     list_agentResponsibilities: tool({
-      description: `List the scheduled agentResponsibilities in ${repoRef} (.kody/agent-responsibilities/). Returns slug, action, implementation agentAction, schedule, disabled flag, and last-tick info for each.`,
+      description: `List agentResponsibilities in ${repoRef} (.kody/agent-responsibilities/). Returns slug, action, implementation agentAction, disabled flag, and last-tick info for each.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
@@ -41,7 +41,6 @@ export function createAgentResponsibilityAdminTools(ctx: Ctx) {
               action: d.action,
               title: d.title,
               agentAction: d.agentAction,
-              schedule: d.schedule,
               disabled: d.disabled,
               lastTickAt: d.lastTickAt,
               lastOutcome: d.lastOutcome,
@@ -69,7 +68,7 @@ export function createAgentResponsibilityAdminTools(ctx: Ctx) {
     }),
 
     delete_agentResponsibility: tool({
-      description: `Delete a scheduled agentResponsibility from ${repoRef} (removes .kody/agent-responsibilities/<slug>/). It stops ticking immediately.`,
+      description: `Delete an agentResponsibility from ${repoRef} (removes .kody/agent-responsibilities/<slug>/).`,
       inputSchema: z.object({ slug: z.string().min(1).max(64) }),
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };

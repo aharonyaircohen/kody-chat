@@ -21,7 +21,7 @@ import type { ViewMode } from "../components/FilterBar";
 import { POLLING_INTERVALS } from "../constants";
 import { matchWorkflowRunsForTask } from "../workflow-matching";
 
-export type TasksApiViewMode = ViewMode | "all";
+export type TasksApiViewMode = ViewMode | "all" | "intake";
 
 // Re-export new hooks
 export { useDashboardFilters } from "./useDashboardFilters";

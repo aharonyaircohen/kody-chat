@@ -38,7 +38,6 @@ function toTickEntry(file: TickFile): CompanyTickEntry {
     slug: file.slug,
     title: file.title,
     body: file.body,
-    schedule: file.schedule,
     disabled: file.disabled,
     agent: file.agent,
     reviewer: file.reviewer,

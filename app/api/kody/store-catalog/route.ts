@@ -31,6 +31,11 @@ import {
   listResolvedAgentFiles,
   isValidSlug as isValidAgentSlug,
 } from "@dashboard/lib/agent-files";
+import {
+  listRepoCommandFiles,
+  listStoreCommandFiles,
+  isValidSlug as isValidCommandSlug,
+} from "@dashboard/lib/commands/files";
 import { getEngineConfig } from "@dashboard/lib/engine/config";
 import { listCompanyStoreGoalTemplateFiles } from "@dashboard/lib/managed-goals-files";
 import { managedGoalModel } from "@dashboard/lib/managed-goals";
@@ -43,7 +48,8 @@ type CatalogKind =
   | "agentGoal"
   | "agentLoop"
   | "agentResponsibility"
-  | "agentAction";
+  | "agentAction"
+  | "command";
 
 type CatalogStatus = "active" | "not-active" | "available" | "customized";
 
@@ -122,10 +128,12 @@ export async function GET(req: NextRequest) {
     const activeAgentActions = config.company?.activeAgentActions ?? [];
     const activeAgentResponsibilities =
       config.company?.activeAgentResponsibilities ?? [];
+    const activeCommands = config.company?.activeCommands ?? [];
     const activeGoals = config.company?.activeGoals ?? [];
     const activeAgentSet = new Set(activeAgents);
     const activeAgentActionSet = new Set(activeAgentActions);
     const activeAgentResponsibilitySet = new Set(activeAgentResponsibilities);
+    const activeCommandSet = new Set(activeCommands);
     const activeGoalSet = new Set(
       activeGoals
         .map(goalActivationSlug)
@@ -136,9 +144,12 @@ export async function GET(req: NextRequest) {
       agentResponsibilityStoreSlugs,
       agentActionStoreSlugs,
       agentStoreSlugs,
+      commandStoreSlugs,
       agentResponsibilities,
       agentActions,
       agents,
+      repoCommandResult,
+      storeCommands,
       goalTemplates,
     ] = await Promise.all([
       listCompanyStoreAssetSlugs(
@@ -152,15 +163,26 @@ export async function GET(req: NextRequest) {
         isValidAgentActionSlug,
       ),
       listCompanyStoreMarkdownAssetSlugs(octokit, "agents", isValidAgentSlug),
+      listCompanyStoreMarkdownAssetSlugs(
+        octokit,
+        "commands",
+        isValidCommandSlug,
+      ),
       listAgentResponsibilityFiles(),
       listAgentActionFiles(),
       listResolvedAgentFiles(),
+      listRepoCommandFiles(),
+      listStoreCommandFiles(),
       listCompanyStoreGoalTemplateFiles(octokit),
     ]);
 
     const agentResponsibilityStoreSet = new Set(agentResponsibilityStoreSlugs);
     const agentActionStoreSet = new Set(agentActionStoreSlugs);
     const agentStoreSet = new Set(agentStoreSlugs);
+    const commandStoreSet = new Set(commandStoreSlugs);
+    const localCommandSlugs = new Set(
+      repoCommandResult.commands.map((command) => command.slug),
+    );
     const items: CatalogItem[] = [];
 
     for (const item of agentResponsibilities) {
@@ -183,45 +205,75 @@ export async function GET(req: NextRequest) {
         agent: item.agent,
         agentAction: item.agentAction,
         capabilityKind: item.capabilityKind,
-        schedule: item.schedule,
       });
     }
 
-  for (const item of agentActions) {
-    const fromStore = item.source === "store";
-    const customized = !fromStore && agentActionStoreSet.has(item.slug);
-    if (!fromStore && !customized) continue;
-    const active = fromStore && activeAgentActionSet.has(item.slug);
-    items.push({
-      slug: item.slug,
-      title: item.slug,
-      description: item.describe,
-      kind: "agentAction",
-      status: statusFor({ activatable: true, active, customized }),
-      active,
-      activatable: fromStore,
-      source: fromStore ? "store" : "local",
-      htmlUrl: item.htmlUrl,
+    for (const item of agentActions) {
+      const fromStore = item.source === "store";
+      const customized = !fromStore && agentActionStoreSet.has(item.slug);
+      if (!fromStore && !customized) continue;
+      const active = fromStore && activeAgentActionSet.has(item.slug);
+      items.push({
+        slug: item.slug,
+        title: item.slug,
+        description: item.describe,
+        kind: "agentAction",
+        status: statusFor({ activatable: true, active, customized }),
+        active,
+        activatable: fromStore,
+        source: fromStore ? "store" : "local",
+        htmlUrl: item.htmlUrl,
         agent: item.agent,
-        schedule: item.every ?? null,
       });
     }
 
-  for (const item of agents) {
-    const fromStore = item.source === "store";
-    const customized = !fromStore && agentStoreSet.has(item.slug);
-    if (!fromStore && !customized) continue;
-    const active = fromStore && activeAgentSet.has(item.slug);
-    items.push({
-      slug: item.slug,
-      title: item.title,
-      description: firstText(item.body),
-      kind: "agent",
-      status: statusFor({ activatable: true, active, customized }),
-      active,
-      activatable: fromStore,
-      source: fromStore ? "store" : "local",
-      htmlUrl: item.htmlUrl,
+    for (const item of agents) {
+      const fromStore = item.source === "store";
+      const customized = !fromStore && agentStoreSet.has(item.slug);
+      if (!fromStore && !customized) continue;
+      const active = fromStore && activeAgentSet.has(item.slug);
+      items.push({
+        slug: item.slug,
+        title: item.title,
+        description: firstText(item.body),
+        kind: "agent",
+        status: statusFor({ activatable: true, active, customized }),
+        active,
+        activatable: fromStore,
+        source: fromStore ? "store" : "local",
+        htmlUrl: item.htmlUrl,
+      });
+    }
+
+    for (const item of repoCommandResult.commands) {
+      const customized = commandStoreSet.has(item.slug);
+      if (!customized) continue;
+      items.push({
+        slug: item.slug,
+        title: `/${item.slug}`,
+        description: item.description || firstText(item.body),
+        kind: "command",
+        status: statusFor({ activatable: true, active: false, customized }),
+        active: false,
+        activatable: false,
+        source: "local",
+        htmlUrl: item.htmlUrl,
+      });
+    }
+
+    for (const item of storeCommands) {
+      if (localCommandSlugs.has(item.slug)) continue;
+      const active = activeCommandSet.has(item.slug);
+      items.push({
+        slug: item.slug,
+        title: `/${item.slug}`,
+        description: item.description || firstText(item.body),
+        kind: "command",
+        status: statusFor({ activatable: true, active, customized: false }),
+        active,
+        activatable: true,
+        source: "store",
+        htmlUrl: item.htmlUrl,
       });
     }
 
@@ -255,6 +307,7 @@ export async function GET(req: NextRequest) {
         activeAgents,
         activeAgentActions,
         activeAgentResponsibilities,
+        activeCommands,
         activeGoals,
       },
       { headers: { "Cache-Control": "no-store" } },

@@ -30,9 +30,19 @@ import {
 import {
   deleteManagedGoalFile,
   listCompanyStoreGoalTemplateFiles,
+  listManagedGoalFiles,
   readManagedGoalFile,
   writeManagedGoalFile,
 } from "@dashboard/lib/managed-goals-files";
+import {
+  getEngineConfig,
+  writeConfigPatch,
+  type ActiveGoalConfigEntry,
+} from "@dashboard/lib/engine/config";
+
+function activeGoalSlug(entry: ActiveGoalConfigEntry): string {
+  return typeof entry === "string" ? entry : entry.template;
+}
 
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
@@ -58,10 +68,15 @@ const routeStepSchema = z.object({
   evidence: z.string().min(1).max(80),
   agentResponsibility: z.string().min(1).max(80),
   agentAction: z.string().min(1).max(80).optional(),
+  saveReport: z.boolean().optional(),
   args: z.record(z.string(), z.unknown()).optional(),
 });
 
 const managedGoalScheduleSchema = z.enum(["manual", "1h", "1d", "7d", "30d"]);
+const loopTargetSchema = z.object({
+  type: z.enum(["agentResponsibility", "goal"]),
+  id: z.string().min(1).max(80),
+});
 
 const updateManagedGoalSchema = z.object({
   state: z.enum(["inactive", "active", "paused"]).optional(),
@@ -69,6 +84,8 @@ const updateManagedGoalSchema = z.object({
   type: z.string().min(1).max(80).optional(),
   outcome: z.string().min(1).max(500).optional(),
   schedule: managedGoalScheduleSchema.optional(),
+  loopTarget: loopTargetSchema.optional(),
+  saveReport: z.boolean().optional(),
   agentResponsibilities: z.array(z.string().min(1).max(80)).optional(),
   evidence: z.array(z.string().min(1).max(80)).optional(),
   route: z.array(routeStepSchema).optional(),
@@ -87,6 +104,8 @@ function isStateOnlyUpdate(
     data.type === undefined &&
     data.outcome === undefined &&
     data.schedule === undefined &&
+    data.loopTarget === undefined &&
+    data.saveReport === undefined &&
     data.agentResponsibilities === undefined &&
     data.evidence === undefined &&
     data.route === undefined
@@ -111,6 +130,7 @@ function instantiateStoreGoalState(
     agentResponsibilities: storeState.agentResponsibilities,
     route: storeState.route,
     schedule: storeState.schedule ?? "manual",
+    ...(storeState.loopTarget ? { loopTarget: storeState.loopTarget } : {}),
     ...(typeof storeState.stage === "string"
       ? { stage: storeState.stage }
       : {}),
@@ -261,6 +281,14 @@ export async function PATCH(
       (shouldUseTypeDefaults && selectedGoalType
         ? selectedGoalType.agentResponsibilities
         : existing.state.agentResponsibilities);
+ const nextLoopTarget =
+ parsed.data.loopTarget ??
+ (shouldUseTypeDefaults ? undefined : existing.state.loopTarget);
+ const nextSaveReport =
+ parsed.data.saveReport ??
+ (typeof existing.state.saveReport === "boolean"
+ ? existing.state.saveReport
+ : undefined);
     const routeChanged =
       parsed.data.route !== undefined || shouldUseTypeDefaults;
     const agentResponsibilitiesChanged =
@@ -270,6 +298,8 @@ export async function PATCH(
       type: parsed.data.type ?? existing.state.type,
       outcome: parsed.data.outcome ?? existing.state.destination.outcome,
       schedule: parsed.data.schedule ?? existing.state.schedule ?? "manual",
+ loopTarget: nextLoopTarget,
+ saveReport: nextSaveReport,
       agentResponsibilities: nextAgentResponsibilities,
       evidence: nextEvidence,
       route: nextRoute,
@@ -281,6 +311,10 @@ export async function PATCH(
       type: rebuilt.type,
       destination: rebuilt.destination,
       schedule: rebuilt.schedule,
+ loopTarget: rebuilt.loopTarget,
+ ...(typeof rebuilt.saveReport === "boolean"
+ ? { saveReport: rebuilt.saveReport }
+ : {}),
       agentResponsibilities:
         !agentResponsibilitiesChanged && !routeChanged
           ? existing.state.agentResponsibilities
@@ -341,10 +375,70 @@ export async function DELETE(
       context.headerAuth.repo,
     );
     if (!existing) {
+      const localGoals = await listManagedGoalFiles(
+        context.octokit,
+        context.headerAuth.owner,
+        context.headerAuth.repo,
+      );
+      const generatedGoals = localGoals.filter(
+        (goal) =>
+          goal.id !== id &&
+          typeof goal.state.sourceTemplate === "string" &&
+          goal.state.sourceTemplate === id,
+      );
+      if (generatedGoals.length > 0) {
+        let deletedCount = 0;
+        for (const goal of generatedGoals) {
+          const file = await readManagedGoalFile(
+            goal.id,
+            context.octokit,
+            context.headerAuth.owner,
+            context.headerAuth.repo,
+          );
+          if (!file) continue;
+          await deleteManagedGoalFile({
+            octokit: context.octokit,
+            owner: context.headerAuth.owner,
+            repo: context.headerAuth.repo,
+            id: goal.id,
+            sha: file.sha,
+            message: `chore(goals): delete managed goal ${goal.id}`,
+          });
+          deletedCount += 1;
+        }
+        if (deletedCount > 0) {
+          return NextResponse.json({ success: true, deletedCount });
+        }
+      }
+
       const storeGoals = await listCompanyStoreGoalTemplateFiles(
         context.octokit,
       );
       if (storeGoals.some((goal) => goal.id === id)) {
+        const { config } = await getEngineConfig(
+          context.octokit,
+          context.headerAuth.owner,
+          context.headerAuth.repo,
+          { force: true },
+        );
+        const activeGoals = config.company?.activeGoals ?? [];
+        const nextActiveGoals = activeGoals.filter(
+          (entry) => activeGoalSlug(entry) !== id,
+        );
+        if (nextActiveGoals.length !== activeGoals.length) {
+          await writeConfigPatch(
+            context.octokit,
+            context.headerAuth.owner,
+            context.headerAuth.repo,
+            { activeGoals: nextActiveGoals },
+            `chore(goals): remove store goal ${id}`,
+          );
+          return NextResponse.json({
+            success: true,
+            removedReference: true,
+          });
+        }
+
         return NextResponse.json(
           {
             error: "store_goal_protected",

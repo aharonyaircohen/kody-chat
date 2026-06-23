@@ -36,7 +36,10 @@ import {
   readManagedGoalFile,
   writeManagedGoalFile,
 } from "@dashboard/lib/managed-goals-files";
-import { getEngineConfig, type ActiveGoalConfigEntry } from "@dashboard/lib/engine/config";
+import {
+  getEngineConfig,
+  type ActiveGoalConfigEntry,
+} from "@dashboard/lib/engine/config";
 
 function activeGoalSlug(entry: ActiveGoalConfigEntry): string {
   return typeof entry === "string" ? entry : entry.template;
@@ -66,10 +69,15 @@ const routeStepSchema = z.object({
   evidence: z.string().min(1).max(80),
   agentResponsibility: z.string().min(1).max(80),
   agentAction: z.string().min(1).max(80).optional(),
+  saveReport: z.boolean().optional(),
   args: z.record(z.string(), z.unknown()).optional(),
 });
 
 const managedGoalScheduleSchema = z.enum(["manual", "1h", "1d", "7d", "30d"]);
+const loopTargetSchema = z.object({
+  type: z.enum(["agentResponsibility", "goal"]),
+  id: z.string().min(1).max(80),
+});
 
 const createManagedGoalSchema = z.object({
   id: z.string().min(1).max(80).optional(),
@@ -77,6 +85,8 @@ const createManagedGoalSchema = z.object({
   type: z.string().min(1).max(80).default("general"),
   outcome: z.string().min(1).max(500),
   schedule: managedGoalScheduleSchema.default("manual"),
+  loopTarget: loopTargetSchema.optional(),
+  saveReport: z.boolean().optional(),
   agentResponsibilities: z.array(z.string().min(1).max(80)).optional(),
   evidence: z.array(z.string().min(1).max(80)).default([]),
   route: z.array(routeStepSchema).default([]),

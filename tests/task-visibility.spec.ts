@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isDashboardIntakeIssue,
   isDashboardKodyOwnedIssue,
   isDashboardUnassignedIssue,
 } from "@dashboard/lib/tasks/visibility";
@@ -71,6 +72,21 @@ describe("dashboard issue visibility", () => {
         assignees: [],
       }),
     ).toBe(false);
+  });
+
+  it("keeps owned and unassigned issues in the unified intake", () => {
+    expect(
+      isDashboardIntakeIssue({
+        labels: ["kody:deps-bump"],
+        assignees: [],
+      }),
+    ).toBe(true);
+    expect(
+      isDashboardIntakeIssue({
+        labels: ["bug"],
+        assignees: [{ login: "human-reviewer" }],
+      }),
+    ).toBe(true);
   });
 });
 

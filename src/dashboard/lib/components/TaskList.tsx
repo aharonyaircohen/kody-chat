@@ -13,6 +13,7 @@ import { cn, formatRelativeTime } from "../utils";
 import {
   getGitHubIssueUrl,
   HIDDEN_TASK_LABEL,
+  KODY_BACKLOG_LABEL,
   parsePriorityLabel,
   PRIORITY_META,
 } from "../constants";
@@ -79,7 +80,7 @@ interface TaskListProps {
   mergingTaskId?: string | null;
   focusedIndex?: number;
   onTaskSelect?: (task: KodyTask | null) => void;
-  onExecuteTask?: (taskId: string) => void;
+  onExecuteTask?: (task: KodyTask) => void;
   onStopTask?: (task: KodyTask) => void;
   onApproveReview?: (task: KodyTask) => Promise<void>;
   onTaskHover?: (task: KodyTask) => void;
@@ -361,7 +362,7 @@ interface TaskRowProps {
   isExecuting: boolean;
   onClick: (task: KodyTask) => void;
   onTaskHover?: (task: KodyTask) => void;
-  onExecuteTask?: (taskId: string) => void;
+  onExecuteTask?: (task: KodyTask) => void;
   onStopTask?: (task: KodyTask) => void;
   onAssign?: (issueNumber: number, assignees: string[]) => void;
   onAssignToKody?: (task: KodyTask) => void;
@@ -406,12 +407,12 @@ const TaskRow = memo(function TaskRow({
   accent,
 }: TaskRowProps) {
   const isClosed = task.state === "closed";
+  const isAssignedBacklogTask = task.labels.includes(KODY_BACKLOG_LABEL);
   // Closed tasks come from the "Show closed" toggle (loaded on-demand). They
   // shouldn't offer execute/run actions, and they get a distinct slate
   // palette + "Closed" word so users can tell them apart from in-flight
   // `done`-column tasks at a glance.
-  const canExecute =
-    !intakeMode && !isClosed && task.column === "open" && onExecuteTask;
+  const canExecute = !isClosed && task.column === "open" && onExecuteTask;
   const hasPR = !!task.associatedPR;
   const isHardStop =
     !isClosed &&
@@ -676,7 +677,30 @@ const TaskRow = memo(function TaskRow({
                     </SimpleTooltip>
                   )}
 
-                  {task.isKodyAssigned && (
+                  {intakeMode && task.column === "open" && !isClosed && (
+                    <SimpleTooltip
+                      content={
+                        isAssignedBacklogTask
+                          ? "Assigned to Kody backlog"
+                          : "Not assigned to Kody backlog"
+                      }
+                      side="bottom"
+                    >
+                      <span
+                        className={cn(
+                          "inline-flex items-center gap-0.5 rounded border px-1.5 py-0.5 text-[10px] font-bold cursor-default",
+                          isAssignedBacklogTask
+                            ? "border-blue-500/30 bg-blue-500/10 text-blue-300"
+                            : "border-zinc-600/40 bg-white/[0.03] text-zinc-400",
+                        )}
+                      >
+                        <Bot className="w-3 h-3" />
+                        {isAssignedBacklogTask ? "Assigned" : "Unassigned"}
+                      </span>
+                    </SimpleTooltip>
+                  )}
+
+                  {task.isKodyAssigned && !isAssignedBacklogTask && (
                     <SimpleTooltip
                       content="Assigned to Kody AI agent"
                       side="bottom"
@@ -846,23 +870,26 @@ const TaskRow = memo(function TaskRow({
               </SimpleTooltip>
             )}
 
-          {intakeMode && onAssignToKody && !isClosed && (
-            <SimpleTooltip content="Assign to Kody backlog" side="bottom">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAssignToKody(task);
-                }}
-                aria-label="Assign to Kody"
-                className="h-7 gap-1.5 px-2 text-xs text-blue-300 hover:bg-blue-500/20"
-              >
-                <Bot className="w-3.5 h-3.5" />
-                Assign
-              </Button>
-            </SimpleTooltip>
-          )}
+          {intakeMode &&
+            onAssignToKody &&
+            !isClosed &&
+            !isAssignedBacklogTask && (
+              <SimpleTooltip content="Assign to Kody backlog" side="bottom">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onAssignToKody(task);
+                  }}
+                  aria-label="Assign to Kody"
+                  className="h-7 gap-1.5 px-2 text-xs text-blue-300 hover:bg-blue-500/20"
+                >
+                  <Bot className="w-3.5 h-3.5" />
+                  Assign
+                </Button>
+              </SimpleTooltip>
+            )}
 
           {(task.column === "building" &&
             task.workflowRun?.status === "in_progress" &&
@@ -870,7 +897,11 @@ const TaskRow = memo(function TaskRow({
           (canExecute && onExecuteTask) ? (
             <SimpleTooltip
               content={
-                task.column === "building" ? "Stop running task" : "Run task"
+                task.column === "building"
+                  ? "Stop running task"
+                  : intakeMode && !isAssignedBacklogTask
+                    ? "Assign and run"
+                    : "Run task"
               }
               side="bottom"
             >
@@ -881,10 +912,14 @@ const TaskRow = memo(function TaskRow({
                 onClick={(e) => {
                   e.stopPropagation();
                   if (task.column === "building") onStopTask?.(task);
-                  else if (canExecute) onExecuteTask?.(task.id);
+                  else if (canExecute) onExecuteTask?.(task);
                 }}
                 aria-label={
-                  task.column === "building" ? "Stop task" : "Run task"
+                  task.column === "building"
+                    ? "Stop task"
+                    : intakeMode && !isAssignedBacklogTask
+                      ? "Assign and run task"
+                      : "Run task"
                 }
                 className={cn(
                   "h-7 w-7 p-0 cursor-pointer disabled:opacity-50",

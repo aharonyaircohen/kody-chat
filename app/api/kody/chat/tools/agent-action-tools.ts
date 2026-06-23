@@ -57,7 +57,7 @@ async function readAgentActionGuide(): Promise<string> {
       "- Put deterministic work in agentAction-owned `*.sh` scripts.",
       "- Use MCP tools only for external callable tool servers.",
       "- Use `skipAgent` when the script does all the work.",
-      "- AgentResponsibilities own cadence, agent, purpose, and safety bounds.",
+      "- AgentResponsibilities own purpose, agent, and safety bounds. Goals/loops own cadence.",
     ].join("\n");
   }
 }

@@ -183,8 +183,8 @@ export function KodyDashboard({
       window.localStorage.setItem(VIEW_MODE_KEY, taskListLayout);
     }
   }, [taskListLayout]);
-  const showingUnassigned = viewMode === "unassigned";
-  const isGroupedTaskList = taskListLayout === "grouped" && !showingUnassigned;
+  const showingBacklog = viewMode === "backlog";
+  const isGroupedTaskList = taskListLayout === "grouped" && !showingBacklog;
 
   const filterBarRef = useRef<{ focusSearch: () => void } | null>(null);
 
@@ -225,25 +225,24 @@ export function KodyDashboard({
   // Get days from filter
   const filter = DATE_FILTERS.find((f) => f.value === dateFilter);
   const days = filter?.days;
-  const apiViewMode = showingUnassigned ? "unassigned" : "all";
+  const apiViewMode = "intake";
   const taskQueryKey = useMemo(
     () => queryKeys.tasks(days, false, apiViewMode),
     [days, apiViewMode],
   );
 
-  // Owned tasks drive Running/Backlog. Unassigned is a separate intake list.
-  // Keeping them separate preserves accurate tab counts and Vibe's default list.
+  // One dashboard task set backs both visible tabs:
+  // Running = assigned/executing work, Backlog = unassigned + assigned but not run.
   const {
-    data: ownedTasks = [],
-    isLoading: ownedLoading,
-    isFetching: ownedFetching,
-    error: ownedError,
-    refetch: refetchOwned,
-    dataUpdatedAt: ownedDataUpdatedAt,
+    data: tasks = [],
+    isLoading,
+    isFetching,
+    error,
+    refetch,
+    dataUpdatedAt,
   } = useKodyTasks({
     days,
-    viewMode: "all",
-    enabled: !showingUnassigned,
+    viewMode: apiViewMode,
     // Pause list polling while a task is open OR a full-screen modal is up
     // (/new, /bug). The modal owns the foreground; background list will
     // refresh on close via invalidation.
@@ -255,37 +254,6 @@ export function KodyDashboard({
         ? false
         : "auto",
   });
-
-  const {
-    data: unassignedTasks = [],
-    isLoading: unassignedLoading,
-    isFetching: unassignedFetching,
-    error: unassignedError,
-    refetch: refetchUnassigned,
-    dataUpdatedAt: unassignedDataUpdatedAt,
-  } = useKodyTasks({
-    days,
-    viewMode: "unassigned",
-    enabled: showingUnassigned,
-    refetchInterval:
-      selectedIssueNumber ||
-      showCreateDialog ||
-      showBugDialog ||
-      showKodyBugDialog
-        ? false
-        : "idle",
-  });
-  const tasks = showingUnassigned ? unassignedTasks : ownedTasks;
-  const isLoading = showingUnassigned ? unassignedLoading : ownedLoading;
-  const isFetching = showingUnassigned ? unassignedFetching : ownedFetching;
-  const error = showingUnassigned ? unassignedError : ownedError;
-  const dataUpdatedAt = showingUnassigned
-    ? unassignedDataUpdatedAt
-    : ownedDataUpdatedAt;
-  const refetch = useCallback(() => {
-    if (showingUnassigned) void refetchUnassigned();
-    else void refetchOwned();
-  }, [refetchOwned, refetchUnassigned, showingUnassigned]);
 
   // Default-branch CI roll-up — banner uses this as its primary signal so
   // operators can see whether main is green/red before drilling into tasks.
@@ -304,7 +272,8 @@ export function KodyDashboard({
     if (status) setStatusFilter(status);
     const view = params.get("view");
     if (view === "queue") setViewMode("running");
-    else if (view && ["backlog", "running", "unassigned"].includes(view))
+    else if (view === "unassigned") setViewMode("backlog");
+    else if (view && ["backlog", "running"].includes(view))
       setViewMode(view as ViewMode);
     const q = params.get("q");
     if (q) {
@@ -383,17 +352,7 @@ export function KodyDashboard({
   // GitHub identity — verified via OAuth session cookie
   const { githubUser, authError, clearGitHubUser } = useGitHubIdentity();
 
-  const ownedVisibleTasks = useMemo(
-    () => filterVisibleTasks(ownedTasks),
-    [ownedTasks],
-  );
-  const unassignedVisibleTasks = useMemo(
-    () => filterVisibleTasks(unassignedTasks),
-    [unassignedTasks],
-  );
-  const visibleTasks = showingUnassigned
-    ? unassignedVisibleTasks
-    : ownedVisibleTasks;
+  const visibleTasks = useMemo(() => filterVisibleTasks(tasks), [tasks]);
 
   // Auth presence — when no PAT is saved we render the dashboard chrome
   // normally but swap the task pane for `<RepoManager />` so the user
@@ -460,16 +419,36 @@ export function KodyDashboard({
         KODY_BACKLOG_LABEL,
         githubUser?.login,
       ),
+    onMutate: async (task) => {
+      await queryClient.cancelQueries({ queryKey: ["kody-tasks"] });
+      const previous = queryClient.getQueriesData<KodyTask[]>({
+        queryKey: ["kody-tasks"],
+      });
+      queryClient.setQueriesData<KodyTask[]>(
+        { queryKey: ["kody-tasks"] },
+        (old) =>
+          old?.map((t) =>
+            t.issueNumber === task.issueNumber &&
+            !t.labels.includes(KODY_BACKLOG_LABEL)
+              ? { ...t, labels: [...t.labels, KODY_BACKLOG_LABEL] }
+              : t,
+          ),
+      );
+      return { previous };
+    },
     onSuccess: () => {
       toast.success("Assigned to Kody backlog");
       queryClient.invalidateQueries({
         queryKey: queryKeys.tasks(days, false, "all"),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.tasks(days, false, "unassigned"),
+        queryKey: queryKeys.tasks(days, false, "intake"),
       });
     },
-    onError: (error) => {
+    onError: (error, _task, context) => {
+      for (const [key, value] of context?.previous ?? []) {
+        queryClient.setQueryData(key, value);
+      }
       if (!handleAuthError(error)) {
         toast.error("Failed to assign to Kody");
       }
@@ -478,16 +457,28 @@ export function KodyDashboard({
 
   // #2: Replace manual try/catch handlers with mutations + optimistic updates
   const executeMutation = useMutation({
-    mutationFn: (task: KodyTask) =>
-      tasksApi.execute(task.issueNumber, githubUser?.login),
+    mutationFn: async (task: KodyTask) => {
+      if (!task.labels.includes(KODY_BACKLOG_LABEL)) {
+        await kodyApi.tasks.addLabel(
+          task.issueNumber,
+          KODY_BACKLOG_LABEL,
+          githubUser?.login,
+        );
+      }
+      return tasksApi.execute(task.issueNumber, githubUser?.login);
+    },
     // #3: Optimistic update — move task to "building" immediately
     onMutate: async (task) => {
       await queryClient.cancelQueries({ queryKey: taskQueryKey });
       const previous = queryClient.getQueryData<KodyTask[]>(taskQueryKey);
       queryClient.setQueryData<KodyTask[]>(taskQueryKey, (old) =>
-        old?.map((t) =>
-          t.id === task.id ? { ...t, column: "building" as const } : t,
-        ),
+        old?.map((t) => {
+          if (t.id !== task.id) return t;
+          const labels = t.labels.includes(KODY_BACKLOG_LABEL)
+            ? t.labels
+            : [...t.labels, KODY_BACKLOG_LABEL];
+          return { ...t, labels, column: "building" as const };
+        }),
       );
       return { previous };
     },
@@ -646,11 +637,10 @@ export function KodyDashboard({
 
   // Handlers now just delegate to mutations
   const handleExecuteTask = useCallback(
-    (taskId: string) => {
-      const task = tasks.find((t) => t.id === taskId);
-      if (task) executeMutation.mutate(task);
+    (task: KodyTask) => {
+      executeMutation.mutate(task);
     },
-    [tasks, executeMutation],
+    [executeMutation],
   );
 
   const handleStopTask = useCallback(
@@ -774,14 +764,11 @@ export function KodyDashboard({
 
   const totalCount = visibleTasks.length;
 
-  // View counts are cross-tab: Running/Backlog from Kody-owned tasks,
-  // Unassigned from intake tasks.
-  const ownedViewCounts = getViewModeCounts(ownedVisibleTasks);
-  const unassignedViewCounts = getViewModeCounts(unassignedVisibleTasks);
-  const runningCount = ownedViewCounts.runningCount;
-  const backlogCount = ownedViewCounts.backlogCount;
-  const queueCount = ownedViewCounts.queueCount;
-  const unassignedCount = unassignedViewCounts.unassignedCount;
+  // Backlog is the unified intake: unassigned issues plus assigned open tasks.
+  const viewCounts = getViewModeCounts(visibleTasks);
+  const runningCount = viewCounts.runningCount;
+  const backlogCount = viewCounts.backlogCount;
+  const queueCount = viewCounts.queueCount;
 
   // Filter tasks by view mode, then by status and label (combined with AND logic).
   // useMemo is load-bearing: without it the function returns a fresh array every
@@ -1190,7 +1177,6 @@ export function KodyDashboard({
         onViewModeChange={setViewMode}
         runningCount={runningCount}
         backlogCount={backlogCount}
-        unassignedCount={unassignedCount}
         disableBacklog={isGroupedTaskList}
       />
       {/* Date filter */}
@@ -1535,7 +1521,6 @@ export function KodyDashboard({
                     totalCount={totalCount}
                     runningCount={runningCount}
                     backlogCount={backlogCount}
-                    unassignedCount={unassignedCount}
                     queueCount={queueCount}
                     disableBacklog={isGroupedTaskList}
                     searchQuery={searchQuery}
@@ -1686,7 +1671,7 @@ export function KodyDashboard({
                       onApproveReview={handleMerge}
                       onTaskHover={handleTaskHover}
                       collaborators={collaborators}
-                      intakeMode={showingUnassigned}
+                      intakeMode={showingBacklog}
                       onAssignToKody={(task) =>
                         assignToKodyMutation.mutate(task)
                       }

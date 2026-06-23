@@ -27,7 +27,9 @@ import {
   getEngineConfig,
   writeConfigPatch,
   type ActiveGoalConfigEntry,
+  type ConfigPatch,
 } from "@dashboard/lib/engine/config";
+import { readResolvedAgentResponsibilityFile } from "@dashboard/lib/agent-responsibilities-files";
 import { listCompanyStoreGoalTemplateFiles } from "@dashboard/lib/managed-goals-files";
 
 export const dynamic = "force-dynamic";
@@ -38,18 +40,28 @@ type ImportKind =
   | "agentAction"
   | "agentResponsibility"
   | "agentGoal"
-  | "agentLoop";
+  | "agentLoop"
+  | "command";
 
 type ActiveConfigField =
   | "activeAgents"
   | "activeAgentActions"
   | "activeAgentResponsibilities"
+  | "activeCommands"
   | "activeGoals";
 
 type ImportResult = {
   imported: boolean;
   status: "imported" | "already_local";
   path: string;
+};
+
+type ActivationPlan = {
+  activeAgents: string[];
+  activeAgentActions: string[];
+  activeAgentResponsibilities: string[];
+  activeCommands: string[];
+  activeGoals: string[];
 };
 
 const importSchema = z.object({
@@ -59,6 +71,7 @@ const importSchema = z.object({
     "agentResponsibility",
     "agentGoal",
     "agentLoop",
+    "command",
   ]),
   slug: z.string().min(1).max(128),
 });
@@ -70,6 +83,7 @@ function validSlug(kind: ImportKind, slug: string): boolean {
     case "agentResponsibility":
     case "agentGoal":
     case "agentLoop":
+    case "command":
       return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
   }
 }
@@ -78,6 +92,7 @@ function configFieldFor(kind: ImportKind): ActiveConfigField {
   if (kind === "agent") return "activeAgents";
   if (kind === "agentAction") return "activeAgentActions";
   if (kind === "agentResponsibility") return "activeAgentResponsibilities";
+  if (kind === "command") return "activeCommands";
   return "activeGoals";
 }
 
@@ -89,18 +104,61 @@ function activeGoalSlug(entry: ActiveGoalConfigEntry): string {
   return typeof entry === "string" ? entry : entry.template;
 }
 
-function addSlug(entries: string[] | undefined, slug: string): string[] {
-  return [...new Set([...(entries ?? []), slug])];
+function addSlugs(entries: string[] | undefined, slugs: string[]): string[] {
+  return [...new Set([...(entries ?? []), ...slugs])];
 }
 
-function addGoal(
+function addGoals(
+  entries: ActiveGoalConfigEntry[] | undefined,
+  slugs: string[],
+): ActiveGoalConfigEntry[] {
+  const next = [...(entries ?? [])];
+  for (const slug of slugs) {
+    if (!next.some((entry) => activeGoalSlug(entry) === slug)) {
+      next.push(slug);
+    }
+  }
+  return next;
+}
+
+function sameStringList(a: string[] | undefined, b: string[]): boolean {
+  const current = a ?? [];
+  return (
+    current.length === b.length && current.every((value, i) => value === b[i])
+  );
+}
+
+function hasGoal(
   entries: ActiveGoalConfigEntry[] | undefined,
   slug: string,
-): ActiveGoalConfigEntry[] {
-  const withoutExisting = (entries ?? []).filter(
-    (entry) => activeGoalSlug(entry) !== slug,
+): boolean {
+  return (entries ?? []).some((entry) => activeGoalSlug(entry) === slug);
+}
+
+function emptyActivationPlan(): ActivationPlan {
+  return {
+    activeAgents: [],
+    activeAgentActions: [],
+    activeAgentResponsibilities: [],
+    activeCommands: [],
+    activeGoals: [],
+  };
+}
+
+function addPlanSlug(
+  plan: ActivationPlan,
+  field: keyof ActivationPlan,
+  slug: string | null | undefined,
+): void {
+  if (!slug) return;
+  if (!plan[field].includes(slug)) plan[field].push(slug);
+}
+
+function dependencyNotFound(kind: string, slug: string): Error {
+  return Object.assign(
+    new Error(`Store dependency "${slug}" (${kind}) was not found.`),
+    { status: 404 },
   );
-  return [...withoutExisting, slug];
 }
 
 async function assertStoreItemExists(
@@ -129,6 +187,13 @@ async function assertStoreItemExists(
       (candidate) => validSlug("agentResponsibility", candidate),
     );
     if (slugs.includes(slug)) return;
+  } else if (kind === "command") {
+    const slugs = await listCompanyStoreMarkdownAssetSlugs(
+      octokit,
+      "commands",
+      (candidate) => validSlug("command", candidate),
+    );
+    if (slugs.includes(slug)) return;
   } else {
     const goals = await listCompanyStoreGoalTemplateFiles(octokit);
     if (goals.some((goal) => goal.id === slug)) return;
@@ -137,6 +202,83 @@ async function assertStoreItemExists(
   throw Object.assign(new Error(`Store item "${slug}" was not found.`), {
     status: 404,
   });
+}
+
+async function addResponsibilityDependencies(
+  octokit: Octokit,
+  plan: ActivationPlan,
+  slug: string,
+): Promise<void> {
+  if (!validSlug("agentResponsibility", slug)) {
+    throw dependencyNotFound("agentResponsibility", slug);
+  }
+
+  addPlanSlug(plan, "activeAgentResponsibilities", slug);
+
+  const responsibility = await readResolvedAgentResponsibilityFile(
+    slug,
+    octokit,
+  );
+  if (!responsibility) {
+    throw dependencyNotFound("agentResponsibility", slug);
+  }
+
+  if (responsibility.agent) {
+    if (!validSlug("agent", responsibility.agent)) {
+      throw dependencyNotFound("agent", responsibility.agent);
+    }
+    addPlanSlug(plan, "activeAgents", responsibility.agent);
+  }
+
+  const actionSlugs = [
+    responsibility.agentAction,
+    ...responsibility.agentActions,
+  ].filter((value): value is string => !!value);
+  for (const actionSlug of actionSlugs) {
+    if (!validSlug("agentAction", actionSlug)) {
+      throw dependencyNotFound("agentAction", actionSlug);
+    }
+    addPlanSlug(plan, "activeAgentActions", actionSlug);
+  }
+}
+
+async function activationPlanFor(
+  octokit: Octokit,
+  kind: ImportKind,
+  slug: string,
+): Promise<ActivationPlan> {
+  const plan = emptyActivationPlan();
+
+  if (kind === "agent") {
+    addPlanSlug(plan, "activeAgents", slug);
+    return plan;
+  }
+
+  if (kind === "agentAction") {
+    addPlanSlug(plan, "activeAgentActions", slug);
+    return plan;
+  }
+
+  if (kind === "agentResponsibility") {
+    await addResponsibilityDependencies(octokit, plan, slug);
+    return plan;
+  }
+
+  if (kind === "command") {
+    addPlanSlug(plan, "activeCommands", slug);
+    return plan;
+  }
+
+  addPlanSlug(plan, "activeGoals", slug);
+  const goals = await listCompanyStoreGoalTemplateFiles(octokit);
+  const goal = goals.find((item) => item.id === slug);
+  if (!goal) throw dependencyNotFound(kind, slug);
+
+  for (const responsibilitySlug of goal.state.agentResponsibilities) {
+    await addResponsibilityDependencies(octokit, plan, responsibilitySlug);
+  }
+
+  return plan;
 }
 
 async function addStoreReference({
@@ -157,15 +299,65 @@ async function addStoreReference({
   const { config } = await getEngineConfig(octokit, owner, repo, {
     force: true,
   });
-  const field = configFieldFor(kind);
-  const alreadyLinked =
-    field === "activeGoals"
-      ? (config.company?.activeGoals ?? []).some(
-          (entry) => activeGoalSlug(entry) === slug,
+  const plan = await activationPlanFor(octokit, kind, slug);
+  const nextActiveAgents =
+    plan.activeAgents.length > 0
+      ? addSlugs(config.company?.activeAgents, plan.activeAgents)
+      : undefined;
+  const nextActiveAgentActions =
+    plan.activeAgentActions.length > 0
+      ? addSlugs(config.company?.activeAgentActions, plan.activeAgentActions)
+      : undefined;
+  const nextActiveAgentResponsibilities =
+    plan.activeAgentResponsibilities.length > 0
+      ? addSlugs(
+          config.company?.activeAgentResponsibilities,
+          plan.activeAgentResponsibilities,
         )
-      : (config.company?.[field] ?? []).includes(slug);
+      : undefined;
+  const nextActiveCommands =
+    plan.activeCommands.length > 0
+      ? addSlugs(config.company?.activeCommands, plan.activeCommands)
+      : undefined;
+  const nextActiveGoals =
+    plan.activeGoals.length > 0 &&
+    plan.activeGoals.some(
+      (goalSlug) => !hasGoal(config.company?.activeGoals, goalSlug),
+    )
+      ? addGoals(config.company?.activeGoals, plan.activeGoals)
+      : undefined;
 
-  if (alreadyLinked) {
+  const patch: ConfigPatch = {
+    activeAgents:
+      nextActiveAgents &&
+      !sameStringList(config.company?.activeAgents, nextActiveAgents)
+        ? nextActiveAgents
+        : undefined,
+    activeAgentActions:
+      nextActiveAgentActions &&
+      !sameStringList(
+        config.company?.activeAgentActions,
+        nextActiveAgentActions,
+      )
+        ? nextActiveAgentActions
+        : undefined,
+    activeAgentResponsibilities:
+      nextActiveAgentResponsibilities &&
+      !sameStringList(
+        config.company?.activeAgentResponsibilities,
+        nextActiveAgentResponsibilities,
+      )
+        ? nextActiveAgentResponsibilities
+        : undefined,
+    activeCommands:
+      nextActiveCommands &&
+      !sameStringList(config.company?.activeCommands, nextActiveCommands)
+        ? nextActiveCommands
+        : undefined,
+    activeGoals: nextActiveGoals,
+  };
+
+  if (Object.values(patch).every((value) => value === undefined)) {
     return {
       imported: false,
       status: "already_local",
@@ -177,24 +369,7 @@ async function addStoreReference({
     octokit,
     owner,
     repo,
-    {
-      activeAgents:
-        field === "activeAgents"
-          ? addSlug(config.company?.activeAgents, slug)
-          : undefined,
-      activeAgentActions:
-        field === "activeAgentActions"
-          ? addSlug(config.company?.activeAgentActions, slug)
-          : undefined,
-      activeAgentResponsibilities:
-        field === "activeAgentResponsibilities"
-          ? addSlug(config.company?.activeAgentResponsibilities, slug)
-          : undefined,
-      activeGoals:
-        field === "activeGoals"
-          ? addGoal(config.company?.activeGoals, slug)
-          : undefined,
-    },
+    patch,
     `chore(kody): add store ${kind} ${slug}`,
   );
 
@@ -241,7 +416,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
   }
 
-  setGitHubContext(auth.owner, auth.repo, auth.token);
+  setGitHubContext(
+    auth.owner,
+    auth.repo,
+    auth.token,
+    auth.storeRepoUrl,
+    auth.storeRef,
+  );
 
   try {
     const body = await req.json().catch(() => null);

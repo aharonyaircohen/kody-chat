@@ -85,6 +85,16 @@ export function isDashboardUnassignedIssue(
   return !isDashboardKodyOwnedIssue(issue, kodyAssigneeLogins);
 }
 
+export function isDashboardIntakeIssue(
+  issue: DashboardIssueVisibilityInput,
+  kodyAssigneeLogins: readonly string[] = DEFAULT_KODY_ASSIGNEE_LOGINS,
+) {
+  return (
+    isDashboardKodyOwnedIssue(issue, kodyAssigneeLogins) ||
+    isDashboardUnassignedIssue(issue, kodyAssigneeLogins)
+  );
+}
+
 export function filterVisibleTasks<
   T extends {
     labels: readonly string[];

@@ -31,24 +31,19 @@ import {
   getOwner,
   getRepo,
 } from "@dashboard/lib/github-client";
-import { flyHostname } from "@dashboard/lib/previews/fly-previews";
-import { previewAppName } from "@dashboard/lib/previews/preview-key";
 import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
+import { buildPreviewUrlByPrNumber } from "@dashboard/lib/tasks/preview-urls";
 import type { KodyTaskState } from "@dashboard/lib/kody-state";
 import type {
   KodyTask,
   ColumnId,
-  GitHubIssue,
-  GitHubPR,
   WorkflowRun,
   KodyPipelineStatus,
 } from "@dashboard/lib/types";
 import { matchWorkflowRunToTask } from "@dashboard/lib/workflow-matching";
+import { deriveTaskColumn } from "@dashboard/lib/tasks/derive-column";
 import {
-  deriveTaskColumn,
-  getColumnForIssue,
-} from "@dashboard/lib/tasks/derive-column";
-import {
+  isDashboardIntakeIssue,
   isDashboardKodyOwnedIssue,
   isDashboardUnassignedIssue,
 } from "@dashboard/lib/tasks/visibility";
@@ -169,9 +164,13 @@ export async function GET(req: NextRequest) {
         body: issue.body,
       };
 
-      return view === "unassigned"
-        ? isDashboardUnassignedIssue(visibilityIssue, kodyAssigneeLogins)
-        : isDashboardKodyOwnedIssue(visibilityIssue, kodyAssigneeLogins);
+      if (view === "unassigned") {
+        return isDashboardUnassignedIssue(visibilityIssue, kodyAssigneeLogins);
+      }
+      if (view === "intake") {
+        return isDashboardIntakeIssue(visibilityIssue, kodyAssigneeLogins);
+      }
+      return isDashboardKodyOwnedIssue(visibilityIssue, kodyAssigneeLogins);
     });
 
     // Workflow runs are matched per-task below using matchWorkflowRunToTask()
@@ -266,31 +265,17 @@ export async function GET(req: NextRequest) {
       }
     })();
 
-    // Build SHA -> preview URL lookup keyed by PR number.
+    // Build preview URL lookup keyed by PR number.
     //
-    // Precedence: when the repo has Fly previews opted in (FLY_API_TOKEN
-    // in vault), the deterministic Fly URL wins over the GitHub
-    // Deployments URL — that's where Vercel registers its previews, and
-    // we want repos that have moved off Vercel previews to show the new
-    // Fly URL in the dashboard. Repos without Fly opted in keep the
-    // Vercel-via-Deployments URL.
-    const previewByPrNumber = new Map<number, string>();
-    for (const pr of openPRs) {
-      if (flyPreviewCfg) {
-        previewByPrNumber.set(
-          pr.number,
-          flyHostname(
-            previewAppName({
-              repo: `${getOwner()}/${getRepo()}`,
-              pr: pr.number,
-            }),
-          ),
-        );
-        continue;
-      }
-      const url = previewUrls.get(pr.head.sha);
-      if (url) previewByPrNumber.set(pr.number, url);
-    }
+    // Fly previews win only when the per-PR app actually has a ready URL.
+    // Otherwise we fall back to deployment previews (Vercel) or leave the
+    // task without a preview link, instead of publishing a DNS-dead Fly host.
+    const previewByPrNumber = await buildPreviewUrlByPrNumber({
+      openPRs,
+      deploymentPreviewUrls: previewUrls,
+      flyPreviewConfig: flyPreviewCfg,
+      repo: `${getOwner()}/${getRepo()}`,
+    });
 
     // First pass: match workflow runs once per issue (reused later in the
     // mapping loop) and identify issue numbers that need branch lookup

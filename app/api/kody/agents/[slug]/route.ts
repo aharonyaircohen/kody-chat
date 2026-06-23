@@ -27,6 +27,10 @@ import {
   deleteAgentFile,
   isValidSlug,
 } from "@dashboard/lib/agent-files";
+import {
+  getEngineConfig,
+  writeConfigPatch,
+} from "@dashboard/lib/engine/config";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export async function GET(
@@ -188,11 +192,6 @@ export async function DELETE(
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
 
-    const existing = await readAgentFile(slug);
-    if (!existing) {
-      return NextResponse.json({ success: true, alreadyMissing: true });
-    }
-
     const { searchParams } = new URL(req.url);
     const actorLogin = searchParams.get("actorLogin") ?? undefined;
 
@@ -209,6 +208,43 @@ export async function DELETE(
         },
         { status: 401 },
       );
+    }
+
+    const existing = await readAgentFile(slug, userOctokit);
+    if (!existing) {
+      if (!headerAuth) {
+        return NextResponse.json({ success: true, alreadyMissing: true });
+      }
+
+      const { config } = await getEngineConfig(
+        userOctokit,
+        headerAuth.owner,
+        headerAuth.repo,
+        { force: true },
+      );
+      const activeAgents = config.company?.activeAgents ?? [];
+      if (!activeAgents.includes(slug)) {
+        return NextResponse.json({ success: true, alreadyMissing: true });
+      }
+
+      const nextActiveAgents = activeAgents.filter((value) => value !== slug);
+      await writeConfigPatch(
+        userOctokit,
+        headerAuth.owner,
+        headerAuth.repo,
+        {
+          activeAgents: nextActiveAgents.length > 0 ? nextActiveAgents : null,
+        },
+        `chore(kody): remove store agent ${slug}`,
+      );
+
+      recordAudit(req, {
+        action: "agent.removeStoreReference",
+        resource: slug,
+        agent: slug,
+        detail: "removed store agent reference",
+      });
+      return NextResponse.json({ success: true, removedStoreReference: true });
     }
 
     await deleteAgentFile(userOctokit, slug);

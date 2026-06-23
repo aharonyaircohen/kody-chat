@@ -28,7 +28,6 @@ import {
   latestActivityByAgentResponsibility,
   type CompanyActivityRecord,
 } from "./activity/company";
-import { isScheduleEvery, type ScheduleEvery } from "./ticked/frontmatter";
 import {
   parseTickedMarkdown,
   type AgentResponsibilityCapabilityKind,
@@ -53,7 +52,6 @@ interface AgentResponsibilityProfile {
   action?: string;
   agentAction?: string;
   capabilityKind?: AgentResponsibilityCapabilityKind;
-  every?: ScheduleEvery;
   disabled?: boolean;
   agent?: string;
   reviewer?: string;
@@ -87,7 +85,6 @@ export function buildAgentResponsibilityProfile(opts: TickWriteOptions): AgentRe
   if (opts.action?.trim()) profile.action = opts.action.trim();
   if (opts.agentAction?.trim()) profile.agentAction = opts.agentAction.trim();
   if (opts.capabilityKind) profile.capabilityKind = opts.capabilityKind;
-  if (opts.schedule) profile.every = opts.schedule;
   if (opts.disabled === true) profile.disabled = true;
   const agentSlug = (opts.agent ?? "").trim();
   if (agentSlug) {
@@ -102,7 +99,7 @@ export function buildAgentResponsibilityProfile(opts: TickWriteOptions): AgentRe
   if (opts.readsFrom?.length) profile.readsFrom = cleanList(opts.readsFrom);
   if (opts.writesTo?.length) profile.writesTo = cleanList(opts.writesTo);
   // Raw profile override — merged last. The keys this function manages
-  // directly (identity + every typed field above) WIN: callers can't use
+  // directly (identity + ignored legacy every field) WIN: callers can't use
   // `extraProfile` to clobber them. The override is for ADDING fields the
   // typed schema doesn't expose (e.g. `version`, custom engine flags), or
   // for REPLACING values on keys we don't manage (pass `null` to clear).
@@ -148,7 +145,6 @@ function parseAgentResponsibilityProfile(raw: unknown, slug: string): AgentRespo
     action: stringField(r.action),
     agentAction: stringField(r.agentAction),
     capabilityKind: agentResponsibilityCapabilityKindField(r.capabilityKind),
-    every: isScheduleEvery(r.every) ? r.every : undefined,
     disabled: typeof r.disabled === "boolean" ? r.disabled : undefined,
     agent: stringField(r.agent),
     reviewer: cleanLoginField(r.reviewer),
@@ -404,7 +400,7 @@ export async function readAgentResponsibilityFile(
       lastDurationMs: useActivity
         ? activity.durationMs
         : tickState.lastDurationMs,
-      schedule: profile.every ?? null,
+      schedule: null,
       capabilityKind: profile.capabilityKind ?? null,
       disabled: profile.disabled === true,
       agent: profile.agent ?? null,
@@ -455,7 +451,7 @@ async function readStoreAgentResponsibilityFile(
     nextEligibleAt: null,
     lastOutcome: null,
     lastDurationMs: null,
-    schedule: profile.every ?? null,
+    schedule: null,
     capabilityKind: profile.capabilityKind ?? null,
     disabled: profile.disabled === true,
     agent: profile.agent ?? null,
@@ -480,6 +476,16 @@ export async function writeAgentResponsibilityFile(opts: TickWriteOptions): Prom
       `Invalid agentResponsibilities slug: "${opts.slug}". Use lowercase letters, digits, dashes, underscores.`,
     );
   }
+  const owner = getOwner();
+  const repo = getRepo();
+  const profilePath = `${DUTIES_DIR}/${opts.slug}/${PROFILE_FILE}`;
+  const bodyPath = `${DUTIES_DIR}/${opts.slug}/${BODY_FILE}`;
+  const existingProfile = await readStateText(
+    opts.octokit,
+    owner,
+    repo,
+    profilePath,
+  );
   const profile = buildAgentResponsibilityProfile(opts);
   const body = buildAgentResponsibilityBody(opts.title, opts.body);
   const message =
@@ -487,17 +493,18 @@ export async function writeAgentResponsibilityFile(opts: TickWriteOptions): Prom
     `${opts.sha ? "chore" : "feat"}(agentResponsibilities): ${opts.sha ? "update" : "add"} ${opts.slug}`;
   await writeStateText({
     octokit: opts.octokit,
-    owner: getOwner(),
-    repo: getRepo(),
-    path: `${DUTIES_DIR}/${opts.slug}/${PROFILE_FILE}`,
+    owner,
+    repo,
+    path: profilePath,
     message,
     content: `${JSON.stringify(profile, null, 2)}\n`,
+    sha: existingProfile?.sha,
   });
   await writeStateText({
     octokit: opts.octokit,
-    owner: getOwner(),
-    repo: getRepo(),
-    path: `${DUTIES_DIR}/${opts.slug}/${BODY_FILE}`,
+    owner,
+    repo,
+    path: bodyPath,
     message,
     content: body,
     sha: opts.sha,

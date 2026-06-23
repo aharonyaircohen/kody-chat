@@ -133,7 +133,12 @@ export const agentActionQueryKeys = {
   list: (scope: AgentActionQueryScope = {}) =>
     ["kody-agentActions", scope.owner ?? null, scope.repo ?? null] as const,
   detail: (slug: string | null, scope: AgentActionQueryScope = {}) =>
-    ["kody-agentAction", scope.owner ?? null, scope.repo ?? null, slug] as const,
+    [
+      "kody-agentAction",
+      scope.owner ?? null,
+      scope.repo ?? null,
+      slug,
+    ] as const,
 };
 
 function formatRelative(iso: string): string {
@@ -176,10 +181,13 @@ async function readApi(
   headers: Record<string, string>,
   slug: string,
 ): Promise<AgentActionDetail> {
-  const res = await fetch(`/api/kody/agent-actions/${encodeURIComponent(slug)}`, {
-    headers,
-    cache: "no-store",
-  });
+  const res = await fetch(
+    `/api/kody/agent-actions/${encodeURIComponent(slug)}`,
+    {
+      headers,
+      cache: "no-store",
+    },
+  );
   const json = (await res.json().catch(() => ({}))) as {
     agentAction?: AgentActionDetail;
     error?: string;
@@ -232,10 +240,13 @@ async function deleteApi(
   headers: Record<string, string>,
   slug: string,
 ): Promise<void> {
-  const res = await fetch(`/api/kody/agent-actions/${encodeURIComponent(slug)}`, {
-    method: "DELETE",
-    headers,
-  });
+  const res = await fetch(
+    `/api/kody/agent-actions/${encodeURIComponent(slug)}`,
+    {
+      method: "DELETE",
+      headers,
+    },
+  );
   const json = (await res.json().catch(() => ({}))) as {
     error?: string;
     message?: string;
@@ -346,9 +357,9 @@ function AgentActionsManagerInner() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: agentActionQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: listQueryKey });
-      toast.success("AgentAction deleted");
+      toast.success("AgentAction removed");
     },
-    onError: (err: Error) => toast.error(err.message || "Failed to delete"),
+    onError: (err: Error) => toast.error(err.message || "Failed to remove"),
   });
 
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -375,6 +386,10 @@ function AgentActionsManagerInner() {
   const existingSlugs = useMemo(
     () => new Set(agentActions.map((e) => e.slug)),
     [agentActions],
+  );
+  const deletingAction = useMemo(
+    () => agentActions.find((e) => e.slug === deleting) ?? null,
+    [agentActions, deleting],
   );
 
   // Picking a different row exits edit mode — keeps the inline editor bound
@@ -494,7 +509,7 @@ function AgentActionsManagerInner() {
                   if (!selected.readOnly) setEditingSlug(selected.slug);
                 }}
                 onDelete={() => {
-                  if (!selected.readOnly) setDeleting(selected.slug);
+                  setDeleting(selected.slug);
                 }}
               />
             )
@@ -546,9 +561,25 @@ function AgentActionsManagerInner() {
 
       <ConfirmDialog
         open={deleting !== null}
-        title={`Delete agentAction ${deleting}?`}
-        description="The whole agentAction folder is removed from the repo."
-        confirmLabel={remove.isPending ? "Deleting…" : "Delete"}
+        title={
+          deletingAction?.source === "store"
+            ? `Remove Store agentAction ${deleting}?`
+            : `Delete agentAction ${deleting}?`
+        }
+        description={
+          deletingAction?.source === "store"
+            ? "This repo will stop using the Store agentAction. The Store asset will not be deleted."
+            : "The whole agentAction folder is removed from the repo."
+        }
+        confirmLabel={
+          remove.isPending
+            ? deletingAction?.source === "store"
+              ? "Removing…"
+              : "Deleting…"
+            : deletingAction?.source === "store"
+              ? "Remove"
+              : "Delete"
+        }
         variant="destructive"
         onConfirm={() => {
           if (deleting) remove.mutate(deleting);
@@ -712,14 +743,17 @@ function AgentActionDetail({
                 variant="outline"
                 size="sm"
                 onClick={onDelete}
-                disabled={e.readOnly}
                 className="w-9 px-0 text-red-400"
                 title={
-                  e.readOnly
-                    ? "Store-linked agentActions are read-only"
+                  e.source === "store"
+                    ? "Remove Store agentAction from this repo"
                     : "Delete agentAction"
                 }
-                aria-label="Delete agentAction"
+                aria-label={
+                  e.source === "store"
+                    ? "Remove Store agentAction from this repo"
+                    : "Delete agentAction"
+                }
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>

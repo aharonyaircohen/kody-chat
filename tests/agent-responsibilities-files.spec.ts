@@ -50,12 +50,19 @@ vi.mock("@dashboard/lib/company-store/assets", () => ({
 }));
 
 import { getOctokit } from "@dashboard/lib/github-client";
-import { listAgentResponsibilityFiles } from "@dashboard/lib/agent-responsibilities-files";
+import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
+import {
+  listAgentResponsibilityFiles,
+  writeAgentResponsibilityFile,
+} from "@dashboard/lib/agent-responsibilities-files";
 
 const getOctokitMock = vi.mocked(getOctokit);
+const readStateTextMock = vi.mocked(readStateText);
+const writeStateTextMock = vi.mocked(writeStateText);
 
 describe("listAgentResponsibilityFiles", () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     getOctokitMock.mockReturnValue({} as never);
   });
 
@@ -70,5 +77,56 @@ describe("listAgentResponsibilityFiles", () => {
       readOnly: true,
       agentAction: "ci-check",
     });
+  });
+
+  it("updates existing profile.json with its own sha", async () => {
+    readStateTextMock.mockImplementation(async (_octokit, _owner, _repo, path) => {
+      if (path === "agent-responsibilities/ci-health/profile.json") {
+        return {
+          path,
+          content: JSON.stringify({
+            name: "ci-health",
+            action: "ci-health",
+            agentAction: "ci-check",
+          }),
+          sha: "profile-sha",
+        };
+      }
+      if (path === "agent-responsibilities/ci-health/agent-responsibility.md") {
+        return {
+          path,
+          content: "# CI Health\n\nCheck PR CI health.\n",
+          sha: "body-sha",
+          htmlUrl: "https://github.example/body",
+        };
+      }
+      return null;
+    });
+    writeStateTextMock.mockResolvedValue({ sha: "updated-sha" });
+
+    await writeAgentResponsibilityFile({
+      octokit: {} as never,
+      slug: "ci-health",
+      title: "CI Health",
+      body: "Check PR CI health.",
+      agentAction: "ci-check",
+      disabled: true,
+      sha: "body-sha",
+    });
+
+    expect(writeStateTextMock).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        path: "agent-responsibilities/ci-health/profile.json",
+        sha: "profile-sha",
+      }),
+    );
+    expect(writeStateTextMock).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        path: "agent-responsibilities/ci-health/agent-responsibility.md",
+        sha: "body-sha",
+      }),
+    );
   });
 });

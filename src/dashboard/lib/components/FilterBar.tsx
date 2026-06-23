@@ -37,7 +37,6 @@ export interface FilterBarProps {
   totalCount: number;
   runningCount: number;
   backlogCount: number;
-  unassignedCount?: number;
   queueCount?: number;
   /**
    * When true, the Backlog toggle is disabled (goal-grouped view collapses
@@ -58,20 +57,18 @@ export interface FilterBarHandle {
 
 export { DATE_FILTERS, STATUS_FILTERS } from "./FilterDropdown";
 
-/** Pill-style toggle between Running, Backlog, and Queue views */
+/** Pill-style toggle between Running and Backlog views */
 export function ViewToggle({
   viewMode,
   onViewModeChange,
   runningCount,
   backlogCount,
-  unassignedCount = 0,
   disableBacklog = false,
 }: {
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
   runningCount: number;
   backlogCount: number;
-  unassignedCount?: number;
   disableBacklog?: boolean;
 }) {
   // When backlog is disabled the running/backlog split is meaningless — the
@@ -104,19 +101,7 @@ export function ViewToggle({
       >
         Backlog ({backlogCount})
       </button>
-      <button
-        type="button"
-        onClick={() => onViewModeChange("unassigned")}
-        className={cn(
-          "px-3 py-1 rounded text-xs font-medium transition-colors",
-          viewMode === "unassigned"
-            ? "bg-zinc-600 text-white shadow-sm"
-            : "text-muted-foreground hover:text-foreground hover:bg-white/[0.06]",
-        )}
-      >
-        Unassigned ({unassignedCount})
-      </button>
-      {/* Queue view retired — left in the ViewMode type for URL backwards-compat. */}
+      {/* Queue/unassigned views retired — left in ViewMode type for URL backwards-compat. */}
     </div>
   );
 }
@@ -140,7 +125,6 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(
       totalCount,
       runningCount,
       backlogCount,
-      unassignedCount,
       disableBacklog,
       searchQuery = "",
       onSearchChange,
@@ -185,7 +169,6 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(
           onViewModeChange={onViewModeChange}
           runningCount={runningCount}
           backlogCount={backlogCount}
-          unassignedCount={unassignedCount}
           disableBacklog={disableBacklog}
         />
 

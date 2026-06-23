@@ -14,7 +14,6 @@ import {
   kodyApi,
   type AgentResponsibility,
   type AgentResponsibilityCapabilityKind,
-  type AgentResponsibilitySchedule,
   NoTokenError,
   SessionExpiredError,
   getStoredAuth,
@@ -38,9 +37,18 @@ export function agentResponsibilityQueryScopeFromAuth(
 export const agentResponsibilityQueryKeys = {
   all: ["kody-agentResponsibilities"] as const,
   list: (scope: AgentResponsibilityQueryScope = {}) =>
-    ["kody-agentResponsibilities", scope.owner ?? null, scope.repo ?? null] as const,
+    [
+      "kody-agentResponsibilities",
+      scope.owner ?? null,
+      scope.repo ?? null,
+    ] as const,
   detail: (slug: string, scope: AgentResponsibilityQueryScope = {}) =>
-    ["kody-agentResponsibility", scope.owner ?? null, scope.repo ?? null, slug] as const,
+    [
+      "kody-agentResponsibility",
+      scope.owner ?? null,
+      scope.repo ?? null,
+      slug,
+    ] as const,
 };
 
 function useAgentResponsibilityQueryScope() {
@@ -88,7 +96,6 @@ export function useCreateAgentResponsibility(actorLogin?: string) {
       slug?: string;
       title: string;
       body: string;
-      schedule?: AgentResponsibilitySchedule | null;
       capabilityKind?: AgentResponsibilityCapabilityKind | null;
       disabled?: boolean;
       agent?: string | null;
@@ -109,17 +116,26 @@ export function useCreateAgentResponsibility(actorLogin?: string) {
         ...(actorLogin && { actorLogin }),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: agentResponsibilityQueryKeys.all });
-      queryClient.invalidateQueries({ queryKey: agentResponsibilityQueryKeys.list(scope) });
+      queryClient.invalidateQueries({
+        queryKey: agentResponsibilityQueryKeys.all,
+      });
+      queryClient.invalidateQueries({
+        queryKey: agentResponsibilityQueryKeys.list(scope),
+      });
       toast.success("AgentResponsibility created");
     },
     onError: (error) => {
-      toast.error("Failed to create agentResponsibility", { description: error.message });
+      toast.error("Failed to create agentResponsibility", {
+        description: error.message,
+      });
     },
   });
 }
 
-export function useUpdateAgentResponsibility(slug: string, actorLogin?: string) {
+export function useUpdateAgentResponsibility(
+  slug: string,
+  actorLogin?: string,
+) {
   const queryClient = useQueryClient();
   const { scope } = useAgentResponsibilityQueryScope();
 
@@ -129,7 +145,6 @@ export function useUpdateAgentResponsibility(slug: string, actorLogin?: string) 
     {
       title?: string;
       body?: string;
-      schedule?: AgentResponsibilitySchedule | null;
       capabilityKind?: AgentResponsibilityCapabilityKind | null;
       disabled?: boolean;
       agent?: string | null;
@@ -150,16 +165,29 @@ export function useUpdateAgentResponsibility(slug: string, actorLogin?: string) 
         ...(actorLogin && { actorLogin }),
       }),
     onSuccess: (agentResponsibility) => {
-      queryClient.setQueryData<AgentResponsibility[]>(agentResponsibilityQueryKeys.list(scope), (current) =>
-        current?.map((item) => (item.slug === agentResponsibility.slug ? agentResponsibility : item)),
+      queryClient.setQueryData<AgentResponsibility[]>(
+        agentResponsibilityQueryKeys.list(scope),
+        (current) =>
+          current?.map((item) =>
+            item.slug === agentResponsibility.slug ? agentResponsibility : item,
+          ),
       );
-      queryClient.invalidateQueries({ queryKey: agentResponsibilityQueryKeys.all });
-      queryClient.invalidateQueries({ queryKey: agentResponsibilityQueryKeys.list(scope) });
-      queryClient.setQueryData(agentResponsibilityQueryKeys.detail(slug, scope), agentResponsibility);
+      queryClient.invalidateQueries({
+        queryKey: agentResponsibilityQueryKeys.all,
+      });
+      queryClient.invalidateQueries({
+        queryKey: agentResponsibilityQueryKeys.list(scope),
+      });
+      queryClient.setQueryData(
+        agentResponsibilityQueryKeys.detail(slug, scope),
+        agentResponsibility,
+      );
       toast.success("AgentResponsibility updated");
     },
     onError: (error) => {
-      toast.error("Failed to update agentResponsibility", { description: error.message });
+      toast.error("Failed to update agentResponsibility", {
+        description: error.message,
+      });
     },
   });
 }
@@ -176,14 +204,22 @@ export function useRunAgentResponsibility() {
     Error,
     { slug: string; force?: boolean }
   >({
-    mutationFn: ({ slug, force }) => kodyApi.agentResponsibilities.run({ slug }, { force }),
+    mutationFn: ({ slug, force }) =>
+      kodyApi.agentResponsibilities.run({ slug }, { force }),
     onSuccess: (data) => {
-      toast.success(data.force ? "AgentResponsibility triggered (force)" : "AgentResponsibility triggered", {
-        description: `Workflow dispatched for @kody ${data.action}.`,
-      });
+      toast.success(
+        data.force
+          ? "AgentResponsibility triggered (force)"
+          : "AgentResponsibility triggered",
+        {
+          description: `Workflow dispatched for @kody ${data.action}.`,
+        },
+      );
     },
     onError: (error) => {
-      toast.error("Failed to dispatch agentResponsibility", { description: error.message });
+      toast.error("Failed to dispatch agentResponsibility", {
+        description: error.message,
+      });
     },
   });
 }
@@ -193,17 +229,24 @@ export function useDeleteAgentResponsibility(actorLogin?: string) {
   const { scope } = useAgentResponsibilityQueryScope();
 
   return useMutation<void, Error, string>({
-    mutationFn: (slug) => kodyApi.agentResponsibilities.remove(slug, actorLogin),
+    mutationFn: (slug) =>
+      kodyApi.agentResponsibilities.remove(slug, actorLogin),
     onSuccess: (_, slug) => {
-      queryClient.invalidateQueries({ queryKey: agentResponsibilityQueryKeys.all });
-      queryClient.invalidateQueries({ queryKey: agentResponsibilityQueryKeys.list(scope) });
+      queryClient.invalidateQueries({
+        queryKey: agentResponsibilityQueryKeys.all,
+      });
+      queryClient.invalidateQueries({
+        queryKey: agentResponsibilityQueryKeys.list(scope),
+      });
       queryClient.removeQueries({
         queryKey: agentResponsibilityQueryKeys.detail(slug, scope),
       });
-      toast.success("AgentResponsibility deleted");
+      toast.success("AgentResponsibility removed");
     },
     onError: (error) => {
-      toast.error("Failed to delete agentResponsibility", { description: error.message });
+      toast.error("Failed to remove agentResponsibility", {
+        description: error.message,
+      });
     },
   });
 }

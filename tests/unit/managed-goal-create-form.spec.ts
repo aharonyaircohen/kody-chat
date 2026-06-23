@@ -31,21 +31,21 @@ describe("ManagedModelsView model form", () => {
     );
     expect(dialog).toContain("AgentResponsibilities");
     expect(dialog).toContain("SearchableMultiSelect");
-    expect(dialog).toContain(
-      'id={isRoutine ? "agentLoop-agentResponsibilities" : "agentGoal-agentResponsibilities"}',
-    );
+    expect(dialog).toContain('id="agentGoal-agentResponsibilities"');
     expect(dialog).toContain("options={agentResponsibilityOptions}");
-    expect(dialog).toContain("agentResponsibilities: selectedAgentResponsibilitySlugs");
+    expect(dialog).toContain(": selectedAgentResponsibilitySlugs,");
     expect(dialog).toContain("useState<string[]>([])");
     expect(dialog).toContain("if (open) reset();");
     expect(dialog).toContain("setSelectedAgentResponsibilitySlugs([]);");
     expect(dialog).not.toContain("isRoutine ? [] : defaultType.agentResponsibilities");
     expect(dialog).toContain("selectedAgentResponsibilitySlugs.length > 0");
+    expect(dialog).toContain("SaveReportCheckbox");
+    expect(dialog).toContain("routeStepsWithReportPreference");
     expect(dialog).not.toContain("ObjectiveEvidenceRouteSummary");
     expect(dialog).not.toContain("Missing evidence");
     expect(dialog).not.toContain("Route setup");
     expect(dialog).not.toContain("AgentGoal type");
-    expect(dialog).not.toContain("<SearchableSelect");
+    expect(dialog).toContain("<SearchableSelect");
     expect(dialog).not.toContain("ObjectiveTypeSelectedSummary");
     expect(dialog).not.toContain("ObjectiveTypeInfo");
     expect(dialog).not.toContain("goal-create-mode");
@@ -75,11 +75,13 @@ describe("ManagedModelsView model form", () => {
     expect(visibleTypeBlock).not.toContain('"release"');
     expect(visibleTypeBlock).not.toContain('"checklist"');
     expect(createDialog).toContain("userVisibleObjectiveGoalTypes()");
-    expect(createDialog).not.toContain("<SearchableSelect");
+    expect(createDialog).toContain('id="agentGoal-agentResponsibilities"');
+    expect(createDialog).toContain('id="loop-target"');
     expect(editDialog).toContain("userVisibleObjectiveGoalTypes()");
     expect(editDialog).toContain("selectedVisibleObjectiveGoalType");
     expect(editDialog).not.toContain("showObjectiveTypeSelect");
-    expect(editDialog).not.toContain("<SearchableSelect");
+    expect(editDialog).toContain('id="edit-agentGoal-agentResponsibilities"');
+    expect(editDialog).toContain('id="edit-loop-target"');
   });
 
   it("keeps agentGoal edits agentResponsibility-driven without exposing type labels", () => {
@@ -93,7 +95,6 @@ describe("ManagedModelsView model form", () => {
     );
     expect(dialog).toContain("Update the finish line and attached agentResponsibilities.");
     expect(dialog).toContain("const objectiveGoalType =");
-    expect(dialog).toContain('"edit-agentLoop-agentResponsibilities"');
     expect(dialog).toContain('"edit-agentGoal-agentResponsibilities"');
     expect(dialog).toContain("options={agentResponsibilityOptions}");
     expect(dialog).toContain("setSelectedAgentResponsibilitySlugs(goal.state.agentResponsibilities)");
@@ -101,8 +102,8 @@ describe("ManagedModelsView model form", () => {
     expect(dialog).toContain("moveSelectedAgentResponsibility");
     expect(dialog).toContain("agentResponsibilities: selectedAgentResponsibilitySlugs");
     expect(dialog).toContain("evidence: evidenceForRoute(routeSteps)");
-    expect(dialog).toContain("route: routeSteps");
-    expect(dialog).toContain("title={isRoutine ? \"Run order\" : \"Route\"}");
+    expect(dialog).toContain("route: routeWithReportPreference");
+    expect(dialog).toContain("setSaveReport(routeSavesReport(goal.state.route))");
     expect(dialog).toContain("OrderedPathSection");
     expect(dialog).not.toContain("ObjectiveEvidenceRouteSummary");
     expect(dialog).not.toContain("AgentGoal type");
@@ -126,12 +127,12 @@ describe("ManagedModelsView model form", () => {
     expect(dialog).toContain(
       'const intentLabel = isRoutine ? "Scope" : "Finish line"',
     );
-    expect(dialog).toContain(
-      "agentResponsibilitySelectOptions(agentResponsibilities, goal?.state.agentResponsibilities ?? [])",
-    );
+    expect(dialog).toContain("agentResponsibilitySelectOptions(");
+    expect(dialog).toContain("goal?.state.agentResponsibilities ?? []");
     expect(dialog).toContain("SearchableMultiSelect");
     expect(dialog).toContain("selectedAgentResponsibilitySlugs.length > 0");
-    expect(dialog).toContain("? { agentResponsibilities: selectedAgentResponsibilitySlugs }");
+    expect(dialog).toContain("loopTarget?.type === \"agentResponsibility\"");
+    expect(dialog).toContain("saveReport");
     expect(dialog).toContain('selectedHeading="Selected agentResponsibilities"');
     expect(dialog).toContain('selectedTone="info"');
     expect(dialog).toContain("md:col-span-2");

@@ -18,21 +18,36 @@
  */
 
 import { describe, expect, it, vi } from "vitest";
-import { writeConfigPatch } from "@dashboard/lib/engine/config";
+import {
+  getEngineConfig,
+  writeConfigPatch,
+} from "@dashboard/lib/engine/config";
+
+function encodeConfig(config: unknown): string {
+  return Buffer.from(JSON.stringify(config), "utf-8").toString("base64");
+}
+
+function contentResponse(config: unknown, sha: string) {
+  return {
+    data: {
+      content: encodeConfig(config),
+      sha,
+    },
+  };
+}
+
+function decodeConfigWrite(write: Record<string, unknown>) {
+  return JSON.parse(
+    Buffer.from(write.content as string, "base64").toString("utf-8"),
+  );
+}
 
 function octokitWithConfig(config: unknown) {
   const writes: Array<Record<string, unknown>> = [];
   const octokit = {
     rest: {
       repos: {
-        getContent: vi.fn().mockResolvedValue({
-          data: {
-            content: Buffer.from(JSON.stringify(config), "utf-8").toString(
-              "base64",
-            ),
-            sha: "sha-1",
-          },
-        }),
+        getContent: vi.fn().mockResolvedValue(contentResponse(config, "sha-1")),
         createOrUpdateFileContents: vi
           .fn()
           .mockImplementation(async (p: Record<string, unknown>) => {
@@ -43,12 +58,34 @@ function octokitWithConfig(config: unknown) {
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
-  const lastWritten = () =>
-    JSON.parse(
-      Buffer.from(writes.at(-1)!.content as string, "base64").toString("utf-8"),
-    );
-  return { octokit, lastWritten };
+  const lastWritten = () => decodeConfigWrite(writes.at(-1)!);
+  return { octokit, lastWritten, writes };
 }
+
+describe("getEngineConfig", () => {
+  it("preserves active Store goal references", async () => {
+    const { octokit } = octokitWithConfig({
+      agentActions: { default: "run" },
+      github: { owner: "o", repo: "r" },
+      company: {
+        activeAgents: ["cto"],
+        activeGoals: ["web-release", { template: "weekly-check", every: "1w" }],
+      },
+    });
+
+    const { config } = await getEngineConfig(
+      octokit,
+      "o",
+      "company-active-goals",
+      { force: true },
+    );
+
+    expect(config.company?.activeGoals).toEqual([
+      "web-release",
+      { template: "weekly-check", every: "1w" },
+    ]);
+  });
+});
 
 describe("writeConfigPatch — reasoningEffort", () => {
   it("patch with only `quality` preserves the existing agent.reasoningEffort", async () => {
@@ -177,6 +214,85 @@ describe("writeConfigPatch — store activation", () => {
 
     const written = lastWritten();
     expect(written.company).toEqual({ ownerNote: "keep" });
+  });
+
+  it("retries active store reference writes after a stale GitHub contents sha", async () => {
+    const writes: Array<Record<string, unknown>> = [];
+    const staleShaError = Object.assign(
+      new Error(
+        "kody.config.json does not match sha-stale - https://docs.github.com/rest/repos/contents#create-or-update-file-contents",
+      ),
+      { status: 409 },
+    );
+    const octokit = {
+      rest: {
+        repos: {
+          getContent: vi
+            .fn()
+            .mockResolvedValueOnce(
+              contentResponse(
+                {
+                  agentActions: { default: "run" },
+                  github: { owner: "o", repo: "r" },
+                  company: {
+                    ownerNote: "stale",
+                    activeAgentActions: ["run", "fix-ci"],
+                  },
+                },
+                "sha-stale",
+              ),
+            )
+            .mockResolvedValueOnce(
+              contentResponse(
+                {
+                  agentActions: { default: "run" },
+                  github: { owner: "o", repo: "r" },
+                  aliases: { deploy: "run" },
+                  company: {
+                    ownerNote: "fresh",
+                    activeAgents: ["cto"],
+                    activeAgentActions: ["run", "fix-ci"],
+                    activeAgentResponsibilities: ["release"],
+                  },
+                },
+                "sha-fresh",
+              ),
+            ),
+          createOrUpdateFileContents: vi
+            .fn()
+            .mockImplementationOnce(async (p: Record<string, unknown>) => {
+              writes.push(p);
+              throw staleShaError;
+            })
+            .mockImplementationOnce(async (p: Record<string, unknown>) => {
+              writes.push(p);
+              return { data: { commit: { sha: "commit-2" } } };
+            }),
+        },
+      },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    await expect(
+      writeConfigPatch(octokit, "o", "r", {
+        activeAgentActions: ["run"],
+      }),
+    ).resolves.toEqual({ sha: "commit-2" });
+
+    expect(octokit.rest.repos.getContent).toHaveBeenCalledTimes(2);
+    expect(octokit.rest.repos.createOrUpdateFileContents).toHaveBeenCalledTimes(
+      2,
+    );
+    expect(writes[0]?.sha).toBe("sha-stale");
+    expect(writes[1]?.sha).toBe("sha-fresh");
+    const written = decodeConfigWrite(writes[1]!);
+    expect(written.aliases).toEqual({ deploy: "run" });
+    expect(written.company).toEqual({
+      ownerNote: "fresh",
+      activeAgents: ["cto"],
+      activeAgentActions: ["run"],
+      activeAgentResponsibilities: ["release"],
+    });
   });
 });
 

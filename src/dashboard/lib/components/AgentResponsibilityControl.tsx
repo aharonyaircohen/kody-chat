@@ -12,7 +12,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
-  AlertTriangle,
   ArrowLeft,
   AtSign,
   Boxes,
@@ -29,7 +28,6 @@ import {
   RefreshCw,
   Sparkles,
   Target,
-  Timer,
   Trash2,
   User,
   UserCheck,
@@ -63,16 +61,14 @@ import {
 import { useAgents } from "../hooks/useAgents";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useNow } from "../hooks/useNow";
-import { formatDuration, formatRelativePast } from "../agent-responsibilities-schedule";
 import {
-  agentResponsibilityScheduleHealth,
-  summarizeAgentResponsibilityHealth,
-} from "../agent-responsibilities/schedule-health";
+  formatDuration,
+  formatRelativePast,
+} from "../agent-responsibilities-schedule";
 import {
-  scheduleEveryLabel,
-  ALL_SCHEDULE_EVERY_OPTIONS,
-} from "../agent-responsibilities-frontmatter";
-import { type AgentResponsibility, type AgentResponsibilityCapabilityKind, type AgentResponsibilitySchedule } from "../api";
+  type AgentResponsibility,
+  type AgentResponsibilityCapabilityKind,
+} from "../api";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
@@ -134,7 +130,9 @@ function useAgentActionSummaries() {
         };
         throw new Error(json.message || json.error || `HTTP ${res.status}`);
       }
-      const data = (await res.json()) as { agentActions?: AgentActionSummary[] };
+      const data = (await res.json()) as {
+        agentActions?: AgentActionSummary[];
+      };
       return data.agentActions ?? [];
     },
     enabled: !!auth,
@@ -161,8 +159,10 @@ export function AgentResponsibilityControlInner() {
 
   const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
-  const [editingAgentResponsibility, setEditingAgentResponsibility] = useState<AgentResponsibility | null>(null);
-  const [pendingDelete, setPendingDelete] = useState<AgentResponsibility | null>(null);
+  const [editingAgentResponsibility, setEditingAgentResponsibility] =
+    useState<AgentResponsibility | null>(null);
+  const [pendingDelete, setPendingDelete] =
+    useState<AgentResponsibility | null>(null);
 
   const selectedAgentResponsibility = useMemo(
     () => agentResponsibilities.find((m) => m.slug === selectedSlug) ?? null,
@@ -171,9 +171,8 @@ export function AgentResponsibilityControlInner() {
 
   const [search, setSearch] = useState("");
   const [agentFilter, setAgentFilter] = useState(ALL_AGENT_FILTER);
-  const [statusFilter, setStatusFilter] = useState<AgentResponsibilityStatusFilterValue>(
-    ENABLED_STATUS_FILTER,
-  );
+  const [statusFilter, setStatusFilter] =
+    useState<AgentResponsibilityStatusFilterValue>(ENABLED_STATUS_FILTER);
   const { data: agentMembers = [] } = useAgents();
   const staffTitleBySlug = useMemo(
     () => new Map(agentMembers.map((s) => [s.slug, s.title])),
@@ -204,7 +203,8 @@ export function AgentResponsibilityControlInner() {
       return agentResponsibility.agent === agentFilter;
     };
     const matchesStatusFilter = (agentResponsibility: AgentResponsibility) => {
-      if (statusFilter === ENABLED_STATUS_FILTER) return !agentResponsibility.disabled;
+      if (statusFilter === ENABLED_STATUS_FILTER)
+        return !agentResponsibility.disabled;
       return agentResponsibility.disabled;
     };
     return agentResponsibilities.filter(
@@ -228,7 +228,12 @@ export function AgentResponsibilityControlInner() {
       if (selectedSlug) setSelectedSlug(null);
       return;
     }
-    if (!selectedSlug || !filtered.some((agentResponsibility) => agentResponsibility.slug === selectedSlug)) {
+    if (
+      !selectedSlug ||
+      !filtered.some(
+        (agentResponsibility) => agentResponsibility.slug === selectedSlug,
+      )
+    ) {
       setSelectedSlug(filtered[0].slug);
     }
   }, [filtered, selectedSlug]);
@@ -246,7 +251,14 @@ export function AgentResponsibilityControlInner() {
   // Clear on unmount.
   const { setScope } = useChatScope();
   useEffect(() => {
-    setScope(selectedAgentResponsibility ? { kind: "agentResponsibility", agentResponsibility: selectedAgentResponsibility } : null);
+    setScope(
+      selectedAgentResponsibility
+        ? {
+            kind: "agentResponsibility",
+            agentResponsibility: selectedAgentResponsibility,
+          }
+        : null,
+    );
     return () => setScope(null);
   }, [selectedAgentResponsibility, setScope]);
 
@@ -258,7 +270,9 @@ export function AgentResponsibilityControlInner() {
         iconClassName="text-emerald-400"
         subtitle={`${agentResponsibilities.length} ${agentResponsibilities.length === 1 ? "agentResponsibility" : "agent-responsibilities"}`}
         error={
-          error ? `Failed to load agentResponsibilities: ${(error as Error).message}` : null
+          error
+            ? `Failed to load agentResponsibilities: ${(error as Error).message}`
+            : null
         }
         search={search}
         onSearch={setSearch}
@@ -275,14 +289,15 @@ export function AgentResponsibilityControlInner() {
                   onChange={setAgentFilter}
                   agentSlugs={agentFilterOptions}
                   staffTitleBySlug={staffTitleBySlug}
-                  hasAgentResponsibilitiesWithoutAgent={hasAgentResponsibilitiesWithoutAgent}
+                  hasAgentResponsibilitiesWithoutAgent={
+                    hasAgentResponsibilitiesWithoutAgent
+                  }
                 />
                 <AgentResponsibilityStatusToggle
                   value={statusFilter}
                   onChange={setStatusFilter}
                 />
               </div>
-              <AgentResponsibilityHealthSummaryBar agentResponsibilities={agentResponsibilities} />
             </div>
           ) : null
         }
@@ -316,17 +331,23 @@ export function AgentResponsibilityControlInner() {
               agentResponsibility={selectedAgentResponsibility}
               onBack={() => setSelectedSlug(null)}
               onEdit={() => {
-                if (!selectedAgentResponsibility.readOnly) setEditingAgentResponsibility(selectedAgentResponsibility);
+                if (!selectedAgentResponsibility.readOnly)
+                  setEditingAgentResponsibility(selectedAgentResponsibility);
               }}
               onDelete={() => {
-                if (!selectedAgentResponsibility.readOnly) setPendingDelete(selectedAgentResponsibility);
+                setPendingDelete(selectedAgentResponsibility);
               }}
               onRun={() =>
-                runMutation.mutate({ slug: selectedAgentResponsibility.slug, force: true })
+                runMutation.mutate({
+                  slug: selectedAgentResponsibility.slug,
+                  force: true,
+                })
               }
               onToggleEnabled={() => {
                 if (!selectedAgentResponsibility.readOnly) {
-                  updateMutation.mutate({ disabled: !selectedAgentResponsibility.disabled });
+                  updateMutation.mutate({
+                    disabled: !selectedAgentResponsibility.disabled,
+                  });
                 }
               }}
               isRunning={
@@ -345,12 +366,15 @@ export function AgentResponsibilityControlInner() {
         }
       >
         {isLoading ? (
-          <EmptyState icon={<FileText />} title="Loading agentResponsibilities…" />
+          <EmptyState
+            icon={<FileText />}
+            title="Loading agentResponsibilities…"
+          />
         ) : agentResponsibilities.length === 0 ? (
           <EmptyState
             icon={<Target />}
             title="No agentResponsibilities yet"
-            hint="Create your first agentResponsibility to describe the purpose, cadence, and restrictions."
+            hint="Create your first agentResponsibility to describe the purpose, and restrictions."
           />
         ) : filtered.length === 0 ? (
           <EmptyState
@@ -396,17 +420,17 @@ export function AgentResponsibilityControlInner() {
                       {agentResponsibility.disabled ? (
                         <span
                           className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-white/[0.06] text-muted-foreground border border-white/[0.08]"
-                          title="Scheduler skips this agentResponsibility. Manual Run still works."
+                        title="Disabled for runner dispatch. Manual Run still works."
                         >
                           <PowerOff className="w-2.5 h-2.5" />
                           Disabled
                         </span>
-                      ) : (
-                        <AgentResponsibilityHealthBadge agentResponsibility={agentResponsibility} />
-                      )}
+                    ) : null}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
-                      <span className="font-mono opacity-80">{agentResponsibility.slug}</span>
+                      <span className="font-mono opacity-80">
+                        {agentResponsibility.slug}
+                      </span>
                       <span>·</span>
                       <span className="inline-flex items-center gap-1">
                         <AtSign className="w-3 h-3" />
@@ -427,9 +451,10 @@ export function AgentResponsibilityControlInner() {
                       <span>·</span>
                       <span className="inline-flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
-                        {new Date(agentResponsibility.updatedAt).toLocaleDateString()}
+                        {new Date(
+                          agentResponsibility.updatedAt,
+                        ).toLocaleDateString()}
                       </span>
-                      <ScheduleInline schedule={agentResponsibility.schedule} />
                       {agentResponsibility.reviewer ? (
                         <span
                           className="inline-flex items-center gap-1"
@@ -444,12 +469,6 @@ export function AgentResponsibilityControlInner() {
                         lastOutcome={agentResponsibility.lastOutcome}
                         lastDurationMs={agentResponsibility.lastDurationMs}
                       />
-                      {!agentResponsibility.disabled ? (
-                        <NextRunInline
-                          nextEligibleAt={agentResponsibility.nextEligibleAt}
-                          schedule={agentResponsibility.schedule}
-                        />
-                      ) : null}
                     </div>
                   </button>
                 </li>
@@ -481,14 +500,24 @@ export function AgentResponsibilityControlInner() {
       {/* Delete confirm */}
       <ConfirmDialog
         open={!!pendingDelete}
-        title="Delete this agentResponsibility?"
+        title={
+          pendingDelete?.source === "store"
+            ? "Remove Store agentResponsibility?"
+            : "Delete this agentResponsibility?"
+        }
         description={
           pendingDelete
-            ? `AgentResponsibility "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/agent-responsibilities/ via a commit on the default branch.`
+            ? pendingDelete.source === "store"
+              ? `AgentResponsibility "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from this repo's active Store responsibilities. The Store asset will not be deleted.`
+              : `AgentResponsibility "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/agent-responsibilities/ via a commit on the default branch.`
             : ""
         }
         variant="destructive"
-        confirmLabel="Delete agentResponsibility"
+        confirmLabel={
+          pendingDelete?.source === "store"
+            ? "Remove agentResponsibility"
+            : "Delete agentResponsibility"
+        }
         onConfirm={() => {
           if (!pendingDelete) return;
           const target = pendingDelete;
@@ -551,7 +580,7 @@ function AgentResponsibilityDetail({
                 {agentResponsibility.disabled ? (
                   <span
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium uppercase tracking-wide bg-white/[0.06] text-muted-foreground border border-white/[0.08]"
-                    title="Scheduler skips this agentResponsibility. Manual Run still works."
+                title="Disabled for runner dispatch. Manual Run still works."
                   >
                     <PowerOff className="w-3 h-3" />
                     Disabled
@@ -559,7 +588,9 @@ function AgentResponsibilityDetail({
                 ) : null}
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
-                <span className="font-mono opacity-80">{agentResponsibility.slug}</span>
+                <span className="font-mono opacity-80">
+                  {agentResponsibility.slug}
+                </span>
                 <span>·</span>
                 <span
                   className="inline-flex items-center gap-1"
@@ -595,7 +626,8 @@ function AgentResponsibilityDetail({
                 <span>·</span>
                 <span className="inline-flex items-center gap-1">
                   <Calendar className="w-3 h-3" />
-                  updated {new Date(agentResponsibility.updatedAt).toLocaleDateString()}
+                  updated{" "}
+                  {new Date(agentResponsibility.updatedAt).toLocaleDateString()}
                 </span>
                 <span>·</span>
                 {agentResponsibility.agent ? (
@@ -609,19 +641,22 @@ function AgentResponsibilityDetail({
                 ) : (
                   <span
                     className="inline-flex items-center gap-1 text-amber-400"
-                    title="No agent assigned — the engine scheduler skips this agentResponsibility"
+                    title="No agent assigned"
                   >
                     <User className="w-3 h-3" />
                     no agent
                   </span>
                 )}
-                {agentResponsibility.mentions && agentResponsibility.mentions.length > 0 ? (
+                {agentResponsibility.mentions &&
+                agentResponsibility.mentions.length > 0 ? (
                   <span
                     className="inline-flex items-center gap-1"
                     title="@-mentions these GitHub logins in its output"
                   >
                     <AtSign className="w-3 h-3" />
-                    {agentResponsibility.mentions.map((m) => `@${m}`).join(", ")}
+                    {agentResponsibility.mentions
+                      .map((m) => `@${m}`)
+                      .join(", ")}
                   </span>
                 ) : null}
                 {agentResponsibility.reviewer ? (
@@ -633,18 +668,11 @@ function AgentResponsibilityDetail({
                     {agentResponsibility.reviewer}
                   </span>
                 ) : null}
-                <ScheduleInline schedule={agentResponsibility.schedule} />
                 <LastTickDetail
                   lastTickAt={agentResponsibility.lastTickAt}
                   lastOutcome={agentResponsibility.lastOutcome}
                   lastDurationMs={agentResponsibility.lastDurationMs}
                 />
-                {!agentResponsibility.disabled ? (
-                  <NextRunDetail
-                    nextEligibleAt={agentResponsibility.nextEligibleAt}
-                    schedule={agentResponsibility.schedule}
-                  />
-                ) : null}
                 <span>·</span>
                 <a
                   href={agentResponsibility.htmlUrl}
@@ -713,14 +741,17 @@ function AgentResponsibilityDetail({
                 variant="outline"
                 size="sm"
                 onClick={onDelete}
-                disabled={agentResponsibility.readOnly}
                 className="w-9 px-0 text-red-400"
                 title={
-                  agentResponsibility.readOnly
-                    ? "Store-linked agentResponsibilities are read-only"
+                  agentResponsibility.source === "store"
+                    ? "Remove Store agentResponsibility from this repo"
                     : "Delete agentResponsibility"
                 }
-                aria-label="Delete agentResponsibility"
+                aria-label={
+                  agentResponsibility.source === "store"
+                    ? "Remove Store agentResponsibility from this repo"
+                    : "Delete agentResponsibility"
+                }
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
@@ -730,7 +761,10 @@ function AgentResponsibilityDetail({
           {/* Description card inside the hero when present */}
           {hasBody ? (
             <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 md:p-5">
-              <MarkdownPreview content={agentResponsibility.body} variant="compact" />
+              <MarkdownPreview
+                content={agentResponsibility.body}
+                variant="compact"
+              />
             </div>
           ) : null}
         </div>
@@ -749,8 +783,8 @@ function AgentResponsibilityDetail({
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
                 Use <span className="font-medium text-foreground">Edit</span> to
-                describe the agentResponsibility&apos;s purpose, cadence, allowed commands, and
-                restrictions.
+                describe the agentResponsibility&apos;s purpose,
+                allowed commands, and restrictions.
               </p>
             </div>
             <Button
@@ -781,16 +815,18 @@ function CreateAgentResponsibilityDialog({
 }) {
   const { githubUser } = useGitHubIdentity();
   const createMutation = useCreateAgentResponsibility(githubUser?.login);
-  const initialValues = useMemo(() => buildNewAgentResponsibilityFormValues(), [open]);
+  const initialValues = useMemo(
+    () => buildNewAgentResponsibilityFormValues(),
+    [],
+  );
 
   const handleSubmit = (values: AgentResponsibilityFormSubmitValues) => {
     if (createMutation.isPending) return;
     createMutation.mutate(
       {
         title: values.title,
-        body: values.body,
-        schedule: values.schedule,
-        capabilityKind: values.capabilityKind,
+      body: values.body,
+      capabilityKind: values.capabilityKind,
         disabled: false,
         agent: values.agent,
         reviewer: values.reviewer,
@@ -812,12 +848,13 @@ function CreateAgentResponsibilityDialog({
         <DialogHeader>
           <DialogTitle>New agentResponsibility</DialogTitle>
           <DialogDescription>
-            Describe the agentResponsibility&apos;s purpose, cadence, allowed commands, and
-            restrictions.
+            Describe the agentResponsibility&apos;s purpose, allowed
+            commands, and restrictions.
           </DialogDescription>
         </DialogHeader>
 
         <AgentResponsibilityForm
+          key={open ? "open" : "closed"}
           initialValues={initialValues}
           titleId="agentResponsibility-title"
           actionId="agentResponsibility-action"
@@ -844,33 +881,39 @@ function EditAgentResponsibilityDialog({
   onSaved: () => void;
 }) {
   const { githubUser } = useGitHubIdentity();
-  const updateMutation = useUpdateAgentResponsibility(agentResponsibility.slug, githubUser?.login);
-  const initialValues = useMemo(() => buildAgentResponsibilityFormValues(agentResponsibility), [agentResponsibility]);
+  const updateMutation = useUpdateAgentResponsibility(
+    agentResponsibility.slug,
+    githubUser?.login,
+  );
+  const initialValues = useMemo(
+    () => buildAgentResponsibilityFormValues(agentResponsibility),
+    [agentResponsibility],
+  );
 
   const handleSubmit = (values: AgentResponsibilityFormSubmitValues) => {
     if (updateMutation.isPending) return;
     const patch: {
       title?: string;
-    body?: string;
-    schedule?: AgentResponsibilitySchedule | null;
-    capabilityKind?: AgentResponsibilityCapabilityKind | null;
-    agent?: string | null;
-    reviewer?: string | null;
-    action?: string | null;
-    agentAction?: string | null;
-  } = {};
+      body?: string;
+      capabilityKind?: AgentResponsibilityCapabilityKind | null;
+      agent?: string | null;
+      reviewer?: string | null;
+      action?: string | null;
+      agentAction?: string | null;
+    } = {};
     if (values.title !== agentResponsibility.title) patch.title = values.title;
-  if (values.body !== agentResponsibility.body) patch.body = values.body;
-  if (values.schedule !== agentResponsibility.schedule) patch.schedule = values.schedule;
-  if (values.capabilityKind !== agentResponsibility.capabilityKind) {
-    patch.capabilityKind = values.capabilityKind;
-  }
+    if (values.body !== agentResponsibility.body) patch.body = values.body;
+    if (values.capabilityKind !== agentResponsibility.capabilityKind) {
+      patch.capabilityKind = values.capabilityKind;
+    }
     if (values.agent !== agentResponsibility.agent) patch.agent = values.agent;
-    if (values.reviewer !== agentResponsibility.reviewer) patch.reviewer = values.reviewer;
-  if (values.action !== agentResponsibility.action) patch.action = values.action;
-  if (values.agentAction !== agentResponsibility.agentAction)
-    patch.agentAction = values.agentAction;
-  if (Object.keys(patch).length === 0) {
+    if (values.reviewer !== agentResponsibility.reviewer)
+      patch.reviewer = values.reviewer;
+    if (values.action !== agentResponsibility.action)
+      patch.action = values.action;
+    if (values.agentAction !== agentResponsibility.agentAction)
+      patch.agentAction = values.agentAction;
+    if (Object.keys(patch).length === 0) {
       onSaved();
       return;
     }
@@ -884,10 +927,12 @@ function EditAgentResponsibilityDialog({
         onEscapeKeyDown={preventDialogEscapeWhenSearchableSelectOpen}
       >
         <DialogHeader>
-          <DialogTitle>Edit agentResponsibility `{agentResponsibility.slug}`</DialogTitle>
+          <DialogTitle>
+            Edit agentResponsibility `{agentResponsibility.slug}`
+          </DialogTitle>
           <DialogDescription>
-            Update the agentResponsibility&apos;s metadata, agentAction assignment, or body.
-            Saving commits the file to the default branch.
+            Update the agentResponsibility&apos;s metadata, agentAction
+            assignment, or body. Saving commits the file to the default branch.
           </DialogDescription>
         </DialogHeader>
 
@@ -903,7 +948,6 @@ function EditAgentResponsibilityDialog({
           timing={
             <AgentResponsibilityTimingReadout
               lastTickAt={agentResponsibility.lastTickAt}
-              nextEligibleAt={agentResponsibility.nextEligibleAt}
             />
           }
         />
@@ -917,93 +961,6 @@ function EditAgentResponsibilityDialog({
  * no run proof is visible — keeps the row dense. Refreshes every 30s.
  * Source is the agentResponsibility state file or the newer activity log fallback.
  */
-/**
- * Row pill that escalates a agentResponsibility's raw timestamps into an actionable
- * warning: amber "Overdue" (next-eligible passed beyond the cron window),
- * red "Never run" (scheduled, old enough to have run, no proof yet), or
- * gray "No agent" (the scheduler skips it).
- * Renders nothing for healthy/manual agentResponsibilities.
- */
-function AgentResponsibilityHealthBadge({ agentResponsibility }: { agentResponsibility: AgentResponsibility }) {
-  const now = useNow(30_000);
-  const health = agentResponsibilityScheduleHealth(agentResponsibility, now.getTime());
-  if (health === "overdue") {
-    return (
-      <span
-        className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-amber-500/15 text-amber-300 border border-amber-500/25"
-        title="Past its next-eligible time by more than the cron window — the scheduler may be stuck."
-      >
-        <AlertTriangle className="w-2.5 h-2.5" />
-        Overdue
-      </span>
-    );
-  }
-  if (health === "never") {
-    return (
-      <span
-        className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-rose-500/15 text-rose-300 border border-rose-500/25"
-        title="Scheduled and old enough to have run, but the dashboard has no run proof."
-      >
-        <AlertTriangle className="w-2.5 h-2.5" />
-        Never run
-      </span>
-    );
-  }
-  if (health === "skipped") {
-    return (
-      <span
-        className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium uppercase tracking-wide bg-white/[0.06] text-muted-foreground border border-white/[0.08]"
-        title="No agent assigned — the engine scheduler skips this agentResponsibility."
-      >
-        <User className="w-2.5 h-2.5" />
-        No agent
-      </span>
-    );
-  }
-  return null;
-}
-
-/** Compact health bar; hidden when everything is healthy/runnable. */
-function AgentResponsibilityHealthSummaryBar({ agentResponsibilities }: { agentResponsibilities: AgentResponsibility[] }) {
-  const now = useNow(30_000);
-  const { overdue, never, skipped } = summarizeAgentResponsibilityHealth(
-    agentResponsibilities,
-    now.getTime(),
-  );
-  if (overdue === 0 && never === 0 && skipped === 0) return null;
-  return (
-    <div className="mt-2 flex items-center gap-3 text-[11px]">
-      {overdue > 0 ? (
-        <span
-          className="inline-flex items-center gap-1 text-amber-300"
-          title="AgentResponsibilities past their next-eligible time beyond the cron window"
-        >
-          <AlertTriangle className="w-3 h-3" />
-          {overdue} overdue
-        </span>
-      ) : null}
-      {never > 0 ? (
-        <span
-          className="inline-flex items-center gap-1 text-rose-300"
-          title="Scheduled agentResponsibilities with no visible run proof"
-        >
-          <AlertTriangle className="w-3 h-3" />
-          {never} never run
-        </span>
-      ) : null}
-      {skipped > 0 ? (
-        <span
-          className="inline-flex items-center gap-1 text-muted-foreground"
-          title="Scheduled agentResponsibilities skipped because no agent is assigned"
-        >
-          <User className="w-3 h-3" />
-          {skipped} no agent
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
 function AgentResponsibilityStatusToggle({
   value,
   onChange,
@@ -1011,7 +968,10 @@ function AgentResponsibilityStatusToggle({
   value: AgentResponsibilityStatusFilterValue;
   onChange: (next: AgentResponsibilityStatusFilterValue) => void;
 }) {
-  const options: Array<{ label: string; value: AgentResponsibilityStatusFilterValue }> = [
+  const options: Array<{
+    label: string;
+    value: AgentResponsibilityStatusFilterValue;
+  }> = [
     { label: "Enabled", value: ENABLED_STATUS_FILTER },
     { label: "Disabled", value: DISABLED_STATUS_FILTER },
   ];
@@ -1133,82 +1093,7 @@ function LastTickInline({
   );
 }
 
-/**
- * Inline "next run in X" pill — the actual next-eligible time the agentResponsibility
- * will act, sourced from `data.nextEligibleISO` in the agentResponsibility's state JSON.
- * Hidden when the value is missing (agentResponsibility hasn't run yet, or its body
- * doesn't emit the field) or when the schedule is `manual` — in that
- * case the `ScheduleInline` pill already says "manual only", which is
- * the whole story.
- */
-function NextRunInline({
-  nextEligibleAt,
-  schedule,
-}: {
-  nextEligibleAt: string | null;
-  schedule: AgentResponsibilitySchedule | null;
-}) {
-  const now = useNow(30_000);
-  if (schedule === "manual") return null;
-  if (!nextEligibleAt) return null;
-  const date = new Date(nextEligibleAt);
-  const diffMs = date.getTime() - now.getTime();
-  const isFuture = diffMs > 0;
-  const label = isFuture
-    ? `next run in ${formatDuration(diffMs)}`
-    : "next run due now";
-  return (
-    <>
-      <span>·</span>
-      <span
-        className="inline-flex items-center gap-1"
-        title={`Next eligible run: ${date.toLocaleString()}`}
-      >
-        <Timer className="w-3 h-3" />
-        {label}
-      </span>
-    </>
-  );
-}
 
-/**
- * Detail-header counterpart for `NextRunInline`. Hides when the value
- * is missing or the schedule is `manual` — same reasoning as the inline
- * pill.
- */
-function NextRunDetail({
-  nextEligibleAt,
-  schedule,
-}: {
-  nextEligibleAt: string | null;
-  schedule: AgentResponsibilitySchedule | null;
-}) {
-  const now = useNow(30_000);
-  if (schedule === "manual") return null;
-  if (!nextEligibleAt) return null;
-  const date = new Date(nextEligibleAt);
-  const diffMs = date.getTime() - now.getTime();
-  const label =
-    diffMs > 0 ? `next run in ${formatDuration(diffMs)}` : "next run due now";
-  return (
-    <>
-      <span>·</span>
-      <span
-        className="inline-flex items-center gap-1"
-        title={`Next eligible run: ${date.toLocaleString()}`}
-      >
-        <Timer className="w-3 h-3" />
-        {label}
-      </span>
-    </>
-  );
-}
-
-/**
- * Detail-header counterpart for `LastTickInline`. Hides when the value
- * is missing. A null value means the dashboard can't see run proof, not
- * necessarily that the agentResponsibility never ran.
- */
 function LastTickDetail({
   lastTickAt,
   lastOutcome,
@@ -1275,7 +1160,6 @@ function buildAgentResponsibilityBodyForCapabilityKind(
 interface AgentResponsibilityFormValues {
   title: string;
   body: string;
-  schedule: AgentResponsibilitySchedule | null;
   capabilityKind: AgentResponsibilityCapabilityKind | null;
   agent: string | null;
   reviewer: string | null;
@@ -1286,7 +1170,6 @@ interface AgentResponsibilityFormValues {
 interface AgentResponsibilityFormSubmitValues {
   title: string;
   body: string;
-  schedule: AgentResponsibilitySchedule | null;
   capabilityKind: AgentResponsibilityCapabilityKind | null;
   agent: string | null;
   reviewer: string | null;
@@ -1299,7 +1182,6 @@ function buildNewAgentResponsibilityFormValues(): AgentResponsibilityFormValues 
   return {
     title: "",
     body: buildAgentResponsibilityBodyForCapabilityKind(capabilityKind),
-    schedule: "manual",
     capabilityKind,
     agent: null,
     reviewer: null,
@@ -1308,11 +1190,12 @@ function buildNewAgentResponsibilityFormValues(): AgentResponsibilityFormValues 
   };
 }
 
-function buildAgentResponsibilityFormValues(agentResponsibility: AgentResponsibility): AgentResponsibilityFormValues {
+function buildAgentResponsibilityFormValues(
+  agentResponsibility: AgentResponsibility,
+): AgentResponsibilityFormValues {
   return {
     title: agentResponsibility.title,
     body: agentResponsibility.body || "",
-    schedule: agentResponsibility.schedule,
     capabilityKind: agentResponsibility.capabilityKind,
     agent: agentResponsibility.agent,
     reviewer: agentResponsibility.reviewer,
@@ -1350,16 +1233,15 @@ function AgentResponsibilityForm({
   const [body, setBody] = useState(initialValues.body);
   const [bodyTouched, setBodyTouched] = useState(false);
   const [capabilityKind, setCapabilityKind] =
-    useState<AgentResponsibilityCapabilityKind | null>(initialValues.capabilityKind);
+    useState<AgentResponsibilityCapabilityKind | null>(
+      initialValues.capabilityKind,
+    );
   const [agent, setAgent] = useState<string | null>(initialValues.agent);
   const [reviewer, setReviewer] = useState<string | null>(
     initialValues.reviewer,
   );
   const [action, setAction] = useState(initialValues.action);
   const [actionTouched, setActionTouched] = useState(false);
-  const [schedule, setSchedule] = useState<AgentResponsibilitySchedule | null>(
-    initialValues.schedule,
-  );
   const [agentAction, setAgentAction] = useState<string | null>(
     initialValues.agentAction,
   );
@@ -1373,7 +1255,6 @@ function AgentResponsibilityForm({
     setReviewer(initialValues.reviewer);
     setAction(initialValues.action);
     setActionTouched(false);
-    setSchedule(initialValues.schedule);
     setAgentAction(initialValues.agentAction);
   }, [initialValues]);
 
@@ -1393,7 +1274,9 @@ function AgentResponsibilityForm({
     setAction(nextAction);
   };
 
-  const updateCapabilityKind = (next: AgentResponsibilityCapabilityKind | null) => {
+  const updateCapabilityKind = (
+    next: AgentResponsibilityCapabilityKind | null,
+  ) => {
     setCapabilityKind(next);
     if (autoBuildBody && !bodyTouched) {
       setBody(buildAgentResponsibilityBodyForCapabilityKind(next));
@@ -1405,7 +1288,6 @@ function AgentResponsibilityForm({
     onSubmit({
       title: title.trim(),
       body,
-      schedule,
       capabilityKind,
       agent,
       reviewer,
@@ -1427,38 +1309,37 @@ function AgentResponsibilityForm({
             autoFocus
           />
         </div>
-      <AgentResponsibilityCapabilityKindSelect
-        value={capabilityKind}
-        onChange={updateCapabilityKind}
-        allowUnset={!simpleCreate}
-      />
-      {simpleCreate ? (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <ScheduleSelect value={schedule} onChange={setSchedule} />
-          <AgentActionSelect value={agentAction} onChange={setAgentAction} />
+        <AgentResponsibilityCapabilityKindSelect
+          value={capabilityKind}
+          onChange={updateCapabilityKind}
+          allowUnset={!simpleCreate}
+        />
+        {simpleCreate ? (
+        <AgentActionSelect value={agentAction} onChange={setAgentAction} />
+        ) : (
+          <>
+        <div className="space-y-1.5">
+          <Label htmlFor={actionId}>Action</Label>
+          <Input
+            id={actionId}
+            value={action}
+            onChange={(e) => updateAction(e.target.value)}
+            placeholder="e.g. release-notes"
+          />
         </div>
-      ) : (
-        <>
-          <AgentResponsibilityActionScheduleRow
-            actionId={actionId}
-            action={action}
-            onActionChange={updateAction}
-            schedule={schedule}
-            onScheduleChange={setSchedule}
-          />
-          <AgentResponsibilityAgentActionOutputRow
-            agentAction={agentAction}
-            onAgentActionChange={setAgentAction}
-          />
-        </>
-      )}
-      <AgentResponsibilityAgentRoleRow
-        agent={agent}
-        onAgentChange={setAgent}
-        reviewer={reviewer}
-        onReviewerChange={setReviewer}
-        hideReviewer={simpleCreate}
-      />
+            <AgentResponsibilityAgentActionOutputRow
+              agentAction={agentAction}
+              onAgentActionChange={setAgentAction}
+            />
+          </>
+        )}
+        <AgentResponsibilityAgentRoleRow
+          agent={agent}
+          onAgentChange={setAgent}
+          reviewer={reviewer}
+          onReviewerChange={setReviewer}
+          hideReviewer={simpleCreate}
+        />
         {timing}
         <div className="space-y-1.5">
           <Label>Body</Label>
@@ -1558,95 +1439,6 @@ function AgentResponsibilityCapabilityKindSelect({
   );
 }
 
-function AgentResponsibilityActionScheduleRow({
-  actionId,
-  action,
-  onActionChange,
-  schedule,
-  onScheduleChange,
-}: {
-  actionId: string;
-  action: string;
-  onActionChange: (next: string) => void;
-  schedule: AgentResponsibilitySchedule | null;
-  onScheduleChange: (next: AgentResponsibilitySchedule | null) => void;
-}) {
-  return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <div className="space-y-1.5">
-        <Label htmlFor={actionId}>Action</Label>
-        <Input
-          id={actionId}
-          value={action}
-          onChange={(e) => onActionChange(e.target.value)}
-          placeholder="e.g. release-notes"
-        />
-      </div>
-      <ScheduleSelect value={schedule} onChange={onScheduleChange} />
-    </div>
-  );
-}
-
-/**
- * Schedule dropdown. Options, in order:
- *
- * - **Auto** (sentinel `null`, no explicit `every` in profile): the engine ticks the agentResponsibility
- *   on every cron wake; the body's cadence guard decides whether to act.
- *   This is the default for every new agentResponsibility.
- * - **Fixed cadences** (`every: 15m` … `every: 7d`): the engine gates the
- *   agentResponsibility to that interval — it won't act more often than the chosen period,
- *   regardless of what the body says.
- * - **Manual only** (`every: manual`): the engine skips auto-ticks; the
- *   agentResponsibility runs only when the Run button is clicked.
- *
- * `ALL_SCHEDULE_EVERY_OPTIONS` is the single source of truth (`15m`…`7d`,
- * then `manual`); the API schema and profile serializer accept the
- * same set, so every value here round-trips to `profile.json`.
- */
-function ScheduleSelect({
-  value,
-  onChange,
-}: {
-  value: AgentResponsibilitySchedule | null;
-  onChange: (next: AgentResponsibilitySchedule | null) => void;
-}) {
-  // Sentinel because Radix Select.Item disallows empty-string values; we
-  // can't bind `null` directly to it.
-  const AUTO = "__auto__";
-  return (
-    <div className="space-y-1.5">
-      <Label htmlFor="agentResponsibility-schedule">Cadence</Label>
-      <Select
-        value={value ?? AUTO}
-        onValueChange={(v) => onChange(v === AUTO ? null : (v as AgentResponsibilitySchedule))}
-      >
-        <SelectTrigger id="agentResponsibility-schedule" className="w-full">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={AUTO}>Auto</SelectItem>
-          {ALL_SCHEDULE_EVERY_OPTIONS.map((opt) => (
-            <SelectItem key={opt} value={opt}>
-              {opt === "manual"
-                ? "Manual only"
-                : `Every ${scheduleEveryLabel(opt).replace(/^every /, "")}`}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <p className="text-xs text-muted-foreground">
-        <strong>Auto</strong> — the body&apos;s cadence guard decides when to
-        run. A <strong>fixed cadence</strong> caps how often it can act.{" "}
-        <strong>Manual only</strong> — never auto-runs; click Run to trigger.
-      </p>
-    </div>
-  );
-}
-
-/**
- * Agent picker. A agentResponsibility is *what* runs on a schedule; the agent is the agent
- * member whose agentIdentity the engine injects ahead of the agentResponsibility body.
- */
 function AgentResponsibilityAgentRoleRow({
   agent,
   onAgentChange,
@@ -1688,13 +1480,13 @@ function AgentSelect({
   ];
   return (
     <div className="space-y-1.5">
-<Label htmlFor="agentResponsibility-agent">Agent</Label>
+      <Label htmlFor="agentResponsibility-agent">Agent</Label>
       <SearchableSelect
         id="agentResponsibility-agent"
         value={value}
         onChange={onChange}
         options={options}
-placeholder={isLoading ? "Loading agent…" : "Select agent"}
+        placeholder={isLoading ? "Loading agent…" : "Select agent"}
         searchPlaceholder="Search agent…"
         emptyLabel="No agent found"
         disabled={isLoading}
@@ -1706,8 +1498,7 @@ placeholder={isLoading ? "Loading agent…" : "Select agent"}
           </>
         ) : (
           <span className="text-amber-400">
-            No agent assigned — the engine scheduler will skip this agentResponsibility until
-            you pick one.
+              No agent assigned. Pick one before using this in a loop or goal.
           </span>
         )}
       </p>
@@ -1733,7 +1524,10 @@ function ReviewerSelect({
   ];
   return (
     <div className="space-y-1.5">
-      <Label htmlFor="agent-responsibility-reviewer" className="flex items-center gap-1.5">
+      <Label
+        htmlFor="agent-responsibility-reviewer"
+        className="flex items-center gap-1.5"
+      >
         <UserCheck className="w-3.5 h-3.5 text-muted-foreground" />
         Reviewer
       </Label>
@@ -1748,8 +1542,8 @@ function ReviewerSelect({
         disabled={isLoading}
       />
       <p className="text-xs text-muted-foreground">
-        Agent member responsible for reviewing or handling this agentResponsibility&apos;s
-        output.
+        Agent member responsible for reviewing or handling this
+        agentResponsibility&apos;s output.
       </p>
     </div>
   );
@@ -1812,72 +1606,24 @@ function AgentActionSelect({
   );
 }
 
-/**
- * Read-only timing readout shown inside the Edit dialog: last actual run
- * + next eligible run. Last run can come from state or activity; next eligible
- * still comes from state. Helpful for agentResponsibilities whose eligibility has runtime
- * evidence beyond the static profile cadence.
- * Refreshes every 30s.
- */
+/** Read-only last-run readout shown inside the Edit dialog. Refreshes every 30s. */
 function AgentResponsibilityTimingReadout({
   lastTickAt,
-  nextEligibleAt,
 }: {
   lastTickAt: string | null;
-  nextEligibleAt: string | null;
 }) {
   const now = useNow(30_000);
   const last = lastTickAt ? new Date(lastTickAt) : null;
-  const next = nextEligibleAt ? new Date(nextEligibleAt) : null;
-  const nextLabel = next
-    ? (() => {
-        const diff = next.getTime() - now.getTime();
-        return diff > 0
-          ? `next run in ${formatDuration(diff)}`
-          : "next run due now";
-      })()
-    : null;
-  // Hide the readout entirely when neither signal is reachable — saying
-  // "never run / next run unknown" on every agentResponsibility misleads more than it informs.
-  if (!last && !next) return null;
+  if (!last) return null;
   return (
     <div className="flex items-center gap-3 text-xs text-muted-foreground">
-      {last ? (
-        <span
-          className="inline-flex items-center gap-1"
-          title={last.toLocaleString()}
-        >
-          <Clock className="w-3 h-3" />
-          last run {formatRelativePast(last, now)}
-        </span>
-      ) : null}
-      {last && nextLabel && next ? <span>·</span> : null}
-      {nextLabel && next ? (
-        <span
-          className="inline-flex items-center gap-1"
-          title={next.toLocaleString()}
-        >
-          <Timer className="w-3 h-3" />
-          {nextLabel}
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
-/** Inline schedule pill for list rows + detail header. */
-function ScheduleInline({ schedule }: { schedule: AgentResponsibilitySchedule | null }) {
-  if (!schedule) return null;
-  return (
-    <>
-      <span>·</span>
       <span
         className="inline-flex items-center gap-1"
-        title={`Cadence: ${scheduleEveryLabel(schedule)}`}
+        title={last.toLocaleString()}
       >
-        <Timer className="w-3 h-3" />
-        {scheduleEveryLabel(schedule)}
+        <Clock className="w-3 h-3" />
+        last run {formatRelativePast(last, now)}
       </span>
-    </>
+    </div>
   );
 }

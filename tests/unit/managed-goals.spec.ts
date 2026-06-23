@@ -13,6 +13,7 @@ import {
   SIMPLE_MANAGED_GOAL_TEMPLATE,
   buildManagedGoalState,
   buildSimpleManagedGoalCreateInput,
+  canDeleteManagedGoal,
   collapseManagedGoalRecordsForList,
   isStoreBackedManagedGoal,
   isManagedGoalState,
@@ -132,6 +133,63 @@ describe("normalizeManagedGoalState", () => {
       }),
     ).toBe("agentLoop");
   });
+  it("normalizes legacy web-release release dependency to release-prepare", () => {
+    const state = normalizeManagedGoalState({
+      version: 1,
+      kind: "template",
+      templateId: "web-release",
+      state: "inactive",
+      type: "web-release",
+      destination: {
+        outcome: "Release deployed.",
+        evidence: ["releasePrExists", "mainMerged", "productionDeployed"],
+      },
+      agentResponsibilities: [
+        "release",
+        "release-merge",
+        "vercel-production-deploy",
+      ],
+      route: [
+        {
+          stage: "release",
+          evidence: "releasePrExists",
+          agentResponsibility: "release",
+          agentAction: "release-prepare",
+        },
+        {
+          stage: "merge",
+          evidence: "mainMerged",
+          agentResponsibility: "release-merge",
+          agentAction: "release-merge",
+        },
+        {
+          stage: "publish",
+          evidence: "productionDeployed",
+          agentResponsibility: "vercel-production-deploy",
+          agentAction: "vercel-production-deploy",
+        },
+      ],
+      facts: {},
+      blockers: [],
+    });
+
+    expect(state).not.toBeNull();
+    expect(state?.agentResponsibilities).toEqual([
+      "release-prepare",
+      "release-merge",
+      "vercel-production-deploy",
+    ]);
+    expect(state?.route.map((step) => step.agentResponsibility)).toEqual([
+      "release-prepare",
+      "release-merge",
+      "vercel-production-deploy",
+    ]);
+    expect(state?.route.map((step) => step.agentAction)).toEqual([
+      "release-prepare",
+      "release-merge",
+      "vercel-production-deploy",
+    ]);
+  });
 });
 
 describe("simple managed goal creation", () => {
@@ -213,7 +271,7 @@ describe("simple managed goal creation", () => {
     });
   });
 
-  it("builds route-free agentLoop structure", () => {
+  it("builds route-free targetless agentLoop structure", () => {
     const state = buildManagedGoalState(
       buildSimpleManagedGoalCreateInput({
         goalType: "agentLoop",
@@ -233,11 +291,43 @@ describe("simple managed goal creation", () => {
       route: [],
       facts: { goalType: "agentLoop" },
     });
-    expect(state.agentResponsibilities).toContain("code-health");
-    expect(state.agentResponsibilities).toContain("health-check");
+    expect(state.agentResponsibilities).toEqual([]);
   });
 
-  it("uses selected agentResponsibilities when creating a agentLoop", () => {
+  it("uses responsibility target creating agentLoop", () => {
+    const state = buildManagedGoalState(
+      buildSimpleManagedGoalCreateInput({
+        goalType: "agentLoop",
+        schedule: "1d",
+        prompt: "Keep docs healthy.",
+        loopTarget: { type: "agentResponsibility", id: "docs-health" },
+      }),
+    );
+
+    expect(state.loopTarget).toEqual({
+      type: "agentResponsibility",
+      id: "docs-health",
+    });
+    expect(state.agentResponsibilities).toEqual(["docs-health"]);
+    expect(state.scheduleMode).toBe("agentLoop");
+  });
+
+  it("uses goal target creating agentLoop", () => {
+    const state = buildManagedGoalState(
+      buildSimpleManagedGoalCreateInput({
+        goalType: "agentLoop",
+        schedule: "1d",
+        prompt: "Release web daily.",
+        loopTarget: { type: "goal", id: "web-release" },
+      }),
+    );
+
+    expect(state.loopTarget).toEqual({ type: "goal", id: "web-release" });
+    expect(state.agentResponsibilities).toEqual([]);
+    expect(state.scheduleMode).toBe("agentLoop");
+  });
+
+  it("keeps selected agentResponsibilities when creating a legacy agentLoop", () => {
     const state = buildManagedGoalState(
       buildSimpleManagedGoalCreateInput({
         goalType: "agentLoop",
@@ -330,6 +420,59 @@ describe("isStoreBackedManagedGoal", () => {
     };
 
     expect(isStoreBackedManagedGoal(goal)).toBe(true);
+  });
+});
+
+describe("canDeleteManagedGoal", () => {
+  it("allows removing local Store-backed instances", () => {
+    const goal: ManagedGoalRecord = {
+      id: "codebase-health",
+      path: "goals/instances/codebase-health/state.json",
+      source: "local",
+      recordType: "instance",
+      state: {
+        version: 1,
+        sourceTemplate: "codebase-health",
+        state: "active",
+        type: "agentLoop",
+        destination: {
+          outcome: "Keep the codebase healthy.",
+          evidence: [],
+        },
+        agentResponsibilities: ["code-health"],
+        route: [],
+        facts: {},
+        blockers: [],
+      },
+    };
+
+    expect(canDeleteManagedGoal(goal)).toBe(true);
+  });
+
+  it("allows removing Store references from this repo", () => {
+    const goal: ManagedGoalRecord = {
+      id: "codebase-health",
+      path: ".kody/goals/templates/codebase-health/state.json",
+      source: "store",
+      recordType: "template",
+      state: {
+        version: 1,
+        kind: "template",
+        template: true,
+        state: "inactive",
+        type: "agentLoop",
+        destination: {
+          outcome: "Keep the codebase healthy.",
+          evidence: [],
+        },
+        agentResponsibilities: ["code-health"],
+        route: [],
+        facts: {},
+        blockers: [],
+      },
+    };
+
+    expect(canDeleteManagedGoal(goal)).toBe(true);
   });
 });
 
