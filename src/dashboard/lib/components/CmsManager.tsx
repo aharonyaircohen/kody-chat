@@ -826,34 +826,50 @@ function CmsHeaderActions({
 }) {
   return (
     <div className="flex items-center gap-2">
-      <Button variant="outline" size="sm" onClick={onRefresh}>
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={onRefresh}
+        aria-label="Refresh CMS"
+        title="Refresh"
+      >
         {loading ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          <Loader2 className="h-4 w-4 animate-spin" />
         ) : (
-          <RefreshCw className="mr-2 h-4 w-4" />
+          <RefreshCw className="h-4 w-4" />
         )}
-        Refresh
-      </Button>
-      <Button variant="outline" size="sm" onClick={onOpenPermissions}>
-        <ShieldCheck className="mr-2 h-4 w-4" />
-        Permissions
-      </Button>
-      <Button variant="outline" size="sm" onClick={onOpenMcp}>
-        <Plug className="mr-2 h-4 w-4" />
-        MCP
       </Button>
       <Button
         variant="outline"
-        size="sm"
+        size="icon"
+        onClick={onOpenPermissions}
+        aria-label="CMS permissions"
+        title="Permissions"
+      >
+        <ShieldCheck className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="outline"
+        size="icon"
+        onClick={onOpenMcp}
+        aria-label="CMS MCP"
+        title="MCP"
+      >
+        <Plug className="h-4 w-4" />
+      </Button>
+      <Button
+        variant="outline"
+        size="icon"
         disabled={schemaLoading}
         onClick={onUpdateSchema}
+        aria-label="Update CMS schema"
+        title="Update schema"
       >
         {schemaLoading ? (
-          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          <Loader2 className="h-4 w-4 animate-spin" />
         ) : (
-          <Database className="mr-2 h-4 w-4" />
+          <Database className="h-4 w-4" />
         )}
-        Update schema
       </Button>
     </div>
   );
