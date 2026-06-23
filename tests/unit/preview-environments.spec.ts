@@ -1,9 +1,12 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  addRepoViewEnvironment,
   addUploadedEnvironment,
   daysUntilExpiry,
   expiredUploads,
+  normalizeRepoViewPath,
+  repoViewIdFromPath,
   resolveEnvironments,
   setEnvExpiry,
   STATIC_PREVIEW_TTL_MS,
@@ -77,6 +80,33 @@ describe("addUploadedEnvironment", () => {
     expect(addUploadedEnvironment([], "x", "https://ok.dev", "", NOW)).toEqual(
       [],
     );
+  });
+});
+
+describe("repo view paths", () => {
+  it("reads legacy and state-root repo view paths", () => {
+    expect(repoViewIdFromPath(".kody/views/mobile-html-1234")).toBe(
+      "mobile-html-1234",
+    );
+    expect(repoViewIdFromPath("views/mobile-html-1234")).toBe(
+      "mobile-html-1234",
+    );
+  });
+
+  it("stores new repo view environments with state-root paths", () => {
+    expect(normalizeRepoViewPath(".kody/views/mobile-html-1234")).toBe(
+      "views/mobile-html-1234",
+    );
+
+    const next = addRepoViewEnvironment(
+      [],
+      "Mobile",
+      "/api/kody/views/mobile-html-1234/index.html",
+      ".kody/views/mobile-html-1234",
+    );
+
+    expect(next).toHaveLength(1);
+    expect(next[0]?.repoViewPath).toBe("views/mobile-html-1234");
   });
 });
 

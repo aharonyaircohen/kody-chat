@@ -55,9 +55,19 @@ export interface PreviewUploadContext {
 
 const ID_RAND_LEN = 4;
 const MAX_LABEL = 48;
+const REPO_VIEW_PATH_RE = /^(?:\.kody\/)?views\/([a-z0-9][a-z0-9-]{0,63})$/;
 
 /** Uploaded static previews live this long before auto-expiry (7 days). */
 export const STATIC_PREVIEW_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function repoViewIdFromPath(path: string | undefined): string | null {
+  return REPO_VIEW_PATH_RE.exec(path ?? "")?.[1] ?? null;
+}
+
+export function normalizeRepoViewPath(path: string): string | null {
+  const id = repoViewIdFromPath(path.trim());
+  return id ? `views/${id}` : null;
+}
 
 /** Whole days until expiry (ceil). Negative once expired. */
 export function daysUntilExpiry(expiresAt: number, now: number): number {
@@ -210,12 +220,8 @@ export function addRepoViewEnvironment(
 ): PreviewEnvironment[] {
   const cleanLabel = label.trim().slice(0, MAX_LABEL);
   const cleanUrl = normalizeEnvUrl(url);
-  const cleanRepoPath = repoViewPath.trim();
-  if (
-    !cleanLabel ||
-    !cleanUrl ||
-    !/^\.kody\/views\/[a-z0-9][a-z0-9-]{0,63}$/.test(cleanRepoPath)
-  ) {
+  const cleanRepoPath = normalizeRepoViewPath(repoViewPath);
+  if (!cleanLabel || !cleanUrl || !cleanRepoPath) {
     return list;
   }
   return [

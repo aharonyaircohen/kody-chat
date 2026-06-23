@@ -7,12 +7,15 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestAuth } from "@dashboard/lib/auth";
+import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
+import { createUserOctokit } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
+import { resolveStateRepo, stateRepoPath } from "@dashboard/lib/state-repo";
 import { verifyRepoViewToken } from "@dashboard/lib/view-token";
 
 export const runtime = "nodejs";
 
-const VIEW_ROOT = ".kody/views";
+const VIEW_ROOT = "views";
 const VIEW_ID_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const TOKEN_SEGMENT = "_t";
 const GITHUB_API_VERSION = "2022-11-28";
@@ -285,13 +288,18 @@ async function fetchRepoFile(input: {
   token: string;
   repoPath: string;
 }): Promise<Buffer | null> {
+  const background = await resolveBackgroundToken(input.owner, input.repo);
+  const readToken = background?.token ?? input.token;
+  const octokit = createUserOctokit(readToken);
+  const target = await resolveStateRepo(octokit, input.owner, input.repo);
+  const repoPath = stateRepoPath(target, input.repoPath);
   const url = `https://api.github.com/repos/${encodeURIComponent(
-    input.owner,
-  )}/${encodeURIComponent(input.repo)}/contents/${encodeGitHubPath(input.repoPath)}`;
+    target.owner,
+  )}/${encodeURIComponent(target.repo)}/contents/${encodeGitHubPath(repoPath)}`;
   const res = await fetch(url, {
     cache: "no-store",
     headers: {
-      Authorization: `Bearer ${input.token}`,
+      Authorization: `Bearer ${readToken}`,
       Accept: "application/vnd.github.raw+json",
       "X-GitHub-Api-Version": GITHUB_API_VERSION,
     },

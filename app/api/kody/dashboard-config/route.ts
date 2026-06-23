@@ -15,12 +15,14 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@dashboard/lib/auth";
+import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
 import {
   invalidateDashboardConfigCache,
   readDashboardConfig,
   writeDashboardConfig,
   type DashboardConfig,
 } from "@dashboard/lib/dashboard-config/store";
+import { createUserOctokit } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 
 const PreviewUrlSchema = z
@@ -54,10 +56,10 @@ const PreviewEnvironmentSchema = z.object({
   staticId: z.string().min(1).max(64).optional(),
   // Absolute expiry (ms epoch) for uploaded previews; reaped past this.
   expiresAt: z.number().int().nonnegative().optional(),
-  // Present only repo-backed views stored under .kody/views/<id>.
+  // Present only repo-backed views stored under views/<id>.
   repoViewPath: z
     .string()
-    .regex(/^\.kody\/views\/[a-z0-9][a-z0-9-]{0,63}$/)
+    .regex(/^(?:\.kody\/)?views\/[a-z0-9][a-z0-9-]{0,63}$/)
     .optional(),
   // Small, non-secret summary of uploaded files so chat can understand the
   // preview even before the inspector extension can read the iframe.
@@ -94,7 +96,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
   }
 
-  const octokit = await getUserOctokit(req);
+  const background = await resolveBackgroundToken(auth.owner, auth.repo);
+  const octokit = background
+    ? createUserOctokit(background.token)
+    : await getUserOctokit(req);
   if (!octokit)
     return NextResponse.json({ error: "no_octokit" }, { status: 401 });
 

@@ -13,10 +13,11 @@ import {
   requireKodyAuth,
 } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
+import { resolveStateRepo, stateRepoPath } from "@dashboard/lib/state-repo";
 
 export const runtime = "nodejs";
 
-const VIEW_ROOT = ".kody/views";
+const VIEW_ROOT = "views";
 const MAX_BYTES = 5 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 10 * 1024 * 1024;
 const MAX_FILES = 50;
@@ -107,35 +108,48 @@ async function commitFiles(input: {
   octokit: NonNullable<Awaited<ReturnType<typeof getUserOctokit>>>;
   owner: string;
   repo: string;
+  rootPath: string;
   files: Array<{ path: string; raw: Buffer }>;
   message: string;
-}): Promise<{ branch: string; commitSha: string }> {
+}): Promise<{
+  branch: string;
+  commitSha: string;
+  owner: string;
+  repo: string;
+  rootPath: string;
+}> {
+  const target = await resolveStateRepo(input.octokit, input.owner, input.repo);
   const repoInfo = await input.octokit.rest.repos.get({
-    owner: input.owner,
-    repo: input.repo,
+    owner: target.owner,
+    repo: target.repo,
   });
   const branch = repoInfo.data.default_branch;
   const ref = await input.octokit.rest.git.getRef({
-    owner: input.owner,
-    repo: input.repo,
+    owner: target.owner,
+    repo: target.repo,
     ref: `heads/${branch}`,
   });
   const baseSha = ref.data.object.sha;
+  const baseCommit = await input.octokit.rest.git.getCommit({
+    owner: target.owner,
+    repo: target.repo,
+    commit_sha: baseSha,
+  });
   const blobs = await Promise.all(
     input.files.map(async (file) => {
       const blob = await input.octokit.rest.git.createBlob({
-        owner: input.owner,
-        repo: input.repo,
+        owner: target.owner,
+        repo: target.repo,
         content: file.raw.toString("base64"),
         encoding: "base64",
       });
-      return { path: file.path, sha: blob.data.sha };
+      return { path: stateRepoPath(target, file.path), sha: blob.data.sha };
     }),
   );
   const tree = await input.octokit.rest.git.createTree({
-    owner: input.owner,
-    repo: input.repo,
-    base_tree: baseSha,
+    owner: target.owner,
+    repo: target.repo,
+    base_tree: baseCommit.data.tree.sha,
     tree: blobs.map((blob) => ({
       path: blob.path,
       mode: "100644",
@@ -144,19 +158,25 @@ async function commitFiles(input: {
     })),
   });
   const commit = await input.octokit.rest.git.createCommit({
-    owner: input.owner,
-    repo: input.repo,
+    owner: target.owner,
+    repo: target.repo,
     message: input.message,
     tree: tree.data.sha,
     parents: [baseSha],
   });
   await input.octokit.rest.git.updateRef({
-    owner: input.owner,
-    repo: input.repo,
+    owner: target.owner,
+    repo: target.repo,
     ref: `heads/${branch}`,
     sha: commit.data.sha,
   });
-  return { branch, commitSha: commit.data.sha };
+  return {
+    branch,
+    commitSha: commit.data.sha,
+    owner: target.owner,
+    repo: target.repo,
+    rootPath: stateRepoPath(target, input.rootPath),
+  };
 }
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -265,10 +285,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     raw: upload.raw,
   }));
   try {
-    const { branch } = await commitFiles({
+    const {
+      branch,
+      owner: stateOwner,
+      repo: stateRepo,
+      rootPath,
+    } = await commitFiles({
       octokit,
       owner: auth.owner,
       repo: auth.repo,
+      rootPath: repoRoot,
       files: repoFiles,
       message: `chore(dashboard): add static view ${viewId}`,
     });
@@ -280,9 +306,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         url: `/api/kody/views/${viewId}/${entryPath}`,
         repoPath: repoRoot,
         files: uploads.map((upload) => upload.path),
-        htmlUrl: `https://github.com/${auth.owner}/${auth.repo}/tree/${encodeURIComponent(
+        htmlUrl: `https://github.com/${stateOwner}/${stateRepo}/tree/${encodeURIComponent(
           branch,
-        )}/${repoRoot}`,
+        )}/${rootPath}`,
       },
       { status: 201 },
     );

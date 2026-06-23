@@ -1,5 +1,43 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const githubClient = vi.hoisted(() => ({
+  createUserOctokit: vi.fn(() => ({ marker: "octokit" })),
+}));
+
+const backgroundToken = vi.hoisted(() => ({
+  resolveBackgroundToken: vi.fn(
+    async (): Promise<{ token: string; source: "app" } | null> => ({
+      token: "ghs_app_token",
+      source: "app" as const,
+    }),
+  ),
+}));
+
+const stateRepo = vi.hoisted(() => ({
+  resolveStateRepo: vi.fn(async () => ({
+    owner: "octo-state",
+    repo: "kody-state",
+    basePath: "repo",
+  })),
+  stateRepoPath: vi.fn((target: { basePath: string }, path: string) =>
+    [target.basePath, path].filter(Boolean).join("/"),
+  ),
+}));
+
+vi.mock("@dashboard/lib/github-client", () => ({
+  createUserOctokit: githubClient.createUserOctokit,
+}));
+
+vi.mock("@dashboard/lib/auth/background-token", () => ({
+  resolveBackgroundToken: backgroundToken.resolveBackgroundToken,
+}));
+
+vi.mock("@dashboard/lib/state-repo", () => ({
+  resolveStateRepo: stateRepo.resolveStateRepo,
+  stateRepoPath: stateRepo.stateRepoPath,
+}));
+
 import { GET } from "../app/api/kody/views/[...path]/route";
 import { mintRepoViewToken } from "@dashboard/lib/view-token";
 
@@ -16,6 +54,7 @@ function mintTicket(viewId = "pdf-f7fef487"): string {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   process.env.KODY_MASTER_KEY = "test-master-key";
 });
 
@@ -29,7 +68,7 @@ afterEach(() => {
 });
 
 describe("repo-backed view serving", () => {
-  it("serves direct PDF URLs as inline PDF bytes", async () => {
+  it("serves direct PDF URLs inline PDF bytes from the state repo", async () => {
     const token = mintTicket();
     const pdf = Buffer.from("%PDF-1.4\nbody");
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
@@ -54,25 +93,56 @@ describe("repo-backed view serving", () => {
       'inline; filename="-_-.pdf"',
     );
     expect(Buffer.from(await res.arrayBuffer()).toString("utf8")).toBe(
-      "%PDF-1.4\nbody",
+      pdf.toString("utf8"),
     );
-    expect(fetchMock).toHaveBeenCalledWith(
-      "https://api.github.com/repos/octo/repo/contents/.kody/views/pdf-f7fef487/-_-.pdf",
-      expect.objectContaining({
-        cache: "no-store",
-        headers: expect.objectContaining({
-          Authorization: "Bearer ghs_test_token",
-          Accept: "application/vnd.github.raw+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-        }),
+    expect(backgroundToken.resolveBackgroundToken).toHaveBeenCalledWith(
+      "octo",
+      "repo",
+    );
+    expect(githubClient.createUserOctokit).toHaveBeenCalledWith(
+      "ghs_app_token",
+    );
+    expect(stateRepo.resolveStateRepo).toHaveBeenCalledWith(
+      { marker: "octokit" },
+      "octo",
+      "repo",
+    );
+    expect(fetchMock.mock.calls[0]?.[0]).toContain(
+      "/repos/octo-state/kody-state/contents/repo/views/pdf-f7fef487/-_-.pdf",
+    );
+    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+      headers: expect.objectContaining({
+        Authorization: "Bearer ghs_app_token",
       }),
+    });
+  });
+
+  it("falls back to the viewer token when no background token is available", async () => {
+    backgroundToken.resolveBackgroundToken.mockResolvedValueOnce(null);
+    const token = mintTicket("view-123");
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(Buffer.from("<h1>ok</h1>"), { status: 200 }),
+    );
+    const req = new NextRequest(
+      `http://localhost/api/kody/views/_t/${token}/view-123/index.html`,
+    );
+
+    const res = await GET(req, {
+      params: Promise.resolve({
+        path: ["_t", token, "view-123", "index.html"],
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(githubClient.createUserOctokit).toHaveBeenCalledWith(
+      "ghs_test_token",
     );
   });
 
-  it("maps missing GitHub content to view_file_not_found", async () => {
+  it("returns 404 when the state repo view file does not exist", async () => {
     const token = mintTicket("view-123");
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 404 }),
+      new Response(null, { status: 404 }),
     );
     const req = new NextRequest(
       `http://localhost/api/kody/views/_t/${token}/view-123/index.html`,

@@ -25,6 +25,7 @@ import {
   addEnvironment,
   addRepoViewEnvironment,
   expiredUploads,
+  repoViewIdFromPath,
   resolveEnvironments,
   setEnvExpiry,
   STATIC_PREVIEW_TTL_MS,
@@ -51,11 +52,6 @@ import {
 
 function selectionKey(owner: string, repo: string): string {
   return `kody.previewEnv.${owner}/${repo}`;
-}
-
-function repoViewIdFromPath(path: string | undefined): string | null {
-  const match = /^\.kody\/views\/([a-z0-9][a-z0-9-]{0,63})$/.exec(path ?? "");
-  return match?.[1] ?? null;
 }
 
 function repoViewUrlLooksLikePdf(url: string | undefined): boolean {
@@ -311,7 +307,7 @@ export function PreviewWorkspace() {
                     Point Kody at a running deployment — Production, Staging,
                     Dev, or any URL. Add more later from the switcher. Stored
                     per repo at{" "}
-                    <code className="text-zinc-400">.kody/dashboard.json</code>.
+                    <code className="text-zinc-400">state dashboard.json</code>.
                   </p>
                 </div>
                 <PreviewEnvForm
