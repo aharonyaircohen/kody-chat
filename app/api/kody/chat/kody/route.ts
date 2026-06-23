@@ -93,6 +93,7 @@ import { createWebhookTools } from "../tools/webhooks-tools";
 import { createNotificationTools } from "../tools/notifications-tools";
 import { createCompanyTools } from "../tools/company-tools";
 import { createInboxTools } from "../tools/inbox-tools";
+import { createCmsTools } from "../tools/cms-tools";
 import { applyReasoning } from "@dashboard/lib/chat/reasoning-adapter";
 import { createAgentAdminTools } from "../tools/agent-admin-tools";
 import { createAgentResponsibilityAdminTools } from "../tools/agent-responsibility-admin-tools";
@@ -853,6 +854,18 @@ export async function POST(req: NextRequest) {
     ...extraTools,
     ...createRemoteTools(verifiedActorLogin),
   };
+  if (repo) {
+    const octokit = createUserOctokit(repo.token);
+    extraTools = {
+      ...extraTools,
+      ...(await createCmsTools({
+        req,
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+      })),
+    };
+  }
   // Vibe tool policy (see vibe-tool-policy.ts): strips the `@kody` dispatch
   // tools in vibe mode, strips issue-creation tools once a task is scoped
   // (so the model can't file a duplicate), and removes vibe_start_execution

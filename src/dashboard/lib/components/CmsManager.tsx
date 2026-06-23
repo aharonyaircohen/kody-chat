@@ -22,6 +22,7 @@ import {
   Database,
   Loader2,
   Pencil,
+  Plug,
   Plus,
   RefreshCw,
   Save,
@@ -72,6 +73,7 @@ import {
 } from "./cms/client";
 import { canWriteOperation, writeDisabledReason } from "./cms/operations";
 import { cmsDocumentEditPath, cmsDocumentPath } from "./cms/paths";
+import { generateCmsMcpTools } from "@dashboard/lib/cms/mcp";
 import type {
   CmsCollectionConfig,
   CmsContentOperation,
@@ -184,6 +186,7 @@ function CmsListPage() {
     useState<string>("");
   const [collectionSearch, setCollectionSearch] = useState("");
   const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const [mcpOpen, setMcpOpen] = useState(false);
   const [filterValues, setFilterValues] = useState<FilterValues>({});
   const [sort, setSort] = useState<CmsSortEntry[]>([]);
   const [offset, setOffset] = useState(0);
@@ -337,6 +340,7 @@ function CmsListPage() {
             cmsQuery.data?.configured ? cmsQuery.data.writePolicy : undefined
           }
           actorRole={cmsQuery.data?.configured ? actorRole : undefined}
+          onOpenMcp={() => setMcpOpen(true)}
           onRefresh={() => {
             void cmsQuery.refetch();
             void documentsQuery.refetch();
@@ -407,18 +411,25 @@ function CmsListPage() {
         </div>
       </CmsRelationProvider>
       {cmsQuery.data?.configured ? (
-        <CmsPermissionsDialog
-          open={permissionsOpen}
-          config={cmsQuery.data}
-          saving={savePermissionsMutation.isPending}
-          error={
-            savePermissionsMutation.error instanceof Error
-              ? savePermissionsMutation.error.message
-              : null
-          }
-          onOpenChange={setPermissionsOpen}
-          onSave={(payload) => savePermissionsMutation.mutate(payload)}
-        />
+        <>
+          <CmsMcpDialog
+            open={mcpOpen}
+            config={cmsQuery.data}
+            onOpenChange={setMcpOpen}
+          />
+          <CmsPermissionsDialog
+            open={permissionsOpen}
+            config={cmsQuery.data}
+            saving={savePermissionsMutation.isPending}
+            error={
+              savePermissionsMutation.error instanceof Error
+                ? savePermissionsMutation.error.message
+                : null
+            }
+            onOpenChange={setPermissionsOpen}
+            onSave={(payload) => savePermissionsMutation.mutate(payload)}
+          />
+        </>
       ) : null}
     </CmsShell>
   );
@@ -813,6 +824,7 @@ function CmsHeaderActions({
   schemaLoading,
   writePolicy,
   actorRole,
+  onOpenMcp,
   onRefresh,
   onUpdateSchema,
   onOpenPermissions,
@@ -821,6 +833,7 @@ function CmsHeaderActions({
   schemaLoading: boolean;
   writePolicy?: string;
   actorRole?: CmsRole;
+  onOpenMcp: () => void;
   onRefresh: () => void;
   onUpdateSchema: () => void;
   onOpenPermissions: () => void;
@@ -849,6 +862,10 @@ function CmsHeaderActions({
       <Button variant="outline" size="sm" onClick={onOpenPermissions}>
         <ShieldCheck className="mr-2 h-4 w-4" />
         Permissions
+      </Button>
+      <Button variant="outline" size="sm" onClick={onOpenMcp}>
+        <Plug className="mr-2 h-4 w-4" />
+        MCP
       </Button>
       <Button
         variant="outline"
@@ -883,6 +900,95 @@ const CMS_WRITE_PERMISSION_OPERATIONS: Array<{
   { operation: "update", label: "Update" },
   { operation: "delete", label: "Delete" },
 ];
+
+function CmsMcpDialog({
+  open,
+  config,
+  onOpenChange,
+}: {
+  open: boolean;
+  config: CmsPublicConfig;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const endpoint =
+    typeof window === "undefined"
+      ? "/api/kody/cms/mcp"
+      : `${window.location.origin}/api/kody/cms/mcp`;
+  const toolCount = generateCmsMcpTools(config).length;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>CMS MCP</DialogTitle>
+          <DialogDescription>
+            Schema-generated CMS tools for the current repo.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 border-y border-border py-4">
+          <div className="grid gap-1">
+            <div className="text-xs font-medium uppercase text-muted-foreground">
+              Endpoint
+            </div>
+            <div className="flex min-w-0 items-center gap-2">
+              <code className="min-w-0 flex-1 truncate rounded border border-border bg-muted px-3 py-2 text-sm text-foreground">
+                {endpoint}
+              </code>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void navigator.clipboard?.writeText(endpoint)}
+              >
+                Copy
+              </Button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded border border-border bg-muted/40 px-3 py-2">
+              <div className="text-xs font-medium uppercase text-muted-foreground">
+                Transport
+              </div>
+              <div className="mt-1 text-sm text-foreground">HTTP</div>
+            </div>
+            <div className="rounded border border-border bg-muted/40 px-3 py-2">
+              <div className="text-xs font-medium uppercase text-muted-foreground">
+                Tools
+              </div>
+              <div className="mt-1 text-sm text-foreground">{toolCount}</div>
+            </div>
+            <div className="rounded border border-border bg-muted/40 px-3 py-2">
+              <div className="text-xs font-medium uppercase text-muted-foreground">
+                Collections
+              </div>
+              <div className="mt-1 text-sm text-foreground">
+                {config.collections.length}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-2">
+            <div className="text-xs font-medium uppercase text-muted-foreground">
+              Headers
+            </div>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {["x-kody-token", "x-kody-owner", "x-kody-repo"].map((header) => (
+                <code
+                  key={header}
+                  className="rounded border border-border bg-muted px-3 py-2 text-sm text-foreground"
+                >
+                  {header}
+                </code>
+              ))}
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 const CMS_PERMISSION_POLICY_PRESETS: Array<{
   value: CmsPermissionPolicyPreset;

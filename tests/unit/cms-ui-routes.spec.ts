@@ -109,4 +109,15 @@ describe("CMS UI routes", () => {
     expect(client).toContain("saveCmsPermissions");
     expect(client).toContain('method: "PATCH"');
   });
+
+  it("offers CMS MCP connection details from CMS header", () => {
+    const manager = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+
+    expect(manager).toContain("CMS MCP");
+    expect(manager).toContain("/api/kody/cms/mcp");
+    expect(manager).toContain("x-kody-token");
+    expect(manager).toContain("x-kody-owner");
+    expect(manager).toContain("x-kody-repo");
+    expect(manager).toContain("generateCmsMcpTools");
+  });
 });

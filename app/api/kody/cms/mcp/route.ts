@@ -42,6 +42,26 @@ interface JsonRpcRequest {
   params?: unknown;
 }
 
+export async function GET(req: NextRequest) {
+  const authResult = await requireKodyAuth(req);
+  if (authResult instanceof NextResponse) return authResult;
+
+  return new NextResponse(": kody-cms-mcp\n\n", {
+    headers: {
+      ...NO_STORE_HEADERS,
+      "Content-Type": "text/event-stream",
+      Connection: "keep-alive",
+    },
+  });
+}
+
+export async function DELETE(req: NextRequest) {
+  const authResult = await requireKodyAuth(req);
+  if (authResult instanceof NextResponse) return authResult;
+
+  return new NextResponse(null, { status: 202, headers: NO_STORE_HEADERS });
+}
+
 export async function POST(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
@@ -59,10 +79,16 @@ export async function POST(req: NextRequest) {
     headerAuth.storeRef,
   );
 
+  let body: JsonRpcRequest | null = null;
+
   try {
-    const body = (await req.json().catch(() => null)) as JsonRpcRequest | null;
+    body = (await req.json().catch(() => null)) as JsonRpcRequest | null;
     if (!body || typeof body !== "object") {
       return jsonRpcError(null, -32700, "Parse error");
+    }
+
+    if (!("id" in body)) {
+      return new NextResponse(null, { status: 202, headers: NO_STORE_HEADERS });
     }
 
     const octokit = await getUserOctokit(req);
@@ -95,6 +121,10 @@ export async function POST(req: NextRequest) {
       return jsonRpcResult(body.id, {});
     }
 
+    if (body.method === "notifications/initialized") {
+      return new NextResponse(null, { status: 202, headers: NO_STORE_HEADERS });
+    }
+
     if (body.method === "tools/list") {
       if (cms.configured === false)
         return jsonRpcResult(body.id, { tools: [] });
@@ -111,6 +141,7 @@ export async function POST(req: NextRequest) {
         repo: headerAuth.repo,
       });
       return jsonRpcResult(body.id, {
+        structuredContent: result,
         content: [
           {
             type: "text",
@@ -122,7 +153,7 @@ export async function POST(req: NextRequest) {
 
     return jsonRpcError(body.id, -32601, "Method not found");
   } catch (error) {
-    return handleMcpError(error);
+    return handleMcpError(error, body?.id ?? null);
   } finally {
     clearGitHubContext();
   }
@@ -276,16 +307,19 @@ function jsonRpcError(
 ): NextResponse {
   return NextResponse.json(
     { jsonrpc: "2.0", id: id ?? null, error: { code, message } },
-    { status: code === -32601 ? 404 : 400, headers: NO_STORE_HEADERS },
+    { headers: NO_STORE_HEADERS },
   );
 }
 
-function handleMcpError(error: unknown): NextResponse {
+function handleMcpError(
+  error: unknown,
+  id: JsonRpcRequest["id"],
+): NextResponse {
   if (error instanceof CmsConfigError || error instanceof CmsRuntimeError) {
-    return jsonRpcError(null, -32000, error.message);
+    return jsonRpcError(id, -32000, error.message);
   }
   logger.error({ err: error }, "cms mcp failed");
-  return jsonRpcError(null, -32603, "Internal error");
+  return jsonRpcError(id, -32603, "Internal error");
 }
 
 function stringValue(value: unknown): string | undefined {

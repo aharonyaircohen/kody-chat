@@ -117,7 +117,11 @@ import {
   PATCH as indexPATCH,
   POST as indexPOST,
 } from "../app/api/kody/cms/route";
-import { POST as mcpPOST } from "../app/api/kody/cms/mcp/route";
+import {
+  DELETE as mcpDELETE,
+  GET as mcpGET,
+  POST as mcpPOST,
+} from "../app/api/kody/cms/mcp/route";
 import { POST as schemaPOST } from "../app/api/kody/cms/schema/route";
 
 function request(url = "https://dash.test/api/kody/cms") {
@@ -714,5 +718,117 @@ describe("CMS API routes", () => {
         ],
       },
     });
+  });
+
+  it("supports CMS MCP streamable HTTP lifecycle requests", async () => {
+    const getRes = await mcpGET(request("https://dash.test/api/kody/cms/mcp"));
+    expect(getRes.status).toBe(200);
+    expect(getRes.headers.get("content-type")).toContain("text/event-stream");
+
+    const notifyRes = await mcpPOST(
+      jsonRequest("https://dash.test/api/kody/cms/mcp", "POST", {
+        jsonrpc: "2.0",
+        method: "notifications/initialized",
+      }),
+    );
+    expect(notifyRes.status).toBe(202);
+
+    const deleteRes = await mcpDELETE(
+      request("https://dash.test/api/kody/cms/mcp"),
+    );
+    expect(deleteRes.status).toBe(202);
+  });
+
+  it("returns structured content from CMS MCP tool calls", async () => {
+    service.listCmsCollections.mockResolvedValueOnce({
+      configured: true,
+      version: 1,
+      name: "Example CMS",
+      environment: "default",
+      writePolicy: "enabled",
+      actorRole: "admin",
+      permissions: {},
+      collections: [
+        {
+          name: "lessons",
+          label: "Lessons",
+          adapter: "mongodb",
+          mcpName: "lessons",
+          searchFields: ["title"],
+          writePolicy: "enabled",
+          permissions: {},
+          source: { collection: "lessons", idField: "_id" },
+          operations: {
+            list: true,
+            get: true,
+            search: true,
+            create: true,
+            update: true,
+            delete: true,
+          },
+          defaultSort: [],
+          fields: [
+            { name: "_id", type: "id", readOnly: true },
+            { name: "title", type: "text", required: true },
+          ],
+          filters: [],
+        },
+      ],
+    });
+    (
+      service.listCmsDocuments as unknown as {
+        mockImplementationOnce: (
+          implementation: () => Promise<{
+            docs: Array<Record<string, unknown>>;
+            total: number;
+            limit: number;
+            offset: number;
+          }>,
+        ) => void;
+      }
+    ).mockImplementationOnce(async () => ({
+      docs: [{ _id: "1", title: "Intro" }],
+      total: 1,
+      limit: 10,
+      offset: 0,
+    }));
+
+    const res = await mcpPOST(
+      jsonRequest("https://dash.test/api/kody/cms/mcp", "POST", {
+        jsonrpc: "2.0",
+        id: 2,
+        method: "tools/call",
+        params: {
+          name: "cms_list_lessons",
+          arguments: { q: "intro", limit: 10 },
+        },
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      jsonrpc: "2.0",
+      id: 2,
+      result: {
+        structuredContent: {
+          docs: [{ _id: "1", title: "Intro" }],
+          total: 1,
+          limit: 10,
+          offset: 0,
+        },
+        content: [{ type: "text" }],
+      },
+    });
+    expect(service.listCmsDocuments).toHaveBeenCalledWith(
+      expect.any(NextRequest),
+      expect.anything(),
+      "A-Guy-educ",
+      "A-Guy-Web",
+      "lessons",
+      expect.objectContaining({
+        search: { query: "intro" },
+        limit: 10,
+      }),
+    );
   });
 });
