@@ -4,6 +4,7 @@ import { createIssueWithBestEffortMetadata } from "@dashboard/lib/github-issue-c
 function makeOctokit(overrides?: {
   addLabels?: () => Promise<unknown>;
   addAssignees?: () => Promise<unknown>;
+  get?: () => Promise<unknown>;
 }) {
   return {
     rest: {
@@ -29,6 +30,25 @@ function makeOctokit(overrides?: {
         addAssignees: vi.fn(
           overrides?.addAssignees ?? (() => Promise.resolve({ data: [] })),
         ),
+        get: vi.fn(
+          overrides?.get ??
+            (() =>
+              Promise.resolve({
+                data: {
+                  id: 1,
+                  number: 42,
+                  title: "Fix chat",
+                  body: "",
+                  state: "open",
+                  labels: [{ name: "bug" }],
+                  assignees: [{ login: "aguy" }],
+                  created_at: "2026-06-13T00:00:00Z",
+                  updated_at: "2026-06-13T00:00:00Z",
+                  closed_at: null,
+                  html_url: "https://github.com/acme/repo/issues/42",
+                },
+              })),
+        ),
       },
     },
   };
@@ -47,6 +67,7 @@ describe("createIssueWithBestEffortMetadata", () => {
     });
 
     expect(result.data.number).toBe(42);
+    expect(result.data.assignees).toEqual([{ login: "aguy" }]);
     expect(result.metadataWarnings).toEqual([]);
     expect(octokit.rest.issues.create).toHaveBeenCalledWith({
       owner: "acme",
@@ -65,6 +86,11 @@ describe("createIssueWithBestEffortMetadata", () => {
       repo: "repo",
       issue_number: 42,
       assignees: ["aguy"],
+    });
+    expect(octokit.rest.issues.get).toHaveBeenCalledWith({
+      owner: "acme",
+      repo: "repo",
+      issue_number: 42,
     });
   });
 
@@ -87,5 +113,6 @@ describe("createIssueWithBestEffortMetadata", () => {
       "Labels not applied: Label does not exist",
       "Assignees not applied: User cannot be assigned",
     ]);
+    expect(octokit.rest.issues.get).not.toHaveBeenCalled();
   });
 });

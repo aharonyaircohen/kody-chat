@@ -27,6 +27,7 @@ export function getStoredAuth(): {
   token: string;
   owner: string;
   repo: string;
+  userLogin?: string;
   storeRepoUrl?: string;
   storeRef?: string;
 } | null {
@@ -38,6 +39,7 @@ export function getStoredAuth(): {
       token?: string;
       owner?: string;
       repo?: string;
+      user?: { login?: string };
       storeRepoUrl?: string;
       storeRepo?: string;
       storeRef?: string;
@@ -47,6 +49,7 @@ export function getStoredAuth(): {
       token: auth.token,
       owner: auth.owner,
       repo: auth.repo,
+      userLogin: auth.user?.login,
       storeRepoUrl:
         auth.storeRepoUrl ??
         (auth.storeRepo ? `https://github.com/${auth.storeRepo}` : undefined),
@@ -112,6 +115,7 @@ function buildHeaders(
           "x-kody-token": auth.token,
           "x-kody-owner": auth.owner,
           "x-kody-repo": auth.repo,
+          ...(auth.userLogin ? { "x-kody-user-login": auth.userLogin } : {}),
         }
       : {}),
     ...extra,

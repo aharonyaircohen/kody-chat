@@ -22,6 +22,7 @@ import type { Octokit } from "@octokit/rest";
 const HDR_TOKEN = "x-kody-token";
 const HDR_OWNER = "x-kody-owner";
 const HDR_REPO = "x-kody-repo";
+const HDR_USER_LOGIN = "x-kody-user-login";
 const HDR_STORE_REPO_URL = "x-kody-store-repo-url";
 const HDR_STORE_REF = "x-kody-store-ref";
 
@@ -31,6 +32,7 @@ export interface RequestAuth {
   token: string;
   owner: string;
   repo: string;
+  userLogin?: string;
   storeRepoUrl?: string;
   storeRef?: string;
 }
@@ -43,11 +45,12 @@ export function getRequestAuth(req: NextRequest): RequestAuth | null {
   const token = req.headers.get(HDR_TOKEN);
   const owner = req.headers.get(HDR_OWNER);
   const repo = req.headers.get(HDR_REPO);
+  const userLogin = req.headers.get(HDR_USER_LOGIN)?.trim() || undefined;
   const storeRepoUrl = req.headers.get(HDR_STORE_REPO_URL)?.trim() || undefined;
   const storeRef = req.headers.get(HDR_STORE_REF)?.trim() || undefined;
 
   if (!token || !owner || !repo) return null;
-  return { token, owner, repo, storeRepoUrl, storeRef };
+  return { token, owner, repo, userLogin, storeRepoUrl, storeRef };
 }
 
 // ─── Server-side env token (fallback for CI / token-only deployments) ────────

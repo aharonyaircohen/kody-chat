@@ -58,5 +58,18 @@ export async function createIssueWithBestEffortMetadata(
     }
   }
 
+  if (
+    metadataWarnings.length === 0 &&
+    ((labels && labels.length > 0) || (assignees && assignees.length > 0))
+  ) {
+    const refreshed = await octokit.rest.issues.get({
+      owner,
+      repo,
+      issue_number: data.number,
+    });
+
+    return { data: refreshed.data, metadataWarnings };
+  }
+
   return { data, metadataWarnings };
 }

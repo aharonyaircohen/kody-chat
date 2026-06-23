@@ -156,7 +156,10 @@ export async function GET(req: NextRequest) {
       fetchWorkflowRuns({ perPage: 30 }),
       fetchOpenPRs(),
     ]);
-    const kodyAssigneeLogins = getKodyAssigneeLogins();
+    const kodyAssigneeLogins = [
+      ...getKodyAssigneeLogins(),
+      ...(headerAuth?.userLogin ? [headerAuth.userLogin] : []),
+    ];
     const issues = rawIssues.filter((issue) => {
       const visibilityIssue = {
         labels: issue.labels.map((label) => label.name),
