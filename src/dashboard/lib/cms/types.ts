@@ -174,6 +174,7 @@ export interface CmsListQuery {
   sort?: CmsSortEntry[];
   limit?: number;
   offset?: number;
+  ids?: string[];
 }
 
 export interface CmsListResult {

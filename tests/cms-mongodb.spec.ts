@@ -6,7 +6,7 @@ import {
   buildMongoQuery,
   getMongoDatabase,
   normalizeMongoValue,
-} from "@dashboard/lib/cms/mongodb";
+} from "@dashboard/lib/cms/adapters/mongodb";
 import type { CmsCollectionConfig } from "@dashboard/lib/cms/types";
 
 const collection: CmsCollectionConfig = {

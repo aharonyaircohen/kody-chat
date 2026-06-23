@@ -24,9 +24,75 @@ import type {
   CmsSearchQuery,
   CmsSortEntry,
 } from "@dashboard/lib/cms/types";
+import { CmsAdapterError, type CmsAdapter } from "./types";
 
 type MongoClientCache = typeof globalThis & {
   __kodyCmsMongoClients?: Map<string, Promise<MongoClient>>;
+};
+
+export const mongoCmsAdapter: CmsAdapter = {
+  name: "mongodb",
+  async list(context, query) {
+    const { uri, databaseName } = await resolveMongoSettings(context);
+    return listMongoDocuments({
+      uri,
+      databaseName,
+      config: context.config,
+      collection: context.collection,
+      query,
+    });
+  },
+  async listByIds(context, ids) {
+    const { uri, databaseName } = await resolveMongoSettings(context);
+    return listMongoDocumentsByIds({
+      uri,
+      databaseName,
+      config: context.config,
+      collection: context.collection,
+      ids,
+    });
+  },
+  async get(context, id) {
+    const { uri, databaseName } = await resolveMongoSettings(context);
+    return getMongoDocument({
+      uri,
+      databaseName,
+      config: context.config,
+      collection: context.collection,
+      id,
+    });
+  },
+  async create(context, data) {
+    const { uri, databaseName } = await resolveMongoSettings(context);
+    return createMongoDocument({
+      uri,
+      databaseName,
+      config: context.config,
+      collection: context.collection,
+      data,
+    });
+  },
+  async update(context, id, data) {
+    const { uri, databaseName } = await resolveMongoSettings(context);
+    return updateMongoDocument({
+      uri,
+      databaseName,
+      config: context.config,
+      collection: context.collection,
+      id,
+      data,
+    });
+  },
+  async delete(context, id) {
+    const { uri, databaseName } = await resolveMongoSettings(context);
+    return deleteMongoDocument({
+      uri,
+      databaseName,
+      config: context.config,
+      collection: context.collection,
+      id,
+    });
+  },
 };
 
 export async function listMongoDocuments(options: {
@@ -66,6 +132,22 @@ export async function listMongoDocuments(options: {
     limit,
     offset,
   };
+}
+
+export async function listMongoDocumentsByIds(options: {
+  uri: string;
+  databaseName?: string;
+  config: CmsRuntimeConfig;
+  collection: CmsCollectionConfig;
+  ids: string[];
+}): Promise<CmsDocument[]> {
+  const mongoCollection = await getMongoCollection(options);
+  const idsQuery = buildIdsQuery(options.collection, options.ids);
+  const projection = buildProjection(options.collection);
+  const docs = await mongoCollection.find(idsQuery, { projection }).toArray();
+  return docs.map((doc: Document) =>
+    normalizeMongoDocument(doc, options.collection),
+  );
 }
 
 export async function getMongoDocument(options: {
@@ -145,6 +227,40 @@ export async function deleteMongoDocument(options: {
     buildIdQuery(options.collection, options.id),
   );
   return result.deletedCount > 0;
+}
+
+async function resolveMongoSettings(context: {
+  settings: Record<string, unknown>;
+  getSecret: (name: string) => Promise<string | null>;
+}): Promise<{ uri: string; databaseName?: string }> {
+  const databaseUriSecret =
+    typeof context.settings.databaseUriSecret === "string"
+      ? context.settings.databaseUriSecret
+      : null;
+  const databaseName =
+    typeof context.settings.databaseName === "string" &&
+    context.settings.databaseName.trim()
+      ? context.settings.databaseName.trim()
+      : undefined;
+
+  if (!databaseUriSecret) {
+    throw new CmsAdapterError(
+      "missing_database_uri_secret",
+      "CMS adapter does not define databaseUriSecret.",
+      400,
+    );
+  }
+
+  const uri = await context.getSecret(databaseUriSecret);
+  if (!uri) {
+    throw new CmsAdapterError(
+      "missing_secret",
+      `Secret "${databaseUriSecret}" not configured.`,
+      500,
+    );
+  }
+
+  return { uri, databaseName };
 }
 
 export function buildMongoQuery(
@@ -297,6 +413,24 @@ function buildIdQuery(
     return { [idField]: { $in: [new ObjectId(id), id] } };
   }
   return { [idField]: id };
+}
+
+function buildIdsQuery(
+  collection: CmsCollectionConfig,
+  ids: string[],
+): Filter<Document> {
+  const idField = getCollectionIdField(collection);
+  const values: Array<string | ObjectId> = [];
+
+  for (const id of ids) {
+    if (/^[a-f0-9]{24}$/i.test(id)) {
+      values.push(new ObjectId(id), id);
+    } else {
+      values.push(id);
+    }
+  }
+
+  return { [idField]: { $in: values } };
 }
 
 function buildMongoSort(sortEntries: CmsSortEntry[]): Sort | undefined {

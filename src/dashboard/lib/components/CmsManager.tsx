@@ -1,6 +1,13 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -18,7 +25,6 @@ import {
   RefreshCw,
   Save,
   Search,
-  SlidersHorizontal,
   Trash2,
   X,
 } from "lucide-react";
@@ -99,13 +105,32 @@ type FilterValue = {
 
 type FilterValues = Record<string, FilterValue>;
 
+interface CmsRelationBatch {
+  collection: CmsCollectionConfig;
+  ids: string[];
+}
+
 interface CmsRelationContextValue {
   headers: Record<string, string>;
   collections: CmsCollectionConfig[];
   scope: string;
+  relationDocuments?: Map<string, CmsDocument>;
+  batchedRelationKeys?: Set<string>;
 }
 
 const CmsRelationContext = createContext<CmsRelationContextValue | null>(null);
+
+function relationDocumentCacheKey(collection: string, id: string): string {
+  return `${collection}\u001f${id}`;
+}
+
+function cmsDocumentPath(collection: string, id: string): string {
+  return `/cms/${encodeURIComponent(collection)}/${encodeURIComponent(id)}`;
+}
+
+function cmsDocumentEditPath(collection: string, id: string): string {
+  return `${cmsDocumentPath(collection, id)}/edit`;
+}
 
 export function CmsManager() {
   return (
@@ -124,7 +149,29 @@ export function CmsItemManager({
 }) {
   return (
     <AuthGuard>
-      <CmsItemPage collectionName={collectionName} documentId={documentId} />
+      <CmsItemPage
+        collectionName={collectionName}
+        documentId={documentId}
+        editMode={false}
+      />
+    </AuthGuard>
+  );
+}
+
+export function CmsEditManager({
+  collectionName,
+  documentId,
+}: {
+  collectionName: string;
+  documentId: string;
+}) {
+  return (
+    <AuthGuard>
+      <CmsItemPage
+        collectionName={collectionName}
+        documentId={documentId}
+        editMode
+      />
     </AuthGuard>
   );
 }
@@ -151,6 +198,7 @@ function CmsListPage() {
 
   const [selectedCollectionName, setSelectedCollectionName] =
     useState<string>("");
+  const [collectionSearch, setCollectionSearch] = useState("");
   const [filterValues, setFilterValues] = useState<FilterValues>({});
   const [sort, setSort] = useState<CmsSortEntry[]>([]);
   const [offset, setOffset] = useState(0);
@@ -287,11 +335,13 @@ function CmsListPage() {
         collections={collections}
         scope={scope}
       >
-        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[248px_minmax(0,1fr)]">
+        <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[184px_minmax(0,1fr)]">
           <CollectionRail
             loading={cmsQuery.isLoading}
             collections={collections}
             selectedName={selectedCollection?.name ?? ""}
+            search={collectionSearch}
+            onSearchChange={setCollectionSearch}
             onSelect={setSelectedCollectionName}
           />
 
@@ -316,9 +366,7 @@ function CmsListPage() {
               }}
               onOpenDocument={(id) => {
                 if (!selectedCollection) return;
-                router.push(
-                  `/cms/${encodeURIComponent(selectedCollection.name)}/${encodeURIComponent(id)}`,
-                );
+                router.push(cmsDocumentPath(selectedCollection.name, id));
               }}
               onCreateDocument={() => {
                 if (!selectedCollection) return;
@@ -338,17 +386,25 @@ function CmsListPage() {
 function CmsItemPage({
   collectionName,
   documentId,
+  editMode,
 }: {
   collectionName: string;
   documentId: string;
+  editMode: boolean;
 }) {
   const router = useRouter();
   const { auth } = useAuth();
   const queryClient = useQueryClient();
   const headers = useMemo(() => buildAuthHeaders(auth), [auth]);
   const scope = `${auth?.owner ?? ""}/${auth?.repo ?? ""}`;
-  const [editing, setEditing] = useState(false);
+  const [editing, setEditing] = useState(editMode);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const detailPath = cmsDocumentPath(collectionName, documentId);
+  const editPath = cmsDocumentEditPath(collectionName, documentId);
+
+  useEffect(() => {
+    setEditing(editMode);
+  }, [collectionName, documentId, editMode]);
 
   const cmsQuery = useQuery({
     queryKey: ["cms-config", scope],
@@ -382,9 +438,18 @@ function CmsItemPage({
     mutationFn: (payload: CmsDocument) =>
       updateCmsDocument(headers, collectionName, documentId, payload),
     onSuccess: async (updated) => {
+      const updatedId =
+        collection &&
+        getDocumentId(updated, collection.source.idField ?? "_id");
+      const nextId = updatedId || documentId;
       queryClient.setQueryData(documentQueryKey, updated);
+      queryClient.setQueryData(
+        ["cms-document", scope, collectionName, nextId],
+        updated,
+      );
       setEditing(false);
       await queryClient.invalidateQueries({ queryKey: ["cms-documents"] });
+      router.push(cmsDocumentPath(collectionName, nextId));
     },
   });
   const deleteMutation = useMutation({
@@ -401,6 +466,10 @@ function CmsItemPage({
       : deleteMutation.error instanceof Error
         ? deleteMutation.error.message
         : null;
+  const editBlockedReason =
+    editing && collection && !canWriteOperation(collection, "update")
+      ? writeDisabledReason(collection)
+      : null;
 
   return (
     <CmsShell
@@ -424,8 +493,14 @@ function CmsItemPage({
               compact={false}
               editing={editing}
               loading={updateMutation.isPending || deleteMutation.isPending}
-              onEdit={() => setEditing(true)}
-              onCancelEdit={() => setEditing(false)}
+              onEdit={() => {
+                setEditing(true);
+                router.push(editPath);
+              }}
+              onCancelEdit={() => {
+                setEditing(false);
+                router.push(detailPath);
+              }}
               onDelete={() => setDeleteOpen(true)}
             />
           ) : null}
@@ -456,8 +531,13 @@ function CmsItemPage({
             collection={collection}
             document={document}
             editing={editing}
+            editBlockedReason={editBlockedReason}
             saving={updateMutation.isPending}
             onSubmit={(payload) => updateMutation.mutate(payload)}
+            onCancelEdit={() => {
+              setEditing(false);
+              router.push(detailPath);
+            }}
           />
         </CmsRelationProvider>
       )}
@@ -503,9 +583,7 @@ function CmsCreatePage({ collectionName }: { collectionName: string }) {
         return;
       }
       const id = getDocumentId(document, collection.source.idField ?? "_id");
-      router.push(
-        `/cms/${encodeURIComponent(collection.name)}/${encodeURIComponent(id)}`,
-      );
+      router.push(cmsDocumentPath(collection.name, id));
     },
   });
 
@@ -555,6 +633,7 @@ function CmsCreatePage({ collectionName }: { collectionName: string }) {
             collection={collection}
             saving={createMutation.isPending}
             onSubmit={(payload) => createMutation.mutate(payload)}
+            onCancel={() => router.push("/cms")}
           />
         </CmsRelationProvider>
       )}
@@ -652,21 +731,50 @@ function CollectionRail({
   loading,
   collections,
   selectedName,
+  search,
+  onSearchChange,
   onSelect,
 }: {
   loading: boolean;
   collections: CmsCollectionConfig[];
   selectedName: string;
+  search: string;
+  onSearchChange: (value: string) => void;
   onSelect: (name: string) => void;
 }) {
+  const trimmedSearch = search.trim().toLowerCase();
+  const visibleCollections = useMemo(() => {
+    if (!trimmedSearch) return collections;
+    return collections.filter((collection) => {
+      const label = collection.label.toLowerCase();
+      const name = collection.name.toLowerCase();
+      return label.includes(trimmedSearch) || name.includes(trimmedSearch);
+    });
+  }, [collections, trimmedSearch]);
+
   return (
-    <aside className="flex min-h-0 flex-col border-border">
+    <aside
+      aria-label="CMS collections"
+      className="flex min-h-0 flex-col border-border"
+    >
       <div className="shrink-0 border-b border-border px-4 py-3">
         <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           Collections
         </div>
         <div className="mt-1 text-sm text-muted-foreground">
           {collections.length} configured
+          {trimmedSearch ? ` / ${visibleCollections.length} shown` : ""}
+        </div>
+        <div className="relative mt-2 h-8">
+          <Search className="pointer-events-none absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+          <Input
+            aria-label="Filter collections"
+            value={search}
+            disabled={loading || collections.length === 0}
+            onChange={(event) => onSearchChange(event.target.value)}
+            placeholder="Filter"
+            className="h-8 rounded-md border-input bg-background px-2 pl-7 text-xs shadow-sm focus-visible:ring-1"
+          />
         </div>
       </div>
 
@@ -678,9 +786,14 @@ function CollectionRail({
             title="No collections"
             detail="No collection config found."
           />
+        ) : visibleCollections.length === 0 ? (
+          <EmptyState
+            title="No matches"
+            detail="Try a different collection name."
+          />
         ) : (
           <div className="space-y-1">
-            {collections.map((collection) => {
+            {visibleCollections.map((collection) => {
               const selected = collection.name === selectedName;
 
               return (
@@ -776,30 +889,36 @@ function CollectionWorkspace({
             </div>
           </div>
 
-          {collection.operations.create ? (
-            <Button
-              type="button"
-              disabled={!canWriteOperation(collection, "create")}
-              size="sm"
-              title={
-                canWriteOperation(collection, "create")
-                  ? "New"
-                  : writeDisabledReason(collection)
-              }
-              onClick={onCreateDocument}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              New
-            </Button>
-          ) : null}
+          <div className="flex items-center gap-2">
+            {filtersActive ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onFilterChange({})}
+              >
+                <X className="mr-2 h-4 w-4" />
+                Clear
+              </Button>
+            ) : null}
+            {collection.operations.create ? (
+              <Button
+                type="button"
+                disabled={!canWriteOperation(collection, "create")}
+                size="sm"
+                title={
+                  canWriteOperation(collection, "create")
+                    ? "New"
+                    : writeDisabledReason(collection)
+                }
+                onClick={onCreateDocument}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                New
+              </Button>
+            ) : null}
+          </div>
         </div>
-
-        <CollectionFilters
-          collection={collection}
-          values={filterValues}
-          filtersActive={filtersActive}
-          onChange={onFilterChange}
-        />
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto">
@@ -809,7 +928,9 @@ function CollectionWorkspace({
           <DocumentTable
             collection={collection}
             documents={documents}
+            filterValues={filterValues}
             sort={sort}
+            onFilterChange={onFilterChange}
             onSortChange={onSortChange}
             onOpen={onOpenDocument}
           />
@@ -845,58 +966,46 @@ function CrudActions({
   onCancelEdit?: () => void;
   onDelete?: () => void;
 }) {
-  if (!collection.operations.update && !collection.operations.delete) {
-    return null;
-  }
-
   const disabledReason = writeDisabledReason(collection);
+  const canUpdate = canWriteOperation(collection, "update");
+  const canDelete = canWriteOperation(collection, "delete");
 
   return (
     <div className="flex items-center gap-2">
-      {collection.operations.update ? (
-        <Button
-          type="button"
-          size={compact ? "icon" : "sm"}
-          disabled={
-            loading || (!editing && !canWriteOperation(collection, "update"))
-          }
-          title={
-            canWriteOperation(collection, "update") ? "Edit" : disabledReason
-          }
-          variant="default"
-          onClick={editing ? onCancelEdit : onEdit}
-        >
-          <Pencil className={cn("h-4 w-4", compact ? "" : "mr-2")} />
-          {compact ? (
-            <span className="sr-only">{editing ? "Cancel" : "Edit"}</span>
-          ) : editing ? (
-            "Cancel"
-          ) : (
-            "Edit"
-          )}
-        </Button>
-      ) : null}
-      {collection.operations.delete ? (
-        <Button
-          type="button"
-          size={compact ? "icon" : "sm"}
-          disabled={loading || !canWriteOperation(collection, "delete")}
-          title={
-            canWriteOperation(collection, "delete") ? "Delete" : disabledReason
-          }
-          variant="outline"
-          onClick={onDelete}
-        >
-          {loading ? (
-            <Loader2
-              className={cn("h-4 w-4 animate-spin", compact ? "" : "mr-2")}
-            />
-          ) : (
-            <Trash2 className={cn("h-4 w-4", compact ? "" : "mr-2")} />
-          )}
-          {compact ? <span className="sr-only">Delete</span> : "Delete"}
-        </Button>
-      ) : null}
+      <Button
+        type="button"
+        size={compact ? "icon" : "sm"}
+        disabled={loading || (!editing && !canUpdate)}
+        title={canUpdate ? "Edit" : disabledReason}
+        variant="default"
+        onClick={editing ? onCancelEdit : onEdit}
+      >
+        <Pencil className={cn("h-4 w-4", compact ? "" : "mr-2")} />
+        {compact ? (
+          <span className="sr-only">{editing ? "Cancel" : "Edit"}</span>
+        ) : editing ? (
+          "Cancel"
+        ) : (
+          "Edit"
+        )}
+      </Button>
+      <Button
+        type="button"
+        size={compact ? "icon" : "sm"}
+        disabled={loading || !canDelete}
+        title={canDelete ? "Delete" : disabledReason}
+        variant="outline"
+        onClick={onDelete}
+      >
+        {loading ? (
+          <Loader2
+            className={cn("h-4 w-4 animate-spin", compact ? "" : "mr-2")}
+          />
+        ) : (
+          <Trash2 className={cn("h-4 w-4", compact ? "" : "mr-2")} />
+        )}
+        {compact ? <span className="sr-only">Delete</span> : "Delete"}
+      </Button>
     </div>
   );
 }
@@ -974,7 +1083,7 @@ function writeDisabledReason(collection: CmsCollectionConfig): string {
   return "Operation disabled";
 }
 
-function CollectionFilters({
+function _CollectionFilters({
   collection,
   values,
   filtersActive,
@@ -988,18 +1097,13 @@ function CollectionFilters({
   const filters = collection.filters;
 
   if (filters.length === 0) {
-    return (
-      <div className="flex items-center gap-2 border-t border-border px-4 py-3 text-sm text-muted-foreground">
-        <SlidersHorizontal className="h-4 w-4" />
-        No filters configured
-      </div>
-    );
+    return null;
   }
 
   return (
-    <div className="border-t border-border px-4 py-3">
-      <div className="flex flex-col gap-2 xl:flex-row xl:items-end">
-        <div className="grid flex-1 grid-cols-1 gap-2 md:grid-cols-2 2xl:grid-cols-4">
+    <div className="border-t border-border bg-muted/20 px-4 py-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           {filters.map((filter) => {
             const field = collection.fields.find(
               (candidate) => candidate.name === filter.field,
@@ -1029,9 +1133,9 @@ function CollectionFilters({
           size="sm"
           disabled={!filtersActive}
           onClick={() => onChange({})}
-          className="w-full xl:w-auto"
+          className="h-8 shrink-0 px-2.5 text-xs"
         >
-          <X className="mr-2 h-4 w-4" />
+          <X className="mr-1.5 h-3.5 w-3.5" />
           Clear
         </Button>
       </div>
@@ -1064,21 +1168,28 @@ function FilterControl({
     });
 
   return (
-    <div className="space-y-1">
-      <span className="text-[11px] text-muted-foreground">{label}</span>
-      <div className="grid grid-cols-[116px_minmax(0,1fr)] gap-2">
-        <Select value={operator} onValueChange={updateOperator}>
-          <SelectTrigger className="h-9">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {operators.map((candidate) => (
-              <SelectItem key={candidate} value={candidate}>
-                {filterOperatorLabel(candidate)}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+    <div className="flex h-8 w-full max-w-full items-stretch overflow-visible rounded-md border border-border bg-background shadow-sm sm:w-auto sm:min-w-[15.5rem]">
+      <div className="flex max-w-[5.5rem] shrink-0 items-center border-r border-border bg-muted/50 px-2">
+        <span
+          className="truncate text-xs font-medium text-foreground"
+          title={label}
+        >
+          {label}
+        </span>
+      </div>
+      <Select value={operator} onValueChange={updateOperator}>
+        <SelectTrigger className="h-8 w-24 shrink-0 rounded-none border-0 border-r border-border bg-transparent px-2 text-xs shadow-none focus:ring-0 focus:ring-offset-0">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {operators.map((candidate) => (
+            <SelectItem key={candidate} value={candidate}>
+              {filterOperatorLabel(candidate)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <div className="min-w-[5.75rem] flex-1">
         <FilterValueControl
           field={field}
           operator={operator}
@@ -1106,7 +1217,7 @@ function FilterValueControl({
   if (operator === "exists") {
     return (
       <Select value={valueString || "true"} onValueChange={onChange}>
-        <SelectTrigger className="h-9">
+        <SelectTrigger className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:ring-0 focus:ring-offset-0">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -1140,7 +1251,7 @@ function FilterValueControl({
         value={valueString || "__any"}
         onValueChange={(next) => onChange(next === "__any" ? "" : next)}
       >
-        <SelectTrigger className="h-9">
+        <SelectTrigger className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:ring-0 focus:ring-offset-0">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -1164,7 +1275,7 @@ function FilterValueControl({
         value={valueString || "__any"}
         onValueChange={(next) => onChange(next === "__any" ? "" : next)}
       >
-        <SelectTrigger className="h-9">
+        <SelectTrigger className="h-8 w-full min-w-0 rounded-md border border-input bg-background px-2 text-xs shadow-sm focus:ring-0 focus:ring-offset-0">
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
@@ -1177,120 +1288,275 @@ function FilterValueControl({
   }
 
   return (
-    <div className="relative">
+    <div className="relative h-8">
       {operator === "contains" ? (
-        <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Search className="pointer-events-none absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
       ) : null}
       <Input
         type={filterInputType(field, operator)}
         value={valueString}
         onChange={(event) => onChange(event.target.value)}
         placeholder={operator === "in" ? "Comma values" : "Filter"}
-        className={cn("h-9", operator === "contains" ? "pl-8" : "")}
+        className={cn(
+          "h-8 rounded-md border-input bg-background px-2 text-xs shadow-sm focus-visible:ring-1",
+          operator === "contains" ? "pl-7" : "",
+        )}
       />
     </div>
   );
 }
 
+function buildRelationBatches(
+  collections: CmsCollectionConfig[],
+  documents: CmsDocument[],
+  fields: ResolvedViewField[],
+): CmsRelationBatch[] {
+  const batches = new Map<string, CmsRelationBatch>();
+
+  for (const { field } of fields) {
+    if (!isRelationField(field) || !field.target) continue;
+    const targetCollection = collections.find(
+      (collection) => collection.name === field.target,
+    );
+    if (!targetCollection) continue;
+
+    let batch = batches.get(targetCollection.name);
+    if (!batch) {
+      batch = { collection: targetCollection, ids: [] };
+      batches.set(targetCollection.name, batch);
+    }
+
+    const seen = new Set(batch.ids);
+    for (const document of documents) {
+      const rawValue = document[field.name];
+      const values = Array.isArray(rawValue) ? rawValue : [rawValue];
+      for (const value of values) {
+        const id = relationId(value, field);
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        batch.ids.push(id);
+      }
+    }
+  }
+
+  return [...batches.values()]
+    .filter((batch) => batch.ids.length > 0)
+    .map((batch) => ({
+      ...batch,
+      ids: batch.ids.slice(0, 100),
+    }));
+}
+
 function DocumentTable({
   collection,
   documents,
+  filterValues,
   sort,
+  onFilterChange,
   onSortChange,
   onOpen,
 }: {
   collection: CmsCollectionConfig;
   documents: CmsDocument[];
+  filterValues: FilterValues;
   sort: CmsSortEntry[];
+  onFilterChange: (next: FilterValues) => void;
   onSortChange: (next: CmsSortEntry[]) => void;
   onOpen: (id: string) => void;
 }) {
-  const fields = listViewFields(collection);
+  const relationContext = useContext(CmsRelationContext);
+  const fields = useMemo(() => listViewFields(collection), [collection]);
+  const filtersByField = useMemo(
+    () => new Map(collection.filters.map((filter) => [filter.field, filter])),
+    [collection.filters],
+  );
   const idField = collection.source.idField ?? "_id";
-
-  if (documents.length === 0) {
-    return <EmptyState title="No items" detail="Try a different filter." />;
-  }
+  const relationBatches = useMemo(
+    () =>
+      buildRelationBatches(
+        relationContext?.collections ?? [],
+        documents,
+        fields,
+      ),
+    [documents, fields, relationContext?.collections],
+  );
+  const batchSignature = relationBatches
+    .map((batch) => `${batch.collection.name}:${batch.ids.join(",")}`)
+    .join("|");
+  const batchedRelationKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const batch of relationBatches) {
+      for (const id of batch.ids) {
+        keys.add(relationDocumentCacheKey(batch.collection.name, id));
+      }
+    }
+    return keys;
+  }, [relationBatches]);
+  const relationDocumentsQuery = useQuery({
+    queryKey: [
+      "cms-relation-batch",
+      relationContext?.scope ?? "",
+      batchSignature,
+    ],
+    queryFn: async () => {
+      const relationDocuments = new Map<string, CmsDocument>();
+      await Promise.all(
+        relationBatches.map(async (batch) => {
+          const result = await fetchCmsDocumentsByIds(
+            relationContext?.headers ?? {},
+            batch.collection.name,
+            batch.ids,
+          );
+          const targetIdField = batch.collection.source.idField ?? "_id";
+          for (const document of result.docs) {
+            const id = getDocumentId(document, targetIdField);
+            if (id) {
+              relationDocuments.set(
+                relationDocumentCacheKey(batch.collection.name, id),
+                document,
+              );
+            }
+          }
+        }),
+      );
+      return relationDocuments;
+    },
+    enabled: Boolean(relationContext && relationBatches.length > 0),
+    staleTime: 60_000,
+  });
+  const scopedRelationContext = useMemo<CmsRelationContextValue | null>(() => {
+    if (!relationContext) return null;
+    return {
+      ...relationContext,
+      relationDocuments: relationDocumentsQuery.data,
+      batchedRelationKeys,
+    };
+  }, [batchedRelationKeys, relationContext, relationDocumentsQuery.data]);
+  const updateFilter = (
+    filter: CmsFilterConfig,
+    field: CmsFieldConfig,
+    value: string | string[],
+  ) => {
+    const next = { ...filterValues };
+    if (isBlankFilterValue(value)) {
+      delete next[filter.field];
+    } else {
+      next[filter.field] = {
+        operator: preferredFilterOperator(field, filter),
+        value,
+      };
+    }
+    onFilterChange(next);
+  };
 
   return (
-    <div className="w-full min-w-0">
-      <div
-        className="sticky top-0 z-10 grid border-b border-border bg-background text-[11px] font-semibold uppercase tracking-wide text-muted-foreground"
-        style={{ gridTemplateColumns: tableGrid(fields) }}
-      >
-        {fields.map(({ field, view }, index) => {
-          const sortDirection = sort.find(
-            (entry) => entry.field === field.name,
-          )?.direction;
-          const sortable = isSortableViewField(field, view);
-          return (
-            <div
-              key={field.name}
-              className={cn(index === 0 ? "px-4" : "px-3", "py-2")}
-            >
-              {sortable ? (
-                <button
-                  type="button"
-                  onClick={() => onSortChange(nextSort(sort, field.name))}
-                  className="flex min-w-0 items-center gap-1 text-left uppercase hover:text-foreground"
-                  title={`Sort by ${view?.label ?? field.label ?? field.name}`}
-                >
-                  <span className="truncate">
-                    {view?.label ?? field.label ?? field.name}
-                  </span>
-                  {sortDirection === "asc" ? (
-                    <ArrowUp className="h-3.5 w-3.5 shrink-0" />
-                  ) : sortDirection === "desc" ? (
-                    <ArrowDown className="h-3.5 w-3.5 shrink-0" />
-                  ) : (
-                    <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  )}
-                </button>
-              ) : (
-                (view?.label ?? field.label ?? field.name)
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {documents.map((document) => {
-        const id = getDocumentId(document, idField);
-
-        return (
-          <div
-            key={id}
-            role="button"
-            tabIndex={0}
-            onClick={() => onOpen(id)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter" || event.key === " ") {
-                event.preventDefault();
-                onOpen(id);
-              }
-            }}
-            className="grid w-full border-b border-border text-left transition-colors hover:bg-muted"
-            style={{ gridTemplateColumns: tableGrid(fields) }}
-          >
-            {fields.map(({ field, view }, index) => (
+    <CmsRelationContext.Provider value={scopedRelationContext}>
+      <div className="w-full min-w-0">
+        <div
+          className="sticky top-0 z-10 grid border-b border-border bg-background text-muted-foreground"
+          style={{ gridTemplateColumns: tableGrid(fields) }}
+        >
+          {fields.map(({ field, view }, index) => {
+            const sortDirection = sort.find(
+              (entry) => entry.field === field.name,
+            )?.direction;
+            const sortable = isSortableViewField(field, view);
+            const filter = filtersByField.get(field.name);
+            const operator = filter
+              ? preferredFilterOperator(field, filter)
+              : null;
+            const value =
+              filter && operator
+                ? (filterValues[filter.field]?.value ??
+                  defaultFilterValue(filter, field).value)
+                : "";
+            const label = view?.label ?? field.label ?? field.name;
+            return (
               <div
                 key={field.name}
-                className={cn(
-                  "min-w-0 py-3 text-sm text-foreground",
-                  index === 0 ? "px-4 font-medium text-foreground" : "px-3",
-                )}
+                className={cn(index === 0 ? "px-4" : "px-3", "py-2")}
               >
-                <ValueInline
-                  value={document[field.name]}
-                  field={field}
-                  view={view}
-                />
+                <div className="flex min-w-0 items-center gap-1">
+                  <span className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wide">
+                    {label}
+                  </span>
+                  {sortable ? (
+                    <button
+                      type="button"
+                      onClick={() => onSortChange(nextSort(sort, field.name))}
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      title={`Sort by ${label}`}
+                    >
+                      <span className="sr-only">Sort by {label}</span>
+                      {sortDirection === "asc" ? (
+                        <ArrowUp className="h-3.5 w-3.5 shrink-0" />
+                      ) : sortDirection === "desc" ? (
+                        <ArrowDown className="h-3.5 w-3.5 shrink-0" />
+                      ) : (
+                        <ArrowUpDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                      )}
+                    </button>
+                  ) : null}
+                </div>
+                {filter && operator ? (
+                  <div className="mt-1">
+                    <FilterValueControl
+                      field={field}
+                      operator={operator}
+                      value={value}
+                      onChange={(nextValue) =>
+                        updateFilter(filter, field, nextValue)
+                      }
+                    />
+                  </div>
+                ) : null}
               </div>
-            ))}
-          </div>
-        );
-      })}
-    </div>
+            );
+          })}
+        </div>
+
+        {documents.length === 0 ? (
+          <EmptyState title="No items" detail="Try a different filter." />
+        ) : (
+          documents.map((document) => {
+            const id = getDocumentId(document, idField);
+
+            return (
+              <div
+                key={id}
+                role="button"
+                tabIndex={0}
+                onClick={() => onOpen(id)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    onOpen(id);
+                  }
+                }}
+                className="grid w-full border-b border-border text-left transition-colors hover:bg-muted"
+                style={{ gridTemplateColumns: tableGrid(fields) }}
+              >
+                {fields.map(({ field, view }, index) => (
+                  <div
+                    key={field.name}
+                    className={cn(
+                      "min-w-0 py-3 text-sm text-foreground",
+                      index === 0 ? "px-4 font-medium text-foreground" : "px-3",
+                    )}
+                  >
+                    <ValueInline
+                      value={document[field.name]}
+                      field={field}
+                      view={view}
+                    />
+                  </div>
+                ))}
+              </div>
+            );
+          })
+        )}
+      </div>
+    </CmsRelationContext.Provider>
   );
 }
 
@@ -1350,14 +1616,18 @@ function ContentDetailPage({
   collection,
   document,
   editing,
+  editBlockedReason,
   saving,
   onSubmit,
+  onCancelEdit,
 }: {
   collection: CmsCollectionConfig;
   document: CmsDocument;
   editing: boolean;
+  editBlockedReason: string | null;
   saving: boolean;
   onSubmit: (payload: CmsDocument) => void;
+  onCancelEdit: () => void;
 }) {
   const id = getDocumentId(document, collection.source.idField ?? "_id");
   const title = getDocumentTitle(collection, document);
@@ -1394,12 +1664,15 @@ function ContentDetailPage({
         </div>
 
         <TabsContent value="fields" className="mt-0">
-          {editing ? (
+          {editBlockedReason ? (
+            <EmptyState title="Edit unavailable" detail={editBlockedReason} />
+          ) : editing ? (
             <ContentFormPage
               collection={collection}
               document={document}
               saving={saving}
               onSubmit={onSubmit}
+              onCancel={onCancelEdit}
             />
           ) : (
             <div className="grid grid-cols-1 gap-4 p-4 lg:grid-cols-2 lg:p-6 2xl:grid-cols-3">
@@ -1433,13 +1706,16 @@ function ContentFormPage({
   document,
   saving,
   onSubmit,
+  onCancel,
 }: {
   collection: CmsCollectionConfig;
   document?: CmsDocument;
   saving: boolean;
   onSubmit: (payload: CmsDocument) => void;
+  onCancel?: () => void;
 }) {
   const fields = useMemo(() => formViewFields(collection), [collection]);
+  const isEdit = Boolean(document);
   const [values, setValues] = useState<CmsFormValues>(() =>
     buildFormValues(fields, document),
   );
@@ -1463,19 +1739,26 @@ function ContentFormPage({
         }
       }}
     >
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {fields.map(({ field, view }) => (
-          <FormFieldControl
-            key={field.name}
-            field={field}
-            view={view}
-            value={values[field.name] ?? ""}
-            onChange={(value) =>
-              setValues((current) => ({ ...current, [field.name]: value }))
-            }
-          />
-        ))}
-      </div>
+      {fields.length === 0 ? (
+        <EmptyState
+          title="No editable fields"
+          detail="This collection has no writable fields in the form view."
+        />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {fields.map(({ field, view }) => (
+            <FormFieldControl
+              key={field.name}
+              field={field}
+              view={view}
+              value={values[field.name] ?? ""}
+              onChange={(value) =>
+                setValues((current) => ({ ...current, [field.name]: value }))
+              }
+            />
+          ))}
+        </div>
+      )}
 
       {error ? (
         <div className="rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -1483,14 +1766,24 @@ function ContentFormPage({
         </div>
       ) : null}
 
-      <div className="flex items-center justify-end">
-        <Button type="submit" disabled={saving}>
+      <div className="flex items-center justify-end gap-2">
+        {onCancel ? (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={saving}
+            onClick={onCancel}
+          >
+            Cancel
+          </Button>
+        ) : null}
+        <Button type="submit" disabled={saving || fields.length === 0}>
           {saving ? (
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
             <Save className="mr-2 h-4 w-4" />
           )}
-          Save
+          {isEdit ? "Save changes" : "Create"}
         </Button>
       </div>
     </form>
@@ -1642,6 +1935,8 @@ function RelationPicker({
 }) {
   const relationContext = useContext(CmsRelationContext);
   const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const targetCollection = relationContext?.collections.find(
     (collection) => collection.name === field.target,
   );
@@ -1674,6 +1969,50 @@ function RelationPicker({
       ),
     enabled: Boolean(relationContext && targetCollection),
   });
+  const selectedDocsQuery = useQuery({
+    queryKey: [
+      "cms-relation-selected",
+      relationContext?.scope ?? "",
+      targetCollection?.name ?? null,
+      field.name,
+      selectedIds.join("\0"),
+    ],
+    queryFn: () =>
+      fetchCmsDocuments(
+        relationContext?.headers ?? {},
+        targetCollection?.name ?? "",
+        {},
+        undefined,
+        [],
+        Math.max(selectedIds.length, 1),
+        0,
+        selectedIds,
+      ),
+    enabled: Boolean(relationContext && targetCollection && selectedIds.length),
+  });
+  const selectedDocs = useMemo(
+    () => selectedDocsQuery.data?.docs ?? [],
+    [selectedDocsQuery.data?.docs],
+  );
+  const selectedDocById = useMemo(
+    () =>
+      targetCollection
+        ? relationDocumentsById(targetCollection, field, selectedDocs)
+        : new Map<string, CmsDocument>(),
+    [field, selectedDocs, targetCollection],
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (rootRef.current?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [open]);
 
   if (!targetCollection) {
     return (
@@ -1684,17 +2023,26 @@ function RelationPicker({
             multiple ? splitListValue(event.target.value) : event.target.value,
           )
         }
-        className="h-9"
+        className={cn(
+          "h-9",
+          compact &&
+            "h-8 rounded-md border-input bg-background px-2 text-xs shadow-sm focus-visible:ring-1",
+        )}
       />
     );
   }
 
-  const optionDocs = filterRelationOptions(
+  const optionDocs = mergeRelationOptions(
     targetCollection,
     field,
-    relationOptionsQuery.data?.docs ?? [],
-    query,
-    relationSearch,
+    selectedDocs,
+    filterRelationOptions(
+      targetCollection,
+      field,
+      relationOptionsQuery.data?.docs ?? [],
+      query,
+      relationSearch,
+    ),
   );
   const selectedSet = new Set(selectedIds);
 
@@ -1705,9 +2053,13 @@ function RelationPicker({
           ? selectedIds.filter((item) => item !== id)
           : [...selectedIds, id],
       );
+      setQuery("");
+      setOpen(true);
       return;
     }
     onChange(id);
+    setQuery("");
+    setOpen(false);
   };
 
   const clearId = (id: string) => {
@@ -1718,10 +2070,167 @@ function RelationPicker({
     onChange("");
   };
 
+  const showOptions = Boolean(open && targetCollection);
+
+  if (compact) {
+    const selectedLabels = selectedIds.map((id) =>
+      selectedRelationLabel(targetCollection, field, id, selectedDocById),
+    );
+    const compactLabel =
+      selectedLabels.length === 0
+        ? "Any"
+        : multiple && selectedLabels.length > 1
+          ? `${selectedLabels[0]} +${selectedLabels.length - 1}`
+          : selectedLabels[0];
+
+    return (
+      <div
+        ref={rootRef}
+        className="relative h-8 min-w-0 rounded-md border border-input bg-background shadow-sm"
+      >
+        <div className="flex h-8 min-w-0 items-center">
+          <button
+            type="button"
+            role="combobox"
+            aria-expanded={showOptions}
+            aria-controls={`${field.name}-relation-options`}
+            onClick={() => setOpen((next) => !next)}
+            className="flex h-8 min-w-0 flex-1 items-center justify-between gap-2 bg-transparent px-2 text-left text-xs outline-none hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring"
+            title={selectedLabels.join(", ") || "Any"}
+          >
+            <span
+              className={cn(
+                "min-w-0 flex-1 truncate",
+                selectedIds.length === 0 && "text-muted-foreground",
+              )}
+            >
+              {compactLabel}
+            </span>
+            {selectedIds.length === 0 ? (
+              <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            ) : null}
+          </button>
+          {selectedIds.length > 0 ? (
+            <button
+              type="button"
+              aria-label="Clear relation filter"
+              onClick={(event) => {
+                event.stopPropagation();
+                onChange(multiple ? [] : "");
+                setQuery("");
+              }}
+              className="flex h-8 w-7 shrink-0 items-center justify-center text-muted-foreground hover:bg-muted/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+        </div>
+
+        {showOptions ? (
+          <div className="absolute left-0 top-[calc(100%+4px)] z-[60] w-[20rem] max-w-[calc(100vw-2rem)] rounded-md border border-border bg-popover p-2 text-popover-foreground shadow-elevation-3">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2 top-2 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                value={query}
+                autoFocus
+                onChange={(event) => setQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    setOpen(false);
+                  }
+                }}
+                placeholder={`Search ${targetCollection.label}`}
+                className="h-8 pl-7 text-xs"
+              />
+            </div>
+
+            {multiple && selectedIds.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {selectedIds.map((id) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => clearId(id)}
+                    className="flex max-w-full items-center gap-1 rounded bg-primary/10 px-1.5 py-0.5 text-left text-[11px] text-primary hover:bg-primary/15"
+                    title="Remove"
+                  >
+                    <span className="truncate">
+                      {selectedRelationLabel(
+                        targetCollection,
+                        field,
+                        id,
+                        selectedDocById,
+                      )}
+                    </span>
+                    <X className="h-3 w-3 shrink-0" />
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            <div
+              id={`${field.name}-relation-options`}
+              role="listbox"
+              className="mt-2 max-h-56 overflow-auto"
+            >
+              {relationOptionsQuery.isLoading ? (
+                <div className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Loading
+                </div>
+              ) : optionDocs.length === 0 ? (
+                <div className="px-2 py-2 text-xs text-muted-foreground">
+                  No matches
+                </div>
+              ) : (
+                optionDocs.map((document) => {
+                  const id = relationOptionId(
+                    targetCollection,
+                    field,
+                    document,
+                  );
+                  if (!id) return null;
+                  const selected = selectedSet.has(id);
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      onClick={() => selectId(id)}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-2 rounded px-2 py-1.5 text-left text-xs hover:bg-muted",
+                        selected ? "text-primary" : "text-foreground",
+                      )}
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate">
+                          {relationLabel(targetCollection, field, document, id)}
+                        </span>
+                        <span className="block truncate font-mono text-[10px] text-muted-foreground">
+                          {id}
+                        </span>
+                      </span>
+                      {selected ? (
+                        <Check className="h-3.5 w-3.5 shrink-0" />
+                      ) : null}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div
+      ref={rootRef}
       className={cn(
-        "rounded border border-border bg-card",
+        "relative rounded border border-border bg-card",
         compact ? "p-2" : "p-3",
       )}
     >
@@ -1736,7 +2245,17 @@ function RelationPicker({
               title="Remove"
             >
               <div className="min-w-0 flex-1">
-                <RelationValue value={id} field={field} compact />
+                <span className="block truncate">
+                  {selectedRelationLabel(
+                    targetCollection,
+                    field,
+                    id,
+                    selectedDocById,
+                  )}
+                </span>
+                <span className="block truncate font-mono text-[10px] text-primary/70">
+                  {id}
+                </span>
               </div>
               <X className="h-3 w-3 shrink-0" />
             </button>
@@ -1750,51 +2269,72 @@ function RelationPicker({
         <Search className="pointer-events-none absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
         <Input
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onFocus={() => setOpen(true)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setOpen(true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              setOpen(false);
+            }
+          }}
           placeholder={`Search ${targetCollection.label}`}
+          role="combobox"
+          aria-expanded={showOptions}
+          aria-controls={`${field.name}-relation-options`}
           className="h-9 pl-8"
         />
       </div>
 
-      <div className="mt-2 max-h-52 overflow-auto rounded border border-border">
-        {relationOptionsQuery.isLoading ? (
-          <div className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Loading
-          </div>
-        ) : optionDocs.length === 0 ? (
-          <div className="px-2 py-2 text-xs text-muted-foreground">
-            No matches
-          </div>
-        ) : (
-          optionDocs.map((document) => {
-            const id = relationOptionId(targetCollection, field, document);
-            if (!id) return null;
-            const selected = selectedSet.has(id);
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => selectId(id)}
-                className={cn(
-                  "flex w-full items-center justify-between gap-2 border-b border-border px-2 py-2 text-left text-sm last:border-b-0 hover:bg-muted",
-                  selected ? "text-primary" : "text-foreground",
-                )}
-              >
-                <span className="min-w-0">
-                  <span className="block truncate">
-                    {relationLabel(targetCollection, field, document, id)}
+      {showOptions ? (
+        <div
+          id={`${field.name}-relation-options`}
+          role="listbox"
+          className="absolute left-3 right-3 top-full z-[60] mt-1 max-h-64 overflow-auto rounded-md border border-border bg-popover p-1 text-popover-foreground shadow-elevation-3"
+        >
+          {relationOptionsQuery.isLoading ? (
+            <div className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              Loading
+            </div>
+          ) : optionDocs.length === 0 ? (
+            <div className="px-2 py-2 text-xs text-muted-foreground">
+              No matches
+            </div>
+          ) : (
+            optionDocs.map((document) => {
+              const id = relationOptionId(targetCollection, field, document);
+              if (!id) return null;
+              const selected = selectedSet.has(id);
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  role="option"
+                  aria-selected={selected}
+                  onClick={() => selectId(id)}
+                  className={cn(
+                    "flex w-full items-center justify-between gap-2 rounded px-2 py-2 text-left text-sm hover:bg-muted",
+                    selected ? "text-primary" : "text-foreground",
+                  )}
+                >
+                  <span className="min-w-0">
+                    <span className="block truncate">
+                      {relationLabel(targetCollection, field, document, id)}
+                    </span>
+                    <span className="block truncate font-mono text-[10px] text-muted-foreground">
+                      {id}
+                    </span>
                   </span>
-                  <span className="block truncate font-mono text-[10px] text-muted-foreground">
-                    {id}
-                  </span>
-                </span>
-                {selected ? <Check className="h-4 w-4 shrink-0" /> : null}
-              </button>
-            );
-          })
-        )}
-      </div>
+                  {selected ? <Check className="h-4 w-4 shrink-0" /> : null}
+                </button>
+              );
+            })
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2295,22 +2835,41 @@ function RelationLink({
     (collection) => collection.name === field.target,
   );
   const id = relationId(value, field);
+  const cacheKey =
+    targetCollection && id
+      ? relationDocumentCacheKey(targetCollection.name, id)
+      : null;
+  const batchedDocument = cacheKey
+    ? relationContext?.relationDocuments?.get(cacheKey)
+    : undefined;
+  const isBatched = cacheKey
+    ? relationContext?.batchedRelationKeys?.has(cacheKey)
+    : false;
 
   const relationQuery = useQuery({
     queryKey: ["cms-relation", field.target, id],
-    queryFn: () =>
-      fetchCmsDocument(
+    queryFn: async () => {
+      const result = await fetchCmsDocumentsByIds(
         relationContext?.headers ?? {},
         targetCollection?.name ?? "",
-        id ?? "",
-      ),
-    enabled: Boolean(relationContext && targetCollection && id),
+        id ? [id] : [],
+      );
+      return result.docs[0] ?? null;
+    },
+    enabled: Boolean(
+      relationContext &&
+        targetCollection &&
+      id &&
+      !batchedDocument &&
+      !isBatched,
+    ),
     staleTime: 60_000,
   });
+  const relationDocument = batchedDocument ?? relationQuery.data;
 
   const label =
-    targetCollection && relationQuery.data
-      ? relationLabel(targetCollection, field, relationQuery.data, id)
+    targetCollection && relationDocument
+      ? relationLabel(targetCollection, field, relationDocument, id)
       : formatShortValue(value);
 
   if (!targetCollection || !id) {
@@ -2333,7 +2892,9 @@ function RelationLink({
       title={id}
     >
       <span className="block truncate">
-        {relationQuery.isLoading ? formatShortValue(value) : label}
+        {relationQuery.isLoading && !batchedDocument
+          ? formatShortValue(value)
+          : label}
       </span>
       {!compact && id !== label ? (
         <span className="mt-0.5 block truncate font-mono text-[10px] text-primary/70">
@@ -2423,12 +2984,35 @@ function buildFilters(
   return result;
 }
 
-function defaultFilterValue(filter: CmsFilterConfig): FilterValue {
-  const operator = enabledFilterOperators(filter)[0];
+function defaultFilterValue(
+  filter: CmsFilterConfig,
+  field?: CmsFieldConfig,
+): FilterValue {
+  const operator = field
+    ? preferredFilterOperator(field, filter)
+    : enabledFilterOperators(filter)[0];
   return {
     operator,
     value: operator === "exists" ? "true" : "",
   };
+}
+
+function preferredFilterOperator(
+  field: CmsFieldConfig,
+  filter: CmsFilterConfig,
+): CmsFilterOperator {
+  const operators = enabledFilterOperators(filter);
+  const preferred =
+    field.type === "relationMany" || field.type === "multiSelect"
+      ? "in"
+      : field.type === "text" || field.type === "textarea"
+        ? "contains"
+        : "equals";
+  if (operators.includes(preferred)) return preferred;
+  if (operators.includes("equals")) return "equals";
+  if (operators.includes("contains")) return "contains";
+  if (operators.includes("in")) return "in";
+  return operators[0];
 }
 
 function enabledFilterOperators(filter: CmsFilterConfig): CmsFilterOperator[] {
@@ -2517,6 +3101,48 @@ function filterRelationOptions(
   });
 }
 
+function mergeRelationOptions(
+  targetCollection: CmsCollectionConfig,
+  field: CmsFieldConfig,
+  selectedDocs: CmsDocument[],
+  optionDocs: CmsDocument[],
+): CmsDocument[] {
+  const seen = new Set<string>();
+  const merged: CmsDocument[] = [];
+
+  for (const document of [...selectedDocs, ...optionDocs]) {
+    const id = relationOptionId(targetCollection, field, document);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    merged.push(document);
+  }
+
+  return merged;
+}
+
+function relationDocumentsById(
+  targetCollection: CmsCollectionConfig,
+  field: CmsFieldConfig,
+  documents: CmsDocument[],
+): Map<string, CmsDocument> {
+  const result = new Map<string, CmsDocument>();
+  for (const document of documents) {
+    const id = relationOptionId(targetCollection, field, document);
+    if (id) result.set(id, document);
+  }
+  return result;
+}
+
+function selectedRelationLabel(
+  targetCollection: CmsCollectionConfig,
+  field: CmsFieldConfig,
+  id: string,
+  documentsById: Map<string, CmsDocument>,
+): string {
+  const document = documentsById.get(id);
+  return document ? relationLabel(targetCollection, field, document, id) : id;
+}
+
 function relationSearchFields(
   targetCollection: CmsCollectionConfig,
   field: CmsFieldConfig,
@@ -2573,11 +3199,15 @@ async function fetchCmsDocuments(
   sort: CmsSortEntry[],
   limit: number,
   offset: number,
+  ids: string[] = [],
 ): Promise<CmsListResult> {
   const params = new URLSearchParams({
     limit: String(limit),
     offset: String(offset),
   });
+  for (const id of ids) {
+    params.append("ids", id);
+  }
 
   if (Object.keys(filters).length > 0) {
     params.set("filters", JSON.stringify(filters));
@@ -2604,6 +3234,23 @@ async function fetchCmsDocuments(
     throw new Error(json.message || json.error || `HTTP ${res.status}`);
   }
   return json;
+}
+
+async function fetchCmsDocumentsByIds(
+  headers: Record<string, string>,
+  collection: string,
+  ids: string[],
+): Promise<CmsListResult> {
+  return fetchCmsDocuments(
+    headers,
+    collection,
+    {},
+    undefined,
+    [],
+    ids.length,
+    0,
+    ids,
+  );
 }
 
 async function fetchCmsDocument(

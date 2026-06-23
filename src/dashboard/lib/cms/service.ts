@@ -16,13 +16,13 @@ import {
   toUnconfiguredCmsConfig,
 } from "./config";
 import {
-  createMongoDocument,
-  deleteMongoDocument,
-  getMongoDocument,
-  listMongoDocuments,
-  updateMongoDocument,
-} from "./mongodb";
+  CmsAdapterError,
+  getCmsAdapter,
+  type CmsAdapter,
+  type CmsAdapterContext,
+} from "./adapters";
 import type {
+  CmsCollectionConfig,
   CmsDocument,
   CmsListQuery,
   CmsListResult,
@@ -78,30 +78,27 @@ export async function listCmsDocuments(
       : "list",
   );
 
-  if (collection.adapter !== "mongodb") {
-    throw new CmsRuntimeError(
-      "unsupported_adapter",
-      `CMS adapter "${collection.adapter}" is not supported by the Dashboard UI yet.`,
-      400,
+  const { adapter, context } = getAdapterContext(req, config, collection);
+
+  if (query.ids && query.ids.length > 0) {
+    const docs = await callCmsAdapter(() =>
+      adapter.listByIds(context, query.ids ?? []),
     );
+    return {
+      docs,
+      total: docs.length,
+      limit: docs.length,
+      offset: 0,
+    };
   }
 
-  const { uri, databaseName } = await resolveMongoSettings(
-    req,
-    config,
-    collection.adapter,
-  );
-  return listMongoDocuments({
-    uri,
-    databaseName,
-    config,
-    collection,
-    query: {
+  return callCmsAdapter(() =>
+    adapter.list(context, {
       ...query,
       search: normalizeSearchQuery(collection, query.search),
       sort: normalizeSortQuery(collection, query.sort),
-    },
-  });
+    }),
+  );
 }
 
 export async function getCmsDocument(
@@ -122,20 +119,8 @@ export async function getCmsDocument(
   const collection = getCollection(config, collectionName);
   assertReadOperationAllowed(collection, "get");
 
-  if (collection.adapter !== "mongodb") {
-    throw new CmsRuntimeError(
-      "unsupported_adapter",
-      `CMS adapter "${collection.adapter}" is not supported by the Dashboard UI yet.`,
-      400,
-    );
-  }
-
-  const { uri, databaseName } = await resolveMongoSettings(
-    req,
-    config,
-    collection.adapter,
-  );
-  return getMongoDocument({ uri, databaseName, config, collection, id });
+  const { adapter, context } = getAdapterContext(req, config, collection);
+  return callCmsAdapter(() => adapter.get(context, id));
 }
 
 export async function createCmsDocument(
@@ -148,7 +133,7 @@ export async function createCmsDocument(
 ): Promise<CmsDocument> {
   const config = await loadCmsConfigFromState(octokit, owner, repo);
   if (!config) {
-    throw new CmsConfigError(["CMS is not configured repo"], {
+    throw new CmsConfigError(["CMS is not configured for this repo"], {
       code: "cms_not_configured",
       status: 404,
     });
@@ -156,20 +141,8 @@ export async function createCmsDocument(
   const collection = getCollection(config, collectionName);
   assertWriteOperationAllowed(collection, "create");
 
-  if (collection.adapter !== "mongodb") {
-    throw new CmsRuntimeError(
-      "unsupported_adapter",
-      `CMS adapter "${collection.adapter}" not supported by Dashboard UI yet.`,
-      400,
-    );
-  }
-
-  const { uri, databaseName } = await resolveMongoSettings(
-    req,
-    config,
-    collection.adapter,
-  );
-  return createMongoDocument({ uri, databaseName, config, collection, data });
+  const { adapter, context } = getAdapterContext(req, config, collection);
+  return callCmsAdapter(() => adapter.create(context, data));
 }
 
 export async function updateCmsDocument(
@@ -183,7 +156,7 @@ export async function updateCmsDocument(
 ): Promise<CmsDocument | null> {
   const config = await loadCmsConfigFromState(octokit, owner, repo);
   if (!config) {
-    throw new CmsConfigError(["CMS is not configured repo"], {
+    throw new CmsConfigError(["CMS is not configured for this repo"], {
       code: "cms_not_configured",
       status: 404,
     });
@@ -191,27 +164,8 @@ export async function updateCmsDocument(
   const collection = getCollection(config, collectionName);
   assertWriteOperationAllowed(collection, "update");
 
-  if (collection.adapter !== "mongodb") {
-    throw new CmsRuntimeError(
-      "unsupported_adapter",
-      `CMS adapter "${collection.adapter}" not supported by Dashboard UI yet.`,
-      400,
-    );
-  }
-
-  const { uri, databaseName } = await resolveMongoSettings(
-    req,
-    config,
-    collection.adapter,
-  );
-  return updateMongoDocument({
-    uri,
-    databaseName,
-    config,
-    collection,
-    id,
-    data,
-  });
+  const { adapter, context } = getAdapterContext(req, config, collection);
+  return callCmsAdapter(() => adapter.update(context, id, data));
 }
 
 export async function deleteCmsDocument(
@@ -224,7 +178,7 @@ export async function deleteCmsDocument(
 ): Promise<boolean> {
   const config = await loadCmsConfigFromState(octokit, owner, repo);
   if (!config) {
-    throw new CmsConfigError(["CMS is not configured repo"], {
+    throw new CmsConfigError(["CMS is not configured for this repo"], {
       code: "cms_not_configured",
       status: 404,
     });
@@ -232,25 +186,14 @@ export async function deleteCmsDocument(
   const collection = getCollection(config, collectionName);
   assertWriteOperationAllowed(collection, "delete");
 
-  if (collection.adapter !== "mongodb") {
-    throw new CmsRuntimeError(
-      "unsupported_adapter",
-      `CMS adapter "${collection.adapter}" not supported by Dashboard UI yet.`,
-      400,
-    );
-  }
-
-  const { uri, databaseName } = await resolveMongoSettings(
-    req,
-    config,
-    collection.adapter,
-  );
-  return deleteMongoDocument({ uri, databaseName, config, collection, id });
+  const { adapter, context } = getAdapterContext(req, config, collection);
+  return callCmsAdapter(() => adapter.delete(context, id));
 }
 
 export function parseCmsListQuery(req: NextRequest): CmsListQuery {
   const params = req.nextUrl.searchParams;
   return {
+    ids: parseIdsParam(params),
     filters: parseFiltersParam(params.get("filters")),
     search: parseSearchParam(params),
     sort: parseSortParam(params.get("sort")),
@@ -259,44 +202,56 @@ export function parseCmsListQuery(req: NextRequest): CmsListQuery {
   };
 }
 
+function parseIdsParam(params: URLSearchParams): string[] {
+  const ids = params
+    .getAll("ids")
+    .flatMap((value) => value.split(","))
+    .map((id) => id.trim())
+    .filter(Boolean);
+  return [...new Set(ids)].slice(0, 100);
+}
+
 function hasSearchQuery(query: CmsListQuery): boolean {
   return (
     typeof query.search?.query === "string" && query.search.query.trim() !== ""
   );
 }
 
-async function resolveMongoSettings(
+function getAdapterContext(
   req: NextRequest,
   config: CmsRuntimeConfig,
-  adapterName: string,
-): Promise<{ uri: string; databaseName?: string }> {
-  const adapter = config.adapters[adapterName] ?? {};
-  const databaseUriSecret =
-    typeof adapter.databaseUriSecret === "string"
-      ? adapter.databaseUriSecret
-      : null;
-  const databaseName =
-    typeof adapter.databaseName === "string" && adapter.databaseName.trim()
-      ? adapter.databaseName.trim()
-      : undefined;
-
-  if (!databaseUriSecret) {
+  collection: CmsCollectionConfig,
+): { adapter: CmsAdapter; context: CmsAdapterContext } {
+  const adapter = getCmsAdapter(collection.adapter);
+  if (!adapter) {
     throw new CmsRuntimeError(
-      "missing_database_uri_secret",
-      `CMS adapter "${adapterName}" does not define databaseUriSecret.`,
+      "unsupported_adapter",
+      `CMS adapter "${collection.adapter}" is not available.`,
       400,
     );
   }
-  const uri = await getSecret(databaseUriSecret, { req });
-  if (!uri) {
-    throw new CmsRuntimeError(
-      "missing_secret",
-      `Secret "${databaseUriSecret}" is not configured.`,
-      500,
-    );
-  }
 
-  return { uri, databaseName };
+  return {
+    adapter,
+    context: {
+      req,
+      config,
+      collection,
+      settings: config.adapters[collection.adapter] ?? {},
+      getSecret: (name) => getSecret(name, { req }),
+    },
+  };
+}
+
+async function callCmsAdapter<T>(operation: () => Promise<T>): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    if (error instanceof CmsAdapterError) {
+      throw new CmsRuntimeError(error.code, error.message, error.status);
+    }
+    throw error;
+  }
 }
 
 function parseFiltersParam(value: string | null): CmsListQuery["filters"] {

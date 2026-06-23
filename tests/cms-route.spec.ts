@@ -130,7 +130,9 @@ describe("CMS API routes", () => {
 
   it("lists CMS documents with filters, sort, and pagination", async () => {
     const filters = { title: { contains: "Intro" } };
+    const ids = ["64f1a5f6f2a80f3a3a3a3a3a", "external-id"];
     service.parseCmsListQuery.mockReturnValueOnce({
+      ids,
       filters,
       sort: [
         { field: "title", direction: "asc" },
@@ -143,7 +145,7 @@ describe("CMS API routes", () => {
       request(
         `https://dash.test/api/kody/cms/lessons?filters=${encodeURIComponent(
           JSON.stringify(filters),
-        )}&sort=title:asc,updatedAt:desc&limit=10&offset=20`,
+        )}&ids=${ids.join(",")}&sort=title:asc,updatedAt:desc&limit=10&offset=20`,
       ),
       { params: Promise.resolve({ collection: "lessons" }) },
     );
@@ -156,6 +158,7 @@ describe("CMS API routes", () => {
       "A-Guy-Web",
       "lessons",
       {
+        ids,
         filters,
         sort: [
           { field: "title", direction: "asc" },
@@ -171,14 +174,14 @@ describe("CMS API routes", () => {
     });
   });
 
-  it("creates read-only CMS config files in state repo", async () => {
+  it("creates writable CMS config files in state repo", async () => {
     service.listCmsCollections.mockResolvedValueOnce({
       configured: true,
       version: 1,
       name: "A-Guy Web CMS",
       environment: "dev",
       defaultAdapter: "mongodb",
-      writePolicy: "read-only",
+      writePolicy: "enabled",
       collections: [],
     });
 
@@ -217,7 +220,8 @@ describe("CMS API routes", () => {
       name: "lessons",
       source: { collection: "lessons", idField: "_id" },
       titleField: "title",
-      operations: { create: false, update: false, delete: false },
+      writePolicy: "enabled",
+      operations: { create: true, update: true, delete: true },
     });
   });
 
