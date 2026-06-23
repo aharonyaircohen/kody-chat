@@ -42,6 +42,7 @@ import {
   uploadFile,
   type FileContent,
   type FileEntry,
+  getHttpStatus,
 } from "@dashboard/lib/repo-files";
 import { getFilePermission } from "@dashboard/lib/repo-files-perms";
 import { FileTree, type FileTreeOverlay } from "./FileTree";
@@ -690,20 +691,30 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
     const { path, pathType } = showDeleteConfirm;
     setBusyAction("Deleting...");
     try {
-      const files = await collectFiles(path, pathType);
-      if (files.length === 0) {
-        toast.error("Nothing to delete");
-        return;
+      let files: FileContent[] = [];
+      try {
+        files = await collectFiles(path, pathType);
+      } catch (err) {
+        if (
+          getHttpStatus(err) !== 404 &&
+          !(err instanceof Error && err.message.startsWith("File not found:"))
+        ) {
+          throw err;
+        }
       }
       for (const file of files.reverse()) {
-        await deleteFile(
-          octokit,
-          auth.owner,
-          auth.repo,
-          file.path,
-          file.sha,
-          `chore: delete ${path}`,
-        );
+        try {
+          await deleteFile(
+            octokit,
+            auth.owner,
+            auth.repo,
+            file.path,
+            file.sha,
+            `chore: delete ${path}`,
+          );
+        } catch (err) {
+          if (getHttpStatus(err) !== 404) throw err;
+        }
       }
       toast.success(`Deleted ${path}`);
       removeTreePath(path);

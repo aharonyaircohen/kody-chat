@@ -60,6 +60,17 @@ export function lineIndexFromFragment(
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export function getHttpStatus(error: unknown): number | undefined {
+  if (!error || typeof error !== "object") return undefined;
+
+  const value = error as {
+    status?: number;
+    response?: { status?: number; statusCode?: number };
+  };
+
+  return value.status ?? value.response?.status ?? value.response?.statusCode;
+}
+
 export interface FileEntry {
   name: string;
   path: string;
@@ -176,8 +187,7 @@ export async function readFile(
       encoding,
     };
   } catch (err) {
-    const status = (err as { status?: number }).status;
-    if (status === 404) return null;
+    if (getHttpStatus(err) === 404) return null;
     throw err;
   }
 }
