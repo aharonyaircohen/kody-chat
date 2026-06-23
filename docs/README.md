@@ -39,6 +39,9 @@ One doc per dashboard-managed store / capability.
   (GitHub Discussions) plus the `dispatchMentionPushes` spine that fans
   @mentions out to notifications and push.
 
+- ✅ [CMS](cms.md) — schema-driven CRUD from Kody state, MongoDB adapter,
+  permissions, Dashboard UI, chat tools, and MCP.
+
 ### Authoring & config
 
 - ✅ [Commands](commands.md) — slash commands, built-ins + repo commands.
