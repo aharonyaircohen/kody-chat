@@ -18,6 +18,7 @@ import type {
   CmsCollectionConfig,
   CmsDocument,
   CmsFieldConfig,
+  CmsFieldStorageKind,
   CmsListQuery,
   CmsListResult,
   CmsRuntimeConfig,
@@ -500,31 +501,32 @@ export function buildMongoWriteDocument(
 }
 
 function coerceMongoValue(field: CmsFieldConfig, value: unknown): unknown {
-  if (Array.isArray(value))
+  const storageKind = getFieldStorageKind(field);
+
+  if (storageKind === "objectIdArray") {
+    return coerceArrayValue(value).map((item) => coerceObjectIdValue(item));
+  }
+  if (storageKind === "objectId") return coerceObjectIdValue(value);
+  if (storageKind === "date") return coerceDateValue(value);
+  if (storageKind === "dateString") return coerceDateStringValue(value);
+  if (storageKind === "stringArray") {
+    return coerceArrayValue(value).map((item) => String(item));
+  }
+
+  if (Array.isArray(value)) {
     return value.map((item) => coerceMongoValue(field, item));
-  if (field.type === "number") {
+  }
+  if (storageKind === "number" || field.type === "number") {
     const numberValue = Number(value);
     return Number.isFinite(numberValue) ? numberValue : value;
   }
-  if (field.type === "boolean") {
+  if (storageKind === "boolean" || field.type === "boolean") {
     if (typeof value === "boolean") return value;
     if (value === "true" || value === "1" || value === 1) return true;
     if (value === "false" || value === "0" || value === 0) return false;
     return value;
   }
-  if (field.type === "date" && typeof value === "string") {
-    const date = new Date(value);
-    return Number.isNaN(date.getTime()) ? value : date;
-  }
-  if (
-    (field.type === "id" ||
-      field.type === "relation" ||
-      field.type === "relationMany") &&
-    typeof value === "string" &&
-    /^[a-f0-9]{24}$/i.test(value)
-  ) {
-    return new ObjectId(value);
-  }
+  if (field.type === "date") return coerceDateValue(value);
   return value;
 }
 
@@ -557,11 +559,58 @@ function coerceMongoInValues(field: CmsFieldConfig, value: unknown): unknown[] {
 }
 
 function isObjectIdField(field: CmsFieldConfig): boolean {
+  const storageKind = getFieldStorageKind(field);
   return (
+    storageKind === "objectId" ||
+    storageKind === "objectIdArray" ||
     field.type === "id" ||
     field.type === "relation" ||
     field.type === "relationMany"
   );
+}
+
+function getFieldStorageKind(field: CmsFieldConfig): CmsFieldStorageKind {
+  if (field.storage?.kind) return field.storage.kind;
+  if (field.type === "id" || field.type === "relation") return "objectId";
+  if (field.type === "relationMany") return "objectIdArray";
+  if (field.type === "date") return "date";
+  if (field.type === "multiSelect") return "stringArray";
+  if (field.type === "number") return "number";
+  if (field.type === "boolean") return "boolean";
+  if (field.type === "json") return "json";
+  if (field.type === "object") return "object";
+  if (field.type === "array") return "array";
+  return "string";
+}
+
+function coerceArrayValue(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean);
+  }
+  return value == null ? [] : [value];
+}
+
+function coerceObjectIdValue(value: unknown): unknown {
+  if (typeof value === "string" && /^[a-f0-9]{24}$/i.test(value)) {
+    return new ObjectId(value);
+  }
+  return value;
+}
+
+function coerceDateValue(value: unknown): unknown {
+  if (value instanceof Date) return value;
+  if (typeof value !== "string") return value;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date;
+}
+
+function coerceDateStringValue(value: unknown): unknown {
+  const date = coerceDateValue(value);
+  return date instanceof Date ? date.toISOString() : value;
 }
 
 function clampLimit(limit: unknown): number {

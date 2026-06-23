@@ -7,6 +7,7 @@ import type {
   CmsFilterConfig,
   CmsFieldConfig,
   CmsFieldOption,
+  CmsFieldStorageKind,
   CmsFieldType,
   CmsSortEntry,
   CmsViewFieldConfig,
@@ -221,10 +222,17 @@ function buildFieldConfig(
     name,
     type: inferFieldType(fieldStats, name),
     label: labelForField(name),
+    storage: inferFieldStorage(fieldStats, name),
   };
 
   if (name === "_id")
-    return { ...base, type: "id", label: "ID", readOnly: true };
+    return {
+      ...base,
+      type: "id",
+      label: "ID",
+      readOnly: true,
+      storage: { kind: "objectId" },
+    };
   if (name === "__v") {
     return {
       ...base,
@@ -235,7 +243,7 @@ function buildFieldConfig(
     };
   }
   if (name === "createdAt" || name === "updatedAt") {
-    return { ...base, type: "date", readOnly: true };
+    return { ...base, type: "date", readOnly: true, storage: { kind: "date" } };
   }
   if (SENSITIVE_RE.test(name)) base.hidden = true;
 
@@ -246,6 +254,9 @@ function buildFieldConfig(
       ...base,
       type: base.type,
       target: relationTarget,
+      storage: {
+        kind: base.type === "relationMany" ? "objectIdArray" : "objectId",
+      },
       ...(targetTitleField ? { labelField: targetTitleField } : {}),
     };
   }
@@ -275,9 +286,34 @@ function inferFieldType(
   if (fieldStats.types.has("boolean")) return "boolean";
   if (fieldStats.types.has("number")) return "number";
   if (fieldStats.types.has("object")) return "object";
+  if (stringLooksLikeObjectIdRelation(fieldStats, fieldName)) return "relation";
   if (stringLooksLikeEnum(fieldStats, fieldName)) return "select";
   if (stringLooksLikeTextarea(fieldStats, fieldName)) return "textarea";
   return "text";
+}
+
+function inferFieldStorage(
+  fieldStats: FieldStats,
+  fieldName: string,
+): { kind: CmsFieldStorageKind } | undefined {
+  if (fieldName === "_id" || fieldStats.types.has("objectId")) {
+    return { kind: "objectId" };
+  }
+  if (fieldStats.types.has("array")) {
+    if (arrayLooksLikeObjectIds(fieldStats)) return { kind: "objectIdArray" };
+    if (arrayLooksLikeEnum(fieldStats)) return { kind: "stringArray" };
+    return { kind: "array" };
+  }
+  if (fieldStats.types.has("date") || looksLikeDateField(fieldName)) {
+    return { kind: "date" };
+  }
+  if (fieldStats.types.has("boolean")) return { kind: "boolean" };
+  if (fieldStats.types.has("number")) return { kind: "number" };
+  if (fieldStats.types.has("object")) return { kind: "object" };
+  if (stringLooksLikeObjectIdRelation(fieldStats, fieldName)) {
+    return { kind: "objectId" };
+  }
+  return undefined;
 }
 
 function inferTitleField(stats: CollectionStats): string {
@@ -524,6 +560,19 @@ function arrayLooksLikeEnum(fieldStats: FieldStats): boolean {
     (value): value is string => typeof value === "string",
   );
   return samples.length > 0 && new Set(samples).size <= 20;
+}
+
+function stringLooksLikeObjectIdRelation(
+  fieldStats: FieldStats,
+  fieldName: string,
+): boolean {
+  const values = [...fieldStats.stringValues].filter(Boolean);
+  return (
+    fieldStats.types.has("string") &&
+    values.length > 0 &&
+    /(?:Id|ID|[._-]id)$/.test(fieldName) &&
+    values.every(isObjectIdString)
+  );
 }
 
 function stringLooksLikeEnum(

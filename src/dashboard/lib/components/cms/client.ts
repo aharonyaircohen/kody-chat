@@ -34,6 +34,7 @@ interface CmsSchemaResponse {
 export interface GenerateCmsSchemaPayload {
   adapter: "mongodb";
   name?: string;
+  refresh?: boolean;
 }
 
 export async function fetchCmsConfig(

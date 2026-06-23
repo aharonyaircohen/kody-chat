@@ -309,7 +309,7 @@ export function Sidebar() {
     <aside
       className={cn(
         "hidden md:flex flex-col shrink-0 border-r border-white/[0.06] bg-black/30",
-        "h-full z-30 transition-[width] duration-150 ease-out",
+        "h-full min-h-0 overflow-hidden z-30 transition-[width] duration-150 ease-out",
         width,
       )}
       aria-label="Primary navigation"
@@ -344,7 +344,7 @@ export function Sidebar() {
         </SimpleTooltip>
       </div>
 
-      <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-1">
+      <nav className="min-h-0 flex-1 overflow-y-auto py-3 px-2 space-y-1">
         <div className="pb-2">{renderLink(DASHBOARD_NAV_ITEM)}</div>
 
         <div className="pb-2">

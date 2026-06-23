@@ -388,6 +388,48 @@ describe("CMS API routes", () => {
     expect(stateRepo.writeStateFiles).not.toHaveBeenCalled();
   });
 
+  it("refreshes schema when collections already exist and refresh is explicit", async () => {
+    stateRepo.readStateText.mockResolvedValueOnce({
+      path: "cms/config.json",
+      content: JSON.stringify({
+        version: 1,
+        name: "Example CMS",
+        collections: ["collections/lessons.json"],
+      }),
+      sha: "config-sha",
+    });
+    service.listCmsCollections.mockResolvedValueOnce({
+      configured: true,
+      version: 1,
+      name: "Example CMS",
+      environment: "default",
+      defaultAdapter: "mongodb",
+      writePolicy: "enabled",
+      collections: [{ name: "lessons" }],
+    } as CmsConfigState);
+
+    const res = await schemaPOST(
+      jsonRequest("https://dash.test/api/kody/cms/schema", "POST", {
+        adapter: "mongodb",
+        refresh: true,
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(mongoSchema.generateMongoCmsSchemaFiles).toHaveBeenCalled();
+    expect(stateRepo.writeStateFiles).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: "A-Guy-educ",
+        repo: "A-Guy-Web",
+        message: "chore(cms): update CMS schema",
+      }),
+    );
+    await expect(res.json()).resolves.toMatchObject({
+      generated: { collections: 1, refreshed: true },
+      cms: { configured: true, collections: [{ name: "lessons" }] },
+    });
+  });
+
   it("creates a CMS document through collection route", async () => {
     const res = await collectionPOST(
       jsonRequest("https://dash.test/api/kody/cms/lessons", "POST", {

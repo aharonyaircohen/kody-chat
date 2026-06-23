@@ -4,6 +4,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -193,11 +194,15 @@ function CmsListPage() {
     },
   });
   const generateSchemaMutation = useMutation({
-    mutationFn: () =>
-      generateCmsSchema(headers, buildGenerateSchemaPayload(auth?.repo)),
+    mutationFn: (options?: { refresh?: boolean }) =>
+      generateCmsSchema(
+        headers,
+        buildGenerateSchemaPayload(auth?.repo, options),
+      ),
     onSuccess: async (cms) => {
       queryClient.setQueryData(cmsQueryKey, cms);
       await queryClient.invalidateQueries({ queryKey: cmsQueryKey });
+      await queryClient.invalidateQueries({ queryKey: ["cms-documents"] });
     },
   });
 
@@ -265,9 +270,11 @@ function CmsListPage() {
   const error =
     cmsQuery.error instanceof Error
       ? cmsQuery.error.message
-      : documentsQuery.error instanceof Error
-        ? documentsQuery.error.message
-        : null;
+      : generateSchemaMutation.error instanceof Error
+        ? generateSchemaMutation.error.message
+        : documentsQuery.error instanceof Error
+          ? documentsQuery.error.message
+          : null;
 
   if (cmsQuery.data?.configured === false) {
     return (
@@ -303,6 +310,7 @@ function CmsListPage() {
       actions={
         <CmsHeaderActions
           loading={cmsQuery.isFetching || documentsQuery.isFetching}
+          schemaLoading={generateSchemaMutation.isPending}
           writePolicy={
             cmsQuery.data?.configured ? cmsQuery.data.writePolicy : undefined
           }
@@ -310,6 +318,9 @@ function CmsListPage() {
             void cmsQuery.refetch();
             void documentsQuery.refetch();
           }}
+          onUpdateSchema={() =>
+            generateSchemaMutation.mutate({ refresh: true })
+          }
         />
       }
     >
@@ -363,7 +374,7 @@ function CmsListPage() {
                   : null
               }
               generatingSchema={generateSchemaMutation.isPending}
-              onGenerateSchema={() => generateSchemaMutation.mutate()}
+              onGenerateSchema={() => generateSchemaMutation.mutate({})}
               onPageChange={setOffset}
             />
           </main>
@@ -644,6 +655,8 @@ function CmsShell({
   error: string | null;
   children: React.ReactNode;
 }) {
+  useCmsViewportGuard();
+
   return (
     <div className="flex h-full min-h-0 flex-col bg-background text-foreground">
       <PageHeader
@@ -663,6 +676,41 @@ function CmsShell({
       {children}
     </div>
   );
+}
+
+function useCmsViewportGuard() {
+  useLayoutEffect(() => {
+    const htmlStyle = document.documentElement.style;
+    const bodyStyle = document.body.style;
+    const previousHtmlOverflow = htmlStyle.overflow;
+    const previousBodyOverflow = bodyStyle.overflow;
+    const previousScrollRestoration = window.history.scrollRestoration;
+    const resetWindowScroll = () => {
+      if (window.scrollX !== 0 || window.scrollY !== 0) {
+        window.scrollTo(0, 0);
+      }
+    };
+
+    window.history.scrollRestoration = "manual";
+    htmlStyle.overflow = "hidden";
+    bodyStyle.overflow = "hidden";
+    resetWindowScroll();
+
+    const animationFrame = window.requestAnimationFrame(resetWindowScroll);
+    const resetTimers = [50, 250, 1000].map((delay) =>
+      window.setTimeout(resetWindowScroll, delay),
+    );
+    window.addEventListener("scroll", resetWindowScroll, { passive: true });
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      resetTimers.forEach((timer) => window.clearTimeout(timer));
+      window.removeEventListener("scroll", resetWindowScroll);
+      htmlStyle.overflow = previousHtmlOverflow;
+      bodyStyle.overflow = previousBodyOverflow;
+      window.history.scrollRestoration = previousScrollRestoration;
+    };
+  }, []);
 }
 
 function CmsRelationProvider({
@@ -690,12 +738,16 @@ function CmsRelationProvider({
 
 function CmsHeaderActions({
   loading,
+  schemaLoading,
   writePolicy,
   onRefresh,
+  onUpdateSchema,
 }: {
   loading: boolean;
+  schemaLoading: boolean;
   writePolicy?: string;
   onRefresh: () => void;
+  onUpdateSchema: () => void;
 }) {
   return (
     <div className="flex items-center gap-2">
@@ -712,6 +764,19 @@ function CmsHeaderActions({
           <RefreshCw className="mr-2 h-4 w-4" />
         )}
         Refresh
+      </Button>
+      <Button
+        variant="outline"
+        size="sm"
+        disabled={schemaLoading}
+        onClick={onUpdateSchema}
+      >
+        {schemaLoading ? (
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        ) : (
+          <Database className="mr-2 h-4 w-4" />
+        )}
+        Update schema
       </Button>
     </div>
   );
@@ -1688,7 +1753,7 @@ function ContentDetailPage({
           </TabsList>
         </div>
 
-        <TabsContent value="fields" className="mt-0">
+        <TabsContent value="fields" className="mt-0 min-h-0 flex-1">
           {editBlockedReason ? (
             <EmptyState title="Edit unavailable" detail={editBlockedReason} />
           ) : editing ? (
@@ -1713,7 +1778,7 @@ function ContentDetailPage({
           )}
         </TabsContent>
 
-        <TabsContent value="json" className="mt-0">
+        <TabsContent value="json" className="mt-0 min-h-0 flex-1">
           <pre className="m-4 overflow-auto rounded border border-border bg-muted p-4 text-xs leading-relaxed text-foreground lg:m-6">
             {JSON.stringify(document, null, 2)}
           </pre>
@@ -1753,7 +1818,7 @@ function ContentFormPage({
 
   return (
     <form
-      className="max-w-4xl space-y-4 p-4 lg:p-6"
+      className="flex min-h-0 flex-1 flex-col overflow-hidden"
       onSubmit={(event) => {
         event.preventDefault();
         try {
@@ -1764,52 +1829,61 @@ function ContentFormPage({
         }
       }}
     >
-      {fields.length === 0 ? (
-        <EmptyState
-          title="No editable fields"
-          detail="This collection has no writable fields in the form view."
-        />
-      ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {fields.map(({ field, view }) => (
-            <FormFieldControl
-              key={field.name}
-              field={field}
-              view={view}
-              value={values[field.name] ?? ""}
-              onChange={(value) =>
-                setValues((current) => ({ ...current, [field.name]: value }))
-              }
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-6">
+        <div className="mx-auto w-full max-w-5xl space-y-4">
+          {fields.length === 0 ? (
+            <EmptyState
+              title="No editable fields"
+              detail="This collection has no writable fields in the form view."
             />
-          ))}
-        </div>
-      )}
-
-      {error ? (
-        <div className="rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {error}
-        </div>
-      ) : null}
-
-      <div className="flex items-center justify-end gap-2">
-        {onCancel ? (
-          <Button
-            type="button"
-            variant="outline"
-            disabled={saving}
-            onClick={onCancel}
-          >
-            Cancel
-          </Button>
-        ) : null}
-        <Button type="submit" disabled={saving || fields.length === 0}>
-          {saving ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
           ) : (
-            <Save className="mr-2 h-4 w-4" />
+            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+              {fields.map(({ field, view }) => (
+                <FormFieldControl
+                  key={field.name}
+                  field={field}
+                  view={view}
+                  value={values[field.name] ?? ""}
+                  onChange={(value) =>
+                    setValues((current) => ({
+                      ...current,
+                      [field.name]: value,
+                    }))
+                  }
+                />
+              ))}
+            </div>
           )}
-          {isEdit ? "Save changes" : "Create"}
-        </Button>
+
+          {error ? (
+            <div className="rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </div>
+          ) : null}
+        </div>
+      </div>
+
+      <div className="shrink-0 border-t border-border bg-background/95 px-4 py-3 backdrop-blur lg:px-6">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-end gap-2">
+          {onCancel ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={saving}
+              onClick={onCancel}
+            >
+              Cancel
+            </Button>
+          ) : null}
+          <Button type="submit" disabled={saving || fields.length === 0}>
+            {saving ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="mr-2 h-4 w-4" />
+            )}
+            {isEdit ? "Save changes" : "Create"}
+          </Button>
+        </div>
       </div>
     </form>
   );
@@ -2884,10 +2958,12 @@ function buildFilters(
 
 function buildGenerateSchemaPayload(
   repoName: string | undefined,
+  options: { refresh?: boolean } = {},
 ): GenerateCmsSchemaPayload {
   return {
     adapter: "mongodb",
     name: `${repoName ?? "Repo"} CMS`,
+    refresh: options.refresh,
   };
 }
 

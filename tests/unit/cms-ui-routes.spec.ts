@@ -51,6 +51,15 @@ describe("CMS UI routes", () => {
     expect(client).toContain("/api/kody/cms/schema");
   });
 
+  it("offers schema refresh when CMS already has collections", () => {
+    const manager = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+    const client = readRepoFile("src/dashboard/lib/components/cms/client.ts");
+
+    expect(manager).toContain("Update schema");
+    expect(manager).toContain("refresh: true");
+    expect(client).toContain("refresh?: boolean");
+  });
+
   it("keeps CMS table filters mounted while documents load", () => {
     const source = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
     const start = source.indexOf("function CollectionWorkspace");
@@ -60,5 +69,30 @@ describe("CMS UI routes", () => {
     expect(workspace).toContain("loading={loading}");
     expect(workspace).not.toContain("{loading ? (");
     expect(source).toContain(") : documents.length === 0 ? (");
+  });
+
+  it("keeps CMS form actions visible while form fields scroll", () => {
+    const source = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+    const start = source.indexOf("function ContentFormPage");
+    const end = source.indexOf("function FormFieldControl");
+    const form = source.slice(start, end);
+
+    expect(form).toContain("overflow-hidden");
+    expect(form).toContain("overflow-y-auto");
+    expect(form).toContain("border-t border-border");
+    expect(form).toContain("Save changes");
+    expect(form).toContain("Create");
+  });
+
+  it("contains outer page scrolling in CMS without fixing the dashboard shell", () => {
+    const manager = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+    const shell = readRepoFile(
+      "src/dashboard/lib/components/ChatRailShell.tsx",
+    );
+
+    expect(manager).toContain("useCmsViewportGuard");
+    expect(manager).toContain('window.history.scrollRestoration = "manual"');
+    expect(manager).toContain('htmlStyle.overflow = "hidden"');
+    expect(shell).not.toContain('bodyStyle.position = "fixed"');
   });
 });

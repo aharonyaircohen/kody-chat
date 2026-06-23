@@ -105,6 +105,62 @@ describe("CMS config contract", () => {
     expect(readStateText).toHaveBeenCalledTimes(1);
   });
 
+  it("loads referenced collection files concurrently", async () => {
+    let activeCollectionReads = 0;
+    let maxActiveCollectionReads = 0;
+
+    mockReadStateText.mockImplementation(
+      async (_octokit, _owner, _repo, path) => {
+        if (path === "cms/config.json") {
+          return {
+            path,
+            sha: "config-sha",
+            content: JSON.stringify({
+              version: 1,
+              defaultAdapter: "memory",
+              collections: [
+                "collections/alpha.json",
+                "collections/beta.json",
+                "collections/gamma.json",
+              ],
+            }),
+          };
+        }
+
+        activeCollectionReads += 1;
+        maxActiveCollectionReads = Math.max(
+          maxActiveCollectionReads,
+          activeCollectionReads,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        activeCollectionReads -= 1;
+
+        const name = String(path).match(/collections\/(.+)\.json$/)?.[1];
+        return {
+          path: String(path),
+          sha: `${name}-sha`,
+          content: JSON.stringify({
+            name,
+            fields: [{ name: "title", type: "text" }],
+          }),
+        };
+      },
+    );
+
+    const config = await loadCmsConfigFromState(
+      {} as never,
+      "A-Guy-educ",
+      "A-Guy-Admin",
+    );
+
+    expect(Object.keys(config?.collections ?? {})).toEqual([
+      "alpha",
+      "beta",
+      "gamma",
+    ]);
+    expect(maxActiveCollectionReads).toBeGreaterThan(1);
+  });
+
   it("normalizes environment-materialized collection maps", () => {
     const config = normalizeCmsConfig({
       version: 1,
@@ -376,5 +432,52 @@ describe("CMS config contract", () => {
         fields: ["missing"],
       }),
     ).toThrow(/unknown search field: missing/);
+  });
+
+  it("preserves field storage metadata", () => {
+    const config = normalizeCmsConfig({
+      version: 1,
+      defaultAdapter: "memory",
+      collections: {
+        lessons: {
+          name: "lessons",
+          fields: [
+            { name: "_id", type: "id", storage: { kind: "objectId" } },
+            {
+              name: "chapter",
+              type: "relation",
+              target: "chapters",
+              storage: { kind: "objectId" },
+            },
+            {
+              name: "tags",
+              type: "multiSelect",
+              storage: { kind: "stringArray" },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(config.collections.lessons.fields).toMatchObject([
+      { name: "_id", storage: { kind: "objectId" } },
+      { name: "chapter", storage: { kind: "objectId" } },
+      { name: "tags", storage: { kind: "stringArray" } },
+    ]);
+  });
+
+  it("rejects invalid field storage metadata", () => {
+    expect(() =>
+      normalizeCmsConfig({
+        version: 1,
+        defaultAdapter: "memory",
+        collections: {
+          lessons: {
+            name: "lessons",
+            fields: [{ name: "_id", type: "id", storage: { kind: "madeUp" } }],
+          },
+        },
+      }),
+    ).toThrow(/lessons\.fields\._id\.storage\.kind is invalid/);
   });
 });

@@ -127,6 +127,52 @@ describe("CMS Mongo adapter helpers", () => {
     expect(payload.updatedAt).toBeInstanceOf(Date);
   });
 
+  it("uses storage metadata when writing Mongo values", () => {
+    const chapter = "64f1a5f6f2a80f3a3a3a3a3a";
+    const payload = buildMongoWriteDocument(
+      {
+        ...collection,
+        fields: [
+          { name: "_id", type: "id", readOnly: true },
+          {
+            name: "chapterId",
+            type: "text",
+            storage: { kind: "objectId" },
+          },
+          {
+            name: "relatedLessons",
+            type: "array",
+            storage: { kind: "objectIdArray" },
+          },
+          {
+            name: "publishedAt",
+            type: "date",
+            storage: { kind: "dateString" },
+          },
+          {
+            name: "tags",
+            type: "multiSelect",
+            storage: { kind: "stringArray" },
+          },
+        ],
+      },
+      {
+        chapterId: chapter,
+        relatedLessons: `${chapter}, ${chapter}`,
+        publishedAt: "2026-01-02T03:04:05.000Z",
+        tags: ["math", "science"],
+      },
+      { requireRequiredFields: true },
+    );
+
+    expect(payload.chapterId).toBeInstanceOf(ObjectId);
+    expect(String(payload.chapterId)).toBe(chapter);
+    expect(payload.relatedLessons).toHaveLength(2);
+    expect((payload.relatedLessons as unknown[])[0]).toBeInstanceOf(ObjectId);
+    expect(payload.publishedAt).toBe("2026-01-02T03:04:05.000Z");
+    expect(payload.tags).toEqual(["math", "science"]);
+  });
+
   it("rejects writes for fields outside the CMS config", () => {
     expect(() =>
       buildMongoWriteDocument(

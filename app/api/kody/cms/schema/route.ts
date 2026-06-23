@@ -36,6 +36,7 @@ interface GenerateSchemaPayload {
   databaseUriSecret: string;
   environment: string;
   name?: string;
+  refresh: boolean;
   sampleSize: number;
   skipCollections: string[];
 }
@@ -72,11 +73,12 @@ export async function POST(req: NextRequest) {
       headerAuth.owner,
       headerAuth.repo,
     );
-    if (schemaAlreadyHasCollections) {
+    if (schemaAlreadyHasCollections && !payload.refresh) {
       return NextResponse.json(
         {
           error: "cms_schema_exists",
-          message: "CMS schema already has collections.",
+          message:
+            "CMS schema already has collections. Use refresh to update it.",
         },
         { status: 409, headers: NO_STORE_HEADERS },
       );
@@ -115,7 +117,9 @@ export async function POST(req: NextRequest) {
       owner: headerAuth.owner,
       repo: headerAuth.repo,
       files: generated.files,
-      message: "chore(cms): generate CMS schema",
+      message: payload.refresh
+        ? "chore(cms): update CMS schema"
+        : "chore(cms): generate CMS schema",
     });
     invalidateCmsConfigCache(headerAuth.owner, headerAuth.repo);
 
@@ -128,9 +132,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         cms,
-        generated: { collections: generated.collectionCount },
+        generated: {
+          collections: generated.collectionCount,
+          refreshed: payload.refresh,
+        },
       },
-      { status: 201, headers: NO_STORE_HEADERS },
+      { status: payload.refresh ? 200 : 201, headers: NO_STORE_HEADERS },
     );
   } catch (error) {
     return handleSchemaError(error);
@@ -161,6 +168,7 @@ function parseGenerateSchemaPayload(
     databaseUriSecret: CMS_DATABASE_URL_SECRET,
     environment: "default",
     name: stringValue(body.name) ?? `${repo} CMS`,
+    refresh: body.refresh === true,
     sampleSize: DEFAULT_SCHEMA_SAMPLE_SIZE,
     skipCollections: [],
   };

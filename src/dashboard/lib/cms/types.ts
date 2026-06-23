@@ -31,6 +31,23 @@ export interface CmsFieldOption {
   value: string;
 }
 
+export type CmsFieldStorageKind =
+  | "string"
+  | "stringArray"
+  | "number"
+  | "boolean"
+  | "date"
+  | "dateString"
+  | "objectId"
+  | "objectIdArray"
+  | "json"
+  | "object"
+  | "array";
+
+export interface CmsFieldStorageConfig {
+  kind: CmsFieldStorageKind;
+}
+
 export interface CmsFieldConfig {
   name: string;
   type: CmsFieldType;
@@ -42,6 +59,7 @@ export interface CmsFieldConfig {
   target?: string;
   valueField?: string;
   labelField?: string;
+  storage?: CmsFieldStorageConfig;
 }
 
 export interface CmsFilterConfig {

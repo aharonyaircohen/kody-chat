@@ -8,6 +8,7 @@ import type {
   CmsCollectionOperations,
   CmsCollectionViewsConfig,
   CmsFieldConfig,
+  CmsFieldStorageKind,
   CmsFieldType,
   CmsFilterConfig,
   CmsFilterOperator,
@@ -37,6 +38,20 @@ const FIELD_TYPES = new Set<CmsFieldType>([
   "multiSelect",
   "relation",
   "relationMany",
+  "json",
+  "object",
+  "array",
+]);
+
+const FIELD_STORAGE_KINDS = new Set<CmsFieldStorageKind>([
+  "string",
+  "stringArray",
+  "number",
+  "boolean",
+  "date",
+  "dateString",
+  "objectId",
+  "objectIdArray",
   "json",
   "object",
   "array",
@@ -240,21 +255,26 @@ export async function loadCmsConfigFromState(
       ? config.collections
       : [];
     const collections: Record<string, unknown> = {};
+    const inlineCollections: unknown[] = [];
+    const collectionFiles = collectionRefs.filter((entry): entry is string => {
+      if (typeof entry === "string") return true;
+      inlineCollections.push(entry);
+      return false;
+    });
 
-    for (const entry of collectionRefs) {
-      if (typeof entry === "string") {
-        const collection = await readStateJson(
-          octokit,
-          owner,
-          repo,
-          `cms/${entry}`,
-        );
-        if (isRecord(collection) && typeof collection.name === "string") {
-          collections[collection.name] = collection;
-        }
-        continue;
+    const loadedCollections = await mapWithConcurrency(
+      collectionFiles,
+      8,
+      (entry) => readStateJson(octokit, owner, repo, `cms/${entry}`),
+    );
+
+    for (const collection of loadedCollections) {
+      if (isRecord(collection) && typeof collection.name === "string") {
+        collections[collection.name] = collection;
       }
+    }
 
+    for (const entry of inlineCollections) {
       if (isRecord(entry) && typeof entry.name === "string") {
         collections[entry.name] = entry;
       }
@@ -487,6 +507,27 @@ async function readStateJson(
   } catch {
     throw new CmsConfigError([`invalid JSON in state file: ${path}`]);
   }
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  mapper: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let nextIndex = 0;
+
+  async function worker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const currentIndex = nextIndex;
+      nextIndex += 1;
+      results[currentIndex] = await mapper(items[currentIndex]);
+    }
+  }
+
+  const workerCount = Math.min(Math.max(1, concurrency), items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+  return results;
 }
 
 function adapterSettingsFromEnvironment(
@@ -845,9 +886,34 @@ function normalizeFields(
       target: stringOr(rawField.target),
       valueField: stringOr(rawField.valueField),
       labelField: stringOr(rawField.labelField),
+      storage: normalizeFieldStorage(
+        rawField.storage,
+        `${label}.${name}.storage`,
+        errors,
+      ),
     });
   }
   return fields;
+}
+
+function normalizeFieldStorage(
+  rawStorage: unknown,
+  label: string,
+  errors: string[],
+): CmsFieldConfig["storage"] {
+  if (rawStorage == null) return undefined;
+  if (!isRecord(rawStorage)) {
+    errors.push(`${label} must be an object`);
+    return undefined;
+  }
+
+  const kind = stringOr(rawStorage.kind);
+  if (!kind || !FIELD_STORAGE_KINDS.has(kind as CmsFieldStorageKind)) {
+    errors.push(`${label}.kind is invalid`);
+    return undefined;
+  }
+
+  return { kind: kind as CmsFieldStorageKind };
 }
 
 function normalizeCollectionFilters(
