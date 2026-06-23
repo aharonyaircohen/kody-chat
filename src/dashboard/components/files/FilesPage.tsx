@@ -29,6 +29,7 @@ import {
   ChevronRight,
   PanelLeft,
   Pencil,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@dashboard/lib/utils";
@@ -1144,6 +1145,22 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
           aria-label="Duplicate"
         >
           <Copy className="w-4 h-4" />
+        </Button>
+      )}
+
+      {writeable && selectedPath && selectedPathType && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => handleDelete(selectedPath, selectedPathType)}
+          className={cn(actionButtonClass, "text-red-400 hover:text-red-300")}
+          disabled={busyAction !== null}
+          title={selectedPathType === "dir" ? "Delete folder" : "Delete file"}
+          aria-label={
+            selectedPathType === "dir" ? "Delete folder" : "Delete file"
+          }
+        >
+          <Trash2 className="w-4 h-4" />
         </Button>
       )}
 
