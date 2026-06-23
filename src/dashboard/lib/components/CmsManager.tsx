@@ -336,10 +336,6 @@ function CmsListPage() {
         <CmsHeaderActions
           loading={cmsQuery.isFetching || documentsQuery.isFetching}
           schemaLoading={generateSchemaMutation.isPending}
-          writePolicy={
-            cmsQuery.data?.configured ? cmsQuery.data.writePolicy : undefined
-          }
-          actorRole={cmsQuery.data?.configured ? actorRole : undefined}
           onOpenMcp={() => setMcpOpen(true)}
           onRefresh={() => {
             void cmsQuery.refetch();
@@ -813,17 +809,9 @@ function CmsRelationProvider({
   );
 }
 
-function roleLabel(role: CmsRole): string {
-  if (role === "admin") return "Admin";
-  if (role === "editor") return "Editor";
-  return "Viewer";
-}
-
 function CmsHeaderActions({
   loading,
   schemaLoading,
-  writePolicy,
-  actorRole,
   onOpenMcp,
   onRefresh,
   onUpdateSchema,
@@ -831,8 +819,6 @@ function CmsHeaderActions({
 }: {
   loading: boolean;
   schemaLoading: boolean;
-  writePolicy?: string;
-  actorRole?: CmsRole;
   onOpenMcp: () => void;
   onRefresh: () => void;
   onUpdateSchema: () => void;
@@ -840,17 +826,6 @@ function CmsHeaderActions({
 }) {
   return (
     <div className="flex items-center gap-2">
-      {actorRole ? (
-        <Badge variant="secondary" className="rounded border border-border">
-          {roleLabel(actorRole)}
-        </Badge>
-      ) : null}
-      <Badge
-        variant="secondary"
-        className="rounded border border-border bg-muted text-foreground"
-      >
-        {writePolicy ?? "Loading"}
-      </Badge>
       <Button variant="outline" size="sm" onClick={onRefresh}>
         {loading ? (
           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
