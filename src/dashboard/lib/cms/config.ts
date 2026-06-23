@@ -292,7 +292,10 @@ export async function loadCmsConfigFromState(
       adapters: {
         ...(isRecord(config.adapters) ? config.adapters : {}),
         ...(typeof environment.adapter === "string"
-          ? { [environment.adapter]: adapterSettingsFromEnvironment(environment) }
+          ? {
+              [environment.adapter]:
+                adapterSettingsFromEnvironment(environment),
+            }
           : {}),
       },
       collections,
@@ -325,7 +328,7 @@ export function normalizeCmsConfig(rawConfig: unknown): CmsRuntimeConfig {
     errors,
   );
 
-  if (Object.keys(collections).length === 0) {
+  if (false && Object.keys(collections).length === 0) {
     errors.push("at least one collection is required");
   }
 

@@ -37,10 +37,24 @@ describe("CMS UI routes", () => {
     expect(client).toContain("createCmsConfig");
   });
 
+  it("offers schema generation when CMS has no collections", () => {
+    const manager = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+    const client = readRepoFile("src/dashboard/lib/components/cms/client.ts");
+
+    expect(manager).toContain("GenerateSchemaState");
+    expect(manager).toContain("Generate schema");
+    expect(manager).toContain("DATABASE_URL");
+    expect(manager).toContain("generateSchemaMutation.mutate");
+    expect(manager).not.toContain("URI secret");
+    expect(manager).not.toContain("Sample size");
+    expect(manager).not.toContain("Skip collections");
+    expect(client).toContain("/api/kody/cms/schema");
+  });
+
   it("keeps CMS table filters mounted while documents load", () => {
     const source = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
     const start = source.indexOf("function CollectionWorkspace");
-    const end = source.indexOf("function CrudActions");
+    const end = source.indexOf("function GenerateSchemaState");
     const workspace = source.slice(start, end);
 
     expect(workspace).toContain("loading={loading}");

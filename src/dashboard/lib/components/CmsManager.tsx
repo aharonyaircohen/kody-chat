@@ -62,7 +62,9 @@ import {
   fetchCmsDocument,
   fetchCmsDocuments,
   fetchCmsDocumentsByIds,
+  generateCmsSchema,
   updateCmsDocument,
+  type GenerateCmsSchemaPayload,
 } from "./cms/client";
 import { canWriteOperation, writeDisabledReason } from "./cms/operations";
 import { cmsDocumentEditPath, cmsDocumentPath } from "./cms/paths";
@@ -185,6 +187,14 @@ function CmsListPage() {
   const createConfigMutation = useMutation({
     mutationFn: () =>
       createCmsConfig(headers, { name: `${auth?.repo ?? "Repo"} CMS` }),
+    onSuccess: async (cms) => {
+      queryClient.setQueryData(cmsQueryKey, cms);
+      await queryClient.invalidateQueries({ queryKey: cmsQueryKey });
+    },
+  });
+  const generateSchemaMutation = useMutation({
+    mutationFn: () =>
+      generateCmsSchema(headers, buildGenerateSchemaPayload(auth?.repo)),
     onSuccess: async (cms) => {
       queryClient.setQueryData(cmsQueryKey, cms);
       await queryClient.invalidateQueries({ queryKey: cmsQueryKey });
@@ -347,6 +357,13 @@ function CmsListPage() {
                   `/cms/new/${encodeURIComponent(selectedCollection.name)}`,
                 );
               }}
+              generateSchemaError={
+                generateSchemaMutation.error instanceof Error
+                  ? generateSchemaMutation.error.message
+                  : null
+              }
+              generatingSchema={generateSchemaMutation.isPending}
+              onGenerateSchema={() => generateSchemaMutation.mutate()}
               onPageChange={setOffset}
             />
           </main>
@@ -813,6 +830,9 @@ function CollectionWorkspace({
   onSortChange,
   onOpenDocument,
   onCreateDocument,
+  generateSchemaError,
+  generatingSchema,
+  onGenerateSchema,
   onPageChange,
 }: {
   collection: CmsCollectionConfig | null;
@@ -828,13 +848,17 @@ function CollectionWorkspace({
   onSortChange: (next: CmsSortEntry[]) => void;
   onOpenDocument: (id: string) => void;
   onCreateDocument: () => void;
+  generateSchemaError: string | null;
+  generatingSchema: boolean;
+  onGenerateSchema: () => void;
   onPageChange: (offset: number) => void;
 }) {
   if (!collection) {
     return (
-      <EmptyState
-        title="Select a collection"
-        detail="No collection selected."
+      <GenerateSchemaState
+        error={generateSchemaError}
+        loading={generatingSchema}
+        onSubmit={onGenerateSchema}
       />
     );
   }
@@ -916,6 +940,49 @@ function CollectionWorkspace({
         onChange={onPageChange}
       />
     </>
+  );
+}
+
+function GenerateSchemaState({
+  error,
+  loading,
+  onSubmit,
+}: {
+  error: string | null;
+  loading: boolean;
+  onSubmit: () => void;
+}) {
+  return (
+    <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-4 py-6 md:px-8">
+      <div className="w-full max-w-md text-center">
+        <div className="text-sm font-medium text-foreground">
+          No collections
+        </div>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Generate a schema from MongoDB using the `DATABASE_URL` secret.
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Kody will write the generated CMS config into the state repo.
+        </p>
+
+        {error ? (
+          <div className="mt-4 rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </div>
+        ) : null}
+
+        <div className="mt-5 flex items-center justify-center gap-2">
+          <Button type="button" onClick={onSubmit} disabled={loading}>
+            {loading ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Database className="mr-2 h-4 w-4" />
+            )}
+            Generate schema
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -2656,7 +2723,7 @@ function RelationLink({
     },
     enabled: Boolean(
       relationContext &&
-        targetCollection &&
+      targetCollection &&
       id &&
       !batchedDocument &&
       !isBatched,
@@ -2813,6 +2880,15 @@ function buildFilters(
   }
 
   return result;
+}
+
+function buildGenerateSchemaPayload(
+  repoName: string | undefined,
+): GenerateCmsSchemaPayload {
+  return {
+    adapter: "mongodb",
+    name: `${repoName ?? "Repo"} CMS`,
+  };
 }
 
 function defaultFilterValue(

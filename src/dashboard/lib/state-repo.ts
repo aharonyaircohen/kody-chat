@@ -37,6 +37,11 @@ export interface StateRepoEntry {
   size?: number;
 }
 
+export interface StateRepoWriteFile {
+  path: string;
+  content: string;
+}
+
 interface ContentFile {
   type?: string;
   encoding?: string;
@@ -281,6 +286,68 @@ export async function writeStateText({
     ...(sha ? { sha } : {}),
   });
   return { sha: res.data.content?.sha ?? null };
+}
+
+export async function writeStateFiles({
+  octokit,
+  owner,
+  repo,
+  files,
+  message,
+}: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  files: StateRepoWriteFile[];
+  message: string;
+}): Promise<{ sha: string }> {
+  if (files.length === 0) {
+    throw new Error("No state files to write");
+  }
+
+  const target = await resolveStateRepo(octokit, owner, repo);
+  const repoInfo = await octokit.repos.get({
+    owner: target.owner,
+    repo: target.repo,
+  });
+  const branch = repoInfo.data.default_branch;
+  const ref = await octokit.git.getRef({
+    owner: target.owner,
+    repo: target.repo,
+    ref: `heads/${branch}`,
+  });
+  const baseSha = ref.data.object.sha;
+  const baseCommit = await octokit.git.getCommit({
+    owner: target.owner,
+    repo: target.repo,
+    commit_sha: baseSha,
+  });
+  const tree = await octokit.git.createTree({
+    owner: target.owner,
+    repo: target.repo,
+    base_tree: baseCommit.data.tree.sha,
+    tree: files.map((file) => ({
+      path: stateRepoPath(target, file.path),
+      mode: "100644",
+      type: "blob",
+      content: file.content,
+    })),
+  });
+  const commit = await octokit.git.createCommit({
+    owner: target.owner,
+    repo: target.repo,
+    message,
+    tree: tree.data.sha,
+    parents: [baseSha],
+  });
+  await octokit.git.updateRef({
+    owner: target.owner,
+    repo: target.repo,
+    ref: `heads/${branch}`,
+    sha: commit.data.sha,
+  });
+
+  return { sha: commit.data.sha };
 }
 
 export async function deleteStateFile({

@@ -60,12 +60,36 @@ const stateRepo = vi.hoisted(() => ({
     async (..._args: unknown[]): Promise<unknown | null> => null,
   ),
   writeStateText: vi.fn(async (_input: unknown): Promise<void> => undefined),
+  writeStateFiles: vi.fn(async (_input: unknown): Promise<void> => undefined),
+}));
+
+const mongoSchema = vi.hoisted(() => ({
+  generateMongoCmsSchemaFiles: vi.fn(async () => ({
+    collectionCount: 1,
+    files: [
+      {
+        path: "cms/config.json",
+        content:
+          '{\n  "version": 1,\n  "name": "Example CMS",\n  "collections": ["collections/lessons.json"]\n}\n',
+      },
+      {
+        path: "cms/collections/lessons.json",
+        content: '{\n  "name": "lessons"\n}\n',
+      },
+    ],
+  })),
+}));
+
+const vault = vi.hoisted(() => ({
+  getSecret: vi.fn(async () => "mongodb://localhost/a-guy-dev"),
 }));
 
 vi.mock("@dashboard/lib/auth", () => auth);
 vi.mock("@dashboard/lib/github-client", () => github);
 vi.mock("@dashboard/lib/cms/service", () => service);
 vi.mock("@dashboard/lib/state-repo", () => stateRepo);
+vi.mock("@dashboard/lib/cms/adapters/mongodb-schema", () => mongoSchema);
+vi.mock("@dashboard/lib/vault/get-secret", () => vault);
 
 import {
   GET as collectionGET,
@@ -77,6 +101,7 @@ import {
   PATCH as documentPATCH,
 } from "../app/api/kody/cms/[collection]/[id]/route";
 import { GET as indexGET, POST as indexPOST } from "../app/api/kody/cms/route";
+import { POST as schemaPOST } from "../app/api/kody/cms/schema/route";
 
 function request(url = "https://dash.test/api/kody/cms") {
   return new NextRequest(url, {
@@ -225,6 +250,142 @@ describe("CMS API routes", () => {
     });
     expect(stateRepo.writeStateText).not.toHaveBeenCalled();
     expect(auth.verifyActorLogin).not.toHaveBeenCalled();
+  });
+
+  it("generates CMS schema into the state repo", async () => {
+    stateRepo.readStateText.mockResolvedValueOnce({
+      path: "cms/config.json",
+      content: JSON.stringify({
+        version: 1,
+        name: "Example CMS",
+        environment: "default",
+        writePolicy: "read-only",
+        collections: [],
+      }),
+      sha: "config-sha",
+    });
+    service.listCmsCollections.mockResolvedValueOnce({
+      configured: true,
+      version: 1,
+      name: "Example CMS",
+      environment: "default",
+      defaultAdapter: "mongodb",
+      writePolicy: "enabled",
+      collections: [
+        {
+          name: "lessons",
+          label: "Lessons",
+          adapter: "mongodb",
+          source: { collection: "lessons", idField: "_id" },
+          searchFields: ["title"],
+          writePolicy: "enabled",
+          operations: {
+            list: true,
+            get: true,
+            search: true,
+            create: true,
+            update: true,
+            delete: true,
+          },
+          defaultSort: [],
+          fields: [{ name: "_id", type: "id" }],
+          filters: [],
+        },
+      ],
+    } as CmsConfigState);
+
+    const res = await schemaPOST(
+      jsonRequest("https://dash.test/api/kody/cms/schema", "POST", {
+        adapter: "mongodb",
+      }),
+    );
+
+    expect(res.status).toBe(201);
+    expect(vault.getSecret).toHaveBeenCalledWith(
+      "DATABASE_URL",
+      expect.anything(),
+    );
+    expect(stateRepo.readStateText).toHaveBeenCalledWith(
+      expect.anything(),
+      "A-Guy-educ",
+      "A-Guy-Web",
+      "cms/config.json",
+    );
+    expect(mongoSchema.generateMongoCmsSchemaFiles).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uri: "mongodb://localhost/a-guy-dev",
+        databaseUriSecret: "DATABASE_URL",
+        repoName: "A-Guy-Web",
+        environment: "default",
+        sampleSize: 100,
+        skipCollections: [],
+      }),
+    );
+    expect(mongoSchema.generateMongoCmsSchemaFiles).toHaveBeenCalledWith(
+      expect.not.objectContaining({ databaseName: "" }),
+    );
+    expect(stateRepo.writeStateFiles).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: "A-Guy-educ",
+        repo: "A-Guy-Web",
+        message: "chore(cms): generate CMS schema",
+      }),
+    );
+    await expect(res.json()).resolves.toMatchObject({
+      generated: { collections: 1 },
+      cms: { configured: true, collections: [{ name: "lessons" }] },
+    });
+  });
+
+  it("does not write an empty generated schema", async () => {
+    stateRepo.readStateText.mockResolvedValueOnce({
+      path: "cms/config.json",
+      content: JSON.stringify({
+        version: 1,
+        name: "Example CMS",
+        collections: [],
+      }),
+      sha: "config-sha",
+    });
+    mongoSchema.generateMongoCmsSchemaFiles.mockResolvedValueOnce({
+      collectionCount: 0,
+      files: [],
+    });
+
+    const res = await schemaPOST(
+      jsonRequest("https://dash.test/api/kody/cms/schema", "POST", {
+        adapter: "mongodb",
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toMatchObject({
+      error: "cms_schema_empty",
+      message: "No MongoDB collections found from DATABASE_URL.",
+    });
+    expect(stateRepo.writeStateFiles).not.toHaveBeenCalled();
+  });
+
+  it("does not regenerate schema when collections already exist", async () => {
+    stateRepo.readStateText.mockResolvedValueOnce({
+      path: "cms/config.json",
+      content: JSON.stringify({
+        version: 1,
+        name: "Example CMS",
+        collections: ["collections/lessons.json"],
+      }),
+      sha: "config-sha",
+    });
+
+    const res = await schemaPOST(
+      jsonRequest("https://dash.test/api/kody/cms/schema", "POST", {
+        adapter: "mongodb",
+      }),
+    );
+
+    expect(res.status).toBe(409);
+    expect(mongoSchema.generateMongoCmsSchemaFiles).not.toHaveBeenCalled();
+    expect(stateRepo.writeStateFiles).not.toHaveBeenCalled();
   });
 
   it("creates a CMS document through collection route", async () => {

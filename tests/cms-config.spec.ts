@@ -38,6 +38,27 @@ describe("CMS config contract", () => {
     );
   });
 
+  it("loads empty root cms/config.json as configured", async () => {
+    mockReadStateText.mockResolvedValueOnce({
+      path: "cms/config.json",
+      sha: "config-sha",
+      content: JSON.stringify({
+        version: 1,
+        name: "Empty CMS",
+        environment: "default",
+        writePolicy: "read-only",
+        collections: [],
+      }),
+    });
+
+    await expect(
+      loadCmsConfigFromState({} as never, "A-Guy-educ", "A-Guy-Web"),
+    ).resolves.toMatchObject({
+      name: "Empty CMS",
+      collections: {},
+    });
+  });
+
   it("still fails when a referenced CMS file is missing", async () => {
     mockReadStateText
       .mockResolvedValueOnce({
@@ -168,6 +189,20 @@ describe("CMS config contract", () => {
       delete: false,
     });
     expect(config.adapters["content-store"].workspace).toBe("development");
+  });
+
+  it("allows empty collection configs", () => {
+    const config = normalizeCmsConfig({
+      version: 1,
+      name: "Empty CMS",
+      environment: "default",
+      defaultAdapter: "content-store",
+      writePolicy: "read-only",
+      collections: [],
+    });
+
+    expect(config.collections).toEqual({});
+    expect(config.name).toBe("Empty CMS");
   });
 
   it("preserves opaque adapter settings", () => {

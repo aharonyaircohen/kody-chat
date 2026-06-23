@@ -24,11 +24,40 @@ interface CmsDeleteResponse {
   message?: string;
 }
 
+interface CmsSchemaResponse {
+  cms?: CmsConfigState;
+  generated?: { collections?: number };
+  error?: string;
+  message?: string;
+}
+
+export interface GenerateCmsSchemaPayload {
+  adapter: "mongodb";
+  name?: string;
+}
+
 export async function fetchCmsConfig(
   headers: Record<string, string>,
 ): Promise<CmsConfigState> {
   const res = await fetch("/api/kody/cms", { headers, cache: "no-store" });
   const json = (await res.json().catch(() => ({}))) as CmsIndexResponse;
+  if (!res.ok || !json.cms) {
+    throw new Error(json.message || json.error || `HTTP ${res.status}`);
+  }
+  return json.cms;
+}
+
+export async function generateCmsSchema(
+  headers: Record<string, string>,
+  payload: GenerateCmsSchemaPayload,
+): Promise<CmsConfigState> {
+  const res = await fetch("/api/kody/cms/schema", {
+    method: "POST",
+    headers: { ...headers, "content-type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify(payload),
+  });
+  const json = (await res.json().catch(() => ({}))) as CmsSchemaResponse;
   if (!res.ok || !json.cms) {
     throw new Error(json.message || json.error || `HTTP ${res.status}`);
   }
