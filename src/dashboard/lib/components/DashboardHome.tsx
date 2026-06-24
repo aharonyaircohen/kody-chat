@@ -53,9 +53,11 @@ import {
 } from "../hooks/useDashboardActions";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useManagedGoals } from "../hooks/useManagedGoals";
+import { useAuth } from "../auth-context";
 import { managedGoalModel, type ManagedGoalRecord } from "../managed-goals";
 import { CreateTaskDialog } from "./CreateTaskDialog";
 import { CreateGoalDialog } from "./GoalControl";
+import { RepoManager } from "./RepoManager";
 import { cn } from "../utils";
 import { autoDirProps } from "../text-direction";
 import type { ColumnId, KodyTask } from "../types";
@@ -947,6 +949,8 @@ function ActivityOverview() {
 // ── page ─────────────────────────────────────────────────────────────────────
 
 export function DashboardHome() {
+  const { auth } = useAuth();
+
   // refetchInterval "auto" — the "Happening now" panel needs to feel live, so
   // we poll at the board cadence (30s) while work is in flight and back off to
   // idle (60s) when nothing is running. Still one shared task query — no extra
@@ -959,6 +963,10 @@ export function DashboardHome() {
     refetchInterval: "auto",
   });
   const all = tasks ?? [];
+
+  if (!auth) {
+    return <RepoManager />;
+  }
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
