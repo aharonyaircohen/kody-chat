@@ -123,6 +123,7 @@ import {
 import { ConfirmDialog } from "./ConfirmDialog";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { useRemoteStatus } from "../hooks/useRemoteStatus";
+import { useAgents } from "../hooks/useAgents";
 import { useVoiceChat } from "../hooks/useVoiceChat";
 import { extractSentences } from "@dashboard/lib/speech-helpers";
 import {
@@ -139,6 +140,13 @@ import { SessionSidebar } from "./SessionSidebar";
 import { ToolCallList, ThinkingPanel, ReasoningPanel } from "./ToolCallCard";
 import { parseReasoning, stripReasoning } from "../chat/reasoning";
 import { parseAssistantContent } from "../chat/tool-call-strip";
+import {
+  extractFirstStaffMentionCandidate,
+  extractStaffMentions,
+  parseStaffMentionTrigger,
+  replaceStaffMentionTrigger,
+  type StaffMentionTrigger,
+} from "../mentions/agent-mentions";
 import { MessageActions } from "./MessageActions";
 import { VibeRunButton } from "./VibeRunButton";
 import {
@@ -219,7 +227,10 @@ export function KodyChat({
   const selectedOrg = context?.kind === "org" ? context : null;
   const selectedTask: KodyTask | null =
     context?.kind === "task" ? context.task : null;
-  const selectedAgentResponsibility = context?.kind === "agentResponsibility" ? context.agentResponsibility : null;
+  const selectedAgentResponsibility =
+    context?.kind === "agentResponsibility"
+      ? context.agentResponsibility
+      : null;
   // Goal-planner mode: chat scoped to a Goal, used for the "Plan this goal"
   // workflow (Pass 1 list-in-chat → user approves → Pass 2 create issues).
   const plannerGoal = context?.kind === "goal-planner" ? context.goal : null;
@@ -242,6 +253,9 @@ export function KodyChat({
 
   const [input, setInput] = useState("");
   const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const [agentMentionTrigger, setAgentMentionTrigger] =
+    useState<StaffMentionTrigger | null>(null);
+  const [agentMentionSelectedIndex, setAgentMentionSelectedIndex] = useState(0);
   // Context chips attached to the composer (e.g. picked preview elements).
   // Shown as removable pills above the input; their `context` is appended to
   // the outgoing message on send so the visible input stays clean.
@@ -470,6 +484,19 @@ export function KodyChat({
     brainFlyChatEnabled,
     chatModels,
   );
+  const { data: repoAgents = [] } = useAgents();
+  const repoAgentSlugs = useMemo(
+    () => repoAgents.map((agent) => agent.slug),
+    [repoAgents],
+  );
+  const filteredAgentMentions = useMemo(() => {
+    if (!agentMentionTrigger) return [];
+    return repoAgents
+      .filter((agent) =>
+        agent.slug.toLowerCase().includes(agentMentionTrigger.query),
+      )
+      .slice(0, 6);
+  }, [agentMentionTrigger, repoAgents]);
   // Vibe auto-kickoff. When `vibe_start_execution` returns a
   // SwitchAgentDirective with `autoKickoff`, the dashboard records the
   // message + target issue number here so a useEffect can dispatch it
@@ -1251,7 +1278,8 @@ export function KodyChat({
   const isTaskMode = !!selectedTask;
   const isAgentResponsibilityMode = !!selectedAgentResponsibility;
   const isPlannerMode = !!plannerGoal && !!plannerSessionId;
-  const isGlobalMode = !isTaskMode && !isAgentResponsibilityMode && !isPlannerMode;
+  const isGlobalMode =
+    !isTaskMode && !isAgentResponsibilityMode && !isPlannerMode;
 
   useEffect(() => {
     if (railFullscreen && isGlobalMode) {
@@ -1263,7 +1291,8 @@ export function KodyChat({
   // owns a single `messages` list per active session; the page/scope
   // (task, agentResponsibility, planner, report) flows through the per-turn system
   // prompt, not a separate message store.
-  const agentResponsibilitySlug: string | null = selectedAgentResponsibility?.slug ?? null;
+  const agentResponsibilitySlug: string | null =
+    selectedAgentResponsibility?.slug ?? null;
   const messages: Message[] = sessionHook.messages.map(chatToMessage);
 
   const setMessages = useCallback(
@@ -1897,7 +1926,9 @@ export function KodyChat({
   useEffect(() => {
     const sid =
       selectedTask?.id ??
-      (agentResponsibilitySlug != null ? `agentResponsibility-${agentResponsibilitySlug}` : null) ??
+      (agentResponsibilitySlug != null
+        ? `agentResponsibility-${agentResponsibilitySlug}`
+        : null) ??
       null;
     if (!sid) {
       return () => {
@@ -1930,7 +1961,12 @@ export function KodyChat({
       document.removeEventListener("visibilitychange", handleVisibility);
       close();
     };
-  }, [selectedTask?.id, agentResponsibilitySlug, connectSSE, activeSessionIdForReset]);
+  }, [
+    selectedTask?.id,
+    agentResponsibilitySlug,
+    connectSSE,
+    activeSessionIdForReset,
+  ]);
 
   // Unified thread: the global session store (useChatSessions) owns the
   // message list. Per-page scope (task / agentResponsibility / planner / report) flows
@@ -2260,6 +2296,11 @@ export function KodyChat({
         },
       ]);
 
+      const directAgentSlug =
+        !options.hidden && !voiceMode
+          ? extractFirstStaffMentionCandidate(displayContent, repoAgentSlugs)
+          : null;
+
       // Resolve the session id only for backends that actually need one
       // (engine + brain). The kody-direct route is stateless and doesn't
       // use it. We defer createSession() to those branches because calling
@@ -2269,7 +2310,8 @@ export function KodyChat({
       // splitting user/assistant across two sessions.
       const resolveSessionId = (): string => {
         if (selectedTask) return selectedTask.id;
-        if (agentResponsibilitySlug != null) return `agentResponsibility-${agentResponsibilitySlug}`;
+        if (agentResponsibilitySlug != null)
+          return `agentResponsibility-${agentResponsibilitySlug}`;
         return uiSessionId;
       };
 
@@ -2301,7 +2343,8 @@ export function KodyChat({
       // overlay server-side, per the shared contract in
       // src/dashboard/lib/voice/overlay.ts).
       const isBrainAgent =
-        selectedAgentId === "brain" || selectedAgentId === "brain-fly";
+        !directAgentSlug &&
+        (selectedAgentId === "brain" || selectedAgentId === "brain-fly");
       if (isBrainAgent) {
         const brainEndpoint =
           selectedAgentId === "brain-fly"
@@ -2739,7 +2782,7 @@ export function KodyChat({
       // the body so the route appends the voice overlay to the agent's
       // system prompt. Voice on a brain agent rides the Brain branch
       // above and is overlay'd server-side by the brain server.
-      if (currentAgent.backend === "kody-direct") {
+      if (currentAgent.backend === "kody-direct" || directAgentSlug) {
         // Forward task context when the user is chatting about a specific
         // task — same shape Brain receives, so the server can anchor the
         // reply in the right issue/PR.
@@ -2825,7 +2868,8 @@ export function KodyChat({
             body: JSON.stringify({
               messages: kodyMessages,
               task: kodyTaskContext,
-              agentId: effectiveAgentId,
+              agentId: directAgentSlug ? "kody" : effectiveAgentId,
+              ...(directAgentSlug ? { agentSlug: directAgentSlug } : {}),
               // Voice modality flag. When true the server appends the
               // voice overlay (no markdown, short sentences, etc.) to
               // the selected agent's system prompt and prefers the
@@ -3428,7 +3472,7 @@ export function KodyChat({
             {
               role: "assistant",
               content:
-                "Live runner failed to start. Try again, or check Settings → Fly Runner.",
+                "Live runner failed to start. Try again, or check Fly Config.",
               isLoading: false,
               isError: true,
             },
@@ -3610,6 +3654,7 @@ export function KodyChat({
       onPlannerTasksCreated,
       setMessagesForSession,
       messages,
+      repoAgentSlugs,
       selectedAgentId,
       actorLogin,
       sessionHook,
@@ -4139,6 +4184,7 @@ export function KodyChat({
     setInput("");
     setContextChips([]);
     setSlashMenuOpen(false);
+    setAgentMentionTrigger(null);
     setSlashSelectedIndex(0);
     const currentAttachments = [...attachments];
     setAttachments([]);
@@ -4259,6 +4305,40 @@ export function KodyChat({
   // Apply a slash command to the input: replaces the entire input with
   // "/slug " so the user can immediately type arguments, OR sends right
   // away when the prompt takes no arguments and the user pressed Enter.
+  const refreshAgentMentionTrigger = useCallback(
+    (value: string, caretIndex: number | null | undefined) => {
+      if (chatMode !== "ai") {
+        setAgentMentionTrigger(null);
+        return;
+      }
+      const trigger = parseStaffMentionTrigger(
+        value,
+        caretIndex ?? value.length,
+      );
+      setAgentMentionTrigger(trigger);
+      setAgentMentionSelectedIndex(0);
+    },
+    [chatMode],
+  );
+
+  const applyAgentMentionSelection = useCallback(
+    (slug: string) => {
+      if (!agentMentionTrigger) return;
+      const next = replaceStaffMentionTrigger(input, agentMentionTrigger, slug);
+      const nextCaret = agentMentionTrigger.start + slug.length + 2;
+      setInput(next);
+      setAgentMentionTrigger(null);
+      setAgentMentionSelectedIndex(0);
+      requestAnimationFrame(() => {
+        const textarea = composerTextareaRef.current;
+        if (!textarea) return;
+        textarea.focus();
+        textarea.setSelectionRange(nextCaret, nextCaret);
+      });
+    },
+    [agentMentionTrigger, input],
+  );
+
   const applySlashSelection = (slug: string) => {
     const command = slashCommands.find((p) => p.slug === slug);
     if (!prompt) return;
@@ -4271,6 +4351,42 @@ export function KodyChat({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (
+      chatMode === "ai" &&
+      agentMentionTrigger &&
+      filteredAgentMentions.length > 0
+    ) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setAgentMentionSelectedIndex((i) =>
+          Math.min(i + 1, filteredAgentMentions.length - 1),
+        );
+        return;
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setAgentMentionSelectedIndex((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === "Enter" || e.key === "Tab") {
+        e.preventDefault();
+        const picked =
+          filteredAgentMentions[
+            Math.min(
+              agentMentionSelectedIndex,
+              filteredAgentMentions.length - 1,
+            )
+          ];
+        if (picked) applyAgentMentionSelection(picked.slug);
+        return;
+      }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setAgentMentionTrigger(null);
+        return;
+      }
+    }
+
     // Slash menu keyboard navigation. Only intercept when the menu is
     // open AND the input still looks like a slug-in-progress (so once
     // the user types a space the menu's gone and normal handling resumes).
@@ -5071,8 +5187,9 @@ export function KodyChat({
                     Chat about `{selectedAgentResponsibility.slug}`
                   </p>
                   <p className="text-sm mt-1 max-w-sm mx-auto">
-                    Ask anything about this agentResponsibility&apos;s intent, scope, or rules.
-                    Each agentResponsibility has its own thread.
+                    Ask anything about this agentResponsibility&apos;s intent,
+                    scope, or rules. Each agentResponsibility has its own
+                    thread.
                   </p>
                 </>
               ) : isPlannerMode && plannerGoal ? (
@@ -5527,12 +5644,54 @@ export function KodyChat({
                     onHover={setSlashSelectedIndex}
                   />
                 )}
+                {agentMentionTrigger && filteredAgentMentions.length > 0 && (
+                  <div className="absolute bottom-full left-0 right-0 mb-2 rounded-md border border-white/10 bg-zinc-900/95 backdrop-blur-sm shadow-xl overflow-hidden max-h-64 overflow-y-auto">
+                    <ul role="listbox" className="py-1">
+                      {filteredAgentMentions.map((agent, idx) => {
+                        const isSelected = idx === agentMentionSelectedIndex;
+                        return (
+                          <li
+                            key={agent.slug}
+                            role="option"
+                            aria-selected={isSelected}
+                            onMouseEnter={() =>
+                              setAgentMentionSelectedIndex(idx)
+                            }
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              applyAgentMentionSelection(agent.slug);
+                            }}
+                            className={`flex items-center gap-2 px-3 py-1.5 cursor-pointer ${
+                              isSelected
+                                ? "bg-white/[0.08]"
+                                : "hover:bg-white/[0.04]"
+                            }`}
+                          >
+                            <span className="font-mono text-sm text-white/90">
+                              @{agent.slug}
+                            </span>
+                            <span className="text-xs text-white/55 truncate">
+                              {agent.title}
+                            </span>
+                            <span className="ml-auto text-[10px] uppercase tracking-wide px-1.5 py-0.5 rounded shrink-0 bg-emerald-500/15 text-emerald-300/80">
+                              Agent
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <div className="border-t border-white/[0.06] px-3 py-1.5 text-[10px] text-white/35">
+                      ↑↓ navigate · Enter/Tab select · Esc close
+                    </div>
+                  </div>
+                )}
                 <textarea
                   ref={composerTextareaRef}
                   value={input}
                   onChange={(e) => {
                     const next = e.target.value;
                     setInput(next);
+                    refreshAgentMentionTrigger(next, e.target.selectionStart);
                     // Slash menu opens on `/` at line start, stays open while
                     // the user types the slug, closes when they add a space
                     // or clear the slash.
@@ -5550,12 +5709,27 @@ export function KodyChat({
                     e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
                   }}
                   onKeyDown={handleKeyDown}
+                  onSelect={(e) => {
+                    refreshAgentMentionTrigger(
+                      e.currentTarget.value,
+                      e.currentTarget.selectionStart,
+                    );
+                  }}
+                  onClick={(e) => {
+                    refreshAgentMentionTrigger(
+                      e.currentTarget.value,
+                      e.currentTarget.selectionStart,
+                    );
+                  }}
                   onPaste={handlePaste}
                   onBlur={() => {
                     // Small delay so the menu's onMouseDown can fire before
                     // close — onMouseDown uses preventDefault to avoid blur,
                     // but defensive close keeps stale menus from hanging.
-                    setTimeout(() => setSlashMenuOpen(false), 120);
+                    setTimeout(() => {
+                      setSlashMenuOpen(false);
+                      setAgentMentionTrigger(null);
+                    }, 120);
                   }}
                   placeholder={placeholder}
                   rows={1}

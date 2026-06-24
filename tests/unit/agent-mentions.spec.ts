@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
+  extractFirstStaffMentionCandidate,
   extractStaffMentions,
   hasStaffMention,
+  parseStaffMentionTrigger,
+  replaceStaffMentionTrigger,
 } from "@dashboard/lib/mentions/agent-mentions";
 
 describe("extractStaffMentions", () => {
@@ -37,8 +40,53 @@ describe("extractStaffMentions", () => {
     expect(extractStaffMentions("@cto @qa-bot", [])).toEqual([]);
   });
 
+  it("can still route a direct @agent turn before the roster loads", () => {
+    expect(
+      extractFirstStaffMentionCandidate(
+        "@pedagogical-math-manager who r u",
+        [],
+      ),
+    ).toBe("pedagogical-math-manager");
+    expect(
+      extractFirstStaffMentionCandidate("mail user@cto.com", []),
+    ).toBeNull();
+    expect(extractFirstStaffMentionCandidate("path/@cto", [])).toBeNull();
+  });
+
   it("hasStaffMention reflects extraction", () => {
     expect(hasStaffMention("@cto", known)).toBe(true);
     expect(hasStaffMention("@nobody", known)).toBe(false);
+  });
+
+  it("detects an active @agent trigger at the caret", () => {
+    expect(parseStaffMentionTrigger("ask @", "ask @".length)).toEqual({
+      start: 4,
+      end: 5,
+      query: "",
+    });
+    expect(parseStaffMentionTrigger("ask @ct", "ask @ct".length)).toEqual({
+      start: 4,
+      end: 7,
+      query: "ct",
+    });
+    expect(parseStaffMentionTrigger("email user@cto.com", 10)).toBeNull();
+    expect(
+      parseStaffMentionTrigger("path/@cto", "path/@cto".length),
+    ).toBeNull();
+  });
+
+  it("replaces the active trigger with the selected agent mention", () => {
+    const body = "ask @ct to review";
+    const trigger = parseStaffMentionTrigger(body, 7);
+
+    expect(trigger).not.toBeNull();
+    expect(replaceStaffMentionTrigger(body, trigger!, "cto")).toBe(
+      "ask @cto to review",
+    );
+
+    const trailingTrigger = parseStaffMentionTrigger("ask @ct", 7);
+    expect(replaceStaffMentionTrigger("ask @ct", trailingTrigger!, "cto")).toBe(
+      "ask @cto ",
+    );
   });
 });

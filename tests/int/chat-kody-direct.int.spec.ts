@@ -13,6 +13,23 @@
 
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+
+vi.mock("@dashboard/lib/engine/config", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@dashboard/lib/engine/config")>();
+  return {
+    ...actual,
+    getEngineConfig: vi.fn(async () => ({
+      config: { agentActions: { default: "run" } },
+      sha: null,
+    })),
+  };
+});
+
+vi.mock("@dashboard/lib/variables/load-chat-models", () => ({
+  loadChatModels: vi.fn(async () => []),
+}));
+
 import {
   POST as kodyChatPOST,
   DEFAULT_MAX_STEPS,
@@ -40,8 +57,16 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
+function disableEngineModelFallbackEnv() {
+  vi.stubEnv("KODY_CHAT_MODEL", "");
+  vi.stubEnv("KODY_ENGINE_MODEL", "");
+  vi.stubEnv("E2E_CHAT_MODEL", "");
+  vi.stubEnv("MINIMAX_API_KEY", "");
+}
+
 describe("POST /api/kody/chat/kody", () => {
   it("returns 409 with fallback:kody-live when no model can be resolved", async () => {
+    disableEngineModelFallbackEnv();
     vi.stubEnv("MY_API_KEY", "");
     vi.stubEnv("CHAT_MODEL_API_KEY", "");
     const res = await kodyChatPOST(

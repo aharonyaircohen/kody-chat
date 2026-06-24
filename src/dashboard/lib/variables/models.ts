@@ -68,6 +68,12 @@ export const PROVIDER_PRESETS = {
     baseURL: "https://api.x.ai/v1",
     keyHint: "XAI_API_KEY",
   },
+  minimax: {
+    label: "MiniMax",
+    protocol: "openai" as const,
+    baseURL: "https://api.minimax.io/v1",
+    keyHint: "MINIMAX_API_KEY",
+  },
   custom: {
     label: "Custom endpoint",
     protocol: "openai" as const,

@@ -107,6 +107,11 @@ import {
 import { loadInstructionsForPrompt } from "@dashboard/lib/instructions/files";
 import { loadContextForPrompt } from "@dashboard/lib/context/files";
 import { buildExplicitMemoryDraft } from "./explicit-memory";
+import {
+  isValidSlug as isValidAgentSlug,
+  readResolvedAgentFile,
+} from "@dashboard/lib/agent-files";
+import { buildAgentChatIdentity } from "@dashboard/lib/agent-chat-identity";
 
 export const runtime = "nodejs";
 // Research turns can chain up to ~10 tool rounds (search → read → blame → …)
@@ -457,6 +462,11 @@ export async function POST(req: NextRequest) {
      */
     agentId?: AgentId;
     /**
+     * Repo/store agent identity slug addressed with `@slug` in chat. This is
+     * a prompt identity swap for this in-process turn, not a runner dispatch.
+     */
+    agentSlug?: string;
+    /**
      * Voice modality. When true the server appends `VOICE_OVERLAY_PROMPT`
      * to the resolved agent's base prompt (no markdown, short sentences,
      * symbols read aloud as words), disables thinking/reasoning streaming,
@@ -669,6 +679,36 @@ export async function POST(req: NextRequest) {
   // The bundle is the source of truth for the chat's prompt base + tool
   // allowlist. Repo-stored with a TS fallback; step 1 returns TS defaults.
   const chatBundle = await loadChatDefaults(repo?.owner, repo?.repo);
+  const agentSlug =
+    typeof body.agentSlug === "string" ? body.agentSlug.trim() : "";
+  let activeAgentIdentity = chatBundle.agentIdentity;
+  if (agentSlug) {
+    if (!isValidAgentSlug(agentSlug)) {
+      clearGitHubContext();
+      return NextResponse.json(
+        { error: "invalid_agent_slug" },
+        { status: 400 },
+      );
+    }
+    if (!repo) {
+      return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
+    }
+    let agentMember;
+    try {
+      agentMember = await readResolvedAgentFile(
+        agentSlug,
+        createUserOctokit(repo.token),
+      );
+    } catch (err) {
+      clearGitHubContext();
+      throw err;
+    }
+    if (!agentMember) {
+      clearGitHubContext();
+      return NextResponse.json({ error: "agent_not_found" }, { status: 404 });
+    }
+    activeAgentIdentity = buildAgentChatIdentity(agentMember);
+  }
 
   // Build the per-request tool set FIRST. The tool list feeds into the
   // system prompt as a `## Tool index` block (item 1 of the accuracy
@@ -890,7 +930,10 @@ export async function POST(req: NextRequest) {
   // picks the right tool instead of guessing by name.
   const toolIndex = buildToolIndex(allowlistedTools);
 
-  const basePrompt = composeBasePrompt(chatBundle, { toolIndex });
+  const basePrompt = composeBasePrompt(
+    { ...chatBundle, agentIdentity: activeAgentIdentity },
+    { toolIndex },
+  );
   const assembledPrompt = buildSystemPrompt(
     basePrompt,
     repo ? { owner: repo.owner, repo: repo.repo } : null,
