@@ -6,6 +6,7 @@ import {
   isTerminalFeatureAllowed,
   isTerminalMachineStartable,
   selectTerminalTarget,
+  terminalActivityLimitForTarget,
 } from "@dashboard/lib/terminal/session";
 import type { FlyInventory } from "@dashboard/lib/runners/fly-inventory";
 
@@ -124,5 +125,16 @@ describe("terminal session policy", () => {
     expect(
       buildTerminalWebSocketUrl("wss://terminal.example/ws?x=1", "abc"),
     ).toBe("wss://terminal.example/ws?x=1&token=abc");
+  });
+
+  it("applies custom terminal activity limits only to Brain machines", () => {
+    expect(terminalActivityLimitForTarget("brain", 60 * 60_000)).toBe(
+      60 * 60_000,
+    );
+    expect(terminalActivityLimitForTarget("brain", null)).toBeNull();
+    expect(
+      terminalActivityLimitForTarget("runner", 60 * 60_000),
+    ).toBeUndefined();
+    expect(terminalActivityLimitForTarget("preview", null)).toBeUndefined();
   });
 });

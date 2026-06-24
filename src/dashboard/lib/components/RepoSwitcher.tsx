@@ -59,7 +59,8 @@ export function RepoSwitcher() {
     if (!menuOpen) return;
     const onDocClick = (e: MouseEvent) => {
       if (!rootRef.current) return;
-      if (e.target instanceof Node && rootRef.current.contains(e.target)) return;
+      if (e.target instanceof Node && rootRef.current.contains(e.target))
+        return;
       setMenuOpen(false);
       setAddOpen(false);
     };
@@ -194,7 +195,7 @@ export function RepoSwitcher() {
                           : "Remove repository"
                       }
                       aria-label={`Remove ${entry.owner}/${entry.repo}`}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-red-400 hover:bg-zinc-700 transition disabled:opacity-0 disabled:cursor-not-allowed"
+                      className="p-1 rounded text-zinc-400 hover:text-red-400 hover:bg-zinc-700 transition md:opacity-0 md:group-hover:opacity-100 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       <Trash2 className="w-3 h-3" />
                     </button>

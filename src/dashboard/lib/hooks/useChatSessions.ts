@@ -229,6 +229,8 @@ function saveStore(store: GlobalChatStore, storageKey: string): void {
 }
 
 export interface UseChatSessionsResult {
+  /** True once the localStorage-backed session store has loaded. */
+  hydrated: boolean;
   /** All sessions, sorted by updatedAt descending */
   sessions: SessionMeta[];
   /** The currently active session */
@@ -676,6 +678,7 @@ export function useChatSessions(
   );
 
   return {
+    hydrated: store !== null,
     sessions,
     activeSession,
     messages,

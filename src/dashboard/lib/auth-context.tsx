@@ -75,6 +75,12 @@ export interface KodyAuth {
    * guest mapping as flyPerf. Absent → server default (medium).
    */
   brainPerf?: "low" | "medium" | "high";
+  /**
+   * Brain Fly terminal activity limit. Number = milliseconds; "never" keeps
+   * the terminal session until the user closes/restarts it or the machine dies.
+   * Absent = bridge default.
+   */
+  brainTerminalActivityLimit?: BrainTerminalActivityLimit;
   /** Shared Kody store repository URL used for company-level agentResponsibilities/agent-actions. */
   storeRepoUrl?: string;
   /** Shared Kody store ref used for company-level agentResponsibilities/agent-actions. */
@@ -82,6 +88,7 @@ export interface KodyAuth {
 }
 
 export type FlyPerfTier = NonNullable<KodyAuth["flyPerf"]>;
+export type BrainTerminalActivityLimit = number | "never";
 
 interface AuthContextValue {
   auth: KodyAuth | null;
@@ -110,6 +117,7 @@ interface AuthContextValue {
     vercelBypassSecret?: string | null;
     flyPerf?: FlyPerfTier | null;
     brainPerf?: FlyPerfTier | null;
+    brainTerminalActivityLimit?: BrainTerminalActivityLimit | null;
     storeRepoUrl?: string | null;
     storeRef?: string | null;
   }) => void;
@@ -387,6 +395,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       vercelBypassSecret?: string | null;
       flyPerf?: FlyPerfTier | null;
       brainPerf?: FlyPerfTier | null;
+      brainTerminalActivityLimit?: BrainTerminalActivityLimit | null;
       storeRepoUrl?: string | null;
       storeRef?: string | null;
     }) => {
@@ -408,6 +417,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (patch.brainPerf !== undefined) {
           next.brainPerf =
             patch.brainPerf === null ? undefined : patch.brainPerf;
+        }
+        if (patch.brainTerminalActivityLimit !== undefined) {
+          next.brainTerminalActivityLimit =
+            patch.brainTerminalActivityLimit === null
+              ? undefined
+              : patch.brainTerminalActivityLimit;
         }
         if (patch.storeRepoUrl !== undefined) {
           const storeRepoUrl = patch.storeRepoUrl?.trim();

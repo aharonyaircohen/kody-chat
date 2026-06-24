@@ -102,6 +102,10 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("pty-relay.py");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("persistentSessions");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("chatSessionId");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("activityLimitMs");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      "session.activityLimitMs !== null",
+    );
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('url.pathname === "/status"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("Reattached terminal session.");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(

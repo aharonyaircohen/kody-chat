@@ -37,6 +37,8 @@ const BUILDER_HOST_APP =
 const SPAWN_TIMEOUT_MS = 30_000;
 const BUILDER_MAINTENANCE_TIMEOUT_MS = 10_000;
 const BUILDER_STALE_MS = 2 * 60 * 60 * 1000;
+const DEFAULT_BUILDER_CPUS = 4;
+const DEFAULT_BUILDER_MEMORY_MB = 4096;
 
 interface BuilderMachineInfo {
   id?: string;
@@ -73,6 +75,9 @@ export interface SpawnBuilderInput {
   previewVmMemoryMb?: number;
   previewIdleSuspend?: boolean;
   previewHealthCheck?: boolean;
+  /** Temporary machine that runs clone + flyctl orchestration. */
+  builderCpus?: number;
+  builderMemoryMb?: number;
 }
 
 export interface SpawnBuilderResult {
@@ -290,12 +295,13 @@ export async function spawnPreviewBuilder(
       },
       auto_destroy: true,
       restart: { policy: "no" },
-      // This machine only orchestrates: clones, calls flyctl, manages
-      // app/IP/preview-machine on Fly's API. The actual `docker build`
-      // happens on the org's traditional remote builder app
-      // (fly-builder-<org>) — that's where memory + CPU matter. Keep
-      // this orchestrator small.
-      guest: { cpu_kind: "shared", cpus: 2, memory_mb: 1024 },
+      // This machine orchestrates clone/install/flyctl work. Docker still
+      // runs on Fly's remote builder, but large repos need more room here.
+      guest: {
+        cpu_kind: "shared",
+        cpus: input.builderCpus ?? DEFAULT_BUILDER_CPUS,
+        memory_mb: input.builderMemoryMb ?? DEFAULT_BUILDER_MEMORY_MB,
+      },
     },
     region: input.flyRegion,
   };

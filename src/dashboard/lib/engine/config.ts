@@ -125,6 +125,10 @@ export interface KodyFlyPreviews {
   /** Auto-destroy a preview this many days after creation. 0 / absent = keep
    * forever (the sweep skips it). */
   ttlDays?: number;
+  /** vCPUs for the temporary build worker that creates a preview. */
+  builderCpus?: number;
+  /** RAM (MB) for the temporary build worker that creates a preview. */
+  builderMemoryMb?: number;
 }
 
 export interface KodyFlyConfig {
@@ -138,6 +142,8 @@ export interface ResolvedFlyPreviews {
   idleSuspend: boolean;
   healthCheck: boolean;
   ttlDays: number;
+  builderCpus: number;
+  builderMemoryMb: number;
 }
 
 /** Defaults chosen so previews are eligible for Fly suspend and health-checks
@@ -151,6 +157,9 @@ export const DEFAULT_FLY_PREVIEWS: ResolvedFlyPreviews = {
   // previews from piling up forever. A repo can override (higher = keep
   // longer; the UI caps at 365).
   ttlDays: 14,
+  // Short-lived build workers can be larger than idle preview machines.
+  builderCpus: 4,
+  builderMemoryMb: 4096,
 };
 
 /** Merge a repo's `fly.previews` over the defaults. Pure — no I/O. */
@@ -177,6 +186,14 @@ export function resolveFlyPreviews(cfg: KodyConfig): ResolvedFlyPreviews {
       typeof p.ttlDays === "number" && p.ttlDays > 0
         ? Math.floor(p.ttlDays)
         : DEFAULT_FLY_PREVIEWS.ttlDays,
+    builderCpus:
+      typeof p.builderCpus === "number" && p.builderCpus > 0
+        ? p.builderCpus
+        : DEFAULT_FLY_PREVIEWS.builderCpus,
+    builderMemoryMb:
+      typeof p.builderMemoryMb === "number" && p.builderMemoryMb > 0
+        ? p.builderMemoryMb
+        : DEFAULT_FLY_PREVIEWS.builderMemoryMb,
   };
 }
 
@@ -633,7 +650,13 @@ function cleanFlyPreviews(
   raw: Record<string, unknown>,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const key of ["cpus", "memoryMb", "ttlDays"] as const) {
+  for (const key of [
+    "cpus",
+    "memoryMb",
+    "ttlDays",
+    "builderCpus",
+    "builderMemoryMb",
+  ] as const) {
     const v = raw[key];
     const n = typeof v === "number" ? v : Number(v);
     if (Number.isFinite(n) && n > 0) out[key] = Math.floor(n);

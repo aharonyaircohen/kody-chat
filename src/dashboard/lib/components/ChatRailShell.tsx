@@ -252,10 +252,17 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   const [hydrated, setHydrated] = useState(false);
   useEffect(() => setHydrated(true), []);
 
-  const openMobileChat = useCallback(
-    () => setMobileOpenPersist(true),
-    [setMobileOpenPersist],
-  );
+  const openMobileChat = useCallback(() => {
+    if (!auth) {
+      setMobileOpenPersist(false);
+      return;
+    }
+    setMobileOpenPersist(true);
+  }, [auth, setMobileOpenPersist]);
+
+  useEffect(() => {
+    if (!loading && !auth && mobileOpen) setMobileOpenPersist(false);
+  }, [auth, loading, mobileOpen, setMobileOpenPersist]);
 
   // Ref, not state, so registering/unregistering doesn't re-render the
   // entire app tree under the rail. The KodyChat instance reads the
@@ -348,7 +355,8 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   // are also reached mid-session via KodyDashboard's history.pushState when a
   // modal opens, so they must be listed even though no route file navigates
   // here directly.
-  const pageOwnsHeader = routeOwnsAppHeader(pathname) || pageHeaderOwnedByChild;
+  const pageOwnsHeader =
+    !!auth && (routeOwnsAppHeader(pathname) || pageHeaderOwnedByChild);
   const lockedAgentId = isOrgRoute ? "kody" : undefined;
 
   const chatPane = auth ? (
@@ -451,7 +459,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
           still reachable while chatting. The rail is desktop-only; on mobile
           chat is opened from the header's chat button. Not shown on /chat
           (chat is the full view) or /messages (its own chat surface). */}
-          {mobileOpen && !isChatRoute && !pathname?.startsWith("/messages") && (
+      {mobileOpen && auth && !isChatRoute && !pathname?.startsWith("/messages") && (
             <div className="md:hidden fixed inset-x-0 bottom-0 top-14 z-30 flex flex-col bg-background border-t border-border">
               {auth ? (
                 <KodyChat

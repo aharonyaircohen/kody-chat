@@ -230,6 +230,13 @@ function verifyTerminalToken(token) {
   ) {
     throw new Error("terminal token reset flag invalid");
   }
+  if (
+    claims.activityLimitMs !== undefined &&
+    claims.activityLimitMs !== null &&
+    (!Number.isFinite(claims.activityLimitMs) || claims.activityLimitMs < 60000)
+  ) {
+    throw new Error("terminal token activity limit invalid");
+  }
   return claims;
 }
 
@@ -358,10 +365,19 @@ function disposePersistentSession(key, session) {
   persistentSessions.delete(key);
 }
 
+function normalizeActivityLimitMs(value) {
+  if (value === null) return null;
+  if (Number.isFinite(value) && value >= 60000) return value;
+  return PERSISTENT_SESSION_IDLE_MS;
+}
+
 setInterval(() => {
   const now = Date.now();
   for (const [key, session] of persistentSessions) {
-    if (now - session.lastTouched > PERSISTENT_SESSION_IDLE_MS) {
+    if (
+      session.activityLimitMs !== null &&
+      now - session.lastTouched > session.activityLimitMs
+    ) {
       disposePersistentSession(key, session);
     }
   }
@@ -402,6 +418,7 @@ function createFlyConsoleSession(claims, key) {
     outputBuffer: "",
     inputBytes: 0,
     lastTouched: Date.now(),
+    activityLimitMs: normalizeActivityLimitMs(claims.activityLimitMs),
     statusTimer: null,
     readyTimer: null,
   };

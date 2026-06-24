@@ -28,7 +28,8 @@ describe("org navigation surfaces", () => {
   it("keeps one static org page in the dashboard side rail", () => {
     expect(SETTINGS_NAV_SOURCE).toMatch(/href: "\/org"/);
     expect(SETTINGS_NAV_SOURCE).toMatch(/label: "Org"/);
-    expect(SIDEBAR_SOURCE).toMatch(/sidebarItem\("\/org"\)/);
+    expect(SETTINGS_NAV_SOURCE).toMatch(/navItemForHref\("\/org"\)/);
+    expect(SIDEBAR_SOURCE).toMatch(/ENGINEER_MODE_SECTIONS/);
     expect(SIDEBAR_SOURCE).not.toMatch(/orgNavItems/);
     expect(SIDEBAR_SOURCE).not.toMatch(/title: "Organizations"/);
     expect(SIDEBAR_SOURCE).not.toMatch(

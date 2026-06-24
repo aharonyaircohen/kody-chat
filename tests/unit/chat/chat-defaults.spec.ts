@@ -64,7 +64,7 @@ describe("chat-defaults bundle", () => {
       "Your prose must match the tool result",
       "injected context block",
       "one direct proceed-style question",
-      "Disambiguate dispatch vs. create-issue",
+      "Create issues, do not start implementation",
       "github_search_code",
       "github_get_file",
       "github_list_tree",
@@ -164,6 +164,14 @@ describe("chat-defaults bundle", () => {
     // Direct imports aliased in the route — `fetch_url: fetchUrlTool`
     // is the only one currently; if more land, add them here.
     toolKeys.add("fetch_url");
+    for (const name of [
+      "cms_list_collections",
+      "cms_describe_collection",
+      "cms_list_documents",
+      "cms_get_document",
+      "cms_mutate_document",
+    ])
+      toolKeys.add(name);
     for (const name of DEFAULT_EXECUTABLE.tools) {
       expect(
         toolKeys.has(name),
@@ -268,9 +276,7 @@ describe("chat-defaults bundle", () => {
     // drift: `remoteExec` vs registry's `remote_exec`, `read_agent_responsibility_creation_guide`
     // vs the real `read_agentAction_creation_guide`, etc.
     const known = new Set([
-      "remote_exec",
       "remote_read",
-      "remote_write",
       "remote_ls",
       "read_agent_responsibility_creation_guide",
       "read_agentAction_creation_guide",
@@ -315,7 +321,9 @@ describe("composeChatPrompt", () => {
     // Tools allowlist.
     expect(prompt).toContain("## Tools available");
     expect(prompt).toContain("`github_search_code`");
-    expect(prompt).toContain("`vibe_start_execution`");
+    expect(prompt).not.toContain("`vibe_start_execution`");
+    expect(prompt).not.toContain("`kody_run_issue`");
+    expect(prompt).not.toContain("`remote_write`");
   });
 
   it("omits the Connected repository block when no repo is provided", async () => {

@@ -78,6 +78,34 @@ describe("spawnPreviewBuilder", () => {
     expect(JSON.stringify(calls)).not.toContain("other-pr?force=true");
   });
 
+  it("uses configured builder worker size in the Fly machine payload", async () => {
+    const calls: Call[] = [];
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init = {}) => {
+      const url = input.toString();
+      const method = init.method ?? "GET";
+      calls.push({
+        method,
+        url,
+        body: init.body ? JSON.parse(init.body as string) : undefined,
+      });
+      if (method === "GET") return Response.json([]);
+      return Response.json({ id: "new-builder" });
+    }) as unknown as typeof fetch;
+
+    await spawnPreviewBuilder({
+      ...baseInput(),
+      builderCpus: 8,
+      builderMemoryMb: 8192,
+    });
+
+    const post = calls.find((call) => call.method === "POST");
+    expect(post?.body).toMatchObject({
+      config: {
+        guest: { cpu_kind: "shared", cpus: 8, memory_mb: 8192 },
+      },
+    });
+  });
+
   it("also removes very old builders even when they belong to another preview", async () => {
     vi.setSystemTime(NOW);
     const deleted: string[] = [];

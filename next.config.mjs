@@ -10,6 +10,10 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
   },
+  experimental: {
+    // Turbopack's persistent dev cache has grown pathologically large locally.
+    turbopackFileSystemCacheForDev: false,
+  },
   // Keep pino (and its worker-thread transport) out of the bundle. When Next
   // bundles them, the thread-stream worker path gets rewritten to a virtual
   // `/ROOT/...` location that doesn't exist at runtime, so the logging worker

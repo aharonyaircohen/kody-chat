@@ -9,7 +9,7 @@
  */
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { KodyTask, FileChange } from "../types";
 import { prsApi } from "../api";
 import { PreviewActions } from "./PreviewActions";
@@ -24,13 +24,8 @@ import { CIFailureBanner } from "./CIFailureBanner";
 import { BranchBehindBanner } from "./BranchBehindBanner";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { usePreviewUrl } from "../hooks/usePreviewUrl";
-import {
-  PreviewIframe,
-  DEVICE_WIDTHS,
-  type PreviewDevice,
-} from "./PreviewIframe";
-import { cn, getPreviewBypassUrl } from "../utils";
-import { PreviewInspector } from "../picker/PreviewInspector";
+import { PreviewBrowser } from "./PreviewBrowser";
+import { cn } from "../utils";
 import { autoDirProps } from "../text-direction";
 import { useAuth } from "../auth-context";
 import {
@@ -43,21 +38,12 @@ import {
   AlertCircle,
   RefreshCw,
   Monitor,
-  Smartphone,
-  Tablet,
-  Check,
-  ChevronRight,
   ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
 
 type PreviewTab = "preview" | "changes" | "comments";
-
-const PREVIEW_DEVICE_OPTIONS = [
-  { id: "mobile", icon: Smartphone, label: "Mobile" },
-  { id: "tablet", icon: Tablet, label: "Tablet" },
-  { id: "desktop", icon: Monitor, label: "Desktop" },
-] as const;
 
 interface PreviewModalProps {
   task: KodyTask;
@@ -94,56 +80,11 @@ export function PreviewModal({
     owner: auth?.owner ?? "",
     repo: auth?.repo ?? "",
   };
-  const [previewDevice, setPreviewDevice] = useState<PreviewDevice>("desktop");
-  const viewportMenuRef = useRef<HTMLDivElement>(null);
-  const [viewportMenuOpen, setViewportMenuOpen] = useState(false);
   const [previewKey, setPreviewKey] = useState(0); // Bump to force iframe remount/refresh
   const [commentsKey, setCommentsKey] = useState(0); // Used to force-refresh comment list
   const [changesKey, setChangesKey] = useState(0); // Bump to force re-fetch of changed files
   const [localRefreshing, setLocalRefreshing] = useState(false);
   const [showCommentDialog, setShowCommentDialog] = useState(false);
-
-  // Preview inspector (element picker + console/network/screenshot). Requires
-  // the Kody Preview Inspector extension — the preview is a cross-origin iframe
-  // the page can't reach into. Results land in the chat composer/attachments.
-  const previewRef = useRef<HTMLDivElement>(null);
-  const [, setComposerInjection] = useState<{
-    id: string;
-    label: string;
-    context: string;
-  } | null>(null);
-  const [, setAttachmentInjection] = useState<{
-    id: string;
-    name: string;
-    dataUrl: string;
-    mimeType: string;
-  } | null>(null);
-
-  useEffect(() => {
-    if (!viewportMenuOpen) return;
-
-    const onDocumentClick = (event: MouseEvent): void => {
-      if (!viewportMenuRef.current) return;
-      if (
-        event.target instanceof Node &&
-        viewportMenuRef.current.contains(event.target)
-      ) {
-        return;
-      }
-      setViewportMenuOpen(false);
-    };
-
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") setViewportMenuOpen(false);
-    };
-
-    document.addEventListener("mousedown", onDocumentClick);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onDocumentClick);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [viewportMenuOpen]);
 
   const handleRefreshAll = useCallback(async () => {
     setLocalRefreshing(true);
@@ -165,8 +106,11 @@ export function PreviewModal({
   // Resolve the preview URL directly by the PR's head commit so it appears
   // immediately on open instead of waiting for the background tasks poll
   // (which only finds links among the 100 most-recent deployments).
-  const { url: effectivePreviewUrl, isResolving: previewResolving } =
-    usePreviewUrl(pr?.head?.sha, pr?.number, task.previewUrl ?? null);
+  const {
+    url: effectivePreviewUrl,
+    isResolving: previewResolving,
+    wakePreview,
+  } = usePreviewUrl(pr?.head?.sha, pr?.number, task.previewUrl ?? null);
 
   // Callback to refresh comment list after adding a comment
   const handleCommentAdded = () => {
@@ -183,10 +127,6 @@ export function PreviewModal({
       toast.error(err instanceof Error ? err.message : "Failed to add comment");
       throw err; // re-throw so dialog stays open
     }
-  };
-  const getPreviewUrl = () => {
-    if (!effectivePreviewUrl) return null;
-    return effectivePreviewUrl;
   };
 
   // Load tab data on demand
@@ -284,11 +224,6 @@ export function PreviewModal({
       count: commentCount ?? undefined,
     },
   ];
-
-  const activePreviewDevice =
-    PREVIEW_DEVICE_OPTIONS.find((option) => option.id === previewDevice) ??
-    PREVIEW_DEVICE_OPTIONS[2];
-  const ActivePreviewDeviceIcon = activePreviewDevice.icon;
 
   return (
     <div className="flex flex-col h-full w-full bg-zinc-950/95">
@@ -415,129 +350,37 @@ export function PreviewModal({
                 : "overflow-y-auto pb-20",
             )}
           >
-            {/* Preview tab - iframe */}
+            {/* Preview tab - browser */}
             {activeTab === "preview" && (
               <div className="h-full flex flex-col">
-                {/* Preview actions header */}
-                {effectivePreviewUrl && (
-                  <div className="shrink-0 flex items-center justify-end gap-2 px-4 py-2.5 border-b border-zinc-800 bg-zinc-900/50">
-                    <div className="flex items-center gap-2">
-                      <div
-                        ref={viewportMenuRef}
-                        className="relative inline-flex"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setViewportMenuOpen((open) => !open)}
-                          title={`Viewport: ${activePreviewDevice.label}`}
-                          aria-label="Switch preview viewport"
-                          aria-haspopup="listbox"
-                          aria-expanded={viewportMenuOpen}
-                          className="inline-flex items-center gap-1 rounded-md border border-zinc-700 bg-zinc-800/50 px-2 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-zinc-700 hover:text-white"
-                        >
-                          <ActivePreviewDeviceIcon className="w-3.5 h-3.5" />
-                          <ChevronDown className="w-3 h-3" />
-                        </button>
-
-                        {viewportMenuOpen && (
-                          <div
-                            role="listbox"
-                            aria-label="Preview viewport"
-                            className="absolute right-0 top-full z-50 mt-1 min-w-36 rounded-md border border-zinc-700 bg-zinc-900 py-1 shadow-lg"
-                          >
-                            {PREVIEW_DEVICE_OPTIONS.map(
-                              ({ id, icon: Icon, label }) => {
-                                const selected = previewDevice === id;
-                                return (
-                                  <button
-                                    key={id}
-                                    type="button"
-                                    role="option"
-                                    aria-selected={selected}
-                                    onClick={() => {
-                                      setPreviewDevice(id);
-                                      setViewportMenuOpen(false);
-                                    }}
-                                    className={cn(
-                                      "flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs transition-colors",
-                                      selected
-                                        ? "text-zinc-100"
-                                        : "text-zinc-400 hover:bg-zinc-800 hover:text-white",
-                                    )}
-                                  >
-                                    <Check
-                                      className={cn(
-                                        "w-3 h-3",
-                                        selected ? "opacity-100" : "opacity-0",
-                                      )}
-                                    />
-                                    <Icon className="w-3.5 h-3.5" />
-                                    <span>{label}</span>
-                                  </button>
-                                );
-                              },
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <PreviewInspector
-                        previewRef={previewRef}
-                        onContext={setComposerInjection}
-                        onAttachment={setAttachmentInjection}
-                        owner={ownerRepo.owner}
-                        repo={ownerRepo.repo}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setPreviewKey((k) => k + 1)}
-                        title="Refresh preview"
-                        aria-label="Refresh preview"
-                        className="inline-flex items-center text-xs font-medium p-1.5 rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors"
-                      >
-                        <RefreshCw className="w-3 h-3" />
-                      </button>
-                      <a
-                        href={getPreviewBypassUrl(getPreviewUrl()) || undefined}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        title="Open preview in new tab"
-                        aria-label="Open preview in new tab"
-                        className="inline-flex items-center text-xs font-medium p-1.5 rounded-md bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/20 transition-colors"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
-                  </div>
-                )}
-                {/* iframe */}
-                <div className="flex-1 min-h-0" ref={previewRef}>
-                  {effectivePreviewUrl ? (
-                    <PreviewIframe
-                      src={getPreviewBypassUrl(getPreviewUrl()) || undefined}
-                      title="Preview Deployment"
-                      reloadKey={`${previewKey}`}
-                      maxWidthPx={DEVICE_WIDTHS[previewDevice]}
-                    />
-                  ) : (
+                <PreviewBrowser
+                  baseUrl={effectivePreviewUrl ?? null}
+                  isResolving={previewResolving}
+                  owner={ownerRepo.owner}
+                  repo={ownerRepo.repo}
+                  showBrowserChrome
+                  reloadKey={previewKey}
+                  iframeTitle="Preview Deployment"
+                  onBeforePreviewLoad={wakePreview}
+                  onComposerInjection={() => {}}
+                  onAttachmentInjection={() => {}}
+                  emptyState={
                     <div className="flex items-center justify-center h-full">
                       <div className="flex flex-col items-center gap-3 text-center">
                         <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
                         <div className="space-y-1">
                           <p className="text-sm text-zinc-300">
-                            {previewResolving
-                              ? "Loading preview…"
-                              : "Preview is being built by Vercel…"}
+                            Preview is being built...
                           </p>
                           <p className="text-xs text-zinc-500">
-                            {previewResolving
-                              ? "Fetching this PR's Vercel preview — it'll appear here as soon as the build is ready."
-                              : "This usually takes a minute. The preview will appear here automatically when ready."}
+                            This usually takes a minute. The preview will appear
+                            here automatically when ready.
                           </p>
                         </div>
                       </div>
                     </div>
-                  )}
-                </div>
+                  }
+                />
               </div>
             )}
 

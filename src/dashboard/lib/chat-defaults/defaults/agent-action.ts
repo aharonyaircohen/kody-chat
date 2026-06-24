@@ -39,17 +39,6 @@ export const DEFAULT_EXECUTABLE: AgentActionEntry = {
     "kody_get_pipeline_status",
     "kody_list_workflow_runs",
     "kody_list_open_prs",
-    // ── Vibe ───────────────────────────────────────────────────────────────
-    "vibe_start_execution",
-    // ── Kody pipeline dispatch (actor-gated, user invokes with @kody) ─────
-    "kody_run_issue",
-    "kody_fix_pr",
-    "kody_fix_ci_pr",
-    "kody_review_pr",
-    "kody_resolve_pr",
-    "kody_revert_pr",
-    "kody_sync_pr",
-    "request_release",
     // ── Issue / task creation (actor-gated) ────────────────────────────────
     "report_bug",
     "create_feature",
@@ -147,9 +136,7 @@ export const DEFAULT_EXECUTABLE: AgentActionEntry = {
     // ── Preview interaction ───────────────────────────────────────────────
     "preview_act",
     // ── Remote dev (only when remote is configured) ────────────────────────
-    "remote_exec",
     "remote_read",
-    "remote_write",
     "remote_ls",
     // ── Browser + UI primitives ────────────────────────────────────────────
     "fetch_url",

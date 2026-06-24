@@ -478,10 +478,10 @@ export async function POST(req: NextRequest) {
      */
     voiceMode?: boolean;
     /**
-     * Vibe mode. When true the chat is scoped to the selected vibe task and
-     * the prompt flips to "you ARE the executor — drive Kody Live/Fly, open
-     * PRs directly, never dispatch @kody". The Kody-dispatch tools are
-     * stripped from the tool set so the model can't trigger the pipeline.
+    /**
+     * Vibe mode. True when chat is scoped to the Vibe workspace. Kody chat
+     * may research, plan, and create issues, but implementation-start tools
+     * are stripped so it cannot open PRs, start runners, or dispatch @kody.
      */
     vibeMode?: boolean;
     /**
@@ -859,11 +859,8 @@ export async function POST(req: NextRequest) {
         repo: repo.repo,
         actorLogin: verifiedActorLogin,
       }),
-      // Vibe-only: pre-create branch + draft PR so Vercel cold-builds in
-      // parallel with the runner warmup. Stripped from the tool set when
-      // not in vibe mode below (alongside the @kody dispatch tools).
-      // When scoped to a task, bind the hand-off to that issue so a
-      // mis-guessed issueNumber from the model can't mis-target the runner.
+      // Registered for legacy callers/tests, but stripped from Kody chat by
+      // applyVibeToolPolicy. Kody chat creates/refines issues only.
       ...createVibeTools({
         octokit,
         owner: repo.owner,
@@ -908,10 +905,9 @@ export async function POST(req: NextRequest) {
       })),
     };
   }
-  // Vibe tool policy (see vibe-tool-policy.ts): strips the `@kody` dispatch
-  // tools in vibe mode, strips issue-creation tools once a task is scoped
-  // (so the model can't file a duplicate), and removes vibe_start_execution
-  // outside vibe.
+  // Kody chat tool policy (see vibe-tool-policy.ts): strips implementation
+  // starters from this endpoint, and strips issue-creation tools in vibe mode
+  // once a task is scoped so the model can't file a duplicate.
   const mergedTools = applyVibeToolPolicy(
     { ...baseTools, ...extraTools },
     { vibeMode, hasCurrentTask: body.task?.issueNumber != null },

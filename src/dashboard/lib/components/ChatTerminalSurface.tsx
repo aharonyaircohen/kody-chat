@@ -20,6 +20,7 @@ import type { FitAddon as XTermFitAddon } from "@xterm/addon-fit";
 import type { Terminal as XTerm } from "@xterm/xterm";
 import { toast } from "sonner";
 
+import { getStoredBrainTerminalActivityLimit } from "../api";
 import { authHeaders } from "./kody-chat-live-session";
 
 interface TerminalSessionState {
@@ -33,7 +34,13 @@ interface TerminalSessionState {
 export type ChatTerminalTransport =
   | { type: "local"; sandboxId?: string; label?: string }
   | { type: "github-actions"; sandboxId: string; label?: string }
-  | { type: "fly"; app: string; machineId: string; label?: string };
+  | {
+      type: "fly";
+      app: string;
+      machineId: string;
+      label?: string;
+      feature?: "runner" | "brain";
+    };
 
 export type ChatTerminalConnectionState =
   | "idle"
@@ -41,6 +48,12 @@ export type ChatTerminalConnectionState =
   | "connected"
   | "closed"
   | "error";
+
+export interface ChatTerminalSnapshot {
+  cwd?: string;
+  shell?: string;
+  output: string;
+}
 
 type TerminalOutputEvent =
   | {
@@ -64,16 +77,38 @@ interface ChatTerminalSurfaceProps {
   transport?: ChatTerminalTransport;
   onAddToChat: (context: string) => void;
   onConnectionStateChange?: (state: ChatTerminalConnectionState) => void;
+  onSessionEnded?: (snapshot: ChatTerminalSnapshot) => void;
 }
 
 export interface ChatTerminalSurfaceHandle {
   sendLine: (line: string) => boolean;
   stop: () => Promise<void>;
   focus: () => void;
+  getSnapshot: () => ChatTerminalSnapshot;
+  restoreSnapshot: (snapshot: { name: string; output?: string }) => void;
 }
 
 const MAX_CAPTURE_CHARS = 16_000;
 const MAX_CAPTURE_LINES = 160;
+const TERMINAL_RESIZE_TIMEOUT_MS = 3_000;
+const TERMINAL_INPUT_TIMEOUT_MS = 8_000;
+const TERMINAL_STOP_TIMEOUT_MS = 8_000;
+const LOCAL_POLL_TIMEOUT_MS = 5_000;
+const TERMINAL_START_TIMEOUT_MS = 20_000;
+const GITHUB_ACTIONS_POLL_TIMEOUT_MS = 15_000;
+const FLY_CONNECT_TIMEOUT_MS = 30_000;
+
+function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(input, { ...init, signal: controller.signal }).finally(() =>
+    window.clearTimeout(timeout),
+  );
+}
 
 function transportKey(transport: ChatTerminalTransport): string {
   if (transport.type === "fly")
@@ -146,6 +181,7 @@ export const ChatTerminalSurface = forwardRef<
     transport = { type: "local" },
     onAddToChat,
     onConnectionStateChange,
+    onSessionEnded,
   },
   ref,
 ) {
@@ -160,6 +196,7 @@ export const ChatTerminalSurface = forwardRef<
   const localStartFailureKeyRef = useRef<string | null>(null);
   const activeRef = useRef(active);
   const outputCaptureRef = useRef("");
+  const sessionEndNotifiedRef = useRef(false);
   const pollBusyRef = useRef(false);
   const githubActionsInputBufferRef = useRef("");
   const stopRef = useRef<() => Promise<void>>(async () => {});
@@ -215,11 +252,15 @@ export const ChatTerminalSurface = forwardRef<
     }
     const current = sessionRef.current;
     if (!current) return;
-    void fetch("/api/kody/chat/terminal/resize", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ sessionId: current.sessionId, cols, rows }),
-    }).catch(() => {});
+    void fetchWithTimeout(
+      "/api/kody/chat/terminal/resize",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ sessionId: current.sessionId, cols, rows }),
+      },
+      TERMINAL_RESIZE_TIMEOUT_MS,
+    ).catch(() => {});
   }, []);
 
   const sendRawInput = useCallback((input: string) => {
@@ -239,14 +280,21 @@ export const ChatTerminalSurface = forwardRef<
           githubActionsInputBufferRef.current = "";
           terminalRef.current?.write("\r\n");
           if (command.trim().length > 0) {
-            void fetch("/api/kody/chat/terminal/github/input", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", ...authHeaders() },
-              body: JSON.stringify({
-                sessionId: current.sessionId,
-                input: command,
-              }),
-            }).catch(() => {});
+            void fetchWithTimeout(
+              "/api/kody/chat/terminal/github/input",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  ...authHeaders(),
+                },
+                body: JSON.stringify({
+                  sessionId: current.sessionId,
+                  input: command,
+                }),
+              },
+              TERMINAL_INPUT_TIMEOUT_MS,
+            ).catch(() => {});
           }
           continue;
         }
@@ -263,16 +311,37 @@ export const ChatTerminalSurface = forwardRef<
     }
     const current = sessionRef.current;
     if (!current?.alive) return;
-    void fetch("/api/kody/chat/terminal/input", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({
-        sessionId: current.sessionId,
-        input,
-        raw: true,
-      }),
-    }).catch(() => {});
+    void fetchWithTimeout(
+      "/api/kody/chat/terminal/input",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          sessionId: current.sessionId,
+          input,
+          raw: true,
+        }),
+      },
+      TERMINAL_INPUT_TIMEOUT_MS,
+    ).catch(() => {});
   }, []);
+
+  const getTerminalSnapshot = useCallback(
+    (): ChatTerminalSnapshot => ({
+      cwd: sessionRef.current?.cwd,
+      shell: sessionRef.current?.shell,
+      output: usefulCapturedOutput(outputCaptureRef.current),
+    }),
+    [],
+  );
+
+  const notifyTerminalSessionEnded = useCallback(() => {
+    if (sessionEndNotifiedRef.current) return;
+    sessionEndNotifiedRef.current = true;
+    const snapshot = getTerminalSnapshot();
+    if (!snapshot.output.trim()) return;
+    onSessionEnded?.(snapshot);
+  }, [getTerminalSnapshot, onSessionEnded]);
 
   useImperativeHandle(
     ref,
@@ -290,8 +359,23 @@ export const ChatTerminalSurface = forwardRef<
       focus: () => {
         terminalRef.current?.focus();
       },
+      getSnapshot: getTerminalSnapshot,
+      restoreSnapshot: (snapshot) => {
+        const terminal = terminalRef.current;
+        if (!terminal) return;
+        const text = usefulCapturedOutput(snapshot.output ?? "");
+        outputCaptureRef.current = text;
+        terminal.clear();
+        terminal.writeln(
+          `\x1b[38;5;245m## Restored terminal snapshot: ${snapshot.name}\x1b[0m`,
+        );
+        if (text) {
+          terminal.write(`${text.replace(/\n/g, "\r\n")}\r\n`);
+        }
+        terminal.focus();
+      },
     }),
-    [sendRawInput],
+    [getTerminalSnapshot, sendRawInput],
   );
 
   useEffect(() => {
@@ -386,18 +470,22 @@ export const ChatTerminalSurface = forwardRef<
         currentTransport.type === "github-actions"
           ? "/api/kody/chat/terminal/github/start"
           : "/api/kody/chat/terminal/start";
-      const res = await fetch(startEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({
-          chatSessionId,
-          ...(currentTransport.sandboxId
-            ? { sandboxId: currentTransport.sandboxId }
-            : {}),
-          cols: terminal.cols,
-          rows: terminal.rows,
-        }),
-      });
+      const res = await fetchWithTimeout(
+        startEndpoint,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify({
+            chatSessionId,
+            ...(currentTransport.sandboxId
+              ? { sandboxId: currentTransport.sandboxId }
+              : {}),
+            cols: terminal.cols,
+            rows: terminal.rows,
+          }),
+        },
+        TERMINAL_START_TIMEOUT_MS,
+      );
       const data = (await res.json().catch(() => ({}))) as {
         session?: TerminalSessionState;
         message?: string;
@@ -407,6 +495,7 @@ export const ChatTerminalSurface = forwardRef<
         throw new Error(data.message ?? data.error ?? `HTTP ${res.status}`);
       }
       localStartFailureKeyRef.current = null;
+      sessionEndNotifiedRef.current = false;
       sessionRef.current = data.session;
       setSession(data.session);
       onConnectionStateChange?.("connected");
@@ -423,11 +512,14 @@ export const ChatTerminalSurface = forwardRef<
   }, [chatSessionId, connecting, onConnectionStateChange]);
 
   const disconnectFly = useCallback(() => {
+    if (flySocketRef.current || flyTargetKeyRef.current) {
+      notifyTerminalSessionEnded();
+    }
     flySocketRef.current?.close(1000, "terminal transport changed");
     flySocketRef.current = null;
     flyTargetKeyRef.current = null;
     updateFlyConnectionState("closed");
-  }, [updateFlyConnectionState]);
+  }, [notifyTerminalSessionEnded, updateFlyConnectionState]);
 
   const connectFly = useCallback(
     async (opts: { force?: boolean; resetSession?: boolean } = {}) => {
@@ -445,9 +537,13 @@ export const ChatTerminalSurface = forwardRef<
         return;
       }
 
+      if (flySocketRef.current || flyTargetKeyRef.current) {
+        notifyTerminalSessionEnded();
+      }
       flySocketRef.current?.close(1000, "reconnecting terminal");
       flySocketRef.current = null;
       flyTargetKeyRef.current = key;
+      sessionEndNotifiedRef.current = false;
       updateFlyConnectionState("connecting");
       setError(null);
       terminal.writeln(
@@ -456,18 +552,31 @@ export const ChatTerminalSurface = forwardRef<
 
       try {
         fitAddonRef.current?.fit();
-        const res = await fetch("/api/kody/terminal/session", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify({
-            app: current.app,
-            machineId: current.machineId,
-            chatSessionId,
-            resetSession: opts.resetSession,
-            cols: terminal.cols,
-            rows: terminal.rows,
-          }),
-        });
+        const activityLimit = getStoredBrainTerminalActivityLimit();
+        const shouldSendBrainActivityLimit =
+          current.feature === "brain" || current.feature === undefined;
+        const res = await fetchWithTimeout(
+          "/api/kody/terminal/session",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify({
+              app: current.app,
+              machineId: current.machineId,
+              chatSessionId,
+              resetSession: opts.resetSession,
+              ...(shouldSendBrainActivityLimit && activityLimit !== null
+                ? {
+                    activityLimitMs:
+                      activityLimit === "never" ? null : activityLimit,
+                  }
+                : {}),
+              cols: terminal.cols,
+              rows: terminal.rows,
+            }),
+          },
+          FLY_CONNECT_TIMEOUT_MS,
+        );
         if (!res.ok) {
           const body = (await res.json().catch(() => ({}))) as {
             message?: string;
@@ -518,6 +627,7 @@ export const ChatTerminalSurface = forwardRef<
             return;
           }
           if (message.type === "exit") {
+            notifyTerminalSessionEnded();
             updateFlyConnectionState("closed");
             terminalRef.current?.writeln(
               `\r\nProcess exited${message.code === undefined ? "" : ` (${message.code})`}`,
@@ -534,6 +644,7 @@ export const ChatTerminalSurface = forwardRef<
         ws.onclose = () => {
           if (flySocketRef.current !== ws) return;
           flySocketRef.current = null;
+          notifyTerminalSessionEnded();
           if (flyConnectionStateRef.current !== "error") {
             updateFlyConnectionState("closed");
           }
@@ -546,7 +657,12 @@ export const ChatTerminalSurface = forwardRef<
         terminal.writeln(`\x1b[31m${message}\x1b[0m`);
       }
     },
-    [appendCapturedOutput, chatSessionId, updateFlyConnectionState],
+    [
+      appendCapturedOutput,
+      chatSessionId,
+      notifyTerminalSessionEnded,
+      updateFlyConnectionState,
+    ],
   );
 
   const pollOutput = useCallback(async () => {
@@ -563,9 +679,15 @@ export const ChatTerminalSurface = forwardRef<
         transportRef.current.type === "github-actions"
           ? "/api/kody/chat/terminal/github/output"
           : "/api/kody/chat/terminal/output";
-      const res = await fetch(`${outputEndpoint}?${params}`, {
-        headers: authHeaders(),
-      });
+      const timeoutMs =
+        transportRef.current.type === "github-actions"
+          ? GITHUB_ACTIONS_POLL_TIMEOUT_MS
+          : LOCAL_POLL_TIMEOUT_MS;
+      const res = await fetchWithTimeout(
+        `${outputEndpoint}?${params}`,
+        { headers: authHeaders() },
+        timeoutMs,
+      );
       const data = (await res.json().catch(() => ({}))) as {
         events?: TerminalOutputEvent[];
         cursor?: number;
@@ -573,6 +695,7 @@ export const ChatTerminalSurface = forwardRef<
         error?: string;
       };
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+      setError(null);
 
       const nextSession = {
         ...current,
@@ -593,17 +716,29 @@ export const ChatTerminalSurface = forwardRef<
         );
         sessionRef.current = { ...nextSession, alive: false };
         onConnectionStateChange?.("closed");
+        notifyTerminalSessionEnded();
         setSession((existing) =>
           existing ? { ...existing, alive: false } : existing,
         );
       }
+      if (current.alive && data.alive === false) {
+        notifyTerminalSessionEnded();
+      }
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setError(message);
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setError("Terminal output stalled; retrying.");
+      } else {
+        const message = err instanceof Error ? err.message : String(err);
+        setError(message);
+      }
     } finally {
       pollBusyRef.current = false;
     }
-  }, [appendCapturedOutput, onConnectionStateChange]);
+  }, [
+    appendCapturedOutput,
+    notifyTerminalSessionEnded,
+    onConnectionStateChange,
+  ]);
 
   useEffect(() => {
     if (!ready || !active) return;
@@ -627,7 +762,7 @@ export const ChatTerminalSurface = forwardRef<
   useEffect(() => {
     if (
       !active ||
-      !session ||
+      !session?.sessionId ||
       (transport.type !== "local" && transport.type !== "github-actions")
     )
       return;
@@ -647,6 +782,7 @@ export const ChatTerminalSurface = forwardRef<
     async (announce = true) => {
       const current = sessionRef.current;
       if (!current) return;
+      notifyTerminalSessionEnded();
       sessionRef.current = null;
       setSession(null);
       onConnectionStateChange?.("closed");
@@ -654,14 +790,18 @@ export const ChatTerminalSurface = forwardRef<
         transportRef.current.type === "github-actions"
           ? "/api/kody/chat/terminal/github/stop"
           : "/api/kody/chat/terminal/stop";
-      await fetch(stopEndpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({ sessionId: current.sessionId }),
-      }).catch(() => {});
+      await fetchWithTimeout(
+        stopEndpoint,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify({ sessionId: current.sessionId }),
+        },
+        TERMINAL_STOP_TIMEOUT_MS,
+      ).catch(() => {});
       if (announce) terminalRef.current?.writeln("\r\nTerminal stopped");
     },
-    [onConnectionStateChange],
+    [notifyTerminalSessionEnded, onConnectionStateChange],
   );
   useEffect(() => {
     stopRef.current = () => stop();

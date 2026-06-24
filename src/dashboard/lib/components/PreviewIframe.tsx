@@ -31,6 +31,7 @@ interface PreviewIframeProps {
   /** Bump/change to force a reload and re-show the spinner (refresh button). */
   reloadKey: string | number;
   onLoad?: () => void;
+  onBeforeLoad?: () => void | Promise<void>;
   /**
    * Optional viewport width (px) to simulate a device. When set, the iframe is
    * clamped to this width and centered so you can preview the responsive
@@ -45,6 +46,7 @@ export function PreviewIframe({
   title,
   reloadKey,
   onLoad,
+  onBeforeLoad,
   maxWidthPx,
   sandbox = DEFAULT_IFRAME_SANDBOX,
 }: PreviewIframeProps) {
@@ -55,6 +57,13 @@ export function PreviewIframe({
   useEffect(() => {
     setLoaded(false);
   }, [src, reloadKey]);
+
+  useEffect(() => {
+    if (!src || !onBeforeLoad) return;
+    void Promise.resolve(onBeforeLoad()).catch(() => {
+      // The iframe still attempts to load; keep the visible state there.
+    });
+  }, [src, reloadKey, onBeforeLoad]);
 
   const sandboxProps =
     sandbox === null ? {} : ({ sandbox } satisfies { sandbox: string });

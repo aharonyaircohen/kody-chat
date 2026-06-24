@@ -42,13 +42,8 @@ import { MessagesBadge } from "./MessagesBadge";
 import { ReportsBadge } from "./ReportsBadge";
 import {
   DASHBOARD_NAV_ITEM,
-  PRIMARY_NAV_ITEMS,
-  PRIMARY_NAV_TITLE,
-  PREVIEW_NAV_ITEM,
-  PRIMARY_VIEW_TITLE,
-  SETTINGS_NAV_SECTIONS,
-  TASKS_NAV_ITEM,
-  VIBE_NAV_ITEM,
+  ENGINEER_MODE_SECTIONS,
+  VIBE_MODE_SECTIONS,
   type SettingsNavItem,
 } from "./settings-nav";
 
@@ -65,82 +60,6 @@ type SidebarMode = "vibe" | "engineer";
 
 const COLLAPSED_KEY = "kody.sidebar.collapsed";
 const MODE_KEY = "kody.sidebar.mode";
-const NAV_ITEM_BY_HREF = new Map(
-  [
-    DASHBOARD_NAV_ITEM,
-    TASKS_NAV_ITEM,
-    VIBE_NAV_ITEM,
-    PREVIEW_NAV_ITEM,
-    ...PRIMARY_NAV_ITEMS,
-    ...SETTINGS_NAV_SECTIONS.flatMap((section) => section.items),
-  ].map((item) => [item.href, item] as const),
-);
-
-function sidebarItem(href: string): NavItem {
-  const item = NAV_ITEM_BY_HREF.get(href);
-  if (!item) throw new Error(`Missing sidebar item for ${href}`);
-  return item;
-}
-
-function settingsSection(title: string): {
-  title: string;
-  items: readonly NavItem[];
-} {
-  const section = SETTINGS_NAV_SECTIONS.find((item) => item.title === title);
-  if (!section) throw new Error(`Missing sidebar section ${title}`);
-  return section;
-}
-
-const VIBE_MODE_SECTIONS: Array<{ title: string; items: readonly NavItem[] }> =
-  [
-    {
-      title: PRIMARY_VIEW_TITLE,
-      items: [VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
-    },
-    {
-      title: PRIMARY_NAV_TITLE,
-      items: [
-        sidebarItem("/org"),
-        sidebarItem("/todos"),
-        sidebarItem("/messages"),
-        sidebarItem("/reports"),
-        sidebarItem("/cms"),
-        sidebarItem("/docs"),
-        sidebarItem("/changelog"),
-      ],
-    },
-  ];
-const ENGINEER_MODE_SECTIONS: Array<{
-  title: string;
-  items: readonly NavItem[];
-}> = [
-  {
-    title: PRIMARY_VIEW_TITLE,
-    items: [TASKS_NAV_ITEM, VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
-  },
-  settingsSection("Operations"),
-  {
-    title: PRIMARY_NAV_TITLE,
-    items: [
-      sidebarItem("/org"),
-      sidebarItem("/todos"),
-      sidebarItem("/messages"),
-      sidebarItem("/reports"),
-      sidebarItem("/cms"),
-      sidebarItem("/files"),
-      sidebarItem("/docs"),
-      sidebarItem("/changelog"),
-    ],
-  },
-  settingsSection("Monitoring"),
-  settingsSection("Fly"),
-  settingsSection("Agent"),
-  settingsSection("Engine"),
-  settingsSection("Company"),
-  settingsSection("Infrastructure"),
-  settingsSection("Alerts"),
-  { title: "General", items: [sidebarItem("/settings")] },
-];
 
 function isActive(pathname: string, search: string, item: NavItem): boolean {
   // Hrefs may include a query string (e.g. "/reports"). Compare the

@@ -89,6 +89,25 @@ export function getStoredFlyPerf(): "low" | "medium" | "high" | null {
   }
 }
 
+export function getStoredBrainTerminalActivityLimit(): number | "never" | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("kody_auth");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      brainTerminalActivityLimit?: unknown;
+    };
+    const value = parsed.brainTerminalActivityLimit;
+    if (value === "never") return "never";
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+      return value;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Read optional Brain assistant config stored at login. Returns null unless
  * both `url` and `apiKey` are present — partial config is treated as missing.
@@ -692,6 +711,51 @@ export const prsApi = {
     const data = await handleResponse<{ previewUrl: string | null }>(res);
     return data.previewUrl;
   },
+  createPreview: async (
+    prNumber: number,
+    ref: string,
+  ): Promise<{
+    url: string | null;
+    state: string;
+    builderMachineId?: string;
+  }> => {
+    const auth = getStoredAuth();
+    if (!auth) throw new NoTokenError();
+    const res = await fetch(`${API_BASE}/previews`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify({
+        repo: `${auth.owner}/${auth.repo}`,
+        pr: prNumber,
+        ref,
+      }),
+    });
+    return handleResponse(res);
+  },
+  wakePreview: async (
+    prNumber: number,
+  ): Promise<{
+    url: string | null;
+    state: string;
+    machineId?: string;
+  }> => {
+    const auth = getStoredAuth();
+    if (!auth) throw new NoTokenError();
+    const owner = encodeURIComponent(auth.owner);
+    const repo = encodeURIComponent(auth.repo);
+    const res = await fetch(
+      `${API_BASE}/previews/${owner}/${repo}/${prNumber}`,
+      {
+        method: "POST",
+        headers: buildHeaders(),
+      },
+    );
+    const data = await handleResponse<{
+      ok: true;
+      preview: { url: string | null; state: string; machineId?: string };
+    }>(res);
+    return data.preview;
+  },
   postComment: async (
     prNumber: number,
     body: string,
@@ -888,7 +952,7 @@ export interface AgentResponsibility {
   capabilityKind: AgentResponsibilityCapabilityKind | null;
   /**
    * Mirrors `disabled: true` in `profile.json`. When `true` the engine
- * runner dispatch skips disabled responsibilities; manual "Run now" still works.
+   * runner dispatch skips disabled responsibilities; manual "Run now" still works.
    */
   disabled: boolean;
   /** Slug agent (agentIdentity) executes agentResponsibility. `null` means none assigned. */

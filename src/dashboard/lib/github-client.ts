@@ -2586,6 +2586,12 @@ export async function findAssociatedPRByIssueNumber(
   const openPRs = await fetchOpenPRs();
   const issueStr = String(issueNumber);
 
+  const sameNumberPr = openPRs.find((pr) => pr.number === issueNumber);
+  if (sameNumberPr) {
+    setCache(cacheKey, CACHE_TTL.prs, sameNumberPr);
+    return sameNumberPr;
+  }
+
   // Highest priority: engine-written `<!-- kody-release-pr: #N -->` marker
   // in the issue body. Persisted by release-prepare/release-deploy so the
   // link survives @kody fix overwrites of the PR body. Mirrors the bulk

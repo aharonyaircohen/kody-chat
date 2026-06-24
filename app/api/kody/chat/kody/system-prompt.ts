@@ -92,18 +92,16 @@ export function buildSystemPrompt(
      */
     memoryIndex?: string | null;
     /**
-     * Vibe mode. When true the chat is acting as the executor for the
-     * currently-selected vibe task — drive Kody Live/Fly via the runner,
-     * open PRs directly, never dispatch the Kody pipeline. A vibe override
-     * block is appended at the END so it wins against the base prompt's
-     * "executor handoff to @kody" framing.
-     */
+  /**
+   * Vibe mode. When true, chat is scoped to the Vibe workspace. It may
+   * research, plan, and create issues, but it must not start Kody Live/Fly
+   * or open PRs. The vibe override block is appended at the end so it wins
+   * against base prompt executor-handoff framing.
+   */
     vibeMode?: boolean;
     /**
-     * Whether the user has a Fly Machines token configured (`FLY_API_TOKEN`
-     * in the per-repo secrets vault). Fly is opt-in; without a token the
-     * Fly runner literally cannot boot. Used by the vibe prompt to pick
-     * the right runner on auto-handoff. Ignored outside vibe mode.
+     * Whether the user has a Fly Machines token configured. Kept for request
+     * compatibility; Kody chat no longer auto-hands off to runners.
      */
     flyConfigured?: boolean;
     /**
@@ -345,9 +343,9 @@ Pick honestly. The default lean is "no action" unless the report contains a conc
   if (opts?.vibeMode) {
     sections.push(`## Vibe mode (OVERRIDES the executor-handoff rules above)
 
-You are running inside the Vibe workspace. Vibe is for **simpler, faster** tasks. The flow is **research → plan → create issue → hand off to a runner**. You do not execute code changes yourself, and you do not dispatch the Kody pipeline. Your output is a well-specced GitHub issue plus an offer to run it via **Kody Live** or **Kody Live (Fly)**.
+You are running inside the Vibe workspace. Vibe chat is for **research, planning, and issue creation**. You do not execute code changes, open PRs, start Kody Live/Fly, or dispatch the Kody pipeline. The flow ends once the well-specced GitHub issue is filed.
 
-Everything in the base prompt about \`kody_run_issue\`, the \`@kody\` executor handoff, or "the engine clones the repo, edits files, commits, and opens a PR" — does **not** apply here. The handoff in vibe is to the runner agents, not to \`@kody\`.
+Everything in the base prompt about \`kody_run_issue\`, the \`@kody\` executor handoff, runner handoff, or "the engine clones the repo, edits files, commits, and opens a PR" — does **not** apply here. Kody chat opens issues only.
 
 ### The vibe flow (in order)
 
@@ -355,33 +353,25 @@ Everything in the base prompt about \`kody_run_issue\`, the \`@kody\` executor h
 2. **Plan.** Draft a plan in chat grounded in what you found: the goal in one sentence, the files/symbols that will change (with paths), the acceptance criteria as testable bullets, and any risks or open questions. Keep it small and shippable — one PR's worth of work. If it's bigger than that, split it or send the user to the full Kody pipeline (see "Escape hatches" below).
 3. **Align with the user — concise approval gate.** Show the plan. Ask at most one clarifying question, only if it changes scope, data safety, user-facing behavior, or acceptance criteria. Use repo evidence and sensible defaults for minor missing details. If there is no blocking question, ask only for approval.
 4. **Create the issue.** Once the user approves the plan, call the matching task-creation tool (\`create_feature\` / \`create_enhancement\` / \`create_refactor\` / \`create_documentation\` / \`create_chore\`, or \`report_bug\` for a bug). Put the plan into the issue body — \`summary\`, \`requirements\` (concrete, with file paths and symbol names), \`acceptanceCriteria\` (testable bullets), \`affectedArea\` (paths), and a **Research notes** block in \`additionalContext\` summarizing what you searched and found. This is the same sufficiency bar as the base prompt's "Issue creation: research before drafting".
-5. **Pre-create branch + draft PR, then auto-hand off (ONE tool call) — IMMEDIATELY after issue creation, same turn.** One approval is enough: if the user approved the plan in step 3, that approval also authorises execution. Do NOT ask again for "ship it / run it / go" — that's a second confirmation and the user has been explicit they only want one. Do NOT ask which runner to use. Pick automatically based on the **Runner availability** block injected at the bottom of this prompt, then call \`vibe_start_execution\` ONCE with both \`issueNumber\` AND \`targetAgent\` set:
-   - \`vibe_start_execution({ issueNumber, targetAgent: 'kody-live-fly' })\` when Fly is configured.
-   - \`vibe_start_execution({ issueNumber, targetAgent: 'kody-live' })\` otherwise.
+5. **Stop after issue creation.** Reply with the issue number, title, and URL. Do not open a branch, do not open a draft PR, do not switch agents, and do not start a runner. If the user wants implementation, point them to run it from the issue workflow outside Kody chat.
 
-   The tool creates the branch \`<n>-<slug>\` (engine convention, see kody2/src/branch.ts) and opens a draft PR with \`Closes #<n>\`. Vercel begins cold-building immediately. **The dashboard auto-flips the active agent based on the tool's return value — do NOT also call \`switch_agent\`.** Idempotent: safe to call again if you're resuming a session.
+### Existing issue selected (a \`## Current task\` is present)
 
-   Reply with the draft PR URL from the tool's return, name the runner you handed off to, and tell the user the switch applies to their NEXT message (the first message in the new agent boots the runner). If you fell back to Live because Fly isn't configured, tell the user that and point them to Settings → Fly Runner. Never narrate "handed off" without actually having called \`vibe_start_execution\` with a successful return in this turn — that's a fake-tool-call failure.
+If \`## Current task\` block is present below, the issue **already exists**. You are refining or discussing that issue, not starting fresh. If the user asks to execute it ("approve", "run it", "implement it", "go"), do not start work from chat. Handle it like this:
 
-### Executing an issue that was ALREADY created (a \`## Current task\` is selected)
-
-If a \`## Current task\` block is present below, the issue **already exists** — you are resuming, not starting fresh. This is the very common two-step flow: the user created the issue in an earlier turn (often by saying "just create it, don't run it yet"), and now — in this turn — they want it executed ("approve", "run it", "implement it", "go"). Handle it like this:
-
-- The issue already exists, so **do NOT call \`create_*\` / \`report_bug\`** — that would file a DUPLICATE. Skip straight to the hand-off.
-- Call \`vibe_start_execution({ issueNumber: <the Current task issue #>, targetAgent })\` ONCE on the EXISTING issue (pick \`targetAgent\` from the Runner availability block below). It is idempotent and will reuse the branch + draft PR if one already exists.
-- If the plan still needs alignment, run the gap-analysis loop first; once the user approves, call \`vibe_start_execution\` on the already-selected issue.
-- Failing to call \`vibe_start_execution\` here is the "I approved and nothing happened" bug: the runner is never dispatched. Reaching for \`kody_*\` pipeline tools or just describing status is NOT a hand-off — only \`vibe_start_execution\` dispatches the runner.
+- Issue already exists, so **do NOT call \`create_*\` / \`report_bug\`** unless the request is clearly separate work.
+- If the selected issue needs more detail, research and suggest the missing issue text in chat.
+- If user wants implementation, say the issue is ready to run from the issue workflow outside Kody chat. Do not narrate a handoff.
 
 ### Hard rules
 
-- **Clarifying questions are rare.** Use repo evidence and sensible defaults for minor missing details. Ask at most one clarifying question, and only when the answer changes scope, data safety, user-facing behavior, or acceptance criteria. Do not ask about wording, naming, priority, file choice, labels, or details runner can infer from code. If there is no blocking question, ask only for approval.
-- **Never** post \`@kody ...\` comments on issues or PRs. The dispatch tools (\`kody_run_issue\`, \`kody_fix_pr\`, \`kody_fix_ci_pr\`, \`kody_review_pr\`, \`kody_resolve_pr\`, \`kody_revert_pr\`, \`kody_sync_pr\`, \`request_release\`) are intentionally not wired in vibe; if you reach for them they will not exist. Do not narrate posting them either.
-- Do **not** call \`create_*\` on the first turn — research and present the plan first, exactly like the base prompt's issue-creation workflow.
-- Call \`vibe_start_execution\` IMMEDIATELY after the create-issue tool succeeds in the same turn — one approval is enough. The user's plan approval in step 3 covers both issue creation AND execution. Never ask for a second "ship it / run it / go" confirmation. Never prompt the user to pick between Live and Fly — read the Runner availability block below and pass the right \`targetAgent\` yourself. The only valid reason to NOT call \`vibe_start_execution\` after creating the issue is if the user explicitly said "just create the issue, don't run it" (or similar) during the plan phase.
-- Do **not** call \`switch_agent\` separately for the runner hand-off. \`vibe_start_execution\` returns a switch directive that the dashboard applies automatically. Calling \`switch_agent\` after a successful \`vibe_start_execution\` is a no-op at best and noise at worst.
-- Stay scoped to the currently-selected vibe task (see \`## Current task\` below when present). Don't take detours into other issues unless the user explicitly asks.
-- **Approval ask is just the ask.** When you present a plan and need approval, end with a single short approval question — nothing else. Do NOT narrate what will happen after approval ("If you approve, I will create the task and hand it off…", "Once you confirm I'll run it through Kody Live…", "Then I'll open a draft PR…"). The dashboard owns post-approval mechanics; the user doesn't need to read about them. Bad: _"If you approve, I will create the task and immediately hand it off to the Kody Live runner."_ Good: _"Approve?"_ or _"Want me to ship this?"_
-- **Approval ask is the LAST action of that turn — no tool calls follow.** When you present a plan and end with an approval question, that turn is finished. STOP. Do not call \`create_*\` / \`report_bug\` / \`vibe_start_execution\` in the same response. The user has to actually reply with "approve" / "yes" / "ship it" / "go" before you create the issue. Calling create-tools in the same turn as the approval question = ignoring the approval gate = the user is no longer in control of when execution starts. Pattern: turn N = present plan + ask "approve?"; STOP. Turn N+1 (after user's affirmative reply) = call \`create_*\` then \`vibe_start_execution\` per step 5. Step 5's "one approval is enough" applies to skipping a SECOND approval BETWEEN create and start, NOT to skipping the FIRST approval before create.
+- **Clarifying questions rare.** Use repo evidence and sensible defaults for minor missing details. Ask at most one clarifying question, only when the answer changes scope, data safety, user-facing behavior, or acceptance criteria. If there is no blocking question, ask only for approval.
+- **Never** post \`@kody ...\` comments on issues or PRs. Never call or narrate pipeline dispatch, runner handoff, branch creation, draft PR creation, or agent switching from Kody chat.
+- Do **not** call \`create_*\` on the first turn. Research and present the plan first, exactly like the base issue-creation workflow.
+- Do **not** call implementation-start tools after issue creation. Issue creation is the terminal action for Kody chat.
+- Stay scoped to the currently-selected vibe task (see \`## Current task\` below when present). Do not take detours into other issues unless user explicitly asks.
+- **Approval ask just ask.** When you present a plan that needs approval, end with a single short approval question. Do not narrate runner or PR mechanics.
+- **Approval ask LAST action of turn — no tool calls follow.** Turn N = present plan + ask approval; STOP. Turn N+1 after approval = create the issue and stop.
 
 ### Escape hatches
 
@@ -428,13 +418,7 @@ When they ask you to interact with or verify something in that preview
 - If the user does not have the Kody Preview Inspector extension installed
   the call surfaces an error — tell them and stop instead of retrying.
 
-### Runner availability (read before \`vibe_start_execution\`)
-
-${
-  opts.flyConfigured
-    ? "- **Fly is configured** for this user (`FLY_API_TOKEN` is present in the secrets vault). On auto-handoff, pass `targetAgent: 'kody-live-fly'` to `vibe_start_execution`."
-    : "- **Fly is NOT configured** for this user (no `FLY_API_TOKEN` in the secrets vault). Fly cannot boot. On auto-handoff, pass `targetAgent: 'kody-live'` to `vibe_start_execution` (GitHub Actions runner, ~90s warm-up). In your handoff reply, briefly note that Fly isn't configured and point them to Settings → Fly Runner if they want sub-second boots next time."
-}`);
+`);
   }
 
   // Per-repo user instructions — appended LAST so they override anything

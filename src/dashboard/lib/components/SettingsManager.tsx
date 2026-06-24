@@ -3,13 +3,12 @@
  * @domain settings
  * @pattern settings-manager
  * @ai-summary Per-USER settings UI — only knobs scoped to this browser/user
- *   live here. Edits the optional integration fields in localStorage.kody_auth
- *   (brain, vercelBypassSecret) via useAuth().updateIntegrations. ALL Fly
- *   config (including the per-user perf tier) now lives on /runner so it isn't
- *   split across two pages — see [[feedback_settings_per_user_only]]. Other
- *   per-REPO config is surfaced as links: secrets vault on /secrets, chat
- *   models/prompts on /models and /prompts. (Repo connections + PATs moved to
- *   the header repo switcher — no standalone page.)
+ *   live here. Edits optional browser-scoped integration fields in
+ *   localStorage.kody_auth via useAuth().updateIntegrations. ALL Fly config
+ *   (including Brain on Fly) lives on /runner so Brain has one visible home.
+ *   Other per-REPO config is surfaced as links: secrets vault on /secrets,
+ *   chat models/prompts on /models and /prompts. (Repo connections + PATs moved
+ *   to the header repo switcher — no standalone page.)
  */
 "use client";
 
@@ -19,7 +18,6 @@ import { toast } from "sonner";
 import {
   AlertTriangle,
   Bot,
-  Brain,
   Cpu,
   KeyRound,
   Link2,
@@ -64,38 +62,22 @@ function SectionHeader({
 export function SettingsManager() {
   const { auth, logout, updateIntegrations } = useAuth();
 
-  // ─── Brain config (local form state, seeded from auth) ──────────────────
-  const [brainUrl, setBrainUrl] = useState("");
-  const [brainKey, setBrainKey] = useState("");
-
   // ─── Vercel bypass secret ───────────────────────────────────────────────
   const [vercelSecret, setVercelSecret] = useState("");
   const [storeRepoUrl, setStoreRepo] = useState(DEFAULT_KODY_STORE_REPO_URL);
   const [storeRef, setStoreRef] = useState(DEFAULT_KODY_STORE_REF);
 
   const [confirmLogout, setConfirmLogout] = useState(false);
-  const [confirmClearBrain, setConfirmClearBrain] = useState(false);
   const [confirmClearVercel, setConfirmClearVercel] = useState(false);
   const [confirmStoreRef, setConfirmStoreRef] = useState(false);
 
   // Seed form state once auth loads (or repo switches).
   useEffect(() => {
-    setBrainUrl(auth?.brain?.url ?? "");
-    setBrainKey(auth?.brain?.apiKey ?? "");
     setVercelSecret(auth?.vercelBypassSecret ?? "");
     setStoreRepo(auth?.storeRepoUrl ?? DEFAULT_KODY_STORE_REPO_URL);
     setStoreRef(auth?.storeRef ?? DEFAULT_KODY_STORE_REF);
-  }, [
-    auth?.brain?.url,
-    auth?.brain?.apiKey,
-    auth?.vercelBypassSecret,
-    auth?.storeRepoUrl,
-    auth?.storeRef,
-  ]);
+  }, [auth?.vercelBypassSecret, auth?.storeRepoUrl, auth?.storeRef]);
 
-  const brainHasChanges =
-    brainUrl.trim() !== (auth?.brain?.url ?? "") ||
-    brainKey.trim() !== (auth?.brain?.apiKey ?? "");
   const vercelHasChanges =
     vercelSecret.trim() !== (auth?.vercelBypassSecret ?? "");
   const currentStoreRepoUrl = auth?.storeRepoUrl ?? DEFAULT_KODY_STORE_REPO_URL;
@@ -113,25 +95,6 @@ export function SettingsManager() {
   const storeTargetIsDefault =
     normalizedStoreRepoUrl === DEFAULT_KODY_STORE_REPO_URL &&
     normalizedStoreRef === DEFAULT_KODY_STORE_REF;
-
-  function saveBrain() {
-    const url = brainUrl.trim();
-    const key = brainKey.trim();
-    if (!url || !key) {
-      toast.error("Brain URL and API key are both required");
-      return;
-    }
-    updateIntegrations({ brain: { url, apiKey: key } });
-    toast.success("Brain config saved");
-  }
-
-  function clearBrain() {
-    updateIntegrations({ brain: null });
-    setBrainUrl("");
-    setBrainKey("");
-    setConfirmClearBrain(false);
-    toast.success("Brain config cleared");
-  }
 
   function saveVercel() {
     const secret = vercelSecret.trim();
@@ -272,64 +235,6 @@ export function SettingsManager() {
           {/* Default chat (which assistant loads on open) */}
           <DefaultChatCard />
 
-          {/* Brain server */}
-          <Card className="border-white/[0.08] bg-white/[0.03]">
-            <CardContent className="p-4 space-y-4">
-              <div className="flex items-center gap-2">
-                <Brain className="w-4 h-4 text-violet-400" />
-                <h2 className="text-sm font-semibold">Brain server</h2>
-              </div>
-              <p className="text-xs text-white/50 -mt-2">
-                Optional external chat backend. Used when an agent routes to the
-                Brain (see the agent picker in chat).
-              </p>
-              <div className="space-y-2">
-                <Label htmlFor="brain-url" className="text-xs text-white/70">
-                  URL
-                </Label>
-                <Input
-                  id="brain-url"
-                  placeholder="https://brain.example.com"
-                  value={brainUrl}
-                  onChange={(e) => setBrainUrl(e.target.value)}
-                  className="bg-black/30 border-white/10"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="brain-key" className="text-xs text-white/70">
-                  API key
-                </Label>
-                <Input
-                  id="brain-key"
-                  type="password"
-                  placeholder="••••••••"
-                  value={brainKey}
-                  onChange={(e) => setBrainKey(e.target.value)}
-                  className="bg-black/30 border-white/10 font-mono"
-                />
-              </div>
-              <div className="flex items-center gap-2 pt-1">
-                <Button
-                  size="sm"
-                  onClick={saveBrain}
-                  disabled={!brainHasChanges}
-                >
-                  Save
-                </Button>
-                {auth?.brain && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setConfirmClearBrain(true)}
-                    className="text-rose-300 hover:text-rose-200"
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Vercel preview bypass */}
           <Card className="border-white/[0.08] bg-white/[0.03]">
             <CardContent className="p-4 space-y-4">
@@ -460,19 +365,10 @@ export function SettingsManager() {
         open={confirmLogout}
         onClose={() => setConfirmLogout(false)}
         title="Sign out?"
-        description="This clears every stored credential in this browser (GitHub tokens, Brain config, Vercel bypass)."
+        description="This clears every stored credential in this browser, including GitHub tokens and local integration settings."
         confirmLabel="Sign out"
         variant="destructive"
         onConfirm={() => logout()}
-      />
-      <ConfirmDialog
-        open={confirmClearBrain}
-        onClose={() => setConfirmClearBrain(false)}
-        title="Clear Brain config?"
-        description="Removes the saved Brain URL and API key from this browser."
-        confirmLabel="Clear"
-        variant="destructive"
-        onConfirm={clearBrain}
       />
       <ConfirmDialog
         open={confirmClearVercel}

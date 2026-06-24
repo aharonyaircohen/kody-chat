@@ -28,13 +28,11 @@ import {
   MessageSquare,
   MonitorPlay,
   Package,
-  Rocket,
   ScrollText,
   Settings as SettingsIcon,
   Settings2,
   SlidersHorizontal,
   Sparkles,
-  SquareTerminal,
   Target,
   Users,
   type LucideIcon,
@@ -181,20 +179,28 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     title: "Fly",
     items: [
       {
-        href: "/terminal",
-        label: "Terminal",
-        icon: SquareTerminal,
+        href: "/fly/config",
+        label: "Config",
+        icon: SlidersHorizontal,
         exact: true,
-        description:
-          "Interactive shell for live Fly runner and Brain machines.",
+        description: "Fly settings: previews, runners, and Brain.",
+        tint: "text-sky-300 bg-sky-500/10",
+      },
+      {
+        href: "/fly/machines",
+        label: "Live machines",
+        icon: Cpu,
+        exact: true,
+        description: "Current Fly machines and actions.",
         tint: "text-emerald-300 bg-emerald-500/10",
       },
       {
-        href: "/runner",
-        label: "Fly Runner",
-        icon: Rocket,
-        description: "Per-repo Fly infra: machines, activity, previews, Brain.",
-        tint: "text-sky-300 bg-sky-500/10",
+        href: "/fly/history",
+        label: "History",
+        icon: History,
+        exact: true,
+        description: "Fly machine activity snapshots and estimated cost.",
+        tint: "text-amber-300 bg-amber-500/10",
       },
     ],
   },
@@ -414,8 +420,88 @@ const ALL_NAV_ITEMS: readonly SettingsNavItem[] = [
   DASHBOARD_NAV_ITEM,
   TASKS_NAV_ITEM,
   VIBE_NAV_ITEM,
+  PREVIEW_NAV_ITEM,
   ...PRIMARY_NAV_ITEMS,
   ...SETTINGS_NAV_SECTIONS.flatMap((section) => section.items),
+];
+
+const NAV_ITEM_BY_HREF = new Map(
+  ALL_NAV_ITEMS.map((item) => [item.href, item] as const),
+);
+
+function navItemForHref(href: string): SettingsNavItem {
+  const item = NAV_ITEM_BY_HREF.get(href);
+  if (!item) throw new Error(`Missing sidebar item for ${href}`);
+  return item;
+}
+
+function settingsSection(title: string): SettingsNavSection {
+  const section = SETTINGS_NAV_SECTIONS.find((item) => item.title === title);
+  if (!section) throw new Error(`Missing sidebar section ${title}`);
+  return section;
+}
+
+export const VIBE_MODE_SECTIONS: readonly SettingsNavSection[] = [
+  {
+    title: PRIMARY_VIEW_TITLE,
+    items: [VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
+  },
+  {
+    title: PRIMARY_NAV_TITLE,
+    items: [
+      navItemForHref("/org"),
+      navItemForHref("/todos"),
+      navItemForHref("/messages"),
+      navItemForHref("/reports"),
+      navItemForHref("/cms"),
+      navItemForHref("/docs"),
+      navItemForHref("/changelog"),
+    ],
+  },
+];
+
+export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
+  {
+    title: PRIMARY_VIEW_TITLE,
+    items: [TASKS_NAV_ITEM, VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
+  },
+  settingsSection("Operations"),
+  {
+    title: PRIMARY_NAV_TITLE,
+    items: [
+      navItemForHref("/org"),
+      navItemForHref("/todos"),
+      navItemForHref("/messages"),
+      navItemForHref("/reports"),
+      navItemForHref("/cms"),
+      navItemForHref("/files"),
+      navItemForHref("/docs"),
+      navItemForHref("/changelog"),
+    ],
+  },
+  settingsSection("Monitoring"),
+  settingsSection("Fly"),
+  settingsSection("Agent"),
+  settingsSection("Engine"),
+  settingsSection("Company"),
+  settingsSection("Infrastructure"),
+  settingsSection("Alerts"),
+  { title: "General", items: [navItemForHref("/settings")] },
+];
+
+export const MOBILE_NAV_SECTIONS: readonly SettingsNavSection[] = [
+  {
+    title: PRIMARY_VIEW_TITLE,
+    items: [
+      DASHBOARD_NAV_ITEM,
+      TASKS_NAV_ITEM,
+      VIBE_NAV_ITEM,
+      PREVIEW_NAV_ITEM,
+    ],
+  },
+  ...ENGINEER_MODE_SECTIONS.filter(
+    (section) => section.title !== PRIMARY_VIEW_TITLE,
+  ),
 ];
 
 /** Strip a query string off an href so "/reports" → "/agent-responsibilities". */

@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
 
   const parsed = Query.safeParse({
     chatSessionId: req.nextUrl.searchParams.get("chatSessionId"),
+    sandboxId: req.nextUrl.searchParams.get("sandboxId") ?? undefined,
   });
   if (!parsed.success) {
     return NextResponse.json(

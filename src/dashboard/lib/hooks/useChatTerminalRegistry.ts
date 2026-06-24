@@ -42,6 +42,7 @@ interface UseChatTerminalRegistryOptions {
   activeSessionId: string | null;
   createSession: () => string;
   sessions: SessionMeta[];
+  sessionsHydrated?: boolean;
   storageScope?: string;
 }
 
@@ -105,7 +106,10 @@ function isTransport(value: unknown): value is ChatTerminalTransport {
   return (
     transport.type === "fly" &&
     typeof transport.app === "string" &&
-    typeof transport.machineId === "string"
+    typeof transport.machineId === "string" &&
+    (transport.feature === undefined ||
+      transport.feature === "runner" ||
+      transport.feature === "brain")
   );
 }
 
@@ -198,6 +202,7 @@ export function useChatTerminalRegistry({
   activeSessionId,
   createSession,
   sessions,
+  sessionsHydrated = true,
   storageScope = "global",
 }: UseChatTerminalRegistryOptions) {
   const storageKey = terminalRegistryStorageKey(storageScope);
@@ -256,9 +261,28 @@ export function useChatTerminalRegistry({
   const terminalMachines = (flyInventory?.machines ?? []).filter(
     canUseChatTerminalFlyMachine,
   );
-  const activeTransport = activeSessionId
+  const activeTransportBase = activeSessionId
     ? (transportBySessionId[activeSessionId] ?? LOCAL_TERMINAL_TRANSPORT)
     : LOCAL_TERMINAL_TRANSPORT;
+  const activeTransport =
+    activeTransportBase.type === "fly" &&
+    activeTransportBase.feature === undefined
+      ? (() => {
+          const machine = terminalMachines.find(
+            (candidate) =>
+              candidate.app === activeTransportBase.app &&
+              candidate.machineId === activeTransportBase.machineId,
+          );
+          if (!machine) return activeTransportBase;
+          return {
+            ...activeTransportBase,
+            feature:
+              machine.feature === "brain"
+                ? ("brain" as const)
+                : ("runner" as const),
+          };
+        })()
+      : activeTransportBase;
   const activeInstanceId = activeSessionId
     ? chatTerminalInstanceId(activeSessionId, activeTransport)
     : null;
@@ -307,6 +331,8 @@ export function useChatTerminalRegistry({
   );
 
   useEffect(() => {
+    if (!sessionsHydrated) return;
+
     const knownSessionIds = new Set(sessions.map((session) => session.id));
 
     setMountedTerminals((prev) => {
@@ -369,7 +395,7 @@ export function useChatTerminalRegistry({
       }
       return changed ? next : prev;
     });
-  }, [sessions]);
+  }, [sessions, sessionsHydrated]);
 
   useEffect(() => {
     if (mode !== "terminal" || !activeSessionId) return;
@@ -461,6 +487,7 @@ export function useChatTerminalRegistry({
         app: machine.app,
         machineId: machine.machineId,
         label: machine.label,
+        feature: machine.feature === "brain" ? "brain" : "runner",
       });
     },
     [setActiveTransport, terminalMachines],
@@ -532,39 +559,49 @@ export function useChatTerminalRegistry({
 
   useEffect(() => {
     if (!activeSessionId) return;
-    const localInstanceId = chatTerminalInstanceId(
-      activeSessionId,
-      LOCAL_TERMINAL_TRANSPORT,
+    const localTerminals = mountedTerminals.filter(
+      (terminal) =>
+        terminal.sessionId === activeSessionId &&
+        terminal.transport.type === "local",
     );
-    if (!mountedTerminals.some((terminal) => terminal.id === localInstanceId)) {
-      return;
-    }
+    if (localTerminals.length === 0) return;
 
     let cancelled = false;
     const refreshStatus = async () => {
       const headers = authHeaders();
       if (Object.keys(headers).length === 0) return;
-      const params = new URLSearchParams({ chatSessionId: activeSessionId });
-      try {
-        const res = await fetch(`/api/kody/chat/terminal/status?${params}`, {
-          headers,
-        });
-        if (!res.ok) return;
-        const body = (await res.json().catch(() => ({}))) as {
-          session?: { alive?: boolean } | null;
-        };
-        if (cancelled) return;
-        const state: ChatTerminalConnectionState = body.session?.alive
-          ? "connected"
-          : "closed";
-        setConnectionStateByInstanceId((prev) =>
-          prev[localInstanceId] === state
-            ? prev
-            : { ...prev, [localInstanceId]: state },
-        );
-      } catch {
-        /* status is advisory; the terminal surface reports hard errors */
-      }
+      await Promise.all(
+        localTerminals.map(async (terminal) => {
+          if (terminal.transport.type !== "local") return;
+          const params = new URLSearchParams({
+            chatSessionId: activeSessionId,
+          });
+          if (terminal.transport.sandboxId) {
+            params.set("sandboxId", terminal.transport.sandboxId);
+          }
+          try {
+            const res = await fetch(
+              `/api/kody/chat/terminal/status?${params}`,
+              { headers },
+            );
+            if (!res.ok) return;
+            const body = (await res.json().catch(() => ({}))) as {
+              session?: { alive?: boolean } | null;
+            };
+            if (cancelled) return;
+            const state: ChatTerminalConnectionState = body.session?.alive
+              ? "connected"
+              : "closed";
+            setConnectionStateByInstanceId((prev) =>
+              prev[terminal.id] === state
+                ? prev
+                : { ...prev, [terminal.id]: state },
+            );
+          } catch {
+            /* status is advisory; the terminal surface reports hard errors */
+          }
+        }),
+      );
     };
 
     void refreshStatus();
@@ -644,6 +681,7 @@ export function useChatTerminalRegistry({
     openTerminalMode,
     recordConnectionState,
     refreshFlyMachines,
+    restoreTerminalTransport: setActiveTransport,
     selectGitHubActionsSandboxTarget,
     selectSandboxTarget,
     selectTarget,

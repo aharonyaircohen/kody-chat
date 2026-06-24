@@ -7,13 +7,14 @@
  * Fly builds per PR, stored in kody.config.json `fly.previews` (plain config,
  * NOT secrets):
  *
- *   - Preview size — a Small / Standard / Large preset (raw CPU/RAM live under
- *     "Advanced" for power users; an off-preset value shows as "Custom").
+ *   - Preview size — Small / Standard / Large preset for the final site.
+ *   - Build worker size — separate preset for the temporary builder machine.
+ *     Raw CPU/RAM live under "Advanced"; off-preset shows as "Custom".
  *   - Sleep when idle — keep ON so idle previews cost ~$0.
  *   - Delete previews after N days — auto-cleanup (default 14).
  *   - "Clean up now" — repair sleep/wake settings, sleep live previews, and
  *     destroy past-expiry previews immediately.
- *   - Advanced — exact CPU/RAM + manual branch previews (BranchPreviewCard).
+ *   - Advanced — exact CPU/RAM fields + manual branch previews.
  *
  * Health check is intentionally NOT exposed (footgun — pinging defeats
  * idle sleep); it stays OFF in code, settable only via kody.config.json.
@@ -52,6 +53,8 @@ interface ResolvedPreviews {
   idleSuspend: boolean;
   healthCheck: boolean;
   ttlDays: number;
+  builderCpus: number;
+  builderMemoryMb: number;
 }
 
 interface SweepResult {
@@ -89,10 +92,56 @@ const SIZE_PRESETS: Record<
   },
 };
 
+type BuilderSizeKey = "standard" | "large" | "max" | "custom";
+const BUILDER_SIZE_PRESETS: Record<
+  Exclude<BuilderSizeKey, "custom">,
+  {
+    builderCpus: number;
+    builderMemoryMb: number;
+    label: string;
+    hint: string;
+  }
+> = {
+  standard: {
+    builderCpus: 2,
+    builderMemoryMb: 1024,
+    label: "Standard",
+    hint: "shared 2x · 1 GB",
+  },
+  large: {
+    builderCpus: 4,
+    builderMemoryMb: 4096,
+    label: "Large",
+    hint: "shared 4x · 4 GB",
+  },
+  max: {
+    builderCpus: 8,
+    builderMemoryMb: 8192,
+    label: "Max",
+    hint: "shared 8x · 8 GB",
+  },
+};
+
 function matchPreset(cpus: number, memoryMb: number): SizeKey {
   for (const key of ["small", "standard", "large"] as const) {
     const p = SIZE_PRESETS[key];
     if (p.cpus === cpus && p.memoryMb === memoryMb) return key;
+  }
+  return "custom";
+}
+
+function matchBuilderPreset(
+  builderCpus: number,
+  builderMemoryMb: number,
+): BuilderSizeKey {
+  for (const key of ["standard", "large", "max"] as const) {
+    const p = BUILDER_SIZE_PRESETS[key];
+    if (
+      p.builderCpus === builderCpus &&
+      p.builderMemoryMb === builderMemoryMb
+    ) {
+      return key;
+    }
   }
   return "custom";
 }
@@ -128,7 +177,11 @@ export function PreviewsCard({
       setSaved(body.resolved);
       // Surface the raw inputs up front when the saved size is off-preset.
       if (
-        matchPreset(body.resolved.cpus, body.resolved.memoryMb) === "custom"
+        matchPreset(body.resolved.cpus, body.resolved.memoryMb) === "custom" ||
+        matchBuilderPreset(
+          body.resolved.builderCpus,
+          body.resolved.builderMemoryMb,
+        ) === "custom"
       ) {
         setShowAdvanced(true);
       }
@@ -148,12 +201,17 @@ export function PreviewsCard({
     saved !== null &&
     (form.cpus !== saved.cpus ||
       form.memoryMb !== saved.memoryMb ||
+      form.builderCpus !== saved.builderCpus ||
+      form.builderMemoryMb !== saved.builderMemoryMb ||
       form.idleSuspend !== saved.idleSuspend ||
       form.ttlDays !== saved.ttlDays);
 
   const selectedSize: SizeKey = form
     ? matchPreset(form.cpus, form.memoryMb)
     : "standard";
+  const selectedBuilderSize: BuilderSizeKey = form
+    ? matchBuilderPreset(form.builderCpus, form.builderMemoryMb)
+    : "large";
 
   function patch(next: Partial<ResolvedPreviews>) {
     setForm((prev) => (prev ? { ...prev, ...next } : prev));
@@ -251,7 +309,7 @@ export function PreviewsCard({
               <div className="flex items-center gap-2">
                 <Label className="text-xs text-white/70">Preview size</Label>
                 <SimpleTooltip
-                  content="Standard suspends when idle; Large is for heavy builds and stops when idle."
+                  content="Size of the preview after it is built."
                   side="right"
                 >
                   <Info className="w-3 h-3 text-white/50 hover:text-white/80 cursor-help" />
@@ -267,6 +325,47 @@ export function PreviewsCard({
                       type="button"
                       onClick={() =>
                         patch({ cpus: p.cpus, memoryMb: p.memoryMb })
+                      }
+                      className={`flex-1 rounded-md border px-2 py-1.5 text-xs transition ${
+                        active
+                          ? "border-sky-500/50 bg-sky-500/15 text-sky-200"
+                          : "border-white/10 bg-black/20 text-white/60 hover:text-white/80"
+                      }`}
+                      title={p.hint}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Builder size preset */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <Label className="text-xs text-white/70">
+                  Build worker size
+                </Label>
+                <SimpleTooltip
+                  content="Used only while creating previews."
+                  side="right"
+                >
+                  <Info className="w-3 h-3 text-white/50 hover:text-white/80 cursor-help" />
+                </SimpleTooltip>
+              </div>
+              <div className="flex gap-1.5">
+                {(["standard", "large", "max"] as const).map((key) => {
+                  const p = BUILDER_SIZE_PRESETS[key];
+                  const active = selectedBuilderSize === key;
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() =>
+                        patch({
+                          builderCpus: p.builderCpus,
+                          builderMemoryMb: p.builderMemoryMb,
+                        })
                       }
                       className={`flex-1 rounded-md border px-2 py-1.5 text-xs transition ${
                         active
@@ -366,7 +465,7 @@ export function PreviewsCard({
                   {/* Exact size — overrides the preset */}
                   <div className="space-y-1.5">
                     <Label className="text-xs text-white/70">
-                      Exact size (overrides the preset)
+                      Exact preview size
                     </Label>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
@@ -405,6 +504,57 @@ export function PreviewsCard({
                           value={form.memoryMb}
                           onChange={(e) =>
                             patch({ memoryMb: Number(e.target.value) })
+                          }
+                          className="bg-black/30 border-white/10"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Exact build worker size — overrides the preset */}
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-white/70">
+                      Exact build worker size
+                    </Label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="prev-builder-cpus"
+                          className="text-[11px] text-white/45"
+                        >
+                          CPUs
+                        </Label>
+                        <Input
+                          id="prev-builder-cpus"
+                          type="number"
+                          min={1}
+                          max={16}
+                          step={1}
+                          value={form.builderCpus}
+                          onChange={(e) =>
+                            patch({ builderCpus: Number(e.target.value) })
+                          }
+                          className="bg-black/30 border-white/10"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label
+                          htmlFor="prev-builder-mem"
+                          className="text-[11px] text-white/45"
+                        >
+                          RAM (MB)
+                        </Label>
+                        <Input
+                          id="prev-builder-mem"
+                          type="number"
+                          min={256}
+                          max={32768}
+                          step={256}
+                          value={form.builderMemoryMb}
+                          onChange={(e) =>
+                            patch({
+                              builderMemoryMb: Number(e.target.value),
+                            })
                           }
                           className="bg-black/30 border-white/10"
                         />

@@ -104,6 +104,8 @@ import { MessageAttachments } from "./MessageAttachments";
 import { TypingIndicator } from "./TypingIndicator";
 import {
   ChatTerminalSurface,
+  type ChatTerminalSnapshot,
+  type ChatTerminalTransport,
   type ChatTerminalSurfaceHandle,
 } from "./ChatTerminalSurface";
 
@@ -158,6 +160,12 @@ import {
   isSwitchAgentDirective,
   type PreviewActDirective,
 } from "@dashboard/lib/chat-ui-actions";
+import {
+  SAVED_TERMINAL_NAME_LIMIT,
+  terminalTransportLabel,
+  type SavedTerminalSession,
+  type SavedTerminalTransport,
+} from "@dashboard/lib/terminal/saved-session-types";
 
 type MessageDirection = "ltr" | "rtl" | "auto";
 
@@ -167,6 +175,73 @@ interface LocalSandboxSummary {
   runtime: "local" | "github-actions";
   updatedAt: string;
   snapshotUpdatedAt?: string | null;
+}
+
+function savedTransportFromChatTransport(
+  transport: ChatTerminalTransport,
+): SavedTerminalTransport {
+  if (transport.type === "fly") {
+    return {
+      type: "fly",
+      app: transport.app,
+      machineId: transport.machineId,
+      label: transport.label,
+    };
+  }
+  if (transport.type === "github-actions") {
+    return {
+      type: "github-actions",
+      sandboxId: transport.sandboxId,
+      label: transport.label,
+    };
+  }
+  return {
+    type: "local",
+    sandboxId: transport.sandboxId,
+    label: transport.label,
+  };
+}
+
+function savedTerminalActorQuery(actorLogin?: string | null): string {
+  return actorLogin ? `?actorLogin=${encodeURIComponent(actorLogin)}` : "";
+}
+
+const AUTO_SAVE_TERMINAL_ON_END_KEY = "kody-chat:auto-save-terminal-on-end";
+
+function savedTerminalAutoSaveStorageKey(): string {
+  if (typeof window === "undefined") return AUTO_SAVE_TERMINAL_ON_END_KEY;
+  try {
+    const raw = window.localStorage.getItem("kody_auth");
+    if (!raw) return AUTO_SAVE_TERMINAL_ON_END_KEY;
+    const auth = JSON.parse(raw) as { owner?: string; repo?: string };
+    if (!auth.owner || !auth.repo) return AUTO_SAVE_TERMINAL_ON_END_KEY;
+    return `${AUTO_SAVE_TERMINAL_ON_END_KEY}:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`;
+  } catch {
+    return AUTO_SAVE_TERMINAL_ON_END_KEY;
+  }
+}
+
+function readAutoSaveTerminalOnEnd(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return (
+      window.localStorage.getItem(savedTerminalAutoSaveStorageKey()) === "1"
+    );
+  } catch {
+    return false;
+  }
+}
+
+function writeAutoSaveTerminalOnEnd(enabled: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      savedTerminalAutoSaveStorageKey(),
+      enabled ? "1" : "0",
+    );
+  } catch {
+    /* localStorage is best-effort for this UI preference */
+  }
 }
 
 const LETTER_RE = /\p{L}/u;
@@ -963,6 +1038,7 @@ export function KodyChat({
     activeSessionId: activeSessionIdForReset,
     createSession: createChatSession,
     sessions: sessionHook.sessions,
+    sessionsHydrated: sessionHook.hydrated,
     storageScope: sessionStoreScope,
   });
   const chatMode = vibeMode ? "ai" : terminalRegistry.mode;
@@ -985,6 +1061,7 @@ export function KodyChat({
     terminalRegistry.selectGitHubActionsSandboxTarget;
   const handleTerminalFlyConnectToggle = terminalRegistry.toggleFlyConnection;
   const recordTerminalConnectionState = terminalRegistry.recordConnectionState;
+  const restoreTerminalTransport = terminalRegistry.restoreTerminalTransport;
   const activeSessionHasLiveTerminal = terminalRegistry.hasLiveTerminal(
     activeSessionIdForReset,
   );
@@ -1000,6 +1077,20 @@ export function KodyChat({
   const [sandboxBusy, setSandboxBusy] = useState(false);
   const [sandboxBusyLabel, setSandboxBusyLabel] = useState<string | null>(null);
   const [sandboxCreateMenuOpen, setSandboxCreateMenuOpen] = useState(false);
+  const [savedTerminalSnapshots, setSavedTerminalSnapshots] = useState<
+    SavedTerminalSession[]
+  >([]);
+  const [savedTerminalMenuOpen, setSavedTerminalMenuOpen] = useState(false);
+  const [savedTerminalBusy, setSavedTerminalBusy] = useState(false);
+  const [savedTerminalLoaded, setSavedTerminalLoaded] = useState(false);
+  const [autoSaveTerminalOnEnd, setAutoSaveTerminalOnEnd] = useState(() =>
+    readAutoSaveTerminalOnEnd(),
+  );
+  const [pendingTerminalRestore, setPendingTerminalRestore] =
+    useState<SavedTerminalSession | null>(null);
+  useEffect(() => {
+    writeAutoSaveTerminalOnEnd(autoSaveTerminalOnEnd);
+  }, [autoSaveTerminalOnEnd]);
 
   const refreshLocalSandboxes = useCallback(async () => {
     const headers = authHeaders();
@@ -1022,6 +1113,43 @@ export function KodyChat({
     if (chatMode !== "terminal") return;
     void refreshLocalSandboxes();
   }, [chatMode, refreshLocalSandboxes]);
+  const refreshSavedTerminalSnapshots = useCallback(async () => {
+    const headers = authHeaders();
+    if (Object.keys(headers).length === 0) return;
+    setSavedTerminalBusy(true);
+    try {
+      const res = await fetch(
+        `/api/kody/chat/terminal/saved${savedTerminalActorQuery(actorLogin)}`,
+        { headers },
+      );
+      const body = (await res.json().catch(() => ({}))) as {
+        sessions?: SavedTerminalSession[];
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+      }
+      setSavedTerminalSnapshots(body.sessions ?? []);
+      setSavedTerminalLoaded(true);
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Failed to load saved terminal snapshots",
+      );
+    } finally {
+      setSavedTerminalBusy(false);
+    }
+  }, [actorLogin]);
+  useEffect(() => {
+    if (chatMode !== "terminal" || savedTerminalLoaded) return;
+    void refreshSavedTerminalSnapshots();
+  }, [chatMode, refreshSavedTerminalSnapshots, savedTerminalLoaded]);
+  useEffect(() => {
+    setSavedTerminalSnapshots([]);
+    setSavedTerminalLoaded(false);
+  }, [actorLogin]);
   const handleCreateSandbox = useCallback(
     async (runtime: "local" | "github-actions") => {
       setSandboxCreateMenuOpen(false);
@@ -1208,6 +1336,158 @@ export function KodyChat({
     activeTerminalTransport,
     handleTerminalTargetChange,
   ]);
+
+  const saveTerminalSnapshot = useCallback(
+    async (input: {
+      name: string;
+      transport: ChatTerminalTransport;
+      chatSessionId: string;
+      snapshot: ChatTerminalSnapshot;
+      successMessage?: string;
+    }) => {
+      const trimmed = input.name.trim().slice(0, SAVED_TERMINAL_NAME_LIMIT);
+      if (!trimmed) {
+        toast.error("Snapshot name is required");
+        return false;
+      }
+
+      const savedTransport = savedTransportFromChatTransport(input.transport);
+      setSavedTerminalBusy(true);
+      try {
+        const res = await fetch("/api/kody/chat/terminal/saved", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify({
+            actorLogin,
+            name: trimmed,
+            transport: savedTransport,
+            chatSessionId: input.chatSessionId,
+            cwd: input.snapshot.cwd,
+            shell: input.snapshot.shell,
+            output: input.snapshot.output,
+          }),
+        });
+        const body = (await res.json().catch(() => ({}))) as {
+          sessions?: SavedTerminalSession[];
+          session?: SavedTerminalSession;
+          message?: string;
+          error?: string;
+        };
+        if (!res.ok || !body.session) {
+          throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+        }
+        setSavedTerminalSnapshots(body.sessions ?? [body.session]);
+        setSavedTerminalLoaded(true);
+        if (input.successMessage) toast.success(input.successMessage);
+        return true;
+      } catch (err) {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : "Failed to save terminal snapshot",
+        );
+        return false;
+      } finally {
+        setSavedTerminalBusy(false);
+      }
+    },
+    [actorLogin],
+  );
+
+  const handleSaveTerminalSnapshot = useCallback(async () => {
+    if (!activeSessionIdForReset || !activeTerminalInstanceId) {
+      toast.error("Open a terminal before saving it");
+      return;
+    }
+    const terminal = terminalSurfaceRefs.current[activeTerminalInstanceId];
+    if (!terminal) {
+      toast.error("Terminal is not ready yet");
+      return;
+    }
+    const captured = terminal.getSnapshot();
+    const defaultName = terminalTransportLabel(
+      savedTransportFromChatTransport(activeTerminalTransport),
+    );
+    const name = window.prompt("Save terminal snapshot as", defaultName);
+    if (name === null) return;
+
+    await saveTerminalSnapshot({
+      name,
+      transport: activeTerminalTransport,
+      chatSessionId: activeSessionIdForReset,
+      snapshot: captured,
+      successMessage: "Terminal snapshot saved",
+    });
+  }, [
+    activeSessionIdForReset,
+    activeTerminalInstanceId,
+    activeTerminalTransport,
+    saveTerminalSnapshot,
+  ]);
+
+  const handleAutoSaveTerminalSnapshot = useCallback(
+    async (
+      terminal: { sessionId: string; transport: ChatTerminalTransport },
+      snapshot: ChatTerminalSnapshot,
+    ) => {
+      if (!autoSaveTerminalOnEnd || !snapshot.output.trim()) return;
+      const savedTransport = savedTransportFromChatTransport(
+        terminal.transport,
+      );
+      const label = terminalTransportLabel(savedTransport);
+      await saveTerminalSnapshot({
+        name: `Auto-save: ${label}`,
+        transport: terminal.transport,
+        chatSessionId: terminal.sessionId,
+        snapshot,
+        successMessage: "Terminal auto-saved",
+      });
+    },
+    [autoSaveTerminalOnEnd, saveTerminalSnapshot],
+  );
+  const handleRestoreTerminalSnapshot = useCallback(
+    (snapshot: SavedTerminalSession) => {
+      setSavedTerminalMenuOpen(false);
+      terminalRegistry.openTerminalMode();
+      restoreTerminalTransport(snapshot.transport);
+      setPendingTerminalRestore(snapshot);
+    },
+    [restoreTerminalTransport, terminalRegistry],
+  );
+  const handleDeleteTerminalSnapshot = useCallback(
+    async (snapshot: SavedTerminalSession) => {
+      if (!window.confirm(`Delete "${snapshot.name}"?`)) return;
+      setSavedTerminalBusy(true);
+      try {
+        const res = await fetch(
+          `/api/kody/chat/terminal/saved/${encodeURIComponent(
+            snapshot.id,
+          )}${savedTerminalActorQuery(actorLogin)}`,
+          { method: "DELETE", headers: authHeaders() },
+        );
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string;
+          error?: string;
+        };
+        if (!res.ok) {
+          throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+        }
+        setSavedTerminalSnapshots((prev) =>
+          prev.filter((item) => item.id !== snapshot.id),
+        );
+        toast.success("Terminal snapshot deleted");
+      } catch (err) {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : "Failed to delete terminal snapshot",
+        );
+      } finally {
+        setSavedTerminalBusy(false);
+      }
+    },
+    [actorLogin],
+  );
   const handleTerminalTargetSelect = useCallback(
     (value: string) => {
       if (value.startsWith("sandbox:")) {
@@ -1363,6 +1643,24 @@ export function KodyChat({
     terminalRegistry.openTerminalMode();
     setSlashMenuOpen(false);
   }, [terminalRegistry]);
+
+  useEffect(() => {
+    if (
+      !pendingTerminalRestore ||
+      chatMode !== "terminal" ||
+      !activeTerminalInstanceId
+    ) {
+      return;
+    }
+    const terminal = terminalSurfaceRefs.current[activeTerminalInstanceId];
+    if (!terminal) return;
+    terminal.restoreSnapshot({
+      name: pendingTerminalRestore.name,
+      output: pendingTerminalRestore.output,
+    });
+    setPendingTerminalRestore(null);
+    toast.success("Terminal snapshot restored");
+  }, [activeTerminalInstanceId, chatMode, pendingTerminalRestore]);
 
   // ─── Polling for Kody Live ─────────────────────────────────────────────────
   // Plain fixed-interval poll of /api/kody/events/poll. We tried real-time
@@ -5265,6 +5563,9 @@ export function KodyChat({
                   onConnectionStateChange={(state) =>
                     recordTerminalConnectionState(terminal.id, state)
                   }
+                  onSessionEnded={(snapshot) =>
+                    void handleAutoSaveTerminalSnapshot(terminal, snapshot)
+                  }
                 />
               </div>
             );
@@ -6000,6 +6301,118 @@ export function KodyChat({
                     <span className="truncate">{sandboxBusyLabel}</span>
                   </span>
                 )}
+                <button
+                  type="button"
+                  onClick={() => void handleSaveTerminalSnapshot()}
+                  disabled={savedTerminalBusy}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Save terminal snapshot"
+                  aria-label="Save terminal snapshot"
+                >
+                  {savedTerminalBusy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                </button>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !savedTerminalMenuOpen;
+                      setSavedTerminalMenuOpen(next);
+                      if (next && !savedTerminalLoaded) {
+                        void refreshSavedTerminalSnapshots();
+                      }
+                    }}
+                    disabled={savedTerminalBusy && !savedTerminalMenuOpen}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Saved terminal snapshots"
+                    aria-label="Saved terminal snapshots"
+                    aria-haspopup="menu"
+                    aria-expanded={savedTerminalMenuOpen}
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </button>
+                  {savedTerminalMenuOpen && (
+                    <div className="absolute bottom-9 right-0 z-30 flex max-h-80 w-80 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-md border bg-popover text-xs text-popover-foreground shadow-md">
+                      <div className="flex items-center justify-between border-b px-3 py-2">
+                        <span className="font-medium">
+                          Saved terminal snapshots
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => void refreshSavedTerminalSnapshots()}
+                          disabled={savedTerminalBusy}
+                          className="inline-flex h-6 w-6 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+                          title="Refresh saved terminal snapshots"
+                          aria-label="Refresh saved terminal snapshots"
+                        >
+                          {savedTerminalBusy ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </div>
+                      <label className="flex cursor-pointer items-center gap-2 border-b px-3 py-2 text-[11px] text-muted-foreground hover:bg-muted">
+                        <input
+                          type="checkbox"
+                          checked={autoSaveTerminalOnEnd}
+                          onChange={(event) =>
+                            setAutoSaveTerminalOnEnd(event.target.checked)
+                          }
+                          className="h-3.5 w-3.5 accent-primary"
+                        />
+                        <span className="truncate text-foreground">
+                          Auto-save on stop
+                        </span>
+                      </label>
+                      <div className="max-h-64 overflow-y-auto py-1">
+                        {savedTerminalSnapshots.length === 0 ? (
+                          <div className="px-3 py-3 text-muted-foreground">
+                            No saved snapshots
+                          </div>
+                        ) : (
+                          savedTerminalSnapshots.map((snapshot) => (
+                            <div
+                              key={snapshot.id}
+                              className="flex items-center gap-2 px-2 py-1.5 hover:bg-muted"
+                            >
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  handleRestoreTerminalSnapshot(snapshot)
+                                }
+                                className="min-w-0 flex-1 text-left"
+                                title={`Restore ${snapshot.name}`}
+                              >
+                                <span className="block truncate font-medium">
+                                  {snapshot.name}
+                                </span>
+                                <span className="block truncate text-[11px] text-muted-foreground">
+                                  {terminalTransportLabel(snapshot.transport)}
+                                </span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  void handleDeleteTerminalSnapshot(snapshot)
+                                }
+                                disabled={savedTerminalBusy}
+                                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                                title={`Delete ${snapshot.name}`}
+                                aria-label={`Delete ${snapshot.name}`}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 {(activeTerminalTransport.type === "local" ||
                   activeTerminalTransport.type === "github-actions") &&
                   activeTerminalTransport.sandboxId && (

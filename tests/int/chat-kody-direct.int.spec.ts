@@ -251,9 +251,10 @@ describe("POST /api/kody/chat/kody", () => {
     expect(CRITICAL_REMINDERS_MD).not.toMatch(/Every reply ends/i);
   });
 
-  it("vibe runner availability points at vibe_start_execution, not switch_agent", async () => {
-    const { buildSystemPrompt } =
-      await import("../../app/api/kody/chat/kody/system-prompt");
+  it("vibe prompt keeps Kody chat issue-only", async () => {
+    const { buildSystemPrompt } = await import(
+      "../../app/api/kody/chat/kody/system-prompt"
+    );
 
     const prompt = buildSystemPrompt(
       "base",
@@ -262,9 +263,10 @@ describe("POST /api/kody/chat/kody", () => {
       { vibeMode: true, flyConfigured: true },
     );
 
-    expect(prompt).toMatch(/read before .*vibe_start_execution/i);
-    expect(prompt).toContain("targetAgent: 'kody-live-fly'");
-    expect(prompt).not.toContain("switch_agent('kody-live-fly')");
+    expect(prompt).toMatch(/Stop after issue creation/i);
+    expect(prompt).toMatch(/Kody chat opens issues only/i);
+    expect(prompt).not.toContain("vibe_start_execution");
+    expect(prompt).not.toContain("targetAgent");
   });
 
   it("base kody prompt disambiguates dispatch from 'implement this' and enumerates the full read-tool catalog", async () => {
@@ -278,10 +280,10 @@ describe("POST /api/kody/chat/kody", () => {
     const { loadChatDefaults } =
       await import("../../src/dashboard/lib/chat-defaults");
     const prompt = (await loadChatDefaults("acme", "repo")).agentIdentity;
-    expect(prompt).toMatch(/Disambiguate dispatch vs\. create-issue/i);
+    expect(prompt).toMatch(/Create issues, do not start implementation/i);
     expect(prompt).toMatch(/implement this/i);
-    expect(prompt).toMatch(/requests for change/i);
-    expect(prompt).toMatch(/do NOT auto-dispatch/i);
+    expect(prompt).toMatch(/requests.*create.*refine.*issue/i);
+    expect(prompt).toMatch(/Do not post.*@kody/i);
     // The 4 read tools the model must know it can call.
     expect(prompt).toContain("github_search_code");
     expect(prompt).toContain("github_get_file");
