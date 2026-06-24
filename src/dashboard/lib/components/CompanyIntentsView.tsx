@@ -6,7 +6,14 @@
  */
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type Dispatch,
+  type FormEvent,
+  type SetStateAction,
+} from "react";
 import {
   AlertCircle,
   Archive,
@@ -88,12 +95,103 @@ type IntentFormState = {
   reviewEvery: "1d" | "1w";
 };
 
+type IntentFormSetter = Dispatch<SetStateAction<IntentFormState>>;
+type IntentTemplateId =
+  | "release-management"
+  | "health-validation"
+  | "missing-responsibilities"
+  | "production-safety";
+
 const postureOptions: CompanyIntentPosture[] = [
   "balanced",
   "confidence",
   "speed",
   "stability-recovery",
   "maintenance",
+];
+
+const postureLabels: Record<CompanyIntentPosture, string> = {
+  balanced: "Balanced",
+  confidence: "Confidence",
+  speed: "Speed",
+  "stability-recovery": "Stability recovery",
+  maintenance: "Maintenance",
+};
+
+const intentTemplates: Array<{
+  id: IntentTemplateId;
+  title: string;
+  defaults: Partial<IntentFormState>;
+}> = [
+  {
+    id: "release-management",
+    title: "Release management",
+    defaults: {
+      id: "release-management",
+      for: "Keep releases healthy without creating unnecessary portfolio work.",
+      priority: "100",
+      posture: "confidence",
+      areas: "release\nqa\nproduction",
+      principles:
+        "Verify before production\nBlock risky releases until health is clear",
+      metrics: "release blockers\nfailed release checks\nproduction readiness",
+      qaDepth: "strict",
+      blockerLevel: "strict",
+      approval: "before-production",
+      requiresHumanFor: "production approval\nhigh-risk release decisions",
+    },
+  },
+  {
+    id: "health-validation",
+    title: "Health validation",
+    defaults: {
+      id: "health-validation",
+      for: "Keep company goals, loops, and responsibilities healthy.",
+      priority: "90",
+      posture: "maintenance",
+      areas: "health\noperations",
+      principles: "Validate broken wiring before adding new work",
+      metrics: "missing loops\nmissing responsibilities\nstale reviews",
+      qaDepth: "standard",
+      blockerLevel: "standard",
+      approval: "before-risky-actions",
+    },
+  },
+  {
+    id: "missing-responsibilities",
+    title: "Missing responsibilities",
+    defaults: {
+      id: "missing-responsibilities",
+      for: "Find missing goals, loops, and responsibilities before they block delivery.",
+      priority: "80",
+      posture: "maintenance",
+      areas: "portfolio\ncoverage",
+      principles: "Add only responsibilities with clear ownership",
+      metrics: "coverage gaps\nunowned goals",
+      qaDepth: "standard",
+      blockerLevel: "standard",
+      approval: "before-risky-actions",
+    },
+  },
+  {
+    id: "production-safety",
+    title: "Production safety",
+    defaults: {
+      id: "production-safety",
+      for: "Prevent unsafe production changes and require verification before risky actions.",
+      priority: "120",
+      posture: "stability-recovery",
+      areas: "production\nrisk",
+      principles: "Prefer waiting over unsafe production action",
+      metrics: "blocked risky actions\nproduction incidents",
+      qaDepth: "strict",
+      blockerLevel: "strict",
+      approval: "before-risky-actions",
+      maxConcurrentGoals: "1",
+      maxDailyActions: "3",
+      requiresHumanFor: "production approval\nsecurity risk\nrollback",
+    },
+  },
 ];
 
 export function CompanyIntentsView() {
@@ -105,6 +203,8 @@ export function CompanyIntentsView() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [formMode, setFormMode] = useState<"create" | "edit" | null>(null);
   const [form, setForm] = useState<IntentFormState>(emptyForm());
+  const [selectedTemplateId, setSelectedTemplateId] =
+    useState<IntentTemplateId>("release-management");
 
   const intents = data ?? [];
   const filtered = useMemo(() => {
@@ -149,7 +249,8 @@ export function CompanyIntentsView() {
   );
 
   function openCreate() {
-    setForm(emptyForm());
+    setSelectedTemplateId("release-management");
+    setForm(formFromTemplate("release-management"));
     setFormMode("create");
   }
 
@@ -296,7 +397,12 @@ export function CompanyIntentsView() {
         open={formMode !== null}
         onOpenChange={(open) => !open && setFormMode(null)}
       >
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+        <DialogContent
+          className={cn(
+            "max-h-[90vh] overflow-y-auto",
+            formMode === "create" ? "sm:max-w-2xl" : "sm:max-w-3xl",
+          )}
+        >
           <DialogHeader>
             <DialogTitle>
               {formMode === "create" ? "New intent" : "Edit intent"}
@@ -307,241 +413,266 @@ export function CompanyIntentsView() {
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={submitForm} className="space-y-5">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Intent ID">
-                <Input
-                  value={form.id}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, id: event.target.value }))
-                  }
-                  onBlur={() =>
-                    setForm((prev) => ({
-                      ...prev,
-                      id: prev.id || slugifyCompanyIntentId(prev.for),
-                    }))
-                  }
-                  disabled={formMode === "edit"}
-                  placeholder="release-health"
-                />
-                {!formIdValid ? (
-                  <p className="mt-1 text-body-xs text-destructive">
-                    Use lowercase letters, numbers, and dashes. Start with a
-                    letter.
-                  </p>
-                ) : null}
-              </Field>
-              <Field label="Priority">
-                <Input
-                  type="number"
-                  min={1}
-                  max={1000}
-                  value={form.priority}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      priority: event.target.value,
-                    }))
-                  }
-                />
-              </Field>
-              <Field label="Status">
-                <Select
-                  value={form.status}
-                  onValueChange={(value: CompanyIntentStatus) =>
-                    setForm((prev) => ({ ...prev, status: value }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="paused">Paused</SelectItem>
-                    <SelectItem value="archived">Archived</SelectItem>
-                  </SelectContent>
-                </Select>
-              </Field>
-              <Field label="Posture">
-                <Select
-                  value={form.posture}
-                  onValueChange={(value: CompanyIntentPosture) =>
-                    setForm((prev) => ({ ...prev, posture: value }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {postureOptions.map((option) => (
-                      <SelectItem key={option} value={option}>
-                        {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-            </div>
+            {formMode === "create" ? (
+              <CreateIntentFields
+                form={form}
+                setForm={setForm}
+                selectedTemplateId={selectedTemplateId}
+                onTemplateChange={(templateId) => {
+                  setSelectedTemplateId(templateId);
+                  setForm((prev) => formFromTemplate(templateId, prev));
+                }}
+                formIdValid={formIdValid}
+              />
+            ) : (
+              <>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Intent ID">
+                    <Input
+                      value={form.id}
+                      onChange={(event) =>
+                        setForm((prev) => ({ ...prev, id: event.target.value }))
+                      }
+                      onBlur={() =>
+                        setForm((prev) => ({
+                          ...prev,
+                          id: prev.id || slugifyCompanyIntentId(prev.for),
+                        }))
+                      }
+                      disabled={formMode === "edit"}
+                      placeholder="release-health"
+                    />
+                    {!formIdValid ? (
+                      <p className="mt-1 text-body-xs text-destructive">
+                        Use lowercase letters, numbers, and dashes. Start with a
+                        letter.
+                      </p>
+                    ) : null}
+                  </Field>
+                  <Field label="Priority">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={1000}
+                      value={form.priority}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          priority: event.target.value,
+                        }))
+                      }
+                    />
+                  </Field>
+                  <Field label="Status">
+                    <Select
+                      value={form.status}
+                      onValueChange={(value: CompanyIntentStatus) =>
+                        setForm((prev) => ({ ...prev, status: value }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="active">Active</SelectItem>
+                        <SelectItem value="paused">Paused</SelectItem>
+                        <SelectItem value="archived">Archived</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                  <Field label="Posture">
+                    <Select
+                      value={form.posture}
+                      onValueChange={(value: CompanyIntentPosture) =>
+                        setForm((prev) => ({ ...prev, posture: value }))
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {postureOptions.map((option) => (
+                          <SelectItem key={option} value={option}>
+                            {postureLabels[option]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </Field>
+                </div>
 
-            <Field label="Intent">
-              <Textarea
-                value={form.for}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, for: event.target.value }))
-                }
-                placeholder="Keep releases healthy without creating unnecessary portfolio work."
-                className="min-h-24"
-              />
-            </Field>
+                <Field label="Intent">
+                  <Textarea
+                    value={form.for}
+                    onChange={(event) =>
+                      setForm((prev) => ({ ...prev, for: event.target.value }))
+                    }
+                    placeholder="Keep releases healthy without creating unnecessary portfolio work."
+                    className="min-h-24"
+                  />
+                </Field>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Repos">
-                <Textarea
-                  value={form.repos}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, repos: event.target.value }))
-                  }
-                  placeholder="owner/repo, one per line"
-                />
-              </Field>
-              <Field label="Areas">
-                <Textarea
-                  value={form.areas}
-                  onChange={(event) =>
-                    setForm((prev) => ({ ...prev, areas: event.target.value }))
-                  }
-                  placeholder="release, QA, operations"
-                />
-              </Field>
-              <Field label="Principles">
-                <Textarea
-                  value={form.principles}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      principles: event.target.value,
-                    }))
-                  }
-                  placeholder="One per line"
-                />
-              </Field>
-              <Field label="Metrics">
-                <Textarea
-                  value={form.metrics}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      metrics: event.target.value,
-                    }))
-                  }
-                  placeholder="One per line"
-                />
-              </Field>
-            </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Repos">
+                    <Textarea
+                      value={form.repos}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          repos: event.target.value,
+                        }))
+                      }
+                      placeholder="owner/repo, one per line"
+                    />
+                  </Field>
+                  <Field label="Areas">
+                    <Textarea
+                      value={form.areas}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          areas: event.target.value,
+                        }))
+                      }
+                      placeholder="release, QA, operations"
+                    />
+                  </Field>
+                  <Field label="Principles">
+                    <Textarea
+                      value={form.principles}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          principles: event.target.value,
+                        }))
+                      }
+                      placeholder="One per line"
+                    />
+                  </Field>
+                  <Field label="Metrics">
+                    <Textarea
+                      value={form.metrics}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          metrics: event.target.value,
+                        }))
+                      }
+                      placeholder="One per line"
+                    />
+                  </Field>
+                </div>
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              <SelectField
-                label="Cadence"
-                value={form.releaseCadence}
-                values={["manual", "1d", "1w"]}
-                onChange={(releaseCadence) =>
-                  setForm((prev) => ({ ...prev, releaseCadence }))
-                }
-              />
-              <SelectField
-                label="QA"
-                value={form.qaDepth}
-                values={["light", "standard", "strict"]}
-                onChange={(qaDepth) =>
-                  setForm((prev) => ({ ...prev, qaDepth }))
-                }
-              />
-              <SelectField
-                label="Blockers"
-                value={form.blockerLevel}
-                values={["low", "standard", "strict"]}
-                onChange={(blockerLevel) =>
-                  setForm((prev) => ({ ...prev, blockerLevel }))
-                }
-              />
-              <SelectField
-                label="Approval"
-                value={form.approval}
-                values={["none", "before-production", "before-risky-actions"]}
-                onChange={(approval) =>
-                  setForm((prev) => ({ ...prev, approval }))
-                }
-              />
-            </div>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <SelectField
+                    label="Cadence"
+                    value={form.releaseCadence}
+                    values={["manual", "1d", "1w"]}
+                    onChange={(releaseCadence) =>
+                      setForm((prev) => ({ ...prev, releaseCadence }))
+                    }
+                  />
+                  <SelectField
+                    label="QA"
+                    value={form.qaDepth}
+                    values={["light", "standard", "strict"]}
+                    onChange={(qaDepth) =>
+                      setForm((prev) => ({ ...prev, qaDepth }))
+                    }
+                  />
+                  <SelectField
+                    label="Blockers"
+                    value={form.blockerLevel}
+                    values={["low", "standard", "strict"]}
+                    onChange={(blockerLevel) =>
+                      setForm((prev) => ({ ...prev, blockerLevel }))
+                    }
+                  />
+                  <SelectField
+                    label="Approval"
+                    value={form.approval}
+                    values={[
+                      "none",
+                      "before-production",
+                      "before-risky-actions",
+                    ]}
+                    onChange={(approval) =>
+                      setForm((prev) => ({ ...prev, approval }))
+                    }
+                  />
+                </div>
 
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Concurrent goals">
-                <Input
-                  type="number"
-                  min={1}
-                  max={10}
-                  value={form.maxConcurrentGoals}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      maxConcurrentGoals: event.target.value,
-                    }))
-                  }
-                />
-              </Field>
-              <Field label="Daily actions">
-                <Input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={form.maxDailyActions}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      maxDailyActions: event.target.value,
-                    }))
-                  }
-                />
-              </Field>
-              <SelectField
-                label="Review"
-                value={form.reviewEvery}
-                values={["1d", "1w"]}
-                onChange={(reviewEvery) =>
-                  setForm((prev) => ({ ...prev, reviewEvery }))
-                }
-              />
-            </div>
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <Field label="Concurrent goals">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={10}
+                      value={form.maxConcurrentGoals}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          maxConcurrentGoals: event.target.value,
+                        }))
+                      }
+                    />
+                  </Field>
+                  <Field label="Daily actions">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={form.maxDailyActions}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          maxDailyActions: event.target.value,
+                        }))
+                      }
+                    />
+                  </Field>
+                  <SelectField
+                    label="Review"
+                    value={form.reviewEvery}
+                    values={["1d", "1w"]}
+                    onChange={(reviewEvery) =>
+                      setForm((prev) => ({ ...prev, reviewEvery }))
+                    }
+                  />
+                </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Human required for">
-                <Textarea
-                  value={form.requiresHumanFor}
-                  onChange={(event) =>
-                    setForm((prev) => ({
-                      ...prev,
-                      requiresHumanFor: event.target.value,
-                    }))
-                  }
-                  placeholder="One per line"
-                />
-              </Field>
-              <Field label="Portfolio seeds">
-                <Textarea
-                  value={[
-                    sectionText("goals", form.goals),
-                    sectionText("loops", form.loops),
-                    sectionText("responsibilities", form.responsibilities),
-                  ]
-                    .filter(Boolean)
-                    .join("\n\n")}
-                  onChange={(event) => {
-                    const parsed = parsePortfolioText(event.target.value);
-                    setForm((prev) => ({ ...prev, ...parsed }));
-                  }}
-                  placeholder="goals: release-health&#10;loops: company-manager-loop&#10;responsibilities: company-manager"
-                />
-              </Field>
-            </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Human required for">
+                    <Textarea
+                      value={form.requiresHumanFor}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          requiresHumanFor: event.target.value,
+                        }))
+                      }
+                      placeholder="One per line"
+                    />
+                  </Field>
+                  <Field label="Portfolio seeds">
+                    <Textarea
+                      value={[
+                        sectionText("goals", form.goals),
+                        sectionText("loops", form.loops),
+                        sectionText("responsibilities", form.responsibilities),
+                      ]
+                        .filter(Boolean)
+                        .join("\n\n")}
+                      onChange={(event) => {
+                        const parsed = parsePortfolioText(event.target.value);
+                        setForm((prev) => ({ ...prev, ...parsed }));
+                      }}
+                      placeholder="goals: release-health&#10;loops: company-manager-loop&#10;responsibilities: company-manager"
+                    />
+                  </Field>
+                </div>
+              </>
+            )}
 
             <div className="flex justify-end gap-2 border-t border-border pt-4">
               <Button
@@ -564,6 +695,137 @@ export function CompanyIntentsView() {
           </form>
         </DialogContent>
       </Dialog>
+    </>
+  );
+}
+
+function CreateIntentFields({
+  form,
+  setForm,
+  selectedTemplateId,
+  onTemplateChange,
+  formIdValid,
+}: {
+  form: IntentFormState;
+  setForm: IntentFormSetter;
+  selectedTemplateId: IntentTemplateId;
+  onTemplateChange: (templateId: IntentTemplateId) => void;
+  formIdValid: boolean;
+}) {
+  return (
+    <>
+      <Field label="Template">
+        <Select value={selectedTemplateId} onValueChange={onTemplateChange}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {intentTemplates.map((template) => (
+              <SelectItem key={template.id} value={template.id}>
+                {template.title}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Name">
+          <Input
+            value={form.id}
+            onChange={(event) =>
+              setForm((prev) => ({
+                ...prev,
+                id: slugifyCompanyIntentId(event.target.value),
+              }))
+            }
+            placeholder="release-management"
+          />
+          {!formIdValid ? (
+            <p className="mt-1 text-body-xs text-destructive">
+              Use lowercase letters, numbers, and dashes.
+            </p>
+          ) : null}
+        </Field>
+
+        <Field label="Priority">
+          <Input
+            type="number"
+            min={1}
+            max={1000}
+            value={form.priority}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, priority: event.target.value }))
+            }
+          />
+        </Field>
+      </div>
+
+      <Field label="Intent">
+        <Textarea
+          value={form.for}
+          onChange={(event) =>
+            setForm((prev) => ({ ...prev, for: event.target.value }))
+          }
+          placeholder="Keep releases healthy without unnecessary work."
+          className="min-h-24"
+        />
+      </Field>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Repos">
+          <Textarea
+            value={form.repos}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, repos: event.target.value }))
+            }
+            placeholder="owner/repo"
+            className="min-h-20"
+          />
+        </Field>
+
+        <Field label="Areas">
+          <Textarea
+            value={form.areas}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, areas: event.target.value }))
+            }
+            placeholder="release, QA, operations"
+            className="min-h-20"
+          />
+        </Field>
+      </div>
+
+      <Field label="Posture">
+        <Select
+          value={form.posture}
+          onValueChange={(value: CompanyIntentPosture) =>
+            setForm((prev) => ({ ...prev, posture: value }))
+          }
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {postureOptions.map((option) => (
+              <SelectItem key={option} value={option}>
+                {postureLabels[option]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+
+      <div className="rounded-md border border-white/[0.08] bg-white/[0.02] p-4">
+        <div className="mb-3 text-body-sm font-medium">Generated defaults</div>
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="outline">QA {form.qaDepth}</Badge>
+          <Badge variant="outline">Blockers {form.blockerLevel}</Badge>
+          <Badge variant="outline">Approval {form.approval}</Badge>
+          <Badge variant="outline">{form.maxConcurrentGoals} concurrent</Badge>
+          <Badge variant="outline">{form.maxDailyActions} daily actions</Badge>
+        </div>
+      </div>
     </>
   );
 }
@@ -1216,6 +1478,21 @@ function emptyForm(): IntentFormState {
     loops: "company-manager-loop",
     responsibilities: "company-manager",
     reviewEvery: "1d",
+  };
+}
+
+function formFromTemplate(
+  templateId: IntentTemplateId,
+  current?: IntentFormState,
+): IntentFormState {
+  const template =
+    intentTemplates.find((option) => option.id === templateId) ??
+    intentTemplates[0];
+  return {
+    ...emptyForm(),
+    ...template.defaults,
+    id: current?.id || template.defaults.id || "",
+    repos: current?.repos || template.defaults.repos || "",
   };
 }
 
