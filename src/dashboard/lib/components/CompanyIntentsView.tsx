@@ -96,11 +96,7 @@ type IntentFormState = {
 };
 
 type IntentFormSetter = Dispatch<SetStateAction<IntentFormState>>;
-type IntentTemplateId =
-  | "release-management"
-  | "health-validation"
-  | "missing-responsibilities"
-  | "production-safety";
+type IntentBehavior = "cautious" | "balanced" | "fast" | "maintenance";
 
 const postureOptions: CompanyIntentPosture[] = [
   "balanced",
@@ -118,78 +114,64 @@ const postureLabels: Record<CompanyIntentPosture, string> = {
   maintenance: "Maintenance",
 };
 
-const intentTemplates: Array<{
-  id: IntentTemplateId;
-  title: string;
+const behaviorOptions: Array<{
+  id: IntentBehavior;
+  label: string;
   defaults: Partial<IntentFormState>;
 }> = [
   {
-    id: "release-management",
-    title: "Release management",
+    id: "cautious",
+    label: "Cautious",
     defaults: {
-      id: "release-management",
-      for: "Keep releases healthy without creating unnecessary portfolio work.",
-      priority: "100",
       posture: "confidence",
-      areas: "release\nqa\nproduction",
-      principles:
-        "Verify before production\nBlock risky releases until health is clear",
-      metrics: "release blockers\nfailed release checks\nproduction readiness",
-      qaDepth: "strict",
-      blockerLevel: "strict",
-      approval: "before-production",
-      requiresHumanFor: "production approval\nhigh-risk release decisions",
-    },
-  },
-  {
-    id: "health-validation",
-    title: "Health validation",
-    defaults: {
-      id: "health-validation",
-      for: "Keep company goals, loops, and responsibilities healthy.",
-      priority: "90",
-      posture: "maintenance",
-      areas: "health\noperations",
-      principles: "Validate broken wiring before adding new work",
-      metrics: "missing loops\nmissing responsibilities\nstale reviews",
-      qaDepth: "standard",
-      blockerLevel: "standard",
-      approval: "before-risky-actions",
-    },
-  },
-  {
-    id: "missing-responsibilities",
-    title: "Missing responsibilities",
-    defaults: {
-      id: "missing-responsibilities",
-      for: "Find missing goals, loops, and responsibilities before they block delivery.",
-      priority: "80",
-      posture: "maintenance",
-      areas: "portfolio\ncoverage",
-      principles: "Add only responsibilities with clear ownership",
-      metrics: "coverage gaps\nunowned goals",
-      qaDepth: "standard",
-      blockerLevel: "standard",
-      approval: "before-risky-actions",
-    },
-  },
-  {
-    id: "production-safety",
-    title: "Production safety",
-    defaults: {
-      id: "production-safety",
-      for: "Prevent unsafe production changes and require verification before risky actions.",
-      priority: "120",
-      posture: "stability-recovery",
-      areas: "production\nrisk",
-      principles: "Prefer waiting over unsafe production action",
-      metrics: "blocked risky actions\nproduction incidents",
       qaDepth: "strict",
       blockerLevel: "strict",
       approval: "before-risky-actions",
       maxConcurrentGoals: "1",
       maxDailyActions: "3",
-      requiresHumanFor: "production approval\nsecurity risk\nrollback",
+      principles:
+        "Verify before risky action\nPrefer waiting over unsafe action",
+      requiresHumanFor: "production approval\nhigh-risk decisions",
+    },
+  },
+  {
+    id: "balanced",
+    label: "Balanced",
+    defaults: {
+      posture: "balanced",
+      qaDepth: "standard",
+      blockerLevel: "standard",
+      approval: "before-risky-actions",
+      maxConcurrentGoals: "1",
+      maxDailyActions: "5",
+      principles: "Keep work useful, verified, and low-friction",
+    },
+  },
+  {
+    id: "fast",
+    label: "Fast",
+    defaults: {
+      posture: "speed",
+      qaDepth: "light",
+      blockerLevel: "low",
+      approval: "before-production",
+      maxConcurrentGoals: "2",
+      maxDailyActions: "10",
+      principles: "Move quickly when risk is low",
+    },
+  },
+  {
+    id: "maintenance",
+    label: "Maintenance",
+    defaults: {
+      posture: "maintenance",
+      qaDepth: "standard",
+      blockerLevel: "standard",
+      approval: "before-risky-actions",
+      maxConcurrentGoals: "1",
+      maxDailyActions: "5",
+      principles: "Fix broken wiring before adding new work",
+      metrics: "missing loops\nmissing responsibilities\nstale reviews",
     },
   },
 ];
@@ -203,8 +185,6 @@ export function CompanyIntentsView() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [formMode, setFormMode] = useState<"create" | "edit" | null>(null);
   const [form, setForm] = useState<IntentFormState>(emptyForm());
-  const [selectedTemplateId, setSelectedTemplateId] =
-    useState<IntentTemplateId>("release-management");
 
   const intents = data ?? [];
   const filtered = useMemo(() => {
@@ -249,8 +229,7 @@ export function CompanyIntentsView() {
   );
 
   function openCreate() {
-    setSelectedTemplateId("release-management");
-    setForm(formFromTemplate("release-management"));
+    setForm(emptyForm());
     setFormMode("create");
   }
 
@@ -417,11 +396,6 @@ export function CompanyIntentsView() {
               <CreateIntentFields
                 form={form}
                 setForm={setForm}
-                selectedTemplateId={selectedTemplateId}
-                onTemplateChange={(templateId) => {
-                  setSelectedTemplateId(templateId);
-                  setForm((prev) => formFromTemplate(templateId, prev));
-                }}
                 formIdValid={formIdValid}
               />
             ) : (
@@ -702,74 +676,38 @@ export function CompanyIntentsView() {
 function CreateIntentFields({
   form,
   setForm,
-  selectedTemplateId,
-  onTemplateChange,
   formIdValid,
 }: {
   form: IntentFormState;
   setForm: IntentFormSetter;
-  selectedTemplateId: IntentTemplateId;
-  onTemplateChange: (templateId: IntentTemplateId) => void;
   formIdValid: boolean;
 }) {
   return (
     <>
-      <Field label="Template">
-        <Select value={selectedTemplateId} onValueChange={onTemplateChange}>
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {intentTemplates.map((template) => (
-              <SelectItem key={template.id} value={template.id}>
-                {template.title}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Name">
-          <Input
-            value={form.id}
-            onChange={(event) =>
-              setForm((prev) => ({
-                ...prev,
-                id: slugifyCompanyIntentId(event.target.value),
-              }))
-            }
-            placeholder="release-management"
-          />
-          {!formIdValid ? (
-            <p className="mt-1 text-body-xs text-destructive">
-              Use lowercase letters, numbers, and dashes.
-            </p>
-          ) : null}
-        </Field>
-
-        <Field label="Priority">
-          <Input
-            type="number"
-            min={1}
-            max={1000}
-            value={form.priority}
-            onChange={(event) =>
-              setForm((prev) => ({ ...prev, priority: event.target.value }))
-            }
-          />
-        </Field>
-      </div>
-
-      <Field label="Intent">
+      <Field label="What should the CTO optimize for?">
         <Textarea
           value={form.for}
           onChange={(event) =>
-            setForm((prev) => ({ ...prev, for: event.target.value }))
+            setForm((prev) => ({
+              ...prev,
+              for: event.target.value,
+              id: slugifyCompanyIntentId(event.target.value),
+            }))
+          }
+          onBlur={() =>
+            setForm((prev) => ({
+              ...prev,
+              id: prev.id || slugifyCompanyIntentId(prev.for),
+            }))
           }
           placeholder="Keep releases healthy without unnecessary work."
           className="min-h-24"
         />
+        {!formIdValid ? (
+          <p className="mt-1 text-body-xs text-destructive">
+            The generated ID needs lowercase letters, numbers, and dashes.
+          </p>
+        ) : null}
       </Field>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -796,29 +734,44 @@ function CreateIntentFields({
         </Field>
       </div>
 
-      <Field label="Posture">
-        <Select
-          value={form.posture}
-          onValueChange={(value: CompanyIntentPosture) =>
-            setForm((prev) => ({ ...prev, posture: value }))
-          }
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {postureOptions.map((option) => (
-              <SelectItem key={option} value={option}>
-                {postureLabels[option]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Behavior">
+          <Select
+            value={behaviorFromPosture(form.posture)}
+            onValueChange={(behavior: IntentBehavior) =>
+              setForm((prev) => applyBehaviorDefaults(prev, behavior))
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {behaviorOptions.map((option) => (
+                <SelectItem key={option.id} value={option.id}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <Field label="Priority">
+          <Input
+            type="number"
+            min={1}
+            max={1000}
+            value={form.priority}
+            onChange={(event) =>
+              setForm((prev) => ({ ...prev, priority: event.target.value }))
+            }
+          />
+        </Field>
+      </div>
 
       <div className="rounded-md border border-white/[0.08] bg-white/[0.02] p-4">
         <div className="mb-3 text-body-sm font-medium">Generated defaults</div>
         <div className="flex flex-wrap gap-2">
+          <Badge variant="outline">{form.id || "auto-generated"}</Badge>
           <Badge variant="outline">QA {form.qaDepth}</Badge>
           <Badge variant="outline">Blockers {form.blockerLevel}</Badge>
           <Badge variant="outline">Approval {form.approval}</Badge>
@@ -1481,18 +1434,25 @@ function emptyForm(): IntentFormState {
   };
 }
 
-function formFromTemplate(
-  templateId: IntentTemplateId,
-  current?: IntentFormState,
+function behaviorFromPosture(posture: CompanyIntentPosture): IntentBehavior {
+  if (posture === "confidence" || posture === "stability-recovery") {
+    return "cautious";
+  }
+  if (posture === "speed") return "fast";
+  if (posture === "maintenance") return "maintenance";
+  return "balanced";
+}
+
+function applyBehaviorDefaults(
+  form: IntentFormState,
+  behavior: IntentBehavior,
 ): IntentFormState {
-  const template =
-    intentTemplates.find((option) => option.id === templateId) ??
-    intentTemplates[0];
+  const option =
+    behaviorOptions.find((candidate) => candidate.id === behavior) ??
+    behaviorOptions[1];
   return {
-    ...emptyForm(),
-    ...template.defaults,
-    id: current?.id || template.defaults.id || "",
-    repos: current?.repos || template.defaults.repos || "",
+    ...form,
+    ...option.defaults,
   };
 }
 
