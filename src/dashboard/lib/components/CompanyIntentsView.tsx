@@ -11,15 +11,17 @@ import {
   AlertCircle,
   Archive,
   CalendarClock,
+  CircleDot,
   Compass,
   Edit3,
+  FileText,
   Loader2,
   Pause,
   Play,
   Plus,
   RefreshCw,
-  Search,
   ShieldCheck,
+  Target,
 } from "lucide-react";
 
 import { Badge } from "@dashboard/ui/badge";
@@ -59,6 +61,8 @@ import {
   useRunCompanyIntent,
   useUpdateCompanyIntent,
 } from "../hooks/useCompanyIntents";
+import { EmptyState } from "./EmptyState";
+import { MasterDetailShell } from "./MasterDetailShell";
 
 type IntentFormState = {
   id: string;
@@ -186,125 +190,107 @@ export function CompanyIntentsView() {
     !updateIntent.isPending;
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-4 py-4 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-3 border-b border-border pb-4 lg:flex-row lg:items-end lg:justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2 text-body-xs font-medium uppercase tracking-normal text-muted-foreground">
-              <Compass className="h-4 w-4 text-cyan-500" aria-hidden="true" />
-              Company manager
-            </div>
-            <h1 className="mt-2 text-title-lg font-semibold tracking-normal">
-              Intents
-            </h1>
-            <p className="mt-1 max-w-3xl text-body-sm text-muted-foreground">
-              Guidance the CTO uses to manage company goals, loops, and
-              responsibilities.
-            </p>
+    <>
+      <MasterDetailShell
+        title="Intents"
+        icon={Compass}
+        iconClassName="text-cyan-400"
+        subtitle={`${intents.length} ${intents.length === 1 ? "intent" : "intents"} · ${activeCount} active · ${warningCount} warnings`}
+        error={
+          error
+            ? `Failed to load intents: ${(error as Error).message}`
+            : null
+        }
+        search={query}
+        onSearch={setQuery}
+        searchPlaceholder="Search intents"
+        searchAriaLabel="Search intents"
+        accent="sky"
+        listWidth="md:w-80"
+        hasSelection={!!selected}
+        listAside={
+          <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
+            <span>{filtered.length} shown</span>
+            {isFetching ? <span>Updating</span> : null}
           </div>
-          <div className="flex flex-wrap gap-2">
+        }
+        actions={
+          <>
             <Button
-              type="button"
               variant="outline"
-              onClick={() => refetch()}
+              size="sm"
+              onClick={() => void refetch()}
               disabled={isFetching}
-              className="gap-2"
+              aria-label="Refresh intents"
             >
-              {isFetching ? (
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-              ) : (
-                <RefreshCw className="h-4 w-4" aria-hidden="true" />
-              )}
-              Refresh
+              <RefreshCw
+                className={cn("h-4 w-4", isFetching && "animate-spin")}
+              />
             </Button>
-            <Button type="button" onClick={openCreate} className="gap-2">
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              New intent
+            <Button
+              size="sm"
+              className="w-9 px-0"
+              onClick={openCreate}
+              title="New intent"
+              aria-label="New intent"
+            >
+              <Plus className="h-4 w-4" />
             </Button>
-          </div>
-        </header>
-
-        <section className="grid gap-3 sm:grid-cols-3">
-          <SummaryCell label="Total" value={String(intents.length)} />
-          <SummaryCell label="Active" value={String(activeCount)} />
-          <SummaryCell label="Warnings" value={String(warningCount)} />
-        </section>
-
-        {error ? (
-          <div className="flex items-start gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4 text-body-sm text-destructive">
-            <AlertCircle className="mt-0.5 h-4 w-4" aria-hidden="true" />
-            <div>
-              <div className="font-medium">Failed to load intents</div>
-              <div className="mt-1 text-muted-foreground">
-                {error instanceof Error ? error.message : "Unknown error"}
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        <section className="grid min-h-[620px] gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
-          <aside className="flex min-h-0 flex-col gap-3">
-            <div className="relative">
-              <Search
-                className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-                aria-hidden="true"
-              />
-              <Input
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                placeholder="Search intents"
-                className="pl-9"
-              />
-            </div>
-
-            <div className="rounded-md border border-border">
-              <div className="flex items-center justify-between border-b border-border px-3 py-2 text-body-xs text-muted-foreground">
-                <span>{filtered.length} intents</span>
-                {isFetching ? <span>Updating</span> : null}
-              </div>
-              <div className="max-h-[640px] overflow-y-auto">
-                {isLoading ? (
-                  <div className="flex items-center gap-2 px-3 py-4 text-body-sm text-muted-foreground">
-                    <Loader2
-                      className="h-4 w-4 animate-spin"
-                      aria-hidden="true"
-                    />
-                    Loading intents
-                  </div>
-                ) : filtered.length === 0 ? (
-                  <div className="px-3 py-6 text-body-sm text-muted-foreground">
-                    No company intents found.
-                  </div>
-                ) : (
-                  filtered.map((record) => (
-                    <IntentListItem
-                      key={record.id}
-                      record={record}
-                      selected={record.id === selected?.id}
-                      onSelect={() => setSelectedId(record.id)}
-                    />
-                  ))
-                )}
-              </div>
-            </div>
-          </aside>
-
-          <section className="min-w-0 rounded-md border border-border">
-            {selected ? (
-              <IntentDetail
-                record={selected}
-                running={runIntent.isPending}
-                updating={updateIntent.isPending}
-                onEdit={() => openEdit(selected)}
-                onRun={() => runIntent.mutate(selected.id)}
-                onLifecycle={setLifecycle}
-              />
-            ) : (
-              <EmptyDetail />
-            )}
-          </section>
-        </section>
-      </div>
+          </>
+        }
+        detail={
+          selected ? (
+            <IntentDetail
+              record={selected}
+              running={runIntent.isPending}
+              updating={updateIntent.isPending}
+              onEdit={() => openEdit(selected)}
+              onRun={() => runIntent.mutate(selected.id)}
+              onLifecycle={setLifecycle}
+            />
+          ) : (
+            <EmptyState
+              icon={<Compass />}
+              title="Select an intent"
+              hint="Inspect CTO guidance, health, and decision history."
+            />
+          )
+        }
+      >
+        {isLoading ? (
+          <EmptyState icon={<FileText />} title="Loading intents..." />
+        ) : intents.length === 0 ? (
+          <EmptyState
+            icon={<CircleDot />}
+            title="No intents"
+            hint="Create the first CTO company-manager intent."
+            action={
+              <Button size="sm" onClick={openCreate}>
+                <Plus className="h-4 w-4" />
+                New intent
+              </Button>
+            }
+          />
+        ) : filtered.length === 0 ? (
+          <EmptyState
+            icon={<Target />}
+            title="No matching intents"
+            hint={`Nothing matched "${query}".`}
+          />
+        ) : (
+          <ul className="divide-y divide-border">
+            {filtered.map((record) => (
+              <li key={record.id}>
+                <IntentListItem
+                  record={record}
+                  selected={record.id === selected?.id}
+                  onSelect={() => setSelectedId(record.id)}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </MasterDetailShell>
 
       <Dialog open={formMode !== null} onOpenChange={(open) => !open && setFormMode(null)}>
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
@@ -574,7 +560,7 @@ export function CompanyIntentsView() {
           </form>
         </DialogContent>
       </Dialog>
-    </main>
+    </>
   );
 }
 
@@ -588,30 +574,45 @@ function IntentListItem({
   onSelect: () => void;
 }) {
   const warnings = companyIntentWarnings(record.intent, record.managerHealth);
+  const tone = intentStatusTone(record.intent.status);
   return (
-    <button
-      type="button"
-      onClick={onSelect}
+    <div
       className={cn(
-        "block w-full border-b border-border px-3 py-3 text-left transition-colors last:border-b-0 hover:bg-card",
-        selected && "bg-card",
+        "relative flex items-stretch transition-colors",
+        tone.rowClass,
+        selected && tone.selectedClass,
       )}
     >
-      <div className="flex min-w-0 items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="truncate text-body-sm font-medium">{record.id}</div>
-          <div className="mt-1 line-clamp-2 text-body-xs text-muted-foreground">
-            {record.intent.for || "No intent target"}
-          </div>
+      <button
+        type="button"
+        onClick={onSelect}
+        className="min-w-0 flex-1 px-4 py-3 text-left"
+      >
+        <div className="flex items-center gap-2">
+          <Compass className={cn("h-3.5 w-3.5 shrink-0", tone.iconClass)} />
+          <span className="flex-1 truncate font-mono text-sm text-white/90">
+            {record.id}
+          </span>
+          <StatusBadge status={record.intent.status} />
         </div>
-        <StatusBadge status={record.intent.status} />
-      </div>
-      <div className="mt-3 flex flex-wrap gap-2 text-body-xs text-muted-foreground">
-        <span>priority {record.intent.priority}</span>
-        <span>{record.intent.posture}</span>
-        {warnings.length ? <span>{warnings.length} warnings</span> : null}
-      </div>
-    </button>
+
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span>priority {record.intent.priority}</span>
+          <span>·</span>
+          <span>{record.intent.posture}</span>
+          {warnings.length ? (
+            <>
+              <span>·</span>
+              <span>{warnings.length} warnings</span>
+            </>
+          ) : null}
+        </div>
+
+        <p className="mt-1 line-clamp-2 text-xs text-white/55">
+          {record.intent.for || "No intent target"}
+        </p>
+      </button>
+    </div>
   );
 }
 
@@ -936,15 +937,6 @@ function SelectField<T extends string>({
   );
 }
 
-function SummaryCell({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-border px-3 py-2">
-      <div className="text-body-xs text-muted-foreground">{label}</div>
-      <div className="mt-1 text-title-sm font-semibold">{value}</div>
-    </div>
-  );
-}
-
 function PolicyItem({ label, value }: { label: string; value?: string }) {
   return (
     <div className="rounded-md border border-border p-3">
@@ -1046,19 +1038,40 @@ function StatusBadge({ status }: { status: CompanyIntentStatus }) {
   );
 }
 
+function intentStatusTone(status: CompanyIntentStatus): {
+  rowClass: string;
+  selectedClass: string;
+  iconClass: string;
+} {
+  if (status === "active") {
+    return {
+      rowClass:
+        "border-l-2 border-l-emerald-400/60 bg-emerald-500/[0.025] hover:bg-emerald-500/[0.06]",
+      selectedClass: "bg-emerald-500/[0.09]",
+      iconClass: "text-emerald-300",
+    };
+  }
+  if (status === "paused") {
+    return {
+      rowClass:
+        "border-l-2 border-l-amber-400/60 bg-amber-500/[0.025] hover:bg-amber-500/[0.06]",
+      selectedClass: "bg-amber-500/[0.09]",
+      iconClass: "text-amber-300",
+    };
+  }
+  return {
+    rowClass:
+      "border-l-2 border-l-white/10 bg-white/[0.012] opacity-70 hover:bg-white/[0.035] hover:opacity-90",
+    selectedClass: "bg-white/[0.06] opacity-100",
+    iconClass: "text-white/35",
+  };
+}
+
 function Meta({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-start justify-between gap-3">
       <dt>{label}</dt>
       <dd className="min-w-0 break-all text-right text-foreground">{value}</dd>
-    </div>
-  );
-}
-
-function EmptyDetail() {
-  return (
-    <div className="flex min-h-[400px] items-center justify-center p-6 text-center text-body-sm text-muted-foreground">
-      Select an intent to inspect its CTO guidance.
     </div>
   );
 }
