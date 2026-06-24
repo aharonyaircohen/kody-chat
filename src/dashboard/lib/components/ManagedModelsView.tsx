@@ -71,6 +71,7 @@ import {
   managedGoalModel,
   normalizeEvidenceKey,
   type ManagedGoalInstanceSummary,
+  type ManagedGoalPreferredRunTime,
   type ManagedLoopTarget,
   type ManagedGoalModel,
   type ManagedGoalRecord,
@@ -148,10 +149,135 @@ const scheduleOptions = [
   { value: "30d", label: "Every month" },
 ] satisfies { value: ManagedGoalSchedule; label: string }[];
 
+const preferredRunTimeOptions = Array.from({ length: 24 }, (_, hour) => {
+  const time = `${String(hour).padStart(2, "0")}:00`;
+  return { value: time, label: time };
+});
+
+const commonTimeZones = [
+  "UTC",
+  "America/New_York",
+  "America/Chicago",
+  "America/Denver",
+  "America/Los_Angeles",
+  "Europe/London",
+  "Europe/Berlin",
+  "Asia/Jerusalem",
+  "Asia/Tokyo",
+];
+
 function scheduleLabel(schedule: unknown): string {
   return (
     scheduleOptions.find((option) => option.value === schedule)?.label ??
     "Manual"
+  );
+}
+
+function browserTimeZone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
+function buildPreferredRunTime(
+  time: string,
+  timezone: string,
+): ManagedGoalPreferredRunTime | undefined {
+  const trimmedTime = time.trim();
+  const trimmedTimezone = timezone.trim();
+  if (!trimmedTime || !trimmedTimezone) return undefined;
+  return { time: trimmedTime, timezone: trimmedTimezone };
+}
+
+function preferredRunTimeZoneOptions(timezone: string): string[] {
+  const current = timezone.trim() || "UTC";
+  return [current, ...commonTimeZones.filter((option) => option !== current)];
+}
+
+function preferredRunTimeLabel(value: unknown): string | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const runTime = value as Partial<ManagedGoalPreferredRunTime>;
+  if (typeof runTime.time !== "string" || !runTime.time.trim()) return null;
+  if (typeof runTime.timezone !== "string" || !runTime.timezone.trim()) {
+    return runTime.time.trim();
+  }
+  return `${runTime.time.trim()} ${runTime.timezone.trim()}`;
+}
+
+function scheduleSummary(goal: ManagedGoalRecord): string {
+  const preferred = preferredRunTimeLabel(goal.state.preferredRunTime);
+  return preferred
+    ? `${scheduleLabel(goal.state.schedule)} at ${preferred}`
+    : scheduleLabel(goal.state.schedule);
+}
+
+function PreferredRunTimeFields({
+  idPrefix,
+  time,
+  timezone,
+  timezoneChoices,
+  onTimeChange,
+  onTimezoneChange,
+}: {
+  idPrefix: string;
+  time: string;
+  timezone: string;
+  timezoneChoices: string[];
+  onTimeChange: (time: string) => void;
+  onTimezoneChange: (timezone: string) => void;
+}) {
+  const timezoneValue = timezone.trim() || "UTC";
+
+  return (
+    <div className="space-y-2">
+      <Label htmlFor={`${idPrefix}-preferred-run-at`}>Preferred time</Label>
+      <div className="grid min-w-0 grid-cols-2 gap-2">
+        <Select
+          value={time || "none"}
+          onValueChange={(value) => onTimeChange(value === "none" ? "" : value)}
+        >
+          <SelectTrigger
+            id={`${idPrefix}-preferred-run-at`}
+            className="min-w-0"
+          >
+            {time ? (
+              <span className="font-mono">{time}</span>
+            ) : (
+              <span>Any time</span>
+            )}
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Any time</SelectItem>
+            {preferredRunTimeOptions.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                <span className="font-mono">{option.label}</span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={timezoneValue} onValueChange={onTimezoneChange}>
+          <SelectTrigger
+            id={`${idPrefix}-preferred-run-timezone`}
+            aria-label="Preferred timezone"
+            className="min-w-0 font-mono text-xs"
+          >
+            <span className="truncate">{timezoneValue}</span>
+          </SelectTrigger>
+          <SelectContent
+            align="end"
+            className="max-w-[min(20rem,calc(100vw-2rem))]"
+          >
+            {timezoneChoices.map((option) => (
+              <SelectItem key={option} value={option}>
+                <span className="font-mono text-xs">{option}</span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+    </div>
   );
 }
 
@@ -340,7 +466,7 @@ function goalSearchText(goal: ManagedGoalRecord): string {
     goal.source ?? "",
     goal.recordType ?? "",
     goal.state.type,
-    scheduleLabel(goal.state.schedule),
+    scheduleSummary(goal),
     goal.state.state,
     goal.state.stage ?? "",
     loopTarget?.type ?? "",
@@ -658,9 +784,17 @@ function NewGoalDialog({
   const defaultType = goalTypes[0] ?? defaultGoalType;
   const isRoutine = model === "agentLoop";
   const defaultSchedule: ManagedGoalSchedule = isRoutine ? "1d" : "manual";
+  const defaultTimeZone = useMemo(() => browserTimeZone(), []);
   const [goalType, setGoalType] = useState<ManagedGoalTypeId>(defaultType.id);
   const [schedule, setSchedule] =
     useState<ManagedGoalSchedule>(defaultSchedule);
+  const [preferredRunAt, setPreferredRunAt] = useState("");
+  const [preferredRunTimeZone, setPreferredRunTimeZone] =
+    useState(defaultTimeZone);
+  const preferredRunTimeZoneChoices = useMemo(
+    () => preferredRunTimeZoneOptions(preferredRunTimeZone),
+    [preferredRunTimeZone],
+  );
   const [outcome, setOutcome] = useState("");
   const [loopTargetType, setLoopTargetType] =
     useState<ManagedLoopTarget["type"]>("goal");
@@ -699,6 +833,10 @@ function NewGoalDialog({
   );
   const selectedLoopResponsibilitySlug =
     selectedAgentResponsibilitySlugs[0] ?? null;
+  const preferredRunTime = buildPreferredRunTime(
+    preferredRunAt,
+    preferredRunTimeZone,
+  );
   const loopTarget: ManagedLoopTarget | undefined = isRoutine
     ? loopTargetType === "goal"
       ? selectedLoopGoalId
@@ -713,7 +851,10 @@ function NewGoalDialog({
     : undefined;
   const canSubmit =
     outcome.trim().length > 0 &&
-    (isRoutine ? !!loopTarget : selectedAgentResponsibilitySlugs.length > 0);
+    (isRoutine ? !!loopTarget : selectedAgentResponsibilitySlugs.length > 0) &&
+    (!isRoutine ||
+      !preferredRunAt.trim() ||
+      preferredRunTimeZone.trim().length > 0);
   const intentLabel = isRoutine ? "Scope" : "Finish line";
   const dialogDescription = isRoutine
     ? "Create one ongoing loop with a clear scope, cadence, and agentResponsibilities."
@@ -751,12 +892,14 @@ function NewGoalDialog({
   const reset = useCallback(() => {
     setGoalType(defaultType.id);
     setSchedule(defaultSchedule);
+    setPreferredRunAt("");
+    setPreferredRunTimeZone(defaultTimeZone);
     setOutcome("");
     setLoopTargetType("goal");
     setSelectedLoopGoalId(null);
     setSelectedAgentResponsibilitySlugs([]);
     setSaveReport(isRoutine);
-  }, [defaultSchedule, defaultType.id, isRoutine]);
+  }, [defaultSchedule, defaultTimeZone, defaultType.id, isRoutine]);
 
   useEffect(() => {
     if (open) reset();
@@ -777,6 +920,10 @@ function NewGoalDialog({
     );
   };
 
+  const updatePreferredRunAt = (value: string) => {
+    setPreferredRunAt(value === "none" ? "" : value);
+  };
+
   const submit = async () => {
     const routeWithReportPreference = routeStepsWithReportPreference(
       routeSteps,
@@ -786,6 +933,7 @@ function NewGoalDialog({
       buildSimpleManagedGoalCreateInput({
         goalType,
         schedule,
+        preferredRunTime: isRoutine ? preferredRunTime : undefined,
         prompt: outcome,
         loopTarget,
         saveReport: isRoutine ? saveReport : undefined,
@@ -845,6 +993,14 @@ function NewGoalDialog({
                     </SelectContent>
                   </Select>
                 </div>
+                <PreferredRunTimeFields
+                  idPrefix="loop"
+                  time={preferredRunAt}
+                  timezone={preferredRunTimeZone}
+                  timezoneChoices={preferredRunTimeZoneChoices}
+                  onTimeChange={updatePreferredRunAt}
+                  onTimezoneChange={setPreferredRunTimeZone}
+                />
                 <div className="space-y-2">
                   <Label htmlFor="loop-target-type">Target type</Label>
                   <Select
@@ -865,7 +1021,7 @@ function NewGoalDialog({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="min-w-0 space-y-2 md:col-span-2">
+                <div className="min-w-0 space-y-2">
                   <Label htmlFor="loop-target">Target</Label>
                   {loopTargetType === "goal" ? (
                     <SearchableSelect
@@ -1002,8 +1158,16 @@ function EditManagedGoalDialog({
   const editDescription = isRoutine
     ? "Update agentLoop scope, cadence, and target."
     : "Update the finish line and attached agentResponsibilities.";
+  const defaultTimeZone = useMemo(() => browserTimeZone(), []);
   const [outcome, setOutcome] = useState("");
   const [schedule, setSchedule] = useState<ManagedGoalSchedule>("manual");
+  const [preferredRunAt, setPreferredRunAt] = useState("");
+  const [preferredRunTimeZone, setPreferredRunTimeZone] =
+    useState(defaultTimeZone);
+  const preferredRunTimeZoneChoices = useMemo(
+    () => preferredRunTimeZoneOptions(preferredRunTimeZone),
+    [preferredRunTimeZone],
+  );
   const [loopTargetType, setLoopTargetType] =
     useState<ManagedLoopTarget["type"]>("goal");
   const [selectedLoopGoalId, setSelectedLoopGoalId] = useState<string | null>(
@@ -1040,6 +1204,10 @@ function EditManagedGoalDialog({
   );
   const selectedLoopResponsibilitySlug =
     selectedAgentResponsibilitySlugs[0] ?? null;
+  const preferredRunTime = buildPreferredRunTime(
+    preferredRunAt,
+    preferredRunTimeZone,
+  );
   const loopTarget: ManagedLoopTarget | undefined = isRoutine
     ? loopTargetType === "goal"
       ? selectedLoopGoalId
@@ -1067,6 +1235,15 @@ function EditManagedGoalDialog({
     if (isRoutine) {
       const target = managedLoopTarget(goal);
       const nextType = target?.type ?? "goal";
+      const preferred = goal.state.preferredRunTime;
+      setPreferredRunAt(
+        typeof preferred?.time === "string" ? preferred.time : "",
+      );
+      setPreferredRunTimeZone(
+        typeof preferred?.timezone === "string"
+          ? preferred.timezone
+          : defaultTimeZone,
+      );
       setSaveReport(goal.state.saveReport !== false);
       setLoopTargetType(nextType);
       setSelectedLoopGoalId(target?.type === "goal" ? target.id : null);
@@ -1075,10 +1252,12 @@ function EditManagedGoalDialog({
       );
       return;
     }
+    setPreferredRunAt("");
+    setPreferredRunTimeZone(defaultTimeZone);
     setSaveReport(routeSavesReport(goal.state.route));
     setSelectedLoopGoalId(null);
     setSelectedAgentResponsibilitySlugs(goal.state.agentResponsibilities);
-  }, [goal, isRoutine, open]);
+  }, [defaultTimeZone, goal, isRoutine, open]);
 
   const selectAgentResponsibilities = (next: string[]) => {
     setSelectedAgentResponsibilitySlugs((current) =>
@@ -1095,10 +1274,17 @@ function EditManagedGoalDialog({
     );
   };
 
+  const updatePreferredRunAt = (value: string) => {
+    setPreferredRunAt(value === "none" ? "" : value);
+  };
+
   const canSubmit =
     !!goal &&
     outcome.trim().length > 0 &&
-    (isRoutine ? !!loopTarget : selectedAgentResponsibilitySlugs.length > 0);
+    (isRoutine ? !!loopTarget : selectedAgentResponsibilitySlugs.length > 0) &&
+    (!isRoutine ||
+      !preferredRunAt.trim() ||
+      preferredRunTimeZone.trim().length > 0);
 
   const submit = async () => {
     if (!goal) return;
@@ -1113,6 +1299,7 @@ function EditManagedGoalDialog({
       ...(isRoutine
         ? {
             loopTarget,
+            preferredRunTime: preferredRunTime ?? null,
             saveReport,
             agentResponsibilities:
               loopTarget?.type === "agentResponsibility" ? [loopTarget.id] : [],
@@ -1167,6 +1354,14 @@ function EditManagedGoalDialog({
                     </SelectContent>
                   </Select>
                 </div>
+                <PreferredRunTimeFields
+                  idPrefix="edit-loop"
+                  time={preferredRunAt}
+                  timezone={preferredRunTimeZone}
+                  timezoneChoices={preferredRunTimeZoneChoices}
+                  onTimeChange={updatePreferredRunAt}
+                  onTimezoneChange={setPreferredRunTimeZone}
+                />
                 <div className="space-y-2">
                   <Label htmlFor="edit-loop-target-type">Target type</Label>
                   <Select
@@ -1187,7 +1382,7 @@ function EditManagedGoalDialog({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="min-w-0 space-y-2 md:col-span-2">
+                <div className="min-w-0 space-y-2">
                   <Label htmlFor="edit-loop-target">Target</Label>
                   {loopTargetType === "goal" ? (
                     <SearchableSelect
@@ -1342,7 +1537,7 @@ function GoalRow({
               <span>·</span>
             </>
           ) : null}
-          <span>{scheduleLabel(goal.state.schedule)}</span>
+          <span>{scheduleSummary(goal)}</span>
           {loopTarget ? (
             <>
               <span>·</span>
@@ -1531,7 +1726,7 @@ function GoalDetail({
                   {done}/{total} evidence
                 </span>
                 <span>·</span>
-                <span>{scheduleLabel(goal.state.schedule)}</span>
+                <span>{scheduleSummary(goal)}</span>
                 {goal.state.stage ? (
                   <>
                     <span>·</span>

@@ -327,6 +327,23 @@ describe("simple managed goal creation", () => {
     expect(state.scheduleMode).toBe("agentLoop");
   });
 
+  it("stores preferred run time when creating an agentLoop", () => {
+    const state = buildManagedGoalState(
+      buildSimpleManagedGoalCreateInput({
+        goalType: "agentLoop",
+        schedule: "1d",
+        preferredRunTime: { time: "09:30", timezone: "Asia/Jerusalem" },
+        prompt: "Release web daily.",
+        loopTarget: { type: "goal", id: "web-release" },
+      }),
+    );
+
+    expect(state.preferredRunTime).toEqual({
+      time: "09:30",
+      timezone: "Asia/Jerusalem",
+    });
+  });
+
   it("keeps selected agentResponsibilities when creating a legacy agentLoop", () => {
     const state = buildManagedGoalState(
       buildSimpleManagedGoalCreateInput({

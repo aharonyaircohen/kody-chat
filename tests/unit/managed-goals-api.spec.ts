@@ -30,9 +30,7 @@ describe("managed goals API client", () => {
           },
         ],
       }),
-    ).rejects.toThrow(
-      "Invalid request: Kody state repo could not be updated.",
-    );
+    ).rejects.toThrow("Invalid request: Kody state repo could not be updated.");
   });
 
   afterEach(() => {
@@ -131,6 +129,7 @@ describe("managed goals API client", () => {
     await kodyApi.goals.createManaged({
       id: "source-goal-20260620-120000",
       type: "general",
+      preferredRunTime: { time: "08:15", timezone: "UTC" },
       outcome: "Run this goal again.",
       evidence: ["goalVerified"],
       route: [
@@ -146,6 +145,10 @@ describe("managed goals API client", () => {
     const [, init] = fetchMock.mock.calls[0]!;
     const body = JSON.parse(String(init?.body));
     expect(body.id).toBe("source-goal-20260620-120000");
+    expect(body.preferredRunTime).toEqual({
+      time: "08:15",
+      timezone: "UTC",
+    });
     expect(body).not.toHaveProperty("actorLogin");
   });
 
@@ -194,6 +197,7 @@ describe("managed goals API client", () => {
     await kodyApi.goals.updateManaged("verify-goal", {
       outcome: "Edited goal.",
       schedule: "7d",
+      preferredRunTime: { time: "09:00", timezone: "UTC" },
     });
     await kodyApi.goals.removeManaged("verify-goal");
 
@@ -201,6 +205,10 @@ describe("managed goals API client", () => {
     const [deleteUrl, deleteInit] = fetchMock.mock.calls[1]!;
     const updateBody = JSON.parse(String(updateInit?.body));
     expect(updateBody.schedule).toBe("7d");
+    expect(updateBody.preferredRunTime).toEqual({
+      time: "09:00",
+      timezone: "UTC",
+    });
     expect(updateBody).not.toHaveProperty("actorLogin");
     expect(String(deleteUrl)).toBe("/api/kody/goals/managed/verify-goal");
     expect(deleteInit?.body).toBeUndefined();

@@ -37,9 +37,34 @@ describe("ManagedModelsView model form", () => {
     expect(dialog).toContain("useState<string[]>([])");
     expect(dialog).toContain("if (open) reset();");
     expect(dialog).toContain("setSelectedAgentResponsibilitySlugs([]);");
-    expect(dialog).not.toContain("isRoutine ? [] : defaultType.agentResponsibilities");
+    expect(dialog).not.toContain(
+      "isRoutine ? [] : defaultType.agentResponsibilities",
+    );
     expect(dialog).toContain("selectedAgentResponsibilitySlugs.length > 0");
     expect(dialog).toContain("SaveReportCheckbox");
+    expect(source).toContain("function PreferredRunTimeFields");
+    expect(source).toContain('className="grid min-w-0 grid-cols-2 gap-2"');
+    expect(source).toContain("id={`${idPrefix}-preferred-run-at`}");
+    expect(source).toContain("id={`${idPrefix}-preferred-run-timezone`}");
+    expect(source).toContain('aria-label="Preferred timezone"');
+    expect(dialog).toContain('idPrefix="loop"');
+    expect(dialog).toContain("time={preferredRunAt}");
+    expect(dialog).toContain("timezone={preferredRunTimeZone}");
+    expect(dialog).toContain("onTimeChange={updatePreferredRunAt}");
+    expect(dialog).toContain("onTimezoneChange={setPreferredRunTimeZone}");
+    expect(source).toContain("preferredRunTimeOptions.map");
+    expect(source).toContain("timezoneChoices.map");
+    expect(dialog).toContain("preferredRunTimeZoneChoices");
+    expect(source).not.toContain("<SelectGroup>");
+    expect(source).not.toContain("<SelectLabel>Timezone</SelectLabel>");
+    expect(source).not.toContain("<SelectLabel>Hour</SelectLabel>");
+    expect(source).not.toContain("preferredRunTimeZoneValue(timezone)");
+    expect(source).not.toContain("PreferredRunTimeLabel");
+    expect(source).not.toContain("PreferredRunTimeValue");
+    expect(source).not.toContain('type="time"');
+    expect(dialog).toContain(
+      "preferredRunTime: isRoutine ? preferredRunTime : undefined",
+    );
     expect(dialog).toContain("routeStepsWithReportPreference");
     expect(dialog).not.toContain("ObjectiveEvidenceRouteSummary");
     expect(dialog).not.toContain("Missing evidence");
@@ -93,17 +118,25 @@ describe("ManagedModelsView model form", () => {
     expect(dialog).toContain(
       'const intentLabel = isRoutine ? "Scope" : "Finish line"',
     );
-    expect(dialog).toContain("Update the finish line and attached agentResponsibilities.");
+    expect(dialog).toContain(
+      "Update the finish line and attached agentResponsibilities.",
+    );
     expect(dialog).toContain("const objectiveGoalType =");
     expect(dialog).toContain('"edit-agentGoal-agentResponsibilities"');
     expect(dialog).toContain("options={agentResponsibilityOptions}");
-    expect(dialog).toContain("setSelectedAgentResponsibilitySlugs(goal.state.agentResponsibilities)");
+    expect(dialog).toContain(
+      "setSelectedAgentResponsibilitySlugs(goal.state.agentResponsibilities)",
+    );
     expect(dialog).toContain("mergeOrderedSlugs(current, next)");
     expect(dialog).toContain("moveSelectedAgentResponsibility");
-    expect(dialog).toContain("agentResponsibilities: selectedAgentResponsibilitySlugs");
+    expect(dialog).toContain(
+      "agentResponsibilities: selectedAgentResponsibilitySlugs",
+    );
     expect(dialog).toContain("evidence: evidenceForRoute(routeSteps)");
     expect(dialog).toContain("route: routeWithReportPreference");
-    expect(dialog).toContain("setSaveReport(routeSavesReport(goal.state.route))");
+    expect(dialog).toContain(
+      "setSaveReport(routeSavesReport(goal.state.route))",
+    );
     expect(dialog).toContain("OrderedPathSection");
     expect(dialog).not.toContain("ObjectiveEvidenceRouteSummary");
     expect(dialog).not.toContain("AgentGoal type");
@@ -131,10 +164,29 @@ describe("ManagedModelsView model form", () => {
     expect(dialog).toContain("goal?.state.agentResponsibilities ?? []");
     expect(dialog).toContain("SearchableMultiSelect");
     expect(dialog).toContain("selectedAgentResponsibilitySlugs.length > 0");
-    expect(dialog).toContain("loopTarget?.type === \"agentResponsibility\"");
+    expect(dialog).toContain('loopTarget?.type === "agentResponsibility"');
     expect(dialog).toContain("saveReport");
-    expect(dialog).toContain('selectedHeading="Selected agentResponsibilities"');
+    expect(dialog).toContain(
+      'selectedHeading="Selected agentResponsibilities"',
+    );
     expect(dialog).toContain('selectedTone="info"');
+    expect(dialog).toContain('idPrefix="edit-loop"');
+    expect(source).toContain('className="grid min-w-0 grid-cols-2 gap-2"');
+    expect(dialog).toContain("time={preferredRunAt}");
+    expect(dialog).toContain("timezone={preferredRunTimeZone}");
+    expect(dialog).toContain("onTimeChange={updatePreferredRunAt}");
+    expect(dialog).toContain("onTimezoneChange={setPreferredRunTimeZone}");
+    expect(source).toContain("preferredRunTimeOptions.map");
+    expect(source).toContain("timezoneChoices.map");
+    expect(dialog).toContain("preferredRunTimeZoneChoices");
+    expect(source).not.toContain("<SelectGroup>");
+    expect(source).not.toContain("<SelectLabel>Timezone</SelectLabel>");
+    expect(source).not.toContain("<SelectLabel>Hour</SelectLabel>");
+    expect(source).not.toContain("preferredRunTimeZoneValue(timezone)");
+    expect(source).not.toContain("PreferredRunTimeLabel");
+    expect(source).not.toContain("PreferredRunTimeValue");
+    expect(source).not.toContain('type="time"');
+    expect(dialog).toContain("preferredRunTime: preferredRunTime ?? null");
     expect(dialog).toContain("md:col-span-2");
   });
 });

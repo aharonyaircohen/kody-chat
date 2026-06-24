@@ -8,6 +8,10 @@
 
 export type ManagedGoalStateValue = "inactive" | "active" | "paused" | "done";
 export type ManagedGoalSchedule = "manual" | "1h" | "1d" | "7d" | "30d";
+export interface ManagedGoalPreferredRunTime {
+  time: string;
+  timezone: string;
+}
 export type ManagedLoopTargetType = "agentResponsibility" | "goal";
 export interface ManagedLoopTarget {
   type: ManagedLoopTargetType;
@@ -219,6 +223,7 @@ export interface ManagedGoalState {
   agentResponsibilities: string[];
   route: ManagedGoalRouteStep[];
   schedule?: ManagedGoalSchedule;
+  preferredRunTime?: ManagedGoalPreferredRunTime;
   stage?: string;
   facts: Record<string, unknown>;
   blockers: string[];
@@ -384,6 +389,7 @@ export interface CreateManagedGoalInput {
   type: string;
   outcome: string;
   schedule?: ManagedGoalSchedule;
+  preferredRunTime?: ManagedGoalPreferredRunTime | null;
   loopTarget?: ManagedLoopTarget;
   saveReport?: boolean;
   agentResponsibilities?: string[];
@@ -395,6 +401,7 @@ export interface SimpleManagedGoalCreateFields {
   id?: string;
   goalType: ManagedGoalTypeId;
   schedule: ManagedGoalSchedule;
+  preferredRunTime?: ManagedGoalPreferredRunTime | null;
   prompt: string;
   loopTarget?: ManagedLoopTarget;
   saveReport?: boolean;
@@ -409,6 +416,7 @@ export interface UpdateManagedGoalInput {
   type?: string;
   outcome?: string;
   schedule?: ManagedGoalSchedule;
+  preferredRunTime?: ManagedGoalPreferredRunTime | null;
   loopTarget?: ManagedLoopTarget;
   saveReport?: boolean;
   agentResponsibilities?: string[];
@@ -461,6 +469,16 @@ function uniqueStrings(values: string[]): string[] {
   );
 }
 
+function normalizeManagedGoalPreferredRunTime(
+  value: ManagedGoalPreferredRunTime | null | undefined,
+): ManagedGoalPreferredRunTime | undefined {
+  if (!value) return undefined;
+  const time = value.time.trim();
+  const timezone = value.timezone.trim();
+  if (!time || !timezone) return undefined;
+  return { time, timezone };
+}
+
 function normalizeManagedLoopTarget(
   target: ManagedLoopTarget | undefined,
 ): ManagedLoopTarget | undefined {
@@ -510,6 +528,9 @@ export function buildSimpleManagedGoalCreateInput(
     ...(fields.id?.trim() ? { id: fields.id.trim() } : {}),
     type: fields.goalType,
     schedule: fields.schedule,
+    ...(fields.preferredRunTime
+      ? { preferredRunTime: fields.preferredRunTime }
+      : {}),
     outcome: fields.prompt.trim(),
     ...(fields.loopTarget ? { loopTarget: fields.loopTarget } : {}),
     ...(typeof fields.saveReport === "boolean"
@@ -564,6 +585,9 @@ export function buildManagedGoalState(
   const loopTarget = isRoutine
     ? normalizeManagedLoopTarget(input.loopTarget)
     : undefined;
+  const preferredRunTime = isRoutine
+    ? normalizeManagedGoalPreferredRunTime(input.preferredRunTime)
+    : undefined;
   const evidenceInput = input.evidence ?? selectedGoalType?.evidence ?? [];
   const routeInput = input.route ?? selectedGoalType?.route ?? [];
   const agentResponsibilityInput =
@@ -610,13 +634,14 @@ export function buildManagedGoalState(
     schedule: input.schedule ?? "manual",
     ...(isRoutine
       ? {
-        scheduleMode: "agentLoop" as const,
-        ...(loopTarget ? { loopTarget } : {}),
-        ...(typeof input.saveReport === "boolean"
-          ? { saveReport: input.saveReport }
-          : {}),
-      }
-    : {}),
+          scheduleMode: "agentLoop" as const,
+          ...(preferredRunTime ? { preferredRunTime } : {}),
+          ...(loopTarget ? { loopTarget } : {}),
+          ...(typeof input.saveReport === "boolean"
+            ? { saveReport: input.saveReport }
+            : {}),
+        }
+      : {}),
     agentResponsibilities,
     route,
     stage: route[0]?.stage,

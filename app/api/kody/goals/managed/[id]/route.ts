@@ -73,6 +73,14 @@ const routeStepSchema = z.object({
 });
 
 const managedGoalScheduleSchema = z.enum(["manual", "1h", "1d", "7d", "30d"]);
+const preferredRunTimeSchema = z.object({
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  timezone: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[A-Za-z0-9_+./-]+$/),
+});
 const loopTargetSchema = z.object({
   type: z.enum(["agentResponsibility", "goal"]),
   id: z.string().min(1).max(80),
@@ -84,6 +92,7 @@ const updateManagedGoalSchema = z.object({
   type: z.string().min(1).max(80).optional(),
   outcome: z.string().min(1).max(500).optional(),
   schedule: managedGoalScheduleSchema.optional(),
+  preferredRunTime: preferredRunTimeSchema.nullable().optional(),
   loopTarget: loopTargetSchema.optional(),
   saveReport: z.boolean().optional(),
   agentResponsibilities: z.array(z.string().min(1).max(80)).optional(),
@@ -104,6 +113,7 @@ function isStateOnlyUpdate(
     data.type === undefined &&
     data.outcome === undefined &&
     data.schedule === undefined &&
+    data.preferredRunTime === undefined &&
     data.loopTarget === undefined &&
     data.saveReport === undefined &&
     data.agentResponsibilities === undefined &&
@@ -130,6 +140,9 @@ function instantiateStoreGoalState(
     agentResponsibilities: storeState.agentResponsibilities,
     route: storeState.route,
     schedule: storeState.schedule ?? "manual",
+    ...(storeState.preferredRunTime
+      ? { preferredRunTime: storeState.preferredRunTime }
+      : {}),
     ...(storeState.loopTarget ? { loopTarget: storeState.loopTarget } : {}),
     ...(typeof storeState.stage === "string"
       ? { stage: storeState.stage }
@@ -281,14 +294,18 @@ export async function PATCH(
       (shouldUseTypeDefaults && selectedGoalType
         ? selectedGoalType.agentResponsibilities
         : existing.state.agentResponsibilities);
- const nextLoopTarget =
- parsed.data.loopTarget ??
- (shouldUseTypeDefaults ? undefined : existing.state.loopTarget);
- const nextSaveReport =
- parsed.data.saveReport ??
- (typeof existing.state.saveReport === "boolean"
- ? existing.state.saveReport
- : undefined);
+    const nextLoopTarget =
+      parsed.data.loopTarget ??
+      (shouldUseTypeDefaults ? undefined : existing.state.loopTarget);
+    const nextPreferredRunTime =
+      parsed.data.preferredRunTime === undefined
+        ? existing.state.preferredRunTime
+        : (parsed.data.preferredRunTime ?? undefined);
+    const nextSaveReport =
+      parsed.data.saveReport ??
+      (typeof existing.state.saveReport === "boolean"
+        ? existing.state.saveReport
+        : undefined);
     const routeChanged =
       parsed.data.route !== undefined || shouldUseTypeDefaults;
     const agentResponsibilitiesChanged =
@@ -298,8 +315,9 @@ export async function PATCH(
       type: parsed.data.type ?? existing.state.type,
       outcome: parsed.data.outcome ?? existing.state.destination.outcome,
       schedule: parsed.data.schedule ?? existing.state.schedule ?? "manual",
- loopTarget: nextLoopTarget,
- saveReport: nextSaveReport,
+      preferredRunTime: nextPreferredRunTime,
+      loopTarget: nextLoopTarget,
+      saveReport: nextSaveReport,
       agentResponsibilities: nextAgentResponsibilities,
       evidence: nextEvidence,
       route: nextRoute,
@@ -311,10 +329,13 @@ export async function PATCH(
       type: rebuilt.type,
       destination: rebuilt.destination,
       schedule: rebuilt.schedule,
- loopTarget: rebuilt.loopTarget,
- ...(typeof rebuilt.saveReport === "boolean"
- ? { saveReport: rebuilt.saveReport }
- : {}),
+      loopTarget: rebuilt.loopTarget,
+      ...(rebuilt.preferredRunTime
+        ? { preferredRunTime: rebuilt.preferredRunTime }
+        : {}),
+      ...(typeof rebuilt.saveReport === "boolean"
+        ? { saveReport: rebuilt.saveReport }
+        : {}),
       agentResponsibilities:
         !agentResponsibilitiesChanged && !routeChanged
           ? existing.state.agentResponsibilities
@@ -329,6 +350,9 @@ export async function PATCH(
     };
     if (parsed.data.state === "paused" && parsed.data.pausedReason) {
       nextState.pausedReason = parsed.data.pausedReason;
+    }
+    if (!rebuilt.preferredRunTime) {
+      delete nextState.preferredRunTime;
     }
     if (parsed.data.state && parsed.data.state !== "paused") {
       delete nextState.pausedReason;

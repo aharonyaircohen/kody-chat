@@ -74,6 +74,14 @@ const routeStepSchema = z.object({
 });
 
 const managedGoalScheduleSchema = z.enum(["manual", "1h", "1d", "7d", "30d"]);
+const preferredRunTimeSchema = z.object({
+  time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  timezone: z
+    .string()
+    .min(1)
+    .max(100)
+    .regex(/^[A-Za-z0-9_+./-]+$/),
+});
 const loopTargetSchema = z.object({
   type: z.enum(["agentResponsibility", "goal"]),
   id: z.string().min(1).max(80),
@@ -85,6 +93,7 @@ const createManagedGoalSchema = z.object({
   type: z.string().min(1).max(80).default("general"),
   outcome: z.string().min(1).max(500),
   schedule: managedGoalScheduleSchema.default("manual"),
+  preferredRunTime: preferredRunTimeSchema.nullable().optional(),
   loopTarget: loopTargetSchema.optional(),
   saveReport: z.boolean().optional(),
   agentResponsibilities: z.array(z.string().min(1).max(80)).optional(),
