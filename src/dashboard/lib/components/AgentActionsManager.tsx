@@ -5,9 +5,8 @@
  * @ai-summary CRUD UI for custom agentActions stored at
  *   `agent-actions/<slug>/` in the state repo. The engine resolves
  *   these before its own built-ins when a agentResponsibility lowers to an implementation.
- *   The editor is a simple form (describe + instructions + model + tools), plus a skills
- *   tab (paste a `SKILL.md` or import one from a GitHub source) and a scripts tab
- *   (one `*.sh` each). A Validate button checks the generated profile.json before saving.
+ *   The editor shows name + instructions first, with model/tools/skills/scripts
+ *   kept in advanced controls. A validation block checks the generated profile.json before saving.
  *   Execution assignment is owned by AgentResponsibilities — this page only edits.
  */
 "use client";
@@ -47,13 +46,6 @@ import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
 import { Textarea } from "@dashboard/ui/textarea";
 import { Checkbox } from "@dashboard/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@dashboard/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
@@ -62,11 +54,16 @@ import { AuthGuard } from "../auth-guard";
 import { useAuth, buildAuthHeaders } from "../auth-context";
 import {
   COMMON_TOOLS,
+  CAPABILITY_KINDS,
   composeProfile,
+  DEFAULT_CAPABILITY_KIND,
+  descriptionFromInstructions,
   isValidSlug,
   serializeProfile,
+  slugFromName,
   validateProfile,
   type AgentActionLanding,
+  type CapabilityKind,
   type McpServerSpec,
   type PermissionMode,
 } from "../agent-actions/profile";
@@ -84,6 +81,24 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     "Gives the agent a 'verify' tool it can call to re-check its work. It does NOT run verify automatically — the agent decides when to call it. PR-landing already runs verify as its own step.",
 };
 
+const CAPABILITY_KIND_COPY: Record<
+  CapabilityKind,
+  { label: string; description: string }
+> = {
+  observe: {
+    label: "Observe",
+    description: "Find facts or signals.",
+  },
+  act: {
+    label: "Act",
+    description: "Change or create something.",
+  },
+  verify: {
+    label: "Verify",
+    description: "Check a claim or result.",
+  },
+};
+
 interface AgentActionSkill {
   name: string;
   body: string;
@@ -95,6 +110,7 @@ interface AgentActionShellScript {
 interface AgentActionSummary {
   slug: string;
   describe: string;
+  capabilityKind: CapabilityKind;
   landing: AgentActionLanding;
   updatedAt: string | null;
   htmlUrl: string;
@@ -202,6 +218,7 @@ async function readApi(
 interface SavePayload {
   slug: string;
   describe: string;
+  capabilityKind: CapabilityKind;
   /** Engine file is still prompt.md; product concept is "instructions". */
   prompt: string;
   model: string;
@@ -258,12 +275,17 @@ async function deleteApi(
 
 export function AgentActionsManager({
   selectedSlug = null,
+  basePath = "/agent-actions",
 }: {
   selectedSlug?: string | null;
+  basePath?: string;
 } = {}) {
   return (
     <AuthGuard>
-      <AgentActionsManagerInner selectedSlug={selectedSlug} />
+      <AgentActionsManagerInner
+        selectedSlug={selectedSlug}
+        basePath={basePath}
+      />
     </AuthGuard>
   );
 }
@@ -274,15 +296,27 @@ export function AgentActionsManager({
  * save/back via the router — so the browser Back button lands on the list,
  * not wherever you were before opening the dashboard.
  */
-export function AgentActionEditorPage({ slug }: { slug: string | null }) {
+export function AgentActionEditorPage({
+  slug,
+  basePath = "/agent-actions",
+}: {
+  slug: string | null;
+  basePath?: string;
+}) {
   return (
     <AuthGuard>
-      <AgentActionEditorPageInner slug={slug} />
+      <AgentActionEditorPageInner slug={slug} basePath={basePath} />
     </AuthGuard>
   );
 }
 
-function AgentActionEditorPageInner({ slug }: { slug: string | null }) {
+function AgentActionEditorPageInner({
+  slug,
+  basePath,
+}: {
+  slug: string | null;
+  basePath: string;
+}) {
   const { auth } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -307,20 +341,20 @@ function AgentActionEditorPageInner({ slug }: { slug: string | null }) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: agentActionQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: listQueryKey });
-      toast.success("AgentAction saved");
+      toast.success("Capability saved");
     },
     onError: (err: Error) => toast.error(err.message || "Failed to save"),
   });
 
-  const back = () => router.push("/agent-actions");
+  const back = () => router.push(basePath);
 
   return (
     <PageShell
-      title={slug ? `Edit implementation ${slug}` : "New action"}
+      title={slug ? `Edit capability ${slug}` : "New capability"}
       icon={Boxes}
       iconClassName="text-amber-400"
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
-      backHref="/agent-actions"
+      backHref={basePath}
     >
       <AgentActionEditor
         slug={slug}
@@ -340,8 +374,10 @@ function AgentActionEditorPageInner({ slug }: { slug: string | null }) {
 
 function AgentActionsManagerInner({
   selectedSlug = null,
+  basePath = "/agent-actions",
 }: {
   selectedSlug?: string | null;
+  basePath?: string;
 } = {}) {
   const router = useRouter();
   const { auth } = useAuth();
@@ -368,7 +404,7 @@ function AgentActionsManagerInner({
       queryClient.invalidateQueries({ queryKey: agentActionQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: listQueryKey });
       if (selectedSlug === slug) selectAgentAction(null, true);
-      toast.success("AgentAction removed");
+      toast.success("Capability removed");
     },
     onError: (err: Error) => toast.error(err.message || "Failed to remove"),
   });
@@ -385,6 +421,7 @@ function AgentActionsManagerInner({
     return agentActions.filter(
       (e) =>
         e.slug.toLowerCase().includes(q) ||
+        e.capabilityKind.toLowerCase().includes(q) ||
         e.describe.toLowerCase().includes(q),
     );
   }, [agentActions, search]);
@@ -413,19 +450,19 @@ function AgentActionsManagerInner({
   // Auto-select the first agentAction on desktop, mirroring AgentResponsibilities/Reports.
   useEffect(() => {
     if (agentActions.length === 0) {
-      if (selectedSlug) router.replace("/agent-actions");
+      if (selectedSlug) router.replace(basePath);
       return;
     }
     if (
       !selectedSlug ||
       !agentActions.some((action) => action.slug === selectedSlug)
     ) {
-      router.replace(selectionPath("/agent-actions", agentActions[0].slug));
+      router.replace(selectionPath(basePath, agentActions[0].slug));
     }
-  }, [agentActions, router, selectedSlug]);
+  }, [agentActions, basePath, router, selectedSlug]);
 
   const selectAgentAction = (slug: string | null, replace = false) => {
-    const path = slug ? selectionPath("/agent-actions", slug) : "/agent-actions";
+    const path = slug ? selectionPath(basePath, slug) : basePath;
     if (replace) router.replace(path);
     else router.push(path);
   };
@@ -452,7 +489,7 @@ function AgentActionsManagerInner({
           queryScope,
         ),
       });
-      toast.success("AgentAction saved");
+      toast.success("Capability saved");
       setEditingSlug(null);
     },
     onError: (err: Error) => toast.error(err.message || "Failed to save"),
@@ -461,19 +498,19 @@ function AgentActionsManagerInner({
   return (
     <>
       <MasterDetailShell
-        title="Actions"
+        title="Capabilities"
         icon={Boxes}
         iconClassName="text-amber-400"
         subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
         error={
           error
-            ? `Couldn't load agentActions: ${error instanceof Error ? error.message : "Unknown error"}`
+            ? `Couldn't load capabilities: ${error instanceof Error ? error.message : "Unknown error"}`
             : null
         }
         search={search}
         onSearch={setSearch}
-        searchPlaceholder="Search agentActions…"
-        searchAriaLabel="Search agentActions"
+        searchPlaceholder="Search capabilities…"
+        searchAriaLabel="Search capabilities"
         accent="amber"
         hasSelection={!!selected}
         actions={
@@ -483,7 +520,7 @@ function AgentActionsManagerInner({
               size="sm"
               onClick={() => refetch()}
               disabled={isFetching}
-              aria-label="Refresh agentActions"
+              aria-label="Refresh capabilities"
             >
               <RefreshCw
                 className={cn("w-4 h-4", isFetching && "animate-spin")}
@@ -493,9 +530,9 @@ function AgentActionsManagerInner({
               asChild
               size="sm"
               className="w-9 px-0"
-              title="New agentAction"
+              title="New capability"
             >
-              <Link href="/agent-actions/new" aria-label="New agentAction">
+              <Link href={`${basePath}/new`} aria-label="New capability">
                 <Plus className="w-4 h-4" />
               </Link>
             </Button>
@@ -539,24 +576,24 @@ function AgentActionsManagerInner({
           ) : (
             <EmptyState
               icon={<Boxes />}
-              title="Select an agentAction"
-              hint="Pick one from the list to see its config, edit it, or delete it."
+              title="Select a capability"
+              hint="Pick one from the list to see it, edit it, or delete it."
             />
           )
         }
       >
         {isLoading ? (
-          <EmptyState icon={<Boxes />} title="Loading agentActions…" />
+          <EmptyState icon={<Boxes />} title="Loading capabilities…" />
         ) : agentActions.length === 0 ? (
           <EmptyState
             icon={<Sparkles />}
-            title="No agentActions yet"
-            hint="An agentAction is an implementation folder stored at agent-actions/<slug>/ in the state repo. AgentResponsibilities own public @kody action names."
+            title="No capabilities yet"
+            hint="A capability is stored as an agent-actions/<slug>/ profile for engine compatibility."
             action={
               <Button asChild size="sm" className="gap-1">
-                <Link href="/agent-actions/new">
+                <Link href={`${basePath}/new`}>
                   <Plus className="w-4 h-4" />
-                  New agentAction
+                  New capability
                 </Link>
               </Button>
             }
@@ -564,7 +601,7 @@ function AgentActionsManagerInner({
         ) : filtered.length === 0 ? (
           <EmptyState
             icon={<Boxes />}
-            title="No matching agentActions"
+            title="No matching capabilities"
             hint={`Nothing matched "${search}".`}
           />
         ) : (
@@ -586,13 +623,13 @@ function AgentActionsManagerInner({
         open={deleting !== null}
         title={
           deletingAction?.source === "store"
-            ? `Remove Store agentAction ${deleting}?`
-            : `Delete agentAction ${deleting}?`
+            ? `Remove Store capability ${deleting}?`
+            : `Delete capability ${deleting}?`
         }
         description={
           deletingAction?.source === "store"
-            ? "This repo will stop using the Store agentAction. The Store asset will not be deleted."
-            : "The whole agentAction folder is removed from the repo."
+            ? "This repo will stop using the Store capability. The Store asset will not be deleted."
+            : "The whole capability folder is removed from the repo."
         }
         confirmLabel={
           remove.isPending
@@ -652,8 +689,8 @@ function AgentActionRow({
         ) : null}
       </div>
       <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
-        <span className="inline-flex items-center gap-1">
-          {e.landing === "pr" ? "PR result" : "comment result"}
+        <span className="inline-flex items-center rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300">
+          {CAPABILITY_KIND_COPY[e.capabilityKind].label}
         </span>
         {e.agent ? (
           <span className="inline-flex items-center gap-1">
@@ -662,9 +699,6 @@ function AgentActionRow({
           </span>
         ) : null}
       </div>
-      {e.describe ? (
-        <p className="text-xs text-white/55 mt-1 truncate">{e.describe}</p>
-      ) : null}
     </button>
   );
 }
@@ -700,7 +734,7 @@ function AgentActionDetail({
             className="md:hidden gap-1 -ml-2 text-muted-foreground"
           >
             <ArrowLeft className="w-4 h-4" />
-            All agentActions
+            All capabilities
           </Button>
           <header className="flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0 flex-1 space-y-2">
@@ -711,11 +745,11 @@ function AgentActionDetail({
                     Store
                   </span>
                 ) : null}
-                <span className="text-[11px] font-sans uppercase tracking-wide bg-white/[0.06] text-white/50 px-2 py-0.5 rounded">
-                  {e.landing === "pr" ? "PR result" : "comment result"}
-                </span>
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
+                <span className="inline-flex items-center rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300">
+                  {CAPABILITY_KIND_COPY[e.capabilityKind].label}
+                </span>
                 {e.agent ? (
                   <span className="inline-flex items-center gap-1">
                     <User className="w-3 h-3" />
@@ -755,10 +789,10 @@ function AgentActionDetail({
                 className="w-9 px-0"
                 title={
                   e.readOnly
-                    ? "Store-linked agentActions are read-only"
-                    : "Edit agentAction"
+                    ? "Store-linked capabilities are read-only"
+                    : "Edit capability"
                 }
-                aria-label="Edit agentAction"
+                aria-label="Edit capability"
               >
                 <Pencil className="w-3.5 h-3.5" />
               </Button>
@@ -769,25 +803,19 @@ function AgentActionDetail({
                 className="w-9 px-0 text-red-400"
                 title={
                   e.source === "store"
-                    ? "Remove Store agentAction from this repo"
-                    : "Delete agentAction"
+                    ? "Remove Store capability from this repo"
+                    : "Delete capability"
                 }
                 aria-label={
                   e.source === "store"
-                    ? "Remove Store agentAction from this repo"
-                    : "Delete agentAction"
+                    ? "Remove Store capability from this repo"
+                    : "Delete capability"
                 }
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </Button>
             </div>
           </header>
-
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 md:p-5">
-            <p className="text-sm text-white/80">
-              {e.describe || "No description yet."}
-            </p>
-          </div>
         </div>
       </div>
 
@@ -817,7 +845,7 @@ function AgentActionContentBody({
     return (
       <div className="max-w-4xl mx-auto p-4 md:p-8 flex items-center gap-2 text-sm text-muted-foreground">
         <Loader2 className="w-4 h-4 animate-spin" />
-        Loading agentAction content…
+        Loading capability content…
       </div>
     );
   }
@@ -825,7 +853,7 @@ function AgentActionContentBody({
     return (
       <div className="max-w-4xl mx-auto p-4 md:p-8">
         <div className="rounded-lg border border-rose-500/30 bg-rose-500/[0.06] p-3 text-sm text-rose-200">
-          Couldn&apos;t load agentAction content: {error}
+          Couldn&apos;t load capability content: {error}
         </div>
       </div>
     );
@@ -860,140 +888,151 @@ function AgentActionContentBody({
         )}
       </ContentSection>
 
-      {/* Model + tool allowlist — at-a-glance. */}
-      <ContentSection icon={Cpu} title="Model" subtitle="claudeCode.model">
-        <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="font-mono text-white/85 bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1">
-            {detail.model || "inherit"}
-          </span>
-          <span className="text-white/45">·</span>
-          <span className="text-white/55">
-            {userTools.length} tool{userTools.length === 1 ? "" : "s"}
-          </span>
-        </div>
-      </ContentSection>
-
-      <ContentSection
-        icon={Wrench}
-        title="Tools"
-        subtitle="claudeCode.tools — what the agent may call"
-        count={userTools.length}
-      >
-        {userTools.length > 0 ? (
-          <div className="flex flex-wrap gap-1.5">
-            {userTools.map((t) => (
-              <span
-                key={t}
-                className="font-mono text-[11px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/80"
-              >
-                {t}
+      <details className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-3">
+        <summary className="cursor-pointer text-sm font-semibold text-white/90">
+          Advanced
+        </summary>
+        <div className="pt-4 space-y-6">
+          <ContentSection icon={Cpu} title="Model" subtitle="claudeCode.model">
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="font-mono text-white/85 bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1">
+                {detail.model || "inherit"}
               </span>
-            ))}
-          </div>
-        ) : (
-          <EmptyHint text="No tools allowed — the agent can't read or edit." />
-        )}
-      </ContentSection>
+              <span className="text-white/45">·</span>
+              <span className="text-white/55">
+                {userTools.length} tool{userTools.length === 1 ? "" : "s"}
+              </span>
+            </div>
+          </ContentSection>
 
-      <ContentSection
-        icon={BookOpen}
-        title="Skills"
-        subtitle="skills/<name>/SKILL.md — loaded into the agent"
-        count={detail.skills.length}
-      >
-        {detail.skills.length > 0 ? (
-          <div className="space-y-2">
-            {detail.skills.map((s) => (
-              <Card
-                key={s.name}
-                className="border-white/[0.08] bg-white/[0.02]"
-              >
-                <CardContent className="p-3 space-y-1.5">
-                  <div className="font-mono text-xs text-white/85">
-                    {s.name}
-                  </div>
-                  {s.body ? (
-                    <pre className="text-[11px] font-mono leading-relaxed text-white/65 whitespace-pre-wrap break-words max-h-48 overflow-auto">
-                      {s.body}
-                    </pre>
-                  ) : (
-                    <p className="text-[11px] text-white/40">
-                      (empty SKILL.md)
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <EmptyHint text="No skills attached." />
-        )}
-      </ContentSection>
+          <ContentSection
+            icon={Wrench}
+            title="Tools"
+            subtitle="claudeCode.tools — what the agent may call"
+            count={userTools.length}
+          >
+            {userTools.length > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {userTools.map((t) => (
+                  <span
+                    key={t}
+                    className="font-mono text-[11px] bg-white/[0.04] border border-white/[0.08] rounded px-2 py-1 text-white/80"
+                  >
+                    {t}
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <EmptyHint text="No tools allowed — the agent can't read or edit." />
+            )}
+          </ContentSection>
 
-      <ContentSection
-        icon={Terminal}
-        title="Scripts"
-        subtitle="*.sh — preflight steps run before the agent"
-        count={detail.shellScripts.length}
-      >
-        {detail.shellScripts.length > 0 ? (
-          <div className="space-y-2">
-            {detail.shellScripts.map((s) => (
-              <Card
-                key={s.name}
-                className="border-white/[0.08] bg-white/[0.02]"
-              >
-                <CardContent className="p-3 space-y-1.5">
-                  <div className="font-mono text-xs text-white/85">
-                    {s.name}
-                  </div>
-                  {s.content ? (
-                    <pre className="text-[11px] font-mono leading-relaxed text-white/65 whitespace-pre-wrap break-words max-h-48 overflow-auto">
-                      {s.content}
-                    </pre>
-                  ) : (
-                    <p className="text-[11px] text-white/40">(empty script)</p>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <EmptyHint text="No preflight scripts." />
-        )}
-      </ContentSection>
+          <ContentSection
+            icon={BookOpen}
+            title="Skills"
+            subtitle="skills/<name>/SKILL.md — loaded into the agent"
+            count={detail.skills.length}
+          >
+            {detail.skills.length > 0 ? (
+              <div className="space-y-2">
+                {detail.skills.map((s) => (
+                  <Card
+                    key={s.name}
+                    className="border-white/[0.08] bg-white/[0.02]"
+                  >
+                    <CardContent className="p-3 space-y-1.5">
+                      <div className="font-mono text-xs text-white/85">
+                        {s.name}
+                      </div>
+                      {s.body ? (
+                        <pre className="text-[11px] font-mono leading-relaxed text-white/65 whitespace-pre-wrap break-words max-h-48 overflow-auto">
+                          {s.body}
+                        </pre>
+                      ) : (
+                        <p className="text-[11px] text-white/40">
+                          (empty SKILL.md)
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <EmptyHint text="No skills attached." />
+            )}
+          </ContentSection>
 
-      <ContentSection
-        icon={Cpu}
-        title="MCP servers"
-        subtitle="claudeCode.mcpServers — external tool servers the agent may call"
-        count={detail.mcpServers.length}
-      >
-        {detail.mcpServers.length > 0 ? (
-          <div className="space-y-2">
-            {detail.mcpServers.map((m) => (
-              <Card
-                key={m.name}
-                className="border-white/[0.08] bg-white/[0.02]"
-              >
-                <CardContent className="p-3 space-y-1.5">
-                  <div className="font-mono text-xs text-white/85">
-                    {m.name}
-                  </div>
-                  <div className="text-[11px] font-mono text-white/55 break-words">
-                    {m.command}
-                    {m.args && m.args.length > 0 ? (
-                      <span className="text-white/35"> {m.args.join(" ")}</span>
-                    ) : null}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : (
-          <EmptyHint text="No MCP tool servers." />
-        )}
-      </ContentSection>
+          <ContentSection
+            icon={Terminal}
+            title="Scripts"
+            subtitle="*.sh — preflight steps run before the agent"
+            count={detail.shellScripts.length}
+          >
+            {detail.shellScripts.length > 0 ? (
+              <div className="space-y-2">
+                {detail.shellScripts.map((s) => (
+                  <Card
+                    key={s.name}
+                    className="border-white/[0.08] bg-white/[0.02]"
+                  >
+                    <CardContent className="p-3 space-y-1.5">
+                      <div className="font-mono text-xs text-white/85">
+                        {s.name}
+                      </div>
+                      {s.content ? (
+                        <pre className="text-[11px] font-mono leading-relaxed text-white/65 whitespace-pre-wrap break-words max-h-48 overflow-auto">
+                          {s.content}
+                        </pre>
+                      ) : (
+                        <p className="text-[11px] text-white/40">
+                          (empty script)
+                        </p>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <EmptyHint text="No preflight scripts." />
+            )}
+          </ContentSection>
+
+          <ContentSection
+            icon={Cpu}
+            title="MCP servers"
+            subtitle="claudeCode.mcpServers — external tool servers the agent may call"
+            count={detail.mcpServers.length}
+          >
+            {detail.mcpServers.length > 0 ? (
+              <div className="space-y-2">
+                {detail.mcpServers.map((m) => (
+                  <Card
+                    key={m.name}
+                    className="border-white/[0.08] bg-white/[0.02]"
+                  >
+                    <CardContent className="p-3 space-y-1.5">
+                      <div className="font-mono text-xs text-white/85">
+                        {m.name}
+                      </div>
+                      <div className="text-[11px] font-mono text-white/55 break-words">
+                        {m.command}
+                        {m.args && m.args.length > 0 ? (
+                          <span className="text-white/35">
+                            {" "}
+                            {m.args.join(" ")}
+                          </span>
+                        ) : null}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <EmptyHint text="No MCP tool servers." />
+            )}
+          </ContentSection>
+        </div>
+      </details>
     </div>
   );
 }
@@ -1169,10 +1208,13 @@ function AgentActionEditorForm({
   onSave: (payload: SavePayload) => Promise<void>;
   showHeader?: boolean;
 }) {
+  const [name, setName] = useState(initial?.slug ?? "");
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const isReadOnly = initial?.readOnly === true;
   const [touchedSlug, setTouchedSlug] = useState(false);
-  const [describe, setDescribe] = useState(initial?.describe ?? "");
+  const [capabilityKind, setCapabilityKind] = useState<CapabilityKind>(
+    initial?.capabilityKind ?? DEFAULT_CAPABILITY_KIND,
+  );
   const [prompt, setPrompt] = useState(initial?.prompt ?? DEFAULT_INSTRUCTIONS);
   const [model, setModel] = useState(initial?.model ?? "inherit");
   // Not user-tunable: the engine runs headless (no human to approve tool
@@ -1182,9 +1224,7 @@ function AgentActionEditorForm({
   const [tools, setTools] = useState<string[]>(
     initial?.tools ?? ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
   );
-  const [landing, setLanding] = useState<AgentActionLanding>(
-    initial?.landing ?? "pr",
-  );
+  const landing: AgentActionLanding = initial?.landing ?? "pr";
   const [skills, setSkills] = useState<AgentActionSkill[]>(
     initial?.skills ?? [],
   );
@@ -1306,13 +1346,18 @@ function AgentActionEditorForm({
   })();
   const promptError =
     prompt.trim().length === 0 ? "Instructions are required" : null;
+  const generatedDescription = descriptionFromInstructions(
+    name || slug,
+    prompt,
+  );
 
   // Live validation of the profile the form will generate.
   const validation = useMemo(() => {
     const effectiveSlug = isNew ? slug || "draft" : slug;
     const profile = composeProfile({
       slug: effectiveSlug,
-      describe,
+      describe: generatedDescription,
+      capabilityKind,
       prompt,
       model,
       permissionMode,
@@ -1341,7 +1386,8 @@ function AgentActionEditorForm({
   }, [
     isNew,
     slug,
-    describe,
+    generatedDescription,
+    capabilityKind,
     prompt,
     model,
     permissionMode,
@@ -1373,14 +1419,12 @@ function AgentActionEditorForm({
         <div className="flex items-start justify-between gap-3">
           <div>
             <h2 className="text-sm font-semibold text-white/90">
-              {isNew
-                ? "New agentAction"
-                : `Edit implementation ${initial?.slug}`}
+              {isNew ? "New capability" : `Edit capability ${initial?.slug}`}
             </h2>
             <p className="text-xs text-white/50">
               {isReadOnly
-                ? "Store-linked agentAction. Visible here, edited in kody-store."
-                : "Stored at agent-actions/<slug>/ in the state repo. AgentResponsibilities reference this slug as their implementation."}
+                ? "Store-linked capability. Visible here, edited in kody-store."
+                : "Stored at agent-actions/<slug>/ for engine compatibility."}
             </p>
           </div>
           <Button
@@ -1396,73 +1440,92 @@ function AgentActionEditorForm({
         </div>
       ) : null}
 
-      <Tabs defaultValue="config" className="mt-2">
+      <Tabs defaultValue="basic" className="mt-2">
         <TabsList>
-          <TabsTrigger value="config">Config</TabsTrigger>
-          <TabsTrigger value="prompt">Instructions</TabsTrigger>
-          <TabsTrigger value="skills">Skills ({skills.length})</TabsTrigger>
-          <TabsTrigger value="tools">Tools ({mcpServers.length})</TabsTrigger>
-          <TabsTrigger value="scripts">
-            Scripts ({shellScripts.length})
-          </TabsTrigger>
-          <TabsTrigger value="review">Review</TabsTrigger>
+          <TabsTrigger value="basic">Basic</TabsTrigger>
+          <TabsTrigger value="advanced">Advanced</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="config" className="space-y-3">
+        <TabsContent value="basic" className="space-y-3">
           <div>
-            <Label htmlFor="exec-slug" className="text-xs">
-              Implementation slug
+            <Label htmlFor="exec-name" className="text-xs">
+              Name
             </Label>
             <Input
-              id="exec-slug"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value.toLowerCase())}
+              id="exec-name"
+              value={name}
+              onChange={(e) => {
+                const next = e.target.value;
+                setName(next);
+                if (isNew) setSlug(slugFromName(next));
+              }}
               onBlur={() => setTouchedSlug(true)}
               disabled={!isNew}
-              placeholder="ship-feature"
-              className="font-mono"
+              placeholder="Ship feature"
             />
+            <p className="text-[11px] text-white/40 mt-1">
+              Saved as{" "}
+              <span className="font-mono text-white/60">
+                {slug || "new-action"}
+              </span>
+            </p>
             {slugError && (
               <p className="text-xs text-rose-300 mt-1">{slugError}</p>
             )}
           </div>
-          <div>
-            <Label htmlFor="exec-describe" className="text-xs">
-              Description
+
+          <div className="space-y-2">
+            <Label className="text-xs">Kind</Label>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              {CAPABILITY_KINDS.map((kind) => {
+                const copy = CAPABILITY_KIND_COPY[kind];
+                const active = capabilityKind === kind;
+                return (
+                  <button
+                    key={kind}
+                    type="button"
+                    onClick={() => setCapabilityKind(kind)}
+                    disabled={isReadOnly}
+                    className={cn(
+                      "rounded-md border px-3 py-2 text-left transition-colors",
+                      active
+                        ? "border-amber-400/60 bg-amber-500/10 text-white"
+                        : "border-white/[0.08] bg-white/[0.02] text-white/70 hover:bg-white/[0.05]",
+                    )}
+                  >
+                    <span className="block text-sm font-medium">
+                      {copy.label}
+                    </span>
+                    <span className="block text-[11px] text-white/45">
+                      {copy.description}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="exec-instructions" className="text-xs">
+              Instructions
             </Label>
             <Textarea
-              id="exec-describe"
-              value={describe}
-              onChange={(e) => setDescribe(e.target.value)}
-              placeholder="Implement an issue end-to-end and open a PR"
-              rows={4}
+              id="exec-instructions"
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              className="font-mono text-xs"
+              rows={16}
             />
+            {promptError && (
+              <p className="text-xs text-rose-300">{promptError}</p>
+            )}
           </div>
-          <div>
-            <Label className="text-xs">Result mode</Label>
-            <Select
-              value={landing}
-              onValueChange={(v) => setLanding(v as AgentActionLanding)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pr">Opens a PR (commits + PR)</SelectItem>
-                <SelectItem value="comment">
-                  Just comments (posts an answer)
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <p className="text-[11px] text-white/40 mt-1">
-              {landing === "pr"
-                ? "Edits code and opens a pull request."
-                : "Reads and replies with a comment — no code changes."}
-            </p>
-          </div>
+        </TabsContent>
+
+        <TabsContent value="advanced" className="space-y-5">
           <div>
             <Label htmlFor="exec-model" className="text-xs">
-              Model (inherit = use the repo&apos;s default)
+              Model
             </Label>
             <Input
               id="exec-model"
@@ -1472,8 +1535,9 @@ function AgentActionEditorForm({
               className="font-mono text-xs"
             />
           </div>
+
           <div>
-            <Label className="text-xs">Tools the agent may use</Label>
+            <Label className="text-xs">Tool Allowlist</Label>
             <div className="grid grid-cols-1 gap-1.5 mt-1">
               {COMMON_TOOLS.map((tool) => (
                 <label
@@ -1489,357 +1553,330 @@ function AgentActionEditorForm({
                     <span className="font-mono text-white/90">{tool}</span>
                     <span className="text-white/45">
                       {" "}
-                      — {TOOL_DESCRIPTIONS[tool] ?? ""}
+                      - {TOOL_DESCRIPTIONS[tool] ?? ""}
                     </span>
                   </span>
                 </label>
               ))}
             </div>
           </div>
-        </TabsContent>
 
-        <TabsContent value="prompt" className="space-y-2">
-          <p className="text-[11px] text-white/40">
-            Glue only: name which skills/scripts to use, and how to return the
-            result. Markdown supports <code>{"{{issue.number}}"}</code>,{" "}
-            <code>{"{{issue.title}}"}</code>, <code>{"{{issue.body}}"}</code>{" "}
-            tokens. Saved as prompt.md for engine compatibility.
-          </p>
-          <Textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            className="font-mono text-xs"
-            rows={16}
-          />
-          {promptError && (
-            <p className="text-xs text-rose-300">{promptError}</p>
-          )}
-        </TabsContent>
-
-        <TabsContent value="skills" className="space-y-3">
-          <p className="text-[11px] text-white/40">
-            Each skill is a SKILL.md the agent loads, saved at
-            skills/&lt;name&gt;/SKILL.md and committed into this agentAction.
-          </p>
-          <Card className="border-white/[0.08] bg-white/[0.02]">
-            <CardContent className="p-3 space-y-1.5">
-              <Label className="text-xs">
-                Import from the skills ecosystem
-              </Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  value={skillSource}
-                  onChange={(e) => setSkillSource(e.target.value)}
-                  placeholder="https://github.com/owner/repo/tree/main/path/to/skill"
-                  className="font-mono text-xs h-8"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      importSkillFromSource();
-                    }
-                  }}
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1 shrink-0"
-                  disabled={importing || !skillSource.trim()}
-                  onClick={importSkillFromSource}
-                >
-                  {importing ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Download className="w-3.5 h-3.5" />
-                  )}
-                  Import
-                </Button>
-              </div>
-              <p className="text-[11px] text-white/40">
-                Paste the GitHub URL of a skill folder (the one containing its
-                SKILL.md). Shorthand <code>owner/repo/path</code> also works.
-                Fetches its SKILL.md; you can edit it below before saving.
-              </p>
-            </CardContent>
-          </Card>
-          {skills.map((s, i) => (
-            <Card key={i} className="border-white/[0.08] bg-white/[0.02]">
-              <CardContent className="p-3 space-y-2">
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold text-white/80">
+              Skills ({skills.length})
+            </h3>
+            <Card className="border-white/[0.08] bg-white/[0.02]">
+              <CardContent className="p-3 space-y-1.5">
+                <Label className="text-xs">
+                  Import from the skills ecosystem
+                </Label>
                 <div className="flex items-center gap-2">
                   <Input
-                    value={s.name}
+                    value={skillSource}
+                    onChange={(e) => setSkillSource(e.target.value)}
+                    placeholder="https://github.com/owner/repo/tree/main/path/to/skill"
+                    className="font-mono text-xs h-8"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        importSkillFromSource();
+                      }
+                    }}
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1 shrink-0"
+                    disabled={importing || !skillSource.trim()}
+                    onClick={importSkillFromSource}
+                  >
+                    {importing ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Download className="w-3.5 h-3.5" />
+                    )}
+                    Import
+                  </Button>
+                </div>
+                <p className="text-[11px] text-white/40">
+                  Paste the GitHub URL of a skill folder (the one containing its
+                  SKILL.md). Shorthand <code>owner/repo/path</code> also works.
+                  Fetches its SKILL.md; you can edit it below before saving.
+                </p>
+              </CardContent>
+            </Card>
+            {skills.map((s, i) => (
+              <Card key={i} className="border-white/[0.08] bg-white/[0.02]">
+                <CardContent className="p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={s.name}
+                      onChange={(e) =>
+                        setSkills((prev) =>
+                          prev.map((x, xi) =>
+                            xi === i
+                              ? { ...x, name: e.target.value.toLowerCase() }
+                              : x,
+                          ),
+                        )
+                      }
+                      placeholder="skill-name"
+                      className="font-mono text-xs h-8"
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-rose-300"
+                      onClick={() =>
+                        setSkills((prev) => prev.filter((_, xi) => xi !== i))
+                      }
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                  <Textarea
+                    value={s.body}
                     onChange={(e) =>
                       setSkills((prev) =>
                         prev.map((x, xi) =>
-                          xi === i
-                            ? { ...x, name: e.target.value.toLowerCase() }
-                            : x,
+                          xi === i ? { ...x, body: e.target.value } : x,
                         ),
                       )
                     }
-                    placeholder="skill-name"
-                    className="font-mono text-xs h-8"
+                    placeholder="---&#10;name: skill-name&#10;description: …&#10;---&#10;&#10;Skill instructions…"
+                    className="font-mono text-xs"
+                    rows={6}
                   />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-rose-300"
-                    onClick={() =>
-                      setSkills((prev) => prev.filter((_, xi) => xi !== i))
-                    }
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-                <Textarea
-                  value={s.body}
-                  onChange={(e) =>
-                    setSkills((prev) =>
-                      prev.map((x, xi) =>
-                        xi === i ? { ...x, body: e.target.value } : x,
-                      ),
-                    )
-                  }
-                  placeholder="---&#10;name: skill-name&#10;description: …&#10;---&#10;&#10;Skill instructions…"
-                  className="font-mono text-xs"
-                  rows={6}
-                />
-              </CardContent>
-            </Card>
-          ))}
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1"
-            onClick={() =>
-              setSkills((prev) => [...prev, { name: "", body: "" }])
-            }
-          >
-            <Plus className="w-3.5 h-3.5" /> Add skill
-          </Button>
-        </TabsContent>
+                </CardContent>
+              </Card>
+            ))}
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1"
+              onClick={() =>
+                setSkills((prev) => [...prev, { name: "", body: "" }])
+              }
+            >
+              <Plus className="w-3.5 h-3.5" /> Add skill
+            </Button>
+          </section>
 
-        <TabsContent value="tools" className="space-y-3">
-          <p className="text-[11px] text-white/40">
-            Connect an external{" "}
-            <span className="font-mono text-white/70">MCP</span> tool server the
-            agent can call. Each entry is written to
-            <code className="mx-1">claudeCode.mcpServers</code> and its tools
-            are auto-allowed. The <code>command</code> must be available in the
-            run (install it via a preflight Script).
-          </p>
-          <p className="text-[11px] text-white/40">
-            Example — codegraph: name{" "}
-            <code className="text-white/70">codegraph</code>, command{" "}
-            <code className="text-white/70">codegraph</code>, args{" "}
-            <code className="text-white/70">serve --mcp</code>.
-          </p>
-          <Card className="border-white/[0.08] bg-white/[0.02]">
-            <CardContent className="p-3 space-y-1.5">
-              <Label className="text-xs">Add from a GitHub repo</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  value={mcpSource}
-                  onChange={(e) => setMcpSource(e.target.value)}
-                  placeholder="https://github.com/colbymchenry/codegraph"
-                  className="font-mono text-xs h-8"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      analyzeToolFromSource();
-                    }
-                  }}
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1 shrink-0"
-                  disabled={analyzing || !mcpSource.trim()}
-                  onClick={analyzeToolFromSource}
-                >
-                  {analyzing ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Download className="w-3.5 h-3.5" />
-                  )}
-                  Analyze
-                </Button>
-              </div>
-              <p className="text-[11px] text-white/40">
-                Reads the repo&apos;s README + package.json and pre-fills the
-                command, args, and an install script below.{" "}
-                <span className="text-amber-300/70">
-                  Review the generated install script before saving.
-                </span>
-              </p>
-            </CardContent>
-          </Card>
-          {mcpServers.map((m, i) => (
-            <Card key={i} className="border-white/[0.08] bg-white/[0.02]">
-              <CardContent className="p-3 space-y-2">
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold text-white/80">
+              MCP Tools ({mcpServers.length})
+            </h3>
+            <Card className="border-white/[0.08] bg-white/[0.02]">
+              <CardContent className="p-3 space-y-1.5">
+                <Label className="text-xs">Add from a GitHub repo</Label>
                 <div className="flex items-center gap-2">
                   <Input
-                    value={m.name}
-                    onChange={(e) =>
-                      setMcpServers((prev) =>
-                        prev.map((x, xi) =>
-                          xi === i
-                            ? { ...x, name: e.target.value.toLowerCase() }
-                            : x,
-                        ),
-                      )
-                    }
-                    placeholder="tool-name"
+                    value={mcpSource}
+                    onChange={(e) => setMcpSource(e.target.value)}
+                    placeholder="https://github.com/colbymchenry/codegraph"
                     className="font-mono text-xs h-8"
-                  />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-rose-300"
-                    onClick={() =>
-                      setMcpServers((prev) => prev.filter((_, xi) => xi !== i))
-                    }
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </Button>
-                </div>
-                <div>
-                  <Label className="text-[11px] text-white/50">Command</Label>
-                  <Input
-                    value={m.command}
-                    onChange={(e) =>
-                      setMcpServers((prev) =>
-                        prev.map((x, xi) =>
-                          xi === i ? { ...x, command: e.target.value } : x,
-                        ),
-                      )
-                    }
-                    placeholder="codegraph"
-                    className="font-mono text-xs h-8"
-                  />
-                </div>
-                <div>
-                  <Label className="text-[11px] text-white/50">
-                    Args (space-separated)
-                  </Label>
-                  <Input
-                    value={(m.args ?? []).join(" ")}
-                    onChange={(e) => {
-                      const args = e.target.value.split(/\s+/).filter(Boolean);
-                      setMcpServers((prev) =>
-                        prev.map((x, xi) =>
-                          xi === i
-                            ? {
-                                ...x,
-                                args: args.length > 0 ? args : undefined,
-                              }
-                            : x,
-                        ),
-                      );
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        analyzeToolFromSource();
+                      }
                     }}
-                    placeholder="serve --mcp"
-                    className="font-mono text-xs h-8"
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1"
-            onClick={() =>
-              setMcpServers((prev) => [...prev, { name: "", command: "" }])
-            }
-          >
-            <Plus className="w-3.5 h-3.5" /> Add tool
-          </Button>
-        </TabsContent>
-
-        <TabsContent value="scripts" className="space-y-3">
-          <p className="text-[11px] text-white/40">
-            Each script runs as a preflight step before the agent. Saved as a
-            &lt;name&gt;.sh file next to the profile.
-          </p>
-          {shellScripts.map((s, i) => (
-            <Card key={i} className="border-white/[0.08] bg-white/[0.02]">
-              <CardContent className="p-3 space-y-2">
-                <div className="flex items-center gap-2">
-                  <Input
-                    value={s.name}
-                    onChange={(e) =>
-                      setShellScripts((prev) =>
-                        prev.map((x, xi) =>
-                          xi === i ? { ...x, name: e.target.value } : x,
-                        ),
-                      )
-                    }
-                    placeholder="setup.sh"
-                    className="font-mono text-xs h-8"
                   />
                   <Button
                     size="sm"
-                    variant="ghost"
-                    className="text-rose-300"
-                    onClick={() =>
-                      setShellScripts((prev) =>
-                        prev.filter((_, xi) => xi !== i),
-                      )
-                    }
+                    variant="outline"
+                    className="gap-1 shrink-0"
+                    disabled={analyzing || !mcpSource.trim()}
+                    onClick={analyzeToolFromSource}
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    {analyzing ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Download className="w-3.5 h-3.5" />
+                    )}
+                    Analyze
                   </Button>
                 </div>
-                <Textarea
-                  value={s.content}
-                  onChange={(e) =>
-                    setShellScripts((prev) =>
-                      prev.map((x, xi) =>
-                        xi === i ? { ...x, content: e.target.value } : x,
-                      ),
-                    )
-                  }
-                  placeholder="#!/usr/bin/env bash&#10;set -euo pipefail&#10;npm install -g some-tool"
-                  className="font-mono text-xs"
-                  rows={6}
-                />
+                <p className="text-[11px] text-white/40">
+                  Reads the repo&apos;s README + package.json and pre-fills the
+                  command, args, and an install script below.{" "}
+                  <span className="text-amber-300/70">
+                    Review the generated install script before saving.
+                  </span>
+                </p>
               </CardContent>
             </Card>
-          ))}
-          <Button
-            size="sm"
-            variant="outline"
-            className="gap-1"
-            onClick={() =>
-              setShellScripts((prev) => [...prev, { name: "", content: "" }])
-            }
-          >
-            <Plus className="w-3.5 h-3.5" /> Add script
-          </Button>
-        </TabsContent>
+            {mcpServers.map((m, i) => (
+              <Card key={i} className="border-white/[0.08] bg-white/[0.02]">
+                <CardContent className="p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={m.name}
+                      onChange={(e) =>
+                        setMcpServers((prev) =>
+                          prev.map((x, xi) =>
+                            xi === i
+                              ? { ...x, name: e.target.value.toLowerCase() }
+                              : x,
+                          ),
+                        )
+                      }
+                      placeholder="tool-name"
+                      className="font-mono text-xs h-8"
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-rose-300"
+                      onClick={() =>
+                        setMcpServers((prev) =>
+                          prev.filter((_, xi) => xi !== i),
+                        )
+                      }
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                  <div>
+                    <Label className="text-[11px] text-white/50">Command</Label>
+                    <Input
+                      value={m.command}
+                      onChange={(e) =>
+                        setMcpServers((prev) =>
+                          prev.map((x, xi) =>
+                            xi === i ? { ...x, command: e.target.value } : x,
+                          ),
+                        )
+                      }
+                      placeholder="codegraph"
+                      className="font-mono text-xs h-8"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[11px] text-white/50">
+                      Args (space-separated)
+                    </Label>
+                    <Input
+                      value={(m.args ?? []).join(" ")}
+                      onChange={(e) => {
+                        const args = e.target.value
+                          .split(/\s+/)
+                          .filter(Boolean);
+                        setMcpServers((prev) =>
+                          prev.map((x, xi) =>
+                            xi === i
+                              ? {
+                                  ...x,
+                                  args: args.length > 0 ? args : undefined,
+                                }
+                              : x,
+                          ),
+                        );
+                      }}
+                      placeholder="serve --mcp"
+                      className="font-mono text-xs h-8"
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1"
+              onClick={() =>
+                setMcpServers((prev) => [...prev, { name: "", command: "" }])
+              }
+            >
+              <Plus className="w-3.5 h-3.5" /> Add tool
+            </Button>
+          </section>
 
-        <TabsContent value="review" className="space-y-3">
-          {validation.errors.length === 0 ? (
-            <p className="text-sm text-emerald-300 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4" /> Valid — ready to save.
-            </p>
-          ) : (
-            <div className="text-sm text-rose-300 space-y-1">
-              <p className="flex items-center gap-2">
-                <XCircle className="w-4 h-4" /> Problems:
+          <section className="space-y-3">
+            <h3 className="text-xs font-semibold text-white/80">
+              Scripts ({shellScripts.length})
+            </h3>
+            {shellScripts.map((s, i) => (
+              <Card key={i} className="border-white/[0.08] bg-white/[0.02]">
+                <CardContent className="p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={s.name}
+                      onChange={(e) =>
+                        setShellScripts((prev) =>
+                          prev.map((x, xi) =>
+                            xi === i ? { ...x, name: e.target.value } : x,
+                          ),
+                        )
+                      }
+                      placeholder="setup.sh"
+                      className="font-mono text-xs h-8"
+                    />
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-rose-300"
+                      onClick={() =>
+                        setShellScripts((prev) =>
+                          prev.filter((_, xi) => xi !== i),
+                        )
+                      }
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </Button>
+                  </div>
+                  <Textarea
+                    value={s.content}
+                    onChange={(e) =>
+                      setShellScripts((prev) =>
+                        prev.map((x, xi) =>
+                          xi === i ? { ...x, content: e.target.value } : x,
+                        ),
+                      )
+                    }
+                    placeholder="#!/usr/bin/env bash&#10;set -euo pipefail&#10;npm install -g some-tool"
+                    className="font-mono text-xs"
+                    rows={6}
+                  />
+                </CardContent>
+              </Card>
+            ))}
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1"
+              onClick={() =>
+                setShellScripts((prev) => [...prev, { name: "", content: "" }])
+              }
+            >
+              <Plus className="w-3.5 h-3.5" /> Add script
+            </Button>
+          </section>
+
+          <section className="space-y-3">
+            {validation.errors.length === 0 ? (
+              <p className="text-sm text-emerald-300 flex items-center gap-2">
+                <CheckCircle2 className="w-4 h-4" /> Valid
               </p>
-              <ul className="list-disc pl-6 text-rose-200/80 text-xs">
-                {validation.errors.map((e, i) => (
-                  <li key={i}>{e}</li>
-                ))}
-              </ul>
+            ) : (
+              <div className="text-sm text-rose-300 space-y-1">
+                <p className="flex items-center gap-2">
+                  <XCircle className="w-4 h-4" /> Problems
+                </p>
+                <ul className="list-disc pl-6 text-rose-200/80 text-xs">
+                  {validation.errors.map((e, i) => (
+                    <li key={i}>{e}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <div>
+              <Label className="text-xs">Generated profile.json</Label>
+              <pre className="mt-1 text-[11px] font-mono bg-black/40 border border-white/[0.08] rounded p-3 overflow-x-auto max-h-72">
+                {validation.json}
+              </pre>
             </div>
-          )}
-          <div>
-            <Label className="text-xs">Generated profile.json</Label>
-            <pre className="mt-1 text-[11px] font-mono bg-black/40 border border-white/[0.08] rounded p-3 overflow-x-auto max-h-72">
-              {validation.json}
-            </pre>
-          </div>
+          </section>
         </TabsContent>
       </Tabs>
 
@@ -1854,7 +1891,8 @@ function AgentActionEditorForm({
             if (!canSave) return;
             onSave({
               slug,
-              describe,
+              describe: generatedDescription,
+              capabilityKind,
               prompt,
               model,
               permissionMode,

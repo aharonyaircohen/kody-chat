@@ -270,11 +270,10 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-amber-300 bg-amber-500/10",
       },
       {
-        href: "/agent-actions",
-        label: "Actions",
+        href: "/capabilities",
+        label: "Capabilities",
         icon: Boxes,
-        exact: true,
-        description: "Manage custom agentAction implementations.",
+        description: "Manage reusable capabilities.",
         tint: "text-amber-300 bg-amber-500/10",
       },
       {

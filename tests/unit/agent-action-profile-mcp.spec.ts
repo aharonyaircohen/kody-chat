@@ -8,6 +8,7 @@ import {
 const base: AgentActionFields = {
   slug: "research",
   describe: "d",
+  capabilityKind: "observe",
   prompt: "p",
   model: "inherit",
   permissionMode: "acceptEdits",

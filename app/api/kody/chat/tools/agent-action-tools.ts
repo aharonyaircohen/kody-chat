@@ -23,6 +23,8 @@ import {
   composeProfile,
   validateProfile,
   PERMISSION_MODES,
+  CAPABILITY_KINDS,
+  DEFAULT_CAPABILITY_KIND,
 } from "@dashboard/lib/agent-actions";
 
 interface Ctx {
@@ -112,6 +114,9 @@ export function createAgentActionTools(ctx: Ctx) {
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
         describe: z.string().default(""),
+        capabilityKind: z
+          .enum(CAPABILITY_KINDS)
+          .default(DEFAULT_CAPABILITY_KIND),
         instructions: z.string().min(1),
         landing: z.enum(["pr", "comment"]).default("pr"),
         model: z.string().default("inherit"),
@@ -129,6 +134,7 @@ export function createAgentActionTools(ctx: Ctx) {
         const fields = {
           slug: input.slug,
           describe: input.describe,
+          capabilityKind: input.capabilityKind,
           prompt: input.instructions,
           model: input.model,
           permissionMode: input.permissionMode,

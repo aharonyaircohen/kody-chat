@@ -27,6 +27,7 @@ import {
   deleteAgentActionFile,
   isValidSlug,
   PERMISSION_MODES,
+  CAPABILITY_KINDS,
 } from "@dashboard/lib/agent-actions";
 import {
   getEngineConfig,
@@ -93,6 +94,7 @@ const mcpServerSchema = z.object({
 
 const updateAgentActionSchema = z.object({
   describe: z.string().optional(),
+  capabilityKind: z.enum(CAPABILITY_KINDS).optional(),
   instructions: z.string().min(1).optional(),
   // Backward-compatible alias for older dashboard builds/API callers. The
   // authored concept is instructions; the engine storage file is prompt.md.
@@ -168,6 +170,7 @@ export async function PATCH(
       fields: {
         slug,
         describe: input.describe ?? existing.describe,
+        capabilityKind: input.capabilityKind ?? existing.capabilityKind,
         prompt: instructions ?? existing.prompt,
         model: input.model ?? existing.model,
         permissionMode: input.permissionMode ?? existing.permissionMode,

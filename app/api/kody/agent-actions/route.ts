@@ -26,6 +26,7 @@ import {
   writeAgentActionFile,
   isValidSlug,
   PERMISSION_MODES,
+  CAPABILITY_KINDS,
 } from "@dashboard/lib/agent-actions";
 import { getEngineConfig } from "@dashboard/lib/engine/config";
 import { recordAudit } from "@dashboard/lib/activity/audit";
@@ -123,6 +124,7 @@ const createAgentActionSchema = z
   .object({
     slug: z.string().min(1).max(64),
     describe: z.string().default(""),
+    capabilityKind: z.enum(CAPABILITY_KINDS).default("act"),
     instructions: z.string().min(1, "instructions are required").optional(),
     // Backward-compatible alias for older dashboard builds/API callers. The
     // authored concept is instructions; the engine storage file is prompt.md.
@@ -203,6 +205,7 @@ export async function POST(req: NextRequest) {
       fields: {
         slug: input.slug,
         describe: input.describe,
+        capabilityKind: input.capabilityKind,
         prompt: instructions,
         model: input.model,
         permissionMode: input.permissionMode,

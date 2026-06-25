@@ -24,11 +24,14 @@ import {
   composeProfile,
   fieldsFromProfile,
   isValidSlug,
+  isCapabilityKind,
   serializeProfile,
   stripContract,
   type AgentActionFields,
   type AgentActionLanding,
+  type CapabilityKind,
   type McpServerSpec,
+  DEFAULT_CAPABILITY_KIND,
 } from "./profile";
 import {
   buildCompanyStoreHtmlUrl,
@@ -63,6 +66,7 @@ export interface AgentActionShellScript {
 export interface AgentActionSummary {
   slug: string;
   describe: string;
+  capabilityKind: CapabilityKind;
   landing: AgentActionLanding;
   /** Last-commit date; null in the list view (per-agentResponsibility lookups are rate-limited). */
   updatedAt: string | null;
@@ -159,6 +163,9 @@ function summaryFromProfile(
   extra: Partial<Pick<AgentActionSummary, "source" | "readOnly">> = {},
 ): AgentActionSummary {
   const describe = typeof profile.describe === "string" ? profile.describe : "";
+  const capabilityKind = isCapabilityKind(profile.capabilityKind)
+    ? profile.capabilityKind
+    : DEFAULT_CAPABILITY_KIND;
   const landing: AgentActionLanding =
     profile.lifecycle === "pr-branch" ? "pr" : "comment";
   const agent =
@@ -172,6 +179,7 @@ function summaryFromProfile(
   return {
     slug,
     describe,
+    capabilityKind,
     landing,
     updatedAt: null,
     htmlUrl,
@@ -217,6 +225,10 @@ async function listAgentActionFolders(
       const profile = parseProfileJson(raw);
       const describe =
         profile && typeof profile.describe === "string" ? profile.describe : "";
+      const capabilityKind =
+        profile && isCapabilityKind(profile.capabilityKind)
+          ? profile.capabilityKind
+          : DEFAULT_CAPABILITY_KIND;
       const landing: AgentActionLanding =
         profile?.lifecycle === "pr-branch" ? "pr" : "comment";
       const agent =
@@ -233,6 +245,7 @@ async function listAgentActionFolders(
       return {
         slug,
         describe,
+        capabilityKind,
         landing,
         updatedAt: null,
         htmlUrl: buildHtmlUrl(target, slug, branch),
@@ -362,6 +375,7 @@ export async function readAgentActionFile(
   return {
     slug,
     describe: fields.describe,
+    capabilityKind: fields.capabilityKind,
     landing: fields.landing,
     updatedAt: await fetchLastCommitDate(octokit, `${base}/profile.json`),
     htmlUrl: buildHtmlUrl(target, slug, branch),
