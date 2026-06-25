@@ -83,6 +83,8 @@ interface ChatTerminalSurfaceProps {
 
 export interface ChatTerminalSurfaceHandle {
   sendLine: (line: string) => boolean;
+  sendText: (text: string) => boolean;
+  executeText: (text: string) => boolean;
   stop: () => Promise<void>;
   focus: () => void;
   getSnapshot: () => ChatTerminalSnapshot;
@@ -332,6 +334,62 @@ export const ChatTerminalSurface = forwardRef<
     ).catch(() => {});
   }, []);
 
+  const canSendInput = useCallback(() => {
+    return transportRef.current.type === "fly"
+      ? flySocketRef.current?.readyState === WebSocket.OPEN
+      : !!sessionRef.current?.alive;
+  }, []);
+
+  const sendTerminalText = useCallback(
+    (text: string) => {
+      const normalizedInput = text
+        .replace(/\r\n/g, "\n")
+        .replace(/\r/g, "\n")
+        .replace(/\n/g, "\r");
+      if (!normalizedInput.trim() || !canSendInput()) return false;
+      if (normalizedInput.endsWith("\r")) {
+        sendRawInput(normalizedInput);
+      } else {
+        sendRawInput(`${normalizedInput}\r`);
+      }
+      return true;
+    },
+    [canSendInput, sendRawInput],
+  );
+
+  const sendExecutableInput = useCallback(
+    (text: string) => {
+      const normalizedInput = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+      if (!normalizedInput.trim() || !canSendInput()) return false;
+      const executableInput = normalizedInput.endsWith("\n")
+        ? normalizedInput
+        : `${normalizedInput}\n`;
+
+      if (transportRef.current.type === "local") {
+        const current = sessionRef.current;
+        if (!current?.alive) return false;
+        void fetchWithTimeout(
+          "/api/kody/chat/terminal/input",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify({
+              sessionId: current.sessionId,
+              input: executableInput,
+              raw: false,
+            }),
+          },
+          TERMINAL_INPUT_TIMEOUT_MS,
+        ).catch(() => {});
+        return true;
+      }
+
+      sendRawInput(executableInput.replace(/\n/g, "\r"));
+      return true;
+    },
+    [canSendInput, sendRawInput],
+  );
+
   const getTerminalSnapshot = useCallback(
     (): ChatTerminalSnapshot => ({
       cwd: sessionRef.current?.cwd,
@@ -352,15 +410,9 @@ export const ChatTerminalSurface = forwardRef<
   useImperativeHandle(
     ref,
     () => ({
-      sendLine: (line: string) => {
-        const canSend =
-          transportRef.current.type === "fly"
-            ? flySocketRef.current?.readyState === WebSocket.OPEN
-            : !!sessionRef.current?.alive;
-        if (!canSend) return false;
-        sendRawInput(`${line}\r`);
-        return true;
-      },
+      sendLine: (line: string) => sendTerminalText(line),
+      sendText: (text: string) => sendTerminalText(text),
+      executeText: (text: string) => sendExecutableInput(text),
       stop: () => stopRef.current(),
       focus: () => {
         terminalRef.current?.focus();
@@ -385,7 +437,12 @@ export const ChatTerminalSurface = forwardRef<
         terminal.focus();
       },
     }),
-    [getTerminalSnapshot, sendRawInput, updateFlyConnectionState],
+    [
+      getTerminalSnapshot,
+      sendExecutableInput,
+      sendTerminalText,
+      updateFlyConnectionState,
+    ],
   );
 
   useEffect(() => {

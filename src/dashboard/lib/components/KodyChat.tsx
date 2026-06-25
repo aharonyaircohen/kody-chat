@@ -57,6 +57,7 @@ import { useAuth } from "../auth-context";
 import { toast } from "sonner";
 import type { KodyTask } from "../types";
 import {
+  LOCAL_TERMINAL_TRANSPORT,
   terminalFlyMachineKey,
   terminalMachineIdShort,
   useChatTerminalRegistry,
@@ -167,6 +168,11 @@ import {
   type SavedTerminalSession,
   type SavedTerminalTransport,
 } from "@dashboard/lib/terminal/saved-session-types";
+import {
+  buildKodyTerminalPrompt,
+  extractKodyTerminalPayload,
+  parseKodyTerminalIntent,
+} from "@dashboard/lib/terminal/kody-terminal-directive";
 
 type MessageDirection = "ltr" | "rtl" | "auto";
 
@@ -1115,6 +1121,9 @@ export function KodyChat({
       : activeTerminalConnectionState === "connecting"
         ? "Starting"
         : "Off";
+  const isActiveFlyBrainTerminal =
+    activeTerminalTransport.type === "fly" &&
+    activeTerminalTransport.feature === "brain";
   const [localSandboxes, setLocalSandboxes] = useState<LocalSandboxSummary[]>(
     [],
   );
@@ -1126,12 +1135,16 @@ export function KodyChat({
   >([]);
   const [savedTerminalMenuOpen, setSavedTerminalMenuOpen] = useState(false);
   const [savedTerminalBusy, setSavedTerminalBusy] = useState(false);
+  const [brainImageBusy, setBrainImageBusy] = useState(false);
   const [savedTerminalLoaded, setSavedTerminalLoaded] = useState(false);
   const [autoSaveTerminalOnEnd, setAutoSaveTerminalOnEnd] = useState(() =>
     readAutoSaveTerminalOnEnd(),
   );
   const [pendingTerminalRestore, setPendingTerminalRestore] =
     useState<SavedTerminalSession | null>(null);
+  const [pendingKodyTerminalPayload, setPendingKodyTerminalPayload] = useState<
+    string | null
+  >(null);
   const [restoredSnapshotOnlyTerminalIds, setRestoredSnapshotOnlyTerminalIds] =
     useState<Set<string>>(() => readRestoredSnapshotOnlyTerminalIds());
   useEffect(() => {
@@ -1486,12 +1499,49 @@ export function KodyChat({
     saveTerminalSnapshot,
   ]);
 
+  const handleSaveBrainImage = useCallback(async () => {
+    if (
+      activeTerminalTransport.type !== "fly" ||
+      activeTerminalTransport.feature !== "brain"
+    ) {
+      toast.error("Select a Fly Brain terminal before saving its image");
+      return;
+    }
+    setBrainImageBusy(true);
+    try {
+      const res = await fetch("/api/kody/brain/image", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          app: activeTerminalTransport.app,
+          machineId: activeTerminalTransport.machineId,
+        }),
+      });
+      const body = (await res.json().catch(() => ({}))) as {
+        imageRef?: string;
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok || !body.imageRef) {
+        throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+      }
+      toast.success("Brain image saved");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to save Brain image",
+      );
+    } finally {
+      setBrainImageBusy(false);
+    }
+  }, [activeTerminalTransport]);
+
   const handleAutoSaveTerminalSnapshot = useCallback(
     async (
       terminal: { sessionId: string; transport: ChatTerminalTransport },
       snapshot: ChatTerminalSnapshot,
     ) => {
       if (!autoSaveTerminalOnEnd || !snapshot.output.trim()) return;
+      if (terminal.transport.type === "fly") return;
       const savedTransport = savedTransportFromChatTransport(
         terminal.transport,
       );
@@ -1549,6 +1599,61 @@ export function KodyChat({
     },
     [actorLogin],
   );
+
+  const sendKodyTerminalPayloadToTerminal = useCallback(
+    (payload: string) => {
+      const terminalPayload = payload.trimEnd();
+      if (!terminalPayload.trim()) {
+        toast.error("Kody returned an empty terminal payload");
+        return false;
+      }
+      const payloadWithEnter = `${terminalPayload}\n`;
+      terminalRegistry.openTerminalMode(LOCAL_TERMINAL_TRANSPORT);
+
+      if (
+        activeTerminalTransport.type === "local" &&
+        activeTerminalInstanceId &&
+        activeTerminalConnectionState === "connected"
+      ) {
+        const terminal = terminalSurfaceRefs.current[activeTerminalInstanceId];
+        if (terminal?.executeText(payloadWithEnter)) {
+          terminal.focus();
+          toast.success("Sent to terminal");
+          return true;
+        }
+      }
+
+      setPendingKodyTerminalPayload(payloadWithEnter);
+      return true;
+    },
+    [
+      activeTerminalConnectionState,
+      activeTerminalInstanceId,
+      activeTerminalTransport.type,
+      terminalRegistry,
+    ],
+  );
+
+  useEffect(() => {
+    if (!pendingKodyTerminalPayload) return;
+    if (chatMode !== "terminal") return;
+    if (activeTerminalTransport.type !== "local") return;
+    if (!activeTerminalInstanceId) return;
+    if (activeTerminalConnectionState !== "connected") return;
+
+    const terminal = terminalSurfaceRefs.current[activeTerminalInstanceId];
+    if (!terminal?.executeText(pendingKodyTerminalPayload)) return;
+
+    setPendingKodyTerminalPayload(null);
+    terminal.focus();
+    toast.success("Sent to terminal");
+  }, [
+    activeTerminalConnectionState,
+    activeTerminalInstanceId,
+    activeTerminalTransport.type,
+    chatMode,
+    pendingKodyTerminalPayload,
+  ]);
   const handleTerminalTargetSelect = useCallback(
     (value: string) => {
       if (value.startsWith("sandbox:")) {
@@ -2542,7 +2647,11 @@ export function KodyChat({
       options: {
         voiceMode?: boolean;
         hidden?: boolean;
+        forceAgentId?: AgentId;
         onVoiceDelta?: (spokenSoFar: string) => void;
+        onAssistantTextComplete?: (
+          assistantText: string,
+        ) => string | null | void;
         /**
          * Override the text that goes into the user bubble. Defaults to
          * `messageContent` — set this when the model should see something
@@ -2573,7 +2682,8 @@ export function KodyChat({
       // voice — the kody route falls back to AGENT_KODY for those and
       // applies the overlay there.
       const voiceMode = options.voiceMode === true;
-      const effectiveAgentId: AgentId = selectedAgentId;
+      const effectiveAgentId: AgentId = options.forceAgentId ?? selectedAgentId;
+      const effectiveAgent = AGENTS[effectiveAgentId] ?? AGENT_KODY;
 
       const timestamp = new Date().toISOString();
 
@@ -2664,7 +2774,7 @@ export function KodyChat({
       ]);
 
       const directAgentSlug =
-        !options.hidden && !voiceMode
+        !options.hidden && !voiceMode && !options.forceAgentId
           ? extractFirstStaffMentionCandidate(displayContent, repoAgentSlugs)
           : null;
 
@@ -2711,14 +2821,14 @@ export function KodyChat({
       // src/dashboard/lib/voice/overlay.ts).
       const isBrainAgent =
         !directAgentSlug &&
-        (selectedAgentId === "brain" || selectedAgentId === "brain-fly");
+        (effectiveAgentId === "brain" || effectiveAgentId === "brain-fly");
       if (isBrainAgent) {
         const brainEndpoint =
-          selectedAgentId === "brain-fly"
+          effectiveAgentId === "brain-fly"
             ? "/api/kody/chat/brain-fly"
             : "/api/kody/chat/brain";
         const brainExtraHeaders: Record<string, string> =
-          selectedAgentId === "brain-fly" ? {} : brainHeaders();
+          effectiveAgentId === "brain-fly" ? {} : brainHeaders();
         brainAbortBySessionRef.current.get(uiSessionId)?.abort();
         const abort = new AbortController();
         brainAbortBySessionRef.current.set(uiSessionId, abort);
@@ -3149,7 +3259,7 @@ export function KodyChat({
       // the body so the route appends the voice overlay to the agent's
       // system prompt. Voice on a brain agent rides the Brain branch
       // above and is overlay'd server-side by the brain server.
-      if (currentAgent.backend === "kody-direct" || directAgentSlug) {
+      if (effectiveAgent.backend === "kody-direct" || directAgentSlug) {
         // Forward task context when the user is chatting about a specific
         // task — same shape Brain receives, so the server can anchor the
         // reply in the right issue/PR.
@@ -3593,6 +3703,21 @@ export function KodyChat({
             });
           }
 
+          const assistantText = textBuf.trim();
+          let assistantDisplayOverride: string | null | void;
+          if (options.onAssistantTextComplete) {
+            try {
+              assistantDisplayOverride =
+                options.onAssistantTextComplete(assistantText);
+            } catch (err) {
+              toast.error(
+                err instanceof Error
+                  ? err.message
+                  : "Failed to handle Kody terminal response",
+              );
+            }
+          }
+
           // Terminal — mark not loading. If the turn produced NOTHING visible
           // (no answer text, no reasoning, no tool calls) and isn't handing off
           // to a runner, surface a note instead of leaving a silent blank
@@ -3619,7 +3744,13 @@ export function KodyChat({
                     content:
                       "Kody returned no response. The model may not be configured for this repo, or it ended the turn without a reply — try again, or check Chat Models in Settings.",
                   }
-                : { ...m, isLoading: false };
+                : {
+                    ...m,
+                    ...(typeof assistantDisplayOverride === "string"
+                      ? { content: assistantDisplayOverride }
+                      : {}),
+                    isLoading: false,
+                  };
             }
             return copy;
           });
@@ -3780,8 +3911,8 @@ export function KodyChat({
       // /append — the runner reads the session JSONL on its first git pull,
       // so we don't need to wait for chat.ready before queueing.
       if (
-        selectedAgentId === "kody-live" ||
-        selectedAgentId === "kody-live-fly"
+        effectiveAgentId === "kody-live" ||
+        effectiveAgentId === "kody-live-fly"
       ) {
         const liveUserContent =
           currentAttachments.length > 0
@@ -4539,8 +4670,15 @@ export function KodyChat({
       return;
     }
 
-    const expanded = expandSlashCommand(rawInput, slashCommands);
-    const baseMessage = expanded ? expanded.text : rawInput;
+    const terminalIntent = parseKodyTerminalIntent(rawInput);
+    const expanded = terminalIntent
+      ? null
+      : expandSlashCommand(rawInput, slashCommands);
+    const baseMessage = terminalIntent
+      ? buildKodyTerminalPrompt(terminalIntent.intent)
+      : expanded
+        ? expanded.text
+        : rawInput;
     // Append any attached context chips (picked preview elements) to the
     // outgoing message, so the model sees the element details even though the
     // composer only showed compact pills.
@@ -4557,7 +4695,7 @@ export function KodyChat({
     setAttachments([]);
 
     // If Kody is waiting for instructions, route to the action instruction endpoint
-    if (isKodyWaiting && selectedTask?.id) {
+    if (!terminalIntent && isKodyWaiting && selectedTask?.id) {
       try {
         await fetch("/api/kody/action/instruction", {
           method: "POST",
@@ -4596,7 +4734,23 @@ export function KodyChat({
     await sendText(
       userMessage,
       currentAttachments,
-      expanded ? { displayContent: rawInput } : undefined,
+      terminalIntent
+        ? {
+            displayContent: rawInput,
+            forceAgentId: "kody",
+            onAssistantTextComplete: (assistantText) => {
+              const payload = extractKodyTerminalPayload(assistantText);
+              if (!payload) {
+                toast.error("Kody did not return a terminal block");
+                return null;
+              }
+              sendKodyTerminalPayloadToTerminal(payload);
+              return "Sent to terminal";
+            },
+          }
+        : expanded
+          ? { displayContent: rawInput }
+          : undefined,
     );
   };
 
@@ -6386,13 +6540,25 @@ export function KodyChat({
                 )}
                 <button
                   type="button"
-                  onClick={() => void handleSaveTerminalSnapshot()}
-                  disabled={savedTerminalBusy}
+                  onClick={() =>
+                    void (isActiveFlyBrainTerminal
+                      ? handleSaveBrainImage()
+                      : handleSaveTerminalSnapshot())
+                  }
+                  disabled={savedTerminalBusy || brainImageBusy}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                  title="Save terminal snapshot"
-                  aria-label="Save terminal snapshot"
+                  title={
+                    isActiveFlyBrainTerminal
+                      ? "Save Brain image"
+                      : "Save terminal snapshot"
+                  }
+                  aria-label={
+                    isActiveFlyBrainTerminal
+                      ? "Save Brain image"
+                      : "Save terminal snapshot"
+                  }
                 >
-                  {savedTerminalBusy ? (
+                  {savedTerminalBusy || brainImageBusy ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Save className="h-4 w-4" />

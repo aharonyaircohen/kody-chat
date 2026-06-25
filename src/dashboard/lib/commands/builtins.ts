@@ -34,6 +34,15 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
     body: "",
   },
   {
+    slug: "terminal",
+    description: "Ask Kody to send generated input to the terminal",
+    argumentHint: "<terminal task>",
+    // Body is unused — KodyChat.sendMessage intercepts `/terminal` before
+    // slash-command expansion so Kody can generate the terminal payload first.
+    // Kept here so the slash menu lists it as a local command.
+    body: "",
+  },
+  {
     slug: "briefing",
     description: "Summarize what needs attention",
     body:

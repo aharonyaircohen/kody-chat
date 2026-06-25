@@ -134,4 +134,48 @@ describe("local chat terminal session registry", () => {
       shell: "tmux",
     });
   });
+
+  it("normalizes multiline command input into terminal Enter presses", async () => {
+    const pty = makePty();
+    spawnMock.mockReturnValueOnce(pty);
+    const { startLocalTerminalSession, writeLocalTerminalInput } =
+      await import("@dashboard/lib/terminal/local-chat-session");
+
+    const session = await startLocalTerminalSession({
+      owner: "acme",
+      repo: "widgets",
+      chatSessionId: "chat-1",
+    });
+
+    expect(
+      writeLocalTerminalInput(
+        session.sessionId,
+        { owner: "acme", repo: "widgets" },
+        "echo one\necho two\n",
+      ),
+    ).toBe(true);
+    expect(pty.write).toHaveBeenCalledWith("echo one\recho two\r");
+  });
+
+  it("leaves raw terminal input untouched", async () => {
+    const pty = makePty();
+    spawnMock.mockReturnValueOnce(pty);
+    const { startLocalTerminalSession, writeLocalTerminalInput } =
+      await import("@dashboard/lib/terminal/local-chat-session");
+
+    const session = await startLocalTerminalSession({
+      owner: "acme",
+      repo: "widgets",
+      chatSessionId: "chat-1",
+    });
+
+    writeLocalTerminalInput(
+      session.sessionId,
+      { owner: "acme", repo: "widgets" },
+      "echo one\n",
+      { raw: true },
+    );
+
+    expect(pty.write).toHaveBeenCalledWith("echo one\n");
+  });
 });

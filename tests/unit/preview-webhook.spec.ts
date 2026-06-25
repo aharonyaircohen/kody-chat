@@ -3,12 +3,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   resolvePreviewConfigForRepo: vi.fn(),
   resolveBackgroundToken: vi.fn(),
+  compareCommitsWithBasehead: vi.fn(),
   routePreviewBuild: vi.fn(),
   sweepExpiredPreviews: vi.fn(),
 }));
 
 vi.mock("@dashboard/lib/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
+}));
+vi.mock("@octokit/rest", () => ({
+  Octokit: vi.fn(function MockOctokit() {
+    return {
+      repos: {
+        compareCommitsWithBasehead: mocks.compareCommitsWithBasehead,
+      },
+    };
+  }),
 }));
 vi.mock("@dashboard/lib/previews/config", () => ({
   resolvePreviewConfigForRepo: mocks.resolvePreviewConfigForRepo,
@@ -43,6 +53,9 @@ describe("preview webhook maintenance", () => {
       defaultRegion: "fra",
     });
     mocks.resolveBackgroundToken.mockResolvedValue(null);
+    mocks.compareCommitsWithBasehead.mockResolvedValue({
+      data: { files: [{ filename: "src/app.tsx" }] },
+    });
     mocks.routePreviewBuild.mockResolvedValue({
       runner: "fly",
       reason: "fly preferred",
@@ -70,5 +83,44 @@ describe("preview webhook maintenance", () => {
 
     expect(mocks.routePreviewBuild).toHaveBeenCalledOnce();
     expect(mocks.sweepExpiredPreviews).toHaveBeenCalledWith("acme/widgets");
+  });
+
+  it("routes PR branch updates to a fresh preview build at the new head SHA", async () => {
+    mocks.resolveBackgroundToken.mockResolvedValue({ token: "github-token" });
+
+    await handlePrOpenedOrSynced({
+      repoFullName: "acme/widgets",
+      prNumber: 7,
+      ref: "new-head-sha",
+      beforeSha: "old-head-sha",
+    });
+
+    expect(mocks.compareCommitsWithBasehead).toHaveBeenCalledWith({
+      owner: "acme",
+      repo: "widgets",
+      basehead: "old-head-sha...new-head-sha",
+    });
+    expect(mocks.routePreviewBuild).toHaveBeenCalledWith({
+      repoFullName: "acme/widgets",
+      prNumber: 7,
+      ref: "new-head-sha",
+    });
+  });
+
+  it("skips the rebuild when a PR branch update only touches engine bookkeeping", async () => {
+    mocks.resolveBackgroundToken.mockResolvedValue({ token: "github-token" });
+    mocks.compareCommitsWithBasehead.mockResolvedValue({
+      data: { files: [{ filename: ".kody/state.json" }] },
+    });
+
+    await handlePrOpenedOrSynced({
+      repoFullName: "acme/widgets",
+      prNumber: 7,
+      ref: "new-head-sha",
+      beforeSha: "old-head-sha",
+    });
+
+    expect(mocks.routePreviewBuild).not.toHaveBeenCalled();
+    expect(mocks.sweepExpiredPreviews).not.toHaveBeenCalled();
   });
 });

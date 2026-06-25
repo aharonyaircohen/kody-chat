@@ -499,8 +499,12 @@ export function writeLocalTerminalInput(
     session.touchedAt = Date.now();
     return true;
   }
+  const executableInput = input
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\n/g, "\r");
   session.pty.write(
-    input.endsWith("\n") || input.endsWith("\r") ? input : `${input}\r`,
+    executableInput.endsWith("\r") ? executableInput : `${executableInput}\r`,
   );
   session.touchedAt = Date.now();
   return true;

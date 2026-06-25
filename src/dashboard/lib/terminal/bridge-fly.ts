@@ -17,7 +17,7 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const BRIDGE_HEALTH_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_INTERVAL_MS = 2_000;
 
-export const TERMINAL_BRIDGE_VERSION = "2026-06-11.2";
+export const TERMINAL_BRIDGE_VERSION = "2026-06-25.1";
 export const TERMINAL_BRIDGE_BASE_IMAGE =
   process.env.KODY_TERMINAL_BRIDGE_BASE_IMAGE ?? "node:22-bookworm";
 
@@ -147,6 +147,8 @@ const SSH_STATUS_INTERVAL_MS = 10000;
 const READY_TIMEOUT_MS = 20000;
 const PERSISTENT_SESSION_IDLE_MS = 30 * 60 * 1000;
 const MAX_REPLAY_CHARS = 120000;
+const MAX_EXEC_OUTPUT_BYTES = 96 * 1024 * 1024;
+const MAX_EXEC_TIMEOUT_MS = 5 * 60 * 1000;
 const secret = process.env.BRIDGE_AUTH_SECRET || "";
 const persistentSessions = new Map();
 if (!secret) {
@@ -319,6 +321,113 @@ function parseFrames(socket, onText) {
         onText(payload.toString("utf8"));
       }
     }
+  });
+}
+
+function jsonResponse(res, status, body) {
+  res.writeHead(status, { "content-type": "application/json" });
+  res.end(JSON.stringify(body));
+}
+
+function readRequestJson(req, maxBytes = 65536) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    let size = 0;
+    req.on("data", (chunk) => {
+      size += chunk.length;
+      if (size > maxBytes) {
+        reject(new Error("request body too large"));
+        req.destroy();
+        return;
+      }
+      chunks.push(chunk);
+    });
+    req.on("end", () => {
+      try {
+        const raw = Buffer.concat(chunks).toString("utf8");
+        resolve(raw.trim() ? JSON.parse(raw) : {});
+      } catch {
+        reject(new Error("invalid json"));
+      }
+    });
+    req.on("error", reject);
+  });
+}
+
+function appendOutput(chunks, state, chunk, maxOutputBytes) {
+  state.size += chunk.length;
+  if (state.size > maxOutputBytes) {
+    throw new Error("command output too large");
+  }
+  chunks.push(chunk);
+}
+
+function runOneShotFlyCommand(claims, command, timeoutMs, maxOutputBytes) {
+  return new Promise((resolve, reject) => {
+    const env = {
+      ...process.env,
+      FLY_API_TOKEN: claims.flyToken,
+      TERM: "dumb",
+    };
+    const args = [
+      "ssh",
+      "console",
+      "--app",
+      claims.app,
+      "--machine",
+      claims.machineId,
+      "--command",
+      command,
+    ];
+    const child = spawn("flyctl", args, {
+      env,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const stdout = [];
+    const stderr = [];
+    const stdoutState = { size: 0 };
+    const stderrState = { size: 0 };
+    let settled = false;
+    const finish = (fn, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      fn(value);
+    };
+    const timer = setTimeout(() => {
+      try {
+        child.kill("SIGTERM");
+      } catch {}
+      finish(reject, new Error("command timed out"));
+    }, timeoutMs);
+    child.stdout.on("data", (chunk) => {
+      try {
+        appendOutput(stdout, stdoutState, chunk, maxOutputBytes);
+      } catch (err) {
+        try {
+          child.kill("SIGTERM");
+        } catch {}
+        finish(reject, err);
+      }
+    });
+    child.stderr.on("data", (chunk) => {
+      try {
+        appendOutput(stderr, stderrState, chunk, 1024 * 1024);
+      } catch (err) {
+        try {
+          child.kill("SIGTERM");
+        } catch {}
+        finish(reject, err);
+      }
+    });
+    child.on("error", (err) => finish(reject, err));
+    child.on("close", (code) => {
+      finish(resolve, {
+        code: code ?? 0,
+        stdout: Buffer.concat(stdout).toString("utf8"),
+        stderr: Buffer.concat(stderr).toString("utf8"),
+      });
+    });
   });
 }
 
@@ -613,6 +722,51 @@ const server = http.createServer((req, res) => {
           lastTouched: session?.lastTouched ?? null,
         }),
       );
+      return;
+    }
+    if (url.pathname === "/exec" && req.method === "POST") {
+      const auth = req.headers.authorization || "";
+      const bearer = auth.toLowerCase().startsWith("bearer ")
+        ? auth.slice("bearer ".length)
+        : "";
+      const claims = verifyTerminalToken(
+        bearer || url.searchParams.get("token"),
+      );
+      readRequestJson(req)
+        .then((body) => {
+          const command = typeof body.command === "string" ? body.command : "";
+          if (!command.trim()) {
+            jsonResponse(res, 400, { ok: false, error: "command required" });
+            return;
+          }
+          if (command.length > 20000) {
+            jsonResponse(res, 400, { ok: false, error: "command too long" });
+            return;
+          }
+          const timeoutMs = Math.min(
+            Math.max(Number(body.timeoutMs) || 60000, 1000),
+            MAX_EXEC_TIMEOUT_MS,
+          );
+          const maxOutputBytes = Math.min(
+            Math.max(
+              Number(body.maxOutputBytes) || MAX_EXEC_OUTPUT_BYTES,
+              1024,
+            ),
+            MAX_EXEC_OUTPUT_BYTES,
+          );
+          return runOneShotFlyCommand(
+            claims,
+            command,
+            timeoutMs,
+            maxOutputBytes,
+          ).then((result) => jsonResponse(res, 200, { ok: true, ...result }));
+        })
+        .catch((err) => {
+          jsonResponse(res, 500, {
+            ok: false,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        });
       return;
     }
   } catch (err) {

@@ -402,21 +402,34 @@ export function useChatTerminalRegistry({
     mountTerminal(activeSessionId, activeTransport);
   }, [activeSessionId, activeTransport, mode, mountTerminal]);
 
-  const openTerminalMode = useCallback(() => {
-    const sessionId = activeSessionId ?? createSession();
-    mountTerminal(
-      sessionId,
-      transportBySessionId[sessionId] ?? LOCAL_TERMINAL_TRANSPORT,
-    );
-    setSessionMode(sessionId, "terminal");
-    return sessionId;
-  }, [
-    activeSessionId,
-    createSession,
-    mountTerminal,
-    setSessionMode,
-    transportBySessionId,
-  ]);
+  const openTerminalMode = useCallback(
+    (transport?: ChatTerminalTransport) => {
+      const sessionId = activeSessionId ?? createSession();
+      const terminalTransport =
+        transport ??
+        transportBySessionId[sessionId] ??
+        LOCAL_TERMINAL_TRANSPORT;
+      mountTerminal(sessionId, terminalTransport);
+      if (transport) {
+        setTransportBySessionId((prev) =>
+          chatTerminalTransportKey(
+            prev[sessionId] ?? LOCAL_TERMINAL_TRANSPORT,
+          ) === chatTerminalTransportKey(transport)
+            ? prev
+            : { ...prev, [sessionId]: transport },
+        );
+      }
+      setSessionMode(sessionId, "terminal");
+      return sessionId;
+    },
+    [
+      activeSessionId,
+      createSession,
+      mountTerminal,
+      setSessionMode,
+      transportBySessionId,
+    ],
+  );
 
   const refreshFlyMachines = useCallback(async () => {
     const headers = authHeaders();

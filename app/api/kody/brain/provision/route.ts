@@ -35,7 +35,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
-import { readBrainApp, writeBrainApp } from "@dashboard/lib/brain/store";
+import {
+  readBrainApp,
+  readBrainImage,
+  writeBrainApp,
+} from "@dashboard/lib/brain/store";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -125,6 +129,11 @@ export async function POST(req: NextRequest) {
       appName = stored?.appName ?? brainAppName(ctx.context.account);
     }
 
+    const image = await readBrainImage(
+      ctx.context.account,
+      ctx.context.githubToken,
+    ).catch(() => null);
+
     const result = await provisionBrain({
       flyToken: ctx.context.flyToken,
       account: ctx.context.account,
@@ -134,6 +143,7 @@ export async function POST(req: NextRequest) {
       perfTier: brainPerfFrom(req, ctx.context.perfTier),
       suspendOnIdle: brainSuspendOnIdleFrom(req),
       appNameOverride: appName,
+      ...(image?.imageRef ? { imageRef: image.imageRef } : {}),
     });
     try {
       await writeBrainApp(ctx.context.account, ctx.context.githubToken, {

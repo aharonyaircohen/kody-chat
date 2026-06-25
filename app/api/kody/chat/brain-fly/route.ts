@@ -26,7 +26,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getRequestAuth, requireKodyAuth } from "@dashboard/lib/auth";
-import { readBrainApp, writeBrainApp } from "@dashboard/lib/brain/store";
+import {
+  readBrainApp,
+  readBrainImage,
+  writeBrainApp,
+} from "@dashboard/lib/brain/store";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -133,6 +137,10 @@ export async function POST(req: NextRequest) {
       ctx.context.githubToken,
     ).catch(() => null);
     const appNameOverride = stored?.appName;
+    const image = await readBrainImage(
+      ctx.context.account,
+      ctx.context.githubToken,
+    ).catch(() => null);
 
     let provisioned: { url: string; apiKey: string; app?: string };
     try {
@@ -147,6 +155,7 @@ export async function POST(req: NextRequest) {
         perfTier: ctx.context.perfTier,
         suspendOnIdle: brainSuspendOnIdleFrom(req),
         ...(appNameOverride ? { appNameOverride } : {}),
+        ...(image?.imageRef ? { imageRef: image.imageRef } : {}),
       });
       provisioned = { url: result.url, apiKey: result.apiKey, app: result.app };
       try {

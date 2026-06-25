@@ -123,6 +123,14 @@ describe("expandSlashCommand", () => {
 });
 
 describe("builtin commands", () => {
+  it("includes the terminal handoff command", () => {
+    const terminal = BUILTIN_COMMANDS.find((c) => c.slug === "terminal");
+
+    expect(terminal).toBeDefined();
+    expect(terminal?.argumentHint).toBe("<terminal task>");
+    expect(terminal?.description).toContain("terminal");
+  });
+
   it("includes a read-only briefing command", () => {
     const briefing = BUILTIN_COMMANDS.find((c) => c.slug === "briefing");
 

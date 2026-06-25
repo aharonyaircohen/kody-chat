@@ -42,10 +42,18 @@ describe("saved terminal snapshot UI", () => {
     expect(CHAT_SOURCE).toContain("autoSaveTerminalOnEnd");
     expect(CHAT_SOURCE).toContain("savedTerminalAutoSaveId");
     expect(CHAT_SOURCE).toContain("handleAutoSaveTerminalSnapshot");
+    expect(CHAT_SOURCE).toContain('terminal.transport.type === "fly"');
     expect(CHAT_SOURCE).toContain("onSessionEnded");
     expect(CHAT_SOURCE).not.toContain('successMessage: "Terminal auto-saved"');
     expect(SURFACE_SOURCE).toContain("onSessionEnded");
     expect(SURFACE_SOURCE).toContain("notifyTerminalSessionEnded");
+  });
+
+  it("uses the save icon for Brain image saves on Fly Brain terminals", () => {
+    expect(CHAT_SOURCE).toContain("Save Brain image");
+    expect(CHAT_SOURCE).toContain("handleSaveBrainImage");
+    expect(CHAT_SOURCE).toContain("/api/kody/brain/image");
+    expect(CHAT_SOURCE).toContain("isActiveFlyBrainTerminal");
   });
 
   it("restores Fly snapshots without reconnecting automatically", () => {
@@ -67,5 +75,30 @@ describe("saved terminal snapshot UI", () => {
     expect(SURFACE_SOURCE).toContain(
       "handledFlyConnectNonceKeyRef.current === nonceKey",
     );
+  });
+
+  it("routes /terminal chat commands through Kody before terminal input", () => {
+    expect(CHAT_SOURCE).toContain("parseKodyTerminalIntent");
+    expect(CHAT_SOURCE).toContain("buildKodyTerminalPrompt");
+    expect(CHAT_SOURCE).toContain("extractKodyTerminalPayload");
+    expect(CHAT_SOURCE).toContain("sendKodyTerminalPayloadToTerminal");
+    expect(CHAT_SOURCE).toContain("LOCAL_TERMINAL_TRANSPORT");
+    expect(CHAT_SOURCE).toContain(
+      "terminalRegistry.openTerminalMode(LOCAL_TERMINAL_TRANSPORT)",
+    );
+    expect(CHAT_SOURCE).toContain("forceAgentId?: AgentId");
+    expect(CHAT_SOURCE).toContain('forceAgentId: "kody"');
+    expect(
+      CHAT_SOURCE.indexOf("parseKodyTerminalIntent(rawInput)"),
+    ).toBeLessThan(
+      CHAT_SOURCE.indexOf("expandSlashCommand(rawInput, slashCommands)"),
+    );
+  });
+
+  it("can execute multiline Kody output in the terminal surface", () => {
+    expect(SURFACE_SOURCE).toContain("executeText: (text: string) => boolean");
+    expect(CHAT_SOURCE).toContain("terminal?.executeText");
+    expect(SURFACE_SOURCE).toContain("sendExecutableInput");
+    expect(SURFACE_SOURCE).toContain('replace(/\\n/g, "\\r")');
   });
 });

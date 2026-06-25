@@ -551,6 +551,32 @@ describe("provisionBrain image-ref healing", () => {
     expect(image.startsWith("ghcr.io/")).toBe(true);
   });
 
+  it("creates new machines on an explicit saved image ref", async () => {
+    const savedImageRef = "ghcr.io/alice/kody-brain-snapshot:20260625";
+    const calls = installFetchStub((call) => {
+      if (call.method === "GET" && call.url.endsWith("/apps/kody-brain-alice"))
+        return { json: { name: "kody-brain-alice" } };
+      if (call.method === "GET" && call.url.endsWith("/machines"))
+        return { json: [] };
+      if (call.method === "POST" && call.url.endsWith("/machines"))
+        return { json: { id: "m", state: "starting", region: "fra" } };
+      throw new Error(`unexpected: ${call.method} ${call.url}`);
+    });
+    await provisionBrain({
+      flyToken: TOKEN,
+      account: "alice",
+      githubToken: "gh",
+      apiKeyOverride: "k",
+      imageRef: savedImageRef,
+    });
+    const create = calls.find(
+      (c) => c.method === "POST" && c.url.endsWith("/machines"),
+    )!;
+    expect((create.body as { config: { image: string } }).config.image).toBe(
+      savedImageRef,
+    );
+  });
+
   it("recreates a machine pinned to the stale registry.fly.io image", async () => {
     const calls = installFetchStub((call) => {
       if (call.method === "GET" && call.url.endsWith("/apps/kody-brain-alice"))
@@ -687,6 +713,72 @@ describe("provisionBrain image-ref healing", () => {
         }
       ).config.services[0]!.autostop,
     ).toBe(false);
+  });
+
+  it("wakes a reused sleeping machine when Brain suspension is set to never", async () => {
+    const calls = installFetchStub((call) => {
+      if (call.method === "GET" && call.url.endsWith("/apps/kody-brain-alice"))
+        return { json: { name: "kody-brain-alice" } };
+      if (call.method === "GET" && call.url.endsWith("/machines"))
+        return {
+          json: [
+            {
+              id: "m-sleeping",
+              state: "suspended",
+              region: "fra",
+              config: {
+                image: `${DEFAULT_IMAGE}@sha256:fresh`,
+                env: { BRAIN_API_KEY: "live-key" },
+                services: [
+                  {
+                    internal_port: 8080,
+                    autostop: "suspend",
+                    autostart: true,
+                    min_machines_running: 0,
+                  },
+                ],
+              },
+            },
+          ],
+        };
+      if (call.method === "POST" && call.url.endsWith("/machines/m-sleeping"))
+        return { json: { id: "m-sleeping", state: "started" } };
+      if (
+        call.method === "GET" &&
+        call.url === "https://kody-brain-alice.fly.dev/healthz"
+      )
+        return { json: { ok: true } };
+      if (call.method === "DELETE")
+        throw new Error(`must not recreate: ${call.url}`);
+      throw new Error(`unexpected: ${call.method} ${call.url}`);
+    });
+
+    const out = await provisionBrain({
+      flyToken: TOKEN,
+      account: "alice",
+      githubToken: "gh",
+      suspendOnIdle: false,
+    });
+
+    expect(out.machineId).toBe("m-sleeping");
+    expect(out.apiKey).toBe("live-key");
+    const update = calls.find(
+      (c) => c.method === "POST" && c.url.endsWith("/machines/m-sleeping"),
+    )!;
+    expect(
+      (
+        update.body as {
+          config: { services: Array<{ autostop: false | "suspend" }> };
+        }
+      ).config.services[0]!.autostop,
+    ).toBe(false);
+    expect(
+      calls.some(
+        (c) =>
+          c.method === "GET" &&
+          c.url === "https://kody-brain-alice.fly.dev/healthz",
+      ),
+    ).toBe(true);
   });
 });
 

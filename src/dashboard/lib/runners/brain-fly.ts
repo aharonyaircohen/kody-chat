@@ -88,6 +88,8 @@ export interface ProvisionBrainInput {
   model?: string;
   /** Performance tier — maps to a fixed Fly guest shape. */
   perfTier?: PerfTier;
+  /** Optional saved Brain image ref. Defaults to the public base Brain image. */
+  imageRef?: string;
   /** Default true. False disables Fly's idle auto-suspend for the Brain app. */
   suspendOnIdle?: boolean;
   /** Default branch to clone. */
@@ -538,6 +540,19 @@ function brainAutostop(input: ProvisionBrainInput): BrainAutostop {
   return input.suspendOnIdle === false ? false : "suspend";
 }
 
+function isBrainMachineRunning(machine: FlyMachine): boolean {
+  return (
+    machine.state === "started" ||
+    machine.state === "starting" ||
+    machine.state === "created" ||
+    machine.state === "replacing"
+  );
+}
+
+function brainImageRef(input: ProvisionBrainInput): string {
+  return input.imageRef?.trim() || DEFAULT_IMAGE;
+}
+
 function alignBrainSuspensionConfig(
   config: BrainMachineConfig | undefined,
   input: ProvisionBrainInput,
@@ -595,12 +610,13 @@ async function createMachine(
   const tier: PerfTier = input.perfTier ?? DEFAULT_PERF_TIER;
   const guest = PERF_GUEST[tier];
   const region = DEFAULT_REGION;
+  const image = brainImageRef(input);
 
   const body = {
     name: `brain-${region}`,
     region,
     config: {
-      image: DEFAULT_IMAGE,
+      image,
       env: buildMachineEnv(input, apiKey),
       auto_destroy: false,
       restart: { policy: "on-failure", max_retries: 3 },
@@ -672,6 +688,7 @@ export async function provisionBrain(
   const app = flyApp.name;
   const url = brainAppUrl(app);
   const originalName = app !== requested ? requested : undefined;
+  const image = brainImageRef(input);
 
   const existing = await findExistingMachine(input.flyToken, app);
   if (existing) {
@@ -684,13 +701,13 @@ export async function provisionBrain(
     // We preserve its BRAIN_API_KEY so any key the dashboard already
     // handed a caller stays valid. Guard on `existingImage` being set so a
     // machine that doesn't report an image falls through to plain reuse.
-    if (existingImage && !sameImageRepoTag(existingImage, DEFAULT_IMAGE)) {
+    if (existingImage && !sameImageRepoTag(existingImage, image)) {
       logger.info(
         {
           app,
           machineId: existing.id,
           from: existingImage,
-          to: DEFAULT_IMAGE,
+          to: image,
         },
         "brain-fly: recreating machine — image ref changed",
       );
@@ -735,6 +752,16 @@ export async function provisionBrain(
           autostop: brainAutostop(input),
         },
         "brain-fly: updated machine suspension config",
+      );
+    }
+    if (input.suspendOnIdle === false && !isBrainMachineRunning(existing)) {
+      await waitForBrainHealth(url, 60_000);
+      logger.info(
+        {
+          app,
+          machineId: existing.id,
+        },
+        "brain-fly: woke reused machine after disabling suspension",
       );
     }
     logger.info(

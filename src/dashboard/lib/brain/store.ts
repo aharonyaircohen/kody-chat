@@ -37,7 +37,7 @@ const cache = new Map<string, CacheEntry<unknown>>();
 /** Exported for unit tests — clears all brain-store cache entries. */
 export function _resetBrainAppCache(): void {
   for (const key of cache.keys()) {
-    if (key.startsWith("brain-app:")) {
+    if (key.startsWith("brain-app:") || key.startsWith("brain-image:")) {
       cache.delete(key);
     }
   }
@@ -57,12 +57,21 @@ function setCache<T>(key: string, data: T, etag?: string): void {
   cache.set(key, { data, expires: Date.now() + BRAIN_CACHE_TTL_MS, etag });
 }
 
-function cacheKey(owner: string, repo: string, login: string): string {
-  return `brain-app:${owner}:${repo}:${login.toLowerCase()}`;
+function cacheKey(
+  kind: "app" | "image",
+  owner: string,
+  repo: string,
+  login: string,
+): string {
+  return `brain-${kind}:${owner}:${repo}:${login.toLowerCase()}`;
 }
 
-function filePath(login: string): string {
+function appFilePath(login: string): string {
   return `users/${login.toLowerCase()}/data/brain.json`;
+}
+
+function imageFilePath(login: string): string {
+  return `users/${login.toLowerCase()}/data/brain-image.json`;
 }
 
 /** Persisted Brain app record. Versioned for future migrations. */
@@ -71,6 +80,14 @@ export interface BrainAppFile {
   appName: string;
   orgSlug: string;
   createdAt: string;
+}
+
+/** Persisted Brain image record. Stores only the private GHCR image ref. */
+export interface BrainImageFile {
+  version: 1;
+  imageRef: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 function isBrainAppFile(value: unknown): value is BrainAppFile {
@@ -85,6 +102,29 @@ function isBrainAppFile(value: unknown): value is BrainAppFile {
   );
 }
 
+export function isValidBrainImageRef(value: string): boolean {
+  return (
+    /^ghcr\.io\/[a-z0-9][a-z0-9._-]*(?:\/[a-z0-9][a-z0-9._-]*)+:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}(?:@sha256:[a-f0-9]{64})?$/.test(
+      value,
+    ) ||
+    /^registry\.fly\.io\/[a-z0-9][a-z0-9-]{0,62}:[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}(?:@sha256:[a-f0-9]{64})?$/.test(
+      value,
+    )
+  );
+}
+
+function isBrainImageFile(value: unknown): value is BrainImageFile {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return (
+    v.version === 1 &&
+    typeof v.imageRef === "string" &&
+    isValidBrainImageRef(v.imageRef) &&
+    typeof v.createdAt === "string" &&
+    typeof v.updatedAt === "string"
+  );
+}
+
 /**
  * Read the Brain app record for a user from the configured Kody state repo.
  * Returns `null` when no record exists (user has never provisioned, or the
@@ -93,12 +133,12 @@ function isBrainAppFile(value: unknown): value is BrainAppFile {
  */
 export async function readBrainApp(
   login: string,
-  token: string,
+  _token: string,
 ): Promise<BrainAppFile | null> {
   const owner = getOwner();
   const repo = getRepo();
-  const path = filePath(login);
-  const key = cacheKey(owner, repo, login);
+  const path = appFilePath(login);
+  const key = cacheKey("app", owner, repo, login);
 
   const cached = getCache<BrainAppFile | null>(key);
   const octokit = getOctokit();
@@ -138,13 +178,13 @@ export async function readBrainApp(
  */
 export async function writeBrainApp(
   login: string,
-  token: string,
+  _token: string,
   file: BrainAppFile,
 ): Promise<void> {
   const owner = getOwner();
   const repo = getRepo();
-  const path = filePath(login);
-  const key = cacheKey(owner, repo, login);
+  const path = appFilePath(login);
+  const key = cacheKey("app", owner, repo, login);
 
   cache.delete(key);
 
@@ -205,12 +245,12 @@ export async function writeBrainApp(
  */
 export async function clearBrainApp(
   login: string,
-  token: string,
+  _token: string,
 ): Promise<void> {
   const owner = getOwner();
   const repo = getRepo();
-  const path = filePath(login);
-  const key = cacheKey(owner, repo, login);
+  const path = appFilePath(login);
+  const key = cacheKey("app", owner, repo, login);
 
   cache.delete(key);
 
@@ -229,6 +269,110 @@ export async function clearBrainApp(
   } catch (error: unknown) {
     const status = (error as { status?: number })?.status;
     if (status === 404) return;
+    throw error;
+  }
+}
+
+export async function readBrainImage(
+  login: string,
+  _token: string,
+): Promise<BrainImageFile | null> {
+  const owner = getOwner();
+  const repo = getRepo();
+  const path = imageFilePath(login);
+  const key = cacheKey("image", owner, repo, login);
+
+  const cached = getCache<BrainImageFile | null>(key);
+  const octokit = getOctokit();
+
+  try {
+    const file = await readStateText(octokit, owner, repo, path, {
+      headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
+    });
+    if (file) {
+      const parsed: unknown = JSON.parse(file.content);
+      if (!isBrainImageFile(parsed)) {
+        setCache(key, null, file.etag);
+        return null;
+      }
+      setCache(key, parsed, file.etag);
+      return parsed;
+    }
+    setCache(key, null);
+    return null;
+  } catch (error: unknown) {
+    const status = (error as { status?: number })?.status;
+    if (status === 304 && cached) {
+      setCache(key, cached.data, cached.etag);
+      return cached.data;
+    }
+    if (status === 404) {
+      setCache(key, null);
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function writeBrainImage(
+  login: string,
+  _token: string,
+  file: BrainImageFile,
+): Promise<void> {
+  if (!isBrainImageFile(file)) {
+    throw new Error("Invalid Brain image record");
+  }
+  const owner = getOwner();
+  const repo = getRepo();
+  const path = imageFilePath(login);
+  const key = cacheKey("image", owner, repo, login);
+
+  cache.delete(key);
+
+  let sha: string | undefined;
+  try {
+    const octokit = getOctokit();
+    const current = await readStateText(octokit, owner, repo, path);
+    sha = current?.sha;
+  } catch (error: unknown) {
+    const status = (error as { status?: number })?.status;
+    if (status !== 404) throw error;
+  }
+
+  const content = JSON.stringify(file, null, 2);
+  const message = `feat(brain): record brain image for ${login}`;
+
+  try {
+    const octokit = getOctokit();
+    await writeStateText({
+      octokit,
+      owner,
+      repo,
+      path,
+      message,
+      content,
+      sha,
+    });
+    return;
+  } catch (error: unknown) {
+    if ((error as { status?: number })?.status === 409) {
+      try {
+        const octokit = getOctokit();
+        const current = await readStateText(octokit, owner, repo, path);
+        await writeStateText({
+          octokit,
+          owner,
+          repo,
+          path,
+          message,
+          content,
+          sha: current?.sha,
+        });
+        return;
+      } catch {
+        // fall through to throw
+      }
+    }
     throw error;
   }
 }
