@@ -173,10 +173,17 @@ describe("preview builder doorman wiring", () => {
       resolve(repoRoot, "builder/src/builder.ts"),
       "utf8",
     );
+    const lifecycle = readFileSync(
+      resolve(repoRoot, "src/dashboard/lib/previews/preview-lifecycle.ts"),
+      "utf8",
+    );
 
     expect(dockerfile).toContain("COPY doorman ./doorman");
     expect(builder).toContain('const source = "/app/doorman"');
     expect(builder).toContain("await ensureDoormanInContext(cwd)");
     expect(builder).toContain("KODY_BRANCH");
+    expect(lifecycle).toContain(
+      '...("branch" in input ? { branch: input.branch } : {})',
+    );
   });
 });

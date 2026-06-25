@@ -232,6 +232,7 @@ export async function createPreview(
       // PR builds get a PR_NUMBER (the builder comments the URL on the PR);
       // branch builds omit it — there's no PR to comment on.
       ...("pr" in input ? { pr: input.pr } : {}),
+      ...("branch" in input ? { branch: input.branch } : {}),
       ref: input.ref,
       appName,
       imageTag: input.imageTag,

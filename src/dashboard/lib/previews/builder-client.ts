@@ -53,6 +53,8 @@ export interface SpawnBuilderInput {
   repo: string;
   /** PR number for per-PR builds. Omit for base-image rebuilds. */
   pr?: number;
+  /** Branch name for manual branch previews. Omit for PR/base-image builds. */
+  branch?: string;
   ref: string;
   /** Per-PR Fly app name (same naming the builder will recreate inside).
    *  For base-image rebuilds, pass the `-base` app name from

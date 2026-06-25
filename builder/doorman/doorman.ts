@@ -26,7 +26,6 @@
  */
 
 import http from "node:http";
-import https from "node:https";
 import crypto from "node:crypto";
 import { URL } from "node:url";
 
@@ -85,7 +84,16 @@ function decodeTicket(ticket: string): TicketPayload | null {
       hasPr === hasBranch
     )
       return null;
-    return p as TicketPayload;
+    const base = { r: p.r, e: p.e, s: p.s };
+    if (hasPr) {
+      const pr = p.p;
+      if (typeof pr !== "number") return null;
+      return { ...base, p: pr };
+    }
+
+    const branch = p.b;
+    if (typeof branch !== "string") return null;
+    return { ...base, b: branch };
   } catch {
     return null;
   }
