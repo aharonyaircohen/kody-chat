@@ -41,6 +41,7 @@ vi.mock("@dashboard/lib/agent-actions", () => ({
   deleteAgentActionFile: h.deleteAgentActionFile,
   isValidSlug: (slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug),
   PERMISSION_MODES: ["default", "acceptEdits", "plan", "bypassPermissions"],
+  CAPABILITY_KINDS: ["observe", "act", "verify"],
 }));
 
 vi.mock("@dashboard/lib/engine/config", () => ({

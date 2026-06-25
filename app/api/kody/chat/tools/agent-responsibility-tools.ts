@@ -311,7 +311,7 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
     create_or_update_agent_responsibility: tool({
       description:
         `Create a new Kody AgentResponsibility in ${repoRef}, or update an existing one. Before calling it, call read_agent_responsibility_creation_guide (and read_agent_responsibility for updates) and follow that guide. Commits a agentResponsibility folder at ` +
-        "`agent-responsibilities/<slug>/` in the state repo (`profile.json` + `agent-responsibility.md`). The responsibility body describes purpose, allowed commands, and restrictions. Report generation belongs in a configured agentAction that writes reports to the configured Kody state repo, not in the responsibility body. Goals and loops dispatch agentResponsibilities from " +
+        "`agent-responsibilities/<slug>/` in the state repo (`profile.json` + `agent-responsibility.md`). The responsibility body describes purpose, allowed commands, and restrictions. Report generation belongs in a configured agentAction that writes reports to the configured Kody state repo, not in the responsibility body; run the configured report agentAction from a goal or loop. Goals and loops dispatch agentResponsibilities from " +
         "MODES (resolved at call time from whether the slug already exists):\n" +
         "- CREATE: requires `title`, `agent`, `purpose`. Builds a fresh agent-responsibility.md from the body fields unless `body` is passed.\n" +
         "- UPDATE: requires `slug` (the existing agentResponsibility). All other fields are optional — omitted " +
