@@ -263,7 +263,7 @@ export function ReportsViewInner({
               <EmptyState
                 icon={<FileText />}
                 title="No reports yet"
-                hint="Reports appear here once Kody agentResponsibilities (doc-drift, coverage-floor, etc.) commit them to kody state."
+                hint="Reports appear here once Kody goals or loops write them to kody state."
               />
             ) : filtered.length === 0 ? (
               <EmptyState
@@ -566,8 +566,7 @@ function ReportDetail({
                 Empty report
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                The agentResponsibility that produces this report hasn&apos;t written content
-                yet.
+                The goal or loop that owns this report hasn&apos;t written content yet.
               </p>
             </div>
           )}

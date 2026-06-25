@@ -2,9 +2,9 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern reports-api
- * @ai-summary Reports API — GET lists system reports under
+ * @ai-summary Reports API — GET lists goal/loop reports under
  *   `reports/<slug>.md` in the configured Kody state repo. Read-only:
- *   reports are produced by Kody agentResponsibilities, not edited from the dashboard.
+ *   reports are produced by the engine, not edited from the dashboard.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";

@@ -2,9 +2,9 @@
  * @fileType hook
  * @domain kody
  * @pattern reports-hooks
- * @ai-summary React Query hooks for system reports. Backed by
+ * @ai-summary React Query hooks for goal/loop reports. Backed by
  *   `reports/<slug>.md` files in the configured Kody state repo via
- *   the GitHub contents API. Read-only — reports are produced by Kody agentResponsibilities.
+ *   the GitHub contents API. Read-only — reports are produced by the engine.
  */
 "use client";
 

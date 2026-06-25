@@ -2,9 +2,9 @@
  * @fileType utility
  * @domain kody
  * @pattern reports-files
- * @ai-summary Read-only access to system reports under `reports/<slug>.md` in the configured Kody state repo. Reports are produced by
- *   Kody agentResponsibilities (doc-drift, coverage-floor, etc.) — the dashboard surfaces
- *   them as a health view. No write operations: the engine owns this directory.
+ * @ai-summary Read-only access to goal/loop reports under `reports/<slug>.md` in
+ *   the configured Kody state repo. The dashboard surfaces them as a health view.
+ *   No write operations: the engine owns this directory.
  */
 
 import { getOctokit, getOwner, getRepo } from "./github-client";
@@ -27,7 +27,7 @@ export interface ReportFile {
   htmlUrl: string;
   /** Size in bytes (helps preview length without fetching body). */
   size: number;
-  /** AgentResponsibility that produced this report, from report frontmatter. */
+  /** Legacy producer metadata from older responsibility-owned reports. */
   agentResponsibilitySlug: string | null;
   /** Review routing status, from report frontmatter. */
   reviewStatus: string | null;

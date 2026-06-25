@@ -143,7 +143,7 @@ function buildAgentResponsibilityBody(input: AgentResponsibilityInput): string {
   body += `## Restrictions\n\n`;
   body += `- Stay within the agentResponsibility's purpose and the per-agentAction rules.\n`;
   body += `- Do not perform actions outside the contract defined by this agentResponsibility.\n`;
-  body += `- If this agentResponsibility needs to produce a report, run the configured report agentAction instead of writing report files directly.\n`;
+  body += `- Produce structured evidence; the owning goal or loop writes Dashboard reports.\n`;
   for (const r of extraRest) body += `- ${r.trim()}\n`;
 
   return body;
@@ -322,7 +322,7 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
         "- `schedule` — optional autonomous cadence; omit on update to preserve it.\n" +
         "- `agentActions` — array of agentAction slugs for multi-run agentResponsibilities. `agentAction` is the " +
         "singular convenience alias; prefer the array for >1.\n" +
-        "- reports — if this responsibility should create reports, point it at a report agentAction; do not add report settings or report paths to the responsibility.\n" +
+        "- reports — responsibilities produce evidence; the owning goal or loop writes Dashboard reports.\n" +
         "- `profile` — raw profile.json field overrides. Use for engine-specific fields the " +
         "typed schema doesn't expose (e.g. `tickScript`, `readsFrom`, `writesTo`, `mentions`, " +
         "`agentResponsibilityTools`, `version`). Typed values still win for keys the build function manages.\n\n" +
