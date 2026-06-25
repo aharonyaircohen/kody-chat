@@ -94,10 +94,17 @@ describe("terminalBridgeAppName", () => {
 
 describe("ensureTerminalBridge", () => {
   it("ships a persistent real-PTY SSH session", () => {
+    const consoleSession = TERMINAL_BRIDGE_SCRIPT.match(
+      /function createFlyConsoleSession[\s\S]*?\n}\n\nfunction attachSocketToSession/,
+    )?.[0];
+
+    expect(consoleSession).toBeTruthy();
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"flyctl"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"ssh"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"console"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("--pty");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain('url.pathname === "/exec"');
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("--command");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("python3");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("pty-relay.py");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("persistentSessions");
@@ -114,8 +121,8 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('type: "ready"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("findReadyProof");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("\\/dev\\/(?:pts\\/[0-9]+|tty");
-    expect(TERMINAL_BRIDGE_SCRIPT).not.toContain("--command");
-    expect(TERMINAL_BRIDGE_SCRIPT).not.toContain("script");
+    expect(consoleSession).not.toContain("--command");
+    expect(consoleSession).not.toContain("script");
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain(
       "Terminal opened, but it did not report a real TTY.",
     );

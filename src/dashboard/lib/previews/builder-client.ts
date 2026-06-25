@@ -255,9 +255,10 @@ export async function spawnPreviewBuilder(
         KODY_PREVIEW_VERIFY_KEY: derivePreviewKey().toString("hex"),
         // Machine identity — repo and pr are passed so the doorman can bind
         // tickets to this specific machine and reject tickets meant for a
-        // different repo/pr even if they present a valid HMAC.
+        // different repo/pr/branch even if they present a valid HMAC.
         KODY_REPO_CONTEXT: input.repo,
-        KODY_PR: String(input.pr ?? ""),
+        ...("pr" in input ? { KODY_PR: String(input.pr) } : {}),
+        ...("branch" in input ? { KODY_BRANCH: input.branch } : {}),
         ...(input.githubToken ? { GITHUB_TOKEN: input.githubToken } : {}),
         // When set, the builder posts (or updates) one idempotent
         // comment on the PR with the preview URL. Omitted on base

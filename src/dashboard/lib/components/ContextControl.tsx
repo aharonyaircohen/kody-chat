@@ -21,6 +21,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Calendar,
@@ -58,6 +59,7 @@ import {
   SelectValue,
 } from "@dashboard/ui/select";
 import { AuthGuard } from "../auth-guard";
+import { selectionPath } from "../selection-routing";
 import { cn } from "../utils";
 import {
   useCreateContextEntry,
@@ -171,19 +173,25 @@ function StaffBadges({ agent }: { agent: string[] }) {
 interface ContextControlProps {
   /** Render without the built-in PageHeader (e.g. when hosted in tabs). */
   embedded?: boolean;
+  selectedSlug?: string | null;
 }
 
-export function ContextControl({ embedded = false }: ContextControlProps = {}) {
+export function ContextControl({
+  embedded = false,
+  selectedSlug = null,
+}: ContextControlProps = {}) {
   return (
     <AuthGuard>
-      <ContextControlInner embedded={embedded} />
+      <ContextControlInner embedded={embedded} selectedSlug={selectedSlug} />
     </AuthGuard>
   );
 }
 
 export function ContextControlInner({
   embedded = false,
+  selectedSlug = null,
 }: ContextControlProps = {}) {
+  const router = useRouter();
   const {
     data: entries = [],
     isLoading,
@@ -192,7 +200,6 @@ export function ContextControlInner({
     error,
   } = useContextEntries();
 
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [editingEntry, setEditingEntry] = useState<ContextEntry | null>(null);
   const [pendingDelete, setPendingDelete] = useState<ContextEntry | null>(null);
@@ -255,16 +262,22 @@ export function ContextControlInner({
 
   useEffect(() => {
     if (filtered.length === 0) {
-      if (selectedSlug) setSelectedSlug(null);
+      if (selectedSlug) router.replace("/context");
       return;
     }
     if (
       !selectedSlug ||
       !filtered.some((entry) => entry.slug === selectedSlug)
     ) {
-      setSelectedSlug(filtered[0].slug);
+      router.replace(selectionPath("/context", filtered[0].slug));
     }
-  }, [filtered, selectedSlug]);
+  }, [filtered, router, selectedSlug]);
+
+  const selectEntry = (slug: string | null, replace = false) => {
+    const path = slug ? selectionPath("/context", slug) : "/context";
+    if (replace) router.replace(path);
+    else router.push(path);
+  };
 
   const { githubUser } = useGitHubIdentity();
   const deleteMutation = useDeleteContextEntry(githubUser?.login);
@@ -363,7 +376,7 @@ export function ContextControlInner({
                     <li key={entry.slug}>
                       <button
                         type="button"
-                        onClick={() => setSelectedSlug(entry.slug)}
+                        onClick={() => selectEntry(entry.slug)}
                         className={cn(
                           "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
                           isActive && "bg-accent/70",
@@ -410,7 +423,7 @@ export function ContextControlInner({
             {selectedEntry ? (
               <EntryDetail
                 entry={selectedEntry}
-                onBack={() => setSelectedSlug(null)}
+                onBack={() => selectEntry(null)}
                 onEdit={() => setEditingEntry(selectedEntry)}
                 onDelete={() => setPendingDelete(selectedEntry)}
               />
@@ -430,7 +443,7 @@ export function ContextControlInner({
           existingSlugs={existingSlugs}
           onClose={() => setShowCreate(false)}
           onCreated={(entry) => {
-            setSelectedSlug(entry.slug);
+            selectEntry(entry.slug);
             setShowCreate(false);
           }}
         />
@@ -460,7 +473,7 @@ export function ContextControlInner({
             const target = pendingDelete;
             deleteMutation.mutate(target.slug, {
               onSuccess: () => {
-                if (selectedSlug === target.slug) setSelectedSlug(null);
+                if (selectedSlug === target.slug) selectEntry(null, true);
               },
             });
           }}

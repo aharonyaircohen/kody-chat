@@ -33,6 +33,7 @@ COPY src ./src
 COPY default-Dockerfile.preview ./default-Dockerfile.preview
 COPY default-Dockerfile.preview.dev ./default-Dockerfile.preview.dev
 COPY default-Dockerfile.preview.prod ./default-Dockerfile.preview.prod
+COPY doorman ./doorman
 
 ENV NODE_ENV=production
 

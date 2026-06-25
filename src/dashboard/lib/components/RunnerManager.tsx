@@ -2,8 +2,9 @@
  * @fileType component
  * @domain runner
  * @pattern fly-pages
- * @ai-summary Shared Fly page shell for /fly/config, /fly/machines, and
- * /fly/history. Config owns settings; machines owns live inventory; history
+ * @ai-summary Shared Fly page shell for /fly/config, /fly/previews,
+ * /fly/machines, and /fly/history. Config owns runner/Brain setup; previews
+ * owns preview inventory and settings; machines owns live inventory; history
  * owns activity snapshots.
  */
 "use client";
@@ -25,6 +26,7 @@ import {
   KeyRound,
   Rocket,
   Server,
+  SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
 import { Button } from "@dashboard/ui/button";
@@ -33,6 +35,7 @@ import { Input } from "@dashboard/ui/input";
 import { BrainFlyCard, type BrainFlyState } from "./BrainFlyCard";
 import { FlyActivityTab } from "./FlyActivityTab";
 import { FlyMachinesTable } from "./FlyMachinesTable";
+import { FlyPreviewsList } from "./FlyPreviewsList";
 import { PreviewsCard } from "./PreviewsCard";
 import { PageShell } from "./PageShell";
 import { SimpleTooltip } from "./SimpleTooltip";
@@ -84,7 +87,7 @@ const STATUS_LABELS: Record<string, string> = {
   unknown: "-",
 };
 
-export type RunnerView = "config" | "machines" | "history";
+export type RunnerView = "config" | "previews" | "machines" | "history";
 
 interface RunnerManagerProps {
   view?: RunnerView;
@@ -93,7 +96,11 @@ interface RunnerManagerProps {
 const FLY_VIEW_COPY: Record<RunnerView, { title: string; subtitle: string }> = {
   config: {
     title: "Fly Config",
-    subtitle: "Rules and sizes for Fly preview and runner work.",
+    subtitle: "Fly token, runner, and Brain settings.",
+  },
+  previews: {
+    title: "Fly Previews",
+    subtitle: "Preview URLs, live machines, and PR preview settings.",
   },
   machines: {
     title: "Fly Machines",
@@ -312,18 +319,6 @@ function RunnerConfigView({
         <>
           <section className="space-y-3">
             <GroupHeader
-              icon={Globe}
-              label="Previews"
-              hint="temporary sites built for each PR"
-            />
-            <PreviewsCard
-              headers={headers}
-              flyTokenConfigured={flyTokenConfigured}
-            />
-          </section>
-
-          <section className="space-y-3">
-            <GroupHeader
               icon={Server}
               label="Task runners"
               hint="machines that run chat and Vibe tasks"
@@ -438,6 +433,44 @@ function RunnerConfigView({
   );
 }
 
+function FlyPreviewsView({
+  flyTokenConfigured,
+  headers,
+}: {
+  flyTokenConfigured: boolean;
+  headers: Record<string, string>;
+}) {
+  return (
+    <div className="space-y-6">
+      {flyTokenConfigured && (
+        <section className="space-y-3">
+          <GroupHeader
+            icon={SlidersHorizontal}
+            label="Preview settings"
+            hint="PR preview size, cleanup, and manual branch previews"
+          />
+          <PreviewsCard
+            headers={headers}
+            flyTokenConfigured={flyTokenConfigured}
+          />
+        </section>
+      )}
+
+      <section className="space-y-3">
+        <GroupHeader
+          icon={Globe}
+          label="Preview machines"
+          hint="live preview URLs and machine details"
+        />
+        <FlyPreviewsList
+          headers={headers}
+          flyTokenConfigured={flyTokenConfigured}
+        />
+      </section>
+    </div>
+  );
+}
+
 export function RunnerManager({ view = "config" }: RunnerManagerProps) {
   const { auth } = useAuth();
   const headers = useMemo<Record<string, string>>(() => {
@@ -458,6 +491,13 @@ export function RunnerManager({ view = "config" }: RunnerManagerProps) {
 
         {view === "config" && (
           <RunnerConfigView
+            headers={headers}
+            flyTokenConfigured={flyTokenConfigured}
+          />
+        )}
+
+        {view === "previews" && (
+          <FlyPreviewsView
             headers={headers}
             flyTokenConfigured={flyTokenConfigured}
           />

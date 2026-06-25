@@ -12,7 +12,9 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import {
   derivePreviewKey,
+  mintBranchPreviewTicket,
   mintPreviewTicket,
+  verifyBranchPreviewTicket,
   verifyPreviewTicket,
 } from "@dashboard/lib/preview-token";
 
@@ -78,6 +80,25 @@ describe("preview ticket", () => {
       });
     });
 
+    it("can mint a branch preview ticket", () => {
+      const { ticket, expiresAt } = mintBranchPreviewTicket(
+        "owner/repo",
+        "dev",
+        3600,
+      );
+      const decoded = JSON.parse(
+        Buffer.from(ticket, "base64url").toString("utf8"),
+      );
+
+      expect(expiresAt).toBeGreaterThan(Math.floor(Date.now() / 1000));
+      expect(decoded).toMatchObject({
+        r: "owner/repo",
+        b: "dev",
+        s: expect.stringMatching(/^[0-9a-f]{32}$/),
+      });
+      expect(decoded).not.toHaveProperty("p");
+    });
+
     it("expiry is approximately now + ttlSec", () => {
       const ttl = 7200;
       const before = Math.floor(Date.now() / 1000);
@@ -97,7 +118,7 @@ describe("preview ticket", () => {
 
   describe("verifyPreviewTicket", () => {
     it("verifies a freshly minted ticket", () => {
-      const { ticket, expiresAt } = mintPreviewTicket("owner/repo", 42, 3600);
+      const { ticket } = mintPreviewTicket("owner/repo", 42, 3600);
       const result = verifyPreviewTicket(ticket, "owner/repo", 42);
       expect(result).toBe(true);
     });
@@ -110,6 +131,25 @@ describe("preview ticket", () => {
     it("rejects a ticket for a different PR", () => {
       const { ticket } = mintPreviewTicket("owner/repo", 42, 3600);
       expect(verifyPreviewTicket(ticket, "owner/repo", 99)).toBe(false);
+    });
+
+    it("verifies a freshly minted branch ticket", () => {
+      const { ticket } = mintBranchPreviewTicket("owner/repo", "dev", 3600);
+      expect(verifyBranchPreviewTicket(ticket, "owner/repo", "dev")).toBe(true);
+    });
+
+    it("rejects a branch ticket for a different branch", () => {
+      const { ticket } = mintBranchPreviewTicket("owner/repo", "dev", 3600);
+      expect(verifyBranchPreviewTicket(ticket, "owner/repo", "main")).toBe(
+        false,
+      );
+    });
+
+    it("does not accept a PR ticket as a branch ticket", () => {
+      const { ticket } = mintPreviewTicket("owner/repo", 42, 3600);
+      expect(verifyBranchPreviewTicket(ticket, "owner/repo", "dev")).toBe(
+        false,
+      );
     });
 
     it("rejects a tampered / garbage ticket", () => {

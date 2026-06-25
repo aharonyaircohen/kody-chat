@@ -10,6 +10,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Calendar,
@@ -30,6 +31,7 @@ import { useAuth } from "../auth-context";
 import { cn } from "../utils";
 import { useReports } from "../hooks/useReports";
 import { useReportsUnread } from "../hooks/useReportsUnread";
+import { selectionPath } from "../selection-routing";
 import { kodyApi, type Report } from "../api";
 import type { ReportSuggestedAction } from "../report-suggested-actions";
 import { CreateTaskDialog } from "./CreateTaskDialog";
@@ -43,17 +45,25 @@ const DISMISSED_REPORT_ACTIONS_KEY = "kody.report-actions.dismissed";
 interface ReportsViewProps {
   /** Render without the built-in PageHeader (e.g. when hosted in AgentResponsibilitiesPageTabs). */
   embedded?: boolean;
+  selectedSlug?: string | null;
 }
 
-export function ReportsView({ embedded = false }: ReportsViewProps = {}) {
+export function ReportsView({
+  embedded = false,
+  selectedSlug = null,
+}: ReportsViewProps = {}) {
   return (
     <AuthGuard>
-      <ReportsViewInner embedded={embedded} />
+      <ReportsViewInner embedded={embedded} selectedSlug={selectedSlug} />
     </AuthGuard>
   );
 }
 
-export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
+export function ReportsViewInner({
+  embedded = false,
+  selectedSlug = null,
+}: ReportsViewProps = {}) {
+  const router = useRouter();
   const { auth } = useAuth();
   const {
     data: reports = [],
@@ -63,7 +73,6 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
     error,
   } = useReports();
 
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const { isUnread, markRead } = useReportsUnread();
   // Resource generators — pop dialogs prefilled from the active report.
@@ -104,9 +113,13 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
       typeof window !== "undefined" &&
       window.matchMedia("(min-width: 768px)").matches
     ) {
-      setSelectedSlug(filtered[0]!.slug);
+      router.replace(selectionPath("/reports", filtered[0]!.slug));
     }
-  }, [filtered, selectedSlug]);
+  }, [filtered, router, selectedSlug]);
+
+  const selectReport = (slug: string | null) => {
+    router.push(slug ? selectionPath("/reports", slug) : "/reports");
+  };
 
   // Mark a report as read the moment it's opened in the detail pane —
   // this is the "I've seen it" signal that drives the sidebar's
@@ -266,7 +279,7 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
                       report={report}
                       isActive={selectedSlug === report.slug}
                       unread={isUnread(report.slug, report.updatedAt)}
-                      onSelect={() => setSelectedSlug(report.slug)}
+                      onSelect={() => selectReport(report.slug)}
                     />
                   </li>
                 ))}
@@ -286,7 +299,7 @@ export function ReportsViewInner({ embedded = false }: ReportsViewProps = {}) {
           {selected ? (
             <ReportDetail
               report={selected}
-              onBack={() => setSelectedSlug(null)}
+              onBack={() => selectReport(null)}
               onCreateIssue={() => setIssueFromReport(selected)}
               onPlanGoal={() => setGoalFromReport(selected)}
               onCreateTaskFromAction={(action) =>

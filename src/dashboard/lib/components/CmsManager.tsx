@@ -73,6 +73,7 @@ import {
 } from "./cms/client";
 import { canWriteOperation, writeDisabledReason } from "./cms/operations";
 import { cmsDocumentEditPath, cmsDocumentPath } from "./cms/paths";
+import { selectionPath } from "../selection-routing";
 import { generateCmsMcpTools } from "@dashboard/lib/cms/mcp";
 import type {
   CmsCollectionConfig,
@@ -118,10 +119,14 @@ function relationDocumentCacheKey(collection: string, id: string): string {
   return `${collection}\u001f${id}`;
 }
 
-export function CmsManager() {
+export function CmsManager({
+  selectedCollectionName = null,
+}: {
+  selectedCollectionName?: string | null;
+} = {}) {
   return (
     <AuthGuard>
-      <CmsListPage />
+      <CmsListPage selectedCollectionName={selectedCollectionName} />
     </AuthGuard>
   );
 }
@@ -174,7 +179,11 @@ export function CmsCreateManager({
   );
 }
 
-function CmsListPage() {
+function CmsListPage({
+  selectedCollectionName = null,
+}: {
+  selectedCollectionName?: string | null;
+} = {}) {
   const router = useRouter();
   const { auth } = useAuth();
   const queryClient = useQueryClient();
@@ -182,8 +191,6 @@ function CmsListPage() {
   const scope = `${auth?.owner ?? ""}/${auth?.repo ?? ""}`;
   const cmsQueryKey = ["cms-config", scope] as const;
 
-  const [selectedCollectionName, setSelectedCollectionName] =
-    useState<string>("");
   const [collectionSearch, setCollectionSearch] = useState("");
   const [permissionsOpen, setPermissionsOpen] = useState(false);
   const [mcpOpen, setMcpOpen] = useState(false);
@@ -245,10 +252,23 @@ function CmsListPage() {
     null;
 
   useEffect(() => {
-    if (!selectedCollectionName && collections[0]) {
-      setSelectedCollectionName(collections[0].name);
+    if (collections.length === 0) {
+      if (selectedCollectionName) router.replace("/cms");
+      return;
     }
-  }, [collections, selectedCollectionName]);
+    if (
+      !selectedCollectionName ||
+      !collections.some(
+        (collection) => collection.name === selectedCollectionName,
+      )
+    ) {
+      router.replace(selectionPath("/cms", collections[0].name));
+    }
+  }, [collections, router, selectedCollectionName]);
+
+  const selectCollection = (collectionName: string) => {
+    router.push(selectionPath("/cms", collectionName));
+  };
 
   useEffect(() => {
     setFilterValues({});
@@ -360,7 +380,7 @@ function CmsListPage() {
             selectedName={selectedCollection?.name ?? ""}
             search={collectionSearch}
             onSearchChange={setCollectionSearch}
-            onSelect={setSelectedCollectionName}
+            onSelect={selectCollection}
           />
 
           <main className="flex min-h-0 flex-col border-t border-border lg:border-l lg:border-t-0">

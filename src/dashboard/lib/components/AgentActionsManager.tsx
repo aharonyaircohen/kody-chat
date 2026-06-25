@@ -40,6 +40,7 @@ import {
 } from "lucide-react";
 import { PageShell } from "./PageShell";
 import { cn } from "../utils";
+import { selectionPath } from "../selection-routing";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
@@ -255,10 +256,14 @@ async function deleteApi(
     throw new Error(json.message || json.error || `HTTP ${res.status}`);
 }
 
-export function AgentActionsManager() {
+export function AgentActionsManager({
+  selectedSlug = null,
+}: {
+  selectedSlug?: string | null;
+} = {}) {
   return (
     <AuthGuard>
-      <AgentActionsManagerInner />
+      <AgentActionsManagerInner selectedSlug={selectedSlug} />
     </AuthGuard>
   );
 }
@@ -333,7 +338,12 @@ function AgentActionEditorPageInner({ slug }: { slug: string | null }) {
   );
 }
 
-function AgentActionsManagerInner() {
+function AgentActionsManagerInner({
+  selectedSlug = null,
+}: {
+  selectedSlug?: string | null;
+} = {}) {
+  const router = useRouter();
   const { auth } = useAuth();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -354,9 +364,10 @@ function AgentActionsManagerInner() {
 
   const remove = useMutation({
     mutationFn: (slug: string) => deleteApi(headers, slug),
-    onSuccess: () => {
+    onSuccess: (_result, slug) => {
       queryClient.invalidateQueries({ queryKey: agentActionQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: listQueryKey });
+      if (selectedSlug === slug) selectAgentAction(null, true);
       toast.success("AgentAction removed");
     },
     onError: (err: Error) => toast.error(err.message || "Failed to remove"),
@@ -364,7 +375,6 @@ function AgentActionsManagerInner() {
 
   const [deleting, setDeleting] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   // Inline edit: when set to the selected slug, the detail pane swaps from the
   // read-only summary to the editor — no route change, no full-page reload.
   const [editingSlug, setEditingSlug] = useState<string | null>(null);
@@ -402,10 +412,23 @@ function AgentActionsManagerInner() {
 
   // Auto-select the first agentAction on desktop, mirroring AgentResponsibilities/Reports.
   useEffect(() => {
-    if (!selectedSlug && agentActions.length > 0) {
-      setSelectedSlug(agentActions[0].slug);
+    if (agentActions.length === 0) {
+      if (selectedSlug) router.replace("/agent-actions");
+      return;
     }
-  }, [agentActions, selectedSlug]);
+    if (
+      !selectedSlug ||
+      !agentActions.some((action) => action.slug === selectedSlug)
+    ) {
+      router.replace(selectionPath("/agent-actions", agentActions[0].slug));
+    }
+  }, [agentActions, router, selectedSlug]);
+
+  const selectAgentAction = (slug: string | null, replace = false) => {
+    const path = slug ? selectionPath("/agent-actions", slug) : "/agent-actions";
+    if (replace) router.replace(path);
+    else router.push(path);
+  };
 
   // The list query only returns summaries (slug/describe/landing/etc.) — the
   // detail pane needs instructions, model, tools, skills, scripts, MCP servers to
@@ -504,7 +527,7 @@ function AgentActionsManagerInner() {
                       : "Failed to load"
                     : null
                 }
-                onBack={() => setSelectedSlug(null)}
+                onBack={() => selectAgentAction(null)}
                 onEdit={() => {
                   if (!selected.readOnly) setEditingSlug(selected.slug);
                 }}
@@ -551,7 +574,7 @@ function AgentActionsManagerInner() {
                 <AgentActionRow
                   exec={e}
                   isActive={selectedSlug === e.slug}
-                  onSelect={() => setSelectedSlug(e.slug)}
+                  onSelect={() => selectAgentAction(e.slug)}
                 />
               </li>
             ))}

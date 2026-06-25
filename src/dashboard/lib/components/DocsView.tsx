@@ -9,6 +9,7 @@
 "use client";
 
 import { toast } from "sonner";
+import { useRouter } from "next/navigation";
 import {
   BookOpen,
   ChevronDown,
@@ -22,7 +23,7 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Button } from "@dashboard/ui/button";
 import {
@@ -35,6 +36,7 @@ import { Input } from "@dashboard/ui/input";
 import { Textarea } from "@dashboard/ui/textarea";
 import { cn } from "@dashboard/lib/utils";
 import { AuthGuard } from "../auth-guard";
+import { selectionPathFromParts } from "../selection-routing";
 import {
   useCreateDoc,
   useDeleteDoc,
@@ -50,6 +52,7 @@ import type { DocManifestEntry } from "../api";
 interface DocsViewProps {
   /** Render without the built-in PageHeader (e.g. when embedded). */
   embedded?: boolean;
+  selectedPath?: string | null;
 }
 
 interface DocTreeNode {
@@ -88,6 +91,14 @@ function nextDocPath(files: DocManifestEntry[] | undefined): string {
     i += 1;
   }
   return candidate;
+}
+
+function docRoute(path: string | null): string {
+  if (!path) return "/docs";
+  return selectionPathFromParts(
+    "/docs",
+    path.split("/").filter((part) => part.length > 0),
+  );
 }
 
 function mutationErrorMessage(error: unknown): string {
@@ -155,22 +166,24 @@ export function buildDocTree(files: DocManifestEntry[]): DocTreeNode[] {
   return sortNodes(roots);
 }
 
-export function DocsView({ embedded = false }: DocsViewProps = {}) {
+export function DocsView({
+  embedded = false,
+  selectedPath = null,
+}: DocsViewProps = {}) {
   return (
     <AuthGuard>
-      <DocsViewInner embedded={embedded} />
+      <DocsViewInner embedded={embedded} selectedPath={selectedPath} />
     </AuthGuard>
   );
 }
 
-function DocsViewInner({ embedded = false }: DocsViewProps) {
+function DocsViewInner({ embedded = false, selectedPath = null }: DocsViewProps) {
+  const router = useRouter();
   const {
     data: manifest,
     isLoading: manifestLoading,
     refetch: refetchManifest,
   } = useDocsManifest();
-  const [selectedPath, setSelectedPath] = useState<string | null>(null);
-
   const docPath = selectedPath ?? firstDocFilePath(manifest?.files);
 
   const {
@@ -191,6 +204,28 @@ function DocsViewInner({ embedded = false }: DocsViewProps) {
   const docName = doc?.name ?? docPath ?? "Docs";
   const hasContent = content.trim().length > 0;
   const isSaving = createDocMutation.isPending || updateDocMutation.isPending;
+
+  useEffect(() => {
+    const firstPath = firstDocFilePath(manifest?.files);
+    if (!firstPath) {
+      if (selectedPath) router.replace("/docs");
+      return;
+    }
+    if (
+      !selectedPath ||
+      !manifest?.files?.some(
+        (file) => file.type === "file" && file.path === selectedPath,
+      )
+    ) {
+      router.replace(docRoute(firstPath));
+    }
+  }, [manifest?.files, router, selectedPath]);
+
+  const selectDoc = (path: string | null, replace = false) => {
+    const route = docRoute(path);
+    if (replace) router.replace(route);
+    else router.push(route);
+  };
 
   const handleRefresh = () => {
     refetchManifest();
@@ -240,7 +275,7 @@ function DocsViewInner({ embedded = false }: DocsViewProps) {
               content: docForm.content,
             });
 
-      setSelectedPath(saved.path);
+      selectDoc(saved.path);
       setDocForm(null);
       toast.success(docForm.mode === "create" ? "Doc created" : "Doc saved");
     } catch (err) {
@@ -252,7 +287,7 @@ function DocsViewInner({ embedded = false }: DocsViewProps) {
     if (!deletePath) return;
     try {
       await deleteDocMutation.mutateAsync(deletePath);
-      if (selectedPath === deletePath) setSelectedPath(null);
+      if (selectedPath === deletePath) selectDoc(null, true);
       setDeletePath(null);
       toast.success("Doc deleted");
       refetchManifest();
@@ -288,7 +323,7 @@ function DocsViewInner({ embedded = false }: DocsViewProps) {
           <DocList
             files={manifest.files}
             selectedPath={docPath}
-            onSelect={setSelectedPath}
+            onSelect={selectDoc}
           />
         ) : (
           <div className="px-4 py-6 text-xs text-muted-foreground text-center">

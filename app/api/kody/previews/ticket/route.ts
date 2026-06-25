@@ -11,8 +11,9 @@
  * with info "kody-preview:v1") that was shipped to the machine at boot.
  *
  * Query params:
- *   repo   owner/name
- *   pr     PR number (integer)
+ *   repo      owner/name (must match the authenticated repo)
+ *   pr        PR number (integer)
+ *   branch    Branch name
  *
  * Response:
  *   { ticket: string, expiresAt: number }  — ticket is base64url encoded
@@ -21,15 +22,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getRequestAuth, requireKodyAuth } from "@dashboard/lib/auth";
-import { mintPreviewTicket } from "@dashboard/lib/preview-token";
+import {
+  mintBranchPreviewTicket,
+  mintPreviewTicket,
+} from "@dashboard/lib/preview-token";
 
 // TTL for preview tickets: 4 hours
 const TICKET_TTL_SEC = 4 * 60 * 60;
 
-const QuerySchema = z.object({
-  repo: z.string().regex(/^[^/]+\/[^/]+$/, "repo must be owner/name"),
-  pr: z.coerce.number().int().positive("pr must be a positive integer"),
-});
+const QuerySchema = z
+  .object({
+    repo: z.string().regex(/^[^/]+\/[^/]+$/, "repo must be owner/name"),
+    pr: z.coerce
+      .number()
+      .int()
+      .positive("pr must be a positive integer")
+      .optional(),
+    branch: z.string().min(1).max(255).optional(),
+  })
+  .refine((value) => Boolean(value.pr) !== Boolean(value.branch), {
+    message: "provide exactly one of pr or branch",
+    path: ["pr"],
+  });
 
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
@@ -43,7 +57,8 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const parsed = QuerySchema.safeParse({
     repo: searchParams.get("repo"),
-    pr: searchParams.get("pr"),
+    pr: searchParams.get("pr") ?? undefined,
+    branch: searchParams.get("branch") ?? undefined,
   });
 
   if (!parsed.success) {
@@ -53,11 +68,18 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const { ticket, expiresAt } = mintPreviewTicket(
-    parsed.data.repo,
-    parsed.data.pr,
-    TICKET_TTL_SEC,
-  );
+  const expectedRepo = `${auth.owner}/${auth.repo}`;
+  if (parsed.data.repo !== expectedRepo) {
+    return NextResponse.json({ error: "repo_mismatch" }, { status: 403 });
+  }
+
+  const { ticket, expiresAt } = parsed.data.pr
+    ? mintPreviewTicket(parsed.data.repo, parsed.data.pr, TICKET_TTL_SEC)
+    : mintBranchPreviewTicket(
+        parsed.data.repo,
+        parsed.data.branch!,
+        TICKET_TTL_SEC,
+      );
 
   return NextResponse.json({ ticket, expiresAt });
 }

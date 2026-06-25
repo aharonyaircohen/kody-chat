@@ -14,6 +14,7 @@ import {
   type FormEvent,
   type SetStateAction,
 } from "react";
+import { useRouter } from "next/navigation";
 import {
   AlertCircle,
   Archive,
@@ -52,6 +53,7 @@ import {
 } from "@dashboard/ui/select";
 import { Textarea } from "@dashboard/ui/textarea";
 import { cn } from "@dashboard/lib/utils/ui";
+import { selectionPath } from "../selection-routing";
 import {
   companyIntentWarnings,
   isCompanyIntentId,
@@ -176,17 +178,21 @@ const behaviorOptions: Array<{
   },
 ];
 
-export function CompanyIntentsView() {
+export function CompanyIntentsView({
+  selectedId = null,
+}: {
+  selectedId?: string | null;
+} = {}) {
+  const router = useRouter();
   const { data, error, isFetching, isLoading, refetch } = useCompanyIntents();
   const createIntent = useCreateCompanyIntent();
   const updateIntent = useUpdateCompanyIntent();
   const runIntent = useRunCompanyIntent();
   const [query, setQuery] = useState("");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [formMode, setFormMode] = useState<"create" | "edit" | null>(null);
   const [form, setForm] = useState<IntentFormState>(emptyForm());
 
-  const intents = data ?? [];
+  const intents = useMemo(() => data ?? [], [data]);
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return intents;
@@ -208,13 +214,19 @@ export function CompanyIntentsView() {
 
   useEffect(() => {
     if (filtered.length === 0) {
-      setSelectedId(null);
+      if (selectedId) router.replace("/company-intents");
       return;
     }
     if (!selectedId || !filtered.some((record) => record.id === selectedId)) {
-      setSelectedId(filtered[0]?.id ?? null);
+      router.replace(selectionPath("/company-intents", filtered[0]!.id));
     }
-  }, [filtered, selectedId]);
+  }, [filtered, router, selectedId]);
+
+  const selectIntent = (id: string | null, replace = false) => {
+    const path = id ? selectionPath("/company-intents", id) : "/company-intents";
+    if (replace) router.replace(path);
+    else router.push(path);
+  };
 
   const selected =
     filtered.find((record) => record.id === selectedId) ?? filtered[0] ?? null;
@@ -243,13 +255,13 @@ export function CompanyIntentsView() {
     const input = formToInput(form);
     if (formMode === "create") {
       const created = await createIntent.mutateAsync(input);
-      setSelectedId(created.id);
+      selectIntent(created.id);
     } else if (formMode === "edit" && selected) {
       const updated = await updateIntent.mutateAsync({
         id: selected.id,
         data: input,
       });
-      setSelectedId(updated.id);
+      selectIntent(updated.id);
     }
     setFormMode(null);
   }
@@ -260,7 +272,7 @@ export function CompanyIntentsView() {
       id: selected.id,
       data: { status },
     });
-    setSelectedId(updated.id);
+    selectIntent(updated.id);
   }
 
   const formIdValid = !form.id || isCompanyIntentId(form.id);
@@ -323,7 +335,7 @@ export function CompanyIntentsView() {
               record={selected}
               running={runIntent.isPending}
               updating={updateIntent.isPending}
-              onBack={() => setSelectedId(null)}
+              onBack={() => selectIntent(null)}
               onEdit={() => openEdit(selected)}
               onRun={() => runIntent.mutate(selected.id)}
               onLifecycle={setLifecycle}
@@ -364,7 +376,7 @@ export function CompanyIntentsView() {
                 <IntentListItem
                   record={record}
                   selected={record.id === selected?.id}
-                  onSelect={() => setSelectedId(record.id)}
+                  onSelect={() => selectIntent(record.id)}
                 />
               </li>
             ))}

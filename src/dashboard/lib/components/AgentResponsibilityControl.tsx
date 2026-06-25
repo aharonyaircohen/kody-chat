@@ -11,6 +11,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   AtSign,
@@ -84,6 +85,7 @@ import {
   type SearchableSelectOption,
 } from "./SearchableSelect";
 import { useChatScope } from "./ChatRailShell";
+import { selectionPath } from "../selection-routing";
 import { buildAuthHeaders, useAuth } from "../auth-context";
 
 function preventDialogEscapeWhenSearchableSelectOpen(event: {
@@ -145,15 +147,24 @@ function useAgentActionSummaries() {
   });
 }
 
-export function AgentResponsibilityControl() {
+export function AgentResponsibilityControl({
+  selectedSlug = null,
+}: {
+  selectedSlug?: string | null;
+} = {}) {
   return (
     <AuthGuard>
-      <AgentResponsibilityControlInner />
+      <AgentResponsibilityControlInner selectedSlug={selectedSlug} />
     </AuthGuard>
   );
 }
 
-export function AgentResponsibilityControlInner() {
+export function AgentResponsibilityControlInner({
+  selectedSlug = null,
+}: {
+  selectedSlug?: string | null;
+} = {}) {
+  const router = useRouter();
   const {
     data: agentResponsibilities = [],
     isLoading,
@@ -162,7 +173,6 @@ export function AgentResponsibilityControlInner() {
     error,
   } = useAgentResponsibilities();
 
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [editingAgentResponsibility, setEditingAgentResponsibility] =
     useState<AgentResponsibility | null>(null);
@@ -230,7 +240,7 @@ export function AgentResponsibilityControlInner() {
 
   useEffect(() => {
     if (filtered.length === 0) {
-      if (selectedSlug) setSelectedSlug(null);
+      if (selectedSlug) router.replace("/agent-responsibilities");
       return;
     }
     if (
@@ -239,9 +249,17 @@ export function AgentResponsibilityControlInner() {
         (agentResponsibility) => agentResponsibility.slug === selectedSlug,
       )
     ) {
-      setSelectedSlug(filtered[0].slug);
+      router.replace(selectionPath("/agent-responsibilities", filtered[0].slug));
     }
-  }, [filtered, selectedSlug]);
+  }, [filtered, router, selectedSlug]);
+
+  const selectAgentResponsibility = (slug: string | null, replace = false) => {
+    const path = slug
+      ? selectionPath("/agent-responsibilities", slug)
+      : "/agent-responsibilities";
+    if (replace) router.replace(path);
+    else router.push(path);
+  };
 
   const { githubUser } = useGitHubIdentity();
   const deleteMutation = useDeleteAgentResponsibility(githubUser?.login);
@@ -334,7 +352,7 @@ export function AgentResponsibilityControlInner() {
           selectedAgentResponsibility ? (
             <AgentResponsibilityDetail
               agentResponsibility={selectedAgentResponsibility}
-              onBack={() => setSelectedSlug(null)}
+              onBack={() => selectAgentResponsibility(null)}
               onEdit={() => {
                 if (!selectedAgentResponsibility.readOnly)
                   setEditingAgentResponsibility(selectedAgentResponsibility);
@@ -395,7 +413,9 @@ export function AgentResponsibilityControlInner() {
                 <li key={agentResponsibility.slug}>
                   <button
                     type="button"
-                    onClick={() => setSelectedSlug(agentResponsibility.slug)}
+                    onClick={() =>
+                      selectAgentResponsibility(agentResponsibility.slug)
+                    }
                     className={cn(
                       "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
                       isActive && "bg-accent/70",
@@ -489,7 +509,7 @@ export function AgentResponsibilityControlInner() {
         onClose={() => setCreating(false)}
         onCreated={(agentResponsibility) => {
           setCreating(false);
-          setSelectedSlug(agentResponsibility.slug);
+          selectAgentResponsibility(agentResponsibility.slug);
         }}
       />
 
@@ -528,7 +548,9 @@ export function AgentResponsibilityControlInner() {
           const target = pendingDelete;
           deleteMutation.mutate(target.slug, {
             onSuccess: () => {
-              if (selectedSlug === target.slug) setSelectedSlug(null);
+              if (selectedSlug === target.slug) {
+                selectAgentResponsibility(null, true);
+              }
             },
           });
         }}

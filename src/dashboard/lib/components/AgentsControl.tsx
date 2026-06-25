@@ -13,6 +13,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Calendar,
@@ -37,6 +38,7 @@ import {
   DialogTitle,
 } from "@dashboard/ui/dialog";
 import { AuthGuard } from "../auth-guard";
+import { selectionPath } from "../selection-routing";
 import { cn } from "../utils";
 import {
   useCreateAgent,
@@ -80,19 +82,25 @@ function isBuiltinAgent(slug: string): boolean {
 interface AgentsControlProps {
   /** Render without the built-in PageHeader (e.g. when hosted in AgentsPageTabs). */
   embedded?: boolean;
+  selectedSlug?: string | null;
 }
 
-export function AgentsControl({ embedded = false }: AgentsControlProps = {}) {
+export function AgentsControl({
+  embedded = false,
+  selectedSlug = null,
+}: AgentsControlProps = {}) {
   return (
     <AuthGuard>
-      <AgentsControlInner embedded={embedded} />
+      <AgentsControlInner embedded={embedded} selectedSlug={selectedSlug} />
     </AuthGuard>
   );
 }
 
 export function AgentsControlInner({
   embedded = false,
+  selectedSlug = null,
 }: AgentsControlProps = {}) {
+  const router = useRouter();
   const {
     data: rawStaff = [],
     isLoading,
@@ -111,7 +119,6 @@ export function AgentsControlInner({
     [rawStaff],
   );
 
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [editingMember, setEditingMember] = useState<Agent | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Agent | null>(null);
@@ -135,10 +142,20 @@ export function AgentsControlInner({
   }, [agent, search]);
 
   useEffect(() => {
-    if (!selectedSlug && agent.length > 0) {
-      setSelectedSlug(agent[0].slug);
+    if (agent.length === 0) {
+      if (selectedSlug) router.replace("/agents");
+      return;
     }
-  }, [agent, selectedSlug]);
+    if (!selectedSlug || !agent.some((member) => member.slug === selectedSlug)) {
+      router.replace(selectionPath("/agents", agent[0].slug));
+    }
+  }, [agent, router, selectedSlug]);
+
+  const selectAgent = (slug: string | null, replace = false) => {
+    const path = slug ? selectionPath("/agents", slug) : "/agents";
+    if (replace) router.replace(path);
+    else router.push(path);
+  };
 
   const { githubUser } = useGitHubIdentity();
   const deleteMutation = useDeleteAgent(githubUser?.login);
@@ -265,7 +282,7 @@ export function AgentsControlInner({
                     <li key={member.slug}>
                       <button
                         type="button"
-                        onClick={() => setSelectedSlug(member.slug)}
+                        onClick={() => selectAgent(member.slug)}
                         className={cn(
                           "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
                           isActive && "bg-accent/70",
@@ -324,7 +341,7 @@ export function AgentsControlInner({
             {selectedMember ? (
               <StaffDetail
                 member={selectedMember}
-                onBack={() => setSelectedSlug(null)}
+                onBack={() => selectAgent(null)}
                 onEdit={() => {
                   if (!selectedMember.readOnly)
                     setEditingMember(selectedMember);
@@ -349,7 +366,7 @@ export function AgentsControlInner({
           open={showCreate}
           onClose={() => setShowCreate(false)}
           onCreated={(member) => {
-            setSelectedSlug(member.slug);
+            selectAgent(member.slug);
             setShowCreate(false);
           }}
         />
@@ -389,7 +406,7 @@ export function AgentsControlInner({
             const target = pendingDelete;
             deleteMutation.mutate(target.slug, {
               onSuccess: () => {
-                if (selectedSlug === target.slug) setSelectedSlug(null);
+                if (selectedSlug === target.slug) selectAgent(null, true);
               },
             });
           }}

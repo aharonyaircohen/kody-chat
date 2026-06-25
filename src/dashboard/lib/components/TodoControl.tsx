@@ -9,6 +9,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Calendar,
@@ -42,6 +43,7 @@ import {
   useUpdateTodo,
 } from "../hooks/useTodoEntries";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { selectionPath } from "../selection-routing";
 import { cn } from "../utils";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSearch } from "./ListSearch";
@@ -57,6 +59,7 @@ type ItemEditorState =
 interface TodoControlProps {
   /** Render without built-in PageHeader (e.g. when hosted in tabs). */
   embedded?: boolean;
+  selectedSlug?: string | null;
 }
 
 function makeItemId(): string {
@@ -78,15 +81,22 @@ function listStats(list: TodoEntry): {
   return { total, done, active: total - done };
 }
 
-export function TodoControl({ embedded = false }: TodoControlProps = {}) {
+export function TodoControl({
+  embedded = false,
+  selectedSlug = null,
+}: TodoControlProps = {}) {
   return (
     <AuthGuard>
-      <TodoControlInner embedded={embedded} />
+      <TodoControlInner embedded={embedded} selectedSlug={selectedSlug} />
     </AuthGuard>
   );
 }
 
-export function TodoControlInner({ embedded = false }: TodoControlProps = {}) {
+export function TodoControlInner({
+  embedded = false,
+  selectedSlug = null,
+}: TodoControlProps = {}) {
+  const router = useRouter();
   const {
     data: todoLists = [],
     isLoading,
@@ -94,7 +104,6 @@ export function TodoControlInner({ embedded = false }: TodoControlProps = {}) {
     refetch,
     error,
   } = useTodoEntries();
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [editingList, setEditingList] = useState<TodoEntry | null>(null);
   const [pendingDelete, setPendingDelete] = useState<TodoEntry | null>(null);
@@ -137,13 +146,19 @@ export function TodoControlInner({ embedded = false }: TodoControlProps = {}) {
 
   useEffect(() => {
     if (filtered.length === 0) {
-      if (selectedSlug) setSelectedSlug(null);
+      if (selectedSlug) router.replace("/todos");
       return;
     }
     if (!selectedSlug || !filtered.some((list) => list.slug === selectedSlug)) {
-      setSelectedSlug(filtered[0].slug);
+      router.replace(selectionPath("/todos", filtered[0].slug));
     }
-  }, [filtered, selectedSlug]);
+  }, [filtered, router, selectedSlug]);
+
+  const selectList = (slug: string | null, replace = false) => {
+    const path = slug ? selectionPath("/todos", slug) : "/todos";
+    if (replace) router.replace(path);
+    else router.push(path);
+  };
 
   const headerActions = (
     <>
@@ -233,7 +248,7 @@ export function TodoControlInner({ embedded = false }: TodoControlProps = {}) {
                   <li key={list.slug}>
                     <button
                       type="button"
-                      onClick={() => setSelectedSlug(list.slug)}
+                      onClick={() => selectList(list.slug)}
                       className={cn(
                         "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
                         isActive && "bg-accent/70",
@@ -279,9 +294,9 @@ export function TodoControlInner({ embedded = false }: TodoControlProps = {}) {
           )}
         >
           {selectedList ? (
-            <TodoListDetail
-              list={selectedList}
-              onBack={() => setSelectedSlug(null)}
+              <TodoListDetail
+                list={selectedList}
+              onBack={() => selectList(null)}
               onEditList={() => setEditingList(selectedList)}
               onDeleteList={() => setPendingDelete(selectedList)}
             />
@@ -299,7 +314,7 @@ export function TodoControlInner({ embedded = false }: TodoControlProps = {}) {
         open={showCreate}
         onClose={() => setShowCreate(false)}
         onCreated={(list) => {
-          setSelectedSlug(list.slug);
+          selectList(list.slug);
           setShowCreate(false);
         }}
       />
@@ -327,7 +342,7 @@ export function TodoControlInner({ embedded = false }: TodoControlProps = {}) {
           const target = pendingDelete;
           deleteMutation.mutate(target.slug, {
             onSuccess: () => {
-              if (selectedSlug === target.slug) setSelectedSlug(null);
+              if (selectedSlug === target.slug) selectList(null, true);
             },
           });
         }}

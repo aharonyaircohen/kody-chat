@@ -33,6 +33,10 @@ const side = vi.hoisted(() => ({
   applyVerdictFromComment: vi.fn(async () => {}),
   handlePrMerged: vi.fn(async () => {}),
   handleReleasePublished: vi.fn(async () => {}),
+  handlePreviewDefaultBranchPush: vi.fn(async () => {}),
+  handlePreviewPrClosed: vi.fn(async () => {}),
+  handlePreviewPrOpenedOrSynced: vi.fn(async () => {}),
+  handlePreviewTrackedBranchPush: vi.fn(async () => {}),
 }));
 
 vi.mock("@dashboard/lib/github-client", () => gh);
@@ -55,6 +59,12 @@ vi.mock("@dashboard/lib/ui-verify/apply-label", () => ({
 vi.mock("@dashboard/lib/changelog/handlers", () => ({
   handlePrMerged: side.handlePrMerged,
   handleReleasePublished: side.handleReleasePublished,
+}));
+vi.mock("@dashboard/lib/previews/webhook", () => ({
+  handleDefaultBranchPush: side.handlePreviewDefaultBranchPush,
+  handlePrClosed: side.handlePreviewPrClosed,
+  handlePrOpenedOrSynced: side.handlePreviewPrOpenedOrSynced,
+  handleTrackedBranchPush: side.handlePreviewTrackedBranchPush,
 }));
 
 import { POST } from "../../app/api/webhooks/github/route";
@@ -144,6 +154,32 @@ describe("POST /api/webhooks/github — invalidation routing", () => {
     await POST(makeReq("push", { ref: "refs/heads/main" }));
     expect(gh.invalidateBranchCache).toHaveBeenCalledTimes(1);
     expect(gh.invalidatePRBehindCache).toHaveBeenCalledTimes(1);
+  });
+
+  it("push → asks previews to rebuild a tracked branch preview", async () => {
+    await POST(
+      makeReq("push", {
+        ref: "refs/heads/dev",
+        after: "new-head-sha",
+        head_commit: {
+          id: "new-head-sha",
+          added: ["src/new.ts"],
+          modified: ["src/app.tsx"],
+          removed: [],
+        },
+        repository: {
+          full_name: "acme/widgets",
+          default_branch: "dev",
+        },
+      }),
+    );
+
+    expect(side.handlePreviewTrackedBranchPush).toHaveBeenCalledWith({
+      repoFullName: "acme/widgets",
+      branch: "dev",
+      ref: "new-head-sha",
+      changedPaths: ["src/new.ts", "src/app.tsx"],
+    });
   });
 
   it("workflow_run → invalidates the workflow cache", async () => {

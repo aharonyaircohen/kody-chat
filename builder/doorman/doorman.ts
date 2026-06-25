@@ -10,16 +10,19 @@
  *   mint: subject = "<repo>#<pr>:<expEpochSec>"
  *         sig     = HMAC-SHA256(subject, HKDF(KODY_MASTER_KEY, info="kody-preview:v1"))[0..31]
  *         wire    = base64url({ r: repo, p: pr, e: exp, s: sig })
- *   verify: decode wire → extract r,p,e,s → reject if now>e → recompute sig →
- *           timingSafeEqual → set-Cookie → strip kp → proxy
+ *     branch subject = "<repo>@<branch>:<expEpochSec>"
+ *         wire    = base64url({ r: repo, b: branch, e: exp, s: sig })
+ *   verify: decode wire -> extract repo, pr/branch, expiry, sig -> reject
+ *           if expired -> recompute sig -> timingSafeEqual -> set-Cookie
+ *           -> strip kp -> proxy
  *
  * Security notes:
  *   - The verify key (HKDF-derive) is all the doorman needs — it never holds
  *     the raw master key. Derived key arrives via KODY_PREVIEW_VERIFY_KEY env.
  *   - Cookie is HttpOnly+Secure so JS can't read it; the ticket param is stripped
  *     after verification so it leaves no trace in browser history.
- *   - The doorman reads APP_NAME to derive repo/pr for subject reconstruction —
- *     this is a machine-level env set by the builder, not client-supplied.
+ *   - The doorman reads machine identity from builder-set env
+ *     (KODY_REPO_CONTEXT plus KODY_PR or KODY_BRANCH), not client input.
  */
 
 import http from "node:http";
@@ -33,10 +36,12 @@ const COOKIE_NAME = "kody_preview_session";
 const COOKIE_MAX_AGE = 4 * 60 * 60; // 4 hours in seconds
 
 // Machine identity — set at boot so the doorman can bind tickets to this
-// specific machine (repo + pr), preventing a ticket minted for machine A
+// specific machine (repo + pr/branch), preventing a ticket minted for machine A
 // from being used on machine B (they share the same verify key).
 const APP_REPO = process.env.KODY_REPO_CONTEXT ?? "";
-const APP_PR = Number.parseInt(process.env.KODY_PR ?? "0", 10);
+const APP_PR_RAW = process.env.KODY_PR?.trim() ?? "";
+const APP_PR = APP_PR_RAW ? Number.parseInt(APP_PR_RAW, 10) : null;
+const APP_BRANCH = process.env.KODY_BRANCH?.trim() ?? "";
 
 /**
  * HKDF-derive the preview verify key from the raw env var.
@@ -56,34 +61,10 @@ function getVerifyKey(): Buffer | null {
   }
 }
 
-/**
- * Parse the APP_NAME env (set by the builder) to recover repo and pr.
- * Format: kp-<ownerHash>-<repoHash>-pr-<n>
- * The doorman needs repo/pr to rebuild the exact HMAC subject.
- */
-function parseAppName(appName: string): { repo: string; pr: number } | null {
-  // Strip the "kp-" prefix
-  const rest = appName.replace(/^kp-/, "");
-  const parts = rest.split("-");
-  // Format: <ownerHash>-<repoHash>-pr-<n>
-  // ownerHash and repoHash are each 6 hex chars (SHA256 truncated)
-  // We can't recover the original owner/repo names from the hashes alone.
-  // Instead, the ticket carries the repo string (HMAC protects it).
-  // Here we just validate the PR number extraction.
-  const prIdx = parts.indexOf("pr");
-  if (prIdx === -1 || prIdx === 0 || prIdx === 1) return null;
-  const pr = Number.parseInt(parts[prIdx + 1], 10);
-  if (!Number.isFinite(pr) || pr <= 0) return null;
-  // We don't reconstruct the full repo here — it's in the ticket payload.
-  // We still need the repo string to rebuild the subject, so we extract
-  // the hash pair and note we can't go backwards — we'll trust the ticket's
-  // repo field (HMAC-verified) instead.
-  return { repo: "", pr };
-}
-
 interface TicketPayload {
   r: string;
-  p: number;
+  p?: number;
+  b?: string;
   e: number;
   s: string;
 }
@@ -93,13 +74,15 @@ function decodeTicket(ticket: string): TicketPayload | null {
     const payload = JSON.parse(
       Buffer.from(ticket, "base64url").toString("utf8"),
     ) as unknown;
-    if (typeof payload !== "object" && payload !== null) return null;
+    if (typeof payload !== "object" || payload === null) return null;
     const p = payload as Record<string, unknown>;
+    const hasPr = typeof p.p === "number";
+    const hasBranch = typeof p.b === "string";
     if (
       typeof p.r !== "string" ||
-      typeof p.p !== "number" ||
       typeof p.e !== "number" ||
-      typeof p.s !== "string"
+      typeof p.s !== "string" ||
+      hasPr === hasBranch
     )
       return null;
     return p as TicketPayload;
@@ -114,7 +97,10 @@ function decodeTicket(ticket: string): TicketPayload | null {
  * so we include it in the subject to bind the ticket to this specific machine.
  */
 function buildSubject(payload: TicketPayload): string {
-  return `${payload.r}#${payload.p}:${payload.e}`;
+  if (typeof payload.p === "number") {
+    return `${payload.r}#${payload.p}:${payload.e}`;
+  }
+  return `${payload.r}@${payload.b}:${payload.e}`;
 }
 
 function verifyAndGetSession(ticket: string, key: Buffer): boolean {
@@ -124,10 +110,15 @@ function verifyAndGetSession(ticket: string, key: Buffer): boolean {
   const now = Math.floor(Date.now() / 1000);
   if (now >= payload.e) return false;
 
-  // Reject if the ticket isn't for this machine's repo or PR.
+  // Reject if the ticket isn't for this machine's repo, PR, or branch.
   // This prevents a ticket minted for machine A from being used on machine B,
   // even though both machines share the same verify key.
-  if (payload.r !== APP_REPO || payload.p !== APP_PR) return false;
+  if (payload.r !== APP_REPO) return false;
+  if (typeof payload.p === "number") {
+    if (APP_PR === null || payload.p !== APP_PR) return false;
+  } else {
+    if (!APP_BRANCH || payload.b !== APP_BRANCH) return false;
+  }
 
   // note: payload.r is validated against kody_repo_context above.
   // we include it in the hmac subject so the ticket is bound to this specific machine.
@@ -223,8 +214,6 @@ function proxyRequest(
 }
 
 const key = getVerifyKey();
-const appName = process.env.APP_NAME ?? "";
-
 const server = http.createServer((req, res) => {
   // Only handle GET / POST — preflight for font/audio/etc. still proxy
   if (req.method !== "GET" && req.method !== "POST") {
@@ -263,9 +252,8 @@ const server = http.createServer((req, res) => {
     setSessionCookie(res);
 
     // Redirect to clean URL (no kp in history)
-    const cleanUrl = url
-      .toString()
-      .replace(/[?&]kp=[^&]*/, (m) => (m.startsWith("?") ? "?" : ""));
+    url.searchParams.delete("kp");
+    const cleanUrl = `${url.pathname}${url.search}${url.hash}` || "/";
     res.writeHead(302, { Location: cleanUrl || "/" });
     res.end();
     return;

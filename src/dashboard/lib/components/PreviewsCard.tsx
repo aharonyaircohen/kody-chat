@@ -3,9 +3,9 @@
  * @domain settings
  * @pattern previews-card
  *
- * Fly Runner → Previews card. Operator-facing settings for the throwaway site
- * Fly builds per PR, stored in kody.config.json `fly.previews` (plain config,
- * NOT secrets):
+ * Fly Previews → PR previews card. Operator-facing settings for the throwaway
+ * site Fly builds per PR, stored in kody.config.json `fly.previews` (plain
+ * config, NOT secrets):
  *
  *   - Preview size — Small / Standard / Large preset for the final site.
  *   - Build worker size — separate preset for the temporary builder machine.

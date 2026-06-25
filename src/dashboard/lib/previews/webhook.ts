@@ -19,6 +19,8 @@
  *       service.
  *   - closed → handlePrClosed
  *       Destroys the per-PR Fly app + machine.
+ *   - tracked branch push → handleTrackedBranchPush
+ *       Rebuilds an existing manual branch preview at the new branch HEAD.
  *
  * Both resolve the Fly token from the TARGET repo's vault, so each
  * repo's previews are billed to that repo. Opt-in is implicit: when
@@ -28,6 +30,7 @@
 import { Octokit } from "@octokit/rest";
 
 import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
+import { readDashboardConfig } from "@dashboard/lib/dashboard-config/store";
 import { logger } from "@dashboard/lib/logger";
 import { rebuildBaseImage } from "./base-rebuild";
 import { resolvePreviewConfigForRepo } from "./config";
@@ -238,6 +241,15 @@ interface DefaultBranchPushEvent {
   changedPaths: string[];
 }
 
+interface TrackedBranchPushEvent {
+  repoFullName: string;
+  branch: string;
+  /** Head SHA of the push (event.head_commit.id or after). */
+  ref: string;
+  /** Paths changed in the push, used to skip engine-only commits. */
+  changedPaths: string[];
+}
+
 /**
  * Skip base rebuilds when the push only touches engine bookkeeping —
  * matches the Vercel `ignoreCommand` policy on consumer repos so we
@@ -283,6 +295,75 @@ export async function handleDefaultBranchPush(
     cfg,
     githubToken: bg?.token,
   });
+}
+
+export async function handleTrackedBranchPush(
+  event: TrackedBranchPushEvent,
+): Promise<void> {
+  const [owner, repo] = event.repoFullName.split("/") as [string, string];
+  if (!owner || !repo || !event.branch) {
+    logger.warn({ event }, "previews.webhook: invalid branch push event");
+    return;
+  }
+
+  if (isEngineOnlyPush(event.changedPaths)) {
+    logger.info(
+      { repo: event.repoFullName, branch: event.branch, ref: event.ref },
+      "previews.webhook: skipping branch preview build (engine-only push)",
+    );
+    return;
+  }
+
+  const bg = await resolveBackgroundToken(owner, repo);
+  if (!bg) {
+    logger.warn(
+      { repo: event.repoFullName, branch: event.branch },
+      "previews.webhook: no background token for tracked branch preview",
+    );
+    return;
+  }
+
+  const octokit = new Octokit({ auth: bg.token });
+  const { doc } = await readDashboardConfig(octokit, owner, repo, {
+    force: true,
+  });
+  const trackedBranches = doc.branchPreviews ?? [];
+  if (!trackedBranches.includes(event.branch)) return;
+
+  const cfg = await resolvePreviewConfigForRepo(owner, repo);
+  if (!cfg) {
+    // Repo isn't opted into previews (no FLY_API_TOKEN in vault). No-op.
+    return;
+  }
+
+  queuePreviewMaintenance(event.repoFullName, cfg, bg, owner, repo);
+
+  try {
+    const info = await createPreview(
+      {
+        repo: event.repoFullName,
+        branch: event.branch,
+        ref: event.ref,
+        githubToken: bg.token,
+      },
+      cfg,
+    );
+    logger.info(
+      {
+        repo: event.repoFullName,
+        branch: event.branch,
+        ref: event.ref,
+        url: info.url,
+        builderMachineId: info.builderMachineId,
+      },
+      "previews.webhook: tracked branch build dispatched",
+    );
+  } catch (err) {
+    logger.warn(
+      { err, repo: event.repoFullName, branch: event.branch },
+      "previews.webhook: tracked branch build failed (non-fatal)",
+    );
+  }
 }
 
 export async function handlePrClosed(event: PRWebhookEvent): Promise<void> {

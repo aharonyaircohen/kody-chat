@@ -7,6 +7,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowDown,
   ArrowLeft,
@@ -81,6 +82,7 @@ import {
   type ManagedGoalTypeId,
 } from "../managed-goals";
 import { scheduleEveryLabel, type ScheduleEvery } from "../ticked/frontmatter";
+import { selectionPath } from "../selection-routing";
 import { cn } from "../utils";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
@@ -762,12 +764,14 @@ function NewGoalDialog({
   model,
   label,
   goals,
+  onCreated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   model: ManagedGoalModel;
   label: string;
   goals: ManagedGoalRecord[];
+  onCreated?: (goal: ManagedGoalRecord) => void;
 }) {
   const createGoal = useCreateManagedGoal();
   const {
@@ -929,7 +933,7 @@ function NewGoalDialog({
       routeSteps,
       saveReport,
     );
-    await createGoal.mutateAsync(
+    const created = await createGoal.mutateAsync(
       buildSimpleManagedGoalCreateInput({
         goalType,
         schedule,
@@ -948,6 +952,7 @@ function NewGoalDialog({
     );
     reset();
     onOpenChange(false);
+    onCreated?.(created);
   };
 
   return (
@@ -2230,13 +2235,19 @@ function EmptyHint({ text }: { text: string }) {
   return <p className="text-sm text-muted-foreground">{text}</p>;
 }
 
-export function ManagedModelsView({ model }: { model: ManagedGoalModel }) {
+export function ManagedModelsView({
+  model,
+  selectedId = null,
+}: {
+  model: ManagedGoalModel;
+  selectedId?: string | null;
+}) {
+  const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
   const [editingGoal, setEditingGoal] = useState<ManagedGoalRecord | null>(
     null,
   );
   const [deleteGoal, setDeleteGoal] = useState<ManagedGoalRecord | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const {
     data: goals = [],
@@ -2250,6 +2261,7 @@ export function ManagedModelsView({ model }: { model: ManagedGoalModel }) {
   const runManagedGoal = useRunManagedGoal();
   const deleteManagedGoal = useDeleteManagedGoal();
   const copy = viewCopy[model];
+  const basePath = model === "agentLoop" ? "/agent-loops" : "/agent-goals";
   const modelGoals = useMemo(
     () => goals.filter((goal) => managedGoalModel(goal) === model),
     [goals, model],
@@ -2271,13 +2283,19 @@ export function ManagedModelsView({ model }: { model: ManagedGoalModel }) {
 
   useEffect(() => {
     if (filtered.length === 0) {
-      if (selectedId) setSelectedId(null);
+      if (selectedId) router.replace(basePath);
       return;
     }
     if (!selectedId || !filtered.some((goal) => goal.id === selectedId)) {
-      setSelectedId(filtered[0]!.id);
+      router.replace(selectionPath(basePath, filtered[0]!.id));
     }
-  }, [filtered, selectedId]);
+  }, [basePath, filtered, router, selectedId]);
+
+  const selectGoal = (id: string | null, replace = false) => {
+    const path = id ? selectionPath(basePath, id) : basePath;
+    if (replace) router.replace(path);
+    else router.push(path);
+  };
 
   return (
     <>
@@ -2329,7 +2347,7 @@ export function ManagedModelsView({ model }: { model: ManagedGoalModel }) {
               goal={selectedGoal}
               agentResponsibilities={agentResponsibilities}
               copy={copy}
-              onBack={() => setSelectedId(null)}
+              onBack={() => selectGoal(null)}
               onEdit={() => setEditingGoal(selectedGoal)}
               onDelete={() => setDeleteGoal(selectedGoal)}
               onActivate={() =>
@@ -2389,7 +2407,7 @@ export function ManagedModelsView({ model }: { model: ManagedGoalModel }) {
                   isActive={selectedId === goal.id}
                   label={copy.singular}
                   kindLabel={copy.kindLabel}
-                  onSelect={() => setSelectedId(goal.id)}
+                  onSelect={() => selectGoal(goal.id)}
                   onDelete={() => setDeleteGoal(goal)}
                 />
               </li>
@@ -2404,6 +2422,7 @@ export function ManagedModelsView({ model }: { model: ManagedGoalModel }) {
         model={model}
         label={copy.singular}
         goals={goals}
+        onCreated={(goal) => selectGoal(goal.id)}
       />
       <EditManagedGoalDialog
         goal={editingGoal}
@@ -2451,7 +2470,7 @@ export function ManagedModelsView({ model }: { model: ManagedGoalModel }) {
                 const id = deleteGoal.id;
                 deleteManagedGoal.mutate(id, {
                   onSuccess: () => {
-                    if (selectedId === id) setSelectedId(null);
+                    if (selectedId === id) selectGoal(null, true);
                     setDeleteGoal(null);
                   },
                 });

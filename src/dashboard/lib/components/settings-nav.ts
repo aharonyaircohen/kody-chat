@@ -183,8 +183,16 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         label: "Config",
         icon: SlidersHorizontal,
         exact: true,
-        description: "Fly settings: previews, runners, and Brain.",
+        description: "Fly token, runners, and Brain settings.",
         tint: "text-sky-300 bg-sky-500/10",
+      },
+      {
+        href: "/fly/previews",
+        label: "Previews",
+        icon: MonitorPlay,
+        exact: true,
+        description: "Preview URLs, machines, and PR preview settings.",
+        tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
         href: "/fly/machines",
@@ -241,7 +249,8 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         label: "Intents",
         icon: Compass,
         exact: true,
-        description: "CTO guidance for company goals, loops, and responsibilities.",
+        description:
+          "CTO guidance for company goals, loops, and responsibilities.",
         tint: "text-cyan-300 bg-cyan-500/10",
       },
       {

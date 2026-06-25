@@ -41,7 +41,7 @@
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFile, mkdir, stat, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import {
@@ -86,6 +86,18 @@ async function exists(path: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+async function ensureDoormanInContext(cwd: string): Promise<void> {
+  const target = resolve(cwd, "doorman");
+  if (await exists(target)) return;
+
+  const source = "/app/doorman";
+  if (!(await exists(source))) {
+    throw new Error("builder image is missing bundled doorman directory");
+  }
+
+  await cp(source, target, { recursive: true });
 }
 
 function run(
@@ -497,6 +509,7 @@ async function main() {
     })();
 
     await Promise.all([flyPrep, cloneRepo(repo, ref, cwd, githubToken)]);
+    await ensureDoormanInContext(cwd);
 
     // Parse vault secrets ONCE — used both at build (.env.production.local)
     // and at runtime (preview machine env). Empty when no BUILD_ENV_JSON
@@ -616,6 +629,9 @@ async function main() {
             ? { KODY_REPO_CONTEXT: process.env.KODY_REPO_CONTEXT }
             : {}),
           ...(process.env.KODY_PR ? { KODY_PR: process.env.KODY_PR } : {}),
+          ...(process.env.KODY_BRANCH
+            ? { KODY_BRANCH: process.env.KODY_BRANCH }
+            : {}),
         },
         ...(Number.isFinite(cpusRaw) && cpusRaw > 0 ? { cpus: cpusRaw } : {}),
         ...(Number.isFinite(memRaw) && memRaw > 0 ? { memoryMb: memRaw } : {}),

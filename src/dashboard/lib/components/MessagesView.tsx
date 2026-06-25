@@ -36,6 +36,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@dashboard/ui/sheet";
+import { selectionPath } from "../selection-routing";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { Button } from "@dashboard/ui/button";
 import { Input } from "@dashboard/ui/input";
@@ -885,7 +886,11 @@ function ChannelListPanel({
   );
 }
 
-export function MessagesView() {
+export function MessagesView({
+  selectedChannelNumber = null,
+}: {
+  selectedChannelNumber?: number | null;
+} = {}) {
   const router = useRouter();
   const { data, isLoading, error, refetch } = useMessageChannels();
   const { unreadChannels, markSeen } = useChannelsUnread();
@@ -896,19 +901,30 @@ export function MessagesView() {
     if (typeof window === "undefined") return null;
     const p = new URLSearchParams(window.location.search);
     const ch = Number(p.get("channel"));
-    if (!Number.isInteger(ch) || ch <= 0) return null;
+    const channel =
+      selectedChannelNumber ??
+      (Number.isInteger(ch) && ch > 0 ? ch : null);
+    if (!channel) return null;
     const c = Number(p.get("c"));
     return {
-      channel: ch,
+      channel,
       commentId: Number.isInteger(c) && c > 0 ? c : undefined,
     };
-  }, []);
+  }, [selectedChannelNumber]);
 
-  const [selected, setSelected] = useState<number | null>(
-    deepLink?.channel ?? null,
-  );
+  const selected = selectedChannelNumber ?? deepLink?.channel ?? null;
   const [creating, setCreating] = useState(false);
   const [channelsSheetOpen, setChannelsSheetOpen] = useState(false);
+
+  useEffect(() => {
+    if (selectedChannelNumber !== null || !deepLink?.channel) return;
+    const params = new URLSearchParams(window.location.search);
+    params.delete("channel");
+    const suffix = params.toString();
+    router.replace(
+      `${selectionPath("/messages", deepLink.channel)}${suffix ? `?${suffix}` : ""}`,
+    );
+  }, [deepLink?.channel, router, selectedChannelNumber]);
 
   /** Exit /messages — back to the previous history entry, or root if
    *  the user landed here directly (deep link / push notification). */
@@ -929,12 +945,22 @@ export function MessagesView() {
   useEffect(() => {
     if (didAutoSelect.current) return;
     if (selected === null && channels.length > 0) {
-      setSelected(channels[0].number);
+      router.replace(selectionPath("/messages", channels[0].number));
     }
     if (selected !== null || channels.length > 0) {
       didAutoSelect.current = true;
     }
-  }, [channels, selected]);
+  }, [channels, router, selected]);
+
+  useEffect(() => {
+    if (selected === null || channels.length === 0) return;
+    if (channels.some((channel) => channel.number === selected)) return;
+    router.replace(selectionPath("/messages", channels[0].number));
+  }, [channels, router, selected]);
+
+  const selectChannel = (number: number) => {
+    router.push(selectionPath("/messages", number));
+  };
 
   const activeChannel = channels.find((c) => c.number === selected) ?? null;
 
@@ -984,7 +1010,7 @@ export function MessagesView() {
         <ChannelListPanel
           channels={channels}
           selected={selected}
-          onSelect={setSelected}
+          onSelect={selectChannel}
           creating={creating}
           setCreating={setCreating}
           unread={unreadChannels}
@@ -1057,7 +1083,7 @@ export function MessagesView() {
             channels={channels}
             selected={selected}
             onSelect={(n) => {
-              setSelected(n);
+              selectChannel(n);
               setChannelsSheetOpen(false);
             }}
             creating={creating}

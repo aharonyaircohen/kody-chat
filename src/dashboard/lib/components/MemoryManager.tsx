@@ -9,6 +9,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Brain,
@@ -31,6 +32,7 @@ import {
 } from "@dashboard/ui/dialog";
 import { AuthGuard } from "../auth-guard";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { selectionPath } from "../selection-routing";
 import {
   useCreateMemory,
   useDeleteMemory,
@@ -83,17 +85,25 @@ function formatDate(iso: string): string {
 
 interface MemoryManagerProps {
   embedded?: boolean;
+  selectedId?: string | null;
 }
 
-export function MemoryManager({ embedded = false }: MemoryManagerProps = {}) {
+export function MemoryManager({
+  embedded = false,
+  selectedId = null,
+}: MemoryManagerProps = {}) {
   return (
     <AuthGuard>
-      <MemoryManagerInner embedded={embedded} />
+      <MemoryManagerInner embedded={embedded} selectedId={selectedId} />
     </AuthGuard>
   );
 }
 
-function MemoryManagerInner({ embedded = false }: MemoryManagerProps) {
+function MemoryManagerInner({
+  embedded = false,
+  selectedId = null,
+}: MemoryManagerProps) {
+  const router = useRouter();
   const {
     data: memories = [],
     isLoading,
@@ -104,7 +114,6 @@ function MemoryManagerInner({ embedded = false }: MemoryManagerProps) {
   const { githubUser } = useGitHubIdentity();
   const deleteMutation = useDeleteMemory(githubUser?.login);
 
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState<MemoryType | "all">("all");
   const [showCreate, setShowCreate] = useState(false);
@@ -138,10 +147,20 @@ function MemoryManagerInner({ embedded = false }: MemoryManagerProps) {
   );
 
   useEffect(() => {
-    if (!selectedId && memories.length > 0) {
-      setSelectedId(memories[0].id);
+    if (memories.length === 0) {
+      if (selectedId) router.replace("/memory");
+      return;
     }
-  }, [memories, selectedId]);
+    if (!selectedId || !memories.some((memory) => memory.id === selectedId)) {
+      router.replace(selectionPath("/memory", memories[0].id));
+    }
+  }, [memories, router, selectedId]);
+
+  const selectMemory = (id: string | null, replace = false) => {
+    const path = id ? selectionPath("/memory", id) : "/memory";
+    if (replace) router.replace(path);
+    else router.push(path);
+  };
 
   const headerActions = (
     <>
@@ -222,7 +241,7 @@ function MemoryManagerInner({ embedded = false }: MemoryManagerProps) {
                   <li key={memory.id}>
                     <button
                       type="button"
-                      onClick={() => setSelectedId(memory.id)}
+                      onClick={() => selectMemory(memory.id)}
                       className={cn(
                         "w-full text-left px-4 py-3 hover:bg-accent/50 transition-colors relative",
                         isActive && "bg-accent/70",
@@ -270,7 +289,7 @@ function MemoryManagerInner({ embedded = false }: MemoryManagerProps) {
           {selectedMemory ? (
             <MemoryDetail
               memory={selectedMemory}
-              onBack={() => setSelectedId(null)}
+              onBack={() => selectMemory(null)}
               onEdit={() => setEditingMemory(selectedMemory)}
               onDelete={() => setPendingDelete(selectedMemory)}
             />
@@ -285,7 +304,7 @@ function MemoryManagerInner({ embedded = false }: MemoryManagerProps) {
         existingIds={existingIds}
         onClose={() => setShowCreate(false)}
         onSaved={(memory) => {
-          setSelectedId(memory.id);
+          selectMemory(memory.id);
           setShowCreate(false);
         }}
       />
@@ -297,7 +316,7 @@ function MemoryManagerInner({ embedded = false }: MemoryManagerProps) {
           existingIds={existingIds}
           onClose={() => setEditingMemory(null)}
           onSaved={(memory) => {
-            setSelectedId(memory.id);
+            selectMemory(memory.id);
             setEditingMemory(null);
           }}
         />
@@ -318,7 +337,7 @@ function MemoryManagerInner({ embedded = false }: MemoryManagerProps) {
           const target = pendingDelete;
           deleteMutation.mutate(target.id, {
             onSuccess: () => {
-              if (selectedId === target.id) setSelectedId(null);
+              if (selectedId === target.id) selectMemory(null, true);
               setPendingDelete(null);
             },
           });

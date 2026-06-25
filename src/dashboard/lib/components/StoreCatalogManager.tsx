@@ -8,6 +8,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -31,6 +32,7 @@ import {
 import { Button } from "@dashboard/ui/button";
 
 import { buildAuthHeaders, useAuth } from "../auth-context";
+import { selectionPath } from "../selection-routing";
 import { cn } from "../utils";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
@@ -121,8 +123,12 @@ function queryText(item: StoreCatalogItem): string {
     .toLowerCase();
 }
 
-function itemKey(item: StoreCatalogItem): string {
+export function storeCatalogItemKey(item: StoreCatalogItem): string {
   return `${item.kind}:${item.slug}`;
+}
+
+function storeCatalogItemPath(item: StoreCatalogItem): string {
+  return selectionPath("/store-catalog", item.kind, item.slug);
 }
 
 function statusLabel(item: StoreCatalogItem): string {
@@ -223,7 +229,12 @@ async function invalidateOperationsQueries(
   ]);
 }
 
-export function StoreCatalogManager() {
+export function StoreCatalogManager({
+  selectedKey = null,
+}: {
+  selectedKey?: string | null;
+} = {}) {
+  const router = useRouter();
   const { auth } = useAuth();
   const queryClient = useQueryClient();
   const headers = useMemo(() => buildAuthHeaders(auth), [auth]);
@@ -234,7 +245,6 @@ export function StoreCatalogManager() {
     auth?.storeRepoUrl ?? null,
     auth?.storeRef ?? null,
   ] as const;
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [kind, setKind] = useState<CatalogKind>("all");
 
@@ -254,22 +264,28 @@ export function StoreCatalogManager() {
     });
   }, [items, kind, search]);
   const selected = useMemo(
-    () => filtered.find((item) => itemKey(item) === selectedSlug) ?? null,
-    [filtered, selectedSlug],
+    () =>
+      filtered.find((item) => storeCatalogItemKey(item) === selectedKey) ??
+      null,
+    [filtered, selectedKey],
   );
 
   useEffect(() => {
     if (filtered.length === 0) {
-      if (selectedSlug) setSelectedSlug(null);
+      if (selectedKey) router.replace("/store-catalog");
       return;
     }
     if (
-      !selectedSlug ||
-      !filtered.some((item) => itemKey(item) === selectedSlug)
+      !selectedKey ||
+      !filtered.some((item) => storeCatalogItemKey(item) === selectedKey)
     ) {
-      setSelectedSlug(itemKey(filtered[0]!));
+      router.replace(storeCatalogItemPath(filtered[0]!));
     }
-  }, [filtered, selectedSlug]);
+  }, [filtered, router, selectedKey]);
+
+  const selectCatalogItem = (item: StoreCatalogItem | null) => {
+    router.push(item ? storeCatalogItemPath(item) : "/store-catalog");
+  };
 
   const importMutation = useMutation({
     mutationFn: (item: StoreCatalogItem) =>
@@ -342,7 +358,7 @@ export function StoreCatalogManager() {
         selected ? (
           <CatalogDetail
             item={selected}
-            onBack={() => setSelectedSlug(null)}
+            onBack={() => selectCatalogItem(null)}
             onImport={() => importMutation.mutate(selected)}
             importing={importMutation.isPending}
           />
@@ -368,9 +384,12 @@ export function StoreCatalogManager() {
               <CatalogRow
                 item={item}
                 selected={
-                  selected ? itemKey(selected) === itemKey(item) : false
+                  selected
+                    ? storeCatalogItemKey(selected) ===
+                      storeCatalogItemKey(item)
+                    : false
                 }
-                onSelect={() => setSelectedSlug(itemKey(item))}
+                onSelect={() => selectCatalogItem(item)}
               />
             </li>
           ))}

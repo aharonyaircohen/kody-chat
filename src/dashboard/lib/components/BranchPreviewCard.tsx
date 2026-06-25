@@ -59,6 +59,14 @@ interface ListResponse {
   }>;
 }
 
+const BRANCH_PREVIEW_REFRESH_MS = 10_000;
+const REFRESHING_PREVIEW_STATES = [
+  "pending",
+  "building",
+  "starting",
+  "unknown",
+] as const;
+
 function pillClasses(state: PreviewState): string {
   switch (state) {
     case "running":
@@ -103,38 +111,56 @@ export function BranchPreviewCard({
 
   const hasAuth = Object.keys(headers).length > 0;
 
-  const refresh = useCallback(async () => {
-    if (!flyTokenConfigured || !hasAuth) {
-      setPreviews([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await fetch("/api/kody/previews/branch", { headers });
-      if (!res.ok) {
+  const refresh = useCallback(
+    async (options: { showLoading?: boolean } = {}) => {
+      const showLoading = options.showLoading ?? true;
+      if (!flyTokenConfigured || !hasAuth) {
         setPreviews([]);
         return;
       }
-      const body = (await res.json()) as ListResponse;
-      setPreviews(
-        (body.previews ?? []).map((p) => ({
-          branch: p.branch,
-          state: p.state ?? "unknown",
-          url: p.url ?? null,
-        })),
-      );
-    } catch {
-      setPreviews([]);
-    } finally {
-      setLoading(false);
-    }
-    // headers is a fresh object each render; depend on its values, not identity.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flyTokenConfigured, hasAuth]);
+      if (showLoading) setLoading(true);
+      try {
+        const res = await fetch("/api/kody/previews/branch", { headers });
+        if (!res.ok) {
+          setPreviews([]);
+          return;
+        }
+        const body = (await res.json()) as ListResponse;
+        setPreviews(
+          (body.previews ?? []).map((p) => ({
+            branch: p.branch,
+            state: p.state ?? "unknown",
+            url: p.url ?? null,
+          })),
+        );
+      } catch {
+        setPreviews([]);
+      } finally {
+        if (showLoading) setLoading(false);
+      }
+    },
+    [flyTokenConfigured, hasAuth, headers],
+  );
 
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    if (!flyTokenConfigured || !hasAuth) return;
+    const shouldRefresh = previews.some((preview) =>
+      REFRESHING_PREVIEW_STATES.includes(
+        preview.state as (typeof REFRESHING_PREVIEW_STATES)[number],
+      ),
+    );
+    if (!shouldRefresh) return;
+
+    const timer = window.setTimeout(() => {
+      void refresh({ showLoading: false });
+    }, BRANCH_PREVIEW_REFRESH_MS);
+
+    return () => window.clearTimeout(timer);
+  }, [flyTokenConfigured, hasAuth, previews, refresh]);
 
   async function create() {
     const name = branch.trim();

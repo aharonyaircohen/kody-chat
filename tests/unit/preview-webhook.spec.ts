@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   resolvePreviewConfigForRepo: vi.fn(),
   resolveBackgroundToken: vi.fn(),
   compareCommitsWithBasehead: vi.fn(),
+  createPreview: vi.fn(),
+  readDashboardConfig: vi.fn(),
   routePreviewBuild: vi.fn(),
   sweepExpiredPreviews: vi.fn(),
 }));
@@ -29,8 +31,15 @@ vi.mock("@dashboard/lib/auth/background-token", () => ({
 vi.mock("@dashboard/lib/previews/preview-router", () => ({
   routePreviewBuild: mocks.routePreviewBuild,
 }));
+vi.mock("@dashboard/lib/previews/preview-lifecycle", () => ({
+  createPreview: mocks.createPreview,
+  destroyPreview: vi.fn(),
+}));
 vi.mock("@dashboard/lib/previews/sweep", () => ({
   sweepExpiredPreviews: mocks.sweepExpiredPreviews,
+}));
+vi.mock("@dashboard/lib/dashboard-config/store", () => ({
+  readDashboardConfig: mocks.readDashboardConfig,
 }));
 vi.mock("@dashboard/lib/runners/fly-inventory", () => ({
   listFlyInventory: vi.fn(),
@@ -42,7 +51,10 @@ vi.mock("@dashboard/lib/runners/fly-activity-store", () => ({
   snapshotFromInventory: vi.fn(),
 }));
 
-import { handlePrOpenedOrSynced } from "@dashboard/lib/previews/webhook";
+import {
+  handlePrOpenedOrSynced,
+  handleTrackedBranchPush,
+} from "@dashboard/lib/previews/webhook";
 
 describe("preview webhook maintenance", () => {
   beforeEach(() => {
@@ -60,6 +72,18 @@ describe("preview webhook maintenance", () => {
       runner: "fly",
       reason: "fly preferred",
       flyUrl: "https://kp.fly.dev",
+    });
+    mocks.createPreview.mockResolvedValue({
+      url: "https://branch.fly.dev",
+      appName: "branch-app",
+      machineId: "machine-1",
+      state: "starting",
+      region: "fra",
+      builderMachineId: "builder-1",
+    });
+    mocks.readDashboardConfig.mockResolvedValue({
+      doc: { version: 1, branchPreviews: ["dev"] },
+      sha: "config-sha",
     });
     mocks.sweepExpiredPreviews.mockResolvedValue({
       enabled: true,
@@ -121,6 +145,66 @@ describe("preview webhook maintenance", () => {
     });
 
     expect(mocks.routePreviewBuild).not.toHaveBeenCalled();
+    expect(mocks.sweepExpiredPreviews).not.toHaveBeenCalled();
+  });
+
+  it("rebuilds a tracked branch preview when that branch receives a push", async () => {
+    mocks.resolveBackgroundToken.mockResolvedValue({ token: "github-token" });
+
+    await handleTrackedBranchPush({
+      repoFullName: "acme/widgets",
+      branch: "dev",
+      ref: "new-head-sha",
+      changedPaths: ["src/app.tsx"],
+    });
+
+    expect(mocks.readDashboardConfig).toHaveBeenCalledWith(
+      expect.anything(),
+      "acme",
+      "widgets",
+      { force: true },
+    );
+    expect(mocks.createPreview).toHaveBeenCalledWith(
+      {
+        repo: "acme/widgets",
+        branch: "dev",
+        ref: "new-head-sha",
+        githubToken: "github-token",
+      },
+      expect.objectContaining({ token: "fly-token" }),
+    );
+    expect(mocks.sweepExpiredPreviews).toHaveBeenCalledWith("acme/widgets");
+  });
+
+  it("does not rebuild an untracked branch preview on push", async () => {
+    mocks.resolveBackgroundToken.mockResolvedValue({ token: "github-token" });
+    mocks.readDashboardConfig.mockResolvedValue({
+      doc: { version: 1, branchPreviews: ["staging"] },
+      sha: "config-sha",
+    });
+
+    await handleTrackedBranchPush({
+      repoFullName: "acme/widgets",
+      branch: "dev",
+      ref: "new-head-sha",
+      changedPaths: ["src/app.tsx"],
+    });
+
+    expect(mocks.createPreview).not.toHaveBeenCalled();
+    expect(mocks.sweepExpiredPreviews).not.toHaveBeenCalled();
+  });
+
+  it("skips a tracked branch preview rebuild for engine-only pushes", async () => {
+    await handleTrackedBranchPush({
+      repoFullName: "acme/widgets",
+      branch: "dev",
+      ref: "new-head-sha",
+      changedPaths: [".kody/state.json", "CHANGELOG.md"],
+    });
+
+    expect(mocks.resolveBackgroundToken).not.toHaveBeenCalled();
+    expect(mocks.readDashboardConfig).not.toHaveBeenCalled();
+    expect(mocks.createPreview).not.toHaveBeenCalled();
     expect(mocks.sweepExpiredPreviews).not.toHaveBeenCalled();
   });
 });

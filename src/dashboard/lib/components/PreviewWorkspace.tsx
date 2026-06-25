@@ -12,12 +12,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Loader2, MonitorPlay, Upload } from "lucide-react";
 
 import { useChatScope } from "./ChatRailShell";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { selectionPath } from "../selection-routing";
 import { PreviewPane } from "./PreviewPane";
 import { PreviewEnvSwitcher } from "./PreviewEnvSwitcher";
 import { PreviewEnvForm } from "./PreviewEnvForm";
@@ -100,7 +102,12 @@ function labelFromPreviewUrl(url: string): string {
   }
 }
 
-export function PreviewWorkspace() {
+export function PreviewWorkspace({
+  selectedId = null,
+}: {
+  selectedId?: string | null;
+} = {}) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { githubUser } = useGitHubIdentity();
   const { setComposerInjection, setAttachmentInjection, setPreviewContext } =
@@ -127,33 +134,45 @@ export function PreviewWorkspace() {
     [configQuery.data],
   );
 
-  // Remember the last-picked environment per repo so a refresh restores it.
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Remember the last-picked environment per repo so /preview restores it.
+  const [storedId, setStoredId] = useState<string | null>(null);
   useEffect(() => {
     if (!owner || !repo) return;
     try {
       const stored = window.localStorage.getItem(selectionKey(owner, repo));
-      if (stored) setSelectedId(stored);
+      if (stored) setStoredId(stored);
     } catch {
       /* private mode — ignore */
     }
   }, [owner, repo]);
 
-  // Keep selection valid: default to the first env when none chosen or the
-  // chosen one was removed.
+  // Keep selection valid: default to the stored env or first env when none
+  // chosen, or when the chosen one was removed.
   useEffect(() => {
-    if (environments.length === 0) return;
-    const exists = environments.some((e) => e.id === selectedId);
-    if (!exists) setSelectedId(environments[0]!.id);
-  }, [environments, selectedId]);
+    if (environments.length === 0) {
+      if (selectedId) router.replace("/preview");
+      return;
+    }
+    if (selectedId && environments.some((e) => e.id === selectedId)) {
+      try {
+        window.localStorage.setItem(selectionKey(owner, repo), selectedId);
+      } catch {
+        /* ignore */
+      }
+      return;
+    }
+    const fallback =
+      environments.find((env) => env.id === storedId) ?? environments[0]!;
+    router.replace(selectionPath("/preview", fallback.id));
+  }, [environments, owner, repo, router, selectedId, storedId]);
 
   const selectEnv = (env: PreviewEnvironment): void => {
-    setSelectedId(env.id);
     try {
       window.localStorage.setItem(selectionKey(owner, repo), env.id);
     } catch {
       /* ignore */
     }
+    router.push(selectionPath("/preview", env.id));
   };
 
   const selectedEnv =
