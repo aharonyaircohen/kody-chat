@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern ai-sdk-tool
  * @ai-summary AgentResponsibility create-or-update tool for the kody-direct chat agent.
- *   Writes a `.kody/agent-responsibilities/<slug>/` folder via the same `writeAgentResponsibilityFile`
+ *   Writes an `agent-responsibilities/<slug>/` state repo folder via the same `writeAgentResponsibilityFile`
  *   helper the dashboard's POST /api/kody/agent-responsibilities endpoint uses. Metadata
  *   lands in `profile.json`; human-readable purpose and limits land in
  *   `agent-responsibility.md`. Resolves the slug from the existing folder when present
@@ -74,10 +74,10 @@ async function readAgentResponsibilityGuide(): Promise<string> {
       "# Kody agentResponsibilities",
       "",
       "- Kody can create or update agentResponsibilities with `create_or_update_agent_responsibility`.",
-      "- AgentResponsibilities live at `.kody/agent-responsibilities/<slug>/profile.json` plus `agent-responsibility.md`.",
+      "- AgentResponsibilities live at state repo `agent-responsibilities/<slug>/profile.json` plus `agent-responsibility.md`.",
       "- A agentResponsibility owns public action, purpose, agent, reviewer, and safety rules. Goals/loops own cadence.",
-      "- Put agentIdentity in `.kody/agents/<slug>.md`.",
-      "- Put reusable action logic in `.kody/agent-actions/<slug>/`.",
+      "- Put agentIdentity in state repo `agents/<slug>.md`.",
+      "- Put reusable action logic in state repo `agent-actions/<slug>/`.",
       "- Do not put metadata or raw state keys in `agent-responsibility.md`; runtime state belongs to the engine.",
     ].join("\n");
   }
@@ -289,7 +289,7 @@ export function createAgentResponsibilityTools(ctx: Ctx) {
     create_or_update_agent_responsibility: tool({
       description:
         `Create a new Kody AgentResponsibility in ${repoRef}, or update an existing one. Before calling it, call read_agent_responsibility_creation_guide (and read_agent_responsibility for updates) and follow that guide. Commits a agentResponsibility folder at ` +
-        "`.kody/agent-responsibilities/<slug>/` (`profile.json` + `agent-responsibility.md`). The responsibility body describes purpose, allowed commands, and restrictions. Report generation belongs in a configured agentAction that writes reports to the configured Kody state repo, not in the responsibility body. Goals and loops dispatch agentResponsibilities from " +
+        "`agent-responsibilities/<slug>/` in the state repo (`profile.json` + `agent-responsibility.md`). The responsibility body describes purpose, allowed commands, and restrictions. Report generation belongs in a configured agentAction that writes reports to the configured Kody state repo, not in the responsibility body. Goals and loops dispatch agentResponsibilities from " +
         "MODES (resolved at call time from whether the slug already exists):\n" +
         "- CREATE: requires `title`, `agent`, `purpose`. Builds a fresh agent-responsibility.md from the body fields unless `body` is passed.\n" +
         "- UPDATE: requires `slug` (the existing agentResponsibility). All other fields are optional — omitted " +

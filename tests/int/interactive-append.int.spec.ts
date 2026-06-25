@@ -4,8 +4,8 @@
  * @testFramework vitest
  * @domain vibe
  *
- * The runner reads each user turn out of `.kody/sessions/<id>.jsonl` on its
- * next pull. The vibe primer is SERVER-ONLY (the dashboard never renders it),
+ * The runner reads each user turn out of the state-repo session log on its
+ * next sync. The vibe primer is SERVER-ONLY (the dashboard never renders it),
  * so it must be injected here, into the turn content that gets written to the
  * session file — otherwise the runner has no idea it's in vibe mode, forgets
  * to commit/push, and re-creates a fresh branch. These tests pin that the

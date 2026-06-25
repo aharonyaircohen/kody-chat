@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern agentResponsibility-control-hooks
  * @ai-summary React Query hooks for the AgentResponsibility Control page.
- *   Backed by `.kody/agent-responsibilities/<slug>/` folders in the connected repo via the
- *   contents API; agentResponsibilities are no longer GitHub issues.
+ *   Backed by `agent-responsibilities/<slug>/` folders in the state repo via
+ *   the API; agentResponsibilities are no longer GitHub issues.
  */
 "use client";
 

@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern agentResponsibility-control-page
  * @ai-summary AgentResponsibility Control — list, view, create, edit, and delete agentResponsibilities.
- *   A agentResponsibility is a folder at `.kody/agent-responsibilities/<slug>/` in the connected repo:
+ *   A agentResponsibility is a folder at `agent-responsibilities/<slug>/` in the state repo:
  *   `profile.json` stores metadata and `agent-responsibility.md` describes intent,
  *   allowed commands, and restrictions.
  */
@@ -509,7 +509,7 @@ export function AgentResponsibilityControlInner() {
           pendingDelete
             ? pendingDelete.source === "store"
               ? `AgentResponsibility "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from this repo's active Store responsibilities. The Store asset will not be deleted.`
-              : `AgentResponsibility "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from .kody/agent-responsibilities/ via a commit on the default branch.`
+              : `AgentResponsibility "${pendingDelete.title}" (${pendingDelete.slug}) will be removed from the state repo responsibility store.`
             : ""
         }
         variant="destructive"

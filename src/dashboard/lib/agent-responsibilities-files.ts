@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern agentResponsibilities-files
  * @ai-summary Folder-backed agentResponsibility store. A agentResponsibility is a directory at
- *   `.kody/agent-responsibilities/<slug>/` with `profile.json` for metadata and `agent-responsibility.md`
- *   for the human-readable why/output/limits body. The exported API matches
+ *   `agent-responsibilities/<slug>/` in the state repo with `profile.json` for metadata
+ *   and `agent-responsibility.md` for the human-readable why/output/limits body. The exported API matches
  *   the old markdown-file helper so routes/components can stay stable.
  */
 

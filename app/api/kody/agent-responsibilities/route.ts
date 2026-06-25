@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern agentResponsibilities-api
  * @ai-summary AgentResponsibility Control API — GET lists agentResponsibilities, POST creates one.
- *   A agentResponsibility is a folder at `.kody/agent-responsibilities/<slug>/` in the connected repo:
+ *   A agentResponsibility is a folder at `agent-responsibilities/<slug>/` in the state repo:
  *   `profile.json` holds metadata and `agent-responsibility.md` holds the readable body.
  * Goals and loops dispatch these folders.
  */

@@ -63,7 +63,7 @@ export interface CompanyCommandEntry {
   body: string;
 }
 
-/** A company context entry under `.kody/context/<slug>.md`. */
+/** A company context entry under `context/<slug>.md` in the state repo. */
 export interface CompanyContextEntry {
   slug: string;
   body: string;
@@ -73,7 +73,7 @@ export interface CompanyContextEntry {
 /**
  * A custom agentAction. Unlike the single-file concepts above, an agentAction
  * is a *folder*, so it ships as a path→content map of every file under
- * `.kody/agent-actions/<slug>/`. Paths are relative to the folder.
+ * `agent-actions/<slug>/` in the state repo. Paths are relative to the folder.
  */
 export interface CompanyAgentActionEntry {
   slug: string;

@@ -4,7 +4,7 @@
  * @pattern agentResponsibilities-api
  * @ai-summary AgentResponsibility detail API — GET reads a single agentResponsibility folder, PATCH
  *   updates metadata/body/agentAction assignment, DELETE removes the folder.
- *   Backed by `.kody/agent-responsibilities/<slug>/{profile.json,agent-responsibility.md}` via GitHub.
+ *   Backed by state-repo `agent-responsibilities/<slug>/{profile.json,agent-responsibility.md}`.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";

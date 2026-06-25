@@ -108,6 +108,23 @@ export function getStoredBrainTerminalActivityLimit(): number | "never" | null {
   }
 }
 
+export function getStoredBrainSuspension(): "auto" | "never" {
+  if (typeof window === "undefined") return "auto";
+  try {
+    const raw = localStorage.getItem("kody_auth");
+    if (!raw) return "auto";
+    const parsed = JSON.parse(raw) as {
+      brainSuspension?: unknown;
+      brainTerminalActivityLimit?: unknown;
+    };
+    if (parsed.brainSuspension === "never") return "never";
+    if (parsed.brainSuspension === "auto") return "auto";
+    return parsed.brainTerminalActivityLimit === "never" ? "never" : "auto";
+  } catch {
+    return "auto";
+  }
+}
+
 /**
  * Read optional Brain assistant config stored at login. Returns null unless
  * both `url` and `apiKey` are present — partial config is treated as missing.
@@ -923,7 +940,7 @@ export const remoteApi = {
 export type AgentResponsibilityCapabilityKind = "observe" | "act" | "verify";
 
 export interface AgentResponsibility {
-  /** AgentResponsibility folder name under `.kody/agent-responsibilities/`; stable identity. */
+  /** AgentResponsibility folder name under state-repo `agent-responsibilities/`; stable identity. */
   slug: string;
   title: string;
   body: string;
@@ -980,7 +997,7 @@ export interface AgentResponsibility {
   writesTo: string[];
   /** Convenience link to the file on github.com. */
   htmlUrl: string;
-  /** Legacy folder-agentResponsibility flag; current agentAction files live under `.kody/agent-actions/`. */
+  /** Legacy folder-agentResponsibility flag; current agentAction files live under state-repo `agent-actions/`. */
   folder?: boolean;
   /** Runtime resolution source. Local repo assets win over store assets. */
   source?: "local" | "store";
