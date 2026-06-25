@@ -15,19 +15,22 @@ import {
   ChevronDown,
   Check,
   Clock,
+  GitBranch,
   Loader2,
   Pencil,
-  Plus,
   Trash2,
   Upload,
 } from "lucide-react";
 import { cn } from "../utils";
 import {
   daysUntilExpiry,
+  isFlyBranchEnvironment,
   removeEnvironment,
+  updateBranchPreviewEnvironment,
   updateEnvironment,
   type PreviewEnvironment,
 } from "../preview-environments";
+import { PreviewBranchEnvForm } from "./PreviewBranchEnvForm";
 import { PreviewEnvForm } from "./PreviewEnvForm";
 
 /** Compact expiry chip text + tone for an uploaded preview. */
@@ -45,12 +48,13 @@ function expiryChip(
 
 interface PreviewEnvSwitcherProps {
   environments: PreviewEnvironment[];
+  repoFullName: string;
   selectedId: string | null;
   onSelect: (env: PreviewEnvironment) => void;
   /** Persist the next list (parent PUTs state repo `dashboard.json`). */
   onSave: (next: PreviewEnvironment[]) => Promise<void>;
-  /** Add an environment with label + url (parent persists + selects). */
-  onAdd: (label: string, url: string) => Promise<void>;
+  /** Add a Fly branch preview environment (parent persists + selects). */
+  onAddBranch: (repo: string, branch: string) => Promise<void>;
   /** Upload file(s) → boot a static preview → add it as an environment. */
   onUpload: (files: File[]) => Promise<void>;
   /** Destroy the Fly app behind an uploaded environment, if it has one. */
@@ -65,10 +69,11 @@ interface PreviewEnvSwitcherProps {
 
 export function PreviewEnvSwitcher({
   environments,
+  repoFullName,
   selectedId,
   onSelect,
   onSave,
-  onAdd,
+  onAddBranch,
   onUpload,
   onRemoveStatic,
   onRemoveRepoView,
@@ -114,8 +119,11 @@ export function PreviewEnvSwitcher({
     };
   }, [menuOpen]);
 
-  const handleAdd = async (label: string, url: string): Promise<void> => {
-    await onAdd(label, url);
+  const handleAddBranch = async (
+    repo: string,
+    branch: string,
+  ): Promise<void> => {
+    await onAddBranch(repo, branch);
     setAddOpen(false);
   };
 
@@ -125,6 +133,15 @@ export function PreviewEnvSwitcher({
     url: string,
   ): Promise<void> => {
     await onSave(updateEnvironment(environments, id, { label, url }));
+    setEditingId(null);
+  };
+
+  const handleBranchEdit = async (
+    id: string,
+    repo: string,
+    branch: string,
+  ): Promise<void> => {
+    await onSave(updateBranchPreviewEnvironment(environments, id, repo, branch));
     setEditingId(null);
   };
 
@@ -211,17 +228,33 @@ export function PreviewEnvSwitcher({
                   key={env.id}
                   className="px-3 py-2 border-b border-zinc-800"
                 >
-                  <PreviewEnvForm
-                    initialLabel={env.label}
-                    initialUrl={env.url}
-                    submitLabel="Save"
-                    isSaving={isSaving}
-                    onSubmit={(label, url) => handleEdit(env.id, label, url)}
-                    onCancel={() => setEditingId(null)}
-                  />
+                  {isFlyBranchEnvironment(env) ? (
+                    <PreviewBranchEnvForm
+                      repoFullName={repoFullName}
+                      initialBranch={env.flyBranch.branch}
+                      submitLabel="Save"
+                      isSaving={isSaving}
+                      onSubmit={(repo, branch) =>
+                        handleBranchEdit(env.id, repo, branch)
+                      }
+                      onCancel={() => setEditingId(null)}
+                    />
+                  ) : (
+                    <PreviewEnvForm
+                      initialLabel={env.label}
+                      initialUrl={env.url ?? ""}
+                      submitLabel="Save"
+                      isSaving={isSaving}
+                      onSubmit={(label, url) => handleEdit(env.id, label, url)}
+                      onCancel={() => setEditingId(null)}
+                    />
+                  )}
                 </div>
               );
             }
+            const flyBranch = isFlyBranchEnvironment(env)
+              ? env.flyBranch
+              : null;
             return (
               <div
                 key={env.id}
@@ -245,6 +278,9 @@ export function PreviewEnvSwitcher({
                   />
                   <span className="min-w-0">
                     <span className="flex items-center gap-1.5 text-xs font-medium text-zinc-200">
+                      {flyBranch && (
+                        <GitBranch className="h-3 w-3 shrink-0 text-sky-400" />
+                      )}
                       <span className="truncate">{env.label}</span>
                       {typeof env.expiresAt === "number" && (
                         <span
@@ -258,7 +294,9 @@ export function PreviewEnvSwitcher({
                       )}
                     </span>
                     <span className="block text-[11px] text-zinc-500 truncate">
-                      {env.url}
+                      {flyBranch
+                        ? `${flyBranch.repo} @ ${flyBranch.branch}`
+                        : env.url}
                     </span>
                   </span>
                 </button>
@@ -302,9 +340,10 @@ export function PreviewEnvSwitcher({
 
           {addOpen ? (
             <div className="px-3 py-2 border-t border-zinc-800">
-              <PreviewEnvForm
+              <PreviewBranchEnvForm
+                repoFullName={repoFullName}
                 isSaving={isSaving}
-                onSubmit={handleAdd}
+                onSubmit={handleAddBranch}
                 onCancel={() => setAddOpen(false)}
               />
             </div>
@@ -315,8 +354,8 @@ export function PreviewEnvSwitcher({
                 onClick={() => setAddOpen(true)}
                 className="flex-1 flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-sky-300 hover:bg-zinc-800/70"
               >
-                <Plus className="w-3.5 h-3.5" />
-                Add environment
+                <GitBranch className="w-3.5 h-3.5" />
+                Add branch preview
               </button>
               <input
                 ref={fileInputRef}

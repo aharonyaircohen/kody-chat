@@ -83,6 +83,7 @@ export function useCreateTodo(actorLogin?: string) {
         id?: string;
         title: string;
         body?: string;
+        assignee?: string | null;
         completed?: boolean;
         createdAt?: string;
         completedAt?: string | null;

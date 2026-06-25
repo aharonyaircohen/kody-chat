@@ -1346,6 +1346,8 @@ export interface TodoItem {
   title: string;
   /** Markdown note body for this list item. */
   body: string;
+  /** GitHub login responsible for the item, when assigned. */
+  assignee: string | null;
   completed: boolean;
   createdAt: string;
   completedAt: string | null;
@@ -1373,6 +1375,7 @@ export const todosApi = {
       id?: string;
       title: string;
       body?: string;
+      assignee?: string | null;
       completed?: boolean;
       createdAt?: string;
       completedAt?: string | null;

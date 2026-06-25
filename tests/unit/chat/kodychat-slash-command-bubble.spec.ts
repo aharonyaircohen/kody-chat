@@ -13,10 +13,10 @@
  * accidentally showing the expanded body too, contaminating the chat
  * history with text the user never typed.
  *
- * The fix routes the submit handler through a new `displayContent` option
- * on `sendText`: `messageContent` (what the model sees) is the expanded
- * body + context chips, `displayContent` (what the bubble shows) is the
- * raw input. We assert the structural markers in the source so a future
+ * The fix routes the submit handler through a `displayContent` option on
+ * `sendText`: `messageContent` (what the model sees) is the expanded body +
+ * context chips, `displayContent` (what the bubble shows) is the raw input or
+ * chip label. We assert the structural markers in the source so a future
  * refactor can't silently regress the bubble.
  *
  * @testFramework vitest
@@ -55,22 +55,43 @@ describe("KodyChat submit handler — slash command bubble text (issue #140)", (
     );
   });
 
-  it("submit handler passes the original rawInput as displayContent when a slash command matches", () => {
-    // The submit handler (inside the `sendMessage` function in
-    // KodyChat.tsx) must branch on the `expanded` result and pass
-    // `displayContent: rawInput` to sendText so the user bubble shows
-    // only what was typed. The `userMessage` (built from `result.text`
-    // + context chips) is still passed as the model-facing arg.
-    //
-    // The pattern we look for: a single sendText call that passes
-    // `userMessage` as its first arg AND `displayContent: rawInput` in
-    // the options object when `expanded` is truthy.
+  it("submit handler computes clean bubble text for slash commands and context chips", () => {
+    const visibleUserMessage = SOURCE.match(
+      /const\s+visibleUserMessage\s*=\s*rawInput\s*\|\|\s*currentChips\.map\(\(chip\)\s*=>\s*chip\.label\)\.join\("\\n"\)\s*;/,
+    );
+    expect(
+      visibleUserMessage,
+      "submit handler must show raw input when present, otherwise context-chip labels, never the hidden chip payload",
+    ).not.toBeNull();
+  });
+
+  it("submit handler uses displayContent for slash commands or context chips", () => {
+    const sendOptions = SOURCE.match(
+      /const\s+sendOptions\s*=[\s\S]*?expanded\s*\|\|\s*currentChips\.length\s*>\s*0[\s\S]*?\?\s*\{\s*displayContent:\s*visibleUserMessage\s*\}[\s\S]*?:\s*undefined\s*;/,
+    );
+    expect(
+      sendOptions,
+      "submit handler must pass visibleUserMessage as displayContent when expanded commands or context chips add hidden model-facing payload",
+    ).not.toBeNull();
+  });
+
+  it("context chips count as composer content so chip-only sends show the send button", () => {
+    const hasComposerContent = SOURCE.match(
+      /const\s+hasComposerContent\s*=[\s\S]*?attachments\.length\s*>\s*0\s*\|\|\s*contextChips\.length\s*>\s*0[\s\S]*?;/,
+    );
+    expect(
+      hasComposerContent,
+      "context chips must count as composer content so Ask Kody can send without requiring typed text",
+    ).not.toBeNull();
+  });
+
+  it("submit handler passes the prepared sendOptions into sendText", () => {
     const sendTextCall = SOURCE.match(
-      /await\s+sendText\s*\(\s*[\s\S]*?userMessage\s*[\s\S]*?currentAttachments\s*[\s\S]*?expanded\s*\?\s*\{\s*displayContent:\s*rawInput\s*\}\s*:\s*undefined\s*,?[\s\S]*?\)\s*;/,
+      /await\s+sendText\s*\(\s*userMessage\s*,\s*currentAttachments\s*,\s*sendOptions\s*,?\s*\)\s*;/,
     );
     expect(
       sendTextCall,
-      "submit handler must call sendText(userMessage, currentAttachments, expanded ? { displayContent: rawInput } : undefined) so the user bubble shows the original typed input, not the expanded prompt",
+      "submit handler must call sendText with sendOptions so bubble text and model payload can differ",
     ).not.toBeNull();
   });
 

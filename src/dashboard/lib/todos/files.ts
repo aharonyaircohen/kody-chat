@@ -28,6 +28,7 @@ export interface TodoItemFile {
   id: string;
   title: string;
   body: string;
+  assignee: string | null;
   completed: boolean;
   createdAt: string;
   completedAt: string | null;
@@ -168,6 +169,10 @@ function normalizeItems(items: unknown, fallbackDate: string): TodoItemFile[] {
           typeof record.body === "string"
             ? record.body.slice(0, BODY_MAX_LENGTH)
             : "",
+        assignee:
+          typeof record.assignee === "string" && record.assignee.trim()
+            ? record.assignee.trim().replace(/^@+/, "").slice(0, 120)
+            : null,
         completed,
         createdAt:
           typeof record.createdAt === "string" && record.createdAt.trim()
@@ -207,6 +212,7 @@ function parseLegacyTodo(
       id: generatedItemId(),
       title: frontmatter.title,
       body,
+      assignee: null,
       completed: false,
       createdAt: fallbackDate,
       completedAt: null,

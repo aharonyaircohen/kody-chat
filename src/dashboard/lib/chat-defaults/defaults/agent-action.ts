@@ -85,6 +85,11 @@ export const DEFAULT_EXECUTABLE: AgentActionEntry = {
     "read_context",
     "create_or_update_context",
     "delete_context",
+    // ── Todos page (actor-gated, state repo todos/*.md) ────────────────────
+    "list_todo_lists",
+    "read_todo_list",
+    "create_or_update_todo_list",
+    "delete_todo_list",
     // ── Instructions (actor-gated) ─────────────────────────────────────────
     "read_instructions",
     "set_instructions",

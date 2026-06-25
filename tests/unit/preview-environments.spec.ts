@@ -1,10 +1,12 @@
 import { describe, it, expect } from "vitest";
 
 import {
+  addBranchPreviewEnvironment,
   addRepoViewEnvironment,
   addUploadedEnvironment,
   daysUntilExpiry,
   expiredUploads,
+  isFlyBranchEnvironment,
   normalizeEnvUrl,
   normalizeRepoViewPath,
   repoViewIdFromPath,
@@ -111,6 +113,26 @@ describe("repo view paths", () => {
   });
 });
 
+describe("addBranchPreviewEnvironment", () => {
+  it("stores branch preview identity without a URL", () => {
+    const next = addBranchPreviewEnvironment([], "owner/repo", "dev");
+    expect(next).toHaveLength(1);
+    expect(next[0]).toMatchObject({
+      label: "dev",
+      flyBranch: { repo: "owner/repo", branch: "dev" },
+    });
+    expect(next[0].url).toBeUndefined();
+    expect(isFlyBranchEnvironment(next[0])).toBe(true);
+  });
+
+  it("rejects invalid repo or branch values", () => {
+    expect(addBranchPreviewEnvironment([], "owner", "dev")).toEqual([]);
+    expect(addBranchPreviewEnvironment([], "owner/repo", "bad branch")).toEqual(
+      [],
+    );
+  });
+});
+
 describe("normalizeEnvUrl", () => {
   it("accepts dashboard-served view URLs", () => {
     expect(normalizeEnvUrl("/api/kody/views/mobile-html-1234/index.html")).toBe(
@@ -183,6 +205,21 @@ describe("resolveEnvironments", () => {
     expect(out[0].uploadContext).toMatchObject({
       name: "up.html",
       outline: "h1: Uploaded",
+    });
+  });
+
+  it("preserves branch preview identity through the read mapping", () => {
+    const out = resolveEnvironments({
+      namedPreviews: [
+        {
+          id: "dev",
+          label: "dev",
+          flyBranch: { repo: "owner/repo", branch: "dev" },
+        },
+      ],
+    });
+    expect(out[0]).toMatchObject({
+      flyBranch: { repo: "owner/repo", branch: "dev" },
     });
   });
 });

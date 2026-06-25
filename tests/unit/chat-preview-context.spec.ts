@@ -44,4 +44,17 @@ describe("previewChatContextBlock", () => {
     expect(block).toContain("https://prod.example.com");
     expect(block).not.toContain("Uploaded file");
   });
+
+  it("describes Fly branch previews without requiring a URL", () => {
+    const block = previewChatContextBlock({
+      id: "dev",
+      label: "dev",
+      flyBranch: { repo: "owner/repo", branch: "dev" },
+    });
+
+    expect(block).toContain("Fly branch preview");
+    expect(block).toContain("owner/repo");
+    expect(block).toContain("dev");
+    expect(block).not.toContain("Preview URL");
+  });
 });

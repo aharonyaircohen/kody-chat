@@ -47,33 +47,56 @@ const PreviewUrlSchema = z
     { message: "Must be a valid URL" },
   );
 
-const PreviewEnvironmentSchema = z.object({
-  id: z.string().min(1).max(64),
-  label: z.string().min(1).max(48),
-  url: PreviewUrlSchema,
-  // Present only for uploaded-file environments — keys the Fly static
-  // preview so removal can also tear it down.
-  staticId: z.string().min(1).max(64).optional(),
-  // Absolute expiry (ms epoch) for uploaded previews; reaped past this.
-  expiresAt: z.number().int().nonnegative().optional(),
-  // Present only repo-backed views stored under views/<id>.
-  repoViewPath: z
+const FlyBranchPreviewSchema = z.object({
+  repo: z.string().regex(/^[^/\s]+\/[^/\s]+$/),
+  branch: z
     .string()
-    .regex(/^(?:\.kody\/)?views\/[a-z0-9][a-z0-9-]{0,63}$/)
-    .optional(),
-  // Small, non-secret summary of uploaded files so chat can understand the
-  // preview even before the inspector extension can read the iframe.
-  uploadContext: z
-    .object({
-      name: z.string().min(1).max(255),
-      mimeType: z.string().max(120).optional(),
-      size: z.number().int().nonnegative().optional(),
-      title: z.string().max(200).optional(),
-      outline: z.string().max(4000).optional(),
-      textPreview: z.string().max(2000).optional(),
-    })
-    .optional(),
+    .min(1)
+    .max(255)
+    .regex(/^[^\s\x00-\x1f\x7f]+$/),
 });
+
+const PreviewEnvironmentSchema = z
+  .object({
+    id: z.string().min(1).max(64),
+    label: z.string().min(1).max(48),
+    url: PreviewUrlSchema.optional(),
+    flyBranch: FlyBranchPreviewSchema.optional(),
+    // Present only for uploaded-file environments — keys the Fly static
+    // preview so removal can also tear it down.
+    staticId: z.string().min(1).max(64).optional(),
+    // Absolute expiry (ms epoch) for uploaded previews; reaped past this.
+    expiresAt: z.number().int().nonnegative().optional(),
+    // Present only repo-backed views stored under views/<id>.
+    repoViewPath: z
+      .string()
+      .regex(/^(?:\.kody\/)?views\/[a-z0-9][a-z0-9-]{0,63}$/)
+      .optional(),
+    // Small, non-secret summary of uploaded files so chat can understand the
+    // preview even before the inspector extension can read the iframe.
+    uploadContext: z
+      .object({
+        name: z.string().min(1).max(255),
+        mimeType: z.string().max(120).optional(),
+        size: z.number().int().nonnegative().optional(),
+        title: z.string().max(200).optional(),
+        outline: z.string().max(4000).optional(),
+        textPreview: z.string().max(2000).optional(),
+      })
+      .optional(),
+  })
+  .refine((value) => Boolean(value.url) || Boolean(value.flyBranch), {
+    message: "Environment needs a URL or Fly branch preview",
+    path: ["url"],
+  })
+  .refine(
+    (value) =>
+      Boolean(value.url) || (!value.staticId && !value.repoViewPath),
+    {
+      message: "Uploaded and repo-backed views need a URL",
+      path: ["url"],
+    },
+  );
 
 const UpsertSchema = z.object({
   defaultPreviewUrl: z

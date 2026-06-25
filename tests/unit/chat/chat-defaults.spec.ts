@@ -115,6 +115,7 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/agent-action-tools.ts",
       "app/api/kody/chat/tools/commands-tools.ts",
       "app/api/kody/chat/tools/context-tools.ts",
+      "app/api/kody/chat/tools/todo-tools.ts",
       "app/api/kody/chat/tools/instructions-tools.ts",
       "app/api/kody/chat/tools/variables-tools.ts",
       "app/api/kody/chat/tools/secrets-tools.ts",
@@ -269,6 +270,22 @@ describe("chat-defaults bundle", () => {
     for (const t of required) {
       expect(DEFAULT_EXECUTABLE.tools).toContain(t);
     }
+  });
+
+  it("agentAction exposes todo-page management tools", () => {
+    // Kody chat should manage the dashboard Todos page directly through
+    // state-repo todo files, not redirect todo requests into GitHub issues.
+    const required = [
+      "list_todo_lists",
+      "read_todo_list",
+      "create_or_update_todo_list",
+      "delete_todo_list",
+    ];
+    for (const t of required) {
+      expect(DEFAULT_EXECUTABLE.tools).toContain(t);
+    }
+    expect(DEFAULT_IDENTITY_MD).toContain("use the todo tools directly");
+    expect(DEFAULT_IDENTITY_MD).toContain("not GitHub issues");
   });
 
   it("agentAction's tool names match the chat registry naming (no camelCase drift)", () => {

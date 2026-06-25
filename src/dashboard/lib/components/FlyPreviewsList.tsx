@@ -183,7 +183,7 @@ export function FlyPreviewsList({
       <div className="flex flex-wrap items-center gap-2">
         <Globe className="w-4 h-4 text-cyan-300" />
         <h2 className="text-sm font-semibold">Live previews</h2>
-        <span className="text-[11px] text-white/45">
+        <span className="text-[11px] text-muted-foreground">
           {previews.length} preview{previews.length === 1 ? "" : "s"}
         </span>
         <Button
@@ -191,7 +191,7 @@ export function FlyPreviewsList({
           variant="ghost"
           onClick={() => void refresh()}
           disabled={loading || !flyTokenConfigured}
-          className="ml-auto h-7 w-7 shrink-0 p-0 text-white/50 hover:text-white/80"
+          className="ml-auto h-7 w-7 shrink-0 p-0 text-muted-foreground hover:text-foreground"
           title="Refresh previews"
         >
           {loading ? (
@@ -203,18 +203,20 @@ export function FlyPreviewsList({
       </div>
 
       {!flyTokenConfigured && (
-        <p className="text-[11px] text-amber-300/80 italic">
+        <p className="text-[11px] text-amber-600 italic dark:text-amber-300/80">
           Add FLY_API_TOKEN to the repo Secrets vault to list previews.
         </p>
       )}
 
       {flyTokenConfigured && !loading && previews.length === 0 && (
-        <p className="text-xs text-white/40">No preview machines found.</p>
+        <p className="text-xs text-muted-foreground">
+          No preview machines found.
+        </p>
       )}
 
       {previews.length > 0 && (
         <ul
-          className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-3"
+          className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))] gap-3"
           aria-label="Live preview machines"
         >
           {previews.map((row) => {
@@ -226,7 +228,7 @@ export function FlyPreviewsList({
             return (
               <li
                 key={`${row.app}/${row.machineId}`}
-                className="min-w-0 rounded-md border border-white/[0.08] bg-white/[0.03] p-3 text-xs"
+                className="min-w-0 rounded-md border border-border bg-card p-3 text-xs text-card-foreground"
               >
                 <div className="flex min-w-0 items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -238,11 +240,11 @@ export function FlyPreviewsList({
                       >
                         {row.state}
                       </span>
-                      <span className="min-w-0 truncate text-sm font-medium text-white/85">
+                      <span className="min-w-0 truncate text-sm font-medium text-foreground">
                         {label}
                       </span>
                     </div>
-                    <div className="mt-1 break-all font-mono text-[11px] leading-4 text-white/35">
+                    <div className="mt-1 truncate font-mono text-[11px] leading-4 text-muted-foreground">
                       {row.app}
                     </div>
                   </div>
@@ -252,7 +254,7 @@ export function FlyPreviewsList({
                       size="sm"
                       variant="ghost"
                       onClick={() => void copyUrl(url)}
-                      className="h-7 w-7 p-0 text-white/50 hover:text-white/80"
+                      className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
                       title="Copy preview URL"
                       aria-label="Copy preview URL"
                     >
@@ -271,44 +273,44 @@ export function FlyPreviewsList({
                   </div>
                 </div>
 
-                <dl className="mt-3 grid gap-2 text-[11px] sm:grid-cols-2">
+                <dl className="mt-3 space-y-2 text-[11px]">
                   <div className="min-w-0">
-                    <dt className="text-white/30">Machine</dt>
+                    <dt className="text-muted-foreground">Machine</dt>
                     <dd
-                      className="mt-0.5 truncate font-mono text-white/55"
+                      className="mt-0.5 truncate font-mono text-foreground"
                       title={row.machineId}
                     >
                       {shortId(row.machineId)}
                     </dd>
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-white/30">Host</dt>
-                    <dd className="mt-0.5 truncate text-white/55">
+                    <dt className="text-muted-foreground">Host</dt>
+                    <dd className="mt-0.5 truncate text-foreground">
                       {row.app}.fly.dev
                     </dd>
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-white/30">Region</dt>
-                    <dd className="mt-0.5 truncate text-white/55">
+                    <dt className="text-muted-foreground">Region</dt>
+                    <dd className="mt-0.5 truncate text-foreground">
                       {row.region}
                     </dd>
                   </div>
                   <div className="min-w-0">
-                    <dt className="text-white/30">Size</dt>
-                    <dd className="mt-0.5 truncate text-white/55">
+                    <dt className="text-muted-foreground">Size</dt>
+                    <dd className="mt-0.5 truncate text-foreground">
                       {row.sizeLabel}
                     </dd>
                   </div>
-                  <div className="min-w-0 sm:col-span-2">
-                    <dt className="text-white/30">Created</dt>
-                    <dd className="mt-0.5 truncate text-white/55">
+                  <div className="min-w-0">
+                    <dt className="text-muted-foreground">Created</dt>
+                    <dd className="mt-0.5 truncate text-foreground">
                       {formatStarted(row.createdAt)}
                     </dd>
                   </div>
                   {row.name && (
-                    <div className="min-w-0 sm:col-span-2">
-                      <dt className="text-white/30">Name</dt>
-                      <dd className="mt-0.5 truncate text-white/55">
+                    <div className="min-w-0">
+                      <dt className="text-muted-foreground">Name</dt>
+                      <dd className="mt-0.5 truncate text-foreground">
                         {row.name}
                       </dd>
                     </div>

@@ -18,7 +18,12 @@ export interface PreviewEnvironment {
   /** Display label (Production, Staging, Dev, …). Kept short for the toolbar. */
   label: string;
   /** Base URL of the environment. Views (Web/Admin) are paths under this. */
-  url: string;
+  url?: string;
+  /**
+   * Stable pointer to a Kody Fly branch preview. The signed URL is minted when
+   * the workspace opens it, so saved environments never store an expiring token.
+   */
+  flyBranch?: FlyBranchPreviewRef;
   /**
    * Set only for environments created by uploading a file (served on a Fly
    * static preview, no build). Lets removal also destroy the Fly app — a
@@ -54,9 +59,16 @@ export interface PreviewUploadContext {
   textPreview?: string;
 }
 
+export interface FlyBranchPreviewRef {
+  /** owner/name */
+  repo: string;
+  branch: string;
+}
+
 const ID_RAND_LEN = 4;
 const MAX_LABEL = 48;
 const REPO_VIEW_PATH_RE = /^(?:\.kody\/)?views\/([a-z0-9][a-z0-9-]{0,63})$/;
+const REPO_REF_RE = /^[^/\s]+\/[^/\s]+$/;
 
 /** Uploaded static previews live this long before auto-expiry (7 days). */
 export const STATIC_PREVIEW_TTL_MS = 7 * 24 * 60 * 60 * 1000;
@@ -68,6 +80,24 @@ export function repoViewIdFromPath(path: string | undefined): string | null {
 export function normalizeRepoViewPath(path: string): string | null {
   const id = repoViewIdFromPath(path.trim());
   return id ? `views/${id}` : null;
+}
+
+export function normalizeRepoRef(repo: string): string | null {
+  const trimmed = repo.trim();
+  return REPO_REF_RE.test(trimmed) ? trimmed : null;
+}
+
+export function normalizeBranchName(branch: string): string | null {
+  const trimmed = branch.trim();
+  if (!trimmed || trimmed.length > 255) return null;
+  if (/[\s\x00-\x1f\x7f]/.test(trimmed)) return null;
+  return trimmed;
+}
+
+export function isFlyBranchEnvironment(
+  env: PreviewEnvironment | null | undefined,
+): env is PreviewEnvironment & { flyBranch: FlyBranchPreviewRef } {
+  return Boolean(env?.flyBranch);
 }
 
 /** Whole days until expiry (ceil). Negative once expired. */
@@ -149,9 +179,14 @@ export function resolveEnvironments(
           !!e &&
           typeof e.id === "string" &&
           typeof e.label === "string" &&
-          typeof e.url === "string",
+          (typeof e.url === "string" || Boolean(e.flyBranch)),
       )
-      .map((e) => ({ ...e, url: normalizeEnvUrl(e.url) ?? e.url }));
+      .map((e) => ({
+        ...e,
+        ...(typeof e.url === "string"
+          ? { url: normalizeEnvUrl(e.url) ?? e.url }
+          : {}),
+      }));
   }
   const legacy = config?.defaultPreviewUrl?.trim();
   if (legacy) {
@@ -164,6 +199,25 @@ export function resolveEnvironments(
     ];
   }
   return [];
+}
+
+/** Append a Fly branch preview environment. */
+export function addBranchPreviewEnvironment(
+  list: PreviewEnvironment[],
+  repo: string,
+  branch: string,
+): PreviewEnvironment[] {
+  const cleanRepo = normalizeRepoRef(repo);
+  const cleanBranch = normalizeBranchName(branch);
+  if (!cleanRepo || !cleanBranch) return list;
+  return [
+    ...list,
+    {
+      id: makeEnvId(cleanBranch),
+      label: cleanBranch.slice(0, MAX_LABEL),
+      flyBranch: { repo: cleanRepo, branch: cleanBranch },
+    },
+  ];
 }
 
 /** Append a new environment. Returns the next list (immutable). No-op if invalid. */
@@ -253,6 +307,28 @@ export function updateEnvironment(
       patch.url !== undefined ? (normalizeEnvUrl(patch.url) ?? e.url) : e.url;
     return { ...e, label, url };
   });
+}
+
+/** Replace one Fly branch environment's branch pointer. */
+export function updateBranchPreviewEnvironment(
+  list: PreviewEnvironment[],
+  id: string,
+  repo: string,
+  branch: string,
+): PreviewEnvironment[] {
+  const cleanRepo = normalizeRepoRef(repo);
+  const cleanBranch = normalizeBranchName(branch);
+  if (!cleanRepo || !cleanBranch) return list;
+  return list.map((e) =>
+    e.id === id
+      ? {
+          ...e,
+          label: cleanBranch.slice(0, MAX_LABEL),
+          flyBranch: { repo: cleanRepo, branch: cleanBranch },
+          url: undefined,
+        }
+      : e,
+  );
 }
 
 /** Remove an environment by id. Returns the next list (immutable). */

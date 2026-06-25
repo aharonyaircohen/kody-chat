@@ -22,11 +22,14 @@ import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { selectionPath } from "../selection-routing";
 import { PreviewPane } from "./PreviewPane";
 import { PreviewEnvSwitcher } from "./PreviewEnvSwitcher";
-import { PreviewEnvForm } from "./PreviewEnvForm";
+import { PreviewBranchEnvForm } from "./PreviewBranchEnvForm";
 import {
+  addBranchPreviewEnvironment,
   addEnvironment,
   addRepoViewEnvironment,
   expiredUploads,
+  isFlyBranchEnvironment,
+  normalizeBranchName,
   normalizeEnvUrl,
   repoViewIdFromPath,
   resolveEnvironments,
@@ -34,6 +37,7 @@ import {
   STATIC_PREVIEW_TTL_MS,
   type PreviewEnvironment,
 } from "../preview-environments";
+import { fetchBranchPreviews } from "../previews/branch-preview-client";
 import { destroyStaticPreview } from "../previews/static-preview-client";
 import {
   deleteRepoView,
@@ -115,6 +119,7 @@ export function PreviewWorkspace({
 
   const owner = getStoredAuth()?.owner ?? "";
   const repo = getStoredAuth()?.repo ?? "";
+  const repoFullName = owner && repo ? `${owner}/${repo}` : "";
 
   const configQuery = useQuery({
     queryKey: ["kody-dashboard-config"],
@@ -177,9 +182,29 @@ export function PreviewWorkspace({
 
   const selectedEnv =
     environments.find((e) => e.id === selectedId) ?? environments[0] ?? null;
-  const repoViewId = repoViewIdFromPath(selectedEnv?.repoViewPath);
+  const selectedFlyBranch = isFlyBranchEnvironment(selectedEnv)
+    ? selectedEnv.flyBranch
+    : null;
+  const selectedFlyBranchMatchesRepo =
+    !!selectedFlyBranch && selectedFlyBranch.repo === repoFullName;
+  const repoViewId = selectedFlyBranch
+    ? null
+    : repoViewIdFromPath(selectedEnv?.repoViewPath);
   const isRepoViewPdf =
     !!repoViewId && repoViewUrlLooksLikePdf(selectedEnv?.url);
+  const branchPreviewsQuery = useQuery({
+    queryKey: ["kody-branch-previews", owner, repo],
+    queryFn: fetchBranchPreviews,
+    enabled: !!selectedFlyBranchMatchesRepo && !!owner && !!repo,
+    staleTime: 15 * 60 * 1000,
+    refetchInterval: 3 * 60 * 60 * 1000,
+    retry: false,
+  });
+  const resolvedBranchPreview = selectedFlyBranch
+    ? branchPreviewsQuery.data?.previews.find(
+        (preview) => preview.branch === selectedFlyBranch.branch,
+      )
+    : null;
   const viewTicketQuery = useQuery({
     queryKey: ["kody-repo-view-ticket", owner, repo, repoViewId],
     queryFn: () => mintRepoViewTicket(repoViewId!),
@@ -187,12 +212,21 @@ export function PreviewWorkspace({
     staleTime: 15 * 60 * 1000,
     retry: false,
   });
-  const baseUrl =
-    selectedEnv?.url && repoViewId
+  const baseUrl = selectedFlyBranch
+    ? (resolvedBranchPreview?.url ?? null)
+    : selectedEnv?.url && repoViewId
       ? viewTicketQuery.data
         ? tokenizeRepoViewUrl(selectedEnv.url, viewTicketQuery.data.token)
         : null
       : (selectedEnv?.url ?? null);
+  const branchPreviewIsResolving =
+    !!selectedFlyBranchMatchesRepo &&
+    !resolvedBranchPreview?.url &&
+    (branchPreviewsQuery.isLoading ||
+      branchPreviewsQuery.isFetching ||
+      resolvedBranchPreview?.state === "pending" ||
+      resolvedBranchPreview?.state === "building" ||
+      resolvedBranchPreview?.state === "starting");
 
   useEffect(() => {
     setPreviewContext(previewChatContextBlock(selectedEnv));
@@ -208,6 +242,16 @@ export function PreviewWorkspace({
       );
     }
   }, [viewTicketQuery.error]);
+
+  useEffect(() => {
+    if (branchPreviewsQuery.error) {
+      toast.error(
+        branchPreviewsQuery.error instanceof Error
+          ? branchPreviewsQuery.error.message
+          : "Failed to open branch preview",
+      );
+    }
+  }, [branchPreviewsQuery.error]);
 
   const saveMutation = useMutation({
     mutationFn: (next: PreviewEnvironment[]) =>
@@ -229,11 +273,36 @@ export function PreviewWorkspace({
     await saveMutation.mutateAsync(next);
   };
 
-  const addFirst = async (label: string, url: string): Promise<void> => {
-    const next = addEnvironment(environments, label, url);
+  const addBranch = async (repoRef: string, branch: string): Promise<void> => {
+    if (repoRef !== repoFullName) throw new Error("Use the connected repo");
+
+    const cleanBranch = normalizeBranchName(branch);
+    if (!cleanBranch) throw new Error("Enter a valid branch");
+
+    const list = await fetchBranchPreviews();
+    if (!list.flyConfigured) throw new Error("Fly previews are not configured");
+    const tracked = list.previews.find(
+      (preview) => preview.branch === cleanBranch,
+    );
+    if (!tracked) throw new Error("Create this branch preview in Fly first");
+
+    const existing = environments.find(
+      (env) =>
+        isFlyBranchEnvironment(env) &&
+        env.flyBranch.repo === repoRef &&
+        env.flyBranch.branch === cleanBranch,
+    );
+    if (existing) {
+      selectEnv(existing);
+      toast.info(`"${existing.label}" is already saved`);
+      return;
+    }
+
+    const next = addBranchPreviewEnvironment(environments, repoRef, cleanBranch);
     await persist(next);
     const created = next[next.length - 1];
     if (created) selectEnv(created);
+    toast.success(`Saved "${created?.label ?? cleanBranch}"`);
   };
 
   const saveCurrentUrlAsEnvironment = async (url: string): Promise<void> => {
@@ -247,7 +316,7 @@ export function PreviewWorkspace({
       return;
     }
     const existing = environments.find(
-      (env) => normalizeEnvUrl(env.url) === normalizedUrl,
+      (env) => (env.url ? normalizeEnvUrl(env.url) : null) === normalizedUrl,
     );
     if (existing) {
       selectEnv(existing);
@@ -358,7 +427,9 @@ export function PreviewWorkspace({
     <section className="relative flex-1 min-w-0 min-h-0 flex flex-col">
       <PreviewPane
         baseUrl={baseUrl}
-        isResolving={!!repoViewId && viewTicketQuery.isLoading}
+        isResolving={
+          (!!repoViewId && viewTicketQuery.isLoading) || branchPreviewIsResolving
+        }
         owner={owner}
         repo={repo}
         showBrowserChrome
@@ -377,10 +448,11 @@ export function PreviewWorkspace({
           environments.length > 0 ? (
             <PreviewEnvSwitcher
               environments={environments}
+              repoFullName={repoFullName}
               selectedId={selectedEnv?.id ?? null}
               onSelect={selectEnv}
               onSave={persist}
-              onAdd={addFirst}
+              onAddBranch={addBranch}
               onUpload={uploadFiles}
               onRemoveStatic={removeStatic}
               onRemoveRepoView={removeRepoView}
@@ -403,19 +475,18 @@ export function PreviewWorkspace({
                     <MonitorPlay className="w-5 h-5 text-sky-300" />
                   </span>
                   <h2 className="text-sm font-semibold text-zinc-200">
-                    Add a preview environment
+                    Add a branch preview
                   </h2>
                   <p className="text-xs text-zinc-500">
-                    Point Kody at a running deployment — Production, Staging,
-                    Dev, or any URL. Add more later from the switcher. Stored
-                    per repo at{" "}
+                    Pick a tracked Fly branch preview for this repo. Stored at{" "}
                     <code className="text-zinc-400">state dashboard.json</code>.
                   </p>
                 </div>
-                <PreviewEnvForm
-                  submitLabel="Add environment"
+                <PreviewBranchEnvForm
+                  repoFullName={repoFullName}
+                  submitLabel="Add branch preview"
                   isSaving={saveMutation.isPending}
-                  onSubmit={addFirst}
+                  onSubmit={addBranch}
                 />
                 <div className="flex items-center gap-2 text-[11px] text-zinc-600">
                   <span className="h-px flex-1 bg-zinc-800" />

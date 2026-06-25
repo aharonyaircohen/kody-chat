@@ -147,4 +147,42 @@ describe("PUT /api/kody/dashboard-config", () => {
       "chore(dashboard): update preview environments",
     );
   });
+
+  it("accepts a Fly branch preview environment without a URL", async () => {
+    const res = await PUT(
+      new NextRequest("http://localhost/api/kody/dashboard-config", {
+        method: "PUT",
+        body: JSON.stringify({
+          namedPreviews: [
+            {
+              id: "dev",
+              label: "dev",
+              flyBranch: { repo: "acme/widgets", branch: "dev" },
+            },
+          ],
+          actorLogin: "alice",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(store.writeDashboardConfig).toHaveBeenCalledWith(
+      { marker: "viewer-octokit" },
+      "acme",
+      "widgets",
+      {
+        version: 1,
+        defaultPreviewUrl: undefined,
+        namedPreviews: [
+          {
+            id: "dev",
+            label: "dev",
+            flyBranch: { repo: "acme/widgets", branch: "dev" },
+          },
+        ],
+      },
+      "sha-1",
+      "chore(dashboard): update preview environments",
+    );
+  });
 });

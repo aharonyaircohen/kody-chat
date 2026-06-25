@@ -8,7 +8,10 @@
  * their own saved outline so the model knows what "this upload/page" means.
  */
 
-import type { PreviewEnvironment } from "@dashboard/lib/preview-environments";
+import {
+  isFlyBranchEnvironment,
+  type PreviewEnvironment,
+} from "@dashboard/lib/preview-environments";
 
 function oneLine(input: string | undefined, max = 240): string | null {
   const cleaned = input?.trim().replace(/\s+/g, " ");
@@ -36,13 +39,24 @@ export function previewChatContextBlock(
 
   const upload = env.uploadContext;
   const isUpload = Boolean(env.staticId);
+  const flyBranch = isFlyBranchEnvironment(env) ? env.flyBranch : null;
   const lines = [
     `[Preview context - the user is viewing ${
-      isUpload ? "an uploaded preview" : "a preview environment"
+      isUpload
+        ? "an uploaded preview"
+        : flyBranch
+          ? "a Fly branch preview"
+          : "a preview environment"
     } in the Kody Preview workspace. When they say "this page", "here", "the preview", or "the upload", they mean this preview.]`,
     `- Environment: ${oneLine(env.label) ?? "Preview"}`,
-    `- Preview URL: ${env.url}`,
   ];
+
+  if (flyBranch) {
+    lines.push(`- Repository: ${flyBranch.repo}`);
+    lines.push(`- Branch: ${flyBranch.branch}`);
+  } else if (env.url) {
+    lines.push(`- Preview URL: ${env.url}`);
+  }
 
   if (upload) {
     const fileBits = [

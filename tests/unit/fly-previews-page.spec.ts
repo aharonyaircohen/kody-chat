@@ -73,11 +73,13 @@ describe("Fly Previews page", () => {
     expect(source).toMatch(/aria-label="Open preview"/);
     expect(source).toMatch(/flex-wrap/);
     expect(source).toMatch(/<ul/);
-    expect(source).toMatch(/sm:grid-cols-2/);
-    expect(source).toMatch(/xl:grid-cols-3/);
+    expect(source).toMatch(/auto-fit/);
+    expect(source).toMatch(/min\(100%,18rem\)/);
     expect(source).toMatch(/<dl/);
+    expect(source).toMatch(/space-y-2 text-\[11px\]/);
     expect(source).not.toMatch(/divide-y/);
     expect(source).not.toMatch(/lg:grid-cols-\[/);
+    expect(source).not.toMatch(/break-all/);
     expect(source).toMatch(/statePill/);
     expect(source).toMatch(/shortId/);
     expect(source).not.toMatch(/<span>Open<\/span>/);

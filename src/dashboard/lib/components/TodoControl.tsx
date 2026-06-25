@@ -14,17 +14,24 @@ import {
   ArrowLeft,
   Calendar,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Circle,
   ExternalLink,
   ListTodo,
+  Loader2,
+  MoreHorizontal,
   Pencil,
   Plus,
   RefreshCw,
   Sparkles,
   Trash2,
+  UserPlus,
   X,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@dashboard/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import {
   Dialog,
   DialogContent,
@@ -32,10 +39,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@dashboard/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@dashboard/ui/dropdown-menu";
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
 import { AuthGuard } from "../auth-guard";
 import type { TodoEntry, TodoItem } from "../api";
+import type { GitHubCollaborator } from "../types";
+import { useCollaborators } from "../hooks";
 import {
   useCreateTodo,
   useDeleteTodo,
@@ -45,6 +60,7 @@ import {
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { selectionPath } from "../selection-routing";
 import { cn } from "../utils";
+import { useChatScope } from "./ChatRailShell";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSearch } from "./ListSearch";
 import { MarkdownEditor } from "./MarkdownEditor";
@@ -55,6 +71,24 @@ type ItemEditorState =
   | { mode: "create" }
   | { mode: "edit"; item: TodoItem }
   | null;
+
+type TodoItemFilter = "all" | "open" | "done" | "mine" | "unassigned";
+
+const TODO_ITEM_FILTERS: TodoItemFilter[] = [
+  "all",
+  "open",
+  "done",
+  "mine",
+  "unassigned",
+];
+
+const TODO_ITEM_FILTER_LABELS: Record<TodoItemFilter, string> = {
+  all: "All",
+  open: "Open",
+  done: "Done",
+  mine: "Mine",
+  unassigned: "Unassigned",
+};
 
 interface TodoControlProps {
   /** Render without built-in PageHeader (e.g. when hosted in tabs). */
@@ -79,6 +113,45 @@ function listStats(list: TodoEntry): {
   const total = list.items.length;
   const done = list.items.filter((item) => item.completed).length;
   return { total, done, active: total - done };
+}
+
+function normalizeAssignee(login: string | null | undefined): string | null {
+  const normalized = login?.trim().replace(/^@+/, "");
+  return normalized ? normalized.slice(0, 120) : null;
+}
+
+function shortTodoLabel(title: string): string {
+  const trimmed = title.trim();
+  return trimmed.length > 42 ? `${trimmed.slice(0, 39)}...` : trimmed;
+}
+
+function buildAskCodeContext(list: TodoEntry, item: TodoItem): string {
+  return [
+    "Please help with this todo item.",
+    "",
+    `Todo list: ${list.title}`,
+    `Todo file: todos/${list.slug}.md`,
+    `Todo item: ${item.title}`,
+    item.assignee
+      ? `Assigned to: @${item.assignee}`
+      : "Assigned to: Unassigned",
+    "",
+    "Item note:",
+    item.body.trim() || "(none)",
+  ].join("\n");
+}
+
+function matchesTodoFilter(
+  item: TodoItem,
+  filter: TodoItemFilter,
+  currentUserLogin: string | null,
+): boolean {
+  if (filter === "open") return !item.completed;
+  if (filter === "done") return item.completed;
+  if (filter === "mine")
+    return !!currentUserLogin && item.assignee === currentUserLogin;
+  if (filter === "unassigned") return !item.assignee;
+  return true;
 }
 
 export function TodoControl({
@@ -121,7 +194,8 @@ export function TodoControlInner({
         list.items.some(
           (item) =>
             item.title.toLowerCase().includes(q) ||
-            item.body.toLowerCase().includes(q),
+            item.body.toLowerCase().includes(q) ||
+            (item.assignee?.toLowerCase().includes(q) ?? false),
         )
       );
     });
@@ -294,8 +368,9 @@ export function TodoControlInner({
           )}
         >
           {selectedList ? (
-              <TodoListDetail
-                list={selectedList}
+            <TodoListDetail
+              key={selectedList.slug}
+              list={selectedList}
               onBack={() => selectList(null)}
               onEditList={() => setEditingList(selectedList)}
               onDeleteList={() => setPendingDelete(selectedList)}
@@ -364,12 +439,70 @@ function TodoListDetail({
   onDeleteList: () => void;
 }) {
   const { githubUser } = useGitHubIdentity();
+  const { setComposerInjection, openMobileChat } = useChatScope();
+  const { data: collaborators = [], isLoading: isLoadingCollaborators } =
+    useCollaborators();
   const updateMutation = useUpdateTodo(list.slug, githubUser?.login);
   const [itemEditor, setItemEditor] = useState<ItemEditorState>(null);
   const [pendingItemDelete, setPendingItemDelete] = useState<TodoItem | null>(
     null,
   );
+  const [itemFilter, setItemFilter] = useState<TodoItemFilter>("all");
+  const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(
+    () => new Set(list.items.map((item) => item.id)),
+  );
   const stats = listStats(list);
+  const currentUserLogin = normalizeAssignee(githubUser?.login);
+  const progressPercent =
+    stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
+  const filterCounts = useMemo<Record<TodoItemFilter, number>>(
+    () => ({
+      all: list.items.length,
+      open: list.items.filter((item) => !item.completed).length,
+      done: list.items.filter((item) => item.completed).length,
+      mine: currentUserLogin
+        ? list.items.filter((item) => item.assignee === currentUserLogin).length
+        : 0,
+      unassigned: list.items.filter((item) => !item.assignee).length,
+    }),
+    [currentUserLogin, list.items],
+  );
+  const filteredItems = useMemo(
+    () =>
+      list.items.filter((item) =>
+        matchesTodoFilter(item, itemFilter, currentUserLogin),
+      ),
+    [currentUserLogin, itemFilter, list.items],
+  );
+
+  useEffect(() => {
+    setExpandedItemIds((current) => {
+      const currentItemIds = new Set(list.items.map((item) => item.id));
+      const next = new Set(
+        [...current].filter((itemId) => currentItemIds.has(itemId)),
+      );
+      return next.size === current.size ? current : next;
+    });
+  }, [list.items]);
+
+  const allItemsExpanded =
+    list.items.length > 0 &&
+    list.items.every((item) => expandedItemIds.has(item.id));
+
+  const toggleAllItemsExpanded = () => {
+    setExpandedItemIds(
+      allItemsExpanded ? new Set() : new Set(list.items.map((item) => item.id)),
+    );
+  };
+
+  const toggleItemExpanded = (item: TodoItem) => {
+    setExpandedItemIds((current) => {
+      const next = new Set(current);
+      if (next.has(item.id)) next.delete(item.id);
+      else next.add(item.id);
+      return next;
+    });
+  };
 
   const saveItems = (items: TodoItem[]) => {
     updateMutation.mutate({ items });
@@ -394,6 +527,27 @@ function TodoListDetail({
     saveItems(list.items.filter((candidate) => candidate.id !== item.id));
   };
 
+  const assignItem = (item: TodoItem, assignee: string | null) => {
+    const normalizedAssignee = normalizeAssignee(assignee);
+    saveItems(
+      list.items.map((candidate) =>
+        candidate.id === item.id
+          ? { ...candidate, assignee: normalizedAssignee }
+          : candidate,
+      ),
+    );
+  };
+
+  const askKody = (item: TodoItem) => {
+    setComposerInjection({
+      id: `todo-kody:${list.slug}:${item.id}:${Date.now()}`,
+      label: `Ask Kody: ${shortTodoLabel(item.title)}`,
+      context: buildAskCodeContext(list, item),
+    });
+    openMobileChat();
+    toast.success("Todo sent to Kody chat");
+  };
+
   const upsertItem = (
     input: { title: string; body: string },
     item?: TodoItem,
@@ -413,21 +567,25 @@ function TodoListDetail({
     }
 
     const now = new Date().toISOString();
+    const newItem: TodoItem = {
+      id: makeItemId(),
+      title: input.title,
+      body: input.body,
+      assignee: null,
+      completed: false,
+      createdAt: now,
+      completedAt: null,
+    };
     updateMutation.mutate(
       {
-        items: [
-          ...list.items,
-          {
-            id: makeItemId(),
-            title: input.title,
-            body: input.body,
-            completed: false,
-            createdAt: now,
-            completedAt: null,
-          },
-        ],
+        items: [...list.items, newItem],
       },
-      { onSuccess: () => setItemEditor(null) },
+      {
+        onSuccess: () => {
+          setExpandedItemIds((current) => new Set(current).add(newItem.id));
+          setItemEditor(null);
+        },
+      },
     );
   };
 
@@ -473,9 +631,9 @@ function TodoListDetail({
                   GitHub
                 </a>
               </div>
-              <div className="rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs">
-                <span className="text-white/50">Active file </span>
-                <code className="font-mono text-emerald-200">
+              <div className="rounded-md border border-border bg-card/50 px-3 py-2 text-xs">
+                <span className="text-muted-foreground">Active file </span>
+                <code className="font-mono text-emerald-700 dark:text-emerald-200">
                   {`todos/${list.slug}.md`}
                 </code>
               </div>
@@ -490,36 +648,105 @@ function TodoListDetail({
                 <Plus className="w-3.5 h-3.5" />
                 Add item
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onEditList}
-                className="w-9 px-0"
-                title="Edit list"
-                aria-label="Edit list"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onDeleteList}
-                className="w-9 px-0 text-red-400"
-                title="Delete list"
-                aria-label="Delete list"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-9 px-0"
+                    title="List actions"
+                    aria-label="List actions"
+                  >
+                    <MoreHorizontal className="w-3.5 h-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem
+                    onClick={onEditList}
+                    className="cursor-pointer gap-2"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    Edit list
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={onDeleteList}
+                    className="cursor-pointer gap-2 text-red-600 dark:text-red-400"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete list
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </header>
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto p-4 md:p-8">
+      <div className="max-w-5xl mx-auto p-4 md:p-8 space-y-4">
+        <div className="rounded-md border border-border bg-card/40 p-3 space-y-3">
+          <div className="flex items-start justify-between gap-3 text-xs">
+            <div className="min-w-0">
+              <div className="font-medium text-foreground">
+                {stats.active} open · {stats.done} done
+              </div>
+              <div className="mt-0.5 text-muted-foreground">
+                {stats.total === 0
+                  ? "No items yet"
+                  : `${progressPercent}% complete · ${stats.done}/${stats.total}`}
+              </div>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={toggleAllItemsExpanded}
+              disabled={list.items.length === 0}
+              className="h-8 shrink-0 gap-1.5 px-2.5"
+            >
+              {allItemsExpanded ? (
+                <ChevronRight className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5" />
+              )}
+              <span>{allItemsExpanded ? "Collapse all" : "Expand all"}</span>
+            </Button>
+          </div>
+          <div className="h-1.5 overflow-hidden rounded-sm bg-muted">
+            <div
+              className="h-full rounded-sm bg-emerald-500 transition-[width]"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {TODO_ITEM_FILTERS.map((filter) => {
+              const isActive = itemFilter === filter;
+              const count = filterCounts[filter];
+              return (
+                <button
+                  key={filter}
+                  type="button"
+                  onClick={() => setItemFilter(filter)}
+                  disabled={filter === "mine" && !currentUserLogin}
+                  className={cn(
+                    "inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-xs transition-colors disabled:cursor-not-allowed disabled:opacity-40",
+                    isActive
+                      ? "border-emerald-500/60 bg-emerald-500/15 text-emerald-800 dark:text-emerald-100"
+                      : "border-border bg-background/40 text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+                  )}
+                >
+                  <span>{TODO_ITEM_FILTER_LABELS[filter]}</span>
+                  <span className="font-mono text-[10px] opacity-70">
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {list.items.length === 0 ? (
-          <div className="rounded-md border border-dashed border-white/[0.1] bg-white/[0.02] py-12 text-center space-y-3">
+          <div className="rounded-md border border-dashed border-border bg-muted/20 py-12 text-center space-y-3">
             <div className="w-10 h-10 mx-auto rounded-full bg-emerald-500/10 flex items-center justify-center">
-              <Sparkles className="w-5 h-5 text-emerald-400" />
+              <Sparkles className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
             </div>
             <div className="space-y-1">
               <p className="text-sm font-medium text-foreground">
@@ -540,15 +767,30 @@ function TodoListDetail({
               Add item
             </Button>
           </div>
+        ) : filteredItems.length === 0 ? (
+          <div className="rounded-md border border-dashed border-border bg-muted/20 py-10 text-center space-y-2">
+            <p className="text-sm font-medium text-foreground">
+              No {TODO_ITEM_FILTER_LABELS[itemFilter].toLowerCase()} items
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Choose another filter to see more items.
+            </p>
+          </div>
         ) : (
           <ul className="space-y-3">
-            {list.items.map((item) => (
+            {filteredItems.map((item) => (
               <TodoItemCard
                 key={item.id}
                 item={item}
+                isExpanded={expandedItemIds.has(item.id)}
                 onToggle={() => toggleItem(item)}
+                onToggleExpanded={() => toggleItemExpanded(item)}
                 onEdit={() => setItemEditor({ mode: "edit", item })}
+                onAssign={(assignee) => assignItem(item, assignee)}
+                onAskKody={() => askKody(item)}
                 onDelete={() => setPendingItemDelete(item)}
+                collaborators={collaborators}
+                isLoadingCollaborators={isLoadingCollaborators}
                 disabled={updateMutation.isPending}
               />
             ))}
@@ -589,19 +831,40 @@ function TodoListDetail({
 
 function TodoItemCard({
   item,
+  isExpanded,
   onToggle,
+  onToggleExpanded,
   onEdit,
+  onAssign,
+  onAskKody,
   onDelete,
+  collaborators,
+  isLoadingCollaborators,
   disabled,
 }: {
   item: TodoItem;
+  isExpanded: boolean;
   onToggle: () => void;
+  onToggleExpanded: () => void;
   onEdit: () => void;
+  onAssign: (assignee: string | null) => void;
+  onAskKody: () => void;
   onDelete: () => void;
+  collaborators: GitHubCollaborator[];
+  isLoadingCollaborators: boolean;
   disabled: boolean;
 }) {
+  const assignee = normalizeAssignee(item.assignee);
+
   return (
-    <li className="rounded-md border border-white/[0.08] bg-white/[0.02] p-4">
+    <li
+      className={cn(
+        "rounded-md border px-3 py-2.5 transition-colors hover:bg-muted/40",
+        item.completed
+          ? "border-border/60 bg-muted/20"
+          : "border-border bg-card/60",
+      )}
+    >
       <div className="flex items-start gap-3">
         <button
           type="button"
@@ -612,8 +875,8 @@ function TodoItemCard({
           className={cn(
             "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors",
             item.completed
-              ? "text-emerald-300 hover:text-emerald-200"
-              : "text-muted-foreground hover:text-emerald-300",
+              ? "text-emerald-600 hover:text-emerald-700 dark:text-emerald-300 dark:hover:text-emerald-200"
+              : "text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-300",
           )}
         >
           {item.completed ? (
@@ -622,9 +885,23 @@ function TodoItemCard({
             <Circle className="w-5 h-5" />
           )}
         </button>
+        <button
+          type="button"
+          onClick={onToggleExpanded}
+          aria-expanded={isExpanded}
+          aria-label={isExpanded ? "Collapse item" : "Expand item"}
+          title={isExpanded ? "Collapse item" : "Expand item"}
+          className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+        >
+          {isExpanded ? (
+            <ChevronDown className="w-4 h-4" />
+          ) : (
+            <ChevronRight className="w-4 h-4" />
+          )}
+        </button>
 
         <div className="min-w-0 flex-1 space-y-2">
-          <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
             <div className="min-w-0">
               <h2
                 className={cn(
@@ -638,42 +915,154 @@ function TodoItemCard({
                 {item.completedAt
                   ? `completed ${new Date(item.completedAt).toLocaleDateString()}`
                   : `created ${new Date(item.createdAt).toLocaleDateString()}`}
+                {assignee ? ` · @${assignee}` : " · unassigned"}
               </p>
             </div>
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
-                onClick={onEdit}
-                className="w-8 h-8 px-0"
-                title="Edit item"
-                aria-label="Edit item"
+                onClick={onAskKody}
+                className="h-8 gap-1.5 border-emerald-500/40 bg-emerald-500/10 px-2.5 text-emerald-700 hover:bg-emerald-500/15 dark:text-emerald-200"
               >
-                <Pencil className="w-3.5 h-3.5" />
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Ask Kody</span>
               </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onDelete}
-                className="w-8 h-8 px-0 text-red-400"
-                title="Delete item"
-                aria-label="Delete item"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </Button>
+              <TodoAssigneeMenu
+                assignee={assignee}
+                collaborators={collaborators}
+                isLoading={isLoadingCollaborators}
+                disabled={disabled}
+                onAssign={onAssign}
+              />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="w-8 h-8 px-0 text-muted-foreground"
+                    title="Item actions"
+                    aria-label={`Actions for ${item.title}`}
+                  >
+                    <MoreHorizontal className="w-3.5 h-3.5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-44">
+                  <DropdownMenuItem
+                    onClick={onEdit}
+                    className="cursor-pointer gap-2"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                    Edit item
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={onDelete}
+                    disabled={disabled}
+                    className="cursor-pointer gap-2 text-red-600 dark:text-red-400"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    Delete item
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
 
-          {item.body.trim() ? (
+          {isExpanded && item.body.trim() ? (
             <MarkdownPreview
               content={item.body}
               variant="compact"
-              className="border-t border-white/[0.06] pt-3"
+              className="border-t border-border/70 pt-3"
             />
           ) : null}
         </div>
       </div>
     </li>
+  );
+}
+
+function TodoAssigneeMenu({
+  assignee,
+  collaborators,
+  isLoading,
+  disabled,
+  onAssign,
+}: {
+  assignee: string | null;
+  collaborators: GitHubCollaborator[];
+  isLoading: boolean;
+  disabled: boolean;
+  onAssign: (assignee: string | null) => void;
+}) {
+  const assignedUser = assignee
+    ? collaborators.find((user) => user.login === assignee)
+    : undefined;
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={disabled}
+          className={cn(
+            "h-8 px-2 gap-1.5 text-muted-foreground",
+            !assignee && "w-8 px-0",
+          )}
+          title={assignee ? `Assigned to @${assignee}` : "Assign user"}
+          aria-label={assignee ? `Assigned to ${assignee}` : "Assign user"}
+        >
+          {assignee ? (
+            <>
+              <Avatar className="h-4 w-4">
+                <AvatarImage src={assignedUser?.avatar_url} alt={assignee} />
+                <AvatarFallback className="text-[8px]">
+                  {assignee[0]?.toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <span className="max-w-24 truncate text-xs">@{assignee}</span>
+            </>
+          ) : (
+            <UserPlus className="w-3.5 h-3.5" />
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-56">
+        {assignee ? (
+          <DropdownMenuItem
+            onClick={() => onAssign(null)}
+            className="cursor-pointer"
+          >
+            Unassign @{assignee}
+          </DropdownMenuItem>
+        ) : null}
+        {isLoading ? (
+          <DropdownMenuItem disabled className="flex items-center gap-2">
+            <Loader2 className="w-3 h-3 animate-spin" />
+            Loading collaborators...
+          </DropdownMenuItem>
+        ) : collaborators.length === 0 ? (
+          <DropdownMenuItem disabled>No collaborators</DropdownMenuItem>
+        ) : (
+          collaborators.map((user) => (
+            <DropdownMenuItem
+              key={user.login}
+              onClick={() => onAssign(user.login)}
+              disabled={user.login === assignee}
+              className="flex items-center gap-2 cursor-pointer"
+            >
+              <Avatar className="h-5 w-5">
+                <AvatarImage src={user.avatar_url} alt={user.login} />
+                <AvatarFallback className="text-[8px]">
+                  {user.login[0]?.toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
+              <span className="truncate">@{user.login}</span>
+            </DropdownMenuItem>
+          ))
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

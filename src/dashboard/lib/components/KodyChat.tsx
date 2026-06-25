@@ -4686,6 +4686,8 @@ export function KodyChat({
     const userMessage = [baseMessage, ...currentChips.map((c) => c.context)]
       .filter((s) => s.trim())
       .join("\n\n");
+    const visibleUserMessage =
+      rawInput || currentChips.map((chip) => chip.label).join("\n");
     setInput("");
     setContextChips([]);
     setSlashMenuOpen(false);
@@ -4710,7 +4712,7 @@ export function KodyChat({
           ...prev,
           {
             role: "user" as const,
-            content: userMessage,
+            content: visibleUserMessage,
             timestamp: new Date().toISOString(),
           },
           {
@@ -4725,33 +4727,28 @@ export function KodyChat({
       return;
     }
 
-    // When a slash command matched, the user bubble must show ONLY the
-    // original typed input — not the expanded prompt body. The model still
-    // receives the expanded `userMessage` (built from `result.text` above)
-    // via the `messageContent` arg to `sendText`; `displayContent` overrides
-    // just the bubble text so the chat history isn't contaminated with text
-    // the user never typed.
-    await sendText(
-      userMessage,
-      currentAttachments,
-      terminalIntent
-        ? {
-            displayContent: rawInput,
-            forceAgentId: "kody",
-            onAssistantTextComplete: (assistantText) => {
-              const payload = extractKodyTerminalPayload(assistantText);
-              if (!payload) {
-                toast.error("Kody did not return a terminal block");
-                return null;
-              }
-              sendKodyTerminalPayloadToTerminal(payload);
-              return "Sent to terminal";
-            },
-          }
-        : expanded
-          ? { displayContent: rawInput }
-          : undefined,
-    );
+    const sendOptions = terminalIntent
+      ? {
+          displayContent: rawInput,
+          forceAgentId: "kody" as const,
+          onAssistantTextComplete: (assistantText: string) => {
+            const payload = extractKodyTerminalPayload(assistantText);
+            if (!payload) {
+              toast.error("Kody did not return a terminal block");
+              return null;
+            }
+            sendKodyTerminalPayloadToTerminal(payload);
+            return "Sent to terminal";
+          },
+        }
+      : expanded || currentChips.length > 0
+        ? { displayContent: visibleUserMessage }
+        : undefined;
+
+    // When a slash command or context chip matched, the user bubble must show
+    // only the user-facing text. The model still receives `userMessage`,
+    // which may include expanded prompt bodies and hidden context payloads.
+    await sendText(userMessage, currentAttachments, sendOptions);
   };
 
   // ─── Voice chat integration ───
@@ -5088,7 +5085,8 @@ export function KodyChat({
   //   empty + ready     → 'stop'  (end the live session)
   // For non-Kody-Live agents the button is always 'send' (disabled if empty).
   const hasComposerContent =
-    input.trim().length > 0 || (chatMode === "ai" && attachments.length > 0);
+    input.trim().length > 0 ||
+    (chatMode === "ai" && (attachments.length > 0 || contextChips.length > 0));
   type ComposerAction = "send" | "start" | "stop" | "cancel";
   const composerAction: ComposerAction = !isKodyLive
     ? "send"

@@ -28,6 +28,7 @@ const todoItemSchema = z.object({
   id: z.string().min(1).max(80),
   title: z.string().trim().min(1).max(160),
   body: z.string().max(20_000).default(""),
+  assignee: z.string().trim().max(120).nullable().optional(),
   completed: z.boolean().default(false),
   createdAt: z.string(),
   completedAt: z.string().nullable().optional(),
@@ -46,6 +47,7 @@ const updateTodoListSchema = z
 function normalizeUpdateItems(items: z.infer<typeof todoItemSchema>[]) {
   return items.map((item) => ({
     ...item,
+    assignee: item.assignee?.replace(/^@+/, "") || null,
     completedAt: item.completed
       ? (item.completedAt ?? new Date().toISOString())
       : null,
