@@ -612,8 +612,9 @@ async function main() {
         appName,
         region,
         image,
-        // Doorman proxy runs on 8080; Next.js (and other apps) on 3000.
-        internalPort: 3000,
+        // Public Fly traffic must hit doorman on 8080. Doorman proxies to
+        // the app's private NEXT_INTERNAL_PORT (3000 by default).
+        internalPort: 8080,
         // Vault secrets (from BUILD_ENV_JSON) are app runtime env; also
         // thread the derived preview-verify key from the dashboard so the
         // doorman can validate access tickets without the raw master key.
