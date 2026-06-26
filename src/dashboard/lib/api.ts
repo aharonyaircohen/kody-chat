@@ -23,6 +23,11 @@ import type {
   CompanyIntentRecord,
   CompanyIntentStatus,
 } from "./company-intents";
+import type {
+  CreateWorkflowDefinitionInput,
+  UpdateWorkflowDefinitionInput,
+  WorkflowDefinitionRecord,
+} from "./workflow-definitions";
 import type { ScheduleEvery } from "./ticked/frontmatter";
 
 const API_BASE = "/api/kody";
@@ -836,6 +841,78 @@ export const workflowsApi = {
     const res = await fetch(url, { headers: buildHeaders() });
     const data = await handleResponse<{ runs: WorkflowRun[] }>(res);
     return data.runs;
+  },
+};
+
+// ============ Workflow Definitions API ============
+
+export const workflowDefinitionsApi = {
+  list: async (): Promise<WorkflowDefinitionRecord[]> => {
+    const res = await fetch(`${API_BASE}/company/workflows`, {
+      headers: buildHeaders(),
+      cache: "no-store",
+    });
+    const data = await handleResponse<{
+      workflows: WorkflowDefinitionRecord[];
+    }>(res);
+    return data.workflows;
+  },
+
+  get: async (id: string): Promise<WorkflowDefinitionRecord> => {
+    const res = await fetch(
+      `${API_BASE}/company/workflows/${encodeURIComponent(id)}`,
+      {
+        headers: buildHeaders(),
+        cache: "no-store",
+      },
+    );
+    const data = await handleResponse<{
+      workflow: WorkflowDefinitionRecord;
+    }>(res);
+    return data.workflow;
+  },
+
+  create: async (
+    data: CreateWorkflowDefinitionInput & { actorLogin?: string },
+  ): Promise<WorkflowDefinitionRecord> => {
+    const res = await fetch(`${API_BASE}/company/workflows`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify(data),
+    });
+    const payload = await handleResponse<{
+      workflow: WorkflowDefinitionRecord;
+    }>(res);
+    return payload.workflow;
+  },
+
+  update: async (
+    id: string,
+    data: UpdateWorkflowDefinitionInput & { actorLogin?: string },
+  ): Promise<WorkflowDefinitionRecord> => {
+    const res = await fetch(
+      `${API_BASE}/company/workflows/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        headers: buildHeaders(),
+        body: JSON.stringify(data),
+      },
+    );
+    const payload = await handleResponse<{
+      workflow: WorkflowDefinitionRecord;
+    }>(res);
+    return payload.workflow;
+  },
+
+  remove: async (id: string): Promise<void> => {
+    const res = await fetch(
+      `${API_BASE}/company/workflows/${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+        headers: buildHeaders(),
+      },
+    );
+    await handleResponse<{ success: boolean }>(res);
   },
 };
 
@@ -2442,6 +2519,7 @@ export const kodyApi = {
   boards: boardsApi,
   collaborators: collaboratorsApi,
   workflows: workflowsApi,
+  workflowDefinitions: workflowDefinitionsApi,
   ci: ciApi,
   remote: remoteApi,
   capabilities: capabilitiesApi,

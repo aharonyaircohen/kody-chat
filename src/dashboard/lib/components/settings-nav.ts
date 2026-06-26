@@ -34,6 +34,7 @@ import {
   Sparkles,
   Target,
   Users,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 
@@ -258,6 +259,14 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         exact: true,
         description: "Operational loops driven by schedule and health.",
         tint: "text-emerald-300 bg-emerald-500/10",
+      },
+      {
+        href: "/workflows",
+        label: "Workflows",
+        icon: Workflow,
+        exact: true,
+        description: "Ordered capability queues with shared instructions.",
+        tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
         href: "/capabilities",
