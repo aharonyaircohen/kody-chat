@@ -31,6 +31,8 @@ A capability contract owns:
 - **Output**: whether the capability only runs, or writes a report.
 - **Safety rules**: what it may and may not do.
 - **Implementation link**: the implementation slug, when the capability needs one.
+- **Workflow link**: ordered capability steps, when the public action needs more
+  than one reusable capability.
 
 A capability contract does **not** own:
 
@@ -39,6 +41,8 @@ A capability contract does **not** own:
 - A company reason or priority. Put that in Intent.
 - Long-term progress. Put that in Goal.
 - A long step-by-step runbook. Put reusable method in implementation skills.
+- Long-term progress or scheduling for a multi-step run. Put progress in Goal
+  or Loop; put step order in Workflow.
 - Bash, Python, or API recipes. Put deterministic work in implementation-owned
   scripts, or method details in implementation skills.
 - Raw state keys. Runtime state is engine-owned and not part of the capability
@@ -109,6 +113,7 @@ Do not put metadata frontmatter in `capability.md`. Metadata belongs in
 | `describe`    | Human-readable title shown in the dashboard.                                                     |
 | `action`      | Public action token. `@kody <action>` runs this capability. Usually the capability slug.                     |
 | `executable`  | Legacy field name for the implementation slug. Use this when one implementation performs the work. |
+| `workflow`    | Ordered capability steps for one run, when the public action composes capabilities. |
 | `capabilityKind` | Capability kind: `observe`, `act`, or `verify`. |
 | `every`       | Optional cadence: `manual`, `1h`, `1d`, `7d`, etc.                                               |
 | `agent`      | Agent identity slug that performs the capability. A capability without an agent should not auto-run.          |
@@ -185,6 +190,9 @@ that is recurring or public as an `@kody <action>`.
 Use an **implementation** when you are defining the method a capability can run,
 such as a deterministic graph refresh or an agent workflow.
 
+Use a **Workflow** when one public action should chain reusable capabilities,
+such as `reproduce -> run` for a bug fix.
+
 Use **agent** when you are defining who performs the work.
 
 ## Creation checklist
@@ -199,6 +207,7 @@ Before creating a capability contract, Kody should know:
 - Which agent is the reviewer, if anyone.
 - Whether the output is `Run` or `Report`.
 - Which implementation runs the work, if needed.
+- Which workflow steps run, if the capability composes other capabilities.
 - Which reports or context entries it reads or writes, if any.
 - Which actions are forbidden.
 

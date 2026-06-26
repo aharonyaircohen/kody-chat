@@ -10,6 +10,7 @@ Goal = what
 Loop = when
 Agent = who
 Capability = how
+Workflow = composed how
 Context = background facts
 Instructions = chat behavior
 State = what happened
@@ -29,6 +30,7 @@ Use these terms when explaining the agency model to humans or coding agents:
 | Loop | When to check | Cadence, heartbeat, and which goal or capability to wake | The detailed implementation of each capability |
 | Agent | Who is acting | Identity, judgment style, values, role voice | A job, schedule, tool recipe, or output contract |
 | Capability | How the agency can produce a result | A reusable ability, its kind, inputs, outputs, tools/data/instructions, and execution binding | Company direction, long-term progress, or agent identity |
+| Workflow | How capabilities are chained | Ordered capability steps for one run, shared step results, final output | Company direction, long-term progress, schedule, or agent identity |
 
 Capability kinds:
 
@@ -55,6 +57,7 @@ This table is kept only to make the storage split explicit:
 | Storage name | Owns | Must not own |
 | --- | --- | --- |
 | Capability | Capability contract: public action name, kind, owner, cadence, safety, inputs, outputs, and implementation link | Long identity prompt or low-level implementation |
+| Workflow | Ordered capability steps for one run | Business progress, schedule, identity, or implementation internals |
 | Implementation | Prompt glue, skills, scripts, tools, landing, output contract | Company direction, cadence, public ownership, or long-term progress |
 | Context | Facts Kody should know while reasoning | Source-of-truth policy or scheduled work |
 | Instructions | Chat response behavior such as tone, length, and format | Company facts or agency structure |
@@ -77,7 +80,7 @@ Good Context reminder:
 
 ```text
 Follow docs/concepts/company-model.md.
-Use Intent/Goal/Loop/Agent/Capability as the agency model.
+Use Intent/Goal/Loop/Agent/Capability/Workflow as the agency model.
 Treat `executable` as an old storage/config word for capability implementation.
 ```
 
@@ -90,6 +93,7 @@ Nodes:
 ```text
 agent
 capability
+workflow
 implementation
 goal
 loop
@@ -108,6 +112,7 @@ Edges:
 | goal -> capability | This result depends on this reusable ability |
 | loop -> goal | This loop checks this goal |
 | loop -> capability | This loop may dispatch this capability |
+| workflow -> capability | This run chains these capability steps |
 | capability -> agent | This capability runs as this identity |
 | capability -> capability | This capability is currently stored as this contract folder |
 | capability -> implementation | This capability uses this implementation |
@@ -180,7 +185,7 @@ Prefer clearer ownership over new concepts.
 Before adding a new model, ask:
 
 ```text
-Is this actually an agent, capability, goal, loop, intent, context,
+Is this actually an agent, capability, workflow, goal, loop, intent, context,
 instruction, or state?
 ```
 
