@@ -22,14 +22,11 @@ import {
   composeProfile,
   fieldsFromProfile,
   isValidSlug,
-  isCapabilityKind,
   serializeProfile,
   stripContract,
   type CapabilityFields,
   type CapabilityLanding,
-  type CapabilityKind,
   type McpServerSpec,
-  DEFAULT_CAPABILITY_KIND,
 } from "./profile";
 import {
   buildCompanyStoreHtmlUrl,
@@ -77,7 +74,6 @@ export interface CapabilityShellScript {
 export interface CapabilitySummary {
   slug: string;
   describe: string;
-  capabilityKind: CapabilityKind;
   landing: CapabilityLanding;
   /** Last-commit date; null in the list view to avoid one GitHub call per row. */
   updatedAt: string | null;
@@ -175,9 +171,6 @@ function summaryFromProfile(
   extra: Partial<Pick<CapabilitySummary, "source" | "readOnly">> = {},
 ): CapabilitySummary {
   const describe = typeof profile.describe === "string" ? profile.describe : "";
-  const capabilityKind = isCapabilityKind(profile.capabilityKind)
-    ? profile.capabilityKind
-    : DEFAULT_CAPABILITY_KIND;
   const landing: CapabilityLanding =
     profile.lifecycle === "pr-branch" ? "pr" : "comment";
   const agent =
@@ -191,7 +184,6 @@ function summaryFromProfile(
   return {
     slug,
     describe,
-    capabilityKind,
     landing,
     updatedAt: null,
     htmlUrl,
@@ -235,10 +227,6 @@ async function listCapabilityFolders(
       const profile = parseProfileJson(raw);
       const describe =
         profile && typeof profile.describe === "string" ? profile.describe : "";
-      const capabilityKind =
-        profile && isCapabilityKind(profile.capabilityKind)
-          ? profile.capabilityKind
-          : DEFAULT_CAPABILITY_KIND;
       const landing: CapabilityLanding =
         profile?.lifecycle === "pr-branch" ? "pr" : "comment";
       const agent =
@@ -254,7 +242,6 @@ async function listCapabilityFolders(
       return {
         slug,
         describe,
-        capabilityKind,
         landing,
         updatedAt: null,
         htmlUrl: buildHtmlUrl(target, slug, branch, storage),
@@ -390,7 +377,6 @@ async function readCapabilityFileCore(
   return {
     slug,
     describe: fields.describe,
-    capabilityKind: fields.capabilityKind,
     landing: fields.landing,
     updatedAt: await fetchLastCommitDate(octokit, `${base}/profile.json`),
     htmlUrl: buildHtmlUrl(target, slug, branch, storage),

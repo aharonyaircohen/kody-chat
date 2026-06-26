@@ -52,16 +52,13 @@ import { AuthGuard } from "../auth-guard";
 import { useAuth, buildAuthHeaders } from "../auth-context";
 import {
   COMMON_TOOLS,
-  CAPABILITY_KINDS,
   composeProfile,
-  DEFAULT_CAPABILITY_KIND,
   descriptionFromInstructions,
   isValidSlug,
   serializeProfile,
   slugFromName,
   validateProfile,
   type CapabilityLanding,
-  type CapabilityKind,
   type McpServerSpec,
   type PermissionMode,
 } from "../capabilities/profile";
@@ -79,24 +76,6 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     "Gives the agent a 'verify' tool it can call to re-check its work. It does NOT run verify automatically — the agent decides when to call it. PR-landing already runs verify as its own step.",
 };
 
-const CAPABILITY_KIND_COPY: Record<
-  CapabilityKind,
-  { label: string; description: string }
-> = {
-  observe: {
-    label: "Observe",
-    description: "Find facts or signals.",
-  },
-  act: {
-    label: "Act",
-    description: "Change or create something.",
-  },
-  verify: {
-    label: "Verify",
-    description: "Check a claim or result.",
-  },
-};
-
 interface CapabilitySkill {
   name: string;
   body: string;
@@ -108,7 +87,6 @@ interface CapabilityShellScript {
 interface CapabilitySummary {
   slug: string;
   describe: string;
-  capabilityKind: CapabilityKind;
   landing: CapabilityLanding;
   updatedAt: string | null;
   htmlUrl: string;
@@ -237,7 +215,6 @@ async function readApi(
 interface SavePayload {
   slug: string;
   describe: string;
-  capabilityKind: CapabilityKind;
   /** Engine instructions body exposed in the UI as capability instructions. */
   prompt: string;
   model: string;
@@ -445,7 +422,6 @@ function CapabilitiesManagerInner({
     return capabilities.filter(
       (e) =>
         e.slug.toLowerCase().includes(q) ||
-        e.capabilityKind.toLowerCase().includes(q) ||
         e.describe.toLowerCase().includes(q),
     );
   }, [capabilities, search]);
@@ -715,9 +691,6 @@ function CapabilityRow({
         ) : null}
       </div>
       <div className="text-xs text-muted-foreground mt-1 flex items-center gap-2 flex-wrap">
-        <span className="inline-flex items-center rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300">
-          {CAPABILITY_KIND_COPY[e.capabilityKind].label}
-        </span>
         {e.agent ? (
           <span className="inline-flex items-center gap-1">
             <User className="w-3 h-3" />
@@ -773,9 +746,6 @@ function CapabilityDetail({
                 ) : null}
               </h1>
               <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
-                <span className="inline-flex items-center rounded border border-amber-500/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-amber-300">
-                  {CAPABILITY_KIND_COPY[e.capabilityKind].label}
-                </span>
                 {e.agent ? (
                   <span className="inline-flex items-center gap-1">
                     <User className="w-3 h-3" />
@@ -1245,9 +1215,6 @@ function CapabilityEditorForm({
   const [slug, setSlug] = useState(initial?.slug ?? "");
   const isReadOnly = initial?.readOnly === true;
   const [touchedSlug, setTouchedSlug] = useState(false);
-  const [capabilityKind, setCapabilityKind] = useState<CapabilityKind>(
-    initial?.capabilityKind ?? DEFAULT_CAPABILITY_KIND,
-  );
   const [prompt, setPrompt] = useState(initial?.prompt ?? DEFAULT_INSTRUCTIONS);
   const [model, setModel] = useState(initial?.model ?? "inherit");
   // Not user-tunable: the engine runs headless (no human to approve tool
@@ -1390,7 +1357,6 @@ function CapabilityEditorForm({
     const profile = composeProfile({
       slug: effectiveSlug,
       describe: generatedDescription,
-      capabilityKind,
       prompt,
       model,
       permissionMode,
@@ -1420,7 +1386,6 @@ function CapabilityEditorForm({
     isNew,
     slug,
     generatedDescription,
-    capabilityKind,
     prompt,
     model,
     permissionMode,
@@ -1505,37 +1470,6 @@ function CapabilityEditorForm({
             {slugError && (
               <p className="text-xs text-rose-300 mt-1">{slugError}</p>
             )}
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-xs">Kind</Label>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {CAPABILITY_KINDS.map((kind) => {
-                const copy = CAPABILITY_KIND_COPY[kind];
-                const active = capabilityKind === kind;
-                return (
-                  <button
-                    key={kind}
-                    type="button"
-                    onClick={() => setCapabilityKind(kind)}
-                    disabled={isReadOnly}
-                    className={cn(
-                      "rounded-md border px-3 py-2 text-left transition-colors",
-                      active
-                        ? "border-amber-400/60 bg-amber-500/10 text-white"
-                        : "border-white/[0.08] bg-white/[0.02] text-white/70 hover:bg-white/[0.05]",
-                    )}
-                  >
-                    <span className="block text-sm font-medium">
-                      {copy.label}
-                    </span>
-                    <span className="block text-[11px] text-white/45">
-                      {copy.description}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
           </div>
 
           <div className="space-y-2">
@@ -1925,7 +1859,6 @@ function CapabilityEditorForm({
             onSave({
               slug,
               describe: generatedDescription,
-              capabilityKind,
               prompt,
               model,
               permissionMode,

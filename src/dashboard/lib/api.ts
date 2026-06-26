@@ -938,12 +938,9 @@ export const remoteApi = {
 
 // ============ Capabilities API ============
 
-export type CapabilityKind = "observe" | "act" | "verify";
-
 export interface CapabilitySummary {
   slug: string;
   describe?: string;
-  capabilityKind?: CapabilityKind | null;
   agent?: string | null;
   every?: ScheduleEvery | string | null;
   source?: "local" | "store";

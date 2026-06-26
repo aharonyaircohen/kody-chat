@@ -20,18 +20,6 @@
  * (the engine's `postAgentComment` postflight) with no branch or PR. */
 export type CapabilityLanding = "pr" | "comment";
 
-export const CAPABILITY_KINDS = ["observe", "act", "verify"] as const;
-export type CapabilityKind = (typeof CAPABILITY_KINDS)[number];
-
-export const DEFAULT_CAPABILITY_KIND: CapabilityKind = "act";
-
-export function isCapabilityKind(value: unknown): value is CapabilityKind {
-  return (
-    typeof value === "string" &&
-    CAPABILITY_KINDS.includes(value as CapabilityKind)
-  );
-}
-
 /**
  * An external MCP (Model Context Protocol) server the engine spawns so the
  * agent can call its tools. Matches the engine's `McpServerSpec`
@@ -78,8 +66,6 @@ export interface CapabilityFields {
   slug: string;
   /** One-line human description (`profile.describe`). */
   describe: string;
-  /** Public capability promise. Engine metadata only; it does not change control flow. */
-  capabilityKind: CapabilityKind;
   /** Glue instructions — written to `prompt.md`, read by `composePrompt`. */
   prompt: string;
   /** `claudeCode.model`: "inherit" or "provider/model". */
@@ -250,7 +236,6 @@ export function composeProfile(
     name: fields.slug,
     role: "primitive",
     describe: fields.describe,
-    capabilityKind: fields.capabilityKind,
     inputs: [
       {
         name: "issue",
@@ -336,9 +321,6 @@ export function fieldsFromProfile(
   return {
     slug,
     describe: typeof profile.describe === "string" ? profile.describe : "",
-    capabilityKind: isCapabilityKind(profile.capabilityKind)
-      ? profile.capabilityKind
-      : DEFAULT_CAPABILITY_KIND,
     model: typeof cc.model === "string" ? cc.model : "inherit",
     permissionMode: PERMISSION_MODES.includes(
       cc.permissionMode as PermissionMode,
@@ -398,9 +380,6 @@ export function validateProfile(profile: unknown): string[] {
     errors.push('"name" must be a non-empty string');
   if (typeof r.role !== "string" || !validRoles.includes(r.role))
     errors.push(`"role" must be one of: ${validRoles.join(" | ")}`);
-  if (r.capabilityKind !== undefined && !isCapabilityKind(r.capabilityKind)) {
-    errors.push('"capabilityKind" must be one of: observe | act | verify');
-  }
   if (!Array.isArray(r.inputs)) errors.push('"inputs" must be an array');
   if (!r.claudeCode || typeof r.claudeCode !== "object")
     errors.push('"claudeCode" must be an object');

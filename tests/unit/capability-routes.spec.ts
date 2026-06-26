@@ -43,7 +43,6 @@ vi.mock("@dashboard/lib/capabilities", () => ({
   deleteCapabilityFile: h.deleteCapabilityFile,
   isValidSlug: (slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug),
   PERMISSION_MODES: ["default", "acceptEdits", "plan", "bypassPermissions"],
-  CAPABILITY_KINDS: ["observe", "act", "verify"],
 }));
 
 vi.mock("@dashboard/lib/engine/config", () => ({
@@ -143,7 +142,6 @@ describe("POST /api/kody/capabilities", () => {
     h.writeCapabilityFile.mockResolvedValue({
       slug: "ship-feature",
       describe: "Ship feature",
-      capabilityKind: "act",
     });
   });
 
@@ -154,7 +152,6 @@ describe("POST /api/kody/capabilities", () => {
         body: JSON.stringify({
           slug: "ship-feature",
           instructions: "Ship the feature.",
-          capabilityKind: "act",
           tools: ["Read"],
           skills: [],
           shellScripts: [],
@@ -172,7 +169,6 @@ describe("POST /api/kody/capabilities", () => {
         fields: expect.objectContaining({
           slug: "ship-feature",
           prompt: "Ship the feature.",
-          capabilityKind: "act",
         }),
       }),
     );

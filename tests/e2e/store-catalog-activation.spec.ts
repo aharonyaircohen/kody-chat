@@ -29,7 +29,6 @@ interface CatalogItem {
   action?: string | null;
   agent?: string | null;
   executable?: string | null;
-  capabilityKind?: string | null;
   schedule?: string | null;
 }
 
@@ -72,7 +71,6 @@ const catalogSeeds: Array<Omit<CatalogItem, "active" | "status" | "source">> = [
     htmlUrl: null,
     agent: "atlas-agent",
     executable: "ship-feature",
-    capabilityKind: "act",
   },
   {
     slug: "weekly-quality",

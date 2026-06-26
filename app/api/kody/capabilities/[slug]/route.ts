@@ -26,7 +26,6 @@ import {
   deleteCapabilityFile,
   isValidSlug,
   PERMISSION_MODES,
-  CAPABILITY_KINDS,
 } from "@dashboard/lib/capabilities";
 import {
   getEngineConfig,
@@ -93,7 +92,6 @@ const mcpServerSchema = z.object({
 
 const updateCapabilitySchema = z.object({
   describe: z.string().optional(),
-  capabilityKind: z.enum(CAPABILITY_KINDS).optional(),
   instructions: z.string().min(1).optional(),
   prompt: z.string().min(1).optional(),
   model: z.string().optional(),
@@ -166,7 +164,6 @@ export async function PATCH(
       fields: {
         slug,
         describe: input.describe ?? existing.describe,
-        capabilityKind: input.capabilityKind ?? existing.capabilityKind,
         prompt: instructions ?? existing.prompt,
         model: input.model ?? existing.model,
         permissionMode: input.permissionMode ?? existing.permissionMode,

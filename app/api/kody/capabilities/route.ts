@@ -24,7 +24,6 @@ import {
   writeCapabilityFile,
   isValidSlug,
   PERMISSION_MODES,
-  CAPABILITY_KINDS,
 } from "@dashboard/lib/capabilities";
 import { getEngineConfig } from "@dashboard/lib/engine/config";
 import { recordAudit } from "@dashboard/lib/activity/audit";
@@ -135,7 +134,6 @@ const createCapabilitySchema = z
   .object({
     slug: z.string().min(1).max(64),
     describe: z.string().default(""),
-    capabilityKind: z.enum(CAPABILITY_KINDS).default("act"),
     instructions: z.string().min(1, "instructions are required").optional(),
     prompt: z.string().min(1).optional(),
     model: z.string().default("inherit"),
@@ -213,7 +211,6 @@ export async function POST(req: NextRequest) {
       fields: {
         slug: input.slug,
         describe: input.describe,
-        capabilityKind: input.capabilityKind,
         prompt: instructions,
         model: input.model,
         permissionMode: input.permissionMode,

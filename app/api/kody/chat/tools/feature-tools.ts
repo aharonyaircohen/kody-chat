@@ -119,7 +119,7 @@ Each stage's status is committed to a per-task \`status.json\` on the work branc
       "Current storage folders at state repo capabilities/<slug>/ that define capability contracts.",
     details: `A Kody Capability is stored at state repo \`capabilities/<slug>/\`:
 
-- \`profile.json\` stores execution settings, capabilityKind, tools, skills, and scripts.
+- \`profile.json\` stores execution settings, tools, skills, and scripts.
 - \`capability.md\` stores the human-readable instructions and restrictions.
 
 Intent owns why. Goal owns what should become true. Loop owns when to check.

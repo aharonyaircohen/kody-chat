@@ -19,8 +19,6 @@ import {
   composeProfile,
   validateProfile,
   PERMISSION_MODES,
-  CAPABILITY_KINDS,
-  DEFAULT_CAPABILITY_KIND,
 } from "@dashboard/lib/capabilities";
 
 interface Ctx {
@@ -86,7 +84,7 @@ export function createCapabilityTools(ctx: Ctx) {
     }),
 
     list_capabilities: tool({
-      description: `List custom capabilities in ${repoRef} stored at state repo capabilities/<slug>/. Returns slug, description, kind, and landing.`,
+      description: `List custom capabilities in ${repoRef} stored at state repo capabilities/<slug>/. Returns slug, description, tools, and landing.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
@@ -122,9 +120,6 @@ export function createCapabilityTools(ctx: Ctx) {
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
         describe: z.string().default(""),
-        capabilityKind: z
-          .enum(CAPABILITY_KINDS)
-          .default(DEFAULT_CAPABILITY_KIND),
         instructions: z.string().min(1),
         landing: z.enum(["pr", "comment"]).default("pr"),
         model: z.string().default("inherit"),
@@ -143,7 +138,6 @@ export function createCapabilityTools(ctx: Ctx) {
         const fields = {
           slug: input.slug,
           describe: input.describe,
-          capabilityKind: input.capabilityKind,
           prompt: input.instructions,
           model: input.model,
           permissionMode: input.permissionMode,

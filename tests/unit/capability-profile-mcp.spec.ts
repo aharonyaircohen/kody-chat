@@ -8,7 +8,6 @@ import {
 const base: CapabilityFields = {
   slug: "research",
   describe: "d",
-  capabilityKind: "observe",
   prompt: "p",
   model: "inherit",
   permissionMode: "acceptEdits",

@@ -67,7 +67,6 @@ interface StoreCatalogItem {
   htmlUrl: string | null;
   action?: string | null;
   agent?: string | null;
-  capabilityKind?: string | null;
   schedule?: string | null;
 }
 
@@ -109,7 +108,6 @@ function queryText(item: StoreCatalogItem): string {
     item.status,
     item.action,
     item.agent,
-    item.capabilityKind,
   ]
     .filter(Boolean)
     .join(" ")
@@ -523,9 +521,6 @@ function CatalogDetail({
         <InfoRow label="Status" value={statusLabel(item)} />
         {item.action ? <InfoRow label="Action" value={item.action} /> : null}
         {item.agent ? <InfoRow label="Agent" value={item.agent} /> : null}
-        {item.capabilityKind ? (
-          <InfoRow label="Kind" value={item.capabilityKind} />
-        ) : null}
         {(item.kind === "agentGoal" || item.kind === "agentLoop") &&
         item.schedule ? (
           <InfoRow label="Schedule" value={item.schedule} />

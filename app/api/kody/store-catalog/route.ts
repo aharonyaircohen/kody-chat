@@ -60,7 +60,6 @@ interface CatalogItem {
   htmlUrl: string | null;
   action?: string | null;
   agent?: string | null;
-  capabilityKind?: string | null;
   schedule?: string | null;
 }
 
@@ -183,7 +182,6 @@ export async function GET(req: NextRequest) {
         source: fromStore ? "store" : "local",
         htmlUrl: item.htmlUrl,
         agent: item.agent,
-        capabilityKind: item.capabilityKind,
         schedule: item.every ?? null,
       });
     }

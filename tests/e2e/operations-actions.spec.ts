@@ -36,7 +36,6 @@ interface Agent {
 interface CapabilityDetail {
   slug: string;
   describe: string;
-  capabilityKind: "observe" | "act" | "verify";
   landing: "pr" | "comment";
   updatedAt: string;
   htmlUrl: string;
@@ -263,7 +262,6 @@ function capabilitySeed(
   return {
     slug,
     describe: "Ship feature",
-    capabilityKind: "act",
     landing: "pr",
     updatedAt: NOW,
     htmlUrl: `https://example.test/${slug}`,
@@ -285,7 +283,6 @@ function capabilitySummary(action: CapabilityDetail) {
   return {
     slug: action.slug,
     describe: action.describe,
-    capabilityKind: action.capabilityKind,
     landing: action.landing,
     updatedAt: action.updatedAt,
     htmlUrl: action.htmlUrl,
@@ -320,7 +317,6 @@ async function mockCapabilities(page: Page): Promise<CapturedRequest[]> {
         slug?: string;
         describe?: string;
         instructions?: string;
-        capabilityKind?: "observe" | "act" | "verify";
         model?: string;
         permissionMode?: string;
         tools?: string[];
@@ -329,7 +325,6 @@ async function mockCapabilities(page: Page): Promise<CapturedRequest[]> {
       const created = capabilitySeed({
         slug: body.slug ?? "new-action",
         describe: body.describe ?? "",
-        capabilityKind: body.capabilityKind ?? "act",
         prompt: body.instructions ?? "",
         model: body.model ?? "inherit",
         permissionMode: body.permissionMode ?? "acceptEdits",
@@ -357,7 +352,6 @@ async function mockCapabilities(page: Page): Promise<CapturedRequest[]> {
       ) as {
         describe?: string;
         instructions?: string;
-        capabilityKind?: "observe" | "act" | "verify";
         model?: string;
         permissionMode?: string;
         tools?: string[];
@@ -366,7 +360,6 @@ async function mockCapabilities(page: Page): Promise<CapturedRequest[]> {
       actions.set(slug, {
         ...action,
         describe: body.describe ?? action.describe,
-        capabilityKind: body.capabilityKind ?? action.capabilityKind,
         prompt: body.instructions ?? action.prompt,
         model: body.model ?? action.model,
         permissionMode: body.permissionMode ?? action.permissionMode,

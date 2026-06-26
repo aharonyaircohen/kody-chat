@@ -8,16 +8,13 @@
  */
 
 export {
-  CAPABILITY_KINDS,
   COMMON_TOOLS,
-  DEFAULT_CAPABILITY_KIND,
   PERMISSION_MODES,
   appendContract,
   composeProfile,
   contractFor,
   descriptionFromInstructions,
   fieldsFromProfile,
-  isCapabilityKind,
   isValidSlug,
   mcpAllowToken,
   serializeProfile,
@@ -26,7 +23,6 @@ export {
   validateProfile,
   type CapabilityFields,
   type CapabilityLanding,
-  type CapabilityKind,
   type McpServerSpec,
   type PermissionMode,
 } from "./profile";
