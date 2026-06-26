@@ -24,6 +24,7 @@ describe("ManagedModelsView model form", () => {
     expect(dialog).toContain(
       'const defaultSchedule: ManagedGoalSchedule = isRoutine ? "1d" : "manual"',
     );
+    expect(source).toContain('{ value: "15m", label: "Every 15 minutes" }');
     expect(source).toContain('kindLabel: "",');
     expect(source).toContain("{copy.kindLabel ? (");
     expect(dialog).toContain(
@@ -34,12 +35,9 @@ describe("ManagedModelsView model form", () => {
     expect(dialog).toContain('id="agentGoal-capabilities"');
     expect(dialog).toContain("options={capabilityOptions}");
     expect(dialog).toContain(": selectedCapabilitySlugs,");
-    expect(dialog).toContain("useState<string[]>([])");
     expect(dialog).toContain("if (open) reset();");
     expect(dialog).toContain("setSelectedCapabilitySlugs([]);");
-    expect(dialog).not.toContain(
-      "isRoutine ? [] : defaultType.capabilities",
-    );
+    expect(dialog).not.toContain("isRoutine ? [] : defaultType.capabilities");
     expect(dialog).toContain("selectedCapabilitySlugs.length > 0");
     expect(dialog).toContain("SaveReportCheckbox");
     expect(source).toContain("function PreferredRunTimeFields");
@@ -102,11 +100,18 @@ describe("ManagedModelsView model form", () => {
     expect(createDialog).toContain("userVisibleObjectiveGoalTypes()");
     expect(createDialog).toContain('id="agentGoal-capabilities"');
     expect(createDialog).toContain('id="loop-target"');
+    expect(createDialog).toContain(
+      '<SelectItem value="workflow">Workflow</SelectItem>',
+    );
+    expect(createDialog).toContain("workflowTargetOptions(workflows)");
     expect(editDialog).toContain("userVisibleObjectiveGoalTypes()");
     expect(editDialog).toContain("selectedVisibleObjectiveGoalType");
     expect(editDialog).not.toContain("showObjectiveTypeSelect");
     expect(editDialog).toContain('id="edit-agentGoal-capabilities"');
     expect(editDialog).toContain('id="edit-loop-target"');
+    expect(editDialog).toContain(
+      '<SelectItem value="workflow">Workflow</SelectItem>',
+    );
   });
 
   it("keeps agentGoal edits capability-driven without exposing type labels", () => {
@@ -129,9 +134,7 @@ describe("ManagedModelsView model form", () => {
     );
     expect(dialog).toContain("mergeOrderedSlugs(current, next)");
     expect(dialog).toContain("moveSelectedCapability");
-    expect(dialog).toContain(
-      "capabilities: selectedCapabilitySlugs",
-    );
+    expect(dialog).toContain("capabilities: selectedCapabilitySlugs");
     expect(dialog).toContain("evidence: evidenceForRoute(routeSteps)");
     expect(dialog).toContain("route: routeWithReportPreference");
     expect(dialog).toContain(
@@ -166,9 +169,7 @@ describe("ManagedModelsView model form", () => {
     expect(dialog).toContain("selectedCapabilitySlugs.length > 0");
     expect(dialog).toContain('loopTarget?.type === "capability"');
     expect(dialog).toContain("saveReport");
-    expect(dialog).toContain(
-      'selectedHeading="Selected capabilities"',
-    );
+    expect(dialog).toContain('selectedHeading="Selected capabilities"');
     expect(dialog).toContain('selectedTone="info"');
     expect(dialog).toContain('idPrefix="edit-loop"');
     expect(source).toContain('className="grid min-w-0 grid-cols-2 gap-2"');

@@ -5,8 +5,9 @@
  * @ai-summary Vibe Coding view — chat (via persistent ChatRailShell) + live
  *   preview iframe + compact issue list. Selecting an issue swaps both the
  *   chat scope and the iframe; merging an issue removes it from the list.
- *   Reuses KodyChat (root layout), PreviewActions, MergeButton, CIStatusBadge.
- *   Default preview URL persists per-repo in state repo `dashboard.json`.
+ *   Reuses KodyChat (root layout), PreviewBrowser, PreviewActions,
+ *   MergeButton, CIStatusBadge. Default preview URL persists per-repo in
+ *   state repo `dashboard.json`.
  */
 "use client";
 
@@ -14,7 +15,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ListChecks, Loader2 } from "lucide-react";
+import { GitBranch, ListChecks, Loader2 } from "lucide-react";
 
 import { Button } from "@dashboard/ui/button";
 import {
@@ -28,12 +29,23 @@ import { useChatScope } from "./ChatRailShell";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useKodyTasks } from "../hooks";
 import { usePreviewUrl } from "../hooks/usePreviewUrl";
-import { PreviewPane } from "./PreviewPane";
+import { PreviewBrowser } from "./PreviewBrowser";
+import { PreviewBranchEnvForm } from "./PreviewBranchEnvForm";
+import { PreviewEnvSwitcher } from "./PreviewEnvSwitcher";
 import { VaultLockedBanner } from "./VaultLockedBanner";
 import {
   fetchDashboardConfig,
   saveDashboardConfig,
 } from "../dashboard-config/client";
+import {
+  addBranchPreviewEnvironment,
+  isFlyBranchEnvironment,
+  normalizeBranchName,
+  resolveEnvironments,
+  type PreviewEnvironment,
+} from "../preview-environments";
+import { fetchBranchPreviews } from "../previews/branch-preview-client";
+import { previewChatContextBlock } from "../chat/preview-context";
 import { tasksApi, getStoredAuth } from "../api";
 import { RateLimitError, NoTokenError, SessionExpiredError } from "../api";
 import type { KodyTask } from "../types";
@@ -74,6 +86,10 @@ function optimisticPinKeys(): number[] {
   return Array.from(optimisticTaskPins.keys());
 }
 
+function previewSelectionKey(owner: string, repo: string): string {
+  return `kody.previewEnv.${owner}/${repo}`;
+}
+
 export function VibePage() {
   const queryClient = useQueryClient();
   const { githubUser } = useGitHubIdentity();
@@ -82,6 +98,7 @@ export function VibePage() {
     setOnIssueCreated,
     setComposerInjection,
     setAttachmentInjection,
+    setPreviewContext,
   } = useChatScope();
 
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -309,8 +326,15 @@ export function VibePage() {
     },
   });
   const defaultPreviewUrl = configQuery.data?.config.defaultPreviewUrl ?? "";
+  const environments = useMemo(
+    () => resolveEnvironments(configQuery.data?.config),
+    [configQuery.data?.config],
+  );
+  const hasExplicitEnvironments = Array.isArray(
+    configQuery.data?.config.namedPreviews,
+  );
 
-  const saveConfigMutation = useMutation({
+  const saveDefaultPreviewMutation = useMutation({
     mutationFn: (url: string) =>
       saveDashboardConfig({
         defaultPreviewUrl: url,
@@ -326,6 +350,117 @@ export function VibePage() {
       );
     },
   });
+
+  const saveEnvironmentsMutation = useMutation({
+    mutationFn: (next: PreviewEnvironment[]) =>
+      saveDashboardConfig({
+        namedPreviews: next,
+        actorLogin: githubUser?.login,
+      }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["kody-dashboard-config"], data);
+    },
+    onError: (err) => {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Failed to save preview environments",
+      );
+    },
+  });
+
+  const [storedEnvId, setStoredEnvId] = useState<string | null>(null);
+  const [selectedEnvId, setSelectedEnvId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!ownerForViews || !repoForViews) return;
+    try {
+      setStoredEnvId(
+        window.localStorage.getItem(
+          previewSelectionKey(ownerForViews, repoForViews),
+        ),
+      );
+    } catch {
+      /* private mode - ignore */
+    }
+  }, [ownerForViews, repoForViews]);
+
+  useEffect(() => {
+    if (environments.length === 0) {
+      if (selectedEnvId !== null) setSelectedEnvId(null);
+      return;
+    }
+    if (selectedEnvId && environments.some((e) => e.id === selectedEnvId)) {
+      return;
+    }
+    const fallback =
+      environments.find((env) => env.id === storedEnvId) ?? environments[0]!;
+    setSelectedEnvId(fallback.id);
+  }, [environments, selectedEnvId, storedEnvId]);
+
+  const selectedEnv =
+    environments.find((e) => e.id === selectedEnvId) ?? environments[0] ?? null;
+
+  const persistPreviewEnvironments = async (
+    next: PreviewEnvironment[],
+  ): Promise<void> => {
+    await saveEnvironmentsMutation.mutateAsync(next);
+  };
+
+  const selectEnv = useCallback(
+    (env: PreviewEnvironment): void => {
+      setSelectedEnvId(env.id);
+      try {
+        window.localStorage.setItem(
+          previewSelectionKey(ownerForViews, repoForViews),
+          env.id,
+        );
+      } catch {
+        /* ignore */
+      }
+      setSelectedIssueNumber(null);
+    },
+    [ownerForViews, repoForViews, setSelectedIssueNumber],
+  );
+
+  const repoFullName =
+    ownerForViews && repoForViews ? `${ownerForViews}/${repoForViews}` : "";
+
+  const addBranch = async (repoRef: string, branch: string): Promise<void> => {
+    if (repoRef !== repoFullName) throw new Error("Use the connected repo");
+
+    const cleanBranch = normalizeBranchName(branch);
+    if (!cleanBranch) throw new Error("Enter a valid branch");
+
+    const list = await fetchBranchPreviews();
+    if (!list.flyConfigured) throw new Error("Fly previews are not configured");
+    const tracked = list.previews.find(
+      (preview) => preview.branch === cleanBranch,
+    );
+    if (!tracked) throw new Error("Create this branch preview in Fly first");
+
+    const existing = environments.find(
+      (env) =>
+        isFlyBranchEnvironment(env) &&
+        env.flyBranch.repo === repoRef &&
+        env.flyBranch.branch === cleanBranch,
+    );
+    if (existing) {
+      selectEnv(existing);
+      toast.info(`"${existing.label}" is already saved`);
+      return;
+    }
+
+    const next = addBranchPreviewEnvironment(
+      environments,
+      repoRef,
+      cleanBranch,
+    );
+    await persistPreviewEnvironments(next);
+    const created = next[next.length - 1];
+    if (created) selectEnv(created);
+    toast.success(`Saved "${created?.label ?? cleanBranch}"`);
+  };
 
   // ── Merge — mirrors KodyDashboard so we get the same optimistic UX. ─────
   const mergeMutation = useMutation({
@@ -385,12 +520,69 @@ export function VibePage() {
     selectedTask?.associatedPR?.number,
     selectedTask?.previewUrl ?? null,
   );
-  const fallbackPreviewUrl = !selectedTask ? defaultPreviewUrl : null;
+
+  const selectedFlyBranch = isFlyBranchEnvironment(selectedEnv)
+    ? selectedEnv.flyBranch
+    : null;
+  const selectedFlyBranchMatchesRepo =
+    !!selectedFlyBranch && selectedFlyBranch.repo === repoFullName;
+  const branchPreviewsQuery = useQuery({
+    queryKey: ["kody-branch-previews", ownerForViews, repoForViews],
+    queryFn: fetchBranchPreviews,
+    enabled:
+      !selectedTask &&
+      !!selectedFlyBranchMatchesRepo &&
+      !!ownerForViews &&
+      !!repoForViews,
+    staleTime: 15 * 60 * 1000,
+    refetchInterval: 3 * 60 * 60 * 1000,
+    retry: false,
+  });
+  const resolvedBranchPreview = selectedFlyBranch
+    ? branchPreviewsQuery.data?.previews.find(
+        (preview) => preview.branch === selectedFlyBranch.branch,
+      )
+    : null;
+  const selectedEnvironmentUrl = selectedFlyBranch
+    ? (resolvedBranchPreview?.url ?? null)
+    : (selectedEnv?.url ?? null);
+  const branchPreviewIsResolving =
+    !!selectedFlyBranchMatchesRepo &&
+    !resolvedBranchPreview?.url &&
+    (branchPreviewsQuery.isLoading ||
+      branchPreviewsQuery.isFetching ||
+      resolvedBranchPreview?.state === "pending" ||
+      resolvedBranchPreview?.state === "building" ||
+      resolvedBranchPreview?.state === "starting");
+  const legacyFallbackPreviewUrl =
+    !selectedEnv && !hasExplicitEnvironments ? defaultPreviewUrl : "";
+  const fallbackPreviewUrl = !selectedTask
+    ? (selectedEnvironmentUrl ?? (legacyFallbackPreviewUrl.trim() || null))
+    : null;
   const baseUrl = activePreviewUrl ?? fallbackPreviewUrl;
 
-  // Show the default-preview editor only on the empty pane and only when
-  // there's no URL yet — otherwise it'd compete with the iframe.
-  const showDefaultPreviewEditor = !selectedTask && !defaultPreviewUrl;
+  useEffect(() => {
+    if (selectedTask) {
+      setPreviewContext(null);
+      return;
+    }
+    setPreviewContext(previewChatContextBlock(selectedEnv));
+    return () => setPreviewContext(null);
+  }, [selectedEnv, selectedTask, setPreviewContext]);
+
+  useEffect(() => {
+    if (branchPreviewsQuery.error) {
+      toast.error(
+        branchPreviewsQuery.error instanceof Error
+          ? branchPreviewsQuery.error.message
+          : "Failed to open branch preview",
+      );
+    }
+  }, [branchPreviewsQuery.error]);
+
+  const browserIsResolving = selectedTask
+    ? previewResolving
+    : branchPreviewIsResolving;
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -433,9 +625,7 @@ export function VibePage() {
           <VibeIssueList
             tasks={tasks}
             selectedIssueNumber={selectedIssueNumber}
-            onSelect={(task) =>
-              setSelectedIssueNumber(task ? task.issueNumber : null)
-            }
+            onSelect={(task) => setSelectedIssueNumber(task.issueNumber)}
             onOpenDetail={(task) => setDetailIssueNumber(task.issueNumber)}
             isLoading={tasksQuery.isLoading}
           />
@@ -457,7 +647,7 @@ export function VibePage() {
                 tasks={tasks}
                 selectedIssueNumber={selectedIssueNumber}
                 onSelect={(task) => {
-                  setSelectedIssueNumber(task ? task.issueNumber : null);
+                  setSelectedIssueNumber(task.issueNumber);
                   setMobileIssuesOpen(false);
                 }}
                 onOpenDetail={(task) => {
@@ -472,27 +662,69 @@ export function VibePage() {
 
         {/* Preview pane — relative for the detail overlay below */}
         <section className="relative flex-1 min-w-0 flex flex-col">
-          <PreviewPane
+          <PreviewBrowser
             baseUrl={baseUrl}
-            isResolving={previewResolving}
+            isResolving={browserIsResolving}
             owner={ownerForViews}
             repo={repoForViews}
+            showBrowserChrome
             onComposerInjection={setComposerInjection}
             onAttachmentInjection={setAttachmentInjection}
             onBeforePreviewLoad={wakePreview}
+            leadingToolbar={
+              <PreviewEnvSwitcher
+                environments={environments}
+                repoFullName={repoFullName}
+                selectedId={selectedEnv?.id ?? null}
+                onSelect={selectEnv}
+                onSave={persistPreviewEnvironments}
+                onAddBranch={addBranch}
+                isSaving={saveEnvironmentsMutation.isPending}
+                variant="address"
+              />
+            }
             emptyState={
-              showDefaultPreviewEditor ? (
+              !selectedTask ? (
                 <div className="h-full flex items-center justify-center p-6">
                   {configQuery.isLoading ? (
                     <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
                   ) : (
-                    <VibeDefaultPreviewField
-                      value={defaultPreviewUrl}
-                      onSave={async (url) => {
-                        await saveConfigMutation.mutateAsync(url);
-                      }}
-                      isSaving={saveConfigMutation.isPending}
-                    />
+                    <div className="w-full max-w-xl mx-auto flex flex-col gap-4">
+                      <div className="flex flex-col items-center gap-2 text-center">
+                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-sky-500/10">
+                          <GitBranch className="w-5 h-5 text-sky-300" />
+                        </span>
+                        <h2 className="text-sm font-semibold text-zinc-200">
+                          Add a branch preview
+                        </h2>
+                        <p className="text-xs text-zinc-500 max-w-md">
+                          Pick a tracked Fly branch preview for this repo. It
+                          will be saved with the repo preview environments.
+                        </p>
+                      </div>
+                      <PreviewBranchEnvForm
+                        repoFullName={repoFullName}
+                        submitLabel="Add branch preview"
+                        isSaving={saveEnvironmentsMutation.isPending}
+                        onSubmit={addBranch}
+                      />
+                      {!hasExplicitEnvironments && (
+                        <>
+                          <div className="flex items-center gap-2 text-[11px] text-zinc-600">
+                            <span className="h-px flex-1 bg-zinc-800" />
+                            or
+                            <span className="h-px flex-1 bg-zinc-800" />
+                          </div>
+                          <VibeDefaultPreviewField
+                            value={defaultPreviewUrl}
+                            onSave={async (url) => {
+                              await saveDefaultPreviewMutation.mutateAsync(url);
+                            }}
+                            isSaving={saveDefaultPreviewMutation.isPending}
+                          />
+                        </>
+                      )}
+                    </div>
                   )}
                 </div>
               ) : (

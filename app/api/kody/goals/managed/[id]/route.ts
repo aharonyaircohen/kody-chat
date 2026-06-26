@@ -7,6 +7,7 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
+import type { Octokit } from "@octokit/rest";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
@@ -44,6 +45,36 @@ function activeGoalSlug(entry: ActiveGoalConfigEntry): string {
   return typeof entry === "string" ? entry : entry.template;
 }
 
+async function removeActiveStoreGoalReference({
+  octokit,
+  owner,
+  repo,
+  id,
+}: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  id: string;
+}): Promise<boolean> {
+  const { config } = await getEngineConfig(octokit, owner, repo, {
+    force: true,
+  });
+  const activeGoals = config.company?.activeGoals ?? [];
+  const nextActiveGoals = activeGoals.filter(
+    (entry) => activeGoalSlug(entry) !== id,
+  );
+  if (nextActiveGoals.length === activeGoals.length) return false;
+
+  await writeConfigPatch(
+    octokit,
+    owner,
+    repo,
+    { activeGoals: nextActiveGoals },
+    `chore(goals): remove store goal ${id}`,
+  );
+  return true;
+}
+
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
     return NextResponse.json(
@@ -71,7 +102,14 @@ const routeStepSchema = z.object({
   args: z.record(z.string(), z.unknown()).optional(),
 });
 
-const managedGoalScheduleSchema = z.enum(["manual", "1h", "1d", "7d", "30d"]);
+const managedGoalScheduleSchema = z.enum([
+  "manual",
+  "15m",
+  "1h",
+  "1d",
+  "7d",
+  "30d",
+]);
 const preferredRunTimeSchema = z.object({
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   timezone: z
@@ -81,7 +119,7 @@ const preferredRunTimeSchema = z.object({
     .regex(/^[A-Za-z0-9_+./-]+$/),
 });
 const loopTargetSchema = z.object({
-  type: z.enum(["capability", "goal"]),
+  type: z.enum(["capability", "goal", "workflow"]),
   id: z.string().min(1).max(80),
 });
 
@@ -102,6 +140,16 @@ const updateManagedGoalSchema = z.object({
 
 function isStoreBackedGoalState(state: ManagedGoalState): boolean {
   return state.kind === "template" || state.template === true;
+}
+
+function shouldRemoveActiveStoreGoalReference(
+  state: ManagedGoalState,
+  id: string,
+): boolean {
+  return (
+    isStoreBackedGoalState(state) ||
+    (typeof state.sourceTemplate === "string" && state.sourceTemplate === id)
+  );
 }
 
 function isStateOnlyUpdate(
@@ -409,8 +457,8 @@ export async function DELETE(
           typeof goal.state.sourceTemplate === "string" &&
           goal.state.sourceTemplate === id,
       );
+      let deletedCount = 0;
       if (generatedGoals.length > 0) {
-        let deletedCount = 0;
         for (const goal of generatedGoals) {
           const file = await readManagedGoalFile(
             goal.id,
@@ -429,39 +477,26 @@ export async function DELETE(
           });
           deletedCount += 1;
         }
-        if (deletedCount > 0) {
-          return NextResponse.json({ success: true, deletedCount });
-        }
+      }
+
+      const removedReference = await removeActiveStoreGoalReference({
+        octokit: context.octokit,
+        owner: context.headerAuth.owner,
+        repo: context.headerAuth.repo,
+        id,
+      });
+      if (deletedCount > 0 || removedReference) {
+        return NextResponse.json({
+          success: true,
+          ...(deletedCount > 0 ? { deletedCount } : {}),
+          ...(removedReference ? { removedReference: true } : {}),
+        });
       }
 
       const storeGoals = await listCompanyStoreGoalTemplateFiles(
         context.octokit,
       );
       if (storeGoals.some((goal) => goal.id === id)) {
-        const { config } = await getEngineConfig(
-          context.octokit,
-          context.headerAuth.owner,
-          context.headerAuth.repo,
-          { force: true },
-        );
-        const activeGoals = config.company?.activeGoals ?? [];
-        const nextActiveGoals = activeGoals.filter(
-          (entry) => activeGoalSlug(entry) !== id,
-        );
-        if (nextActiveGoals.length !== activeGoals.length) {
-          await writeConfigPatch(
-            context.octokit,
-            context.headerAuth.owner,
-            context.headerAuth.repo,
-            { activeGoals: nextActiveGoals },
-            `chore(goals): remove store goal ${id}`,
-          );
-          return NextResponse.json({
-            success: true,
-            removedReference: true,
-          });
-        }
-
         return NextResponse.json(
           {
             error: "store_goal_protected",
@@ -481,7 +516,22 @@ export async function DELETE(
       message: `chore(goals): delete managed goal ${id}`,
     });
 
-    return NextResponse.json({ success: true });
+    const removedReference = shouldRemoveActiveStoreGoalReference(
+      existing.state,
+      id,
+    )
+      ? await removeActiveStoreGoalReference({
+          octokit: context.octokit,
+          owner: context.headerAuth.owner,
+          repo: context.headerAuth.repo,
+          id,
+        })
+      : false;
+
+    return NextResponse.json({
+      success: true,
+      ...(removedReference ? { removedReference: true } : {}),
+    });
   } catch (err: any) {
     return mapGithubError(err, "failed_to_delete_managed_goal");
   } finally {

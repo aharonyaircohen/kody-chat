@@ -444,7 +444,7 @@ export function PreviewBrowser({
           {!showBrowserChrome && leadingToolbar}
         </div>
 
-        {showBrowserChrome && activePreviewUrl && (
+        {showBrowserChrome && (activePreviewUrl || leadingToolbar) && (
           <div className="order-last flex w-full min-w-0 items-center gap-1 rounded-md border border-zinc-700 bg-zinc-900/70 p-0.5">
             {leadingToolbar && (
               <div className="flex shrink-0 items-center gap-0.5 border-r border-zinc-700/80 pr-1">
@@ -485,6 +485,7 @@ export function PreviewBrowser({
               aria-label="Current preview URL"
               title={browserUrl}
               value={browserUrl}
+              placeholder="No preview selected"
               onFocus={() => {
                 browserInputFocusedRef.current = true;
               }}
@@ -507,7 +508,7 @@ export function PreviewBrowser({
               }}
               className="h-7 min-w-0 flex-1 rounded border-0 bg-zinc-950/80 px-2 font-mono text-[11px] text-zinc-300 outline-none ring-0 selection:bg-sky-500/30"
             />
-            {onSaveCurrentUrl && (
+            {onSaveCurrentUrl && activePreviewUrl && (
               <button
                 type="button"
                 onClick={() => {
@@ -533,9 +534,17 @@ export function PreviewBrowser({
             <button
               type="button"
               onClick={() => setIframeKey((key) => key + 1)}
-              title="Refresh preview"
+              disabled={!activePreviewUrl}
+              title={
+                activePreviewUrl ? "Refresh preview" : "No preview to refresh"
+              }
               aria-label="Refresh preview"
-              className="inline-flex shrink-0 items-center justify-center rounded p-1.5 text-zinc-400 transition-colors hover:bg-zinc-700/60 hover:text-white"
+              className={cn(
+                "inline-flex shrink-0 items-center justify-center rounded p-1.5 transition-colors",
+                activePreviewUrl
+                  ? "text-zinc-400 hover:bg-zinc-700/60 hover:text-white"
+                  : "cursor-not-allowed text-zinc-600",
+              )}
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>

@@ -72,7 +72,7 @@ interface ManagedGoalRecord {
       evidence: string;
       capability: string;
     }>;
-    schedule: "manual" | "1h" | "1d" | "7d" | "30d";
+    schedule: "manual" | "15m" | "1h" | "1d" | "7d" | "30d";
     stage: string;
     facts: Record<string, unknown>;
     blockers: string[];

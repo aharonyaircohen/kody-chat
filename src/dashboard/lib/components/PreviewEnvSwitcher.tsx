@@ -56,7 +56,7 @@ interface PreviewEnvSwitcherProps {
   /** Add a Fly branch preview environment (parent persists + selects). */
   onAddBranch: (repo: string, branch: string) => Promise<void>;
   /** Upload file(s) → boot a static preview → add it as an environment. */
-  onUpload: (files: File[]) => Promise<void>;
+  onUpload?: (files: File[]) => Promise<void>;
   /** Destroy the Fly app behind an uploaded environment, if it has one. */
   onRemoveStatic?: (staticId: string) => Promise<void>;
   /** Delete repo-backed view files behind uploaded view, if any. */
@@ -141,7 +141,9 @@ export function PreviewEnvSwitcher({
     repo: string,
     branch: string,
   ): Promise<void> => {
-    await onSave(updateBranchPreviewEnvironment(environments, id, repo, branch));
+    await onSave(
+      updateBranchPreviewEnvironment(environments, id, repo, branch),
+    );
     setEditingId(null);
   };
 
@@ -161,6 +163,7 @@ export function PreviewEnvSwitcher({
   };
 
   const handleUpload = async (files: File[]): Promise<void> => {
+    if (!onUpload) return;
     if (files.length === 0) return;
     setUploading(true);
     try {
@@ -357,30 +360,34 @@ export function PreviewEnvSwitcher({
                 <GitBranch className="w-3.5 h-3.5" />
                 Add branch preview
               </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                className="hidden"
-                onChange={(e) => {
-                  const files = Array.from(e.target.files ?? []);
-                  if (files.length > 0) void handleUpload(files);
-                }}
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={uploading}
-                title="Upload static files to state views"
-                className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-sky-300 hover:bg-zinc-800/70 border-l border-zinc-800 disabled:opacity-60"
-              >
-                {uploading ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <Upload className="w-3.5 h-3.5" />
-                )}
-                {uploading ? "Uploading…" : "Upload view files"}
-              </button>
+              {onUpload && (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files ?? []);
+                      if (files.length > 0) void handleUpload(files);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploading}
+                    title="Upload static files to state views"
+                    className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-sky-300 hover:bg-zinc-800/70 border-l border-zinc-800 disabled:opacity-60"
+                  >
+                    {uploading ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Upload className="w-3.5 h-3.5" />
+                    )}
+                    {uploading ? "Uploading..." : "Upload view files"}
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>

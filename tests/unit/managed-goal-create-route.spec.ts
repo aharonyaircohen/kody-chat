@@ -140,7 +140,7 @@ describe("POST /api/kody/goals/managed", () => {
     const res = await POST(
       createRequest({
         type: "agentLoop",
-        schedule: "1d",
+        schedule: "15m",
         outcome: "Keep codebase healthy report drift.",
         saveReport: true,
         evidence: [],
@@ -157,10 +157,10 @@ describe("POST /api/kody/goals/managed", () => {
     expect(write.id).toBe("keep-codebase-healthy-report-drift");
     expect(write.state).toMatchObject({
       type: "agentLoop",
-        schedule: "1d",
-        scheduleMode: "agentLoop",
-        saveReport: true,
-        destination: {
+      schedule: "15m",
+      scheduleMode: "agentLoop",
+      saveReport: true,
+      destination: {
         outcome: "Keep codebase healthy report drift.",
         evidence: [],
       },
@@ -168,6 +168,45 @@ describe("POST /api/kody/goals/managed", () => {
       route: [],
       facts: { goalType: "agentLoop" },
     });
+  });
+
+  it("creates an agentLoop that targets a workflow", async () => {
+    h.readManagedGoalFile.mockResolvedValue(null);
+    h.writeManagedGoalFile.mockResolvedValue(undefined);
+    h.getUserOctokit.mockResolvedValue({
+      rest: {
+        repos: {
+          get: vi.fn(async () => ({ data: { default_branch: "main" } })),
+        },
+        actions: {
+          createWorkflowDispatch: vi.fn(async () => undefined),
+        },
+      },
+    });
+
+    const res = await POST(
+      createRequest({
+        type: "agentLoop",
+        schedule: "1d",
+        outcome: "Run release hygiene every day.",
+        loopTarget: { type: "workflow", id: "release-hygiene" },
+        saveReport: true,
+        evidence: [],
+        capabilities: [],
+        route: [],
+      }),
+    );
+    const json = await res.json();
+
+    expect(res.status).toBe(201);
+    expect(json.error).toBeUndefined();
+    const write = h.writeManagedGoalFile.mock.calls[0]![0];
+    expect(write.state.loopTarget).toEqual({
+      type: "workflow",
+      id: "release-hygiene",
+    });
+    expect(write.state.capabilities).toEqual([]);
+    expect(write.state.scheduleMode).toBe("agentLoop");
   });
 });
 

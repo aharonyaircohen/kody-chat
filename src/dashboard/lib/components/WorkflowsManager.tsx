@@ -17,6 +17,7 @@ import {
   FileText,
   Loader2,
   Pencil,
+  Play,
   Plus,
   RefreshCw,
   Route,
@@ -40,6 +41,7 @@ import { useCapabilities } from "../hooks/useCapabilities";
 import {
   useCreateWorkflowDefinition,
   useDeleteWorkflowDefinition,
+  useRunWorkflowDefinition,
   useUpdateWorkflowDefinition,
   useWorkflowDefinitions,
 } from "../hooks/useWorkflowDefinitions";
@@ -134,6 +136,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
   const createWorkflow = useCreateWorkflowDefinition();
   const updateWorkflow = useUpdateWorkflowDefinition(editingWorkflow?.id ?? "");
   const deleteWorkflow = useDeleteWorkflowDefinition();
+  const runWorkflow = useRunWorkflowDefinition();
 
   const filtered = useMemo(
     () => workflows.filter((workflow) => workflowMatches(workflow, search)),
@@ -228,6 +231,11 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
               workflow={selectedWorkflow}
               capabilityBySlug={capabilityBySlug}
               onBack={() => selectWorkflow(null)}
+              onRun={() => runWorkflow.mutate(selectedWorkflow.id)}
+              runPending={
+                runWorkflow.isPending &&
+                runWorkflow.variables === selectedWorkflow.id
+              }
               onEdit={() => setEditingWorkflow(selectedWorkflow)}
               onDelete={() => setDeletingWorkflow(selectedWorkflow)}
             />
@@ -377,16 +385,21 @@ function WorkflowDetail({
   workflow,
   capabilityBySlug,
   onBack,
+  onRun,
+  runPending,
   onEdit,
   onDelete,
 }: {
   workflow: WorkflowDefinitionRecord;
   capabilityBySlug: Map<string, { slug: string; describe?: string }>;
   onBack: () => void;
+  onRun: () => void;
+  runPending: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const storeBacked = isStoreWorkflow(workflow);
+  const runnable = workflow.runnable === true;
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-5 md:px-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -426,6 +439,24 @@ function WorkflowDetail({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={onRun}
+            disabled={!runnable || runPending}
+            title={
+              runnable
+                ? "Run workflow now"
+                : "Only capability-backed Store workflows can run now"
+            }
+            aria-label={`Run workflow ${workflow.id}`}
+          >
+            {runPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Play className="h-4 w-4" />
+            )}
+            Run
+          </Button>
           <Button
             variant="outline"
             size="sm"

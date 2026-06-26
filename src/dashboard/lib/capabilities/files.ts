@@ -82,6 +82,10 @@ export interface CapabilitySummary {
   agent: string | null;
   /** Recurrence cadence from profile.every, or null. */
   every?: string | null;
+  /** True when profile.workflow declares an ordered capability queue. */
+  isWorkflow?: boolean;
+  /** Capability slugs in profile.workflow.steps, if this is a workflow. */
+  workflowSteps?: string[];
   /** Runtime resolution source. Local repo assets win over store assets. */
   source?: "local" | "store";
   /** Store-linked assets are visible and runnable, but not editable locally. */
@@ -164,6 +168,33 @@ function parseProfileJson(raw: string): Record<string, unknown> | null {
   }
 }
 
+function workflowStepsFromProfile(profile: Record<string, unknown>): string[] {
+  const workflow = profile.workflow;
+  if (!workflow || typeof workflow !== "object" || Array.isArray(workflow)) {
+    return [];
+  }
+  const steps = (workflow as { steps?: unknown }).steps;
+  if (!Array.isArray(steps)) return [];
+
+  const out: string[] = [];
+  for (const step of steps) {
+    if (typeof step === "string" && step.trim()) {
+      out.push(step.trim());
+      continue;
+    }
+    if (!step || typeof step !== "object" || Array.isArray(step)) continue;
+    const record = step as Record<string, unknown>;
+    const slug =
+      typeof record.capability === "string"
+        ? record.capability.trim()
+        : typeof record.executable === "string"
+          ? record.executable.trim()
+          : "";
+    if (slug) out.push(slug);
+  }
+  return out;
+}
+
 function summaryFromProfile(
   slug: string,
   profile: Record<string, unknown>,
@@ -181,6 +212,7 @@ function summaryFromProfile(
     typeof profile.every === "string" && profile.every.trim()
       ? profile.every.trim()
       : null;
+  const workflowSteps = workflowStepsFromProfile(profile);
   return {
     slug,
     describe,
@@ -189,6 +221,8 @@ function summaryFromProfile(
     htmlUrl,
     agent,
     every,
+    isWorkflow: workflowSteps.length > 0,
+    workflowSteps,
     ...extra,
   };
 }
@@ -239,6 +273,7 @@ async function listCapabilityFolders(
         profile && typeof profile.every === "string" && profile.every.trim()
           ? profile.every.trim()
           : null;
+      const workflowSteps = profile ? workflowStepsFromProfile(profile) : [];
       return {
         slug,
         describe,
@@ -247,6 +282,8 @@ async function listCapabilityFolders(
         htmlUrl: buildHtmlUrl(target, slug, branch, storage),
         agent,
         every,
+        isWorkflow: workflowSteps.length > 0,
+        workflowSteps,
       };
     }),
   );

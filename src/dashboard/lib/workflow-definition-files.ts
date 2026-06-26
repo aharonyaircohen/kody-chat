@@ -21,16 +21,23 @@ import {
 } from "./company-store/assets";
 import {
   isWorkflowDefinitionId,
+  normalizeWorkflowCapabilities,
   normalizeWorkflowDefinition,
   workflowDefinitionPath,
   type WorkflowDefinition,
   type WorkflowDefinitionRecord,
 } from "./workflow-definitions";
+import {
+  listStoreCapabilityFiles,
+  type CapabilitySummary,
+} from "./capabilities/files";
 
 interface ContentFile {
   type?: string;
   name?: string;
 }
+
+const STORE_CAPABILITY_WORKFLOW_TIMESTAMP = "1970-01-01T00:00:00.000Z";
 
 export async function readWorkflowDefinitionFile(
   id: string,
@@ -149,6 +156,61 @@ export async function listCompanyStoreWorkflowDefinitionFiles(
   return workflows
     .filter((workflow): workflow is WorkflowDefinitionRecord => !!workflow)
     .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+export function workflowRecordFromCapabilitySummary(
+  capability: CapabilitySummary,
+): WorkflowDefinitionRecord | null {
+  const workflowSteps = normalizeWorkflowCapabilities(
+    capability.workflowSteps ?? [],
+  );
+  if (!capability.isWorkflow || workflowSteps.length === 0) return null;
+  if (!isWorkflowDefinitionId(capability.slug)) return null;
+
+  const updatedAt = capability.updatedAt ?? STORE_CAPABILITY_WORKFLOW_TIMESTAMP;
+  return {
+    id: capability.slug,
+    path: `.kody/capabilities/${capability.slug}/profile.json`,
+    workflow: {
+      version: 1,
+      name: capability.slug,
+      instructions:
+        capability.describe || `Run the ${capability.slug} workflow.`,
+      capabilities: workflowSteps,
+      createdAt: updatedAt,
+      updatedAt,
+    },
+    updatedAt,
+    source: "store",
+    readOnly: true,
+    runnable: true,
+    htmlUrl: capability.htmlUrl,
+  };
+}
+
+export async function listCompanyStoreCapabilityWorkflowDefinitionFiles(
+  octokit: Octokit = getOctokit(),
+  activeSlugs?: Iterable<string>,
+): Promise<WorkflowDefinitionRecord[]> {
+  const active = activeSlugs ? new Set(activeSlugs) : null;
+  const capabilities = await listStoreCapabilityFiles(octokit);
+  return capabilities
+    .filter((capability) => !active || active.has(capability.slug))
+    .map(workflowRecordFromCapabilitySummary)
+    .filter((workflow): workflow is WorkflowDefinitionRecord => !!workflow)
+    .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+export async function readCompanyStoreCapabilityWorkflowDefinitionFile(
+  id: string,
+  octokit: Octokit = getOctokit(),
+): Promise<WorkflowDefinitionRecord | null> {
+  if (!isWorkflowDefinitionId(id)) return null;
+  const workflows = await listCompanyStoreCapabilityWorkflowDefinitionFiles(
+    octokit,
+    [id],
+  );
+  return workflows[0] ?? null;
 }
 
 export async function writeWorkflowDefinitionFile({

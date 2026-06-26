@@ -6,10 +6,10 @@
  * Covers the Vibe workspace end-to-end against the deployed dashboard:
  *   - Smoke (page loads, no console errors)
  *   - Header (refresh button, vibe toggle)
- *   - Issue list (renders, search, clear, no-matches, default-preview row,
+ *   - Issue list (renders, search, clear, no-matches,
  *     selecting a row, opening the detail overlay)
- *   - Preview pane (default preview / no-preview / iframe / web/admin
- *     toggle / refresh / open external)
+ *   - Preview pane (branch preview picker / default preview / no-preview /
+ *     iframe / web/admin toggle / refresh / open external)
  *   - Detail overlay (URL `?detail=N`, ESC, backdrop close, tab switch
  *     keeps overlay open and URL on /vibe — regression for today's fix)
  *   - URL persistence (`?issue=N` survives reload; clearing selection
@@ -158,7 +158,7 @@ test.describe("Vibe page — smoke", () => {
         timeout: 10_000,
       }),
       page
-        .getByText(/no preview yet|default preview/i)
+        .getByText(/no preview yet|default preview|add a branch preview/i)
         .first()
         .waitFor({ timeout: 10_000 }),
     ]).then(
@@ -237,7 +237,7 @@ test.describe("Vibe page — issue list", () => {
     expect(restored).toBe(initialCount);
   });
 
-  test("clicking a row sets ?issue=N and clicking Default preview clears it", async ({
+  test("clicking a row sets ?issue=N and default preview is not a task row", async ({
     page,
   }) => {
     await gotoVibe(page, { waitForTasks: true });
@@ -252,14 +252,23 @@ test.describe("Vibe page — issue list", () => {
       .poll(() => page.url(), { timeout: 5_000 })
       .toMatch(/[?&]issue=\d+/);
 
-    // The "Default preview" row at the top deselects.
-    const defaultRow = page
-      .getByRole("button", { name: /^default preview$/i })
+    await expect(
+      page.getByRole("button", { name: /^default preview$/i }),
+    ).toHaveCount(0);
+  });
+
+  test("browser preview menu offers branch previews", async ({ page }) => {
+    await gotoVibe(page);
+
+    const envMenu = page
+      .locator('button[title^="Switch preview environment"]')
       .first();
-    await defaultRow.click();
-    await expect
-      .poll(() => page.url(), { timeout: 5_000 })
-      .not.toMatch(/[?&]issue=\d+/);
+    await expect(envMenu).toBeVisible({ timeout: 10_000 });
+    await envMenu.click();
+
+    await expect(
+      page.getByRole("button", { name: /add branch preview/i }).first(),
+    ).toBeVisible({ timeout: 3_000 });
   });
 });
 

@@ -64,6 +64,7 @@ import {
   useSetManagedGoalState,
   useUpdateManagedGoal,
 } from "../hooks/useManagedGoals";
+import { useWorkflowDefinitions } from "../hooks/useWorkflowDefinitions";
 import {
   MANAGED_GOAL_TYPES,
   buildSimpleManagedGoalCreateInput,
@@ -81,6 +82,7 @@ import {
   type ManagedGoalTypeDefinition,
   type ManagedGoalTypeId,
 } from "../managed-goals";
+import type { WorkflowDefinitionRecord } from "../workflow-definitions";
 import { scheduleEveryLabel, type ScheduleEvery } from "../ticked/frontmatter";
 import { selectionPath } from "../selection-routing";
 import { cn } from "../utils";
@@ -145,6 +147,7 @@ const viewCopy: Record<ManagedGoalModel, ManagedModelViewCopy> = {
 
 const scheduleOptions = [
   { value: "manual", label: "Manual" },
+  { value: "15m", label: "Every 15 minutes" },
   { value: "1h", label: "Every hour" },
   { value: "1d", label: "Every day" },
   { value: "7d", label: "Every week" },
@@ -509,9 +512,7 @@ function capabilitySelectOptions(
   }
   for (const capability of capabilities) {
     const label = capability.describe || capability.slug;
-    const source = capability.source
-      ? ` / ${capability.source}`
-      : "";
+    const source = capability.source ? ` / ${capability.source}` : "";
     bySlug.set(capability.slug, {
       value: capability.slug,
       label,
@@ -540,11 +541,33 @@ function goalTargetOptions(
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
+function workflowTargetOptions(
+  workflows: WorkflowDefinitionRecord[],
+): SearchableSelectOption[] {
+  return workflows
+    .map((workflow) => ({
+      value: workflow.id,
+      label: workflow.workflow.name || workflow.id,
+      selectedLabel: workflow.id,
+      description: `${workflow.id}${workflow.source ? ` / ${workflow.source}` : ""}`,
+      searchText: [
+        workflow.id,
+        workflow.workflow.name,
+        workflow.workflow.instructions,
+        workflow.source ?? "",
+        ...workflow.workflow.capabilities,
+      ].join(" "),
+    }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
 function isManagedLoopTarget(value: unknown): value is ManagedLoopTarget {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const target = value as Partial<ManagedLoopTarget>;
   return (
-    (target.type === "goal" || target.type === "capability") &&
+    (target.type === "goal" ||
+      target.type === "capability" ||
+      target.type === "workflow") &&
     typeof target.id === "string" &&
     target.id.trim().length > 0
   );
@@ -559,16 +582,14 @@ function managedLoopTarget(goal: ManagedGoalRecord): ManagedLoopTarget | null {
   }
   if (managedGoalModel(goal) !== "agentLoop") return null;
   const firstCapability = goal.state.capabilities[0]?.trim();
-  return firstCapability
-    ? { type: "capability", id: firstCapability }
-    : null;
+  return firstCapability ? { type: "capability", id: firstCapability } : null;
 }
 
 function loopTargetLabel(target: ManagedLoopTarget | null): string {
   if (!target) return "No target";
-  return target.type === "goal"
-    ? `Goal: ${target.id}`
-    : `Capability: ${target.id}`;
+  if (target.type === "goal") return `Goal: ${target.id}`;
+  if (target.type === "workflow") return `Workflow: ${target.id}`;
+  return `Capability: ${target.id}`;
 }
 
 function mergeOrderedSlugs(current: string[], next: string[]): string[] {
@@ -769,10 +790,8 @@ function NewGoalDialog({
   onCreated?: (goal: ManagedGoalRecord) => void;
 }) {
   const createGoal = useCreateManagedGoal();
-  const {
-    data: capabilities = [],
-    isLoading: capabilitiesLoading,
-  } = useCapabilities();
+  const { data: capabilities = [], isLoading: capabilitiesLoading } =
+    useCapabilities();
   const goalTypes = useMemo(
     () =>
       model === "agentGoal"
@@ -800,10 +819,12 @@ function NewGoalDialog({
   const [selectedLoopGoalId, setSelectedLoopGoalId] = useState<string | null>(
     null,
   );
-  const [
-    selectedCapabilitySlugs,
-    setSelectedCapabilitySlugs,
-  ] = useState<string[]>([]);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(
+    null,
+  );
+  const [selectedCapabilitySlugs, setSelectedCapabilitySlugs] = useState<
+    string[]
+  >([]);
   const [saveReport, setSaveReport] = useState(isRoutine);
 
   const selectedGoalType =
@@ -812,22 +833,21 @@ function NewGoalDialog({
     ? scheduleOptions.filter((option) => option.value !== "manual")
     : scheduleOptions;
   const loopGoalOptions = useMemo(() => goalTargetOptions(goals), [goals]);
+  const { data: workflows = [], isLoading: workflowsLoading } =
+    useWorkflowDefinitions();
+  const workflowOptions = useMemo(
+    () => workflowTargetOptions(workflows),
+    [workflows],
+  );
   const capabilityOptions = useMemo(
-    () =>
-      capabilitySelectOptions(
-        capabilities,
-        selectedGoalType.capabilities,
-      ),
+    () => capabilitySelectOptions(capabilities, selectedGoalType.capabilities),
     [capabilities, selectedGoalType.capabilities],
   );
   const routeSteps = useMemo(
     () =>
       isRoutine
         ? []
-        : routeStepsForCapabilities(
-            selectedGoalType,
-            selectedCapabilitySlugs,
-          ),
+        : routeStepsForCapabilities(selectedGoalType, selectedCapabilitySlugs),
     [isRoutine, selectedCapabilitySlugs, selectedGoalType],
   );
   const selectedLoopCapabilitySlug = selectedCapabilitySlugs[0] ?? null;
@@ -840,12 +860,16 @@ function NewGoalDialog({
       ? selectedLoopGoalId
         ? { type: "goal", id: selectedLoopGoalId }
         : undefined
-      : selectedLoopCapabilitySlug
-        ? {
-            type: "capability",
-            id: selectedLoopCapabilitySlug,
-          }
-        : undefined
+      : loopTargetType === "workflow"
+        ? selectedWorkflowId
+          ? { type: "workflow", id: selectedWorkflowId }
+          : undefined
+        : selectedLoopCapabilitySlug
+          ? {
+              type: "capability",
+              id: selectedLoopCapabilitySlug,
+            }
+          : undefined
     : undefined;
   const canSubmit =
     outcome.trim().length > 0 &&
@@ -895,6 +919,7 @@ function NewGoalDialog({
     setOutcome("");
     setLoopTargetType("goal");
     setSelectedLoopGoalId(null);
+    setSelectedWorkflowId(null);
     setSelectedCapabilitySlugs([]);
     setSaveReport(isRoutine);
   }, [defaultSchedule, defaultTimeZone, defaultType.id, isRoutine]);
@@ -904,15 +929,10 @@ function NewGoalDialog({
   }, [open, reset]);
 
   const selectCapabilities = (next: string[]) => {
-    setSelectedCapabilitySlugs((current) =>
-      mergeOrderedSlugs(current, next),
-    );
+    setSelectedCapabilitySlugs((current) => mergeOrderedSlugs(current, next));
   };
 
-  const moveSelectedCapability = (
-    index: number,
-    direction: -1 | 1,
-  ) => {
+  const moveSelectedCapability = (index: number, direction: -1 | 1) => {
     setSelectedCapabilitySlugs((current) =>
       moveItem(current, index, direction),
     );
@@ -1006,6 +1026,8 @@ function NewGoalDialog({
                     value={loopTargetType}
                     onValueChange={(value) => {
                       setLoopTargetType(value as ManagedLoopTarget["type"]);
+                      setSelectedLoopGoalId(null);
+                      setSelectedWorkflowId(null);
                       setSelectedCapabilitySlugs([]);
                     }}
                   >
@@ -1014,6 +1036,7 @@ function NewGoalDialog({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="goal">Goal</SelectItem>
+                      <SelectItem value="workflow">Workflow</SelectItem>
                       <SelectItem value="capability">Capability</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1029,6 +1052,21 @@ function NewGoalDialog({
                       placeholder="Select goal"
                       searchPlaceholder="Search goals..."
                       emptyLabel="No goals found"
+                    />
+                  ) : loopTargetType === "workflow" ? (
+                    <SearchableSelect
+                      id="loop-target"
+                      options={workflowOptions}
+                      value={selectedWorkflowId}
+                      onChange={setSelectedWorkflowId}
+                      placeholder={
+                        workflowsLoading
+                          ? "Loading workflows..."
+                          : "Select workflow"
+                      }
+                      searchPlaceholder="Search workflows..."
+                      emptyLabel="No workflows found"
+                      disabled={workflowsLoading}
                     />
                   ) : (
                     <SearchableSelect
@@ -1052,9 +1090,7 @@ function NewGoalDialog({
               </>
             ) : (
               <div className="min-w-0 space-y-2 md:col-span-2">
-                <Label htmlFor="agentGoal-capabilities">
-                  Capabilities
-                </Label>
+                <Label htmlFor="agentGoal-capabilities">Capabilities</Label>
                 <SearchableMultiSelect
                   id="agentGoal-capabilities"
                   options={capabilityOptions}
@@ -1170,22 +1206,26 @@ function EditManagedGoalDialog({
   const [selectedLoopGoalId, setSelectedLoopGoalId] = useState<string | null>(
     null,
   );
-  const [
-    selectedCapabilitySlugs,
-    setSelectedCapabilitySlugs,
-  ] = useState<string[]>([]);
+  const [selectedWorkflowId, setSelectedWorkflowId] = useState<string | null>(
+    null,
+  );
+  const [selectedCapabilitySlugs, setSelectedCapabilitySlugs] = useState<
+    string[]
+  >([]);
   const [saveReport, setSaveReport] = useState(false);
   const objectiveGoalType = initialObjectiveGoalType;
   const scheduleChoices = isRoutine
     ? scheduleOptions.filter((option) => option.value !== "manual")
     : scheduleOptions;
   const loopGoalOptions = useMemo(() => goalTargetOptions(goals), [goals]);
+  const { data: workflows = [], isLoading: workflowsLoading } =
+    useWorkflowDefinitions();
+  const workflowOptions = useMemo(
+    () => workflowTargetOptions(workflows),
+    [workflows],
+  );
   const capabilityOptions = useMemo(
-    () =>
-      capabilitySelectOptions(
-        capabilities,
-        goal?.state.capabilities ?? [],
-      ),
+    () => capabilitySelectOptions(capabilities, goal?.state.capabilities ?? []),
     [capabilities, goal?.state.capabilities],
   );
   const routeSteps = useMemo(
@@ -1209,12 +1249,16 @@ function EditManagedGoalDialog({
       ? selectedLoopGoalId
         ? { type: "goal", id: selectedLoopGoalId }
         : undefined
-      : selectedLoopCapabilitySlug
-        ? {
-            type: "capability",
-            id: selectedLoopCapabilitySlug,
-          }
-        : undefined
+      : loopTargetType === "workflow"
+        ? selectedWorkflowId
+          ? { type: "workflow", id: selectedWorkflowId }
+          : undefined
+        : selectedLoopCapabilitySlug
+          ? {
+              type: "capability",
+              id: selectedLoopCapabilitySlug,
+            }
+          : undefined
     : undefined;
 
   useEffect(() => {
@@ -1243,6 +1287,7 @@ function EditManagedGoalDialog({
       setSaveReport(goal.state.saveReport !== false);
       setLoopTargetType(nextType);
       setSelectedLoopGoalId(target?.type === "goal" ? target.id : null);
+      setSelectedWorkflowId(target?.type === "workflow" ? target.id : null);
       setSelectedCapabilitySlugs(
         target?.type === "capability" ? [target.id] : [],
       );
@@ -1252,19 +1297,15 @@ function EditManagedGoalDialog({
     setPreferredRunTimeZone(defaultTimeZone);
     setSaveReport(routeSavesReport(goal.state.route));
     setSelectedLoopGoalId(null);
+    setSelectedWorkflowId(null);
     setSelectedCapabilitySlugs(goal.state.capabilities);
   }, [defaultTimeZone, goal, isRoutine, open]);
 
   const selectCapabilities = (next: string[]) => {
-    setSelectedCapabilitySlugs((current) =>
-      mergeOrderedSlugs(current, next),
-    );
+    setSelectedCapabilitySlugs((current) => mergeOrderedSlugs(current, next));
   };
 
-  const moveSelectedCapability = (
-    index: number,
-    direction: -1 | 1,
-  ) => {
+  const moveSelectedCapability = (index: number, direction: -1 | 1) => {
     setSelectedCapabilitySlugs((current) =>
       moveItem(current, index, direction),
     );
@@ -1364,6 +1405,8 @@ function EditManagedGoalDialog({
                     value={loopTargetType}
                     onValueChange={(value) => {
                       setLoopTargetType(value as ManagedLoopTarget["type"]);
+                      setSelectedLoopGoalId(null);
+                      setSelectedWorkflowId(null);
                       setSelectedCapabilitySlugs([]);
                     }}
                   >
@@ -1372,6 +1415,7 @@ function EditManagedGoalDialog({
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="goal">Goal</SelectItem>
+                      <SelectItem value="workflow">Workflow</SelectItem>
                       <SelectItem value="capability">Capability</SelectItem>
                     </SelectContent>
                   </Select>
@@ -1387,6 +1431,21 @@ function EditManagedGoalDialog({
                       placeholder="Select goal"
                       searchPlaceholder="Search goals..."
                       emptyLabel="No goals found"
+                    />
+                  ) : loopTargetType === "workflow" ? (
+                    <SearchableSelect
+                      id="edit-loop-target"
+                      options={workflowOptions}
+                      value={selectedWorkflowId}
+                      onChange={setSelectedWorkflowId}
+                      placeholder={
+                        workflowsLoading
+                          ? "Loading workflows..."
+                          : "Select workflow"
+                      }
+                      searchPlaceholder="Search workflows..."
+                      emptyLabel="No workflows found"
+                      disabled={workflowsLoading}
                     />
                   ) : (
                     <SearchableSelect
@@ -1852,24 +1911,18 @@ function GoalDetail({
 
         {!isRoutine ||
         goal.state.capabilities.length > 0 ||
-        Object.keys(goal.state.scheduleState?.capabilities ?? {})
-          .length > 0 ? (
+        Object.keys(goal.state.scheduleState?.capabilities ?? {}).length > 0 ? (
           <GoalCapabilitiesSection
             goal={goal}
             label={copy.singular}
             capabilities={capabilities}
             runningSlug={
               runCapability.isPending
-                ? ((
-                    runCapability.variables as
-                      | { slug?: string }
-                      | undefined
-                  )?.slug ?? null)
+                ? ((runCapability.variables as { slug?: string } | undefined)
+                    ?.slug ?? null)
                 : null
             }
-            onRun={(slug) =>
-              runCapability.mutate({ slug, force: true })
-            }
+            onRun={(slug) => runCapability.mutate({ slug, force: true })}
           />
         ) : null}
         <GoalInstancesSection goal={goal} label={copy.singular} />
@@ -1956,9 +2009,7 @@ function GoalDetail({
                       </span>
                     </div>
                     <div className="text-xs text-muted-foreground flex gap-2 flex-wrap">
-                      <span>
-                        capability: {routeStep.capability}
-                      </span>
+                      <span>capability: {routeStep.capability}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -2012,9 +2063,7 @@ function isScheduleEvery(value: unknown): value is ScheduleEvery {
   );
 }
 
-function capabilityCadenceLabel(
-  value: string | null | undefined,
-): string {
+function capabilityCadenceLabel(value: string | null | undefined): string {
   if (isScheduleEvery(value)) return scheduleEveryLabel(value);
   if (value) return value;
   return "default cadence";
@@ -2058,12 +2107,7 @@ function GoalCapabilitiesSection({
 }) {
   const capabilityBySlug = useMemo(
     () =>
-      new Map(
-        capabilities.map((capability) => [
-          capability.slug,
-          capability,
-        ]),
-      ),
+      new Map(capabilities.map((capability) => [capability.slug, capability])),
     [capabilities],
   );
   const scheduleCapabilities = useMemo(
@@ -2074,14 +2118,9 @@ function GoalCapabilitiesSection({
     const ordered = new Set<string>();
     for (const slug of goal.state.capabilities) ordered.add(slug);
     for (const step of goal.state.route) ordered.add(step.capability);
-    for (const slug of Object.keys(scheduleCapabilities))
-      ordered.add(slug);
+    for (const slug of Object.keys(scheduleCapabilities)) ordered.add(slug);
     return Array.from(ordered);
-  }, [
-    goal.state.capabilities,
-    goal.state.route,
-    scheduleCapabilities,
-  ]);
+  }, [goal.state.capabilities, goal.state.route, scheduleCapabilities]);
   const lastDecision = goal.state.scheduleState?.lastDecision;
 
   return (
@@ -2105,10 +2144,8 @@ function GoalCapabilitiesSection({
             const capability = capabilityBySlug.get(slug);
             const schedule = scheduleCapabilities[slug];
             const state = schedule?.state ?? "waiting";
-            const title =
-              schedule?.title ?? capability?.describe ?? slug;
-            const cadence =
-              schedule?.cadence ?? capability?.every ?? null;
+            const title = schedule?.title ?? capability?.describe ?? slug;
+            const cadence = schedule?.cadence ?? capability?.every ?? null;
             const reason =
               schedule?.reason ??
               (capability
@@ -2137,13 +2174,9 @@ function GoalCapabilitiesSection({
                   <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                     <span className="font-mono">{slug}</span>
                     <span>{capabilityCadenceLabel(cadence)}</span>
+                    <span>last {compactDateTime(schedule?.lastFiredAt)}</span>
                     <span>
-                      last{" "}
-                      {compactDateTime(schedule?.lastFiredAt)}
-                    </span>
-                    <span>
-                      next{" "}
-                      {compactDateTime(schedule?.nextEligibleAt)}
+                      next {compactDateTime(schedule?.nextEligibleAt)}
                     </span>
                   </div>
                   <p className="text-xs text-white/45">{reason}</p>

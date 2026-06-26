@@ -131,10 +131,7 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
     expect(res.status).toBe(200);
     expect(h.writeManagedGoalFile).toHaveBeenCalledTimes(1);
     const write = h.writeManagedGoalFile.mock.calls[0]![0];
-    expect(write.state.capabilities).toEqual([
-      "code-health",
-      "docs-health",
-    ]);
+    expect(write.state.capabilities).toEqual(["code-health", "docs-health"]);
     expect(write.state.route).toEqual([]);
     expect(write.state.stage).toBe("watching");
   });
@@ -155,10 +152,7 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
 
     expect(res.status).toBe(200);
     const write = h.writeManagedGoalFile.mock.calls[0]![0];
-    expect(write.state.capabilities).toEqual([
-      "qa-sweep",
-      "docs-health",
-    ]);
+    expect(write.state.capabilities).toEqual(["qa-sweep", "docs-health"]);
     expect(write.state.route).toEqual([]);
     expect(write.state.stage).toBe("watching");
   });
@@ -189,6 +183,37 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
     expect(write.state.loopTarget).toEqual({
       type: "goal",
       id: "web-release",
+    });
+    expect(write.state.capabilities).toEqual([]);
+    expect(write.state.scheduleMode).toBe("agentLoop");
+  });
+
+  it("updates agentLoop target to workflow", async () => {
+    h.getUserOctokit.mockResolvedValue({ rest: {} });
+    h.readManagedGoalFile.mockResolvedValue({
+      state: {
+        ...localGoalState(),
+        type: "agentLoop",
+        scheduleMode: "agentLoop",
+      },
+      sha: "goal-sha",
+      path: "goals/instances/codebase-health/state.json",
+    });
+    h.writeManagedGoalFile.mockResolvedValue(undefined);
+
+    const res = await PATCH(
+      patchRequest({
+        loopTarget: { type: "workflow", id: "release-hygiene" },
+        capabilities: [],
+      }),
+      params(),
+    );
+
+    expect(res.status).toBe(200);
+    const write = h.writeManagedGoalFile.mock.calls[0]![0];
+    expect(write.state.loopTarget).toEqual({
+      type: "workflow",
+      id: "release-hygiene",
     });
     expect(write.state.capabilities).toEqual([]);
     expect(write.state.scheduleMode).toBe("agentLoop");
@@ -366,6 +391,85 @@ describe("DELETE /api/kody/goals/managed/[id]", () => {
     );
   });
 
+  it("does not remove active Store references when deleting plain local goals", async () => {
+    h.getUserOctokit.mockResolvedValue({ rest: {} });
+    h.readManagedGoalFile.mockResolvedValue({
+      state: localGoalState(),
+      sha: "goal-sha",
+      path: "goals/instances/codebase-health/state.json",
+    });
+    h.getEngineConfig.mockResolvedValue({
+      config: {
+        company: {
+          activeGoals: ["codebase-health"],
+        },
+      },
+      sha: "config-sha",
+    });
+    h.deleteManagedGoalFile.mockResolvedValue(undefined);
+
+    const res = await DELETE(deleteRequest(), params());
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json).toEqual({ success: true });
+    expect(h.deleteManagedGoalFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "codebase-health",
+        sha: "goal-sha",
+      }),
+    );
+    expect(h.writeConfigPatch).not.toHaveBeenCalled();
+  });
+
+  it("removes exact Store goal references and runtime instances in one request", async () => {
+    h.getUserOctokit.mockResolvedValue({ rest: {} });
+    h.readManagedGoalFile.mockResolvedValue({
+      state: {
+        ...localGoalState(),
+        sourceTemplate: "codebase-health",
+      },
+      sha: "goal-sha",
+      path: "goals/instances/codebase-health/state.json",
+    });
+    h.getEngineConfig.mockResolvedValue({
+      config: {
+        company: {
+          activeGoals: [
+            "codebase-health",
+            { template: "release-safety", every: "1d" },
+          ],
+        },
+      },
+      sha: "config-sha",
+    });
+    h.deleteManagedGoalFile.mockResolvedValue(undefined);
+
+    const res = await DELETE(deleteRequest(), params());
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json).toMatchObject({
+      success: true,
+      removedReference: true,
+    });
+    expect(h.deleteManagedGoalFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "codebase-health",
+        sha: "goal-sha",
+      }),
+    );
+    expect(h.writeConfigPatch).toHaveBeenCalledWith(
+      { rest: {} },
+      "test-owner",
+      "test-repo",
+      {
+        activeGoals: [{ template: "release-safety", every: "1d" }],
+      },
+      "chore(goals): remove store goal codebase-health",
+    );
+  });
+
   it("deletes generated Store-backed instances by visible template id", async () => {
     h.getUserOctokit.mockResolvedValue({ rest: {} });
     h.readManagedGoalFile
@@ -425,6 +529,67 @@ describe("DELETE /api/kody/goals/managed/[id]", () => {
         id: "codebase-health-a2",
         sha: "goal-sha-2",
       }),
+    );
+  });
+
+  it("removes generated Store goal instances and the active reference in one request", async () => {
+    h.getUserOctokit.mockResolvedValue({ rest: {} });
+    h.readManagedGoalFile.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      state: {
+        ...localGoalState(),
+        sourceTemplate: "codebase-health",
+      },
+      sha: "goal-sha-1",
+      path: "goals/instances/codebase-health-a1/state.json",
+    });
+    h.listManagedGoalFiles.mockResolvedValue([
+      {
+        id: "codebase-health-a1",
+        path: "goals/instances/codebase-health-a1/state.json",
+        source: "local",
+        recordType: "instance",
+        state: {
+          ...localGoalState(),
+          sourceTemplate: "codebase-health",
+        },
+      },
+    ]);
+    h.getEngineConfig.mockResolvedValue({
+      config: {
+        company: {
+          activeGoals: [
+            "codebase-health",
+            { template: "release-safety", every: "1d" },
+          ],
+        },
+      },
+      sha: "config-sha",
+    });
+    h.deleteManagedGoalFile.mockResolvedValue(undefined);
+
+    const res = await DELETE(deleteRequest(), params());
+    const json = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(json).toMatchObject({
+      success: true,
+      deletedCount: 1,
+      removedReference: true,
+    });
+    expect(h.deleteManagedGoalFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "codebase-health-a1",
+        sha: "goal-sha-1",
+      }),
+    );
+    expect(h.writeConfigPatch).toHaveBeenCalledWith(
+      { rest: {} },
+      "test-owner",
+      "test-repo",
+      {
+        activeGoals: [{ template: "release-safety", every: "1d" }],
+      },
+      "chore(goals): remove store goal codebase-health",
     );
   });
 

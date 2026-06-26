@@ -35,7 +35,7 @@ import { cn } from "../utils";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
 
-type CatalogKind =
+export type CatalogKind =
   | "all"
   | "agent"
   | "agentGoal"
@@ -51,6 +51,8 @@ interface StoreCatalogItem {
   title: string;
   description: string;
   kind: CatalogItemKind;
+  isWorkflow?: boolean;
+  workflowSteps?: string[];
   htmlUrl: string | null;
   action?: string | null;
   agent?: string | null;
@@ -59,6 +61,11 @@ interface StoreCatalogItem {
 
 interface StoreCatalogResponse {
   items: StoreCatalogItem[];
+}
+
+export interface StoreCatalogViewState {
+  kind: CatalogKind;
+  search: string;
 }
 
 const KIND_FILTERS: Array<{
@@ -84,26 +91,96 @@ const KIND_LABEL: Record<CatalogItemKind, string> = {
   command: "Command",
 };
 
+const DEFAULT_VIEW_STATE: StoreCatalogViewState = {
+  kind: "all",
+  search: "",
+};
+
+const CATALOG_KIND_IDS = new Set<CatalogKind>(
+  KIND_FILTERS.map((filter) => filter.id),
+);
+
+function catalogKindFromParam(value: string | null): CatalogKind {
+  return CATALOG_KIND_IDS.has(value as CatalogKind)
+    ? (value as CatalogKind)
+    : "all";
+}
+
+function viewStateFromSearchParams(
+  params: URLSearchParams,
+): StoreCatalogViewState {
+  return {
+    kind: catalogKindFromParam(params.get("filter")),
+    search: params.get("q") ?? "",
+  };
+}
+
+function readCurrentViewState(): StoreCatalogViewState {
+  if (typeof window === "undefined") return DEFAULT_VIEW_STATE;
+  return viewStateFromSearchParams(new URLSearchParams(window.location.search));
+}
+
+export function storeCatalogPathWithViewState(
+  path: string,
+  viewState: StoreCatalogViewState,
+): string {
+  const params = new URLSearchParams();
+  if (viewState.kind !== "all") params.set("filter", viewState.kind);
+  const q = viewState.search.trim();
+  if (q) params.set("q", q);
+  const query = params.toString();
+  return query ? `${path}?${query}` : path;
+}
+
 function queryText(item: StoreCatalogItem): string {
   return [
     item.slug,
     item.title,
     item.description,
-    KIND_LABEL[item.kind],
+    displayKindLabel(item),
     item.action,
     item.agent,
+    ...(item.workflowSteps ?? []),
   ]
     .filter(Boolean)
     .join(" ")
     .toLowerCase();
 }
 
+function isWorkflowCatalogItem(item: StoreCatalogItem): boolean {
+  return item.kind === "workflow" || item.isWorkflow === true;
+}
+
+function displayKindLabel(item: StoreCatalogItem): string {
+  return isWorkflowCatalogItem(item) ? "Workflow" : KIND_LABEL[item.kind];
+}
+
+function displayKindIcon(item: StoreCatalogItem): LucideIcon {
+  if (isWorkflowCatalogItem(item)) return Workflow;
+  return (
+    KIND_FILTERS.find((filter) => filter.id === item.kind)?.icon ?? Package
+  );
+}
+
+function itemMatchesKind(item: StoreCatalogItem, kind: CatalogKind): boolean {
+  if (kind === "all") return true;
+  if (kind === "workflow") return isWorkflowCatalogItem(item);
+  if (kind === "capability") {
+    return item.kind === "capability" && !isWorkflowCatalogItem(item);
+  }
+  return item.kind === kind;
+}
+
 export function storeCatalogItemKey(item: StoreCatalogItem): string {
   return `${item.kind}:${item.slug}`;
 }
 
-function storeCatalogItemPath(item: StoreCatalogItem): string {
-  return selectionPath("/store-catalog", item.kind, item.slug);
+function storeCatalogItemPath(
+  item: StoreCatalogItem,
+  viewState?: StoreCatalogViewState,
+): string {
+  const path = selectionPath("/store-catalog", item.kind, item.slug);
+  return viewState ? storeCatalogPathWithViewState(path, viewState) : path;
 }
 
 async function fetchCatalog(
@@ -190,8 +267,10 @@ export function StoreCatalogManager({
     auth?.storeRepoUrl ?? null,
     auth?.storeRef ?? null,
   ] as const;
-  const [search, setSearch] = useState("");
-  const [kind, setKind] = useState<CatalogKind>("all");
+  const [search, setSearch] = useState(() => readCurrentViewState().search);
+  const [kind, setKind] = useState<CatalogKind>(
+    () => readCurrentViewState().kind,
+  );
 
   const catalog = useQuery({
     queryKey,
@@ -204,7 +283,7 @@ export function StoreCatalogManager({
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return items.filter((item) => {
-      if (kind !== "all" && item.kind !== kind) return false;
+      if (!itemMatchesKind(item, kind)) return false;
       return !q || queryText(item).includes(q);
     });
   }, [items, kind, search]);
@@ -217,20 +296,44 @@ export function StoreCatalogManager({
 
   useEffect(() => {
     if (catalog.isLoading || !catalog.data) return;
-    if (filtered.length === 0) {
-      if (selectedKey) router.replace("/store-catalog");
-      return;
-    }
     if (
       selectedKey &&
-      !filtered.some((item) => storeCatalogItemKey(item) === selectedKey)
+      !items.some((item) => storeCatalogItemKey(item) === selectedKey)
     ) {
-      router.replace("/store-catalog");
+      router.replace(
+        storeCatalogPathWithViewState("/store-catalog", { kind, search }),
+      );
     }
-  }, [catalog.data, catalog.isLoading, filtered, router, selectedKey]);
+  }, [
+    catalog.data,
+    catalog.isLoading,
+    items,
+    kind,
+    router,
+    search,
+    selectedKey,
+  ]);
 
   const selectCatalogItem = (item: StoreCatalogItem | null) => {
-    router.push(item ? storeCatalogItemPath(item) : "/store-catalog");
+    const viewState = { kind, search };
+    router.push(
+      item
+        ? storeCatalogItemPath(item, viewState)
+        : storeCatalogPathWithViewState("/store-catalog", viewState),
+      { scroll: false },
+    );
+  };
+
+  const selectCatalogKind = (nextKind: CatalogKind) => {
+    setKind(nextKind);
+    if (typeof window === "undefined") return;
+    router.replace(
+      storeCatalogPathWithViewState(window.location.pathname, {
+        kind: nextKind,
+        search,
+      }),
+      { scroll: false },
+    );
   };
 
   const importMutation = useMutation({
@@ -274,7 +377,7 @@ export function StoreCatalogManager({
                 type="button"
                 role="tab"
                 aria-selected={active}
-                onClick={() => setKind(filter.id)}
+                onClick={() => selectCatalogKind(filter.id)}
                 className={cn(
                   "inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs transition-colors",
                   active
@@ -356,8 +459,7 @@ function CatalogRow({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const Icon =
-    KIND_FILTERS.find((filter) => filter.id === item.kind)?.icon ?? Package;
+  const Icon = displayKindIcon(item);
   return (
     <button
       type="button"
@@ -405,8 +507,7 @@ function CatalogDetail({
   onImport: () => void;
   importing: boolean;
 }) {
-  const Icon =
-    KIND_FILTERS.find((filter) => filter.id === item.kind)?.icon ?? Package;
+  const Icon = displayKindIcon(item);
 
   return (
     <article className="min-h-full">
@@ -432,7 +533,7 @@ function CatalogDetail({
               </div>
               <div className="flex flex-wrap items-center gap-2 text-xs text-white/50">
                 <span className="font-mono">{item.slug}</span>
-                <span>{KIND_LABEL[item.kind]}</span>
+                <span>{displayKindLabel(item)}</span>
               </div>
             </div>
 
@@ -472,9 +573,12 @@ function CatalogDetail({
       </div>
 
       <div className="mx-auto max-w-4xl space-y-3 p-4 md:p-8">
-        <InfoRow label="Type" value={KIND_LABEL[item.kind]} />
+        <InfoRow label="Type" value={displayKindLabel(item)} />
         {item.action ? <InfoRow label="Action" value={item.action} /> : null}
         {item.agent ? <InfoRow label="Agent" value={item.agent} /> : null}
+        {isWorkflowCatalogItem(item) && item.workflowSteps?.length ? (
+          <InfoRow label="Steps" value={item.workflowSteps.join(" -> ")} />
+        ) : null}
         {(item.kind === "agentGoal" || item.kind === "agentLoop") &&
         item.schedule ? (
           <InfoRow label="Schedule" value={item.schedule} />

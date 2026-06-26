@@ -72,7 +72,14 @@ const routeStepSchema = z.object({
   args: z.record(z.string(), z.unknown()).optional(),
 });
 
-const managedGoalScheduleSchema = z.enum(["manual", "1h", "1d", "7d", "30d"]);
+const managedGoalScheduleSchema = z.enum([
+  "manual",
+  "15m",
+  "1h",
+  "1d",
+  "7d",
+  "30d",
+]);
 const preferredRunTimeSchema = z.object({
   time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
   timezone: z
@@ -82,7 +89,7 @@ const preferredRunTimeSchema = z.object({
     .regex(/^[A-Za-z0-9_+./-]+$/),
 });
 const loopTargetSchema = z.object({
-  type: z.enum(["capability", "goal"]),
+  type: z.enum(["capability", "goal", "workflow"]),
   id: z.string().min(1).max(80),
 });
 

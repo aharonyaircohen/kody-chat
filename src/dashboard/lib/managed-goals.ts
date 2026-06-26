@@ -7,12 +7,12 @@
  */
 
 export type ManagedGoalStateValue = "inactive" | "active" | "paused" | "done";
-export type ManagedGoalSchedule = "manual" | "1h" | "1d" | "7d" | "30d";
+export type ManagedGoalSchedule = "manual" | "15m" | "1h" | "1d" | "7d" | "30d";
 export interface ManagedGoalPreferredRunTime {
   time: string;
   timezone: string;
 }
-export type ManagedLoopTargetType = "capability" | "goal";
+export type ManagedLoopTargetType = "capability" | "goal" | "workflow";
 export interface ManagedLoopTarget {
   type: ManagedLoopTargetType;
   id: string;
@@ -194,16 +194,18 @@ export interface ManagedGoalCapabilityScheduleState {
   lastDecision:
     | {
         kind: "dispatch";
-        capability: string;
+        capability?: string;
+        targetType?: "goal" | "workflow";
+        targetId?: string;
+        action?: string;
+        workflow?: string;
+        executable?: string;
         reason: string;
         at: string;
       }
     | { kind: "idle"; reason: string; at: string }
     | { kind: "blocked"; reason: string; at: string };
-  capabilities: Record<
-    string,
-    ManagedGoalCapabilityScheduleStatus
-  >;
+  capabilities: Record<string, ManagedGoalCapabilityScheduleStatus>;
 }
 
 export interface ManagedGoalState {
@@ -546,6 +548,10 @@ function normalizeManagedGoalScheduleState(
       ? (raw.lastDecision as {
           kind?: unknown;
           capability?: unknown;
+          targetType?: unknown;
+          targetId?: unknown;
+          action?: unknown;
+          workflow?: unknown;
           executable?: unknown;
           reason?: unknown;
           at?: unknown;
@@ -557,14 +563,37 @@ function normalizeManagedGoalScheduleState(
     at: raw.lastGoalTickAt,
   };
   if (rawDecision?.kind === "dispatch") {
+    const fallbackCapability =
+      typeof rawDecision.capability === "string"
+        ? rawDecision.capability
+        : typeof rawDecision.targetId === "string"
+          ? rawDecision.targetId
+          : typeof rawDecision.action === "string"
+            ? rawDecision.action
+            : typeof rawDecision.workflow === "string"
+              ? rawDecision.workflow
+              : typeof rawDecision.executable === "string"
+                ? rawDecision.executable
+                : undefined;
     lastDecision = {
       kind: "dispatch",
-      capability:
-        typeof rawDecision.capability === "string"
-          ? rawDecision.capability
-          : typeof rawDecision.executable === "string"
-            ? rawDecision.executable
-            : "",
+      ...(fallbackCapability ? { capability: fallbackCapability } : {}),
+      ...(rawDecision.targetType === "goal" ||
+      rawDecision.targetType === "workflow"
+        ? { targetType: rawDecision.targetType }
+        : {}),
+      ...(typeof rawDecision.targetId === "string"
+        ? { targetId: rawDecision.targetId }
+        : {}),
+      ...(typeof rawDecision.action === "string"
+        ? { action: rawDecision.action }
+        : {}),
+      ...(typeof rawDecision.workflow === "string"
+        ? { workflow: rawDecision.workflow }
+        : {}),
+      ...(typeof rawDecision.executable === "string"
+        ? { executable: rawDecision.executable }
+        : {}),
       reason: typeof rawDecision.reason === "string" ? rawDecision.reason : "",
       at: typeof rawDecision.at === "string" ? rawDecision.at : "",
     };
@@ -609,9 +638,7 @@ export function buildSimpleManagedGoalCreateInput(
     ...(typeof fields.saveReport === "boolean"
       ? { saveReport: fields.saveReport }
       : {}),
-    ...(fields.capabilities
-      ? { capabilities: fields.capabilities }
-      : {}),
+    ...(fields.capabilities ? { capabilities: fields.capabilities } : {}),
     ...(fields.evidence ? { evidence: fields.evidence } : {}),
     ...(fields.route ? { route: fields.route } : {}),
   };
@@ -733,8 +760,7 @@ export function isManagedGoalState(value: unknown): value is ManagedGoalState {
     Array.isArray(
       (goal.destination as Partial<ManagedGoalDestination>).evidence,
     ) &&
-    (Array.isArray(goal.capabilities) ||
-      Array.isArray(legacy.capabilities)) &&
+    (Array.isArray(goal.capabilities) || Array.isArray(legacy.capabilities)) &&
     Array.isArray(goal.route) &&
     !!goal.facts &&
     typeof goal.facts === "object" &&
@@ -784,13 +810,10 @@ export function normalizeManagedGoalState(
             ? legacyStep.executable
             : typeof legacyStep.duty === "string"
               ? legacyStep.duty
-            : "";
+              : "";
 
       if (!stage || !evidence || !rawCapability) return null;
-      const capability = normalizeManagedGoalCapability(
-        goal,
-        rawCapability,
-      );
+      const capability = normalizeManagedGoalCapability(goal, rawCapability);
       return {
         stage,
         evidence,
@@ -804,9 +827,11 @@ export function normalizeManagedGoalState(
     .filter((step): step is ManagedGoalRouteStep => !!step);
 
   const legacyDuties = (goal as { duties?: unknown }).duties;
-  const legacyResponsibilities = (goal as {
-    capabilities?: unknown;
-  }).capabilities;
+  const legacyResponsibilities = (
+    goal as {
+      capabilities?: unknown;
+    }
+  ).capabilities;
   const scheduleState = normalizeManagedGoalScheduleState(
     (goal as { scheduleState?: unknown }).scheduleState,
   );
@@ -831,9 +856,7 @@ export function normalizeManagedGoalState(
           )
         : []),
       ...route.map((step) => step.capability),
-    ].map((capability) =>
-      normalizeManagedGoalCapability(goal, capability),
-    ),
+    ].map((capability) => normalizeManagedGoalCapability(goal, capability)),
   );
 
   return {

@@ -22,6 +22,8 @@ interface CatalogItem {
   title: string;
   description: string;
   kind: CatalogKind;
+  isWorkflow?: boolean;
+  workflowSteps?: string[];
   htmlUrl: string | null;
   action?: string | null;
   agent?: string | null;
@@ -56,6 +58,16 @@ const catalogSeeds: CatalogItem[] = [
     kind: "capability",
     htmlUrl: null,
     agent: "atlas-agent",
+  },
+  {
+    slug: "bug-flow",
+    title: "Bug Flow",
+    description: "Reproduces, plans, implements, reviews, and fixes feedback.",
+    kind: "capability",
+    isWorkflow: true,
+    workflowSteps: ["reproduce", "plan", "run", "review", "fix"],
+    htmlUrl: null,
+    agent: "kody",
   },
   {
     slug: "weekly-quality",
@@ -188,6 +200,67 @@ async function addCatalogItem(
 }
 
 test.describe("Store Catalog add", () => {
+  test("keeps a non-All filter selected from an item route", async ({
+    page,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "chromium",
+      "Desktop layout keeps the catalog list visible beside item detail.",
+    );
+
+    await mockStoreCatalog(page);
+    await openStoreCatalog(page);
+    await page.goto("/store-catalog/agent/atlas-agent", {
+      waitUntil: "domcontentloaded",
+    });
+    await expect(
+      page.getByRole("heading", { name: "Atlas Agent" }),
+    ).toBeVisible();
+
+    const capabilitiesTab = page.getByRole("tab", { name: "Capabilities" });
+    await capabilitiesTab.click();
+
+    await expect(capabilitiesTab).toHaveAttribute("aria-selected", "true");
+    await expect(
+      page.getByTestId("store-catalog-row-capability-release-watch"),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("store-catalog-row-agent-atlas-agent"),
+    ).toHaveCount(0);
+  });
+
+  test("shows workflow capabilities under the Workflows filter", async ({
+    page,
+  }, testInfo) => {
+    test.skip(
+      testInfo.project.name !== "chromium",
+      "Desktop layout keeps the catalog list visible beside item detail.",
+    );
+
+    await mockStoreCatalog(page);
+    await openStoreCatalog(page);
+
+    const workflowsTab = page.getByRole("tab", { name: "Workflows" });
+    await workflowsTab.click();
+
+    await expect(workflowsTab).toHaveAttribute("aria-selected", "true");
+    await expect(
+      page.getByTestId("store-catalog-row-capability-bug-flow"),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("store-catalog-row-capability-release-watch"),
+    ).toHaveCount(0);
+
+    const capabilitiesTab = page.getByRole("tab", { name: "Capabilities" });
+    await capabilitiesTab.click();
+    await expect(
+      page.getByTestId("store-catalog-row-capability-release-watch"),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("store-catalog-row-capability-bug-flow"),
+    ).toHaveCount(0);
+  });
+
   test("adds every agentic store item type by reference", async ({ page }) => {
     const imports = await mockStoreCatalog(page);
 
@@ -200,6 +273,7 @@ test.describe("Store Catalog add", () => {
     expect(imports).toEqual([
       { kind: "agent", slug: "atlas-agent" },
       { kind: "capability", slug: "release-watch" },
+      { kind: "capability", slug: "bug-flow" },
       { kind: "agentGoal", slug: "weekly-quality" },
       { kind: "agentLoop", slug: "daily-triage" },
       { kind: "workflow", slug: "release-workflow" },

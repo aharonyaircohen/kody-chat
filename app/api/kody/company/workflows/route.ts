@@ -27,6 +27,7 @@ import {
   workflowDefinitionPath,
 } from "@dashboard/lib/workflow-definitions";
 import {
+  listCompanyStoreCapabilityWorkflowDefinitionFiles,
   listCompanyStoreWorkflowDefinitionFiles,
   listWorkflowDefinitionFiles,
   readWorkflowDefinitionFile,
@@ -67,6 +68,13 @@ function activeWorkflowSlugs(config: KodyConfig): string[] {
   );
 }
 
+function activeCapabilitySlugs(config: KodyConfig): string[] {
+  return (config.company?.activeCapabilities ?? []).filter(
+    (slug): slug is string =>
+      typeof slug === "string" && slug.trim().length > 0,
+  );
+}
+
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
@@ -100,6 +108,7 @@ export async function GET(req: NextRequest) {
       headerAuth.repo,
     );
     const activeWorkflowIds = new Set(activeWorkflowSlugs(config));
+    const activeCapabilityIds = new Set(activeCapabilitySlugs(config));
     const localIds = new Set(localWorkflows.map((workflow) => workflow.id));
     const storeWorkflows =
       activeWorkflowIds.size > 0
@@ -108,9 +117,24 @@ export async function GET(req: NextRequest) {
               activeWorkflowIds.has(workflow.id) && !localIds.has(workflow.id),
           )
         : [];
-    const workflows = [...localWorkflows, ...storeWorkflows].sort((a, b) =>
-      a.id.localeCompare(b.id),
-    );
+    const visibleIds = new Set([
+      ...localIds,
+      ...storeWorkflows.map((workflow) => workflow.id),
+    ]);
+    const storeCapabilityWorkflows =
+      activeCapabilityIds.size > 0
+        ? (
+            await listCompanyStoreCapabilityWorkflowDefinitionFiles(
+              octokit,
+              activeCapabilityIds,
+            )
+          ).filter((workflow) => !visibleIds.has(workflow.id))
+        : [];
+    const workflows = [
+      ...localWorkflows,
+      ...storeWorkflows,
+      ...storeCapabilityWorkflows,
+    ].sort((a, b) => a.id.localeCompare(b.id));
     return NextResponse.json(
       { workflows },
       { headers: { "Cache-Control": "no-store" } },

@@ -143,3 +143,29 @@ export function useDeleteWorkflowDefinition() {
     },
   });
 }
+
+export function useRunWorkflowDefinition() {
+  return useMutation<
+    {
+      ok: boolean;
+      workflowId: string;
+      ref: string;
+      workflow: string;
+      action: string;
+    },
+    Error,
+    string
+  >({
+    mutationFn: (id) => kodyApi.workflowDefinitions.run(id),
+    onSuccess: (data) => {
+      toast.success("Workflow started", {
+        description: `Dispatched ${data.workflow} on ${data.ref}.`,
+      });
+    },
+    onError: (error) => {
+      toast.error("Failed to run workflow", {
+        description: error.message,
+      });
+    },
+  });
+}

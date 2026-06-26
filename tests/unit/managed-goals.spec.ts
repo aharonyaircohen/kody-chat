@@ -142,11 +142,7 @@ describe("normalizeManagedGoalState", () => {
         outcome: "Release deployed.",
         evidence: ["releasePrExists", "mainMerged", "productionDeployed"],
       },
-      capabilities: [
-        "release",
-        "release-merge",
-        "vercel-production-deploy",
-      ],
+      capabilities: ["release", "release-merge", "vercel-production-deploy"],
       route: [
         {
           stage: "release",
@@ -312,6 +308,67 @@ describe("simple managed goal creation", () => {
     expect(state.loopTarget).toEqual({ type: "goal", id: "web-release" });
     expect(state.capabilities).toEqual([]);
     expect(state.scheduleMode).toBe("agentLoop");
+  });
+
+  it("uses workflow target creating agentLoop", () => {
+    const state = buildManagedGoalState(
+      buildSimpleManagedGoalCreateInput({
+        goalType: "agentLoop",
+        schedule: "1d",
+        prompt: "Run release hygiene every day.",
+        loopTarget: { type: "workflow", id: "release-hygiene" },
+      }),
+    );
+
+    expect(state.loopTarget).toEqual({
+      type: "workflow",
+      id: "release-hygiene",
+    });
+    expect(state.capabilities).toEqual([]);
+    expect(state.scheduleMode).toBe("agentLoop");
+  });
+
+  it("normalizes workflow target schedule decisions", () => {
+    const state = normalizeManagedGoalState({
+      version: 1,
+      state: "active",
+      type: "agentLoop",
+      scheduleMode: "agentLoop",
+      destination: {
+        outcome: "Run release hygiene every day.",
+        evidence: [],
+      },
+      capabilities: [],
+      route: [],
+      loopTarget: { type: "workflow", id: "release-hygiene" },
+      scheduleState: {
+        mode: "agentLoop",
+        lastGoalTickAt: "2026-06-27T06:00:00Z",
+        lastDecision: {
+          kind: "dispatch",
+          targetType: "workflow",
+          targetId: "release-hygiene",
+          action: "release-hygiene",
+          capability: "release-hygiene",
+          reason: "ready target loop tick",
+          at: "2026-06-27T06:00:00Z",
+        },
+        capabilities: {},
+      },
+      facts: {},
+      blockers: [],
+    });
+
+    expect(state?.loopTarget).toEqual({
+      type: "workflow",
+      id: "release-hygiene",
+    });
+    expect(state?.scheduleState?.lastDecision).toMatchObject({
+      kind: "dispatch",
+      targetType: "workflow",
+      targetId: "release-hygiene",
+      capability: "release-hygiene",
+    });
   });
 
   it("stores preferred run time when creating an agentLoop", () => {

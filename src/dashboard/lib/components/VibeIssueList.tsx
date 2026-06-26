@@ -77,7 +77,7 @@ const COLUMN_ROW_BG: Record<
 interface VibeIssueListProps {
   tasks: KodyTask[] | undefined;
   selectedIssueNumber: number | null;
-  onSelect: (task: KodyTask | null) => void;
+  onSelect: (task: KodyTask) => void;
   /**
    * Open the issue card as an overlay on top of the preview pane (NOT a
    * route change). Wiring this through the parent keeps detail open/close
@@ -249,23 +249,6 @@ export function VibeIssueList({
   return (
     <div className="flex flex-col">
       {renderSearchBar}
-
-      {!searchActive && (
-        <div className="px-3 pt-2 pb-1">
-          <button
-            type="button"
-            onClick={() => onSelect(null)}
-            className={cn(
-              "w-full text-left text-xs font-medium px-2.5 py-1.5 rounded-md transition-colors",
-              selectedIssueNumber === null
-                ? "bg-white/[0.08] text-zinc-100"
-                : "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-300",
-            )}
-          >
-            Default preview
-          </button>
-        </div>
-      )}
 
       <ul className="flex flex-col divide-y divide-white/[0.04]">
         {searchActive && filteredTasks.length === 0 && (

@@ -22,6 +22,8 @@ export interface WorkflowDefinitionRecord {
   updatedAt?: string;
   source?: "local" | "store";
   readOnly?: boolean;
+  /** True when this workflow can be dispatched directly by kody.yml. */
+  runnable?: boolean;
   htmlUrl?: string | null;
 }
 

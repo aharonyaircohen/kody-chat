@@ -914,6 +914,25 @@ export const workflowDefinitionsApi = {
     );
     await handleResponse<{ success: boolean }>(res);
   },
+
+  run: async (
+    id: string,
+  ): Promise<{
+    ok: boolean;
+    workflowId: string;
+    ref: string;
+    workflow: string;
+    action: string;
+  }> => {
+    const res = await fetch(
+      `${API_BASE}/company/workflows/${encodeURIComponent(id)}/run`,
+      {
+        method: "POST",
+        headers: buildHeaders(),
+      },
+    );
+    return handleResponse(res);
+  },
 };
 
 // ============ Default-branch CI API ============

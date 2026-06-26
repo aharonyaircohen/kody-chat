@@ -38,6 +38,8 @@ interface CatalogItem {
   title: string;
   description: string;
   kind: CatalogKind;
+  isWorkflow?: boolean;
+  workflowSteps?: string[];
   htmlUrl: string | null;
   action?: string | null;
   agent?: string | null;
@@ -93,6 +95,8 @@ export async function GET(req: NextRequest) {
         title: item.slug,
         description: item.describe,
         kind: "capability",
+        isWorkflow: item.isWorkflow === true,
+        workflowSteps: item.workflowSteps ?? [],
         htmlUrl: item.htmlUrl,
         agent: item.agent,
         schedule: item.every ?? null,

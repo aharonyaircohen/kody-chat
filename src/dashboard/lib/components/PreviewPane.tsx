@@ -2,9 +2,9 @@
  * @fileType component
  * @domain preview
  * @pattern preview-pane
- * @ai-summary Compatibility wrapper for the shared PreviewBrowser. Existing
- * Views and Vibe callers keep using PreviewPane while browser behavior lives
- * in one component.
+ * @ai-summary Compatibility wrapper for the shared PreviewBrowser. Legacy
+ * callers can keep using PreviewPane while browser behavior lives in one
+ * component.
  */
 "use client";
 
