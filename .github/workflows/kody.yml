@@ -23,8 +23,8 @@ name: kody
 on:
   workflow_dispatch:
     inputs:
-      agentAction:
-        description: "AgentAction name (e.g. ui-review, run, fix)"
+      capability:
+        description: "Capability action name (e.g. ui-review, run, fix)"
         type: string
         default: ""
       issue_number:
@@ -56,8 +56,8 @@ on:
   pull_request:
     types: [closed]
   schedule:
-    # Wakes every 30 minutes; kody fans out to whichever scheduled agentActions
-    # (agent-responsibility-scheduler, memorize, watch-stale-prs, …) match this tick.
+    # Wakes every 30 minutes; kody fans out to whichever scheduled capabilities
+    # (goal-scheduler, memorize, watch-stale-prs, ...) match this tick.
     #
     # `memorize` writes to `.kody/vault/` and opens a daily PR. If your
     # `.gitignore` ignores `.kody/*`, add `!.kody/vault/` and `!.kody/vault/**`
@@ -70,7 +70,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     concurrency:
-      group: kody-${{ inputs.sessionId || inputs.issue_number || github.event.issue.number || github.sha }}
+      group: kody-${{ inputs.sessionId || inputs.issue_number || inputs.capability || github.event.issue.number || github.sha }}
       cancel-in-progress: false
     permissions:
       issues: write
