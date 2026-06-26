@@ -16,7 +16,9 @@ describe("capability creation guide wiring", () => {
     );
     expect(CAPABILITY_GUIDE).toContain(".kody/capabilities/<slug>/");
     expect(CAPABILITY_GUIDE).toContain("`create_or_update_capability`");
-    expect(CAPABILITY_GUIDE).toContain("The capability only defines what can be run.");
+    expect(CAPABILITY_GUIDE).toMatch(
+      /A capability contract defines what reusable ability exists and how it is safely\s+exposed\./,
+    );
   });
 
   it("exposes a guide tool before capability creation", () => {

@@ -8,7 +8,7 @@ Current storage has three related pieces:
 - **Agents** - `.kody/agents/<slug>.md`. A agent: who an actor is
   (character, values, doctrine). This is the canonical **who**.
 - **Capabilities** - `.kody/capabilities/<slug>/`. The canonical **how**:
-  public action name, capability kind, owner, cadence, safety, inputs, outputs,
+  public action name, owner, cadence, safety, inputs, outputs,
   tools/data/instructions, and execution binding.
 - **Legacy implementation roots** -
   `.kody/capabilities/<slug>/` and `.kody/executables/<slug>/`.
@@ -41,15 +41,15 @@ capability supplies its own job and the agent only supplies judgment and voice.
 
 So in storage terms:
 
-|                         | Agents (who)           | Capability (how) | Legacy roots |
-| ----------------------- | ----------------------- | -------------------------- | ------------------------------- |
-| Path                    | `.kody/agents/<slug>.md` | `.kody/capabilities/<slug>/` | `.kody/capabilities/<slug>/`, `.kody/executables/<slug>/` |
-| Answers                 | Who is acting?          | What capability is available? | How is older stored implementation found? |
-| Owns the schedule?      | No                      | Only the capability cadence, via `profile.json` | Compatibility only |
-| Owns the action name?   | No                      | Yes, `profile.json.action` | No                              |
-| Owns reusable method?   | No                      | Yes, through skills/scripts/prompts when needed | Compatibility only |
-| Names the agent member? | No                      | Yes, `profile.json.agent` or legacy `runner` | No                              |
-| Independently ticked?   | No                      | Yes                        | Only for legacy compatibility |
+|                         | Agents (who)             | Capability (how)                                | Legacy roots                                              |
+| ----------------------- | ------------------------ | ----------------------------------------------- | --------------------------------------------------------- |
+| Path                    | `.kody/agents/<slug>.md` | `.kody/capabilities/<slug>/`                    | `.kody/capabilities/<slug>/`, `.kody/executables/<slug>/` |
+| Answers                 | Who is acting?           | What capability is available?                   | How is older stored implementation found?                 |
+| Owns the schedule?      | No                       | Only the capability cadence, via `profile.json` | Compatibility only                                        |
+| Owns the action name?   | No                       | Yes, `profile.json.action`                      | No                                                        |
+| Owns reusable method?   | No                       | Yes, through skills/scripts/prompts when needed | Compatibility only                                        |
+| Names the agent member? | No                       | Yes, `profile.json.agent` or legacy `runner`    | No                                                        |
+| Independently ticked?   | No                       | Yes                                             | Only for legacy compatibility                             |
 
 ## Capability profile
 
@@ -61,7 +61,6 @@ The profile is JSON, not markdown frontmatter:
   "describe": "Security Audit",
   "action": "security-audit",
   "executable": "security-audit",
-  "capabilityKind": "observe",
   "every": "1d",
   "agent": "kody",
   "reviewer": "cto",
@@ -76,7 +75,6 @@ Important fields:
 - `describe` - human-readable dashboard title.
 - `action` - public `@kody <action>` command owned by this capability.
 - `executable` - legacy field name for the implementation reference.
-- `capabilityKind` - `observe`, `act`, or `verify`.
 - `executables` - optional legacy field name for a multi-step implementation list.
 - `every` - cadence between auto-runs: `15m`, `30m`, `1h`, `2h`, `6h`, `12h`,
   `1d`, `3d`, `7d`, or `manual`.
@@ -181,18 +179,18 @@ important per-capability throttle.
 
 ## File reference
 
-| File                                                                                         | Purpose                                 |
-| -------------------------------------------------------------------------------------------- | --------------------------------------- |
-| [`docs/capabilities.md`](../capabilities.md)                                                             | Capability contract guide and legacy fallback notes |
-| [`src/dashboard/lib/agent-files.ts`](../../src/dashboard/lib/agent-files.ts)                 | Agents markdown store                    |
-| [`src/dashboard/lib/capabilities`](../../src/dashboard/lib/capabilities)               | Capability store exports                |
-| [`src/dashboard/lib/capabilities-files.ts`](../../src/dashboard/lib/capabilities-files.ts)               | Legacy fallback store                |
-| [`src/dashboard/lib/ticked/schedule.ts`](../../src/dashboard/lib/ticked/schedule.ts)         | Dashboard next-tick display math        |
-| [`app/api/kody/agent/route.ts`](../../app/api/kody/agent/route.ts)                           | Agents API                               |
-| [`app/api/kody/capabilities/route.ts`](../../app/api/kody/capabilities/route.ts)                         | Capabilities API                              |
-| [`.kody/agents/cto.md`](../../.kody/agents/cto.md)                                             | Example identity-only agent           |
-| `kody2/src/scripts/dispatchCapabilityFileTicks.ts` (engine)                                        | Scheduler fan-out                       |
-| `kody2/src/scripts/loadJobFromFile.ts` (engine)                                              | Capability/legacy capability loader                             |
+| File                                                                                       | Purpose                                             |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------------- |
+| [`docs/capabilities.md`](../capabilities.md)                                               | Capability contract guide and legacy fallback notes |
+| [`src/dashboard/lib/agent-files.ts`](../../src/dashboard/lib/agent-files.ts)               | Agents markdown store                               |
+| [`src/dashboard/lib/capabilities`](../../src/dashboard/lib/capabilities)                   | Capability store exports                            |
+| [`src/dashboard/lib/capabilities-files.ts`](../../src/dashboard/lib/capabilities-files.ts) | Legacy fallback store                               |
+| [`src/dashboard/lib/ticked/schedule.ts`](../../src/dashboard/lib/ticked/schedule.ts)       | Dashboard next-tick display math                    |
+| [`app/api/kody/agent/route.ts`](../../app/api/kody/agent/route.ts)                         | Agents API                                          |
+| [`app/api/kody/capabilities/route.ts`](../../app/api/kody/capabilities/route.ts)           | Capabilities API                                    |
+| [`.kody/agents/cto.md`](../../.kody/agents/cto.md)                                         | Example identity-only agent                         |
+| `kody2/src/scripts/dispatchCapabilityFileTicks.ts` (engine)                                | Scheduler fan-out                                   |
+| `kody2/src/scripts/loadJobFromFile.ts` (engine)                                            | Capability/legacy capability loader                 |
 
 ## FAQ
 

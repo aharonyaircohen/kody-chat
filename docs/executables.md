@@ -45,7 +45,6 @@ real config field.
 Capability contract owns:
 
 - public action name
-- kind: `observe`, `act`, or `verify`
 - cadence
 - agent and reviewer
 - inputs and output expectations
@@ -66,13 +65,13 @@ wake-up behavior.
 
 Keep these names when editing config or engine-compatible JSON:
 
-| Field | Meaning |
-| --- | --- |
-| `executable` | Implementation slug for a capability. |
-| `executables` | Ordered implementation list for a multi-step capability. |
-| `agent.perExecutable` | Legacy config map for per-capability model overrides. |
-| `defaultExecutable` | Legacy config field for the bare issue action. |
-| `defaultPrExecutable` | Legacy config field for the bare PR action. |
+| Field                 | Meaning                                                  |
+| --------------------- | -------------------------------------------------------- |
+| `executable`          | Implementation slug for a capability.                    |
+| `executables`         | Ordered implementation list for a multi-step capability. |
+| `agent.perExecutable` | Legacy config map for per-capability model overrides.    |
+| `defaultExecutable`   | Legacy config field for the bare issue action.           |
+| `defaultPrExecutable` | Legacy config field for the bare PR action.              |
 
 In prose, explain those fields as implementation/action configuration, not as a
 separate model.
@@ -116,10 +115,10 @@ contract.
 
 ## File Reference
 
-| File | Purpose |
-| --- | --- |
-| [`../src/dashboard/lib/executables/files.ts`](../src/dashboard/lib/executables/files.ts) | Legacy implementation folder CRUD. |
-| [`../src/dashboard/lib/executables/profile.ts`](../src/dashboard/lib/executables/profile.ts) | Profile validation and form mapping. |
-| [`../src/dashboard/lib/components/ExecutablesManager.tsx`](../src/dashboard/lib/components/ExecutablesManager.tsx) | Compatibility UI implementation. |
-| [`../app/api/kody/capabilities/`](../app/api/kody/capabilities/) | Current capability API. |
-| [`./capabilities.md`](./capabilities.md) | Canonical capability authoring guide. |
+| File                                                                                                               | Purpose                               |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
+| [`../src/dashboard/lib/executables/files.ts`](../src/dashboard/lib/executables/files.ts)                           | Legacy implementation folder CRUD.    |
+| [`../src/dashboard/lib/executables/profile.ts`](../src/dashboard/lib/executables/profile.ts)                       | Profile validation and form mapping.  |
+| [`../src/dashboard/lib/components/ExecutablesManager.tsx`](../src/dashboard/lib/components/ExecutablesManager.tsx) | Compatibility UI implementation.      |
+| [`../app/api/kody/capabilities/`](../app/api/kody/capabilities/)                                                   | Current capability API.               |
+| [`./capabilities.md`](./capabilities.md)                                                                           | Canonical capability authoring guide. |

@@ -20,10 +20,12 @@ should call that the capability implementation.
 
 ## What a capability contract owns
 
+A capability contract defines what reusable ability exists and how it is safely
+exposed.
+
 A capability contract owns:
 
 - **Action name**: the public `@kody <action>` token that runs this capability.
-- **Kind**: `observe`, `act`, or `verify`.
 - **Purpose**: what reusable ability it provides.
 - **Cadence**: when this capability may run, if it is scheduled.
 - **Agent**: which agent identity should run it.
@@ -66,7 +68,6 @@ Use this shape:
   "describe": "Broken link report",
   "action": "broken-links",
   "executable": "broken-link-report",
-  "capabilityKind": "observe",
   "every": "1d",
   "agent": "qa",
   "reviewer": "cto",
@@ -107,31 +108,30 @@ Do not put metadata frontmatter in `capability.md`. Metadata belongs in
 
 ## Profile fields
 
-| Field         | Meaning                                                                                          |
-| ------------- | ------------------------------------------------------------------------------------------------ |
-| `name`        | Capability slug. Must match the folder name.                                                           |
-| `describe`    | Human-readable title shown in the dashboard.                                                     |
-| `action`      | Public action token. `@kody <action>` runs this capability. Usually the capability slug.                     |
-| `executable`  | Legacy field name for the implementation slug. Use this when one implementation performs the work. |
-| `workflow`    | Ordered capability steps for one run, when the public action composes capabilities. |
-| `capabilityKind` | Capability kind: `observe`, `act`, or `verify`. |
-| `every`       | Optional cadence: `manual`, `1h`, `1d`, `7d`, etc.                                               |
-| `agent`      | Agent identity slug that performs the capability. A capability without an agent should not auto-run.          |
-| `reviewer`    | Optional agent identity slug responsible for reviewing or handling the capability output.               |
-| `mentions`    | Optional GitHub logins to notify, without `@`.                                                   |
+| Field         | Meaning                                                                                                       |
+| ------------- | ------------------------------------------------------------------------------------------------------------- |
+| `name`        | Capability slug. Must match the folder name.                                                                  |
+| `describe`    | Human-readable title shown in the dashboard.                                                                  |
+| `action`      | Public action token. `@kody <action>` runs this capability. Usually the capability slug.                      |
+| `executable`  | Legacy field name for the implementation slug. Use this when one implementation performs the work.            |
+| `workflow`    | Ordered capability steps for one run, when the public action composes capabilities.                           |
+| `every`       | Optional cadence: `manual`, `1h`, `1d`, `7d`, etc.                                                            |
+| `agent`       | Agent identity slug that performs the capability. A capability without an agent should not auto-run.          |
+| `reviewer`    | Optional agent identity slug responsible for reviewing or handling the capability output.                     |
+| `mentions`    | Optional GitHub logins to notify, without `@`.                                                                |
 | `executables` | Legacy field name for a multi-step implementation list. Prefer singular `executable` for normal capabilities. |
-| `tools`       | Optional capability tool names exposed to the tick agent.                                             |
-| `tickScript`  | Optional deterministic script path for a scripted capability agent.                                   |
-| `readsFrom`   | Context, report, or capability slugs this capability reads.                                                  |
-| `writesTo`    | Report or context slugs this capability writes.                                                        |
-| `disabled`    | `true` pauses autonomous scheduling.                                                             |
+| `tools`       | Optional capability tool names exposed to the tick agent.                                                     |
+| `tickScript`  | Optional deterministic script path for a scripted capability agent.                                           |
+| `readsFrom`   | Context, report, or capability slugs this capability reads.                                                   |
+| `writesTo`    | Report or context slugs this capability writes.                                                               |
+| `disabled`    | `true` pauses autonomous scheduling.                                                                          |
 
 ## Output choice
 
 The dashboard creation form has two output choices:
 
-| Choice   | Meaning                                                                    |
-| -------- | -------------------------------------------------------------------------- |
+| Choice   | Meaning                                                                          |
+| -------- | -------------------------------------------------------------------------------- |
 | `Run`    | The capability runs work and does not promise a generated report.                |
 | `Report` | The capability refreshes one `.kody/reports/<slug>.md` file and sets `writesTo`. |
 
@@ -200,7 +200,6 @@ Use **agent** when you are defining who performs the work.
 Before creating a capability contract, Kody should know:
 
 - What should happen.
-- Whether it is `observe`, `act`, or `verify`.
 - Which public action runs it. Usually this should match the slug.
 - How often it should happen.
 - Which agent is the agent.
