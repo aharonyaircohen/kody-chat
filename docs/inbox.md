@@ -27,13 +27,13 @@ Reports now carry the reviewable output:
 
 - Findings live in `.kody/reports/<slug>.md`.
 - Optional `suggestedActions` render as buttons on the Reports page.
-- `dispatch` runs a named executable against a concrete issue/PR.
+- `dispatch` runs a named capability/action against a concrete issue/PR.
 - `create-task` opens the task dialog with report lineage.
 - `dismiss` hides one suggested action locally.
 
 There is no report-level trust ledger, approval streak, or hidden autonomy
-gate. If a capability needs human judgement, it writes a report. If an executable is
-allowed to act, it acts through its declared operation.
+gate. If a capability needs human judgement, it writes a report. If a capability
+is allowed to act, it acts through its declared operation.
 
 ## Legacy Files
 

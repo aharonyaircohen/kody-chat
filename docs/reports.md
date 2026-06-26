@@ -1,6 +1,8 @@
 # Reports
 
-Reports are the dashboard review surface for capability output. A capability can either act through an executable, or write a markdown report under `reports/<slug>.md` in the configured Kody state repo when the next step needs operator judgement.
+Reports are the dashboard review surface for capability output. A capability can
+either act directly, or write a markdown report under `reports/<slug>.md` in the
+configured Kody state repo when the next step needs operator judgement.
 
 The Reports page reads files, shows report body, tracks unread state locally, and can render optional suggested actions from frontmatter. It replaces the old inbox-approval/ledger review surface for recommendations.
 
@@ -59,12 +61,12 @@ Supported action types:
 
 | Type          | Required fields                               | What the dashboard does                                                     |
 | ------------- | --------------------------------------------- | --------------------------------------------------------------------------- |
-| `dispatch`    | `id`, `type`, `label`, `executable`, `target` | Runs an instant job for the named executable against the issue/PR number.   |
+| `dispatch`    | `id`, `type`, `label`, `executable`, `target` | Runs an instant job for the named capability/action against the issue/PR number. The field name is legacy. |
 | `create-task` | `id`, `type`, `label`, `title`                | Opens the existing task dialog prefilled from the action and source report. |
 | `dismiss`     | `id`, `type`, `label`                         | Hides that suggested action locally for the current browser.                |
 
-Dispatch actions must name a real executable and a concrete issue/PR number.
-The dashboard does not infer commands from prose.
+Dispatch actions must name a real capability/action and a concrete issue/PR
+number. The dashboard does not infer commands from prose.
 
 Create-task actions can include:
 
@@ -79,14 +81,14 @@ screen, but it does not write a verdict, trust score, or audit decision.
 Use reports when a capability has findings, context, or recommendations that a human
 should review before follow-up work starts.
 
-Use direct executable action when the executable already has a clear operation
+Use direct capability action when the capability already has a clear operation
 and the required permissions. The capability itself does not write arbitrary state;
-the executable owns what operations it can perform.
+its implementation owns what operations it can perform.
 
 This keeps the loop simple:
 
 1. Capability runs.
-2. Executable either acts or writes/updates a report.
+2. The capability either acts or writes/updates a report.
 3. Operator reads the report.
 4. Operator uses a suggested action, creates a task/goal, dispatches a job, or
    does nothing.

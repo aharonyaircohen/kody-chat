@@ -149,9 +149,9 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
     body:
       "Draft a Kody capability that does the following: $ARGUMENTS.\n\n" +
       "Output a folder proposal for state-repo `capabilities/<slug>/` with `profile.json` metadata " +
-      "(action, executable when needed, every, agent, readsFrom/writesTo) and a " +
-      "`capability.md` body with a clear H1, `## Job`, `## Executable` when relevant, " +
+      "(action, implementation when needed, every, agent, readsFrom/writesTo) and a " +
+      "`capability.md` body with a clear H1, `## Job`, `## Implementation` when relevant, " +
       "`## Output`, `## Allowed Commands`, and `## Restrictions`. Keep implementation " +
-      "recipes in executable skills/scripts, not in the capability body.",
+      "recipes in implementation skills/scripts, not in the capability body.",
   },
 ] as const;

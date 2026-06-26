@@ -83,7 +83,7 @@ falls back to in-memory only when there's no repo context, so the tab never
 hard-fails.
 
 `recordAudit` is called from task actions, capability CRUD + runs, goals, vault
-secrets, executables, agent, and chat-command writes (see the `AuditSpec` shape
+secrets, implementations, agent, and chat-command writes (see the `AuditSpec` shape
 for the `action` / `resource` / `capability` / `agent` / `outcome` fields).
 
 > A legacy `recordAction({…})` shim (in `action-log.ts`) still writes the

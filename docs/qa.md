@@ -4,8 +4,8 @@ The dashboard ships a **QA engineer** that browses the running app like a
 real user, decides PASS/CONCERNS/FAIL, and recommends an action — it never
 fixes, merges, or approves. It is built from one **agent agent** plus two
 **capabilities** (see [./concepts/staff-capabilities.md](./concepts/staff-capabilities.md) for
-the agent/capability model), all driving a single engine executable
-(`qa-engineer`) that does the actual Playwright browsing.
+the agent/capability model), all driving the `qa-engineer` implementation that
+does the actual Playwright browsing.
 
 Everything ships **disabled** out of the box, because a real-browser pass is
 expensive and the dashboard is PAT-gated — without credentials every run
@@ -19,7 +19,7 @@ just hits a login wall. Flip the capabilities on once you've done the one-time
 | `qa` **agent**               | Identity only — a senior quality advocate who trusts what it has _seen_ over what a diff claims, flags but never fixes, never rubber-stamps. No tasks, verbs, or cadence live here. | [`../.kody/agents/qa.md`](../.kody/agents/qa.md)                         |
 | `qa` **capability**                | Changelog verification (`every: 30m`, `disabled: true` in the profile).                                                                                                             | [`../.kody/capabilities/qa/capability.md`](../.kody/capabilities/qa/capability.md)             |
 | `qa-sweep` **capability**          | Broad exploratory smoke (`every: 1h`, ~once/day, `disabled: true` in the profile).                                                                                                  | [`../.kody/capabilities/qa-sweep/capability.md`](../.kody/capabilities/qa-sweep/capability.md) |
-| `qa-engineer` **executable** | The browser. Playwright MCP (headless Chromium), read-only on the repo, emits one structured report.                                                                                | engine: `src/executables/qa-engineer/`                                 |
+| `qa-engineer` **implementation** | The browser. Playwright MCP (headless Chromium), read-only on the repo, emits one structured report.                                                                                | legacy engine storage: `src/executables/qa-engineer/`                                 |
 
 Neither capability browses anything itself. Each one opens a tracking issue and
 posts `@kody qa-engineer …` onto it; the engine picks that up, runs the
@@ -61,7 +61,7 @@ findings, `note` for a clean run. Full body:
 
 ## What `qa-engineer` does
 
-A oneshot engine executable. Given a base URL (and optionally a `--scope`),
+A oneshot QA implementation. Given a base URL (and optionally a `--scope`),
 it navigates with Playwright MCP, builds a short test matrix, and exercises
 each surface across happy path, empty state, loading, error, validation,
 narrow viewport, keyboard nav, and destructive-action gating. Its final
@@ -177,7 +177,7 @@ per-PR verification; add the sweep for periodic broad coverage.
 | [`../.kody/agents/qa.md`](../.kody/agents/qa.md)                         | QA agent (identity only)                           |
 | [`../.kody/capabilities/qa/capability.md`](../.kody/capabilities/qa/capability.md)             | Changelog-verification capability                          |
 | [`../.kody/capabilities/qa-sweep/capability.md`](../.kody/capabilities/qa-sweep/capability.md) | Broad exploratory sweep capability                         |
-| `src/executables/qa-engineer/profile.json` (engine)                    | Executable manifest — inputs, tools, preflight chain |
+| `src/executables/qa-engineer/profile.json` (engine)                    | Implementation manifest — inputs, tools, preflight chain |
 | `src/executables/qa-engineer/prompt.md` (engine)                       | The QA engineer's browsing prompt + report format    |
 | `src/scripts/resolveQaUrl.ts` (engine)                                 | Base-URL resolution preflight                        |
 | `src/scripts/loadQaContext.ts` (engine)                                | Profile + Variables + Vault context preflight        |

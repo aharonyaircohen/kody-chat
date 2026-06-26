@@ -14,8 +14,9 @@ Capabilities are stored as one folder:
 
 Kody chat creates capabilities with `create_or_update_capability`.
 
-New UI/API work should create capabilities directly. The capability only defines what can be run.
-Detailed execution mechanics belong in the executable.
+New UI/API work should create capabilities directly. Capability is the product
+word. Older config and storage may still use `executable`, but user-facing text
+should call that the capability implementation.
 
 ## What a capability contract owns
 
@@ -29,17 +30,17 @@ A capability contract owns:
 - **Reviewer**: which agent identity should treat the output after it exists.
 - **Output**: whether the capability only runs, or writes a report.
 - **Safety rules**: what it may and may not do.
-- **Executable link**: the implementation executable, when the capability needs one.
+- **Implementation link**: the implementation slug, when the capability needs one.
 
 A capability contract does **not** own:
 
 - A long agent identity prompt. Put that in `.kody/agents/<slug>.md`.
-- A reusable action implementation. Put that in `.kody/executables/<slug>/`.
+- A reusable action implementation. Keep that in the implementation folder.
 - A company reason or priority. Put that in Intent.
 - Long-term progress. Put that in Goal.
-- A long step-by-step runbook. Put reusable method in executable skills.
-- Bash, Python, or API recipes. Put deterministic work in executable-owned
-  scripts, or method details in executable skills.
+- A long step-by-step runbook. Put reusable method in implementation skills.
+- Bash, Python, or API recipes. Put deterministic work in implementation-owned
+  scripts, or method details in implementation skills.
 - Raw state keys. Runtime state is engine-owned and not part of the capability
   authoring surface.
 
@@ -78,9 +79,9 @@ Use this shape:
 
 Check the docs for broken links and refresh the report.
 
-## Executable
+## Implementation
 
-Run the `broken-link-report` executable. Its skill owns the detailed method and
+Run the `broken-link-report` implementation. Its skill owns the detailed method and
 runtime state handling.
 
 ## Output
@@ -89,7 +90,7 @@ Refresh `.kody/reports/broken-link-report.md`.
 
 ## Allowed Commands
 
-- Run the `broken-link-report` executable.
+- Run the `broken-link-report` implementation.
 
 ## Restrictions
 
@@ -107,13 +108,13 @@ Do not put metadata frontmatter in `capability.md`. Metadata belongs in
 | `name`        | Capability slug. Must match the folder name.                                                           |
 | `describe`    | Human-readable title shown in the dashboard.                                                     |
 | `action`      | Public action token. `@kody <action>` runs this capability. Usually the capability slug.                     |
-| `executable`  | Optional implementation executable slug. Use this for the one executable that performs the work. |
+| `executable`  | Legacy field name for the implementation slug. Use this when one implementation performs the work. |
 | `capabilityKind` | Capability kind: `observe`, `act`, or `verify`. |
 | `every`       | Optional cadence: `manual`, `1h`, `1d`, `7d`, etc.                                               |
 | `agent`      | Agent identity slug that performs the capability. A capability without an agent should not auto-run.          |
 | `reviewer`    | Optional agent identity slug responsible for reviewing or handling the capability output.               |
 | `mentions`    | Optional GitHub logins to notify, without `@`.                                                   |
-| `executables` | Multi-run executable list. Prefer singular `executable` for normal capabilities.                       |
+| `executables` | Legacy field name for a multi-step implementation list. Prefer singular `executable` for normal capabilities. |
 | `tools`       | Optional capability tool names exposed to the tick agent.                                             |
 | `tickScript`  | Optional deterministic script path for a scripted capability agent.                                   |
 | `readsFrom`   | Context, report, or capability slugs this capability reads.                                                  |
@@ -151,17 +152,19 @@ Bad:
 You are a senior engineering manager...
 ```
 
-### `## Executable`
+### `## Implementation`
 
-For executable-backed capabilities, name the executable and explain what outcome it
-must produce. Keep the implementation details in the executable folder.
+For implementation-backed capabilities, name the implementation and explain what
+outcome it must produce. Keep the implementation details out of the capability
+body.
 
 ### `## Allowed Commands`
 
-For executable-backed capabilities, list only the executable.
+For implementation-backed capabilities, list only the public action or
+implementation slug.
 
 Keep shell commands, API calls, and long run logic out of the capability. They belong
-in executable skills or executable-owned scripts.
+in implementation skills or implementation-owned scripts.
 
 ### `## Restrictions`
 
@@ -174,13 +177,13 @@ Examples:
 - Do not edit source files.
 - Only update `.kody/reports/<slug>.md`.
 
-## Choosing between capability, executable, and agent
+## Choosing between capability, implementation, and agent
 
 Use a **Capability** when the agency needs a reusable ability, especially one
 that is recurring or public as an `@kody <action>`.
 
-Use an **executable** when you are defining implementation that a capability
-can run, such as a deterministic graph refresh or an agent workflow.
+Use an **implementation** when you are defining the method a capability can run,
+such as a deterministic graph refresh or an agent workflow.
 
 Use **agent** when you are defining who performs the work.
 
@@ -195,7 +198,7 @@ Before creating a capability contract, Kody should know:
 - Which agent is the agent.
 - Which agent is the reviewer, if anyone.
 - Whether the output is `Run` or `Report`.
-- Which implementation executable runs the work, if needed.
+- Which implementation runs the work, if needed.
 - Which reports or context entries it reads or writes, if any.
 - Which actions are forbidden.
 

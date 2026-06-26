@@ -10,7 +10,7 @@ Current storage has three related pieces:
 - **Capabilities** - `.kody/capabilities/<slug>/`. The canonical **how**:
   public action name, capability kind, owner, cadence, safety, inputs, outputs,
   tools/data/instructions, and execution binding.
-- **Legacy Capabilities / Executables** -
+- **Legacy implementation roots** -
   `.kody/capabilities/<slug>/` and `.kody/executables/<slug>/`.
   These are compatibility roots while older repos migrate.
 
@@ -44,7 +44,7 @@ So in storage terms:
 |                         | Agents (who)           | Capability (how) | Legacy roots |
 | ----------------------- | ----------------------- | -------------------------- | ------------------------------- |
 | Path                    | `.kody/agents/<slug>.md` | `.kody/capabilities/<slug>/` | `.kody/capabilities/<slug>/`, `.kody/executables/<slug>/` |
-| Answers                 | Who is acting?          | What capability is available? | How is the work performed?      |
+| Answers                 | Who is acting?          | What capability is available? | How is older stored implementation found? |
 | Owns the schedule?      | No                      | Only the capability cadence, via `profile.json` | Compatibility only |
 | Owns the action name?   | No                      | Yes, `profile.json.action` | No                              |
 | Owns reusable method?   | No                      | Yes, through skills/scripts/prompts when needed | Compatibility only |
@@ -75,9 +75,9 @@ Important fields:
 - `name` - capability slug; should match the folder name.
 - `describe` - human-readable dashboard title.
 - `action` - public `@kody <action>` command owned by this capability.
-- `executable` - legacy implementation reference for older split storage.
+- `executable` - legacy field name for the implementation reference.
 - `capabilityKind` - `observe`, `act`, or `verify`.
-- `executables` - optional legacy multi-implementation list.
+- `executables` - optional legacy field name for a multi-step implementation list.
 - `every` - cadence between auto-runs: `15m`, `30m`, `1h`, `2h`, `6h`, `12h`,
   `1d`, `3d`, `7d`, or `manual`.
 - `disabled` - `true` makes the scheduler skip autonomous execution.

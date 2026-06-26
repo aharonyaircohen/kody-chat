@@ -1,7 +1,7 @@
-# Current executable restructure
+# Current implementation restructure
 
-This tracks the cleanup of the repo-stored executables under
-`.kody/executables/`.
+This tracks the cleanup of repo-stored capability implementations under the
+legacy `.kody/executables/` path.
 
 ## Baseline rules
 
@@ -12,14 +12,14 @@ This tracks the cleanup of the repo-stored executables under
 - `skills/<name>/SKILL.md` owns reusable method: rubrics, workflows, review
   standards, research floors, QA checklists, and examples.
 - `*.sh` owns deterministic work.
-- No-agent executables should not have agent output contracts.
-- Built-in executables with custom postflight parsers must keep their custom
+- No-agent implementations should not have agent output contracts.
+- Built-in implementations with custom postflight parsers must keep their custom
   final response contract as the last instruction. They must not receive the
   generic generated dashboard contract.
 
 ## Current state
 
-| Executable      | Shape                  | Current status                                                                                                                                                                                          | Next restructuring target                                |
+| Implementation  | Shape                  | Current status                                                                                                                                                                                          | Next restructuring target                                |
 | --------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- |
 | `company-graph` | deterministic no-agent | Clean reference shape: tiny instructions, local skill, local shell script, `skipAgent`.                                                                                                                 | None.                                                    |
 | `spec`          | no-agent orchestrator  | Cleaned to a tiny no-agent note.                                                                                                                                                                        | None unless the spec transition logic moves to a script. |
@@ -39,7 +39,7 @@ This tracks the cleanup of the repo-stored executables under
 ## Completion notes
 
 - Keep `company-graph` and `spec` as the no-agent reference shapes.
-- Every skill-backed executable now has `buildSyntheticPlugin` before prompt
+- Every skill-backed implementation now has `buildSyntheticPlugin` before prompt
   composition or before the flow script that composes the prompt.
 
 Do not migrate by moving the whole prompt into a skill. Runtime context

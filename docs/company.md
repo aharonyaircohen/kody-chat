@@ -10,8 +10,8 @@ up the same team instantly.
 
 The line the bundle draws is deliberate: a Company carries the
 **operating manual** plus current managed goals, not low-level runtime
-history. Agents, capability contracts (`capabilities`), Context,
-commands, capability implementations (`executables`), managed goals,
+history. Agents, capabilities, Context,
+commands, capability implementations, managed goals,
 instructions, and a portable slice of engine
 policy travel; memory, secrets, variables, the inbox, notifications,
 generated runtime activity, and the default branch stay behind, because
@@ -31,13 +31,13 @@ first if the agent/capability split is new to you.
 | Piece               | What travels                                                                                                                                                | Source on export                                                                  |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
 | **Agents**           | Each agent's slug, title, body, `disabled`. Schedule is always `null`, and capability-only role fields are always `null` (agents do not run on their own).        | `.kody/agents/*.md` via `listStaffFiles()`                                         |
-| **Capabilities** (`Capabilities`) | Each capability contract's slug, title, body, action, kind, executable link, cadence, `disabled`, data contracts, output `reviewer`, and the agent slug it runs as. | `.kody/capabilities/<slug>/{profile.json,capability.md}` via `listCapabilityFiles()` |
+| **Capabilities** | Each capability's slug, title, body, action, kind, implementation link, cadence, `disabled`, data contracts, output `reviewer`, and the agent slug it runs as. | `.kody/capabilities/<slug>/{profile.json,capability.md}` via `listCapabilityFiles()` |
 | **Context**          | Curated `.kody/context/*.md` entries and their agent audience list.                                                                                          | `.kody/context/*.md` via `listContextFiles()`                                      |
 | **Commands**        | Repo-defined slash commands only — slug, description, argument hint, body. Built-ins ship with the dashboard, so they're never exported.                    | `.kody/commands/*.md` via `listRepoCommandFiles()` (filtered `source === "repo"`) |
-| **Capability implementations** (`Executables`) | Each custom implementation as a folder map: `profile.json` + `prompt.md` + any `*.sh` shell scripts + any `skills/<name>/SKILL.md`. | `.kody/executables/<slug>/` via `listExecutableFiles()` / `readExecutableFile()` |
+| **Capability implementations** | Each custom implementation as a folder map: `profile.json` + `prompt.md` + any `*.sh` shell scripts + any `skills/<name>/SKILL.md`. | legacy `.kody/executables/<slug>/` storage via `listExecutableFiles()` / `readExecutableFile()` |
 | **Managed goals**   | Each managed company goal instance and its state file. Goal runtime history is still repo state, so do not treat goals as reusable Store templates here.       | `goals/instances/<id>/state.json` via `listManagedGoalFiles()`                     |
 | **Instructions**    | The single repo behavioral overlay (tone/length/formatting), or `null` if the repo has none.                                                                | `.kody/instructions.md` via `readInstructionsFile()`                              |
-| **Config** (policy) | A repo-agnostic slice of `kody.config.json`: quality commands, comment aliases, the `@kody` access gate, default executables, per-executable model routing. | `kody.config.json` via `getEngineConfig()`                                        |
+| **Config** (policy) | A repo-agnostic slice of `kody.config.json`: quality commands, comment aliases, the `@kody` access gate, default capability actions, and per-capability model routing. | `kody.config.json` via `getEngineConfig()`                                        |
 
 What it **excludes**, by design: memory, the secrets vault, variables,
 dashboard/runtime config, the inbox, notifications, generated runtime
@@ -69,7 +69,7 @@ shape, so a malformed or unrelated JSON file is rejected up front with
 ```text
 /company export
   -> buildCompanyBundle()
-  -> read agents, capability contracts, Context, commands, capability implementations,
+  -> read agents, capabilities, Context, commands, capability implementations,
      managed goals, instructions, and config
   -> drop repo-only metadata
   -> download one JSON file
@@ -86,7 +86,7 @@ of empties).
 /company import
   -> validate the bundle
   -> write agent
-  -> write capability contracts
+  -> write capabilities
   -> write Context
   -> write commands
   -> write capability implementations
@@ -95,11 +95,11 @@ of empties).
   -> write config last
 ```
 
-Ordering is intentional: **agent before capabilities** (so a capability naming a
-agent member lands after its executor exists — cosmetic; the engine
+Ordering is intentional: **agent before capabilities** (so a capability naming an
+agent member lands after that agent exists — cosmetic; the engine
 resolves at tick time regardless), Context before later artifacts that may
-reference it, and **config last** because it may reference executables
-(the `default*Executable` slugs) the earlier steps just created.
+reference it, and **config last** because it may reference capability action
+slugs the earlier steps just created.
 
 ### Collision handling — `skip` vs `overwrite`
 
@@ -143,8 +143,8 @@ The `/company` route also fronts two `kody.config.json` editors that are
   `kody.config.json` fields without their own page: quality verification
   commands, comment aliases, the `@kody` access gate
   (`access.allowedAssociations`), and the default branch
-  (`git.defaultBranch`). Per-executable model routing is edited on
-  `/models`; the default PR executable on the executables route.
+  (`git.defaultBranch`). Per-capability model routing is edited on
+  `/models`; default action routing is edited in config.
 
 These overlap the **policy** slice the bundle carries — but the bundle
 deliberately drops `git.defaultBranch` (repo-specific) and never touches
@@ -167,9 +167,9 @@ operators (a per-repo inbox-routing list, not company doctrine).
 ## FAQ
 
 **What's in a Company vs what stays behind?** In: agent, capabilities,
-Context, repo-defined commands, custom executables, managed goals,
+Context, repo-defined commands, custom capability implementations, managed goals,
 instructions, and a portable config slice (quality commands, aliases,
-access gate, default executables, per-executable model routing). Out:
+access gate, default capability actions, per-capability model routing). Out:
 memory, secrets, variables, inbox, notifications, dashboard runtime config,
 generated runtime activity, and the default branch.
 
@@ -187,10 +187,10 @@ one; `overwrite` replaces it. For config, `skip` only fills fields the
 target hasn't set, so it never clobbers a deliberate value.
 
 **Why does agent import before capabilities, and config last?** Agents first so
-a capability's named executor already exists (cosmetic — the engine resolves at
+a capability's named agent already exists (cosmetic — the engine resolves at
 tick time anyway). Context lands before the things that may reference it.
-Config last because it may reference `default*Executable` slugs the
-executable step just created.
+Config last because it may reference action slugs the capability step just
+created.
 
 **Can one bad entry fail the whole import?** No. Each entry is written in
 its own try/catch and tallied as `failed` with a note; the rest still

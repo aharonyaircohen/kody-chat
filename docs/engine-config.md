@@ -39,8 +39,8 @@ across three pages by concern — /config owns the repo-wide behavior fields:
 | `git.defaultBranch`                         | Base branch new work branches off and targets. Blank = engine default (`main`).                                           | **/config** → Default branch   |
 | `aliases`                                   | Word → subcommand map, e.g. `{ "build": "run" }` lets `@kody build` dispatch `run`.                                       | **/config** → Comment aliases  |
 | `agent.model`                               | The `provider/model` the engine runs. **The only key the engine reads for its model.**                                    | /models (synced on save)       |
-| `agent.perExecutable`                       | Per-executable model override, e.g. `{ "research": "anthropic/claude-opus-4-7" }`.                                        | /models                        |
-| `defaultExecutable` / `defaultPrExecutable` | Executable for a bare `@kody` on an issue / PR (engine defaults: `classify` / `fix`).                                     | /executables                   |
+| `agent.perExecutable`                       | Legacy config field for per-capability model overrides, e.g. `{ "research": "anthropic/claude-opus-4-7" }`.                | /models                        |
+| `defaultExecutable` / `defaultPrExecutable` | Legacy config fields for the bare `@kody` capability action on an issue / PR (engine defaults: `classify` / `fix`).       | /config                        |
 
 ## The Operators card — inbox routing
 
@@ -76,7 +76,7 @@ edited in the same session never clobber each other.
   card shows the currently-effective set.
 - **Default branch** — a single text field. Blank shows and means the engine
   default (`main`).
-- **Comment aliases** — add/remove `word → executable` pairs. Built-in aliases
+- **Comment aliases** — add/remove `word → capability action` pairs. Built-in aliases
   (e.g. `build → run`) always apply regardless of what's listed here.
 
 ## Write flow
@@ -135,7 +135,8 @@ correctly:
 
 See [./models.md](./models.md) for the full model picker. The link between the
 two pages is one-directional: editing /config never touches the model;
-saving /models writes `agent.model` (and `agent.perExecutable`).
+saving /models writes `agent.model` (and the legacy `agent.perExecutable`
+override map).
 
 ## File reference
 

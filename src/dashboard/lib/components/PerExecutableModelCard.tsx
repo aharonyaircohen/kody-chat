@@ -1,13 +1,9 @@
 /**
  * @fileType component
  * @domain variables
- * @pattern per-executable-model-card
- * @ai-summary /models card for `agent.perExecutable` — per-executable model
- *   overrides in kody.config.json. Maps an executable slug (e.g. `research`)
- *   to a `provider/model` spec, so that executable runs on a different model
- *   than the engine default. Reads/writes via `useEngineConfig` (shared with
- *   the Company config cards); the model dropdown is built from the configured
- *   chat models. Mirrors AliasesCard's chrome.
+ * @pattern per-capability-model-card
+ * @ai-summary /models card for the legacy `agent.perExecutable` config map.
+ *   Public copy calls these per-capability model overrides.
  */
 "use client";
 
@@ -62,11 +58,11 @@ export function PerExecutableModelCard({ models }: { models: ChatModel[] }) {
         <div className="min-w-0">
           <p className="font-medium text-white/90 flex items-center gap-2">
             <Cpu className="w-4 h-4 text-sky-400" />
-            Per-executable model
+            Per-capability model
           </p>
           <p className="text-xs text-white/50 mt-1">
-            Run a specific executable on a different model than the engine
-            default — e.g. <code className="text-white/70">research</code> on a
+            Run a specific capability on a different model than the engine
+            default, e.g. <code className="text-white/70">research</code> on a
             deeper model. Everything else uses the engine default above.
           </p>
         </div>
@@ -106,7 +102,7 @@ export function PerExecutableModelCard({ models }: { models: ChatModel[] }) {
               <Input
                 value={slug}
                 onChange={(e) => setSlug(e.target.value)}
-                placeholder="executable (e.g. research)"
+                placeholder="capability (e.g. research)"
                 disabled={saving}
                 className="h-8 text-sm font-mono"
               />

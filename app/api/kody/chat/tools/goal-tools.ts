@@ -301,7 +301,7 @@ export function createGoalTools(ctx: Ctx) {
     create_managed_goal: tool({
       description:
         "Create an engine-managed company goal. Provide a finish-line outcome, " +
-        "proof/evidence keys, and route steps that name capability/executable work. " +
+        "proof/evidence keys, and route steps that name the capability work. " +
         "Writes the configured Kody state repo at goals/instances/<id>/state.json and wakes Kody.",
       inputSchema: z.object({
         id: z

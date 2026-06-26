@@ -183,7 +183,7 @@ Kody has two separate planning surfaces. Keep the words distinct.
 
 \`/goal\` should create a managed company goal. \`/mission\` should create the old task-group mission. If the user says "old goal", "task-page goal", "goal group", or "task group", treat it as a mission.
 
-For managed goals, ask for missing outcome/proof steps if needed. Keep the route simple: one evidence key, one stage, one capability, and one executable is enough for a first goal.`,
+For managed goals, ask for missing outcome/proof steps if needed. Keep the route simple: one evidence key, one stage, and one capability is enough for a first goal.`,
     );
     if (opts?.memoryIndex && opts.memoryIndex.trim().length > 0) {
       sections.push(

@@ -48,8 +48,8 @@ One doc per dashboard-managed store / capability.
 ### Authoring & config
 
 - ✅ [Commands](commands.md) — slash commands, built-ins + repo commands.
-- ✅ [Capability implementations](executables.md) — custom `.kody/executables/<slug>/`
-  implementation folders (Git Data API CRUD), set-default, and the commit-skills caveat.
+- ✅ [Capability implementation storage](executables.md) — compatibility notes
+  for legacy implementation folders and config field names.
 - ✅ [Engine config](engine-config.md) — the `/config` page editing
   `kody.config.json` (operators, quality commands, access gate, aliases);
   why the model lives on `/models` via `agent.model`.
@@ -61,7 +61,7 @@ One doc per dashboard-managed store / capability.
 - 🗄️ [Company profile](profile.md) — _historical._ The Profile feature was
   removed; see [Context](context.md) for the current model.
 - ✅ [Company export/import](company.md) — portable bundle of agent,
-  capabilities, Context, commands, executables, managed goals,
+  capabilities, Context, commands, implementations, managed goals,
   instructions, and a config slice.
 
 ### Runtime & infra

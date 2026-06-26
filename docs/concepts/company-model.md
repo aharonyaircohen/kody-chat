@@ -38,30 +38,24 @@ Act = change something or trigger work
 Verify = confirm pass/fail evidence
 ```
 
-## Current storage names
+## Storage names
 
-Some files still use older names. Treat them as storage/compatibility names, not
-the public model:
-
-| Current name | Canonical meaning |
-| --- | --- |
-| Capability | Capability contract |
-| Executable | Capability implementation |
-
-So the practical rule is:
+The public model has no separate "executable" concept. Capability is the
+operator-facing concept. Some files and config keys still say `executable` for
+compatibility; read that as "capability implementation", not as a new model.
 
 ```text
-Capability = Capability contract + Executable implementation
+Capability = contract + implementation
 ```
 
 ## Ownership rules
 
-This table is kept only to make the legacy storage split explicit:
+This table is kept only to make the storage split explicit:
 
 | Storage name | Owns | Must not own |
 | --- | --- | --- |
 | Capability | Capability contract: public action name, kind, owner, cadence, safety, inputs, outputs, and implementation link | Long identity prompt or low-level implementation |
-| Executable | Capability implementation: prompt glue, skills, scripts, tools, landing, output contract | Company direction, cadence, public ownership, or long-term progress |
+| Implementation | Prompt glue, skills, scripts, tools, landing, output contract | Company direction, cadence, public ownership, or long-term progress |
 | Context | Facts Kody should know while reasoning | Source-of-truth policy or scheduled work |
 | Instructions | Chat response behavior such as tone, length, and format | Company facts or agency structure |
 | State | Runtime facts: last run, pending work, outcome, logs | Authoring rules or portable company doctrine |
@@ -84,7 +78,7 @@ Good Context reminder:
 ```text
 Follow docs/concepts/company-model.md.
 Use Intent/Goal/Loop/Agent/Capability as the agency model.
-Treat Capability and Executable as current storage names for Capability.
+Treat `executable` as an old storage/config word for capability implementation.
 ```
 
 ## Dependency graph
@@ -96,8 +90,7 @@ Nodes:
 ```text
 agent
 capability
-capability
-executable
+implementation
 goal
 loop
 intent
@@ -117,8 +110,8 @@ Edges:
 | loop -> capability | This loop may dispatch this capability |
 | capability -> agent | This capability runs as this identity |
 | capability -> capability | This capability is currently stored as this contract folder |
-| capability -> executable | This capability uses this implementation |
-| executable -> tool | This implementation needs this tool |
+| capability -> implementation | This capability uses this implementation |
+| implementation -> tool | This implementation needs this tool |
 | capability -> report/context | This capability reads or writes this artifact |
 
 The graph should answer:
@@ -151,7 +144,7 @@ Checks:
 
 ```text
 missing agent
-missing executable
+missing implementation
 missing goal capability
 inactive item used by an active goal
 duplicate capabilities

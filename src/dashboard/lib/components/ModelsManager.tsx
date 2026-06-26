@@ -372,7 +372,7 @@ function ModelsManagerInner() {
           <strong className="text-white/60">Kody Live</strong>.
         </p>
 
-        {/* Per-executable model overrides (agent.perExecutable) */}
+        {/* Per-capability model overrides (legacy agent.perExecutable config) */}
         {!isLoading && !error && <PerExecutableModelCard models={models} />}
       </div>
 

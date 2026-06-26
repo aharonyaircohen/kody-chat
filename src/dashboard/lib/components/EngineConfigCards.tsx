@@ -509,8 +509,8 @@ function AliasesCard({ cfg }: { cfg: UseEngineConfig }) {
         >
           Map a word to a subcommand, e.g.{" "}
           <code className="text-white/70">build → run</code> lets{" "}
-          <code className="text-white/70">@kody build</code> dispatch the{" "}
-          <code className="text-white/70">run</code> executable.
+          <code className="text-white/70">@kody build</code> run the{" "}
+          <code className="text-white/70">run</code> capability.
         </CardHeader>
         {loading ? (
           <Loading />
@@ -557,7 +557,7 @@ function AliasesCard({ cfg }: { cfg: UseEngineConfig }) {
                     void handleAdd();
                   }
                 }}
-                placeholder="executable (e.g. run)"
+                placeholder="capability action (e.g. run)"
                 disabled={saving}
                 className="h-8 text-sm font-mono"
               />
