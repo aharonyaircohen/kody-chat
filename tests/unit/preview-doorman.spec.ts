@@ -217,7 +217,13 @@ describe("preview builder doorman wiring", () => {
 
     expect(dockerfile).toContain("COPY doorman ./doorman");
     expect(builder).toContain('const source = "/app/doorman"');
-    expect(builder).toContain("await ensureDoormanInContext(cwd)");
+    expect(builder).toContain("await installDoormanInContext(cwd)");
+    expect(builder).toContain(
+      'console.log("[builder] replacing repo doorman with bundled doorman")',
+    );
+    expect(builder).toContain(
+      "await rm(target, { recursive: true, force: true })",
+    );
     expect(builder).toContain("KODY_BRANCH");
     expect(lifecycle).toContain(
       '...("branch" in input ? { branch: input.branch } : {})',

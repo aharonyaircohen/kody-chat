@@ -41,7 +41,7 @@
 
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { copyFile, cp, mkdir, stat, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, rm, stat, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import {
@@ -88,13 +88,16 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
-async function ensureDoormanInContext(cwd: string): Promise<void> {
+async function installDoormanInContext(cwd: string): Promise<void> {
   const target = resolve(cwd, "doorman");
-  if (await exists(target)) return;
-
   const source = "/app/doorman";
   if (!(await exists(source))) {
     throw new Error("builder image is missing bundled doorman directory");
+  }
+
+  if (await exists(target)) {
+    console.log("[builder] replacing repo doorman with bundled doorman");
+    await rm(target, { recursive: true, force: true });
   }
 
   await cp(source, target, { recursive: true });
@@ -509,7 +512,7 @@ async function main() {
     })();
 
     await Promise.all([flyPrep, cloneRepo(repo, ref, cwd, githubToken)]);
-    await ensureDoormanInContext(cwd);
+    await installDoormanInContext(cwd);
 
     // Parse vault secrets ONCE — used both at build (.env.production.local)
     // and at runtime (preview machine env). Empty when no BUILD_ENV_JSON
