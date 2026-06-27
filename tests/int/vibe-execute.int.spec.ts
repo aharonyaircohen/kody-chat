@@ -166,7 +166,11 @@ describe("POST /api/kody/vibe/execute", () => {
       expect.objectContaining({
         ref: "develop",
         repo: "acme/widgets",
-        issueNumber: 7,
+        runRequest: expect.objectContaining({
+          target: { type: "issue", id: 7 },
+          intent: "run",
+          source: "dashboard",
+        }),
       }),
     );
   });
