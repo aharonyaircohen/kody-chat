@@ -225,7 +225,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     ],
   },
   {
-    title: "Operations",
+    title: "AI Agency",
     items: [
       {
         href: "/agents",
@@ -249,7 +249,8 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         label: "Intents",
         icon: Compass,
         exact: true,
-        description: "CTO guidance for company goals, loops, and capabilities.",
+        description:
+          "CTO guidance for AI Agency goals, loops, and capabilities.",
         tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
@@ -283,6 +284,14 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         exact: true,
         description:
           "Browse shared store items and activate them in this repo.",
+        tint: "text-emerald-300 bg-emerald-500/10",
+      },
+      {
+        href: "/company",
+        label: "Import / Export",
+        icon: Building2,
+        description:
+          "Move your AI Agency setup between repos as a portable bundle.",
         tint: "text-emerald-300 bg-emerald-500/10",
       },
     ],
@@ -339,19 +348,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         icon: SlidersHorizontal,
         description:
           "Repo-wide engine settings: reasoning effort, operators, quality commands, the @kody access gate, default branch, and aliases.",
-        tint: "text-emerald-300 bg-emerald-500/10",
-      },
-    ],
-  },
-  {
-    title: "Company",
-    items: [
-      {
-        href: "/company",
-        label: "Import / Export",
-        icon: Building2,
-        description:
-          "Move your agents, capabilities, prompts, and instructions between repos as a portable bundle.",
         tint: "text-emerald-300 bg-emerald-500/10",
       },
     ],
@@ -473,7 +469,7 @@ export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
     title: PRIMARY_VIEW_TITLE,
     items: [TASKS_NAV_ITEM, VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
   },
-  settingsSection("Operations"),
+  settingsSection("AI Agency"),
   {
     title: PRIMARY_NAV_TITLE,
     items: [
@@ -491,7 +487,6 @@ export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
   settingsSection("Fly"),
   settingsSection("Agent"),
   settingsSection("Engine"),
-  settingsSection("Company"),
   settingsSection("Infrastructure"),
   settingsSection("Alerts"),
   { title: "General", items: [navItemForHref("/settings")] },

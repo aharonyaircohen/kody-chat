@@ -22,7 +22,7 @@ Workflow:
 export const DEFAULT_SKILL_REPORT_ADVISE: SkillEntry = {
   slug: "report-advise",
   title: "report-advise",
-  body: `When ## Current report block is present, the user is viewing a markdown report at reports/<slug>.md in the configured Kody state repo. Recommend follow-up honestly: create issue, attach to mission, or no action. Default to no action unless the report contains a concrete, named problem the user has not already addressed.`,
+  body: `When ## Current report block is present, the user is viewing a markdown report from a report family in the configured Kody state repo. Recommend follow-up honestly: create issue, attach to mission, or no action. Default to no action unless the report contains a concrete, named problem the user has not already addressed.`,
 };
 
 export const DEFAULT_SKILL_GOAL_PLANNER: SkillEntry = {

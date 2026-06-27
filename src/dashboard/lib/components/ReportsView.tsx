@@ -2,10 +2,9 @@
  * @fileType component
  * @domain kody
  * @pattern reports-page
- * @ai-summary Reports view — list and read system reports under
- *   `reports/<slug>.md` in the configured Kody state repo. Read-only. Mobile-first responsive
- *   layout that mirrors CapabilityControl: master/detail with a back button on
- *   small viewports.
+ * @ai-summary Reports view — list and read system report families in the
+ *   configured Kody state repo. Read-only. Mobile-first responsive layout that
+ *   mirrors CapabilityControl: master/detail with a back button on small viewports.
  */
 "use client";
 
@@ -140,6 +139,7 @@ export function ReportsViewInner({
           slug: selected.slug,
           title: selected.title,
           body: selected.body,
+          path: selected.path,
         },
       });
     } else {
@@ -161,7 +161,7 @@ export function ReportsViewInner({
       toast.error("This report action cannot be dispatched");
       return;
     }
-    const key = `${report.slug}:${action.id}`;
+    const key = `${report.path}:${action.id}`;
     setRunningActionKey(key);
     try {
       await kodyApi.jobs.run(
@@ -170,7 +170,7 @@ export function ReportsViewInner({
           target: action.target,
           flavor: "instant",
           cliArgs: {},
-          why: `from report ${report.slug}: ${action.reason ?? action.label}`,
+          why: `from report ${report.path}: ${action.reason ?? action.label}`,
         },
         auth?.user?.login,
       );
@@ -330,7 +330,7 @@ export function ReportsViewInner({
             ? {
                 title: `Address: ${issueFromReport.title}`,
                 body:
-                  `Source report: [\`reports/${issueFromReport.slug}.md\`](${issueFromReport.htmlUrl})\n\n` +
+                  `${sourceReportMarkdown(issueFromReport)}\n\n` +
                   `---\n\n${issueFromReport.body}`,
                 labels: [`from-report:${issueFromReport.slug}`],
               }
@@ -363,7 +363,7 @@ export function ReportsViewInner({
             ? {
                 name: goalFromReport.title,
                 description:
-                  `Source report: [\`reports/${goalFromReport.slug}.md\`](${goalFromReport.htmlUrl})\n\n` +
+                  `${sourceReportMarkdown(goalFromReport)}\n\n` +
                   `---\n\n${goalFromReport.body}`,
               }
             : undefined
@@ -441,6 +441,14 @@ function ReportRow({
             <span aria-hidden>·</span>
           </>
         ) : null}
+        {report.runs.length > 0 ? (
+          <>
+            <span>
+              {report.runs.length} {report.runs.length === 1 ? "run" : "runs"}
+            </span>
+            <span aria-hidden>·</span>
+          </>
+        ) : null}
         <span className="inline-flex items-center gap-1">
           <Calendar className="w-3 h-3" />
           {formatRelative(report.updatedAt)}
@@ -468,7 +476,7 @@ function ReportDetail({
   runningActionKey: string | null;
 }) {
   const hasBody = report.body.trim().length > 0;
-  const dismissed = useDismissedReportActions(report.slug);
+  const dismissed = useDismissedReportActions(report.path);
   const visibleActions = (report.suggestedActions ?? []).filter(
     (action) => !dismissed.ids.has(action.id),
   );
@@ -491,9 +499,18 @@ function ReportDetail({
           <div className="text-xs text-muted-foreground mt-1 flex items-center gap-3 flex-wrap">
             <span className="font-mono opacity-80 truncate">{report.slug}</span>
             <span aria-hidden>·</span>
+            {report.runId ? (
+              <>
+                <span className="font-mono opacity-80 truncate">
+                  {report.runId}
+                </span>
+                <span aria-hidden>·</span>
+              </>
+            ) : null}
             <span className="inline-flex items-center gap-1">
               <Calendar className="w-3 h-3" />
-              updated {formatRelative(report.updatedAt)}
+              {report.runId ? "run" : "updated"}{" "}
+              {formatRelative(report.updatedAt)}
             </span>
             {report.reviewStatus ? (
               <>
@@ -554,6 +571,8 @@ function ReportDetail({
             />
           ) : null}
 
+          {report.runs.length > 0 ? <RunHistory report={report} /> : null}
+
           {hasBody ? (
             <MarkdownPreview
               content={report.body}
@@ -565,7 +584,8 @@ function ReportDetail({
                 Empty report
               </p>
               <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                The goal or loop that owns this report hasn&apos;t written content yet.
+                The goal or loop that owns this report hasn&apos;t written
+                content yet.
               </p>
             </div>
           )}
@@ -603,7 +623,7 @@ function SuggestedActions({
       </div>
       <ul className="space-y-2">
         {actions.map((action) => {
-          const key = `${report.slug}:${action.id}`;
+          const key = `${report.path}:${action.id}`;
           const running = runningActionKey === key;
           return (
             <li
@@ -683,6 +703,60 @@ function SuggestedActions({
   );
 }
 
+function RunHistory({ report }: { report: Report }) {
+  const visibleRuns = report.runs.slice(0, 12);
+  return (
+    <section className="rounded-lg border border-white/[0.08] bg-white/[0.02] p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <Calendar className="h-4 w-4 text-sky-300" />
+        <h2 className="text-sm font-semibold text-white/90">Runs</h2>
+        <span className="ml-auto text-xs text-muted-foreground">
+          {report.runs.length}
+        </span>
+      </div>
+      <ul className="divide-y divide-white/[0.06]">
+        {visibleRuns.map((run) => {
+          const active = run.id === report.runId;
+          return (
+            <li key={run.id} className="flex items-center gap-3 py-2 text-xs">
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate font-mono",
+                  active ? "text-sky-200" : "text-muted-foreground",
+                )}
+              >
+                {run.id}
+              </span>
+              {active ? (
+                <span className="rounded border border-sky-400/30 bg-sky-400/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-sky-200">
+                  current
+                </span>
+              ) : null}
+              {run.htmlUrl ? (
+                <a
+                  href={run.htmlUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
+                  title="Open run on GitHub"
+                >
+                  <ExternalLink className="h-3 w-3" />
+                  GitHub
+                </a>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+      {report.runs.length > visibleRuns.length ? (
+        <p className="mt-3 text-xs text-muted-foreground">
+          Showing latest {visibleRuns.length} runs.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 function EmptyState({
   icon,
   title,
@@ -715,6 +789,11 @@ function formatRelative(iso: string): string {
   return new Date(iso).toLocaleDateString();
 }
 
+function sourceReportMarkdown(report: Report): string {
+  const path = report.path || `reports/${report.slug}.md`;
+  return `Source report: [\`${path}\`](${report.htmlUrl})`;
+}
+
 function buildTaskPrefillFromAction(
   report: Report,
   action: ReportSuggestedAction,
@@ -723,7 +802,7 @@ function buildTaskPrefillFromAction(
     title: action.title ?? action.label,
     body:
       (action.body ?? action.reason ?? action.label) +
-      `\n\n---\n\nSource report: [\`reports/${report.slug}.md\`](${report.htmlUrl})`,
+      `\n\n---\n\n${sourceReportMarkdown(report)}`,
     labels: [`from-report:${report.slug}`, ...(action.labels ?? [])],
   };
 }

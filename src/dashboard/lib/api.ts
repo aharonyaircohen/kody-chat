@@ -1456,8 +1456,20 @@ export const memoryApi = {
 // ============ Reports API ============
 
 export interface Report {
-  /** Filename without `.md` — stable identity. */
+  /** Report family slug — stable identity. */
   slug: string;
+  /** State-repo-relative markdown path for the currently shown report. */
+  path: string;
+  /** Run id when this report came from `reports/<slug>/runs/<run>.md`. */
+  runId: string | null;
+  /** Available historical runs, newest first. Empty for legacy flat reports. */
+  runs: {
+    id: string;
+    path: string;
+    generatedAt: string | null;
+    htmlUrl: string;
+    size: number;
+  }[];
   title: string;
   body: string;
   /** Last commit timestamp affecting this file (ISO8601). */

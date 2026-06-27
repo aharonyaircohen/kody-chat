@@ -2,9 +2,9 @@
  * @fileType page
  * @domain company
  * @pattern company-page
- * @ai-summary Company import/export entry point. Exports the repo's
- *   portable operating manual (agent, capabilities, prompts, instructions) as a
- *   JSON bundle and imports one into another repo.
+ * @ai-summary AI Agency import/export entry point. Exports the repo's
+ *   portable operating manual (agent, capabilities, prompts, instructions) as
+ *   a JSON bundle and imports one into another repo.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { CompanyManager } from "@dashboard/lib/components/CompanyManager";
@@ -15,9 +15,9 @@ export const revalidate = false;
 export const fetchCache = "force-cache";
 
 export const metadata = buildKodyMetadata({
-  title: "Company — Kody Operations Dashboard",
+  title: "AI Agency — Kody Operations Dashboard",
   description:
-    "Import and export a company: agent, capabilities, commands, instructions.",
+    "Import and export an AI Agency setup: agent, capabilities, commands, instructions.",
   path: "/company",
 });
 

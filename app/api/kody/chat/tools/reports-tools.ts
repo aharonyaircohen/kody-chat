@@ -2,8 +2,8 @@
  * @fileType util
  * @domain reports
  * @pattern chat-tools
- * @ai-summary Read-only chat tools for goal/loop reports
- *   (`reports/<slug>.md` in the configured Kody state repo) — list and read.
+ * @ai-summary Read-only chat tools for goal/loop report families in the
+ *   configured Kody state repo — list and read.
  *   Reports are the Dashboard-facing summaries produced after goals/loops apply evidence.
  */
 import { tool } from "ai";
@@ -28,6 +28,9 @@ export function createReportTools(opts: { owner: string; repo: string }) {
               slug: r.slug,
               title: r.title,
               updatedAt: r.updatedAt,
+              path: r.path,
+              runId: r.runId,
+              runCount: r.runs.length,
             })),
           };
         } catch (err) {

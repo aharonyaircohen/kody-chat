@@ -57,7 +57,7 @@ export function createCompanyTools(ctx: Ctx) {
     }),
 
     export_company: tool({
-      description: `Export ${repoRef}'s company bundle — all agent, capabilities, context, commands, implementations, instructions, and config — as a portable JSON object the user can save or import into another repo.`,
+      description: `Export ${repoRef}'s AI Agency setup — all agent, capabilities, context, commands, implementations, instructions, and config — as a portable JSON object the user can save or import into another repo.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
@@ -70,7 +70,7 @@ export function createCompanyTools(ctx: Ctx) {
     }),
 
     import_company: tool({
-      description: `Import a company bundle into ${repoRef}. \`mode\` "skip" keeps existing items on slug collision; "overwrite" replaces them. Pass the full bundle JSON (as produced by export_company). Returns per-category created/updated/skipped counts.`,
+      description: `Import an AI Agency setup into ${repoRef}. \`mode\` "skip" keeps existing items on slug collision; "overwrite" replaces them. Pass the full bundle JSON (as produced by export_company). Returns per-category created/updated/skipped counts.`,
       inputSchema: z.object({
         bundle: z.unknown(),
         mode: z.enum(["skip", "overwrite"]).default("skip"),

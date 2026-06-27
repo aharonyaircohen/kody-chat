@@ -458,7 +458,7 @@ export async function POST(req: NextRequest) {
     /** The goal this planner session is scoped to. */
     goal?: GoalContext;
     /** Currently-viewed report on /reports — scopes the chat to advise on it. */
-    report?: { slug: string; title: string; body: string };
+    report?: { slug: string; title: string; body: string; path?: string };
     /** Org workspace scope from /org/:org. */
     org?: OrgContext;
     /**

@@ -1,6 +1,6 @@
-# Company model
+# AI Agency model
 
-This is the source of truth for where company concepts belong.
+This is the source of truth for where AI Agency concepts belong.
 
 The short rule:
 
@@ -16,7 +16,7 @@ Instructions = chat behavior
 State = what happened
 ```
 
-If a new company file mixes two rows, stop and split it before adding more
+If a new agency file mixes two rows, stop and split it before adding more
 behavior.
 
 ## Canonical terms
@@ -25,12 +25,12 @@ Use these terms when explaining the agency model to humans or coding agents:
 
 | Concept | Simple meaning | Owns | Must not own |
 | --- | --- | --- | --- |
-| Intent | Why this exists | Company direction, priority, posture, scope, success signals | Low-level execution steps |
+| Intent | Why this exists | Agency direction, priority, posture, scope, success signals | Low-level execution steps |
 | Goal | What should become true | The result to reach, evidence, current progress, blockers | Detailed worker identity or low-level method |
 | Loop | When to check | Cadence, heartbeat, and which goal or capability to wake | The detailed implementation of each capability |
 | Agent | Who is acting | Identity, judgment style, values, role voice | A job, schedule, tool recipe, or output contract |
-| Capability | How the agency can produce a result | A reusable ability, its kind, inputs, outputs, tools/data/instructions, and execution binding | Company direction, long-term progress, or agent identity |
-| Workflow | How capabilities are chained | Ordered capability steps for one run, shared step results, final output | Company direction, long-term progress, schedule, or agent identity |
+| Capability | How the agency can produce a result | A reusable ability, its kind, inputs, outputs, tools/data/instructions, and execution binding | Agency direction, long-term progress, or agent identity |
+| Workflow | How capabilities are chained | Ordered capability steps for one run, shared step results, final output | Agency direction, long-term progress, schedule, or agent identity |
 
 Capability kinds:
 
@@ -58,10 +58,10 @@ This table is kept only to make the storage split explicit:
 | --- | --- | --- |
 | Capability | Capability contract: public action name, kind, owner, cadence, safety, inputs, outputs, and implementation link | Long identity prompt or low-level implementation |
 | Workflow | Ordered capability steps for one run | Business progress, schedule, identity, or implementation internals |
-| Implementation | Prompt glue, skills, scripts, tools, landing, output contract | Company direction, cadence, public ownership, or long-term progress |
+| Implementation | Prompt glue, skills, scripts, tools, landing, output contract | Agency direction, cadence, public ownership, or long-term progress |
 | Context | Facts Kody should know while reasoning | Source-of-truth policy or scheduled work |
-| Instructions | Chat response behavior such as tone, length, and format | Company facts or agency structure |
-| State | Runtime facts: last run, pending work, outcome, logs | Authoring rules or portable company doctrine |
+| Instructions | Chat response behavior such as tone, length, and format | Agency facts or agency structure |
+| State | Runtime facts: last run, pending work, outcome, logs | Authoring rules or portable agency doctrine |
 
 ## Where rules live
 
@@ -86,7 +86,7 @@ Treat `executable` as an old storage/config word for capability implementation.
 
 ## Dependency graph
 
-The Company Map should be a real dependency graph, not just a visual chart.
+The AI Agency Map should be a real dependency graph, not just a visual chart.
 
 Nodes:
 
@@ -129,12 +129,12 @@ What is missing?
 What is local vs Store-backed?
 ```
 
-The graph is generated from company files and config. It is not the source of
+The graph is generated from agency files and config. It is not the source of
 truth.
 
-## Company Doctor
+## AI Agency Doctor
 
-Company Doctor is the checker for the graph.
+AI Agency Doctor is the checker for the graph.
 
 It should run in two ways:
 
@@ -162,7 +162,7 @@ capability contract contains implementation runbook
 
 A run lane is a separate work lane with its own safety rules.
 
-Do not put all company work in one pile.
+Do not put all agency work in one pile.
 
 Examples:
 

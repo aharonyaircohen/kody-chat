@@ -355,7 +355,7 @@ export function CompanyIntentsView({
           <EmptyState
             icon={<CircleDot />}
             title="No intents"
-            hint="Create the first CTO company-manager intent."
+            hint="Create the first AI Agency manager intent."
             action={
               <Button size="sm" onClick={openCreate}>
                 <Plus className="h-4 w-4" />
@@ -399,8 +399,8 @@ export function CompanyIntentsView({
               {formMode === "create" ? "New intent" : "Edit intent"}
             </DialogTitle>
             <DialogDescription>
-              Define what the CTO should optimize for when managing this company
-              portfolio.
+              Define what the CTO should optimize for when managing this Digital
+              Agency portfolio.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={submitForm} className="space-y-5">

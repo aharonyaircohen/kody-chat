@@ -72,12 +72,26 @@ describe("extractTouchedReportSlugs", () => {
     ]);
   });
 
+  it("collects append-only run report slugs", () => {
+    const payload = {
+      commits: [
+        {
+          added: [
+            "widgets/reports/ai-agency-doctor/runs/2026-06-27T11-48-36Z.md",
+          ],
+        },
+      ],
+    };
+    expect(extractTouchedReportSlugs(payload)).toEqual(["ai-agency-doctor"]);
+  });
+
   it("ignores nested files and non-markdown sidecars", () => {
     const payload = {
       commits: [
         {
           modified: [
             "widgets/reports/sub/nested.md",
+            "widgets/reports/sub/runs/.hidden.md",
             "widgets/reports/data.json",
             "widgets/reports/.disable",
           ],

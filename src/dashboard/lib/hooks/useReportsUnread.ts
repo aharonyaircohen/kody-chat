@@ -2,9 +2,9 @@
  * @fileType hook
  * @domain kody
  * @pattern reports-unread
- * @ai-summary Per-user unread tracking for system reports. Each report
- *   under `reports/<slug>.md` in the configured Kody state repo is "unread" when its
- *   `updatedAt` advances past the locally-stored `lastSeen[slug]` ISO timestamp.
+ * @ai-summary Per-user unread tracking for system report families. A family is
+ *   "unread" when its latest run timestamp advances past the locally-stored
+ *   `lastSeen[slug]` ISO timestamp.
  *   Storage: localStorage (per-device, per-user). Cross-tab sync via the
  *   `storage` event. Mirrors the InboxBadge unread-count contract so the
  *   sidebar badge can plug in without bespoke wiring.

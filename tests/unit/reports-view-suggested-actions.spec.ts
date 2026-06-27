@@ -42,7 +42,7 @@ describe("ReportsView suggested actions", () => {
     expect(runBlock![0]).toMatch(/const capability = action\.capability/);
     expect(runBlock![0]).toMatch(/target: action\.target/);
     expect(runBlock![0]).toMatch(/flavor: "instant"/);
-    expect(runBlock![0]).toMatch(/from report \$\{report\.slug\}/);
+    expect(runBlock![0]).toMatch(/from report \$\{report\.path\}/);
   });
 
   it("create-task actions open the existing task dialog with report lineage", () => {

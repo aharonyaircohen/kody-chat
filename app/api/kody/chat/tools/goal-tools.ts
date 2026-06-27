@@ -245,7 +245,7 @@ export function createGoalTools(ctx: Ctx) {
     list_managed_goals: tool({
       description:
         "List engine-managed goals stored in the configured Kody state repo at goals/instances/<id>/state.json. " +
-        "Use for company goals with outcome, evidence, route, facts, and blockers.",
+        "Use for AI Agency goals with outcome, evidence, route, facts, and blockers.",
       inputSchema: z.object({}),
       execute: async () => {
         try {
@@ -300,7 +300,7 @@ export function createGoalTools(ctx: Ctx) {
 
     create_managed_goal: tool({
       description:
-        "Create an engine-managed company goal. Provide a finish-line outcome, " +
+        "Create an engine-managed AI Agency goal. Provide a finish-line outcome, " +
         "proof/evidence keys, and route steps that name the capability work. " +
         "Writes the configured Kody state repo at goals/instances/<id>/state.json and wakes Kody.",
       inputSchema: z.object({

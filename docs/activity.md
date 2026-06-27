@@ -28,7 +28,7 @@ follow-up, not what a current page does — see [Attribution](#attribution-the-m
 | Piece                    | What it is                                                                                                                              | Where                                                                                              |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | **Log** tab              | Dashboard actions a verified human took (capability runs/edits, task actions, vault writes, agent/prompt/goal changes), newest-first.         | [`../src/dashboard/lib/activity/audit.ts`](../src/dashboard/lib/activity/audit.ts) (`recordAudit`) |
-| **Auto** tab             | Company Activity — named, attributed engine actions (which agent ran which capability, why, and the outcome). Engine-authored.                | [`../src/dashboard/lib/activity/company.ts`](../src/dashboard/lib/activity/company.ts)             |
+| **Auto** tab             | AI Agency Activity — named, attributed engine actions (which agent ran which capability, why, and the outcome). Engine-authored.         | [`../src/dashboard/lib/activity/company.ts`](../src/dashboard/lib/activity/company.ts)             |
 | **Runs** tab             | kody.yml workflow-run health: queue depth, flood detector, median duration, plus the `@kody` action joined from each run's issue label. | [`../src/dashboard/lib/activity/snapshot.ts`](../src/dashboard/lib/activity/snapshot.ts)           |
 | **Feed** tab             | One row per chat/run **session**, grouped from the engine's per-session event files; expand for the raw event payloads.                 | [`../src/dashboard/lib/activity/feed.ts`](../src/dashboard/lib/activity/feed.ts)                   |
 | `recordAudit(req, spec)` | The one call sites use to log a dashboard action. Resolves the **verified** actor from the request PAT, not the client-claimed login.   | [`../src/dashboard/lib/activity/audit.ts`](../src/dashboard/lib/activity/audit.ts)                 |
@@ -42,11 +42,11 @@ GitHub-stored artifact, all in the connected repo:
 | Source                  | Lives in                                                   | On branch            | Written by                                        | Read by                                    |
 | ----------------------- | ---------------------------------------------------------- | -------------------- | ------------------------------------------------- | ------------------------------------------ |
 | **Dashboard audit log** | `kody:audit-log` manifest issue body (a bounded JSON ring) | _(issue, no branch)_ | the dashboard, via `recordAudit`                  | `/api/kody/activity/log` (Log tab)         |
-| **Company activity**    | `.kody/activity/<date>.jsonl`                              | `kody-state`         | the **engine** (`appendCompanyActivity` in kody2) | `/api/kody/activity/autonomous` (Auto tab) |
+| **AI Agency activity** | `.kody/activity/<date>.jsonl`                           | `kody-state`         | the **engine** (`appendCompanyActivity` in kody2) | `/api/kody/activity/autonomous` (Auto tab) |
 | **Per-session events**  | `.kody/events/<sessionId>.jsonl`                           | default branch ⚠️    | the **engine** (chat/run event stream)            | `/api/kody/activity/feed` (Feed tab)       |
 | **Workflow runs**       | GitHub Actions run history                                 | _(GitHub API)_       | GitHub (kody.yml dispatches)                      | `/api/kody/activity` (Runs tab)            |
 
-> ⚠️ **Branch mismatch — flagged.** Company activity is read from the
+> ⚠️ **Branch mismatch — flagged.** AI Agency activity is read from the
 > `kody-state` branch (correct — that's where the engine commits state), but
 > the **Feed** source still reads `.kody/events/*.jsonl` from
 > `process.env.KODY_STORE_BRANCH ?? "main"`, i.e. the default branch, not
@@ -109,7 +109,7 @@ state says so).
 > (`activity/autonomous/route.ts`) still describes this as "the PRs it opens /
 > merges / closes" backed by `fetchRecentPRs`. The actual implementation calls
 > `fetchCompanyActivity()` and reads `.kody/activity/*.jsonl`. The behavior is
-> the company-activity feed; only the comment is out of date.
+> the AI Agency activity feed; only the comment is out of date.
 
 ## The Runs tab — engine health
 
@@ -213,7 +213,7 @@ GitHub is the broker for all four. The dashboard writes only the Log source
 | [`../src/dashboard/lib/components/ActivityPage.tsx`](../src/dashboard/lib/components/ActivityPage.tsx) | The four-tab UI (Log / Auto / Runs / Feed) with filters + expandable rows.              |
 | [`../app/api/kody/activity/route.ts`](../app/api/kody/activity/route.ts)                               | `GET /api/kody/activity` — Runs tab (workflow-run health + label join).                 |
 | [`../app/api/kody/activity/log/route.ts`](../app/api/kody/activity/log/route.ts)                       | `GET /api/kody/activity/log` — Log tab (durable + in-memory merge).                     |
-| [`../app/api/kody/activity/autonomous/route.ts`](../app/api/kody/activity/autonomous/route.ts)         | `GET /api/kody/activity/autonomous` — Auto tab (company activity).                      |
+| [`../app/api/kody/activity/autonomous/route.ts`](../app/api/kody/activity/autonomous/route.ts)         | `GET /api/kody/activity/autonomous` — Auto tab (AI Agency activity).               |
 | [`../app/api/kody/activity/feed/route.ts`](../app/api/kody/activity/feed/route.ts)                     | `GET /api/kody/activity/feed` — Feed tab (per-session events, on-demand).               |
 | [`../src/dashboard/lib/activity/audit.ts`](../src/dashboard/lib/activity/audit.ts)                     | `recordAudit` — the durable, verified-actor write path.                                 |
 | [`../src/dashboard/lib/activity/action-log.ts`](../src/dashboard/lib/activity/action-log.ts)           | `AuditEvent` shape, the in-memory hot ring, and the legacy `recordAction` shim.         |

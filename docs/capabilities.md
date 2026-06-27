@@ -40,7 +40,7 @@ A capability contract does **not** own:
 
 - A long agent identity prompt. Put that in `.kody/agents/<slug>.md`.
 - A reusable action implementation. Keep that in the implementation folder.
-- A company reason or priority. Put that in Intent.
+- An agency reason or priority. Put that in Intent.
 - Long-term progress. Put that in Goal.
 - A long step-by-step runbook. Put reusable method in implementation skills.
 - Long-term progress or scheduling for a multi-step run. Put progress in Goal
@@ -91,7 +91,8 @@ runtime state handling.
 
 ## Output
 
-Refresh `.kody/reports/broken-link-report.md`.
+Write `reports/broken-link-report/runs/<timestamp>.md` in the configured Kody
+state repo.
 
 ## Allowed Commands
 
@@ -130,10 +131,10 @@ Do not put metadata frontmatter in `capability.md`. Metadata belongs in
 
 The dashboard creation form has two output choices:
 
-| Choice   | Meaning                                                                          |
-| -------- | -------------------------------------------------------------------------------- |
-| `Run`    | The capability runs work and does not promise a generated report.                |
-| `Report` | The capability refreshes one `.kody/reports/<slug>.md` file and sets `writesTo`. |
+| Choice   | Meaning                                                                                                                     |
+| -------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `Run`    | The capability runs work and does not promise a generated report.                                                           |
+| `Report` | The capability writes timestamped files under `reports/<slug>/runs/` in the configured Kody state repo and sets `writesTo`. |
 
 Use `Report` only when the report file is the durable artifact users should
 read later. Use `Run` for checks, dispatches, comments, or any capability whose proof
@@ -180,7 +181,7 @@ Examples:
 - Do not push branches.
 - Do not comment on PRs.
 - Do not edit source files.
-- Only update `.kody/reports/<slug>.md`.
+- Only write the generated report run.
 
 ## Choosing between capability, implementation, and agent
 

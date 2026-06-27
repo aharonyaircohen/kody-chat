@@ -1,15 +1,15 @@
-# Company Profile
+# Agency Profile
 
-The Company Profile is a set of free-form markdown files stored in the
+The Agency Profile was a set of free-form markdown files stored in the
 connected GitHub repo at `.kody/profile/<slug>.md`. You edit them from
 the dashboard `/profile` page, and their concatenated bodies are
 injected into the in-process chat system prompt so Kody knows who your
-company is and what it does — without you restating it every turn.
+agency is and what it does — without you restating it every turn.
 
 Each file is plain markdown with **no frontmatter**. The filename
 (without `.md`) is the slug, which doubles as the section heading Kody
 sees (e.g. `mission`, `products`, `customers`, `tone`). The body is
-factual context describing that slice of the company.
+factual context describing that slice of the agency.
 
 ## What it is
 
@@ -21,12 +21,12 @@ factual context describing that slice of the company.
   frontmatter.
 - **Injected into chat context.** The concatenated bodies are fed to the
   `kody` (in-process) chat backend on every turn, under a
-  `## Company profile` heading near the top of the system prompt.
+  `## Agency profile` heading near the top of the system prompt.
 
 ## When to use
 
 Use profile sections for **stable, factual background** about the
-company/product that Kody should always have on hand: mission, what you
+agency/product that Kody should always have on hand: mission, what you
 ship, who your customers are, your domain vocabulary, your tone.
 
 It is **not** the place for:
@@ -39,7 +39,7 @@ It is **not** the place for:
 
 ## Using it
 
-Open `/profile` (Company Profile in the dashboard).
+Open `/profile` (Agency Profile in the dashboard).
 
 ### Add a section
 
@@ -86,7 +86,7 @@ logged-in user); reads work with any dashboard auth.
                                                      │ "### <slug>\n\n<body>" joined
                                                      ▼
                                       ┌──────────────────────────────────────┐
-                                      │ system prompt § "## Company profile"  │
+                                      │ system prompt § "## Agency profile"   │
                                       └──────────────────────────────────────┘
 ```
 
@@ -108,8 +108,8 @@ logged-in user); reads work with any dashboard auth.
   the profile. The `brain` and engine backends have their own system
   prompts and do not receive it. Agent (non-chat) injection is planned
   but not yet wired (TBD).
-- **Not in the Company bundle:** the profile is **not currently part of
-  the Company export/import bundle** — that bundle exports only agent,
+- **Not in the AI Agency bundle:** the profile is **not currently part of
+  the AI Agency export/import bundle** — that bundle exports only agent,
   capabilities, prompts, and instructions
   (`src/dashboard/lib/company/export.ts`). Including profile is an open
   decision.
@@ -124,7 +124,7 @@ logged-in user); reads work with any dashboard auth.
 | [`src/dashboard/lib/components/ProfileManager.tsx`](../src/dashboard/lib/components/ProfileManager.tsx) | The `/profile` page UI (list, create, edit, delete)                                |
 | [`app/(chat-rail)/profile/page.tsx`](<../app/(chat-rail)/profile/page.tsx>)                             | `/profile` route entry point                                                       |
 | [`app/api/kody/chat/kody/route.ts`](../app/api/kody/chat/kody/route.ts)                                 | Calls `loadProfileForPrompt()` and passes it as `companyProfile`                   |
-| [`app/api/kody/chat/kody/system-prompt.ts`](../app/api/kody/chat/kody/system-prompt.ts)                 | Builds the `## Company profile` system-prompt section                              |
+| [`app/api/kody/chat/kody/system-prompt.ts`](../app/api/kody/chat/kody/system-prompt.ts)                 | Builds the `## Agency profile` system-prompt section                               |
 
 ## FAQ
 
@@ -143,8 +143,8 @@ receive it.
 cache immediately; other Vercel instances pick up the change within the
 60s cache TTL.
 
-**Is the profile included when I export my Company?** No — not currently.
-The Company export/import bundle covers agent, capabilities, prompts, and
+**Is the profile included when I export my AI Agency?** No — not currently.
+The AI Agency export/import bundle covers agent, capabilities, prompts, and
 instructions only. Profile inclusion is still an open decision.
 
 **Why not put this in instructions?** Instructions are a behavioral

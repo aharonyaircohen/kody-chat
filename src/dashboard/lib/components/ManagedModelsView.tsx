@@ -1127,8 +1127,8 @@ function NewGoalDialog({
             onCheckedChange={setSaveReport}
             description={
               isRoutine
-                ? "Writes each loop run to reports/<capability>.md."
-                : "Writes each route capability output to reports/<capability>.md."
+                ? "Writes each loop run under reports/<capability>/runs/."
+                : "Writes each route capability output under reports/<capability>/runs/."
             }
           />
 
@@ -1500,8 +1500,8 @@ function EditManagedGoalDialog({
             onCheckedChange={setSaveReport}
             description={
               isRoutine
-                ? "Writes each loop run to reports/<capability>.md."
-                : "Writes each route capability output to reports/<capability>.md."
+                ? "Writes each loop run under reports/<capability>/runs/."
+                : "Writes each route capability output under reports/<capability>/runs/."
             }
           />
 

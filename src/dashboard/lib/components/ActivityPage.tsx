@@ -678,7 +678,7 @@ function AutoView({ active }: { active: boolean }) {
       </div>
       {isLoading ? (
         <p className="text-xs text-white/40 italic py-6 text-center">
-          Loading company activity…
+          Loading AI Agency activity…
         </p>
       ) : records.length === 0 ? (
         <p className="text-xs text-white/40 italic py-6 text-center">
@@ -743,7 +743,7 @@ function AutoView({ active }: { active: boolean }) {
         </ul>
       )}
       <p className="mt-6 text-[10px] text-white/30">
-        Company activity — each line is one action the engine took: which agent
+        AI Agency activity — each line is one action the engine took: which agent
         member ran which capability, why (schedule / manual), and the result. Written
         by the engine; the Log tab shows dashboard actions instead.
       </p>

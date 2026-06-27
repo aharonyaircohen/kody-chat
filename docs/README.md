@@ -14,9 +14,9 @@ Index of all dashboard documentation. Start here.
 
 How the moving parts fit together.
 
-- ✅ [Company model](concepts/company-model.md) — ownership rules for
+- ✅ [AI Agency model](concepts/company-model.md) — ownership rules for
   Intent, Goal, Loop, Agent, Capability, Context, Instructions, State, and
-  the planned Company Map / Doctor / run lanes.
+  the planned AI Agency Map / Doctor / run lanes.
 - ✅ [Chat backends](concepts/chat.md) — the three chat paths (`kody`
   in-process, `brain`, engine via GitHub Actions) and how the selected
   agent's `backend` field picks one.
@@ -59,10 +59,10 @@ One doc per dashboard-managed store / capability.
 - ✅ [Variables](variables.md) — non-secret per-repo config (`.kody/variables.json`),
   e.g. `QA_URL`, `LOGIN_USER`.
 - ✅ [Context](context.md) — `.kody/context/*.md`, curated context fed to Kody,
-  with a `agent:` audience relation. **Supersedes** the old Company Profile.
-- 🗄️ [Company profile](profile.md) — _historical._ The Profile feature was
+  with a `agent:` audience relation. **Supersedes** the old Agency Profile.
+- 🗄️ [Agency profile](profile.md) — _historical._ The Profile feature was
   removed; see [Context](context.md) for the current model.
-- ✅ [Company export/import](company.md) — portable bundle of agent,
+- ✅ [AI Agency export/import](company.md) — portable bundle of agent,
   capabilities, Context, commands, implementations, managed goals,
   instructions, and a config slice.
 
@@ -101,7 +101,7 @@ not behavior bugs — but two are real seams worth a look.
 
 - **Activity "Feed" tab reads the wrong source.** `activity/feed-source.ts`
   reads `.kody/events/*.jsonl` from `KODY_STORE_BRANCH ?? "main"`, while the
-  "Auto" tab reads company activity from the configured Kody state repo. If the
+  "Auto" tab reads AI Agency activity from the configured Kody state repo. If the
   engine writes event files to state repo (or the repo default isn't
   `main`), the Feed tab silently goes empty while Auto keeps working. See
   [activity.md](activity.md).
@@ -119,7 +119,7 @@ not behavior bugs — but two are real seams worth a look.
   feature — see [context.md](context.md). Left in place as historical record.
 - **Operators moved to `/config`**: CLAUDE.md, the `OperatorsCard.tsx` /
   `EngineConfigCards.tsx` JSDoc headers, and the operators memory still say
-  "Company settings," but commit `2167c97` moved operators + all config cards
+  "AI Agency settings," but commit `2167c97` moved operators + all config cards
   onto `/config` (`/company` is import/export only). The `/api/kody/company/*`
   route paths are a naming carry-over, not a bug. See [engine-config.md](engine-config.md).
 - **Preview inspector ships six actions, not "picker"**: `element-picker.md`

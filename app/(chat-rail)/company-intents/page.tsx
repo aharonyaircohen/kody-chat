@@ -2,14 +2,14 @@
  * @fileType page
  * @domain kody
  * @pattern companyIntents
- * @ai-summary Company intents page for CTO company-manager guidance.
+ * @ai-summary AI Agency intents page for CTO manager guidance.
  */
 import { CompanyIntentsView } from "@dashboard/lib/components/CompanyIntentsView";
 import { buildKodyMetadata } from "../../metadata";
 
 export const metadata = buildKodyMetadata({
   title: "Intents - Kody Operations Dashboard",
-  description: "CTO company-manager guidance for goals, loops, and capabilities.",
+  description: "CTO AI Agency guidance for goals, loops, and capabilities.",
   path: "/company-intents",
 });
 

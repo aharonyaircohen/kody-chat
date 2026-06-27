@@ -96,7 +96,8 @@ Run the `broken-link-report` implementation.
 
 ## Output
 
-Refresh `.kody/reports/broken-link-report.md`.
+Write `reports/broken-link-report/runs/<timestamp>.md` in the configured Kody
+state repo.
 
 ## Restrictions
 

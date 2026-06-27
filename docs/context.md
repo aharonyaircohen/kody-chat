@@ -1,7 +1,7 @@
 # Context
 
 **Context** is the curated background you write _for_ Kody — who the
-company is, what it builds, its domain, customers, vocabulary, plus
+agency is, what it builds, its domain, customers, vocabulary, plus
 agent briefs and any standing facts a agent member should always have
 on hand. Each entry is a plain markdown file at
 `.kody/context/<slug>.md` in the connected repo, edited from the
@@ -14,11 +14,11 @@ DESIGN_SYSTEM.md, architecture notes) belong in the repo and stay there —
 Context is the curated layer on top. "Reference a repo file from a
 context entry" is a planned affordance but **not built yet**.
 
-> **Supersedes [Company Profile](./profile.md).** Context is the renamed,
-> generalized successor to the old Company Profile (landed on the engine
+> **Supersedes [Agency Profile](./profile.md).** Context is the renamed,
+> generalized successor to the old Agency Profile (landed on the engine
 > in `0.4.136`). The `/profile` page, `/api/kody/profile` routes, and
 > `ProfileManager` component have all been **removed**; `.kody/profile/`
-> is gone too. The old company profile is now just one Context entry
+> is gone too. The old agency profile is now just one Context entry
 > (typically slugged `company-profile`) attached to the `kody` agent.
 > [`./profile.md`](./profile.md) is retained only as historical
 > background — this doc is the live reference.
@@ -91,7 +91,7 @@ blocks, and the system-prompt builder drops the result under a
 ```
 
 That heading is more than a label: it instructs the agent to treat the
-block as its **primary frame** — a bare company/product/domain term is
+block as its **primary frame** — a bare agency/product/domain term is
 answered about _that_, not the dictionary meaning, unless the user
 explicitly contradicts it
 ([`system-prompt.ts`](../app/api/kody/chat/kody/system-prompt.ts)). The
@@ -171,11 +171,11 @@ reads work with any dashboard auth.
 
 ## FAQ
 
-**What's the difference from the old Company Profile?** Context is the
+**What's the difference from the old Agency Profile?** Context is the
 generalized successor (engine `0.4.136`). The Profile was chat-only and
 section-per-file; Context adds a `agent:` audience relation so entries can
 target the chat agent, the QA reviewer, several agent, all agent, or
-nobody. The old company profile is now one `kody`-owned entry. The
+nobody. The old agency profile is now one `kody`-owned entry. The
 `/profile` page, API, and component are removed —
 [`./profile.md`](./profile.md) is historical.
 
@@ -202,8 +202,8 @@ dashboard runtime loads it yet.
 cache immediately; other Vercel instances pick up the change within the
 60s TTL.
 
-**Is Context part of the Company export/import bundle?** Yes. The
-[Company](./company.md) bundle carries Context entries and their agent
+**Is Context part of the AI Agency export/import bundle?** Yes. The
+[AI Agency](./company.md) bundle carries Context entries and their agent
 audience list.
 
 **Why not put this in instructions?** Instructions
@@ -211,7 +211,7 @@ audience list.
 formatting), appended **last** in the prompt so they win on style. Context
 is factual/agent background, injected **near the top** so it frames
 everything. Keep facts and agent briefs in Context, behavioral rules in
-instructions, and company ownership rules in
+instructions, and agency ownership rules in
 [`./concepts/company-model.md`](./concepts/company-model.md).
 
 **Does deleting an entry erase history?** No — it removes the file with a

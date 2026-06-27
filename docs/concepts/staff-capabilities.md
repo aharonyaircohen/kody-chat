@@ -92,8 +92,9 @@ Important fields:
 The dashboard create form asks for an output type:
 
 - `Run` - no generated report is promised.
-- `Report` - one `reports/<slug>.md` file in the configured Kody state repo is the durable output, and the
-  report slug is stored in `writesTo`.
+- `Report` - timestamped files under `reports/<slug>/runs/` in the configured
+  Kody state repo are the durable output, and the report slug is stored in
+  `writesTo`.
 
 A capability with no agent should not auto-run. A capability pointing at a
 missing agent file is a hard error at tick time.

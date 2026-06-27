@@ -43,6 +43,7 @@ export interface StateRepoEntry {
   path: string;
   type: string;
   size?: number;
+  htmlUrl?: string;
 }
 
 export interface StateRepoWriteFile {
@@ -64,6 +65,7 @@ interface ContentEntry {
   path?: string;
   type?: string;
   size?: number;
+  html_url?: string;
 }
 
 type ConfigWithStateAliases = KodyConfig & {
@@ -274,7 +276,13 @@ export async function listStateDirectory(
       entries: Array.isArray(data)
         ? data
             .filter(
-              (entry): entry is StateRepoEntry =>
+              (
+                entry,
+              ): entry is ContentEntry & {
+                name: string;
+                path: string;
+                type: string;
+              } =>
                 typeof entry.name === "string" &&
                 typeof entry.path === "string" &&
                 typeof entry.type === "string",
@@ -284,6 +292,7 @@ export async function listStateDirectory(
               path: entry.path,
               type: entry.type,
               size: entry.size,
+              htmlUrl: entry.html_url,
             }))
         : [],
       etag: (res.headers as Record<string, string | undefined>)?.etag,

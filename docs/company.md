@@ -1,6 +1,6 @@
-# Company
+# AI Agency
 
-A **Company** is your org's portable operating manual — the
+An **AI Agency** is your org's portable operating manual — the
 repo-agnostic answer to _"why this agency exists, what goals are active,
 when loops run, who works here, what capabilities exist, what context Kody
 should know, what slash commands and custom implementations exist, and how
@@ -8,14 +8,14 @@ Kody should behave."_ You **export** it
 from one repo as a single JSON file and **import** it into another to stand
 up the same team instantly.
 
-The line the bundle draws is deliberate: a Company carries the
+The line the bundle draws is deliberate: an AI Agency setup carries the
 **operating manual** plus current managed goals, not low-level runtime
 history. Agents, capabilities, Context,
 commands, capability implementations, managed goals,
 instructions, and a portable slice of engine
 policy travel; memory, secrets, variables, the inbox, notifications,
 generated runtime activity, and the default branch stay behind, because
-those belong to the _repo_, not the _company_ — and a company may span
+those belong to the _repo_, not the _agency_ — and an agency may span
 several repos.
 See [`src/dashboard/lib/company/types.ts`](../src/dashboard/lib/company/types.ts)
 for the exact include/exclude list, encoded as the `CompanyBundle` shape.
@@ -35,7 +35,7 @@ first if the agent/capability split is new to you.
 | **Context**          | Curated `.kody/context/*.md` entries and their agent audience list.                                                                                          | `.kody/context/*.md` via `listContextFiles()`                                      |
 | **Commands**        | Repo-defined slash commands only — slug, description, argument hint, body. Built-ins ship with the dashboard, so they're never exported.                    | `.kody/commands/*.md` via `listRepoCommandFiles()` (filtered `source === "repo"`) |
 | **Capability implementations** | Each custom implementation as a folder map: `profile.json` + `prompt.md` + any `*.sh` shell scripts + any `skills/<name>/SKILL.md`. | legacy `.kody/executables/<slug>/` storage via `listExecutableFiles()` / `readExecutableFile()` |
-| **Managed goals**   | Each managed company goal instance and its state file. Goal runtime history is still repo state, so do not treat goals as reusable Store templates here.       | `goals/instances/<id>/state.json` via `listManagedGoalFiles()`                     |
+| **Managed goals**   | Each managed agency goal instance and its state file. Goal runtime history is still repo state, so do not treat goals as reusable Store templates here.       | `goals/instances/<id>/state.json` via `listManagedGoalFiles()`                     |
 | **Instructions**    | The single repo behavioral overlay (tone/length/formatting), or `null` if the repo has none.                                                                | `.kody/instructions.md` via `readInstructionsFile()`                              |
 | **Config** (policy) | A repo-agnostic slice of `kody.config.json`: quality commands, comment aliases, the `@kody` access gate, default capability actions, and per-capability model routing. | `kody.config.json` via `getEngineConfig()`                                        |
 
@@ -57,7 +57,7 @@ provenance (`exportedAt`, `exportedFrom: "owner/repo"`). Each entry stores
 only what round-trips through the existing file helpers - slug,
 metadata, body - and **drops repo-specific fields** (`sha`,
 `html_url`, commit/tick timestamps) on export, re-deriving them on import.
-The downloaded filename is `kody-company-<owner>-<repo>-<YYYY-MM-DD>.json`.
+The downloaded filename is `kody-ai-agency-<owner>-<repo>-<YYYY-MM-DD>.json`.
 
 The schema (`companyBundleSchema`) is tolerant of missing collections
 (they default to empty) but strict on the discriminator and every entry
@@ -137,7 +137,7 @@ The `/company` route also fronts two `kody.config.json` editors that are
 
 - **Operators** (`/api/kody/company/operators`) — the `github.operators`
   list of GitHub logins that recommendation capabilities @-mention so their
-  comments route into the dashboard inbox. Company-set explicitly, never
+  comments route into the dashboard inbox. Agency-set explicitly, never
   auto-filled; an empty list means recommendations reach no inbox.
 - **Config** (`/api/kody/company/config`) — the dashboard-editable
   `kody.config.json` fields without their own page: quality verification
@@ -148,7 +148,7 @@ The `/company` route also fronts two `kody.config.json` editors that are
 
 These overlap the **policy** slice the bundle carries — but the bundle
 deliberately drops `git.defaultBranch` (repo-specific) and never touches
-operators (a per-repo inbox-routing list, not company doctrine).
+operators (a per-repo inbox-routing list, not agency doctrine).
 
 ## File reference
 
@@ -166,7 +166,7 @@ operators (a per-repo inbox-routing list, not company doctrine).
 
 ## FAQ
 
-**What's in a Company vs what stays behind?** In: agent, capabilities,
+**What's in an AI Agency setup vs what stays behind?** In: agent, capabilities,
 Context, repo-defined commands, custom capability implementations, managed goals,
 instructions, and a portable config slice (quality commands, aliases,
 access gate, default capability actions, per-capability model routing). Out:

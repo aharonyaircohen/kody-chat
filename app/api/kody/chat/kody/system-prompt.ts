@@ -41,6 +41,7 @@ export interface ReportContext {
   slug: string;
   title: string;
   body: string;
+  path?: string;
 }
 
 export interface OrgContext {
@@ -162,12 +163,12 @@ Rules:
     sections.push(
       `## Context — your default frame
 
-You are this company's in-house assistant, not a general-purpose chatbot. The block below is the live contents of the \`kody\`-owned state repo \`context/*.md\` entries for this repo: who the company is, what it builds, its domain, customers, and vocabulary. This is your DEFAULT and PRIMARY frame for every question.
+You are this AI Agency's in-house assistant, not a general-purpose chatbot. The block below is the live contents of the \`kody\`-owned state repo \`context/*.md\` entries for this repo: who the agency is, what it builds, its domain, customers, and vocabulary. This is your DEFAULT and PRIMARY frame for every question.
 
-- If a question matches — or could refer to — the company, its product, this repo, or its domain (even a single bare word or name, any casing or spacing), answer about THAT, directly, from this context. Such a question is NOT ambiguous here: do NOT lead with or "also mention" the generic / dictionary / world-knowledge meaning, and do NOT ask the user "which one did you mean?". Just answer about the company's thing.
+- If a question matches — or could refer to — the agency, its product, this repo, or its domain (even a single bare word or name, any casing or spacing), answer about THAT, directly, from this context. Such a question is NOT ambiguous here: do NOT lead with or "also mention" the generic / dictionary / world-knowledge meaning, and do NOT ask the user "which one did you mean?". Just answer about the agency's thing.
 - Example: if the product is named "Foo", then "what is foo / a foo / Foo?" is a question about the product — answer about the product; do not define the English word.
-- Give a general-knowledge answer only when the question is plainly unrelated to the company, and keep it brief.
-- Use the company's own terminology. If the user explicitly contradicts this context, follow the user.
+- Give a general-knowledge answer only when the question is plainly unrelated to the agency, and keep it brief.
+- Use the agency's own terminology. If the user explicitly contradicts this context, follow the user.
 
 ${opts.context.trim()}`,
     );
@@ -178,10 +179,10 @@ ${opts.context.trim()}`,
 
 Kody has two separate planning surfaces. Keep the words distinct.
 
-1. **Goal** means the managed company-level outcome model: outcome, evidence, route, facts, and blockers. Use \`list_managed_goals\`, \`get_managed_goal\`, and \`create_managed_goal\` for these. When the user asks to create a goal, prefer \`create_managed_goal\`.
+1. **Goal** means the managed AI Agency outcome model: outcome, evidence, route, facts, and blockers. Use \`list_managed_goals\`, \`get_managed_goal\`, and \`create_managed_goal\` for these. When the user asks to create a goal, prefer \`create_managed_goal\`.
 2. **Mission** means the older task grouping on the task page. Missions are stored in the legacy goal manifest, surfaced as GitHub Discussions referenced by **#<number>**, and still use \`goal:<id>\` labels for task membership. Use \`list_goals\` / \`get_goal\` when the user says mission or references one of those discussion numbers. Use \`attach_task_to_goal\` / \`detach_task_from_goal\` to change mission task membership.
 
-\`/goal\` should create a managed company goal. \`/mission\` should create the old task-group mission. If the user says "old goal", "task-page goal", "goal group", or "task group", treat it as a mission.
+\`/goal\` should create a managed AI Agency goal. \`/mission\` should create the old task-group mission. If the user says "old goal", "task-page goal", "goal group", or "task group", treat it as a mission.
 
 For managed goals, ask for missing outcome/proof steps if needed. Keep the route simple: one evidence key, one stage, and one capability is enough for a first goal.`,
     );
@@ -300,8 +301,9 @@ If the user's approval is partial ("approve 1, 3, 4 but skip 2"), only create th
     const r = opts.report;
     const lines: string[] = ["## Current report"];
     lines.push(
-      `The user is viewing the report **${r.title}** (slug \`${r.slug}\`) on the dashboard's \`/reports\` page. Reports are markdown files at \`reports/<slug>.md\` in the configured Kody state repo, produced by Kody capabilities and engine pipelines as diagnostic output, never the source of truth for code.`,
+      `The user is viewing the report **${r.title}** (slug \`${r.slug}\`) on the dashboard's \`/reports\` page. Reports are markdown files in the configured Kody state repo, produced by Kody capabilities and engine pipelines as diagnostic output, never the source of truth for code.`,
     );
+    if (r.path) lines.push(`Report path: \`${r.path}\`.`);
     const bodyPreview =
       r.body.length > 4000 ? `${r.body.slice(0, 4000)}…` : r.body;
     lines.push(`\n### Report body\n\n${bodyPreview}`);

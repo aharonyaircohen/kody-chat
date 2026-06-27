@@ -465,7 +465,7 @@ function LatestReports() {
               className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.04] transition-colors"
             >
               <Link
-                href="/reports"
+                href={`/reports/${r.slug}`}
                 className="flex items-center gap-3 min-w-0 flex-1"
               >
                 <FileText className="w-4 h-4 text-sky-300 shrink-0" />
@@ -508,7 +508,7 @@ function LatestReports() {
             ? {
                 title: `Address: ${issueFromReport.title}`,
                 body:
-                  `Source report: [\`reports/${issueFromReport.slug}.md\`](${issueFromReport.htmlUrl})\n\n` +
+                  `${sourceReportMarkdown(issueFromReport)}\n\n` +
                   `---\n\n${issueFromReport.body}`,
                 labels: [`from-report:${issueFromReport.slug}`],
               }
@@ -524,7 +524,7 @@ function LatestReports() {
             ? {
                 name: goalFromReport.title,
                 description:
-                  `Source report: [\`reports/${goalFromReport.slug}.md\`](${goalFromReport.htmlUrl})\n\n` +
+                  `${sourceReportMarkdown(goalFromReport)}\n\n` +
                   `---\n\n${goalFromReport.body}`,
               }
             : undefined
@@ -533,6 +533,11 @@ function LatestReports() {
       />
     </section>
   );
+}
+
+function sourceReportMarkdown(report: Report): string {
+  const path = report.path || `reports/${report.slug}.md`;
+  return `Source report: [\`${path}\`](${report.htmlUrl})`;
 }
 
 function EngineHealth() {

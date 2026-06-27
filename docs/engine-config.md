@@ -52,7 +52,7 @@ it inbound. An empty list means recommendations still post on GitHub but reach
 nobody — so the card warns when the list is blank, and an
 `OperatorsWarningBanner` links here from elsewhere in the app.
 
-The list is the company's **explicit** choice — never auto-filled from
+The list is the agency's **explicit** choice — never auto-filled from
 collaborators. Add/remove handles in the card; each handle is normalized
 server-side (`@`-stripped, trimmed, de-duped case-insensitively, order
 preserved) before write. It has its own

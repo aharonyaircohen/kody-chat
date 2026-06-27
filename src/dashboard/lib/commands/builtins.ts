@@ -119,10 +119,10 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
   },
   {
     slug: "goal",
-    description: "Create a company goal",
+    description: "Create an AI Agency goal",
     argumentHint: "<outcome>",
     body:
-      'Create a new company-level goal for "$ARGUMENTS".\n\n' +
+      'Create a new AI Agency goal for "$ARGUMENTS".\n\n' +
       "Use the managed goal model: outcome, proof/evidence, route, facts, and blockers. " +
       "Prefer managed-goal tools when available. Keep the first route simple.",
   },

@@ -2,8 +2,8 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern reports-api
- * @ai-summary Report detail API — GET reads a single report file under
- *   `reports/<slug>.md` in the configured Kody state repo. Read-only.
+ * @ai-summary Report detail API — GET reads the latest report run for a report
+ *   family in the configured Kody state repo. Read-only.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";

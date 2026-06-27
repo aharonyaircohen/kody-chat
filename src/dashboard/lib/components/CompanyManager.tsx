@@ -2,8 +2,8 @@
  * @fileType component
  * @domain kody
  * @pattern company-manager
- * @ai-summary Import/export a "Company" — the portable operating manual of
- *   an org (agents, capabilities, context, commands, managed goals,
+ * @ai-summary Import/export an AI Agency setup — the portable operating
+ *   manual of an org (agents, capabilities, context, commands, managed goals,
  *   instructions, and config). Export downloads a JSON
  *   bundle from the connected repo; Import uploads one and writes it back
  *   with skip/overwrite collision handling.
@@ -73,7 +73,7 @@ function CompanyManagerInner() {
         /[^a-z0-9_-]+/gi,
         "-",
       );
-      downloadJson(`kody-company-${safeRepo}-${stamp}.json`, bundle);
+      downloadJson(`kody-ai-agency-${safeRepo}-${stamp}.json`, bundle);
       const total =
         bundle.agent.length +
         bundle.contexts.length +
@@ -116,7 +116,7 @@ function CompanyManagerInner() {
       if (failed > 0) {
         toast.warning(`Imported with ${failed} failure(s) — see details below`);
       } else {
-        toast.success("Company imported");
+        toast.success("AI Agency imported");
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Import failed");
@@ -128,15 +128,15 @@ function CompanyManagerInner() {
 
   return (
     <PageShell
-      title="Company"
+      title="AI Agency"
       icon={Building2}
       iconClassName="text-emerald-400"
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
     >
       <div className="space-y-4">
         <p className="text-sm text-white/60 max-w-2xl">
-          A <span className="text-white/80">Company</span> is your org&apos;s
-          portable operating manual — its{" "}
+          A <span className="text-white/80">AI Agency</span> is your
+          portable operating system — its{" "}
           <span className="text-white/80">agents</span>,{" "}
           <span className="text-white/80">capabilities</span>,{" "}
           <span className="text-white/80">goals/loops</span>,{" "}
@@ -156,10 +156,10 @@ function CompanyManagerInner() {
             <div className="min-w-0">
               <p className="font-medium text-white/90 flex items-center gap-2">
                 <Download className="w-4 h-4 text-emerald-400" />
-                Export company
+                Export AI Agency
               </p>
               <p className="text-xs text-white/50 mt-1">
-                Download a JSON bundle of this repo&apos;s agents, capabilities,
+                Download a JSON bundle of this agency&apos;s agents, capabilities,
                 goals/loops, context, repo-defined commands, and instructions.
               </p>
             </div>
@@ -183,10 +183,10 @@ function CompanyManagerInner() {
               <div className="min-w-0">
                 <p className="font-medium text-white/90 flex items-center gap-2">
                   <Upload className="w-4 h-4 text-sky-400" />
-                  Import company
+                  Import AI Agency
                 </p>
                 <p className="text-xs text-white/50 mt-1">
-                  Upload a bundle to write its artifacts into this repo.
+                  Upload an AI Agency setup into this repo.
                 </p>
               </div>
               <Button
