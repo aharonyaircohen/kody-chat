@@ -515,6 +515,7 @@ export function VibePage() {
     url: activePreviewUrl,
     isResolving: previewResolving,
     wakePreview,
+    refreshPreviewUrl,
   } = usePreviewUrl(
     selectedTask?.associatedPR?.head?.sha,
     selectedTask?.associatedPR?.number,
@@ -670,6 +671,7 @@ export function VibePage() {
             showBrowserChrome
             onComposerInjection={setComposerInjection}
             onAttachmentInjection={setAttachmentInjection}
+            onRefreshPreviewUrl={refreshPreviewUrl}
             onBeforePreviewLoad={wakePreview}
             leadingToolbar={
               <PreviewEnvSwitcher

@@ -7,8 +7,8 @@
  */
 "use client";
 
-import { useCallback, useEffect, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { prsApi, getStoredAuth } from "../api";
 
 const BUILDING_POLL_MS = 15_000;
@@ -44,10 +44,12 @@ export function usePreviewUrl(
   pr?: number,
   initialUrl?: string | null,
 ) {
+  const queryClient = useQueryClient();
   const initialPreviewUrl = safePreviewUrl(initialUrl);
+  const queryKey = useMemo(() => ["preview-url", sha, pr] as const, [pr, sha]);
 
   const query = useQuery({
-    queryKey: ["preview-url", sha, pr],
+    queryKey,
     queryFn: async () => safePreviewUrl(await prsApi.preview(sha!, pr)),
     enabled: !!getStoredAuth() && !!sha,
     // Show the link the tasks list already knew about while we confirm it.
@@ -79,6 +81,15 @@ export function usePreviewUrl(
     }
   }, [pr, url]);
 
+  const refreshPreviewUrl = useCallback(async (): Promise<string | null> => {
+    if (!sha) return null;
+    const nextUrl = safePreviewUrl(await prsApi.preview(sha, pr));
+    if (nextUrl) {
+      queryClient.setQueryData(queryKey, nextUrl);
+    }
+    return nextUrl;
+  }, [pr, queryClient, queryKey, sha]);
+
   useEffect(() => {
     if (!pr || !sha || url || query.data !== null) return;
     if (query.isPending || query.isFetching) return;
@@ -101,5 +112,5 @@ export function usePreviewUrl(
   // "Loading" means we are looking up the URL and do not have one yet.
   const isResolving = !!sha && !url && (query.isFetching || query.isPending);
 
-  return { url, isResolving, wakePreview };
+  return { url, isResolving, wakePreview, refreshPreviewUrl };
 }

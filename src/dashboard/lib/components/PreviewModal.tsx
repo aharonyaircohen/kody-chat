@@ -110,6 +110,7 @@ export function PreviewModal({
     url: effectivePreviewUrl,
     isResolving: previewResolving,
     wakePreview,
+    refreshPreviewUrl,
   } = usePreviewUrl(pr?.head?.sha, pr?.number, task.previewUrl ?? null);
 
   // Callback to refresh comment list after adding a comment
@@ -361,6 +362,7 @@ export function PreviewModal({
                   showBrowserChrome
                   reloadKey={previewKey}
                   iframeTitle="Preview Deployment"
+                  onRefreshPreviewUrl={refreshPreviewUrl}
                   onBeforePreviewLoad={wakePreview}
                   onComposerInjection={() => {}}
                   onAttachmentInjection={() => {}}

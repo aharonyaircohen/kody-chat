@@ -34,6 +34,11 @@ import type {
   AttachmentInjection,
   ComposerChip,
 } from "../picker/PreviewInspector";
+import {
+  carryPreviewAuthParams,
+  rebasePreviewAuthUrl,
+  stripPreviewAuthParams,
+} from "../preview-auth-url";
 import { PICKER_EXT_SOURCE, type PickerExtMessage } from "../picker/protocol";
 import { useElementPicker } from "../picker/useElementPicker";
 import { cn, getPreviewBypassUrl } from "../utils";
@@ -59,6 +64,10 @@ export interface PreviewBrowserProps {
   /** Save the current browser URL as a named environment. */
   onSaveCurrentUrl?: (url: string) => void | Promise<void>;
   isSavingCurrentUrl?: boolean;
+  /** Mint a fresh signed preview URL before a manual iframe refresh. */
+  onRefreshPreviewUrl?: (
+    currentUrl: string | null,
+  ) => string | null | Promise<string | null>;
   /** Called before each iframe load, including reloads. */
   onBeforePreviewLoad?: () => void | Promise<void>;
   /** Override iframe sandbox. Pass null to omit it for native file viewers. */
@@ -83,7 +92,7 @@ const PREVIEW_DEVICE_OPTIONS = [
   { id: "desktop", icon: Monitor, label: "Desktop" },
 ] as const;
 
-function toBrowserAddress(url: string | null): string {
+function toAbsolutePreviewUrl(url: string | null): string {
   if (!url) return "";
   if (typeof window === "undefined") return url;
 
@@ -92,6 +101,13 @@ function toBrowserAddress(url: string | null): string {
   } catch {
     return url;
   }
+}
+
+function toBrowserAddress(url: string | null): string {
+  const absolute = toAbsolutePreviewUrl(url);
+  if (!absolute) return "";
+  if (typeof window === "undefined") return absolute;
+  return stripPreviewAuthParams(absolute, window.location.origin) ?? absolute;
 }
 
 function pushBrowserHistory(
@@ -104,6 +120,16 @@ function pushBrowserHistory(
     state.index >= 0 ? state.entries.slice(0, state.index + 1) : [];
   const entries = [...currentEntries, nextUrl];
   return { entries, index: entries.length - 1 };
+}
+
+function replaceCurrentBrowserHistory(
+  state: BrowserHistoryState,
+  nextUrl: string,
+): BrowserHistoryState {
+  if (state.index < 0) return pushBrowserHistory(state, nextUrl);
+  const entries = [...state.entries];
+  entries[state.index] = nextUrl;
+  return { entries, index: state.index };
 }
 
 function rebasePreviewUrl(
@@ -156,6 +182,7 @@ export function PreviewBrowser({
   showBrowserChrome = false,
   onSaveCurrentUrl,
   isSavingCurrentUrl = false,
+  onRefreshPreviewUrl,
   onBeforePreviewLoad,
   iframeSandbox,
   reloadKey = "",
@@ -221,9 +248,17 @@ export function PreviewBrowser({
 
   const syncBrowserHistoryUrl = useCallback(
     (url: string | null | undefined): void => {
-      const nextUrl = toBrowserAddress(url ?? null);
+      const nextUrl = toAbsolutePreviewUrl(url ?? null);
       if (!nextUrl) return;
-      setBrowserHistory((state) => pushBrowserHistory(state, nextUrl));
+      const authedUrl =
+        typeof window === "undefined"
+          ? nextUrl
+          : (carryPreviewAuthParams(
+              activePreviewUrlRef.current,
+              nextUrl,
+              window.location.origin,
+            ) ?? nextUrl);
+      setBrowserHistory((state) => pushBrowserHistory(state, authedUrl));
     },
     [],
   );
@@ -362,9 +397,46 @@ export function PreviewBrowser({
       return;
     }
 
-    activePreviewUrlRef.current = nextUrl;
-    setBrowserUrl(toBrowserAddress(nextUrl));
-    setBrowserHistory((state) => pushBrowserHistory(state, nextUrl));
+    const authedNextUrl =
+      typeof window === "undefined"
+        ? nextUrl
+        : (carryPreviewAuthParams(
+            activePreviewUrlRef.current,
+            nextUrl,
+            window.location.origin,
+          ) ?? nextUrl);
+    activePreviewUrlRef.current = authedNextUrl;
+    setBrowserUrl(toBrowserAddress(authedNextUrl));
+    setBrowserHistory((state) => pushBrowserHistory(state, authedNextUrl));
+  };
+
+  const refreshPreview = async (): Promise<void> => {
+    const currentUrl = activePreviewUrlRef.current;
+    if (onRefreshPreviewUrl && currentUrl) {
+      try {
+        const freshPreviewUrl = await onRefreshPreviewUrl(currentUrl);
+        const refreshedUrl =
+          typeof window === "undefined"
+            ? freshPreviewUrl
+            : rebasePreviewAuthUrl(
+                currentUrl,
+                freshPreviewUrl,
+                window.location.origin,
+              );
+
+        if (refreshedUrl) {
+          activePreviewUrlRef.current = refreshedUrl;
+          setBrowserUrl(toBrowserAddress(refreshedUrl));
+          setBrowserHistory((state) =>
+            replaceCurrentBrowserHistory(state, refreshedUrl),
+          );
+        }
+      } catch {
+        // Refresh still reloads the current iframe source; auth refresh is best-effort.
+      }
+    }
+
+    setIframeKey((key) => key + 1);
   };
 
   const activePreviewDevice =
@@ -512,7 +584,8 @@ export function PreviewBrowser({
               <button
                 type="button"
                 onClick={() => {
-                  if (activePreviewUrl) void onSaveCurrentUrl(activePreviewUrl);
+                  if (activePreviewUrl)
+                    void onSaveCurrentUrl(toBrowserAddress(activePreviewUrl));
                 }}
                 disabled={isSavingCurrentUrl}
                 title="Save current URL as environment"
@@ -533,7 +606,9 @@ export function PreviewBrowser({
             )}
             <button
               type="button"
-              onClick={() => setIframeKey((key) => key + 1)}
+              onClick={() => {
+                void refreshPreview();
+              }}
               disabled={!activePreviewUrl}
               title={
                 activePreviewUrl ? "Refresh preview" : "No preview to refresh"
