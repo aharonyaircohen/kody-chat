@@ -11,6 +11,15 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 
+const h = vi.hoisted(() => ({
+  runScheduledKodyOnRunner: vi.fn(async () => ({
+    ok: true,
+    runner: "fly",
+    machineId: "m-goal",
+    ref: "main",
+  })),
+}));
+
 vi.mock("@dashboard/lib/auth", () => ({
   requireKodyAuth: vi.fn(async () => null),
   verifyActorLogin: vi.fn(async () => ({
@@ -50,6 +59,10 @@ vi.mock("@dashboard/lib/logger", () => ({
   },
 }));
 
+vi.mock("@dashboard/lib/runners/kody-runner", () => ({
+  runScheduledKodyOnRunner: h.runScheduledKodyOnRunner,
+}));
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const auth = await import("@dashboard/lib/auth");
 const { getUserOctokit } = auth as any;
@@ -87,7 +100,6 @@ describe("POST /api/kody/goals/[id]/manage", () => {
     const getRefCalls: unknown[] = [];
     let capturedWriteBranch: string | undefined;
     let capturedWritePath: string | undefined;
-    let capturedDispatchInputs: unknown;
 
     const mockOctokit = {
       rest: {
@@ -123,14 +135,7 @@ describe("POST /api/kody/goals/[id]/manage", () => {
             return Promise.resolve({ status: 201 });
           }),
         },
-        actions: {
-          createWorkflowDispatch: vi
-            .fn()
-            .mockImplementation((opts: unknown) => {
-              capturedDispatchInputs = opts;
-              return Promise.resolve({ status: 204 });
-            }),
-        },
+        actions: {},
       },
     };
 
@@ -149,13 +154,13 @@ describe("POST /api/kody/goals/[id]/manage", () => {
 
     // The dispatch must pass the goal slug as issue_number so the engine can
     // detect it is a goal (not a GitHub issue number) and read goal state.
-    expect(capturedDispatchInputs).toEqual({
-      owner: "test-owner",
-      repo: "test-repo",
-      workflow_id: "kody.yml",
-      ref: "main",
-      inputs: { issue_number: { value: "capability-migration" } },
-    });
+    expect(h.runScheduledKodyOnRunner).toHaveBeenCalledWith(
+      expect.any(NextRequest),
+      expect.objectContaining({
+        action: "goal-manager",
+        message: "capability-migration",
+      }),
+    );
   });
 
   it("updates existing managed state without a branch override", async () => {
@@ -197,9 +202,7 @@ describe("POST /api/kody/goals/[id]/manage", () => {
             return Promise.resolve({ status: 201 });
           }),
         },
-        actions: {
-          createWorkflowDispatch: vi.fn().mockResolvedValue({ status: 204 }),
-        },
+        actions: {},
       },
     };
 

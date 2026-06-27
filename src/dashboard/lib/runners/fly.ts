@@ -33,13 +33,17 @@ const DEFAULT_REGION = process.env.FLY_REGION ?? "fra";
  */
 const SPAWN_TIMEOUT_MS = 30_000;
 
+export type KodyRunnerMode = "issue" | "interactive" | "scheduled";
+
 export interface SpawnRunnerInput {
   /** owner/name of the user's repo the engine will clone */
   repo: string;
   /** GitHub token with repo + workflow scope (the user's PAT) */
   githubToken: string;
-  /** kody session id (also taskId) */
-  sessionId: string;
+  /** Explicit engine runner mode. Defaults to issue when issueNumber exists, otherwise interactive. */
+  mode?: KodyRunnerMode;
+  /** kody session id (also taskId) for interactive/chat jobs */
+  sessionId?: string;
   /** Dashboard ingest URL with HMAC token appended */
   dashboardUrl?: string;
   /** Optional initial chat message (one-shot mode); empty for interactive */
@@ -74,13 +78,14 @@ export interface SpawnRunnerInput {
    */
   perfTier?: PerfTier;
   /**
-   * GitHub issue number for agent (run-executable) mode. When set, the
-   * runner's entrypoint invokes `kody run --issue N` instead of bare
-   * `kody`. The engine's existing `--issue` path then routes to the
-   * `run` executable (branch → code → commit → PR). Used by Vibe's
-   * one-shot execution path; leave empty for chat-mode sessions.
+   * GitHub issue number for issue mode. Used by Vibe's one-shot
+   * execution path; leave empty for chat/scheduled jobs.
    */
   issueNumber?: number;
+  /** Force a single scheduled action, e.g. goal-manager. */
+  action?: string;
+  /** Optional message/target for the forced action. goal-manager reads this as the goal id. */
+  message?: string;
   /**
    * Git ref to clone (branch name or SHA). When unset, the entrypoint
    * falls back to `main`. Callers should pass the repo's actual default
@@ -138,11 +143,21 @@ function requireFlyToken(explicit?: string): string {
  * kody-runner image's entrypoint.sh expects.
  */
 function buildMachineEnv(input: SpawnRunnerInput): Record<string, string> {
+  const mode: KodyRunnerMode =
+    input.mode ?? (input.issueNumber && input.issueNumber > 0 ? "issue" : "interactive");
+  if (mode === "interactive" && !input.sessionId) {
+    throw new Error("sessionId is required for interactive runner mode");
+  }
+  if (mode === "issue" && (!input.issueNumber || input.issueNumber <= 0)) {
+    throw new Error("issueNumber is required for issue runner mode");
+  }
   const env: Record<string, string> = {
     REPO: input.repo,
     GITHUB_TOKEN: input.githubToken,
-    SESSION_ID: input.sessionId,
+    KODY_RUN_MODE: mode,
   };
+  if (mode === "scheduled") env.GITHUB_EVENT_NAME = "schedule";
+  if (input.sessionId && mode !== "scheduled") env.SESSION_ID = input.sessionId;
   if (input.initMessage) env.INIT_MESSAGE = input.initMessage;
   if (input.model) env.MODEL = input.model;
   if (input.dashboardUrl) env.DASHBOARD_URL = input.dashboardUrl;
@@ -152,6 +167,8 @@ function buildMachineEnv(input: SpawnRunnerInput): Record<string, string> {
   if (input.issueNumber && input.issueNumber > 0) {
     env.ISSUE_NUMBER = String(input.issueNumber);
   }
+  if (input.action) env.KODY_FORCE_ACTION = input.action;
+  if (input.message) env.KODY_FORCE_MESSAGE = input.message;
   if (input.ref) env.REF = input.ref;
   if (input.allSecrets) {
     env.ALL_SECRETS = JSON.stringify(input.allSecrets);

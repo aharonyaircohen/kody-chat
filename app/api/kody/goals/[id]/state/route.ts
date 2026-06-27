@@ -25,6 +25,7 @@ import {
 import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
 import { logger } from "@dashboard/lib/logger";
 import { recordAudit } from "@dashboard/lib/activity/audit";
+import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
 import {
   goalStatePath,
   makeInitialSimpleGoalState,
@@ -225,44 +226,31 @@ export async function PUT(
       sha: existing?.sha,
     });
 
-    // Starting a goal must take effect now, not on the next 15-min cron tick.
-    // Dispatch the engine workflow with no inputs — same shape as the cron
-    // trigger — so the engine runs its normal lifecycle scan, sees the goal
-    // is `active`, and picks it up within seconds. Non-fatal: the cron remains
-    // the backstop, so a missing `workflow` token scope can't break Start.
+    // Starting a goal must take effect now, not on the next cron tick.
+    // Run the same scheduled engine path through the shared runner. Non-fatal:
+    // cron remains the backstop if a runner cannot start.
     let engineDispatched = false;
     if (next.state === "active") {
-      try {
-        // Dispatch on the repo's DEFAULT branch, not a hardcoded "main".
-        // workflow_dispatch runs the workflow file from the given ref; a
-        // stale `main` can carry an outdated kody.yml that fails instantly
-        // (e.g. renamed engine binary), while cron correctly uses the
-        // default branch. Resolve it so Start matches the cron behaviour.
-        const repoMeta = await octokit.rest.repos.get({
-          owner: headerAuth.owner,
-          repo: headerAuth.repo,
-        });
-        const defaultBranch = repoMeta.data.default_branch || "main";
-        await octokit.rest.actions.createWorkflowDispatch({
-          owner: headerAuth.owner,
-          repo: headerAuth.repo,
-          workflow_id: "kody.yml",
-          ref: defaultBranch,
-        });
+      const run = await runScheduledKodyOnRunner(req, {
+        taskId: `goal-start-${id}-${Date.now()}`,
+      });
+      if (run.ok) {
         engineDispatched = true;
         logger.info(
           {
             goalId: id,
             owner: headerAuth.owner,
             repo: headerAuth.repo,
-            ref: defaultBranch,
+            ref: run.ref,
+            runner: run.runner,
+            machineId: run.machineId,
           },
-          "goals: engine dispatched on start",
+          "goals: engine runner started on start",
         );
-      } catch (dispatchErr) {
+      } else {
         logger.warn(
-          { err: dispatchErr, goalId: id },
-          "goals: engine dispatch failed; cron will pick it up",
+          { err: run.error, goalId: id, status: run.status },
+          "goals: engine runner failed on start; cron will pick it up",
         );
       }
     }

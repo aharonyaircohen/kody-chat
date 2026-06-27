@@ -19,7 +19,7 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { getEngineConfig } from "@dashboard/lib/engine/config";
-import { buildKodyWorkflowDispatchInputs } from "@dashboard/lib/kody-workflow-dispatch";
+import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
 import { isWorkflowDefinitionId } from "@dashboard/lib/workflow-definitions";
 import {
   readCompanyStoreCapabilityWorkflowDefinitionFile,
@@ -123,35 +123,31 @@ export async function POST(
     }
     if (workflow.runnable !== true) return workflowNotRunnableResponse();
 
-    const repoMeta = await octokit.rest.repos.get({
-      owner: headerAuth.owner,
-      repo: headerAuth.repo,
-    });
-    const ref = repoMeta.data.default_branch || "main";
-    const inputs = await buildKodyWorkflowDispatchInputs(octokit, {
-      owner: headerAuth.owner,
-      repo: headerAuth.repo,
-      ref,
+    const run = await runScheduledKodyOnRunner(req, {
+      taskId: `company-workflow-${id}-${Date.now()}`,
       action: id,
     });
-    await octokit.rest.actions.createWorkflowDispatch({
-      owner: headerAuth.owner,
-      repo: headerAuth.repo,
-      workflow_id: "kody.yml",
-      ref,
-      inputs,
-    });
+    if (!run.ok) {
+      return NextResponse.json(
+        {
+          error: "runner_failed",
+          message: run.error,
+        },
+        { status: run.status },
+      );
+    }
 
     recordAudit(req, {
       action: "workflow.run",
       resource: id,
-      detail: `manual workflow dispatch for workflow ${id}`,
+      detail: `manual runner dispatch for workflow ${id}`,
     });
 
     return NextResponse.json({
       ok: true,
-      workflowId: "kody.yml",
-      ref,
+      runner: run.runner,
+      machineId: run.machineId,
+      ref: run.ref,
       workflow: id,
       action: id,
     });

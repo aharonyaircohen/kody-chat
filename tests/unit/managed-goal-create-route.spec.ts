@@ -9,6 +9,12 @@ const h = vi.hoisted(() => ({
   writeManagedGoalFile: vi.fn(),
   getUserOctokit: vi.fn(),
   getEngineConfig: vi.fn(async () => ({ config: {}, sha: null })),
+  runScheduledKodyOnRunner: vi.fn(async () => ({
+    ok: true,
+    runner: "fly",
+    machineId: "m-goal",
+    ref: "main",
+  })),
 }));
 
 vi.mock("@dashboard/lib/auth", () => ({
@@ -37,6 +43,9 @@ vi.mock("@dashboard/lib/managed-goals-files", () => ({
 }));
 vi.mock("@dashboard/lib/engine/config", () => ({
   getEngineConfig: h.getEngineConfig,
+}));
+vi.mock("@dashboard/lib/runners/kody-runner", () => ({
+  runScheduledKodyOnRunner: h.runScheduledKodyOnRunner,
 }));
 
 import { GET, POST } from "../../app/api/kody/goals/managed/route";

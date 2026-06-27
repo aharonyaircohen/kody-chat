@@ -90,6 +90,7 @@ export async function POST(req: NextRequest) {
     const claim = await claimFromPool({
       jobId: sessionId,
       repo: `${owner}/${repo}`,
+      mode: "issue",
       issueNumber,
       ref,
       sessionId,
@@ -116,6 +117,7 @@ export async function POST(req: NextRequest) {
     const { machineId, region } = await spawnRunner({
       repo: `${owner}/${repo}`,
       githubToken,
+      mode: "issue",
       sessionId,
       issueNumber,
       ref,

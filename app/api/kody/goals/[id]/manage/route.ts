@@ -24,6 +24,7 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
+import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
 import {
   goalStatePath,
   makeInitialSimpleGoalState,
@@ -166,28 +167,28 @@ export async function POST(
     // Non-fatal: the agent/goal-tick crons are the backstop.
     let engineDispatched = false;
     if (parsed.data.managed && next.state === "active") {
-      try {
-        const repoMeta = await octokit.rest.repos.get({
-          owner: headerAuth.owner,
-          repo: headerAuth.repo,
-        });
-        const defaultBranch = repoMeta.data.default_branch || "main";
-        await octokit.rest.actions.createWorkflowDispatch({
-          owner: headerAuth.owner,
-          repo: headerAuth.repo,
-          workflow_id: "kody.yml",
-          ref: defaultBranch,
-          inputs: { issue_number: { value: id } },
-        });
+      const run = await runScheduledKodyOnRunner(req, {
+        taskId: `goal-manage-${id}-${Date.now()}`,
+        action: "goal-manager",
+        message: id,
+      });
+      if (run.ok) {
         engineDispatched = true;
         logger.info(
-          { goalId: id, owner: headerAuth.owner, repo: headerAuth.repo },
-          "goals: engine dispatched on manage-enable",
+          {
+            goalId: id,
+            owner: headerAuth.owner,
+            repo: headerAuth.repo,
+            ref: run.ref,
+            runner: run.runner,
+            machineId: run.machineId,
+          },
+          "goals: engine runner started on manage-enable",
         );
-      } catch (dispatchErr) {
+      } else {
         logger.warn(
-          { err: dispatchErr, goalId: id },
-          "goals: manage dispatch failed; cron will pick it up",
+          { err: run.error, goalId: id, status: run.status },
+          "goals: manage runner failed; cron will pick it up",
         );
       }
     }

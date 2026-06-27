@@ -6,6 +6,7 @@ const h = vi.hoisted(() => ({
   readManagedGoalFile: vi.fn(),
   listCompanyStoreGoalTemplateFiles: vi.fn(async () => []),
   writeManagedGoalFile: vi.fn(),
+  runScheduledKodyOnRunner: vi.fn(),
 }));
 
 vi.mock("@dashboard/lib/auth", () => ({
@@ -33,26 +34,11 @@ vi.mock("@dashboard/lib/managed-goals-files", () => ({
   writeManagedGoalFile: h.writeManagedGoalFile,
 }));
 
-import { POST } from "../../app/api/kody/goals/managed/[id]/run/route";
+vi.mock("@dashboard/lib/runners/kody-runner", () => ({
+  runScheduledKodyOnRunner: h.runScheduledKodyOnRunner,
+}));
 
-const executableWorkflow = `
-name: kody
-on:
-  workflow_dispatch:
-    inputs:
-      issue_number:
-        type: string
-        default: ""
-      sessionId:
-        type: string
-        default: ""
-      message:
-        type: string
-        default: ""
-      executable:
-        type: string
-        default: ""
-`;
+import { POST } from "../../app/api/kody/goals/managed/[id]/run/route";
 
 function makeRequest(id: string) {
   return new NextRequest(
@@ -70,24 +56,16 @@ describe("managed goal run route", () => {
     vi.clearAllMocks();
   });
 
-  it("dispatches goal-manager with executable when the target workflow declares executable", async () => {
-    const createWorkflowDispatch = vi.fn(async () => ({ status: 204 }));
-    const getContent = vi.fn(async () => ({
-      data: {
-        type: "file",
-        encoding: "base64",
-        content: Buffer.from(executableWorkflow, "utf8").toString("base64"),
-      },
-    }));
+  it("runs goal-manager on the shared scheduled runner", async () => {
+    h.runScheduledKodyOnRunner.mockResolvedValue({
+      ok: true,
+      runner: "fly",
+      machineId: "m-goal",
+      ref: "main",
+    });
     const mockOctokit = {
       rest: {
-        repos: {
-          get: vi.fn(async () => ({ data: { default_branch: "main" } })),
-          getContent,
-        },
-        actions: {
-          createWorkflowDispatch,
-        },
+        repos: {},
       },
     };
 
@@ -113,21 +91,50 @@ describe("managed goal run route", () => {
     const res = await POST(makeRequest("web-release"), makeParams("web-release"));
 
     expect(res.status).toBe(200);
-    expect(getContent).toHaveBeenCalledWith({
-      owner: "test-owner",
-      repo: "test-repo",
-      path: ".github/workflows/kody.yml",
+    const json = await res.json();
+    expect(json).toMatchObject({
+      ok: true,
+      runner: "fly",
+      machineId: "m-goal",
       ref: "main",
     });
-    expect(createWorkflowDispatch).toHaveBeenCalledWith({
-      owner: "test-owner",
-      repo: "test-repo",
-      workflow_id: "kody.yml",
-      ref: "main",
-      inputs: {
-        executable: "goal-manager",
+    expect(h.runScheduledKodyOnRunner).toHaveBeenCalledWith(
+      expect.any(NextRequest),
+      expect.objectContaining({
+        action: "goal-manager",
         message: "web-release",
+      }),
+    );
+  });
+
+  it("returns runner_failed when the scheduled runner cannot start", async () => {
+    h.runScheduledKodyOnRunner.mockResolvedValue({
+      ok: false,
+      error: "Fly runner not configured",
+      status: 400,
+    });
+    h.getUserOctokit.mockResolvedValue({ rest: { repos: {} } });
+    h.readManagedGoalFile.mockResolvedValue({
+      sha: "state-sha",
+      path: ".kody/goals/instances/web-release/state.json",
+      state: {
+        version: 1,
+        state: "active",
+        type: "release",
+        destination: { outcome: "Ship web release.", evidence: [] },
+        capabilities: [],
+        route: [],
+        facts: {},
+        blockers: [],
       },
+    });
+
+    const res = await POST(makeRequest("web-release"), makeParams("web-release"));
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      error: "runner_failed",
+      message: "Fly runner not configured",
     });
   });
 });

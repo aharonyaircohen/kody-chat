@@ -94,4 +94,41 @@ describe("claimOrSpawnFly", () => {
       "fly api 422",
     );
   });
+
+  it("can run a scheduled action through the same claim-or-spawn path", async () => {
+    claimFromPool.mockResolvedValue({ ok: false, reason: "empty pool" });
+    spawnRunner.mockResolvedValue({
+      machineId: "m-scheduled",
+      app: "kody-runner",
+      region: "fra",
+    });
+
+    const out = await claimOrSpawnFly(ctx(), {
+      taskId: "scheduled-1",
+      mode: "scheduled",
+      action: "goal-manager",
+      message: "weekly-docs",
+      ref: "develop",
+    });
+
+    expect(out).toEqual({ runner: "fly", machineId: "m-scheduled" });
+    expect(claimFromPool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jobId: "scheduled-1",
+        repo: "acme/widgets",
+        mode: "scheduled",
+        action: "goal-manager",
+        message: "weekly-docs",
+        ref: "develop",
+      }),
+    );
+    expect(spawnRunner).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "scheduled",
+        action: "goal-manager",
+        message: "weekly-docs",
+        ref: "develop",
+      }),
+    );
+  });
 });

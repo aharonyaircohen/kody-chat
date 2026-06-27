@@ -28,16 +28,18 @@ import {
   readManagedGoalFile,
   writeManagedGoalFile,
 } from "@dashboard/lib/managed-goals-files";
-import { buildKodyWorkflowDispatchInputs } from "@dashboard/lib/kody-workflow-dispatch";
+import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
 
 function activeGoalResponse(
   goal: ManagedGoalRecord,
-  workflowId: string,
+  runner: "pool" | "fly",
+  machineId: string,
   ref: string,
 ) {
   return NextResponse.json({
     ok: true,
-    workflowId,
+    runner,
+    machineId,
     ref,
     goal,
   });
@@ -122,33 +124,28 @@ export async function POST(
       };
     }
 
-    const repoMeta = await octokit.rest.repos.get({
-      owner: headerAuth.owner,
-      repo: headerAuth.repo,
-    });
-    const ref = repoMeta.data.default_branch || "main";
-    const inputs = await buildKodyWorkflowDispatchInputs(octokit, {
-      owner: headerAuth.owner,
-      repo: headerAuth.repo,
-      ref,
+    const run = await runScheduledKodyOnRunner(req, {
+      taskId: `managed-goal-run-${id}-${Date.now()}`,
       action: "goal-manager",
       message: id,
     });
-    await octokit.rest.actions.createWorkflowDispatch({
-      owner: headerAuth.owner,
-      repo: headerAuth.repo,
-      workflow_id: "kody.yml",
-      ref,
-      inputs,
-    });
+    if (!run.ok) {
+      return NextResponse.json(
+        {
+          error: "runner_failed",
+          message: run.error,
+        },
+        { status: run.status },
+      );
+    }
 
     recordAudit(req, {
       action: "goal.run",
       resource: id,
-      detail: `manual workflow dispatch for goal ${id}`,
+      detail: `manual runner dispatch for goal ${id}`,
     });
 
-    return activeGoalResponse(goal, "kody.yml", ref);
+    return activeGoalResponse(goal, run.runner, run.machineId, run.ref);
   } catch (err: any) {
     console.error("[managed-goals/run] dispatch failed", err);
     return NextResponse.json(

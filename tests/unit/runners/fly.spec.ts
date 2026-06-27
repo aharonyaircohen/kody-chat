@@ -79,6 +79,38 @@ describe("spawnRunner", () => {
     );
   });
 
+  it("spawns scheduled mode without chat session env", async () => {
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify({ id: "m-1" }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await spawnRunner({
+      repo: "acme/widgets",
+      githubToken: "gh-pat",
+      mode: "scheduled",
+      action: "goal-manager",
+      message: "weekly-docs",
+      flyToken: "fly-test-token",
+    });
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body)) as {
+      config: { env: Record<string, string> };
+    };
+    expect(body.config.env).toMatchObject({
+      KODY_RUN_MODE: "scheduled",
+      GITHUB_EVENT_NAME: "schedule",
+      KODY_FORCE_ACTION: "goal-manager",
+      KODY_FORCE_MESSAGE: "weekly-docs",
+    });
+    expect(body.config.env).not.toHaveProperty("SESSION_ID");
+    expect(body.config.env).not.toHaveProperty("ISSUE_NUMBER");
+  });
+
   it("wraps a timeout/network rejection in a clean error (no raw DOMException)", async () => {
     vi.stubGlobal(
       "fetch",

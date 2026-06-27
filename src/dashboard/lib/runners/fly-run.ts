@@ -16,6 +16,7 @@ import { logger } from "@dashboard/lib/logger";
 export interface ClaimOrSpawnOpts {
   /** Session / task id (jobId). */
   taskId: string;
+  mode?: "interactive" | "scheduled";
   idleExitMs?: number;
   hardCapMs?: number;
   /** Pre-signed ingest URL with inline HMAC token; undefined → git-polling. */
@@ -26,6 +27,12 @@ export interface ClaimOrSpawnOpts {
    * var — empty/undefined means the engine uses its own default.
    */
   reasoningEffort?: string;
+  /** Force a single scheduled action, e.g. goal-manager. */
+  action?: string;
+  /** Optional message/target for the forced action. */
+  message?: string;
+  /** Git ref to clone. */
+  ref?: string;
 }
 
 export interface ClaimOrSpawnResult {
@@ -43,16 +50,20 @@ export async function claimOrSpawnFly(
   opts: ClaimOrSpawnOpts,
 ): Promise<ClaimOrSpawnResult> {
   const { owner, repo, githubToken, allSecrets, flyToken, perfTier } = ctx;
+  const mode = opts.mode ?? "interactive";
 
   const claim = await claimFromPool({
     jobId: opts.taskId,
     repo: `${owner}/${repo}`,
-    mode: "interactive",
-    sessionId: opts.taskId,
-    idleExitMs: opts.idleExitMs,
-    hardCapMs: opts.hardCapMs,
+    mode,
+    ...(mode === "interactive" ? { sessionId: opts.taskId } : {}),
+    ...(opts.idleExitMs ? { idleExitMs: opts.idleExitMs } : {}),
+    ...(opts.hardCapMs ? { hardCapMs: opts.hardCapMs } : {}),
     dashboardUrl: opts.dashboardUrl,
     ...(opts.reasoningEffort ? { reasoningEffort: opts.reasoningEffort } : {}),
+    ...(opts.action ? { action: opts.action } : {}),
+    ...(opts.message ? { message: opts.message } : {}),
+    ...(opts.ref ? { ref: opts.ref } : {}),
   });
   if (claim.ok) {
     logger.info(
@@ -70,11 +81,15 @@ export async function claimOrSpawnFly(
   const { machineId } = await spawnRunner({
     repo: `${owner}/${repo}`,
     githubToken,
-    sessionId: opts.taskId,
+    mode,
+    ...(mode === "interactive" ? { sessionId: opts.taskId } : {}),
     dashboardUrl: opts.dashboardUrl,
-    idleExitMs: opts.idleExitMs,
-    hardCapMs: opts.hardCapMs,
+    ...(opts.idleExitMs ? { idleExitMs: opts.idleExitMs } : {}),
+    ...(opts.hardCapMs ? { hardCapMs: opts.hardCapMs } : {}),
     ...(opts.reasoningEffort ? { reasoningEffort: opts.reasoningEffort } : {}),
+    ...(opts.action ? { action: opts.action } : {}),
+    ...(opts.message ? { message: opts.message } : {}),
+    ...(opts.ref ? { ref: opts.ref } : {}),
     allSecrets,
     flyToken,
     perfTier,

@@ -24,6 +24,7 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
+import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
 import { goalStatePath, type GoalRunState } from "@dashboard/lib/goal-state";
 import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
 
@@ -152,27 +153,28 @@ export async function POST(
     // DEFAULT branch (a stale `main` can carry an outdated kody.yml).
     // Non-fatal: the cron is the backstop.
     let engineDispatched = false;
-    try {
-      const repoMeta = await octokit.rest.repos.get({
-        owner: headerAuth.owner,
-        repo: headerAuth.repo,
-      });
-      const defaultBranch = repoMeta.data.default_branch || "main";
-      await octokit.rest.actions.createWorkflowDispatch({
-        owner: headerAuth.owner,
-        repo: headerAuth.repo,
-        workflow_id: "kody.yml",
-        ref: defaultBranch,
-      });
+    const run = await runScheduledKodyOnRunner(req, {
+      taskId: `goal-merge-${id}-${Date.now()}`,
+      action: "goal-manager",
+      message: id,
+    });
+    if (run.ok) {
       engineDispatched = true;
       logger.info(
-        { goalId: id, owner: headerAuth.owner, repo: headerAuth.repo },
-        "goals: engine dispatched on merge",
+        {
+          goalId: id,
+          owner: headerAuth.owner,
+          repo: headerAuth.repo,
+          ref: run.ref,
+          runner: run.runner,
+          machineId: run.machineId,
+        },
+        "goals: engine runner started on merge",
       );
-    } catch (dispatchErr) {
+    } else {
       logger.warn(
-        { err: dispatchErr, goalId: id },
-        "goals: merge dispatch failed; cron will pick it up",
+        { err: run.error, goalId: id, status: run.status },
+        "goals: merge runner failed; cron will pick it up",
       );
     }
 

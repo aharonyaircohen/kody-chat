@@ -21,6 +21,7 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
+import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
 import {
   buildManagedGoalState,
   collapseManagedGoalRecordsForList,
@@ -245,23 +246,26 @@ export async function POST(req: NextRequest) {
     });
 
     let engineDispatched = false;
-    try {
-      const repoMeta = await octokit.rest.repos.get({
-        owner: headerAuth.owner,
-        repo: headerAuth.repo,
-      });
-      const defaultBranch = repoMeta.data.default_branch || "main";
-      await octokit.rest.actions.createWorkflowDispatch({
-        owner: headerAuth.owner,
-        repo: headerAuth.repo,
-        workflow_id: "kody.yml",
-        ref: defaultBranch,
-      });
+    const run = await runScheduledKodyOnRunner(req, {
+      taskId: `managed-goal-create-${goalId}-${Date.now()}`,
+    });
+    if (run.ok) {
       engineDispatched = true;
-    } catch (dispatchErr) {
+      logger.info(
+        {
+          goalId,
+          owner: headerAuth.owner,
+          repo: headerAuth.repo,
+          ref: run.ref,
+          runner: run.runner,
+          machineId: run.machineId,
+        },
+        "managed-goals: engine runner started on create",
+      );
+    } else {
       logger.warn(
-        { err: dispatchErr, goalId },
-        "managed-goals: workflow dispatch failed; scheduler can pick it up",
+        { err: run.error, goalId, status: run.status },
+        "managed-goals: runner failed; scheduler can pick it up",
       );
     }
 

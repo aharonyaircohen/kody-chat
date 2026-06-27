@@ -32,12 +32,13 @@ const workflowFiles = vi.hoisted(() => ({
   readCompanyStoreCapabilityWorkflowDefinitionFile: vi.fn(),
 }));
 
-const dispatch = vi.hoisted(() => ({
-  buildKodyWorkflowDispatchInputs: vi.fn(
-    async (_octokit: unknown, request: { action?: string }) => ({
-      executable: request.action,
-    }),
-  ),
+const runner = vi.hoisted(() => ({
+  runScheduledKodyOnRunner: vi.fn(async () => ({
+    ok: true,
+    runner: "fly",
+    machineId: "m-workflow",
+    ref: "main",
+  })),
 }));
 
 vi.mock("@dashboard/lib/auth", () => ({
@@ -59,8 +60,8 @@ vi.mock("@dashboard/lib/engine/config", () => ({
   getEngineConfig: engineConfig.getEngineConfig,
 }));
 
-vi.mock("@dashboard/lib/kody-workflow-dispatch", () => ({
-  buildKodyWorkflowDispatchInputs: dispatch.buildKodyWorkflowDispatchInputs,
+vi.mock("@dashboard/lib/runners/kody-runner", () => ({
+  runScheduledKodyOnRunner: runner.runScheduledKodyOnRunner,
 }));
 
 vi.mock("@dashboard/lib/workflow-definition-files", () => ({
@@ -89,9 +90,6 @@ function makeOctokit() {
     rest: {
       repos: {
         get: vi.fn(async () => ({ data: { default_branch: "main" } })),
-      },
-      actions: {
-        createWorkflowDispatch: vi.fn(async () => ({ status: 204 })),
       },
     },
   };
@@ -135,37 +133,28 @@ describe("POST /api/kody/company/workflows/:id/run", () => {
     );
   });
 
-  it("dispatches an active Store workflow-capability immediately", async () => {
+  it("runs an active Store workflow-capability on the shared scheduled runner", async () => {
     const octokit = makeOctokit();
     auth.getUserOctokit.mockResolvedValue(octokit);
 
     const res = await POST(req("bug"), params("bug"));
 
     expect(res.status).toBe(200);
-    expect(dispatch.buildKodyWorkflowDispatchInputs).toHaveBeenCalledWith(
-      octokit,
-      {
-        owner: "acme",
-        repo: "widgets",
-        ref: "main",
+    expect(runner.runScheduledKodyOnRunner).toHaveBeenCalledWith(
+      expect.any(NextRequest),
+      expect.objectContaining({
         action: "bug",
-      },
+      }),
     );
-    expect(octokit.rest.actions.createWorkflowDispatch).toHaveBeenCalledWith({
-      owner: "acme",
-      repo: "widgets",
-      workflow_id: "kody.yml",
-      ref: "main",
-      inputs: { executable: "bug" },
-    });
     expect(audit.recordAudit).toHaveBeenCalledWith(expect.any(NextRequest), {
       action: "workflow.run",
       resource: "bug",
-      detail: "manual workflow dispatch for workflow bug",
+      detail: "manual runner dispatch for workflow bug",
     });
     await expect(res.json()).resolves.toMatchObject({
       ok: true,
-      workflowId: "kody.yml",
+      runner: "fly",
+      machineId: "m-workflow",
       ref: "main",
       workflow: "bug",
       action: "bug",
@@ -204,7 +193,7 @@ describe("POST /api/kody/company/workflows/:id/run", () => {
     const res = await POST(req("release"), params("release"));
 
     expect(res.status).toBe(409);
-    expect(octokit.rest.actions.createWorkflowDispatch).not.toHaveBeenCalled();
+    expect(runner.runScheduledKodyOnRunner).not.toHaveBeenCalled();
     await expect(res.json()).resolves.toMatchObject({
       error: "workflow_not_runnable",
     });
