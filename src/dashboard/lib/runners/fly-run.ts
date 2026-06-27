@@ -2,21 +2,20 @@
  * @fileType utility
  * @domain runners
  * @pattern fly-claim-or-spawn
- * @ai-summary Shared "run this interactive session on Fly" core: claim a warm
- *   pool machine first, fall through to spawning a fresh one on any miss.
- *   Extracted so the start-fly route and the GitHub→Fly fallback in the start
- *   route share one path and can't drift. The caller is responsible for
- *   writing the session meta line BEFORE calling this.
+ * @ai-summary Shared "run this target on Fly" core: claim a warm pool machine
+ *   first, fall through to spawning a fresh one on any miss. Chat, issue,
+ *   goal, and workflow callers all pass the same runRequest contract.
  */
 import { claimFromPool } from "./pool-client";
 import { spawnRunner } from "./fly";
 import type { FlyContext } from "./fly-context";
 import { logger } from "@dashboard/lib/logger";
+import type { KodyRunRequest } from "./run-request";
 
 export interface ClaimOrSpawnOpts {
-  /** Session / task id (jobId). */
+  /** Task id / job id for logs, pool claims, and machine identity. */
   taskId: string;
-  mode?: "interactive" | "scheduled";
+  runRequest: KodyRunRequest;
   idleExitMs?: number;
   hardCapMs?: number;
   /** Pre-signed ingest URL with inline HMAC token; undefined → git-polling. */
@@ -27,10 +26,6 @@ export interface ClaimOrSpawnOpts {
    * var — empty/undefined means the engine uses its own default.
    */
   reasoningEffort?: string;
-  /** Force a single scheduled action, e.g. goal-manager. */
-  action?: string;
-  /** Optional message/target for the forced action. */
-  message?: string;
   /** Git ref to clone. */
   ref?: string;
 }
@@ -50,19 +45,15 @@ export async function claimOrSpawnFly(
   opts: ClaimOrSpawnOpts,
 ): Promise<ClaimOrSpawnResult> {
   const { owner, repo, githubToken, allSecrets, flyToken, perfTier } = ctx;
-  const mode = opts.mode ?? "interactive";
 
   const claim = await claimFromPool({
     jobId: opts.taskId,
     repo: `${owner}/${repo}`,
-    mode,
-    ...(mode === "interactive" ? { sessionId: opts.taskId } : {}),
+    runRequest: opts.runRequest,
     ...(opts.idleExitMs ? { idleExitMs: opts.idleExitMs } : {}),
     ...(opts.hardCapMs ? { hardCapMs: opts.hardCapMs } : {}),
     dashboardUrl: opts.dashboardUrl,
     ...(opts.reasoningEffort ? { reasoningEffort: opts.reasoningEffort } : {}),
-    ...(opts.action ? { action: opts.action } : {}),
-    ...(opts.message ? { message: opts.message } : {}),
     ...(opts.ref ? { ref: opts.ref } : {}),
   });
   if (claim.ok) {
@@ -81,14 +72,11 @@ export async function claimOrSpawnFly(
   const { machineId } = await spawnRunner({
     repo: `${owner}/${repo}`,
     githubToken,
-    mode,
-    ...(mode === "interactive" ? { sessionId: opts.taskId } : {}),
+    runRequest: opts.runRequest,
     dashboardUrl: opts.dashboardUrl,
     ...(opts.idleExitMs ? { idleExitMs: opts.idleExitMs } : {}),
     ...(opts.hardCapMs ? { hardCapMs: opts.hardCapMs } : {}),
     ...(opts.reasoningEffort ? { reasoningEffort: opts.reasoningEffort } : {}),
-    ...(opts.action ? { action: opts.action } : {}),
-    ...(opts.message ? { message: opts.message } : {}),
     ...(opts.ref ? { ref: opts.ref } : {}),
     allSecrets,
     flyToken,

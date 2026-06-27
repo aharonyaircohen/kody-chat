@@ -23,6 +23,7 @@ import { logger } from "@dashboard/lib/logger";
 import { spawnRunner } from "@dashboard/lib/runners/fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
 import { claimFromPool } from "@dashboard/lib/runners/pool-client";
+import { issueRunRequest } from "@dashboard/lib/runners/run-request";
 
 export const runtime = "nodejs";
 
@@ -90,10 +91,8 @@ export async function POST(req: NextRequest) {
     const claim = await claimFromPool({
       jobId: sessionId,
       repo: `${owner}/${repo}`,
-      mode: "issue",
-      issueNumber,
+      runRequest: issueRunRequest(issueNumber),
       ref,
-      sessionId,
     });
     if (claim.ok) {
       logger.info(
@@ -117,9 +116,7 @@ export async function POST(req: NextRequest) {
     const { machineId, region } = await spawnRunner({
       repo: `${owner}/${repo}`,
       githubToken,
-      mode: "issue",
-      sessionId,
-      issueNumber,
+      runRequest: issueRunRequest(issueNumber),
       ref,
       allSecrets,
       flyToken,

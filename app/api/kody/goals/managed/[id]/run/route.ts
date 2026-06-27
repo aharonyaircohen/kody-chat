@@ -29,6 +29,7 @@ import {
   writeManagedGoalFile,
 } from "@dashboard/lib/managed-goals-files";
 import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
+import { goalRunRequest } from "@dashboard/lib/runners/run-request";
 
 function activeGoalResponse(
   goal: ManagedGoalRecord,
@@ -126,8 +127,7 @@ export async function POST(
 
     const run = await runScheduledKodyOnRunner(req, {
       taskId: `managed-goal-run-${id}-${Date.now()}`,
-      action: "goal-manager",
-      message: id,
+      runRequest: goalRunRequest(id),
     });
     if (!run.ok) {
       return NextResponse.json(

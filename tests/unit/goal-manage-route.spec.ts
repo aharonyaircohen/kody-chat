@@ -152,13 +152,14 @@ describe("POST /api/kody/goals/[id]/manage", () => {
       "test-repo/goals/instances/capability-migration/state.json",
     );
 
-    // The dispatch must pass the goal slug as issue_number so the engine can
-    // detect it is a goal (not a GitHub issue number) and read goal state.
+    // The dispatch must pass the goal as the explicit target, not as an issue.
     expect(h.runScheduledKodyOnRunner).toHaveBeenCalledWith(
       expect.any(NextRequest),
       expect.objectContaining({
-        action: "goal-manager",
-        message: "capability-migration",
+        runRequest: expect.objectContaining({
+          target: { type: "goal", id: "capability-migration" },
+          intent: "manage",
+        }),
       }),
     );
   });

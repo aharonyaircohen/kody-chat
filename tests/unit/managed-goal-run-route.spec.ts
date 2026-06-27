@@ -101,8 +101,10 @@ describe("managed goal run route", () => {
     expect(h.runScheduledKodyOnRunner).toHaveBeenCalledWith(
       expect.any(NextRequest),
       expect.objectContaining({
-        action: "goal-manager",
-        message: "web-release",
+        runRequest: expect.objectContaining({
+          target: { type: "goal", id: "web-release" },
+          intent: "manage",
+        }),
       }),
     );
   });

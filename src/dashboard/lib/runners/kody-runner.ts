@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 import { logger } from "@dashboard/lib/logger";
 import { claimOrSpawnFly } from "./fly-run";
 import { resolveFlyContext } from "./fly-context";
+import type { KodyRunRequest } from "./run-request";
 
 export type ScheduledKodyRunResult =
   | {
@@ -21,8 +22,7 @@ export async function runScheduledKodyOnRunner(
   req: NextRequest,
   opts: {
     taskId: string;
-    action?: string;
-    message?: string;
+    runRequest: KodyRunRequest;
   },
 ): Promise<ScheduledKodyRunResult> {
   const ctxResult = await resolveFlyContext(req);
@@ -49,10 +49,8 @@ export async function runScheduledKodyOnRunner(
   try {
     const run = await claimOrSpawnFly(ctxResult.context, {
       taskId: opts.taskId,
-      mode: "scheduled",
+      runRequest: opts.runRequest,
       ref,
-      ...(opts.action ? { action: opts.action } : {}),
-      ...(opts.message ? { message: opts.message } : {}),
     });
     return { ok: true, runner: run.runner, machineId: run.machineId, ref };
   } catch (err) {

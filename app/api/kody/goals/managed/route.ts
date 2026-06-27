@@ -22,6 +22,7 @@ import {
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
+import { scheduledFanoutRunRequest } from "@dashboard/lib/runners/run-request";
 import {
   buildManagedGoalState,
   collapseManagedGoalRecordsForList,
@@ -248,6 +249,7 @@ export async function POST(req: NextRequest) {
     let engineDispatched = false;
     const run = await runScheduledKodyOnRunner(req, {
       taskId: `managed-goal-create-${goalId}-${Date.now()}`,
+      runRequest: scheduledFanoutRunRequest(),
     });
     if (run.ok) {
       engineDispatched = true;

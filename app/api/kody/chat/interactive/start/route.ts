@@ -37,6 +37,7 @@ import {
 } from "@dashboard/lib/vibe/primer";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
 import { claimOrSpawnFly } from "@dashboard/lib/runners/fly-run";
+import { chatRunRequest } from "@dashboard/lib/runners/run-request";
 import { checkGitHubActionsHealth } from "@dashboard/lib/runners/github-health";
 import { dispatchRun } from "@dashboard/lib/runners/runner-dispatch";
 
@@ -200,6 +201,7 @@ export async function POST(req: NextRequest) {
       runFly: () =>
         claimOrSpawnFly(flyCtx!.ok ? flyCtx!.context : (null as never), {
           taskId,
+          runRequest: chatRunRequest(taskId),
           idleExitMs,
           hardCapMs,
           ...(typeof reasoningEffort === "string" &&

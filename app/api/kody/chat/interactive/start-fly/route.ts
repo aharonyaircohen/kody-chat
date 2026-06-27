@@ -28,6 +28,7 @@ import {
 import { mintSessionToken } from "@dashboard/lib/chat-token";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
 import { claimOrSpawnFly } from "@dashboard/lib/runners/fly-run";
+import { chatRunRequest } from "@dashboard/lib/runners/run-request";
 
 export const runtime = "nodejs";
 
@@ -144,6 +145,7 @@ export async function POST(req: NextRequest) {
     // paths can't drift.
     const result = await claimOrSpawnFly(ctxResult.context, {
       taskId,
+      runRequest: chatRunRequest(taskId),
       idleExitMs,
       hardCapMs,
       dashboardUrl: ingestUrl,

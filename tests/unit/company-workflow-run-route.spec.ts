@@ -143,7 +143,10 @@ describe("POST /api/kody/company/workflows/:id/run", () => {
     expect(runner.runScheduledKodyOnRunner).toHaveBeenCalledWith(
       expect.any(NextRequest),
       expect.objectContaining({
-        action: "bug",
+        runRequest: expect.objectContaining({
+          target: { type: "workflow", id: "bug" },
+          intent: "run",
+        }),
       }),
     );
     expect(audit.recordAudit).toHaveBeenCalledWith(expect.any(NextRequest), {

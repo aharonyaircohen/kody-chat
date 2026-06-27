@@ -17,6 +17,7 @@
  */
 import { logger } from "@dashboard/lib/logger";
 import { derivePoolApiKey } from "@dashboard/lib/runners/pool-keys";
+import type { KodyRunRequest } from "./run-request";
 
 function poolBaseUrl(): string | null {
   const raw = process.env.FLY_POOL_URL?.trim();
@@ -33,20 +34,12 @@ export interface PoolJob {
   jobId: string;
   /** owner/name */
   repo: string;
-  /** "issue" (one-shot run, default) | "interactive" (chat) | "scheduled" (loop/action runner). */
-  mode?: "issue" | "interactive" | "scheduled";
-  /** Required for issue mode. */
-  issueNumber?: number;
-  /** Required for interactive mode (the chat session id). */
-  sessionId?: string;
+  /** Canonical target/intent request. */
+  runRequest: KodyRunRequest;
   idleExitMs?: number;
   hardCapMs?: number;
   ref?: string;
   model?: string;
-  /** Force a single scheduled action, e.g. goal-manager. */
-  action?: string;
-  /** Optional message/target for the forced action. goal-manager reads this as the goal id. */
-  message?: string;
   /**
    * Thinking level for the chat runner (off|low|medium|high). Forwarded
    * to the engine via the REASONING_EFFORT env var on the claimed

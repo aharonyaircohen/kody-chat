@@ -17,6 +17,7 @@
  */
 
 import { logger } from "@dashboard/lib/logger";
+import type { KodyRunRequest } from "./run-request";
 
 const FLY_API_BASE = "https://api.machines.dev/v1";
 
@@ -33,20 +34,16 @@ const DEFAULT_REGION = process.env.FLY_REGION ?? "fra";
  */
 const SPAWN_TIMEOUT_MS = 30_000;
 
-export type KodyRunnerMode = "issue" | "interactive" | "scheduled";
-
 export interface SpawnRunnerInput {
   /** owner/name of the user's repo the engine will clone */
   repo: string;
   /** GitHub token with repo + workflow scope (the user's PAT) */
   githubToken: string;
-  /** Explicit engine runner mode. Defaults to issue when issueNumber exists, otherwise interactive. */
-  mode?: KodyRunnerMode;
-  /** kody session id (also taskId) for interactive/chat jobs */
-  sessionId?: string;
+  /** Canonical engine target/intent request. */
+  runRequest: KodyRunRequest;
   /** Dashboard ingest URL with HMAC token appended */
   dashboardUrl?: string;
-  /** Optional initial chat message (one-shot mode); empty for interactive */
+  /** Optional initial chat message; empty for interactive chat */
   initMessage?: string;
   /** Optional model override (e.g. anthropic/claude-haiku-4-5-20251001) */
   model?: string;
@@ -55,9 +52,9 @@ export interface SpawnRunnerInput {
    * `toJSON(secrets)`). For POC: pass at least the model API key.
    */
   allSecrets?: Record<string, string>;
-  /** Idle exit override (ms) for interactive mode */
+  /** Idle exit override (ms) for chat targets */
   idleExitMs?: number;
-  /** Hard cap override (ms) for interactive mode */
+  /** Hard cap override (ms) for chat targets */
   hardCapMs?: number;
   /**
    * Thinking level (off|low|medium|high). Set as REASONING_EFFORT env
@@ -77,15 +74,6 @@ export interface SpawnRunnerInput {
    * shape (see PERF_GUEST). Omit to use the default ("medium").
    */
   perfTier?: PerfTier;
-  /**
-   * GitHub issue number for issue mode. Used by Vibe's one-shot
-   * execution path; leave empty for chat/scheduled jobs.
-   */
-  issueNumber?: number;
-  /** Force a single scheduled action, e.g. goal-manager. */
-  action?: string;
-  /** Optional message/target for the forced action. goal-manager reads this as the goal id. */
-  message?: string;
   /**
    * Git ref to clone (branch name or SHA). When unset, the entrypoint
    * falls back to `main`. Callers should pass the repo's actual default
@@ -143,32 +131,17 @@ function requireFlyToken(explicit?: string): string {
  * kody-runner image's entrypoint.sh expects.
  */
 function buildMachineEnv(input: SpawnRunnerInput): Record<string, string> {
-  const mode: KodyRunnerMode =
-    input.mode ?? (input.issueNumber && input.issueNumber > 0 ? "issue" : "interactive");
-  if (mode === "interactive" && !input.sessionId) {
-    throw new Error("sessionId is required for interactive runner mode");
-  }
-  if (mode === "issue" && (!input.issueNumber || input.issueNumber <= 0)) {
-    throw new Error("issueNumber is required for issue runner mode");
-  }
   const env: Record<string, string> = {
     REPO: input.repo,
     GITHUB_TOKEN: input.githubToken,
-    KODY_RUN_MODE: mode,
+    KODY_RUN_REQUEST_JSON: JSON.stringify(input.runRequest),
   };
-  if (mode === "scheduled") env.GITHUB_EVENT_NAME = "schedule";
-  if (input.sessionId && mode !== "scheduled") env.SESSION_ID = input.sessionId;
   if (input.initMessage) env.INIT_MESSAGE = input.initMessage;
   if (input.model) env.MODEL = input.model;
   if (input.dashboardUrl) env.DASHBOARD_URL = input.dashboardUrl;
   if (input.idleExitMs) env.KODY_IDLE_EXIT_MS = String(input.idleExitMs);
   if (input.hardCapMs) env.KODY_HARD_CAP_MS = String(input.hardCapMs);
   if (input.reasoningEffort) env.REASONING_EFFORT = input.reasoningEffort;
-  if (input.issueNumber && input.issueNumber > 0) {
-    env.ISSUE_NUMBER = String(input.issueNumber);
-  }
-  if (input.action) env.KODY_FORCE_ACTION = input.action;
-  if (input.message) env.KODY_FORCE_MESSAGE = input.message;
   if (input.ref) env.REF = input.ref;
   if (input.allSecrets) {
     env.ALL_SECRETS = JSON.stringify(input.allSecrets);
@@ -224,7 +197,7 @@ export async function spawnRunner(
     // 500 so the user gets a fast failure rather than a hung request.
     const reason = err instanceof Error ? err.message : String(err);
     logger.error(
-      { err: reason, app, sessionId: input.sessionId },
+      { err: reason, app, target: input.runRequest.target },
       "fly: spawnRunner request failed (timeout or network)",
     );
     throw new Error(`Fly Machines API request failed: ${reason}`);
@@ -237,7 +210,7 @@ export async function spawnRunner(
         status: res.status,
         body: text.slice(0, 500),
         app,
-        sessionId: input.sessionId,
+        target: input.runRequest.target,
       },
       "fly: spawnRunner failed",
     );
@@ -256,7 +229,7 @@ export async function spawnRunner(
       machineId: data.id,
       app,
       region: data.region ?? region,
-      sessionId: input.sessionId,
+      target: input.runRequest.target,
       perfTier: tier,
     },
     "fly: machine spawned",

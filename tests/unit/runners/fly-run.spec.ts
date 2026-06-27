@@ -12,6 +12,10 @@ vi.mock("@dashboard/lib/runners/fly", () => ({
 
 import { claimOrSpawnFly } from "@dashboard/lib/runners/fly-run";
 import type { FlyContext } from "@dashboard/lib/runners/fly-context";
+import {
+  chatRunRequest,
+  goalRunRequest,
+} from "@dashboard/lib/runners/run-request";
 
 function ctx(over: Partial<FlyContext> = {}): FlyContext {
   return {
@@ -38,7 +42,10 @@ describe("claimOrSpawnFly", () => {
   it("returns the warm-pool machine when the claim succeeds (no spawn)", async () => {
     claimFromPool.mockResolvedValue({ ok: true, machineId: "m-pool" });
 
-    const out = await claimOrSpawnFly(ctx(), { taskId: "s1" });
+    const out = await claimOrSpawnFly(ctx(), {
+      taskId: "s1",
+      runRequest: chatRunRequest("s1"),
+    });
 
     expect(out).toEqual({ runner: "pool", machineId: "m-pool" });
     expect(claimFromPool).toHaveBeenCalledOnce();
@@ -48,8 +55,7 @@ describe("claimOrSpawnFly", () => {
       expect.objectContaining({
         jobId: "s1",
         repo: "acme/widgets",
-        mode: "interactive",
-        sessionId: "s1",
+        runRequest: chatRunRequest("s1"),
       }),
     );
   });
@@ -64,6 +70,7 @@ describe("claimOrSpawnFly", () => {
 
     const out = await claimOrSpawnFly(ctx(), {
       taskId: "s2",
+      runRequest: chatRunRequest("s2"),
       idleExitMs: 1000,
       hardCapMs: 5000,
       dashboardUrl: "https://dash.test/ingest?token=t",
@@ -75,7 +82,7 @@ describe("claimOrSpawnFly", () => {
       expect.objectContaining({
         repo: "acme/widgets",
         githubToken: "ghp_x",
-        sessionId: "s2",
+        runRequest: chatRunRequest("s2"),
         flyToken: "fly_tok",
         perfTier: "medium",
         allSecrets: { MINIMAX_API_KEY: "k" },
@@ -90,9 +97,12 @@ describe("claimOrSpawnFly", () => {
     claimFromPool.mockResolvedValue({ ok: false, reason: "miss" });
     spawnRunner.mockRejectedValue(new Error("fly api 422"));
 
-    await expect(claimOrSpawnFly(ctx(), { taskId: "s3" })).rejects.toThrow(
-      "fly api 422",
-    );
+    await expect(
+      claimOrSpawnFly(ctx(), {
+        taskId: "s3",
+        runRequest: chatRunRequest("s3"),
+      }),
+    ).rejects.toThrow("fly api 422");
   });
 
   it("can run a scheduled action through the same claim-or-spawn path", async () => {
@@ -105,9 +115,7 @@ describe("claimOrSpawnFly", () => {
 
     const out = await claimOrSpawnFly(ctx(), {
       taskId: "scheduled-1",
-      mode: "scheduled",
-      action: "goal-manager",
-      message: "weekly-docs",
+      runRequest: goalRunRequest("weekly-docs"),
       ref: "develop",
     });
 
@@ -116,17 +124,13 @@ describe("claimOrSpawnFly", () => {
       expect.objectContaining({
         jobId: "scheduled-1",
         repo: "acme/widgets",
-        mode: "scheduled",
-        action: "goal-manager",
-        message: "weekly-docs",
+        runRequest: goalRunRequest("weekly-docs"),
         ref: "develop",
       }),
     );
     expect(spawnRunner).toHaveBeenCalledWith(
       expect.objectContaining({
-        mode: "scheduled",
-        action: "goal-manager",
-        message: "weekly-docs",
+        runRequest: goalRunRequest("weekly-docs"),
         ref: "develop",
       }),
     );

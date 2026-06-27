@@ -25,6 +25,7 @@ import {
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
+import { goalRunRequest } from "@dashboard/lib/runners/run-request";
 import {
   goalStatePath,
   makeInitialSimpleGoalState,
@@ -169,8 +170,7 @@ export async function POST(
     if (parsed.data.managed && next.state === "active") {
       const run = await runScheduledKodyOnRunner(req, {
         taskId: `goal-manage-${id}-${Date.now()}`,
-        action: "goal-manager",
-        message: id,
+        runRequest: goalRunRequest(id),
       });
       if (run.ok) {
         engineDispatched = true;

@@ -10,11 +10,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { spawnRunner } from "@dashboard/lib/runners/fly";
+import {
+  chatRunRequest,
+  goalRunRequest,
+} from "@dashboard/lib/runners/run-request";
 
 const BASE_INPUT = {
   repo: "acme/widgets",
   githubToken: "gh-pat",
-  sessionId: "sess-1",
+  runRequest: chatRunRequest("sess-1"),
   flyToken: "fly-test-token",
 };
 
@@ -79,7 +83,7 @@ describe("spawnRunner", () => {
     );
   });
 
-  it("spawns scheduled mode without chat session env", async () => {
+  it("spawns a goal request without legacy mode/action env", async () => {
     const fetchMock = vi.fn(
       async (_input: RequestInfo | URL, _init?: RequestInit) =>
         new Response(JSON.stringify({ id: "m-1" }), {
@@ -92,21 +96,22 @@ describe("spawnRunner", () => {
     await spawnRunner({
       repo: "acme/widgets",
       githubToken: "gh-pat",
-      mode: "scheduled",
-      action: "goal-manager",
-      message: "weekly-docs",
+      runRequest: goalRunRequest("weekly-docs"),
       flyToken: "fly-test-token",
     });
 
     const body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body)) as {
       config: { env: Record<string, string> };
     };
-    expect(body.config.env).toMatchObject({
-      KODY_RUN_MODE: "scheduled",
-      GITHUB_EVENT_NAME: "schedule",
-      KODY_FORCE_ACTION: "goal-manager",
-      KODY_FORCE_MESSAGE: "weekly-docs",
+    expect(JSON.parse(body.config.env.KODY_RUN_REQUEST_JSON)).toMatchObject({
+      target: { type: "goal", id: "weekly-docs" },
+      intent: "manage",
+      source: "dashboard",
     });
+    expect(body.config.env).not.toHaveProperty("KODY_RUN_MODE");
+    expect(body.config.env).not.toHaveProperty("GITHUB_EVENT_NAME");
+    expect(body.config.env).not.toHaveProperty("KODY_FORCE_ACTION");
+    expect(body.config.env).not.toHaveProperty("KODY_FORCE_MESSAGE");
     expect(body.config.env).not.toHaveProperty("SESSION_ID");
     expect(body.config.env).not.toHaveProperty("ISSUE_NUMBER");
   });

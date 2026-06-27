@@ -6,11 +6,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { claimFromPool } from "@dashboard/lib/runners/pool-client";
 import { _resetPoolKeyCacheForTests } from "@dashboard/lib/runners/pool-keys";
+import { issueRunRequest } from "@dashboard/lib/runners/run-request";
 
 const JOB = {
   jobId: "vibe-issue-7-1",
   repo: "owner/name",
-  issueNumber: 7,
+  runRequest: issueRunRequest(7),
 };
 
 const ORIGINAL_KEY = process.env.KODY_MASTER_KEY;

@@ -8,9 +8,8 @@
  *   so callers decide how to respond. account is the verified PAT owner
  *   (stable per person), not the incidental connected-repo owner.
  *
- * Routes stay thin — they call resolveFlyContext, then spawnRunner with
- * mode-specific bits (chat-mode adds session meta + ingest URL; vibe
- * mode adds an issue number).
+ * Routes stay thin — they call resolveFlyContext, then spawnRunner with a
+ * target-specific run request plus transport details like ingest URL.
  */
 
 import type { NextRequest } from "next/server";

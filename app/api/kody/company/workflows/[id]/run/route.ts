@@ -20,6 +20,7 @@ import {
 } from "@dashboard/lib/github-client";
 import { getEngineConfig } from "@dashboard/lib/engine/config";
 import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
+import { workflowRunRequest } from "@dashboard/lib/runners/run-request";
 import { isWorkflowDefinitionId } from "@dashboard/lib/workflow-definitions";
 import {
   readCompanyStoreCapabilityWorkflowDefinitionFile,
@@ -125,7 +126,7 @@ export async function POST(
 
     const run = await runScheduledKodyOnRunner(req, {
       taskId: `company-workflow-${id}-${Date.now()}`,
-      action: id,
+      runRequest: workflowRunRequest(id),
     });
     if (!run.ok) {
       return NextResponse.json(
