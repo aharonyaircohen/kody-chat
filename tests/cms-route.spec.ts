@@ -1223,6 +1223,29 @@ describe("CMS API routes", () => {
     });
   });
 
+  it("normalizes dashboard content-entry URLs before direct document get calls", async () => {
+    service.getCmsDocument.mockResolvedValueOnce({
+      _id: "6a408b5d4a2dd57df6b116ea",
+      title: "Old course",
+    });
+
+    const id =
+      "https://dashboard.example.test/content/entries/courses/6a408b5d4a2dd57df6b116ea/edit?collectionSearch=course";
+    const res = await documentGET(request(), {
+      params: Promise.resolve({ collection: "courses", id }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(service.getCmsDocument).toHaveBeenCalledWith(
+      expect.any(NextRequest),
+      expect.anything(),
+      "A-Guy-educ",
+      "A-Guy-Web",
+      "courses",
+      "6a408b5d4a2dd57df6b116ea",
+    );
+  });
+
   it("lists schema-generated CMS MCP tools", async () => {
     service.listCmsCollections.mockResolvedValueOnce({
       configured: true,

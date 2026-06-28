@@ -18,6 +18,7 @@ import {
   getCmsDocument,
   updateCmsDocument,
 } from "@dashboard/lib/cms/service";
+import { normalizeCmsDocumentIdInput } from "@dashboard/lib/cms/document-ids";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,7 +59,7 @@ export async function GET(
       headerAuth.owner,
       headerAuth.repo,
       decodeURIComponent(collection),
-      decodeURIComponent(id),
+      normalizeCmsDocumentIdInput(decodeURIComponent(id)),
     );
     if (!document) {
       return NextResponse.json(
@@ -111,7 +112,7 @@ export async function PATCH(
       headerAuth.owner,
       headerAuth.repo,
       decodeURIComponent(collection),
-      decodeURIComponent(id),
+      normalizeCmsDocumentIdInput(decodeURIComponent(id)),
       body,
     );
 
@@ -166,7 +167,7 @@ export async function DELETE(
       headerAuth.owner,
       headerAuth.repo,
       decodeURIComponent(collection),
-      decodeURIComponent(id),
+      normalizeCmsDocumentIdInput(decodeURIComponent(id)),
     );
 
     if (!deleted) {
