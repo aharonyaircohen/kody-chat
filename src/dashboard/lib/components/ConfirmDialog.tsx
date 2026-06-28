@@ -42,7 +42,12 @@ export function ConfirmDialog({
         if (!o) onClose();
       }}
     >
-      <DialogContent className="max-w-sm" allowDismiss={false}>
+      <DialogContent
+        className="max-w-sm"
+        allowDismiss={false}
+        onClick={(e) => e.stopPropagation()}
+        onPointerDown={(e) => e.stopPropagation()}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>

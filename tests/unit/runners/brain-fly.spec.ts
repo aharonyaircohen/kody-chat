@@ -202,6 +202,7 @@ describe("provisionBrain", () => {
       repo: "alice/repo",
       githubToken: "gh-pat",
       apiKeyOverride: "static-key-for-test",
+      dashboardUrl: "https://dashboard.example.test",
     });
 
     expect(out).toEqual({
@@ -225,6 +226,9 @@ describe("provisionBrain", () => {
     expect(cfg.env.GITHUB_TOKEN).toBe("gh-pat");
     expect(cfg.env.BRAIN_API_KEY).toBe("static-key-for-test");
     expect(cfg.env.PORT).toBe("8080");
+    expect(cfg.env.KODY_CMS_DASHBOARD_URL).toBe(
+      "https://dashboard.example.test",
+    );
   });
 
   it("reuses an existing live machine and returns its api key (idempotency)", async () => {
@@ -713,6 +717,58 @@ describe("provisionBrain image-ref healing", () => {
         }
       ).config.services[0]!.autostop,
     ).toBe(false);
+  });
+
+  it("updates a reused machine when the Dashboard CMS URL is missing", async () => {
+    const calls = installFetchStub((call) => {
+      if (call.method === "GET" && call.url.endsWith("/apps/kody-brain-alice"))
+        return { json: { name: "kody-brain-alice" } };
+      if (call.method === "GET" && call.url.endsWith("/machines"))
+        return {
+          json: [
+            {
+              id: "m-good",
+              state: "started",
+              region: "fra",
+              config: {
+                image: `${DEFAULT_IMAGE}@sha256:fresh`,
+                env: { BRAIN_API_KEY: "live-key", GITHUB_TOKEN: "gh" },
+                services: [
+                  {
+                    internal_port: 8080,
+                    autostop: "suspend",
+                    autostart: true,
+                    min_machines_running: 0,
+                  },
+                ],
+              },
+            },
+          ],
+        };
+      if (call.method === "POST" && call.url.endsWith("/machines/m-good"))
+        return { json: { id: "m-good", state: "started" } };
+      if (call.method === "DELETE")
+        throw new Error(`must not recreate: ${call.url}`);
+      throw new Error(`unexpected: ${call.method} ${call.url}`);
+    });
+
+    const out = await provisionBrain({
+      flyToken: TOKEN,
+      account: "alice",
+      githubToken: "gh",
+      dashboardUrl: "https://dashboard.example.test",
+    });
+
+    expect(out.machineId).toBe("m-good");
+    const update = calls.find(
+      (c) => c.method === "POST" && c.url.endsWith("/machines/m-good"),
+    )!;
+    const env = (update.body as { config: { env: Record<string, string> } })
+      .config.env;
+    expect(env.BRAIN_API_KEY).toBe("live-key");
+    expect(env.KODY_CMS_DASHBOARD_URL).toBe(
+      "https://dashboard.example.test",
+    );
   });
 
   it("wakes a reused sleeping machine when Brain suspension is set to never", async () => {

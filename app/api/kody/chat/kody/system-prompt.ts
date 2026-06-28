@@ -8,6 +8,7 @@
  * from route.ts so tests can import it without exporting non-HTTP handlers
  * from a Next.js route file.
  */
+import { dashboardTaskUrl } from "@dashboard/lib/thread-link";
 
 export interface TaskContext {
   issueNumber?: number | string;
@@ -333,7 +334,7 @@ Pick honestly. The default lean is "no action" unless the report contains a conc
     }
     if (task.associatedPR?.number) {
       lines.push(
-        `- Associated PR: #${task.associatedPR.number} (${task.associatedPR.state ?? "?"}) ${task.associatedPR.html_url ?? ""}`.trim(),
+        `- Associated PR: #${task.associatedPR.number} (${task.associatedPR.state ?? "?"}) ${dashboardTaskUrl(task.associatedPR.number)}`.trim(),
       );
     }
     if (task.body) {

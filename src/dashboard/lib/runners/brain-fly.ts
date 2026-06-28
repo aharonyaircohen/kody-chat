@@ -94,6 +94,8 @@ export interface ProvisionBrainInput {
   suspendOnIdle?: boolean;
   /** Default branch to clone. */
   ref?: string;
+  /** Dashboard origin used by Brain's Dashboard-backed CMS tools. */
+  dashboardUrl?: string;
   /** Override the generated app name (tests). */
   appNameOverride?: string;
   /** Override the generated API key (tests). */
@@ -248,6 +250,9 @@ function buildMachineEnv(
   if (input.repo) env.REPO = input.repo;
   if (input.model) env.MODEL = input.model;
   if (input.ref) env.REF = input.ref;
+  if (input.dashboardUrl?.trim()) {
+    env.KODY_CMS_DASHBOARD_URL = input.dashboardUrl.trim();
+  }
   if (input.allSecrets) env.ALL_SECRETS = JSON.stringify(input.allSecrets);
   return env;
 }
@@ -579,6 +584,40 @@ function alignBrainSuspensionConfig(
   return changed ? { changed, config: { ...config, services } } : { changed };
 }
 
+function alignBrainEnvConfig(
+  config: BrainMachineConfig | undefined,
+  input: ProvisionBrainInput,
+): { changed: boolean; config?: BrainMachineConfig } {
+  const dashboardUrl = input.dashboardUrl?.trim();
+  if (!config || !dashboardUrl) return { changed: false };
+  const env = { ...(config.env ?? {}) };
+  if (env.KODY_CMS_DASHBOARD_URL === dashboardUrl) return { changed: false };
+  env.KODY_CMS_DASHBOARD_URL = dashboardUrl;
+  return { changed: true, config: { ...config, env } };
+}
+
+function alignBrainMachineConfig(
+  config: BrainMachineConfig | undefined,
+  input: ProvisionBrainInput,
+): { changed: boolean; config?: BrainMachineConfig } {
+  let next = config;
+  let changed = false;
+
+  const suspension = alignBrainSuspensionConfig(next, input);
+  if (suspension.changed && suspension.config) {
+    next = suspension.config;
+    changed = true;
+  }
+
+  const env = alignBrainEnvConfig(next, input);
+  if (env.changed && env.config) {
+    next = env.config;
+    changed = true;
+  }
+
+  return changed && next ? { changed: true, config: next } : { changed: false };
+}
+
 async function updateMachineConfig(
   flyToken: string,
   appName: string,
@@ -734,16 +773,13 @@ export async function provisionBrain(
         `brain-fly: app ${app} has a machine without BRAIN_API_KEY env — destroy first, then re-provision`,
       );
     }
-    const suspensionConfig = alignBrainSuspensionConfig(
-      existing.config,
-      input,
-    );
-    if (suspensionConfig.changed && suspensionConfig.config) {
+    const alignedConfig = alignBrainMachineConfig(existing.config, input);
+    if (alignedConfig.changed && alignedConfig.config) {
       await updateMachineConfig(
         input.flyToken,
         app,
         existing.id,
-        suspensionConfig.config,
+        alignedConfig.config,
       );
       logger.info(
         {
@@ -751,7 +787,7 @@ export async function provisionBrain(
           machineId: existing.id,
           autostop: brainAutostop(input),
         },
-        "brain-fly: updated machine suspension config",
+        "brain-fly: updated machine config",
       );
     }
     if (input.suspendOnIdle === false && !isBrainMachineRunning(existing)) {

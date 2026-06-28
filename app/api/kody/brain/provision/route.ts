@@ -51,6 +51,7 @@ import {
   type PerfTier,
 } from "@dashboard/lib/runners/brain-fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
+import { requestOrigin } from "@dashboard/lib/request-origin";
 
 export const runtime = "nodejs";
 
@@ -142,6 +143,7 @@ export async function POST(req: NextRequest) {
       allSecrets: ctx.context.allSecrets,
       perfTier: brainPerfFrom(req, ctx.context.perfTier),
       suspendOnIdle: brainSuspendOnIdleFrom(req),
+      dashboardUrl: requestOrigin(req),
       appNameOverride: appName,
       ...(image?.imageRef ? { imageRef: image.imageRef } : {}),
     });

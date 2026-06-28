@@ -407,6 +407,21 @@ export const tasksApi = {
     return handleResponse(res);
   },
 
+  closeIssue: async (
+    issueNumber: number,
+    actorLogin?: string,
+  ): Promise<ActionResponse> => {
+    const res = await fetch(`${API_BASE}/tasks/issue-${issueNumber}/actions`, {
+      method: "POST",
+      headers: buildHeaders(),
+      body: JSON.stringify({
+        action: "close-issue",
+        ...(actorLogin && { actorLogin }),
+      }),
+    });
+    return handleResponse(res);
+  },
+
   closePR: async (
     issueNumber: number,
     actorLogin?: string,

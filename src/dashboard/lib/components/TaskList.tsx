@@ -34,6 +34,7 @@ import {
 import { KodyPhaseChip, KodyFlowChip } from "./KodyLabelChips";
 import { CIStatusBadge } from "./CIStatusBadge";
 import { UIVerifyBadge } from "./UIVerifyBadge";
+import { ConfirmDialog } from "./ConfirmDialog";
 import type { KodyTask, ColumnId } from "../types";
 import { Button } from "@dashboard/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
@@ -272,6 +273,26 @@ export function TaskList({
       });
     },
   });
+  const closeIssueMutation = useMutation({
+    mutationFn: (task: KodyTask) =>
+      kodyApi.tasks.closeIssue(task.issueNumber, githubUser?.login),
+    onError: (error) => {
+      toast.error("Failed to close backlog item", {
+        description: error instanceof Error ? error.message : undefined,
+      });
+    },
+    onSuccess: (_data, task) => {
+      toast.success("Backlog item closed");
+      queryClient.setQueriesData<KodyTask[]>(
+        { queryKey: ["kody-tasks"] },
+        (old) => old?.filter((t) => t.issueNumber !== task.issueNumber),
+      );
+      queryClient.invalidateQueries({ queryKey: ["kody-tasks"] });
+      queryClient.invalidateQueries({
+        queryKey: ["kody-task", task.issueNumber],
+      });
+    },
+  });
   const handleHideTask = useCallback(
     (task: KodyTask) => {
       if (onHideTask) onHideTask(task);
@@ -285,6 +306,12 @@ export function TaskList({
       else visibilityMutation.mutate({ task, hidden: false });
     },
     [onShowTask, visibilityMutation],
+  );
+  const handleCloseBacklogIssue = useCallback(
+    (task: KodyTask) => {
+      closeIssueMutation.mutate(task);
+    },
+    [closeIssueMutation],
   );
 
   const handleTaskClick = useCallback(
@@ -341,9 +368,14 @@ export function TaskList({
           onDuplicate={onDuplicate}
           onHideTask={handleHideTask}
           onShowTask={handleShowTask}
+          onCloseIssue={handleCloseBacklogIssue}
           onRerun={onRerun}
           onToggleQueue={onToggleQueue}
           intakeMode={intakeMode}
+          isClosingIssue={
+            closeIssueMutation.isPending &&
+            closeIssueMutation.variables?.issueNumber === task.issueNumber
+          }
           collaborators={collaborators}
           draggable={draggable}
           onDragStartTask={onDragStartTask}
@@ -371,9 +403,11 @@ interface TaskRowProps {
   onDuplicate?: (task: KodyTask) => void;
   onHideTask?: (task: KodyTask) => void;
   onShowTask?: (task: KodyTask) => void;
+  onCloseIssue?: (task: KodyTask) => void;
   onRerun?: (task: KodyTask) => void;
   onToggleQueue?: (task: KodyTask) => void;
   intakeMode?: boolean;
+  isClosingIssue?: boolean;
   collaborators: { login: string; avatar_url: string }[];
   draggable?: boolean;
   onDragStartTask?: (task: KodyTask, event: React.DragEvent) => void;
@@ -397,15 +431,18 @@ const TaskRow = memo(function TaskRow({
   onDuplicate,
   onHideTask,
   onShowTask,
+  onCloseIssue,
   onRerun,
   onToggleQueue: _onToggleQueue,
   intakeMode = false,
+  isClosingIssue = false,
   collaborators,
   draggable,
   onDragStartTask,
   onDragEndTask,
   accent,
 }: TaskRowProps) {
+  const [confirmCloseIssue, setConfirmCloseIssue] = useState(false);
   const isClosed = task.state === "closed";
   const isAssignedBacklogTask = task.labels.includes(KODY_BACKLOG_LABEL);
   // Closed tasks come from the "Show closed" toggle (loaded on-demand). They
@@ -424,6 +461,12 @@ const TaskRow = memo(function TaskRow({
     (task.column === "building" ||
       task.column === "retrying" ||
       task.column === "gate-waiting");
+  const canCloseBacklogItem =
+    intakeMode &&
+    !isClosed &&
+    task.state === "open" &&
+    task.column === "open" &&
+    !!onCloseIssue;
   const colors = isClosed
     ? {
         dot: "bg-slate-500",
@@ -952,7 +995,12 @@ const TaskRow = memo(function TaskRow({
                 <MoreHorizontal className="w-3.5 h-3.5" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuContent
+              align="end"
+              className="w-48"
+              onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+            >
               {/* Assign */}
               {onAssign && collaborators.length > 0 && (
                 <>
@@ -1046,6 +1094,27 @@ const TaskRow = memo(function TaskRow({
                     </DropdownMenuItem>
                   )}
 
+              {canCloseBacklogItem && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    disabled={isClosingIssue}
+                    onSelect={(e) => {
+                      e.stopPropagation();
+                      setConfirmCloseIssue(true);
+                    }}
+                    className="text-red-400 focus:bg-red-500/10 focus:text-red-300"
+                  >
+                    {isClosingIssue ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <XCircle className="w-4 h-4 mr-2" />
+                    )}
+                    {isClosingIssue ? "Closing..." : "Close backlog item"}
+                  </DropdownMenuItem>
+                </>
+              )}
+
               {/* Rerun */}
               {onRerun && (
                 <DropdownMenuItem
@@ -1074,6 +1143,17 @@ const TaskRow = memo(function TaskRow({
         <div className="pb-2 px-4 pl-[52px]">
           <AnimatedStatusBar task={task} />
         </div>
+      )}
+      {confirmCloseIssue && (
+        <ConfirmDialog
+          open={true}
+          title="Close backlog item"
+          description={`Close issue #${task.issueNumber} on GitHub?`}
+          confirmLabel={isClosingIssue ? "Closing..." : "Close item"}
+          variant="destructive"
+          onConfirm={() => onCloseIssue?.(task)}
+          onClose={() => setConfirmCloseIssue(false)}
+        />
       )}
     </div>
   );

@@ -52,7 +52,7 @@ describe("formatTaskContext", () => {
     expect(out).not.toContain("x".repeat(1501));
   });
 
-  it("renders the associated PR with state + url when present", () => {
+  it("renders the associated PR with state + dashboard url when present", () => {
     const out = formatTaskContext({
       issueNumber: 1,
       associatedPR: {
@@ -61,7 +61,7 @@ describe("formatTaskContext", () => {
         html_url: "https://github.com/x/y/pull/9",
       },
     })!;
-    expect(out).toContain("PR: #9 (open) — https://github.com/x/y/pull/9");
+    expect(out).toContain("PR: #9 (open) — /9");
   });
 });
 
@@ -254,6 +254,39 @@ describe("streamBrainChat — SSE translation", () => {
       repo?: string;
     };
     expect(body.repo).toBe("alice/widgets");
+  });
+
+  it("forwards dashboardUrl when provided", async () => {
+    const { calls } = installFetchStub({ events: [{ type: "done" }] });
+    await streamBrainChat({
+      brainUrl: "https://b.example.com",
+      brainKey: "k",
+      chatId: "c1",
+      message: "hi",
+      dashboardUrl: "https://dashboard.example.test",
+    });
+    const body = JSON.parse(calls[0]!.init!.body as string) as {
+      dashboardUrl?: string;
+    };
+    expect(body.dashboardUrl).toBe("https://dashboard.example.test");
+  });
+
+  it("forwards the Dashboard store target when provided", async () => {
+    const { calls } = installFetchStub({ events: [{ type: "done" }] });
+    await streamBrainChat({
+      brainUrl: "https://b.example.com",
+      brainKey: "k",
+      chatId: "c1",
+      message: "hi",
+      storeRepoUrl: "https://github.com/acme/kody-store",
+      storeRef: "stable",
+    });
+    const body = JSON.parse(calls[0]!.init!.body as string) as {
+      storeRepoUrl?: string;
+      storeRef?: string;
+    };
+    expect(body.storeRepoUrl).toBe("https://github.com/acme/kody-store");
+    expect(body.storeRef).toBe("stable");
   });
 
   it("returns 502 JSON when fetch throws", async () => {

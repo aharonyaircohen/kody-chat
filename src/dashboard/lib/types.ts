@@ -352,6 +352,7 @@ export type GitHubAction =
   | "assign"
   | "unassign"
   | "close"
+  | "close-issue"
   | "reopen"
   | "add-label"
   | "remove-label"

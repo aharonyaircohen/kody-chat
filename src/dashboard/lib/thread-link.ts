@@ -31,6 +31,11 @@ import "server-only";
 //   https://github.com/owner/repo/pull/123#pullrequestreview-789
 const TASK_PATH_RE = /\/(?:issues|pull)\/(\d+)(?:[#?/].*)?$/;
 
+/** Root-relative dashboard task page for an issue or PR number. */
+export function dashboardTaskUrl(threadNumber: number): string {
+  return `/${threadNumber}`;
+}
+
 /**
  * Return the dashboard URL for an Issue/PR thread, or the original GitHub
  * URL for thread types with no in-app view (Discussion, Commit) or when
@@ -48,7 +53,7 @@ export function dashboardThreadUrl(opts: {
   const m = githubUrl.match(TASK_PATH_RE);
   if (!m) return githubUrl;
 
-  return `/${m[1]}`;
+  return dashboardTaskUrl(Number(m[1]));
 }
 
 /**

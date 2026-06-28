@@ -19,6 +19,7 @@ import type { Octokit } from "@octokit/rest";
 import { logger } from "@dashboard/lib/logger";
 import { PRIORITY_LEVELS, type PriorityLevel } from "@dashboard/lib/constants";
 import { createIssueWithBestEffortMetadata } from "@dashboard/lib/github-issue-create";
+import { dashboardTaskUrl } from "@dashboard/lib/thread-link";
 import {
   CATEGORY_LABEL,
   CATEGORY_VALUES,
@@ -107,7 +108,7 @@ export function createPlannerTools(ctx: Ctx) {
           return {
             number: data.number,
             title: data.title,
-            url: data.html_url,
+            url: dashboardTaskUrl(data.number),
             labels,
             assignees: data.assignees
               ?.map((a) => a?.login)
@@ -117,7 +118,7 @@ export function createPlannerTools(ctx: Ctx) {
             categoryLabel: CATEGORY_LABEL[category],
             goalId,
             note: appendWarnings(
-          `${CATEGORY_LABEL[category]} task filed and attached to mission "${goalId}". ` +
+              `${CATEGORY_LABEL[category]} task filed and attached to mission "${goalId}". ` +
                 "Kody pipeline NOT auto-triggered — comment `@kody` on the issue to run it.",
               metadataWarnings,
             ),

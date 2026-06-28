@@ -13,6 +13,7 @@ import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
 
 import { logger } from "@dashboard/lib/logger";
+import { dashboardTaskUrl } from "@dashboard/lib/thread-link";
 
 interface Ctx {
   octokit: Octokit;
@@ -132,7 +133,7 @@ export function createReleaseTools(ctx: Ctx) {
             return {
               number: issue.number,
               title: issue.title,
-              url: issue.html_url,
+              url: dashboardTaskUrl(issue.number),
               command,
               triggered: false,
               note:
@@ -148,7 +149,7 @@ export function createReleaseTools(ctx: Ctx) {
           return {
             number: issue.number,
             title: issue.title,
-            url: issue.html_url,
+            url: dashboardTaskUrl(issue.number),
             command,
             triggered: true,
             note: `Release triggered via \`${command}\` on issue #${issue.number}.`,

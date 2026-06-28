@@ -35,6 +35,7 @@ import {
   invalidatePRCache,
 } from "@dashboard/lib/github-client";
 import { isValidSlug, readResolvedCapabilityFile } from "@dashboard/lib/capabilities";
+import { dashboardTaskUrl } from "@dashboard/lib/thread-link";
 
 interface Ctx {
   octokit: Octokit;
@@ -129,7 +130,7 @@ async function dispatchOnPr(
 
     return {
       number: prNumber,
-      url: existing.data.html_url,
+      url: dashboardTaskUrl(prNumber),
       command: `@kody ${capabilityAction.action}`,
       triggered: true,
       note: `Posted \`@kody ${capabilityAction.action}\` on PR #${prNumber}. Engine should pick it up shortly.`,
@@ -190,7 +191,7 @@ async function dispatchOnIssue(
 
     return {
       number: issueNumber,
-      url: existing.data.html_url,
+      url: dashboardTaskUrl(issueNumber),
       command: header,
       triggered: true,
       note: `Posted \`${header}\` on issue #${issueNumber}. The engine will pick it up shortly and start executing — clone, edit, commit, open PR.`,

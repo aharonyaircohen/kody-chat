@@ -29,6 +29,7 @@ import {
   withDashboardContext,
 } from "@dashboard/lib/chat/page-context";
 import { loadContextForPrompt } from "@dashboard/lib/context/files";
+import { requestOrigin } from "@dashboard/lib/request-origin";
 
 export const runtime = "nodejs";
 // Hold the proxy open up to Vercel's ceiling; the proxy itself closes ~30s
@@ -107,6 +108,7 @@ export async function POST(req: NextRequest) {
   // Forward the user's token too — a dev Brain server has no GitHub creds of
   // its own, so without this the worktree clone of a private repo fails.
   const repoToken = headerAuth?.token;
+  const dashboardUrl = requestOrigin(req);
 
   // First turn only: pull the dashboard's curated Context for the chat
   // audience. Cached 60s in-process; `null` when the repo has none.
@@ -130,6 +132,9 @@ export async function POST(req: NextRequest) {
     capabilityContext: body.capabilityContext,
     repo,
     repoToken,
+    dashboardUrl,
+    storeRepoUrl: headerAuth?.storeRepoUrl,
+    storeRef: headerAuth?.storeRef,
     voiceMode: body.voiceMode === true,
     ...(body.reasoningEffort ? { reasoningEffort: body.reasoningEffort } : {}),
     ...(isResume

@@ -54,6 +54,7 @@ const actionSchema = z.object({
     "execute",
     "abort",
     "close",
+    "close-issue",
     "close-pr",
     "reset",
     "reopen",
@@ -379,6 +380,64 @@ export async function POST(
         return NextResponse.json({
           success: true,
           message: "Issue closed (PR closed, branch deleted)",
+        });
+      }
+
+      case "close-issue": {
+        const octokit = userOctokit ?? getOctokit();
+        const { data: existing } = await octokit.issues.get({
+          owner: getOwner(),
+          repo: getRepo(),
+          issue_number: issueNumber,
+        });
+
+        if (existing.pull_request) {
+          return NextResponse.json(
+            { error: "Backlog item is a pull request, not an issue" },
+            { status: 400 },
+          );
+        }
+
+        if (existing.state === "closed") {
+          invalidateTaskCache();
+          invalidateBoardCache();
+          return NextResponse.json({
+            success: true,
+            message: "Issue already closed",
+          });
+        }
+
+        const { data: updated } = await octokit.issues.update({
+          owner: getOwner(),
+          repo: getRepo(),
+          issue_number: issueNumber,
+          state: "closed",
+        });
+
+        if (updated.state !== "closed") {
+          return NextResponse.json(
+            {
+              error: "github_close_not_confirmed",
+              message: "GitHub did not report the issue as closed.",
+            },
+            { status: 502 },
+          );
+        }
+
+        if (actor) {
+          const closeMsg = userOctokit
+            ? "🔒 Issue closed from backlog"
+            : `🔒 Issue closed from backlog _(by @${actor})_`;
+          await postComment(issueNumber, closeMsg, userOctokit ?? undefined);
+        }
+
+        invalidateTaskCache();
+        invalidateBoardCache();
+
+        return NextResponse.json({
+          success: true,
+          message: "Issue closed",
+          state: updated.state,
         });
       }
 

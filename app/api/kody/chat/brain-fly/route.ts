@@ -25,7 +25,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { getRequestAuth, requireKodyAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth } from "@dashboard/lib/auth";
 import {
   readBrainApp,
   readBrainImage,
@@ -47,6 +47,7 @@ import {
   waitForBrainHealth,
 } from "@dashboard/lib/runners/brain-fly";
 import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
+import { requestOrigin } from "@dashboard/lib/request-origin";
 import {
   withPageContext,
   withDashboardContext,
@@ -126,6 +127,7 @@ export async function POST(req: NextRequest) {
   );
 
   try {
+    const dashboardUrl = requestOrigin(req);
     // Provision (or reuse) the user's brain machine. Idempotent: returns
     // the existing apiKey when a live machine exists, otherwise creates one
     // and returns a fresh key. The Fly token is whatever `fly-context.ts`
@@ -154,6 +156,7 @@ export async function POST(req: NextRequest) {
         allSecrets: ctx.context.allSecrets,
         perfTier: ctx.context.perfTier,
         suspendOnIdle: brainSuspendOnIdleFrom(req),
+        dashboardUrl,
         ...(appNameOverride ? { appNameOverride } : {}),
         ...(image?.imageRef ? { imageRef: image.imageRef } : {}),
       });
@@ -206,11 +209,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const headerAuth = getRequestAuth(req);
-    const repo = headerAuth
-      ? `${headerAuth.owner}/${headerAuth.repo}`
-      : undefined;
-    const repoToken = headerAuth?.token;
+    const repo = `${ctx.context.owner}/${ctx.context.repo}`;
+    const repoToken = ctx.context.githubToken;
 
     // First turn only: pull the dashboard's curated Context for the chat
     // audience. Cached 60s in-process; `null` when the repo has none.
@@ -249,6 +249,9 @@ export async function POST(req: NextRequest) {
       capabilityContext: body.capabilityContext,
       repo,
       repoToken,
+      dashboardUrl,
+      storeRepoUrl: ctx.context.storeRepoUrl,
+      storeRef: ctx.context.storeRef,
       voiceMode: body.voiceMode === true,
       ...(body.reasoningEffort
         ? { reasoningEffort: body.reasoningEffort }

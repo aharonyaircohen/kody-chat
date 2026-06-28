@@ -22,6 +22,7 @@
 
 import { logger } from "@dashboard/lib/logger";
 import { fetchIssueAttachments } from "@dashboard/lib/issue-attachments";
+import { dashboardTaskUrl } from "@dashboard/lib/thread-link";
 
 export interface BrainTaskContext {
   issueNumber?: number;
@@ -65,6 +66,12 @@ export interface BrainChatRequest {
    * the clone fails. Trust level matches the user-configured Brain URL/key.
    */
   repoToken?: string;
+  /** Dashboard origin Brain should use for Dashboard-backed CMS tools. */
+  dashboardUrl?: string;
+  /** Dashboard store repo URL used to load CMS adapter code. */
+  storeRepoUrl?: string;
+  /** Dashboard store ref used to load CMS adapter code. */
+  storeRef?: string;
   /**
    * Voice modality. When true the upstream Brain server should append the
    * shared voice overlay (see `@dashboard/lib/voice/overlay`) to its system
@@ -161,10 +168,9 @@ export function formatTaskContext(
     parts.push(`- Pipeline: ${tc.pipeline.state}${stage}`);
   }
   if (tc.associatedPR?.number) {
+    const state = tc.associatedPR.state ? ` (${tc.associatedPR.state})` : "";
     parts.push(
-      `- PR: #${tc.associatedPR.number}${tc.associatedPR.state ? ` (${tc.associatedPR.state})` : ""}${
-        tc.associatedPR.html_url ? ` — ${tc.associatedPR.html_url}` : ""
-      }`,
+      `- PR: #${tc.associatedPR.number}${state} — ${dashboardTaskUrl(tc.associatedPR.number)}`,
     );
   }
   if (tc.body) {
@@ -309,6 +315,9 @@ export async function streamBrainChat(
               ...(attachments.length > 0 ? { attachments } : {}),
               ...(input.repo ? { repo: input.repo } : {}),
               ...(input.repoToken ? { repoToken: input.repoToken } : {}),
+              ...(input.dashboardUrl ? { dashboardUrl: input.dashboardUrl } : {}),
+              ...(input.storeRepoUrl ? { storeRepoUrl: input.storeRepoUrl } : {}),
+              ...(input.storeRef ? { storeRef: input.storeRef } : {}),
               ...(input.voiceMode === true ? { voiceMode: true } : {}),
               ...(input.reasoningEffort
                 ? { reasoningEffort: input.reasoningEffort }

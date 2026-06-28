@@ -14,6 +14,7 @@ import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
 import { logger } from "@dashboard/lib/logger";
 import { createIssueWithBestEffortMetadata } from "@dashboard/lib/github-issue-create";
+import { dashboardTaskUrl } from "@dashboard/lib/thread-link";
 import {
   PRIORITY_LEVELS,
   PRIORITY_META,
@@ -245,7 +246,7 @@ async function executeCreate(
     return {
       number: data.number,
       title: data.title,
-      url: data.html_url,
+      url: dashboardTaskUrl(data.number),
       labels,
       assignees: data.assignees
         ?.map((a) => a?.login)

@@ -27,9 +27,9 @@
     --popover: 0 0% 100%;
     --popover-foreground: 24 14% 13%;
 
-    /* Primary: brand burgundy, balanced for AA contrast on white */
-    --primary: 353 66% 41%; /* #ad303b */
-    --primary-soft: 353 64% 96%; /* #fbe9eb - light wash for hover states */
+    /* Primary: balanced muted plum, readable without feeling heavy */
+    --primary: 276 26% 40%; /* #6b4b81 */
+    --primary-soft: 276 24% 95%; /* #f3eff5 - light wash for hover states */
     --primary-foreground: 0 0% 100%;
 
     /* Secondary: warm neutral surface */
@@ -40,9 +40,9 @@
     --muted: 30 16% 94%; /* #f0ece7 */
     --muted-foreground: 25 9% 34%; /* #5f5750 */
 
-    /* Accent: subtle brand-tinted wash for selected/active (was stray indigo) */
-    --accent: 353 44% 95%; /* #f7e9eb */
-    --accent-foreground: 353 54% 33%; /* #8a2f37 */
+    /* Accent: soft plum wash for selected/active states */
+    --accent: 276 24% 94%; /* #f0ecf3 */
+    --accent-foreground: 276 24% 33%; /* #584068 */
 
     --destructive: 0 72% 48%;
     --destructive-foreground: 0 0% 100%;
@@ -52,7 +52,7 @@
     --input: 30 18% 98%; /* #fbf9f6 */
 
     /* Focus ring follows primary */
-    --ring: 353 66% 41%;
+    --ring: 276 26% 40%;
 
     /* Elevation - warm-tinted layered shadows for real depth */
     --shadow-card: 0 1px 2px 0 rgb(40 33 28 / 0.05), 0 1px 3px 0 rgb(40 33 28 / 0.07);
@@ -119,9 +119,9 @@
     --popover: 222 47% 11%;
     --popover-foreground: 210 40% 98%;
 
-    /* Primary: vibrant coral-red (brand-aligned with light mode burgundy) */
-    --primary: 353 73% 56%;
-    --primary-soft: 353 73% 15%;
+    /* Primary: muted violet for dark mode brand emphasis */
+    --primary: 270 44% 34%;
+    --primary-soft: 270 36% 15%;
     --primary-foreground: 0 0% 100%;
 
     /* Secondary: muted blue-gray (different from muted) */
@@ -132,9 +132,9 @@
     --muted: 215 20% 14%;
     --muted-foreground: 215 15% 60%;
 
-    /* Accent: brand-tinted surface for selected/active (matches light mode) */
-    --accent: 353 42% 24%;
-    --accent-foreground: 353 78% 85%;
+    /* Accent: quieter violet surface for selected/active states */
+    --accent: 270 28% 22%;
+    --accent-foreground: 270 58% 84%;
 
     --destructive: 0 70% 35%;
     --destructive-foreground: 0 0% 95%;
@@ -144,7 +144,7 @@
     --input: 222 20% 14%;
 
     /* Focus ring follows primary */
-    --ring: 353 73% 56%;
+    --ring: 270 44% 48%;
 
     /* Shadow system - darker shadows for dark mode */
     --shadow-card: 0 4px 16px 0 rgb(0 0 0 / 0.3);

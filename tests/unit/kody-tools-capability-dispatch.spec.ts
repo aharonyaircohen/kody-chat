@@ -97,6 +97,7 @@ describe("kody dispatch tools use capabilities", () => {
     expect(result).toMatchObject({
       command: "@kody feature",
       triggered: true,
+      url: "/123",
     });
     expect(readResolvedCapabilityFile).toHaveBeenCalledWith("feature", ctx.octokit);
     expect(createComment).toHaveBeenCalledWith({

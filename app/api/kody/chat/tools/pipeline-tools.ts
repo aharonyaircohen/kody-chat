@@ -17,6 +17,7 @@ import {
   fetchOpenPRs,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
+import { dashboardTaskUrl } from "@dashboard/lib/thread-link";
 
 interface Ctx {
   owner: string;
@@ -108,7 +109,7 @@ export function createPipelineTools(ctx: Ctx) {
               labels: pr.labels ?? [],
               ciStatus: pr.ciStatus ?? null,
               mergeable: pr.mergeable ?? null,
-              url: pr.html_url,
+              url: dashboardTaskUrl(pr.number),
             })),
           };
         } catch (err) {
