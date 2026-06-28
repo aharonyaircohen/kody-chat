@@ -148,10 +148,51 @@ const test = base.extend<ExtensionFixture>({
   <iframe id="preview" src="/preview" style="width:800px;height:600px"></iframe>
 </body>
 </html>`;
+    const cspParent = `<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>csp parent</title></head>
+<body>
+  <h1>Dashboard shell</h1>
+  <iframe id="preview" src="/csp-preview" style="width:800px;height:600px"></iframe>
+</body>
+</html>`;
+    const cspPreview = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>strict csp preview</title>
+  <script src="/csp-fixture.js"></script>
+</head>
+<body>
+  <h1>strict csp preview</h1>
+</body>
+</html>`;
+    const cspFixture = `
+setTimeout(() => {
+  console.warn("strict-csp-warning");
+  fetch("/missing").catch(() => {});
+}, 250);
+`;
     const server = http.createServer((req, res) => {
       res.setHeader("Content-Type", "text/html; charset=utf-8");
       if (req.url === "/preview") return res.end(preview);
       if (req.url === "/register") return res.end(register);
+      if (req.url === "/csp-parent") return res.end(cspParent);
+      if (req.url === "/csp-preview") {
+        res.setHeader(
+          "Content-Security-Policy",
+          "default-src 'self'; script-src 'self'; connect-src 'self'",
+        );
+        return res.end(cspPreview);
+      }
+      if (req.url === "/csp-fixture.js") {
+        res.setHeader("Content-Type", "text/javascript; charset=utf-8");
+        return res.end(cspFixture);
+      }
+      if (req.url === "/missing") {
+        res.statusCode = 404;
+        return res.end("missing");
+      }
       return res.end(parent);
     });
     await new Promise<void>((resolve) =>
@@ -216,6 +257,39 @@ async function sendAct(
         }, timeoutMs);
       }),
     { payload, timeoutMs },
+  );
+}
+
+async function sendPickerRequest<T>(
+  page: import("@playwright/test").Page,
+  type: string,
+  responseType: string,
+  timeoutMs: number = 8000,
+): Promise<T> {
+  return page.evaluate(
+    ({ type, responseType, timeoutMs }) =>
+      new Promise<T>((resolve, reject) => {
+        const timer = window.setTimeout(() => {
+          window.removeEventListener("message", handler);
+          reject(new Error(`no ${responseType} in ${timeoutMs}ms`));
+        }, timeoutMs);
+        function handler(event: MessageEvent) {
+          const d = event.data as
+            | { source?: string; type?: string }
+            | undefined;
+          if (!d || d.source !== "kody-picker:ext") return;
+          if (d.type !== responseType) return;
+          window.clearTimeout(timer);
+          window.removeEventListener("message", handler);
+          resolve(d as T);
+        }
+        window.addEventListener("message", handler);
+        window.postMessage(
+          { source: "kody-picker:page", type },
+          window.location.origin,
+        );
+      }),
+    { type, responseType, timeoutMs },
   );
 }
 
@@ -402,5 +476,47 @@ test.describe("Kody Preview Inspector — preview_act in a real browser", () => 
         return fr?.contentDocument?.querySelector("h1")?.textContent;
       }),
     ).toBe("register");
+  });
+
+  test("collects console logs from a strict-CSP iframe without inline script injection", async ({
+    context,
+    fixtureUrl,
+  }) => {
+    const page = await context.newPage();
+    const consoleText: string[] = [];
+    page.on("console", (msg) => consoleText.push(msg.text()));
+
+    await page.goto(`${fixtureUrl}csp-parent`);
+    await page.waitForFunction(
+      () => document.documentElement.dataset.kodyPicker !== undefined,
+      null,
+      { timeout: 10_000 },
+    );
+    await page.waitForFunction(
+      () => {
+        const fr = document.querySelector("iframe") as HTMLIFrameElement | null;
+        return Boolean(fr?.contentDocument?.body);
+      },
+      null,
+      { timeout: 10_000 },
+    );
+
+    await expect
+      .poll(
+        async () => {
+          const result = await sendPickerRequest<{
+            entries?: Array<{ message?: string }>;
+          }>(page, "collect-logs", "logs");
+          return (result.entries ?? [])
+            .map((entry) => entry.message)
+            .join("\n");
+        },
+        { timeout: 6000 },
+      )
+      .toContain("strict-csp-warning");
+
+    expect(consoleText.join("\n")).not.toMatch(
+      /Refused to execute inline script/,
+    );
   });
 });

@@ -22,7 +22,7 @@
   const PAGE_SOURCE = "kody-picker:page";
   const EXT_SOURCE = "kody-picker:ext";
   const COLLECTOR_SOURCE = "kody-picker:collector";
-  const VERSION = "0.4.1";
+  const VERSION = "0.4.2";
   const BUFFER_CAP = 50;
 
   if (window.top === window.self) {
@@ -37,10 +37,18 @@
   function initBridge() {
     // Synchronous presence marker — lets the page detect us without waiting
     // for the ping/pong round-trip.
-    try {
-      document.documentElement.dataset.kodyPicker = VERSION;
-    } catch {
-      /* dataset may be unavailable pre-DOM; ping/pong still covers detection */
+    const markPresence = () => {
+      try {
+        document.documentElement.dataset.kodyPicker = VERSION;
+      } catch {
+        /* dataset may be unavailable pre-DOM; ping/pong still covers detection */
+      }
+    };
+    markPresence();
+    if (!document.documentElement) {
+      document.addEventListener("DOMContentLoaded", markPresence, {
+        once: true,
+      });
     }
 
     const postToPage = (payload) => {
@@ -157,7 +165,7 @@
     // Coalesce count pushes so a chatty app doesn't flood the bridge.
     // NOTE: declared before first use — `pushCounts` reads `countsTimer`, so
     // calling it before this `let` runs would throw (TDZ) and abort init,
-    // silently breaking arm/disarm. Keep this above injectCollector().
+    // silently breaking arm/disarm. Keep this before the first pushCounts call.
     let countsTimer = null;
     function pushCounts() {
       if (countsTimer) return;
@@ -173,7 +181,9 @@
       }, 400);
     }
 
-    injectCollector();
+    // Main-world log/network capture is loaded by src/collector.js through
+    // the manifest. Keeping it outside inline script injection avoids CSP
+    // console errors on strict preview pages such as admin login screens.
     // Reset the dashboard badges for this (re)loaded frame.
     pushCounts();
 
@@ -1240,172 +1250,6 @@
         return window.CSS.escape(value);
       }
       return value.replace(/([^a-zA-Z0-9_-])/g, "\\$1");
-    }
-
-    // -- main-world collector --------------------------------------------------
-    // Content scripts run in an isolated world, so they can't see the page's
-    // own console.* calls or wrap fetch. We inject a tiny script into the page
-    // main world that wraps those and posts captured entries back to us.
-    function injectCollector() {
-      try {
-        const code = `(${collectorSource})("${COLLECTOR_SOURCE}", ${BUFFER_CAP});`;
-        const s = document.createElement("script");
-        s.textContent = code;
-        (document.head || document.documentElement).appendChild(s);
-        s.remove();
-      } catch {
-        /* CSP may block inline injection — errors are then simply uncaptured */
-      }
-    }
-  }
-
-  // Stringified and injected into the page main world. Must be self-contained
-  // (no closure refs). Posts { source, kind: "log"|"net"|"page-url", entry } to window.
-  function collectorSource(source, cap) {
-    var post = function (kind, entry) {
-      try {
-        window.postMessage({ source: source, kind: kind, entry: entry }, "*");
-      } catch (e) {
-        /* ignore */
-      }
-    };
-    var isDirectPreviewFrame = function () {
-      try {
-        return window.parent === window.top;
-      } catch (e) {
-        return true;
-      }
-    };
-    var postUrlTimer = null;
-    var postUrl = function () {
-      if (!isDirectPreviewFrame()) return;
-      if (postUrlTimer) clearTimeout(postUrlTimer);
-      postUrlTimer = setTimeout(function () {
-        postUrlTimer = null;
-        post("page-url", {
-          url: window.location.href,
-          title: document.title || "",
-          ts: Date.now(),
-        });
-      }, 80);
-    };
-    if (isDirectPreviewFrame()) {
-      ["pushState", "replaceState"].forEach(function (name) {
-        try {
-          var orig = history[name];
-          if (typeof orig !== "function") return;
-          history[name] = function () {
-            var ret = orig.apply(this, arguments);
-            postUrl();
-            return ret;
-          };
-        } catch (e) {
-          /* ignore */
-        }
-      });
-      window.addEventListener("popstate", postUrl);
-      window.addEventListener("hashchange", postUrl);
-      window.addEventListener("pageshow", postUrl);
-      if (document.readyState === "complete") {
-        postUrl();
-      } else {
-        window.addEventListener("load", postUrl, { once: true });
-      }
-    }
-    ["error", "warn"].forEach(function (level) {
-      var orig = console[level];
-      console[level] = function () {
-        try {
-          post("log", {
-            level: level,
-            message: Array.prototype.map
-              .call(arguments, function (a) {
-                return a instanceof Error ? a.message : String(a);
-              })
-              .join(" ")
-              .slice(0, 1000),
-            ts: Date.now(),
-          });
-        } catch (e) {
-          /* ignore */
-        }
-        return orig.apply(this, arguments);
-      };
-    });
-    window.addEventListener("error", function (e) {
-      post("log", {
-        level: "error",
-        message:
-          (e.message || "Error") +
-          (e.filename
-            ? " (" + e.filename + ":" + e.lineno + ":" + e.colno + ")"
-            : ""),
-        ts: Date.now(),
-      });
-    });
-    window.addEventListener("unhandledrejection", function (e) {
-      var r = e.reason;
-      post("log", {
-        level: "error",
-        message:
-          "Unhandled rejection: " + (r && r.message ? r.message : String(r)),
-        ts: Date.now(),
-      });
-    });
-    var origFetch = window.fetch;
-    if (origFetch) {
-      window.fetch = function () {
-        var args = arguments;
-        var first = args[0];
-        var url = first && first.url ? first.url : String(first);
-        var method =
-          (args[1] && args[1].method) || (first && first.method) || "GET";
-        return origFetch.apply(this, args).then(
-          function (res) {
-            if (!res.ok)
-              post("net", {
-                url: url,
-                method: method,
-                status: res.status,
-                ts: Date.now(),
-              });
-            return res;
-          },
-          function (err) {
-            post("net", {
-              url: url,
-              method: method,
-              status: 0,
-              error: String(err),
-              ts: Date.now(),
-            });
-            throw err;
-          },
-        );
-      };
-    }
-    var OX = window.XMLHttpRequest;
-    if (OX) {
-      var open = OX.prototype.open;
-      var send = OX.prototype.send;
-      OX.prototype.open = function (m, u) {
-        this.__kody = { method: m, url: u };
-        return open.apply(this, arguments);
-      };
-      OX.prototype.send = function () {
-        var self = this;
-        this.addEventListener("loadend", function () {
-          if (self.__kody && (self.status === 0 || self.status >= 400)) {
-            post("net", {
-              url: self.__kody.url,
-              method: self.__kody.method,
-              status: self.status,
-              ts: Date.now(),
-            });
-          }
-        });
-        return send.apply(this, arguments);
-      };
     }
   }
 })();
