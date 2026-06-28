@@ -8,7 +8,7 @@
 
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import {
   AlertTriangle,
   Bold,
@@ -40,12 +40,24 @@ type EditorMode = "write" | "preview" | "split";
 interface MarkdownEditorProps {
   id?: string;
   value: string;
-  onChange: (next: string) => void;
+  onChange: (
+    next: string,
+    event?: React.ChangeEvent<HTMLTextAreaElement>,
+  ) => void;
   placeholder?: string;
   rows?: number;
   autoFocus?: boolean;
   disabled?: boolean;
   className?: string;
+  textareaRef?:
+    | React.MutableRefObject<HTMLTextAreaElement | null>
+    | React.RefCallback<HTMLTextAreaElement>;
+  textareaClassName?: string;
+  onKeyDown?: React.KeyboardEventHandler<HTMLTextAreaElement>;
+  onPaste?: React.ClipboardEventHandler<HTMLTextAreaElement>;
+  onSelect?: React.ReactEventHandler<HTMLTextAreaElement>;
+  onClick?: React.MouseEventHandler<HTMLTextAreaElement>;
+  onBlur?: React.FocusEventHandler<HTMLTextAreaElement>;
   /** Optional override for preview empty-state message */
   emptyPreview?: string;
 }
@@ -59,11 +71,30 @@ export function MarkdownEditor({
   autoFocus,
   disabled,
   className,
+  textareaRef: externalTextareaRef,
+  textareaClassName,
+  onKeyDown,
+  onPaste,
+  onSelect,
+  onClick,
+  onBlur,
   emptyPreview = "*Nothing to preview*",
 }: MarkdownEditorProps) {
   const [mode, setMode] = useState<EditorMode>("write");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const setTextareaNode = useCallback(
+    (node: HTMLTextAreaElement | null) => {
+      textareaRef.current = node;
+      if (!externalTextareaRef) return;
+      if (typeof externalTextareaRef === "function") {
+        externalTextareaRef(node);
+        return;
+      }
+      externalTextareaRef.current = node;
+    },
+    [externalTextareaRef],
+  );
 
   const updateValue = (
     next: string,
@@ -161,15 +192,23 @@ export function MarkdownEditor({
   const editor = (
     <Textarea
       id={id}
-      ref={textareaRef}
+      ref={setTextareaNode}
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(e) => onChange(e.target.value, e)}
+      onKeyDown={onKeyDown}
+      onPaste={onPaste}
+      onSelect={onSelect}
+      onClick={onClick}
+      onBlur={onBlur}
       placeholder={placeholder}
       rows={rows}
       autoFocus={autoFocus}
       disabled={disabled}
       dir="auto"
-      className="font-mono text-sm resize-y max-h-[50vh] text-start"
+      className={cn(
+        "font-mono text-sm resize-y max-h-[50vh] text-start",
+        textareaClassName,
+      )}
     />
   );
 

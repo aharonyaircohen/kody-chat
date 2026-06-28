@@ -3,7 +3,7 @@
  * `KodyChat.tsx`. The composer is two distinct rows separated by a
  * hairline (issue #65):
  *
- *   Row A — input row:    [ Textarea (flex-1) ][ trailing send/stop icon button ]
+ *   Row A — input row:    [ Textarea or expanded MarkdownEditor ][ trailing send/stop icon button ]
  *   separator —           <div className="border-t …" />
  *   Row B — action row:   [ Paperclip ][ VoiceButton ][ spacer (flex-1) ]
  *
@@ -198,6 +198,7 @@ describe("KodyChat composer — two-row layout (issue #65, #131)", () => {
     );
 
     expect(inputText).toContain("<textarea");
+    expect(inputText).toContain("<MarkdownEditor");
     // The trailing send/stop icon button lives in the input row.
     expect(
       inputText,
@@ -212,6 +213,22 @@ describe("KodyChat composer — two-row layout (issue #65, #131)", () => {
       inputText,
       "input row must NOT contain <VoiceButton (it lives in the action row)",
     ).not.toMatch(/<VoiceButton\b/);
+  });
+
+  it("uses the shared Markdown editor only for expanded AI chat", () => {
+    const composerText = COMPOSER_LINES.join("\n");
+    expect(SOURCE).toContain(
+      'import { MarkdownEditor } from "./MarkdownEditor";',
+    );
+    expect(SOURCE).toContain(
+      'const richComposerEnabled = chatMode === "ai" && Boolean(railFullscreen);',
+    );
+    expect(composerText).toMatch(
+      /richComposerEnabled\s*\?\s*\([\s\S]*<MarkdownEditor[\s\S]*:\s*\([\s\S]*<textarea/,
+    );
+    expect(composerText).toContain("textareaRef={composerTextareaRef}");
+    expect(composerText).toContain("onKeyDown={handleKeyDown}");
+    expect(composerText).toContain("onPaste={handlePaste}");
   });
 
   it("the action row (2nd flex row) contains Paperclip + VoiceButton, not the textarea and not Send", () => {
@@ -295,15 +312,12 @@ describe("KodyChat composer — two-row layout (issue #65, #131)", () => {
     ).toMatch(/<div[^>]*\bclassName="[^"]*\bflex-1\b[^"]*"/);
   });
 
-  it("preserves the autosize textarea behavior (inline onChange sets e.target.style.height)", () => {
+  it("preserves the autosize textarea behavior for the plain composer", () => {
     // Regression guard: the textarea must still grow vertically with
     // content. Issue #65 explicitly forbids changing autosize behavior.
-    expect(COMPOSER_LINES.join("\n")).toContain(
-      'e.target.style.height = "auto"',
-    );
-    expect(COMPOSER_LINES.join("\n")).toContain(
-      "Math.min(e.target.scrollHeight, 150)",
-    );
+    expect(SOURCE).toContain('textarea.style.height = "auto"');
+    expect(SOURCE).toContain("Math.min(textarea.scrollHeight, 150)");
+    expect(COMPOSER_LINES.join("\n")).toContain("e.target,");
   });
 
   it("only leaves plain Enter in AI chat to the textarea on mobile", () => {

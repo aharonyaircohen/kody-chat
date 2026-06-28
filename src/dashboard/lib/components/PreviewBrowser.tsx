@@ -22,6 +22,7 @@ import {
   Bookmark,
   Check,
   ChevronDown,
+  ExternalLink,
   Loader2,
   Monitor,
   RefreshCw,
@@ -677,6 +678,18 @@ export function PreviewBrowser({
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
+            {activePreviewUrl && (
+              <a
+                href={bypassedUrl ?? activePreviewUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="Open preview in a new tab"
+                aria-label="Open preview in a new tab"
+                className="inline-flex shrink-0 items-center justify-center rounded p-1.5 text-zinc-400 transition-colors hover:bg-zinc-700/60 hover:text-white"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            )}
             {previewControls && (
               <div className="flex shrink-0 items-center gap-2 border-l border-zinc-700/80 pl-1.5">
                 {previewControls}

@@ -12,6 +12,7 @@ import {
   type LiveSessionState,
 } from "./kody-chat-reducer";
 import { MarkdownPreview } from "./MarkdownPreview";
+import { MarkdownEditor } from "./MarkdownEditor";
 import {
   Brain,
   Globe,
@@ -146,6 +147,7 @@ import { SessionSidebar } from "./SessionSidebar";
 import { ToolCallList, ThinkingPanel, ReasoningPanel } from "./ToolCallCard";
 import { parseReasoning, stripReasoning } from "../chat/reasoning";
 import { parseAssistantContent } from "../chat/tool-call-strip";
+import { softFormatUserMessageForDisplay } from "../chat/user-message-format";
 import {
   extractFirstStaffMentionCandidate,
   extractStaffMentions,
@@ -4834,6 +4836,32 @@ export function KodyChat({
     [chatMode],
   );
 
+  const handleComposerInputChange = useCallback(
+    (
+      next: string,
+      caretIndex: number | null | undefined,
+      textarea?: HTMLTextAreaElement | null,
+    ) => {
+      setInput(next);
+      refreshAgentMentionTrigger(next, caretIndex);
+      // Slash menu opens on `/` at line start, stays open while
+      // the user types the slug, closes when they add a space
+      // or clear the slash.
+      if (chatMode === "ai") {
+        const trigger = parseSlashTrigger(next);
+        setSlashMenuOpen(trigger.active && slashCommands.length > 0);
+        if (trigger.active) setSlashSelectedIndex(0);
+      } else {
+        setSlashMenuOpen(false);
+      }
+      if (textarea) {
+        textarea.style.height = "auto";
+        textarea.style.height = `${Math.min(textarea.scrollHeight, 150)}px`;
+      }
+    },
+    [chatMode, refreshAgentMentionTrigger, slashCommands.length],
+  );
+
   const applyAgentMentionSelection = useCallback(
     (slug: string) => {
       if (!agentMentionTrigger) return;
@@ -5083,6 +5111,10 @@ export function KodyChat({
   const hasComposerContent =
     input.trim().length > 0 ||
     (chatMode === "ai" && (attachments.length > 0 || contextChips.length > 0));
+  const richComposerEnabled = chatMode === "ai" && Boolean(railFullscreen);
+  const composerDisabled =
+    chatMode === "ai" &&
+    (activeLoading || (isKodyLive && interactiveState !== "ready"));
   type ComposerAction = "send" | "start" | "stop" | "cancel";
   const composerAction: ComposerAction = !isKodyLive
     ? "send"
@@ -5947,12 +5979,14 @@ export function KodyChat({
                           <MessageAttachments attachments={msg.attachments} />
                         )}
                         {msg.content && (
-                          <div
+                          <MarkdownPreview
+                            content={softFormatUserMessageForDisplay(
+                              msg.content,
+                            )}
                             dir={messageDirection}
-                            className="chat-message-text"
-                          >
-                            {msg.content}
-                          </div>
+                            variant="compact"
+                            className="chat-message-text prose-base break-words prose-invert prose-headings:my-1 prose-headings:text-primary-foreground prose-p:my-0 prose-p:whitespace-pre-wrap prose-p:leading-relaxed prose-p:text-primary-foreground prose-strong:text-primary-foreground prose-a:text-primary-foreground prose-a:underline prose-code:bg-primary-foreground/20 prose-code:text-primary-foreground prose-pre:bg-primary-foreground/15 prose-ul:my-1 prose-ul:text-primary-foreground prose-ol:my-1 prose-ol:text-primary-foreground prose-li:my-0 prose-li:marker:text-primary-foreground/70 prose-blockquote:my-1 prose-blockquote:text-primary-foreground prose-table:text-primary-foreground prose-th:text-primary-foreground [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words"
+                          />
                         )}
                       </>
                     )}
@@ -6208,67 +6242,93 @@ export function KodyChat({
                     </div>
                   </div>
                 )}
-                <textarea
-                  ref={composerTextareaRef}
-                  value={input}
-                  onChange={(e) => {
-                    const next = e.target.value;
-                    setInput(next);
-                    refreshAgentMentionTrigger(next, e.target.selectionStart);
-                    // Slash menu opens on `/` at line start, stays open while
-                    // the user types the slug, closes when they add a space
-                    // or clear the slash.
-                    if (chatMode === "ai") {
-                      const trigger = parseSlashTrigger(next);
-                      setSlashMenuOpen(
-                        trigger.active && slashCommands.length > 0,
-                      );
-                      if (trigger.active) setSlashSelectedIndex(0);
-                    } else {
-                      setSlashMenuOpen(false);
+                {richComposerEnabled ? (
+                  <MarkdownEditor
+                    value={input}
+                    onChange={(next, event) =>
+                      handleComposerInputChange(
+                        next,
+                        event?.target.selectionStart ??
+                          composerTextareaRef.current?.selectionStart ??
+                          next.length,
+                      )
                     }
-                    // Auto-expand height
-                    e.target.style.height = "auto";
-                    e.target.style.height = `${Math.min(e.target.scrollHeight, 150)}px`;
-                  }}
-                  onKeyDown={handleKeyDown}
-                  onSelect={(e) => {
-                    refreshAgentMentionTrigger(
-                      e.currentTarget.value,
-                      e.currentTarget.selectionStart,
-                    );
-                  }}
-                  onClick={(e) => {
-                    refreshAgentMentionTrigger(
-                      e.currentTarget.value,
-                      e.currentTarget.selectionStart,
-                    );
-                  }}
-                  onPaste={handlePaste}
-                  onBlur={() => {
-                    // Small delay so the menu's onMouseDown can fire before
-                    // close — onMouseDown uses preventDefault to avoid blur,
-                    // but defensive close keeps stale menus from hanging.
-                    setTimeout(() => {
-                      setSlashMenuOpen(false);
-                      setAgentMentionTrigger(null);
-                    }, 120);
-                  }}
-                  placeholder={placeholder}
-                  rows={1}
-                  dir="auto"
-                  className={`w-full px-3 py-2 text-base rounded-md border focus:outline-none focus:ring-1 resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed ${
-                    chatMode === "terminal"
-                      ? "border-white/10 bg-black/40 text-zinc-100 placeholder:text-zinc-500 focus:ring-white/20"
-                      : "bg-background focus:ring-primary"
-                  }`}
-                  disabled={
-                    chatMode === "ai" &&
-                    (activeLoading ||
-                      (isKodyLive && interactiveState !== "ready"))
-                  }
-                  style={{ height: "auto" }}
-                />
+                    onKeyDown={handleKeyDown}
+                    onSelect={(e) => {
+                      refreshAgentMentionTrigger(
+                        e.currentTarget.value,
+                        e.currentTarget.selectionStart,
+                      );
+                    }}
+                    onClick={(e) => {
+                      refreshAgentMentionTrigger(
+                        e.currentTarget.value,
+                        e.currentTarget.selectionStart,
+                      );
+                    }}
+                    onPaste={handlePaste}
+                    onBlur={() => {
+                      // Small delay so the menu's onMouseDown can fire before
+                      // close — onMouseDown uses preventDefault to avoid blur,
+                      // but defensive close keeps stale menus from hanging.
+                      setTimeout(() => {
+                        setSlashMenuOpen(false);
+                        setAgentMentionTrigger(null);
+                      }, 120);
+                    }}
+                    placeholder={placeholder}
+                    rows={7}
+                    disabled={composerDisabled}
+                    textareaRef={composerTextareaRef}
+                    textareaClassName="min-h-[136px] max-h-[36vh]"
+                    className="min-w-0"
+                  />
+                ) : (
+                  <textarea
+                    ref={composerTextareaRef}
+                    value={input}
+                    onChange={(e) => {
+                      handleComposerInputChange(
+                        e.target.value,
+                        e.target.selectionStart,
+                        e.target,
+                      );
+                    }}
+                    onKeyDown={handleKeyDown}
+                    onSelect={(e) => {
+                      refreshAgentMentionTrigger(
+                        e.currentTarget.value,
+                        e.currentTarget.selectionStart,
+                      );
+                    }}
+                    onClick={(e) => {
+                      refreshAgentMentionTrigger(
+                        e.currentTarget.value,
+                        e.currentTarget.selectionStart,
+                      );
+                    }}
+                    onPaste={handlePaste}
+                    onBlur={() => {
+                      // Small delay so the menu's onMouseDown can fire before
+                      // close — onMouseDown uses preventDefault to avoid blur,
+                      // but defensive close keeps stale menus from hanging.
+                      setTimeout(() => {
+                        setSlashMenuOpen(false);
+                        setAgentMentionTrigger(null);
+                      }, 120);
+                    }}
+                    placeholder={placeholder}
+                    rows={1}
+                    dir="auto"
+                    className={`w-full px-3 py-2 text-base rounded-md border focus:outline-none focus:ring-1 resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed ${
+                      chatMode === "terminal"
+                        ? "border-white/10 bg-black/40 text-zinc-100 placeholder:text-zinc-500 focus:ring-white/20"
+                        : "bg-background focus:ring-primary"
+                    }`}
+                    disabled={composerDisabled}
+                    style={{ height: "auto" }}
+                  />
+                )}
               </div>
               {/* Trailing send/stop icon button — single role that swaps by
                 state (issue #131 refinement):
@@ -6321,7 +6381,9 @@ export function KodyChat({
                         void sendMessage();
                       }
                     }}
-                    className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors"
+                    className={`p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors ${
+                      richComposerEnabled ? "mb-1 self-end" : ""
+                    }`}
                     title={title}
                     aria-label={title}
                   >
