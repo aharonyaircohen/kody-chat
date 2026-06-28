@@ -36,6 +36,15 @@ export function dashboardTaskUrl(threadNumber: number): string {
   return `/${threadNumber}`;
 }
 
+/** Root-relative dashboard file page for a connected-repo path. */
+export function dashboardFileUrl(path: string | undefined): string {
+  const normalized = (path ?? "")
+    .replace(/^\/+|\/+$/g, "")
+    .replace(/\/{2,}/g, "/");
+  if (!normalized) return "/files";
+  return `/files/${normalized.split("/").map(encodeURIComponent).join("/")}`;
+}
+
 /**
  * Return the dashboard URL for an Issue/PR thread, or the original GitHub
  * URL for thread types with no in-app view (Discussion, Commit) or when

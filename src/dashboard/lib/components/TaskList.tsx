@@ -11,7 +11,6 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { cn, formatRelativeTime } from "../utils";
 import {
-  getGitHubIssueUrl,
   HIDDEN_TASK_LABEL,
   KODY_BACKLOG_LABEL,
   parsePriorityLabel,
@@ -667,11 +666,9 @@ const TaskRow = memo(function TaskRow({
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs text-zinc-500">
                 {/* Group A — Identity: issue # · status word · KODY */}
                 <div className="inline-flex items-center gap-1.5">
-                  <SimpleTooltip content="View issue on GitHub" side="bottom">
+                  <SimpleTooltip content="Open issue in Kody" side="bottom">
                     <a
-                      href={getGitHubIssueUrl(task.issueNumber)}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                      href={`/${task.issueNumber}`}
                       onClick={(e) => e.stopPropagation()}
                       className={cn(
                         "font-mono font-semibold hover:underline",
@@ -684,13 +681,11 @@ const TaskRow = memo(function TaskRow({
 
                   {hasPR && task.associatedPR && (
                     <SimpleTooltip
-                      content="View pull request on GitHub"
+                      content="Open pull request in Kody"
                       side="bottom"
                     >
                       <a
-                        href={task.associatedPR.html_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        href={`/${task.associatedPR.number}`}
                         onClick={(e) => e.stopPropagation()}
                         className="font-mono font-semibold text-purple-400 hover:underline"
                       >
@@ -877,11 +872,9 @@ const TaskRow = memo(function TaskRow({
 
           {hasPR && (
             <>
-              <SimpleTooltip content="Open PR in GitHub" side="bottom">
+              <SimpleTooltip content="Open PR in Kody" side="bottom">
                 <a
-                  href={task.associatedPR!.html_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                  href={`/${task.associatedPR!.number}`}
                   onClick={(e) => e.stopPropagation()}
                   className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors text-[10px] font-medium"
                 >

@@ -17,7 +17,7 @@ import {
   invalidateIssueCache,
   invalidatePRCache,
 } from "@dashboard/lib/github-client";
-import { dashboardTaskUrl } from "@dashboard/lib/thread-link";
+import { dashboardFileUrl, dashboardTaskUrl } from "@dashboard/lib/thread-link";
 
 interface Ctx {
   octokit: Octokit;
@@ -421,7 +421,7 @@ export function createGitHubTools(ctx: Ctx) {
             if (tms.length === 0) {
               const empty: Hit = {
                 path: it.path,
-                url: it.html_url,
+                url: dashboardFileUrl(it.path),
                 snippet: "",
                 lineInFragment: null,
               };
@@ -434,7 +434,7 @@ export function createGitHubTools(ctx: Ctx) {
                 (fragment.slice(0, firstIdx).match(/\n/g)?.length ?? 0) + 1;
               return {
                 path: it.path,
-                url: it.html_url,
+                url: dashboardFileUrl(it.path),
                 snippet: clip(fragment, 600),
                 lineInFragment,
               };
