@@ -139,6 +139,25 @@ describe("CMS UI routes", () => {
     expect(listPage).toContain("setFilterValues(parsedListState.filterValues)");
     expect(listPage).toContain("setSort(parsedListState.sort)");
     expect(listPage).toContain("setOffset(parsedListState.offset)");
+    expect(listPage).toContain("setPageSizeOverride(parsedListState.pageSize)");
+  });
+
+  it("offers page-size selection and numbered page jumps in content entries", () => {
+    const source = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+    const listPage = source.slice(
+      source.indexOf("function CmsListPage"),
+      source.indexOf("function CmsItemPage"),
+    );
+    const pager = source.slice(
+      source.indexOf("function DocumentPager"),
+      source.indexOf("function ContentDetailPage"),
+    );
+
+    expect(listPage).toContain("pageSizeOverride");
+    expect(listPage).toContain("onPageSizeChange");
+    expect(pager).toContain("Items per page");
+    expect(pager).toContain("buildCmsPageNumbers");
+    expect(pager).toContain("Page ${page}");
   });
 
   it("keeps CMS form actions visible while form fields scroll", () => {

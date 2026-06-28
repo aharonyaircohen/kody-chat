@@ -12,12 +12,17 @@ export interface CmsListState {
   filterValues: CmsListFilterValues;
   sort: CmsSortEntry[];
   offset: number;
+  pageSize: number | null;
 }
 
 const COLLECTION_SEARCH_PARAM = "collectionSearch";
 const FILTERS_PARAM = "filters";
 const SORT_PARAM = "sort";
 const OFFSET_PARAM = "offset";
+const PAGE_SIZE_PARAM = "pageSize";
+const MAX_PAGE_SIZE = 200;
+
+export type CmsPageNumberItem = number | "ellipsis";
 
 const CMS_FILTER_OPERATORS = new Set<string>([
   "equals",
@@ -39,6 +44,7 @@ export function parseCmsListState(
     filterValues: parseFilterValues(params.get(FILTERS_PARAM)),
     sort: parseSort(params.get(SORT_PARAM)),
     offset: parseOffset(params.get(OFFSET_PARAM)),
+    pageSize: parsePageSize(params.get(PAGE_SIZE_PARAM)),
   };
 }
 
@@ -74,7 +80,59 @@ export function serializeCmsListState(
     next.delete(OFFSET_PARAM);
   }
 
+  if (
+    typeof state.pageSize === "number" &&
+    Number.isInteger(state.pageSize) &&
+    state.pageSize > 0
+  ) {
+    next.set(PAGE_SIZE_PARAM, String(state.pageSize));
+  } else {
+    next.delete(PAGE_SIZE_PARAM);
+  }
+
   return next;
+}
+
+export function buildCmsPageNumbers(
+  currentPage: number,
+  totalPages: number,
+): CmsPageNumberItem[] {
+  const safeTotal = Math.max(1, Math.floor(totalPages));
+  const safeCurrent = Math.min(
+    safeTotal,
+    Math.max(1, Math.floor(currentPage)),
+  );
+  if (safeTotal <= 5) {
+    return Array.from({ length: safeTotal }, (_, index) => index + 1);
+  }
+
+  const pages = new Set<number>([1, safeTotal]);
+  for (let page = safeCurrent - 1; page <= safeCurrent + 1; page += 1) {
+    if (page > 1 && page < safeTotal) pages.add(page);
+  }
+  if (safeCurrent <= 3) {
+    pages.add(2);
+    pages.add(3);
+    pages.add(4);
+  }
+  if (safeCurrent >= safeTotal - 2) {
+    pages.add(safeTotal - 3);
+    pages.add(safeTotal - 2);
+    pages.add(safeTotal - 1);
+  }
+
+  const sorted = [...pages]
+    .filter((page) => page >= 1 && page <= safeTotal)
+    .sort((a, b) => a - b);
+  const result: CmsPageNumberItem[] = [];
+  for (const page of sorted) {
+    const previous = result[result.length - 1];
+    if (typeof previous === "number" && page - previous > 1) {
+      result.push("ellipsis");
+    }
+    result.push(page);
+  }
+  return result;
 }
 
 function parseFilterValues(raw: string | null): CmsListFilterValues {
@@ -129,6 +187,14 @@ function parseOffset(raw: string | null): number {
   if (!raw) return 0;
   const offset = Number(raw);
   return Number.isInteger(offset) && offset > 0 ? offset : 0;
+}
+
+function parsePageSize(raw: string | null): number | null {
+  if (!raw) return null;
+  const pageSize = Number(raw);
+  return Number.isInteger(pageSize) && pageSize > 0 && pageSize <= MAX_PAGE_SIZE
+    ? pageSize
+    : null;
 }
 
 function parseJson(raw: string): unknown {

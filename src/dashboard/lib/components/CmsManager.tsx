@@ -81,6 +81,7 @@ import {
   type SaveCmsPermissionsPayload,
 } from "./cms/client";
 import {
+  buildCmsPageNumbers,
   parseCmsListState,
   serializeCmsListState,
   type CmsListFilterValue,
@@ -115,7 +116,8 @@ import type {
   CmsViewFieldConfig,
 } from "../cms/types";
 
-const PAGE_SIZE = 25;
+const DEFAULT_PAGE_SIZE = 25;
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;
 const DEFAULT_CMS_ADAPTER = "mongodb";
 const DEFAULT_CMS_ADAPTERS: CmsAdapterCatalogItem[] = [
   {
@@ -479,6 +481,9 @@ function CmsListPage({
   );
   const [sort, setSort] = useState<CmsSortEntry[]>(initialListState.sort);
   const [offset, setOffset] = useState(initialListState.offset);
+  const [pageSizeOverride, setPageSizeOverride] = useState<number | null>(
+    initialListState.pageSize,
+  );
   const [selectedAdapter, setSelectedAdapter] = useState(DEFAULT_CMS_ADAPTER);
   const parsedListState = useMemo(
     () => parseCmsListState(new URLSearchParams(currentListSearch)),
@@ -494,9 +499,17 @@ function CmsListPage({
         filterValues,
         sort,
         offset,
+        pageSize: pageSizeOverride,
         ...patch,
       }).toString(),
-    [collectionSearch, currentListSearch, filterValues, offset, sort],
+    [
+      collectionSearch,
+      currentListSearch,
+      filterValues,
+      offset,
+      pageSizeOverride,
+      sort,
+    ],
   );
 
   const cmsQuery = useQuery({
@@ -574,6 +587,7 @@ function CmsListPage({
     setFilterValues(parsedListState.filterValues);
     setSort(parsedListState.sort);
     setOffset(parsedListState.offset);
+    setPageSizeOverride(parsedListState.pageSize);
   }, [currentListSearch, parsedListState]);
 
   useEffect(() => {
@@ -593,6 +607,7 @@ function CmsListPage({
     currentListSearch,
     filterValues,
     offset,
+    pageSizeOverride,
     pathname,
     router,
     serializeCurrentListState,
@@ -659,7 +674,14 @@ function CmsListPage({
     selectedSort.length > 0
       ? selectedSort
       : (selectedCollection?.defaultSort ?? []);
-  const pageSize = selectedCollection?.views?.list?.pageSize ?? PAGE_SIZE;
+  const pageSize =
+    pageSizeOverride ??
+    selectedCollection?.views?.list?.pageSize ??
+    DEFAULT_PAGE_SIZE;
+  const pageSizeOptions = useMemo(
+    () => [...new Set([...PAGE_SIZE_OPTIONS, pageSize])].sort((a, b) => a - b),
+    [pageSize],
+  );
 
   const documentsQuery = useQuery({
     queryKey: [
@@ -763,7 +785,8 @@ function CmsListPage({
               documents={documents}
               total={documentsQuery.data?.total ?? 0}
               offset={offset}
-              limit={documentsQuery.data?.limit ?? pageSize}
+              limit={pageSize}
+              pageSizeOptions={pageSizeOptions}
               loading={documentsQuery.isLoading}
               fetching={documentsQuery.isFetching}
               filterValues={filterValues}
@@ -788,6 +811,10 @@ function CmsListPage({
               adapterLabel={selectedCollectionAdapterLabel}
               onOpenConfig={() => router.push(CONTENT_SETTINGS_PATH)}
               onPageChange={setOffset}
+              onPageSizeChange={(nextPageSize) => {
+                setPageSizeOverride(nextPageSize);
+                setOffset(0);
+              }}
             />
           </main>
         </div>
@@ -2416,6 +2443,7 @@ function CollectionWorkspace({
   total,
   offset,
   limit,
+  pageSizeOptions,
   loading,
   fetching,
   filterValues,
@@ -2426,12 +2454,14 @@ function CollectionWorkspace({
   adapterLabel,
   onOpenConfig,
   onPageChange,
+  onPageSizeChange,
 }: {
   collection: CmsCollectionConfig | null;
   documents: CmsDocument[];
   total: number;
   offset: number;
   limit: number;
+  pageSizeOptions: number[];
   loading: boolean;
   fetching: boolean;
   filterValues: FilterValues;
@@ -2442,6 +2472,7 @@ function CollectionWorkspace({
   adapterLabel: string;
   onOpenConfig: () => void;
   onPageChange: (offset: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
 }) {
   if (!collection) {
     return (
@@ -2509,9 +2540,11 @@ function CollectionWorkspace({
         total={total}
         offset={offset}
         limit={limit}
+        pageSizeOptions={pageSizeOptions}
         shown={documents.length}
         loading={fetching}
         onChange={onPageChange}
+        onPageSizeChange={onPageSizeChange}
       />
     </>
   );
@@ -3180,29 +3213,64 @@ function DocumentPager({
   total,
   offset,
   limit,
+  pageSizeOptions,
   shown,
   loading,
   onChange,
+  onPageSizeChange,
 }: {
   total: number;
   offset: number;
   limit: number;
+  pageSizeOptions: number[];
   shown: number;
   loading: boolean;
   onChange: (offset: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
 }) {
   const start = total === 0 ? 0 : offset + 1;
   const end = Math.min(offset + shown, total);
   const canPrev = offset > 0;
   const canNext = offset + limit < total;
+  const totalPages = Math.max(1, Math.ceil(total / Math.max(1, limit)));
+  const currentPage = Math.min(
+    totalPages,
+    Math.floor(offset / Math.max(1, limit)) + 1,
+  );
+  const pageNumbers = buildCmsPageNumbers(currentPage, totalPages);
+  const jumpToPage = (page: number) => {
+    onChange((page - 1) * limit);
+  };
 
   return (
-    <div className="flex shrink-0 flex-col gap-2 border-t border-border px-4 py-2 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between">
-      <span>
+    <div className="flex shrink-0 flex-col gap-3 border-t border-border px-4 py-2 text-xs text-muted-foreground xl:flex-row xl:items-center xl:justify-between">
+      <span className="whitespace-nowrap">
         Showing {start.toLocaleString()}-{end.toLocaleString()} of{" "}
         {total.toLocaleString()}
       </span>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2">
+          <span className="whitespace-nowrap">Items per page</span>
+          <Select
+            value={String(limit)}
+            onValueChange={(value) => onPageSizeChange(Number(value))}
+            disabled={loading}
+          >
+            <SelectTrigger
+              aria-label="Items per page"
+              className="h-8 w-[84px] text-xs"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {pageSizeOptions.map((option) => (
+                <SelectItem key={option} value={String(option)}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <Button
           type="button"
           variant="outline"
@@ -3213,6 +3281,33 @@ function DocumentPager({
           <ChevronLeft className="mr-1 h-4 w-4" />
           Prev
         </Button>
+        <div className="flex items-center gap-1">
+          {pageNumbers.map((page, index) =>
+            page === "ellipsis" ? (
+              <span
+                key={`ellipsis-${index}`}
+                className="flex h-8 w-8 items-center justify-center text-muted-foreground"
+                aria-hidden="true"
+              >
+                ...
+              </span>
+            ) : (
+              <Button
+                key={page}
+                type="button"
+                variant={page === currentPage ? "default" : "outline"}
+                size="sm"
+                className="h-8 min-w-8 px-2"
+                disabled={loading || page === currentPage}
+                onClick={() => jumpToPage(page)}
+                aria-label={`Page ${page}`}
+                aria-current={page === currentPage ? "page" : undefined}
+              >
+                {page}
+              </Button>
+            ),
+          )}
+        </div>
         <Button
           type="button"
           variant="outline"
