@@ -10,7 +10,7 @@
  */
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   ChevronDown,
   Check,
@@ -32,6 +32,7 @@ import {
 } from "../preview-environments";
 import { PreviewBranchEnvForm } from "./PreviewBranchEnvForm";
 import { PreviewEnvForm } from "./PreviewEnvForm";
+import { PreviewFloatingMenu } from "./PreviewFloatingMenu";
 
 /** Compact expiry chip text + tone for an uploaded preview. */
 function expiryChip(
@@ -93,31 +94,11 @@ export function PreviewEnvSwitcher({
   const active =
     environments.find((e) => e.id === selectedId) ?? environments[0] ?? null;
 
-  // Close popover on outside click / Escape.
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onDocClick = (e: MouseEvent) => {
-      if (!rootRef.current) return;
-      if (e.target instanceof Node && rootRef.current.contains(e.target))
-        return;
-      setMenuOpen(false);
-      setAddOpen(false);
-      setEditingId(null);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setMenuOpen(false);
-        setAddOpen(false);
-        setEditingId(null);
-      }
-    };
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [menuOpen]);
+  const closeMenu = (): void => {
+    setMenuOpen(false);
+    setAddOpen(false);
+    setEditingId(null);
+  };
 
   const handleAddBranch = async (
     repo: string,
@@ -200,7 +181,7 @@ export function PreviewEnvSwitcher({
         className={cn(
           "inline-flex items-center gap-1 text-xs font-medium transition-colors",
           variant === "address"
-            ? "h-7 w-7 justify-center rounded-sm text-zinc-500 hover:bg-zinc-800 hover:text-white"
+            ? "h-10 w-10 justify-center rounded-md text-zinc-400 hover:bg-white/[0.06] hover:text-white"
             : "rounded-md border border-sky-500/20 bg-sky-500/15 px-2.5 py-1 text-sky-300 hover:bg-sky-500/25",
         )}
       >
@@ -217,12 +198,14 @@ export function PreviewEnvSwitcher({
         />
       </button>
 
-      {menuOpen && (
-        <div
-          role="listbox"
-          aria-label="Preview environments"
-          className="absolute top-full left-0 mt-1 z-50 min-w-[18rem] rounded-md border border-zinc-700 bg-zinc-900 shadow-lg py-1"
-        >
+      <PreviewFloatingMenu
+        open={menuOpen}
+        anchorRef={rootRef}
+        align="start"
+        onClose={closeMenu}
+        className="min-w-[18rem] rounded-md border border-zinc-700 bg-zinc-900 py-1 shadow-lg"
+      >
+        <div role="listbox" aria-label="Preview environments">
           {environments.map((env) => {
             const selected = env.id === active?.id;
             if (editingId === env.id) {
@@ -391,7 +374,7 @@ export function PreviewEnvSwitcher({
             </div>
           )}
         </div>
-      )}
+      </PreviewFloatingMenu>
     </div>
   );
 }

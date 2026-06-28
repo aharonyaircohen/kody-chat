@@ -29,6 +29,7 @@ import {
   type PreviewView,
 } from "../preview-views";
 import { useElementPicker } from "../picker/useElementPicker";
+import { PreviewFloatingMenu } from "./PreviewFloatingMenu";
 
 interface PreviewViewsBarProps {
   owner: string;
@@ -82,29 +83,10 @@ export function PreviewViewsBar({
     }
   }, [selectedId, views, onSelect]);
 
-  // Close popover on outside click / Escape.
-  useEffect(() => {
-    if (!menuOpen) return;
-    const onDocClick = (e: MouseEvent) => {
-      if (!rootRef.current) return;
-      if (e.target instanceof Node && rootRef.current.contains(e.target))
-        return;
-      setMenuOpen(false);
-      setAddOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setMenuOpen(false);
-        setAddOpen(false);
-      }
-    };
-    document.addEventListener("mousedown", onDocClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDocClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [menuOpen]);
+  const closeMenu = (): void => {
+    setMenuOpen(false);
+    setAddOpen(false);
+  };
 
   useEffect(() => {
     if (addOpen) nameInputRef.current?.focus();
@@ -144,7 +126,7 @@ export function PreviewViewsBar({
         className={cn(
           "inline-flex items-center gap-1 text-xs font-medium transition-colors",
           variant === "address"
-            ? "h-7 rounded-sm px-2 text-zinc-300 hover:bg-zinc-800 hover:text-white"
+            ? "h-10 rounded-md px-2.5 text-zinc-300 hover:bg-white/[0.06] hover:text-white"
             : "rounded-md border border-emerald-500/20 bg-emerald-500/15 px-2.5 py-1 text-emerald-400 hover:bg-emerald-500/25",
         )}
       >
@@ -159,12 +141,14 @@ export function PreviewViewsBar({
         <ChevronDown className="w-3 h-3" />
       </button>
 
-      {menuOpen && (
-        <div
-          role="listbox"
-          aria-label="Preview views"
-          className="absolute top-full left-0 mt-1 z-50 min-w-[14rem] rounded-md border border-zinc-700 bg-zinc-900 shadow-lg py-1"
-        >
+      <PreviewFloatingMenu
+        open={menuOpen}
+        anchorRef={rootRef}
+        align="start"
+        onClose={closeMenu}
+        className="min-w-[14rem] rounded-md border border-zinc-700 bg-zinc-900 py-1 shadow-lg"
+      >
+        <div role="listbox" aria-label="Preview views">
           {views.map((view) => {
             const selected = view.id === active?.id;
             return (
@@ -317,7 +301,7 @@ export function PreviewViewsBar({
             )}
           </div>
         </div>
-      )}
+      </PreviewFloatingMenu>
     </div>
   );
 }

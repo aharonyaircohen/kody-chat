@@ -43,6 +43,7 @@ import {
 } from "./protocol";
 import { recordedStepToAction } from "../macros";
 import { PreviewMacrosMenu } from "../components/PreviewMacrosMenu";
+import { PreviewFloatingMenu } from "../components/PreviewFloatingMenu";
 
 export interface ComposerChip {
   id: string;
@@ -122,58 +123,6 @@ export function PreviewInspector({
       /* ignore quota */
     }
   }, [autoContext]);
-
-  useEffect(() => {
-    if (!actionMenuOpen) return;
-
-    const onDocumentClick = (event: MouseEvent): void => {
-      if (!actionMenuRef.current) return;
-      if (
-        event.target instanceof Node &&
-        actionMenuRef.current.contains(event.target)
-      ) {
-        return;
-      }
-      setActionMenuOpen(false);
-    };
-
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") setActionMenuOpen(false);
-    };
-
-    document.addEventListener("mousedown", onDocumentClick);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onDocumentClick);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [actionMenuOpen]);
-
-  useEffect(() => {
-    if (!diagnosticMenuOpen) return;
-
-    const onDocumentClick = (event: MouseEvent): void => {
-      if (!diagnosticMenuRef.current) return;
-      if (
-        event.target instanceof Node &&
-        diagnosticMenuRef.current.contains(event.target)
-      ) {
-        return;
-      }
-      setDiagnosticMenuOpen(false);
-    };
-
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === "Escape") setDiagnosticMenuOpen(false);
-    };
-
-    document.addEventListener("mousedown", onDocumentClick);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onDocumentClick);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [diagnosticMenuOpen]);
 
   const picker = useElementPicker({
     onSelect: (el) => {
@@ -332,10 +281,11 @@ export function PreviewInspector({
   const diagnosticCount = picker.logCount + picker.networkCount;
   const diagnosticBusy =
     busy === "logs" || busy === "network" || busy === "perf";
+  const closeActionMenu = (): void => setActionMenuOpen(false);
+  const closeDiagnosticMenu = (): void => setDiagnosticMenuOpen(false);
 
   // Keep extension actions behind compact menus; settings stays one tap.
-  const groupClass =
-    "inline-flex items-center gap-0.5 p-0.5 rounded-md border bg-zinc-900/50";
+  const groupClass = "inline-flex items-center gap-0.5";
 
   return (
     <>
@@ -351,7 +301,7 @@ export function PreviewInspector({
           aria-haspopup="menu"
           aria-expanded={actionMenuOpen}
           className={cn(
-            "inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors",
+            "inline-flex h-10 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors",
             picker.recording
               ? "border-red-500/50 bg-red-500/20 text-red-300"
               : picker.armed || pendingMacroSteps
@@ -361,23 +311,25 @@ export function PreviewInspector({
         >
           {picker.recording ? (
             <>
-              <Square className="h-3 w-3 fill-current" />
+              <Square className="h-4 w-4 fill-current" />
               <span className="tabular-nums">{picker.recStepCount}</span>
             </>
           ) : picker.armed ? (
-            <MousePointerClick className="h-3 w-3" />
+            <MousePointerClick className="h-4 w-4" />
           ) : (
-            <Puzzle className="h-3 w-3" />
+            <Puzzle className="h-4 w-4" />
           )}
-          <ChevronDown className="h-3 w-3" />
+          <ChevronDown className="h-3.5 w-3.5" />
         </button>
 
-        {actionMenuOpen && (
-          <div
-            role="menu"
-            aria-label="Inspector actions"
-            className="absolute right-0 top-full z-50 mt-1 min-w-52 rounded-md border border-zinc-700 bg-zinc-900 py-1 shadow-lg"
-          >
+        <PreviewFloatingMenu
+          open={actionMenuOpen}
+          anchorRef={actionMenuRef}
+          align="end"
+          onClose={closeActionMenu}
+          className="min-w-52 rounded-md border border-zinc-700 bg-zinc-900 py-1 shadow-lg"
+        >
+          <div role="menu" aria-label="Inspector actions">
             <button
               type="button"
               role="menuitem"
@@ -450,7 +402,7 @@ export function PreviewInspector({
               variant="menu"
             />
           </div>
-        )}
+        </PreviewFloatingMenu>
       </div>
       {/* Group 2 - DIAGNOSTICS: passive observers of the preview. */}
       <div ref={diagnosticMenuRef} className="relative inline-flex">
@@ -465,7 +417,7 @@ export function PreviewInspector({
           aria-haspopup="menu"
           aria-expanded={diagnosticMenuOpen}
           className={cn(
-            "inline-flex items-center gap-1 rounded-md border px-2 py-1.5 text-xs font-medium transition-colors",
+            "inline-flex h-10 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors",
             picker.logCount > 0
               ? "border-red-500/40 bg-red-500/15 text-red-300 hover:bg-red-500/25"
               : picker.networkCount > 0
@@ -474,27 +426,29 @@ export function PreviewInspector({
           )}
         >
           {picker.logCount > 0 ? (
-            <Bug className={cn("h-3 w-3", diagnosticBusy && "animate-pulse")} />
+            <Bug className={cn("h-4 w-4", diagnosticBusy && "animate-pulse")} />
           ) : picker.networkCount > 0 ? (
             <Activity
-              className={cn("h-3 w-3", diagnosticBusy && "animate-pulse")}
+              className={cn("h-4 w-4", diagnosticBusy && "animate-pulse")}
             />
           ) : (
             <Gauge
-              className={cn("h-3 w-3", diagnosticBusy && "animate-pulse")}
+              className={cn("h-4 w-4", diagnosticBusy && "animate-pulse")}
             />
           )}
           {diagnosticCount > 0 && (
             <span className="tabular-nums">{diagnosticCount}</span>
           )}
-          <ChevronDown className="h-3 w-3" />
+          <ChevronDown className="h-3.5 w-3.5" />
         </button>
-        {diagnosticMenuOpen && (
-          <div
-            role="menu"
-            aria-label="Diagnostics"
-            className="absolute right-0 top-full z-50 mt-1 min-w-56 rounded-md border border-zinc-700 bg-zinc-900 py-1 shadow-lg"
-          >
+        <PreviewFloatingMenu
+          open={diagnosticMenuOpen}
+          anchorRef={diagnosticMenuRef}
+          align="end"
+          onClose={closeDiagnosticMenu}
+          className="min-w-56 rounded-md border border-zinc-700 bg-zinc-900 py-1 shadow-lg"
+        >
+          <div role="menu" aria-label="Diagnostics">
             <button
               type="button"
               role="menuitem"
@@ -551,7 +505,7 @@ export function PreviewInspector({
               <span className="flex-1">Performance snapshot</span>
             </button>
           </div>
-        )}
+        </PreviewFloatingMenu>
       </div>
 
       {/* Group 3 — SETTINGS: per-chat context behaviour. Emerald = active. */}
@@ -571,12 +525,13 @@ export function PreviewInspector({
           }
           className={cn(
             BTN_BASE,
+            "h-10 px-3 py-0",
             autoContext
               ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/50"
               : "text-emerald-300/60 hover:text-emerald-200 hover:bg-emerald-500/10 border-transparent",
           )}
         >
-          <Globe className="w-3 h-3" />
+          <Globe className="w-4 h-4" />
         </button>
       </div>
     </>
