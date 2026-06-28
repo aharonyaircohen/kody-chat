@@ -44,6 +44,7 @@ import {
   DASHBOARD_NAV_ITEM,
   ENGINEER_MODE_SECTIONS,
   VIBE_MODE_SECTIONS,
+  isNavItemActive,
   type SettingsNavItem,
 } from "./settings-nav";
 
@@ -60,18 +61,6 @@ type SidebarMode = "vibe" | "engineer";
 
 const COLLAPSED_KEY = "kody.sidebar.collapsed";
 const MODE_KEY = "kody.sidebar.mode";
-
-function isActive(pathname: string, search: string, item: NavItem): boolean {
-  // Hrefs may include a query string (e.g. "/reports"). Compare the
-  // pathname and search portions independently so tab-scoped entries don't
-  // collide with their bare-path siblings.
-  const [hrefPath, hrefQuery = ""] = item.href.split("?");
-  if (hrefQuery) {
-    return pathname === hrefPath && search === hrefQuery;
-  }
-  if (item.exact) return pathname === hrefPath && !search;
-  return pathname === hrefPath || pathname.startsWith(`${hrefPath}/`);
-}
 
 function isSidebarMode(value: string | null): value is SidebarMode {
   return value === "vibe" || value === "engineer";
@@ -178,7 +167,7 @@ export function Sidebar() {
 
   const renderLink = (item: NavItem) => {
     const Icon = item.icon;
-    const active = isActive(pathname, search, item);
+    const active = isNavItemActive(pathname, search, item);
     const link = (
       <Link
         href={item.href}

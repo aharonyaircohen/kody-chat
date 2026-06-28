@@ -8,6 +8,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Github, LogOut, Plus, Trash2 } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
@@ -30,6 +31,7 @@ import {
   MOBILE_NAV_SECTIONS,
   PRIMARY_NAV_TITLE,
   PRIMARY_VIEW_TITLE,
+  isNavItemActive,
 } from "./settings-nav";
 
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
@@ -53,6 +55,8 @@ export function MobileMenu({
   bottomCta,
 }: MobileMenuProps) {
   const { auth, removeRepo } = useAuth();
+  const pathname = usePathname() ?? "/";
+  const search = useSearchParams()?.toString() ?? "";
   const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity();
   const [confirmRemove, setConfirmRemove] = useState<{
     index: number;
@@ -195,12 +199,19 @@ export function MobileMenu({
             <div className="grid grid-cols-2 gap-2">
               {viewItems.map((item) => {
                 const Icon = item.icon;
+                const active = isNavItemActive(pathname, search, item);
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     onClick={close}
-                    className="flex flex-col items-center gap-2.5 p-3.5 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors text-center"
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "flex flex-col items-center gap-2.5 p-3.5 rounded-xl border transition-colors text-center",
+                      active
+                        ? "border-emerald-400/40 bg-accent text-foreground"
+                        : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]",
+                    )}
                   >
                     <span
                       className={cn(
@@ -229,12 +240,19 @@ export function MobileMenu({
             <div className="grid grid-cols-2 gap-2 mt-2">
               {workspaceItems.map((item) => {
                 const Icon = item.icon;
+                const active = isNavItemActive(pathname, search, item);
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
                     onClick={close}
-                    className="flex flex-col items-start gap-2.5 p-3.5 rounded-xl border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05] transition-colors"
+                    aria-current={active ? "page" : undefined}
+                    className={cn(
+                      "flex flex-col items-start gap-2.5 p-3.5 rounded-xl border transition-colors",
+                      active
+                        ? "border-emerald-400/40 bg-accent text-foreground"
+                        : "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]",
+                    )}
                   >
                     <span
                       className={cn(
@@ -271,12 +289,19 @@ export function MobileMenu({
                   <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden divide-y divide-white/[0.04]">
                     {section.items.map((item) => {
                       const Icon = item.icon;
+                      const active = isNavItemActive(pathname, search, item);
                       return (
                         <Link
                           key={item.href}
                           href={item.href}
                           onClick={close}
-                          className="flex items-center gap-3 h-14 min-h-14 px-3.5 py-3 hover:bg-white/[0.04] transition-colors"
+                          aria-current={active ? "page" : undefined}
+                          className={cn(
+                            "flex items-center gap-3 h-14 min-h-14 px-3.5 py-3 transition-colors",
+                            active
+                              ? "bg-accent text-foreground"
+                              : "hover:bg-white/[0.04]",
+                          )}
                         >
                           <span
                             className={cn(

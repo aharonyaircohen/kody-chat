@@ -11,7 +11,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   createContext,
   useCallback,
@@ -30,7 +30,7 @@ import {
   SheetTitle,
 } from "@dashboard/ui/sheet";
 import { cn } from "@dashboard/lib/utils/ui";
-import { SETTINGS_NAV_SECTIONS } from "./settings-nav";
+import { SETTINGS_NAV_SECTIONS, isNavItemActive } from "./settings-nav";
 import { InboxBadge } from "./InboxBadge";
 
 interface SettingsDrawerContextValue {
@@ -74,6 +74,7 @@ interface SettingsDrawerProps {
 
 function SettingsDrawer({ isOpen, onOpenChange }: SettingsDrawerProps) {
   const pathname = usePathname() ?? "/";
+  const search = useSearchParams()?.toString() ?? "";
 
   return (
     <Sheet open={isOpen} onOpenChange={onOpenChange}>
@@ -103,9 +104,7 @@ function SettingsDrawer({ isOpen, onOpenChange }: SettingsDrawerProps) {
               </p>
               {section.items.map((item) => {
                 const Icon = item.icon;
-                const active =
-                  pathname === item.href ||
-                  pathname.startsWith(`${item.href}/`);
+                const active = isNavItemActive(pathname, search, item);
                 return (
                   <Link
                     key={item.href}

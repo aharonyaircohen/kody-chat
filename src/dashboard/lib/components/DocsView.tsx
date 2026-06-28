@@ -50,6 +50,7 @@ import { PageHeader } from "./PageShell";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { MarkdownPreview } from "./MarkdownPreview";
 import type { DocManifestEntry } from "../api";
+import { autoDirProps, rtlAwareMarkdownClassName } from "../text-direction";
 
 interface DocsViewProps {
   /** Render without the built-in PageHeader (e.g. when embedded). */
@@ -444,8 +445,12 @@ function DocsViewInner({ embedded = false, selectedPath = null }: DocsViewProps)
             </div>
           ) : hasContent ? (
             <MarkdownPreview
+              {...autoDirProps}
               content={content}
-              className="md:prose-base break-words"
+              className={cn(
+                "md:prose-base break-words text-start",
+                rtlAwareMarkdownClassName,
+              )}
             />
           ) : (
             <div className="rounded-xl border border-dashed border-white/[0.1] bg-white/[0.02] py-12 text-center space-y-2">

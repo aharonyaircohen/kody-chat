@@ -46,8 +46,10 @@ export interface SettingsNavItem {
   description?: string;
   /** Tailwind classes for the mobile menu's icon tint chip. */
   tint?: string;
-  /** When true, only the exact path is the active route (used for "/"). */
+  /** When true, only the exact path is active unless extra patterns match. */
   exact?: boolean;
+  /** Extra route shapes owned by this item, e.g. task issue-number pages. */
+  activePathPatterns?: readonly RegExp[];
 }
 
 /**
@@ -74,6 +76,7 @@ export const TASKS_NAV_ITEM: SettingsNavItem = {
   label: "Tasks",
   icon: Home,
   exact: true,
+  activePathPatterns: [/^\/\d+(?:\/|$)/],
   description: "Pipelines, tasks, and run health at a glance.",
   tint: "text-emerald-300 bg-emerald-500/10",
 };
@@ -258,7 +261,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         href: "/agent-goals",
         label: "Goals",
         icon: Target,
-        exact: true,
         description: "Finite outcomes driven by missing evidence.",
         tint: "text-sky-300 bg-sky-500/10",
       },
@@ -266,7 +268,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         href: "/company-intents",
         label: "Intents",
         icon: Compass,
-        exact: true,
         description:
           "CTO guidance for AI Agency goals, loops, and capabilities.",
         tint: "text-cyan-300 bg-cyan-500/10",
@@ -275,7 +276,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         href: "/agent-loops",
         label: "Loops",
         icon: History,
-        exact: true,
         description: "Operational loops driven by schedule and health.",
         tint: "text-emerald-300 bg-emerald-500/10",
       },
@@ -283,7 +283,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         href: "/workflows",
         label: "Workflows",
         icon: Workflow,
-        exact: true,
         description: "Ordered capability queues with shared instructions.",
         tint: "text-cyan-300 bg-cyan-500/10",
       },
@@ -291,7 +290,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         href: "/capabilities",
         label: "Capabilities",
         icon: Layers,
-        exact: true,
         description: "Manage reusable capabilities.",
         tint: "text-amber-300 bg-amber-500/10",
       },
@@ -299,7 +297,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         href: "/store-catalog",
         label: "Store Catalog",
         icon: Package,
-        exact: true,
         description:
           "Browse shared store items and activate them in this repo.",
         tint: "text-emerald-300 bg-emerald-500/10",
@@ -531,6 +528,31 @@ function navPath(href: string): string {
   return q === -1 ? href : href.slice(0, q);
 }
 
+export function isNavItemActive(
+  pathname: string,
+  search: string,
+  item: SettingsNavItem,
+): boolean {
+  const [hrefPath, hrefQuery = ""] = item.href.split("?");
+  if (hrefQuery) {
+    return pathname === hrefPath && search === hrefQuery;
+  }
+
+  if (item.exact) {
+    return (
+      pathname === hrefPath ||
+      item.activePathPatterns?.some((pattern) => pattern.test(pathname)) ===
+        true
+    );
+  }
+
+  return (
+    pathname === hrefPath ||
+    pathname.startsWith(`${hrefPath}/`) ||
+    item.activePathPatterns?.some((pattern) => pattern.test(pathname)) === true
+  );
+}
+
 /**
  * Resolve the human label for the page at `pathname` (e.g. "/variables" →
  * "Variables", "/secrets/docs" → "Secrets"). Matches the deepest nav path that
@@ -542,11 +564,7 @@ export function navLabelForPath(pathname: string): string | null {
   let best: { label: string; len: number } | null = null;
   for (const item of ALL_NAV_ITEMS) {
     const path = navPath(item.href);
-    if (path === "/") {
-      if (pathname === "/") return item.label;
-      continue;
-    }
-    if (pathname === path || pathname.startsWith(`${path}/`)) {
+    if (isNavItemActive(pathname, "", item)) {
       if (!best || path.length > best.len) {
         best = { label: item.label, len: path.length };
       }
