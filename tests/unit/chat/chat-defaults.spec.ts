@@ -42,9 +42,7 @@ describe("chat-defaults bundle", () => {
       expect(bundle.capability).toMatchObject(DEFAULT_CHAT_CAPABILITY);
     }
     expect(
-      bundle.workflows.some(
-        (workflow) => workflow.slug === "kody-analyzer",
-      ),
+      bundle.workflows.some((workflow) => workflow.slug === "kody-analyzer"),
     ).toBe(true);
     expect(bundle.skills["diagnose-pr"]?.body).toContain(
       'Triggers: "diagnose PR #N"',
@@ -215,14 +213,12 @@ describe("chat-defaults bundle", () => {
     const trigger = 'Explicit memory command ("remember X"';
 
     expect(DEFAULT_SKILLS.memory.body).toContain(trigger);
-    expect(DEFAULT_WORKFLOWS.find((d) => d.slug === "kody-mem")!.body).toContain(
-      "explicit memory command",
-    );
+    expect(
+      DEFAULT_WORKFLOWS.find((d) => d.slug === "kody-mem")!.body,
+    ).toContain("explicit memory command");
     expect(bundle.skills.memory.body).toContain(trigger);
     expect(
-      bundle.workflows.find(
-        (workflow) => workflow.slug === "kody-mem",
-      )!.body,
+      bundle.workflows.find((workflow) => workflow.slug === "kody-mem")!.body,
     ).toContain("explicit memory command");
   });
 
@@ -432,6 +428,9 @@ describe("CRITICAL_REMINDERS_MD", () => {
     expect(CRITICAL_REMINDERS_MD).toContain("Read repo before answering");
     expect(CRITICAL_REMINDERS_MD).toContain("Verify before claiming");
     expect(CRITICAL_REMINDERS_MD).toContain("No fabrication");
+    expect(CRITICAL_REMINDERS_MD).toContain("CMS source truth");
+    expect(CRITICAL_REMINDERS_MD).toContain("Content Entries");
+    expect(CRITICAL_REMINDERS_MD).toContain("configured collection adapter");
     expect(CRITICAL_REMINDERS_MD).toContain("Cite your evidence");
     expect(CRITICAL_REMINDERS_MD).toContain(
       "one direct proceed-style question",

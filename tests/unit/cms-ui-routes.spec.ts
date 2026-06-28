@@ -126,6 +126,21 @@ describe("CMS UI routes", () => {
     expect(source).toContain("Try a different filter.");
   });
 
+  it("persists content entries list state in the URL", () => {
+    const source = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
+    const start = source.indexOf("function CmsListPage");
+    const end = source.indexOf("function CmsItemPage");
+    const listPage = source.slice(start, end);
+
+    expect(source).toContain("parseCmsListState");
+    expect(source).toContain("serializeCmsListState");
+    expect(listPage).toContain("useSearchParams");
+    expect(listPage).toContain("router.replace(nextPath, { scroll: false })");
+    expect(listPage).toContain("setFilterValues(parsedListState.filterValues)");
+    expect(listPage).toContain("setSort(parsedListState.sort)");
+    expect(listPage).toContain("setOffset(parsedListState.offset)");
+  });
+
   it("keeps CMS form actions visible while form fields scroll", () => {
     const source = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
     const start = source.indexOf("function ContentFormPage");
@@ -154,11 +169,29 @@ describe("CMS UI routes", () => {
   it("offers content permissions management from content settings", () => {
     const manager = readRepoFile("src/dashboard/lib/components/CmsManager.tsx");
     const client = readRepoFile("src/dashboard/lib/components/cms/client.ts");
+    const writeActions = manager.slice(
+      manager.indexOf("Collection write actions"),
+      manager.indexOf("Collection overrides"),
+    );
+    const writeActionHeader = writeActions.slice(
+      writeActions.indexOf("bg-muted/50"),
+      writeActions.indexOf("{config.collections.map"),
+    );
+    const writeActionRows = writeActions.slice(
+      writeActions.indexOf("{config.collections.map"),
+    );
 
     expect(manager).toContain("CmsConfigManager");
     expect(manager).toContain("Content permissions");
     expect(manager).toContain("Default policy");
     expect(manager).toContain("Collection write actions");
+    expect(writeActionHeader).toContain("updateOperationColumn");
+    expect(writeActionHeader).toContain("checked={allEnabled}");
+    expect(writeActionHeader).toContain(
+      "all ${item.label.toLowerCase()} actions",
+    );
+    expect(writeActionRows).not.toContain("updateOperationColumn");
+    expect(manager).not.toContain("updateCollectionOperations");
     expect(manager).toContain("Collection overrides");
     expect(manager).toContain("Clear overrides");
     expect(manager).toContain("Save permissions");

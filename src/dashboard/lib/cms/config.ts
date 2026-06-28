@@ -322,16 +322,20 @@ export async function loadCmsConfigFromState(
   octokit: Octokit,
   owner: string,
   repo: string,
+  options: { cache?: boolean } = {},
 ): Promise<CmsRuntimeConfig | null> {
+  const useCache = options.cache !== false;
   const key = cacheKey(owner, repo);
-  const cached = CACHE.get(key);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.config;
-  }
+  if (useCache) {
+    const cached = CACHE.get(key);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.config;
+    }
 
-  const inflight = INFLIGHT.get(key);
-  if (inflight) {
-    return inflight;
+    const inflight = INFLIGHT.get(key);
+    if (inflight) {
+      return inflight;
+    }
   }
 
   const promise = (async () => {
@@ -343,7 +347,9 @@ export async function loadCmsConfigFromState(
       { required: false },
     );
     if (!rawConfig) {
-      CACHE.set(key, { config: null, expiresAt: Date.now() + TTL_MS });
+      if (useCache) {
+        CACHE.set(key, { config: null, expiresAt: Date.now() + TTL_MS });
+      }
       return null;
     }
 
@@ -418,11 +424,19 @@ export async function loadCmsConfigFromState(
       collections,
     });
 
-    CACHE.set(key, { config: normalized, expiresAt: Date.now() + TTL_MS });
+    if (useCache) {
+      CACHE.set(key, { config: normalized, expiresAt: Date.now() + TTL_MS });
+    }
     return normalized;
   })().finally(() => {
-    INFLIGHT.delete(key);
+    if (useCache) {
+      INFLIGHT.delete(key);
+    }
   });
+
+  if (!useCache) {
+    return promise;
+  }
 
   INFLIGHT.set(key, promise);
   return promise;

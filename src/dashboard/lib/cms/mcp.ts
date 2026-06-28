@@ -3,6 +3,7 @@ import type {
   CmsFieldConfig,
   CmsPublicConfig,
 } from "./types";
+import { canWriteOperation } from "./permissions";
 
 export interface CmsMcpTool {
   name: string;
@@ -63,7 +64,7 @@ export function generateCmsMcpTools(config: CmsPublicConfig): CmsMcpTool[] {
         ),
       });
     }
-    if (collection.operations.create) {
+    if (isMcpActionAvailable(config, collection, "create")) {
       tools.push({
         name: `cms_create_${slug}`,
         description: `Create one ${collection.label} CMS document.`,
@@ -73,7 +74,7 @@ export function generateCmsMcpTools(config: CmsPublicConfig): CmsMcpTool[] {
         ),
       });
     }
-    if (collection.operations.update) {
+    if (isMcpActionAvailable(config, collection, "update")) {
       tools.push({
         name: `cms_update_${slug}`,
         description: `Update one ${collection.label} CMS document by id.`,
@@ -86,7 +87,7 @@ export function generateCmsMcpTools(config: CmsPublicConfig): CmsMcpTool[] {
         ),
       });
     }
-    if (collection.operations.delete) {
+    if (isMcpActionAvailable(config, collection, "delete")) {
       tools.push({
         name: `cms_delete_${slug}`,
         description: `Delete one ${collection.label} CMS document by id.`,
@@ -117,11 +118,28 @@ export function resolveCmsMcpTool(
       "delete",
     ] as const) {
       if (toolName === `cms_${action}_${slug}`) {
+        if (!isMcpActionAvailable(config, collection, action)) return null;
         return { action, collection: collection.name };
       }
     }
   }
   return null;
+}
+
+function isMcpActionAvailable(
+  config: CmsPublicConfig,
+  collection: CmsCollectionConfig,
+  action: CmsMcpToolAction,
+): boolean {
+  if (action === "list" || action === "get") {
+    return collection.operations[action];
+  }
+  return canWriteOperation(
+    collection,
+    action,
+    config.actorRole ?? "admin",
+    config.permissions,
+  );
 }
 
 function documentSchema(

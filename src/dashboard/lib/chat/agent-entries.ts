@@ -37,6 +37,31 @@ export interface ChatModelEntry {
   default?: boolean;
 }
 
+/** True when an entry key depends on the async /api/kody/models list. */
+export function isModelBackedEntryKey(
+  key: string | null | undefined,
+): key is `kody:${string}` {
+  return typeof key === "string" && key.startsWith("kody:");
+}
+
+/**
+ * A saved gateway-model pick cannot be resolved until the async models list
+ * finishes loading. Static agent picks can resolve from the built-in entries.
+ */
+export function shouldWaitForModelBackedEntryResolution({
+  sessionHydrated,
+  chatModelsLoaded,
+  sessionAgentKey,
+}: {
+  sessionHydrated: boolean;
+  chatModelsLoaded: boolean;
+  sessionAgentKey: string | null | undefined;
+}): boolean {
+  if (!sessionHydrated) return true;
+  if (chatModelsLoaded) return false;
+  return !sessionAgentKey || isModelBackedEntryKey(sessionAgentKey);
+}
+
 /**
  * Build the ordered list of selectable chat entries.
  *

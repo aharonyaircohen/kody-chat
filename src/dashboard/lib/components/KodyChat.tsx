@@ -43,6 +43,7 @@ import {
 import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
 import {
   buildAgentList,
+  shouldWaitForModelBackedEntryResolution,
   type ChatDropdownEntry,
   type ChatModelEntry,
 } from "../chat/agent-entries";
@@ -488,13 +489,13 @@ export function KodyChat({
   // Empty until first load completes; renders only Kody Live (+ Brain) in
   // the dropdown while empty.
   const [chatModels, setChatModels] = useState<ChatModelEntry[]>([]);
+  const [chatModelsLoaded, setChatModelsLoaded] = useState(false);
   // The user-chosen default chat dropdown entry key (any entry: Brain,
   // Brain-Fly, or `kody:<modelId>`), a per-user preference persisted in
   // localStorage (repo-scoped). Read synchronously on mount. Separate from a
   // model's own `default` flag, which governs server-side gateway resolution.
-  // Read on mount here; written by BOTH the chat picker (on pick, below) and
-  // Settings → "Default chat" — same repo-scoped key — so whichever you use,
-  // your choice loads again on refresh.
+  // Read on mount here; written by Settings → "Default chat". The chat picker
+  // stores per-session picks separately.
   const [defaultChatEntryKey] = useState<string | null>(() =>
     readDefaultChatEntry(),
   );
@@ -672,9 +673,13 @@ export function KodyChat({
       .then((json: { models?: ChatModelEntry[] }) => {
         if (cancelled) return;
         setChatModels(Array.isArray(json.models) ? json.models : []);
+        setChatModelsLoaded(true);
       })
       .catch(() => {
-        if (!cancelled) setChatModels([]);
+        if (!cancelled) {
+          setChatModels([]);
+          setChatModelsLoaded(true);
+        }
       });
     return () => {
       cancelled = true;
@@ -1028,9 +1033,18 @@ export function KodyChat({
   //      effect will re-run to capture the pick).
   useEffect(() => {
     if (lockedAgentId) return; // Vibe page owns the agent
+    const session = sessionHook.activeSession;
+    if (
+      shouldWaitForModelBackedEntryResolution({
+        sessionHydrated: sessionHook.hydrated,
+        chatModelsLoaded,
+        sessionAgentKey: session?.agentKey,
+      })
+    ) {
+      return;
+    }
     if (agentList.length === 0) return; // Wait for the list to load.
 
-    const session = sessionHook.activeSession;
     let targetEntry: ChatDropdownEntry | null = null;
     if (session?.agentKey) {
       targetEntry = agentList.find((e) => e.key === session.agentKey) ?? null;
@@ -1061,9 +1075,11 @@ export function KodyChat({
   }, [
     sessionHook.activeSession?.id,
     sessionHook.activeSession?.agentKey,
+    sessionHook.hydrated,
     agentList,
     defaultAgentEntry,
     familySnap,
+    chatModelsLoaded,
     lockedAgentId,
     selectedAgentId,
     selectedModelId,

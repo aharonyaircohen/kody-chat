@@ -155,6 +155,30 @@ describe("CMS chat tools", () => {
     );
   });
 
+  it("describes CMS tools as the same source used by Content Entries", async () => {
+    const req = new NextRequest("https://dash.test/api/kody/chat/kody");
+    const tools = await createCmsTools({
+      req,
+      octokit: {} as never,
+      owner: "A-Guy-educ",
+      repo: "A-Guy-Web",
+    });
+
+    const descriptions = [
+      tools.cms_list_collections,
+      tools.cms_describe_collection,
+      tools.cms_list_documents,
+      tools.cms_get_document,
+      tools.cms_mutate_document,
+    ].map((tool) => (tool as { description?: string }).description ?? "");
+
+    for (const description of descriptions) {
+      expect(description).toContain("same Dashboard CMS service");
+      expect(description).toContain("Content Entries");
+      expect(description).toContain("configured collection adapter");
+    }
+  });
+
   it("routes writes through the generic mutation tool", async () => {
     const req = new NextRequest("https://dash.test/api/kody/chat/kody");
     const tools = await createCmsTools({
@@ -184,5 +208,68 @@ describe("CMS chat tools", () => {
       "1",
       { title: "Updated" },
     );
+  });
+
+  it("does not advertise delete mutations when delete is disabled for every collection", async () => {
+    service.listCmsCollections.mockResolvedValueOnce({
+      configured: true,
+      version: 1,
+      name: "Example CMS",
+      environment: "default",
+      writePolicy: "enabled",
+      actorRole: "admin",
+      permissions: {},
+      collections: [
+        {
+          name: "lessons",
+          label: "Lessons",
+          adapter: "github",
+          mcpName: "lessons",
+          searchFields: ["title"],
+          writePolicy: "enabled",
+          permissions: {},
+          source: { path: "content/lessons", idField: "id", extension: "json" },
+          operations: {
+            list: true,
+            get: true,
+            search: true,
+            create: true,
+            update: true,
+            delete: false,
+          },
+          defaultSort: [],
+          fields: [{ name: "id", type: "id", readOnly: true }],
+          filters: [],
+        },
+      ],
+    });
+
+    const req = new NextRequest("https://dash.test/api/kody/chat/kody");
+    const tools = await createCmsTools({
+      req,
+      octokit: {} as never,
+      owner: "A-Guy-educ",
+      repo: "A-Guy-Web",
+    });
+
+    const schema = tools.cms_mutate_document.inputSchema as {
+      safeParse(input: unknown): { success: boolean };
+    };
+
+    expect(
+      schema.safeParse({
+        collection: "lessons",
+        operation: "update",
+        id: "1",
+        data: { title: "Updated" },
+      }).success,
+    ).toBe(true);
+    expect(
+      schema.safeParse({
+        collection: "lessons",
+        operation: "delete",
+        id: "1",
+      }).success,
+    ).toBe(false);
   });
 });

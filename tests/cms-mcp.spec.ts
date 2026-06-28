@@ -112,4 +112,24 @@ describe("CMS MCP tool generation", () => {
     });
     expect(resolveCmsMcpTool(cms, "cms_update_missing")).toBeNull();
   });
+
+  it("does not expose delete tools when delete is disabled", () => {
+    const lockedCms: CmsPublicConfig = {
+      ...cms,
+      collections: [
+        {
+          ...cms.collections[0],
+          operations: {
+            ...cms.collections[0].operations,
+            delete: false,
+          },
+        },
+      ],
+    };
+
+    expect(
+      generateCmsMcpTools(lockedCms).map((tool) => tool.name),
+    ).not.toContain("cms_delete_lessons");
+    expect(resolveCmsMcpTool(lockedCms, "cms_delete_lessons")).toBeNull();
+  });
 });

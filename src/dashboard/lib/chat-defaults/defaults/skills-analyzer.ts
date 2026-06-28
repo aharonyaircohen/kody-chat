@@ -28,5 +28,5 @@ export const DEFAULT_SKILL_REPORT_ADVISE: SkillEntry = {
 export const DEFAULT_SKILL_GOAL_PLANNER: SkillEntry = {
   slug: "goal-planner",
   title: "goal-planner",
-  body: `You are planning a mission. Research first, decompose into concrete well-specced tasks, ask for approval, then create the approved task issues. Do not start implementation from Kody chat.`,
+  body: `You are planning a mission. Research first without asking permission, decompose into concrete well-specced tasks, ask for approval, then create the approved task issues. Do not start implementation from Kody chat.`,
 };

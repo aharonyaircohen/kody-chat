@@ -263,142 +263,154 @@ export function Sidebar() {
         </SimpleTooltip>
       </div>
 
-      <nav className="min-h-0 flex-1 overflow-y-auto py-3 px-2 space-y-1">
-        <div className="pb-2">{renderLink(DASHBOARD_NAV_ITEM)}</div>
+      <nav className="min-h-0 flex-1 flex flex-col py-3">
+        <div
+          data-sidebar-fixed-controls="true"
+          className="shrink-0 px-2 space-y-1"
+        >
+          <div className="pb-2">{renderLink(DASHBOARD_NAV_ITEM)}</div>
 
-        <div className="pb-2">
-          {collapsed ? (
-            <SimpleTooltip
-              content={
-                sidebarMode === "vibe" ? "Switch to Engineer" : "Switch to Vibe"
-              }
-              side="right"
-            >
-              <button
-                type="button"
-                onClick={() =>
-                  selectSidebarMode(
-                    sidebarMode === "vibe" ? "engineer" : "vibe",
-                  )
-                }
-                aria-label={
+          <div className="pb-2">
+            {collapsed ? (
+              <SimpleTooltip
+                content={
                   sidebarMode === "vibe"
                     ? "Switch to Engineer"
                     : "Switch to Vibe"
                 }
-                className="flex items-center justify-center w-full rounded-md h-9 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+                side="right"
               >
-                {sidebarMode === "vibe" ? (
-                  <Wrench className="w-4 h-4 shrink-0" />
-                ) : (
-                  <Sparkles className="w-4 h-4 shrink-0" />
-                )}
-              </button>
-            </SimpleTooltip>
-          ) : (
-            <div
-              className="grid grid-cols-2 gap-1 rounded-md border border-white/[0.08] bg-black/20 p-1"
-              aria-label="Sidebar mode"
-            >
-              <button
-                type="button"
-                onClick={() => selectSidebarMode("vibe")}
-                aria-pressed={sidebarMode === "vibe"}
-                className={cn(
-                  "flex h-8 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors",
-                  sidebarMode === "vibe"
-                    ? "bg-accent text-foreground"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                )}
+                <button
+                  type="button"
+                  onClick={() =>
+                    selectSidebarMode(
+                      sidebarMode === "vibe" ? "engineer" : "vibe",
+                    )
+                  }
+                  aria-label={
+                    sidebarMode === "vibe"
+                      ? "Switch to Engineer"
+                      : "Switch to Vibe"
+                  }
+                  className="flex items-center justify-center w-full rounded-md h-9 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+                >
+                  {sidebarMode === "vibe" ? (
+                    <Wrench className="w-4 h-4 shrink-0" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 shrink-0" />
+                  )}
+                </button>
+              </SimpleTooltip>
+            ) : (
+              <div
+                className="grid grid-cols-2 gap-1 rounded-md border border-white/[0.08] bg-black/20 p-1"
+                aria-label="Sidebar mode"
               >
-                <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                <span>Vibe</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => selectSidebarMode("engineer")}
-                aria-pressed={sidebarMode === "engineer"}
-                className={cn(
-                  "flex h-8 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors",
-                  sidebarMode === "engineer"
-                    ? "bg-accent text-foreground"
-                    : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                )}
-              >
-                <Wrench className="w-3.5 h-3.5 shrink-0" />
-                <span>Engineer</span>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => selectSidebarMode("vibe")}
+                  aria-pressed={sidebarMode === "vibe"}
+                  className={cn(
+                    "flex h-8 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors",
+                    sidebarMode === "vibe"
+                      ? "bg-accent text-foreground"
+                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                  )}
+                >
+                  <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                  <span>Vibe</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectSidebarMode("engineer")}
+                  aria-pressed={sidebarMode === "engineer"}
+                  className={cn(
+                    "flex h-8 items-center justify-center gap-1.5 rounded text-xs font-medium transition-colors",
+                    sidebarMode === "engineer"
+                      ? "bg-accent text-foreground"
+                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                  )}
+                >
+                  <Wrench className="w-3.5 h-3.5 shrink-0" />
+                  <span>Engineer</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Inline search — filters the rail's own items as you type. Collapsed
+              mode shows an icon that expands the rail so there's room to type. */}
+          {sidebarMode === "engineer" && (
+            <div className="pb-1">
+              {collapsed ? (
+                <SimpleTooltip content="Search" side="right">
+                  <button
+                    type="button"
+                    onClick={toggleCollapsed}
+                    aria-label="Search"
+                    className="flex items-center justify-center w-full rounded-md h-9 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+                  >
+                    <Search className="w-4 h-4 shrink-0" />
+                  </button>
+                </SimpleTooltip>
+              ) : (
+                <div className="flex items-center gap-2 w-full rounded-md h-9 px-3 text-sm border border-white/[0.08] bg-black/20 transition-colors focus-within:border-white/[0.18]">
+                  <Search className="w-4 h-4 shrink-0 text-muted-foreground" />
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    onKeyDown={onSearchKeyDown}
+                    placeholder="Search…"
+                    aria-label="Search navigation"
+                    className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
+                  />
+                  {query && (
+                    <button
+                      type="button"
+                      onClick={() => setQuery("")}
+                      aria-label="Clear search"
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="w-3.5 h-3.5 shrink-0" />
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* Inline search — filters the rail's own items as you type. Collapsed
-            mode shows an icon that expands the rail so there's room to type. */}
-        {sidebarMode === "engineer" && (
-          <div className="pb-1">
-            {collapsed ? (
-              <SimpleTooltip content="Search" side="right">
-                <button
-                  type="button"
-                  onClick={toggleCollapsed}
-                  aria-label="Search"
-                  className="flex items-center justify-center w-full rounded-md h-9 text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
-                >
-                  <Search className="w-4 h-4 shrink-0" />
-                </button>
-              </SimpleTooltip>
-            ) : (
-              <div className="flex items-center gap-2 w-full rounded-md h-9 px-3 text-sm border border-white/[0.08] bg-black/20 transition-colors focus-within:border-white/[0.18]">
-                <Search className="w-4 h-4 shrink-0 text-muted-foreground" />
-                <input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  onKeyDown={onSearchKeyDown}
-                  placeholder="Search…"
-                  aria-label="Search navigation"
-                  className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
-                />
-                {query && (
-                  <button
-                    type="button"
-                    onClick={() => setQuery("")}
-                    aria-label="Clear search"
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="w-3.5 h-3.5 shrink-0" />
-                  </button>
+        <div
+          data-sidebar-scroll-list="true"
+          className="min-h-0 flex-1 overflow-y-auto px-2 pb-3 space-y-1"
+        >
+          {/* Nav sections — ordered by the main work loop, sourced from the
+              shared settings-nav so new pages appear here automatically. Filtered
+              live by the inline search; section headings show only when expanded,
+              collapsed mode is a flat icon list. */}
+          {filteredSections.length === 0 ? (
+            <p className="px-3 py-6 text-center text-sm text-muted-foreground">
+              No matches.
+            </p>
+          ) : (
+            filteredSections.map((section, i) => (
+              <div key={section.title} className="space-y-1">
+                {!collapsed && (
+                  <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                    {section.title}
+                  </p>
                 )}
+                {collapsed && i > 0 && (
+                  <div
+                    className="my-2 mx-3 border-t border-white/[0.06]"
+                    aria-hidden="true"
+                  />
+                )}
+                {section.items.map((item) => renderLink(item))}
               </div>
-            )}
-          </div>
-        )}
-
-        {/* Nav sections — ordered by the main work loop, sourced from the
-            shared settings-nav so new pages appear here automatically. Filtered
-            live by the inline search; section headings show only when expanded,
-            collapsed mode is a flat icon list. */}
-        {filteredSections.length === 0 ? (
-          <p className="px-3 py-6 text-center text-sm text-muted-foreground">
-            No matches.
-          </p>
-        ) : (
-          filteredSections.map((section, i) => (
-            <div key={section.title} className="space-y-1">
-              {!collapsed && (
-                <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
-                  {section.title}
-                </p>
-              )}
-              {collapsed && i > 0 && (
-                <div
-                  className="my-2 mx-3 border-t border-white/[0.06]"
-                  aria-hidden="true"
-                />
-              )}
-              {section.items.map((item) => renderLink(item))}
-            </div>
-          ))
-        )}
+            ))
+          )}
+        </div>
       </nav>
 
       <div className="border-t border-white/[0.06] p-2 space-y-1">

@@ -16,6 +16,7 @@ import {
   DEFAULT_CMS_PERMISSIONS,
   invalidateCmsConfigCache,
   loadCmsConfigFromState,
+  normalizeCmsCollectionSlug,
 } from "@dashboard/lib/cms/config";
 import {
   defaultCmsAdapterSettings,
@@ -334,11 +335,7 @@ function readCmsAdapterSettings(
   if (!payload || typeof payload !== "object") return undefined;
   if (!("adapterSettings" in payload)) return undefined;
   const settings = (payload as { adapterSettings?: unknown }).adapterSettings;
-  if (
-    !settings ||
-    typeof settings !== "object" ||
-    Array.isArray(settings)
-  ) {
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) {
     throw new CmsRuntimeError(
       "invalid_body",
       "adapterSettings must be an object",
@@ -537,9 +534,7 @@ async function buildCmsPermissionFiles(
   const root = parseJsonRecord(configFile.content, "cms/config.json");
   if (patch.permissions) root.permissions = patch.permissions;
 
-  const collectionPatchByName = new Map(
-    patch.collections.map((collection) => [collection.name, collection]),
-  );
+  const collectionPatchByName = buildCollectionPatchMap(patch.collections);
   const files = [
     { path: "cms/config.json", content: `${JSON.stringify(root, null, 2)}\n` },
   ];
@@ -556,7 +551,10 @@ async function buildCmsPermissionFiles(
         if (!file) continue;
         const collection = parseJsonRecord(file.content, path);
         const name = String(collection.name ?? "");
-        const collectionPatch = collectionPatchByName.get(name);
+        const collectionPatch = findCollectionPatch(
+          collectionPatchByName,
+          name,
+        );
         if (!collectionPatch) continue;
         applyCollectionPatch(collection, collectionPatch);
         files.push({
@@ -569,7 +567,10 @@ async function buildCmsPermissionFiles(
       if (entry && typeof entry === "object" && !Array.isArray(entry)) {
         const collection = entry as Record<string, unknown>;
         const name = String(collection.name ?? "");
-        const collectionPatch = collectionPatchByName.get(name);
+        const collectionPatch = findCollectionPatch(
+          collectionPatchByName,
+          name,
+        );
         if (collectionPatch) applyCollectionPatch(collection, collectionPatch);
       }
     }
@@ -582,7 +583,14 @@ async function buildCmsPermissionFiles(
 
   if (rawCollections && typeof rawCollections === "object") {
     for (const [name, value] of Object.entries(rawCollections)) {
-      const collectionPatch = collectionPatchByName.get(name);
+      const collectionName =
+        value && typeof value === "object" && !Array.isArray(value)
+          ? String((value as Record<string, unknown>).name ?? name)
+          : name;
+      const collectionPatch = findCollectionPatch(
+        collectionPatchByName,
+        collectionName,
+      );
       if (
         collectionPatch &&
         value &&
@@ -599,6 +607,22 @@ async function buildCmsPermissionFiles(
   }
 
   return files;
+}
+
+function buildCollectionPatchMap(patches: CmsPermissionsPatch["collections"]) {
+  const result = new Map<string, CmsPermissionsPatch["collections"][number]>();
+  for (const patch of patches) {
+    result.set(patch.name, patch);
+    result.set(normalizeCmsCollectionSlug(patch.name), patch);
+  }
+  return result;
+}
+
+function findCollectionPatch(
+  patches: Map<string, CmsPermissionsPatch["collections"][number]>,
+  name: string,
+) {
+  return patches.get(name) ?? patches.get(normalizeCmsCollectionSlug(name));
 }
 
 async function buildCmsAdapterFiles(

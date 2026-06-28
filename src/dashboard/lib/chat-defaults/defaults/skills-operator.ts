@@ -12,8 +12,8 @@ export const DEFAULT_SKILL_CREATE_ISSUE: SkillEntry = {
 
 Never call \`create_*\` / \`report_bug\` on first turn.
 
-1. Research (3–5 tool calls).
-2. Ask gap-closing questions in batches of 1–3. Loop until scope, acceptance criteria, and out-of-scope are explicit.
+1. Research first (3–5 tool calls). Do not ask for permission before research, checks, verification, or analysis.
+2. Ask at most one blocking gap-closing question only after research, and only if the answer changes scope, data safety, user-facing behavior, or acceptance criteria. Use repo evidence and sensible defaults for everything else.
 3. Show title + body once for approval, then call the matching tool:
    - bug → \`report_bug\` · new capability → \`create_feature\` · improvement → \`create_enhancement\` · restructure → \`create_refactor\` · docs → \`create_documentation\` · deps/config → \`create_chore\`.
 4. \`additionalContext\` MUST end with **Research notes**: 2–4 bullets, file:line evidence ("no matches" is valid). Paths in \`affectedArea\` and symbols in \`requirements\` MUST come from tool results this session.`,

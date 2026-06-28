@@ -156,7 +156,9 @@ export async function createCmsDocument(
   collectionName: string,
   data: CmsDocument,
 ): Promise<CmsDocument> {
-  const config = await loadCmsConfigFromState(octokit, owner, repo);
+  const config = await loadCmsConfigFromState(octokit, owner, repo, {
+    cache: false,
+  });
   if (!config) {
     throw new CmsConfigError(["CMS is not configured for this repo"], {
       code: "cms_not_configured",
@@ -192,7 +194,9 @@ export async function updateCmsDocument(
   id: string,
   data: CmsDocument,
 ): Promise<CmsDocument | null> {
-  const config = await loadCmsConfigFromState(octokit, owner, repo);
+  const config = await loadCmsConfigFromState(octokit, owner, repo, {
+    cache: false,
+  });
   if (!config) {
     throw new CmsConfigError(["CMS is not configured for this repo"], {
       code: "cms_not_configured",
@@ -227,7 +231,9 @@ export async function deleteCmsDocument(
   collectionName: string,
   id: string,
 ): Promise<boolean> {
-  const config = await loadCmsConfigFromState(octokit, owner, repo);
+  const config = await loadCmsConfigFromState(octokit, owner, repo, {
+    cache: false,
+  });
   if (!config) {
     throw new CmsConfigError(["CMS is not configured for this repo"], {
       code: "cms_not_configured",

@@ -559,6 +559,81 @@ describe("CMS API routes", () => {
     });
   });
 
+  it("updates CMS permissions for a normalized collection name", async () => {
+    const rootConfig = {
+      path: "cms/config.json",
+      sha: "config-sha",
+      content: JSON.stringify({
+        version: 1,
+        name: "Example CMS",
+        environment: "default",
+        defaultAdapter: "mongodb",
+        writePolicy: "enabled",
+        collections: ["collections/A.json"],
+      }),
+    };
+    const collectionConfig = {
+      path: "cms/collections/A.json",
+      sha: "collection-sha",
+      content: JSON.stringify({
+        name: "A",
+        label: "A",
+        adapter: "mongodb",
+        writePolicy: "enabled",
+        source: { collection: "A", idField: "_id" },
+        operations: {
+          list: true,
+          get: true,
+          search: true,
+          create: true,
+          update: true,
+          delete: true,
+        },
+        fields: [{ name: "_id", type: "id" }],
+        filters: [],
+      }),
+    };
+    stateRepo.readStateText
+      .mockResolvedValueOnce(rootConfig)
+      .mockResolvedValueOnce(collectionConfig)
+      .mockResolvedValueOnce(rootConfig)
+      .mockResolvedValueOnce(collectionConfig);
+    service.listCmsCollections.mockResolvedValueOnce({
+      configured: true,
+      version: 1,
+      name: "Example CMS",
+      environment: "default",
+      writePolicy: "enabled",
+      permissions: {},
+      collections: [],
+    });
+
+    const res = await indexPATCH(
+      jsonRequest("https://dash.test/api/kody/cms", "PATCH", {
+        collections: [
+          {
+            name: "a",
+            operations: { create: true, update: true, delete: false },
+            permissions: {},
+          },
+        ],
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const write = stateRepo.writeStateFiles.mock.calls[0][0] as {
+      files: Array<{ path: string; content: string }>;
+    };
+    const collectionFile = write.files.find(
+      (file: { path: string }) => file.path === "cms/collections/A.json",
+    );
+    expect(JSON.parse(collectionFile!.content).operations).toMatchObject({
+      create: true,
+      update: true,
+      delete: false,
+    });
+  });
+
   it("deletes a CMS model resource from config and schema file", async () => {
     const rootConfig = {
       path: "cms/config.json",
@@ -1206,6 +1281,67 @@ describe("CMS API routes", () => {
         ],
       },
     });
+  });
+
+  it("rejects CMS MCP delete calls when delete is disabled", async () => {
+    service.listCmsCollections.mockResolvedValueOnce({
+      configured: true,
+      version: 1,
+      name: "Example CMS",
+      environment: "default",
+      writePolicy: "enabled",
+      actorRole: "admin",
+      permissions: {},
+      collections: [
+        {
+          name: "lessons",
+          label: "Lessons",
+          adapter: "mongodb",
+          mcpName: "lessons",
+          searchFields: ["title"],
+          writePolicy: "enabled",
+          permissions: {},
+          source: { collection: "lessons", idField: "_id" },
+          operations: {
+            list: true,
+            get: true,
+            search: true,
+            create: true,
+            update: true,
+            delete: false,
+          },
+          defaultSort: [],
+          fields: [
+            { name: "_id", type: "id", readOnly: true },
+            { name: "title", type: "text", required: true },
+          ],
+          filters: [],
+        },
+      ],
+    });
+
+    const res = await mcpPOST(
+      jsonRequest("https://dash.test/api/kody/cms/mcp", "POST", {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: {
+          name: "cms_delete_lessons",
+          arguments: { id: "1" },
+        },
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      jsonrpc: "2.0",
+      id: 1,
+      error: {
+        code: -32000,
+        message: "unknown CMS MCP tool: cms_delete_lessons",
+      },
+    });
+    expect(service.deleteCmsDocument).not.toHaveBeenCalled();
   });
 
   it("supports CMS MCP streamable HTTP lifecycle requests", async () => {

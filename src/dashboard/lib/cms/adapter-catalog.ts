@@ -36,8 +36,8 @@ const ADAPTER_METADATA: Record<
     supportsSchemaGeneration: false,
   },
   file: {
-    label: "Local JSON",
-    description: "Local JSON files",
+    label: "kody-state JSON",
+    description: "JSON documents in kody-state",
     supportsSchemaGeneration: false,
   },
 };

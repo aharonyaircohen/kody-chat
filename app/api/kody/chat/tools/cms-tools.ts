@@ -5,6 +5,10 @@ import { z } from "zod";
 
 import { getCmsActorRole } from "@dashboard/lib/cms/roles";
 import {
+  canWriteOperation,
+  type CmsWriteOperation,
+} from "@dashboard/lib/cms/permissions";
+import {
   createCmsDocument,
   deleteCmsDocument,
   getCmsDocument,
@@ -28,6 +32,18 @@ interface Ctx {
 }
 
 type ConfiguredCms = Extract<CmsConfigState, { configured: true }>;
+type MutateDocumentInput = {
+  collection: string;
+  operation: CmsWriteOperation;
+  id?: string;
+  data?: Record<string, unknown>;
+};
+
+const CMS_MUTATION_OPERATIONS = [
+  "create",
+  "update",
+  "delete",
+] as const satisfies readonly CmsWriteOperation[];
 
 const collectionInput = z.object({
   collection: z.string().trim().min(1).describe("CMS collection name."),
@@ -56,20 +72,6 @@ const documentInput = collectionInput.extend({
   id: z.string().trim().min(1).describe("Document id."),
 });
 
-const mutateDocumentInput = collectionInput.extend({
-  operation: z.enum(["create", "update", "delete"]),
-  id: z
-    .string()
-    .trim()
-    .min(1)
-    .optional()
-    .describe("Required for update and delete."),
-  data: z
-    .record(z.string(), z.unknown())
-    .optional()
-    .describe("Required for create and update."),
-});
-
 export async function createCmsTools({
   req,
   octokit,
@@ -79,11 +81,13 @@ export async function createCmsTools({
   const actorRole = await getCmsActorRole(req, octokit, owner, repo);
   const cms = await listCmsCollections(octokit, owner, repo, actorRole);
   if (cms.configured === false) return {};
+  const mutationOperations = getAvailableMutationOperations(cms);
+  const mutationOperationsTuple = toMutationOperationsTuple(mutationOperations);
 
-  return {
+  const tools: ToolSet = {
     cms_list_collections: tool({
       description:
-        "List configured CMS collections and their supported operations.",
+        "List configured CMS collections and their supported operations through the same Dashboard CMS service, Content Entries source, and configured collection adapter.",
       inputSchema: z.object({}),
       execute: async () => ({
         collections: cms.collections.map(toCollectionSummary),
@@ -92,7 +96,7 @@ export async function createCmsTools({
 
     cms_describe_collection: tool({
       description:
-        "Describe one CMS collection, including fields, filters, and operations.",
+        "Describe one CMS collection from the same Dashboard CMS service, Content Entries source, and configured collection adapter, including fields, filters, and operations.",
       inputSchema: collectionInput,
       execute: async (input) => {
         const collection = findCollection(cms, input.collection);
@@ -102,7 +106,7 @@ export async function createCmsTools({
 
     cms_list_documents: tool({
       description:
-        "List or search CMS documents from any configured collection.",
+        "List or search CMS documents through the same Dashboard CMS service, Content Entries source, and configured collection adapter.",
       inputSchema: listDocumentsInput,
       execute: async (input) =>
         listCmsDocuments(req, octokit, owner, repo, input.collection, {
@@ -115,7 +119,8 @@ export async function createCmsTools({
     }),
 
     cms_get_document: tool({
-      description: "Get one CMS document by collection and id.",
+      description:
+        "Get one CMS document by collection and id through the same Dashboard CMS service, Content Entries source, and configured collection adapter.",
       inputSchema: documentInput,
       execute: async (input) => ({
         document: await getCmsDocument(
@@ -128,15 +133,68 @@ export async function createCmsTools({
         ),
       }),
     }),
-
-    cms_mutate_document: tool({
-      description:
-        "Create, update, or delete one CMS document by collection using the configured CMS adapter.",
-      inputSchema: mutateDocumentInput,
-      execute: async (input) =>
-        mutateCmsDocument({ req, octokit, owner, repo, input }),
-    }),
   };
+
+  if (mutationOperationsTuple) {
+    tools.cms_mutate_document = tool({
+      description: describeMutationTool(mutationOperations),
+      inputSchema: buildMutateDocumentInput(mutationOperationsTuple),
+      execute: async (input) =>
+        mutateCmsDocument({
+          req,
+          octokit,
+          owner,
+          repo,
+          input,
+          allowedOperations: mutationOperations,
+        }),
+    });
+  }
+
+  return tools;
+}
+
+function buildMutateDocumentInput(
+  operations: readonly [CmsWriteOperation, ...CmsWriteOperation[]],
+) {
+  return collectionInput.extend({
+    operation: z.enum(operations),
+    id: z
+      .string()
+      .trim()
+      .min(1)
+      .optional()
+      .describe("Required for update and delete."),
+    data: z
+      .record(z.string(), z.unknown())
+      .optional()
+      .describe("Required for create and update."),
+  });
+}
+
+function getAvailableMutationOperations(cms: ConfiguredCms) {
+  return CMS_MUTATION_OPERATIONS.filter((operation) =>
+    cms.collections.some((collection) =>
+      canWriteOperation(
+        collection,
+        operation,
+        cms.actorRole ?? "admin",
+        cms.permissions,
+      ),
+    ),
+  );
+}
+
+function toMutationOperationsTuple(
+  operations: CmsWriteOperation[],
+): [CmsWriteOperation, ...CmsWriteOperation[]] | null {
+  if (operations.length === 0) return null;
+  return [operations[0], ...operations.slice(1)];
+}
+
+function describeMutationTool(operations: CmsWriteOperation[]): string {
+  const actions = operations.join(", ");
+  return `${actions} one CMS document through the same Dashboard CMS service, Content Entries source, and configured collection adapter.`;
 }
 
 async function mutateCmsDocument({
@@ -145,7 +203,15 @@ async function mutateCmsDocument({
   owner,
   repo,
   input,
-}: Ctx & { input: z.infer<typeof mutateDocumentInput> }): Promise<unknown> {
+  allowedOperations,
+}: Ctx & {
+  input: MutateDocumentInput;
+  allowedOperations: CmsWriteOperation[];
+}): Promise<unknown> {
+  if (!allowedOperations.includes(input.operation)) {
+    throw new Error(`${input.operation} CMS mutation is not available`);
+  }
+
   if (input.operation === "create") {
     return {
       document: await createCmsDocument(
@@ -228,9 +294,7 @@ function toCollectionSummary(collection: CmsCollectionConfig) {
 
 function describeCollectionStorage(collection: CmsCollectionConfig) {
   const path =
-    collection.source.path ??
-    collection.source.collection ??
-    collection.name;
+    collection.source.path ?? collection.source.collection ?? collection.name;
   const idField = collection.source.idField ?? "_id";
   const extension = collection.source.extension ?? "json";
 

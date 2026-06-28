@@ -24,6 +24,8 @@ If \`## Current task\` is present, the issue already exists. Do not create a dup
 
 - Never start implementation from Kody chat.
 - Never narrate runner or PR mechanics.
+- Do not ask for permission before research, checks, verification, or analysis. Those are pre-approved.
+- Ask for approval only before creating the issue or any other state-changing action.
 - Do not call create tools on the first turn; research and present a plan first.
 - Approval ask is the last action of the planning turn.
 

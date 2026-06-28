@@ -6,7 +6,7 @@ import type { ChatWorkflowEntry } from "./types";
 export const DEFAULT_WORKFLOW_KODY_ANALYZER: ChatWorkflowEntry = {
   slug: "kody-analyzer",
   title: "kody-analyzer",
-  body: `Read + propose workflows. Use when the user wants analysis, planning, or recommendation, not creation.
+  body: `Read + propose workflows. Use when the user wants analysis, planning, or recommendation, not creation. Research and verification do not need approval.
 
 Skills:
 - diagnose-pr — analyze a Kody PR and find gaps between claims and diff.
@@ -26,13 +26,13 @@ Skills:
 - create-capability — research -> gap-closing -> show profile/instructions -> call create_or_update_capability.
 - create-agent — research -> gap-closing -> show body -> call create_kody_agent.
 
-Hard rules: never call create_* / report_bug on the first turn. Show title + body once approved, then call the tool. additionalContext must end with Research notes.`,
+Hard rules: research before asking; never call create_* / report_bug on the first turn. Show title + body once approved, then call the tool. additionalContext must end with Research notes.`,
 };
 
 export const DEFAULT_WORKFLOW_KODY_VIBE: ChatWorkflowEntry = {
   slug: "kody-vibe",
   title: "kody-vibe",
-  body: `Research -> plan -> create issue flow. Use inside Vibe workspace (vibeMode on).
+  body: `Research -> plan -> create issue flow. Use inside Vibe workspace (vibeMode on). Research and verification do not need approval.
 
 Skills:
 - vibe — issue-only Vibe flow: research extensively -> plan -> align -> create issue -> stop.

@@ -2,6 +2,7 @@
 
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useLayoutEffect,
@@ -9,7 +10,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -79,10 +80,18 @@ import {
   type SaveCmsAdapterPayload,
   type SaveCmsPermissionsPayload,
 } from "./cms/client";
+import {
+  parseCmsListState,
+  serializeCmsListState,
+  type CmsListFilterValue,
+  type CmsListFilterValues,
+  type CmsListState,
+} from "./cms/list-state";
 import { canWriteOperation, writeDisabledReason } from "./cms/operations";
 import {
   CONTENT_ENTRIES_PATH,
   CONTENT_SETTINGS_PATH,
+  cmsCollectionPath,
   cmsDocumentEditPath,
   cmsDocumentPath,
 } from "./cms/paths";
@@ -118,12 +127,9 @@ const DEFAULT_CMS_ADAPTERS: CmsAdapterCatalogItem[] = [
   },
 ];
 
-type FilterValue = {
-  operator: CmsFilterOperator;
-  value: string | string[];
-};
+type FilterValue = CmsListFilterValue;
 
-type FilterValues = Record<string, FilterValue>;
+type FilterValues = CmsListFilterValues;
 
 interface CmsRelationBatch {
   collection: CmsCollectionConfig;
@@ -142,6 +148,10 @@ const CmsRelationContext = createContext<CmsRelationContextValue | null>(null);
 
 function relationDocumentCacheKey(collection: string, id: string): string {
   return `${collection}\u001f${id}`;
+}
+
+function withSearchString(path: string, search: string): string {
+  return search ? `${path}?${search}` : path;
 }
 
 export function CmsManager({
@@ -444,6 +454,16 @@ function CmsListPage({
   selectedCollectionName?: string | null;
 } = {}) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentListSearch = searchParams.toString();
+  const initialListStateRef = useRef<CmsListState | null>(null);
+  if (!initialListStateRef.current) {
+    initialListStateRef.current = parseCmsListState(
+      new URLSearchParams(currentListSearch),
+    );
+  }
+  const initialListState = initialListStateRef.current;
   const autoSelectFirst = useMediaQuery("(min-width: 1024px)");
   const { auth } = useAuth();
   const queryClient = useQueryClient();
@@ -451,11 +471,33 @@ function CmsListPage({
   const scope = `${auth?.owner ?? ""}/${auth?.repo ?? ""}`;
   const cmsQueryKey = ["cms-config", scope] as const;
 
-  const [collectionSearch, setCollectionSearch] = useState("");
-  const [filterValues, setFilterValues] = useState<FilterValues>({});
-  const [sort, setSort] = useState<CmsSortEntry[]>([]);
-  const [offset, setOffset] = useState(0);
+  const [collectionSearch, setCollectionSearch] = useState(
+    initialListState.collectionSearch,
+  );
+  const [filterValues, setFilterValues] = useState<FilterValues>(
+    initialListState.filterValues,
+  );
+  const [sort, setSort] = useState<CmsSortEntry[]>(initialListState.sort);
+  const [offset, setOffset] = useState(initialListState.offset);
   const [selectedAdapter, setSelectedAdapter] = useState(DEFAULT_CMS_ADAPTER);
+  const parsedListState = useMemo(
+    () => parseCmsListState(new URLSearchParams(currentListSearch)),
+    [currentListSearch],
+  );
+  const appliedListSearchRef = useRef(currentListSearch);
+  const skipListStateWriteRef = useRef(false);
+
+  const serializeCurrentListState = useCallback(
+    (patch: Partial<CmsListState> = {}): string =>
+      serializeCmsListState(new URLSearchParams(currentListSearch), {
+        collectionSearch,
+        filterValues,
+        sort,
+        offset,
+        ...patch,
+      }).toString(),
+    [collectionSearch, currentListSearch, filterValues, offset, sort],
+  );
 
   const cmsQuery = useQuery({
     queryKey: cmsQueryKey,
@@ -524,9 +566,47 @@ function CmsListPage({
   }, [adaptersQuery.data, selectedAdapter]);
 
   useEffect(() => {
+    if (appliedListSearchRef.current === currentListSearch) return;
+
+    skipListStateWriteRef.current = true;
+    appliedListSearchRef.current = currentListSearch;
+    setCollectionSearch(parsedListState.collectionSearch);
+    setFilterValues(parsedListState.filterValues);
+    setSort(parsedListState.sort);
+    setOffset(parsedListState.offset);
+  }, [currentListSearch, parsedListState]);
+
+  useEffect(() => {
+    if (skipListStateWriteRef.current) {
+      skipListStateWriteRef.current = false;
+      return;
+    }
+
+    const nextSearch = serializeCurrentListState();
+    if (nextSearch === currentListSearch) return;
+
+    appliedListSearchRef.current = nextSearch;
+    const nextPath = withSearchString(pathname, nextSearch);
+    router.replace(nextPath, { scroll: false });
+  }, [
+    collectionSearch,
+    currentListSearch,
+    filterValues,
+    offset,
+    pathname,
+    router,
+    serializeCurrentListState,
+    sort,
+  ]);
+
+  useEffect(() => {
     if (cmsQuery.isLoading || !cmsLoaded) return;
     if (collections.length === 0) {
-      if (selectedCollectionName) router.replace(CONTENT_ENTRIES_PATH);
+      if (selectedCollectionName) {
+        router.replace(
+          withSearchString(CONTENT_ENTRIES_PATH, currentListSearch),
+        );
+      }
       return;
     }
     if (
@@ -535,37 +615,50 @@ function CmsListPage({
         (collection) => collection.name === selectedCollectionName,
       )
     ) {
-      router.replace(CONTENT_ENTRIES_PATH);
+      router.replace(withSearchString(CONTENT_ENTRIES_PATH, currentListSearch));
       return;
     }
     if (!selectedCollectionName && autoSelectFirst) {
-      router.replace(selectionPath(CONTENT_ENTRIES_PATH, collections[0].name));
+      router.replace(
+        withSearchString(
+          selectionPath(CONTENT_ENTRIES_PATH, collections[0].name),
+          currentListSearch,
+        ),
+      );
     }
   }, [
     autoSelectFirst,
     cmsLoaded,
     cmsQuery.isLoading,
     collections,
+    currentListSearch,
     router,
     selectedCollectionName,
   ]);
 
   const selectCollection = (collectionName: string) => {
-    router.push(selectionPath(CONTENT_ENTRIES_PATH, collectionName));
-  };
-
-  useEffect(() => {
-    setFilterValues({});
-    setSort([]);
+    const nextSearch = serializeCurrentListState({ offset: 0 });
     setOffset(0);
-  }, [selectedCollectionName]);
+    router.push(
+      withSearchString(
+        selectionPath(CONTENT_ENTRIES_PATH, collectionName),
+        nextSearch,
+      ),
+    );
+  };
 
   const activeFilters = useMemo(
     () => buildFilters(selectedCollection, filterValues),
     [filterValues, selectedCollection],
   );
+  const selectedSort = useMemo(
+    () => filterCollectionSort(selectedCollection, sort),
+    [selectedCollection, sort],
+  );
   const activeSort =
-    sort.length > 0 ? sort : (selectedCollection?.defaultSort ?? []);
+    selectedSort.length > 0
+      ? selectedSort
+      : (selectedCollection?.defaultSort ?? []);
   const pageSize = selectedCollection?.views?.list?.pageSize ?? PAGE_SIZE;
 
   const documentsQuery = useQuery({
@@ -600,8 +693,8 @@ function CmsListPage({
     cmsQuery.error instanceof Error
       ? cmsQuery.error.message
       : documentsQuery.error instanceof Error
-          ? documentsQuery.error.message
-          : null;
+        ? documentsQuery.error.message
+        : null;
 
   if (cmsQuery.data?.configured === false) {
     return (
@@ -685,7 +778,12 @@ function CmsListPage({
               }}
               onOpenDocument={(id) => {
                 if (!selectedCollection) return;
-                router.push(cmsDocumentPath(selectedCollection.name, id));
+                router.push(
+                  withSearchString(
+                    cmsDocumentPath(selectedCollection.name, id),
+                    serializeCurrentListState(),
+                  ),
+                );
               }}
               adapterLabel={selectedCollectionAdapterLabel}
               onOpenConfig={() => router.push(CONTENT_SETTINGS_PATH)}
@@ -708,14 +806,26 @@ function CmsItemPage({
   editMode: boolean;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const listSearch = searchParams.toString();
   const { auth } = useAuth();
   const queryClient = useQueryClient();
   const headers = useMemo(() => buildAuthHeaders(auth), [auth]);
   const scope = `${auth?.owner ?? ""}/${auth?.repo ?? ""}`;
   const [editing, setEditing] = useState(editMode);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const detailPath = cmsDocumentPath(collectionName, documentId);
-  const editPath = cmsDocumentEditPath(collectionName, documentId);
+  const listPath = withSearchString(
+    cmsCollectionPath(collectionName),
+    listSearch,
+  );
+  const detailPath = withSearchString(
+    cmsDocumentPath(collectionName, documentId),
+    listSearch,
+  );
+  const editPath = withSearchString(
+    cmsDocumentEditPath(collectionName, documentId),
+    listSearch,
+  );
 
   useEffect(() => {
     setEditing(editMode);
@@ -770,7 +880,9 @@ function CmsItemPage({
       );
       setEditing(false);
       await queryClient.invalidateQueries({ queryKey: ["cms-documents"] });
-      router.push(cmsDocumentPath(collectionName, nextId));
+      router.push(
+        withSearchString(cmsDocumentPath(collectionName, nextId), listSearch),
+      );
     },
   });
   const deleteMutation = useMutation({
@@ -778,7 +890,7 @@ function CmsItemPage({
     onSuccess: async () => {
       setDeleteOpen(false);
       await queryClient.invalidateQueries({ queryKey: ["cms-documents"] });
-      router.push(CONTENT_ENTRIES_PATH);
+      router.push(listPath);
     },
   });
   const mutationError =
@@ -805,7 +917,7 @@ function CmsItemPage({
             type="button"
             variant="outline"
             size="sm"
-            onClick={() => router.push(CONTENT_ENTRIES_PATH)}
+            onClick={() => router.push(listPath)}
           >
             <ArrowLeft className="mr-2 h-4 w-4" />
             List
@@ -1234,9 +1346,7 @@ function CmsAdapterSettingsPanel({
               </span>
               <Input
                 value={databaseUriSecret}
-                onChange={(event) =>
-                  setDatabaseUriSecret(event.target.value)
-                }
+                onChange={(event) => setDatabaseUriSecret(event.target.value)}
                 placeholder="DATABASE_URL"
                 disabled={saving}
               />
@@ -1256,8 +1366,8 @@ function CmsAdapterSettingsPanel({
                 disabled={saving}
               />
               <span className="text-xs text-muted-foreground">
-                Folder used by the file adapter. Collection file paths stay in
-                Models.
+                Folder inside kody-state used by this adapter. Collection file
+                paths stay in Models.
               </span>
             </label>
           ) : (
@@ -1689,6 +1799,18 @@ function CmsPermissionsDialog({
       [permissionPresetKey(collection, operation)]: enabled,
     }));
   };
+  const updateOperationColumn = (
+    operation: CmsPermissionOperation,
+    enabled: boolean,
+  ) => {
+    setOperationFlags((current) => {
+      const next = { ...current };
+      for (const collection of config.collections) {
+        next[permissionPresetKey(collection.name, operation)] = enabled;
+      }
+      return next;
+    });
+  };
   const applyPolicyPreset = (preset: CmsPermissionPolicyPreset) => {
     const next = CMS_PERMISSION_POLICY_PRESETS.find(
       (item) => item.value === preset,
@@ -1862,9 +1984,35 @@ function CmsPermissionsDialog({
             <div className="mt-3 overflow-x-auto border-y border-border">
               <div className="grid min-w-[560px] grid-cols-[minmax(180px,1fr)_120px_120px_120px] bg-muted/50 px-3 py-2 text-xs font-semibold uppercase text-muted-foreground">
                 <div>Collection</div>
-                {CMS_WRITE_PERMISSION_OPERATIONS.map((item) => (
-                  <div key={item.operation}>{item.label}</div>
-                ))}
+                {CMS_WRITE_PERMISSION_OPERATIONS.map((item) => {
+                  const allEnabled =
+                    config.collections.length > 0 &&
+                    config.collections.every(
+                      (collection) =>
+                        operationFlags[
+                          permissionPresetKey(collection.name, item.operation)
+                        ] ?? collection.operations[item.operation],
+                    );
+                  return (
+                    <label
+                      key={item.operation}
+                      className="flex items-center gap-2"
+                    >
+                      <Checkbox
+                        checked={allEnabled}
+                        disabled={config.collections.length === 0}
+                        onCheckedChange={(checked) =>
+                          updateOperationColumn(
+                            item.operation,
+                            checked === true,
+                          )
+                        }
+                        aria-label={`${allEnabled ? "Unselect" : "Select"} all ${item.label.toLowerCase()} actions`}
+                      />
+                      <span>{item.label}</span>
+                    </label>
+                  );
+                })}
               </div>
               {config.collections.map((collection) => (
                 <div
@@ -4175,6 +4323,8 @@ function RelationLink({
   compact: boolean;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const listSearch = searchParams.toString();
   const relationContext = useContext(CmsRelationContext);
   const targetCollection = relationContext?.collections.find(
     (collection) => collection.name === field.target,
@@ -4227,7 +4377,10 @@ function RelationLink({
       onClick={(event) => {
         event.stopPropagation();
         router.push(
-          cmsDocumentPath(targetCollection.name, id),
+          withSearchString(
+            cmsDocumentPath(targetCollection.name, id),
+            listSearch,
+          ),
         );
       }}
       className={cn(
@@ -4401,6 +4554,20 @@ function buildFilters(
   }
 
   return result;
+}
+
+function filterCollectionSort(
+  collection: CmsCollectionConfig | null,
+  sort: CmsSortEntry[],
+): CmsSortEntry[] {
+  if (!collection || sort.length === 0) return [];
+  const sortableFields = new Set(
+    listViewFields(collection)
+      .filter(({ field, view }) => isSortableViewField(field, view))
+      .map(({ field }) => field.name),
+  );
+
+  return sort.filter((entry) => sortableFields.has(entry.field));
 }
 
 function buildGenerateSchemaPayload(

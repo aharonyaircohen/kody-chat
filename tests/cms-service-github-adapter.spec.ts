@@ -186,6 +186,51 @@ describe("CMS service GitHub adapter integration", () => {
     ).resolves.toBeNull();
   });
 
+  it("rechecks fresh CMS permissions before deleting a document", async () => {
+    const req = request();
+    const files = { ...stateFiles };
+    mockStateFiles(files);
+
+    await createCmsDocument(
+      req,
+      octokit as never,
+      "A-Guy-educ",
+      "A-Guy-Web",
+      "articles",
+      {
+        id: "intro",
+        title: "Intro",
+        status: "draft",
+      },
+    );
+
+    files["cms/collections/articles.json"] = JSON.stringify({
+      ...JSON.parse(stateFiles["cms/collections/articles.json"]),
+      operations: {
+        list: true,
+        get: true,
+        search: true,
+        create: true,
+        update: true,
+        delete: false,
+      },
+    });
+
+    await expect(
+      deleteCmsDocument(
+        req,
+        octokit as never,
+        "A-Guy-educ",
+        "A-Guy-Web",
+        "articles",
+        "intro",
+      ),
+    ).rejects.toMatchObject({
+      code: "cms_config_error",
+      message: "delete disabled articles",
+    });
+  });
+
   it("lets remote Store adapters resolve Dashboard package dependencies", async () => {
     const req = request();
 
