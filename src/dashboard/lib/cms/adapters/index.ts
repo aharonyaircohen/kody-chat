@@ -1,4 +1,5 @@
 import "server-only";
+import "../runtime-deps";
 
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";

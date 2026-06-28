@@ -28,6 +28,20 @@ describe("CMS adapter boundary", () => {
     expect(source).not.toMatch(/["']\.\/mongodb["']/);
   });
 
+  it("anchors remote adapter package dependencies outside adapter code", () => {
+    const bridgeSource = readFileSync(
+      path.join(process.cwd(), "src/dashboard/lib/cms/adapters/index.ts"),
+      "utf8",
+    );
+    const depsSource = readFileSync(
+      path.join(process.cwd(), "src/dashboard/lib/cms/runtime-deps.ts"),
+      "utf8",
+    );
+
+    expect(bridgeSource).toMatch(/import\s+["']\.\.\/runtime-deps["']/);
+    expect(depsSource).toMatch(/import\s+["']mongodb["']/);
+  });
+
   it("loads a Store-owned adapter through the generic bridge", async () => {
     const root = path.join(tmpdir(), `kody-cms-adapters-${Date.now()}`);
     const adapterDir = path.join(root, "example");
