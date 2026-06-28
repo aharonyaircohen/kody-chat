@@ -129,7 +129,7 @@ export async function createCmsTools({
           owner,
           repo,
           input.collection,
-          input.id,
+          normalizeCmsDocumentIdInput(input.id),
         ),
       }),
     }),
@@ -226,6 +226,7 @@ async function mutateCmsDocument({
   }
 
   if (!input.id) throw new Error("id is required for update and delete");
+  const id = normalizeCmsDocumentIdInput(input.id);
 
   if (input.operation === "update") {
     return {
@@ -235,7 +236,7 @@ async function mutateCmsDocument({
         owner,
         repo,
         input.collection,
-        input.id,
+        id,
         documentValue(input.data),
       ),
     };
@@ -248,9 +249,48 @@ async function mutateCmsDocument({
       owner,
       repo,
       input.collection,
-      input.id,
+      id,
     ),
   };
+}
+
+function normalizeCmsDocumentIdInput(input: string): string {
+  const trimmed = input.trim();
+  const withoutQuery = trimmed.split(/[?#]/, 1)[0] ?? trimmed;
+  const path = parseDocumentPath(withoutQuery);
+  return path ?? withoutQuery;
+}
+
+function parseDocumentPath(value: string): string | null {
+  const path =
+    value.startsWith("http://") || value.startsWith("https://")
+      ? urlPathname(value)
+      : value;
+  if (!path || !path.includes("/content/entries/")) return null;
+
+  const parts = path.split("/").filter(Boolean).map(decodePathPart);
+  const entriesIndex = parts.findIndex(
+    (part, index) => part === "content" && parts[index + 1] === "entries",
+  );
+  const idPart = parts[entriesIndex + 3];
+  if (!idPart || idPart === "new") return null;
+  return idPart === "edit" ? (parts[entriesIndex + 2] ?? null) : idPart;
+}
+
+function urlPathname(value: string): string | null {
+  try {
+    return new URL(value).pathname;
+  } catch {
+    return null;
+  }
+}
+
+function decodePathPart(value: string): string {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 function findCollection(

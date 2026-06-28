@@ -179,6 +179,68 @@ describe("CMS chat tools", () => {
     }
   });
 
+  it("normalizes current-page URLs before getting a CMS document", async () => {
+    const req = new NextRequest("https://dash.test/api/kody/chat/kody");
+    const tools = await createCmsTools({
+      req,
+      octokit: {} as never,
+      owner: "A-Guy-educ",
+      repo: "A-Guy-Admin",
+    });
+
+    await tools.cms_get_document.execute?.(
+      {
+        collection: "courses",
+        id: "/content/entries/courses/64f1a5f6f2a80f3a3a3a3a3a/edit?filters=%7B%7D&offset=50",
+      },
+      { toolCallId: "call-url", messages: [] },
+    );
+    await tools.cms_get_document.execute?.(
+      {
+        collection: "courses",
+        id: "64f1a5f6f2a80f3a3a3a3a3a?collectionSearch=course",
+      },
+      { toolCallId: "call-query", messages: [] },
+    );
+    await tools.cms_mutate_document.execute?.(
+      {
+        collection: "courses",
+        operation: "update",
+        id: "https://dash.test/content/entries/courses/64f1a5f6f2a80f3a3a3a3a3a?filters=%7B%7D",
+        data: { title: "Updated" },
+      },
+      { toolCallId: "call-mutate-url", messages: [] },
+    );
+
+    expect(service.getCmsDocument).toHaveBeenNthCalledWith(
+      1,
+      req,
+      expect.anything(),
+      "A-Guy-educ",
+      "A-Guy-Admin",
+      "courses",
+      "64f1a5f6f2a80f3a3a3a3a3a",
+    );
+    expect(service.getCmsDocument).toHaveBeenNthCalledWith(
+      2,
+      req,
+      expect.anything(),
+      "A-Guy-educ",
+      "A-Guy-Admin",
+      "courses",
+      "64f1a5f6f2a80f3a3a3a3a3a",
+    );
+    expect(service.updateCmsDocument).toHaveBeenCalledWith(
+      req,
+      expect.anything(),
+      "A-Guy-educ",
+      "A-Guy-Admin",
+      "courses",
+      "64f1a5f6f2a80f3a3a3a3a3a",
+      { title: "Updated" },
+    );
+  });
+
   it("routes writes through the generic mutation tool", async () => {
     const req = new NextRequest("https://dash.test/api/kody/chat/kody");
     const tools = await createCmsTools({
