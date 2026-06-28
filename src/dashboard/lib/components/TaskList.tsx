@@ -442,6 +442,7 @@ const TaskRow = memo(function TaskRow({
   accent,
 }: TaskRowProps) {
   const [confirmCloseIssue, setConfirmCloseIssue] = useState(false);
+  const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
   const isClosed = task.state === "closed";
   const isAssignedBacklogTask = task.labels.includes(KODY_BACKLOG_LABEL);
   // Closed tasks come from the "Show closed" toggle (loaded on-demand). They
@@ -481,6 +482,10 @@ const TaskRow = memo(function TaskRow({
       : task.column === "gate-waiting" && task.gateType === "risk-gated"
         ? "Risk Gated"
         : statusLabel[task.column];
+  const openCloseIssueConfirm = useCallback(() => {
+    setActionsMenuOpen(false);
+    window.setTimeout(() => setConfirmCloseIssue(true), 0);
+  }, []);
 
   return (
     <div
@@ -976,7 +981,10 @@ const TaskRow = memo(function TaskRow({
           ) : null}
 
           {/* Overflow menu for remaining actions */}
-          <DropdownMenu>
+          <DropdownMenu
+            open={actionsMenuOpen}
+            onOpenChange={setActionsMenuOpen}
+          >
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
@@ -1092,9 +1100,22 @@ const TaskRow = memo(function TaskRow({
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     disabled={isClosingIssue}
-                    onSelect={(e) => {
+                    onPointerDown={(e) => {
+                      e.preventDefault();
                       e.stopPropagation();
-                      setConfirmCloseIssue(true);
+                      openCloseIssueConfirm();
+                    }}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    }}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                    }}
+                    onSelect={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      openCloseIssueConfirm();
                     }}
                     className="text-red-400 focus:bg-red-500/10 focus:text-red-300"
                   >
