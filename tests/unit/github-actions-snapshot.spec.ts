@@ -67,7 +67,7 @@ describe("publishGitHubActionsSandboxSnapshotWithOctokit", () => {
         owner: "owner",
         repo: "kody-state",
         path: `repo/${githubActionsSandboxSnapshotPath(sandbox(snapshotPath))}`,
-        branch: "kody-state",
+        branch: "main",
         content: Buffer.from("snapshot bytes").toString("base64"),
       }),
     );

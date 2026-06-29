@@ -101,7 +101,7 @@ describe("CMS adapter boundary", () => {
               state: {
                 owner: "A-Guy-educ",
                 repo: "kody-state",
-                branch: "kody-state",
+                branch: "main",
                 basePath: "A-Guy-Web",
               },
             },
@@ -267,7 +267,7 @@ function testContext(
       octokit: {} as never,
       owner: "A-Guy-educ",
       repo: "kody-state",
-      branch: "kody-state",
+      branch: "main",
       basePath: "A-Guy-Web",
     }),
   };

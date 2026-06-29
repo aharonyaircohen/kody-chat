@@ -17,7 +17,7 @@ const stateRepo = vi.hoisted(() => ({
   stateRepoPath: vi.fn(),
   writeStateBase64Files: vi.fn(async () => ({
     sha: "commit-sha",
-    branch: "kody-state",
+    branch: "main",
     target: { owner: "octo-state", repo: "kody-state", basePath: "widgets" },
   })),
 }));
@@ -75,7 +75,7 @@ describe("POST /api/kody/views", () => {
     );
     expect(body.repoPath).toMatch(/^views\/hello-html-[a-f0-9]{8}$/);
     expect(body.htmlUrl).toMatch(
-      /^https:\/\/github\.com\/octo-state\/kody-state\/tree\/kody-state\/widgets\/views\/hello-html-[a-f0-9]{8}$/,
+      /^https:\/\/github\.com\/octo-state\/kody-state\/tree\/main\/widgets\/views\/hello-html-[a-f0-9]{8}$/,
     );
     expect(stateRepo.writeStateBase64Files).toHaveBeenCalledWith({
       octokit: { marker: "viewer-octokit" },

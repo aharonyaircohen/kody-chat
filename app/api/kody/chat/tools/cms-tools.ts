@@ -27,6 +27,7 @@ import type {
   CmsListQuery,
   CmsSortEntry,
 } from "@dashboard/lib/cms/types";
+import { STATE_BRANCH } from "@dashboard/lib/state-branch";
 
 interface Ctx {
   req: NextRequest;
@@ -324,7 +325,7 @@ function describeCollectionStorage(collection: CmsCollectionConfig) {
       path,
       idField,
       extension,
-      branch: "kody-state",
+      branch: STATE_BRANCH,
     };
   }
 

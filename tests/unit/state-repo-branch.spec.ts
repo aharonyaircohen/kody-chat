@@ -44,10 +44,9 @@ function octokitForWrite() {
       }),
     },
     git: {
-      getRef: vi
-        .fn()
-        .mockRejectedValueOnce({ status: 404 })
-        .mockResolvedValueOnce({ data: { object: { sha: "main-sha" } } }),
+      getRef: vi.fn().mockResolvedValue({
+        data: { object: { sha: "main-sha" } },
+      }),
       createRef: vi.fn().mockResolvedValue({}),
     },
   };
@@ -58,7 +57,7 @@ beforeEach(() => {
 });
 
 describe("state repo branch", () => {
-  it("reads runtime state from the dedicated state branch", async () => {
+  it("reads runtime state from the state repo main branch", async () => {
     const octokit = octokitForRead();
 
     const file = await readStateText(
@@ -69,6 +68,7 @@ describe("state repo branch", () => {
     );
 
     expect(file?.content).toBe("hello");
+    expect(STATE_BRANCH).toBe("main");
     expect(octokit.repos.getContent).toHaveBeenCalledWith(
       expect.objectContaining({
         owner: "acme",
@@ -79,7 +79,7 @@ describe("state repo branch", () => {
     );
   });
 
-  it("creates the state branch on first write and writes to it", async () => {
+  it("writes runtime state to the state repo main branch", async () => {
     const octokit = octokitForWrite();
 
     await writeStateText({
@@ -91,12 +91,12 @@ describe("state repo branch", () => {
       message: "save report",
     });
 
-    expect(octokit.git.createRef).toHaveBeenCalledWith({
+    expect(octokit.git.getRef).toHaveBeenCalledWith({
       owner: "acme",
       repo: "kody-state",
-      ref: `refs/heads/${STATE_BRANCH}`,
-      sha: "main-sha",
+      ref: `heads/${STATE_BRANCH}`,
     });
+    expect(octokit.git.createRef).not.toHaveBeenCalled();
     expect(octokit.repos.createOrUpdateFileContents).toHaveBeenCalledWith(
       expect.objectContaining({
         owner: "acme",

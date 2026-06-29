@@ -112,7 +112,7 @@ describe("CMS service GitHub adapter integration", () => {
       owner: "A-Guy-educ",
       repo: "kody-state",
       path: "A-Guy-Web/content/articles/intro.json",
-      branch: "kody-state",
+      branch: "main",
       message: "cms: create articles/intro",
     });
 

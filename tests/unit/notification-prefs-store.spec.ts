@@ -206,7 +206,7 @@ describe("writeNotificationPrefs", () => {
       mockOctokit.repos.createOrUpdateFileContents.mock.calls[0]![0];
     expect(createCall).toMatchObject({
       path: "widgets/notifications/preferences/alice.json",
-      branch: "kody-state",
+      branch: "main",
       message: "feat(notifications): update prefs for alice",
     });
     expect(createCall.sha).toBeUndefined();

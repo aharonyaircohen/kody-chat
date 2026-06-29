@@ -112,7 +112,7 @@ describe("CMS chat tools", () => {
             path: "content/lessons",
             idField: "id",
             extension: "json",
-            branch: "kody-state",
+            branch: "main",
           },
           writePolicy: "enabled",
           operations: { create: true, update: true, delete: true },
