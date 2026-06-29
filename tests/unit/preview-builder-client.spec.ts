@@ -36,7 +36,7 @@ describe("spawnPreviewBuilder", () => {
     vi.restoreAllMocks();
   });
 
-  it("destroys an existing builder for the same preview before spawning a new one", async () => {
+  it("reuses an active builder for the same preview instead of restarting it", async () => {
     vi.setSystemTime(NOW);
     const calls: Call[] = [];
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init = {}) => {
@@ -52,6 +52,46 @@ describe("spawnPreviewBuilder", () => {
           {
             id: "old-same",
             state: "started",
+            created_at: "2026-06-08T11:55:00Z",
+            config: { env: { APP_NAME: "kp-acme-widgets-pr-7" } },
+          },
+          {
+            id: "other-pr",
+            state: "started",
+            created_at: "2026-06-08T11:55:00Z",
+            config: { env: { APP_NAME: "kp-acme-widgets-pr-8" } },
+          },
+        ]);
+      }
+      if (method === "DELETE") return Response.json({ ok: true });
+      return Response.json({ id: "new-builder" });
+    }) as unknown as typeof fetch;
+
+    const out = await spawnPreviewBuilder(baseInput());
+
+    expect(out.machineId).toBe("old-same");
+    expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual([
+      "GET https://api.machines.dev/v1/apps/kody-preview-builder/machines",
+    ]);
+    expect(JSON.stringify(calls)).not.toContain("other-pr?force=true");
+  });
+
+  it("destroys an inactive builder for the same preview before spawning", async () => {
+    vi.setSystemTime(NOW);
+    const calls: Call[] = [];
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init = {}) => {
+      const url = input.toString();
+      const method = init.method ?? "GET";
+      calls.push({
+        method,
+        url,
+        body: init.body ? JSON.parse(init.body as string) : undefined,
+      });
+      if (method === "GET") {
+        return Response.json([
+          {
+            id: "old-same",
+            state: "stopped",
             created_at: "2026-06-08T11:55:00Z",
             config: { env: { APP_NAME: "kp-acme-widgets-pr-7" } },
           },

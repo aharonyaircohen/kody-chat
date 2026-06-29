@@ -152,6 +152,10 @@ function newestFirst(a: BuilderMachineInfo, b: BuilderMachineInfo): number {
   return bTime - aTime;
 }
 
+function oldestFirst(a: BuilderMachineInfo, b: BuilderMachineInfo): number {
+  return -newestFirst(a, b);
+}
+
 export async function getPreviewBuilderStatus(
   appName: string,
   token: string,
@@ -202,19 +206,35 @@ async function destroyBuilderMachine(
 async function pruneBuilderMachines(
   token: string,
   targetAppName: string,
-): Promise<void> {
+): Promise<BuilderMachineInfo | null> {
   try {
     const res = await fetch(builderMachinesUrl(), {
       method: "GET",
       headers: builderAuthHeaders(token),
       signal: AbortSignal.timeout(BUILDER_MAINTENANCE_TIMEOUT_MS),
     });
-    if (!res.ok) return;
+    if (!res.ok) return null;
     const machines = (await res.json()) as BuilderMachineInfo[];
     const now = Date.now();
-    const doomed = machines.filter((m) =>
-      shouldDestroyBuilder(m, targetAppName, now),
-    );
+    const reusable =
+      machines
+        .filter(
+          (m) =>
+            m.id &&
+            m.config?.env?.APP_NAME === targetAppName &&
+            isActiveBuilderState(m.state),
+        )
+        .sort(oldestFirst)[0] ?? null;
+    const doomed = machines.filter((m) => {
+      if (reusable?.id === m.id) return false;
+      if (
+        m.config?.env?.APP_NAME === targetAppName &&
+        isActiveBuilderState(m.state)
+      ) {
+        return false;
+      }
+      return shouldDestroyBuilder(m, targetAppName, now);
+    });
     await Promise.all(
       doomed.map((m) =>
         destroyBuilderMachine(m.id!, token).catch((err) =>
@@ -225,20 +245,38 @@ async function pruneBuilderMachines(
         ),
       ),
     );
+    return reusable;
   } catch (err) {
     logger.warn(
       { err, targetAppName },
       "previews.builder: stale builder scan failed",
     );
+    return null;
   }
 }
 
 export async function spawnPreviewBuilder(
   input: SpawnBuilderInput,
 ): Promise<SpawnBuilderResult> {
-  await pruneBuilderMachines(input.flyToken, input.appName);
-
   const tag = input.imageTag ?? defaultTagFor(input.repo, input.ref);
+  const expectedUrl = `https://${input.appName}.fly.dev`;
+  const existing = await pruneBuilderMachines(input.flyToken, input.appName);
+  if (existing?.id) {
+    logger.info(
+      {
+        repo: input.repo,
+        pr: input.pr,
+        ref: input.ref,
+        machineId: existing.id,
+      },
+      "previews.builder: active builder already running; reusing",
+    );
+    return {
+      machineId: existing.id,
+      expectedUrl,
+    };
+  }
+
   const body = {
     config: {
       image: BUILDER_IMAGE,
@@ -334,6 +372,6 @@ export async function spawnPreviewBuilder(
 
   return {
     machineId: created.id,
-    expectedUrl: `https://${input.appName}.fly.dev`,
+    expectedUrl,
   };
 }
