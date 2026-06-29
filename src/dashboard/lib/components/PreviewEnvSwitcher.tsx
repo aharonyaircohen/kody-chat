@@ -32,6 +32,7 @@ import {
 } from "../preview-environments";
 import { PreviewBranchEnvForm } from "./PreviewBranchEnvForm";
 import { PreviewEnvForm } from "./PreviewEnvForm";
+import { PreviewFileUploadButton } from "./PreviewFileUploadButton";
 import { PreviewFloatingMenu } from "./PreviewFloatingMenu";
 
 /** Compact expiry chip text + tone for an uploaded preview. */
@@ -342,32 +343,21 @@ export function PreviewEnvSwitcher({
                 Add branch preview
               </button>
               {onUpload && (
-                <label
+                <PreviewFileUploadButton
                   title="Upload static files to state views"
+                  disabled={uploading}
+                  onFiles={(files) => void handleUpload(files)}
                   className={cn(
-                    "relative flex cursor-pointer items-center gap-2 overflow-hidden border-l border-zinc-800 px-3 py-1.5 text-xs font-medium text-sky-300 hover:bg-zinc-800/70 focus-within:ring-1 focus-within:ring-sky-400",
-                    uploading && "opacity-60",
+                    "items-center border-l border-zinc-800 px-3 py-1.5 text-xs font-medium text-sky-300 hover:bg-zinc-800/70",
                   )}
                 >
-                  <input
-                    type="file"
-                    multiple
-                    aria-label="Upload view files"
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
-                    disabled={uploading}
-                    onChange={(e) => {
-                      const files = Array.from(e.target.files ?? []);
-                      if (files.length > 0) void handleUpload(files);
-                      e.currentTarget.value = "";
-                    }}
-                  />
                   {uploading ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   ) : (
                     <Upload className="w-3.5 h-3.5" />
                   )}
                   {uploading ? "Uploading..." : "Upload view files"}
-                </label>
+                </PreviewFileUploadButton>
               )}
             </div>
           )}

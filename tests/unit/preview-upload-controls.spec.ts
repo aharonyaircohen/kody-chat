@@ -19,29 +19,29 @@ const PREVIEW_ENV_SWITCHER_PATH = resolve(
   __dirname,
   "../../src/dashboard/lib/components/PreviewEnvSwitcher.tsx",
 );
+const PREVIEW_UPLOAD_BUTTON_PATH = resolve(
+  __dirname,
+  "../../src/dashboard/lib/components/PreviewFileUploadButton.tsx",
+);
 const WORKSPACE_SOURCE = readFileSync(PREVIEW_WORKSPACE_PATH, "utf8");
 const SWITCHER_SOURCE = readFileSync(PREVIEW_ENV_SWITCHER_PATH, "utf8");
+const UPLOAD_BUTTON_SOURCE = readFileSync(PREVIEW_UPLOAD_BUTTON_PATH, "utf8");
 
 describe("Preview upload controls", () => {
-  it("opens uploads through a native file input surface", () => {
-    expect(WORKSPACE_SOURCE).toMatch(/<label[\s\S]*<input[\s\S]*type="file"/);
-    expect(WORKSPACE_SOURCE).toMatch(
-      /className="absolute inset-0 h-full w-full cursor-pointer opacity-0"/,
+  it("opens uploads through a topmost native file input", () => {
+    expect(WORKSPACE_SOURCE).toMatch(/<PreviewFileUploadButton/);
+    expect(SWITCHER_SOURCE).toMatch(/<PreviewFileUploadButton/);
+    expect(UPLOAD_BUTTON_SOURCE).toMatch(/type="file"/);
+    expect(UPLOAD_BUTTON_SOURCE).toMatch(
+      /className="absolute inset-0 z-10 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"/,
     );
-    expect(WORKSPACE_SOURCE).not.toMatch(/role="button"/);
-    expect(WORKSPACE_SOURCE).not.toMatch(/emptyUploadRef\.current\?\.click/);
-
-    expect(SWITCHER_SOURCE).toMatch(/<label[\s\S]*<input[\s\S]*type="file"/);
-    expect(SWITCHER_SOURCE).toMatch(
-      /className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"/,
-    );
-    expect(SWITCHER_SOURCE).not.toMatch(/role="button"/);
-    expect(SWITCHER_SOURCE).not.toMatch(/fileInputRef\.current\?\.click/);
+    expect(UPLOAD_BUTTON_SOURCE).toMatch(/pointer-events-none/);
+    expect(UPLOAD_BUTTON_SOURCE).not.toMatch(/role="button"/);
+    expect(UPLOAD_BUTTON_SOURCE).not.toMatch(/\.click\(\)/);
   });
 
   it("clears the file input after each selection", () => {
-    expect(WORKSPACE_SOURCE).toMatch(/e\.currentTarget\.value = ""/);
-    expect(SWITCHER_SOURCE).toMatch(/e\.currentTarget\.value = ""/);
+    expect(UPLOAD_BUTTON_SOURCE).toMatch(/event\.currentTarget\.value = ""/);
   });
 
   it("keeps a just-uploaded environment selected while config catches up", () => {

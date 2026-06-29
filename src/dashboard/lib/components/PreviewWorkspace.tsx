@@ -24,6 +24,7 @@ import { selectionPath } from "../selection-routing";
 import { PreviewPane } from "./PreviewPane";
 import { PreviewEnvSwitcher } from "./PreviewEnvSwitcher";
 import { PreviewBranchEnvForm } from "./PreviewBranchEnvForm";
+import { PreviewFileUploadButton } from "./PreviewFileUploadButton";
 import {
   addBranchPreviewEnvironment,
   addEnvironment,
@@ -557,23 +558,13 @@ export function PreviewWorkspace({
                   or
                   <span className="h-px flex-1 bg-zinc-800" />
                 </div>
-                <label
-                  className="relative inline-flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-md border border-zinc-700 bg-zinc-800/40 px-3 py-1.5 text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 focus-within:ring-1 focus-within:ring-sky-400"
+                <PreviewFileUploadButton
+                  onFiles={(files) => void uploadFiles(files)}
+                  className="items-center justify-center rounded-md border border-zinc-700 bg-zinc-800/40 px-3 py-1.5 text-xs font-medium text-zinc-200 transition hover:bg-zinc-800"
                 >
-                  <input
-                    type="file"
-                    multiple
-                    aria-label="Upload view files"
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                    onChange={(e) => {
-                      const files = Array.from(e.target.files ?? []);
-                      if (files.length > 0) void uploadFiles(files);
-                      e.currentTarget.value = "";
-                    }}
-                  />
                   <Upload className="w-3.5 h-3.5" />
                   Upload view files
-                </label>
+                </PreviewFileUploadButton>
               </div>
             </div>
           )
