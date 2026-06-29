@@ -98,6 +98,7 @@ import { toast } from "sonner";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useAuth } from "../auth-context";
+import { repoPathForNavMatching, repoScopedHref } from "../routes";
 import { RepoManager } from "./RepoManager";
 import { useTheme } from "@dashboard/providers/Theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
@@ -360,6 +361,16 @@ export function KodyDashboard({
   // (chat rail, headers, banners all remain visible).
   const { auth: storedAuth } = useAuth();
   const noAuth = !storedAuth;
+  const pushKodyPath = useCallback(
+    (href: string) => {
+      window.history.pushState(
+        null,
+        "",
+        storedAuth ? repoScopedHref(storedAuth, href) : href,
+      );
+    },
+    [storedAuth],
+  );
 
   // Theme toggle
   const { theme, setTheme } = useTheme();
@@ -547,7 +558,7 @@ export function KodyDashboard({
       setShowPreview(false);
       setSelectedIssueNumber(null);
       setShowMobileDetail(false);
-      window.history.pushState(null, "", "/");
+      pushKodyPath("/");
       queryClient.invalidateQueries({ queryKey: taskQueryKey });
     },
   });
@@ -601,7 +612,7 @@ export function KodyDashboard({
         if (selectedIssueNumber === task.issueNumber) {
           setSelectedIssueNumber(null);
           setShowMobileDetail(false);
-          window.history.pushState(null, "", "/");
+          pushKodyPath("/");
         }
       } else {
         toast.success("Task shown in dashboard");
@@ -928,7 +939,7 @@ export function KodyDashboard({
 
   // Helper: detect modal route from URL
   const getModalFromUrl = (): "new" | "bug" | "chat" | "kody-bug" | null => {
-    const path = window.location.pathname;
+    const path = repoPathForNavMatching(window.location.pathname);
     if (path === "/new") return "new";
     if (path === "/bug") return "bug";
     if (path === "/report-kody-bug") return "kody-bug";
@@ -937,42 +948,48 @@ export function KodyDashboard({
   };
 
   // Helper: push base URL (used when closing modals)
-  const pushKodyBase = () => window.history.pushState(null, "", "/");
+  const pushKodyBase = useCallback(() => pushKodyPath("/"), [pushKodyPath]);
 
   // Open preview modal with URL sync
-  const handleOpenPreview = useCallback((task: KodyTask) => {
-    setSelectedIssueNumber(task.issueNumber);
-    setShowPreview(true);
-    window.history.pushState(null, "", `/${task.issueNumber}/preview`);
-  }, []);
+  const handleOpenPreview = useCallback(
+    (task: KodyTask) => {
+      setSelectedIssueNumber(task.issueNumber);
+      setShowPreview(true);
+      pushKodyPath(`/${task.issueNumber}/preview`);
+    },
+    [pushKodyPath],
+  );
 
   // Close preview modal with URL sync
   const handleClosePreview = useCallback(() => {
     setShowPreview(false);
     if (selectedIssueNumber) {
-      window.history.pushState(null, "", `/${selectedIssueNumber}`);
+      pushKodyPath(`/${selectedIssueNumber}`);
     }
-  }, [selectedIssueNumber]);
+  }, [pushKodyPath, selectedIssueNumber]);
 
   // Open/close modal dialogs with URL sync
   const handleOpenCreate = useCallback(() => {
     setPresetGoalForCreate(null);
     setShowCreateDialog(true);
-    window.history.pushState(null, "", "/new");
-  }, []);
+    pushKodyPath("/new");
+  }, [pushKodyPath]);
 
   const handleCloseCreate = useCallback(() => {
     setShowCreateDialog(false);
     setDuplicateSource(null);
     setPresetGoalForCreate(null);
     pushKodyBase();
-  }, []);
+  }, [pushKodyBase]);
 
-  const handleCreateInGoal = useCallback((goal: Goal | null) => {
-    setPresetGoalForCreate(goal);
-    setShowCreateDialog(true);
-    window.history.pushState(null, "", "/new");
-  }, []);
+  const handleCreateInGoal = useCallback(
+    (goal: Goal | null) => {
+      setPresetGoalForCreate(goal);
+      setShowCreateDialog(true);
+      pushKodyPath("/new");
+    },
+    [pushKodyPath],
+  );
 
   // Goal-to-goal DnD: remove all existing goal:* labels, then add the target (if any)
   const handleMoveTask = useCallback(
@@ -1028,35 +1045,38 @@ export function KodyDashboard({
   const handleOpenBug = useCallback(() => {
     setPresetGoalForBug(null);
     setShowBugDialog(true);
-    window.history.pushState(null, "", "/bug");
-  }, []);
+    pushKodyPath("/bug");
+  }, [pushKodyPath]);
 
   const handleCloseBug = useCallback(() => {
     setShowBugDialog(false);
     setPresetGoalForBug(null);
     pushKodyBase();
-  }, []);
+  }, [pushKodyBase]);
 
   const handleOpenKodyBug = useCallback(() => {
     setShowKodyBugDialog(true);
-    window.history.pushState(null, "", "/report-kody-bug");
-  }, []);
+    pushKodyPath("/report-kody-bug");
+  }, [pushKodyPath]);
 
   const handleCloseKodyBug = useCallback(() => {
     setShowKodyBugDialog(false);
     pushKodyBase();
-  }, []);
+  }, [pushKodyBase]);
 
-  const handleReportBugInGoal = useCallback((goal: Goal | null) => {
-    setPresetGoalForBug(goal);
-    setShowBugDialog(true);
-    window.history.pushState(null, "", "/bug");
-  }, []);
+  const handleReportBugInGoal = useCallback(
+    (goal: Goal | null) => {
+      setPresetGoalForBug(goal);
+      setShowBugDialog(true);
+      pushKodyPath("/bug");
+    },
+    [pushKodyPath],
+  );
 
   const handleOpenChat = useCallback(() => {
     openMobileChat();
-    window.history.pushState(null, "", "/chat");
-  }, [openMobileChat]);
+    pushKodyPath("/chat");
+  }, [openMobileChat, pushKodyPath]);
 
   // Handle task duplication
   const handleDuplicateTask = useCallback(
@@ -1072,19 +1092,19 @@ export function KodyDashboard({
     (task: KodyTask | null) => {
       if (task) {
         setSelectedIssueNumber(task.issueNumber);
-        window.history.pushState(null, "", `/${task.issueNumber}`);
+        pushKodyPath(`/${task.issueNumber}`);
         if (!isDesktop) {
           setShowMobileDetail(true);
         }
       } else {
         setSelectedIssueNumber(null);
         setShowMobileDetail(false);
-        window.history.pushState(null, "", "/");
+        pushKodyPath("/");
         // Refresh once on close — polling was paused while the modal was open.
         queryClient.invalidateQueries({ queryKey: taskQueryKey });
       }
     },
-    [isDesktop, queryClient, taskQueryKey],
+    [isDesktop, pushKodyPath, queryClient, taskQueryKey],
   );
 
   // Auto-select task from URL on initial load

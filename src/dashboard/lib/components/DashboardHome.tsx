@@ -13,7 +13,6 @@
  */
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import {
   Activity,
@@ -58,6 +57,7 @@ import { managedGoalModel, type ManagedGoalRecord } from "../managed-goals";
 import { CreateTaskDialog } from "./CreateTaskDialog";
 import { CreateGoalDialog } from "./GoalControl";
 import { RepoManager } from "./RepoManager";
+import { RepoScopedLink } from "./RepoScopedLink";
 import { cn } from "../utils";
 import { autoDirProps } from "../text-direction";
 import type { ColumnId, KodyTask } from "../types";
@@ -65,6 +65,7 @@ import type { HealthLevel } from "../health/types";
 import type { Report } from "../api";
 import { getStoredAuth } from "../api";
 import type { ActionLogEntry } from "../activity/action-log";
+import { repoScopedHref } from "../routes";
 
 // ── helpers ───────────────────────────────────────────────────────────────
 
@@ -115,12 +116,12 @@ function SectionHeader({
         {title}
       </h2>
       {href && (
-        <Link
+        <RepoScopedLink
           href={href}
           className="inline-flex items-center gap-1 text-body-xs text-muted-foreground hover:text-foreground"
         >
           {cta} <ArrowRight className="w-3 h-3" />
-        </Link>
+        </RepoScopedLink>
       )}
     </div>
   );
@@ -140,7 +141,7 @@ function StatTile({
   href: string;
 }) {
   return (
-    <Link href={href} className="block">
+    <RepoScopedLink href={href} className="block">
       <Card className="p-4 hover:bg-white/[0.04] transition-colors h-full">
         <div className="flex items-center gap-3">
           <span
@@ -161,7 +162,7 @@ function StatTile({
           </div>
         </div>
       </Card>
-    </Link>
+    </RepoScopedLink>
   );
 }
 
@@ -228,12 +229,12 @@ function NeedsYouCard() {
             </div>
           </div>
         </div>
-        <Link
+        <RepoScopedLink
           href="/reports"
           className="inline-flex items-center gap-1 text-body-xs text-muted-foreground hover:text-foreground"
         >
           Reports <ArrowRight className="w-3 h-3" />
-        </Link>
+        </RepoScopedLink>
       </div>
 
       {!isLoading && needsReview.length === 0 ? (
@@ -241,7 +242,7 @@ function NeedsYouCard() {
       ) : (
         <div className="flex flex-wrap gap-x-5 gap-y-2">
           {stats.map((s) => (
-            <Link
+            <RepoScopedLink
               key={s.label}
               href="/reports"
               className="flex items-baseline gap-1.5"
@@ -257,7 +258,7 @@ function NeedsYouCard() {
               <span className="text-body-xs text-muted-foreground">
                 {s.label}
               </span>
-            </Link>
+            </RepoScopedLink>
           ))}
         </div>
       )}
@@ -275,6 +276,9 @@ function FailingCard({
 }) {
   const { data: ci } = useDefaultBranchCI();
   const { githubUser } = useGitHubIdentity();
+  const { auth } = useAuth();
+  const scopedHref = (href: string) =>
+    auth ? repoScopedHref(auth, href) : href;
   const rerunCI = useRerunCIRun();
   const createFixCI = useCreateFixCITask();
   const retryTask = useRetryTask(githubUser?.login);
@@ -303,12 +307,12 @@ function FailingCard({
             </div>
           </div>
         </div>
-        <Link
-          href="/tasks"
+        <RepoScopedLink
+          href={scopedHref("/tasks")}
           className="inline-flex items-center gap-1 text-body-xs text-muted-foreground hover:text-foreground"
         >
           Tasks <ArrowRight className="w-3 h-3" />
-        </Link>
+        </RepoScopedLink>
       </div>
 
       {tasksLoading ? (
@@ -382,8 +386,8 @@ function FailingCard({
               key={t.id}
               className="flex items-center gap-2 px-2 py-2 -mx-2 rounded-md hover:bg-white/[0.04] transition-colors"
             >
-              <Link
-                href={`/${t.issueNumber}`}
+              <RepoScopedLink
+                href={scopedHref(`/${t.issueNumber}`)}
                 className="flex items-start gap-2 min-w-0 flex-1"
               >
                 <span className="mt-0.5 w-11 shrink-0 tabular-nums text-body-xs text-muted-foreground">
@@ -402,7 +406,7 @@ function FailingCard({
                     </div>
                   )}
                 </div>
-              </Link>
+              </RepoScopedLink>
               <div className="flex items-center gap-1 shrink-0">
                 {t.workflowRun?.html_url && (
                   <a
@@ -466,7 +470,7 @@ function LatestReports() {
               key={r.slug}
               className="flex items-center gap-3 px-4 py-3 hover:bg-white/[0.04] transition-colors"
             >
-              <Link
+              <RepoScopedLink
                 href={`/reports/${r.slug}`}
                 className="flex items-center gap-3 min-w-0 flex-1"
               >
@@ -475,7 +479,7 @@ function LatestReports() {
                 <span className="shrink-0 text-body-xs text-muted-foreground">
                   {timeAgo(r.updatedAt)}
                 </span>
-              </Link>
+              </RepoScopedLink>
               <div className="flex items-center gap-1 shrink-0">
                 <Button
                   size="sm"
@@ -661,20 +665,20 @@ function ModelsOverview() {
       ) : (
         <Card className="overflow-hidden">
           <div className="grid grid-cols-2 divide-x divide-white/[0.04] border-b border-white/[0.04] text-body-xs">
-            <Link
+            <RepoScopedLink
               href="/agent-goals"
               className="flex items-center justify-between px-4 py-3 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
             >
               <span>AgentGoals</span>
               <span className="font-mono text-white/70">{objectiveCount}</span>
-            </Link>
-            <Link
+            </RepoScopedLink>
+            <RepoScopedLink
               href="/agent-loops"
               className="flex items-center justify-between px-4 py-3 text-muted-foreground hover:bg-white/[0.04] hover:text-foreground"
             >
               <span>AgentLoops</span>
               <span className="font-mono text-white/70">{routineCount}</span>
-            </Link>
+            </RepoScopedLink>
           </div>
           <div className="divide-y divide-white/[0.04]">
             {top.map((model) => (
@@ -702,7 +706,7 @@ function ManagedModelOverviewRow({ model }: { model: ManagedGoalRecord }) {
   const state = model.state.state;
 
   return (
-    <Link
+    <RepoScopedLink
       href={href}
       className="flex items-center gap-2 px-4 py-3 hover:bg-white/[0.04] transition-colors"
     >
@@ -732,7 +736,7 @@ function ManagedModelOverviewRow({ model }: { model: ManagedGoalRecord }) {
           )}
         </span>
       ) : null}
-    </Link>
+    </RepoScopedLink>
   );
 }
 
@@ -767,7 +771,7 @@ function ChannelsOverview() {
                 key={c.id}
                 className="flex items-center gap-2 px-4 py-3 hover:bg-white/[0.04] transition-colors"
               >
-                <Link
+                <RepoScopedLink
                   href="/messages"
                   className="flex items-center gap-2 min-w-0 flex-1"
                 >
@@ -789,7 +793,7 @@ function ChannelsOverview() {
                       {c.commentsCount} msg{c.commentsCount === 1 ? "" : "s"}
                     </span>
                   )}
-                </Link>
+                </RepoScopedLink>
                 {isUnread ? (
                   <Button
                     size="sm"
@@ -1024,7 +1028,7 @@ export function DashboardHome() {
             <h2 className="text-label font-semibold uppercase tracking-wider text-muted-foreground/80">
               Needs attention
             </h2>
-            <Link
+            <RepoScopedLink
               href="/tasks"
               className="text-body-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-2 tabular-nums"
               title="Open the tasks board"
@@ -1042,7 +1046,7 @@ export function DashboardHome() {
                   </span>
                 </>
               )}
-            </Link>
+            </RepoScopedLink>
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             <NeedsYouCard />

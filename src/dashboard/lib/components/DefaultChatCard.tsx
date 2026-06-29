@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { MessageSquareDot } from "lucide-react";
-import Link from "next/link";
+import { RepoScopedLink } from "./RepoScopedLink";
 import { toast } from "sonner";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Label } from "@dashboard/ui/label";
@@ -177,13 +177,19 @@ export function DefaultChatCard() {
         {entries.length === 0 && (
           <p className="text-xs text-white/40">
             No chat models configured yet. Add one on{" "}
-            <Link href="/models" className="underline hover:text-white/70">
+            <RepoScopedLink
+              href="/models"
+              className="underline hover:text-white/70"
+            >
               Chat models
-            </Link>{" "}
+            </RepoScopedLink>{" "}
             or enable Fly Brain on{" "}
-            <Link href="/runner" className="underline hover:text-white/70">
+            <RepoScopedLink
+              href="/runner"
+              className="underline hover:text-white/70"
+            >
               Fly Runner
-            </Link>
+            </RepoScopedLink>
             .
           </p>
         )}

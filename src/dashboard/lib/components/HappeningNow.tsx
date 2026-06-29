@@ -18,6 +18,8 @@ import { CircleDot, Clock, ExternalLink, Loader2 } from "lucide-react";
 import { Card } from "@dashboard/ui/card";
 import { COLUMN_DEFS } from "../constants";
 import { useNow } from "../hooks/useNow";
+import { useAuth } from "../auth-context";
+import { repoScopedHref } from "../routes";
 import { cn } from "../utils";
 import { autoDirProps } from "../text-direction";
 import type { ColumnId, KodyTask } from "../types";
@@ -88,6 +90,9 @@ export function HappeningNow({
   /** react-query dataUpdatedAt (ms) — when the task list last came back. */
   updatedAt?: number;
 }) {
+  const { auth } = useAuth();
+  const scopedHref = (href: string) =>
+    auth ? repoScopedHref(auth, href) : href;
   const now = useNow(15_000); // tick the relative times without re-fetching
   const nowMs = now.getTime();
 
@@ -146,7 +151,7 @@ export function HappeningNow({
                 </span>
 
                 <Link
-                  href={`/${task.issueNumber}`}
+                  href={scopedHref(`/${task.issueNumber}`)}
                   className="min-w-0 flex-1 flex items-baseline gap-2"
                 >
                   <span className="text-xs text-muted-foreground tabular-nums shrink-0 w-10">

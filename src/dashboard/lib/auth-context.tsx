@@ -108,7 +108,7 @@ interface AuthContextValue {
   /** Remove a repo by index. Removing the current repo falls back to index 0. Removing the only repo logs out. */
   removeRepo: (index: number) => void;
   /** Switch the active repo. Triggers a full page reload to clear React Query cache. */
-  setCurrentRepo: (index: number) => void;
+  setCurrentRepo: (index: number, options?: { redirectTo?: string }) => void;
   /**
    * Update the per-browser integration fields (brain, vercelBypassSecret).
    * Pass `null` to clear a field, omit it to leave it unchanged.
@@ -384,26 +384,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const setCurrentRepo = useCallback((index: number) => {
-    setAuth((prev) => {
-      if (!prev) return prev;
-      if (index < 0 || index >= prev.repos.length) return prev;
-      if (index === prev.currentRepoIndex) return prev;
-      const cur = prev.repos[index];
-      const next: KodyAuth = {
-        ...prev,
-        currentRepoIndex: index,
-        repoUrl: cur.repoUrl,
-        owner: cur.owner,
-        repo: cur.repo,
-        token: cur.token,
-      };
-      persist(next);
-      // Full reload — wipes React Query cache, in-flight polls, chat state.
-      window.location.href = "/";
-      return next;
-    });
-  }, []);
+  const setCurrentRepo = useCallback(
+    (index: number, options?: { redirectTo?: string }) => {
+      setAuth((prev) => {
+        if (!prev) return prev;
+        if (index < 0 || index >= prev.repos.length) return prev;
+        if (index === prev.currentRepoIndex) return prev;
+        const cur = prev.repos[index];
+        const next: KodyAuth = {
+          ...prev,
+          currentRepoIndex: index,
+          repoUrl: cur.repoUrl,
+          owner: cur.owner,
+          repo: cur.repo,
+          token: cur.token,
+        };
+        persist(next);
+        const redirectTo = options?.redirectTo;
+        // Full reload — wipes React Query cache, in-flight polls, chat state.
+        window.location.href = redirectTo ?? "/";
+        return next;
+      });
+    },
+    [],
+  );
 
   const updateIntegrations = useCallback(
     (patch: {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   PREVIEW_NAV_ITEM,
+  PRIMARY_NAV_ITEMS,
   SETTINGS_NAV_SECTIONS,
   TASKS_NAV_ITEM,
   isNavItemActive,
@@ -10,9 +11,10 @@ import {
 } from "@dashboard/lib/components/settings-nav";
 
 const itemByHref = (href: string): SettingsNavItem => {
-  const item = SETTINGS_NAV_SECTIONS.flatMap((section) => section.items).find(
-    (candidate) => candidate.href === href,
-  );
+  const item = [
+    ...PRIMARY_NAV_ITEMS,
+    ...SETTINGS_NAV_SECTIONS.flatMap((section) => section.items),
+  ].find((candidate) => candidate.href === href);
   if (!item) throw new Error(`Missing nav item ${href}`);
   return item;
 };
@@ -48,6 +50,26 @@ describe("sidebar active route matching", () => {
     expect(isNavItemActive("/123", "", TASKS_NAV_ITEM)).toBe(true);
     expect(isNavItemActive("/123/comments", "", TASKS_NAV_ITEM)).toBe(true);
     expect(isNavItemActive("/123/preview/docs", "", TASKS_NAV_ITEM)).toBe(true);
+  });
+
+  it("keeps repo-scoped pages selected under their shared nav item", () => {
+    expect(
+      isNavItemActive(
+        "/repo/A-Guy-educ/A-Guy-Web/123/preview/docs",
+        "",
+        TASKS_NAV_ITEM,
+      ),
+    ).toBe(true);
+    expect(
+      isNavItemActive(
+        "/repo/A-Guy-educ/A-Guy-Web/reports/release-health",
+        "",
+        itemByHref("/reports"),
+      ),
+    ).toBe(true);
+    expect(navLabelForPath("/repo/A-Guy-educ/A-Guy-Web/files/src/app.ts")).toBe(
+      "Files",
+    );
   });
 
   it("does not lose selected state when an exact page has query params", () => {

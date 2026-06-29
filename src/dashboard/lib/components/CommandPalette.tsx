@@ -11,7 +11,7 @@
  */
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import {
   CornerDownLeft,
@@ -31,7 +31,9 @@ import {
 } from "@dashboard/ui/dialog";
 import { useTheme } from "@dashboard/providers/Theme";
 import { cn } from "@dashboard/lib/utils/ui";
+import { useAuth } from "../auth-context";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { repoPathForNavMatching, repoScopedHref } from "../routes";
 import {
   HOME_NAV_ITEM,
   PRIMARY_NAV_ITEMS,
@@ -53,6 +55,7 @@ export function CommandPalette() {
   const router = useRouter();
   const pathname = usePathname() ?? "/";
   const { theme, setTheme } = useTheme();
+  const { auth } = useAuth();
   const { githubUser, clearGitHubUser } = useGitHubIdentity();
 
   const [open, setOpen] = useState(false);
@@ -81,11 +84,15 @@ export function CommandPalette() {
     }
   }, [open]);
 
-  const isVibe = pathname.startsWith("/vibe");
+  const scopedHref = useCallback(
+    (href: string) => (auth ? repoScopedHref(auth, href) : href),
+    [auth],
+  );
+  const isVibe = repoPathForNavMatching(pathname).startsWith("/vibe");
 
   const commands = useMemo<Command[]>(() => {
     const go = (href: string) => () => {
-      router.push(href);
+      router.push(scopedHref(href));
       setOpen(false);
     };
 
@@ -148,7 +155,15 @@ export function CommandPalette() {
     }
 
     return [...navCommands, ...actionCommands];
-  }, [router, isVibe, theme, setTheme, githubUser, clearGitHubUser]);
+  }, [
+    router,
+    scopedHref,
+    isVibe,
+    theme,
+    setTheme,
+    githubUser,
+    clearGitHubUser,
+  ]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

@@ -29,6 +29,18 @@ const nextConfig = {
       },
     ];
   },
+  async rewrites() {
+    return [
+      {
+        source: "/repo/:owner/:repo",
+        destination: "/",
+      },
+      {
+        source: "/repo/:owner/:repo/:path*",
+        destination: "/:path*",
+      },
+    ];
+  },
   experimental: {
     // Turbopack's persistent dev cache has grown pathologically large locally.
     turbopackFileSystemCacheForDev: false,

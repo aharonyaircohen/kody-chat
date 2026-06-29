@@ -22,6 +22,7 @@ import {
 
 import { useAuth, type KodyRepoEntry } from "../auth-context";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { repoScopedHref } from "../routes";
 import { cn } from "../utils";
 import { AddRepoForm } from "./AddRepoForm";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -78,6 +79,8 @@ function MobileMenuContent({
   const pathname = usePathname() ?? "/";
   const search = useSearchParams()?.toString() ?? "";
   const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity();
+  const scopedHref = (href: string) =>
+    auth ? repoScopedHref(auth, href) : href;
   const [confirmRemove, setConfirmRemove] = useState<{
     index: number;
     entry: KodyRepoEntry;
@@ -223,7 +226,7 @@ function MobileMenuContent({
                 return (
                   <Link
                     key={item.href}
-                    href={item.href}
+                    href={scopedHref(item.href)}
                     onClick={close}
                     aria-current={active ? "page" : undefined}
                     className={cn(
@@ -264,7 +267,7 @@ function MobileMenuContent({
                 return (
                   <Link
                     key={item.href}
-                    href={item.href}
+                    href={scopedHref(item.href)}
                     onClick={close}
                     aria-current={active ? "page" : undefined}
                     className={cn(
@@ -313,7 +316,7 @@ function MobileMenuContent({
                       return (
                         <Link
                           key={item.href}
-                          href={item.href}
+                          href={scopedHref(item.href)}
                           onClick={close}
                           aria-current={active ? "page" : undefined}
                           className={cn(

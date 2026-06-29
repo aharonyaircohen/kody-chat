@@ -35,6 +35,8 @@ import { CIStatusBadge } from "./CIStatusBadge";
 import { UIVerifyBadge } from "./UIVerifyBadge";
 import { ConfirmDialog } from "./ConfirmDialog";
 import type { KodyTask, ColumnId } from "../types";
+import { useAuth } from "../auth-context";
+import { repoScopedHref } from "../routes";
 import { Button } from "@dashboard/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import {
@@ -229,6 +231,11 @@ export function TaskList({
 }: TaskListProps) {
   const queryClient = useQueryClient();
   const { githubUser } = useGitHubIdentity();
+  const { auth } = useAuth();
+  const scopedHref = useCallback(
+    (href: string) => (auth ? repoScopedHref(auth, href) : href),
+    [auth],
+  );
   const visibilityMutation = useMutation({
     mutationFn: ({ task, hidden }: { task: KodyTask; hidden: boolean }) =>
       hidden
@@ -382,6 +389,7 @@ export function TaskList({
           onDragStartTask={onDragStartTask}
           onDragEndTask={onDragEndTask}
           accent={accent}
+          repoHref={scopedHref}
         />
       ))}
     </div>
@@ -414,6 +422,7 @@ interface TaskRowProps {
   onDragStartTask?: (task: KodyTask, event: React.DragEvent) => void;
   onDragEndTask?: (task: KodyTask) => void;
   accent?: { divide: string; rowBg: string; rowHover: string };
+  repoHref: (href: string) => string;
 }
 
 const TaskRow = memo(function TaskRow({
@@ -442,6 +451,7 @@ const TaskRow = memo(function TaskRow({
   onDragStartTask,
   onDragEndTask,
   accent,
+  repoHref,
 }: TaskRowProps) {
   const [confirmCloseIssue, setConfirmCloseIssue] = useState(false);
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
@@ -675,7 +685,7 @@ const TaskRow = memo(function TaskRow({
                 <div className="inline-flex items-center gap-1.5">
                   <SimpleTooltip content="Open issue in Kody" side="bottom">
                     <a
-                      href={`/${task.issueNumber}`}
+                      href={repoHref(`/${task.issueNumber}`)}
                       onClick={(e) => e.stopPropagation()}
                       className={cn(
                         "font-mono font-semibold hover:underline",
@@ -692,7 +702,7 @@ const TaskRow = memo(function TaskRow({
                       side="bottom"
                     >
                       <a
-                        href={`/${task.associatedPR.number}`}
+                        href={repoHref(`/${task.associatedPR.number}`)}
                         onClick={(e) => e.stopPropagation()}
                         className="font-mono font-semibold text-purple-400 hover:underline"
                       >
@@ -881,7 +891,7 @@ const TaskRow = memo(function TaskRow({
             <>
               <SimpleTooltip content="Open PR in Kody" side="bottom">
                 <a
-                  href={`/${task.associatedPR!.number}`}
+                  href={repoHref(`/${task.associatedPR!.number}`)}
                   onClick={(e) => e.stopPropagation()}
                   className="inline-flex items-center gap-1 px-2 py-1 rounded bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors text-label font-medium"
                 >

@@ -39,6 +39,7 @@ import { cn } from "@dashboard/lib/utils";
 import { AuthGuard } from "../auth-guard";
 import { selectionPathFromParts } from "../selection-routing";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useRepoScopedHref } from "../hooks/useRepoScopedHref";
 import {
   useCreateDoc,
   useDeleteDoc,
@@ -180,8 +181,12 @@ export function DocsView({
   );
 }
 
-function DocsViewInner({ embedded = false, selectedPath = null }: DocsViewProps) {
+function DocsViewInner({
+  embedded = false,
+  selectedPath = null,
+}: DocsViewProps) {
   const router = useRouter();
+  const scopedHref = useRepoScopedHref();
   const autoSelectFirst = useMediaQuery("(min-width: 768px)");
   const {
     data: manifest,
@@ -189,7 +194,8 @@ function DocsViewInner({ embedded = false, selectedPath = null }: DocsViewProps)
     refetch: refetchManifest,
   } = useDocsManifest();
   const docPath =
-    selectedPath ?? (autoSelectFirst ? firstDocFilePath(manifest?.files) : null);
+    selectedPath ??
+    (autoSelectFirst ? firstDocFilePath(manifest?.files) : null);
   const hasSelectedDoc = !!docPath;
 
   const {
@@ -215,7 +221,7 @@ function DocsViewInner({ embedded = false, selectedPath = null }: DocsViewProps)
     if (manifestLoading || manifest === undefined) return;
     const firstPath = firstDocFilePath(manifest?.files);
     if (!firstPath) {
-      if (selectedPath) router.replace("/docs");
+      if (selectedPath) router.replace(scopedHref("/docs"));
       return;
     }
     if (
@@ -224,11 +230,11 @@ function DocsViewInner({ embedded = false, selectedPath = null }: DocsViewProps)
         (file) => file.type === "file" && file.path === selectedPath,
       )
     ) {
-      router.replace("/docs");
+      router.replace(scopedHref("/docs"));
       return;
     }
     if (!selectedPath && autoSelectFirst) {
-      router.replace(docRoute(firstPath));
+      router.replace(scopedHref(docRoute(firstPath)));
     }
   }, [
     autoSelectFirst,
@@ -236,13 +242,14 @@ function DocsViewInner({ embedded = false, selectedPath = null }: DocsViewProps)
     manifest?.files,
     manifestLoading,
     router,
+    scopedHref,
     selectedPath,
   ]);
 
   const selectDoc = (path: string | null, replace = false) => {
     const route = docRoute(path);
-    if (replace) router.replace(route);
-    else router.push(route);
+    if (replace) router.replace(scopedHref(route));
+    else router.push(scopedHref(route));
   };
 
   const handleRefresh = () => {

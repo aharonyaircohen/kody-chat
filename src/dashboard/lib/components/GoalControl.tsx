@@ -55,6 +55,8 @@ import {
   DialogTitle,
 } from "@dashboard/ui/dialog";
 import { AuthGuard } from "../auth-guard";
+import { useAuth } from "../auth-context";
+import { repoScopedHref } from "../routes";
 import { cn } from "../utils";
 import { autoDirProps } from "../text-direction";
 import {
@@ -322,7 +324,7 @@ export function GoalControlInner({
         title="Remove this mission?"
         description={
           pendingDelete
-              ? `Mission "${pendingDelete.name}" will be removed from the manifest. Tasks labelled with this mission keep their labels (you can clean them up on GitHub).`
+            ? `Mission "${pendingDelete.name}" will be removed from the manifest. Tasks labelled with this mission keep their labels (you can clean them up on GitHub).`
             : ""
         }
         variant="destructive"
@@ -358,6 +360,9 @@ function GoalDetail({
   onDelete: () => void;
 }) {
   const router = useRouter();
+  const { auth } = useAuth();
+  const scopedHref = (href: string) =>
+    auth ? repoScopedHref(auth, href) : href;
   const queryClient = useQueryClient();
   const [showAttach, setShowAttach] = useState(false);
   const [showPlanner, setShowPlanner] = useState(false);
@@ -403,7 +408,7 @@ function GoalDetail({
                   <>
                     <span
                       className="font-mono opacity-80"
- title="Mission id — mention #{number} or goal:{number} in chat to direct the conversation here"
+                      title="Mission id — mention #{number} or goal:{number} in chat to direct the conversation here"
                     >
                       #{goal.discussionNumber}
                     </span>
@@ -559,7 +564,7 @@ function GoalDetail({
                 <span className="font-medium text-foreground">
                   Attach tasks
                 </span>{" "}
-              to link open issues to this mission and start tracking progress.
+                to link open issues to this mission and start tracking progress.
               </p>
             </div>
           </div>
@@ -571,7 +576,7 @@ function GoalDetail({
                 count={inProgressTasks.length}
                 tasks={inProgressTasks}
                 onTaskSelect={(task) =>
-                  task && router.push(`/${task.issueNumber}`)
+                  task && router.push(scopedHref(`/${task.issueNumber}`))
                 }
               />
             ) : null}
@@ -581,7 +586,7 @@ function GoalDetail({
                 count={doneTasks.length}
                 tasks={doneTasks}
                 onTaskSelect={(task) =>
-                  task && router.push(`/${task.issueNumber}`)
+                  task && router.push(scopedHref(`/${task.issueNumber}`))
                 }
               />
             ) : null}
@@ -905,8 +910,8 @@ export function CreateGoalDialog({
         <DialogHeader>
           <DialogTitle>New mission</DialogTitle>
           <DialogDescription>
-            Describe the outcome. Tasks can later be attached to this mission via a
-            label.
+            Describe the outcome. Tasks can later be attached to this mission
+            via a label.
           </DialogDescription>
         </DialogHeader>
 
@@ -1018,8 +1023,8 @@ export function EditGoalDialog({
         <DialogHeader>
           <DialogTitle>Edit mission</DialogTitle>
           <DialogDescription>
-            Update the mission name, due date, or description. Changes are written
-            back to the manifest issue.
+            Update the mission name, due date, or description. Changes are
+            written back to the manifest issue.
           </DialogDescription>
         </DialogHeader>
 

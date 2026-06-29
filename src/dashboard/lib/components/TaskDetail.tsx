@@ -77,6 +77,8 @@ import {
   Flag,
   History,
 } from "lucide-react";
+import { useAuth } from "../auth-context";
+import { repoScopedHref } from "../routes";
 
 /** Map a task-detail pathname to its active tab (URL is the source of truth). */
 function tabFromPath(path: string): "description" | "comments" | "runs" {
@@ -684,6 +686,11 @@ export function TaskDetail({
   syncTabToUrl = true,
 }: TaskDetailProps) {
   const { githubUser } = useGitHubIdentity();
+  const { auth } = useAuth();
+  const scopedHref = useCallback(
+    (href: string) => (auth ? repoScopedHref(auth, href) : href),
+    [auth],
+  );
   const actorLogin = githubUser?.login;
 
   const queryClient = useQueryClient();
@@ -949,7 +956,7 @@ export function TaskDetail({
             if (task && syncTabToUrl) {
               const base = `/${task.issueNumber}`;
               const path = key === "description" ? base : `${base}/${key}`;
-              window.history.pushState(null, "", path);
+              window.history.pushState(null, "", scopedHref(path));
             }
           }}
           label={label}
@@ -1066,7 +1073,7 @@ export function TaskDetail({
   const quickLinks = (
     <>
       <a
-        href={`/${task.issueNumber}`}
+        href={scopedHref(`/${task.issueNumber}`)}
         onClick={(e) => e.stopPropagation()}
         className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/[0.08] text-zinc-300 hover:bg-white/[0.12] hover:text-white transition-all duration-150 shrink-0 border border-white/[0.1]"
       >
@@ -1074,7 +1081,7 @@ export function TaskDetail({
       </a>
       {task.associatedPR && (
         <a
-          href={`/${task.associatedPR.number}`}
+          href={scopedHref(`/${task.associatedPR.number}`)}
           onClick={(e) => e.stopPropagation()}
           className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-purple-500/15 text-purple-300 hover:bg-purple-500/25 hover:text-purple-200 transition-all duration-150 shrink-0 border border-purple-500/20"
         >
@@ -1792,7 +1799,7 @@ export function TaskDetail({
 
         {/* Labeled link pills */}
         <a
-          href={`/${task.issueNumber}`}
+          href={scopedHref(`/${task.issueNumber}`)}
           onClick={(e) => e.stopPropagation()}
           className="h-9 inline-flex items-center gap-1.5 px-3 rounded-full text-xs font-medium bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
         >
@@ -1800,7 +1807,7 @@ export function TaskDetail({
         </a>
         {task.associatedPR && (
           <a
-            href={`/${task.associatedPR.number}`}
+            href={scopedHref(`/${task.associatedPR.number}`)}
             onClick={(e) => e.stopPropagation()}
             className="h-9 inline-flex items-center gap-1.5 px-3 rounded-full text-xs font-medium bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors shrink-0"
           >

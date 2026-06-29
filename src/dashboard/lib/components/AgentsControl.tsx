@@ -39,6 +39,7 @@ import {
 } from "@dashboard/ui/dialog";
 import { AuthGuard } from "../auth-guard";
 import { selectionPath } from "../selection-routing";
+import { useRepoScopedHref } from "../hooks/useRepoScopedHref";
 import { cn } from "../utils";
 import {
   useCreateAgent,
@@ -102,6 +103,7 @@ export function AgentsControlInner({
   selectedSlug = null,
 }: AgentsControlProps = {}) {
   const router = useRouter();
+  const scopedHref = useRepoScopedHref();
   const autoSelectFirst = useMediaQuery("(min-width: 768px)");
   const {
     data: fetchedStaff,
@@ -148,22 +150,30 @@ export function AgentsControlInner({
   useEffect(() => {
     if (isLoading || !staffLoaded) return;
     if (agent.length === 0) {
-      if (selectedSlug) router.replace("/agents");
+      if (selectedSlug) router.replace(scopedHref("/agents"));
       return;
     }
     if (selectedSlug && !agent.some((member) => member.slug === selectedSlug)) {
-      router.replace("/agents");
+      router.replace(scopedHref("/agents"));
       return;
     }
     if (!selectedSlug && autoSelectFirst) {
-      router.replace(selectionPath("/agents", agent[0].slug));
+      router.replace(scopedHref(selectionPath("/agents", agent[0].slug)));
     }
-  }, [agent, autoSelectFirst, isLoading, router, selectedSlug, staffLoaded]);
+  }, [
+    agent,
+    autoSelectFirst,
+    isLoading,
+    router,
+    scopedHref,
+    selectedSlug,
+    staffLoaded,
+  ]);
 
   const selectAgent = (slug: string | null, replace = false) => {
     const path = slug ? selectionPath("/agents", slug) : "/agents";
-    if (replace) router.replace(path);
-    else router.push(path);
+    if (replace) router.replace(scopedHref(path));
+    else router.push(scopedHref(path));
   };
 
   const { githubUser } = useGitHubIdentity();
@@ -792,8 +802,8 @@ function SendTaskDialog({
           <DialogTitle>Send a task to {member.title}</DialogTitle>
           <DialogDescription>
             Runs <span className="font-mono">{member.slug}</span> once on your
-            message — like a one-off capability. The reply is posted on
-            the Kody control issue
+            message — like a one-off capability. The reply is posted on the Kody
+            control issue
             {githubUser?.login ? " and lands in your inbox" : ""}.
           </DialogDescription>
         </DialogHeader>

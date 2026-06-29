@@ -6478,309 +6478,327 @@ export function KodyChat({
               </>
             )}
             {chatMode === "terminal" && (
-              <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                <select
-                  value={activeTerminalValue}
-                  onChange={(event) =>
-                    handleTerminalTargetSelect(event.target.value)
-                  }
-                  className="h-10 min-w-0 max-w-[280px] flex-1 rounded-md border bg-background px-3 text-body-xs text-foreground outline-none focus:ring-1 focus:ring-primary"
-                  title="Terminal target"
-                  aria-label="Terminal target"
+              <div
+                data-testid="chat-terminal-toolbar"
+                className="flex min-w-0 flex-1 flex-col gap-2"
+              >
+                <div
+                  data-testid="chat-terminal-target-row"
+                  className="flex min-w-0 items-center gap-2"
                 >
-                  <option value="local">Local terminal</option>
-                  {activeTerminalTransport.type === "local" &&
-                    activeTerminalTransport.sandboxId &&
-                    !localSandboxes.some(
-                      (sandbox) =>
-                        `sandbox:${sandbox.id}` === activeTerminalValue,
-                    ) && (
-                      <option value={activeTerminalValue}>
-                        {activeTerminalTransport.label ?? "Sandbox"} · selected
-                      </option>
-                    )}
-                  {localSandboxes
-                    .filter((sandbox) => sandbox.runtime === "local")
-                    .map((sandbox) => (
-                      <option key={sandbox.id} value={`sandbox:${sandbox.id}`}>
-                        Local: {sandbox.name}
+                  <select
+                    value={activeTerminalValue}
+                    onChange={(event) =>
+                      handleTerminalTargetSelect(event.target.value)
+                    }
+                    className="h-10 min-w-0 flex-1 rounded-md border bg-background px-3 text-body-xs text-foreground outline-none focus:ring-1 focus:ring-primary"
+                    title="Terminal target"
+                    aria-label="Terminal target"
+                  >
+                    <option value="local">Local terminal</option>
+                    {activeTerminalTransport.type === "local" &&
+                      activeTerminalTransport.sandboxId &&
+                      !localSandboxes.some(
+                        (sandbox) =>
+                          `sandbox:${sandbox.id}` === activeTerminalValue,
+                      ) && (
+                        <option value={activeTerminalValue}>
+                          {activeTerminalTransport.label ?? "Sandbox"} ·
+                          selected
+                        </option>
+                      )}
+                    {localSandboxes
+                      .filter((sandbox) => sandbox.runtime === "local")
+                      .map((sandbox) => (
+                        <option
+                          key={sandbox.id}
+                          value={`sandbox:${sandbox.id}`}
+                        >
+                          Local: {sandbox.name}
+                        </option>
+                      ))}
+                    {localSandboxes
+                      .filter((sandbox) => sandbox.runtime === "github-actions")
+                      .map((sandbox) => (
+                        <option key={sandbox.id} value={`gha:${sandbox.id}`}>
+                          GitHub Actions profile: {sandbox.name}
+                        </option>
+                      ))}
+                    {activeTerminalTransport.type === "fly" &&
+                      !terminalMachines.some(
+                        (machine) =>
+                          terminalFlyMachineKey(machine) ===
+                          activeTerminalValue,
+                      ) && (
+                        <option value={activeTerminalValue}>
+                          {activeTerminalTransport.label ??
+                            activeTerminalTransport.app}{" "}
+                          · selected
+                        </option>
+                      )}
+                    {terminalMachines.map((machine) => (
+                      <option
+                        key={terminalFlyMachineKey(machine)}
+                        value={terminalFlyMachineKey(machine)}
+                      >
+                        {machine.label} · {machine.state} · {machine.region} ·{" "}
+                        {terminalMachineIdShort(machine.machineId)}
                       </option>
                     ))}
-                  {localSandboxes
-                    .filter((sandbox) => sandbox.runtime === "github-actions")
-                    .map((sandbox) => (
-                      <option key={sandbox.id} value={`gha:${sandbox.id}`}>
-                        GitHub Actions profile: {sandbox.name}
-                      </option>
-                    ))}
-                  {activeTerminalTransport.type === "fly" &&
-                    !terminalMachines.some(
-                      (machine) =>
-                        terminalFlyMachineKey(machine) === activeTerminalValue,
-                    ) && (
-                      <option value={activeTerminalValue}>
-                        {activeTerminalTransport.label ??
-                          activeTerminalTransport.app}{" "}
-                        · selected
-                      </option>
-                    )}
-                  {terminalMachines.map((machine) => (
-                    <option
-                      key={terminalFlyMachineKey(machine)}
-                      value={terminalFlyMachineKey(machine)}
+                  </select>
+                  {sandboxBusyLabel && (
+                    <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-body-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
+                      <span className="truncate">{sandboxBusyLabel}</span>
+                    </span>
+                  )}
+                  {flyInventoryError && (
+                    <span className="min-w-0 truncate text-body-xs text-destructive">
+                      {flyInventoryError}
+                    </span>
+                  )}
+                </div>
+                <div
+                  data-testid="chat-terminal-actions-row"
+                  className="flex min-w-0 flex-wrap items-center gap-1.5"
+                >
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSandboxCreateMenuOpen((current) => !current)
+                      }
+                      disabled={sandboxBusy}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                      title="Create sandbox"
+                      aria-label="Create sandbox"
+                      aria-haspopup="menu"
+                      aria-expanded={sandboxCreateMenuOpen}
                     >
-                      {machine.label} · {machine.state} · {machine.region} ·{" "}
-                      {terminalMachineIdShort(machine.machineId)}
-                    </option>
-                  ))}
-                </select>
-                <div className="relative">
+                      {sandboxBusy ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
+                    </button>
+                    {sandboxCreateMenuOpen && (
+                      <div className="absolute bottom-11 left-0 z-30 min-w-56 overflow-hidden rounded-md border bg-popover py-1.5 text-body-xs text-popover-foreground shadow-md">
+                        <button
+                          type="button"
+                          onClick={() => void handleCreateSandbox("local")}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Local sandbox
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void handleCreateSandbox("github-actions")
+                          }
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
+                        >
+                          <Github className="h-3.5 w-3.5" />
+                          {activeTerminalTransport.type === "local" &&
+                          activeTerminalTransport.sandboxId
+                            ? "Copy to GitHub Actions"
+                            : "GitHub Actions sandbox"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <button
                     type="button"
                     onClick={() =>
-                      setSandboxCreateMenuOpen((current) => !current)
+                      void (isActiveFlyBrainTerminal
+                        ? handleSaveBrainImage()
+                        : handleSaveTerminalSnapshot())
                     }
-                    disabled={sandboxBusy}
+                    disabled={savedTerminalBusy || brainImageBusy}
                     className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                    title="Create sandbox"
-                    aria-label="Create sandbox"
-                    aria-haspopup="menu"
-                    aria-expanded={sandboxCreateMenuOpen}
-                  >
-                    {sandboxBusy ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Plus className="h-4 w-4" />
-                    )}
-                  </button>
-                  {sandboxCreateMenuOpen && (
-                    <div className="absolute bottom-11 left-0 z-30 min-w-56 overflow-hidden rounded-md border bg-popover py-1.5 text-body-xs text-popover-foreground shadow-md">
-                      <button
-                        type="button"
-                        onClick={() => void handleCreateSandbox("local")}
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        Local sandbox
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void handleCreateSandbox("github-actions")
-                        }
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted"
-                      >
-                        <Github className="h-3.5 w-3.5" />
-                        {activeTerminalTransport.type === "local" &&
-                        activeTerminalTransport.sandboxId
-                          ? "Copy to GitHub Actions"
-                          : "GitHub Actions sandbox"}
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {sandboxBusyLabel && (
-                  <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-body-xs text-muted-foreground">
-                    <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
-                    <span className="truncate">{sandboxBusyLabel}</span>
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={() =>
-                    void (isActiveFlyBrainTerminal
-                      ? handleSaveBrainImage()
-                      : handleSaveTerminalSnapshot())
-                  }
-                  disabled={savedTerminalBusy || brainImageBusy}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                  title={
-                    isActiveFlyBrainTerminal
-                      ? "Save Brain image"
-                      : "Save terminal snapshot"
-                  }
-                  aria-label={
-                    isActiveFlyBrainTerminal
-                      ? "Save Brain image"
-                      : "Save terminal snapshot"
-                  }
-                >
-                  {savedTerminalBusy || brainImageBusy ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="h-4 w-4" />
-                  )}
-                </button>
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = !savedTerminalMenuOpen;
-                      setSavedTerminalMenuOpen(next);
-                      if (next && !savedTerminalLoaded) {
-                        void refreshSavedTerminalSnapshots();
-                      }
-                    }}
-                    disabled={savedTerminalBusy && !savedTerminalMenuOpen}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                    title="Saved terminal snapshots"
-                    aria-label="Saved terminal snapshots"
-                    aria-haspopup="menu"
-                    aria-expanded={savedTerminalMenuOpen}
-                  >
-                    <ChevronDown className="h-4 w-4" />
-                  </button>
-                  {savedTerminalMenuOpen && (
-                    <div className="absolute bottom-11 right-0 z-30 flex max-h-80 w-88 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-md border bg-popover text-body-xs text-popover-foreground shadow-md">
-                      <div className="flex items-center justify-between border-b px-3 py-2">
-                        <span className="font-medium">
-                          Saved terminal snapshots
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => void refreshSavedTerminalSnapshots()}
-                          disabled={savedTerminalBusy}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
-                          title="Refresh saved terminal snapshots"
-                          aria-label="Refresh saved terminal snapshots"
-                        >
-                          {savedTerminalBusy ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <RefreshCw className="h-3.5 w-3.5" />
-                          )}
-                        </button>
-                      </div>
-                      <label className="flex cursor-pointer items-center gap-2.5 border-b px-3 py-2.5 text-body-xs text-muted-foreground hover:bg-muted">
-                        <input
-                          type="checkbox"
-                          checked={autoSaveTerminalOnEnd}
-                          onChange={(event) =>
-                            setAutoSaveTerminalOnEnd(event.target.checked)
-                          }
-                          className="h-3.5 w-3.5 accent-primary"
-                        />
-                        <span className="truncate text-foreground">
-                          Auto-save on stop
-                        </span>
-                      </label>
-                      <div className="max-h-64 overflow-y-auto py-1">
-                        {savedTerminalSnapshots.length === 0 ? (
-                          <div className="px-3 py-3 text-muted-foreground">
-                            No saved snapshots
-                          </div>
-                        ) : (
-                          savedTerminalSnapshots.map((snapshot) => (
-                            <div
-                              key={snapshot.id}
-                              className="flex items-center gap-2.5 px-3 py-2 hover:bg-muted"
-                            >
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  handleRestoreTerminalSnapshot(snapshot)
-                                }
-                                className="min-w-0 flex-1 text-left"
-                                title={`Restore ${snapshot.name}`}
-                              >
-                                <span className="block truncate font-medium">
-                                  {snapshot.name}
-                                </span>
-                                <span className="block truncate text-body-xs text-muted-foreground">
-                                  {terminalTransportLabel(snapshot.transport)}
-                                </span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  void handleDeleteTerminalSnapshot(snapshot)
-                                }
-                                disabled={savedTerminalBusy}
-                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-                                title={`Delete ${snapshot.name}`}
-                                aria-label={`Delete ${snapshot.name}`}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-                {(activeTerminalTransport.type === "local" ||
-                  activeTerminalTransport.type === "github-actions") &&
-                  activeTerminalTransport.sandboxId && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => void handleSaveSandbox()}
-                        disabled={sandboxBusy}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                        title="Save sandbox"
-                        aria-label="Save sandbox"
-                      >
-                        <Save className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteSandbox()}
-                        disabled={sandboxBusy}
-                        className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
-                        title="Delete sandbox"
-                        aria-label="Delete sandbox"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </>
-                  )}
-                <button
-                  type="button"
-                  onClick={() => void refreshChatTerminalFlyMachines()}
-                  disabled={flyInventoryLoading}
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                  title="Refresh Fly machines"
-                  aria-label="Refresh Fly machines"
-                >
-                  {flyInventoryLoading ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RefreshCw className="h-4 w-4" />
-                  )}
-                </button>
-                {activeTerminalTransport.type === "fly" && (
-                  <button
-                    type="button"
-                    onClick={handleTerminalFlyConnectToggle}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                     title={
-                      activeTerminalConnectionState === "connected" ||
-                      activeTerminalConnectionState === "connecting"
-                        ? "Disconnect Fly terminal"
-                        : "Connect Fly terminal"
+                      isActiveFlyBrainTerminal
+                        ? "Save Brain image"
+                        : "Save terminal snapshot"
                     }
                     aria-label={
-                      activeTerminalConnectionState === "connected" ||
-                      activeTerminalConnectionState === "connecting"
-                        ? "Disconnect Fly terminal"
-                        : "Connect Fly terminal"
+                      isActiveFlyBrainTerminal
+                        ? "Save Brain image"
+                        : "Save terminal snapshot"
                     }
                   >
-                    {activeTerminalConnectionState === "connecting" ? (
+                    {savedTerminalBusy || brainImageBusy ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : activeTerminalConnectionState === "connected" ? (
-                      <Unplug className="h-4 w-4" />
                     ) : (
-                      <Power className="h-4 w-4" />
+                      <Save className="h-4 w-4" />
                     )}
                   </button>
-                )}
-                {flyInventoryError && (
-                  <span className="min-w-0 truncate text-body-xs text-destructive">
-                    {flyInventoryError}
-                  </span>
-                )}
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = !savedTerminalMenuOpen;
+                        setSavedTerminalMenuOpen(next);
+                        if (next && !savedTerminalLoaded) {
+                          void refreshSavedTerminalSnapshots();
+                        }
+                      }}
+                      disabled={savedTerminalBusy && !savedTerminalMenuOpen}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                      title="Saved terminal snapshots"
+                      aria-label="Saved terminal snapshots"
+                      aria-haspopup="menu"
+                      aria-expanded={savedTerminalMenuOpen}
+                    >
+                      <ChevronDown className="h-4 w-4" />
+                    </button>
+                    {savedTerminalMenuOpen && (
+                      <div className="absolute bottom-11 right-0 z-30 flex max-h-80 w-88 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-md border bg-popover text-body-xs text-popover-foreground shadow-md">
+                        <div className="flex items-center justify-between border-b px-3 py-2">
+                          <span className="font-medium">
+                            Saved terminal snapshots
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => void refreshSavedTerminalSnapshots()}
+                            disabled={savedTerminalBusy}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
+                            title="Refresh saved terminal snapshots"
+                            aria-label="Refresh saved terminal snapshots"
+                          >
+                            {savedTerminalBusy ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-3.5 w-3.5" />
+                            )}
+                          </button>
+                        </div>
+                        <label className="flex cursor-pointer items-center gap-2.5 border-b px-3 py-2.5 text-body-xs text-muted-foreground hover:bg-muted">
+                          <input
+                            type="checkbox"
+                            checked={autoSaveTerminalOnEnd}
+                            onChange={(event) =>
+                              setAutoSaveTerminalOnEnd(event.target.checked)
+                            }
+                            className="h-3.5 w-3.5 accent-primary"
+                          />
+                          <span className="truncate text-foreground">
+                            Auto-save on stop
+                          </span>
+                        </label>
+                        <div className="max-h-64 overflow-y-auto py-1">
+                          {savedTerminalSnapshots.length === 0 ? (
+                            <div className="px-3 py-3 text-muted-foreground">
+                              No saved snapshots
+                            </div>
+                          ) : (
+                            savedTerminalSnapshots.map((snapshot) => (
+                              <div
+                                key={snapshot.id}
+                                className="flex items-center gap-2.5 px-3 py-2 hover:bg-muted"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    handleRestoreTerminalSnapshot(snapshot)
+                                  }
+                                  className="min-w-0 flex-1 text-left"
+                                  title={`Restore ${snapshot.name}`}
+                                >
+                                  <span className="block truncate font-medium">
+                                    {snapshot.name}
+                                  </span>
+                                  <span className="block truncate text-body-xs text-muted-foreground">
+                                    {terminalTransportLabel(snapshot.transport)}
+                                  </span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    void handleDeleteTerminalSnapshot(snapshot)
+                                  }
+                                  disabled={savedTerminalBusy}
+                                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
+                                  title={`Delete ${snapshot.name}`}
+                                  aria-label={`Delete ${snapshot.name}`}
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  {(activeTerminalTransport.type === "local" ||
+                    activeTerminalTransport.type === "github-actions") &&
+                    activeTerminalTransport.sandboxId && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => void handleSaveSandbox()}
+                          disabled={sandboxBusy}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                          title="Save sandbox"
+                          aria-label="Save sandbox"
+                        >
+                          <Save className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteSandbox()}
+                          disabled={sandboxBusy}
+                          className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
+                          title="Delete sandbox"
+                          aria-label="Delete sandbox"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </>
+                    )}
+                  <button
+                    type="button"
+                    onClick={() => void refreshChatTerminalFlyMachines()}
+                    disabled={flyInventoryLoading}
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Refresh Fly machines"
+                    aria-label="Refresh Fly machines"
+                  >
+                    {flyInventoryLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4" />
+                    )}
+                  </button>
+                  {activeTerminalTransport.type === "fly" && (
+                    <button
+                      type="button"
+                      onClick={handleTerminalFlyConnectToggle}
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      title={
+                        activeTerminalConnectionState === "connected" ||
+                        activeTerminalConnectionState === "connecting"
+                          ? "Disconnect Fly terminal"
+                          : "Connect Fly terminal"
+                      }
+                      aria-label={
+                        activeTerminalConnectionState === "connected" ||
+                        activeTerminalConnectionState === "connecting"
+                          ? "Disconnect Fly terminal"
+                          : "Connect Fly terminal"
+                      }
+                    >
+                      {activeTerminalConnectionState === "connecting" ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : activeTerminalConnectionState === "connected" ? (
+                        <Unplug className="h-4 w-4" />
+                      ) : (
+                        <Power className="h-4 w-4" />
+                      )}
+                    </button>
+                  )}
+                </div>
               </div>
             )}
             {chatMode === "ai" && <div className="flex-1" />}

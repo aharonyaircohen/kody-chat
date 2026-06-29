@@ -60,6 +60,7 @@ import {
 } from "@dashboard/ui/select";
 import { AuthGuard } from "../auth-guard";
 import { selectionPath } from "../selection-routing";
+import { useRepoScopedHref } from "../hooks/useRepoScopedHref";
 import { cn } from "../utils";
 import {
   useCreateContextEntry,
@@ -193,6 +194,7 @@ export function ContextControlInner({
   selectedSlug = null,
 }: ContextControlProps = {}) {
   const router = useRouter();
+  const scopedHref = useRepoScopedHref();
   const autoSelectFirst = useMediaQuery("(min-width: 768px)");
   const {
     data: fetchedEntries,
@@ -267,15 +269,18 @@ export function ContextControlInner({
   useEffect(() => {
     if (isLoading || !entriesLoaded) return;
     if (filtered.length === 0) {
-      if (selectedSlug) router.replace("/context");
+      if (selectedSlug) router.replace(scopedHref("/context"));
       return;
     }
-    if (selectedSlug && !filtered.some((entry) => entry.slug === selectedSlug)) {
-      router.replace("/context");
+    if (
+      selectedSlug &&
+      !filtered.some((entry) => entry.slug === selectedSlug)
+    ) {
+      router.replace(scopedHref("/context"));
       return;
     }
     if (!selectedSlug && autoSelectFirst) {
-      router.replace(selectionPath("/context", filtered[0].slug));
+      router.replace(scopedHref(selectionPath("/context", filtered[0].slug)));
     }
   }, [
     autoSelectFirst,
@@ -283,13 +288,14 @@ export function ContextControlInner({
     filtered,
     isLoading,
     router,
+    scopedHref,
     selectedSlug,
   ]);
 
   const selectEntry = (slug: string | null, replace = false) => {
     const path = slug ? selectionPath("/context", slug) : "/context";
-    if (replace) router.replace(path);
-    else router.push(path);
+    if (replace) router.replace(scopedHref(path));
+    else router.push(scopedHref(path));
   };
 
   const { githubUser } = useGitHubIdentity();
@@ -816,10 +822,10 @@ function CreateEntryDialog({
         <DialogHeader>
           <DialogTitle>New context entry</DialogTitle>
           <DialogDescription>
-            Stored at context/&lt;slug&gt;.md in the state repo. The slug is the entry name
-            Kody sees (e.g. company-profile, mission, products); the body is
-            plain markdown. Agent decides which consumers load it — leave all
-            unchecked to keep the entry unassigned.
+            Stored at context/&lt;slug&gt;.md in the state repo. The slug is the
+            entry name Kody sees (e.g. company-profile, mission, products); the
+            body is plain markdown. Agent decides which consumers load it —
+            leave all unchecked to keep the entry unassigned.
           </DialogDescription>
         </DialogHeader>
 

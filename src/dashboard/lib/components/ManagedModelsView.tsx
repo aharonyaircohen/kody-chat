@@ -7,7 +7,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowDown,
@@ -36,6 +35,7 @@ import {
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Checkbox } from "@dashboard/ui/checkbox";
+import { RepoScopedLink } from "./RepoScopedLink";
 import {
   Dialog,
   DialogContent,
@@ -1805,9 +1805,9 @@ function GoalDetail({
                 title={`Manage ${copy.singular} todos`}
                 aria-label={`Manage ${copy.singular} todos`}
               >
-                <Link href={`/todos/${encodeURIComponent(goal.id)}`}>
+                <RepoScopedLink href={`/todos/${encodeURIComponent(goal.id)}`}>
                   <ListTodo className="w-3.5 h-3.5" />
-                </Link>
+                </RepoScopedLink>
               </Button>
               <Button
                 variant="outline"

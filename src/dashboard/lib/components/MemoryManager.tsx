@@ -33,6 +33,7 @@ import {
 import { AuthGuard } from "../auth-guard";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useRepoScopedHref } from "../hooks/useRepoScopedHref";
 import { selectionPath } from "../selection-routing";
 import {
   useCreateMemory,
@@ -105,6 +106,7 @@ function MemoryManagerInner({
   selectedId = null,
 }: MemoryManagerProps) {
   const router = useRouter();
+  const scopedHref = useRepoScopedHref();
   const autoSelectFirst = useMediaQuery("(min-width: 768px)");
   const {
     data: fetchedMemories,
@@ -153,15 +155,15 @@ function MemoryManagerInner({
   useEffect(() => {
     if (isLoading || !memoriesLoaded) return;
     if (memories.length === 0) {
-      if (selectedId) router.replace("/memory");
+      if (selectedId) router.replace(scopedHref("/memory"));
       return;
     }
     if (selectedId && !memories.some((memory) => memory.id === selectedId)) {
-      router.replace("/memory");
+      router.replace(scopedHref("/memory"));
       return;
     }
     if (!selectedId && autoSelectFirst) {
-      router.replace(selectionPath("/memory", memories[0].id));
+      router.replace(scopedHref(selectionPath("/memory", memories[0].id)));
     }
   }, [
     autoSelectFirst,
@@ -169,13 +171,14 @@ function MemoryManagerInner({
     memories,
     memoriesLoaded,
     router,
+    scopedHref,
     selectedId,
   ]);
 
   const selectMemory = (id: string | null, replace = false) => {
     const path = id ? selectionPath("/memory", id) : "/memory";
-    if (replace) router.replace(path);
-    else router.push(path);
+    if (replace) router.replace(scopedHref(path));
+    else router.push(scopedHref(path));
   };
 
   const headerActions = (

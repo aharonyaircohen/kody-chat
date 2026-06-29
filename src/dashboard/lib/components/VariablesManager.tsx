@@ -9,7 +9,7 @@
  */
 "use client";
 
-import Link from "next/link";
+import { RepoScopedLink } from "./RepoScopedLink";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -313,12 +313,12 @@ function VariablesManagerInner() {
           Stored in plaintext as{" "}
           <code className="text-white/50">variables.json</code> in the state
           repo. For sensitive values, use{" "}
-          <Link
+          <RepoScopedLink
             href="/secrets"
             className="text-white/60 hover:text-white/80 underline"
           >
             /secrets
-          </Link>{" "}
+          </RepoScopedLink>{" "}
           instead.
         </p>
       </div>

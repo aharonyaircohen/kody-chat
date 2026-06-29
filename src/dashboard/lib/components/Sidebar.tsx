@@ -35,7 +35,9 @@ import {
   shouldEnableSidebarMessagesBadgeData,
   shouldEnableSidebarReportsBadgeData,
 } from "../github-background-polling";
+import { useAuth } from "../auth-context";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { repoScopedHref } from "../routes";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { InboxBadge } from "./InboxBadge";
 import { MessagesBadge } from "./MessagesBadge";
@@ -88,6 +90,7 @@ function SidebarContent() {
   const enableMessagesBadgeData =
     shouldEnableSidebarMessagesBadgeData(pathname);
   const enableReportsBadgeData = shouldEnableSidebarReportsBadgeData(pathname);
+  const { auth } = useAuth();
   const { githubUser, connectedRepo, clearGitHubUser } = useGitHubIdentity();
   const { theme, setTheme } = useTheme();
   const [userMenuOpen, setUserMenuOpen] = useState<boolean>(false);
@@ -134,8 +137,11 @@ function SidebarContent() {
     } catch {
       // ignore — UI still updates
     }
-    router.push(next === "vibe" ? "/vibe" : "/tasks");
+    router.push(scopedHref(next === "vibe" ? "/vibe" : "/tasks"));
   };
+
+  const scopedHref = (href: string) =>
+    auth ? repoScopedHref(auth, href) : href;
 
   useEffect(() => {
     setQuery("");
@@ -166,7 +172,7 @@ function SidebarContent() {
       setQuery("");
     } else if (e.key === "Enter" && firstMatch) {
       e.preventDefault();
-      router.push(firstMatch.href);
+      router.push(scopedHref(firstMatch.href));
       setQuery("");
     }
   };
@@ -178,7 +184,7 @@ function SidebarContent() {
     const active = isNavItemActive(pathname, search, item);
     const link = (
       <Link
-        href={item.href}
+        href={scopedHref(item.href)}
         aria-current={active ? "page" : undefined}
         aria-label={item.label}
         className={cn(
@@ -242,7 +248,7 @@ function SidebarContent() {
           side="right"
         >
           <Link
-            href="/"
+            href={scopedHref("/")}
             className="flex items-center gap-2 text-foreground hover:text-foreground/80"
             aria-label={
               APP_VERSION ? `Kody home (v${APP_VERSION})` : "Kody home"

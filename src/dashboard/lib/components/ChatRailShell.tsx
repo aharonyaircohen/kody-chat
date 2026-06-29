@@ -32,6 +32,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { KodyChat } from "./KodyChat";
 import { AppHeader } from "./AppHeader";
 import { Sidebar } from "./Sidebar";
+import { RepoManager } from "./RepoManager";
 import { CommandPalette } from "./CommandPalette";
 import { SettingsDrawerProvider } from "./SettingsDrawer";
 import { NotificationsProvider } from "../notifications/NotificationsProvider";
@@ -41,6 +42,12 @@ import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useGoals } from "../hooks/useGoals";
 import type { ChatContext } from "../chat-types";
 import { cn } from "../utils";
+import {
+  legacyRepoRedirectPath,
+  repoPathForNavMatching,
+  repoScopedHref,
+  resolveRepoRouteAuthSync,
+} from "../routes";
 import { routeOwnsAppHeader } from "./header-ownership";
 
 interface ChatRailApi {
@@ -126,7 +133,7 @@ function isPublicRoute(pathname: string | null): boolean {
 
 export function ChatRailShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const { auth, loading } = useAuth();
+  const { auth, loading, setCurrentRepo } = useAuth();
   const { githubUser } = useGitHubIdentity();
   const [scope, setScope] = useState<ChatContext | null>(null);
   // Mobile "chat open" — persisted per-device (same as the desktop expand
@@ -187,15 +194,37 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   // page you expanded from (so browsing away from /chat just shows that
   // page — chat never hovers over it). Remembered in a ref for the session.
   const router = useRouter();
+
+  useEffect(() => {
+    if (loading || !auth || !pathname) return;
+    const target = legacyRepoRedirectPath(auth, pathname);
+    if (!target) return;
+    router.replace(`${target}${window.location.search}${window.location.hash}`);
+  }, [auth, loading, pathname, router]);
+
+  const repoRouteAuthSync = resolveRepoRouteAuthSync(pathname ?? "/", auth);
+
+  useEffect(() => {
+    if (loading || repoRouteAuthSync.status !== "switch") return;
+    setCurrentRepo(repoRouteAuthSync.index, {
+      redirectTo: `${window.location.pathname}${window.location.search}${window.location.hash}`,
+    });
+  }, [loading, repoRouteAuthSync, setCurrentRepo]);
+
   const preExpandRouteRef = useRef("/tasks");
+  const currentRepoPath = repoPathForNavMatching(pathname ?? "/");
+  const scopedHref = useCallback(
+    (href: string) => (auth ? repoScopedHref(auth, href) : href),
+    [auth],
+  );
   const toggleExpandedChat = useCallback(() => {
-    if (pathname === "/chat") {
-      router.push(preExpandRouteRef.current || "/tasks");
+    if (currentRepoPath === "/chat") {
+      router.push(preExpandRouteRef.current || scopedHref("/tasks"));
     } else {
-      preExpandRouteRef.current = pathname || "/tasks";
-      router.push("/chat");
+      preExpandRouteRef.current = pathname || scopedHref("/tasks");
+      router.push(scopedHref("/chat"));
     }
-  }, [pathname, router]);
+  }, [currentRepoPath, pathname, router, scopedHref]);
 
   // Escape always exits the full /chat view, even if the chat header is
   // hidden by a layout glitch (e.g. session sidebar overflowing on a narrow
@@ -347,6 +376,9 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     pathname === "/vibe" || (pathname?.startsWith("/vibe/") ?? false);
   const isOrgRoute =
     pathname === "/org" || (pathname?.startsWith("/org/") ?? false);
+  const repoRouteBlocksPage =
+    repoRouteAuthSync.status === "switch" ||
+    repoRouteAuthSync.status === "missing";
   // Routes whose page renders its OWN in-pane header (KodyDashboard on the
   // tasks list, new-task / report-bug modals, and issue detail at /<number>;
   // plus Vibe). The shared AppHeader must NOT render on these or two headers
@@ -356,8 +388,20 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   // modal opens, so they must be listed even though no route file navigates
   // here directly.
   const pageOwnsHeader =
-    !!auth && (routeOwnsAppHeader(pathname) || pageHeaderOwnedByChild);
+    !!auth &&
+    !repoRouteBlocksPage &&
+    (routeOwnsAppHeader(pathname) || pageHeaderOwnedByChild);
   const lockedAgentId = isOrgRoute ? "kody" : undefined;
+  const pageContent =
+    repoRouteAuthSync.status === "switch" ? (
+      <div className="flex-1 flex items-center justify-center p-6 text-body-sm text-muted-foreground">
+        Switching repository…
+      </div>
+    ) : repoRouteAuthSync.status === "missing" ? (
+      <RepoManager />
+    ) : (
+      children
+    );
 
   const chatPane = auth ? (
     <KodyChat
@@ -449,7 +493,9 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
                 )}
               >
                 {!pageOwnsHeader && <AppHeader />}
-                <div className="flex-1 min-h-0 flex flex-col">{children}</div>
+                <div className="flex-1 min-h-0 flex flex-col">
+                  {pageContent}
+                </div>
               </div>
             </div>
           </div>

@@ -19,6 +19,7 @@ import { Loader2, MonitorPlay, Upload } from "lucide-react";
 
 import { useChatScope } from "./ChatRailShell";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { useRepoScopedHref } from "../hooks/useRepoScopedHref";
 import { selectionPath } from "../selection-routing";
 import { PreviewPane } from "./PreviewPane";
 import { PreviewEnvSwitcher } from "./PreviewEnvSwitcher";
@@ -115,6 +116,7 @@ export function PreviewWorkspace({
   selectedId?: string | null;
 } = {}) {
   const router = useRouter();
+  const scopedHref = useRepoScopedHref();
   const queryClient = useQueryClient();
   const { githubUser } = useGitHubIdentity();
   const { setComposerInjection, setAttachmentInjection, setPreviewContext } =
@@ -160,7 +162,7 @@ export function PreviewWorkspace({
   useEffect(() => {
     if (configQuery.isLoading || !configLoaded) return;
     if (environments.length === 0) {
-      if (selectedId) router.replace("/preview");
+      if (selectedId) router.replace(scopedHref("/preview"));
       return;
     }
     if (selectedId && environments.some((e) => e.id === selectedId)) {
@@ -173,7 +175,7 @@ export function PreviewWorkspace({
     }
     const fallback =
       environments.find((env) => env.id === storedId) ?? environments[0]!;
-    router.replace(selectionPath("/preview", fallback.id));
+    router.replace(scopedHref(selectionPath("/preview", fallback.id)));
   }, [
     configLoaded,
     configQuery.isLoading,
@@ -181,6 +183,7 @@ export function PreviewWorkspace({
     owner,
     repo,
     router,
+    scopedHref,
     selectedId,
     storedId,
   ]);
@@ -191,7 +194,7 @@ export function PreviewWorkspace({
     } catch {
       /* ignore */
     }
-    router.push(selectionPath("/preview", env.id));
+    router.push(scopedHref(selectionPath("/preview", env.id)));
   };
 
   const selectedEnv =

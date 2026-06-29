@@ -13,7 +13,7 @@
  *   and push isn't already on/denied. See `useAutoEnablePush`.
  */
 import { useState } from "react";
-import Link from "next/link";
+import { RepoScopedLink } from "../components/RepoScopedLink";
 import { Smartphone, BookOpen } from "lucide-react";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Button } from "@dashboard/ui/button";
@@ -161,13 +161,13 @@ export function PushCard() {
               Push notifications (this device)
             </h3>
           </div>
-          <Link
+          <RepoScopedLink
             href="/notifications/push-docs"
             className="inline-flex items-center gap-1 text-[11px] text-white/50 hover:text-white"
           >
             <BookOpen className="w-3 h-3" />
             Docs
-          </Link>
+          </RepoScopedLink>
         </div>
         {renderState()}
 

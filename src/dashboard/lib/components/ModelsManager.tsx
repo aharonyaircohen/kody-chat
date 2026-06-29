@@ -11,7 +11,7 @@
  */
 "use client";
 
-import Link from "next/link";
+import { RepoScopedLink } from "./RepoScopedLink";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -273,12 +273,12 @@ function ModelsManagerInner() {
                 Until you add one, the chat dropdown shows only{" "}
                 <strong className="text-white/60">Kody Live</strong> (GitHub
                 Actions engine). Each model uses its own API key stored under{" "}
-                <Link
+                <RepoScopedLink
                   href="/secrets"
                   className="text-white/60 hover:text-white/80 underline"
                 >
                   /secrets
-                </Link>
+                </RepoScopedLink>
                 .
               </p>
               <Button
@@ -362,12 +362,12 @@ function ModelsManagerInner() {
 
         <p className="text-[11px] text-white/30 pt-4">
           Each model uses its own API key under{" "}
-          <Link
+          <RepoScopedLink
             href="/secrets"
             className="text-white/60 hover:text-white/80 underline"
           >
             /secrets
-          </Link>
+          </RepoScopedLink>
           . With no models or a missing key the chat falls back to{" "}
           <strong className="text-white/60">Kody Live</strong>.
         </p>
@@ -570,12 +570,12 @@ function ModelEditor({
             />
             <p className="text-[11px] text-white/40 mt-1">
               Set this value under{" "}
-              <Link
+              <RepoScopedLink
                 href="/secrets"
                 className="text-white/60 hover:text-white/80 underline"
               >
                 /secrets
-              </Link>
+              </RepoScopedLink>
               .
             </p>
             {errors.apiKeySecret && (

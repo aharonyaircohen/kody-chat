@@ -54,6 +54,7 @@ import {
 import { Textarea } from "@dashboard/ui/textarea";
 import { cn } from "@dashboard/lib/utils/ui";
 import { selectionPath } from "../selection-routing";
+import { useRepoScopedHref } from "../hooks/useRepoScopedHref";
 import {
   companyIntentWarnings,
   isCompanyIntentId,
@@ -74,6 +75,7 @@ import {
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
+import { RepoScopedLink } from "./RepoScopedLink";
 
 type IntentFormState = {
   id: string;
@@ -185,6 +187,7 @@ export function CompanyIntentsView({
   selectedId?: string | null;
 } = {}) {
   const router = useRouter();
+  const scopedHref = useRepoScopedHref();
   const autoSelectFirst = useMediaQuery("(min-width: 768px)");
   const { data, error, isFetching, isLoading, refetch } = useCompanyIntents();
   const createIntent = useCreateCompanyIntent();
@@ -218,22 +221,34 @@ export function CompanyIntentsView({
   useEffect(() => {
     if (isLoading || !intentsLoaded) return;
     if (filtered.length === 0) {
-      if (selectedId) router.replace("/company-intents");
+      if (selectedId) router.replace(scopedHref("/company-intents"));
       return;
     }
     if (selectedId && !filtered.some((record) => record.id === selectedId)) {
-      router.replace("/company-intents");
+      router.replace(scopedHref("/company-intents"));
       return;
     }
     if (!selectedId && autoSelectFirst) {
-      router.replace(selectionPath("/company-intents", filtered[0]!.id));
+      router.replace(
+        scopedHref(selectionPath("/company-intents", filtered[0]!.id)),
+      );
     }
-  }, [autoSelectFirst, filtered, intentsLoaded, isLoading, router, selectedId]);
+  }, [
+    autoSelectFirst,
+    filtered,
+    intentsLoaded,
+    isLoading,
+    router,
+    scopedHref,
+    selectedId,
+  ]);
 
   const selectIntent = (id: string | null, replace = false) => {
-    const path = id ? selectionPath("/company-intents", id) : "/company-intents";
-    if (replace) router.replace(path);
-    else router.push(path);
+    const path = id
+      ? selectionPath("/company-intents", id)
+      : "/company-intents";
+    if (replace) router.replace(scopedHref(path));
+    else router.push(scopedHref(path));
   };
 
   const selected = selectedId
@@ -1355,14 +1370,14 @@ function LinkedChipGroup({
       ) : (
         <div className="mt-2 flex flex-wrap gap-2">
           {items.map((item) => (
-            <a key={item} href={href} className="max-w-full">
+            <RepoScopedLink key={item} href={href} className="max-w-full">
               <Badge
                 variant="outline"
                 className="max-w-full break-all font-normal hover:bg-card"
               >
                 {item}
               </Badge>
-            </a>
+            </RepoScopedLink>
           ))}
         </div>
       )}
@@ -1527,9 +1542,7 @@ function formToInput(form: IntentFormState): CompanyIntentInput {
     portfolio: {
       goals: parseLines(form.goals).filter(isCompanyIntentId),
       loops: parseLines(form.loops).filter(isCompanyIntentId),
-      capabilities: parseLines(form.capabilities).filter(
-        isCompanyIntentId,
-      ),
+      capabilities: parseLines(form.capabilities).filter(isCompanyIntentId),
     },
     manager: {
       reviewEvery: form.reviewEvery,

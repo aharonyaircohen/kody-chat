@@ -37,6 +37,7 @@ import {
   Workflow,
   type LucideIcon,
 } from "lucide-react";
+import { repoPathForNavMatching } from "@dashboard/lib/routes";
 
 export interface SettingsNavItem {
   href: string;
@@ -115,8 +116,7 @@ export const TODOS_NAV_ITEM: SettingsNavItem = {
   href: "/todos",
   label: "Todos",
   icon: CheckCircle2,
-  description:
-    "Visible worklists for regular tasks, goals, and loops.",
+  description: "Visible worklists for regular tasks, goals, and loops.",
   tint: "text-emerald-300 bg-emerald-500/10",
 };
 
@@ -540,23 +540,25 @@ export function isNavItemActive(
   search: string,
   item: SettingsNavItem,
 ): boolean {
+  const navPathname = repoPathForNavMatching(pathname);
   const [hrefPath, hrefQuery = ""] = item.href.split("?");
   if (hrefQuery) {
-    return pathname === hrefPath && search === hrefQuery;
+    return navPathname === hrefPath && search === hrefQuery;
   }
 
   if (item.exact) {
     return (
-      pathname === hrefPath ||
-      item.activePathPatterns?.some((pattern) => pattern.test(pathname)) ===
+      navPathname === hrefPath ||
+      item.activePathPatterns?.some((pattern) => pattern.test(navPathname)) ===
         true
     );
   }
 
   return (
-    pathname === hrefPath ||
-    pathname.startsWith(`${hrefPath}/`) ||
-    item.activePathPatterns?.some((pattern) => pattern.test(pathname)) === true
+    navPathname === hrefPath ||
+    navPathname.startsWith(`${hrefPath}/`) ||
+    item.activePathPatterns?.some((pattern) => pattern.test(navPathname)) ===
+      true
   );
 }
 

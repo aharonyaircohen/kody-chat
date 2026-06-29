@@ -9,7 +9,7 @@
  */
 "use client";
 
-import Link from "next/link";
+import { RepoScopedLink } from "./RepoScopedLink";
 import { useMemo } from "react";
 import type { SlashCommand } from "../commands/useSlashCommands";
 
@@ -50,9 +50,12 @@ export function SlashCommandMenu({
     return (
       <div className="absolute bottom-full left-0 right-0 mb-2 rounded-md border border-white/10 bg-zinc-900/95 backdrop-blur-sm shadow-xl px-3 py-2 text-xs text-white/50">
         No matching commands. Manage them at{" "}
-        <Link className="underline hover:text-white/80" href="/commands">
+        <RepoScopedLink
+          className="underline hover:text-white/80"
+          href="/commands"
+        >
           /commands
-        </Link>
+        </RepoScopedLink>
         .
       </div>
     );
@@ -104,9 +107,12 @@ export function SlashCommandMenu({
       </ul>
       <div className="border-t border-white/[0.06] px-3 py-1.5 text-[10px] text-white/35 flex items-center justify-between">
         <span>↑↓ navigate · Enter/Tab select · Esc close</span>
-        <Link href="/commands" className="underline hover:text-white/70">
+        <RepoScopedLink
+          href="/commands"
+          className="underline hover:text-white/70"
+        >
           Manage
-        </Link>
+        </RepoScopedLink>
       </div>
     </div>
   );

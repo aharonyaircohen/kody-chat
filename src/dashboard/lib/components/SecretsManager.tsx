@@ -9,7 +9,7 @@
  */
 "use client";
 
-import Link from "next/link";
+import { RepoScopedLink } from "./RepoScopedLink";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -269,10 +269,10 @@ function SecretsManagerInner() {
       actions={
         <>
           <Button asChild variant="ghost" size="sm" className="gap-1">
-            <Link href="/secrets/docs" aria-label="Vault docs">
+            <RepoScopedLink href="/secrets/docs" aria-label="Vault docs">
               <BookOpen className="w-4 h-4" />
               Docs
-            </Link>
+            </RepoScopedLink>
           </Button>
           <Button
             size="sm"

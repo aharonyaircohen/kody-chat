@@ -37,6 +37,7 @@ import {
   SheetTitle,
 } from "@dashboard/ui/sheet";
 import { selectionPath } from "../selection-routing";
+import { useRepoScopedHref } from "../hooks/useRepoScopedHref";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { Button } from "@dashboard/ui/button";
 import { Input } from "@dashboard/ui/input";
@@ -892,6 +893,7 @@ export function MessagesView({
   selectedChannelNumber?: number | null;
 } = {}) {
   const router = useRouter();
+  const scopedHref = useRepoScopedHref();
   const { data, isLoading, error, refetch } = useMessageChannels();
   const { unreadChannels, markSeen } = useChannelsUnread();
 
@@ -902,8 +904,7 @@ export function MessagesView({
     const p = new URLSearchParams(window.location.search);
     const ch = Number(p.get("channel"));
     const channel =
-      selectedChannelNumber ??
-      (Number.isInteger(ch) && ch > 0 ? ch : null);
+      selectedChannelNumber ?? (Number.isInteger(ch) && ch > 0 ? ch : null);
     if (!channel) return null;
     const c = Number(p.get("c"));
     return {
@@ -922,9 +923,11 @@ export function MessagesView({
     params.delete("channel");
     const suffix = params.toString();
     router.replace(
-      `${selectionPath("/messages", deepLink.channel)}${suffix ? `?${suffix}` : ""}`,
+      scopedHref(
+        `${selectionPath("/messages", deepLink.channel)}${suffix ? `?${suffix}` : ""}`,
+      ),
     );
-  }, [deepLink?.channel, router, selectedChannelNumber]);
+  }, [deepLink?.channel, router, scopedHref, selectedChannelNumber]);
 
   /** Exit /messages — back to the previous history entry, or root if
    *  the user landed here directly (deep link / push notification). */
@@ -932,7 +935,7 @@ export function MessagesView({
     if (typeof window !== "undefined" && window.history.length > 1) {
       router.back();
     } else {
-      router.push("/");
+      router.push(scopedHref("/"));
     }
   };
 
@@ -945,21 +948,23 @@ export function MessagesView({
   useEffect(() => {
     if (didAutoSelect.current) return;
     if (selected === null && channels.length > 0) {
-      router.replace(selectionPath("/messages", channels[0].number));
+      router.replace(
+        scopedHref(selectionPath("/messages", channels[0].number)),
+      );
     }
     if (selected !== null || channels.length > 0) {
       didAutoSelect.current = true;
     }
-  }, [channels, router, selected]);
+  }, [channels, router, scopedHref, selected]);
 
   useEffect(() => {
     if (selected === null || channels.length === 0) return;
     if (channels.some((channel) => channel.number === selected)) return;
-    router.replace(selectionPath("/messages", channels[0].number));
-  }, [channels, router, selected]);
+    router.replace(scopedHref(selectionPath("/messages", channels[0].number)));
+  }, [channels, router, scopedHref, selected]);
 
   const selectChannel = (number: number) => {
-    router.push(selectionPath("/messages", number));
+    router.push(scopedHref(selectionPath("/messages", number)));
   };
 
   const activeChannel = channels.find((c) => c.number === selected) ?? null;

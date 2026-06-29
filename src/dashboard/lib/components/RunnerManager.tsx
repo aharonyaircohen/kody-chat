@@ -9,7 +9,7 @@
  */
 "use client";
 
-import Link from "next/link";
+import { RepoScopedLink } from "./RepoScopedLink";
 import {
   useCallback,
   useEffect,
@@ -200,9 +200,12 @@ function FlyTokenCard({ flyTokenConfigured }: { flyTokenConfigured: boolean }) {
               <>
                 Required for everything below. Set{" "}
                 <span className="font-mono">FLY_API_TOKEN</span> on the{" "}
-                <Link href="/secrets" className="text-sky-400 hover:underline">
+                <RepoScopedLink
+                  href="/secrets"
+                  className="text-sky-400 hover:underline"
+                >
                   Secrets
-                </Link>{" "}
+                </RepoScopedLink>{" "}
                 page. Without it, every Fly feature falls back to GitHub
                 Actions.
               </>

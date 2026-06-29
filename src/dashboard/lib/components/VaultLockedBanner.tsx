@@ -10,7 +10,7 @@
  */
 "use client";
 
-import Link from "next/link";
+import { RepoScopedLink } from "./RepoScopedLink";
 import { AlertTriangle } from "lucide-react";
 
 import { useVaultStatus } from "../hooks/useVaultStatus";
@@ -57,12 +57,12 @@ export function VaultLockedBanner({
               {code}: {message}
             </pre>
           )}
-          <Link
+          <RepoScopedLink
             href="/secrets"
             className="inline-block mt-2 text-xs text-rose-200 underline hover:text-rose-100"
           >
             Open Secrets →
-          </Link>
+          </RepoScopedLink>
         </div>
       </div>
     </div>

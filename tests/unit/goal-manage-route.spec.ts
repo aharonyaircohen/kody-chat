@@ -92,6 +92,35 @@ function makeParams(id: string) {
   return { params: Promise.resolve({ id }) };
 }
 
+function managedGoalTodoContent(overrides: Record<string, unknown> = {}) {
+  return [
+    "---",
+    'title: "capability-migration"',
+    'createdAt: "2026-01-01T00:00:00.000Z"',
+    "managed: true",
+    'managedModel: "agentGoal"',
+    "version: 1",
+    'state: "active"',
+    'type: "improve"',
+    'evidence: "[]"',
+    'capabilities: "[]"',
+    'route: "[]"',
+    'facts: "{}"',
+    'blockers: "[]"',
+    ...Object.entries(overrides).map(
+      ([key, value]) => `${key}: ${JSON.stringify(value)}`,
+    ),
+    "---",
+    "",
+    "Migrate capability state.",
+    "",
+    "<!-- kody-todo-items-json",
+    "[]",
+    "-->",
+    "",
+  ].join("\n");
+}
+
 // ---------------------------------------------------------------------------
 
 describe("POST /api/kody/goals/[id]/manage", () => {
@@ -105,12 +134,7 @@ describe("POST /api/kody/goals/[id]/manage", () => {
       rest: {
         repos: {
           get: vi.fn().mockResolvedValue({ data: { default_branch: "main" } }),
-          getContent: vi
-            .fn()
-            .mockRejectedValueOnce({ status: 404 })
-            .mockResolvedValueOnce({
-              data: { type: "file", sha: "abc123", content: "" },
-            }),
+          getContent: vi.fn().mockRejectedValue({ status: 404 }),
           createOrUpdateFileContents: vi
             .fn()
             .mockImplementation((opts: unknown) => {
@@ -146,12 +170,11 @@ describe("POST /api/kody/goals/[id]/manage", () => {
     const req = makeManageRequest("capability-migration", true);
     const res = await POST(req, makeParams("capability-migration"));
 
+    expect(res.status).toBe(200);
     expect(getRefCalls).toHaveLength(2);
     expect(createRefCalls).toHaveLength(1);
     expect(capturedWriteBranch).toBe("kody-state");
-    expect(capturedWritePath).toBe(
-      "test-repo/goals/instances/capability-migration/state.json",
-    );
+    expect(capturedWritePath).toBe("test-repo/todos/capability-migration.md");
 
     // The dispatch must pass the goal as the explicit target, not as an issue.
     expect(h.runScheduledKodyOnRunner).toHaveBeenCalledWith(
@@ -178,11 +201,9 @@ describe("POST /api/kody/goals/[id]/manage", () => {
               type: "file",
               sha: "existing-sha",
               content: Buffer.from(
-                JSON.stringify({
-                  version: 1,
-                  state: "active",
-                  startedAt: "2026-01-01T00:00:00Z",
-                  updatedAt: "2026-01-01T00:00:00Z",
+                managedGoalTodoContent({
+                  startedAt: "2026-01-01T00:00:00.000Z",
+                  updatedAt: "2026-01-01T00:00:00.000Z",
                 }),
               ).toString("base64"),
               encoding: "base64",

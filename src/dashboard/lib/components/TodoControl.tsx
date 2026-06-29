@@ -76,13 +76,17 @@ import {
   useUpdateTodo,
 } from "../hooks/useTodoEntries";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { useRepoScopedHref } from "../hooks/useRepoScopedHref";
 import { selectionPath } from "../selection-routing";
 import {
   buildCreateTodoListPayload,
   hasInvalidCreateTodoDraftItems,
 } from "../todos/create-list-form";
 import { reorderTodoItems } from "../todos/reorder-items";
-import { todoListSelectionRedirect } from "../todos/selection";
+import {
+  todoItemSelectionRedirect,
+  todoListSelectionRedirect,
+} from "../todos/selection";
 import {
   autoDirProps,
   rtlAwareMarkdownClassName,
@@ -133,6 +137,7 @@ interface TodoControlProps {
   /** Render without built-in PageHeader (e.g. when hosted in tabs). */
   embedded?: boolean;
   selectedSlug?: string | null;
+  selectedItemId?: string | null;
 }
 
 function makeItemId(): string {
@@ -236,10 +241,15 @@ function isTodoItemCardClickIgnored(
 export function TodoControl({
   embedded = false,
   selectedSlug = null,
+  selectedItemId = null,
 }: TodoControlProps = {}) {
   return (
     <AuthGuard>
-      <TodoControlInner embedded={embedded} selectedSlug={selectedSlug} />
+      <TodoControlInner
+        embedded={embedded}
+        selectedSlug={selectedSlug}
+        selectedItemId={selectedItemId}
+      />
     </AuthGuard>
   );
 }
@@ -247,8 +257,10 @@ export function TodoControl({
 export function TodoControlInner({
   embedded = false,
   selectedSlug = null,
+  selectedItemId = null,
 }: TodoControlProps = {}) {
   const router = useRouter();
+  const scopedHref = useRepoScopedHref();
   const {
     data: todoLists = [],
     isLoading,
@@ -316,13 +328,43 @@ export function TodoControlInner({
       selectedSlug,
       todoLists.map((list) => list.slug),
     );
-    if (redirect) router.replace(redirect);
-  }, [isLoading, router, selectedSlug, todoLists]);
+    if (redirect) router.replace(scopedHref(redirect));
+  }, [isLoading, router, scopedHref, selectedSlug, todoLists]);
+
+  useEffect(() => {
+    if (isLoading || !selectedSlug || !selectedList) return;
+    const listPath = selectionPath("/todos", selectedSlug);
+    const redirect = todoItemSelectionRedirect(
+      selectedItemId,
+      selectedList.items.map((item) => item.id),
+      listPath,
+    );
+    if (redirect) router.replace(scopedHref(redirect));
+  }, [
+    isLoading,
+    router,
+    scopedHref,
+    selectedItemId,
+    selectedList,
+    selectedSlug,
+  ]);
 
   const selectList = (slug: string | null, replace = false) => {
     const path = slug ? selectionPath("/todos", slug) : "/todos";
-    if (replace) router.replace(path);
-    else router.push(path);
+    if (replace) router.replace(scopedHref(path));
+    else router.push(scopedHref(path));
+  };
+
+  const selectItem = (
+    list: TodoEntry,
+    item: TodoItem | null,
+    replace = false,
+  ) => {
+    const path = item
+      ? selectionPath("/todos", list.slug, item.id)
+      : selectionPath("/todos", list.slug);
+    if (replace) router.replace(scopedHref(path));
+    else router.push(scopedHref(path));
   };
 
   const headerActions = (
@@ -497,7 +539,11 @@ export function TodoControlInner({
             <TodoListDetail
               key={selectedList.slug}
               list={selectedList}
+              selectedItemId={selectedItemId}
               onBack={() => selectList(null)}
+              onSelectItem={(item, replace) =>
+                selectItem(selectedList, item, replace)
+              }
               onEditList={() => setEditingList(selectedList)}
               onDeleteList={() => setPendingDelete(selectedList)}
             />
@@ -555,12 +601,16 @@ export function TodoControlInner({
 
 function TodoListDetail({
   list,
+  selectedItemId,
   onBack,
+  onSelectItem,
   onEditList,
   onDeleteList,
 }: {
   list: TodoEntry;
+  selectedItemId: string | null;
   onBack: () => void;
+  onSelectItem: (item: TodoItem | null, replace?: boolean) => void;
   onEditList: () => void;
   onDeleteList: () => void;
 }) {
@@ -629,6 +679,19 @@ function TodoListDetail({
     });
   }, [list.items]);
 
+  useEffect(() => {
+    if (!selectedItemId) return;
+    const selectedItem = list.items.find((item) => item.id === selectedItemId);
+    if (!selectedItem) return;
+    setExpandedItemIds((current) => {
+      if (current.has(selectedItemId)) return current;
+      return new Set(current).add(selectedItemId);
+    });
+    if (!matchesTodoFilter(selectedItem, itemFilter, currentUserLogin)) {
+      setItemFilter("all");
+    }
+  }, [currentUserLogin, itemFilter, list.items, selectedItemId]);
+
   const allItemsExpanded =
     list.items.length > 0 &&
     list.items.every((item) => expandedItemIds.has(item.id));
@@ -682,7 +745,16 @@ function TodoListDetail({
   };
 
   const deleteItem = (item: TodoItem) => {
-    saveItems(list.items.filter((candidate) => candidate.id !== item.id));
+    updateMutation.mutate(
+      {
+        items: list.items.filter((candidate) => candidate.id !== item.id),
+      },
+      {
+        onSuccess: () => {
+          if (selectedItemId === item.id) onSelectItem(null, true);
+        },
+      },
+    );
   };
 
   const assignItem = (item: TodoItem, assignee: string | null) => {
@@ -742,6 +814,7 @@ function TodoListDetail({
         onSuccess: () => {
           setExpandedItemIds((current) => new Set(current).add(newItem.id));
           setItemEditor(null);
+          onSelectItem(newItem);
         },
       },
     );
@@ -936,7 +1009,9 @@ function TodoListDetail({
                     <TodoItemCard
                       key={item.id}
                       item={item}
+                      isSelected={selectedItemId === item.id}
                       isExpanded={expandedItemIds.has(item.id)}
+                      onSelect={() => onSelectItem(item)}
                       onToggle={() => toggleItem(item)}
                       onToggleExpanded={() => toggleItemExpanded(item)}
                       onEdit={() => setItemEditor({ mode: "edit", item })}
@@ -1023,7 +1098,9 @@ function AddTodoPlaceholder({
 
 function TodoItemCard({
   item,
+  isSelected,
   isExpanded,
+  onSelect,
   onToggle,
   onToggleExpanded,
   onEdit,
@@ -1035,7 +1112,9 @@ function TodoItemCard({
   disabled,
 }: {
   item: TodoItem;
+  isSelected: boolean;
   isExpanded: boolean;
+  onSelect: () => void;
   onToggle: () => void;
   onToggleExpanded: () => void;
   onEdit: () => void;
@@ -1197,13 +1276,16 @@ function TodoItemCard({
         if (isTodoItemCardClickIgnored(event.target, event.currentTarget)) {
           return;
         }
-        onEdit();
+        onSelect();
       }}
+      aria-current={isSelected ? "true" : undefined}
       className={cn(
         "cursor-pointer rounded-md border px-3 py-2.5 transition-colors hover:bg-muted/40",
         item.completed
           ? "border-border/60 bg-muted/20"
           : "border-border bg-card/60",
+        isSelected &&
+          "border-emerald-400/70 bg-emerald-500/[0.08] ring-1 ring-emerald-400/50",
         isDragging &&
           "relative z-10 opacity-80 shadow-lg ring-1 ring-emerald-400/40",
       )}

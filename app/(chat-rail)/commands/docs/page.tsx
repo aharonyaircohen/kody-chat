@@ -8,7 +8,7 @@
  */
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import Link from "next/link";
+import { RepoScopedLink } from "@dashboard/lib/components/RepoScopedLink";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { MarkdownViewer } from "@dashboard/lib/components/MarkdownViewer";
 import { buildKodyMetadata } from "../../../metadata";
@@ -38,13 +38,13 @@ export default async function CommandsDocsPage() {
     <div className="min-h-screen bg-black/95 text-white/90">
       <header className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 border-b border-white/[0.06] bg-black/30">
         <div className="flex items-center gap-3">
-          <Link
+          <RepoScopedLink
             href="/commands"
             className="inline-flex items-center gap-1 text-sm text-white/60 hover:text-white"
           >
             <ArrowLeft className="w-4 h-4" />
             Back to commands
-          </Link>
+          </RepoScopedLink>
         </div>
         <a
           href="https://github.com/aharonyaircohen/Kody-Dashboard/blob/main/docs/commands.md"

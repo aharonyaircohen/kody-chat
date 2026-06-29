@@ -8,7 +8,7 @@
  */
 "use client";
 
-import Link from "next/link";
+import { RepoScopedLink } from "./RepoScopedLink";
 import { useState } from "react";
 import { Bell, BookOpen, Pencil, Plus, Send, Trash2 } from "lucide-react";
 import { PageShell } from "./PageShell";
@@ -127,10 +127,13 @@ function NotificationsManagerInner() {
       actions={
         <>
           <Button asChild variant="ghost" size="sm" className="gap-1">
-            <Link href="/notifications/docs" aria-label="Notifications docs">
+            <RepoScopedLink
+              href="/notifications/docs"
+              aria-label="Notifications docs"
+            >
               <BookOpen className="w-4 h-4" />
               Docs
-            </Link>
+            </RepoScopedLink>
           </Button>
           <Button
             size="sm"
@@ -653,12 +656,12 @@ function ChannelFields({
           </div>
           <p className="text-[11px] text-white/30">
             See{" "}
-            <Link
+            <RepoScopedLink
               href="/notifications/docs"
               className="underline hover:text-white/50"
             >
               docs
-            </Link>{" "}
+            </RepoScopedLink>{" "}
             for full setup recipes (Twilio WhatsApp, Mattermost, etc.).
           </p>
         </>

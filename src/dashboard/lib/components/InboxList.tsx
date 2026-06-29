@@ -10,7 +10,7 @@
  *   a one-click jump to settings if the PAT is missing the `gist` scope.
  */
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import Link from "next/link";
+import { RepoScopedLink } from "./RepoScopedLink";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertCircle,
@@ -50,6 +50,7 @@ import { NOTIFICATION_META } from "../notifications/types";
 import { syncMutedTypes } from "../notifications/sync-prefs";
 import type { ServerNotificationType } from "../notifications/prefs-store";
 import type { InboxEntry, InboxSource } from "../inbox/types";
+import { repoScopedHref } from "../routes";
 import {
   INBOX_THREAD_PARAM,
   buildSyntheticInboxEntry,
@@ -279,6 +280,7 @@ interface RowProps {
     action: CtoAction,
     sinceIso?: string,
   ) => CtoVerdict | null;
+  repoHref: (href: string) => string;
 }
 
 function Row({
@@ -290,6 +292,7 @@ function Row({
   isMuted,
   onToggleMute,
   verdictFor,
+  repoHref,
 }: RowProps) {
   const unread = entry.readAt === null;
   const [copied, setCopied] = useState(false);
@@ -466,13 +469,13 @@ function Row({
             <span className="text-[10px] uppercase tracking-wider text-amber-300/70">
               CTO · {cto.action === "other" ? "review" : cto.action}
             </span>
-            <Link
-              href={`/${cto.taskNumber}`}
+            <RepoScopedLink
+              href={repoHref(`/${cto.taskNumber}`)}
               title="Open this task in the dashboard"
               className="text-[11px] font-medium text-sky-300/80 hover:text-sky-200 hover:underline"
             >
               Task #{cto.taskNumber}
-            </Link>
+            </RepoScopedLink>
             {ctoVerdict ? (
               <span
                 className={cn(
@@ -497,10 +500,10 @@ function Row({
                 variant="ghost"
                 className="h-7 gap-1 border border-amber-500/30 bg-amber-500/[0.06] text-amber-200 hover:bg-amber-500/15"
               >
-                <Link href="/reports">
+                <RepoScopedLink href="/reports">
                   <FileText className="w-3.5 h-3.5" />
                   Review reports
-                </Link>
+                </RepoScopedLink>
               </Button>
             )}
           </div>
@@ -520,6 +523,8 @@ function Row({
 
 export function InboxList() {
   const { auth } = useAuth();
+  const scopedHref = (href: string) =>
+    auth ? repoScopedHref(auth, href) : href;
   const {
     unread,
     read,
@@ -887,6 +892,7 @@ export function InboxList() {
         isMuted={(c) => notifPrefs.disabledTypes.includes(c)}
         onToggleMute={toggleCategoryMute}
         verdictFor={verdictFor}
+        repoHref={scopedHref}
         readSection={false}
       />
 
@@ -904,6 +910,7 @@ export function InboxList() {
             isMuted={(c) => notifPrefs.disabledTypes.includes(c)}
             onToggleMute={toggleCategoryMute}
             verdictFor={verdictFor}
+            repoHref={scopedHref}
             readSection
           />
         </div>
@@ -993,10 +1000,10 @@ function CtoDialogActions({
           variant="ghost"
           className="h-7 gap-1 border border-amber-500/30 bg-amber-500/[0.06] text-amber-200 hover:bg-amber-500/15"
         >
-          <Link href="/reports">
+          <RepoScopedLink href="/reports">
             <FileText className="w-3.5 h-3.5" />
             Review reports
-          </Link>
+          </RepoScopedLink>
         </Button>
       )}
     </>
@@ -1020,6 +1027,7 @@ interface SectionProps {
     action: CtoAction,
     sinceIso?: string,
   ) => CtoVerdict | null;
+  repoHref: (href: string) => string;
   readSection: boolean;
 }
 
@@ -1035,6 +1043,7 @@ function Section({
   isMuted,
   onToggleMute,
   verdictFor,
+  repoHref,
   readSection,
 }: SectionProps) {
   return (
@@ -1065,6 +1074,7 @@ function Section({
                     isMuted={isMuted}
                     onToggleMute={onToggleMute}
                     verdictFor={verdictFor}
+                    repoHref={repoHref}
                   />
                 ))}
               </ul>

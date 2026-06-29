@@ -11,7 +11,7 @@
  */
 "use client";
 
-import Link from "next/link";
+import { RepoScopedLink } from "./RepoScopedLink";
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
 import { useOperators } from "../operators/useOperators";
@@ -30,9 +30,9 @@ export function OperatorsWarningBanner() {
           <p className="text-xs text-amber-100/70 mt-1">
             Recommendations are being posted but @-mention no one, so they never
             reach this inbox. Set who should receive them in{" "}
-            <Link href="/config" className="underline">
+            <RepoScopedLink href="/config" className="underline">
               Config
-            </Link>
+            </RepoScopedLink>
             .
           </p>
           {meLogin && (

@@ -12,7 +12,7 @@
  */
 "use client";
 
-import Link from "next/link";
+import { RepoScopedLink } from "./RepoScopedLink";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -296,40 +296,40 @@ export function SettingsManager() {
                   variant="outline"
                   className="justify-start gap-2 bg-white/[0.02] border-white/10 hover:bg-white/[0.06]"
                 >
-                  <Link href="/runner">
+                  <RepoScopedLink href="/runner">
                     <Rocket className="w-4 h-4" />
                     Fly Runner
-                  </Link>
+                  </RepoScopedLink>
                 </Button>
                 <Button
                   asChild
                   variant="outline"
                   className="justify-start gap-2 bg-white/[0.02] border-white/10 hover:bg-white/[0.06]"
                 >
-                  <Link href="/models">
+                  <RepoScopedLink href="/models">
                     <Cpu className="w-4 h-4" />
                     Chat models
-                  </Link>
+                  </RepoScopedLink>
                 </Button>
                 <Button
                   asChild
                   variant="outline"
                   className="justify-start gap-2 bg-white/[0.02] border-white/10 hover:bg-white/[0.06]"
                 >
-                  <Link href="/commands">
+                  <RepoScopedLink href="/commands">
                     <Bot className="w-4 h-4" />
                     Slash commands
-                  </Link>
+                  </RepoScopedLink>
                 </Button>
                 <Button
                   asChild
                   variant="outline"
                   className="justify-start gap-2 bg-white/[0.02] border-white/10 hover:bg-white/[0.06]"
                 >
-                  <Link href="/secrets">
+                  <RepoScopedLink href="/secrets">
                     <KeyRound className="w-4 h-4" />
                     Secrets vault
-                  </Link>
+                  </RepoScopedLink>
                 </Button>
               </div>
             </CardContent>
