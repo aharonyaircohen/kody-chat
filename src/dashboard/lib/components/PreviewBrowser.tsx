@@ -41,6 +41,7 @@ import {
   rebasePreviewAuthUrl,
   stripPreviewAuthParams,
 } from "../preview-auth-url";
+import { shouldSyncPreviewBrowserUrl } from "../preview-browser-url";
 import { PICKER_EXT_SOURCE, type PickerExtMessage } from "../picker/protocol";
 import { useElementPicker } from "../picker/useElementPicker";
 import { cn, getPreviewBypassUrl } from "../utils";
@@ -300,6 +301,16 @@ export function PreviewBrowser({
     (url: string | null | undefined): void => {
       const nextUrl = toAbsolutePreviewUrl(url ?? null);
       if (!nextUrl) return;
+      if (
+        typeof window !== "undefined" &&
+        !shouldSyncPreviewBrowserUrl(
+          nextUrl,
+          activePreviewUrlRef.current ?? previewUrl,
+          window.location.origin,
+        )
+      ) {
+        return;
+      }
       const authedUrl =
         typeof window === "undefined"
           ? nextUrl
@@ -310,7 +321,7 @@ export function PreviewBrowser({
             ) ?? nextUrl);
       setBrowserHistory((state) => pushBrowserHistory(state, authedUrl));
     },
-    [getPreviewAuthSourceUrl],
+    [getPreviewAuthSourceUrl, previewUrl],
   );
 
   useEffect(() => {
