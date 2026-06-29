@@ -1078,6 +1078,7 @@ export function KodyChat({
     sessions: sessionHook.sessions,
     sessionsHydrated: sessionHook.hydrated,
     storageScope: sessionStoreScope,
+    switchSession: sessionHook.switchSession,
   });
   const chatMode = vibeMode ? "ai" : terminalRegistry.mode;
   const terminalMachines = terminalRegistry.terminalMachines;
