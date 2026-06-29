@@ -32,6 +32,7 @@ import { Octokit } from "@octokit/rest";
 import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
 import { readDashboardConfig } from "@dashboard/lib/dashboard-config/store";
 import { logger } from "@dashboard/lib/logger";
+import { resolveVaultGithubToken } from "@dashboard/lib/vault/bootstrap";
 import { rebuildBaseImage } from "./base-rebuild";
 import { resolvePreviewConfigForRepo } from "./config";
 import { createPreview, destroyPreview } from "./preview-lifecycle";
@@ -285,15 +286,19 @@ export async function handleDefaultBranchPush(
     return;
   }
 
-  // Same background token policy as createPreview — App installation
-  // token preferred, vault GITHUB_TOKEN fallback.
+  // Base-image builds mirror to GHCR so PR previews can inherit warm layers.
+  // GitHub App installation tokens are right for repo automation, but they
+  // cannot publish the user's container package. Prefer the repo vault PAT
+  // here because it can carry `write:packages`; fall back to the App token so
+  // the base build can still run, even if the GHCR mirror is unavailable.
   const bg = await resolveBackgroundToken(owner, repo);
+  const packageToken = await resolveVaultGithubToken(owner, repo);
 
   await rebuildBaseImage({
     repo: event.repoFullName,
     ref: event.ref,
     cfg,
-    githubToken: bg?.token,
+    githubToken: packageToken ?? bg?.token,
   });
 }
 

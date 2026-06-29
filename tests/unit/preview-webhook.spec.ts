@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   resolvePreviewConfigForRepo: vi.fn(),
   resolveBackgroundToken: vi.fn(),
+  resolveVaultGithubToken: vi.fn(),
   compareCommitsWithBasehead: vi.fn(),
   createPreview: vi.fn(),
+  rebuildBaseImage: vi.fn(),
   readDashboardConfig: vi.fn(),
   routePreviewBuild: vi.fn(),
   sweepExpiredPreviews: vi.fn(),
@@ -27,6 +29,12 @@ vi.mock("@dashboard/lib/previews/config", () => ({
 }));
 vi.mock("@dashboard/lib/auth/background-token", () => ({
   resolveBackgroundToken: mocks.resolveBackgroundToken,
+}));
+vi.mock("@dashboard/lib/vault/bootstrap", () => ({
+  resolveVaultGithubToken: mocks.resolveVaultGithubToken,
+}));
+vi.mock("@dashboard/lib/previews/base-rebuild", () => ({
+  rebuildBaseImage: mocks.rebuildBaseImage,
 }));
 vi.mock("@dashboard/lib/previews/preview-router", () => ({
   routePreviewBuild: mocks.routePreviewBuild,
@@ -52,6 +60,7 @@ vi.mock("@dashboard/lib/runners/fly-activity-store", () => ({
 }));
 
 import {
+  handleDefaultBranchPush,
   handlePrOpenedOrSynced,
   handleTrackedBranchPush,
 } from "@dashboard/lib/previews/webhook";
@@ -65,9 +74,11 @@ describe("preview webhook maintenance", () => {
       defaultRegion: "fra",
     });
     mocks.resolveBackgroundToken.mockResolvedValue(null);
+    mocks.resolveVaultGithubToken.mockResolvedValue(null);
     mocks.compareCommitsWithBasehead.mockResolvedValue({
       data: { files: [{ filename: "src/app.tsx" }] },
     });
+    mocks.rebuildBaseImage.mockResolvedValue(undefined);
     mocks.routePreviewBuild.mockResolvedValue({
       runner: "fly",
       reason: "fly preferred",
@@ -206,5 +217,45 @@ describe("preview webhook maintenance", () => {
     expect(mocks.readDashboardConfig).not.toHaveBeenCalled();
     expect(mocks.createPreview).not.toHaveBeenCalled();
     expect(mocks.sweepExpiredPreviews).not.toHaveBeenCalled();
+  });
+
+  it("uses the vault GitHub token for default-branch base image rebuilds", async () => {
+    mocks.resolveBackgroundToken.mockResolvedValue({ token: "app-token" });
+    mocks.resolveVaultGithubToken.mockResolvedValue("vault-token");
+
+    await handleDefaultBranchPush({
+      repoFullName: "acme/widgets",
+      ref: "new-default-sha",
+      changedPaths: ["src/app.tsx"],
+    });
+
+    expect(mocks.resolveVaultGithubToken).toHaveBeenCalledWith(
+      "acme",
+      "widgets",
+    );
+    expect(mocks.rebuildBaseImage).toHaveBeenCalledWith({
+      repo: "acme/widgets",
+      ref: "new-default-sha",
+      cfg: expect.objectContaining({ token: "fly-token" }),
+      githubToken: "vault-token",
+    });
+  });
+
+  it("falls back to the background token when no vault token is available", async () => {
+    mocks.resolveBackgroundToken.mockResolvedValue({ token: "app-token" });
+    mocks.resolveVaultGithubToken.mockResolvedValue(null);
+
+    await handleDefaultBranchPush({
+      repoFullName: "acme/widgets",
+      ref: "new-default-sha",
+      changedPaths: ["src/app.tsx"],
+    });
+
+    expect(mocks.rebuildBaseImage).toHaveBeenCalledWith({
+      repo: "acme/widgets",
+      ref: "new-default-sha",
+      cfg: expect.objectContaining({ token: "fly-token" }),
+      githubToken: "app-token",
+    });
   });
 });
