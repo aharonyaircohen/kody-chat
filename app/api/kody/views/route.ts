@@ -15,8 +15,8 @@ import {
 import { logger } from "@dashboard/lib/logger";
 import {
   deleteStateDirectory,
-  resolveStateRepo,
   stateRepoPath,
+  writeStateBase64Files,
 } from "@dashboard/lib/state-repo";
 
 export const runtime = "nodejs";
@@ -123,64 +123,22 @@ async function commitFiles(input: {
   repo: string;
   rootPath: string;
 }> {
-  const target = await resolveStateRepo(input.octokit, input.owner, input.repo);
-  const repoInfo = await input.octokit.rest.repos.get({
-    owner: target.owner,
-    repo: target.repo,
-  });
-  const branch = repoInfo.data.default_branch;
-  const ref = await input.octokit.rest.git.getRef({
-    owner: target.owner,
-    repo: target.repo,
-    ref: `heads/${branch}`,
-  });
-  const baseSha = ref.data.object.sha;
-  const baseCommit = await input.octokit.rest.git.getCommit({
-    owner: target.owner,
-    repo: target.repo,
-    commit_sha: baseSha,
-  });
-  const blobs = await Promise.all(
-    input.files.map(async (file) => {
-      const blob = await input.octokit.rest.git.createBlob({
-        owner: target.owner,
-        repo: target.repo,
-        content: file.raw.toString("base64"),
-        encoding: "base64",
-      });
-      return { path: stateRepoPath(target, file.path), sha: blob.data.sha };
-    }),
-  );
-  const tree = await input.octokit.rest.git.createTree({
-    owner: target.owner,
-    repo: target.repo,
-    base_tree: baseCommit.data.tree.sha,
-    tree: blobs.map((blob) => ({
-      path: blob.path,
-      mode: "100644",
-      type: "blob",
-      sha: blob.sha,
+  const result = await writeStateBase64Files({
+    octokit: input.octokit,
+    owner: input.owner,
+    repo: input.repo,
+    message: input.message,
+    files: input.files.map((file) => ({
+      path: file.path,
+      contentBase64: file.raw.toString("base64"),
     })),
   });
-  const commit = await input.octokit.rest.git.createCommit({
-    owner: target.owner,
-    repo: target.repo,
-    message: input.message,
-    tree: tree.data.sha,
-    parents: [baseSha],
-  });
-  await input.octokit.rest.git.updateRef({
-    owner: target.owner,
-    repo: target.repo,
-    ref: `heads/${branch}`,
-    sha: commit.data.sha,
-  });
   return {
-    branch,
-    commitSha: commit.data.sha,
-    owner: target.owner,
-    repo: target.repo,
-    rootPath: stateRepoPath(target, input.rootPath),
+    branch: result.branch,
+    commitSha: result.sha,
+    owner: result.target.owner,
+    repo: result.target.repo,
+    rootPath: stateRepoPath(result.target, input.rootPath),
   };
 }
 

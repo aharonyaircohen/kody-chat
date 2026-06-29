@@ -87,7 +87,6 @@ export function PreviewEnvSwitcher({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [extendingId, setExtendingId] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const now = Date.now();
 
@@ -152,7 +151,6 @@ export function PreviewEnvSwitcher({
       setMenuOpen(false);
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -344,32 +342,32 @@ export function PreviewEnvSwitcher({
                 Add branch preview
               </button>
               {onUpload && (
-                <>
+                <label
+                  title="Upload static files to state views"
+                  className={cn(
+                    "relative flex cursor-pointer items-center gap-2 overflow-hidden border-l border-zinc-800 px-3 py-1.5 text-xs font-medium text-sky-300 hover:bg-zinc-800/70 focus-within:ring-1 focus-within:ring-sky-400",
+                    uploading && "opacity-60",
+                  )}
+                >
                   <input
-                    ref={fileInputRef}
                     type="file"
                     multiple
-                    className="hidden"
+                    aria-label="Upload view files"
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                    disabled={uploading}
                     onChange={(e) => {
                       const files = Array.from(e.target.files ?? []);
                       if (files.length > 0) void handleUpload(files);
+                      e.currentTarget.value = "";
                     }}
                   />
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading}
-                    title="Upload static files to state views"
-                    className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-sky-300 hover:bg-zinc-800/70 border-l border-zinc-800 disabled:opacity-60"
-                  >
-                    {uploading ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Upload className="w-3.5 h-3.5" />
-                    )}
-                    {uploading ? "Uploading..." : "Upload view files"}
-                  </button>
-                </>
+                  {uploading ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="w-3.5 h-3.5" />
+                  )}
+                  {uploading ? "Uploading..." : "Upload view files"}
+                </label>
               )}
             </div>
           )}

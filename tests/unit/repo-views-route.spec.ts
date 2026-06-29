@@ -15,6 +15,11 @@ const stateRepo = vi.hoisted(() => ({
   deleteStateDirectory: vi.fn(async () => ({ deleted: 2 })),
   resolveStateRepo: vi.fn(),
   stateRepoPath: vi.fn(),
+  writeStateBase64Files: vi.fn(async () => ({
+    sha: "commit-sha",
+    branch: "kody-state",
+    target: { owner: "octo-state", repo: "kody-state", basePath: "widgets" },
+  })),
 }));
 
 vi.mock("@dashboard/lib/auth", () => ({
@@ -27,16 +32,68 @@ vi.mock("@dashboard/lib/state-repo", () => ({
   deleteStateDirectory: stateRepo.deleteStateDirectory,
   resolveStateRepo: stateRepo.resolveStateRepo,
   stateRepoPath: stateRepo.stateRepoPath,
+  writeStateBase64Files: stateRepo.writeStateBase64Files,
 }));
 
 vi.mock("@dashboard/lib/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 
-import { DELETE } from "../../app/api/kody/views/route";
+import { DELETE, POST } from "../../app/api/kody/views/route";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  stateRepo.stateRepoPath.mockImplementation(
+    (target: { basePath: string }, path: string) =>
+      [target.basePath, path].filter(Boolean).join("/"),
+  );
+});
+
+describe("POST /api/kody/views", () => {
+  it("writes uploaded view files to the state branch", async () => {
+    const form = new FormData();
+    form.append(
+      "file",
+      new File(["<h1>Hello</h1>"], "hello.html", { type: "text/html" }),
+    );
+
+    const res = await POST(
+      new NextRequest("http://localhost/api/kody/views", {
+        method: "POST",
+        body: form,
+      }),
+    );
+
+    expect(res.status).toBe(201);
+    const body = (await res.json()) as {
+      url: string;
+      repoPath: string;
+      htmlUrl: string;
+    };
+    expect(body.url).toMatch(
+      /^\/api\/kody\/views\/hello-html-[a-f0-9]{8}\/index\.html$/,
+    );
+    expect(body.repoPath).toMatch(/^views\/hello-html-[a-f0-9]{8}$/);
+    expect(body.htmlUrl).toMatch(
+      /^https:\/\/github\.com\/octo-state\/kody-state\/tree\/kody-state\/widgets\/views\/hello-html-[a-f0-9]{8}$/,
+    );
+    expect(stateRepo.writeStateBase64Files).toHaveBeenCalledWith({
+      octokit: { marker: "viewer-octokit" },
+      owner: "acme",
+      repo: "widgets",
+      message: expect.stringMatching(
+        /^chore\(dashboard\): add static view hello-html-[a-f0-9]{8}$/,
+      ),
+      files: [
+        {
+          path: expect.stringMatching(
+            /^views\/hello-html-[a-f0-9]{8}\/index\.html$/,
+          ),
+          contentBase64: Buffer.from("<h1>Hello</h1>").toString("base64"),
+        },
+      ],
+    });
+  });
 });
 
 describe("DELETE /api/kody/views", () => {

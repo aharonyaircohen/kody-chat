@@ -10,6 +10,7 @@ import { getRequestAuth } from "@dashboard/lib/auth";
 import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
 import { createUserOctokit } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
+import { STATE_BRANCH } from "@dashboard/lib/state-branch";
 import { resolveStateRepo, stateRepoPath } from "@dashboard/lib/state-repo";
 import { verifyRepoViewToken } from "@dashboard/lib/view-token";
 
@@ -295,7 +296,9 @@ async function fetchRepoFile(input: {
   const repoPath = stateRepoPath(target, input.repoPath);
   const url = `https://api.github.com/repos/${encodeURIComponent(
     target.owner,
-  )}/${encodeURIComponent(target.repo)}/contents/${encodeGitHubPath(repoPath)}`;
+  )}/${encodeURIComponent(target.repo)}/contents/${encodeGitHubPath(
+    repoPath,
+  )}?ref=${encodeURIComponent(STATE_BRANCH)}`;
   const res = await fetch(url, {
     cache: "no-store",
     headers: {

@@ -121,7 +121,6 @@ export function PreviewWorkspace({
   const { githubUser } = useGitHubIdentity();
   const { setComposerInjection, setAttachmentInjection, setPreviewContext } =
     useChatScope();
-
   const owner = getStoredAuth()?.owner ?? "";
   const repo = getStoredAuth()?.repo ?? "";
   const repoFullName = owner && repo ? `${owner}/${repo}` : "";
@@ -147,6 +146,7 @@ export function PreviewWorkspace({
 
   // Remember the last-picked environment per repo so /preview restores it.
   const [storedId, setStoredId] = useState<string | null>(null);
+  const pendingSelectionRef = useRef<string | null>(null);
   useEffect(() => {
     if (!owner || !repo) return;
     try {
@@ -165,12 +165,33 @@ export function PreviewWorkspace({
       if (selectedId) router.replace(scopedHref("/preview"));
       return;
     }
+    const pendingSelectedId = pendingSelectionRef.current;
+    if (pendingSelectedId) {
+      const pendingExists = environments.some(
+        (e) => e.id === pendingSelectedId,
+      );
+      if (pendingExists && selectedId !== pendingSelectedId) {
+        router.replace(
+          scopedHref(selectionPath("/preview", pendingSelectedId)),
+        );
+        return;
+      }
+      if (!pendingExists && selectedId !== pendingSelectedId) {
+        return;
+      }
+    }
     if (selectedId && environments.some((e) => e.id === selectedId)) {
+      if (pendingSelectedId === selectedId) {
+        pendingSelectionRef.current = null;
+      }
       try {
         window.localStorage.setItem(selectionKey(owner, repo), selectedId);
       } catch {
         /* ignore */
       }
+      return;
+    }
+    if (selectedId && pendingSelectedId === selectedId) {
       return;
     }
     const fallback =
@@ -189,6 +210,12 @@ export function PreviewWorkspace({
   ]);
 
   const selectEnv = (env: PreviewEnvironment): void => {
+    if (!environments.some((current) => current.id === env.id)) {
+      pendingSelectionRef.current = env.id;
+    } else {
+      pendingSelectionRef.current = null;
+    }
+    setStoredId(env.id);
     try {
       window.localStorage.setItem(selectionKey(owner, repo), env.id);
     } catch {
@@ -459,8 +486,6 @@ export function PreviewWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [configQuery.isLoading, environments]);
 
-  const emptyUploadRef = useRef<HTMLInputElement | null>(null);
-
   return (
     <section className="relative flex-1 min-w-0 min-h-0 flex flex-col">
       <PreviewPane
@@ -532,26 +557,23 @@ export function PreviewWorkspace({
                   or
                   <span className="h-px flex-1 bg-zinc-800" />
                 </div>
-                <input
-                  ref={emptyUploadRef}
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => {
-                    const files = Array.from(e.target.files ?? []);
-                    if (files.length > 0) void uploadFiles(files);
-                    if (emptyUploadRef.current)
-                      emptyUploadRef.current.value = "";
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => emptyUploadRef.current?.click()}
-                  className="inline-flex items-center justify-center gap-2 rounded-md border border-zinc-700 bg-zinc-800/40 px-3 py-1.5 text-xs font-medium text-zinc-200 hover:bg-zinc-800 transition"
+                <label
+                  className="relative inline-flex cursor-pointer items-center justify-center gap-2 overflow-hidden rounded-md border border-zinc-700 bg-zinc-800/40 px-3 py-1.5 text-xs font-medium text-zinc-200 transition hover:bg-zinc-800 focus-within:ring-1 focus-within:ring-sky-400"
                 >
+                  <input
+                    type="file"
+                    multiple
+                    aria-label="Upload view files"
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files ?? []);
+                      if (files.length > 0) void uploadFiles(files);
+                      e.currentTarget.value = "";
+                    }}
+                  />
                   <Upload className="w-3.5 h-3.5" />
                   Upload view files
-                </button>
+                </label>
               </div>
             </div>
           )

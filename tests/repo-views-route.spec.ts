@@ -110,6 +110,7 @@ describe("repo-backed view serving", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toContain(
       "/repos/octo-state/kody-state/contents/repo/views/pdf-f7fef487/-_-.pdf",
     );
+    expect(fetchMock.mock.calls[0]?.[0]).toContain("ref=kody-state");
     expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
       headers: expect.objectContaining({
         Authorization: "Bearer ghs_app_token",

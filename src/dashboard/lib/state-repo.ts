@@ -52,6 +52,11 @@ export interface StateRepoWriteFile {
   content: string;
 }
 
+export interface StateRepoWriteBase64File {
+  path: string;
+  contentBase64: string;
+}
+
 interface ContentFile {
   type?: string;
   encoding?: string;
@@ -473,6 +478,75 @@ export async function writeStateFiles({
   });
 
   return { sha: commit.data.sha };
+}
+
+export async function writeStateBase64Files({
+  octokit,
+  owner,
+  repo,
+  files,
+  message,
+}: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  files: StateRepoWriteBase64File[];
+  message: string;
+}): Promise<{ sha: string; branch: string; target: StateRepoTarget }> {
+  if (files.length === 0) {
+    throw new Error("No state files to write");
+  }
+
+  const target = await resolveStateRepo(octokit, owner, repo);
+  await ensureStateBranch(octokit, target);
+  const ref = await octokit.git.getRef({
+    owner: target.owner,
+    repo: target.repo,
+    ref: `heads/${STATE_BRANCH}`,
+  });
+  const baseSha = ref.data.object.sha;
+  const baseCommit = await octokit.git.getCommit({
+    owner: target.owner,
+    repo: target.repo,
+    commit_sha: baseSha,
+  });
+  const blobs = await Promise.all(
+    files.map(async (file) => {
+      const blob = await octokit.git.createBlob({
+        owner: target.owner,
+        repo: target.repo,
+        content: file.contentBase64,
+        encoding: "base64",
+      });
+      return { path: stateRepoPath(target, file.path), sha: blob.data.sha };
+    }),
+  );
+  const tree = await octokit.git.createTree({
+    owner: target.owner,
+    repo: target.repo,
+    base_tree: baseCommit.data.tree.sha,
+    tree: blobs.map((blob) => ({
+      path: blob.path,
+      mode: "100644",
+      type: "blob",
+      sha: blob.sha,
+    })),
+  });
+  const commit = await octokit.git.createCommit({
+    owner: target.owner,
+    repo: target.repo,
+    message,
+    tree: tree.data.sha,
+    parents: [baseSha],
+  });
+  await octokit.git.updateRef({
+    owner: target.owner,
+    repo: target.repo,
+    ref: `heads/${STATE_BRANCH}`,
+    sha: commit.data.sha,
+  });
+
+  return { sha: commit.data.sha, branch: STATE_BRANCH, target };
 }
 
 export async function deleteStateFile({
