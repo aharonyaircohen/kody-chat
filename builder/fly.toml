@@ -3,7 +3,8 @@
 # per-build Fly Machines elsewhere.
 #
 # To push a new builder image after editing src/ or default-Dockerfile.preview:
-#   flyctl deploy -c builder/fly.toml --app kody-preview-builder --build-only --push --image-label latest
+#   pnpm builder:publish
+# The script pushes the image, then deletes accidental host-app machines.
 
 app = "kody-preview-builder"
 primary_region = "fra"

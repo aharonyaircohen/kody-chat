@@ -256,4 +256,45 @@ describe("spawnPreviewBuilder", () => {
       "https://api.machines.dev/v1/apps/kody-preview-builder/machines/stale-other?force=true",
     ]);
   });
+
+  it("removes accidental host-app machines without touching active preview builders", async () => {
+    vi.setSystemTime(NOW);
+    const calls: Call[] = [];
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init = {}) => {
+      const url = input.toString();
+      const method = init.method ?? "GET";
+      calls.push({
+        method,
+        url,
+        body: init.body ? JSON.parse(init.body as string) : undefined,
+      });
+      if (method === "GET") {
+        return Response.json([
+          {
+            id: "host-machine",
+            state: "started",
+            created_at: "2026-06-08T11:59:00Z",
+            config: { env: {} },
+          },
+          {
+            id: "other-preview-builder",
+            state: "started",
+            created_at: "2026-06-08T11:59:00Z",
+            config: { env: { APP_NAME: "kp-acme-widgets-pr-8" } },
+          },
+        ]);
+      }
+      if (method === "DELETE") return Response.json({ ok: true });
+      return Response.json({ id: "new-builder" });
+    }) as unknown as typeof fetch;
+
+    const out = await spawnPreviewBuilder(baseInput());
+
+    expect(out.machineId).toBe("new-builder");
+    expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual([
+      "GET https://api.machines.dev/v1/apps/kody-preview-builder/machines",
+      "DELETE https://api.machines.dev/v1/apps/kody-preview-builder/machines/host-machine?force=true",
+      "POST https://api.machines.dev/v1/apps/kody-preview-builder/machines",
+    ]);
+  });
 });

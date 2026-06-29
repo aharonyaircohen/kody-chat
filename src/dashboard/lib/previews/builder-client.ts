@@ -127,10 +127,16 @@ function isStaleBuilder(machine: BuilderMachineInfo, now: number): boolean {
   return age !== null && age > BUILDER_STALE_MS;
 }
 
-function builderAgeMs(
-  machine: BuilderMachineInfo,
-  now: number,
-): number | null {
+function builderTargetApp(machine: BuilderMachineInfo): string | undefined {
+  const value = machine.config?.env?.APP_NAME;
+  return value && value.trim() ? value : undefined;
+}
+
+function isHostAppMachine(machine: BuilderMachineInfo): boolean {
+  return Boolean(machine.id) && !builderTargetApp(machine);
+}
+
+function builderAgeMs(machine: BuilderMachineInfo, now: number): number | null {
   if (!machine.created_at) return null;
   const created = Date.parse(machine.created_at);
   return Number.isFinite(created) ? now - created : null;
@@ -142,7 +148,8 @@ function shouldDestroyBuilder(
   now: number,
 ): boolean {
   if (!machine.id || !isDestroyableBuilderState(machine.state)) return false;
-  const samePreview = machine.config?.env?.APP_NAME === targetAppName;
+  if (isHostAppMachine(machine)) return true;
+  const samePreview = builderTargetApp(machine) === targetAppName;
   return samePreview
     ? !isReusableBuilder(machine, now)
     : isStaleBuilder(machine, now);
@@ -169,9 +176,10 @@ function isReusableBuilder(machine: BuilderMachineInfo, now: number): boolean {
   );
 }
 
-function reusableFirst(
-  now: number,
-): (a: BuilderMachineInfo, b: BuilderMachineInfo) => number {
+function reusableFirst(): (
+  a: BuilderMachineInfo,
+  b: BuilderMachineInfo,
+) => number {
   return (a, b) => {
     const aRank = isRunnableBuilderState(a.state) ? 0 : 1;
     const bRank = isRunnableBuilderState(b.state) ? 0 : 1;
@@ -251,10 +259,10 @@ async function pruneBuilderMachines(
         .filter(
           (m) =>
             m.id &&
-            m.config?.env?.APP_NAME === targetAppName &&
+            builderTargetApp(m) === targetAppName &&
             isReusableBuilder(m, now),
         )
-        .sort(reusableFirst(now))[0] ?? null;
+        .sort(reusableFirst())[0] ?? null;
     const doomed = machines.filter((m) => {
       if (reusable?.id === m.id) return false;
       return shouldDestroyBuilder(m, targetAppName, now);
