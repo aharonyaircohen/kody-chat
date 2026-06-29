@@ -1,11 +1,11 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const spawnMock = vi.fn();
 const spawnSyncMock = vi.fn();
 
-vi.mock("node-pty", () => ({
-  spawn: spawnMock,
-}));
+vi.mock("node-pty", () => ({ spawn: spawnMock }));
 
 vi.mock("node:child_process", () => ({
   spawnSync: spawnSyncMock,
@@ -88,27 +88,119 @@ describe("local chat terminal session registry", () => {
   });
 
   it("uses a tmux attachment when tmux is available", async () => {
+    const oldShell = process.env.SHELL;
+    process.env.SHELL = "/bin/zsh";
     const pty = makePty();
     spawnMock.mockReturnValueOnce(pty);
     spawnSyncMock.mockReturnValue({ status: 0 });
-    const { startLocalTerminalSession } =
+    try {
+      const { startLocalTerminalSession } =
+        await import("@dashboard/lib/terminal/local-chat-session");
+
+      const session = await startLocalTerminalSession({
+        owner: "acme",
+        repo: "widgets",
+        chatSessionId: "chat-1",
+        cols: 100,
+        rows: 30,
+      });
+
+      expect(session.backend).toBe("tmux");
+      expect(session.tmuxSessionName).toMatch(/^kody_[a-f0-9]{32}$/);
+      expect(spawnMock).toHaveBeenCalledWith(
+        "tmux",
+        [
+          "new-session",
+          "-A",
+          "-s",
+          session.tmuxSessionName,
+          "-c",
+          process.cwd(),
+          "exec /bin/zsh -f",
+        ],
+        expect.objectContaining({ cols: 100, rows: 30 }),
+      );
+    } finally {
+      if (oldShell === undefined) delete process.env.SHELL;
+      else process.env.SHELL = oldShell;
+    }
+  });
+
+  it("starts local zsh without startup files so compinit prompts cannot block commands", async () => {
+    const oldShell = process.env.SHELL;
+    process.env.SHELL = "/bin/zsh";
+    const pty = makePty();
+    spawnMock.mockReturnValueOnce(pty);
+    try {
+      const { startLocalTerminalSession } =
+        await import("@dashboard/lib/terminal/local-chat-session");
+
+      await startLocalTerminalSession({
+        owner: "acme",
+        repo: "widgets",
+        chatSessionId: "chat-1",
+      });
+
+      expect(spawnMock).toHaveBeenCalledWith(
+        "/bin/zsh",
+        ["-f"],
+        expect.any(Object),
+      );
+    } finally {
+      if (oldShell === undefined) delete process.env.SHELL;
+      else process.env.SHELL = oldShell;
+    }
+  });
+
+  it("does not statically load node-pty into unrelated server bundles", () => {
+    const source = readFileSync(
+      resolve(
+        __dirname,
+        "../../src/dashboard/lib/terminal/local-chat-session.ts",
+      ),
+      "utf8",
+    );
+
+    expect(source).not.toContain('from "node-pty"');
+    expect(source).not.toContain('import("node-pty")');
+    expect(source).not.toContain('require.resolve("node-pty');
+  });
+
+  it("reports local terminal unavailable when node-pty native support cannot start", async () => {
+    spawnMock.mockImplementationOnce(() => {
+      throw new Error("Cannot find module './prebuilds/linux-x64//pty.node'");
+    });
+    const { LocalTerminalUnavailableError, startLocalTerminalSession } =
       await import("@dashboard/lib/terminal/local-chat-session");
 
-    const session = await startLocalTerminalSession({
-      owner: "acme",
-      repo: "widgets",
-      chatSessionId: "chat-1",
-      cols: 100,
-      rows: 30,
+    await expect(
+      startLocalTerminalSession({
+        owner: "acme",
+        repo: "widgets",
+        chatSessionId: "chat-1",
+      }),
+    ).rejects.toMatchObject({
+      name: "LocalTerminalUnavailableError",
+      code: "local_terminal_unavailable",
+      message:
+        "Local terminal is unavailable in this runtime because native PTY support could not load.",
     });
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+  });
 
-    expect(session.backend).toBe("tmux");
-    expect(session.tmuxSessionName).toMatch(/^kody_[a-f0-9]{32}$/);
-    expect(spawnMock).toHaveBeenCalledWith(
-      "tmux",
-      ["new-session", "-A", "-s", session.tmuxSessionName, "-c", process.cwd()],
-      expect.objectContaining({ cols: 100, rows: 30 }),
-    );
+  it("reports local terminal unavailable when node-pty spawn returns no process", async () => {
+    spawnMock.mockReturnValueOnce(undefined);
+    const { LocalTerminalUnavailableError, startLocalTerminalSession } =
+      await import("@dashboard/lib/terminal/local-chat-session");
+
+    await expect(
+      startLocalTerminalSession({
+        owner: "acme",
+        repo: "widgets",
+        chatSessionId: "chat-1",
+      }),
+    ).rejects.toBeInstanceOf(LocalTerminalUnavailableError);
+    expect(spawnMock).toHaveBeenCalledTimes(1);
   });
 
   it("reports a detached tmux session after process memory is gone", async () => {

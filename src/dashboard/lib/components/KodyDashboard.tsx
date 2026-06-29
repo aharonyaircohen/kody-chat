@@ -1328,7 +1328,16 @@ export function KodyDashboard({
   // layout (ChatRailShell); on mobile the FAB and the assistant escape
   // hatch button below both open the same Sheet.
   const renderErrorTakeover = (content: React.ReactNode) => (
-    <div className="flex-1 flex items-center justify-center">{content}</div>
+    <div className="h-full flex flex-col overflow-hidden">
+      <KodyHeader
+        onOpenMobileMenu={() => setShowMobileMenu(true)}
+        onRefresh={() => refetch()}
+        isFetching={isFetching}
+        showRefresh={false}
+      />
+      <div className="flex-1 flex items-center justify-center">{content}</div>
+      <MobileMenu open={showMobileMenu} onOpenChange={setShowMobileMenu} />
+    </div>
   );
 
   // Session expired — can happen in both OAuth and token-only mode

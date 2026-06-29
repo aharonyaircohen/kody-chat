@@ -13,11 +13,16 @@ describe("todo item cards", () => {
       "function isTodoItemCardClickIgnored(",
     );
     expect(TODO_CONTROL_SOURCE).toContain(
-      "\"button,a,input,textarea,select,[role='button'],[data-todo-item-control]\"",
+      "\"button,a,input,textarea,select,[role='button'],[role='menuitem'],[data-todo-item-control]\"",
     );
     expect(TODO_CONTROL_SOURCE).toContain(
       "isTodoItemCardClickIgnored(event.target, event.currentTarget)",
     );
+    expect(TODO_CONTROL_SOURCE).toContain(
+      "function stopTodoItemActionClick(",
+    );
+    expect(TODO_CONTROL_SOURCE).toContain("event.stopPropagation();");
+    expect(TODO_CONTROL_SOURCE).toContain("data-todo-item-control");
     expect(TODO_CONTROL_SOURCE).toContain("onSelect();");
     expect(TODO_CONTROL_SOURCE).toContain("cursor-pointer");
   });

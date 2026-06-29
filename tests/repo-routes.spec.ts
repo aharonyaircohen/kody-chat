@@ -6,6 +6,7 @@ import {
   repoPathForNavMatching,
   repoScopedPath,
   repoScopedHref,
+  repoSwitchRedirectPath,
   resolveRepoRouteAuthSync,
   routes,
 } from "@dashboard/lib/routes";
@@ -70,6 +71,23 @@ describe("repo-scoped route contract", () => {
     expect(repoScopedHref(repo, "/settings")).toBe("/settings");
     expect(repoScopedHref(repo, "/repo/A-Guy-educ/A-Guy-Web/tasks")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/tasks",
+    );
+  });
+
+  it("moves the current repo-owned page to the newly selected repo", () => {
+    const nextRepo = { owner: "OtherOrg", repo: "OtherRepo" };
+
+    expect(
+      repoSwitchRedirectPath(
+        nextRepo,
+        "/repo/A-Guy-educ/A-Guy-Web/tasks?filter=open#top",
+      ),
+    ).toBe("/repo/OtherOrg/OtherRepo/tasks?filter=open#top");
+    expect(repoSwitchRedirectPath(nextRepo, "/todos/launch-plan")).toBe(
+      "/repo/OtherOrg/OtherRepo/todos/launch-plan",
+    );
+    expect(repoSwitchRedirectPath(nextRepo, "/org/A-Guy-educ")).toBe(
+      "/repo/OtherOrg/OtherRepo",
     );
   });
 

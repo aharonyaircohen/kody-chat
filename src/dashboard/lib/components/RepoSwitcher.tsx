@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { cn } from "../utils";
 import { useAuth, type KodyRepoEntry } from "../auth-context";
+import { repoSwitchRedirectPath } from "../routes";
 import { AddRepoForm } from "./AddRepoForm";
 import { ConfirmDialog } from "./ConfirmDialog";
 
@@ -149,7 +150,13 @@ export function RepoSwitcher() {
                       type="button"
                       onClick={() => {
                         setMenuOpen(false);
-                        setCurrentRepo(index);
+                        setCurrentRepo(index, {
+                          redirectTo: repoSwitchRedirectPath(
+                            entry,
+                            `${window.location.pathname}${window.location.search}${window.location.hash}`,
+                          ),
+                          navigateBeforeCommit: true,
+                        });
                       }}
                       className="flex-1 min-w-0 flex items-center gap-2 text-left"
                     >

@@ -26,6 +26,17 @@ describe("RepoSwitcher org grouping", () => {
 
   it("links each owner group to its org manager", () => {
     expect(SOURCE).toMatch(/Manage org/);
-    expect(SOURCE).toMatch(/href=\{`\/org\/\$\{encodeURIComponent\(group\.owner\)\}`\}/);
+    expect(SOURCE).toMatch(
+      /href=\{`\/org\/\$\{encodeURIComponent\(group\.owner\)\}`\}/,
+    );
+  });
+
+  it("switches repositories to the matching repo-scoped route", () => {
+    expect(SOURCE).toContain("repoSwitchRedirectPath");
+    expect(SOURCE).toContain("redirectTo: repoSwitchRedirectPath(");
+    expect(SOURCE).toContain("window.location.pathname");
+    expect(SOURCE).toContain("window.location.search");
+    expect(SOURCE).toContain("window.location.hash");
+    expect(SOURCE).toContain("navigateBeforeCommit: true");
   });
 });

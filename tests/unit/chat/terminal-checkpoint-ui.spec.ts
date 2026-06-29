@@ -1,5 +1,5 @@
 /**
- * @fileoverview Source-level guard for saved terminal snapshot UI wiring.
+ * @fileoverview Source-level guard for terminal checkpoint UI wiring.
  * @testFramework vitest
  * @domain terminal
  */
@@ -21,30 +21,33 @@ const SURFACE_SOURCE = readFileSync(
   "utf8",
 );
 
-describe("saved terminal snapshot UI", () => {
-  it("exposes save, list, delete, and restore controls in terminal mode", () => {
-    expect(CHAT_SOURCE).toContain("Save terminal snapshot");
-    expect(CHAT_SOURCE).toContain("Saved terminal snapshots");
-    expect(CHAT_SOURCE).toContain("handleSaveTerminalSnapshot");
-    expect(CHAT_SOURCE).toContain("handleRestoreTerminalSnapshot");
-    expect(CHAT_SOURCE).toContain("handleDeleteTerminalSnapshot");
-    expect(CHAT_SOURCE).toContain("/api/kody/chat/terminal/saved");
+describe("terminal checkpoint UI", () => {
+  it("hides snapshot selection and manual terminal snapshot saves", () => {
+    expect(CHAT_SOURCE).not.toContain("Save terminal snapshot");
+    expect(CHAT_SOURCE).not.toContain("Saved terminal snapshots");
+    expect(CHAT_SOURCE).not.toContain("handleSaveTerminalSnapshot");
+    expect(CHAT_SOURCE).not.toContain("handleRestoreTerminalSnapshot");
+    expect(CHAT_SOURCE).not.toContain("handleDeleteTerminalSnapshot");
+    expect(CHAT_SOURCE).not.toContain("/api/kody/chat/terminal/saved");
+    expect(CHAT_SOURCE).toContain("/api/kody/chat/terminal/checkpoint");
+    expect(CHAT_SOURCE).toContain("handleResetTerminalCheckpoint");
   });
 
-  it("can capture and replay a terminal snapshot from the terminal surface", () => {
+  it("can capture and replay a terminal checkpoint from the terminal surface", () => {
     expect(SURFACE_SOURCE).toContain("getSnapshot");
     expect(SURFACE_SOURCE).toContain("restoreSnapshot");
     expect(SURFACE_SOURCE).toContain("## Restored terminal snapshot");
   });
 
-  it("supports opt-in auto-save when a terminal session ends", () => {
-    expect(CHAT_SOURCE).toContain("Auto-save on stop");
-    expect(CHAT_SOURCE).toContain("autoSaveTerminalOnEnd");
-    expect(CHAT_SOURCE).toContain("savedTerminalAutoSaveId");
-    expect(CHAT_SOURCE).toContain("handleAutoSaveTerminalSnapshot");
-    expect(CHAT_SOURCE).toContain('terminal.transport.type === "fly"');
+  it("auto-saves checkpoints when a terminal session ends", () => {
+    expect(CHAT_SOURCE).not.toContain("Auto-save on stop");
+    expect(CHAT_SOURCE).not.toContain("autoSaveTerminalOnEnd");
+    expect(CHAT_SOURCE).not.toContain("savedTerminalAutoSaveId");
+    expect(CHAT_SOURCE).toContain("saveTerminalCheckpoint");
     expect(CHAT_SOURCE).toContain("onSessionEnded");
-    expect(CHAT_SOURCE).not.toContain('successMessage: "Terminal auto-saved"');
+    expect(CHAT_SOURCE).not.toContain(
+      'if (terminal.transport.type === "fly") return',
+    );
     expect(SURFACE_SOURCE).toContain("onSessionEnded");
     expect(SURFACE_SOURCE).toContain("notifyTerminalSessionEnded");
   });
@@ -56,7 +59,22 @@ describe("saved terminal snapshot UI", () => {
     expect(CHAT_SOURCE).toContain("isActiveFlyBrainTerminal");
   });
 
-  it("restores Fly snapshots without reconnecting automatically", () => {
+  it("keeps the terminal target, actions, and mode toggle in stable footer columns", () => {
+    expect(CHAT_SOURCE).toContain("const chatModeToggle =");
+    expect(CHAT_SOURCE).toContain('data-testid="chat-terminal-toolbar"');
+    expect(CHAT_SOURCE).toContain('data-testid="chat-terminal-target-row"');
+    expect(CHAT_SOURCE).toContain('data-testid="chat-terminal-actions-row"');
+    expect(CHAT_SOURCE).toContain(
+      "grid-cols-[minmax(0,1fr)_auto] items-center",
+    );
+    expect(CHAT_SOURCE).toContain('className="col-span-full');
+    expect(CHAT_SOURCE).toContain("{chatModeToggle}");
+    expect(CHAT_SOURCE).toContain('{chatMode === "ai" && chatModeToggle}');
+    expect(CHAT_SOURCE).toContain("bg-[#050608]");
+    expect(CHAT_SOURCE).toContain("text-[#f4f4f5]");
+  });
+
+  it("restores Fly checkpoints without reconnecting automatically", () => {
     expect(CHAT_SOURCE).toContain("restoredSnapshotOnlyTerminalIds");
     expect(CHAT_SOURCE).toContain("readRestoredSnapshotOnlyTerminalIds");
     expect(CHAT_SOURCE).toContain("writeRestoredSnapshotOnlyTerminalIds");

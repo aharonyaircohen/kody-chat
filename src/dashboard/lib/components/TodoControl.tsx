@@ -8,7 +8,7 @@
  */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   DndContext,
@@ -233,9 +233,13 @@ function isTodoItemCardClickIgnored(
     return true;
   }
   const interactiveTarget = target.closest(
-    "button,a,input,textarea,select,[role='button'],[data-todo-item-control]",
+    "button,a,input,textarea,select,[role='button'],[role='menuitem'],[data-todo-item-control]",
   );
   return !!interactiveTarget && interactiveTarget !== currentTarget;
+}
+
+function stopTodoItemActionClick(event: MouseEvent) {
+  event.stopPropagation();
 }
 
 export function TodoControl({
@@ -1208,6 +1212,8 @@ function TodoItemCard({
           <Button
             variant="ghost"
             size="sm"
+            data-todo-item-control
+            onClick={stopTodoItemActionClick}
             className="w-8 h-8 px-0 text-muted-foreground"
             title="Item actions"
             aria-label={`Actions for ${item.title}`}
@@ -1215,7 +1221,12 @@ function TodoItemCard({
             <MoreHorizontal className="w-3.5 h-3.5" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-44">
+        <DropdownMenuContent
+          align="end"
+          data-todo-item-control
+          onClick={stopTodoItemActionClick}
+          className="w-44"
+        >
           <DropdownMenuItem onClick={onEdit} className="cursor-pointer gap-2">
             <Pencil className="w-3.5 h-3.5" />
             Edit item

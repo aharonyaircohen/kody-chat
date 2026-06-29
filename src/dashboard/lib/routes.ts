@@ -224,6 +224,19 @@ export function repoScopedHref(ref: RepoRef, href: string): string {
   return `${scoped}${suffix}`;
 }
 
+export function repoSwitchRedirectPath(
+  ref: RepoRef,
+  currentHref: string,
+): string {
+  const href = currentHref || "/";
+  if (!href.startsWith("/")) return routes.repoHome(ref);
+  const { path, suffix } = splitHref(href);
+  const parsed = parseRepoScopedPath(path);
+  if (parsed) return `${repoScopedPath(ref, parsed.restPath)}${suffix}`;
+  if (isLegacyRepoOwnedPath(path)) return repoScopedHref(ref, href);
+  return routes.repoHome(ref);
+}
+
 export function repoPathForNavMatching(pathname: string): string {
   const parsed = parseRepoScopedPath(stripSearchAndHash(pathname));
   return parsed?.restPath ?? pathname;

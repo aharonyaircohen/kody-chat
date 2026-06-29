@@ -166,12 +166,10 @@ import {
   type PreviewActDirective,
 } from "@dashboard/lib/chat-ui-actions";
 import {
-  SAVED_TERMINAL_NAME_LIMIT,
-  savedTerminalAutoSaveId,
-  terminalTransportLabel,
-  type SavedTerminalSession,
-  type SavedTerminalTransport,
-} from "@dashboard/lib/terminal/saved-session-types";
+  terminalCheckpointLabel,
+  type TerminalCheckpoint,
+  type TerminalCheckpointTransport,
+} from "@dashboard/lib/terminal/checkpoint-types";
 import {
   buildKodyTerminalPrompt,
   extractKodyTerminalPayload,
@@ -188,15 +186,16 @@ interface LocalSandboxSummary {
   snapshotUpdatedAt?: string | null;
 }
 
-function savedTransportFromChatTransport(
+function checkpointTransportFromChatTransport(
   transport: ChatTerminalTransport,
-): SavedTerminalTransport {
+): TerminalCheckpointTransport {
   if (transport.type === "fly") {
     return {
       type: "fly",
       app: transport.app,
       machineId: transport.machineId,
       label: transport.label,
+      feature: transport.feature,
     };
   }
   if (transport.type === "github-actions") {
@@ -213,11 +212,19 @@ function savedTransportFromChatTransport(
   };
 }
 
-function savedTerminalActorQuery(actorLogin?: string | null): string {
-  return actorLogin ? `?actorLogin=${encodeURIComponent(actorLogin)}` : "";
+function terminalCheckpointSearchParams(
+  actorLogin: string | null | undefined,
+  transport: ChatTerminalTransport,
+  chatSessionId: string,
+): string {
+  const params = new URLSearchParams({
+    chatSessionId,
+    transport: JSON.stringify(checkpointTransportFromChatTransport(transport)),
+  });
+  if (actorLogin) params.set("actorLogin", actorLogin);
+  return `?${params.toString()}`;
 }
 
-const AUTO_SAVE_TERMINAL_ON_END_KEY = "kody-chat:auto-save-terminal-on-end";
 const RESTORED_SNAPSHOT_ONLY_TERMINAL_IDS_KEY =
   "kody-chat:restored-snapshot-only-terminal-ids";
 
@@ -231,33 +238,6 @@ function repoScopedTerminalStorageKey(base: string): string {
     return `${base}:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`;
   } catch {
     return base;
-  }
-}
-
-function savedTerminalAutoSaveStorageKey(): string {
-  return repoScopedTerminalStorageKey(AUTO_SAVE_TERMINAL_ON_END_KEY);
-}
-
-function readAutoSaveTerminalOnEnd(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return (
-      window.localStorage.getItem(savedTerminalAutoSaveStorageKey()) === "1"
-    );
-  } catch {
-    return false;
-  }
-}
-
-function writeAutoSaveTerminalOnEnd(enabled: boolean): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(
-      savedTerminalAutoSaveStorageKey(),
-      enabled ? "1" : "0",
-    );
-  } catch {
-    /* localStorage is best-effort for this UI preference */
   }
 }
 
@@ -1119,7 +1099,6 @@ export function KodyChat({
     terminalRegistry.selectGitHubActionsSandboxTarget;
   const handleTerminalFlyConnectToggle = terminalRegistry.toggleFlyConnection;
   const recordTerminalConnectionState = terminalRegistry.recordConnectionState;
-  const restoreTerminalTransport = terminalRegistry.restoreTerminalTransport;
   const activeSessionHasLiveTerminal = terminalRegistry.hasLiveTerminal(
     activeSessionIdForReset,
   );
@@ -1138,26 +1117,16 @@ export function KodyChat({
   const [sandboxBusy, setSandboxBusy] = useState(false);
   const [sandboxBusyLabel, setSandboxBusyLabel] = useState<string | null>(null);
   const [sandboxCreateMenuOpen, setSandboxCreateMenuOpen] = useState(false);
-  const [savedTerminalSnapshots, setSavedTerminalSnapshots] = useState<
-    SavedTerminalSession[]
-  >([]);
-  const [savedTerminalMenuOpen, setSavedTerminalMenuOpen] = useState(false);
-  const [savedTerminalBusy, setSavedTerminalBusy] = useState(false);
+  const [terminalCheckpointBusy, setTerminalCheckpointBusy] = useState(false);
   const [brainImageBusy, setBrainImageBusy] = useState(false);
-  const [savedTerminalLoaded, setSavedTerminalLoaded] = useState(false);
-  const [autoSaveTerminalOnEnd, setAutoSaveTerminalOnEnd] = useState(() =>
-    readAutoSaveTerminalOnEnd(),
-  );
   const [pendingTerminalRestore, setPendingTerminalRestore] =
-    useState<SavedTerminalSession | null>(null);
+    useState<TerminalCheckpoint | null>(null);
   const [pendingKodyTerminalPayload, setPendingKodyTerminalPayload] = useState<
     string | null
   >(null);
   const [restoredSnapshotOnlyTerminalIds, setRestoredSnapshotOnlyTerminalIds] =
     useState<Set<string>>(() => readRestoredSnapshotOnlyTerminalIds());
-  useEffect(() => {
-    writeAutoSaveTerminalOnEnd(autoSaveTerminalOnEnd);
-  }, [autoSaveTerminalOnEnd]);
+  const loadedTerminalCheckpointKeyRef = useRef<string | null>(null);
   useEffect(() => {
     writeRestoredSnapshotOnlyTerminalIds(restoredSnapshotOnlyTerminalIds);
   }, [restoredSnapshotOnlyTerminalIds]);
@@ -1193,43 +1162,64 @@ export function KodyChat({
     if (chatMode !== "terminal") return;
     void refreshLocalSandboxes();
   }, [chatMode, refreshLocalSandboxes]);
-  const refreshSavedTerminalSnapshots = useCallback(async () => {
-    const headers = authHeaders();
-    if (Object.keys(headers).length === 0) return;
-    setSavedTerminalBusy(true);
-    try {
-      const res = await fetch(
-        `/api/kody/chat/terminal/saved${savedTerminalActorQuery(actorLogin)}`,
-        { headers },
-      );
-      const body = (await res.json().catch(() => ({}))) as {
-        sessions?: SavedTerminalSession[];
-        message?: string;
-        error?: string;
-      };
-      if (!res.ok) {
-        throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+  const loadTerminalCheckpoint = useCallback(
+    async (transport: ChatTerminalTransport, chatSessionId: string) => {
+      const headers = authHeaders();
+      if (Object.keys(headers).length === 0) return;
+      try {
+        const res = await fetch(
+          `/api/kody/chat/terminal/checkpoint${terminalCheckpointSearchParams(
+            actorLogin,
+            transport,
+            chatSessionId,
+          )}`,
+          { headers },
+        );
+        const body = (await res.json().catch(() => ({}))) as {
+          checkpoint?: TerminalCheckpoint | null;
+          message?: string;
+          error?: string;
+        };
+        if (!res.ok) {
+          throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+        }
+        if (body.checkpoint?.output?.trim()) {
+          setPendingTerminalRestore(body.checkpoint);
+        }
+      } catch (err) {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : "Failed to load terminal checkpoint",
+        );
       }
-      setSavedTerminalSnapshots(body.sessions ?? []);
-      setSavedTerminalLoaded(true);
-    } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : "Failed to load saved terminal snapshots",
-      );
-    } finally {
-      setSavedTerminalBusy(false);
-    }
-  }, [actorLogin]);
+    },
+    [actorLogin],
+  );
   useEffect(() => {
-    if (chatMode !== "terminal" || savedTerminalLoaded) return;
-    void refreshSavedTerminalSnapshots();
-  }, [chatMode, refreshSavedTerminalSnapshots, savedTerminalLoaded]);
+    if (chatMode !== "terminal" || !activeSessionIdForReset) return;
+    const checkpointKey = JSON.stringify({
+      actorLogin,
+      activeSessionIdForReset,
+      activeTerminalValue,
+    });
+    if (loadedTerminalCheckpointKeyRef.current === checkpointKey) return;
+    loadedTerminalCheckpointKeyRef.current = checkpointKey;
+    void loadTerminalCheckpoint(
+      activeTerminalTransport,
+      activeSessionIdForReset,
+    );
+  }, [
+    activeSessionIdForReset,
+    activeTerminalTransport,
+    activeTerminalValue,
+    actorLogin,
+    chatMode,
+    loadTerminalCheckpoint,
+  ]);
   useEffect(() => {
-    setSavedTerminalSnapshots([]);
-    setSavedTerminalLoaded(false);
-  }, [actorLogin]);
+    loadedTerminalCheckpointKeyRef.current = null;
+  }, [sessionStoreScope]);
   const handleCreateSandbox = useCallback(
     async (runtime: "local" | "github-actions") => {
       setSandboxCreateMenuOpen(false);
@@ -1417,95 +1407,48 @@ export function KodyChat({
     handleTerminalTargetChange,
   ]);
 
-  const saveTerminalSnapshot = useCallback(
-    async (input: {
-      id?: string;
-      name: string;
-      transport: ChatTerminalTransport;
-      chatSessionId: string;
-      snapshot: ChatTerminalSnapshot;
-      successMessage?: string;
-    }) => {
-      const trimmed = input.name.trim().slice(0, SAVED_TERMINAL_NAME_LIMIT);
-      if (!trimmed) {
-        toast.error("Snapshot name is required");
-        return false;
-      }
-
-      const savedTransport = savedTransportFromChatTransport(input.transport);
-      setSavedTerminalBusy(true);
+  const saveTerminalCheckpoint = useCallback(
+    async (
+      terminal: { sessionId: string; transport: ChatTerminalTransport },
+      snapshot: ChatTerminalSnapshot,
+    ) => {
+      if (!snapshot.output.trim()) return false;
+      setTerminalCheckpointBusy(true);
       try {
-        const res = await fetch("/api/kody/chat/terminal/saved", {
-          method: "POST",
+        const res = await fetch("/api/kody/chat/terminal/checkpoint", {
+          method: "PUT",
           headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({
             actorLogin,
-            id: input.id,
-            name: trimmed,
-            transport: savedTransport,
-            chatSessionId: input.chatSessionId,
-            cwd: input.snapshot.cwd,
-            shell: input.snapshot.shell,
-            output: input.snapshot.output,
+            transport: checkpointTransportFromChatTransport(terminal.transport),
+            chatSessionId: terminal.sessionId,
+            cwd: snapshot.cwd,
+            shell: snapshot.shell,
+            output: snapshot.output,
           }),
         });
         const body = (await res.json().catch(() => ({}))) as {
-          sessions?: SavedTerminalSession[];
-          session?: SavedTerminalSession;
+          checkpoint?: TerminalCheckpoint;
           message?: string;
           error?: string;
         };
-        if (!res.ok || !body.session) {
+        if (!res.ok || !body.checkpoint) {
           throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
         }
-        setSavedTerminalSnapshots(body.sessions ?? [body.session]);
-        setSavedTerminalLoaded(true);
-        if (input.successMessage) toast.success(input.successMessage);
         return true;
       } catch (err) {
         toast.error(
           err instanceof Error
             ? err.message
-            : "Failed to save terminal snapshot",
+            : "Failed to save terminal checkpoint",
         );
         return false;
       } finally {
-        setSavedTerminalBusy(false);
+        setTerminalCheckpointBusy(false);
       }
     },
     [actorLogin],
   );
-
-  const handleSaveTerminalSnapshot = useCallback(async () => {
-    if (!activeSessionIdForReset || !activeTerminalInstanceId) {
-      toast.error("Open a terminal before saving it");
-      return;
-    }
-    const terminal = terminalSurfaceRefs.current[activeTerminalInstanceId];
-    if (!terminal) {
-      toast.error("Terminal is not ready yet");
-      return;
-    }
-    const captured = terminal.getSnapshot();
-    const defaultName = terminalTransportLabel(
-      savedTransportFromChatTransport(activeTerminalTransport),
-    );
-    const name = window.prompt("Save terminal snapshot as", defaultName);
-    if (name === null) return;
-
-    await saveTerminalSnapshot({
-      name,
-      transport: activeTerminalTransport,
-      chatSessionId: activeSessionIdForReset,
-      snapshot: captured,
-      successMessage: "Terminal snapshot saved",
-    });
-  }, [
-    activeSessionIdForReset,
-    activeTerminalInstanceId,
-    activeTerminalTransport,
-    saveTerminalSnapshot,
-  ]);
 
   const handleSaveBrainImage = useCallback(async () => {
     if (
@@ -1543,70 +1486,42 @@ export function KodyChat({
     }
   }, [activeTerminalTransport]);
 
-  const handleAutoSaveTerminalSnapshot = useCallback(
-    async (
-      terminal: { sessionId: string; transport: ChatTerminalTransport },
-      snapshot: ChatTerminalSnapshot,
-    ) => {
-      if (!autoSaveTerminalOnEnd || !snapshot.output.trim()) return;
-      if (terminal.transport.type === "fly") return;
-      const savedTransport = savedTransportFromChatTransport(
-        terminal.transport,
+  const handleResetTerminalCheckpoint = useCallback(async () => {
+    if (!activeSessionIdForReset) return;
+    const label = terminalCheckpointLabel(
+      checkpointTransportFromChatTransport(activeTerminalTransport),
+    );
+    if (!window.confirm(`Reset ${label} checkpoint?`)) return;
+    setTerminalCheckpointBusy(true);
+    try {
+      const res = await fetch(
+        `/api/kody/chat/terminal/checkpoint${terminalCheckpointSearchParams(
+          actorLogin,
+          activeTerminalTransport,
+          activeSessionIdForReset,
+        )}`,
+        { method: "DELETE", headers: authHeaders() },
       );
-      const label = terminalTransportLabel(savedTransport);
-      await saveTerminalSnapshot({
-        id: savedTerminalAutoSaveId(savedTransport, terminal.sessionId),
-        name: `Auto-save: ${label}`,
-        transport: terminal.transport,
-        chatSessionId: terminal.sessionId,
-        snapshot,
-      });
-    },
-    [autoSaveTerminalOnEnd, saveTerminalSnapshot],
-  );
-  const handleRestoreTerminalSnapshot = useCallback(
-    (snapshot: SavedTerminalSession) => {
-      setSavedTerminalMenuOpen(false);
-      terminalRegistry.openTerminalMode();
-      restoreTerminalTransport(snapshot.transport);
-      setPendingTerminalRestore(snapshot);
-    },
-    [restoreTerminalTransport, terminalRegistry],
-  );
-  const handleDeleteTerminalSnapshot = useCallback(
-    async (snapshot: SavedTerminalSession) => {
-      if (!window.confirm(`Delete "${snapshot.name}"?`)) return;
-      setSavedTerminalBusy(true);
-      try {
-        const res = await fetch(
-          `/api/kody/chat/terminal/saved/${encodeURIComponent(
-            snapshot.id,
-          )}${savedTerminalActorQuery(actorLogin)}`,
-          { method: "DELETE", headers: authHeaders() },
-        );
-        const body = (await res.json().catch(() => ({}))) as {
-          message?: string;
-          error?: string;
-        };
-        if (!res.ok) {
-          throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
-        }
-        setSavedTerminalSnapshots((prev) =>
-          prev.filter((item) => item.id !== snapshot.id),
-        );
-        toast.success("Terminal snapshot deleted");
-      } catch (err) {
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : "Failed to delete terminal snapshot",
-        );
-      } finally {
-        setSavedTerminalBusy(false);
+      const body = (await res.json().catch(() => ({}))) as {
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok) {
+        throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
       }
-    },
-    [actorLogin],
-  );
+      loadedTerminalCheckpointKeyRef.current = null;
+      setPendingTerminalRestore(null);
+      toast.success("Terminal checkpoint reset");
+    } catch (err) {
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : "Failed to reset terminal checkpoint",
+      );
+    } finally {
+      setTerminalCheckpointBusy(false);
+    }
+  }, [activeSessionIdForReset, activeTerminalTransport, actorLogin]);
 
   const sendKodyTerminalPayloadToTerminal = useCallback(
     (payload: string) => {
@@ -1827,7 +1742,9 @@ export function KodyChat({
     const terminal = terminalSurfaceRefs.current[activeTerminalInstanceId];
     if (!terminal) return;
     terminal.restoreSnapshot({
-      name: pendingTerminalRestore.name,
+      name: `${terminalCheckpointLabel(
+        pendingTerminalRestore.transport,
+      )} checkpoint`,
       output: pendingTerminalRestore.output,
     });
     if (pendingTerminalRestore.transport.type === "fly") {
@@ -1839,7 +1756,7 @@ export function KodyChat({
       });
     }
     setPendingTerminalRestore(null);
-    toast.success("Terminal snapshot restored");
+    toast.success("Terminal checkpoint restored");
   }, [activeTerminalInstanceId, chatMode, pendingTerminalRestore]);
 
   // ─── Polling for Kody Live ─────────────────────────────────────────────────
@@ -5154,6 +5071,71 @@ export function KodyChat({
               ? `Ask about capability \`${selectedCapability?.slug ?? ""}\`...`
               : genericPlaceholder;
 
+  const chatModeToggle =
+    !lockedAgentId && !vibeMode ? (
+      <div
+        className={`inline-flex items-center rounded-md border p-0.5 ${
+          chatMode === "terminal"
+            ? "justify-self-end border-white/10 bg-white/5"
+            : "bg-background/70"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => setActiveChatMode("ai")}
+          className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-body-xs font-medium transition-colors ${
+            chatMode === "ai"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          }`}
+          aria-pressed={chatMode === "ai"}
+          title="AI chat"
+          aria-label="AI chat"
+        >
+          <MessageSquare className="h-4 w-4" aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={openTerminalMode}
+          className={`relative inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-body-xs font-medium transition-colors ${
+            chatMode === "terminal"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          }`}
+          aria-pressed={chatMode === "terminal"}
+          title="Terminal"
+          aria-label={`Terminal ${terminalStatusLabel}`}
+        >
+          <SquareTerminal className="h-4 w-4" aria-hidden="true" />
+          <span
+            className={`text-label font-semibold uppercase leading-none ${
+              activeTerminalConnectionState === "connected"
+                ? chatMode === "terminal"
+                  ? "text-primary-foreground"
+                  : "text-emerald-600"
+                : activeTerminalConnectionState === "connecting"
+                  ? chatMode === "terminal"
+                    ? "text-primary-foreground"
+                    : "text-amber-600"
+                  : chatMode === "terminal"
+                    ? "text-primary-foreground/80"
+                    : "text-muted-foreground"
+            }`}
+          >
+            {terminalStatusLabel}
+          </span>
+          {activeSessionHasLiveTerminal &&
+            chatMode === "ai" &&
+            activeTerminalConnectionState === "connected" && (
+              <span
+                className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500"
+                aria-hidden="true"
+              />
+            )}
+        </button>
+      </div>
+    ) : null;
+
   return (
     <div
       className="relative flex h-full overflow-hidden md:border-l bg-background"
@@ -5828,7 +5810,7 @@ export function KodyChat({
                         terminal.id === activeTerminalInstanceId))
                   }
                   onSessionEnded={(snapshot) =>
-                    void handleAutoSaveTerminalSnapshot(terminal, snapshot)
+                    void saveTerminalCheckpoint(terminal, snapshot)
                   }
                 />
               </div>
@@ -6398,7 +6380,13 @@ export function KodyChat({
             </div>
             <div className="border-t border-border/40" />
           </div>
-          <div className="flex min-h-10 gap-2 items-center">
+          <div
+            className={
+              chatMode === "terminal"
+                ? "grid min-h-10 grid-cols-1 items-start gap-2"
+                : "flex min-h-10 items-center gap-2"
+            }
+          >
             {chatMode === "ai" && (
               <>
                 {/* Attachment button — hidden file input lives alongside the
@@ -6480,18 +6468,18 @@ export function KodyChat({
             {chatMode === "terminal" && (
               <div
                 data-testid="chat-terminal-toolbar"
-                className="flex min-w-0 flex-1 flex-col gap-2"
+                className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2"
               >
                 <div
                   data-testid="chat-terminal-target-row"
-                  className="flex min-w-0 items-center gap-2"
+                  className="col-span-full flex min-w-0 items-center gap-2"
                 >
                   <select
                     value={activeTerminalValue}
                     onChange={(event) =>
                       handleTerminalTargetSelect(event.target.value)
                     }
-                    className="h-10 min-w-0 flex-1 rounded-md border bg-background px-3 text-body-xs text-foreground outline-none focus:ring-1 focus:ring-primary"
+                    className="h-10 min-w-0 flex-1 rounded-md border border-[#27272a] bg-[#050608] px-3 text-body-xs text-[#f4f4f5] outline-none focus:ring-1 focus:ring-[#3f4652]"
                     title="Terminal target"
                     aria-label="Terminal target"
                   >
@@ -6547,13 +6535,13 @@ export function KodyChat({
                     ))}
                   </select>
                   {sandboxBusyLabel && (
-                    <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-body-xs text-muted-foreground">
+                    <span className="inline-flex max-w-48 min-w-0 items-center gap-1.5 truncate text-body-xs text-muted-foreground">
                       <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
                       <span className="truncate">{sandboxBusyLabel}</span>
                     </span>
                   )}
                   {flyInventoryError && (
-                    <span className="min-w-0 truncate text-body-xs text-destructive">
+                    <span className="max-w-48 min-w-0 truncate text-body-xs text-destructive">
                       {flyInventoryError}
                     </span>
                   )}
@@ -6607,130 +6595,38 @@ export function KodyChat({
                       </div>
                     )}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void (isActiveFlyBrainTerminal
-                        ? handleSaveBrainImage()
-                        : handleSaveTerminalSnapshot())
-                    }
-                    disabled={savedTerminalBusy || brainImageBusy}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                    title={
-                      isActiveFlyBrainTerminal
-                        ? "Save Brain image"
-                        : "Save terminal snapshot"
-                    }
-                    aria-label={
-                      isActiveFlyBrainTerminal
-                        ? "Save Brain image"
-                        : "Save terminal snapshot"
-                    }
-                  >
-                    {savedTerminalBusy || brainImageBusy ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Save className="h-4 w-4" />
-                    )}
-                  </button>
-                  <div className="relative">
+                  {isActiveFlyBrainTerminal && (
                     <button
                       type="button"
-                      onClick={() => {
-                        const next = !savedTerminalMenuOpen;
-                        setSavedTerminalMenuOpen(next);
-                        if (next && !savedTerminalLoaded) {
-                          void refreshSavedTerminalSnapshots();
-                        }
-                      }}
-                      disabled={savedTerminalBusy && !savedTerminalMenuOpen}
+                      onClick={() => void handleSaveBrainImage()}
+                      disabled={brainImageBusy}
                       className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                      title="Saved terminal snapshots"
-                      aria-label="Saved terminal snapshots"
-                      aria-haspopup="menu"
-                      aria-expanded={savedTerminalMenuOpen}
+                      title="Save Brain image"
+                      aria-label="Save Brain image"
                     >
-                      <ChevronDown className="h-4 w-4" />
+                      {brainImageBusy ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Save className="h-4 w-4" />
+                      )}
                     </button>
-                    {savedTerminalMenuOpen && (
-                      <div className="absolute bottom-11 right-0 z-30 flex max-h-80 w-88 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-md border bg-popover text-body-xs text-popover-foreground shadow-md">
-                        <div className="flex items-center justify-between border-b px-3 py-2">
-                          <span className="font-medium">
-                            Saved terminal snapshots
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => void refreshSavedTerminalSnapshots()}
-                            disabled={savedTerminalBusy}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50"
-                            title="Refresh saved terminal snapshots"
-                            aria-label="Refresh saved terminal snapshots"
-                          >
-                            {savedTerminalBusy ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <RefreshCw className="h-3.5 w-3.5" />
-                            )}
-                          </button>
-                        </div>
-                        <label className="flex cursor-pointer items-center gap-2.5 border-b px-3 py-2.5 text-body-xs text-muted-foreground hover:bg-muted">
-                          <input
-                            type="checkbox"
-                            checked={autoSaveTerminalOnEnd}
-                            onChange={(event) =>
-                              setAutoSaveTerminalOnEnd(event.target.checked)
-                            }
-                            className="h-3.5 w-3.5 accent-primary"
-                          />
-                          <span className="truncate text-foreground">
-                            Auto-save on stop
-                          </span>
-                        </label>
-                        <div className="max-h-64 overflow-y-auto py-1">
-                          {savedTerminalSnapshots.length === 0 ? (
-                            <div className="px-3 py-3 text-muted-foreground">
-                              No saved snapshots
-                            </div>
-                          ) : (
-                            savedTerminalSnapshots.map((snapshot) => (
-                              <div
-                                key={snapshot.id}
-                                className="flex items-center gap-2.5 px-3 py-2 hover:bg-muted"
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    handleRestoreTerminalSnapshot(snapshot)
-                                  }
-                                  className="min-w-0 flex-1 text-left"
-                                  title={`Restore ${snapshot.name}`}
-                                >
-                                  <span className="block truncate font-medium">
-                                    {snapshot.name}
-                                  </span>
-                                  <span className="block truncate text-body-xs text-muted-foreground">
-                                    {terminalTransportLabel(snapshot.transport)}
-                                  </span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() =>
-                                    void handleDeleteTerminalSnapshot(snapshot)
-                                  }
-                                  disabled={savedTerminalBusy}
-                                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-                                  title={`Delete ${snapshot.name}`}
-                                  aria-label={`Delete ${snapshot.name}`}
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            ))
-                          )}
-                        </div>
-                      </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void handleResetTerminalCheckpoint()}
+                    disabled={
+                      terminalCheckpointBusy || !activeSessionIdForReset
+                    }
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    title="Reset terminal checkpoint"
+                    aria-label="Reset terminal checkpoint"
+                  >
+                    {terminalCheckpointBusy ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Eraser className="h-4 w-4" />
                     )}
-                  </div>
+                  </button>
                   {(activeTerminalTransport.type === "local" ||
                     activeTerminalTransport.type === "github-actions") &&
                     activeTerminalTransport.sandboxId && (
@@ -6799,72 +6695,11 @@ export function KodyChat({
                     </button>
                   )}
                 </div>
+                {chatModeToggle}
               </div>
             )}
             {chatMode === "ai" && <div className="flex-1" />}
-            {!lockedAgentId && !vibeMode && (
-              <div
-                className={`inline-flex items-center rounded-md border p-0.5 ${
-                  chatMode === "terminal"
-                    ? "border-white/10 bg-white/5"
-                    : "bg-background/70"
-                }`}
-              >
-                <button
-                  type="button"
-                  onClick={() => setActiveChatMode("ai")}
-                  className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-body-xs font-medium transition-colors ${
-                    chatMode === "ai"
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
-                  aria-pressed={chatMode === "ai"}
-                  title="AI chat"
-                  aria-label="AI chat"
-                >
-                  <MessageSquare className="h-4 w-4" aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  onClick={openTerminalMode}
-                  className={`relative inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-body-xs font-medium transition-colors ${
-                    chatMode === "terminal"
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
-                  aria-pressed={chatMode === "terminal"}
-                  title="Terminal"
-                  aria-label={`Terminal ${terminalStatusLabel}`}
-                >
-                  <SquareTerminal className="h-4 w-4" aria-hidden="true" />
-                  <span
-                    className={`text-label font-semibold uppercase leading-none ${
-                      activeTerminalConnectionState === "connected"
-                        ? chatMode === "terminal"
-                          ? "text-primary-foreground"
-                          : "text-emerald-600"
-                        : activeTerminalConnectionState === "connecting"
-                          ? chatMode === "terminal"
-                            ? "text-primary-foreground"
-                            : "text-amber-600"
-                          : chatMode === "terminal"
-                            ? "text-primary-foreground/80"
-                            : "text-muted-foreground"
-                    }`}
-                  >
-                    {terminalStatusLabel}
-                  </span>
-                  {activeSessionHasLiveTerminal &&
-                    chatMode === "ai" &&
-                    activeTerminalConnectionState === "connected" && (
-                      <span
-                        className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500"
-                        aria-hidden="true"
-                      />
-                    )}
-                </button>
-              </div>
-            )}
+            {chatMode === "ai" && chatModeToggle}
           </div>
         </div>
 

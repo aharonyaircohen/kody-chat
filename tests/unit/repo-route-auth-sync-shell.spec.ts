@@ -21,6 +21,7 @@ describe("repo route auth sync wiring", () => {
 
   it("lets repo-route switches reload back to the same URL instead of root", () => {
     expect(authSource).toContain("redirectTo?: string");
-    expect(authSource).toContain('window.location.href = redirectTo ?? "/"');
+    expect(authSource).toContain("window.location.assign(");
+    expect(authSource).toContain('options?.redirectTo ?? "/"');
   });
 });

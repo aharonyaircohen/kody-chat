@@ -11,7 +11,6 @@ import { createHash } from "node:crypto";
 import { chmodSync, existsSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
-import type { IPty } from "node-pty";
 import {
   assertSandboxReady,
   getLocalSandbox,
@@ -60,13 +59,51 @@ export interface LocalTerminalSessionInfo {
 }
 
 interface LocalTerminalSession extends LocalTerminalSessionInfo {
-  pty: IPty;
+  pty: LocalPtyProcess;
   touchedAt: number;
   nextEventId: number;
   events: LocalTerminalEvent[];
 }
 
 type LocalTerminalBackend = "pty" | "tmux";
+
+interface LocalPtyProcess {
+  kill(): void;
+  onData(callback: (data: string) => void): void;
+  onExit(
+    callback: (event: { exitCode: number; signal?: number }) => void,
+  ): void;
+  resize(cols: number, rows: number): void;
+  write(data: string): void;
+}
+
+interface NodePtyModule {
+  spawn(
+    file: string,
+    args: string[],
+    options: {
+      name: string;
+      cols: number;
+      rows: number;
+      cwd: string;
+      env: Record<string, string>;
+    },
+  ): LocalPtyProcess;
+}
+
+const NODE_PTY_PACKAGE = "node" + "-pty";
+const NODE_PTY_PACKAGE_JSON = `${NODE_PTY_PACKAGE}/package.json`;
+const LOCAL_TERMINAL_UNAVAILABLE_MESSAGE =
+  "Local terminal is unavailable in this runtime because native PTY support could not load.";
+
+export class LocalTerminalUnavailableError extends Error {
+  readonly code = "local_terminal_unavailable";
+
+  constructor(readonly cause: unknown) {
+    super(LOCAL_TERMINAL_UNAVAILABLE_MESSAGE);
+    this.name = "LocalTerminalUnavailableError";
+  }
+}
 
 interface LocalTerminalStore {
   sessions: Map<string, LocalTerminalSession>;
@@ -115,6 +152,56 @@ function envForPty(
   env.COLORTERM = "truecolor";
   Object.assign(env, overrides);
   return env;
+}
+
+function shellName(shell: string): string {
+  return shell.split(/[\\/]/).pop()?.toLowerCase() ?? shell.toLowerCase();
+}
+
+function startupSafeShellArgs(shell: string): string[] {
+  if (process.platform === "win32") return [];
+
+  switch (shellName(shell)) {
+    case "zsh":
+      return ["-f"];
+    case "bash":
+      return ["--noprofile", "--norc", "-i"];
+    case "fish":
+      return ["--no-config"];
+    default:
+      return [];
+  }
+}
+
+function quoteShellArg(value: string): string {
+  if (/^[A-Za-z0-9_/:.,+=@%~-]+$/.test(value)) return value;
+  return `'${value.replace(/'/g, "'\\''")}'`;
+}
+
+function tmuxShellCommand(shell: string): string {
+  return ["exec", shell, ...startupSafeShellArgs(shell)]
+    .map(quoteShellArg)
+    .join(" ");
+}
+
+async function loadNodePty(): Promise<NodePtyModule> {
+  try {
+    return (await import(NODE_PTY_PACKAGE)) as unknown as NodePtyModule;
+  } catch (cause) {
+    throw new LocalTerminalUnavailableError(cause);
+  }
+}
+
+function isLocalPtyProcess(value: unknown): value is LocalPtyProcess {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<Record<keyof LocalPtyProcess, unknown>>;
+  return (
+    typeof candidate.kill === "function" &&
+    typeof candidate.onData === "function" &&
+    typeof candidate.onExit === "function" &&
+    typeof candidate.resize === "function" &&
+    typeof candidate.write === "function"
+  );
 }
 
 function generateSessionId(): string {
@@ -197,7 +284,7 @@ function ensureNodePtyHelperExecutable(): void {
   if (process.platform !== "darwin" && process.platform !== "linux") return;
 
   try {
-    const pkgPath = require.resolve("node-pty/package.json");
+    const pkgPath = require.resolve(NODE_PTY_PACKAGE_JSON);
     const root = dirname(pkgPath);
     const candidates = [
       join(
@@ -322,7 +409,7 @@ export async function startLocalTerminalSession(input: {
     }
   }
 
-  const pty = await import("node-pty");
+  const pty = await loadNodePty();
   ensureNodePtyHelperExecutable();
   const sandbox = input.sandboxId
     ? await getLocalSandbox(
@@ -351,27 +438,43 @@ export async function startLocalTerminalSession(input: {
   const shell = backend === "tmux" ? "tmux" : defaultShell;
   const sessionId = generateSessionId();
   const startedAt = new Date().toISOString();
-  const proc = pty.spawn(
-    shell,
-    tmuxSessionName
-      ? ["new-session", "-A", "-s", tmuxSessionName, "-c", cwd]
-      : ["-l"],
-    {
-      name: "xterm-256color",
-      cols: input.cols ?? 100,
-      rows: input.rows ?? 30,
-      cwd,
-      env: envForPty(
-        sandbox
-          ? {
-              HOME: sandbox.homeDir,
-              KODY_SANDBOX_ID: sandbox.id,
-              KODY_SANDBOX_NAME: sandbox.name,
-            }
-          : {},
-      ),
-    },
-  );
+  let proc: LocalPtyProcess;
+  try {
+    proc = pty.spawn(
+      shell,
+      tmuxSessionName
+        ? [
+            "new-session",
+            "-A",
+            "-s",
+            tmuxSessionName,
+            "-c",
+            cwd,
+            tmuxShellCommand(defaultShell),
+          ]
+        : startupSafeShellArgs(defaultShell),
+      {
+        name: "xterm-256color",
+        cols: input.cols ?? 100,
+        rows: input.rows ?? 30,
+        cwd,
+        env: envForPty(
+          sandbox
+            ? {
+                HOME: sandbox.homeDir,
+                KODY_SANDBOX_ID: sandbox.id,
+                KODY_SANDBOX_NAME: sandbox.name,
+              }
+            : {},
+        ),
+      },
+    );
+    if (!isLocalPtyProcess(proc)) {
+      throw new Error("node-pty did not return a terminal process");
+    }
+  } catch (cause) {
+    throw new LocalTerminalUnavailableError(cause);
+  }
 
   const session: LocalTerminalSession = {
     sessionId,
