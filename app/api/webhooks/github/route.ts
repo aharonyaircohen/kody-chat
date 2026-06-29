@@ -149,23 +149,38 @@ interface PushPayload {
  * Best-effort side effect: never block the webhook response on it, and never
  * let a rejection crash the receiver. Errors are logged inside each handler.
  */
-function fireAndForget(promise: Promise<unknown>, label: string): void {
-  promise.catch((err: unknown) => {
-    logger.error(
-      {
-        event: "ui_verify_handler_crashed",
-        label,
-        error: err instanceof Error ? err.message : String(err),
-      },
-      `${label} handler threw — should have been caught internally`,
-    );
-  });
+function logSideEffectError(err: unknown, label: string): void {
+  logger.error(
+    {
+      event: "webhook_side_effect_crashed",
+      label,
+      error: err instanceof Error ? err.message : String(err),
+    },
+    `${label} handler threw — should have been caught internally`,
+  );
 }
 
-function dispatch(
-  event: string,
-  payload: unknown,
-): { handled: boolean; detail: string } {
+function fireAndForget(promise: Promise<unknown>, label: string): void {
+  promise.catch((err: unknown) => logSideEffectError(err, label));
+}
+
+function mustFinish(promise: Promise<unknown>, label: string): Promise<void> {
+  return promise.then(
+    () => undefined,
+    (err: unknown) => {
+      logSideEffectError(err, label);
+    },
+  );
+}
+
+interface DispatchResult {
+  handled: boolean;
+  detail: string;
+  /** Work that must finish before ACKing the webhook in serverless. */
+  requiredEffects?: Promise<void>[];
+}
+
+function dispatch(event: string, payload: unknown): DispatchResult {
   switch (event) {
     case "ping":
       return { handled: true, detail: "ping" };
@@ -208,6 +223,7 @@ function dispatch(
     case "pull_request_review":
     case "pull_request_review_comment": {
       const p = payload as PullRequestPayload;
+      const requiredEffects: Promise<void>[] = [];
       invalidatePRCache();
       invalidatePRBehindCache();
       // PRs are also exposed as issues in the GitHub API; clear that too.
@@ -234,12 +250,14 @@ function dispatch(
         typeof p?.pull_request?.number === "number" &&
         p?.repository?.full_name
       ) {
-        fireAndForget(
-          handlePreviewPrClosed({
-            repoFullName: p.repository.full_name,
-            prNumber: p.pull_request.number,
-          }),
-          `previews.destroy#${p.pull_request.number}`,
+        requiredEffects.push(
+          mustFinish(
+            handlePreviewPrClosed({
+              repoFullName: p.repository.full_name,
+              prNumber: p.pull_request.number,
+            }),
+            `previews.destroy#${p.pull_request.number}`,
+          ),
         );
       }
       // Build + boot a preview on PR open, sync (push to branch), or
@@ -253,21 +271,27 @@ function dispatch(
         p?.pull_request?.head?.sha &&
         p?.repository?.full_name
       ) {
-        fireAndForget(
-          handlePreviewPrOpenedOrSynced({
-            repoFullName: p.repository.full_name,
-            prNumber: p.pull_request.number,
-            ref: p.pull_request.head.sha,
-            // Only set on `synchronize` (push to PR branch). When
-            // present, the handler skips the build if the diff
-            // before..head is engine-only (.kody/** + CHANGELOG).
-            beforeSha:
-              p.action === "synchronize" && p.before ? p.before : undefined,
-          }),
-          `previews.create#${p.pull_request.number}`,
+        requiredEffects.push(
+          mustFinish(
+            handlePreviewPrOpenedOrSynced({
+              repoFullName: p.repository.full_name,
+              prNumber: p.pull_request.number,
+              ref: p.pull_request.head.sha,
+              // Only set on `synchronize` (push to PR branch). When
+              // present, the handler skips the build if the diff
+              // before..head is engine-only (.kody/** + CHANGELOG).
+              beforeSha:
+                p.action === "synchronize" && p.before ? p.before : undefined,
+            }),
+            `previews.create#${p.pull_request.number}`,
+          ),
         );
       }
-      return { handled: true, detail: `pr#${p?.pull_request?.number ?? "?"}` };
+      return {
+        handled: true,
+        detail: `pr#${p?.pull_request?.number ?? "?"}`,
+        requiredEffects,
+      };
     }
 
     case "release": {
@@ -331,15 +355,18 @@ function dispatch(
         ...(head?.modified ?? []),
         ...(head?.removed ?? []),
       ];
+      const requiredEffects: Promise<void>[] = [];
       if (repoFullName && branch && sha && !isDeletedRef) {
-        fireAndForget(
-          handlePreviewTrackedBranchPush({
-            repoFullName,
-            branch,
-            ref: sha,
-            changedPaths,
-          }),
-          `previews.branch#${repoFullName}@${branch}`,
+        requiredEffects.push(
+          mustFinish(
+            handlePreviewTrackedBranchPush({
+              repoFullName,
+              branch,
+              ref: sha,
+              changedPaths,
+            }),
+            `previews.branch#${repoFullName}@${branch}`,
+          ),
         );
       }
       if (
@@ -349,16 +376,18 @@ function dispatch(
         sha &&
         !isDeletedRef
       ) {
-        fireAndForget(
-          handlePreviewDefaultBranchPush({
-            repoFullName,
-            ref: sha,
-            changedPaths,
-          }),
-          `previews.base-rebuild#${repoFullName}@${sha.slice(0, 7)}`,
+        requiredEffects.push(
+          mustFinish(
+            handlePreviewDefaultBranchPush({
+              repoFullName,
+              ref: sha,
+              changedPaths,
+            }),
+            `previews.base-rebuild#${repoFullName}@${sha.slice(0, 7)}`,
+          ),
         );
       }
-      return { handled: true, detail: event };
+      return { handled: true, detail: event, requiredEffects };
     }
 
     case "create":
@@ -448,6 +477,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     "GitHub webhook processed",
   );
 
+  if (result.requiredEffects?.length) {
+    await Promise.all(result.requiredEffects);
+  }
+
   // Fire-and-forget Slack notifications. Errors are swallowed inside; we
   // never want a failed Slack POST to cause GitHub to retry the delivery.
   if (typeof payload === "object" && payload !== null) {
@@ -512,6 +545,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         "dispatchReportPushes threw — should have been caught internally",
       );
     });
+  }
+
+  if (result.requiredEffects?.length) {
+    await Promise.all(result.requiredEffects);
   }
 
   return NextResponse.json(

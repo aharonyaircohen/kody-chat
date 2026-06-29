@@ -216,6 +216,38 @@ describe("POST /api/webhooks/github — side effects", () => {
     expect(side.handlePrMerged).not.toHaveBeenCalled();
   });
 
+  it("waits for preview cleanup before ACKing a closed PR", async () => {
+    let finishCleanup!: () => void;
+    const cleanup = new Promise<void>((resolve) => {
+      finishCleanup = resolve;
+    });
+    side.handlePreviewPrClosed.mockImplementationOnce(async () => cleanup);
+
+    const response = POST(
+      makeReq("pull_request", {
+        action: "closed",
+        repository: { full_name: "acme/widgets" },
+        pull_request: { number: 8, merged: false },
+      }),
+    );
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(side.handlePreviewPrClosed).toHaveBeenCalledWith({
+      repoFullName: "acme/widgets",
+      prNumber: 8,
+    });
+
+    let settled = false;
+    response.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    finishCleanup();
+    expect((await response).status).toBe(200);
+  });
+
   it("applies a verdict label on a new PR comment carrying a Verdict marker", async () => {
     await POST(
       makeReq("issue_comment", {
@@ -235,6 +267,45 @@ describe("POST /api/webhooks/github — side effects", () => {
     expect(side.dispatchNotifications).toHaveBeenCalledTimes(1);
     expect(side.dispatchMentionPushes).toHaveBeenCalledTimes(1);
     expect(side.dispatchAgentMentions).toHaveBeenCalledTimes(1);
+  });
+
+  it("waits for preview base rebuild dispatch before ACKing a default-branch push", async () => {
+    let resolveBase!: () => void;
+    side.handlePreviewDefaultBranchPush.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveBase = resolve;
+        }),
+    );
+
+    let settled = false;
+    const pending = POST(
+      makeReq("push", {
+        ref: "refs/heads/dev",
+        after: "new-head-sha",
+        head_commit: {
+          id: "new-head-sha",
+          added: [],
+          modified: ["src/app.tsx"],
+          removed: [],
+        },
+        repository: {
+          full_name: "acme/widgets",
+          default_branch: "dev",
+        },
+      }),
+    ).then((res) => {
+      settled = true;
+      return res;
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(settled).toBe(false);
+
+    resolveBase();
+    const res = await pending;
+    expect(res.status).toBe(200);
+    expect(side.handlePreviewDefaultBranchPush).toHaveBeenCalledTimes(1);
   });
 });
 
