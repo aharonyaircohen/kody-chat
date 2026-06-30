@@ -233,7 +233,7 @@ describe("buildCompanyBundle", () => {
     h.listManagedGoalFiles.mockResolvedValueOnce([
       {
         id: "ship-goals-page",
-        path: "goals/instances/ship-goals-page/state.json",
+        path: "todos/ship-goals-page.json",
         state: goalState,
       },
     ]);

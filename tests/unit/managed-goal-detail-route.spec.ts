@@ -119,7 +119,7 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
     h.readManagedGoalFile.mockResolvedValue({
       state: localGoalState(),
       sha: "goal-sha",
-      path: "goals/instances/codebase-health/state.json",
+      path: "todos/codebase-health.json",
     });
     h.writeManagedGoalFile.mockResolvedValue(undefined);
 
@@ -141,7 +141,7 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
     h.readManagedGoalFile.mockResolvedValue({
       state: localGoalState(),
       sha: "goal-sha",
-      path: "goals/instances/codebase-health/state.json",
+      path: "todos/codebase-health.json",
     });
     h.writeManagedGoalFile.mockResolvedValue(undefined);
 
@@ -166,7 +166,7 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
         scheduleMode: "agentLoop",
       },
       sha: "goal-sha",
-      path: "goals/instances/codebase-health/state.json",
+      path: "todos/codebase-health.json",
     });
     h.writeManagedGoalFile.mockResolvedValue(undefined);
 
@@ -197,7 +197,7 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
         scheduleMode: "agentLoop",
       },
       sha: "goal-sha",
-      path: "goals/instances/codebase-health/state.json",
+      path: "todos/codebase-health.json",
     });
     h.writeManagedGoalFile.mockResolvedValue(undefined);
 
@@ -240,7 +240,7 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
         stage: "plan",
       },
       sha: "goal-sha",
-      path: "goals/instances/codebase-health/state.json",
+      path: "todos/codebase-health.json",
     });
     h.writeManagedGoalFile.mockResolvedValue(undefined);
 
@@ -316,7 +316,7 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
         templateId: "codebase-health",
       },
       sha: "goal-sha",
-      path: "goals/instances/codebase-health/state.json",
+      path: "todos/codebase-health.json",
     });
 
     const res = await PATCH(
@@ -342,7 +342,7 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
         state: "inactive",
       },
       sha: "goal-sha",
-      path: "goals/instances/codebase-health/state.json",
+      path: "todos/codebase-health.json",
     });
 
     const res = await PATCH(patchRequest({ state: "active" }), params());
@@ -376,7 +376,7 @@ describe("DELETE /api/kody/goals/managed/[id]", () => {
         sourceTemplate: "codebase-health",
       },
       sha: "goal-sha",
-      path: "goals/instances/codebase-health/state.json",
+      path: "todos/codebase-health.json",
     });
     h.deleteManagedGoalFile.mockResolvedValue(undefined);
 
@@ -396,7 +396,7 @@ describe("DELETE /api/kody/goals/managed/[id]", () => {
     h.readManagedGoalFile.mockResolvedValue({
       state: localGoalState(),
       sha: "goal-sha",
-      path: "goals/instances/codebase-health/state.json",
+      path: "todos/codebase-health.json",
     });
     h.getEngineConfig.mockResolvedValue({
       config: {
@@ -430,7 +430,7 @@ describe("DELETE /api/kody/goals/managed/[id]", () => {
         sourceTemplate: "codebase-health",
       },
       sha: "goal-sha",
-      path: "goals/instances/codebase-health/state.json",
+      path: "todos/codebase-health.json",
     });
     h.getEngineConfig.mockResolvedValue({
       config: {
@@ -480,7 +480,7 @@ describe("DELETE /api/kody/goals/managed/[id]", () => {
           sourceTemplate: "codebase-health",
         },
         sha: "goal-sha-1",
-        path: "goals/instances/codebase-health-a1/state.json",
+        path: "todos/codebase-health-a1.json",
       })
       .mockResolvedValueOnce({
         state: {
@@ -488,12 +488,12 @@ describe("DELETE /api/kody/goals/managed/[id]", () => {
           sourceTemplate: "codebase-health",
         },
         sha: "goal-sha-2",
-        path: "goals/instances/codebase-health-a2/state.json",
+        path: "todos/codebase-health-a2.json",
       });
     h.listManagedGoalFiles.mockResolvedValue([
       {
         id: "codebase-health-a1",
-        path: "goals/instances/codebase-health-a1/state.json",
+        path: "todos/codebase-health-a1.json",
         source: "local",
         recordType: "instance",
         state: {
@@ -503,7 +503,7 @@ describe("DELETE /api/kody/goals/managed/[id]", () => {
       },
       {
         id: "codebase-health-a2",
-        path: "goals/instances/codebase-health-a2/state.json",
+        path: "todos/codebase-health-a2.json",
         source: "local",
         recordType: "instance",
         state: {
@@ -540,12 +540,12 @@ describe("DELETE /api/kody/goals/managed/[id]", () => {
         sourceTemplate: "codebase-health",
       },
       sha: "goal-sha-1",
-      path: "goals/instances/codebase-health-a1/state.json",
+      path: "todos/codebase-health-a1.json",
     });
     h.listManagedGoalFiles.mockResolvedValue([
       {
         id: "codebase-health-a1",
-        path: "goals/instances/codebase-health-a1/state.json",
+        path: "todos/codebase-health-a1.json",
         source: "local",
         recordType: "instance",
         state: {

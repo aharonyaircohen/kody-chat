@@ -2,9 +2,8 @@
  * @fileType util
  * @domain todos
  * @pattern todo-list-files
- * @ai-summary Read/write Kody todo-list files under `todos/<slug>.json`
- * in the configured Kody state repo. Each file is one list; legacy markdown
- * files are still readable during migration.
+ * @ai-summary Read/write Kody todo-list JSON files under `todos/<slug>.json`
+ * in the configured Kody state repo. Each file is one list.
  */
 import type { Octokit } from "@octokit/rest";
 import { getOctokit, getOwner, getRepo } from "../github-client";
@@ -19,8 +18,6 @@ import {
 
 const TODOS_DIR = "todos";
 const TODO_JSON_VERSION = 1;
-const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
-const ITEMS_BLOCK_RE = /<!--\s*kody-todo-items-json\s*\r?\n([\s\S]*?)\r?\n-->/;
 const SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const TITLE_MAX_LENGTH = 160;
 const BODY_MAX_LENGTH = 20_000;
@@ -52,38 +49,18 @@ export interface TodoFile extends TodoFileContent {
   htmlUrl: string;
 }
 
-interface TodoFrontmatter {
-  title: string;
-  createdAt: string;
-  [key: string]: unknown;
-}
-
 export function isValidTodoSlug(slug: string): boolean {
   return SLUG_RE.test(slug);
 }
 
-type TodoFileFormat = "json" | "markdown";
-
-function slugFromName(
-  name: string,
-): { slug: string; format: TodoFileFormat } | null {
-  if (name.endsWith(".json")) {
-    const slug = name.slice(0, -".json".length);
-    return isValidTodoSlug(slug) ? { slug, format: "json" } : null;
-  }
-  if (name.endsWith(".md")) {
-    const slug = name.slice(0, -".md".length);
-    return isValidTodoSlug(slug) ? { slug, format: "markdown" } : null;
-  }
-  return null;
+function slugFromName(name: string): string | null {
+  if (!name.endsWith(".json")) return null;
+  const slug = name.slice(0, -".json".length);
+  return isValidTodoSlug(slug) ? slug : null;
 }
 
 function todoJsonPath(slug: string): string {
   return `${TODOS_DIR}/${slug}.json`;
-}
-
-function legacyTodoMarkdownPath(slug: string): string {
-  return `${TODOS_DIR}/${slug}.md`;
 }
 
 function slugifyTitle(title: string): string {
@@ -121,75 +98,8 @@ async function fetchLastCommitDate(
   }
 }
 
-function stripQuotes(value: string): string {
-  if (value.length < 2) return value;
-  const first = value[0];
-  const last = value[value.length - 1];
-  if ((first === '"' && last === '"') || (first === "'" && last === "'")) {
-    return value.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
-  }
-  return value;
-}
-
-function parseFrontmatterValue(value: string): unknown {
-  const stripped = stripQuotes(value.trim());
-  if (!stripped) return "";
-  if (stripped === "true") return true;
-  if (stripped === "false") return false;
-  if (stripped === "null") return null;
-  if (
-    stripped.startsWith("{") ||
-    stripped.startsWith("[") ||
-    /^-?\d+(\.\d+)?$/.test(stripped)
-  ) {
-    try {
-      return JSON.parse(stripped);
-    } catch {
-      return stripped;
-    }
-  }
-  return stripped;
-}
-
 function normalizeMarkdown(value: string): string {
   return value.slice(0, BODY_MAX_LENGTH).trim();
-}
-
-function parseFrontmatter(
-  raw: string,
-  slug: string,
-  updatedAt: string,
-): { frontmatter: TodoFrontmatter; markdown: string } {
-  const fallback: TodoFrontmatter = {
-    title: slug,
-    createdAt: updatedAt,
-  };
-  const match = FRONTMATTER_RE.exec(raw);
-  if (!match) return { frontmatter: fallback, markdown: raw };
-
-  const frontmatter = { ...fallback };
-  const inner = match[1] ?? "";
-  for (const rawLine of inner.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line || line.startsWith("#")) continue;
-    const colon = line.indexOf(":");
-    if (colon === -1) continue;
-
-    const key = line.slice(0, colon).trim();
-    const value = parseFrontmatterValue(line.slice(colon + 1).trim());
-    if (key === "title" && String(value).trim()) {
-      frontmatter.title = String(value).trim().slice(0, TITLE_MAX_LENGTH);
-    } else if (key === "createdAt" && String(value).trim()) {
-      frontmatter.createdAt = String(value).trim();
-    } else {
-      frontmatter[key] = value;
-    }
-  }
-
-  return {
-    frontmatter,
-    markdown: raw.slice(match[0].length).replace(/^\s+/, ""),
-  };
 }
 
 function generatedItemId(): string {
@@ -249,62 +159,20 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null;
 }
 
-function parseItems(markdown: string, fallbackDate: string): TodoItemFile[] {
-  const match = ITEMS_BLOCK_RE.exec(markdown);
-  if (!match) return [];
-
-  try {
-    return normalizeItems(JSON.parse(match[1] ?? "[]"), fallbackDate);
-  } catch {
-    return [];
-  }
-}
-
-function parseLegacyTodo(
-  frontmatter: TodoFrontmatter,
-  markdown: string,
-  fallbackDate: string,
-): TodoItemFile[] {
-  const body = markdown.replace(ITEMS_BLOCK_RE, "").trim();
-  if (!body) return [];
-  return [
-    {
-      id: generatedItemId(),
-      title: frontmatter.title,
-      body,
-      assignee: null,
-      completed: false,
-      createdAt: fallbackDate,
-      completedAt: null,
-    },
-  ];
-}
-
-function extractDescription(markdown: string): string {
-  return normalizeMarkdown(markdown.replace(ITEMS_BLOCK_RE, ""));
-}
-
 export function parseTodoFileContent(
   raw: string,
   slug: string,
   updatedAt: string,
 ): TodoFileContent {
-  const json = parseTodoJsonFileContent(raw, slug, updatedAt);
-  if (json) return json;
-
-  const { frontmatter, markdown } = parseFrontmatter(raw, slug, updatedAt);
-  const hasItemsBlock = ITEMS_BLOCK_RE.test(markdown);
-  const items = hasItemsBlock
-    ? parseItems(markdown, frontmatter.createdAt)
-    : parseLegacyTodo(frontmatter, markdown, frontmatter.createdAt);
-
-  return {
-    title: frontmatter.title,
-    description: hasItemsBlock ? extractDescription(markdown) : "",
-    items,
-    createdAt: frontmatter.createdAt,
-    frontmatter,
-  };
+  return (
+    parseTodoJsonFileContent(raw, slug, updatedAt) ?? {
+      title: slug,
+      description: "",
+      items: [],
+      createdAt: updatedAt,
+      frontmatter: { title: slug, createdAt: updatedAt },
+    }
+  );
 }
 
 function parseTodoJsonFileContent(
@@ -383,17 +251,14 @@ export async function listTodoFiles(): Promise<TodoFile[]> {
     TODOS_DIR,
   );
 
-  const slugs = new Map<string, TodoFileFormat>();
+  const slugs = new Set<string>();
   for (const entry of entries) {
-    const parsed = slugFromName(entry.name);
-    if (!parsed) continue;
-    if (parsed.format === "json" || !slugs.has(parsed.slug)) {
-      slugs.set(parsed.slug, parsed.format);
-    }
+    const slug = slugFromName(entry.name);
+    if (slug) slugs.add(slug);
   }
 
   const files = await Promise.all(
-    Array.from(slugs.keys()).map((slug) => readTodoFile(slug, octokit)),
+    Array.from(slugs).map((slug) => readTodoFile(slug, octokit)),
   );
 
   return files
@@ -410,28 +275,25 @@ export async function readTodoFile(
   const octokit = octokitOverride ?? getOctokit();
 
   try {
-    const candidates = [todoJsonPath(slug), legacyTodoMarkdownPath(slug)];
-    for (const filePath of candidates) {
-      const file = await readStateText(octokit, getOwner(), getRepo(), filePath);
-      if (!file) continue;
+    const filePath = todoJsonPath(slug);
+    const file = await readStateText(octokit, getOwner(), getRepo(), filePath);
+    if (!file) return null;
 
-      const updatedAt = await fetchLastCommitDate(octokit, filePath);
-      const parsed = parseTodoFileContent(file.content, slug, updatedAt);
+    const updatedAt = await fetchLastCommitDate(octokit, filePath);
+    const parsed = parseTodoFileContent(file.content, slug, updatedAt);
 
-      return {
-        slug,
-        path: filePath,
-        title: parsed.title,
-        description: parsed.description,
-        items: parsed.items,
-        createdAt: parsed.createdAt,
-        frontmatter: parsed.frontmatter,
-        sha: file.sha,
-        updatedAt,
-        htmlUrl: file.htmlUrl ?? "",
-      };
-    }
-    return null;
+    return {
+      slug,
+      path: filePath,
+      title: parsed.title,
+      description: parsed.description,
+      items: parsed.items,
+      createdAt: parsed.createdAt,
+      frontmatter: parsed.frontmatter,
+      sha: file.sha,
+      updatedAt,
+      htmlUrl: file.htmlUrl ?? "",
+    };
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) return null;
     throw error;
@@ -516,17 +378,15 @@ export async function deleteTodoFile(
   if (!isValidTodoSlug(slug)) {
     throw new Error(`Invalid todo list slug: "${slug}".`);
   }
-  const paths = [todoJsonPath(slug), legacyTodoMarkdownPath(slug)];
-  for (const path of paths) {
-    const existing = await readStateText(octokit, getOwner(), getRepo(), path);
-    if (!existing) continue;
-    await deleteStateFile({
-      octokit,
-      owner: getOwner(),
-      repo: getRepo(),
-      path,
-      message: `chore(todos): remove ${slug}`,
-      sha: existing.sha,
-    });
-  }
+  const path = todoJsonPath(slug);
+  const existing = await readStateText(octokit, getOwner(), getRepo(), path);
+  if (!existing) return;
+  await deleteStateFile({
+    octokit,
+    owner: getOwner(),
+    repo: getRepo(),
+    path,
+    message: `chore(todos): remove ${slug}`,
+    sha: existing.sha,
+  });
 }

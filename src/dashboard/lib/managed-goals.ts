@@ -424,20 +424,6 @@ export function managedGoalPath(goalId: string): string {
   return `todos/${goalId}.json`;
 }
 
-export function legacyManagedGoalTodoPath(goalId: string): string {
-  if (!goalId || /[\\/]/.test(goalId) || goalId.includes("..")) {
-    throw new Error(`Invalid goalId path: ${JSON.stringify(goalId)}`);
-  }
-  return `todos/${goalId}.md`;
-}
-
-export function legacyManagedGoalPath(goalId: string): string {
-  if (!goalId || /[\\/]/.test(goalId) || goalId.includes("..")) {
-    throw new Error(`Invalid goalId path: ${JSON.stringify(goalId)}`);
-  }
-  return `goals/instances/${goalId}/state.json`;
-}
-
 export function slugifyManagedGoalId(value: string): string {
   return value
     .toLowerCase()

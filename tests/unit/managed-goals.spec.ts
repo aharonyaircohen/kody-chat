@@ -124,7 +124,7 @@ describe("normalizeManagedGoalState", () => {
     expect(
       managedGoalModel({
         id: "legacy-loop",
-        path: "goals/instances/legacy-loop/state.json",
+        path: "todos/legacy-loop.json",
         state: state!,
       }),
     ).toBe("agentLoop");
@@ -457,7 +457,7 @@ describe("isStoreBackedManagedGoal", () => {
   it("treats sourceTemplate copies as Store-backed", () => {
     const goal: ManagedGoalRecord = {
       id: "simple",
-      path: "goals/instances/simple/state.json",
+      path: "todos/simple.json",
       source: "local",
       recordType: "instance",
       state: {
@@ -484,7 +484,7 @@ describe("canDeleteManagedGoal", () => {
   it("allows removing local Store-backed instances", () => {
     const goal: ManagedGoalRecord = {
       id: "codebase-health",
-      path: "goals/instances/codebase-health/state.json",
+      path: "todos/codebase-health.json",
       source: "local",
       recordType: "instance",
       state: {
@@ -539,7 +539,7 @@ describe("managedGoalModel", () => {
   ): ManagedGoalRecord {
     return {
       id: "model-test",
-      path: "goals/instances/model-test/state.json",
+      path: "todos/model-test.json",
       source: "local",
       recordType: "instance",
       state: {
@@ -591,7 +591,7 @@ describe("collapseManagedGoalRecordsForList", () => {
   function record(id: string, updatedAt: string): ManagedGoalRecord {
     return {
       id,
-      path: `goals/instances/${id}/state.json`,
+      path: `todos/${id}.json`,
       source: "local",
       recordType: "instance",
       state: {

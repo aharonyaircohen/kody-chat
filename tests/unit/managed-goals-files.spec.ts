@@ -38,15 +38,13 @@ const baseState: ManagedGoalState = {
   blockers: [],
 };
 
-const regularTodo = [
-  "---",
-  'title: "Regular list"',
-  'createdAt: "2026-06-28T00:00:00.000Z"',
-  "---",
-  "",
-  "<!-- kody-todo-items-json",
-  JSON.stringify(
-    [
+const regularTodo = `${JSON.stringify(
+  {
+    version: 1,
+    title: "Regular list",
+    description: "",
+    createdAt: "2026-06-28T00:00:00.000Z",
+    items: [
       {
         id: "item-1",
         title: "Keep this todo",
@@ -57,30 +55,20 @@ const regularTodo = [
         completedAt: null,
       },
     ],
-    null,
-    2,
-  ),
-  "-->",
-  "",
-].join("\n");
+  },
+  null,
+  2,
+)}\n`;
 
 describe("managed goal todo-backed files", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("normalizes legacy JSON when no todo file exists", async () => {
+  it("returns null when no managed goal todo file exists", async () => {
     stateRepo.readStateText.mockImplementation(
       async (_octokit, _owner, _repo, path: string) => {
         if (path === "todos/goal-creation-works.json") return null;
-        if (path === "todos/goal-creation-works.md") return null;
-        if (path === "goals/instances/goal-creation-works/state.json") {
-          return {
-            path,
-            sha: "goal-sha",
-            content: JSON.stringify({ ...baseState, capabilities: null }),
-          };
-        }
         return null;
       },
     );
@@ -92,26 +80,14 @@ describe("managed goal todo-backed files", () => {
       "test-repo",
     );
 
-    expect(file).toMatchObject({
-      sha: "goal-sha",
-      path: "goals/instances/goal-creation-works/state.json",
-      source: "legacy",
-    });
-    expect(file?.state.capabilities).toEqual(["plan"]);
+    expect(file).toBeNull();
+    expect(stateRepo.readStateText).toHaveBeenCalledTimes(1);
   });
 
-  it("migrates legacy JSON to a todo file on write", async () => {
+  it("writes a managed goal to a JSON todo file", async () => {
     stateRepo.readStateText.mockImplementation(
       async (_octokit, _owner, _repo, path: string) => {
         if (path === "todos/goal-creation-works.json") return null;
-        if (path === "todos/goal-creation-works.md") return null;
-        if (path === "goals/instances/goal-creation-works/state.json") {
-          return {
-            path,
-            sha: "legacy-sha",
-            content: JSON.stringify(baseState),
-          };
-        }
         return null;
       },
     );
@@ -159,15 +135,8 @@ describe("managed goal todo-backed files", () => {
   it("does not treat a regular todo list as a managed goal", async () => {
     stateRepo.readStateText.mockImplementation(
       async (_octokit, _owner, _repo, path: string) => {
-        if (path === "todos/todo-list-1.md") {
+        if (path === "todos/todo-list-1.json") {
           return { path, sha: "todo-sha", content: regularTodo };
-        }
-        if (path === "goals/instances/todo-list-1/state.json") {
-          return {
-            path,
-            sha: "legacy-sha",
-            content: JSON.stringify(baseState),
-          };
         }
         return null;
       },
@@ -181,12 +150,12 @@ describe("managed goal todo-backed files", () => {
     );
 
     expect(file).toBeNull();
-    expect(stateRepo.readStateText).toHaveBeenCalledTimes(2);
+    expect(stateRepo.readStateText).toHaveBeenCalledTimes(1);
   });
 
   it("does not delete a regular todo list through managed goal deletion", async () => {
     stateRepo.readStateText.mockResolvedValue({
-      path: "todos/todo-list-1.md",
+      path: "todos/todo-list-1.json",
       sha: "todo-sha",
       content: regularTodo,
     });
@@ -204,7 +173,7 @@ describe("managed goal todo-backed files", () => {
   it("does not overwrite a regular todo list when writing a managed goal", async () => {
     stateRepo.readStateText.mockImplementation(
       async (_octokit, _owner, _repo, path: string) => {
-        if (path === "todos/todo-list-1.md") {
+        if (path === "todos/todo-list-1.json") {
           return { path, sha: "todo-sha", content: regularTodo };
         }
         return null;
@@ -224,24 +193,28 @@ describe("managed goal todo-backed files", () => {
   });
 
   it("keeps user-edited todo item details when runtime updates state", async () => {
-    const existingTodo = [
-      "---",
-      'title: "goal-creation-works"',
-      'createdAt: "2026-06-28T00:00:00.000Z"',
-      "managed: true",
-      'managedModel: "agentGoal"',
-      'state: "active"',
-      'type: "improve"',
-      'evidence: "[\\"planReady\\"]"',
-      'capabilities: "[\\"plan\\"]"',
-      'route: "[{\\"stage\\":\\"plan\\",\\"evidence\\":\\"planReady\\",\\"capability\\":\\"plan\\"}]"',
-      "---",
-      "",
-      "Goal creation works.",
-      "",
-      "<!-- kody-todo-items-json",
-      JSON.stringify(
-        [
+    const existingTodo = `${JSON.stringify(
+      {
+        version: 1,
+        title: "goal-creation-works",
+        description: "Goal creation works.",
+        createdAt: "2026-06-28T00:00:00.000Z",
+        managed: true,
+        managedModel: "agentGoal",
+        state: "active",
+        type: "improve",
+        evidence: ["planReady"],
+        capabilities: ["plan"],
+        route: [
+          {
+            stage: "plan",
+            evidence: "planReady",
+            capability: "plan",
+          },
+        ],
+        facts: {},
+        blockers: [],
+        items: [
           {
             id: "planReady",
             title: "Write the plan",
@@ -258,15 +231,13 @@ describe("managed goal todo-backed files", () => {
             },
           },
         ],
-        null,
-        2,
-      ),
-      "-->",
-      "",
-    ].join("\n");
+      },
+      null,
+      2,
+    )}\n`;
     stateRepo.readStateText.mockImplementation(
       async (_octokit, _owner, _repo, path: string) => {
-        if (path === "todos/goal-creation-works.md") {
+        if (path === "todos/goal-creation-works.json") {
           return { path, sha: "todo-sha", content: existingTodo };
         }
         return null;
@@ -285,7 +256,7 @@ describe("managed goal todo-backed files", () => {
     const write = stateRepo.writeStateText.mock.calls[0]![0];
     expect(write).toMatchObject({
       path: "todos/goal-creation-works.json",
-      sha: undefined,
+      sha: "todo-sha",
     });
     const parsed = parseTodoFileContent(
       write.content,

@@ -42,7 +42,7 @@ describe("managed goals API client", () => {
         JSON.stringify({
           goal: {
             id: "verify-goal",
-            path: "goals/instances/verify-goal/state.json",
+            path: "todos/verify-goal.json",
             state: {
               version: 1,
               state: "active",
@@ -95,7 +95,7 @@ describe("managed goals API client", () => {
         JSON.stringify({
           goal: {
             id: "source-goal-20260620-120000",
-            path: "goals/instances/source-goal-20260620-120000/state.json",
+            path: "todos/source-goal-20260620-120000.json",
             state: {
               version: 1,
               state: "active",
@@ -155,7 +155,7 @@ describe("managed goals API client", () => {
           JSON.stringify({
             goal: {
               id: "verify-goal",
-              path: "goals/instances/verify-goal/state.json",
+              path: "todos/verify-goal.json",
               state: {
                 version: 1,
                 state: "active",

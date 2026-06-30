@@ -70,7 +70,7 @@ describe("todo file content", () => {
     expect(parsed.items).toEqual([]);
   });
 
-  it("keeps old body-only files as a legacy item with no list description", () => {
+  it("does not convert old markdown body files into todo items", () => {
     const parsed = parseTodoFileContent(
       [
         "---",
@@ -85,15 +85,7 @@ describe("todo file content", () => {
     );
 
     expect(parsed.description).toBe("");
-    expect(parsed.items).toMatchObject([
-      {
-        title: "Legacy list",
-        body: "Old markdown body.",
-        assignee: null,
-        completed: false,
-        createdAt,
-        completedAt: null,
-      },
-    ]);
+    expect(parsed.items).toEqual([]);
+    expect(parsed.title).toBe("legacy-list");
   });
 });

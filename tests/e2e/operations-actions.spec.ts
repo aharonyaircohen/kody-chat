@@ -391,7 +391,7 @@ function managedGoalSeed(
   const state = overrides.state;
   return {
     id,
-    path: `goals/instances/${id}/state.json`,
+    path: `todos/${id}.json`,
     updatedAt: NOW,
     source: "local",
     recordType: "instance",
@@ -425,7 +425,7 @@ function managedGoalSeed(
 function managedLoopSeed(): ManagedGoalRecord {
   return managedGoalSeed({
     id: "daily-triage",
-    path: "goals/instances/daily-triage/state.json",
+    path: "todos/daily-triage.json",
     state: {
       version: 1,
       state: "active",

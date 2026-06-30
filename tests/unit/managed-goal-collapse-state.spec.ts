@@ -17,7 +17,7 @@ function goalRecord(
 ): ManagedGoalRecord {
   return {
     id,
-    path: `goals/instances/${id}/state.json`,
+    path: `todos/${id}.json`,
     source: "local",
     recordType: "instance",
     state: {

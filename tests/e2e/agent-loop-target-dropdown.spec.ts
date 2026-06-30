@@ -59,7 +59,7 @@ async function mockDashboardApis(page: Page): Promise<void> {
       goals: [
         {
           id: "web-release",
-          path: "goals/instances/web-release/state.json",
+          path: "todos/web-release.json",
           source: "local",
           recordType: "instance",
           state: {

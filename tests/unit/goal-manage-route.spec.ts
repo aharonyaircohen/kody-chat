@@ -92,32 +92,27 @@ function makeParams(id: string) {
 }
 
 function managedGoalTodoContent(overrides: Record<string, unknown> = {}) {
-  return [
-    "---",
-    'title: "capability-migration"',
-    'createdAt: "2026-01-01T00:00:00.000Z"',
-    "managed: true",
-    'managedModel: "agentGoal"',
-    "version: 1",
-    'state: "active"',
-    'type: "improve"',
-    'evidence: "[]"',
-    'capabilities: "[]"',
-    'route: "[]"',
-    'facts: "{}"',
-    'blockers: "[]"',
-    ...Object.entries(overrides).map(
-      ([key, value]) => `${key}: ${JSON.stringify(value)}`,
-    ),
-    "---",
-    "",
-    "Migrate capability state.",
-    "",
-    "<!-- kody-todo-items-json",
-    "[]",
-    "-->",
-    "",
-  ].join("\n");
+  return `${JSON.stringify(
+    {
+      version: 1,
+      title: "capability-migration",
+      description: "Migrate capability state.",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      managed: true,
+      managedModel: "agentGoal",
+      state: "active",
+      type: "improve",
+      evidence: [],
+      capabilities: [],
+      route: [],
+      facts: {},
+      blockers: [],
+      items: [],
+      ...overrides,
+    },
+    null,
+    2,
+  )}\n`;
 }
 
 // ---------------------------------------------------------------------------
