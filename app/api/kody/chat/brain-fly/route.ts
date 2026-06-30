@@ -164,8 +164,9 @@ export async function POST(req: NextRequest) {
         flyToken: ctx.context.flyToken,
         account: ctx.context.account,
         // Repo-less Brain: no boot repo. It clones each repo per chat message.
-        // We still hand it the model resolved from the connected repo's config.
+        // We still hand it the model resolved from Dashboard /models.
         model: ctx.context.engineModel,
+        modelConfig: ctx.context.engineModelConfig,
         githubToken: ctx.context.githubToken,
         allSecrets: ctx.context.allSecrets,
         perfTier: ctx.context.perfTier,

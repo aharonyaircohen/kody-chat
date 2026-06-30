@@ -31,6 +31,7 @@
 import { randomBytes } from "node:crypto";
 
 import { logger } from "@dashboard/lib/logger";
+import type { EngineRuntimeModelConfig } from "@dashboard/lib/variables/models";
 
 const FLY_API_BASE = "https://api.machines.dev/v1";
 
@@ -86,6 +87,8 @@ export interface ProvisionBrainInput {
   allSecrets?: Record<string, string>;
   /** Optional model override (e.g. anthropic/claude-sonnet-4-6). */
   model?: string;
+  /** Full model runtime config from Dashboard /models. */
+  modelConfig?: EngineRuntimeModelConfig;
   /** Performance tier — maps to a fixed Fly guest shape. */
   perfTier?: PerfTier;
   /** Fly org from the connected repo's Fly config. */
@@ -281,6 +284,7 @@ function buildMachineEnv(
   // Optional boot repo — omitted for a repo-less Brain.
   if (input.repo) env.REPO = input.repo;
   if (input.model) env.MODEL = input.model;
+  if (input.modelConfig) env.KODY_MODEL_CONFIG = JSON.stringify(input.modelConfig);
   if (input.ref) env.REF = input.ref;
   if (input.dashboardUrl?.trim()) {
     env.KODY_CMS_DASHBOARD_URL = input.dashboardUrl.trim();
@@ -624,12 +628,34 @@ function alignBrainEnvConfig(
   config: BrainMachineConfig | undefined,
   input: ProvisionBrainInput,
 ): { changed: boolean; config?: BrainMachineConfig } {
-  const dashboardUrl = input.dashboardUrl?.trim();
-  if (!config || !dashboardUrl) return { changed: false };
+  if (!config) return { changed: false };
   const env = { ...(config.env ?? {}) };
-  if (env.KODY_CMS_DASHBOARD_URL === dashboardUrl) return { changed: false };
-  env.KODY_CMS_DASHBOARD_URL = dashboardUrl;
-  return { changed: true, config: { ...config, env } };
+  let changed = false;
+  const setOrDelete = (key: string, value: string | undefined) => {
+    if (value === undefined) {
+      if (key in env) {
+        delete env[key];
+        changed = true;
+      }
+      return;
+    }
+    if (env[key] !== value) {
+      env[key] = value;
+      changed = true;
+    }
+  };
+
+  setOrDelete("MODEL", input.model?.trim() || undefined);
+  setOrDelete(
+    "KODY_MODEL_CONFIG",
+    input.modelConfig ? JSON.stringify(input.modelConfig) : undefined,
+  );
+  setOrDelete(
+    "KODY_CMS_DASHBOARD_URL",
+    input.dashboardUrl?.trim() || undefined,
+  );
+
+  return changed ? { changed: true, config: { ...config, env } } : { changed };
 }
 
 function alignBrainMachineConfig(

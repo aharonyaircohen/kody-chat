@@ -126,6 +126,7 @@ export async function POST(req: NextRequest) {
       flyToken: ctx.context.flyToken,
       account: ctx.context.account,
       model: ctx.context.engineModel,
+      modelConfig: ctx.context.engineModelConfig,
       githubToken: ctx.context.githubToken,
       allSecrets: ctx.context.allSecrets,
       perfTier: brainPerfFrom(req, ctx.context.perfTier),

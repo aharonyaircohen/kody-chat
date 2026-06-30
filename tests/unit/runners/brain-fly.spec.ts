@@ -231,6 +231,67 @@ describe("provisionBrain", () => {
     );
   });
 
+  it("passes the dashboard model runtime config to new Brain machines", async () => {
+    const calls = installFetchStub((call) => {
+      if (
+        call.url.endsWith("/apps/kody-brain-alice") &&
+        call.method === "GET"
+      ) {
+        return { status: 404 };
+      }
+      if (call.url.endsWith("/apps") && call.method === "POST") {
+        return { json: { name: "kody-brain-alice" } };
+      }
+      if (
+        call.url.endsWith("/apps/kody-brain-alice/machines") &&
+        call.method === "GET"
+      ) {
+        return { status: 404 };
+      }
+      if (
+        call.url.endsWith("/apps/kody-brain-alice/machines") &&
+        call.method === "POST"
+      ) {
+        return { json: { id: "m123", state: "starting", region: "fra" } };
+      }
+      throw new Error(`unexpected call: ${call.method} ${call.url}`);
+    });
+
+    await provisionBrain({
+      flyToken: TOKEN,
+      account: "alice",
+      githubToken: "gh-pat",
+      apiKeyOverride: "static-key-for-test",
+      model: "minimax/MiniMax-M3",
+      modelConfig: {
+        spec: "minimax/MiniMax-M3",
+        provider: "custom",
+        protocol: "openai",
+        baseURL: "https://api.minimax.io/v1",
+        modelName: "MiniMax-M3",
+        apiKeyEnvVar: "MINIMAX_API_KEY",
+      },
+    });
+
+    const machineCreate = calls.find(
+      (c) =>
+        c.method === "POST" &&
+        c.url.endsWith("/apps/kody-brain-alice/machines"),
+    )!;
+    const env = (
+      machineCreate.body as { config: { env: Record<string, string> } }
+    ).config.env;
+    expect(env.MODEL).toBe("minimax/MiniMax-M3");
+    expect(JSON.parse(env.KODY_MODEL_CONFIG)).toEqual({
+      spec: "minimax/MiniMax-M3",
+      provider: "custom",
+      protocol: "openai",
+      baseURL: "https://api.minimax.io/v1",
+      modelName: "MiniMax-M3",
+      apiKeyEnvVar: "MINIMAX_API_KEY",
+    });
+  });
+
   it("reuses an existing live machine and returns its api key (idempotency)", async () => {
     installFetchStub((call) => {
       if (
@@ -268,6 +329,70 @@ describe("provisionBrain", () => {
     });
     expect(out.apiKey).toBe("preexisting-key");
     expect(out.machineId).toBe("m-existing");
+  });
+
+  it("updates model env on reused Brain machines", async () => {
+    const calls = installFetchStub((call) => {
+      if (
+        call.url.endsWith("/apps/kody-brain-alice") &&
+        call.method === "GET"
+      ) {
+        return { json: { name: "kody-brain-alice" } };
+      }
+      if (
+        call.url.endsWith("/apps/kody-brain-alice/machines") &&
+        call.method === "GET"
+      ) {
+        return {
+          json: [
+            {
+              id: "m-existing",
+              state: "started",
+              region: "fra",
+              config: { env: { BRAIN_API_KEY: "preexisting-key" } },
+            },
+          ],
+        };
+      }
+      if (
+        call.method === "POST" &&
+        call.url.endsWith("/apps/kody-brain-alice/machines/m-existing")
+      ) {
+        return { json: { id: "m-existing", state: "started", region: "fra" } };
+      }
+      throw new Error(`unexpected call: ${call.method} ${call.url}`);
+    });
+
+    await provisionBrain({
+      flyToken: TOKEN,
+      account: "alice",
+      githubToken: "gh-pat",
+      model: "minimax/MiniMax-M3",
+      modelConfig: {
+        spec: "minimax/MiniMax-M3",
+        provider: "custom",
+        protocol: "openai",
+        baseURL: "https://api.minimax.io/v1",
+        modelName: "MiniMax-M3",
+        apiKeyEnvVar: "MINIMAX_API_KEY",
+      },
+    });
+
+    const update = calls.find(
+      (c) =>
+        c.method === "POST" &&
+        c.url.endsWith("/apps/kody-brain-alice/machines/m-existing"),
+    )!;
+    const env = (
+      update.body as { config: { env: Record<string, string> } }
+    ).config.env;
+    expect(env.MODEL).toBe("minimax/MiniMax-M3");
+    expect(JSON.parse(env.KODY_MODEL_CONFIG)).toMatchObject({
+      protocol: "openai",
+      baseURL: "https://api.minimax.io/v1",
+      modelName: "MiniMax-M3",
+      apiKeyEnvVar: "MINIMAX_API_KEY",
+    });
   });
 
   it("throws when an existing machine has no BRAIN_API_KEY (corrupted state)", async () => {

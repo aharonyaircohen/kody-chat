@@ -24,6 +24,13 @@ import { logger } from "@dashboard/lib/logger";
 import { getEngineConfig } from "@dashboard/lib/engine/config";
 import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
 import { readVault } from "@dashboard/lib/vault/store";
+import { loadChatModels } from "@dashboard/lib/variables/load-chat-models";
+import {
+  engineModelSpec,
+  engineRuntimeModelConfig,
+  pickEngineDefaultModel,
+  type EngineRuntimeModelConfig,
+} from "@dashboard/lib/variables/models";
 import type { PerfTier } from "./fly";
 
 /**
@@ -49,6 +56,12 @@ export interface FlyContext {
    * the repo has no config.
    */
   engineModel: string | undefined;
+  /**
+   * Full model runtime config from Dashboard /models. Brain Fly passes this
+   * through to the engine so provider routing uses the user's selected
+   * protocol/baseURL/secret name instead of guessing from `agent.model`.
+   */
+  engineModelConfig: EngineRuntimeModelConfig | undefined;
   githubToken: string;
   octokit: Octokit;
   /** Optional Store repo/ref headers carried by dashboard auth. */
@@ -153,17 +166,34 @@ export async function resolveFlyContext(
   const actor = await resolveActorFromToken(githubToken);
   const account = actor?.login ?? owner;
 
-  // Engine model from the connected repo's config — so a repo-less Brain can
-  // be handed its model at provision time (it no longer reads a boot repo).
+  // Prefer Dashboard /models. It carries the full user-owned runtime shape
+  // (protocol/baseURL/secret name), while kody.config.json only has a flat
+  // legacy provider/model string.
   let engineModel: string | undefined;
+  let engineModelConfig: EngineRuntimeModelConfig | undefined;
   try {
-    const { config } = await getEngineConfig(octokit, owner, repo);
-    engineModel = config.agent?.model;
+    const models = await loadChatModels(req);
+    const engineDefault = pickEngineDefaultModel(models);
+    if (engineDefault) {
+      engineModel = engineModelSpec(engineDefault);
+      engineModelConfig = engineRuntimeModelConfig(engineDefault);
+    }
   } catch (err) {
     logger.warn(
       { err, owner, repo },
-      "fly-context: engine model resolve failed",
+      "fly-context: dashboard model resolve failed",
     );
+  }
+  if (!engineModel) {
+    try {
+      const { config } = await getEngineConfig(octokit, owner, repo);
+      engineModel = config.agent?.model;
+    } catch (err) {
+      logger.warn(
+        { err, owner, repo },
+        "fly-context: engine model fallback resolve failed",
+      );
+    }
   }
 
   const allSecrets = await buildAllSecretsFromVault(octokit, owner, repo);
@@ -200,6 +230,7 @@ export async function resolveFlyContext(
       repo,
       account,
       engineModel,
+      engineModelConfig,
       githubToken,
       octokit,
       storeRepoUrl: headerAuth?.storeRepoUrl,

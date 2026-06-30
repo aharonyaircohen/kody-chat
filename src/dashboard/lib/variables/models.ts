@@ -167,6 +167,21 @@ export const ChatModelsSchema = z.array(ChatModelSchema);
 
 export type ChatModel = z.infer<typeof ChatModelSchema>;
 
+export type EngineRuntimeModelConfig = {
+  /** The legacy engine model string, kept for older runtime paths. */
+  spec: string;
+  /** Dashboard provider preset id; runtime behavior uses protocol/baseURL. */
+  provider: ProviderPreset;
+  /** Wire protocol selected in /models. */
+  protocol: ChatProtocol;
+  /** Endpoint base URL from /models, when needed by the protocol. */
+  baseURL?: string;
+  /** Model id exactly as the provider expects it on the wire. */
+  modelName: string;
+  /** Env var name holding this model's API key inside ALL_SECRETS. */
+  apiKeyEnvVar: string;
+};
+
 export function pickModelById(
   models: ChatModel[],
   id: string | undefined | null,
@@ -208,4 +223,18 @@ export function engineModelSpec(m: ChatModel): string {
   const id = m.id.trim();
   if (id.includes("/")) return id;
   return `${m.provider}/${m.modelName.trim()}`;
+}
+
+export function engineRuntimeModelConfig(
+  m: ChatModel,
+): EngineRuntimeModelConfig {
+  const baseURL = m.baseURL.trim();
+  return {
+    spec: engineModelSpec(m),
+    provider: m.provider,
+    protocol: m.protocol,
+    ...(baseURL ? { baseURL } : {}),
+    modelName: m.modelName.trim(),
+    apiKeyEnvVar: m.apiKeySecret.trim(),
+  };
 }

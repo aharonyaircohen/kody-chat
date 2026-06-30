@@ -5,6 +5,7 @@ const getRequestAuth = vi.fn();
 const getUserOctokit = vi.fn();
 const resolveActorFromToken = vi.fn();
 const getEngineConfig = vi.fn();
+const loadChatModels = vi.fn();
 const readVault = vi.fn();
 
 vi.mock("@dashboard/lib/auth", () => ({
@@ -15,6 +16,10 @@ vi.mock("@dashboard/lib/auth", () => ({
 
 vi.mock("@dashboard/lib/engine/config", () => ({
   getEngineConfig: (...args: unknown[]) => getEngineConfig(...args),
+}));
+
+vi.mock("@dashboard/lib/variables/load-chat-models", () => ({
+  loadChatModels: (...args: unknown[]) => loadChatModels(...args),
 }));
 
 vi.mock("@dashboard/lib/vault/store", () => ({
@@ -60,6 +65,7 @@ beforeEach(() => {
   getUserOctokit.mockResolvedValue({ repos: {} });
   resolveActorFromToken.mockResolvedValue({ login: "alice" });
   getEngineConfig.mockResolvedValue({ config: { agent: { model: "m/x" } } });
+  loadChatModels.mockResolvedValue([]);
   readVault.mockResolvedValue(
     vault({ FLY_API_TOKEN: "fly_vault", MINIMAX_API_KEY: "mini" }),
   );
@@ -92,5 +98,36 @@ describe("resolveFlyContext", () => {
     if (!result.ok) return;
     expect(result.context.flyToken).toBe("fly_server");
     expect(result.context.allSecrets).toEqual({ GEMINI_API_KEY: "gemini" });
+  });
+
+  it("prefers the dashboard model registry for Brain model runtime config", async () => {
+    loadChatModels.mockResolvedValue([
+      {
+        id: "minimax/MiniMax-M3",
+        label: "MiniMax M3",
+        provider: "custom",
+        protocol: "openai",
+        baseURL: "https://api.minimax.io/v1",
+        modelName: "MiniMax-M3",
+        apiKeySecret: "MINIMAX_API_KEY",
+        enabled: true,
+        engineDefault: true,
+      },
+    ]);
+
+    const result = await resolveFlyContext(req());
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.context.engineModel).toBe("minimax/MiniMax-M3");
+    expect(result.context.engineModelConfig).toEqual({
+      spec: "minimax/MiniMax-M3",
+      provider: "custom",
+      protocol: "openai",
+      baseURL: "https://api.minimax.io/v1",
+      modelName: "MiniMax-M3",
+      apiKeyEnvVar: "MINIMAX_API_KEY",
+    });
+    expect(getEngineConfig).not.toHaveBeenCalled();
   });
 });

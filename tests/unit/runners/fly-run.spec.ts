@@ -23,6 +23,7 @@ function ctx(over: Partial<FlyContext> = {}): FlyContext {
     repo: "widgets",
     account: "acme",
     engineModel: undefined,
+    engineModelConfig: undefined,
     githubToken: "ghp_x",
     // octokit is unused by claimOrSpawnFly itself.
     octokit: {} as FlyContext["octokit"],
