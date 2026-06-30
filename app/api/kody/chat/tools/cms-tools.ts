@@ -28,6 +28,7 @@ import type {
   CmsSortEntry,
 } from "@dashboard/lib/cms/types";
 import { STATE_BRANCH } from "@dashboard/lib/state-branch";
+import { resolveStateRepo } from "@dashboard/lib/state-repo";
 
 interface Ctx {
   req: NextRequest;
@@ -90,6 +91,9 @@ export async function createCmsTools({
   const actorRole = await getCmsActorRole(req, octokit, owner, repo);
   const cms = await listCmsCollections(octokit, owner, repo, actorRole);
   if (cms.configured === false) return {};
+  const stateBranch = await resolveStateRepo(octokit, owner, repo)
+    .then((target) => target.branch)
+    .catch(() => STATE_BRANCH);
   const mutationOperations = getAvailableMutationOperations(cms);
   const mutationOperationsTuple = toMutationOperationsTuple(mutationOperations);
 
@@ -99,7 +103,9 @@ export async function createCmsTools({
         "List configured CMS collections and their supported operations through the same Dashboard CMS service, Content Entries source, and configured collection adapter.",
       inputSchema: z.object({}),
       execute: async () => ({
-        collections: cms.collections.map(toCollectionSummary),
+        collections: cms.collections.map((collection) =>
+          toCollectionSummary(collection, stateBranch),
+        ),
       }),
     }),
 
@@ -285,13 +291,16 @@ function findCollection(
   return collection;
 }
 
-function toCollectionSummary(collection: CmsCollectionConfig) {
+function toCollectionSummary(
+  collection: CmsCollectionConfig,
+  stateBranch: string,
+) {
   return {
     name: collection.name,
     label: collection.label,
     adapter: collection.adapter,
     source: collection.source,
-    storage: describeCollectionStorage(collection),
+    storage: describeCollectionStorage(collection, stateBranch),
     titleField: collection.titleField,
     searchFields: collection.searchFields,
     writePolicy: collection.writePolicy,
@@ -313,7 +322,10 @@ function toCollectionSummary(collection: CmsCollectionConfig) {
   };
 }
 
-function describeCollectionStorage(collection: CmsCollectionConfig) {
+function describeCollectionStorage(
+  collection: CmsCollectionConfig,
+  stateBranch: string,
+) {
   const path =
     collection.source.path ?? collection.source.collection ?? collection.name;
   const idField = collection.source.idField ?? "_id";
@@ -325,7 +337,7 @@ function describeCollectionStorage(collection: CmsCollectionConfig) {
       path,
       idField,
       extension,
-      branch: STATE_BRANCH,
+      branch: stateBranch,
     };
   }
 

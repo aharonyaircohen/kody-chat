@@ -19,6 +19,7 @@ const stateRepo = vi.hoisted(() => ({
     owner: "octo-state",
     repo: "kody-state",
     basePath: "repo",
+    branch: "main",
   })),
   stateRepoPath: vi.fn((target: { basePath: string }, path: string) =>
     [target.basePath, path].filter(Boolean).join("/"),

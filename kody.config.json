@@ -53,6 +53,7 @@
   "defaultPrExecutable": "fix",
   "state": {
     "repo": "https://github.com/aharonyaircohen/kody-state",
-    "path": "Kody-Dashboard"
+    "path": "Kody-Dashboard",
+    "branch": "main"
   }
 }

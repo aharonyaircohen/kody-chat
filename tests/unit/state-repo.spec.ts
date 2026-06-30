@@ -30,6 +30,7 @@ describe("state repo config", () => {
     ).toEqual({
       repo: "https://github.com/acme/kody-state",
       path: "widgets",
+      branch: "main",
     });
   });
 });

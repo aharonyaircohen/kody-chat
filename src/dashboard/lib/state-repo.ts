@@ -15,12 +15,14 @@ import { STATE_BRANCH } from "./state-branch";
 export interface StateRepoState {
   repo: string;
   path: string;
+  branch: string;
 }
 
 export interface StateRepoTarget {
   owner: string;
   repo: string;
   basePath: string;
+  branch: string;
 }
 
 export type StateRepoScope = "repo" | "root";
@@ -80,6 +82,7 @@ type ConfigWithStateAliases = KodyConfig & {
   state?: Partial<StateRepoState>;
   stateRepo?: unknown;
   statePath?: unknown;
+  stateBranch?: unknown;
 };
 
 export function parseStateRepoSlug(
@@ -143,6 +146,36 @@ export function normalizeStatePath(raw: string, field = "statePath"): string {
   return parts.join("/");
 }
 
+export function normalizeStateBranch(
+  raw: string | undefined,
+  field = "state.branch",
+): string {
+  const value = raw?.trim() || STATE_BRANCH;
+  if (!value) throw new Error(`kody.config.json: ${field} must not be empty`);
+  if (
+    value.startsWith("/") ||
+    value.endsWith("/") ||
+    value.includes("\\") ||
+    value.includes("..") ||
+    value.includes("@{") ||
+    /[\x00-\x20\x7f~^:?*\[]/.test(value)
+  ) {
+    throw new Error(`kody.config.json: ${field} contains an invalid branch`);
+  }
+  for (const part of value.split("/")) {
+    if (
+      !part ||
+      part === "." ||
+      part === ".." ||
+      part.startsWith(".") ||
+      part.endsWith(".lock")
+    ) {
+      throw new Error(`kody.config.json: ${field} contains an invalid branch`);
+    }
+  }
+  return value;
+}
+
 export function resolveStateRepoConfig(
   config: KodyConfig,
   owner: string,
@@ -154,6 +187,8 @@ export function resolveStateRepoConfig(
     typeof cfg.stateRepo === "string" ? cfg.stateRepo : nested.repo;
   const pathRaw =
     typeof cfg.statePath === "string" ? cfg.statePath : nested.path;
+  const branchRaw =
+    typeof cfg.stateBranch === "string" ? cfg.stateBranch : nested.branch;
   const stateRepo =
     typeof repoRaw === "string" && repoRaw.trim().length > 0
       ? repoRaw.trim()
@@ -166,6 +201,10 @@ export function resolveStateRepoConfig(
       typeof pathRaw === "string" && pathRaw.trim().length > 0
         ? normalizeStatePath(pathRaw)
         : normalizeStatePath(repo),
+    branch:
+      typeof branchRaw === "string" && branchRaw.trim().length > 0
+        ? normalizeStateBranch(branchRaw)
+        : normalizeStateBranch(undefined),
   };
 }
 
@@ -176,7 +215,12 @@ export function parseStateRepo(
 ): StateRepoTarget {
   const state = resolveStateRepoConfig(config, owner, repo);
   const parsed = parseStateRepoSlug(state.repo);
-  return { owner: parsed.owner, repo: parsed.repo, basePath: state.path };
+  return {
+    owner: parsed.owner,
+    repo: parsed.repo,
+    basePath: state.path,
+    branch: state.branch,
+  };
 }
 
 export async function resolveStateRepo(
@@ -215,7 +259,7 @@ async function ensureStateBranch(
     await octokit.git.getRef({
       owner: target.owner,
       repo: target.repo,
-      ref: `heads/${STATE_BRANCH}`,
+      ref: `heads/${target.branch}`,
     });
     return;
   } catch (err) {
@@ -237,7 +281,7 @@ async function ensureStateBranch(
     await octokit.git.createRef({
       owner: target.owner,
       repo: target.repo,
-      ref: `refs/heads/${STATE_BRANCH}`,
+      ref: `refs/heads/${target.branch}`,
       sha: defaultRef.data.object.sha,
     });
   } catch (err) {
@@ -259,7 +303,7 @@ export async function readStateText(
       owner: target.owner,
       repo: target.repo,
       path,
-      ref: STATE_BRANCH,
+      ref: target.branch,
       headers: options.headers,
     });
     const data = res.data as ContentFile | ContentFile[];
@@ -296,7 +340,7 @@ export async function readStateFileMetadata(
       owner: target.owner,
       repo: target.repo,
       path,
-      ref: STATE_BRANCH,
+      ref: target.branch,
     });
     const data = res.data as ContentFile | ContentFile[];
     if (Array.isArray(data) || data.type !== "file" || !data.sha) {
@@ -328,7 +372,7 @@ export async function listStateDirectory(
       owner: target.owner,
       repo: target.repo,
       path: targetPath,
-      ref: STATE_BRANCH,
+      ref: target.branch,
       headers: options.headers,
     });
     const data = res.data as ContentEntry | ContentEntry[];
@@ -394,7 +438,7 @@ export async function writeStateText({
     owner: target.owner,
     repo: target.repo,
     path: targetPath,
-    branch: STATE_BRANCH,
+    branch: target.branch,
     message,
     content: Buffer.from(content, "utf8").toString("base64"),
     ...(sha ? { sha } : {}),
@@ -431,7 +475,7 @@ export async function writeStateBase64({
     owner: target.owner,
     repo: target.repo,
     path: targetPath,
-    branch: STATE_BRANCH,
+    branch: target.branch,
     message,
     content: contentBase64,
     ...(sha ? { sha } : {}),
@@ -462,7 +506,7 @@ export async function writeStateFiles({
   const ref = await octokit.git.getRef({
     owner: target.owner,
     repo: target.repo,
-    ref: `heads/${STATE_BRANCH}`,
+    ref: `heads/${target.branch}`,
   });
   const baseSha = ref.data.object.sha;
   const baseCommit = await octokit.git.getCommit({
@@ -491,7 +535,7 @@ export async function writeStateFiles({
   await octokit.git.updateRef({
     owner: target.owner,
     repo: target.repo,
-    ref: `heads/${STATE_BRANCH}`,
+    ref: `heads/${target.branch}`,
     sha: commit.data.sha,
   });
 
@@ -520,7 +564,7 @@ export async function writeStateBase64Files({
   const ref = await octokit.git.getRef({
     owner: target.owner,
     repo: target.repo,
-    ref: `heads/${STATE_BRANCH}`,
+    ref: `heads/${target.branch}`,
   });
   const baseSha = ref.data.object.sha;
   const baseCommit = await octokit.git.getCommit({
@@ -560,11 +604,11 @@ export async function writeStateBase64Files({
   await octokit.git.updateRef({
     owner: target.owner,
     repo: target.repo,
-    ref: `heads/${STATE_BRANCH}`,
+    ref: `heads/${target.branch}`,
     sha: commit.data.sha,
   });
 
-  return { sha: commit.data.sha, branch: STATE_BRANCH, target };
+  return { sha: commit.data.sha, branch: target.branch, target };
 }
 
 export async function deleteStateFile({
@@ -590,7 +634,7 @@ export async function deleteStateFile({
     owner: target.owner,
     repo: target.repo,
     path: stateRepoScopedPath(target, path, scope),
-    branch: STATE_BRANCH,
+    branch: target.branch,
     message,
     sha,
   });
@@ -614,7 +658,7 @@ export async function deleteStateDirectory({
   const ref = await octokit.git.getRef({
     owner: target.owner,
     repo: target.repo,
-    ref: `heads/${STATE_BRANCH}`,
+    ref: `heads/${target.branch}`,
   });
   const baseSha = ref.data.object.sha;
   const baseCommit = await octokit.git.getCommit({
@@ -665,7 +709,7 @@ export async function deleteStateDirectory({
   await octokit.git.updateRef({
     owner: target.owner,
     repo: target.repo,
-    ref: `heads/${STATE_BRANCH}`,
+    ref: `heads/${target.branch}`,
     sha: commit.data.sha,
   });
 

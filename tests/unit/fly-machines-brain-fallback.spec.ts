@@ -29,6 +29,8 @@ describe("Fly machines Brain fallback", () => {
     expect(HELPER_SOURCE).toContain(
       "inventory.machines = inventory.machines.filter((m) => m.app !== app)",
     );
-    expect(HELPER_SOURCE).toContain("inventory.machines.push(brain.machine)");
+    expect(HELPER_SOURCE).toContain(
+      "inventory.machines.push({ ...brain.machine, orgSlug: brain.orgSlug })",
+    );
   });
 });

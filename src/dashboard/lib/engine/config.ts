@@ -32,6 +32,7 @@ export type ActiveGoalConfigEntry = string | ActiveGoalConfigObject;
 export interface KodyStateConfig {
   repo?: string;
   path?: string;
+  branch?: string;
 }
 
 export interface KodyConfig {
@@ -260,6 +261,7 @@ async function fetchConfig(
     const parsedWithStateAliases = parsed as KodyConfig & {
       stateRepo?: string;
       statePath?: string;
+      stateBranch?: string;
     };
     return {
       config: {
@@ -268,10 +270,13 @@ async function fetchConfig(
         github: parsed.github,
         state:
           parsed.state ??
-          (parsedWithStateAliases.stateRepo || parsedWithStateAliases.statePath
+          (parsedWithStateAliases.stateRepo ||
+          parsedWithStateAliases.statePath ||
+          parsedWithStateAliases.stateBranch
             ? {
                 repo: parsedWithStateAliases.stateRepo,
                 path: parsedWithStateAliases.statePath,
+                branch: parsedWithStateAliases.stateBranch,
               }
             : undefined),
         defaultExecutable: parsed.defaultExecutable,
@@ -691,6 +696,7 @@ function cleanStateConfig(
   if (!raw) return null;
   const repo = raw.repo?.trim().replace(/\/+$/, "") ?? "";
   const path = raw.path?.trim() ?? "";
+  const branch = raw.branch?.trim() ?? "";
   const pathSegments = path.split("/");
   if (
     !/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/i.test(repo)
@@ -707,7 +713,28 @@ function cleanStateConfig(
   ) {
     return null;
   }
-  return { repo, path };
+  if (
+    branch &&
+    (branch.startsWith("/") ||
+      branch.endsWith("/") ||
+      branch.includes("\\") ||
+      branch.includes("..") ||
+      branch.includes("@{") ||
+      branch
+        .split("/")
+        .some(
+          (segment) =>
+            !segment ||
+            segment === "." ||
+            segment === ".." ||
+            segment.startsWith(".") ||
+            segment.endsWith(".lock"),
+        ) ||
+      /[\x00-\x20\x7f~^:?*\[]/.test(branch))
+  ) {
+    return null;
+  }
+  return branch ? { repo, path, branch } : { repo, path };
 }
 
 /** Uppercase, keep only valid GitHub associations, de-dupe (order-preserving). */

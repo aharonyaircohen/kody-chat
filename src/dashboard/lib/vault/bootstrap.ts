@@ -18,6 +18,7 @@ import { decrypt, isVaultConfigured } from "./crypto";
 import { VAULT_PATH } from "./store";
 import { KODY_CONFIG_PATH } from "../engine/config";
 import {
+  normalizeStateBranch,
   normalizeStatePath,
   parseStateRepoSlug,
   stateRepoPath,
@@ -34,12 +35,14 @@ interface VaultDoc {
 interface RawStateConfig {
   repo?: unknown;
   path?: unknown;
+  branch?: unknown;
 }
 
 interface RawKodyConfig {
   state?: RawStateConfig;
   stateRepo?: unknown;
   statePath?: unknown;
+  stateBranch?: unknown;
 }
 
 const cache = new Map<string, { token: string | null; expiresAt: number }>();
@@ -108,6 +111,8 @@ async function resolvePublicStateRepo(
     typeof config?.stateRepo === "string" ? config.stateRepo : nested.repo;
   const pathRaw =
     typeof config?.statePath === "string" ? config.statePath : nested.path;
+  const branchRaw =
+    typeof config?.stateBranch === "string" ? config.stateBranch : nested.branch;
   const stateRepo =
     typeof repoRaw === "string" && repoRaw.trim().length > 0
       ? repoRaw.trim()
@@ -120,6 +125,10 @@ async function resolvePublicStateRepo(
       typeof pathRaw === "string" && pathRaw.trim().length > 0
         ? normalizeStatePath(pathRaw, "state.path")
         : normalizeStatePath(repo, "state.path"),
+    branch:
+      typeof branchRaw === "string" && branchRaw.trim().length > 0
+        ? normalizeStateBranch(branchRaw, "state.branch")
+        : normalizeStateBranch(undefined, "state.branch"),
   };
 }
 

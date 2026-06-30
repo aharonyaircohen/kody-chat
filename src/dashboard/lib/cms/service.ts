@@ -6,7 +6,6 @@ import type { Octokit } from "@octokit/rest";
 import { getRequestAuth } from "@dashboard/lib/auth";
 import { getSecret } from "@dashboard/lib/vault/get-secret";
 import { resolveStateRepo } from "@dashboard/lib/state-repo";
-import { STATE_BRANCH } from "@dashboard/lib/state-branch";
 import {
   assertReadOperationAllowed,
   assertWriteOperationAllowed,
@@ -329,7 +328,7 @@ function getAdapterContext(
           octokit,
           owner: target.owner,
           repo: target.repo,
-          branch: STATE_BRANCH,
+          branch: target.branch,
           basePath: target.basePath,
         };
       },

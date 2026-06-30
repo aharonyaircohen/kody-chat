@@ -17,6 +17,7 @@ const stateRepo = vi.hoisted(() => ({
     owner: "A-Guy-educ",
     repo: "kody-state",
     basePath: "A-Guy-Web",
+    branch: "main",
   })),
 }));
 

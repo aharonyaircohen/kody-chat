@@ -1,12 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const mocks = vi.hoisted(() => ({
+  getEngineConfig: vi.fn(),
+}));
+
 vi.mock("@dashboard/lib/engine/config", () => ({
-  getEngineConfig: vi.fn().mockResolvedValue({
-    config: {
-      state: { repo: "https://github.com/acme/kody-state", path: "widgets" },
-    },
-    sha: null,
-  }),
+  getEngineConfig: mocks.getEngineConfig,
 }));
 
 import { STATE_BRANCH } from "@dashboard/lib/state-branch";
@@ -54,10 +53,16 @@ function octokitForWrite() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.getEngineConfig.mockResolvedValue({
+    config: {
+      state: { repo: "https://github.com/acme/kody-state", path: "widgets" },
+    },
+    sha: null,
+  });
 });
 
 describe("state repo branch", () => {
-  it("reads runtime state from the dedicated state repo branch", async () => {
+  it("reads runtime state from the default state repo branch", async () => {
     const octokit = octokitForRead();
 
     const file = await readStateText(
@@ -68,13 +73,43 @@ describe("state repo branch", () => {
     );
 
     expect(file?.content).toBe("hello");
-    expect(STATE_BRANCH).toBe("kody-state");
+    expect(STATE_BRANCH).toBe("main");
     expect(octokit.repos.getContent).toHaveBeenCalledWith(
       expect.objectContaining({
         owner: "acme",
         repo: "kody-state",
         path: "widgets/reports/check.md",
         ref: STATE_BRANCH,
+      }),
+    );
+  });
+
+  it("reads runtime state from the configured state branch", async () => {
+    mocks.getEngineConfig.mockResolvedValueOnce({
+      config: {
+        state: {
+          repo: "https://github.com/acme/kody-state",
+          path: "widgets",
+          branch: "main",
+        },
+      },
+      sha: null,
+    });
+    const octokit = octokitForRead();
+
+    await readStateText(
+      octokit as unknown as ReadOctokit,
+      "acme",
+      "widgets",
+      "reports/check.md",
+    );
+
+    expect(octokit.repos.getContent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: "acme",
+        repo: "kody-state",
+        path: "widgets/reports/check.md",
+        ref: "main",
       }),
     );
   });
@@ -100,7 +135,7 @@ describe("state repo branch", () => {
     );
   });
 
-  it("writes runtime state to the dedicated state repo branch", async () => {
+  it("writes runtime state to the default state repo branch", async () => {
     const octokit = octokitForWrite();
 
     await writeStateText({
@@ -124,6 +159,44 @@ describe("state repo branch", () => {
         repo: "kody-state",
         path: "widgets/reports/check.md",
         branch: STATE_BRANCH,
+        message: "save report",
+      }),
+    );
+  });
+
+  it("writes runtime state to the configured state branch", async () => {
+    mocks.getEngineConfig.mockResolvedValueOnce({
+      config: {
+        state: {
+          repo: "https://github.com/acme/kody-state",
+          path: "widgets",
+          branch: "main",
+        },
+      },
+      sha: null,
+    });
+    const octokit = octokitForWrite();
+
+    await writeStateText({
+      octokit: octokit as unknown as WriteOctokit,
+      owner: "acme",
+      repo: "widgets",
+      path: "reports/check.md",
+      content: "hello",
+      message: "save report",
+    });
+
+    expect(octokit.git.getRef).toHaveBeenCalledWith({
+      owner: "acme",
+      repo: "kody-state",
+      ref: "heads/main",
+    });
+    expect(octokit.repos.createOrUpdateFileContents).toHaveBeenCalledWith(
+      expect.objectContaining({
+        owner: "acme",
+        repo: "kody-state",
+        path: "widgets/reports/check.md",
+        branch: "main",
         message: "save report",
       }),
     );
