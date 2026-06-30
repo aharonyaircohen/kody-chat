@@ -107,7 +107,7 @@ type ItemEditorState =
 
 type TodoItemFilter = "all" | "open" | "done" | "mine" | "unassigned";
 type TodoListKind = "list" | "goal" | "loop";
-type TodoListFilter = "all" | TodoListKind;
+type TodoListFilter = TodoListKind;
 
 const TODO_ITEM_FILTERS: TodoItemFilter[] = [
   "all",
@@ -125,9 +125,8 @@ const TODO_ITEM_FILTER_LABELS: Record<TodoItemFilter, string> = {
   unassigned: "Unassigned",
 };
 
-const TODO_LIST_FILTERS: TodoListFilter[] = ["all", "list", "goal", "loop"];
+const TODO_LIST_FILTERS: TodoListFilter[] = ["list", "goal", "loop"];
 const TODO_LIST_FILTER_LABELS: Record<TodoListFilter, string> = {
-  all: "All",
   list: "Lists",
   goal: "Goals",
   loop: "Loops",
@@ -187,6 +186,18 @@ function normalizeAssignee(login: string | null | undefined): string | null {
 function shortTodoLabel(title: string): string {
   const trimmed = title.trim();
   return trimmed.length > 42 ? `${trimmed.slice(0, 39)}...` : trimmed;
+}
+
+function todoDescriptionPreview(description: string): string {
+  const compact = description
+    .replace(/```[\s\S]*?```/g, " ")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
+    .replace(/[#>*_~|-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!compact) return "Saved list description";
+  return compact.length > 140 ? `${compact.slice(0, 137)}...` : compact;
 }
 
 function buildAskCodeContext(list: TodoEntry, item: TodoItem): string {
@@ -276,7 +287,7 @@ export function TodoControlInner({
   const [editingList, setEditingList] = useState<TodoEntry | null>(null);
   const [pendingDelete, setPendingDelete] = useState<TodoEntry | null>(null);
   const [search, setSearch] = useState("");
-  const [listFilter, setListFilter] = useState<TodoListFilter>("all");
+  const [listFilter, setListFilter] = useState<TodoListFilter>("list");
   const { githubUser } = useGitHubIdentity();
   const deleteMutation = useDeleteTodo(githubUser?.login);
 
@@ -284,7 +295,7 @@ export function TodoControlInner({
     const q = search.trim().toLowerCase();
     return todoLists.filter((list) => {
       const kind = todoListKind(list);
-      if (listFilter !== "all" && kind !== listFilter) return false;
+      if (kind !== listFilter) return false;
       if (!q) return true;
       return (
         list.title.toLowerCase().includes(q) ||
@@ -318,13 +329,18 @@ export function TodoControlInner({
   }, [todoLists]);
   const listFilterCounts = useMemo<Record<TodoListFilter, number>>(
     () => ({
-      all: todoLists.length,
       list: todoLists.filter((list) => todoListKind(list) === "list").length,
       goal: todoLists.filter((list) => todoListKind(list) === "goal").length,
       loop: todoLists.filter((list) => todoListKind(list) === "loop").length,
     }),
     [todoLists],
   );
+  const selectedStats = selectedList ? listStats(selectedList) : null;
+  const headerTitle = selectedList?.title ?? "Todos";
+  const headerTitleDirectionProps = textDirectionProps(headerTitle);
+  const headerSubtitle = selectedStats
+    ? `${selectedStats.active} open items · ${selectedStats.total} total`
+    : `${aggregate.activeItems} open items · ${todoLists.length} lists`;
 
   useEffect(() => {
     if (isLoading) return;
@@ -379,12 +395,43 @@ export function TodoControlInner({
         onClick={() => refetch()}
         disabled={isFetching}
         aria-label="Refresh todo lists"
+        title="Refresh todo lists"
+        className="w-10 px-0"
       >
         <RefreshCw className={cn("w-4 h-4", isFetching && "animate-spin")} />
       </Button>
-      <Button size="sm" onClick={() => setShowCreate(true)} className="gap-1">
+      {selectedList ? (
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setEditingList(selectedList)}
+            aria-label={`Edit ${selectedList.title}`}
+            title="Edit list"
+            className="w-10 px-0"
+          >
+            <Pencil className="w-4 h-4" />
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPendingDelete(selectedList)}
+            aria-label={`Delete ${selectedList.title}`}
+            title="Delete list"
+            className="w-10 px-0 text-red-400 hover:text-red-300"
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </>
+      ) : null}
+      <Button
+        size="sm"
+        onClick={() => setShowCreate(true)}
+        aria-label="New todo list"
+        title="New list"
+        className="w-10 px-0"
+      >
         <Plus className="w-4 h-4" />
-        <span className="hidden sm:inline">New list</span>
       </Button>
     </>
   );
@@ -393,17 +440,30 @@ export function TodoControlInner({
     <div className="h-full bg-black/95 text-white/90 flex flex-col overflow-hidden">
       {embedded ? (
         <div className="shrink-0 flex items-center justify-end gap-2 px-4 md:px-6 py-2 border-b border-white/[0.06] bg-black/20">
-          <span className="text-xs text-muted-foreground mr-auto">
-            {aggregate.activeItems} open items · {todoLists.length} lists
+          <span
+            {...headerTitleDirectionProps}
+            className="text-xs text-muted-foreground mr-auto min-w-0 truncate text-start"
+            title={headerTitle}
+          >
+            {headerTitle}
           </span>
           {headerActions}
         </div>
       ) : (
         <PageHeader
-          title="Todos"
+          title={headerTitle}
+          titleContent={
+            <h1
+              {...headerTitleDirectionProps}
+              className="truncate text-heading-md font-semibold text-start md:text-heading-lg"
+              title={headerTitle}
+            >
+              {headerTitle}
+            </h1>
+          }
           icon={ListTodo}
           iconClassName="text-emerald-400"
-          subtitle={`${aggregate.activeItems} open items · ${todoLists.length} lists`}
+          subtitle={headerSubtitle}
           actions={headerActions}
         />
       )}
@@ -423,7 +483,7 @@ export function TodoControlInner({
         >
           {todoLists.length > 0 ? (
             <div className="sticky top-0 z-10 space-y-2 bg-background/95 backdrop-blur px-3 md:px-4 py-2 md:py-3 border-b border-border">
-              <div className="grid grid-cols-4 gap-1 rounded-md border border-white/[0.08] bg-black/30 p-1">
+              <div className="grid grid-cols-3 gap-1 rounded-md border border-white/[0.08] bg-black/30 p-1">
                 {TODO_LIST_FILTERS.map((filter) => (
                   <button
                     key={filter}
@@ -548,8 +608,6 @@ export function TodoControlInner({
               onSelectItem={(item, replace) =>
                 selectItem(selectedList, item, replace)
               }
-              onEditList={() => setEditingList(selectedList)}
-              onDeleteList={() => setPendingDelete(selectedList)}
             />
           ) : (
             <EmptyState
@@ -608,15 +666,11 @@ function TodoListDetail({
   selectedItemId,
   onBack,
   onSelectItem,
-  onEditList,
-  onDeleteList,
 }: {
   list: TodoEntry;
   selectedItemId: string | null;
   onBack: () => void;
   onSelectItem: (item: TodoItem | null, replace?: boolean) => void;
-  onEditList: () => void;
-  onDeleteList: () => void;
 }) {
   const { githubUser } = useGitHubIdentity();
   const { setComposerInjection, openMobileChat } = useChatScope();
@@ -628,13 +682,17 @@ function TodoListDetail({
     null,
   );
   const [itemFilter, setItemFilter] = useState<TodoItemFilter>("all");
+  const [isDescriptionExpanded, setDescriptionExpanded] = useState(false);
   const [expandedItemIds, setExpandedItemIds] = useState<Set<string>>(
     () => new Set(list.items.map((item) => item.id)),
   );
   const stats = listStats(list);
   const currentUserLogin = normalizeAssignee(githubUser?.login);
   const hasListDescription = list.description.trim().length > 0;
-  const listTitleDirectionProps = textDirectionProps(list.title);
+  const descriptionRegionId = `todo-list-description-${list.slug}`;
+  const listDescriptionPreview = hasListDescription
+    ? todoDescriptionPreview(list.description)
+    : "";
   const listKind = todoListKind(list);
   const progressPercent =
     stats.total > 0 ? Math.round((stats.done / stats.total) * 100) : 0;
@@ -838,19 +896,68 @@ function TodoListDetail({
             All lists
           </Button>
 
-          <header className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="min-w-0 flex-1 space-y-2">
-              <div
-                {...listTitleDirectionProps}
-                className="flex min-w-0 items-center gap-2 flex-wrap"
-              >
-                <ListTodo className="w-5 h-5 text-emerald-300 shrink-0" />
-                <h1
-                  {...listTitleDirectionProps}
-                  className="text-2xl md:text-3xl font-semibold tracking-tight break-words text-start"
-                >
-                  {list.title}
-                </h1>
+          <header className="space-y-2">
+            <div className="min-w-0 space-y-2">
+              {hasListDescription ? (
+                <div className="min-w-0 space-y-2">
+                  <div className="flex min-w-0 flex-wrap items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <div className="text-xs font-medium text-foreground">
+                        Description
+                      </div>
+                      {!isDescriptionExpanded ? (
+                        <p
+                          className="truncate text-xs text-muted-foreground"
+                          title={listDescriptionPreview}
+                        >
+                          {listDescriptionPreview}
+                        </p>
+                      ) : null}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() =>
+                        setDescriptionExpanded((isExpanded) => !isExpanded)
+                      }
+                      className="h-7 shrink-0 gap-1.5 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+                      aria-controls={descriptionRegionId}
+                      aria-expanded={isDescriptionExpanded}
+                      title={
+                        isDescriptionExpanded
+                          ? "Hide description"
+                          : "Show description"
+                      }
+                    >
+                      {isDescriptionExpanded ? (
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      ) : (
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      )}
+                      <span>
+                        {isDescriptionExpanded
+                          ? "Hide description"
+                          : "Show description"}
+                      </span>
+                    </Button>
+                  </div>
+                  {isDescriptionExpanded ? (
+                    <div id={descriptionRegionId} className="min-w-0 flex-1">
+                      <MarkdownPreview
+                        {...autoDirProps}
+                        content={list.description}
+                        variant="compact"
+                        className={cn(
+                          "max-w-3xl text-start text-sm prose-headings:my-1 prose-headings:text-base prose-p:my-1 prose-ul:my-1 prose-ol:my-1",
+                          rtlAwareMarkdownClassName,
+                        )}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+              <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
                 <span
                   className={cn(
                     "rounded border px-2 py-0.5 text-[11px]",
@@ -859,19 +966,6 @@ function TodoListDetail({
                 >
                   {todoListKindLabel(listKind)}
                 </span>
-              </div>
-              {hasListDescription ? (
-                <MarkdownPreview
-                  {...autoDirProps}
-                  content={list.description}
-                  variant="compact"
-                  className={cn(
-                    "max-w-3xl text-start text-sm prose-headings:my-1 prose-headings:text-base prose-p:my-1 prose-ul:my-1 prose-ol:my-1",
-                    rtlAwareMarkdownClassName,
-                  )}
-                />
-              ) : null}
-              <div className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
                 <span>
                   {stats.done}/{stats.total} items complete
                 </span>
@@ -891,38 +985,6 @@ function TodoListDetail({
                   GitHub
                 </a>
               </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-9 px-0"
-                    title="List actions"
-                    aria-label="List actions"
-                  >
-                    <MoreHorizontal className="w-3.5 h-3.5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-44">
-                  <DropdownMenuItem
-                    onClick={onEditList}
-                    className="cursor-pointer gap-2"
-                  >
-                    <Pencil className="w-3.5 h-3.5" />
-                    Edit list
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={onDeleteList}
-                    className="cursor-pointer gap-2 text-red-600 dark:text-red-400"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Delete list
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </div>
           </header>
 

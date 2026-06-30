@@ -8,17 +8,83 @@ const TODO_CONTROL_SOURCE = readFileSync(
 );
 
 describe("todo list header", () => {
+  it("uses the selected todo list title in the page header", () => {
+    expect(TODO_CONTROL_SOURCE).toContain(
+      'const headerTitle = selectedList?.title ?? "Todos";',
+    );
+    expect(TODO_CONTROL_SOURCE).toContain("title={headerTitle}");
+    expect(TODO_CONTROL_SOURCE).toContain("{headerTitle}");
+    expect(TODO_CONTROL_SOURCE).not.toContain('title="Todos"');
+  });
+
+  it("keeps list actions as icon-only page-header buttons", () => {
+    const headerActionsBlock = TODO_CONTROL_SOURCE.match(
+      /const headerActions = \([\s\S]*?\n  \);/,
+    )?.[0];
+
+    expect(headerActionsBlock).toBeTruthy();
+    expect(headerActionsBlock).toContain('aria-label="Refresh todo lists"');
+    expect(headerActionsBlock).toContain('title="Refresh todo lists"');
+    expect(headerActionsBlock).toContain(
+      "aria-label={`Edit ${selectedList.title}`}",
+    );
+    expect(headerActionsBlock).toContain('title="Edit list"');
+    expect(headerActionsBlock).toContain(
+      "aria-label={`Delete ${selectedList.title}`}",
+    );
+    expect(headerActionsBlock).toContain('title="Delete list"');
+    expect(headerActionsBlock).toContain('aria-label="New todo list"');
+    expect(headerActionsBlock).toContain('title="New list"');
+    expect(headerActionsBlock).toContain('className="w-10 px-0"');
+    expect(headerActionsBlock).not.toContain(">New list<");
+    expect(headerActionsBlock).not.toContain("hidden sm:inline");
+  });
+
+  it("does not keep a duplicate list-action menu in the detail header", () => {
+    expect(TODO_CONTROL_SOURCE).not.toContain('aria-label="List actions"');
+    expect(TODO_CONTROL_SOURCE).not.toContain('title="List actions"');
+    expect(TODO_CONTROL_SOURCE).not.toContain("onEditList");
+    expect(TODO_CONTROL_SOURCE).not.toContain("onDeleteList");
+  });
+
   it("renders saved descriptions without adding a duplicate edit control", () => {
     const descriptionBlock = TODO_CONTROL_SOURCE.match(
       /\{hasListDescription \? \([\s\S]*?\) : null\}/,
     )?.[0];
 
     expect(descriptionBlock).toBeTruthy();
-    expect(descriptionBlock).toContain("content={list.description}");
     expect(TODO_CONTROL_SOURCE).toContain("content={list.description}");
     expect(TODO_CONTROL_SOURCE).toContain("hasListDescription ? (");
     expect(TODO_CONTROL_SOURCE).not.toContain("Add description");
-    expect(descriptionBlock).not.toContain("onClick={onEditList}");
+  });
+
+  it("lets the list header description collapse without losing the content", () => {
+    expect(TODO_CONTROL_SOURCE).toContain(
+      "const [isDescriptionExpanded, setDescriptionExpanded] = useState(false);",
+    );
+    expect(TODO_CONTROL_SOURCE).toContain("function todoDescriptionPreview");
+    expect(TODO_CONTROL_SOURCE).toContain(
+      "const listDescriptionPreview = hasListDescription",
+    );
+    expect(TODO_CONTROL_SOURCE).toContain(
+      "const descriptionRegionId = `todo-list-description-${list.slug}`;",
+    );
+    expect(TODO_CONTROL_SOURCE).toContain(
+      "setDescriptionExpanded((isExpanded) => !isExpanded)",
+    );
+    expect(TODO_CONTROL_SOURCE).toContain(
+      "aria-controls={descriptionRegionId}",
+    );
+    expect(TODO_CONTROL_SOURCE).toContain(
+      "aria-expanded={isDescriptionExpanded}",
+    );
+    expect(TODO_CONTROL_SOURCE).toContain("Description");
+    expect(TODO_CONTROL_SOURCE).toContain("Hide description");
+    expect(TODO_CONTROL_SOURCE).toContain("Show description");
+    expect(TODO_CONTROL_SOURCE).toContain("title={listDescriptionPreview}");
+    expect(TODO_CONTROL_SOURCE).toContain("{listDescriptionPreview}");
+    expect(TODO_CONTROL_SOURCE).toContain("{isDescriptionExpanded ? (");
+    expect(TODO_CONTROL_SOURCE).toContain("content={list.description}");
   });
 
   it("keeps the filter panel attached to the header instead of a floating card", () => {
@@ -30,6 +96,20 @@ describe("todo list header", () => {
     );
     expect(TODO_CONTROL_SOURCE).not.toContain(
       "rounded-md border border-border bg-card/40 p-3 space-y-3",
+    );
+  });
+
+  it("defaults the list-type filter to lists without an all button", () => {
+    const listFilterBlock = TODO_CONTROL_SOURCE.match(
+      /const TODO_LIST_FILTERS[\s\S]*?];/,
+    )?.[0];
+
+    expect(listFilterBlock).toBeTruthy();
+    expect(listFilterBlock).toContain('["list", "goal", "loop"]');
+    expect(listFilterBlock).not.toContain('"all"');
+    expect(TODO_CONTROL_SOURCE).toContain('useState<TodoListFilter>("list")');
+    expect(TODO_CONTROL_SOURCE).toContain(
+      "grid grid-cols-3 gap-1 rounded-md border border-white/[0.08] bg-black/30 p-1",
     );
   });
 
