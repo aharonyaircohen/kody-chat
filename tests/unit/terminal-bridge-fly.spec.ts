@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import ts from "typescript";
+import { spawn } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
   ensureTerminalBridge,
@@ -81,6 +85,19 @@ function installFetchStub(
   return calls;
 }
 
+async function waitForOutput(
+  getOutput: () => string,
+  expected: string,
+): Promise<void> {
+  const started = Date.now();
+  while (!getOutput().includes(expected)) {
+    if (Date.now() - started > 5_000) {
+      throw new Error(`timed out waiting for ${expected}`);
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -155,6 +172,59 @@ describe("ensureTerminalBridge", () => {
     ).toBeLessThan(
       TERMINAL_BRIDGE_PTY_RELAY_SCRIPT.indexOf("os.write(master, data)"),
     );
+  });
+
+  it("does not mirror typed input when the wrapped process enables PTY echo", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "kody-pty-relay-"));
+    const relayPath = join(dir, "relay.py");
+    const childPath = join(dir, "child.py");
+    writeFileSync(relayPath, TERMINAL_BRIDGE_PTY_RELAY_SCRIPT);
+    writeFileSync(
+      childPath,
+      String.raw`#!/usr/bin/env python3
+import os
+import sys
+import termios
+
+fd = sys.stdin.fileno()
+attrs = termios.tcgetattr(fd)
+attrs[3] = attrs[3] | termios.ECHO
+termios.tcsetattr(fd, termios.TCSANOW, attrs)
+data = os.read(fd, 1024)
+os.write(sys.stdout.fileno(), b"REMOTE:" + data)
+`,
+    );
+
+    try {
+      const child = spawn("python3", [relayPath, "python3", childPath], {
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+      let stdout = "";
+      let stderr = "";
+      child.stdout.setEncoding("utf8");
+      child.stderr.setEncoding("utf8");
+      child.stdout.on("data", (chunk) => {
+        stdout += chunk;
+      });
+      child.stderr.on("data", (chunk) => {
+        stderr += chunk;
+      });
+
+      child.stdin.write("abc\n");
+      await waitForOutput(() => stdout, "REMOTE:abc");
+      child.stdin.end();
+      const code = await new Promise<number | null>((resolve) => {
+        child.on("close", resolve);
+      });
+
+      expect(stderr).toBe("");
+      expect(code).toBe(0);
+      expect(stdout).toContain("REMOTE:abc");
+      expect(stdout).not.toContain("abc\r\nREMOTE:");
+      expect(stdout).not.toContain("abc\nREMOTE:");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("ships syntactically valid bridge JavaScript", () => {

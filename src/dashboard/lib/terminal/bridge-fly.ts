@@ -17,7 +17,7 @@ const REQUEST_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_INTERVAL_MS = 2_000;
 
-export const TERMINAL_BRIDGE_VERSION = "2026-06-30.4";
+export const TERMINAL_BRIDGE_VERSION = "2026-06-30.5";
 export const TERMINAL_BRIDGE_BASE_IMAGE =
   process.env.KODY_TERMINAL_BRIDGE_BASE_IMAGE ?? "node:22-bookworm";
 
@@ -45,7 +45,7 @@ printf 'wire_guard_websockets: true\n' > /root/.fly/config.yml
 exec node /app/bridge.mjs
 `;
 
-const PTY_RELAY_SCRIPT = String.raw`#!/usr/bin/env python3
+export const TERMINAL_BRIDGE_PTY_RELAY_SCRIPT = String.raw`#!/usr/bin/env python3
 import fcntl
 import os
 import select
@@ -71,8 +71,20 @@ def set_winsize(fd, next_rows, next_cols):
         struct.pack("HHHH", max(1, next_rows), max(1, next_cols), 0, 0),
     )
 
+def disable_echo(fd):
+    try:
+        attrs = termios.tcgetattr(fd)
+        no_echo_flags = termios.ECHO
+        for flag_name in ("ECHOE", "ECHOK", "ECHONL", "ECHOCTL", "ECHOKE"):
+            no_echo_flags |= getattr(termios, flag_name, 0)
+        attrs[3] = attrs[3] & ~no_echo_flags
+        termios.tcsetattr(fd, termios.TCSANOW, attrs)
+    except termios.error:
+        pass
+
 set_winsize(slave, rows, cols)
 tty.setraw(slave)
+disable_echo(slave)
 
 pid = os.fork()
 if pid == 0:
@@ -87,7 +99,7 @@ if pid == 0:
         os.close(slave)
     os.execvp(sys.argv[1], sys.argv[1:])
 
-os.close(slave)
+slave_control_fd = slave
 stdin_fd = sys.stdin.fileno()
 stdout_fd = sys.stdout.fileno()
 stdin_open = True
@@ -128,10 +140,15 @@ while True:
         if not data:
             stdin_open = False
             continue
+        disable_echo(slave_control_fd)
         os.write(master, data)
 
 try:
     os.close(master)
+except OSError:
+    pass
+try:
+    os.close(slave_control_fd)
 except OSError:
     pass
 
@@ -1286,7 +1303,9 @@ async function createBridgeMachine(
         },
         {
           guest_path: "/app/pty-relay.py",
-          raw_value: Buffer.from(PTY_RELAY_SCRIPT).toString("base64"),
+          raw_value: Buffer.from(TERMINAL_BRIDGE_PTY_RELAY_SCRIPT).toString(
+            "base64",
+          ),
         },
       ],
       init: { exec: ["sh", "/app/start.sh"] },
