@@ -17,7 +17,7 @@ const REQUEST_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_INTERVAL_MS = 2_000;
 
-export const TERMINAL_BRIDGE_VERSION = "2026-06-30.2";
+export const TERMINAL_BRIDGE_VERSION = "2026-06-30.4";
 export const TERMINAL_BRIDGE_BASE_IMAGE =
   process.env.KODY_TERMINAL_BRIDGE_BASE_IMAGE ?? "node:22-bookworm";
 
@@ -148,7 +148,7 @@ const READY_TIMEOUT_MS = 20000;
 const PERSISTENT_SESSION_IDLE_MS = 30 * 60 * 1000;
 const MAX_REPLAY_CHARS = 120000;
 const MAX_EXEC_OUTPUT_BYTES = 96 * 1024 * 1024;
-const MAX_EXEC_TIMEOUT_MS = 15 * 60 * 1000;
+const MAX_EXEC_TIMEOUT_MS = 2 * 60 * 60 * 1000;
 const EXEC_KEEPALIVE_INTERVAL_MS = 15000;
 const EXEC_JOB_TTL_MS = 24 * 60 * 60 * 1000;
 const secret = process.env.BRIDGE_AUTH_SECRET || "";
@@ -219,6 +219,12 @@ function verifyTerminalToken(token) {
   if (claims.exp < now) throw new Error("terminal token expired");
   if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(claims.app)) {
     throw new Error("terminal token app invalid");
+  }
+  if (
+    claims.orgSlug !== undefined &&
+    !/^[a-z0-9][a-z0-9-]{0,62}$/.test(claims.orgSlug)
+  ) {
+    throw new Error("terminal token org invalid");
   }
   if (
     claims.machineId !== undefined &&
@@ -369,6 +375,7 @@ function execJobScope(claims, local) {
   return {
     owner: claims.owner,
     repo: claims.repo,
+    orgSlug: claims.orgSlug || "",
     app: claims.app,
     machineId: local ? null : claims.machineId,
     local,
@@ -379,6 +386,7 @@ function canReadExecJob(claims, job) {
   if (!job) return false;
   if (job.scope.owner !== claims.owner) return false;
   if (job.scope.repo !== claims.repo) return false;
+  if (job.scope.orgSlug !== (claims.orgSlug || "")) return false;
   if (job.scope.app !== claims.app) return false;
   if (job.scope.local) return claims.localExec === true;
   return job.scope.machineId === claims.machineId;
@@ -478,6 +486,7 @@ function runOneShotFlyCommand(claims, command, timeoutMs, maxOutputBytes) {
       "console",
       "--app",
       claims.app,
+      ...(claims.orgSlug ? ["--org", claims.orgSlug] : []),
       "--machine",
       claims.machineId,
       "--command",
@@ -602,6 +611,7 @@ function persistentSessionKey(claims) {
   return [
     claims.owner,
     claims.repo,
+    claims.orgSlug || "",
     claims.app,
     claims.machineId,
     claims.chatSessionId,
@@ -680,6 +690,7 @@ function createFlyConsoleSession(claims, key) {
     "console",
     "--app",
     claims.app,
+    ...(claims.orgSlug ? ["--org", claims.orgSlug] : []),
     "--machine",
     claims.machineId,
     "--pty",
@@ -1179,15 +1190,12 @@ async function waitForBridgeHealth(url: string): Promise<void> {
   throw new Error(`terminal bridge: health check failed (${lastError})`);
 }
 
-async function ensureApp(cfg: FlyPreviewConfig, app: string): Promise<void> {
+async function ensureApp(cfg: FlyPreviewConfig, app: string): Promise<boolean> {
   const existing = await flyFetch<FlyApp>(`/apps/${encodeURIComponent(app)}`, {
     token: cfg.token,
     allow404: true,
   });
-  if (existing) {
-    await allocateIpsIfMissing(cfg.token, app);
-    return;
-  }
+  if (existing) return false;
   try {
     await flyFetch<FlyApp>("/apps", {
       method: "POST",
@@ -1199,6 +1207,7 @@ async function ensureApp(cfg: FlyPreviewConfig, app: string): Promise<void> {
     if (status !== 422) throw err;
   }
   await allocateIpsIfMissing(cfg.token, app);
+  return true;
 }
 
 function liveMachine(m: FlyMachine): boolean {
@@ -1328,13 +1337,22 @@ export async function ensureTerminalBridge(
     throw new Error("terminal bridge: fly token required");
   }
   const app = terminalBridgeAppName(cfg);
-  await ensureApp(cfg, app);
+  const appWasCreated = await ensureApp(cfg, app);
 
   const existing = await findExistingMachine(cfg, app);
   if (existing && canReuseMachine(existing)) {
     const secret = machineSecret(existing)!;
     const url = bridgeUrl(app);
-    await waitForBridgeHealth(url);
+    try {
+      await waitForBridgeHealth(url);
+    } catch (err) {
+      logger.warn(
+        { err, app, machineId: existing.id },
+        "terminal bridge: reusable bridge failed health check; ensuring IPs",
+      );
+      await allocateIpsIfMissing(cfg.token, app);
+      await waitForBridgeHealth(url);
+    }
     return {
       app,
       url,
@@ -1351,6 +1369,9 @@ export async function ensureTerminalBridge(
     await destroyMachine(cfg, app, existing.id);
   }
 
+  if (!appWasCreated) {
+    await allocateIpsIfMissing(cfg.token, app);
+  }
   const secret = generateBridgeSecret();
   const machine = await createBridgeMachine(cfg, app, secret);
   logger.info(

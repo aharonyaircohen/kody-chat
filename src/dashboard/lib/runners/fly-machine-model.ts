@@ -17,6 +17,8 @@ export type FlyFeature =
 
 export interface FlyMachineRow {
   feature: FlyFeature;
+  /** Fly organization that owns this app/machine, when known. */
+  orgSlug?: string;
   app: string;
   machineId: string;
   name?: string;

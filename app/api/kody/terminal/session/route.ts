@@ -21,6 +21,7 @@ import {
 } from "@dashboard/lib/runners/fly-context";
 import { appendSavedBrainMachineToInventory } from "@dashboard/lib/runners/fly-inventory-server";
 import { listFlyInventory } from "@dashboard/lib/runners/fly-inventory";
+import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
 import { ensureTerminalBridge } from "@dashboard/lib/terminal/bridge-fly";
 import {
   buildTerminalWebSocketUrl,
@@ -72,6 +73,13 @@ const WAKE_POLL_INTERVAL_MS = 1000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function terminalTargetFlyConfig(
+  cfg: FlyPreviewConfig,
+  orgSlug: string | undefined,
+): FlyPreviewConfig {
+  return orgSlug && orgSlug !== cfg.orgSlug ? { ...cfg, orgSlug } : cfg;
 }
 
 export async function POST(req: NextRequest) {
@@ -137,7 +145,11 @@ export async function POST(req: NextRequest) {
         { app: requested.app, machineId: requested.machineId },
         "terminal: waking machine",
       );
-      await startMachine(requested.app, requested.machineId, cfg);
+      await startMachine(
+        requested.app,
+        requested.machineId,
+        terminalTargetFlyConfig(cfg, requested.orgSlug),
+      );
       const selectedInput = {
         app: requested.app,
         machineId: requested.machineId,
@@ -162,7 +174,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const bridge = await ensureTerminalBridge(cfg);
+    const selectedCfg = terminalTargetFlyConfig(cfg, selected.machine.orgSlug);
+    const bridge = await ensureTerminalBridge(selectedCfg);
     const activityLimitMs = terminalActivityLimitForTarget(
       selected.machine.feature,
       parsed.data.activityLimitMs,
@@ -172,11 +185,12 @@ export async function POST(req: NextRequest) {
       owner: ctx.context.owner,
       repo: ctx.context.repo,
       app: selected.machine.app,
+      orgSlug: selectedCfg.orgSlug,
       machineId: selected.machine.machineId,
       chatSessionId: parsed.data.chatSessionId,
       resetSession: parsed.data.resetSession,
       ...(activityLimitMs !== undefined ? { activityLimitMs } : {}),
-      flyToken: cfg.token,
+      flyToken: selectedCfg.token,
       cols: parsed.data.cols,
       rows: parsed.data.rows,
       now,

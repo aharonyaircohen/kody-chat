@@ -10,6 +10,10 @@
  */
 
 import { isValidBrainImageRef } from "@dashboard/lib/brain/store";
+import {
+  BRAIN_IMAGE_JOB_OUTPUT_BYTES,
+  brainImageJobTimeoutMs,
+} from "@dashboard/lib/brain/image-timeouts";
 import { ensureTerminalBridge } from "@dashboard/lib/terminal/bridge-fly";
 import { runTerminalBridgeLocalExec } from "@dashboard/lib/terminal/bridge-exec-client";
 import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token";
@@ -137,6 +141,7 @@ export async function prepareBrainRuntimeImage(input: {
     owner: input.owner,
     repo: input.repo,
     app: input.app,
+    orgSlug: input.orgSlug,
     flyToken: input.flyToken,
     ghcrToken: input.ghcrToken,
     localExec: true,
@@ -151,8 +156,8 @@ export async function prepareBrainRuntimeImage(input: {
       runtimeImageRef,
       ghcrUser: input.ghcrUser,
     }),
-    timeoutMs: 840_000,
-    maxOutputBytes: 8 * 1024 * 1024,
+    timeoutMs: brainImageJobTimeoutMs(),
+    maxOutputBytes: BRAIN_IMAGE_JOB_OUTPUT_BYTES,
   });
   const match = result.stdout.match(
     /__KODY_BRAIN_RUNTIME_IMAGE_REF=(registry\.fly\.io\/[^\s]+)/,

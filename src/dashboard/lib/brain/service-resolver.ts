@@ -79,6 +79,7 @@ export async function resolveBrainService(input: {
     machine = rowsForFlyApp(app, machines, Date.now(), {
       feature: "brain",
       label: app,
+      orgSlug,
     }).find((row) =>
       targetMachineId ? row.machineId === targetMachineId : true,
     );

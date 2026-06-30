@@ -67,12 +67,14 @@ export async function POST(req: NextRequest) {
     // target a default name that the token can't see. Best-effort: if the
     // read fails we fall back to the default name and let Fly respond.
     let storedAppName: string | undefined;
+    let storedOrgSlug: string | undefined;
     try {
       const stored = await readBrainApp(
         ctx.context.account,
         ctx.context.githubToken,
       );
       storedAppName = stored?.appName;
+      storedOrgSlug = stored?.orgSlug;
     } catch (readErr) {
       logger.warn(
         { err: readErr, owner: ctx.context.owner },
@@ -83,7 +85,7 @@ export async function POST(req: NextRequest) {
     await destroyBrain({
       flyToken: ctx.context.flyToken,
       account: ctx.context.account,
-      orgSlug: ctx.context.flyOrgSlug,
+      orgSlug: storedOrgSlug ?? ctx.context.flyOrgSlug,
       defaultRegion: ctx.context.flyDefaultRegion,
       ...(storedAppName ? { appNameOverride: storedAppName } : {}),
     });

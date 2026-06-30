@@ -59,7 +59,7 @@ export async function appendSavedBrainMachineToInventory(
     const app = brain.app;
     if (!brain.machine) return false;
     inventory.machines = inventory.machines.filter((m) => m.app !== app);
-    inventory.machines.push(brain.machine);
+    inventory.machines.push({ ...brain.machine, orgSlug: brain.orgSlug });
     return true;
   } catch (err) {
     logger.warn(

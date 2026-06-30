@@ -38,6 +38,9 @@ describe("Brain image save helpers", () => {
 
     expect(command).toContain("flyctl ssh console");
     expect(command).toContain("flyctl ssh sftp put");
+    expect(command).toContain("keep_brain_awake");
+    expect(command).toContain("https://$app.fly.dev/healthz");
+    expect(command).toContain('kill "$keepalive_pid"');
     expect(command).toContain('archive="${1:?archive}"');
     expect(command).toContain(
       '--command "/bin/bash $remote_script $remote_archive"',
@@ -45,9 +48,14 @@ describe("Brain image save helpers", () => {
     expect(command).toContain("tar -C /");
     expect(command).toContain("--one-file-system");
     expect(command).toContain("flyctl sftp get");
+    expect(command).toContain("retry()");
+    expect(command).toContain('retry "download-rootfs" flyctl sftp get');
+    expect(command).toContain("__KODY_BRAIN_SAVE_STAGE=download-rootfs");
+    expect(command).toContain("__KODY_BRAIN_SAVE_RETRY=");
     expect(command).toContain("install_crane");
     expect(command).toContain("crane auth login ghcr.io");
     expect(command).toContain("crane append --base");
+    expect(command).toContain('retry "push-ghcr" crane append');
     expect(command).toContain('--new_layer "$tmpdir/rootfs.tgz"');
     expect(command).toContain('--new_tag "$image"');
     expect(command).toContain("ghcr.io/a-guy-educ/kody-brain-alice");

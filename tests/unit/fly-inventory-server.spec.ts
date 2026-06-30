@@ -96,6 +96,7 @@ describe("appendSavedBrainMachineToInventory", () => {
         feature: "brain",
         app: "custom-brain",
         machineId: "brain-1",
+        orgSlug: "personal",
       }),
     ]);
   });

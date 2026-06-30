@@ -67,6 +67,7 @@ const inventory = vi.hoisted(() => ({
         region: "fra",
         label: "kody-brain-octocat",
         sizeLabel: "perf 1x",
+        orgSlug: "personal",
       },
     ],
   })),
@@ -207,6 +208,7 @@ describe("POST /api/kody/terminal/session", () => {
         cols: 132,
         rows: 40,
         flyToken: "fly-token",
+        orgSlug: "personal",
         secret: "bridge-secret",
       }),
     );
@@ -225,6 +227,7 @@ describe("POST /api/kody/terminal/session", () => {
           region: "fra",
           label: "preview",
           sizeLabel: "shared",
+          orgSlug: "personal",
         },
       ],
     });
@@ -259,6 +262,7 @@ describe("POST /api/kody/terminal/session", () => {
           region: "fra",
           label: "local-2",
           sizeLabel: "perf 1x",
+          orgSlug: "guy-koren",
         });
         return true;
       },
@@ -282,7 +286,56 @@ describe("POST /api/kody/terminal/session", () => {
       expect.objectContaining({
         app: "local-2",
         machineId: "brain-current",
+        orgSlug: "guy-koren",
       }),
+    );
+    expect(bridge.ensureTerminalBridge).toHaveBeenCalledWith(
+      expect.objectContaining({ orgSlug: "guy-koren" }),
+    );
+  });
+
+  it("wakes saved Brain machines through their stored org", async () => {
+    let started = false;
+    flyPreview.startMachine.mockImplementationOnce(async () => {
+      started = true;
+    });
+    inventory.listFlyInventory.mockImplementation(async () => ({
+      running: 0,
+      total: 0,
+      machines: [],
+    }));
+    inventoryServer.appendSavedBrainMachineToInventory.mockImplementation(
+      async (
+        _req: unknown,
+        inv: { machines: Array<Record<string, unknown>> },
+      ) => {
+        inv.machines.push({
+          feature: "brain",
+          app: "local-2",
+          machineId: "brain-current",
+          state: started ? "started" : "stopped",
+          region: "fra",
+          label: "local-2",
+          sizeLabel: "perf 1x",
+          orgSlug: "guy-koren",
+        });
+        return true;
+      },
+    );
+
+    const res = await sessionPOST(
+      makeSessionReq({
+        app: "local-2",
+        machineId: "brain-current",
+        chatSessionId: "chat-1",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(flyPreview.startMachine).toHaveBeenCalledWith(
+      "local-2",
+      "brain-current",
+      expect.objectContaining({ orgSlug: "guy-koren" }),
     );
   });
 });
@@ -345,6 +398,57 @@ describe("POST /api/kody/terminal/status", () => {
         chatSessionId: "chat-1",
         ttlSeconds: 30,
       }),
+    );
+  });
+
+  it("looks up status through the selected Brain org bridge", async () => {
+    inventory.listFlyInventory.mockResolvedValueOnce({
+      running: 0,
+      total: 0,
+      machines: [],
+    });
+    inventoryServer.appendSavedBrainMachineToInventory.mockImplementationOnce(
+      async (
+        _req: unknown,
+        inv: { machines: Array<Record<string, unknown>> },
+      ) => {
+        inv.machines.push({
+          feature: "brain",
+          app: "local-2",
+          machineId: "brain-current",
+          state: "started",
+          region: "fra",
+          label: "local-2",
+          sizeLabel: "perf 1x",
+          orgSlug: "guy-koren",
+        });
+        return true;
+      },
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(JSON.stringify({ ok: true, alive: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      ),
+    );
+
+    const res = await statusPOST(
+      makeStatusReq({
+        app: "local-2",
+        machineId: "brain-current",
+        chatSessionId: "chat-1",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(bridge.findTerminalBridge).toHaveBeenCalledWith(
+      expect.objectContaining({ orgSlug: "guy-koren" }),
+    );
+    expect(token.mintTerminalBridgeToken).toHaveBeenCalledWith(
+      expect.objectContaining({ orgSlug: "guy-koren" }),
     );
   });
 });

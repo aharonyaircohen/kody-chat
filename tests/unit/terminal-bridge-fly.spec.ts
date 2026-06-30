@@ -5,6 +5,7 @@ import {
   ensureTerminalBridge,
   findTerminalBridge,
   TERMINAL_BRIDGE_SCRIPT,
+  TERMINAL_BRIDGE_PTY_RELAY_SCRIPT,
   TERMINAL_BRIDGE_BASE_IMAGE,
   TERMINAL_BRIDGE_VERSION,
   terminalBridgeAppName,
@@ -102,6 +103,8 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"flyctl"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"ssh"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"console"');
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("claims.orgSlug");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain('"--org"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("--pty");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('url.pathname === "/exec"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('url.pathname === "/jobs"');
@@ -110,6 +113,12 @@ describe("ensureTerminalBridge", () => {
     );
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("execJobs");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("startExecJob");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      "const MAX_EXEC_TIMEOUT_MS = 2 * 60 * 60 * 1000;",
+    );
+    expect(TERMINAL_BRIDGE_SCRIPT).not.toContain(
+      "const MAX_EXEC_TIMEOUT_MS = 15 * 60 * 1000;",
+    );
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("--command");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("python3");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("pty-relay.py");
@@ -133,6 +142,19 @@ describe("ensureTerminalBridge", () => {
       "Terminal opened, but it did not report a real TTY.",
     );
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain("SSH shell did not answer");
+  });
+
+  it("keeps the local Fly wrapper from echoing browser input", () => {
+    expect(TERMINAL_BRIDGE_PTY_RELAY_SCRIPT).toContain("def disable_echo(fd):");
+    expect(TERMINAL_BRIDGE_PTY_RELAY_SCRIPT).toContain("termios.ECHO");
+    expect(TERMINAL_BRIDGE_PTY_RELAY_SCRIPT).toContain(
+      "disable_echo(slave_control_fd)",
+    );
+    expect(
+      TERMINAL_BRIDGE_PTY_RELAY_SCRIPT.indexOf("disable_echo(slave_control_fd)"),
+    ).toBeLessThan(
+      TERMINAL_BRIDGE_PTY_RELAY_SCRIPT.indexOf("os.write(master, data)"),
+    );
   });
 
   it("ships syntactically valid bridge JavaScript", () => {
@@ -284,6 +306,11 @@ describe("ensureTerminalBridge", () => {
       calls.some(
         (call) =>
           call.method === "POST" && call.url.endsWith(`/apps/${app}/machines`),
+      ),
+    ).toBe(false);
+    expect(
+      calls.some(
+        (call) => call.method === "GET" && call.url.endsWith(`/apps/${app}/ips`),
       ),
     ).toBe(false);
   });

@@ -97,7 +97,7 @@ export function rowsForFlyApp(
   app: string,
   machines: MachineInfo[],
   now: number = Date.now(),
-  override?: { feature?: FlyFeature; label?: string },
+  override?: { feature?: FlyFeature; label?: string; orgSlug?: string },
 ): FlyMachineRow[] {
   const classified = classifyApp(app);
   const feature = override?.feature ?? classified.feature;
@@ -106,6 +106,7 @@ export function rowsForFlyApp(
     const created = m.createdAt ? Date.parse(m.createdAt) : NaN;
     return {
       feature,
+      orgSlug: override?.orgSlug,
       app,
       machineId: m.id,
       name: m.name,
@@ -146,7 +147,11 @@ export async function listFlyInventory(
     const { feature, label } = classifyApp(app);
     try {
       const machines = await listMachines(app, cfg);
-      return rowsForFlyApp(app, machines, now, { feature, label });
+      return rowsForFlyApp(app, machines, now, {
+        feature,
+        label,
+        orgSlug: cfg.orgSlug,
+      });
     } catch {
       return [] as FlyMachineRow[];
     }

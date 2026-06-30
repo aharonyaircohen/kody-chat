@@ -76,7 +76,16 @@ ghcr_user=${shellQuote(ghcrUser)}
 tmpdir="$(mktemp -d)"
 remote_archive="/tmp/kody-brain-rootfs-$tag.tgz"
 remote_script="/tmp/kody-brain-export-$tag.sh"
-trap 'flyctl ssh console --app "$app" --org "$org" --machine "$machine" --command "rm -f $remote_archive $remote_script" >/dev/null 2>&1 || true; rm -rf "$tmpdir"' EXIT
+keepalive_pid=""
+cleanup() {
+  if [ -n "\${keepalive_pid:-}" ]; then
+    kill "$keepalive_pid" >/dev/null 2>&1 || true
+    wait "$keepalive_pid" >/dev/null 2>&1 || true
+  fi
+  flyctl ssh console --app "$app" --org "$org" --machine "$machine" --command "rm -f $remote_archive $remote_script" >/dev/null 2>&1 || true
+  rm -rf "$tmpdir"
+}
+trap cleanup EXIT
 
 if ! command -v curl >/dev/null 2>&1 || ! command -v tar >/dev/null 2>&1; then
   apt-get update >/dev/null
@@ -88,6 +97,13 @@ if [ -z "\${GHCR_TOKEN:-}" ]; then
   echo "GHCR_TOKEN missing; GitHub token needs write:packages permission" >&2
   exit 1
 fi
+
+keep_brain_awake() {
+  while true; do
+    curl -fsS --max-time 10 "https://$app.fly.dev/healthz" >/dev/null 2>&1 || true
+    sleep 20
+  done
+}
 
 install_crane() {
   if command -v crane >/dev/null 2>&1; then return; fi
@@ -102,6 +118,23 @@ install_crane() {
   tar -xzf "$tmpdir/crane.tgz" -C "$tmpdir" crane
   install -m 0755 "$tmpdir/crane" /usr/local/bin/crane
 }
+
+retry() {
+  local label="$1"
+  shift
+  local attempt=1
+  while true; do
+    "$@" && return 0
+    local status=$?
+    if [ "$attempt" -ge 3 ]; then return "$status"; fi
+    echo "__KODY_BRAIN_SAVE_RETRY=$label:$attempt" >&2
+    sleep $((attempt * 5))
+    attempt=$((attempt + 1))
+  done
+}
+
+keep_brain_awake &
+keepalive_pid="$!"
 
 cat > "$tmpdir/export-rootfs.sh" <<'EXPORT_SCRIPT'
 #!/bin/bash
@@ -131,25 +164,30 @@ mv "$tmp" "$archive"
 ls -lh "$archive"
 EXPORT_SCRIPT
 
-if ! flyctl ssh sftp put "$tmpdir/export-rootfs.sh" "$remote_script" --mode 0755 --app "$app" --org "$org" --machine "$machine" --quiet > "$tmpdir/upload.log" 2>&1; then
+echo "__KODY_BRAIN_SAVE_STAGE=upload-export-script"
+if ! retry "upload-export-script" flyctl ssh sftp put "$tmpdir/export-rootfs.sh" "$remote_script" --mode 0755 --app "$app" --org "$org" --machine "$machine" --quiet > "$tmpdir/upload.log" 2>&1; then
   tail -n 200 "$tmpdir/upload.log" >&2
   exit 1
 fi
 
+echo "__KODY_BRAIN_SAVE_STAGE=export-rootfs"
 if ! flyctl ssh console --app "$app" --org "$org" --machine "$machine" --command "/bin/bash $remote_script $remote_archive" > "$tmpdir/export.log" 2>&1; then
   tail -n 200 "$tmpdir/export.log" >&2
   exit 1
 fi
 
-if ! flyctl sftp get "$remote_archive" "$tmpdir/rootfs.tgz" --app "$app" --org "$org" --machine "$machine" --quiet > "$tmpdir/sftp.log" 2>&1; then
+echo "__KODY_BRAIN_SAVE_STAGE=download-rootfs"
+if ! retry "download-rootfs" flyctl sftp get "$remote_archive" "$tmpdir/rootfs.tgz" --app "$app" --org "$org" --machine "$machine" --quiet > "$tmpdir/sftp.log" 2>&1; then
   tail -n 200 "$tmpdir/sftp.log" >&2
   exit 1
 fi
 
+echo "__KODY_BRAIN_SAVE_STAGE=install-crane"
 install_crane
 printf '%s' "$GHCR_TOKEN" | crane auth login ghcr.io --username "$ghcr_user" --password-stdin >/dev/null
 
-if ! crane append --base "$base" --new_layer "$tmpdir/rootfs.tgz" --new_tag "$image" > "$tmpdir/push.log" 2>&1; then
+echo "__KODY_BRAIN_SAVE_STAGE=push-ghcr"
+if ! retry "push-ghcr" crane append --base "$base" --new_layer "$tmpdir/rootfs.tgz" --new_tag "$image" > "$tmpdir/push.log" 2>&1; then
   tail -n 200 "$tmpdir/push.log" >&2
   exit 1
 fi

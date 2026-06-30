@@ -15,7 +15,11 @@ import {
   flyConfigFromContext,
   resolveFlyContext,
 } from "@dashboard/lib/runners/fly-context";
+import { appendSavedBrainMachineToInventory } from "@dashboard/lib/runners/fly-inventory-server";
+import { listFlyInventory } from "@dashboard/lib/runners/fly-inventory";
+import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
 import { findTerminalBridge } from "@dashboard/lib/terminal/bridge-fly";
+import { resolveTerminalTargetMachine } from "@dashboard/lib/terminal/session";
 import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token";
 
 export const runtime = "nodejs";
@@ -26,6 +30,13 @@ const Body = z.object({
   machineId: z.string().min(1).max(120),
   chatSessionId: z.string().min(1).max(160),
 });
+
+function terminalTargetFlyConfig(
+  cfg: FlyPreviewConfig,
+  orgSlug: string | undefined,
+): FlyPreviewConfig {
+  return orgSlug && orgSlug !== cfg.orgSlug ? { ...cfg, orgSlug } : cfg;
+}
 
 export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
@@ -55,7 +66,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, alive: false });
   }
 
-  const bridge = await findTerminalBridge(cfg);
+  let targetCfg = cfg;
+  try {
+    const inventory = await listFlyInventory(cfg);
+    await appendSavedBrainMachineToInventory(req, inventory);
+    const target = resolveTerminalTargetMachine(inventory, parsed.data);
+    targetCfg = terminalTargetFlyConfig(cfg, target?.orgSlug);
+  } catch {
+    targetCfg = cfg;
+  }
+
+  const bridge = await findTerminalBridge(targetCfg);
   if (!bridge) {
     return NextResponse.json({ ok: true, alive: false });
   }
@@ -64,9 +85,10 @@ export async function POST(req: NextRequest) {
     owner: ctx.context.owner,
     repo: ctx.context.repo,
     app: parsed.data.app,
+    orgSlug: targetCfg.orgSlug,
     machineId: parsed.data.machineId,
     chatSessionId: parsed.data.chatSessionId,
-    flyToken: cfg.token,
+    flyToken: targetCfg.token,
     ttlSeconds: 30,
     secret: bridge.secret,
   });

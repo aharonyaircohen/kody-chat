@@ -17,6 +17,7 @@ export interface TerminalBridgeClaims {
   owner: string;
   repo: string;
   app: string;
+  orgSlug?: string;
   machineId?: string;
   chatSessionId?: string;
   resetSession?: boolean;
@@ -34,6 +35,7 @@ export interface MintTerminalBridgeTokenInput {
   owner: string;
   repo: string;
   app: string;
+  orgSlug?: string;
   machineId?: string;
   chatSessionId?: string;
   resetSession?: boolean;
@@ -105,6 +107,7 @@ export function mintTerminalBridgeToken(
     owner: input.owner,
     repo: input.repo,
     app: input.app,
+    orgSlug: input.orgSlug,
     machineId: input.machineId,
     chatSessionId: input.chatSessionId,
     resetSession: input.resetSession,

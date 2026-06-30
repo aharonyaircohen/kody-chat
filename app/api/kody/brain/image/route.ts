@@ -23,6 +23,10 @@ import {
   brainImageBuildCommand,
   brainImageTag,
 } from "@dashboard/lib/brain/image-save";
+import {
+  BRAIN_IMAGE_JOB_OUTPUT_BYTES,
+  brainImageJobTimeoutMs,
+} from "@dashboard/lib/brain/image-timeouts";
 import { brainGhcrAuth } from "@dashboard/lib/brain/image-runtime";
 import {
   clearGitHubContext,
@@ -46,9 +50,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-const SAVE_JOB_TIMEOUT_MS = 840_000;
-const SAVE_JOB_OUTPUT_BYTES = 8 * 1024 * 1024;
-
 function imageRefFromJob(job: TerminalBridgeExecJob): string {
   const match = job.stdout.match(/__KODY_BRAIN_IMAGE_REF=(ghcr\.io\/[^\s]+)/);
   if (!match?.[1]) {
@@ -58,11 +59,15 @@ function imageRefFromJob(job: TerminalBridgeExecJob): string {
 }
 
 function jobMessage(job: TerminalBridgeExecJob): string {
-  return (
-    job.stderr.trim().slice(0, 500) ||
-    job.error ||
-    `Brain image build failed${job.code == null ? "" : ` with exit ${job.code}`}`
-  );
+  const stderr = job.stderr.trim().slice(0, 500);
+  if (stderr) return stderr;
+  const stdoutTail = job.stdout.trim().slice(-500);
+  if (job.error) {
+    return stdoutTail ? `${job.error}\n${stdoutTail}` : job.error;
+  }
+  return stdoutTail
+    ? `Brain image build failed${job.code == null ? "" : ` with exit ${job.code}`}\n${stdoutTail}`
+    : `Brain image build failed${job.code == null ? "" : ` with exit ${job.code}`}`;
 }
 
 function savePollResponse(
@@ -144,6 +149,7 @@ export async function POST(req: NextRequest) {
       owner: ctx.context.owner,
       repo: ctx.context.repo,
       app,
+      orgSlug: brain.orgSlug,
       machineId,
       flyToken,
       ghcrToken: ghcr.token,
@@ -170,8 +176,8 @@ export async function POST(req: NextRequest) {
         imageRef: expectedImageRef,
         ghcrUser: ghcr.user,
       }),
-      timeoutMs: SAVE_JOB_TIMEOUT_MS,
-      maxOutputBytes: SAVE_JOB_OUTPUT_BYTES,
+      timeoutMs: brainImageJobTimeoutMs(),
+      maxOutputBytes: BRAIN_IMAGE_JOB_OUTPUT_BYTES,
     });
     const save: BrainImageSaveFile = {
       version: 1,
@@ -265,6 +271,7 @@ export async function GET(req: NextRequest) {
       owner: ctx.context.owner,
       repo: ctx.context.repo,
       app: save.app,
+      orgSlug: save.orgSlug,
       flyToken,
       localExec: true,
       ttlSeconds: 120,

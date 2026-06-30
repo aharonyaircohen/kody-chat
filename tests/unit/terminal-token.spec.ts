@@ -18,6 +18,7 @@ describe("terminal bridge token", () => {
       resetSession: true,
       activityLimitMs: 2 * 60 * 60_000,
       flyToken: "FlyV1 secret-token",
+      orgSlug: "guy-koren",
       cols: 132,
       rows: 40,
       now: 100,
@@ -38,6 +39,7 @@ describe("terminal bridge token", () => {
       resetSession: true,
       activityLimitMs: 2 * 60 * 60_000,
       flyToken: "FlyV1 secret-token",
+      orgSlug: "guy-koren",
       cols: 132,
       rows: 40,
     });
