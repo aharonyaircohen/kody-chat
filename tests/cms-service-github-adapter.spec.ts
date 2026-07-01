@@ -537,7 +537,7 @@ function request(storeRef = "stable") {
 
 function readStoreFile(filePath: string): string {
   return readFileSync(
-    path.resolve(process.cwd(), "../kody-store", filePath),
+    path.resolve(process.cwd(), "tests/fixtures/kody-store", filePath),
     "utf8",
   );
 }
