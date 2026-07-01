@@ -134,7 +134,13 @@ describe("buildDecoratedMessage", () => {
     });
 
     expect(out).toContain("[Repository]");
-    expect(out).toContain("Acme/Widgets selected");
+    expect(out).toContain("Repo Brain for Acme/Widgets");
+    expect(out).toContain(
+      "The selected repository is the only repository in scope",
+    );
+    expect(out).toContain(
+      "Do not offer, claim, or imply access to other repositories",
+    );
     expect(out).toContain("[User]\nuser text");
   });
 });
@@ -293,7 +299,10 @@ describe("streamBrainChat — SSE translation", () => {
     expect(body.repo).toBe("Acme/Widgets");
     expect(body.storeRepoUrl).toBe("https://github.com/acme/kody-store");
     expect(body.storeRef).toBe("stable");
-    expect(body.message).toContain("Acme/Widgets selected");
+    expect(body.message).toContain("Repo Brain for Acme/Widgets");
+    expect(body.message).toContain(
+      "Do not offer, claim, or imply access to other repositories",
+    );
   });
 
   it("forwards dashboardUrl when provided", async () => {
