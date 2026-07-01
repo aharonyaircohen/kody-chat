@@ -313,6 +313,32 @@ function getPrimaryAction(
   return null;
 }
 
+function isTaskAbortable(task: KodyTask): boolean {
+  if (task.state === "closed") return false;
+  if (task.pipeline?.state === "running" || task.pipeline?.state === "paused")
+    return true;
+  if (
+    task.workflowRun?.status === "in_progress" ||
+    task.workflowRun?.status === "queued"
+  )
+    return true;
+  return (
+    task.column === "building" ||
+    task.column === "retrying" ||
+    task.column === "gate-waiting"
+  );
+}
+
+function hasTaskRunHistory(task: KodyTask): boolean {
+  if (task.pipeline || task.workflowRun || task.kodyState) return true;
+  return (
+    task.column === "failed" ||
+    task.column === "review" ||
+    task.column === "done" ||
+    !!task.associatedPR
+  );
+}
+
 // Secondary/overflow actions
 function getOverflowActions(
   task: KodyTask,
@@ -341,8 +367,8 @@ function getOverflowActions(
     confirmMessage?: string;
   }> = [];
 
-  // Stop (if running)
-  if (task.pipeline?.state === "running") {
+  // Stop when the derived task state is active, even before status.json exists.
+  if (isTaskAbortable(task)) {
     actions.push({
       icon: Ban,
       label: "Stop",
@@ -353,8 +379,8 @@ function getOverflowActions(
     });
   }
 
-  // Rerun (if has previous run and not currently building)
-  if (task.pipeline && task.pipeline.state !== "running") {
+  // Rerun when the task has run before and is no longer active.
+  if (!isTaskAbortable(task) && hasTaskRunHistory(task)) {
     actions.push({
       icon: RotateCcw,
       label: "Rerun",
