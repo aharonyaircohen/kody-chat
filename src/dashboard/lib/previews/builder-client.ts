@@ -132,6 +132,11 @@ function builderTargetApp(machine: BuilderMachineInfo): string | undefined {
   return value && value.trim() ? value : undefined;
 }
 
+function builderTargetRef(machine: BuilderMachineInfo): string | undefined {
+  const value = machine.config?.env?.REF;
+  return value && value.trim() ? value : undefined;
+}
+
 function isHostAppMachine(machine: BuilderMachineInfo): boolean {
   return Boolean(machine.id) && !builderTargetApp(machine);
 }
@@ -145,13 +150,14 @@ function builderAgeMs(machine: BuilderMachineInfo, now: number): number | null {
 function shouldDestroyBuilder(
   machine: BuilderMachineInfo,
   targetAppName: string,
+  targetRef: string,
   now: number,
 ): boolean {
   if (!machine.id || !isDestroyableBuilderState(machine.state)) return false;
   if (isHostAppMachine(machine)) return true;
   const samePreview = builderTargetApp(machine) === targetAppName;
   return samePreview
-    ? !isReusableBuilder(machine, now)
+    ? !isReusableBuilder(machine, now, targetRef)
     : isStaleBuilder(machine, now);
 }
 
@@ -168,7 +174,12 @@ function isFreshCreatedBuilder(
   return age !== null && age <= BUILDER_START_GRACE_MS;
 }
 
-function isReusableBuilder(machine: BuilderMachineInfo, now: number): boolean {
+function isReusableBuilder(
+  machine: BuilderMachineInfo,
+  now: number,
+  targetRef?: string,
+): boolean {
+  if (targetRef && builderTargetRef(machine) !== targetRef) return false;
   return (
     Boolean(machine.id) &&
     (isRunnableBuilderState(machine.state) ||
@@ -244,6 +255,7 @@ async function destroyBuilderMachine(
 async function pruneBuilderMachines(
   token: string,
   targetAppName: string,
+  targetRef: string,
 ): Promise<BuilderMachineInfo | null> {
   try {
     const res = await fetch(builderMachinesUrl(), {
@@ -260,12 +272,12 @@ async function pruneBuilderMachines(
           (m) =>
             m.id &&
             builderTargetApp(m) === targetAppName &&
-            isReusableBuilder(m, now),
+            isReusableBuilder(m, now, targetRef),
         )
         .sort(reusableFirst())[0] ?? null;
     const doomed = machines.filter((m) => {
       if (reusable?.id === m.id) return false;
-      return shouldDestroyBuilder(m, targetAppName, now);
+      return shouldDestroyBuilder(m, targetAppName, targetRef, now);
     });
     await Promise.all(
       doomed.map((m) =>
@@ -292,7 +304,11 @@ export async function spawnPreviewBuilder(
 ): Promise<SpawnBuilderResult> {
   const tag = input.imageTag ?? defaultTagFor(input.repo, input.ref);
   const expectedUrl = `https://${input.appName}.fly.dev`;
-  const existing = await pruneBuilderMachines(input.flyToken, input.appName);
+  const existing = await pruneBuilderMachines(
+    input.flyToken,
+    input.appName,
+    input.ref,
+  );
   if (existing?.id) {
     logger.info(
       {

@@ -53,7 +53,9 @@ describe("spawnPreviewBuilder", () => {
             id: "old-same",
             state: "started",
             created_at: "2026-06-08T11:55:00Z",
-            config: { env: { APP_NAME: "kp-acme-widgets-pr-7" } },
+            config: {
+              env: { APP_NAME: "kp-acme-widgets-pr-7", REF: "abc1234" },
+            },
           },
           {
             id: "other-pr",
@@ -76,6 +78,46 @@ describe("spawnPreviewBuilder", () => {
     expect(JSON.stringify(calls)).not.toContain("other-pr?force=true");
   });
 
+  it("does not reuse an active builder for the same preview when the ref changed", async () => {
+    vi.setSystemTime(NOW);
+    const calls: Call[] = [];
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL, init = {}) => {
+      const url = input.toString();
+      const method = init.method ?? "GET";
+      calls.push({
+        method,
+        url,
+        body: init.body ? JSON.parse(init.body as string) : undefined,
+      });
+      if (method === "GET") {
+        return Response.json([
+          {
+            id: "old-ref",
+            state: "started",
+            created_at: "2026-06-08T11:55:00Z",
+            config: {
+              env: { APP_NAME: "kp-acme-widgets-pr-7", REF: "old-ref" },
+            },
+          },
+        ]);
+      }
+      if (method === "DELETE") return Response.json({ ok: true });
+      return Response.json({ id: "new-builder" });
+    }) as unknown as typeof fetch;
+
+    const out = await spawnPreviewBuilder(baseInput());
+
+    expect(out.machineId).toBe("new-builder");
+    expect(calls.map((c) => `${c.method} ${c.url}`)).toEqual([
+      "GET https://api.machines.dev/v1/apps/kody-preview-builder/machines",
+      "DELETE https://api.machines.dev/v1/apps/kody-preview-builder/machines/old-ref?force=true",
+      "POST https://api.machines.dev/v1/apps/kody-preview-builder/machines",
+    ]);
+    expect(calls.at(-1)?.body).toMatchObject({
+      config: { env: { REF: "abc1234" } },
+    });
+  });
+
   it("destroys an inactive builder for the same preview before spawning", async () => {
     vi.setSystemTime(NOW);
     const calls: Call[] = [];
@@ -93,7 +135,9 @@ describe("spawnPreviewBuilder", () => {
             id: "old-same",
             state: "stopped",
             created_at: "2026-06-08T11:55:00Z",
-            config: { env: { APP_NAME: "kp-acme-widgets-pr-7" } },
+            config: {
+              env: { APP_NAME: "kp-acme-widgets-pr-7", REF: "abc1234" },
+            },
           },
           {
             id: "other-pr",
@@ -135,7 +179,9 @@ describe("spawnPreviewBuilder", () => {
             id: "timed-out-created",
             state: "created",
             created_at: "2026-06-08T11:55:00Z",
-            config: { env: { APP_NAME: "kp-acme-widgets-pr-7" } },
+            config: {
+              env: { APP_NAME: "kp-acme-widgets-pr-7", REF: "abc1234" },
+            },
           },
         ]);
       }
@@ -170,13 +216,17 @@ describe("spawnPreviewBuilder", () => {
             id: "timed-out-created",
             state: "created",
             created_at: "2026-06-08T11:55:00Z",
-            config: { env: { APP_NAME: "kp-acme-widgets-pr-7" } },
+            config: {
+              env: { APP_NAME: "kp-acme-widgets-pr-7", REF: "abc1234" },
+            },
           },
           {
             id: "running-builder",
             state: "started",
             created_at: "2026-06-08T11:59:00Z",
-            config: { env: { APP_NAME: "kp-acme-widgets-pr-7" } },
+            config: {
+              env: { APP_NAME: "kp-acme-widgets-pr-7", REF: "abc1234" },
+            },
           },
         ]);
       }
