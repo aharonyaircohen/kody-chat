@@ -10,6 +10,7 @@ export const BUILDER_APP =
 const FLY_MACHINES_BASE =
   process.env.FLY_MACHINES_API_BASE ?? "https://api.machines.dev/v1";
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+const builderRoot = join(repoRoot, "builder");
 
 export function builderMachineTargetApp(machine) {
   const value = machine?.config?.env?.APP_NAME;
@@ -89,31 +90,35 @@ export async function cleanupBuilderHostMachines({
 
 function publishBuilderImage(token) {
   const flyctl = process.env.FLYCTL_BIN ?? "flyctl";
-  return spawnSync(
-    flyctl,
-    [
+  const deploy = builderPublishDeploySpec();
+  return spawnSync(flyctl, deploy.args, {
+    cwd: deploy.cwd,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      FLY_API_TOKEN: token,
+      FLY_ACCESS_TOKEN: token,
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+}
+
+export function builderPublishDeploySpec(app = BUILDER_APP) {
+  return {
+    cwd: builderRoot,
+    args: [
       "deploy",
       "-c",
-      "builder/fly.toml",
+      "fly.toml",
       "--app",
-      BUILDER_APP,
+      app,
       "--build-only",
       "--push",
       "--image-label",
       "latest",
       "--yes",
     ],
-    {
-      cwd: repoRoot,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        FLY_API_TOKEN: token,
-        FLY_ACCESS_TOKEN: token,
-      },
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
+  };
 }
 
 async function runCli() {

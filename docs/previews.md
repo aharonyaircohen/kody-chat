@@ -302,7 +302,7 @@ builder/
 
 ```bash
 # From repo root (Kody-Dashboard)
-flyctl deploy -c builder/fly.toml --app kody-preview-builder
+pnpm builder:publish
 ```
 
 The dashboard pulls `registry.fly.io/kody-preview-builder:latest` when

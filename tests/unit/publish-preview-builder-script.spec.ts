@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  builderPublishDeploySpec,
   builderHostMachineIds,
   isBuilderHostMachine,
   redactBuilderPublishOutput,
@@ -43,5 +44,13 @@ describe("publish-preview-builder host-machine cleanup", () => {
         "fly-secret",
       ),
     ).toBe("Bearer [redacted] FLY_API_TOKEN=[redacted]");
+  });
+
+  it("deploys from the builder directory so Docker COPY paths resolve", () => {
+    const spec = builderPublishDeploySpec("kody-preview-builder");
+
+    expect(spec.cwd.endsWith("/builder")).toBe(true);
+    expect(spec.args).toContain("fly.toml");
+    expect(spec.args).not.toContain("builder/fly.toml");
   });
 });
