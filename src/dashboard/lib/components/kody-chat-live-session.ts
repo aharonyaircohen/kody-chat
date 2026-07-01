@@ -44,6 +44,23 @@ export function authHeaders(): Record<string, string> {
 // pin the id: the first turn for a given logical conversation wins, and every
 // later turn reuses it verbatim regardless of transient prefix/session churn.
 const BRAIN_CHAT_ID_KEY = "kody-brain-chat-ids";
+const MAX_BRAIN_CHAT_ID_LENGTH = 200;
+
+function safeBrainChatId(id: string): string {
+  const cleaned = id
+    .replace(/\\/g, "-")
+    .replace(/[^a-zA-Z0-9._/-]+/g, "-")
+    .replace(/\/+/g, "/")
+    .replace(/-+/g, "-")
+    .replace(/^\/+|\/+$/g, "")
+    .split("/")
+    .map((segment) => {
+      const trimmed = segment.replace(/^\.+|\.+$/g, "");
+      return trimmed || "chat";
+    })
+    .join("/");
+  return (cleaned || "chat").slice(0, MAX_BRAIN_CHAT_ID_LENGTH);
+}
 
 /**
  * Whether a Brain chatId has already been pinned for this logical key, i.e.
@@ -68,19 +85,27 @@ export function stickyBrainChatId(
   logicalKey: string,
   candidate: string,
 ): string {
-  if (typeof window === "undefined") return candidate;
+  const safeCandidate = safeBrainChatId(candidate);
+  if (typeof window === "undefined") return safeCandidate;
   try {
     const raw = window.localStorage.getItem(BRAIN_CHAT_ID_KEY);
     const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
     const pinned = map[logicalKey];
-    if (pinned) return pinned;
-    map[logicalKey] = candidate;
+    if (pinned) {
+      const safePinned = safeBrainChatId(pinned);
+      if (safePinned !== pinned) {
+        map[logicalKey] = safePinned;
+        window.localStorage.setItem(BRAIN_CHAT_ID_KEY, JSON.stringify(map));
+      }
+      return safePinned;
+    }
+    map[logicalKey] = safeCandidate;
     window.localStorage.setItem(BRAIN_CHAT_ID_KEY, JSON.stringify(map));
   } catch {
     // localStorage unavailable/corrupt — fall back to the candidate. Worst
     // case is the pre-fix behavior, not a crash.
   }
-  return candidate;
+  return safeCandidate;
 }
 
 // ─── Kody Live persistence ───────────────────────────────────────────────────

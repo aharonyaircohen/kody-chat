@@ -241,4 +241,30 @@ describe("stickyBrainChatId", () => {
     expect(stickyBrainChatId("conv-a", "a")).toBe("a");
     expect(stickyBrainChatId("conv-b", "b")).toBe("b");
   });
+
+  it("normalizes candidates to Brain-safe URL ids before pinning", () => {
+    expect(
+      stickyBrainChatId(
+        "aharonyaircohen/kody-dashboard::global-1",
+        "aharonyaircohen--aharonyaircohen/kody-dashboard::global-1",
+      ),
+    ).toBe("aharonyaircohen-aharonyaircohen/kody-dashboard-global-1");
+  });
+
+  it("repairs an already pinned invalid Brain chat id", () => {
+    const store = installStorage();
+    store.setItem(
+      "kody-brain-chat-ids",
+      JSON.stringify({
+        "repo::global": "user--owner/repo::global-1",
+      }),
+    );
+
+    expect(stickyBrainChatId("repo::global", "ignored")).toBe(
+      "user-owner/repo-global-1",
+    );
+    expect(JSON.parse(store.getItem("kody-brain-chat-ids") ?? "{}")).toEqual({
+      "repo::global": "user-owner/repo-global-1",
+    });
+  });
 });
