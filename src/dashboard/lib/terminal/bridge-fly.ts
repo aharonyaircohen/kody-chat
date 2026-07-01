@@ -17,7 +17,7 @@ const REQUEST_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_INTERVAL_MS = 2_000;
 
-export const TERMINAL_BRIDGE_VERSION = "2026-06-30.6";
+export const TERMINAL_BRIDGE_VERSION = "2026-07-01.1";
 export const TERMINAL_BRIDGE_BASE_IMAGE =
   process.env.KODY_TERMINAL_BRIDGE_BASE_IMAGE ?? "node:22-bookworm";
 
@@ -695,6 +695,7 @@ function createFlyConsoleSession(claims, key) {
   const env = {
     ...process.env,
     FLY_API_TOKEN: claims.flyToken,
+    FLY_ACCESS_TOKEN: claims.flyToken,
     TERM: "xterm-256color",
     COLUMNS: String(claims.cols || 120),
     LINES: String(claims.rows || 36),

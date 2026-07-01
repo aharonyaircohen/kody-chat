@@ -122,6 +122,8 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"console"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("claims.orgSlug");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"--org"');
+    expect(consoleSession).toContain("FLY_API_TOKEN: claims.flyToken");
+    expect(consoleSession).toContain("FLY_ACCESS_TOKEN: claims.flyToken");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("--pty");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('url.pathname === "/exec"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('url.pathname === "/jobs"');
