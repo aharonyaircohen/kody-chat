@@ -413,6 +413,68 @@ describe("provisionBrain", () => {
     });
   });
 
+  it("recreates reused Brain machines when model env matches but the boot marker is missing", async () => {
+    const modelConfig = {
+      spec: "minimax/MiniMax-M3",
+      provider: "custom" as const,
+      protocol: "openai" as const,
+      baseURL: "https://api.minimax.io/v1",
+      modelName: "MiniMax-M3",
+      apiKeyEnvVar: "MINIMAX_API_KEY",
+    };
+    const calls = installFetchStub((call) => {
+      if (
+        call.url.endsWith("/apps/kody-brain-alice") &&
+        call.method === "GET"
+      ) {
+        return { json: { name: "kody-brain-alice" } };
+      }
+      if (
+        call.url.endsWith("/apps/kody-brain-alice/machines") &&
+        call.method === "GET"
+      ) {
+        return {
+          json: [
+            {
+              id: "m-existing",
+              state: "suspended",
+              region: "fra",
+              config: {
+                image: `${DEFAULT_IMAGE}@sha256:fresh`,
+                env: {
+                  BRAIN_API_KEY: "preexisting-key",
+                  MODEL: "minimax/MiniMax-M3",
+                  KODY_MODEL_CONFIG: JSON.stringify(modelConfig),
+                },
+              },
+            },
+          ],
+        };
+      }
+      if (call.method === "DELETE" && call.url.includes("/machines/m-existing"))
+        return { status: 200, json: { ok: true } };
+      if (call.method === "POST" && call.url.endsWith("/machines"))
+        return { json: { id: "m-fresh", state: "starting", region: "fra" } };
+      throw new Error(`unexpected call: ${call.method} ${call.url}`);
+    });
+
+    const out = await provisionBrain({
+      flyToken: TOKEN,
+      account: "alice",
+      githubToken: "gh-pat",
+      model: "minimax/MiniMax-M3",
+      modelConfig,
+    });
+
+    expect(out.machineId).toBe("m-fresh");
+    const create = calls.find(
+      (c) => c.method === "POST" && c.url.endsWith("/machines"),
+    )!;
+    const env = (create.body as { config: { env: Record<string, string> } })
+      .config.env;
+    expect(env.KODY_BRAIN_BOOT_CONFIG_HASH).toMatch(/^[a-f0-9]{64}$/);
+  });
+
   it("throws when an existing machine has no BRAIN_API_KEY (corrupted state)", async () => {
     installFetchStub((call) => {
       if (

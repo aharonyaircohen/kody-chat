@@ -28,7 +28,7 @@
  * Reference: https://docs.machines.dev/swagger/index.html
  */
 
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import { logger } from "@dashboard/lib/logger";
 import type { EngineRuntimeModelConfig } from "@dashboard/lib/variables/models";
@@ -64,6 +64,13 @@ const PERF_GUEST: Record<
 };
 
 const DEFAULT_PERF_TIER: PerfTier = "medium";
+const BOOT_CONFIG_HASH_ENV = "KODY_BRAIN_BOOT_CONFIG_HASH";
+const RESTART_SENSITIVE_ENV_KEYS = [
+  "MODEL",
+  "KODY_MODEL_CONFIG",
+  "KODY_CMS_DASHBOARD_URL",
+  "ALL_SECRETS",
+] as const;
 
 export interface ProvisionBrainInput {
   flyToken: string;
@@ -291,7 +298,17 @@ function buildMachineEnv(
     env.KODY_CMS_DASHBOARD_URL = input.dashboardUrl.trim();
   }
   if (input.allSecrets) env.ALL_SECRETS = JSON.stringify(input.allSecrets);
+  const bootHash = bootConfigHash(env);
+  if (bootHash) env[BOOT_CONFIG_HASH_ENV] = bootHash;
   return env;
+}
+
+function bootConfigHash(env: Record<string, string>): string | undefined {
+  const entries = RESTART_SENSITIVE_ENV_KEYS.flatMap((key) =>
+    key in env ? [[key, env[key]] as const] : [],
+  );
+  if (entries.length === 0) return undefined;
+  return createHash("sha256").update(JSON.stringify(entries)).digest("hex");
 }
 
 interface FlyFetchOpts {
@@ -659,13 +676,6 @@ function alignBrainEnvConfig(
   return changed ? { changed: true, config: { ...config, env } } : { changed };
 }
 
-const RESTART_SENSITIVE_ENV_KEYS = [
-  "MODEL",
-  "KODY_MODEL_CONFIG",
-  "KODY_CMS_DASHBOARD_URL",
-  "ALL_SECRETS",
-] as const;
-
 function restartSensitiveEnvChanges(
   env: Record<string, string> | undefined,
   input: ProvisionBrainInput,
@@ -682,6 +692,9 @@ function restartSensitiveEnvChanges(
       continue;
     }
     if (existing[key] !== next) changed.push(key);
+  }
+  if (existing[BOOT_CONFIG_HASH_ENV] !== expected[BOOT_CONFIG_HASH_ENV]) {
+    changed.push(BOOT_CONFIG_HASH_ENV);
   }
 
   return changed;
