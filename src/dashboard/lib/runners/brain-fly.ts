@@ -284,7 +284,8 @@ function buildMachineEnv(
   // Optional boot repo — omitted for a repo-less Brain.
   if (input.repo) env.REPO = input.repo;
   if (input.model) env.MODEL = input.model;
-  if (input.modelConfig) env.KODY_MODEL_CONFIG = JSON.stringify(input.modelConfig);
+  if (input.modelConfig)
+    env.KODY_MODEL_CONFIG = JSON.stringify(input.modelConfig);
   if (input.ref) env.REF = input.ref;
   if (input.dashboardUrl?.trim()) {
     env.KODY_CMS_DASHBOARD_URL = input.dashboardUrl.trim();
@@ -658,6 +659,34 @@ function alignBrainEnvConfig(
   return changed ? { changed: true, config: { ...config, env } } : { changed };
 }
 
+const RESTART_SENSITIVE_ENV_KEYS = [
+  "MODEL",
+  "KODY_MODEL_CONFIG",
+  "KODY_CMS_DASHBOARD_URL",
+  "ALL_SECRETS",
+] as const;
+
+function restartSensitiveEnvChanges(
+  env: Record<string, string> | undefined,
+  input: ProvisionBrainInput,
+  apiKey: string,
+): string[] {
+  const existing = env ?? {};
+  const expected = buildMachineEnv(input, apiKey);
+  const changed: string[] = [];
+
+  for (const key of RESTART_SENSITIVE_ENV_KEYS) {
+    const next = expected[key];
+    if (next === undefined) {
+      if (key in existing) changed.push(key);
+      continue;
+    }
+    if (existing[key] !== next) changed.push(key);
+  }
+
+  return changed;
+}
+
 function alignBrainMachineConfig(
   config: BrainMachineConfig | undefined,
   input: ProvisionBrainInput,
@@ -853,6 +882,37 @@ export async function provisionBrain(
       throw new Error(
         `brain-fly: app ${app} has a machine without BRAIN_API_KEY env — destroy first, then re-provision`,
       );
+    }
+    const envChanges = restartSensitiveEnvChanges(
+      existing.config?.env,
+      machineInput,
+      existingKey,
+    );
+    if (envChanges.length > 0) {
+      logger.info(
+        {
+          app,
+          machineId: existing.id,
+          keys: envChanges,
+        },
+        "brain-fly: recreating machine — boot env changed",
+      );
+      await destroyMachine(input.flyToken, app, existing.id);
+      const machine = await createMachine(
+        input.flyToken,
+        app,
+        machineInput,
+        existingKey,
+      );
+      return {
+        app,
+        url,
+        apiKey: existingKey,
+        machineId: machine.id,
+        region: machine.region ?? defaultRegion,
+        org: flyApp.organization?.slug ?? orgSlug,
+        ...(originalName ? { originalName } : {}),
+      };
     }
     const alignedConfig = alignBrainMachineConfig(
       existing.config,

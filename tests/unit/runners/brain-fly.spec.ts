@@ -331,7 +331,7 @@ describe("provisionBrain", () => {
     expect(out.machineId).toBe("m-existing");
   });
 
-  it("updates model env on reused Brain machines", async () => {
+  it("recreates reused Brain machines when model env changes", async () => {
     const calls = installFetchStub((call) => {
       if (
         call.url.endsWith("/apps/kody-brain-alice") &&
@@ -349,21 +349,33 @@ describe("provisionBrain", () => {
               id: "m-existing",
               state: "started",
               region: "fra",
-              config: { env: { BRAIN_API_KEY: "preexisting-key" } },
+              config: {
+                image: `${DEFAULT_IMAGE}@sha256:fresh`,
+                env: {
+                  BRAIN_API_KEY: "preexisting-key",
+                  MODEL: "minimax/MiniMax-M2.7-highspeed",
+                },
+              },
             },
           ],
         };
       }
       if (
-        call.method === "POST" &&
-        call.url.endsWith("/apps/kody-brain-alice/machines/m-existing")
+        call.method === "DELETE" &&
+        call.url.includes("/apps/kody-brain-alice/machines/m-existing")
       ) {
-        return { json: { id: "m-existing", state: "started", region: "fra" } };
+        return { status: 200, json: { ok: true } };
+      }
+      if (
+        call.method === "POST" &&
+        call.url.endsWith("/apps/kody-brain-alice/machines")
+      ) {
+        return { json: { id: "m-fresh", state: "starting", region: "fra" } };
       }
       throw new Error(`unexpected call: ${call.method} ${call.url}`);
     });
 
-    await provisionBrain({
+    const out = await provisionBrain({
       flyToken: TOKEN,
       account: "alice",
       githubToken: "gh-pat",
@@ -378,14 +390,20 @@ describe("provisionBrain", () => {
       },
     });
 
-    const update = calls.find(
+    expect(out.machineId).toBe("m-fresh");
+    expect(out.apiKey).toBe("preexisting-key");
+    const del = calls.find(
+      (c) => c.method === "DELETE" && c.url.includes("/machines/m-existing"),
+    )!;
+    expect(del.url).toContain("force=true");
+    const create = calls.find(
       (c) =>
         c.method === "POST" &&
-        c.url.endsWith("/apps/kody-brain-alice/machines/m-existing"),
+        c.url.endsWith("/apps/kody-brain-alice/machines"),
     )!;
-    const env = (
-      update.body as { config: { env: Record<string, string> } }
-    ).config.env;
+    const env = (create.body as { config: { env: Record<string, string> } })
+      .config.env;
+    expect(env.BRAIN_API_KEY).toBe("preexisting-key");
     expect(env.MODEL).toBe("minimax/MiniMax-M3");
     expect(JSON.parse(env.KODY_MODEL_CONFIG)).toMatchObject({
       protocol: "openai",
@@ -925,7 +943,7 @@ describe("provisionBrain image-ref healing", () => {
     ).toBe(false);
   });
 
-  it("updates a reused machine when the Dashboard CMS URL is missing", async () => {
+  it("recreates a reused machine when the Dashboard CMS URL is missing", async () => {
     const calls = installFetchStub((call) => {
       if (call.method === "GET" && call.url.endsWith("/apps/kody-brain-alice"))
         return { json: { name: "kody-brain-alice" } };
@@ -951,10 +969,10 @@ describe("provisionBrain image-ref healing", () => {
             },
           ],
         };
-      if (call.method === "POST" && call.url.endsWith("/machines/m-good"))
-        return { json: { id: "m-good", state: "started" } };
-      if (call.method === "DELETE")
-        throw new Error(`must not recreate: ${call.url}`);
+      if (call.method === "DELETE" && call.url.includes("/machines/m-good"))
+        return { status: 200, json: { ok: true } };
+      if (call.method === "POST" && call.url.endsWith("/machines"))
+        return { json: { id: "m-fresh", state: "starting", region: "fra" } };
       throw new Error(`unexpected: ${call.method} ${call.url}`);
     });
 
@@ -965,11 +983,12 @@ describe("provisionBrain image-ref healing", () => {
       dashboardUrl: "https://dashboard.example.test",
     });
 
-    expect(out.machineId).toBe("m-good");
-    const update = calls.find(
-      (c) => c.method === "POST" && c.url.endsWith("/machines/m-good"),
+    expect(out.machineId).toBe("m-fresh");
+    expect(out.apiKey).toBe("live-key");
+    const create = calls.find(
+      (c) => c.method === "POST" && c.url.endsWith("/machines"),
     )!;
-    const env = (update.body as { config: { env: Record<string, string> } })
+    const env = (create.body as { config: { env: Record<string, string> } })
       .config.env;
     expect(env.BRAIN_API_KEY).toBe("live-key");
     expect(env.KODY_CMS_DASHBOARD_URL).toBe("https://dashboard.example.test");
