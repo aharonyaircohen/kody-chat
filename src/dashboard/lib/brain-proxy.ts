@@ -51,6 +51,12 @@ export interface BrainCapabilityContext {
   labels?: string[];
 }
 
+export interface BrainAgentIdentity {
+  slug: string;
+  title?: string;
+  body: string;
+}
+
 export interface BrainChatRequest {
   brainUrl: string;
   brainKey: string;
@@ -79,6 +85,8 @@ export interface BrainChatRequest {
   storeRepoUrl?: string;
   /** Dashboard store ref used to load CMS adapter code. */
   storeRef?: string;
+  /** Optional state-repo agent identity selected by the Dashboard route. */
+  agentIdentity?: BrainAgentIdentity;
   /**
    * Voice modality. When true the upstream Brain server should append the
    * shared voice overlay (see `@dashboard/lib/voice/overlay`) to its system
@@ -333,6 +341,9 @@ export async function streamBrainChat(
                 : {}),
               ...(storeRepoUrl ? { storeRepoUrl } : {}),
               ...(storeRef ? { storeRef } : {}),
+              ...(input.agentIdentity
+                ? { agentIdentity: input.agentIdentity }
+                : {}),
               ...(input.voiceMode === true ? { voiceMode: true } : {}),
               ...(input.reasoningEffort
                 ? { reasoningEffort: input.reasoningEffort }

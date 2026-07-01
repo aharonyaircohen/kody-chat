@@ -338,6 +338,29 @@ describe("streamBrainChat — SSE translation", () => {
     expect(body.storeRef).toBe("stable");
   });
 
+  it("forwards a selected agent identity to Brain", async () => {
+    const { calls } = installFetchStub({ events: [{ type: "done" }] });
+    await streamBrainChat({
+      brainUrl: "https://b.example.com",
+      brainKey: "k",
+      chatId: "c1",
+      message: "hi",
+      agentIdentity: {
+        slug: "repo-brain",
+        title: "Repo Brain",
+        body: "Stay inside this repo.",
+      },
+    });
+    const body = JSON.parse(calls[0]!.init!.body as string) as {
+      agentIdentity?: { slug?: string; title?: string; body?: string };
+    };
+    expect(body.agentIdentity).toEqual({
+      slug: "repo-brain",
+      title: "Repo Brain",
+      body: "Stay inside this repo.",
+    });
+  });
+
   it("returns 502 JSON when fetch throws", async () => {
     installFetchStub({ throwError: true });
     const res = await streamBrainChat({

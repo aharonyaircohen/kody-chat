@@ -11,6 +11,7 @@ const provisionBrain = vi.fn();
 const waitForBrainHealth = vi.fn();
 const streamBrainChat = vi.fn();
 const loadContextForPrompt = vi.fn();
+const readAgentFile = vi.fn();
 
 vi.mock("@dashboard/lib/auth", () => ({
   requireKodyAuth: (...args: unknown[]) => requireKodyAuth(...args),
@@ -46,6 +47,10 @@ vi.mock("@dashboard/lib/context/files", () => ({
   loadContextForPrompt: (...args: unknown[]) => loadContextForPrompt(...args),
 }));
 
+vi.mock("@dashboard/lib/agent-files", () => ({
+  readAgentFile: (...args: unknown[]) => readAgentFile(...args),
+}));
+
 import { POST } from "../../app/api/kody/chat/brain-fly/route";
 
 const ctx = {
@@ -77,6 +82,7 @@ function request(body: unknown): NextRequest {
 }
 
 beforeEach(() => {
+  vi.clearAllMocks();
   requireKodyAuth.mockResolvedValue(null);
   getRequestAuth.mockReturnValue(null);
   resolveFlyContext.mockResolvedValue({ ok: true, context: ctx });
@@ -92,6 +98,7 @@ beforeEach(() => {
   waitForBrainHealth.mockResolvedValue(undefined);
   streamBrainChat.mockResolvedValue(new Response("ok", { status: 200 }));
   loadContextForPrompt.mockResolvedValue(null);
+  readAgentFile.mockResolvedValue(null);
 });
 
 describe("POST /api/kody/chat/brain-fly CMS context", () => {
@@ -118,5 +125,25 @@ describe("POST /api/kody/chat/brain-fly CMS context", () => {
       "storeRepoUrl",
     );
     expect(streamBrainChat.mock.calls[0]![0]).not.toHaveProperty("storeRef");
+  });
+
+  it("passes the repo-brain agent identity when the selected repo defines it", async () => {
+    readAgentFile.mockResolvedValue({
+      slug: "repo-brain",
+      title: "Repo Brain",
+      body: "You are scoped to this repository.",
+    });
+
+    const res = await POST(request({ chatId: "c1", message: "who are you?" }));
+
+    expect(res.status).toBe(200);
+    expect(readAgentFile).toHaveBeenCalledWith("repo-brain");
+    expect(streamBrainChat.mock.calls[0]![0]).toMatchObject({
+      agentIdentity: {
+        slug: "repo-brain",
+        title: "Repo Brain",
+        body: "You are scoped to this repository.",
+      },
+    });
   });
 });

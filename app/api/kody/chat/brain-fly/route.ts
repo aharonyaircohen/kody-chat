@@ -44,6 +44,7 @@ import {
 import { logger } from "@dashboard/lib/logger";
 import {
   streamBrainChat,
+  type BrainAgentIdentity,
   type BrainAttachment,
   type BrainCapabilityContext,
   type BrainTaskContext,
@@ -61,10 +62,12 @@ import {
 } from "@dashboard/lib/chat/page-context";
 import { loadContextForPrompt } from "@dashboard/lib/context/files";
 import { createRepoBrainScope } from "@dashboard/lib/brain/repo-scope";
+import { readAgentFile } from "@dashboard/lib/agent-files";
 
 export const runtime = "nodejs";
 // Restore can mirror a full Brain image before the chat stream starts.
 export const maxDuration = 300;
+const REPO_BRAIN_AGENT_SLUG = "repo-brain";
 
 function brainSuspendOnIdleFrom(req: NextRequest): boolean | undefined {
   const raw = req.headers.get("x-kody-brain-suspension");
@@ -289,6 +292,25 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    let agentIdentity: BrainAgentIdentity | undefined;
+    if (!isResume) {
+      try {
+        const repoBrain = await readAgentFile(REPO_BRAIN_AGENT_SLUG);
+        if (repoBrain?.body.trim()) {
+          agentIdentity = {
+            slug: repoBrain.slug,
+            title: repoBrain.title,
+            body: repoBrain.body,
+          };
+        }
+      } catch (err) {
+        logger.warn(
+          { err, owner: ctx.context.owner, repo: ctx.context.repo },
+          "chat/brain-fly: repo-brain agent load failed — proceeding with default Brain identity",
+        );
+      }
+    }
+
     return await streamBrainChat({
       brainUrl: provisioned.url,
       brainKey: provisioned.apiKey,
@@ -307,6 +329,7 @@ export async function POST(req: NextRequest) {
       repoScope,
       repoToken,
       dashboardUrl,
+      ...(agentIdentity ? { agentIdentity } : {}),
       voiceMode: body.voiceMode === true,
       ...(body.reasoningEffort
         ? { reasoningEffort: body.reasoningEffort }
