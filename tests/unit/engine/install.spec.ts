@@ -231,12 +231,12 @@ describe("installEngine", () => {
                       default: true,
                     },
                     {
-                      id: "minimax/MiniMax-M2.7-highspeed",
+                      id: "minimax/MiniMax-M3",
                       label: "Engine",
                       provider: "custom",
                       protocol: "openai",
                       baseURL: "https://api.minimax.io/v1",
-                      modelName: "MiniMax-M2.7-highspeed",
+                      modelName: "MiniMax-M3",
                       apiKeySecret: "MINIMAX_API_KEY",
                       enabled: true,
                       engineDefault: true,
@@ -269,7 +269,7 @@ describe("installEngine", () => {
       await installEngine(input);
 
       const parsed = JSON.parse(getByPath("kody.config.json")!.content);
-      expect(parsed.agent?.model).toBe("minimax/MiniMax-M2.7-highspeed");
+      expect(parsed.agent?.model).toBe("minimax/MiniMax-M3");
     });
 
     it("kody.config.json is created even when variables.json does not exist", async () => {

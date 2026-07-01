@@ -14,7 +14,7 @@
  *   BASE_URL             Deployed dashboard (SSO must be off)
  *   E2E_GITHUB_TOKEN     PAT with `repo` + `workflow` for the target repo
  *   E2E_GITHUB_REPO      Full URL, e.g. https://github.com/<owner>/<repo>
- *   E2E_CHAT_MODEL       Optional, e.g. minimax/MiniMax-M2.7-highspeed
+ *   E2E_CHAT_MODEL       Optional, e.g. minimax/MiniMax-M3
  */
 
 import { test, expect, type Page } from "@playwright/test";

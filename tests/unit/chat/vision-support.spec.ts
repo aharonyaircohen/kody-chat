@@ -33,7 +33,7 @@ describe("supportsVision", () => {
     "qwen/qwen2.5-vl-7b-instruct",
     "amazon/nova-pro-v1",
     "deepseek-vl-7b-chat",
-    // MiniMax M3 family — the current multimodal generation; M2.7 stays
+    // MiniMax M3 family — the current multimodal generation; M2.x stays
     // text-only (see the regression guard in the textModels block below).
     "minimax/MiniMax-M3",
     "minimax/MiniMax-M3.0",
@@ -41,9 +41,9 @@ describe("supportsVision", () => {
   ];
 
   const textModels = [
-    // The live case: MiniMax in every spelling.
-    "minimax/MiniMax-M2.7-highspeed",
-    "MiniMax-M2.7-highspeed",
+    // Legacy MiniMax in every spelling.
+    "minimax/MiniMax-M2",
+    "MiniMax-M2",
     "minimax-m2",
     // DeepSeek text (NOT the -vl variant).
     "deepseek-chat",
@@ -74,6 +74,6 @@ describe("supportsVision", () => {
 
   it("ignores surrounding whitespace and case", () => {
     expect(supportsVision("  Google/Gemini-2.5-Pro  ")).toBe(true);
-    expect(supportsVision("  MiniMax-M2.7-highspeed  ")).toBe(false);
+    expect(supportsVision("  MiniMax-M2  ")).toBe(false);
   });
 });

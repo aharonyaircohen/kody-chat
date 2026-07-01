@@ -211,7 +211,7 @@ export function pickEngineDefaultModel(models: ChatModel[]): ChatModel | null {
  * The `provider/model` string the engine expects in `agent.model`
  * (see kody-engine `parseProviderModel`). Prefers the entry `id` when it's
  * already in `provider/model` form — that's the user's escape hatch and is
- * how non-preset providers like `minimax/MiniMax-M2.7-highspeed` are
+ * how non-preset providers like `minimax/MiniMax-M3` are
  * spelled. Otherwise it's built from the preset provider + wire model name.
  *
  * Caveat: preset provider names mostly match LiteLLM's (anthropic, openai,

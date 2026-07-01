@@ -50,7 +50,7 @@ export interface FlyContext {
   account: string;
   /**
    * The engine model spec from the connected repo's kody.config.json
-   * (`agent.model`, e.g. "minimax/MiniMax-M2.7-highspeed"). Resolved here so
+   * (`agent.model`, e.g. "minimax/MiniMax-M3"). Resolved here so
    * a repo-less Brain can be told its model at provision time via the MODEL
    * env var, instead of reading it from a boot repo at runtime. undefined if
    * the repo has no config.

@@ -93,7 +93,7 @@ describe("writeConfigPatch — reasoningEffort", () => {
       executables: { default: "run" },
       github: { owner: "o", repo: "r" },
       agent: {
-        model: "minimax/MiniMax-M2.7-highspeed",
+        model: "minimax/MiniMax-M3",
         perExecutable: { research: "anthropic/claude-opus-4-7" },
         reasoningEffort: "medium",
       },
@@ -107,7 +107,7 @@ describe("writeConfigPatch — reasoningEffort", () => {
 
     const written = lastWritten();
     expect(written.agent?.reasoningEffort).toBe("medium");
-    expect(written.agent?.model).toBe("minimax/MiniMax-M2.7-highspeed");
+    expect(written.agent?.model).toBe("minimax/MiniMax-M3");
     expect(written.agent?.perExecutable).toEqual({
       research: "anthropic/claude-opus-4-7",
     });
@@ -119,7 +119,7 @@ describe("writeConfigPatch — reasoningEffort", () => {
       executables: { default: "run" },
       github: { owner: "o", repo: "r" },
       agent: {
-        model: "minimax/MiniMax-M2.7-highspeed",
+        model: "minimax/MiniMax-M3",
         perExecutable: { research: "anthropic/claude-opus-4-7" },
         reasoningEffort: "high",
       },
@@ -129,7 +129,7 @@ describe("writeConfigPatch — reasoningEffort", () => {
 
     const written = lastWritten();
     expect(written.agent?.reasoningEffort).toBeUndefined();
-    expect(written.agent?.model).toBe("minimax/MiniMax-M2.7-highspeed");
+    expect(written.agent?.model).toBe("minimax/MiniMax-M3");
     expect(written.agent?.perExecutable).toEqual({
       research: "anthropic/claude-opus-4-7",
     });

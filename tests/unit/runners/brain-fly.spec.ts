@@ -360,7 +360,7 @@ describe("provisionBrain", () => {
                 image: `${DEFAULT_IMAGE}@sha256:fresh`,
                 env: {
                   BRAIN_API_KEY: "preexisting-key",
-                  MODEL: "minimax/MiniMax-M2.7-highspeed",
+                  MODEL: "minimax/MiniMax-M3",
                 },
               },
             },

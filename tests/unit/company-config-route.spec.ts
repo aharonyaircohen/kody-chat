@@ -81,7 +81,7 @@ const STORED_CONFIG = {
   executables: { default: "run" },
   github: { owner: "acme", repo: "widgets" },
   agent: {
-    model: "minimax/MiniMax-M2.7-highspeed",
+    model: "minimax/MiniMax-M3",
     perExecutable: { research: "anthropic/claude-opus-4-7" },
     reasoningEffort: "medium",
   },

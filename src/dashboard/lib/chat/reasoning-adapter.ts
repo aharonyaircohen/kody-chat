@@ -251,7 +251,7 @@ export function defaultReasoningForModel(
     };
   }
 
-  // MiniMax (M2.7 / M3 / …) — OpenAI-compatible Chat Completions API.
+  // MiniMax (M2.x / M3 / …) — OpenAI-compatible Chat Completions API.
   // The provider accepts `reasoning_effort` on supported models (M3 has
   // a thinking mode exposed in OpenCode). Effort is "low" by default to
   // match the model family's typical routing.

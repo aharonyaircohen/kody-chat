@@ -64,7 +64,7 @@ describe("normalizeOperators", () => {
 describe("writeOperators", () => {
   it("sets github.operators without clobbering other fields", async () => {
     const { octokit, lastWritten } = octokitWithConfig({
-      agent: { model: "minimax/MiniMax-M2.7-highspeed" },
+      agent: { model: "minimax/MiniMax-M3" },
       executables: { default: "run" },
       github: { owner: "o", repo: "r" },
       quality: { something: true },
@@ -80,7 +80,7 @@ describe("writeOperators", () => {
     const written = lastWritten();
     expect(written.github.operators).toEqual(["alice", "bob"]);
     // Merge-not-overwrite: every other field survives.
-    expect(written.agent).toEqual({ model: "minimax/MiniMax-M2.7-highspeed" });
+    expect(written.agent).toEqual({ model: "minimax/MiniMax-M3" });
     expect(written.github.owner).toBe("o");
     expect(written.github.repo).toBe("r");
     expect(written.quality).toEqual({ something: true });

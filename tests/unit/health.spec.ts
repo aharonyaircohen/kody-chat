@@ -128,7 +128,7 @@ describe("model key resolution", () => {
     );
   });
   it("falls back to <PROVIDER>_API_KEY for unknown providers", () => {
-    expect(keyNameForModelSpec("minimax/MiniMax-M2.7-highspeed")?.keyName).toBe(
+    expect(keyNameForModelSpec("minimax/MiniMax-M3")?.keyName).toBe(
       "MINIMAX_API_KEY",
     );
   });
