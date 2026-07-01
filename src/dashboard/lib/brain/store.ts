@@ -374,16 +374,6 @@ export async function readBrainImage(
       setCache(key, parsed, file.etag);
       return parsed;
     }
-    const legacyFile = await readStateText(octokit, owner, repo, path);
-    if (legacyFile) {
-      const parsed: unknown = JSON.parse(legacyFile.content);
-      if (!isBrainImageFile(parsed)) {
-        setCache(key, null, legacyFile.etag);
-        return null;
-      }
-      setCache(key, parsed, legacyFile.etag);
-      return parsed;
-    }
     setCache(key, null);
     return null;
   } catch (error: unknown) {

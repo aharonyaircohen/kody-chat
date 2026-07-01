@@ -62,7 +62,7 @@ describe("Brain image store", () => {
     );
   });
 
-  it("falls back to the old repo-scoped Brain image record during migration", async () => {
+  it("ignores the old repo-scoped Brain image record", async () => {
     state.readStateText
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
@@ -76,9 +76,7 @@ describe("Brain image store", () => {
       });
     const { readBrainImage } = await import("@dashboard/lib/brain/store");
 
-    await expect(readBrainImage("Alice", "token")).resolves.toMatchObject({
-      imageRef: "ghcr.io/alice/kody-brain-snapshot:20260625",
-    });
+    await expect(readBrainImage("Alice", "token")).resolves.toBeNull();
     expect(state.readStateText).toHaveBeenNthCalledWith(
       1,
       { id: "octokit" },
@@ -87,12 +85,7 @@ describe("Brain image store", () => {
       "users/alice/data/brain-image.json",
       expect.objectContaining({ scope: "root" }),
     );
-    expect(state.readStateText.mock.calls[1]).toEqual([
-      { id: "octokit" },
-      "aharonyaircohen",
-      "Kody-Dashboard",
-      "users/alice/data/brain-image.json",
-    ]);
+    expect(state.readStateText).toHaveBeenCalledTimes(1);
   });
 
   it("reads the stored Brain app from user-level state", async () => {
