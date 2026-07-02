@@ -9,7 +9,6 @@
 export interface WorkflowDefinition {
   version: 1;
   name: string;
-  instructions: string;
   capabilities: string[];
   createdAt: string;
   updatedAt: string;
@@ -30,13 +29,11 @@ export interface WorkflowDefinitionRecord {
 export interface CreateWorkflowDefinitionInput {
   id?: string;
   name: string;
-  instructions: string;
   capabilities: string[];
 }
 
 export interface UpdateWorkflowDefinitionInput {
   name?: string;
-  instructions?: string;
   capabilities?: string[];
 }
 
@@ -84,8 +81,6 @@ export function normalizeWorkflowDefinition(
   if (!value || typeof value !== "object") return null;
   const raw = value as Record<string, unknown>;
   const name = typeof raw.name === "string" ? raw.name.trim() : "";
-  const instructions =
-    typeof raw.instructions === "string" ? raw.instructions.trim() : "";
   const capabilities = normalizeWorkflowCapabilities(raw.capabilities);
   const createdAt =
     typeof raw.createdAt === "string" && raw.createdAt.trim()
@@ -96,11 +91,10 @@ export function normalizeWorkflowDefinition(
       ? raw.updatedAt
       : createdAt;
 
-  if (!name || !instructions || capabilities.length === 0) return null;
+  if (!name || capabilities.length === 0) return null;
   return {
     version: 1,
     name,
-    instructions,
     capabilities,
     createdAt,
     updatedAt,
@@ -115,7 +109,6 @@ export function buildWorkflowDefinition(
   return {
     version: 1,
     name: input.name.trim(),
-    instructions: input.instructions.trim(),
     capabilities: normalizeWorkflowCapabilities(input.capabilities),
     createdAt: existing?.createdAt ?? now,
     updatedAt: now,
@@ -129,7 +122,6 @@ export function mergeWorkflowDefinition(
   return buildWorkflowDefinition(
     {
       name: input.name ?? existing.name,
-      instructions: input.instructions ?? existing.instructions,
       capabilities: input.capabilities ?? existing.capabilities,
     },
     existing,

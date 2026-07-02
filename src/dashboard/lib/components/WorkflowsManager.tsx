@@ -2,8 +2,8 @@
  * @fileType component
  * @domain kody
  * @pattern workflows-manager
- * @ai-summary CRUD UI for workflow definitions: a name, shared instructions,
- *   and an ordered queue of capabilities.
+ * @ai-summary CRUD UI for workflow definitions: a name and an ordered queue
+ *   of capabilities.
  */
 "use client";
 
@@ -14,7 +14,6 @@ import {
   ArrowLeft,
   ArrowUp,
   ExternalLink,
-  FileText,
   Loader2,
   Pencil,
   Play,
@@ -36,7 +35,6 @@ import {
 } from "@dashboard/ui/dialog";
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
-import { Textarea } from "@dashboard/ui/textarea";
 import { useCapabilities } from "../hooks/useCapabilities";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import {
@@ -65,7 +63,6 @@ interface WorkflowsManagerProps {
 
 interface WorkflowFormState {
   name: string;
-  instructions: string;
   capabilities: string[];
 }
 
@@ -104,7 +101,6 @@ function workflowMatches(workflow: WorkflowDefinitionRecord, search: string) {
   const text = [
     workflow.id,
     workflow.workflow.name,
-    workflow.workflow.instructions,
     ...workflow.workflow.capabilities,
   ]
     .join(" ")
@@ -249,7 +245,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
             <EmptyState
               icon={<Workflow />}
               title="Select a workflow"
-              hint="Pick one from the list to see its instructions and capability queue."
+              hint="Pick one from the list to see its capability queue."
             />
           )
         }
@@ -260,7 +256,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
           <EmptyState
             icon={<Workflow />}
             title="No workflows yet"
-            hint="Create a workflow from shared instructions and an ordered capability queue."
+            hint="Create a workflow from an ordered capability queue."
             action={
               <Button size="sm" onClick={() => setCreateOpen(true)}>
                 <Plus className="h-4 w-4" />
@@ -292,7 +288,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
       <WorkflowDialog
         open={createOpen}
         title="New workflow"
-        description="Create an ordered queue of capabilities with shared instructions."
+        description="Create an ordered queue of capabilities."
         capabilityOptions={capabilityOptions}
         capabilitiesLoading={capabilitiesLoading}
         saving={createWorkflow.isPending}
@@ -307,7 +303,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
       <WorkflowDialog
         open={!!editingWorkflow}
         title="Edit workflow"
-        description="Update the instructions and capability queue."
+        description="Update the capability queue."
         initial={editingWorkflow ?? undefined}
         capabilityOptions={capabilityOptions}
         capabilitiesLoading={capabilitiesLoading}
@@ -380,9 +376,6 @@ function WorkflowRow({
           {workflow.workflow.capabilities.length}
         </span>
       </div>
-      <p className="mt-2 line-clamp-2 text-xs leading-5 text-muted-foreground">
-        {workflow.workflow.instructions}
-      </p>
     </button>
   );
 }
@@ -485,16 +478,6 @@ function WorkflowDetail({
       </div>
 
       <section className="rounded-md border border-border bg-card p-4">
-        <div className="mb-3 flex items-center gap-2 text-sm font-medium text-foreground">
-          <FileText className="h-4 w-4 text-cyan-300" />
-          Instructions
-        </div>
-        <p className="whitespace-pre-wrap text-sm leading-6 text-foreground">
-          {workflow.workflow.instructions}
-        </p>
-      </section>
-
-      <section className="rounded-md border border-border bg-card p-4">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             <Route className="h-4 w-4 text-cyan-300" />
@@ -574,7 +557,6 @@ function WorkflowDialog({
 }) {
   const [form, setForm] = useState<WorkflowFormState>({
     name: "",
-    instructions: "",
     capabilities: [],
   });
 
@@ -582,28 +564,23 @@ function WorkflowDialog({
     if (!open) return;
     setForm({
       name: initial?.workflow.name ?? "",
-      instructions: initial?.workflow.instructions ?? "",
       capabilities: initial?.workflow.capabilities ?? [],
     });
   }, [initial, open]);
 
   const canSave =
     form.name.trim().length > 0 &&
-    form.instructions.trim().length > 0 &&
     form.capabilities.length > 0 &&
     !saving;
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!canSave) {
-      toast.error(
-        "Name, instructions, and at least one capability are required",
-      );
+      toast.error("Name and at least one capability are required");
       return;
     }
     await onSubmit({
       name: form.name.trim(),
-      instructions: form.instructions.trim(),
       capabilities: form.capabilities,
     });
   };
@@ -629,22 +606,6 @@ function WorkflowDialog({
               }
               placeholder="Release readiness"
               autoFocus
-            />
-          </div>
-
-          <div className="min-w-0 space-y-2">
-            <Label htmlFor="workflow-instructions">Instructions</Label>
-            <Textarea
-              id="workflow-instructions"
-              value={form.instructions}
-              onChange={(event) =>
-                setForm((prev) => ({
-                  ...prev,
-                  instructions: event.target.value,
-                }))
-              }
-              placeholder="Tell the capabilities what this workflow should achieve."
-              className="min-h-[140px]"
             />
           </div>
 

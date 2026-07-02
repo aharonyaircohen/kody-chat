@@ -174,8 +174,6 @@ export function workflowRecordFromCapabilitySummary(
     workflow: {
       version: 1,
       name: capability.slug,
-      instructions:
-        capability.describe || `Run the ${capability.slug} workflow.`,
       capabilities: workflowSteps,
       createdAt: updatedAt,
       updatedAt,

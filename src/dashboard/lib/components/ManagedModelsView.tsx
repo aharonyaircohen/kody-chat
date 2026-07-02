@@ -556,7 +556,6 @@ function workflowTargetOptions(
       searchText: [
         workflow.id,
         workflow.workflow.name,
-        workflow.workflow.instructions,
         workflow.source ?? "",
         ...workflow.workflow.capabilities,
       ].join(" "),

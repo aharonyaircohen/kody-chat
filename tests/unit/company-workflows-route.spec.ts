@@ -94,7 +94,6 @@ const bugWorkflow = {
   workflow: {
     version: 1,
     name: "bug",
-    instructions: "Run the full Bug Flow.",
     capabilities: ["reproduce", "plan", "run", "review", "fix"],
     createdAt: "1970-01-01T00:00:00.000Z",
     updatedAt: "1970-01-01T00:00:00.000Z",
@@ -168,7 +167,6 @@ describe("company workflows route", () => {
         workflow: {
           version: 1,
           name: "Local bug",
-          instructions: "Run local bug workflow.",
           capabilities: ["run"],
           createdAt: "2026-01-01T00:00:00.000Z",
           updatedAt: "2026-01-01T00:00:00.000Z",

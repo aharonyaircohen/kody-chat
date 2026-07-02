@@ -144,7 +144,7 @@ export async function GET(req: NextRequest) {
       items.push({
         slug: item.id,
         title: item.workflow.name || item.id,
-        description: item.workflow.instructions,
+        description: item.workflow.capabilities.join(" -> "),
         kind: "workflow",
         htmlUrl: item.htmlUrl ?? null,
       });

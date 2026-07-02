@@ -37,7 +37,6 @@ import {
 const workflowPayloadSchema = z.object({
   id: z.string().trim().min(1).max(80).optional(),
   name: z.string().trim().min(1).max(160),
-  instructions: z.string().trim().min(1).max(5000),
   capabilities: z.array(z.string().trim().min(1).max(80)).min(1),
   actorLogin: z.string().trim().optional(),
 });

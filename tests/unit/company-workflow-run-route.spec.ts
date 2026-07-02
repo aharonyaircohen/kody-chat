@@ -102,7 +102,6 @@ const runnableBugWorkflow = {
   workflow: {
     version: 1,
     name: "bug",
-    instructions: "Run the full Bug Flow.",
     capabilities: ["reproduce", "plan", "run", "review", "fix"],
     createdAt: "1970-01-01T00:00:00.000Z",
     updatedAt: "1970-01-01T00:00:00.000Z",
@@ -182,7 +181,6 @@ describe("POST /api/kody/company/workflows/:id/run", () => {
       workflow: {
         version: 1,
         name: "release",
-        instructions: "Release queue",
         capabilities: ["plan", "run"],
         createdAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:00:00.000Z",

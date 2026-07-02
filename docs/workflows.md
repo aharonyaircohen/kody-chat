@@ -3,21 +3,21 @@
 Workflows are named queues of capabilities.
 
 They let the dashboard describe a simple orchestration without creating a new
-capability. A workflow owns the ordered capability list and the shared
-instructions for that run.
+capability. A workflow owns only the ordered capability list.
 
 ## What a workflow owns
 
 A workflow owns:
 
 - Name.
-- Instructions sent with the workflow.
 - Ordered capability queue.
 
 A workflow does not own:
 
 - Agent identity. Capabilities decide which agent runs.
 - Schedule. Goals or loops decide when work wakes.
+- Instructions. Goals explain why the queue is running; capabilities own step
+  behavior.
 - Implementation details. Capability implementations own those.
 - Runtime progress. State, logs, reports, or goals own what happened.
 
@@ -38,7 +38,6 @@ Example:
 {
   "version": 1,
   "name": "Release readiness",
-  "instructions": "Prepare the repo for release and report blockers.",
   "capabilities": ["review", "test", "release-check"],
   "createdAt": "2026-06-26T00:00:00.000Z",
   "updatedAt": "2026-06-26T00:00:00.000Z"
