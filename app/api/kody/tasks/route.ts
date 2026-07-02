@@ -98,6 +98,67 @@ function deriveGateType(
   return undefined;
 }
 
+function clampPage(value: string | null): number {
+  const parsed = value ? Number.parseInt(value, 10) : 1;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function clampPerPage(value: string | null): number {
+  const parsed = value ? Number.parseInt(value, 10) : 10;
+  if (!Number.isFinite(parsed) || parsed <= 0) return 10;
+  return Math.min(parsed, 50);
+}
+
+function isHistoryTask(task: KodyTask): boolean {
+  return (
+    task.state === "closed" ||
+    task.column === "done" ||
+    task.column === "failed"
+  );
+}
+
+function isBacklogTask(task: KodyTask): boolean {
+  return task.state === "open" && task.column === "open";
+}
+
+function isRunningTask(task: KodyTask): boolean {
+  return (
+    task.state === "open" &&
+    task.column !== "open" &&
+    task.column !== "done" &&
+    task.column !== "failed"
+  );
+}
+
+function compareTasks(
+  a: KodyTask,
+  b: KodyTask,
+  field: string,
+  dir: "asc" | "desc",
+): number {
+  const direction = dir === "asc" ? 1 : -1;
+  let cmp = 0;
+  switch (field) {
+    case "createdAt":
+      cmp = Date.parse(a.createdAt) - Date.parse(b.createdAt);
+      break;
+    case "issueNumber":
+      cmp = a.issueNumber - b.issueNumber;
+      break;
+    case "title":
+      cmp = a.title.localeCompare(b.title);
+      break;
+    case "column":
+      cmp = a.column.localeCompare(b.column);
+      break;
+    case "updatedAt":
+    default:
+      cmp = Date.parse(a.updatedAt) - Date.parse(b.updatedAt);
+      break;
+  }
+  return cmp * direction;
+}
+
 function getKodyAssigneeLogins(): string[] {
   const raw =
     process.env.KODY_ASSIGNEE_LOGINS ?? process.env.KODY_ASSIGNEE_LOGIN;
@@ -135,6 +196,15 @@ export async function GET(req: NextRequest) {
     // view=running — only return tasks the user can act on (drops `done`/`failed`).
     // Cuts payload size and lets the dashboard's Active tab skip terminal items.
     const view = searchParams.get("view") ?? "all";
+    const page = clampPage(searchParams.get("page"));
+    const perPage = clampPerPage(searchParams.get("perPage"));
+    const statusFilter = searchParams.get("status") ?? "all";
+    const labelFilter = searchParams.get("label") ?? "all";
+    const priorityFilter = searchParams.get("priority") ?? "all";
+    const searchQuery = (searchParams.get("q") ?? "").trim().toLowerCase();
+    const sortField = searchParams.get("sort") ?? "updatedAt";
+    const sortDirection =
+      searchParams.get("dir") === "asc" ? ("asc" as const) : ("desc" as const);
 
     // Date filter presets
     let sinceDate: string | undefined = since;
@@ -148,7 +218,7 @@ export async function GET(req: NextRequest) {
     // Fetch issues, workflow runs, and open PRs in parallel (3 API calls, all cached)
     const [rawIssues, workflowRuns, openPRs] = await Promise.all([
       fetchIssues({
-        state: "open",
+        state: view === "history" ? "all" : "open",
         perPage: 100,
         since: sinceDate,
         // Dashboard infrastructure and user-hidden tasks are not part of the
@@ -523,19 +593,69 @@ export async function GET(req: NextRequest) {
       }
     }
 
+    const counts = {
+      running: filteredTasks.filter(isRunningTask).length,
+      backlog: filteredTasks.filter(isBacklogTask).length,
+      history: filteredTasks.filter(isHistoryTask).length,
+    };
+
     // view=running drops terminal tasks from the response so the Active tab
     // doesn't ship them over the wire on every poll. Backlog (`open` column)
     // is also dropped — the Active tab is for in-flight work only.
     if (view === "running") {
-      filteredTasks = filteredTasks.filter(
-        (t) =>
-          t.column !== "done" && t.column !== "failed" && t.column !== "open",
-      );
+      filteredTasks = filteredTasks.filter(isRunningTask);
     } else if (view === "backlog") {
-      filteredTasks = filteredTasks.filter((t) => t.column === "open");
+      filteredTasks = filteredTasks.filter(isBacklogTask);
+    } else if (view === "history") {
+      filteredTasks = filteredTasks.filter(isHistoryTask);
     }
 
-    return NextResponse.json({ tasks: filteredTasks });
+    filteredTasks = filteredTasks.filter((task) => {
+      if (statusFilter !== "all" && task.column !== statusFilter) return false;
+      if (labelFilter !== "all" && !task.labels.includes(labelFilter))
+        return false;
+      if (
+        priorityFilter !== "all" &&
+        !task.labels.includes(`priority:${priorityFilter}`)
+      )
+        return false;
+      if (
+        searchQuery &&
+        !task.title.toLowerCase().includes(searchQuery) &&
+        !String(task.issueNumber).includes(searchQuery)
+      )
+        return false;
+      return true;
+    });
+
+    filteredTasks = [...filteredTasks].sort((a, b) =>
+      compareTasks(a, b, sortField, sortDirection),
+    );
+
+    const total = filteredTasks.length;
+    const shouldPage = view === "backlog" || view === "history";
+    const totalPages = Math.max(1, Math.ceil(total / perPage));
+    const safePage = Math.min(page, totalPages);
+    const pagedTasks = shouldPage
+      ? filteredTasks.slice((safePage - 1) * perPage, safePage * perPage)
+      : filteredTasks;
+
+    return NextResponse.json({
+      tasks: pagedTasks,
+      counts,
+      ...(shouldPage
+        ? {
+            pagination: {
+              page: safePage,
+              perPage,
+              total,
+              totalPages,
+              hasNext: safePage < totalPages,
+              hasPrevious: safePage > 1,
+            },
+          }
+        : {}),
+    });
   } catch (error: any) {
     console.error("[Kody] Error fetching tasks:", error);
 

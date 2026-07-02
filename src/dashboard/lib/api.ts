@@ -267,6 +267,48 @@ export async function handleResponse<T>(res: Response): Promise<T> {
 // ============ Tasks API ============
 
 export const tasksApi = {
+  listWithMeta: async (params?: {
+    days?: number;
+    includeDetails?: boolean;
+    viewMode?:
+      | "all"
+      | "running"
+      | "backlog"
+      | "history"
+      | "unassigned"
+      | "intake"
+      | "queue";
+    page?: number;
+    perPage?: number;
+    status?: string;
+    label?: string;
+    priority?: string;
+    q?: string;
+    sort?: string;
+    dir?: "asc" | "desc";
+  }): Promise<TasksResponse> => {
+    const searchParams = new URLSearchParams();
+    if (params?.days) searchParams.set("days", String(params.days));
+    if (params?.viewMode) searchParams.set("view", params.viewMode);
+    if (params?.page) searchParams.set("page", String(params.page));
+    if (params?.perPage) searchParams.set("perPage", String(params.perPage));
+    if (params?.status && params.status !== "all")
+      searchParams.set("status", params.status);
+    if (params?.label && params.label !== "all")
+      searchParams.set("label", params.label);
+    if (params?.priority && params.priority !== "all")
+      searchParams.set("priority", params.priority);
+    if (params?.q) searchParams.set("q", params.q);
+    if (params?.sort) searchParams.set("sort", params.sort);
+    if (params?.dir) searchParams.set("dir", params.dir);
+    if (params?.includeDetails === false)
+      searchParams.set("includeDetails", "false");
+
+    const url = `${API_BASE}/tasks${searchParams.toString() ? `?${searchParams}` : ""}`;
+    const res = await fetch(url, { headers: buildHeaders() });
+    return handleResponse<TasksResponse>(res);
+  },
+
   list: async (params?: {
     days?: number;
     includeDetails?: boolean;
@@ -274,19 +316,12 @@ export const tasksApi = {
       | "all"
       | "running"
       | "backlog"
+      | "history"
       | "unassigned"
       | "intake"
       | "queue";
   }): Promise<KodyTask[]> => {
-    const searchParams = new URLSearchParams();
-    if (params?.days) searchParams.set("days", String(params.days));
-    if (params?.viewMode) searchParams.set("view", params.viewMode);
-    if (params?.includeDetails === false)
-      searchParams.set("includeDetails", "false");
-
-    const url = `${API_BASE}/tasks${searchParams.toString() ? `?${searchParams}` : ""}`;
-    const res = await fetch(url, { headers: buildHeaders() });
-    const data = await handleResponse<TasksResponse>(res);
+    const data = await tasksApi.listWithMeta(params);
     return data.tasks;
   },
 

@@ -17,6 +17,7 @@ import {
   getStoredAuth,
 } from "../api";
 import type { KodyTask } from "../types";
+import type { TasksResponse } from "../types";
 import type { ViewMode } from "../components/FilterBar";
 import { POLLING_INTERVALS } from "../constants";
 import { matchWorkflowRunsForTask } from "../workflow-matching";
@@ -34,7 +35,26 @@ export const queryKeys = {
     days?: number,
     includeDetails?: boolean,
     viewMode?: TasksApiViewMode,
-  ) => ["kody-tasks", days, includeDetails, viewMode] as const,
+    page?: number,
+    perPage?: number,
+    filters?: {
+      status?: string;
+      label?: string;
+      priority?: string;
+      q?: string;
+      sort?: string;
+      dir?: "asc" | "desc";
+    },
+  ) =>
+    [
+      "kody-tasks",
+      days,
+      includeDetails,
+      viewMode,
+      page,
+      perPage,
+      filters,
+    ] as const,
   taskDetails: (issueNumber: number) => ["kody-task", issueNumber] as const,
   boards: ["kody-boards"] as const,
   collaborators: ["kody-collaborators"] as const,
@@ -52,6 +72,14 @@ export interface UseKodyTasksOptions {
    * When 'backlog', polling slows to 120s since backlog tasks change rarely.
    */
   viewMode?: TasksApiViewMode;
+  page?: number;
+  perPage?: number;
+  status?: string;
+  label?: string;
+  priority?: string;
+  q?: string;
+  sort?: string;
+  dir?: "asc" | "desc";
   /**
    * Auto-refresh interval based on task state.
    * - 'auto': Uses smart polling based on running tasks and view mode
@@ -124,6 +152,73 @@ export function useKodyTasks(options: UseKodyTasksOptions = {}) {
       return true;
     },
     staleTime: 30_000, // 30s — prevents rapid re-fetches from invalidations; polling handles freshness
+    retry: (failureCount, error) => {
+      if (error instanceof RateLimitError) return false;
+      if (error instanceof NoTokenError) return false;
+      if (error instanceof SessionExpiredError) return false;
+      return failureCount < 3;
+    },
+  });
+}
+
+export function useKodyTasksPage(options: UseKodyTasksOptions = {}) {
+  const {
+    days,
+    includeDetails = false,
+    enabled = true,
+    viewMode = "all",
+    page,
+    perPage,
+    status,
+    label,
+    priority,
+    q,
+    sort,
+    dir,
+    refetchInterval = "auto",
+  } = options;
+  const filters = { status, label, priority, q, sort, dir };
+
+  return useQuery<TasksResponse>({
+    queryKey: queryKeys.tasks(
+      days,
+      includeDetails,
+      viewMode,
+      page,
+      perPage,
+      filters,
+    ),
+    queryFn: () =>
+      kodyApi.tasks.listWithMeta({
+        days,
+        includeDetails,
+        viewMode,
+        page,
+        perPage,
+        status,
+        label,
+        priority,
+        q,
+        sort,
+        dir,
+      }),
+    enabled: enabled && !!getStoredAuth(),
+    refetchInterval: (query): number | false => {
+      if (refetchInterval === false) return false;
+      if (query.state.error instanceof SessionExpiredError) return false;
+      if (query.state.error instanceof NoTokenError) return false;
+      if (refetchInterval === "auto") {
+        return getSmartInterval(query.state.data?.tasks, viewMode);
+      }
+      return POLLING_INTERVALS[refetchInterval];
+    },
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: (query) => {
+      if (query.state.error instanceof SessionExpiredError) return false;
+      if (query.state.error instanceof NoTokenError) return false;
+      return true;
+    },
+    staleTime: 30_000,
     retry: (failureCount, error) => {
       if (error instanceof RateLimitError) return false;
       if (error instanceof NoTokenError) return false;

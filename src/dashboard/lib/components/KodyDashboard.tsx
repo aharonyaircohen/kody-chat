@@ -65,6 +65,8 @@ import {
   FileText,
   LogOut,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Sparkles,
   Bell,
   Bot,
@@ -77,7 +79,7 @@ import {
   Plus,
 } from "lucide-react";
 import Link from "next/link";
-import { useKodyTasks, queryKeys, useDefaultBranchCI } from "../hooks";
+import { useKodyTasksPage, queryKeys, useDefaultBranchCI } from "../hooks";
 import { useKeyboardShortcuts } from "../hooks/useKeyboardShortcuts";
 import { useBrowserNotifications } from "../hooks/useBrowserNotifications";
 import { useNotifications } from "../notifications/NotificationsProvider";
@@ -122,6 +124,54 @@ interface KodyDashboardProps {
   initialModal?: "new" | "bug" | "chat" | "kody-bug";
 }
 
+const TASK_PAGE_SIZE = 10;
+const EMPTY_TASKS: KodyTask[] = [];
+
+function TaskPaginationControls({
+  page,
+  totalPages,
+  total,
+  onPageChange,
+}: {
+  page: number;
+  totalPages: number;
+  total: number;
+  onPageChange: (page: number) => void;
+}) {
+  if (totalPages <= 1 && total <= TASK_PAGE_SIZE) return null;
+  return (
+    <div className="sticky bottom-0 z-10 flex items-center justify-between border-t border-white/[0.08] bg-background/95 px-3 py-2 backdrop-blur">
+      <span className="text-xs text-muted-foreground">
+        Page {page} of {totalPages} · {total} total
+      </span>
+      <div className="flex items-center gap-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 gap-1 text-xs"
+          disabled={page <= 1}
+          onClick={() => onPageChange(Math.max(1, page - 1))}
+        >
+          <ChevronLeft className="w-3.5 h-3.5" />
+          Previous
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-8 gap-1 text-xs"
+          disabled={page >= totalPages}
+          onClick={() => onPageChange(Math.min(totalPages, page + 1))}
+        >
+          Next
+          <ChevronRight className="w-3.5 h-3.5" />
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function KodyDashboard({
   initialIssueNumber,
   initialModal,
@@ -145,6 +195,10 @@ export function KodyDashboard({
   const [priorityFilter, setPriorityFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("running");
+  const [pagedTaskPages, setPagedTaskPages] = useState({
+    backlog: 1,
+    history: 1,
+  });
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [mobileSettingsOpen, setMobileSettingsOpen] = useState(false);
   const [showMobileDetail, setShowMobileDetail] = useState(false);
@@ -185,7 +239,13 @@ export function KodyDashboard({
     }
   }, [taskListLayout]);
   const showingBacklog = viewMode === "backlog";
-  const isGroupedTaskList = taskListLayout === "grouped" && !showingBacklog;
+  const showingHistory = viewMode === "history";
+  const isPagedTaskView = showingBacklog || showingHistory;
+  const currentTaskPage = showingHistory
+    ? pagedTaskPages.history
+    : pagedTaskPages.backlog;
+  const isGroupedTaskList =
+    taskListLayout === "grouped" && viewMode === "running";
 
   const filterBarRef = useRef<{ focusSearch: () => void } | null>(null);
 
@@ -193,7 +253,7 @@ export function KodyDashboard({
   // The list subtree fully unmounts when a task is selected, so a module-
   // scoped store keyed by the active filter signature is what survives.
   const listScrollRef = useScrollRestoration(
-    `dash:${taskListLayout}:${viewMode}:${dateFilter}:${statusFilter}:${labelFilter}:${priorityFilter}:${debouncedSearch}:${sortField}:${sortDirection}`,
+    `dash:${taskListLayout}:${viewMode}:${currentTaskPage}:${dateFilter}:${statusFilter}:${labelFilter}:${priorityFilter}:${debouncedSearch}:${sortField}:${sortDirection}`,
   );
 
   // Persistent chat lives in the root layout (ChatRailShell). We just
@@ -226,24 +286,59 @@ export function KodyDashboard({
   // Get days from filter
   const filter = DATE_FILTERS.find((f) => f.value === dateFilter);
   const days = filter?.days;
-  const apiViewMode = "intake";
+  const apiViewMode =
+    viewMode === "backlog" || viewMode === "history" ? viewMode : "intake";
   const taskQueryKey = useMemo(
-    () => queryKeys.tasks(days, false, apiViewMode),
-    [days, apiViewMode],
+    () =>
+      queryKeys.tasks(
+        days,
+        false,
+        apiViewMode,
+        isPagedTaskView ? currentTaskPage : undefined,
+        isPagedTaskView ? TASK_PAGE_SIZE : undefined,
+        {
+          status: statusFilter,
+          label: labelFilter,
+          priority: priorityFilter,
+          q: debouncedSearch,
+          sort: sortField,
+          dir: sortDirection,
+        },
+      ),
+    [
+      days,
+      apiViewMode,
+      isPagedTaskView,
+      currentTaskPage,
+      statusFilter,
+      labelFilter,
+      priorityFilter,
+      debouncedSearch,
+      sortField,
+      sortDirection,
+    ],
   );
 
   // One dashboard task set backs both visible tabs:
   // Running = assigned/executing work, Backlog = unassigned + assigned but not run.
   const {
-    data: tasks = [],
+    data: tasksResponse,
     isLoading,
     isFetching,
     error,
     refetch,
     dataUpdatedAt,
-  } = useKodyTasks({
+  } = useKodyTasksPage({
     days,
     viewMode: apiViewMode,
+    page: isPagedTaskView ? currentTaskPage : undefined,
+    perPage: isPagedTaskView ? TASK_PAGE_SIZE : undefined,
+    status: statusFilter,
+    label: labelFilter,
+    priority: priorityFilter,
+    q: debouncedSearch,
+    sort: sortField,
+    dir: sortDirection,
     // Pause list polling while a task is open OR a full-screen modal is up
     // (/new, /bug). The modal owns the foreground; background list will
     // refresh on close via invalidation.
@@ -255,6 +350,8 @@ export function KodyDashboard({
         ? false
         : "auto",
   });
+  const tasks = tasksResponse?.tasks ?? EMPTY_TASKS;
+  const taskPagination = tasksResponse?.pagination;
 
   // Default-branch CI roll-up — banner uses this as its primary signal so
   // operators can see whether main is green/red before drilling into tasks.
@@ -274,8 +371,16 @@ export function KodyDashboard({
     const view = params.get("view");
     if (view === "queue") setViewMode("running");
     else if (view === "unassigned") setViewMode("backlog");
-    else if (view && ["backlog", "running"].includes(view))
+    else if (view && ["backlog", "running", "history"].includes(view))
       setViewMode(view as ViewMode);
+    const page = Number.parseInt(params.get("page") ?? "1", 10);
+    if (Number.isFinite(page) && page > 1) {
+      if (view === "history") {
+        setPagedTaskPages((prev) => ({ ...prev, history: page }));
+      } else if (view === "backlog" || view === "unassigned") {
+        setPagedTaskPages((prev) => ({ ...prev, backlog: page }));
+      }
+    }
     const q = params.get("q");
     if (q) {
       setSearchQuery(q);
@@ -286,6 +391,18 @@ export function KodyDashboard({
     const dir = params.get("dir");
     if (dir === "asc" || dir === "desc") setSortDirection(dir);
   }, []);
+
+  useEffect(() => {
+    setPagedTaskPages({ backlog: 1, history: 1 });
+  }, [
+    dateFilter,
+    statusFilter,
+    labelFilter,
+    priorityFilter,
+    debouncedSearch,
+    sortField,
+    sortDirection,
+  ]);
 
   const queryClient = useQueryClient();
 
@@ -752,6 +869,11 @@ export function KodyDashboard({
     else params.delete("priority");
     if (viewMode !== "running") params.set("view", viewMode);
     else params.delete("view");
+    if (isPagedTaskView && currentTaskPage > 1) {
+      params.set("page", String(currentTaskPage));
+    } else {
+      params.delete("page");
+    }
     if (debouncedSearch) params.set("q", debouncedSearch);
     else params.delete("q");
     const search = params.toString();
@@ -763,6 +885,8 @@ export function KodyDashboard({
     labelFilter,
     priorityFilter,
     viewMode,
+    isPagedTaskView,
+    currentTaskPage,
     debouncedSearch,
   ]);
 
@@ -811,8 +935,13 @@ export function KodyDashboard({
 
   // Backlog is the unified intake: unassigned issues plus assigned open tasks.
   const viewCounts = getViewModeCounts(visibleTasks);
-  const runningCount = viewCounts.runningCount;
-  const backlogCount = viewCounts.backlogCount;
+  const runningCount =
+    tasksResponse?.counts?.running ?? viewCounts.runningCount;
+  const backlogCount =
+    tasksResponse?.counts?.backlog ?? viewCounts.backlogCount;
+  const historyCount =
+    tasksResponse?.counts?.history ?? viewCounts.historyCount;
+  const visibleHistoryCount = showingHistory ? historyCount : undefined;
   const queueCount = viewCounts.queueCount;
 
   // Filter tasks by view mode, then by status and label (combined with AND logic).
@@ -1073,7 +1202,7 @@ export function KodyDashboard({
         refetch();
       }
     },
-    [queryClient, days, githubUser?.login, goals, refetch],
+    [queryClient, taskQueryKey, githubUser?.login, goals, refetch],
   );
 
   const handleOpenBug = useCallback(() => {
@@ -1231,6 +1360,7 @@ export function KodyDashboard({
         onViewModeChange={setViewMode}
         runningCount={runningCount}
         backlogCount={backlogCount}
+        historyCount={visibleHistoryCount}
         disableBacklog={isGroupedTaskList}
       />
       {/* Date filter */}
@@ -1584,6 +1714,7 @@ export function KodyDashboard({
                     totalCount={totalCount}
                     runningCount={runningCount}
                     backlogCount={backlogCount}
+                    historyCount={visibleHistoryCount}
                     queueCount={queueCount}
                     disableBacklog={isGroupedTaskList}
                     searchQuery={searchQuery}
@@ -1777,6 +1908,19 @@ export function KodyDashboard({
                         });
                       }}
                     />
+                    {isPagedTaskView && taskPagination ? (
+                      <TaskPaginationControls
+                        page={taskPagination.page}
+                        totalPages={taskPagination.totalPages}
+                        total={taskPagination.total}
+                        onPageChange={(page) =>
+                          setPagedTaskPages((prev) => ({
+                            ...prev,
+                            [showingHistory ? "history" : "backlog"]: page,
+                          }))
+                        }
+                      />
+                    ) : null}
                   </div>
                 ) : (
                   <GoalGroupedView

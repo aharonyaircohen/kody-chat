@@ -114,9 +114,17 @@ export function filterTasksByView(
     } else if (viewMode === "backlog") {
       if (isTerminalTask(task)) return false;
       if (task.column !== "open") return false;
+    } else if (viewMode === "history") {
+      if (
+        task.state !== "closed" &&
+        task.column !== "done" &&
+        task.column !== "failed"
+      )
+        return false;
     } else if (viewMode === "running") {
       if (isTerminalTask(task)) return false;
       if (task.column === "open") return false;
+      if (task.column === "done" || task.column === "failed") return false;
     }
     // Status filter
     if (statusFilter !== "all" && task.column !== statusFilter) return false;
@@ -144,9 +152,16 @@ export function getViewModeCounts(tasks: KodyTask[]): {
   backlogCount: number;
   unassignedCount: number;
   queueCount: number;
+  historyCount: number;
 } {
   const active = tasks.filter((t) => !isTerminalTask(t));
   const backlogCount = active.filter((t) => t.column === "open").length;
+  const historyCount = tasks.filter(
+    (t) => t.state === "closed" || t.column === "done" || t.column === "failed",
+  ).length;
+  const runningCount = active.filter(
+    (t) => t.column !== "open" && t.column !== "done" && t.column !== "failed",
+  ).length;
   const queueCount = tasks.filter((t) =>
     t.labels.some((l) =>
       QUEUE_LABELS.includes(l as (typeof QUEUE_LABELS)[number]),
@@ -154,9 +169,10 @@ export function getViewModeCounts(tasks: KodyTask[]): {
   ).length;
   return {
     backlogCount,
-    runningCount: active.length - backlogCount,
+    runningCount,
     unassignedCount: active.length,
     queueCount,
+    historyCount,
   };
 }
 

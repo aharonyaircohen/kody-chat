@@ -18,7 +18,12 @@ import { Search, X } from "lucide-react";
 import type { SortField, SortDirection } from "../types";
 import { FilterDropdown } from "./FilterDropdown";
 
-export type ViewMode = "running" | "backlog" | "unassigned" | "queue";
+export type ViewMode =
+  | "running"
+  | "backlog"
+  | "history"
+  | "unassigned"
+  | "queue";
 
 export interface FilterBarProps {
   viewMode: ViewMode;
@@ -37,6 +42,7 @@ export interface FilterBarProps {
   totalCount: number;
   runningCount: number;
   backlogCount: number;
+  historyCount?: number;
   queueCount?: number;
   /**
    * When true, the Backlog toggle is disabled (goal-grouped view collapses
@@ -63,12 +69,14 @@ export function ViewToggle({
   onViewModeChange,
   runningCount,
   backlogCount,
+  historyCount,
   disableBacklog = false,
 }: {
   viewMode: ViewMode;
   onViewModeChange: (mode: ViewMode) => void;
   runningCount: number;
   backlogCount: number;
+  historyCount?: number;
   disableBacklog?: boolean;
 }) {
   // When backlog is disabled the running/backlog split is meaningless — the
@@ -101,6 +109,19 @@ export function ViewToggle({
       >
         Backlog ({backlogCount})
       </button>
+      <button
+        type="button"
+        onClick={() => onViewModeChange("history")}
+        className={cn(
+          "px-3 py-1 rounded text-xs font-medium transition-colors",
+          viewMode === "history"
+            ? "bg-slate-600 text-white shadow-sm"
+            : "text-muted-foreground hover:text-foreground hover:bg-white/[0.06]",
+        )}
+      >
+        History
+        {typeof historyCount === "number" ? ` (${historyCount})` : ""}
+      </button>
       {/* Queue/unassigned views retired — left in ViewMode type for URL backwards-compat. */}
     </div>
   );
@@ -125,6 +146,7 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(
       totalCount,
       runningCount,
       backlogCount,
+      historyCount,
       disableBacklog,
       searchQuery = "",
       onSearchChange,
@@ -169,6 +191,7 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(
           onViewModeChange={onViewModeChange}
           runningCount={runningCount}
           backlogCount={backlogCount}
+          historyCount={historyCount}
           disableBacklog={disableBacklog}
         />
 

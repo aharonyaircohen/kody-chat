@@ -325,6 +325,19 @@ export type SortDirection = "asc" | "desc";
 export interface TasksResponse {
   tasks: KodyTask[];
   columns: ColumnId[];
+  pagination?: {
+    page: number;
+    perPage: number;
+    total: number;
+    totalPages: number;
+    hasNext: boolean;
+    hasPrevious: boolean;
+  };
+  counts?: {
+    running: number;
+    backlog: number;
+    history: number;
+  };
 }
 
 export interface BoardsResponse {

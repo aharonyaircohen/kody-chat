@@ -113,6 +113,26 @@ describe("dashboard view filtering", () => {
       runningCount: 1,
       backlogCount: 1,
       unassignedCount: 2,
+      historyCount: 1,
     });
+  });
+
+  it("shows closed, done, and failed tasks in history", () => {
+    expect(
+      filterTasksByView(
+        [
+          task({ issueNumber: 1, column: "building" }),
+          task({ issueNumber: 2, column: "done" }),
+          task({ issueNumber: 3, column: "failed" }),
+          task({ issueNumber: 4, column: "open", state: "closed" }),
+        ],
+        {
+          viewMode: "history",
+          statusFilter: "all",
+          labelFilter: "all",
+          priorityFilter: "all",
+        },
+      ).map((t) => t.issueNumber),
+    ).toEqual([2, 3, 4]);
   });
 });
