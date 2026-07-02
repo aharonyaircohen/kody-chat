@@ -13,8 +13,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
+import {
+  brainFlyRuntimeImageRef,
+  brainGhcrAuth,
+  prepareBrainRuntimeImage,
+} from "@dashboard/lib/brain/image-runtime";
+import { readBrainImage, writeBrainApp } from "@dashboard/lib/brain/store";
+import {
+  clearGitHubContext,
+  setGitHubContext,
+} from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 import { startMachine } from "@dashboard/lib/previews/fly-previews";
+import { provisionBrain } from "@dashboard/lib/runners/brain-fly";
 import {
   flyConfigFromContext,
   resolveFlyContext,
@@ -83,6 +94,83 @@ function terminalTargetFlyConfig(
   return orgSlug && orgSlug !== cfg.orgSlug ? { ...cfg, orgSlug } : cfg;
 }
 
+async function prepareSelectedBrainImageForTerminal(input: {
+  req: NextRequest;
+  ctx: Extract<Awaited<ReturnType<typeof resolveFlyContext>>, { ok: true }>;
+  app: string;
+  orgSlug: string;
+  cfg: FlyPreviewConfig;
+}): Promise<{ app: string; machineId: string; orgSlug: string } | null> {
+  setGitHubContext(
+    input.ctx.context.owner,
+    input.ctx.context.repo,
+    input.ctx.context.githubToken,
+    input.ctx.context.storeRepoUrl,
+    input.ctx.context.storeRef,
+  );
+  try {
+    const image = await readBrainImage(
+      input.ctx.context.account,
+      input.ctx.context.githubToken,
+    ).catch(() => null);
+    if (!image?.imageRef) return null;
+
+    const ghcr = brainGhcrAuth({
+      allSecrets: input.ctx.context.allSecrets,
+      githubToken: input.ctx.context.githubToken,
+      account: input.ctx.context.account,
+    });
+    const result = await provisionBrain({
+      flyToken: input.cfg.token,
+      account: input.ctx.context.account,
+      model: input.ctx.context.engineModel,
+      modelConfig: input.ctx.context.engineModelConfig,
+      githubToken: input.ctx.context.githubToken,
+      allSecrets: input.ctx.context.allSecrets,
+      perfTier: input.ctx.context.perfTier,
+      orgSlug: input.orgSlug,
+      defaultRegion: input.cfg.defaultRegion,
+      dashboardUrl: new URL(input.req.url).origin,
+      appNameOverride: input.app,
+      imageRef: image.imageRef,
+      resolveRuntimeImageRef: ({ app, imageRef }) =>
+        Promise.resolve(brainFlyRuntimeImageRef({ app, imageRef })),
+      prepareRuntimeImage: async ({
+        app,
+        sourceImageRef,
+        runtimeImageRef,
+      }) => {
+        await prepareBrainRuntimeImage({
+          owner: input.ctx.context.owner,
+          repo: input.ctx.context.repo,
+          app,
+          imageRef: sourceImageRef,
+          runtimeImageRef,
+          flyToken: input.cfg.token,
+          ghcrToken: ghcr.token,
+          ghcrUser: ghcr.user,
+          orgSlug: input.orgSlug,
+          defaultRegion: input.cfg.defaultRegion,
+        });
+      },
+    });
+    await writeBrainApp(input.ctx.context.account, input.ctx.context.githubToken, {
+      version: 1,
+      appName: result.app,
+      orgSlug: result.org,
+      createdAt: new Date().toISOString(),
+    }).catch((err) => {
+      logger.warn(
+        { err, owner: input.ctx.context.owner, app: result.app },
+        "terminal: record Brain app after image selection failed",
+      );
+    });
+    return { app: result.app, machineId: result.machineId, orgSlug: result.org };
+  } finally {
+    clearGitHubContext();
+  }
+}
+
 export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
@@ -132,8 +220,29 @@ export async function POST(req: NextRequest) {
         { status: TARGET_STATUS.machine_not_terminal_capable },
       );
     }
+    let selectedCfg = terminalTargetFlyConfig(cfg, requested.orgSlug);
+    let selectedApp = requested.app;
+    let selectedMachineId = requested.machineId;
+    let selectedLabel = requested.label;
+    let selectedFeature = requested.feature;
+    if (requested.feature === "brain") {
+      const prepared = await prepareSelectedBrainImageForTerminal({
+        req,
+        ctx,
+        app: requested.app,
+        orgSlug: selectedCfg.orgSlug,
+        cfg: selectedCfg,
+      });
+      if (prepared) {
+        selectedApp = prepared.app;
+        selectedMachineId = prepared.machineId;
+        selectedCfg = terminalTargetFlyConfig(cfg, prepared.orgSlug);
+      }
+    }
     if (!isTerminalMachineLive(requested.state)) {
-      if (!isTerminalMachineStartable(requested.state)) {
+      if (selectedMachineId !== requested.machineId) {
+        // The selected image path already produced the machine to connect to.
+      } else if (!isTerminalMachineStartable(requested.state)) {
         return NextResponse.json(
           {
             error: "machine_not_running",
@@ -141,53 +250,55 @@ export async function POST(req: NextRequest) {
           },
           { status: TARGET_STATUS.machine_not_running },
         );
+      } else {
+        logger.info(
+          { app: requested.app, machineId: requested.machineId },
+          "terminal: waking machine",
+        );
+        await startMachine(requested.app, requested.machineId, selectedCfg);
+        const selectedInput = {
+          app: requested.app,
+          machineId: requested.machineId,
+        };
+        for (let attempt = 0; attempt < WAKE_POLL_ATTEMPTS; attempt++) {
+          if (attempt > 0) await sleep(WAKE_POLL_INTERVAL_MS);
+          inventory = await listFlyInventory(cfg);
+          await appendSavedBrainMachineToInventory(req, inventory);
+          const next = resolveTerminalTargetMachine(inventory, selectedInput);
+          if (next && isTerminalMachineLive(next.state)) break;
+        }
       }
-      logger.info(
-        { app: requested.app, machineId: requested.machineId },
-        "terminal: waking machine",
-      );
-      await startMachine(
-        requested.app,
-        requested.machineId,
-        terminalTargetFlyConfig(cfg, requested.orgSlug),
-      );
-      const selectedInput = {
+    }
+
+    if (selectedMachineId === requested.machineId) {
+      const selected = selectTerminalTarget(inventory, {
         app: requested.app,
         machineId: requested.machineId,
-      };
-      for (let attempt = 0; attempt < WAKE_POLL_ATTEMPTS; attempt++) {
-        if (attempt > 0) await sleep(WAKE_POLL_INTERVAL_MS);
-        inventory = await listFlyInventory(cfg);
-        await appendSavedBrainMachineToInventory(req, inventory);
-        const next = resolveTerminalTargetMachine(inventory, selectedInput);
-        if (next && isTerminalMachineLive(next.state)) break;
+      });
+      if (!selected.ok) {
+        return NextResponse.json(
+          { error: selected.error, message: TARGET_MESSAGE[selected.error] },
+          { status: TARGET_STATUS[selected.error] ?? 400 },
+        );
       }
+      selectedCfg = terminalTargetFlyConfig(cfg, selected.machine.orgSlug);
+      selectedApp = selected.machine.app;
+      selectedMachineId = selected.machine.machineId;
+      selectedLabel = selected.machine.label;
+      selectedFeature = selected.machine.feature;
     }
-
-    const selected = selectTerminalTarget(inventory, {
-      app: requested.app,
-      machineId: requested.machineId,
-    });
-    if (!selected.ok) {
-      return NextResponse.json(
-        { error: selected.error, message: TARGET_MESSAGE[selected.error] },
-        { status: TARGET_STATUS[selected.error] ?? 400 },
-      );
-    }
-
-    const selectedCfg = terminalTargetFlyConfig(cfg, selected.machine.orgSlug);
     const bridge = await ensureTerminalBridge(selectedCfg);
     const activityLimitMs = terminalActivityLimitForTarget(
-      selected.machine.feature,
+      selectedFeature,
       parsed.data.activityLimitMs,
     );
     const now = Math.floor(Date.now() / 1000);
     const token = mintTerminalBridgeToken({
       owner: ctx.context.owner,
       repo: ctx.context.repo,
-      app: selected.machine.app,
+      app: selectedApp,
       orgSlug: selectedCfg.orgSlug,
-      machineId: selected.machine.machineId,
+      machineId: selectedMachineId,
       chatSessionId: parsed.data.chatSessionId,
       resetSession: parsed.data.resetSession,
       ...(activityLimitMs !== undefined ? { activityLimitMs } : {}),
@@ -201,9 +312,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      app: selected.machine.app,
-      machineId: selected.machine.machineId,
-      label: selected.machine.label,
+      app: selectedApp,
+      machineId: selectedMachineId,
+      label: selectedLabel,
       bridgeApp: bridge.app,
       expiresAt: new Date((now + 120) * 1000).toISOString(),
       webSocketUrl,

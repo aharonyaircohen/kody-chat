@@ -67,6 +67,31 @@ describe("chat issue-creation tools", () => {
     expect(result.url).toBe("/77");
   });
 
+  it("adds preview context to chat-created task issue bodies", async () => {
+    const tools = createTaskTools({
+      ...makeCtx(),
+      previewContext:
+        "Current preview page:\nURL: https://preview.test/demo\nTitle: Demo",
+    }) as unknown as {
+      create_feature: TestTool;
+    };
+
+    await tools.create_feature.execute({
+      title: "Match demo view",
+      summary: "Users need the new page to match the demo.",
+      requirements: "Build the page from the demo UI.",
+    });
+
+    expect(createIssueWithBestEffortMetadata).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        body: expect.stringContaining(
+          "### View Example\nCurrent preview page:\nURL: https://preview.test/demo",
+        ),
+      }),
+    );
+  });
+
   it("returns the dashboard task URL for bug reports", async () => {
     const tools = createBugTools(makeCtx()) as unknown as {
       report_bug: TestTool;
@@ -97,6 +122,32 @@ describe("chat issue-creation tools", () => {
     });
 
     expect(result.url).toBe("/77");
+  });
+
+  it("adds preview context to mission-planner task issue bodies", async () => {
+    const tools = createPlannerTools({
+      ...makeCtx(),
+      goalId: "mission-1",
+      previewContext: "Current preview page:\nURL: https://preview.test/goal",
+    }) as unknown as {
+      create_task_for_goal: TestTool;
+    };
+
+    await tools.create_task_for_goal.execute({
+      title: "Match planner demo",
+      summary: "Users need this task to follow the demo.",
+      requirements: "Use the demo page as the UI reference.",
+      category: "feature",
+    });
+
+    expect(createIssueWithBestEffortMetadata).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        body: expect.stringContaining(
+          "### View Example\nCurrent preview page:\nURL: https://preview.test/goal",
+        ),
+      }),
+    );
   });
 
   it("returns the dashboard task URL for release request issues", async () => {

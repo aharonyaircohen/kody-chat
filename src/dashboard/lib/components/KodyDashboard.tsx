@@ -118,6 +118,7 @@ import {
   markTaskHiddenInList,
   markTaskVisibleInList,
 } from "../tasks/visibility";
+import { mapTaskCacheData, type TaskCacheData } from "../tasks/cache";
 
 interface KodyDashboardProps {
   initialIssueNumber?: number;
@@ -555,17 +556,19 @@ export function KodyDashboard({
       ),
     onMutate: async (task) => {
       await queryClient.cancelQueries({ queryKey: ["kody-tasks"] });
-      const previous = queryClient.getQueriesData<KodyTask[]>({
+      const previous = queryClient.getQueriesData<TaskCacheData>({
         queryKey: ["kody-tasks"],
       });
-      queryClient.setQueriesData<KodyTask[]>(
+      queryClient.setQueriesData<TaskCacheData>(
         { queryKey: ["kody-tasks"] },
         (old) =>
-          old?.map((t) =>
-            t.issueNumber === task.issueNumber &&
-            !t.labels.includes(KODY_BACKLOG_LABEL)
-              ? { ...t, labels: [...t.labels, KODY_BACKLOG_LABEL] }
-              : t,
+          mapTaskCacheData(old, (cachedTasks) =>
+            cachedTasks.map((t) =>
+              t.issueNumber === task.issueNumber &&
+              !t.labels.includes(KODY_BACKLOG_LABEL)
+                ? { ...t, labels: [...t.labels, KODY_BACKLOG_LABEL] }
+                : t,
+            ),
           ),
       );
       return { previous };
@@ -598,21 +601,23 @@ export function KodyDashboard({
       ),
     onMutate: async (task) => {
       await queryClient.cancelQueries({ queryKey: ["kody-tasks"] });
-      const previous = queryClient.getQueriesData<KodyTask[]>({
+      const previous = queryClient.getQueriesData<TaskCacheData>({
         queryKey: ["kody-tasks"],
       });
-      queryClient.setQueriesData<KodyTask[]>(
+      queryClient.setQueriesData<TaskCacheData>(
         { queryKey: ["kody-tasks"] },
         (old) =>
-          old?.map((t) =>
-            t.issueNumber === task.issueNumber
-              ? {
-                  ...t,
-                  labels: t.labels.filter(
-                    (label) => label !== KODY_BACKLOG_LABEL,
-                  ),
-                }
-              : t,
+          mapTaskCacheData(old, (cachedTasks) =>
+            cachedTasks.map((t) =>
+              t.issueNumber === task.issueNumber
+                ? {
+                    ...t,
+                    labels: t.labels.filter(
+                      (label) => label !== KODY_BACKLOG_LABEL,
+                    ),
+                  }
+                : t,
+            ),
           ),
       );
       return { previous };
@@ -642,15 +647,17 @@ export function KodyDashboard({
     // #3: Optimistic update — move task to "building" immediately
     onMutate: async (task) => {
       await queryClient.cancelQueries({ queryKey: taskQueryKey });
-      const previous = queryClient.getQueryData<KodyTask[]>(taskQueryKey);
-      queryClient.setQueryData<KodyTask[]>(taskQueryKey, (old) =>
-        old?.map((t) => {
-          if (t.id !== task.id) return t;
-          const labels = t.labels.includes(KODY_BACKLOG_LABEL)
-            ? t.labels
-            : [...t.labels, KODY_BACKLOG_LABEL];
-          return { ...t, labels, column: "building" as const };
-        }),
+      const previous = queryClient.getQueryData<TaskCacheData>(taskQueryKey);
+      queryClient.setQueryData<TaskCacheData>(taskQueryKey, (old) =>
+        mapTaskCacheData(old, (cachedTasks) =>
+          cachedTasks.map((t) => {
+            if (t.id !== task.id) return t;
+            const labels = t.labels.includes(KODY_BACKLOG_LABEL)
+              ? t.labels
+              : [...t.labels, KODY_BACKLOG_LABEL];
+            return { ...t, labels, column: "building" as const };
+          }),
+        ),
       );
       return { previous };
     },
@@ -684,10 +691,12 @@ export function KodyDashboard({
       tasksApi.approveReview(task, githubUser?.login),
     onMutate: async (task) => {
       await queryClient.cancelQueries({ queryKey: taskQueryKey });
-      const previous = queryClient.getQueryData<KodyTask[]>(taskQueryKey);
-      queryClient.setQueryData<KodyTask[]>(taskQueryKey, (old) =>
-        old?.map((t) =>
-          t.id === task.id ? { ...t, column: "done" as const } : t,
+      const previous = queryClient.getQueryData<TaskCacheData>(taskQueryKey);
+      queryClient.setQueryData<TaskCacheData>(taskQueryKey, (old) =>
+        mapTaskCacheData(old, (cachedTasks) =>
+          cachedTasks.map((t) =>
+            t.id === task.id ? { ...t, column: "done" as const } : t,
+          ),
         ),
       );
       return { previous };
@@ -726,16 +735,17 @@ export function KodyDashboard({
           ),
     onMutate: async ({ task, hidden }) => {
       await queryClient.cancelQueries({ queryKey: ["kody-tasks"] });
-      const previous = queryClient.getQueriesData<KodyTask[]>({
+      const previous = queryClient.getQueriesData<TaskCacheData>({
         queryKey: ["kody-tasks"],
       });
-      queryClient.setQueriesData<KodyTask[]>(
+      queryClient.setQueriesData<TaskCacheData>(
         { queryKey: ["kody-tasks"] },
         (old) => {
-          if (!old) return old;
-          return hidden
-            ? markTaskHiddenInList(old, task.issueNumber)
-            : markTaskVisibleInList(old, task.issueNumber);
+          return mapTaskCacheData(old, (cachedTasks) =>
+            hidden
+              ? markTaskHiddenInList(cachedTasks, task.issueNumber)
+              : markTaskVisibleInList(cachedTasks, task.issueNumber),
+          );
         },
       );
       return { previous };
@@ -1160,13 +1170,15 @@ export function KodyDashboard({
       const targetLabel = targetGoalId ? `goal:${targetGoalId}` : null;
 
       // Optimistic: update the tasks cache so the row jumps to the new group immediately
-      queryClient.setQueryData<KodyTask[]>(taskQueryKey, (old) =>
-        old?.map((t) => {
-          if (t.id !== task.id) return t;
-          const nextLabels = t.labels.filter((l) => !l.startsWith("goal:"));
-          if (targetLabel) nextLabels.push(targetLabel);
-          return { ...t, labels: nextLabels };
-        }),
+      queryClient.setQueryData<TaskCacheData>(taskQueryKey, (old) =>
+        mapTaskCacheData(old, (cachedTasks) =>
+          cachedTasks.map((t) => {
+            if (t.id !== task.id) return t;
+            const nextLabels = t.labels.filter((l) => !l.startsWith("goal:"));
+            if (targetLabel) nextLabels.push(targetLabel);
+            return { ...t, labels: nextLabels };
+          }),
+        ),
       );
 
       try {

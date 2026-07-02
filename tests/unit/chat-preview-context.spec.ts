@@ -45,6 +45,30 @@ describe("previewChatContextBlock", () => {
     expect(block).not.toContain("Uploaded file");
   });
 
+  it("puts repo-backed static view source before the preview URL", () => {
+    const block = previewChatContextBlock({
+      id: "mobile",
+      label: "Mobile HTML",
+      url: "/api/kody/views/mobile-html-1234/index.html",
+      repoViewPath: "views/mobile-html-1234",
+      repoViewEntryPath: "index.html",
+      repoViewSourceUrl:
+        "https://github.com/acme/kody-state/blob/main/app/views/mobile-html-1234/index.html",
+    });
+
+    expect(block).toContain("Source path: views/mobile-html-1234");
+    expect(block).toContain("Entry file: index.html");
+    expect(block).toContain(
+      "Source URL: https://github.com/acme/kody-state/blob/main/app/views/mobile-html-1234/index.html",
+    );
+    expect(block).toContain(
+      "Preview URL: /api/kody/views/mobile-html-1234/index.html",
+    );
+    expect(block!.indexOf("Source URL")).toBeLessThan(
+      block!.indexOf("Preview URL"),
+    );
+  });
+
   it("describes Fly branch previews without requiring a URL", () => {
     const block = previewChatContextBlock({
       id: "dev",

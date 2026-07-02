@@ -7,9 +7,9 @@
  */
 "use client";
 
-import { ClipboardCopy, Eraser, Loader2, RotateCcw } from "lucide-react";
 import {
   forwardRef,
+  type ReactNode,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -69,11 +69,25 @@ type TerminalOutputEvent =
       at: string;
     };
 
+type TerminalInputSignal = {
+  tone: "idle" | "ready" | "sent" | "queued" | "blocked";
+  label: string;
+};
+
+export interface ChatTerminalChromeState {
+  statusText: string;
+  inputLabel: string;
+  inputTone: TerminalInputSignal["tone"];
+  actionBusy: boolean;
+}
+
 interface ChatTerminalSurfaceProps {
   active: boolean;
   chatSessionId: string;
   transport?: ChatTerminalTransport;
+  topToolbar?: ReactNode;
   onAddToChat: (context: string) => void;
+  onChromeStateChange?: (state: ChatTerminalChromeState) => void;
   onConnectionStateChange?: (state: ChatTerminalConnectionState) => void;
   onSessionEnded?: (snapshot: ChatTerminalSnapshot) => void;
 }
@@ -82,6 +96,9 @@ export interface ChatTerminalSurfaceHandle {
   sendLine: (line: string) => boolean;
   sendText: (text: string) => boolean;
   executeText: (text: string) => boolean;
+  addToChat: () => void;
+  clear: () => void;
+  restart: () => void;
   stop: () => Promise<void>;
   focus: () => void;
   getSnapshot: () => ChatTerminalSnapshot;
@@ -96,6 +113,7 @@ const TERMINAL_STOP_TIMEOUT_MS = 8_000;
 const LOCAL_POLL_TIMEOUT_MS = 5_000;
 const TERMINAL_START_TIMEOUT_MS = 20_000;
 const FLY_CONNECT_TIMEOUT_MS = 30_000;
+const MAX_PENDING_INPUT_CHARS = 8_000;
 
 function fetchWithTimeout(
   input: RequestInfo | URL,
@@ -174,7 +192,9 @@ export const ChatTerminalSurface = forwardRef<
     active,
     chatSessionId,
     transport = { type: "local" },
+    topToolbar,
     onAddToChat,
+    onChromeStateChange,
     onConnectionStateChange,
     onSessionEnded,
   },
@@ -195,6 +215,8 @@ export const ChatTerminalSurface = forwardRef<
   const disposedRef = useRef(false);
   const activeRef = useRef(active);
   const outputCaptureRef = useRef("");
+  const pendingFlyInputRef = useRef("");
+  const inputSignalTimerRef = useRef<number | null>(null);
   const sessionEndNotifiedRef = useRef(false);
   const pollBusyRef = useRef(false);
   const stopRef = useRef<() => Promise<void>>(async () => {});
@@ -202,6 +224,10 @@ export const ChatTerminalSurface = forwardRef<
   const [connecting, setConnecting] = useState(false);
   const [session, setSession] = useState<TerminalSessionState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [inputSignal, setInputSignal] = useState<TerminalInputSignal>({
+    tone: "idle",
+    label: "No input",
+  });
   const [flyConnectionState, setFlyConnectionState] =
     useState<ChatTerminalConnectionState>("idle");
 
@@ -237,9 +263,55 @@ export const ChatTerminalSurface = forwardRef<
       flyConnectionStateRef.current = state;
       setFlyConnectionState(state);
       onConnectionStateChange?.(state);
+      if (state === "connected") {
+        setInputSignal({ tone: "ready", label: "Ready for input" });
+      } else if (state === "connecting") {
+        setInputSignal({ tone: "blocked", label: "Waiting for terminal" });
+      } else if (state === "closed" || state === "error") {
+        pendingFlyInputRef.current = "";
+        setInputSignal({ tone: "blocked", label: "Input blocked" });
+      }
     },
     [onConnectionStateChange],
   );
+
+  const setInputSignalBriefly = useCallback(
+    (signal: TerminalInputSignal, fallback?: TerminalInputSignal) => {
+      if (inputSignalTimerRef.current !== null) {
+        window.clearTimeout(inputSignalTimerRef.current);
+      }
+      setInputSignal(signal);
+      inputSignalTimerRef.current = window.setTimeout(() => {
+        setInputSignal(
+          fallback ??
+            (transportRef.current.type === "fly"
+              ? flyConnectionStateRef.current === "connected"
+                ? { tone: "ready", label: "Ready for input" }
+                : { tone: "blocked", label: "Waiting for terminal" }
+              : sessionRef.current?.alive
+                ? { tone: "ready", label: "Ready for input" }
+                : { tone: "blocked", label: "Input blocked" }),
+        );
+        inputSignalTimerRef.current = null;
+      }, 1400);
+    },
+    [],
+  );
+
+  const flushPendingFlyInput = useCallback(() => {
+    const queuedInput = pendingFlyInputRef.current;
+    if (!queuedInput) return;
+    const ws = flySocketRef.current;
+    if (
+      ws?.readyState !== WebSocket.OPEN ||
+      flyConnectionStateRef.current !== "connected"
+    ) {
+      return;
+    }
+    pendingFlyInputRef.current = "";
+    ws.send(JSON.stringify({ type: "input", data: queuedInput }));
+    setInputSignalBriefly({ tone: "sent", label: "Queued input sent" });
+  }, [setInputSignalBriefly]);
 
   const sendResize = useCallback((cols: number, rows: number) => {
     if (transportRef.current.type === "fly") {
@@ -262,34 +334,63 @@ export const ChatTerminalSurface = forwardRef<
     ).catch(() => {});
   }, []);
 
-  const sendRawInput = useCallback((input: string) => {
-    if (transportRef.current.type === "fly") {
-      const ws = flySocketRef.current;
-      if (ws?.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "input", data: input }));
+  const sendRawInput = useCallback(
+    (input: string) => {
+      if (transportRef.current.type === "fly") {
+        const ws = flySocketRef.current;
+        if (
+          ws?.readyState === WebSocket.OPEN &&
+          flyConnectionStateRef.current === "connected"
+        ) {
+          ws.send(JSON.stringify({ type: "input", data: input }));
+          setInputSignalBriefly({ tone: "sent", label: "Input sent" });
+        } else if (
+          ws?.readyState === WebSocket.OPEN ||
+          flyConnectionStateRef.current === "connecting"
+        ) {
+          pendingFlyInputRef.current =
+            `${pendingFlyInputRef.current}${input}`.slice(
+              -MAX_PENDING_INPUT_CHARS,
+            );
+          setInputSignalBriefly(
+            { tone: "queued", label: "Input queued" },
+            { tone: "blocked", label: "Waiting for terminal" },
+          );
+        } else {
+          setInputSignalBriefly({
+            tone: "blocked",
+            label: "Input blocked",
+          });
+        }
+        return;
       }
-      return;
-    }
-    const current = sessionRef.current;
-    if (!current?.alive) return;
-    void fetchWithTimeout(
-      "/api/kody/chat/terminal/input",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({
-          sessionId: current.sessionId,
-          input,
-          raw: true,
-        }),
-      },
-      TERMINAL_INPUT_TIMEOUT_MS,
-    ).catch(() => {});
-  }, []);
+      const current = sessionRef.current;
+      if (!current?.alive) {
+        setInputSignalBriefly({ tone: "blocked", label: "Input blocked" });
+        return;
+      }
+      setInputSignalBriefly({ tone: "sent", label: "Input sent" });
+      void fetchWithTimeout(
+        "/api/kody/chat/terminal/input",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify({
+            sessionId: current.sessionId,
+            input,
+            raw: true,
+          }),
+        },
+        TERMINAL_INPUT_TIMEOUT_MS,
+      ).catch(() => {});
+    },
+    [setInputSignalBriefly],
+  );
 
   const canSendInput = useCallback(() => {
     return transportRef.current.type === "fly"
-      ? flySocketRef.current?.readyState === WebSocket.OPEN
+      ? flySocketRef.current?.readyState === WebSocket.OPEN ||
+          flyConnectionStateRef.current === "connecting"
       : !!sessionRef.current?.alive;
   }, []);
 
@@ -359,44 +460,6 @@ export const ChatTerminalSurface = forwardRef<
     if (!snapshot.output.trim()) return;
     onSessionEnded?.(snapshot);
   }, [getTerminalSnapshot, onSessionEnded]);
-
-  useImperativeHandle(
-    ref,
-    () => ({
-      sendLine: (line: string) => sendTerminalText(line),
-      sendText: (text: string) => sendTerminalText(text),
-      executeText: (text: string) => sendExecutableInput(text),
-      stop: () => stopRef.current(),
-      focus: () => {
-        terminalRef.current?.focus();
-      },
-      getSnapshot: getTerminalSnapshot,
-      restoreSnapshot: (snapshot) => {
-        const terminal = terminalRef.current;
-        if (!terminal) return;
-        const text = usefulCapturedOutput(snapshot.output ?? "");
-        setError(null);
-        if (transportRef.current.type === "fly") {
-          updateFlyConnectionState("closed");
-        }
-        outputCaptureRef.current = text;
-        terminal.clear();
-        terminal.writeln(
-          `\x1b[38;5;245m## Restored terminal snapshot: ${snapshot.name}\x1b[0m`,
-        );
-        if (text) {
-          terminal.write(`${text.replace(/\n/g, "\r\n")}\r\n`);
-        }
-        terminal.focus();
-      },
-    }),
-    [
-      getTerminalSnapshot,
-      sendExecutableInput,
-      sendTerminalText,
-      updateFlyConnectionState,
-    ],
-  );
 
   useEffect(() => {
     const host = hostRef.current;
@@ -480,6 +543,7 @@ export const ChatTerminalSurface = forwardRef<
 
     setConnecting(true);
     setError(null);
+    setInputSignal({ tone: "blocked", label: "Waiting for terminal" });
     try {
       fitAddonRef.current?.fit();
       const res = await fetchWithTimeout(
@@ -508,11 +572,13 @@ export const ChatTerminalSurface = forwardRef<
       sessionRef.current = data.session;
       setSession(data.session);
       onConnectionStateChange?.("connected");
+      setInputSignal({ tone: "ready", label: "Ready for input" });
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to start terminal";
       localStartFailureKeyRef.current = startKey;
       setError(message);
+      setInputSignal({ tone: "blocked", label: "Input blocked" });
       onConnectionStateChange?.("error");
       terminal.writeln(`\x1b[31m${message}\x1b[0m`);
     } finally {
@@ -562,6 +628,7 @@ export const ChatTerminalSurface = forwardRef<
       }
       flySocketRef.current?.close(1000, "reconnecting terminal");
       flySocketRef.current = null;
+      pendingFlyInputRef.current = "";
       flyTargetKeyRef.current = key;
       const seq = flyConnectSeqRef.current + 1;
       flyConnectSeqRef.current = seq;
@@ -655,6 +722,7 @@ export const ChatTerminalSurface = forwardRef<
           }
           if (message.type === "ready") {
             updateFlyConnectionState("connected");
+            flushPendingFlyInput();
             return;
           }
           if (message.type === "error") {
@@ -708,6 +776,7 @@ export const ChatTerminalSurface = forwardRef<
     [
       appendCapturedOutput,
       chatSessionId,
+      flushPendingFlyInput,
       notifyTerminalSessionEnded,
       updateFlyConnectionState,
     ],
@@ -800,8 +869,7 @@ export const ChatTerminalSurface = forwardRef<
   ]);
 
   useEffect(() => {
-    if (!active || !session?.sessionId || transport.type !== "local")
-      return;
+    if (!active || !session?.sessionId || transport.type !== "local") return;
     const interval = setInterval(() => void pollOutput(), 200);
     void pollOutput();
     return () => clearInterval(interval);
@@ -820,6 +888,7 @@ export const ChatTerminalSurface = forwardRef<
       notifyTerminalSessionEnded();
       sessionRef.current = null;
       setSession(null);
+      setInputSignal({ tone: "blocked", label: "Input blocked" });
       onConnectionStateChange?.("closed");
       await fetchWithTimeout(
         "/api/kody/chat/terminal/stop",
@@ -848,6 +917,10 @@ export const ChatTerminalSurface = forwardRef<
     disposedRef.current = false;
     return () => {
       disposedRef.current = true;
+      if (inputSignalTimerRef.current !== null) {
+        window.clearTimeout(inputSignalTimerRef.current);
+        inputSignalTimerRef.current = null;
+      }
       flyConnectSeqRef.current += 1;
       flyConnectInFlightKeyRef.current = null;
       flySocketRef.current?.close(1000, "terminal unmounted");
@@ -870,6 +943,8 @@ export const ChatTerminalSurface = forwardRef<
   }, []);
 
   const restart = useCallback(() => {
+    pendingFlyInputRef.current = "";
+    setInputSignal({ tone: "blocked", label: "Waiting for terminal" });
     if (transportRef.current.type === "fly") {
       void connectFly({ force: true, resetSession: true });
       return;
@@ -878,51 +953,79 @@ export const ChatTerminalSurface = forwardRef<
     void stop().then(() => start());
   }, [connectFly, start, stop]);
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      sendLine: (line: string) => sendTerminalText(line),
+      sendText: (text: string) => sendTerminalText(text),
+      executeText: (text: string) => sendExecutableInput(text),
+      addToChat,
+      clear,
+      restart,
+      stop: () => stopRef.current(),
+      focus: () => {
+        terminalRef.current?.focus();
+      },
+      getSnapshot: getTerminalSnapshot,
+      restoreSnapshot: (snapshot) => {
+        const terminal = terminalRef.current;
+        if (!terminal) return;
+        const text = usefulCapturedOutput(snapshot.output ?? "");
+        setError(null);
+        if (transportRef.current.type === "fly") {
+          updateFlyConnectionState("closed");
+        }
+        outputCaptureRef.current = text;
+        terminal.clear();
+        terminal.writeln(
+          `\x1b[38;5;245m## Restored terminal snapshot: ${snapshot.name}\x1b[0m`,
+        );
+        if (text) {
+          terminal.write(`${text.replace(/\n/g, "\r\n")}\r\n`);
+        }
+        terminal.focus();
+      },
+    }),
+    [
+      addToChat,
+      clear,
+      getTerminalSnapshot,
+      restart,
+      sendExecutableInput,
+      sendTerminalText,
+      updateFlyConnectionState,
+    ],
+  );
+
+  const statusText =
+    transport.type === "fly"
+      ? (error ?? `${transport.label ?? transport.app} · ${flyConnectionState}`)
+      : (error ??
+        (session?.alive ? session.cwd : connecting ? "starting" : "closed"));
+  const actionBusy = connecting || flyConnectionState === "connecting";
+
+  useEffect(() => {
+    onChromeStateChange?.({
+      statusText,
+      inputLabel: inputSignal.label,
+      inputTone: inputSignal.tone,
+      actionBusy,
+    });
+  }, [
+    actionBusy,
+    inputSignal.label,
+    inputSignal.tone,
+    onChromeStateChange,
+    statusText,
+  ]);
+
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-[#050608]">
-      <div className="flex items-center gap-1 border-b border-white/10 bg-black/30 px-2 py-1.5">
-        <span className="min-w-0 flex-1 truncate text-[11px] text-zinc-500">
-          {transport.type === "fly"
-            ? (error ??
-              `${transport.label ?? transport.app} · ${flyConnectionState}`)
-            : (error ??
-              (session?.alive ? session.cwd : connecting ? "starting" : "closed"))}
-        </span>
-        <div className="flex shrink-0 items-center gap-1">
-          <button
-            type="button"
-            onClick={addToChat}
-            className="inline-flex h-8 w-8 items-center justify-center rounded text-zinc-300 hover:bg-white/10 hover:text-white"
-            title="Add terminal output to AI chat"
-            aria-label="Add terminal output to AI chat"
-          >
-            <ClipboardCopy className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={restart}
-            disabled={connecting || flyConnectionState === "connecting"}
-            className="inline-flex h-8 w-8 items-center justify-center rounded text-zinc-300 hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
-            title="Restart terminal"
-            aria-label="Restart terminal"
-          >
-            {connecting || flyConnectionState === "connecting" ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RotateCcw className="h-4 w-4" />
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={clear}
-            className="inline-flex h-8 w-8 items-center justify-center rounded text-zinc-300 hover:bg-white/10 hover:text-white"
-            title="Clear terminal"
-            aria-label="Clear terminal"
-          >
-            <Eraser className="h-4 w-4" />
-          </button>
+      {topToolbar && (
+        <div className="flex min-h-12 items-center border-b border-white/10 bg-black/30 px-2 py-1.5">
+          {topToolbar}
         </div>
-      </div>
+      )}
       <div className="min-h-0 flex-1 overflow-hidden p-2">
         <div ref={hostRef} className="h-full min-h-0 overflow-hidden" />
       </div>

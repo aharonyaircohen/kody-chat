@@ -15,8 +15,10 @@ export interface UploadedRepoView {
   name: string;
   url: string;
   repoPath: string;
+  entryPath?: string;
   files: string[];
   htmlUrl: string | null;
+  sourceHtmlUrl?: string | null;
 }
 
 export interface RepoViewTicket {

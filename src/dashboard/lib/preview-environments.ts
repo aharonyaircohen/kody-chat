@@ -48,6 +48,12 @@ export interface PreviewEnvironment {
    * ticket instead of Fly.
    */
   repoViewPath?: string;
+  /** GitHub URL for the stored entry file behind a repo-backed static view. */
+  repoViewSourceUrl?: string;
+  /** Entry file path inside `repoViewPath`, usually `index.html`. */
+  repoViewEntryPath?: string;
+  /** Optional bookmark folder for organizing saved preview environments. */
+  folderId?: string;
 }
 
 export interface PreviewUploadContext {
@@ -65,8 +71,16 @@ export interface FlyBranchPreviewRef {
   branch: string;
 }
 
+export interface PreviewEnvironmentFolder {
+  /** Stable id for folder grouping. */
+  id: string;
+  /** Display label shown in the preview environment switcher. */
+  label: string;
+}
+
 const ID_RAND_LEN = 4;
 const MAX_LABEL = 48;
+const MAX_FOLDER_LABEL = 40;
 const REPO_VIEW_PATH_RE = /^(?:\.kody\/)?views\/([a-z0-9][a-z0-9-]{0,63})$/;
 const REPO_REF_RE = /^[^/\s]+\/[^/\s]+$/;
 
@@ -135,6 +149,107 @@ export function makeEnvId(label: string): string {
     .toString(36)
     .slice(2, 2 + ID_RAND_LEN);
   return `${slug || "env"}-${rand}`;
+}
+
+export function makeFolderId(label: string): string {
+  const slug = label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const rand = Math.random()
+    .toString(36)
+    .slice(2, 2 + ID_RAND_LEN);
+  return `${slug || "folder"}-${rand}`;
+}
+
+export function addPreviewFolder(
+  folders: PreviewEnvironmentFolder[],
+  label: string,
+): PreviewEnvironmentFolder[] {
+  const cleanLabel = label.trim().slice(0, MAX_FOLDER_LABEL);
+  if (!cleanLabel) return folders;
+  return [...folders, { id: makeFolderId(cleanLabel), label: cleanLabel }];
+}
+
+export function removePreviewFolder(
+  folders: PreviewEnvironmentFolder[],
+  id: string,
+): PreviewEnvironmentFolder[] {
+  return folders.filter((folder) => folder.id !== id);
+}
+
+export function updatePreviewFolder(
+  folders: PreviewEnvironmentFolder[],
+  id: string,
+  label: string,
+): PreviewEnvironmentFolder[] {
+  const cleanLabel = label.trim().slice(0, MAX_FOLDER_LABEL);
+  if (!cleanLabel) return folders;
+  return folders.map((folder) =>
+    folder.id === id ? { ...folder, label: cleanLabel } : folder,
+  );
+}
+
+export function moveEnvironmentToFolder(
+  list: PreviewEnvironment[],
+  id: string,
+  folderId: string | null,
+): PreviewEnvironment[] {
+  return list.map((env) => {
+    if (env.id !== id) return env;
+    const next = { ...env };
+    if (folderId) next.folderId = folderId;
+    else delete next.folderId;
+    return next;
+  });
+}
+
+export function reorderEnvironment(
+  list: PreviewEnvironment[],
+  draggedId: string,
+  beforeId: string | null,
+  folderId: string | null,
+): PreviewEnvironment[] {
+  const dragged = list.find((env) => env.id === draggedId);
+  if (!dragged) return list;
+
+  const withoutDragged = list.filter((env) => env.id !== draggedId);
+  const nextDragged = { ...dragged };
+  if (folderId) nextDragged.folderId = folderId;
+  else delete nextDragged.folderId;
+
+  if (!beforeId || beforeId === draggedId) {
+    return [...withoutDragged, nextDragged];
+  }
+
+  const beforeIndex = withoutDragged.findIndex((env) => env.id === beforeId);
+  if (beforeIndex === -1) return [...withoutDragged, nextDragged];
+
+  return [
+    ...withoutDragged.slice(0, beforeIndex),
+    nextDragged,
+    ...withoutDragged.slice(beforeIndex),
+  ];
+}
+
+export function resolvePreviewFolders(
+  folders: unknown,
+): PreviewEnvironmentFolder[] {
+  if (!Array.isArray(folders)) return [];
+  return folders
+    .filter(
+      (folder): folder is PreviewEnvironmentFolder =>
+        !!folder &&
+        typeof folder === "object" &&
+        typeof folder.id === "string" &&
+        typeof folder.label === "string",
+    )
+    .map((folder) => ({
+      id: folder.id.slice(0, 64),
+      label: folder.label.trim().slice(0, MAX_FOLDER_LABEL),
+    }))
+    .filter((folder) => folder.id && folder.label);
 }
 
 /** Trim + validate a base URL. Returns null when it isn't a usable http(s) URL. */
@@ -272,6 +387,7 @@ export function addRepoViewEnvironment(
   url: string,
   repoViewPath: string,
   uploadContext?: PreviewUploadContext,
+  source?: { sourceUrl?: string | null; entryPath?: string | null },
 ): PreviewEnvironment[] {
   const cleanLabel = label.trim().slice(0, MAX_LABEL);
   const cleanUrl = normalizeEnvUrl(url);
@@ -286,6 +402,8 @@ export function addRepoViewEnvironment(
       label: cleanLabel,
       url: cleanUrl,
       repoViewPath: cleanRepoPath,
+      ...(source?.sourceUrl ? { repoViewSourceUrl: source.sourceUrl } : {}),
+      ...(source?.entryPath ? { repoViewEntryPath: source.entryPath } : {}),
       ...(uploadContext ? { uploadContext } : {}),
     },
   ];

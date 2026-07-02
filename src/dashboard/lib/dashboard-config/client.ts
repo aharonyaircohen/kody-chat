@@ -16,12 +16,16 @@ import {
   NoTokenError,
   SessionExpiredError,
 } from "../api";
-import type { PreviewEnvironment } from "../preview-environments";
+import type {
+  PreviewEnvironment,
+  PreviewEnvironmentFolder,
+} from "../preview-environments";
 
 export interface DashboardConfigDoc {
   version: 1;
   defaultPreviewUrl?: string;
   namedPreviews?: PreviewEnvironment[];
+  previewFolders?: PreviewEnvironmentFolder[];
   brainFlyChatEnabled?: boolean;
 }
 
@@ -32,6 +36,7 @@ export interface DashboardConfigResponse {
 export interface DashboardConfigPatch {
   defaultPreviewUrl?: string;
   namedPreviews?: PreviewEnvironment[];
+  previewFolders?: PreviewEnvironmentFolder[];
   brainFlyChatEnabled?: boolean;
   actorLogin?: string;
 }

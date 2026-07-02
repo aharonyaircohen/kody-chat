@@ -10,25 +10,35 @@
  */
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type DragEvent } from "react";
 import {
   ChevronDown,
+  ChevronRight,
   Check,
   Clock,
+  Folder,
+  FolderPlus,
   GitBranch,
+  GripVertical,
   Loader2,
   Pencil,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import { cn } from "../utils";
 import {
   daysUntilExpiry,
+  addPreviewFolder,
   isFlyBranchEnvironment,
   removeEnvironment,
+  removePreviewFolder,
+  reorderEnvironment,
   updateBranchPreviewEnvironment,
   updateEnvironment,
+  updatePreviewFolder,
   type PreviewEnvironment,
+  type PreviewEnvironmentFolder,
 } from "../preview-environments";
 import { PreviewBranchEnvForm } from "./PreviewBranchEnvForm";
 import { PreviewEnvForm } from "./PreviewEnvForm";
@@ -50,11 +60,14 @@ function expiryChip(
 
 interface PreviewEnvSwitcherProps {
   environments: PreviewEnvironment[];
+  folders?: PreviewEnvironmentFolder[];
   repoFullName: string;
   selectedId: string | null;
   onSelect: (env: PreviewEnvironment) => void;
   /** Persist the next list (parent PUTs state repo `dashboard.json`). */
   onSave: (next: PreviewEnvironment[]) => Promise<void>;
+  /** Persist user-created bookmark folders. */
+  onSaveFolders?: (next: PreviewEnvironmentFolder[]) => Promise<void>;
   /** Add a Fly branch preview environment (parent persists + selects). */
   onAddBranch: (repo: string, branch: string) => Promise<void>;
   /** Upload file(s) into a repo-backed view environment. */
@@ -71,10 +84,12 @@ interface PreviewEnvSwitcherProps {
 
 export function PreviewEnvSwitcher({
   environments,
+  folders = [],
   repoFullName,
   selectedId,
   onSelect,
   onSave,
+  onSaveFolders,
   onAddBranch,
   onUpload,
   onRemoveStatic,
@@ -85,9 +100,20 @@ export function PreviewEnvSwitcher({
 }: PreviewEnvSwitcherProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [folderOpen, setFolderOpen] = useState(false);
+  const [folderDraft, setFolderDraft] = useState("");
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+  const [folderEditDraft, setFolderEditDraft] = useState("");
+  const [collapsedFolderIds, setCollapsedFolderIds] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [extendingId, setExtendingId] = useState<string | null>(null);
+  const [draggedId, setDraggedId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<
+    | { type: "folder"; folderId: string | null }
+    | { type: "row"; id: string }
+    | null
+  >(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const now = Date.now();
 
@@ -97,6 +123,10 @@ export function PreviewEnvSwitcher({
   const closeMenu = (): void => {
     setMenuOpen(false);
     setAddOpen(false);
+    setFolderOpen(false);
+    setFolderDraft("");
+    setEditingFolderId(null);
+    setFolderEditDraft("");
     setEditingId(null);
   };
 
@@ -143,6 +173,49 @@ export function PreviewEnvSwitcher({
     }
   };
 
+  const handleAddFolder = async (): Promise<void> => {
+    if (!onSaveFolders) return;
+    const next = addPreviewFolder(folders, folderDraft);
+    if (next === folders) return;
+    await onSaveFolders(next);
+    setFolderDraft("");
+    setFolderOpen(false);
+  };
+
+  const handleRemoveFolder = async (id: string): Promise<void> => {
+    if (!onSaveFolders) return;
+    const nextEnvironments = environments.map((env) => {
+      if (env.folderId !== id) return env;
+      const next = { ...env };
+      delete next.folderId;
+      return next;
+    });
+    await onSave(nextEnvironments);
+    await onSaveFolders(removePreviewFolder(folders, id));
+  };
+
+  const handleRenameFolder = async (id: string): Promise<void> => {
+    if (!onSaveFolders) return;
+    const next = updatePreviewFolder(folders, id, folderEditDraft);
+    if (next === folders) return;
+    await onSaveFolders(next);
+    setEditingFolderId(null);
+    setFolderEditDraft("");
+  };
+
+  const moveDraggedEnvironment = async (
+    folderId: string | null,
+    beforeId: string | null = null,
+    explicitDraggedId: string | null = null,
+  ): Promise<void> => {
+    const sourceId = explicitDraggedId ?? draggedId;
+    if (!sourceId) return;
+    const next = reorderEnvironment(environments, sourceId, beforeId, folderId);
+    setDraggedId(null);
+    setDropTarget(null);
+    await onSave(next);
+  };
+
   const handleUpload = async (files: File[]): Promise<void> => {
     if (!onUpload) return;
     if (files.length === 0) return;
@@ -163,6 +236,318 @@ export function PreviewEnvSwitcher({
     } finally {
       setExtendingId(null);
     }
+  };
+
+  const knownFolderIds = new Set(folders.map((folder) => folder.id));
+  const rootEnvironments = environments.filter(
+    (env) => !env.folderId || !knownFolderIds.has(env.folderId),
+  );
+  const environmentsInFolder = (folderId: string): PreviewEnvironment[] =>
+    environments.filter((env) => env.folderId === folderId);
+  const toggleFolderCollapsed = (folderId: string): void => {
+    setCollapsedFolderIds((ids) =>
+      ids.includes(folderId)
+        ? ids.filter((id) => id !== folderId)
+        : [...ids, folderId],
+    );
+  };
+
+  const renderEnvironmentRow = (env: PreviewEnvironment) => {
+    const selected = env.id === active?.id;
+    if (editingId === env.id) {
+      return (
+        <div key={env.id} className="px-3 py-2 border-b border-zinc-800">
+          {isFlyBranchEnvironment(env) ? (
+            <PreviewBranchEnvForm
+              repoFullName={repoFullName}
+              initialBranch={env.flyBranch.branch}
+              submitLabel="Save"
+              isSaving={isSaving}
+              onSubmit={(repo, branch) =>
+                handleBranchEdit(env.id, repo, branch)
+              }
+              onCancel={() => setEditingId(null)}
+            />
+          ) : (
+            <PreviewEnvForm
+              initialLabel={env.label}
+              initialUrl={env.url ?? ""}
+              submitLabel="Save"
+              isSaving={isSaving}
+              onSubmit={(label, url) => handleEdit(env.id, label, url)}
+              onCancel={() => setEditingId(null)}
+            />
+          )}
+        </div>
+      );
+    }
+
+    const flyBranch = isFlyBranchEnvironment(env) ? env.flyBranch : null;
+    return (
+      <div
+        key={env.id}
+        role="option"
+        aria-selected={selected}
+        tabIndex={0}
+        draggable
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            onSelect(env);
+            setMenuOpen(false);
+          }
+        }}
+        onDragStart={(event) => {
+          setDraggedId(env.id);
+          event.dataTransfer.effectAllowed = "move";
+          event.dataTransfer.setData("text/plain", env.id);
+        }}
+        onDragEnd={() => {
+          setDraggedId(null);
+          setDropTarget(null);
+        }}
+        onDragOver={(event) => {
+          if (!draggedId || draggedId === env.id) return;
+          event.preventDefault();
+          event.stopPropagation();
+          setDropTarget({ type: "row", id: env.id });
+        }}
+        onDrop={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const id = draggedId ?? event.dataTransfer.getData("text/plain");
+          if (!id || id === env.id) return;
+          void moveDraggedEnvironment(env.folderId ?? null, env.id, id);
+        }}
+        className={cn(
+          "group flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-800/70",
+          draggedId === env.id && "opacity-50",
+          dropTarget?.type === "row" &&
+            dropTarget.id === env.id &&
+            "ring-1 ring-sky-500/40",
+        )}
+      >
+        <GripVertical className="h-3.5 w-3.5 shrink-0 text-zinc-600 group-hover:text-zinc-400" />
+        <button
+          type="button"
+          onClick={() => {
+            onSelect(env);
+            setMenuOpen(false);
+          }}
+          className="flex-1 min-w-0 flex items-center gap-2 text-left"
+        >
+          <Check
+            className={cn(
+              "w-3.5 h-3.5 shrink-0",
+              selected ? "text-sky-400" : "text-transparent",
+            )}
+          />
+          <span className="min-w-0">
+            <span className="flex items-center gap-1.5 text-xs font-medium text-zinc-200">
+              {flyBranch && (
+                <GitBranch className="h-3 w-3 shrink-0 text-sky-400" />
+              )}
+              <span className="truncate">{env.label}</span>
+              {typeof env.expiresAt === "number" && (
+                <span
+                  className={cn(
+                    "shrink-0 text-[10px] font-normal",
+                    expiryChip(env.expiresAt, now).className,
+                  )}
+                >
+                  {expiryChip(env.expiresAt, now).text}
+                </span>
+              )}
+            </span>
+            <span className="block text-[11px] text-zinc-500 truncate">
+              {flyBranch ? `${flyBranch.repo} @ ${flyBranch.branch}` : env.url}
+            </span>
+          </span>
+        </button>
+        {env.staticId && onExtend && (
+          <button
+            type="button"
+            onClick={() => handleExtend(env.id)}
+            disabled={extendingId === env.id}
+            title="Extend 7 days"
+            aria-label={`Extend ${env.label} by 7 days`}
+            className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-emerald-300 hover:bg-zinc-700 transition"
+          >
+            {extendingId === env.id ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <Clock className="w-3 h-3" />
+            )}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => setEditingId(env.id)}
+          title="Edit"
+          aria-label={`Edit ${env.label}`}
+          className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-white hover:bg-zinc-700 transition"
+        >
+          <Pencil className="w-3 h-3" />
+        </button>
+        <button
+          type="button"
+          onClick={() => handleRemove(env.id)}
+          title="Remove"
+          aria-label={`Remove ${env.label}`}
+          className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-red-400 hover:bg-zinc-700 transition"
+        >
+          <Trash2 className="w-3 h-3" />
+        </button>
+      </div>
+    );
+  };
+
+  const renderDropGroup = (
+    folderId: string | null,
+    label: string,
+    items: PreviewEnvironment[],
+    folder?: PreviewEnvironmentFolder,
+  ) => {
+    const collapsed = folder ? collapsedFolderIds.includes(folder.id) : false;
+    const isFolderDropTarget =
+      dropTarget?.type === "folder" && dropTarget.folderId === folderId;
+    const handleFolderDrop = (event: DragEvent): void => {
+      event.preventDefault();
+      const id = draggedId ?? event.dataTransfer.getData("text/plain");
+      if (!id) return;
+      void moveDraggedEnvironment(folderId, null, id);
+    };
+
+    return (
+      <div
+        key={folderId ?? "root"}
+        onDragOver={(event) => {
+          if (!draggedId) return;
+          event.preventDefault();
+          setDropTarget({ type: "folder", folderId });
+        }}
+        onDrop={handleFolderDrop}
+        className={cn("py-1", isFolderDropTarget && "bg-sky-500/5")}
+      >
+        <div
+          className={cn(
+            "mx-1 flex items-center gap-2 rounded px-2 py-1.5",
+            folder
+              ? "text-sm font-semibold text-zinc-200 hover:bg-zinc-800/60"
+              : "text-[11px] font-medium uppercase tracking-wide text-zinc-500",
+            isFolderDropTarget &&
+              "bg-sky-500/15 text-sky-100 ring-1 ring-sky-400/50",
+          )}
+          onDragOver={(event) => {
+            if (!draggedId) return;
+            event.preventDefault();
+            event.stopPropagation();
+            setDropTarget({ type: "folder", folderId });
+          }}
+          onDrop={(event) => {
+            event.stopPropagation();
+            handleFolderDrop(event);
+          }}
+        >
+          {folder ? (
+            editingFolderId === folder.id ? (
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void handleRenameFolder(folder.id);
+                }}
+                className="flex min-w-0 flex-1 items-center gap-1"
+              >
+                <input
+                  value={folderEditDraft}
+                  onChange={(event) => setFolderEditDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      event.preventDefault();
+                      setEditingFolderId(null);
+                      setFolderEditDraft("");
+                    }
+                  }}
+                  maxLength={40}
+                  autoFocus
+                  className="min-w-0 flex-1 rounded bg-zinc-950/80 px-2 py-1 text-sm font-semibold text-white outline-none ring-1 ring-sky-500/50"
+                />
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="rounded px-2 py-1 text-xs font-medium text-sky-200 hover:bg-sky-500/10 disabled:cursor-wait disabled:text-zinc-600"
+                >
+                  Save
+                </button>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => toggleFolderCollapsed(folder.id)}
+                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                aria-expanded={!collapsed}
+                aria-label={`${collapsed ? "Expand" : "Collapse"} ${folder.label}`}
+              >
+                {collapsed ? (
+                  <ChevronRight className="h-3 w-3 shrink-0" />
+                ) : (
+                  <ChevronDown className="h-3 w-3 shrink-0" />
+                )}
+                <Folder className="h-4 w-4 shrink-0" />
+                <span className="truncate">
+                  {isFolderDropTarget ? `Drop into ${label}` : label}
+                </span>
+                <span
+                  className={cn(
+                    "text-xs font-medium",
+                    isFolderDropTarget ? "text-sky-200" : "text-zinc-500",
+                  )}
+                >
+                  {items.length}
+                </span>
+              </button>
+            )
+          ) : (
+            <span className="truncate">{label}</span>
+          )}
+          {folder && onSaveFolders && (
+            <div className="ml-auto flex items-center gap-1">
+              {editingFolderId !== folder.id && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingFolderId(folder.id);
+                    setFolderEditDraft(folder.label);
+                  }}
+                  title={`Rename ${folder.label}`}
+                  aria-label={`Rename ${folder.label}`}
+                  className="rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-white"
+                >
+                  <Pencil className="h-3 w-3" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void handleRemoveFolder(folder.id)}
+                title={`Remove ${folder.label}`}
+                aria-label={`Remove ${folder.label}`}
+                className="rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-red-400"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          )}
+        </div>
+        {!collapsed &&
+          (items.length > 0 ? (
+            items.map(renderEnvironmentRow)
+          ) : (
+            <div className="px-3 py-1.5 text-[11px] text-zinc-600">
+              Drop saved views here
+            </div>
+          ))}
+      </div>
+    );
   };
 
   return (
@@ -205,123 +590,62 @@ export function PreviewEnvSwitcher({
         className="min-w-[18rem] rounded-md border border-zinc-700 bg-zinc-900 py-1 shadow-lg"
       >
         <div role="listbox" aria-label="Preview environments">
-          {environments.map((env) => {
-            const selected = env.id === active?.id;
-            if (editingId === env.id) {
-              return (
-                <div
-                  key={env.id}
-                  className="px-3 py-2 border-b border-zinc-800"
-                >
-                  {isFlyBranchEnvironment(env) ? (
-                    <PreviewBranchEnvForm
-                      repoFullName={repoFullName}
-                      initialBranch={env.flyBranch.branch}
-                      submitLabel="Save"
-                      isSaving={isSaving}
-                      onSubmit={(repo, branch) =>
-                        handleBranchEdit(env.id, repo, branch)
-                      }
-                      onCancel={() => setEditingId(null)}
-                    />
-                  ) : (
-                    <PreviewEnvForm
-                      initialLabel={env.label}
-                      initialUrl={env.url ?? ""}
-                      submitLabel="Save"
-                      isSaving={isSaving}
-                      onSubmit={(label, url) => handleEdit(env.id, label, url)}
-                      onCancel={() => setEditingId(null)}
-                    />
-                  )}
-                </div>
-              );
-            }
-            const flyBranch = isFlyBranchEnvironment(env)
-              ? env.flyBranch
-              : null;
-            return (
-              <div
-                key={env.id}
-                role="option"
-                aria-selected={selected}
-                className="group flex items-center gap-2 px-3 py-1.5 hover:bg-zinc-800/70"
+          {renderDropGroup(null, "Saved views", rootEnvironments)}
+          {folders.map((folder) =>
+            renderDropGroup(
+              folder.id,
+              folder.label,
+              environmentsInFolder(folder.id),
+              folder,
+            ),
+          )}
+
+          {onSaveFolders &&
+            (folderOpen ? (
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void handleAddFolder();
+                }}
+                className="flex items-center gap-1 border-t border-zinc-800 px-3 py-2"
               >
+                <input
+                  value={folderDraft}
+                  onChange={(event) => setFolderDraft(event.target.value)}
+                  placeholder="Folder name"
+                  maxLength={40}
+                  className="min-w-0 flex-1 rounded bg-zinc-800 px-2 py-1 text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-sky-500/40"
+                />
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="rounded px-2 py-1 text-xs font-medium text-sky-300 hover:bg-sky-500/10 disabled:cursor-wait disabled:text-zinc-600"
+                >
+                  Add
+                </button>
                 <button
                   type="button"
                   onClick={() => {
-                    onSelect(env);
-                    setMenuOpen(false);
+                    setFolderOpen(false);
+                    setFolderDraft("");
                   }}
-                  className="flex-1 min-w-0 flex items-center gap-2 text-left"
+                  className="rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+                  title="Cancel"
+                  aria-label="Cancel folder"
                 >
-                  <Check
-                    className={cn(
-                      "w-3.5 h-3.5 shrink-0",
-                      selected ? "text-sky-400" : "text-transparent",
-                    )}
-                  />
-                  <span className="min-w-0">
-                    <span className="flex items-center gap-1.5 text-xs font-medium text-zinc-200">
-                      {flyBranch && (
-                        <GitBranch className="h-3 w-3 shrink-0 text-sky-400" />
-                      )}
-                      <span className="truncate">{env.label}</span>
-                      {typeof env.expiresAt === "number" && (
-                        <span
-                          className={cn(
-                            "shrink-0 text-[10px] font-normal",
-                            expiryChip(env.expiresAt, now).className,
-                          )}
-                        >
-                          {expiryChip(env.expiresAt, now).text}
-                        </span>
-                      )}
-                    </span>
-                    <span className="block text-[11px] text-zinc-500 truncate">
-                      {flyBranch
-                        ? `${flyBranch.repo} @ ${flyBranch.branch}`
-                        : env.url}
-                    </span>
-                  </span>
+                  <X className="h-3.5 w-3.5" />
                 </button>
-                {env.staticId && onExtend && (
-                  <button
-                    type="button"
-                    onClick={() => handleExtend(env.id)}
-                    disabled={extendingId === env.id}
-                    title="Extend 7 days"
-                    aria-label={`Extend ${env.label} by 7 days`}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-emerald-300 hover:bg-zinc-700 transition"
-                  >
-                    {extendingId === env.id ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <Clock className="w-3 h-3" />
-                    )}
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setEditingId(env.id)}
-                  title="Edit"
-                  aria-label={`Edit ${env.label}`}
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-white hover:bg-zinc-700 transition"
-                >
-                  <Pencil className="w-3 h-3" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleRemove(env.id)}
-                  title="Remove"
-                  aria-label={`Remove ${env.label}`}
-                  className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-red-400 hover:bg-zinc-700 transition"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </button>
-              </div>
-            );
-          })}
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setFolderOpen(true)}
+                className="flex w-full items-center gap-2 border-t border-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-400 hover:bg-zinc-800/70 hover:text-white"
+              >
+                <FolderPlus className="h-3.5 w-3.5" />
+                New folder
+              </button>
+            ))}
 
           {addOpen ? (
             <div className="px-3 py-2 border-t border-zinc-800">

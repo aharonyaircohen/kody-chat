@@ -810,14 +810,18 @@ async function createMachine(
   appName: string,
   input: ProvisionBrainInput,
   apiKey: string,
+  opts: { replacement?: boolean } = {},
 ): Promise<FlyMachine> {
   const tier: PerfTier = input.perfTier ?? DEFAULT_PERF_TIER;
   const guest = PERF_GUEST[tier];
   const region = brainRegion(input);
   const image = brainImageRef(input);
+  const name = opts.replacement
+    ? `brain-${region}-${randomBytes(3).toString("hex")}`
+    : `brain-${region}`;
 
   const body = {
-    name: `brain-${region}`,
+    name,
     region,
     config: {
       image,
@@ -928,7 +932,6 @@ export async function provisionBrain(
         },
         "brain-fly: recreating machine — image ref changed",
       );
-      await destroyMachine(input.flyToken, app, existing.id);
       const apiKey =
         existing.config?.env?.BRAIN_API_KEY ||
         input.apiKeyOverride ||
@@ -939,7 +942,9 @@ export async function provisionBrain(
         app,
         machineInput,
         apiKey,
+        { replacement: true },
       );
+      await destroyMachine(input.flyToken, app, existing.id);
       return {
         app,
         url,
@@ -971,13 +976,14 @@ export async function provisionBrain(
         },
         "brain-fly: recreating machine — boot env changed",
       );
-      await destroyMachine(input.flyToken, app, existing.id);
       const machine = await createMachine(
         input.flyToken,
         app,
         machineInput,
         existingKey,
+        { replacement: true },
       );
+      await destroyMachine(input.flyToken, app, existing.id);
       return {
         app,
         url,

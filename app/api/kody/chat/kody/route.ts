@@ -467,6 +467,12 @@ export async function POST(req: NextRequest) {
      */
     currentPage?: string;
     /**
+     * Preview/page evidence collected by the dashboard for this turn. Task
+     * creation tools append it to issue bodies so the runner sees the same
+     * view example the chat saw.
+     */
+    previewContext?: string;
+    /**
      * Which agentIdentity to use for the system prompt. Defaults to `kody`.
      * Any agent whose backend is `kody-direct` is served natively here;
      * agents whose backend is the engine, brain, or kody-live don't have
@@ -757,6 +763,8 @@ export async function POST(req: NextRequest) {
         owner: repo.owner,
         repo: repo.repo,
         actorLogin: verifiedActorLogin,
+        previewContext:
+          typeof body.previewContext === "string" ? body.previewContext : null,
       }),
       ...createGoalTools({
         octokit,
@@ -870,6 +878,10 @@ export async function POST(req: NextRequest) {
             repo: repo.repo,
             actorLogin: verifiedActorLogin,
             goalId: body.goal.id,
+            previewContext:
+              typeof body.previewContext === "string"
+                ? body.previewContext
+                : null,
           })
         : {}),
     };

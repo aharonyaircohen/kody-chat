@@ -21,6 +21,7 @@ import { PRIORITY_LEVELS, type PriorityLevel } from "@dashboard/lib/constants";
 import { createIssueWithBestEffortMetadata } from "@dashboard/lib/github-issue-create";
 import { dashboardTaskUrl } from "@dashboard/lib/thread-link";
 import {
+  appendPreviewContextToTaskInput,
   CATEGORY_LABEL,
   CATEGORY_VALUES,
   formatTaskBody,
@@ -36,6 +37,8 @@ interface Ctx {
   actorLogin: string | null;
   /** The goal id this planner session is scoped to (becomes `goal:<id>` label). */
   goalId: string;
+  /** Ambient preview/page evidence collected by the chat shell for this turn. */
+  previewContext?: string | null;
 }
 
 function appendWarnings(note: string, warnings: string[]): string {
@@ -79,7 +82,10 @@ export function createPlannerTools(ctx: Ctx) {
           return { error: `Invalid priority: ${priority}` };
         }
         const category = input.category;
-        const body = formatTaskBody(category, { ...input, priority });
+        const body = formatTaskBody(category, {
+          ...appendPreviewContextToTaskInput(input, ctx.previewContext),
+          priority,
+        });
         // Goal label first so the dashboard groups it correctly even if the
         // category/priority labels fail to apply for any reason.
         const labels = Array.from(

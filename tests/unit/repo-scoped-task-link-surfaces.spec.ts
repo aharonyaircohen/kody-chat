@@ -20,7 +20,6 @@ describe("repo-scoped task link surfaces", () => {
 
   it("uses repo-scoped hrefs for task links across task-heavy surfaces", () => {
     for (const file of [
-      "TaskList.tsx",
       "TaskDetail.tsx",
       "DashboardHome.tsx",
       "ActivityPage.tsx",
@@ -33,5 +32,25 @@ describe("repo-scoped task link surfaces", () => {
       expect(source, file).not.toContain("href={`/${");
       expect(source, file).not.toContain("router.push(`/${");
     }
+  });
+
+  it("opens TaskList issue and PR links on GitHub, not dashboard routes", () => {
+    const source = componentSource("TaskList.tsx");
+    expect(source).toContain("getGitHubIssueUrl(task.issueNumber)");
+    expect(source).toContain("getGitHubPrUrl(task.associatedPR.number)");
+    expect(source).toContain("getGitHubPrUrl(task.associatedPR!.number)");
+    expect(source).not.toContain("repoScopedHref");
+    expect(source).not.toContain("href={`/${");
+    expect(source).not.toContain("router.push(`/${");
+  });
+
+  it("opens TaskDetail issue and PR link pills on GitHub", () => {
+    const source = componentSource("TaskDetail.tsx");
+    expect(source).toContain("getGitHubIssueUrl(task.issueNumber)");
+    expect(source).toContain("getGitHubPrUrl(task.associatedPR.number)");
+    expect(source).not.toContain('href={scopedHref(`/${task.issueNumber}`)}');
+    expect(source).not.toContain(
+      'href={scopedHref(`/${task.associatedPR.number}`)}',
+    );
   });
 });

@@ -217,6 +217,14 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
+        href: "/fly/brain-images",
+        label: "Brain Images",
+        icon: Brain,
+        exact: true,
+        description: "Saved Brain runtime images and active restore selection.",
+        tint: "text-violet-300 bg-violet-500/10",
+      },
+      {
         href: "/fly/machines",
         label: "Live machines",
         icon: Cpu,

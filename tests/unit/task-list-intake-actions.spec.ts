@@ -89,6 +89,19 @@ describe("TaskList intake actions", () => {
     expect(SOURCE).not.toContain('{task.column !== "done" && (');
   });
 
+  it("opens the task issue number in GitHub and keeps it green", () => {
+    expect(SOURCE).toContain("getGitHubIssueUrl(task.issueNumber)");
+    expect(SOURCE).toContain("Open issue in GitHub");
+    expect(SOURCE).toContain("text-emerald-400 hover:text-emerald-300");
+  });
+
+  it("opens task PR links in GitHub", () => {
+    expect(SOURCE).toContain("getGitHubPrUrl(task.associatedPR.number)");
+    expect(SOURCE).toContain("getGitHubPrUrl(task.associatedPR!.number)");
+    expect(SOURCE).toContain("Open pull request in GitHub");
+    expect(SOURCE).toContain("Open PR in GitHub");
+  });
+
   it("renders only the task title with automatic text direction", () => {
     expect(SOURCE).toContain(
       'import { textDirectionProps } from "../text-direction";',

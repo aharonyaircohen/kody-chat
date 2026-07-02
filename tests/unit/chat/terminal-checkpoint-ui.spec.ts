@@ -63,19 +63,45 @@ describe("terminal checkpoint UI", () => {
     );
   });
 
-  it("keeps the terminal target, actions, and mode toggle in stable footer columns", () => {
+  it("keeps terminal target and save/refresh actions in the terminal top bar", () => {
     expect(CHAT_SOURCE).toContain("const chatModeToggle =");
+    expect(CHAT_SOURCE).toContain("const terminalTopControls =");
+    expect(CHAT_SOURCE).toContain("const terminalBottomControls =");
     expect(CHAT_SOURCE).toContain('data-testid="chat-terminal-toolbar"');
     expect(CHAT_SOURCE).toContain('data-testid="chat-terminal-target-row"');
     expect(CHAT_SOURCE).toContain('data-testid="chat-terminal-actions-row"');
+    expect(CHAT_SOURCE).toContain('data-testid="chat-terminal-bottom-status"');
+    expect(CHAT_SOURCE).toContain('href="/fly/brain-images"');
+    expect(CHAT_SOURCE).toContain("Manage Brain images");
+    expect(CHAT_SOURCE).toContain("topToolbar={terminalTopControls}");
+    expect(CHAT_SOURCE).toContain("onChromeStateChange");
+    expect(CHAT_SOURCE).toContain("activeTerminalSurface?.restart()");
+    expect(CHAT_SOURCE).toContain("activeTerminalSurface?.addToChat()");
+    expect(CHAT_SOURCE).toContain("activeTerminalSurface?.clear()");
     expect(CHAT_SOURCE).toContain(
-      "grid-cols-[minmax(0,1fr)_auto] items-center",
+      'className="flex min-h-10 items-center gap-2"',
     );
-    expect(CHAT_SOURCE).toContain('className="col-span-full');
-    expect(CHAT_SOURCE).toContain("{chatModeToggle}");
+    expect(CHAT_SOURCE).toContain(
+      '{chatMode === "terminal" && terminalBottomControls}',
+    );
+    expect(CHAT_SOURCE).toContain(
+      'chatMode === "terminal" && <div className="flex-1" />',
+    );
+    expect(CHAT_SOURCE).toContain(
+      '{chatMode === "terminal" && chatModeToggle}',
+    );
     expect(CHAT_SOURCE).toContain('{chatMode === "ai" && chatModeToggle}');
+    expect(CHAT_SOURCE).toContain(
+      "relative inline-flex h-8 w-8 items-center justify-center rounded",
+    );
+    expect(CHAT_SOURCE).toContain("title={`Terminal ${terminalStatusLabel}`}");
+    expect(CHAT_SOURCE).not.toContain("{terminalStatusLabel}</span>");
     expect(CHAT_SOURCE).toContain("bg-[#050608]");
     expect(CHAT_SOURCE).toContain("text-[#f4f4f5]");
+    expect(SURFACE_SOURCE).toContain("topToolbar?: ReactNode");
+    expect(SURFACE_SOURCE).toContain("onChromeStateChange");
+    expect(SURFACE_SOURCE).toContain("{topToolbar &&");
+    expect(SURFACE_SOURCE).not.toContain("border-t border-white/10");
   });
 
   it("lets Fly target selection own terminal connection", () => {
@@ -83,7 +109,9 @@ describe("terminal checkpoint UI", () => {
     expect(CHAT_SOURCE).not.toContain("Disconnect Fly terminal");
     expect(CHAT_SOURCE).not.toContain("handleTerminalFlyConnectToggle");
     expect(CHAT_SOURCE).not.toContain("restoredSnapshotOnlyTerminalIds");
-    expect(CHAT_SOURCE).not.toContain("RESTORED_SNAPSHOT_ONLY_TERMINAL_IDS_KEY");
+    expect(CHAT_SOURCE).not.toContain(
+      "RESTORED_SNAPSHOT_ONLY_TERMINAL_IDS_KEY",
+    );
     expect(CHAT_SOURCE).not.toContain("suppressFlyAutoConnect");
     expect(SURFACE_SOURCE).not.toContain("suppressFlyAutoConnect");
     expect(SURFACE_SOURCE).toContain("void connectFly();");

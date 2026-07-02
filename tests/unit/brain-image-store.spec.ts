@@ -44,6 +44,13 @@ describe("Brain image store", () => {
         imageRef: "ghcr.io/alice/kody-brain-snapshot:20260625",
         createdAt: "2026-06-25T10:00:00.000Z",
         updatedAt: "2026-06-25T10:00:00.000Z",
+        images: [
+          {
+            imageRef: "ghcr.io/alice/kody-brain-snapshot:20260625",
+            createdAt: "2026-06-25T10:00:00.000Z",
+            updatedAt: "2026-06-25T10:00:00.000Z",
+          },
+        ],
       }),
       sha: "sha",
       etag: "etag",
@@ -52,6 +59,11 @@ describe("Brain image store", () => {
 
     await expect(readBrainImage("Alice", "token")).resolves.toMatchObject({
       imageRef: "ghcr.io/alice/kody-brain-snapshot:20260625",
+      images: [
+        expect.objectContaining({
+          imageRef: "ghcr.io/alice/kody-brain-snapshot:20260625",
+        }),
+      ],
     });
     expect(state.readStateText).toHaveBeenCalledWith(
       { id: "octokit" },
@@ -63,17 +75,15 @@ describe("Brain image store", () => {
   });
 
   it("ignores the old repo-scoped Brain image record", async () => {
-    state.readStateText
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({
-        content: JSON.stringify({
-          version: 1,
-          imageRef: "ghcr.io/alice/kody-brain-snapshot:20260625",
-          createdAt: "2026-06-25T10:00:00.000Z",
-          updatedAt: "2026-06-25T10:00:00.000Z",
-        }),
-        sha: "sha",
-      });
+    state.readStateText.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      content: JSON.stringify({
+        version: 1,
+        imageRef: "ghcr.io/alice/kody-brain-snapshot:20260625",
+        createdAt: "2026-06-25T10:00:00.000Z",
+        updatedAt: "2026-06-25T10:00:00.000Z",
+      }),
+      sha: "sha",
+    });
     const { readBrainImage } = await import("@dashboard/lib/brain/store");
 
     await expect(readBrainImage("Alice", "token")).resolves.toBeNull();
@@ -178,6 +188,13 @@ describe("Brain image store", () => {
       imageRef: "ghcr.io/alice/kody-brain-snapshot:20260625",
       createdAt: "2026-06-25T10:00:00.000Z",
       updatedAt: "2026-06-25T10:00:00.000Z",
+      images: [
+        {
+          imageRef: "ghcr.io/alice/kody-brain-snapshot:20260625",
+          createdAt: "2026-06-25T10:00:00.000Z",
+          updatedAt: "2026-06-25T10:00:00.000Z",
+        },
+      ],
     });
 
     expect(state.writeStateText).toHaveBeenCalledWith(
@@ -187,6 +204,92 @@ describe("Brain image store", () => {
         scope: "root",
       }),
     );
+  });
+
+  it("selects a saved Brain image without deleting the image list", async () => {
+    state.readStateText
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          version: 1,
+          imageRef: "ghcr.io/alice/kody-brain-snapshot:old",
+          createdAt: "2026-06-25T10:00:00.000Z",
+          updatedAt: "2026-06-25T10:00:00.000Z",
+          images: [
+            {
+              imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+              createdAt: "2026-06-26T10:00:00.000Z",
+              updatedAt: "2026-06-26T10:00:00.000Z",
+            },
+            {
+              imageRef: "ghcr.io/alice/kody-brain-snapshot:old",
+              createdAt: "2026-06-25T10:00:00.000Z",
+              updatedAt: "2026-06-25T10:00:00.000Z",
+            },
+          ],
+        }),
+        sha: "sha",
+      })
+      .mockResolvedValueOnce({ sha: "sha", content: "{}" });
+    state.writeStateText.mockResolvedValue({ sha: "new-sha" });
+    const { selectBrainImage } = await import("@dashboard/lib/brain/store");
+
+    await expect(
+      selectBrainImage(
+        "Alice",
+        "token",
+        "ghcr.io/alice/kody-brain-snapshot:new",
+      ),
+    ).resolves.toMatchObject({
+      imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+      images: expect.arrayContaining([
+        expect.objectContaining({
+          imageRef: "ghcr.io/alice/kody-brain-snapshot:old",
+        }),
+      ]),
+    });
+  });
+
+  it("forgets a saved Brain image from dashboard metadata", async () => {
+    state.readStateText
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          version: 1,
+          imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+          createdAt: "2026-06-25T10:00:00.000Z",
+          updatedAt: "2026-06-26T10:00:00.000Z",
+          images: [
+            {
+              imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+              createdAt: "2026-06-26T10:00:00.000Z",
+              updatedAt: "2026-06-26T10:00:00.000Z",
+            },
+            {
+              imageRef: "ghcr.io/alice/kody-brain-snapshot:old",
+              createdAt: "2026-06-25T10:00:00.000Z",
+              updatedAt: "2026-06-25T10:00:00.000Z",
+            },
+          ],
+        }),
+        sha: "sha",
+      })
+      .mockResolvedValueOnce({ sha: "sha", content: "{}" });
+    state.writeStateText.mockResolvedValue({ sha: "new-sha" });
+    const { deleteBrainImage } = await import("@dashboard/lib/brain/store");
+
+    await expect(
+      deleteBrainImage(
+        "Alice",
+        "token",
+        "ghcr.io/alice/kody-brain-snapshot:old",
+      ),
+    ).resolves.toMatchObject({
+      imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+      images: [
+        expect.objectContaining({
+          imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+        }),
+      ],
+    });
   });
 
   it("accepts GHCR image refs", async () => {
@@ -199,6 +302,13 @@ describe("Brain image store", () => {
         imageRef: "ghcr.io/alice/kody-brain-snapshot:20260625",
         createdAt: "2026-06-25T10:00:00.000Z",
         updatedAt: "2026-06-25T10:00:00.000Z",
+        images: [
+          {
+            imageRef: "ghcr.io/alice/kody-brain-snapshot:20260625",
+            createdAt: "2026-06-25T10:00:00.000Z",
+            updatedAt: "2026-06-25T10:00:00.000Z",
+          },
+        ],
       }),
     ).resolves.toBeUndefined();
   });
@@ -212,6 +322,7 @@ describe("Brain image store", () => {
         imageRef: "docker.io/alice/kody-brain-snapshot:latest",
         createdAt: "2026-06-25T10:00:00.000Z",
         updatedAt: "2026-06-25T10:00:00.000Z",
+        images: [],
       }),
     ).rejects.toThrow("Invalid Brain image record");
     await expect(
@@ -220,6 +331,7 @@ describe("Brain image store", () => {
         imageRef: "registry.fly.io/kody-brain-alice:20260625",
         createdAt: "2026-06-25T10:00:00.000Z",
         updatedAt: "2026-06-25T10:00:00.000Z",
+        images: [],
       }),
     ).rejects.toThrow("Invalid Brain image record");
     expect(state.writeStateText).not.toHaveBeenCalled();

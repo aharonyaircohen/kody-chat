@@ -13,6 +13,8 @@ import { cn, formatRelativeTime } from "../utils";
 import {
   HIDDEN_TASK_LABEL,
   KODY_BACKLOG_LABEL,
+  getGitHubIssueUrl,
+  getGitHubPrUrl,
   parsePriorityLabel,
   PRIORITY_META,
 } from "../constants";
@@ -22,6 +24,7 @@ import {
   markTaskHiddenInList,
   markTaskVisibleInList,
 } from "../tasks/visibility";
+import { mapTaskCacheData, type TaskCacheData } from "../tasks/cache";
 import { MiniPipelineProgress } from "./MiniPipelineProgress";
 import { AnimatedStatusBar } from "./v2/AnimatedStatusBar";
 import { SimpleTooltip } from "./SimpleTooltip";
@@ -35,8 +38,6 @@ import { CIStatusBadge } from "./CIStatusBadge";
 import { UIVerifyBadge } from "./UIVerifyBadge";
 import { ConfirmDialog } from "./ConfirmDialog";
 import type { KodyTask, ColumnId } from "../types";
-import { useAuth } from "../auth-context";
-import { repoScopedHref } from "../routes";
 import { Button } from "@dashboard/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import {
@@ -259,11 +260,6 @@ export function TaskList({
 }: TaskListProps) {
   const queryClient = useQueryClient();
   const { githubUser } = useGitHubIdentity();
-  const { auth } = useAuth();
-  const scopedHref = useCallback(
-    (href: string) => (auth ? repoScopedHref(auth, href) : href),
-    [auth],
-  );
   const visibilityMutation = useMutation({
     mutationFn: ({ task, hidden }: { task: KodyTask; hidden: boolean }) =>
       hidden
@@ -279,16 +275,17 @@ export function TaskList({
           ),
     onMutate: async ({ task, hidden }) => {
       await queryClient.cancelQueries({ queryKey: ["kody-tasks"] });
-      const previous = queryClient.getQueriesData<KodyTask[]>({
+      const previous = queryClient.getQueriesData<TaskCacheData>({
         queryKey: ["kody-tasks"],
       });
-      queryClient.setQueriesData<KodyTask[]>(
+      queryClient.setQueriesData<TaskCacheData>(
         { queryKey: ["kody-tasks"] },
         (old) => {
-          if (!old) return old;
-          return hidden
-            ? markTaskHiddenInList(old, task.issueNumber)
-            : markTaskVisibleInList(old, task.issueNumber);
+          return mapTaskCacheData(old, (cachedTasks) =>
+            hidden
+              ? markTaskHiddenInList(cachedTasks, task.issueNumber)
+              : markTaskVisibleInList(cachedTasks, task.issueNumber),
+          );
         },
       );
       return { previous };
@@ -317,9 +314,12 @@ export function TaskList({
     },
     onSuccess: (_data, task) => {
       toast.success("Backlog item closed");
-      queryClient.setQueriesData<KodyTask[]>(
+      queryClient.setQueriesData<TaskCacheData>(
         { queryKey: ["kody-tasks"] },
-        (old) => old?.filter((t) => t.issueNumber !== task.issueNumber),
+        (old) =>
+          mapTaskCacheData(old, (cachedTasks) =>
+            cachedTasks.filter((t) => t.issueNumber !== task.issueNumber),
+          ),
       );
       queryClient.invalidateQueries({ queryKey: ["kody-tasks"] });
       queryClient.invalidateQueries({
@@ -418,7 +418,6 @@ export function TaskList({
           onDragStartTask={onDragStartTask}
           onDragEndTask={onDragEndTask}
           accent={accent}
-          repoHref={scopedHref}
         />
       ))}
     </div>
@@ -452,7 +451,6 @@ interface TaskRowProps {
   onDragStartTask?: (task: KodyTask, event: React.DragEvent) => void;
   onDragEndTask?: (task: KodyTask) => void;
   accent?: { divide: string; rowBg: string; rowHover: string };
-  repoHref: (href: string) => string;
 }
 
 const TaskRow = memo(function TaskRow({
@@ -482,7 +480,6 @@ const TaskRow = memo(function TaskRow({
   onDragStartTask,
   onDragEndTask,
   accent,
-  repoHref,
 }: TaskRowProps) {
   const [confirmCloseIssue, setConfirmCloseIssue] = useState(false);
   const [actionsMenuOpen, setActionsMenuOpen] = useState(false);
@@ -735,14 +732,13 @@ const TaskRow = memo(function TaskRow({
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-1 text-body-xs text-zinc-500">
                 {/* Group A — Identity: issue # · status word · KODY */}
                 <div className="inline-flex items-center gap-1.5">
-                  <SimpleTooltip content="Open issue in Kody" side="bottom">
+                  <SimpleTooltip content="Open issue in GitHub" side="bottom">
                     <a
-                      href={repoHref(`/${task.issueNumber}`)}
+                      href={getGitHubIssueUrl(task.issueNumber)}
                       onClick={(e) => e.stopPropagation()}
-                      className={cn(
-                        "font-mono font-semibold hover:underline",
-                        colors.text,
-                      )}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="font-mono font-semibold text-emerald-400 hover:text-emerald-300 hover:underline"
                     >
                       #{task.issueNumber}
                     </a>
@@ -750,12 +746,14 @@ const TaskRow = memo(function TaskRow({
 
                   {hasPR && task.associatedPR && (
                     <SimpleTooltip
-                      content="Open pull request in Kody"
+                      content="Open pull request in GitHub"
                       side="bottom"
                     >
                       <a
-                        href={repoHref(`/${task.associatedPR.number}`)}
+                        href={getGitHubPrUrl(task.associatedPR.number)}
                         onClick={(e) => e.stopPropagation()}
+                        target="_blank"
+                        rel="noreferrer noopener"
                         className="font-mono font-semibold text-purple-400 hover:underline"
                       >
                         #{task.associatedPR.number}
@@ -918,10 +916,12 @@ const TaskRow = memo(function TaskRow({
 
           {hasPR && (
             <>
-              <SimpleTooltip content="Open PR in Kody" side="bottom">
+              <SimpleTooltip content="Open PR in GitHub" side="bottom">
                 <a
-                  href={repoHref(`/${task.associatedPR!.number}`)}
+                  href={getGitHubPrUrl(task.associatedPR!.number)}
                   onClick={(e) => e.stopPropagation()}
+                  target="_blank"
+                  rel="noreferrer noopener"
                   className="inline-flex items-center gap-1 px-2 py-1 rounded bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors text-label font-medium"
                 >
                   <GitPullRequest className="w-3 h-3" />
@@ -998,8 +998,8 @@ const TaskRow = memo(function TaskRow({
                   : canRerun
                     ? "Rerun task"
                     : intakeMode && !isAssignedBacklogTask
-                    ? "Assign and run"
-                    : "Run task"
+                      ? "Assign and run"
+                      : "Run task"
               }
               side="bottom"
             >
@@ -1019,8 +1019,8 @@ const TaskRow = memo(function TaskRow({
                     : canRerun
                       ? "Rerun task"
                       : intakeMode && !isAssignedBacklogTask
-                      ? "Assign and run task"
-                      : "Run task"
+                        ? "Assign and run task"
+                        : "Run task"
                 }
                 className={cn(
                   "h-9 w-9 p-0 cursor-pointer disabled:opacity-50",
@@ -1028,7 +1028,7 @@ const TaskRow = memo(function TaskRow({
                     ? "text-red-400 hover:bg-red-500/20"
                     : canRerun
                       ? "text-orange-400 hover:bg-orange-500/20"
-                    : "text-zinc-400 hover:bg-white/[0.08]",
+                      : "text-zinc-400 hover:bg-white/[0.08]",
                 )}
               >
                 {isExecuting ? (

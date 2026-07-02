@@ -2,18 +2,24 @@ import { describe, it, expect } from "vitest";
 
 import {
   addBranchPreviewEnvironment,
+  addPreviewFolder,
   addRepoViewEnvironment,
   addUploadedEnvironment,
   daysUntilExpiry,
   expiredUploads,
   isFlyBranchEnvironment,
+  moveEnvironmentToFolder,
   normalizeEnvUrl,
   normalizeRepoViewPath,
+  removePreviewFolder,
   repoViewIdFromPath,
+  reorderEnvironment,
   resolveEnvironments,
+  resolvePreviewFolders,
   setEnvExpiry,
   STATIC_PREVIEW_TTL_MS,
   type PreviewEnvironment,
+  updatePreviewFolder,
 } from "@dashboard/lib/preview-environments";
 
 const NOW = 1_700_000_000_000;
@@ -106,10 +112,20 @@ describe("repo view paths", () => {
       "Mobile",
       "/api/kody/views/mobile-html-1234/index.html",
       ".kody/views/mobile-html-1234",
+      undefined,
+      {
+        sourceUrl:
+          "https://github.com/acme/kody-state/blob/main/app/views/mobile-html-1234/index.html",
+        entryPath: "index.html",
+      },
     );
 
     expect(next).toHaveLength(1);
     expect(next[0]?.repoViewPath).toBe("views/mobile-html-1234");
+    expect(next[0]?.repoViewSourceUrl).toBe(
+      "https://github.com/acme/kody-state/blob/main/app/views/mobile-html-1234/index.html",
+    );
+    expect(next[0]?.repoViewEntryPath).toBe("index.html");
   });
 });
 
@@ -221,5 +237,76 @@ describe("resolveEnvironments", () => {
     expect(out[0]).toMatchObject({
       flyBranch: { repo: "owner/repo", branch: "dev" },
     });
+  });
+
+  it("preserves repo-backed source pointers through the read mapping", () => {
+    const out = resolveEnvironments({
+      namedPreviews: [
+        {
+          id: "mobile",
+          label: "Mobile",
+          url: "/api/kody/views/mobile-html-1234/index.html",
+          repoViewPath: "views/mobile-html-1234",
+          repoViewSourceUrl:
+            "https://github.com/acme/kody-state/blob/main/app/views/mobile-html-1234/index.html",
+          repoViewEntryPath: "index.html",
+        },
+      ],
+    });
+    expect(out[0]).toMatchObject({
+      repoViewPath: "views/mobile-html-1234",
+      repoViewSourceUrl:
+        "https://github.com/acme/kody-state/blob/main/app/views/mobile-html-1234/index.html",
+      repoViewEntryPath: "index.html",
+    });
+  });
+});
+
+describe("preview folders", () => {
+  it("adds and removes folders with stable labels", () => {
+    const folders = addPreviewFolder([], " QA ");
+    expect(folders).toHaveLength(1);
+    expect(folders[0]?.label).toBe("QA");
+    expect(folders[0]?.id.startsWith("qa-")).toBe(true);
+    expect(removePreviewFolder(folders, folders[0]!.id)).toEqual([]);
+  });
+
+  it("ignores empty folder labels", () => {
+    expect(addPreviewFolder([], "   ")).toEqual([]);
+  });
+
+  it("renames folders without changing their id", () => {
+    const folders = [{ id: "qa", label: "QA" }];
+    expect(updatePreviewFolder(folders, "qa", " Review ")).toEqual([
+      { id: "qa", label: "Review" },
+    ]);
+    expect(updatePreviewFolder(folders, "qa", "   ")).toBe(folders);
+  });
+
+  it("resolves only well-shaped folders", () => {
+    expect(
+      resolvePreviewFolders([{ id: "qa", label: "QA" }, { id: "bad" }, null]),
+    ).toEqual([{ id: "qa", label: "QA" }]);
+  });
+
+  it("moves an environment into and out of a folder", () => {
+    const list: PreviewEnvironment[] = [
+      { id: "prod", label: "Prod", url: "https://prod.dev" },
+    ];
+    const inFolder = moveEnvironmentToFolder(list, "prod", "qa");
+    expect(inFolder[0]?.folderId).toBe("qa");
+    const inRoot = moveEnvironmentToFolder(inFolder, "prod", null);
+    expect(inRoot[0]?.folderId).toBeUndefined();
+  });
+
+  it("reorders an environment before another row and updates its folder", () => {
+    const list: PreviewEnvironment[] = [
+      { id: "a", label: "A", url: "https://a.dev" },
+      { id: "b", label: "B", url: "https://b.dev", folderId: "qa" },
+      { id: "c", label: "C", url: "https://c.dev", folderId: "qa" },
+    ];
+    const next = reorderEnvironment(list, "a", "c", "qa");
+    expect(next.map((env) => env.id)).toEqual(["b", "a", "c"]);
+    expect(next[1]?.folderId).toBe("qa");
   });
 });

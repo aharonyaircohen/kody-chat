@@ -86,12 +86,19 @@ export interface BrainAppFile {
   createdAt: string;
 }
 
-/** Persisted Brain image record. Stores only the GHCR image ref. */
+export interface BrainSavedImage {
+  imageRef: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Persisted Brain image record. Stores the active GHCR ref and saved refs. */
 export interface BrainImageFile {
   version: 1;
   imageRef: string;
   createdAt: string;
   updatedAt: string;
+  images: BrainSavedImage[];
 }
 
 export interface BrainImageSaveFile {
@@ -127,16 +134,58 @@ export function isValidBrainImageRef(value: string): boolean {
   );
 }
 
-function isBrainImageFile(value: unknown): value is BrainImageFile {
+function isBrainSavedImage(value: unknown): value is BrainSavedImage {
   if (!value || typeof value !== "object") return false;
   const v = value as Record<string, unknown>;
   return (
-    v.version === 1 &&
     typeof v.imageRef === "string" &&
     isValidBrainImageRef(v.imageRef) &&
     typeof v.createdAt === "string" &&
     typeof v.updatedAt === "string"
   );
+}
+
+function normalizeBrainImageFile(value: unknown): BrainImageFile | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as Record<string, unknown>;
+  const validBase =
+    v.version === 1 &&
+    typeof v.imageRef === "string" &&
+    isValidBrainImageRef(v.imageRef) &&
+    typeof v.createdAt === "string" &&
+    typeof v.updatedAt === "string";
+  if (!validBase) return null;
+  const imageRef = v.imageRef as string;
+  const createdAt = v.createdAt as string;
+  const updatedAt = v.updatedAt as string;
+
+  const images = Array.isArray(v.images)
+    ? v.images.filter(isBrainSavedImage)
+    : [];
+  const merged = upsertBrainSavedImage(images, {
+    imageRef,
+    createdAt,
+    updatedAt,
+  });
+  return {
+    version: 1,
+    imageRef,
+    createdAt,
+    updatedAt,
+    images: sortBrainSavedImages(merged),
+  };
+}
+
+function sortBrainSavedImages(images: BrainSavedImage[]): BrainSavedImage[] {
+  return [...images].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+function upsertBrainSavedImage(
+  images: BrainSavedImage[],
+  image: BrainSavedImage,
+): BrainSavedImage[] {
+  const existing = images.filter((item) => item.imageRef !== image.imageRef);
+  return sortBrainSavedImages([image, ...existing]);
 }
 
 function isBrainImageSaveFile(value: unknown): value is BrainImageSaveFile {
@@ -367,12 +416,13 @@ export async function readBrainImage(
     });
     if (file) {
       const parsed: unknown = JSON.parse(file.content);
-      if (!isBrainImageFile(parsed)) {
+      const normalized = normalizeBrainImageFile(parsed);
+      if (!normalized) {
         setCache(key, null, file.etag);
         return null;
       }
-      setCache(key, parsed, file.etag);
-      return parsed;
+      setCache(key, normalized, file.etag);
+      return normalized;
     }
     setCache(key, null);
     return null;
@@ -395,7 +445,8 @@ export async function writeBrainImage(
   _token: string,
   file: BrainImageFile,
 ): Promise<void> {
-  if (!isBrainImageFile(file)) {
+  const normalizedFile = normalizeBrainImageFile(file);
+  if (!normalizedFile) {
     throw new Error("Invalid Brain image record");
   }
   const owner = getOwner();
@@ -417,7 +468,7 @@ export async function writeBrainImage(
     if (status !== 404) throw error;
   }
 
-  const content = JSON.stringify(file, null, 2);
+  const content = JSON.stringify(normalizedFile, null, 2);
   const message = `feat(brain): record brain image for ${login}`;
 
   try {
@@ -455,6 +506,101 @@ export async function writeBrainImage(
         // fall through to throw
       }
     }
+    throw error;
+  }
+}
+
+export async function selectBrainImage(
+  login: string,
+  token: string,
+  imageRef: string,
+): Promise<BrainImageFile> {
+  if (!isValidBrainImageRef(imageRef)) {
+    throw new Error("Invalid Brain image ref");
+  }
+  const current = await readBrainImage(login, token);
+  if (!current) {
+    throw new Error("No Brain images saved");
+  }
+  const selected = current.images.find((image) => image.imageRef === imageRef);
+  if (!selected) {
+    throw new Error("Brain image is not saved");
+  }
+  const now = new Date().toISOString();
+  const updated: BrainImageFile = {
+    version: 1,
+    imageRef,
+    createdAt: current.createdAt,
+    updatedAt: now,
+    images: upsertBrainSavedImage(current.images, {
+      ...selected,
+      updatedAt: now,
+    }),
+  };
+  await writeBrainImage(login, token, updated);
+  return updated;
+}
+
+export async function deleteBrainImage(
+  login: string,
+  token: string,
+  imageRef: string,
+): Promise<BrainImageFile | null> {
+  if (!isValidBrainImageRef(imageRef)) {
+    throw new Error("Invalid Brain image ref");
+  }
+  const current = await readBrainImage(login, token);
+  if (!current) return null;
+  const remaining = current.images.filter(
+    (image) => image.imageRef !== imageRef,
+  );
+  if (remaining.length === current.images.length) return current;
+  if (remaining.length === 0) {
+    await clearBrainImage(login, token);
+    return null;
+  }
+  const nextCurrent = current.imageRef === imageRef ? remaining[0] : null;
+  const updated: BrainImageFile = {
+    version: 1,
+    imageRef: nextCurrent?.imageRef ?? current.imageRef,
+    createdAt: current.createdAt,
+    updatedAt: new Date().toISOString(),
+    images: remaining,
+  };
+  await writeBrainImage(login, token, updated);
+  return updated;
+}
+
+export async function clearBrainImage(
+  login: string,
+  _token: string,
+): Promise<void> {
+  const owner = getOwner();
+  const repo = getRepo();
+  const path = imageFilePath(login);
+  const key = cacheKey("image", login);
+
+  cache.delete(key);
+
+  try {
+    const octokit = getOctokit();
+    const current = await readStateText(octokit, owner, repo, path, {
+      scope: "root",
+    });
+    if (current?.sha) {
+      await deleteStateFile({
+        octokit,
+        owner,
+        repo,
+        path,
+        message: `feat(brain): clear brain image for ${login}`,
+        sha: current.sha,
+        scope: "root",
+      });
+    }
+  } catch (error: unknown) {
+    const status = (error as { status?: number })?.status;
+    if (status === 404) return;
     throw error;
   }
 }

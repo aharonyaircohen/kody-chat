@@ -68,14 +68,20 @@ describe("POST /api/kody/views", () => {
     const body = (await res.json()) as {
       url: string;
       repoPath: string;
+      entryPath: string;
       htmlUrl: string;
+      sourceHtmlUrl: string;
     };
     expect(body.url).toMatch(
       /^\/api\/kody\/views\/hello-html-[a-f0-9]{8}\/index\.html$/,
     );
     expect(body.repoPath).toMatch(/^views\/hello-html-[a-f0-9]{8}$/);
+    expect(body.entryPath).toBe("index.html");
     expect(body.htmlUrl).toMatch(
       /^https:\/\/github\.com\/octo-state\/kody-state\/tree\/main\/widgets\/views\/hello-html-[a-f0-9]{8}$/,
+    );
+    expect(body.sourceHtmlUrl).toMatch(
+      /^https:\/\/github\.com\/octo-state\/kody-state\/blob\/main\/widgets\/views\/hello-html-[a-f0-9]{8}\/index\.html$/,
     );
     expect(stateRepo.writeStateBase64Files).toHaveBeenCalledWith({
       octokit: { marker: "viewer-octokit" },

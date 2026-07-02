@@ -55,6 +55,15 @@ export function previewChatContextBlock(
     lines.push(`- Repository: ${flyBranch.repo}`);
     lines.push(`- Branch: ${flyBranch.branch}`);
   } else if (env.url) {
+    if (env.repoViewPath) {
+      lines.push(`- Source path: ${env.repoViewPath}`);
+      if (env.repoViewEntryPath) {
+        lines.push(`- Entry file: ${env.repoViewEntryPath}`);
+      }
+      if (env.repoViewSourceUrl) {
+        lines.push(`- Source URL: ${env.repoViewSourceUrl}`);
+      }
+    }
     lines.push(`- Preview URL: ${env.url}`);
   }
 

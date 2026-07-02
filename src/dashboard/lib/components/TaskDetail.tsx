@@ -8,7 +8,11 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { formatRelativeTime, cn } from "../utils";
-import { HIDDEN_TASK_LABEL } from "../constants";
+import {
+  HIDDEN_TASK_LABEL,
+  getGitHubIssueUrl,
+  getGitHubPrUrl,
+} from "../constants";
 import type {
   KodyTask,
   GitHubComment,
@@ -1099,16 +1103,20 @@ export function TaskDetail({
   const quickLinks = (
     <>
       <a
-        href={scopedHref(`/${task.issueNumber}`)}
+        href={getGitHubIssueUrl(task.issueNumber)}
         onClick={(e) => e.stopPropagation()}
+        target="_blank"
+        rel="noreferrer noopener"
         className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/[0.08] text-zinc-300 hover:bg-white/[0.12] hover:text-white transition-all duration-150 shrink-0 border border-white/[0.1]"
       >
         <FileText className="w-3 h-3" />#{task.issueNumber}
       </a>
       {task.associatedPR && (
         <a
-          href={scopedHref(`/${task.associatedPR.number}`)}
+          href={getGitHubPrUrl(task.associatedPR.number)}
           onClick={(e) => e.stopPropagation()}
+          target="_blank"
+          rel="noreferrer noopener"
           className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-purple-500/15 text-purple-300 hover:bg-purple-500/25 hover:text-purple-200 transition-all duration-150 shrink-0 border border-purple-500/20"
         >
           <GitPullRequest className="w-3 h-3" />
@@ -1825,16 +1833,20 @@ export function TaskDetail({
 
         {/* Labeled link pills */}
         <a
-          href={scopedHref(`/${task.issueNumber}`)}
+          href={getGitHubIssueUrl(task.issueNumber)}
           onClick={(e) => e.stopPropagation()}
+          target="_blank"
+          rel="noreferrer noopener"
           className="h-9 inline-flex items-center gap-1.5 px-3 rounded-full text-xs font-medium bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors shrink-0"
         >
           <FileText className="w-3.5 h-3.5" />#{task.issueNumber}
         </a>
         {task.associatedPR && (
           <a
-            href={scopedHref(`/${task.associatedPR.number}`)}
+            href={getGitHubPrUrl(task.associatedPR.number)}
             onClick={(e) => e.stopPropagation()}
+            target="_blank"
+            rel="noreferrer noopener"
             className="h-9 inline-flex items-center gap-1.5 px-3 rounded-full text-xs font-medium bg-purple-500/10 text-purple-400 hover:bg-purple-500/20 transition-colors shrink-0"
           >
             <GitPullRequest className="w-3.5 h-3.5" />

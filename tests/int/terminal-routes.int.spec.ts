@@ -110,14 +110,46 @@ const token = vi.hoisted(() => ({
   mintTerminalBridgeToken: vi.fn(() => "opaque-token"),
 }));
 
+const brainStore = vi.hoisted(() => ({
+  readBrainImage: vi.fn(async (): Promise<unknown> => null),
+  writeBrainApp: vi.fn(async () => undefined),
+}));
+
+const brainFly = vi.hoisted(() => ({
+  provisionBrain: vi.fn(async () => ({
+    app: "kody-brain-octocat",
+    url: "https://kody-brain-octocat.fly.dev",
+    apiKey: "brain-key",
+    machineId: "brain-restored",
+    region: "fra",
+    org: "personal",
+  })),
+}));
+
+const imageRuntime = vi.hoisted(() => ({
+  brainFlyRuntimeImageRef: vi.fn(
+    ({ app, imageRef }: { app: string; imageRef: string }) =>
+      `registry.fly.io/${app}:${imageRef.split(":").at(-1)}`,
+  ),
+  brainGhcrAuth: vi.fn(() => ({ token: "ghcr-token", user: "octocat" })),
+  prepareBrainRuntimeImage: vi.fn(async () => "registry.fly.io/kody-brain-octocat:selected"),
+}));
+
 vi.mock("@dashboard/lib/auth", () => auth);
 vi.mock("@dashboard/lib/previews/config", () => previews);
 vi.mock("@dashboard/lib/runners/fly-context", () => flyContext);
 vi.mock("@dashboard/lib/runners/fly-inventory", () => inventory);
 vi.mock("@dashboard/lib/runners/fly-inventory-server", () => inventoryServer);
+vi.mock("@dashboard/lib/runners/brain-fly", () => brainFly);
+vi.mock("@dashboard/lib/brain/store", () => brainStore);
+vi.mock("@dashboard/lib/brain/image-runtime", () => imageRuntime);
 vi.mock("@dashboard/lib/previews/fly-previews", () => flyPreview);
 vi.mock("@dashboard/lib/terminal/bridge-fly", () => bridge);
 vi.mock("@dashboard/lib/terminal/terminal-token", () => token);
+vi.mock("@dashboard/lib/github-client", () => ({
+  setGitHubContext: vi.fn(),
+  clearGitHubContext: vi.fn(),
+}));
 vi.mock("@dashboard/lib/logger", () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
 }));
@@ -170,6 +202,19 @@ beforeEach(() => {
   });
   inventoryServer.appendSavedBrainMachineToInventory.mockResolvedValue(false);
   token.mintTerminalBridgeToken.mockReturnValue("opaque-token");
+  brainStore.readBrainImage.mockResolvedValue(null);
+  brainStore.writeBrainApp.mockResolvedValue(undefined);
+  brainFly.provisionBrain.mockResolvedValue({
+    app: "kody-brain-octocat",
+    url: "https://kody-brain-octocat.fly.dev",
+    apiKey: "brain-key",
+    machineId: "brain-restored",
+    region: "fra",
+    org: "personal",
+  });
+  imageRuntime.prepareBrainRuntimeImage.mockResolvedValue(
+    "registry.fly.io/kody-brain-octocat:selected",
+  );
 });
 
 afterEach(() => {
@@ -212,6 +257,109 @@ describe("POST /api/kody/terminal/session", () => {
         secret: "bridge-secret",
       }),
     );
+    expect(brainFly.provisionBrain).not.toHaveBeenCalled();
+  });
+
+  it("runs the selected saved Brain image before opening a Brain terminal", async () => {
+    brainStore.readBrainImage.mockResolvedValueOnce({
+      version: 1 as const,
+      imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
+      createdAt: "2026-07-02T00:00:00.000Z",
+      updatedAt: "2026-07-02T00:00:00.000Z",
+      images: [
+        {
+          imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
+          createdAt: "2026-07-02T00:00:00.000Z",
+          updatedAt: "2026-07-02T00:00:00.000Z",
+        },
+      ],
+    });
+
+    const res = await sessionPOST(
+      makeSessionReq({
+        app: "kody-brain-octocat",
+        machineId: "brain-1",
+        feature: "brain",
+        chatSessionId: "chat-1",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      app: "kody-brain-octocat",
+      machineId: "brain-restored",
+    });
+    expect(brainFly.provisionBrain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flyToken: "fly-token",
+        account: "octocat",
+        appNameOverride: "kody-brain-octocat",
+        imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
+        orgSlug: "personal",
+        defaultRegion: "fra",
+      }),
+    );
+    expect(token.mintTerminalBridgeToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        app: "kody-brain-octocat",
+        machineId: "brain-restored",
+      }),
+    );
+  });
+
+  it("runs the selected saved Brain image even when the old machine is still waking", async () => {
+    inventory.listFlyInventory.mockResolvedValueOnce({
+      running: 0,
+      total: 1,
+      machines: [
+        {
+          feature: "brain",
+          app: "kody-brain-octocat",
+          machineId: "brain-1",
+          state: "starting",
+          region: "fra",
+          label: "kody-brain-octocat",
+          sizeLabel: "perf 1x",
+          orgSlug: "personal",
+        },
+      ],
+    });
+    brainStore.readBrainImage.mockResolvedValueOnce({
+      version: 1 as const,
+      imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
+      createdAt: "2026-07-02T00:00:00.000Z",
+      updatedAt: "2026-07-02T00:00:00.000Z",
+      images: [
+        {
+          imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
+          createdAt: "2026-07-02T00:00:00.000Z",
+          updatedAt: "2026-07-02T00:00:00.000Z",
+        },
+      ],
+    });
+
+    const res = await sessionPOST(
+      makeSessionReq({
+        app: "kody-brain-octocat",
+        machineId: "brain-1",
+        feature: "brain",
+        chatSessionId: "chat-1",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      app: "kody-brain-octocat",
+      machineId: "brain-restored",
+    });
+    expect(brainFly.provisionBrain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
+      }),
+    );
+    expect(flyPreview.startMachine).not.toHaveBeenCalled();
   });
 
   it("rejects non-terminal Fly machines", async () => {

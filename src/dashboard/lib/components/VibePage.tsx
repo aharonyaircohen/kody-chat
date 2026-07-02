@@ -42,7 +42,9 @@ import {
   isFlyBranchEnvironment,
   normalizeBranchName,
   resolveEnvironments,
+  resolvePreviewFolders,
   type PreviewEnvironment,
+  type PreviewEnvironmentFolder,
 } from "../preview-environments";
 import {
   BRANCH_PREVIEW_POLL_MS,
@@ -53,6 +55,7 @@ import { previewChatContextBlock } from "../chat/preview-context";
 import { tasksApi, getStoredAuth } from "../api";
 import { RateLimitError, NoTokenError, SessionExpiredError } from "../api";
 import type { KodyTask } from "../types";
+import { mapTaskCacheData, type TaskCacheData } from "../tasks/cache";
 
 import { VibeIssueList } from "./VibeIssueList";
 import { VibeDefaultPreviewField } from "./VibeDefaultPreviewField";
@@ -304,12 +307,13 @@ export function VibePage() {
       // Also write into the cache so list views render the new row
       // without waiting on the next poll. Both paths converge once the
       // real fetch returns including the new issue.
-      queryClient.setQueriesData<KodyTask[]>(
+      queryClient.setQueriesData<TaskCacheData>(
         { queryKey: ["kody-tasks"] },
         (prev) => {
-          if (!Array.isArray(prev)) return prev;
-          if (prev.some((t) => t.issueNumber === issueNumber)) return prev;
-          return [synthetic, ...prev];
+          return mapTaskCacheData(prev, (tasks) => {
+            if (tasks.some((t) => t.issueNumber === issueNumber)) return tasks;
+            return [synthetic, ...tasks];
+          });
         },
       );
       queryClient.invalidateQueries({ queryKey: ["kody-tasks"] });
@@ -335,6 +339,10 @@ export function VibePage() {
   const environments = useMemo(
     () => resolveEnvironments(configQuery.data?.config),
     [configQuery.data?.config],
+  );
+  const previewFolders = useMemo(
+    () => resolvePreviewFolders(configQuery.data?.config.previewFolders),
+    [configQuery.data?.config.previewFolders],
   );
   const hasExplicitEnvironments = Array.isArray(
     configQuery.data?.config.namedPreviews,
@@ -375,6 +383,22 @@ export function VibePage() {
     },
   });
 
+  const saveFoldersMutation = useMutation({
+    mutationFn: (next: PreviewEnvironmentFolder[]) =>
+      saveDashboardConfig({
+        previewFolders: next,
+        actorLogin: githubUser?.login,
+      }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["kody-dashboard-config"], data);
+    },
+    onError: (err) => {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to save preview folders",
+      );
+    },
+  });
+
   const [storedEnvId, setStoredEnvId] = useState<string | null>(null);
   const [selectedEnvId, setSelectedEnvId] = useState<string | null>(null);
 
@@ -411,6 +435,12 @@ export function VibePage() {
     next: PreviewEnvironment[],
   ): Promise<void> => {
     await saveEnvironmentsMutation.mutateAsync(next);
+  };
+
+  const persistPreviewFolders = async (
+    next: PreviewEnvironmentFolder[],
+  ): Promise<void> => {
+    await saveFoldersMutation.mutateAsync(next);
   };
 
   const selectEnv = useCallback(
@@ -474,14 +504,16 @@ export function VibePage() {
       tasksApi.approveReview(task, githubUser?.login),
     onMutate: async (task) => {
       await queryClient.cancelQueries({ queryKey: ["kody-tasks"] });
-      const previous = queryClient.getQueriesData<KodyTask[]>({
+      const previous = queryClient.getQueriesData<TaskCacheData>({
         queryKey: ["kody-tasks"],
       });
-      queryClient.setQueriesData<KodyTask[]>(
+      queryClient.setQueriesData<TaskCacheData>(
         { queryKey: ["kody-tasks"] },
         (old) =>
-          old?.map((t) =>
-            t.id === task.id ? { ...t, column: "done" as const } : t,
+          mapTaskCacheData(old, (tasks) =>
+            tasks.map((t) =>
+              t.id === task.id ? { ...t, column: "done" as const } : t,
+            ),
           ),
       );
       return { previous };
@@ -689,12 +721,17 @@ export function VibePage() {
             leadingToolbar={
               <PreviewEnvSwitcher
                 environments={environments}
+                folders={previewFolders}
                 repoFullName={repoFullName}
                 selectedId={selectedEnv?.id ?? null}
                 onSelect={selectEnv}
                 onSave={persistPreviewEnvironments}
+                onSaveFolders={persistPreviewFolders}
                 onAddBranch={addBranch}
-                isSaving={saveEnvironmentsMutation.isPending}
+                isSaving={
+                  saveEnvironmentsMutation.isPending ||
+                  saveFoldersMutation.isPending
+                }
                 variant="address"
               />
             }

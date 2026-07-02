@@ -29,9 +29,7 @@ describe("ChatTerminalSurface timeout guard", () => {
     expect(SOURCE).toContain(
       'fetchWithTimeout(\n      "/api/kody/chat/terminal/resize"',
     );
-    expect(SOURCE).toContain(
-      'fetchWithTimeout(\n      "/api/kody/chat/terminal/input"',
-    );
+    expect(SOURCE).toContain('"/api/kody/chat/terminal/input"');
     expect(SOURCE).toContain(
       'fetchWithTimeout(\n        "/api/kody/chat/terminal/start"',
     );
@@ -52,5 +50,21 @@ describe("ChatTerminalSurface timeout guard", () => {
     expect(SOURCE).toContain("flyConnectInFlightKeyRef");
     expect(SOURCE).toContain("isCurrentFlyConnect");
     expect(SOURCE).toContain("flySocketRef.current !== ws");
+  });
+
+  it("queues Fly input until the remote shell is ready", () => {
+    expect(SOURCE).toContain("type TerminalInputSignal");
+    expect(SOURCE).toContain("MAX_PENDING_INPUT_CHARS");
+    expect(SOURCE).toContain("pendingFlyInputRef");
+    expect(SOURCE).toContain("flushPendingFlyInput");
+    expect(SOURCE).toContain('flyConnectionStateRef.current === "connecting"');
+    expect(SOURCE).toContain("Ready for input");
+    expect(SOURCE).toContain("Input sent");
+    expect(SOURCE).toContain("Input queued");
+    expect(SOURCE).toContain("Queued input sent");
+    expect(SOURCE).toContain("Waiting for terminal");
+    expect(SOURCE).toContain("Input blocked");
+    expect(SOURCE).toContain("onChromeStateChange");
+    expect(SOURCE).toContain('flyConnectionStateRef.current === "connected"');
   });
 });

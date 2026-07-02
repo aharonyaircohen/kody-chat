@@ -17,7 +17,7 @@ const REQUEST_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_INTERVAL_MS = 2_000;
 
-export const TERMINAL_BRIDGE_VERSION = "2026-07-01.1";
+export const TERMINAL_BRIDGE_VERSION = "2026-07-02.2";
 export const TERMINAL_BRIDGE_BASE_IMAGE =
   process.env.KODY_TERMINAL_BRIDGE_BASE_IMAGE ?? "node:22-bookworm";
 
@@ -161,7 +161,10 @@ import { spawn } from "node:child_process";
 
 const TOKEN_VERSION = "kody-terminal-v1";
 const SSH_STATUS_INTERVAL_MS = 10000;
-const READY_TIMEOUT_MS = 20000;
+const READY_TIMEOUT_MS = 75000;
+const READY_PROBE_INTERVAL_MS = 2500;
+const MAX_SSH_START_ATTEMPTS = 3;
+const SSH_START_RETRY_DELAY_MS = 2000;
 const PERSISTENT_SESSION_IDLE_MS = 30 * 60 * 1000;
 const MAX_REPLAY_CHARS = 120000;
 const MAX_EXEC_OUTPUT_BYTES = 96 * 1024 * 1024;
@@ -655,7 +658,9 @@ function closeSessionSockets(session, code, reason) {
 
 function cleanupSession(session) {
   clearInterval(session.statusTimer);
+  clearInterval(session.readyProbeTimer);
   clearTimeout(session.readyTimer);
+  clearTimeout(session.retryTimer);
 }
 
 function disposePersistentSession(key, session) {
@@ -671,6 +676,16 @@ function normalizeActivityLimitMs(value) {
   if (value === null) return null;
   if (Number.isFinite(value) && value >= 60000) return value;
   return PERSISTENT_SESSION_IDLE_MS;
+}
+
+function isRetryableFlySshStartupFailure(output) {
+  const text = String(output || "").toLowerCase();
+  return (
+    text.includes("tunnel unavailable") ||
+    text.includes("error contacting fly.io api") ||
+    text.includes("context deadline exceeded") ||
+    text.includes("i/o timeout")
+  );
 }
 
 setInterval(() => {
@@ -713,24 +728,24 @@ function createFlyConsoleSession(claims, key) {
     claims.machineId,
     "--pty",
   ];
-  const child = spawn("python3", args, {
-    env,
-    stdio: ["pipe", "pipe", "pipe"],
-  });
   const session = {
-    child,
+    child: null,
     sockets: new Set(),
     key,
     readyMarker,
     sawOutput: false,
     ready: false,
+    timedOut: false,
+    startAttempts: 0,
     pendingOutput: "",
     outputBuffer: "",
     inputBytes: 0,
     lastTouched: Date.now(),
     activityLimitMs: normalizeActivityLimitMs(claims.activityLimitMs),
     statusTimer: null,
+    readyProbeTimer: null,
     readyTimer: null,
+    retryTimer: null,
   };
   const statusTimer = setInterval(() => {
     if (!session.sawOutput) {
@@ -751,7 +766,8 @@ function createFlyConsoleSession(claims, key) {
       type: "error",
       message: "Terminal did not answer the keyboard self-test.",
     });
-    child.kill("SIGTERM");
+    session.timedOut = true;
+    session.child?.kill("SIGTERM");
   }, READY_TIMEOUT_MS);
   session.statusTimer = statusTimer;
   session.readyTimer = readyTimer;
@@ -784,6 +800,8 @@ function createFlyConsoleSession(claims, key) {
       const proof = findReadyProof(session.pendingOutput);
       if (!proof) return;
       session.ready = true;
+      clearInterval(session.readyProbeTimer);
+      session.readyProbeTimer = null;
       clearTimeout(readyTimer);
       const cleanOutput = outputAfterReady(
         session.pendingOutput,
@@ -801,30 +819,77 @@ function createFlyConsoleSession(claims, key) {
     sendToSession(session, { type: "output", data: text });
   }
 
-  child.stdout.on("data", handleOutput);
-  child.stderr.on("data", handleOutput);
-  setTimeout(() => {
-    if (!child.stdin.destroyed) {
+  function startChild() {
+    session.startAttempts += 1;
+    session.sawOutput = false;
+    const child = spawn("python3", args, {
+      env,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    session.child = child;
+
+    child.stdout.on("data", handleOutput);
+    child.stderr.on("data", handleOutput);
+    clearInterval(session.readyProbeTimer);
+    session.readyProbeTimer = setInterval(() => {
+      if (session.child !== child || child.stdin.destroyed) return;
+      if (session.ready) {
+        clearInterval(session.readyProbeTimer);
+        session.readyProbeTimer = null;
+        return;
+      }
       child.stdin.write("tty; printf '\\n" + readyMarker + "\\n'\r");
-    }
-  }, 2500);
-  child.on("error", (err) => {
-    cleanupSession(session);
-    sendToSession(session, { type: "error", message: err.message });
-    closeSessionSockets(session, 1011, "terminal process failed");
-    if (key) persistentSessions.delete(key);
-  });
-  child.on("close", (code) => {
-    cleanupSession(session);
-    if (!session.ready && session.pendingOutput) {
-      rememberOutput(session, session.pendingOutput);
-      sendToSession(session, { type: "output", data: session.pendingOutput });
-      session.pendingOutput = "";
-    }
-    sendToSession(session, { type: "exit", code: code ?? 0 });
-    closeSessionSockets(session, 1000, "terminal closed");
-    if (key) persistentSessions.delete(key);
-  });
+    }, READY_PROBE_INTERVAL_MS);
+    child.on("error", (err) => {
+      if (session.child !== child) return;
+      cleanupSession(session);
+      sendToSession(session, { type: "error", message: err.message });
+      closeSessionSockets(session, 1011, "terminal process failed");
+      if (key) persistentSessions.delete(key);
+    });
+    child.on("close", (code) => {
+      if (session.child !== child) return;
+      clearInterval(session.readyProbeTimer);
+      session.readyProbeTimer = null;
+      if (
+        !session.ready &&
+        !session.timedOut &&
+        session.startAttempts < MAX_SSH_START_ATTEMPTS &&
+        isRetryableFlySshStartupFailure(session.pendingOutput)
+      ) {
+        if (session.pendingOutput) {
+          rememberOutput(session, session.pendingOutput);
+          sendToSession(session, {
+            type: "output",
+            data: session.pendingOutput,
+          });
+          session.pendingOutput = "";
+        }
+        sendToSession(session, {
+          type: "output",
+          data:
+            "Retrying terminal tunnel (" +
+            (session.startAttempts + 1) +
+            "/" +
+            MAX_SSH_START_ATTEMPTS +
+            ")...\r\n",
+        });
+        session.retryTimer = setTimeout(startChild, SSH_START_RETRY_DELAY_MS);
+        return;
+      }
+      cleanupSession(session);
+      if (!session.ready && session.pendingOutput) {
+        rememberOutput(session, session.pendingOutput);
+        sendToSession(session, { type: "output", data: session.pendingOutput });
+        session.pendingOutput = "";
+      }
+      sendToSession(session, { type: "exit", code: code ?? 0 });
+      closeSessionSockets(session, 1000, "terminal closed");
+      if (key) persistentSessions.delete(key);
+    });
+  }
+
+  startChild();
 
   return session;
 }

@@ -109,6 +109,10 @@ function pickEntryPath(uploads: RepoViewUpload[]): string {
   return first.path;
 }
 
+function encodeGitHubPath(path: string): string {
+  return path.split("/").map(encodeURIComponent).join("/");
+}
+
 async function commitFiles(input: {
   octokit: NonNullable<Awaited<ReturnType<typeof getUserOctokit>>>;
   owner: string;
@@ -262,16 +266,22 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       message: `chore(dashboard): add static view ${viewId}`,
     });
     const entryPath = pickEntryPath(uploads);
+    const treeUrl = `https://github.com/${stateOwner}/${stateRepo}/tree/${encodeURIComponent(
+      branch,
+    )}/${encodeGitHubPath(rootPath)}`;
+    const sourceHtmlUrl = `https://github.com/${stateOwner}/${stateRepo}/blob/${encodeURIComponent(
+      branch,
+    )}/${encodeGitHubPath(`${rootPath}/${entryPath}`)}`;
     return NextResponse.json(
       {
         id: viewId,
         name: viewName,
         url: `/api/kody/views/${viewId}/${entryPath}`,
         repoPath: repoRoot,
+        entryPath,
         files: uploads.map((upload) => upload.path),
-        htmlUrl: `https://github.com/${stateOwner}/${stateRepo}/tree/${encodeURIComponent(
-          branch,
-        )}/${rootPath}`,
+        htmlUrl: treeUrl,
+        sourceHtmlUrl,
       },
       { status: 201 },
     );

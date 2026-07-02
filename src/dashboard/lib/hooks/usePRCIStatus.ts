@@ -8,12 +8,30 @@
 
 import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { KodyTask } from "../types";
+import { findCachedTask, type TaskCacheData } from "../tasks/cache";
 
 interface PRCIStatusResult {
   ciStatus: "pending" | "success" | "failure" | "running";
   mergeable: boolean;
   hasConflicts: boolean;
+}
+
+export function findCachedPRCIStatus(
+  queries: Array<[readonly unknown[], TaskCacheData]>,
+  prNumber: number,
+): PRCIStatusResult | undefined {
+  const task = findCachedTask(
+    queries,
+    (candidate) => candidate.associatedPR?.number === prNumber,
+  );
+  const pr = task?.associatedPR;
+  if (!pr) return undefined;
+
+  return {
+    ciStatus: pr.ciStatus ?? "pending",
+    mergeable: pr.mergeable ?? false,
+    hasConflicts: pr.hasConflicts ?? false,
+  };
 }
 
 /**
@@ -44,22 +62,10 @@ export function usePRCIStatus(prNumber: number | undefined) {
 
   let data: PRCIStatusResult | undefined;
   if (prNumber) {
-    const queries = queryClient.getQueriesData<KodyTask[]>({
+    const queries = queryClient.getQueriesData<TaskCacheData>({
       queryKey: ["kody-tasks"],
     });
-    for (const [, tasks] of queries) {
-      if (!tasks) continue;
-      const task = tasks.find((t) => t.associatedPR?.number === prNumber);
-      const pr = task?.associatedPR;
-      if (pr) {
-        data = {
-          ciStatus: pr.ciStatus ?? "pending",
-          mergeable: pr.mergeable ?? false,
-          hasConflicts: pr.hasConflicts ?? false,
-        };
-        break;
-      }
-    }
+    data = findCachedPRCIStatus(queries, prNumber);
   }
 
   return { data, isLoading: !data && !!prNumber, isError: false };

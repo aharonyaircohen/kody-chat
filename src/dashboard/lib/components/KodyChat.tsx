@@ -15,6 +15,7 @@ import { MarkdownPreview } from "./MarkdownPreview";
 import { MarkdownEditor } from "./MarkdownEditor";
 import {
   Brain,
+  ClipboardCopy,
   Globe,
   Paperclip,
   Send,
@@ -33,6 +34,7 @@ import {
   MousePointerClick,
   Plus,
   RefreshCw,
+  RotateCcw,
   Save,
   Square,
   SquareTerminal,
@@ -112,6 +114,7 @@ import { MessageAttachments } from "./MessageAttachments";
 import { TypingIndicator } from "./TypingIndicator";
 import {
   ChatTerminalSurface,
+  type ChatTerminalChromeState,
   type ChatTerminalSnapshot,
   type ChatTerminalTransport,
   type ChatTerminalSurfaceHandle,
@@ -144,6 +147,7 @@ import {
 } from "@dashboard/lib/voice/voices";
 import { VoiceButton } from "./VoiceButton";
 import { VoiceChatOverlay } from "./VoiceChatOverlay";
+import { RepoScopedLink } from "./RepoScopedLink";
 import { useChatSessions } from "../hooks/useChatSessions";
 import { useKodyActionState } from "../hooks/useKodyActionState";
 import { useMediaQuery } from "../hooks/useMediaQuery";
@@ -1274,6 +1278,12 @@ export function KodyChat({
   const terminalSurfaceRefs = useRef<
     Record<string, ChatTerminalSurfaceHandle | null>
   >({});
+  const [terminalChromeById, setTerminalChromeById] = useState<
+    Record<string, ChatTerminalChromeState>
+  >({});
+  const activeTerminalChrome = activeTerminalInstanceId
+    ? terminalChromeById[activeTerminalInstanceId]
+    : null;
 
   const prevAgentIdRef = useRef<string>(selectedAgentId);
   useEffect(() => {
@@ -2950,6 +2960,7 @@ export function KodyChat({
               ...(currentPageRef.current
                 ? { currentPage: currentPageRef.current }
                 : {}),
+              ...(previewContext ? { previewContext } : {}),
               ...(selectedOrg
                 ? {
                     org: {
@@ -4754,33 +4765,16 @@ export function KodyChat({
         <button
           type="button"
           onClick={openTerminalMode}
-          className={`relative inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-body-xs font-medium transition-colors ${
+          className={`relative inline-flex h-8 w-8 items-center justify-center rounded text-body-xs font-medium transition-colors ${
             chatMode === "terminal"
               ? "bg-primary text-primary-foreground"
               : "text-muted-foreground hover:bg-muted hover:text-foreground"
           }`}
           aria-pressed={chatMode === "terminal"}
-          title="Terminal"
+          title={`Terminal ${terminalStatusLabel}`}
           aria-label={`Terminal ${terminalStatusLabel}`}
         >
           <SquareTerminal className="h-4 w-4" aria-hidden="true" />
-          <span
-            className={`text-label font-semibold uppercase leading-none ${
-              activeTerminalConnectionState === "connected"
-                ? chatMode === "terminal"
-                  ? "text-primary-foreground"
-                  : "text-emerald-600"
-                : activeTerminalConnectionState === "connecting"
-                  ? chatMode === "terminal"
-                    ? "text-primary-foreground"
-                    : "text-amber-600"
-                  : chatMode === "terminal"
-                    ? "text-primary-foreground/80"
-                    : "text-muted-foreground"
-            }`}
-          >
-            {terminalStatusLabel}
-          </span>
           {activeSessionHasLiveTerminal &&
             chatMode === "ai" &&
             activeTerminalConnectionState === "connected" && (
@@ -4790,6 +4784,159 @@ export function KodyChat({
               />
             )}
         </button>
+      </div>
+    ) : null;
+
+  const terminalTopControls =
+    chatMode === "terminal" ? (
+      <div
+        data-testid="chat-terminal-toolbar"
+        className="flex w-full min-w-0 items-center gap-2"
+      >
+        <div
+          data-testid="chat-terminal-target-row"
+          className="flex min-w-0 flex-1 items-center gap-2"
+        >
+          <select
+            value={activeTerminalValue}
+            onChange={(event) => handleTerminalTargetSelect(event.target.value)}
+            className="h-8 min-w-0 flex-1 rounded-md border border-[#27272a] bg-[#050608] px-2 text-body-xs text-[#f4f4f5] outline-none focus:ring-1 focus:ring-[#3f4652]"
+            title="Terminal target"
+            aria-label="Terminal target"
+          >
+            <option value="local">Local terminal</option>
+            {activeTerminalTransport.type === "fly" &&
+              !terminalMachines.some(
+                (machine) =>
+                  terminalFlyMachineKey(machine) === activeTerminalValue,
+              ) && (
+                <option value={activeTerminalValue}>
+                  {flyTerminalTargetLabel(activeTerminalTransport)} · selected
+                </option>
+              )}
+            {terminalMachines.map((machine) => (
+              <option
+                key={terminalFlyMachineKey(machine)}
+                value={terminalFlyMachineKey(machine)}
+              >
+                {flyMachineTerminalLabel(machine)} · {machine.state} ·{" "}
+                {machine.region} · {terminalMachineIdShort(machine.machineId)}
+              </option>
+            ))}
+          </select>
+          {flyInventoryError && (
+            <span className="max-w-48 min-w-0 truncate text-body-xs text-destructive">
+              {flyInventoryError}
+            </span>
+          )}
+        </div>
+        <div
+          data-testid="chat-terminal-actions-row"
+          className="flex shrink-0 items-center gap-1"
+        >
+          <RepoScopedLink
+            href="/fly/brain-images"
+            className="inline-flex h-8 w-8 items-center justify-center rounded text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
+            title="Manage Brain images"
+            aria-label="Manage Brain images"
+          >
+            <ImageIcon className="h-4 w-4" aria-hidden="true" />
+          </RepoScopedLink>
+          <button
+            type="button"
+            onClick={() => void handleSaveBrainImage()}
+            disabled={brainImageBusy}
+            className="inline-flex h-8 w-8 items-center justify-center rounded text-zinc-300 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            title="Save Brain image"
+            aria-label="Save Brain image"
+          >
+            {brainImageBusy ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => void refreshChatTerminalFlyMachines()}
+            disabled={flyInventoryLoading}
+            className="inline-flex h-8 w-8 items-center justify-center rounded text-zinc-300 transition-colors hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+            title="Refresh Fly machines"
+            aria-label="Refresh Fly machines"
+          >
+            {flyInventoryLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4" />
+            )}
+          </button>
+        </div>
+      </div>
+    ) : null;
+  const terminalInputToneClassName =
+    activeTerminalChrome?.inputTone === "sent"
+      ? "text-emerald-600"
+      : activeTerminalChrome?.inputTone === "ready"
+        ? "text-cyan-600"
+        : activeTerminalChrome?.inputTone === "queued"
+          ? "text-sky-600"
+          : activeTerminalChrome?.inputTone === "blocked"
+            ? "text-amber-600"
+            : "text-muted-foreground";
+  const activeTerminalSurface = activeTerminalInstanceId
+    ? terminalSurfaceRefs.current[activeTerminalInstanceId]
+    : null;
+  const terminalBottomControls =
+    chatMode === "terminal" ? (
+      <div
+        data-testid="chat-terminal-bottom-status"
+        className="flex min-w-0 shrink items-center gap-2"
+      >
+        <div className="min-w-0 max-w-[58vw] text-left leading-tight sm:max-w-[42rem]">
+          <div className="truncate text-[11px] text-muted-foreground">
+            {activeTerminalChrome?.statusText ?? "terminal · closed"}
+          </div>
+          <div
+            className={`truncate text-[11px] font-medium ${terminalInputToneClassName}`}
+            aria-live="polite"
+          >
+            {activeTerminalChrome?.inputLabel ?? "No input"}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <button
+            type="button"
+            onClick={() => activeTerminalSurface?.addToChat()}
+            className="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            title="Add terminal output to AI chat"
+            aria-label="Add terminal output to AI chat"
+          >
+            <ClipboardCopy className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => activeTerminalSurface?.restart()}
+            disabled={activeTerminalChrome?.actionBusy}
+            className="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+            title="Restart terminal"
+            aria-label="Restart terminal"
+          >
+            {activeTerminalChrome?.actionBusy ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RotateCcw className="h-4 w-4" />
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={() => activeTerminalSurface?.clear()}
+            className="inline-flex h-8 w-8 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            title="Clear terminal"
+            aria-label="Clear terminal"
+          >
+            <Eraser className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     ) : null;
 
@@ -5445,7 +5592,23 @@ export function KodyChat({
                   active={isActiveTerminal}
                   chatSessionId={terminal.sessionId}
                   transport={terminal.transport}
+                  topToolbar={terminalTopControls}
                   onAddToChat={addTerminalContextToChat}
+                  onChromeStateChange={(state) => {
+                    setTerminalChromeById((existing) => {
+                      const current = existing[terminal.id];
+                      if (
+                        current &&
+                        current.statusText === state.statusText &&
+                        current.inputLabel === state.inputLabel &&
+                        current.inputTone === state.inputTone &&
+                        current.actionBusy === state.actionBusy
+                      ) {
+                        return existing;
+                      }
+                      return { ...existing, [terminal.id]: state };
+                    });
+                  }}
                   onConnectionStateChange={(state) => {
                     recordTerminalConnectionState(terminal.id, state);
                   }}
@@ -5734,10 +5897,8 @@ export function KodyChat({
 
         {/* Input area */}
         <div
-          className={`relative z-10 shrink-0 border-t px-2.5 py-3 sm:p-4 ${
-            chatMode === "terminal"
-              ? "border-white/10 bg-[#050608]"
-              : "bg-background"
+          className={`relative z-10 shrink-0 px-2.5 py-3 sm:p-4 ${
+            chatMode === "terminal" ? "bg-[#050608]" : "border-t bg-background"
           }`}
         >
           <div>
@@ -6018,15 +6179,9 @@ export function KodyChat({
                 );
               })()}
             </div>
-            <div className="border-t border-border/40" />
+            {chatMode === "ai" && <div className="border-t border-border/40" />}
           </div>
-          <div
-            className={
-              chatMode === "terminal"
-                ? "grid min-h-10 grid-cols-1 items-start gap-2"
-                : "flex min-h-10 items-center gap-2"
-            }
-          >
+          <div className="flex min-h-10 items-center gap-2">
             {chatMode === "ai" && (
               <>
                 {/* Attachment button — hidden file input lives alongside the
@@ -6105,89 +6260,9 @@ export function KodyChat({
                 <div className="flex-1" />
               </>
             )}
-            {chatMode === "terminal" && (
-              <div
-                data-testid="chat-terminal-toolbar"
-                className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2"
-              >
-                <div
-                  data-testid="chat-terminal-target-row"
-                  className="col-span-full flex min-w-0 items-center gap-2"
-                >
-                  <select
-                    value={activeTerminalValue}
-                    onChange={(event) =>
-                      handleTerminalTargetSelect(event.target.value)
-                    }
-                    className="h-10 min-w-0 flex-1 rounded-md border border-[#27272a] bg-[#050608] px-3 text-body-xs text-[#f4f4f5] outline-none focus:ring-1 focus:ring-[#3f4652]"
-                    title="Terminal target"
-                    aria-label="Terminal target"
-                  >
-                    <option value="local">Local terminal</option>
-                    {activeTerminalTransport.type === "fly" &&
-                      !terminalMachines.some(
-                        (machine) =>
-                          terminalFlyMachineKey(machine) ===
-                          activeTerminalValue,
-                      ) && (
-                        <option value={activeTerminalValue}>
-                          {flyTerminalTargetLabel(activeTerminalTransport)} ·
-                          selected
-                        </option>
-                      )}
-                    {terminalMachines.map((machine) => (
-                      <option
-                        key={terminalFlyMachineKey(machine)}
-                        value={terminalFlyMachineKey(machine)}
-                      >
-                        {flyMachineTerminalLabel(machine)} · {machine.state} ·{" "}
-                        {machine.region} ·{" "}
-                        {terminalMachineIdShort(machine.machineId)}
-                      </option>
-                    ))}
-                  </select>
-                  {flyInventoryError && (
-                    <span className="max-w-48 min-w-0 truncate text-body-xs text-destructive">
-                      {flyInventoryError}
-                    </span>
-                  )}
-                </div>
-                <div
-                  data-testid="chat-terminal-actions-row"
-                  className="flex min-w-0 flex-wrap items-center gap-1.5"
-                >
-                  <button
-                    type="button"
-                    onClick={() => void handleSaveBrainImage()}
-                    disabled={brainImageBusy}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                    title="Save Brain image"
-                    aria-label="Save Brain image"
-                  >
-                    {brainImageBusy ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Save className="h-4 w-4" />
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void refreshChatTerminalFlyMachines()}
-                    disabled={flyInventoryLoading}
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-                    title="Refresh Fly machines"
-                    aria-label="Refresh Fly machines"
-                  >
-                    {flyInventoryLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-                {chatModeToggle}
-              </div>
-            )}
+            {chatMode === "terminal" && terminalBottomControls}
+            {chatMode === "terminal" && <div className="flex-1" />}
+            {chatMode === "terminal" && chatModeToggle}
             {chatMode === "ai" && <div className="flex-1" />}
             {chatMode === "ai" && chatModeToggle}
           </div>

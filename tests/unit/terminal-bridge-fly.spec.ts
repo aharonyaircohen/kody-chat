@@ -133,6 +133,20 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("execJobs");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("startExecJob");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      "const MAX_SSH_START_ATTEMPTS = 3;",
+    );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      "const READY_PROBE_INTERVAL_MS = 2500;",
+    );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("readyProbeTimer");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      "const SSH_START_RETRY_DELAY_MS = 2000;",
+    );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("isRetryableFlySshStartupFailure");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("tunnel unavailable");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("error contacting fly.io api");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("Retrying terminal tunnel");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
       "const MAX_EXEC_TIMEOUT_MS = 2 * 60 * 60 * 1000;",
     );
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain(
@@ -170,7 +184,9 @@ describe("ensureTerminalBridge", () => {
       "disable_echo(slave_control_fd)",
     );
     expect(
-      TERMINAL_BRIDGE_PTY_RELAY_SCRIPT.indexOf("disable_echo(slave_control_fd)"),
+      TERMINAL_BRIDGE_PTY_RELAY_SCRIPT.indexOf(
+        "disable_echo(slave_control_fd)",
+      ),
     ).toBeLessThan(
       TERMINAL_BRIDGE_PTY_RELAY_SCRIPT.indexOf("os.write(master, data)"),
     );
@@ -394,7 +410,8 @@ os.write(sys.stdout.fileno(), b"REMOTE:" + data)
     ).toBe(false);
     expect(
       calls.some(
-        (call) => call.method === "GET" && call.url.endsWith(`/apps/${app}/ips`),
+        (call) =>
+          call.method === "GET" && call.url.endsWith(`/apps/${app}/ips`),
       ),
     ).toBe(false);
   });

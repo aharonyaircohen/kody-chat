@@ -11,7 +11,10 @@
 import type { Octokit } from "@octokit/rest";
 
 import { logger } from "@dashboard/lib/logger";
-import type { PreviewEnvironment } from "@dashboard/lib/preview-environments";
+import type {
+  PreviewEnvironment,
+  PreviewEnvironmentFolder,
+} from "@dashboard/lib/preview-environments";
 import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
 
 export const DASHBOARD_CONFIG_PATH = "dashboard.json";
@@ -30,6 +33,8 @@ export interface DashboardConfig {
    * paths under whichever environment is selected.
    */
   namedPreviews?: PreviewEnvironment[];
+  /** User-created folders for organizing saved preview environments. */
+  previewFolders?: PreviewEnvironmentFolder[];
   /**
    * Whether the "Repo Brain" row is offered in chat picker.
    * Per-repo, default `false`; Fly task execution stays driven solely by the

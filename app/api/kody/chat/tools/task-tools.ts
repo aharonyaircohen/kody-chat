@@ -28,6 +28,8 @@ interface Ctx {
   // Login of the chat user. Used as the default assignee when the model
   // doesn't supply one — every chat-created task should be attributable.
   actorLogin: string | null;
+  // Ambient preview/page evidence collected by the chat shell for this turn.
+  previewContext?: string | null;
 }
 
 const SCOPES = ["frontend", "backend", "fullstack", "infra", "ci-cd"] as const;
@@ -85,6 +87,30 @@ export interface TaskInput {
   acceptanceCriteria?: string;
   additionalContext?: string;
   assignees?: string[];
+}
+
+function normalizeContextBlock(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed && trimmed.length > 0 ? trimmed : null;
+}
+
+export function appendPreviewContextToTaskInput(
+  input: TaskInput,
+  previewContext: string | null | undefined,
+): TaskInput {
+  const preview = normalizeContextBlock(previewContext);
+  if (!preview) return input;
+
+  const existing = normalizeContextBlock(input.additionalContext);
+  if (existing?.includes(preview)) {
+    return { ...input, additionalContext: existing };
+  }
+
+  const viewBlock = `### View Example\n${preview}`;
+  return {
+    ...input,
+    additionalContext: existing ? `${existing}\n\n${viewBlock}` : viewBlock,
+  };
 }
 
 export function formatTaskBody(category: Category, input: TaskInput): string {
@@ -212,7 +238,10 @@ async function executeCreate(
 > {
   const { octokit, owner, repo, actorLogin } = ctx;
   const priority: PriorityLevel = input.priority ?? "P2";
-  const body = formatTaskBody(category, { ...input, priority });
+  const body = formatTaskBody(category, {
+    ...appendPreviewContextToTaskInput(input, ctx.previewContext),
+    priority,
+  });
   // Match CreateTaskDialog labeling: <category> + priority:<level>.
   // De-dupe in case the model passes something redundant.
   const labels = Array.from(new Set([category, `priority:${priority}`]));

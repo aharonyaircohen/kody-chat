@@ -1118,7 +1118,16 @@ describe("provisionBrain image-ref healing", () => {
       githubToken: "gh",
     });
 
-    // stale machine destroyed (force) + a fresh one created on GHCR
+    // A fresh machine is created first; the stale machine is removed only
+    // after replacement succeeds.
+    const createIndex = calls.findIndex(
+      (c) => c.method === "POST" && c.url.endsWith("/machines"),
+    );
+    const deleteIndex = calls.findIndex(
+      (c) => c.method === "DELETE" && c.url.includes("/machines/m-stale"),
+    );
+    expect(createIndex).toBeGreaterThanOrEqual(0);
+    expect(deleteIndex).toBeGreaterThan(createIndex);
     const del = calls.find(
       (c) => c.method === "DELETE" && c.url.includes("/machines/m-stale"),
     )!;
@@ -1136,6 +1145,48 @@ describe("provisionBrain image-ref healing", () => {
       (create.body as { config: { env: Record<string, string> } }).config.env
         .BRAIN_API_KEY,
     ).toBe("old-key");
+  });
+
+  it("keeps the existing machine when replacement image creation fails", async () => {
+    const calls = installFetchStub((call) => {
+      if (call.method === "GET" && call.url.endsWith("/apps/kody-brain-alice"))
+        return { json: { name: "kody-brain-alice" } };
+      if (call.method === "GET" && call.url.endsWith("/machines"))
+        return {
+          json: [
+            {
+              id: "m-existing",
+              state: "started",
+              region: "fra",
+              config: {
+                image: DEFAULT_IMAGE,
+                env: { BRAIN_API_KEY: "old-key" },
+              },
+            },
+          ],
+        };
+      if (call.method === "POST" && call.url.endsWith("/machines"))
+        return { status: 500, json: { error: "create failed" } };
+      if (call.method === "DELETE" && call.url.includes("/machines/")) {
+        throw new Error("existing machine was deleted before replacement");
+      }
+      throw new Error(`unexpected: ${call.method} ${call.url}`);
+    });
+
+    await expect(
+      provisionBrain({
+        flyToken: TOKEN,
+        account: "alice",
+        githubToken: "gh",
+        imageRef: "ghcr.io/alice/kody-brain-snapshot:20260625",
+      }),
+    ).rejects.toThrow(/Fly Machines API 500/);
+
+    expect(
+      calls.some(
+        (call) => call.method === "DELETE" && call.url.includes("/machines/"),
+      ),
+    ).toBe(false);
   });
 
   it("reuses (does NOT recreate) when the image already matches, digest aside", async () => {

@@ -57,9 +57,9 @@ function readOpeningTag(lines: string[], start: number): string {
 /**
  * Find the line range of the composer container — the outermost
  * `<div className={...}>…</div>` whose classes include the composer
- * border and padding. The class may be a conditional template because
- * AI and terminal modes have different backgrounds, so scan a small
- * opening-tag window instead of matching one exact string.
+ * padding. The class may be a conditional template because AI and
+ * terminal modes have different backgrounds, so scan a small opening-tag
+ * window instead of matching one exact string.
  */
 function findComposerBlockRange(lines: string[]): {
   start: number;
@@ -71,7 +71,6 @@ function findComposerBlockRange(lines: string[]): {
     if (
       lines[i].includes("<div") &&
       openingTag.includes("className=") &&
-      openingTag.includes("border-t") &&
       openingTag.includes("px-2.5 py-3 sm:p-4")
     ) {
       start = i;
@@ -175,7 +174,7 @@ const HANDLE_KEY_DOWN_TEXT = SOURCE_LINES.slice(
 ).join("\n");
 
 describe("KodyChat composer — two-row layout (issue #65, #131)", () => {
-  it("renders a hairline separator between the input row and the action row", () => {
+  it("renders the input/action hairline only for AI chat mode", () => {
     // A real divider element — not just whitespace. The token should
     // be a low-contrast border (border-border/40 or border-white/10).
     // The outer composer container already has a `border-t`, so we
@@ -186,14 +185,19 @@ describe("KodyChat composer — two-row layout (issue #65, #131)", () => {
     // The outer container's own `border-t` is on the opening tag.
     // The new internal hairline must be a *child* of that container.
     const internalBorderLines = COMPOSER_LINES.filter(
-      (line) =>
-        /\bborder-t\b/.test(line) && !line.includes("px-2.5 py-3 sm:p-4"),
+      (line) => /\bborder-t\b/.test(line) && line.includes("border-border/40"),
     );
     const hasInternalHairline = internalBorderLines.length > 0;
     expect(
       hasInternalHairline,
       `composer must include a 1px hairline (border-t) between the input and action rows; outer container is not enough. composerText: ${composerText.slice(0, 200)}…`,
     ).toBe(true);
+    expect(composerText).toContain('chatMode === "ai" && (');
+    expect(composerText).toContain(': "border-t bg-background"');
+    expect(composerText).not.toContain('? "border-white/10 bg-[#050608]"');
+    expect(composerText).not.toContain(
+      'chatMode === "terminal" && <div className="border-t border-border/40" />',
+    );
   });
 
   it("the input row (1st flex row) contains the textarea AND the trailing send/stop icon button", () => {

@@ -50,15 +50,17 @@ describe("settings navigation", () => {
     expect(navLabelForPath("/ledgers")).toBeNull();
   });
 
-  it("exposes Fly config, previews, live machines, and history as separate pages", () => {
+  it("exposes Fly config, previews, Brain images, live machines, and history as separate pages", () => {
     expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "Fly")).toEqual([
       "/fly/config",
       "/fly/previews",
+      "/fly/brain-images",
       "/fly/machines",
       "/fly/history",
     ]);
     expect(navLabelForPath("/fly/config")).toBe("Config");
     expect(navLabelForPath("/fly/previews")).toBe("Previews");
+    expect(navLabelForPath("/fly/brain-images")).toBe("Brain Images");
     expect(navLabelForPath("/fly/machines")).toBe("Live machines");
     expect(navLabelForPath("/fly/history")).toBe("History");
     expect(navLabelForPath("/terminal")).toBeNull();

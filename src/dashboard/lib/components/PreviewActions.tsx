@@ -8,6 +8,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { KodyTask } from "../types";
+import { mapTaskCacheData, type TaskCacheData } from "../tasks/cache";
 import { Button } from "@dashboard/ui/button";
 import { FixRequestDialog } from "./FixRequestDialog";
 import { ReportIssueDialog } from "./ReportIssueDialog";
@@ -42,12 +43,16 @@ function applyOptimisticLabel(
   issueNumber: number,
   label: string,
 ): void {
-  queryClient.setQueriesData<KodyTask[]>({ queryKey: ["kody-tasks"] }, (old) =>
-    old?.map((t) =>
-      t.issueNumber === issueNumber && !t.labels?.includes(label)
-        ? { ...t, labels: [...(t.labels ?? []), label] }
-        : t,
-    ),
+  queryClient.setQueriesData<TaskCacheData>(
+    { queryKey: ["kody-tasks"] },
+    (old) =>
+      mapTaskCacheData(old, (tasks) =>
+        tasks.map((t) =>
+          t.issueNumber === issueNumber && !t.labels?.includes(label)
+            ? { ...t, labels: [...(t.labels ?? []), label] }
+            : t,
+        ),
+      ),
   );
 }
 
@@ -60,12 +65,16 @@ function removeOptimisticLabel(
   issueNumber: number,
   label: string,
 ): void {
-  queryClient.setQueriesData<KodyTask[]>({ queryKey: ["kody-tasks"] }, (old) =>
-    old?.map((t) =>
-      t.issueNumber === issueNumber && t.labels?.includes(label)
-        ? { ...t, labels: t.labels.filter((l) => l !== label) }
-        : t,
-    ),
+  queryClient.setQueriesData<TaskCacheData>(
+    { queryKey: ["kody-tasks"] },
+    (old) =>
+      mapTaskCacheData(old, (tasks) =>
+        tasks.map((t) =>
+          t.issueNumber === issueNumber && t.labels?.includes(label)
+            ? { ...t, labels: t.labels.filter((l) => l !== label) }
+            : t,
+        ),
+      ),
   );
 }
 

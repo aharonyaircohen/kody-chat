@@ -31,11 +31,24 @@ const store = vi.hoisted(() => ({
     doc: {
       version: 1,
       defaultPreviewUrl: undefined as string | undefined,
-      namedPreviews: [] as Array<{ id: string; label: string; url: string }>,
+      namedPreviews: [] as Array<Record<string, unknown>>,
     },
     sha: "sha-1",
   })),
   writeDashboardConfig: vi.fn(),
+}));
+
+const stateRepo = vi.hoisted(() => ({
+  resolveStateRepo: vi.fn(async () => ({
+    owner: "acme-state",
+    repo: "kody-state",
+    basePath: "widgets",
+    branch: "main",
+  })),
+  stateRepoPath: vi.fn(
+    (target: { basePath: string }, path: string) =>
+      [target.basePath, path].filter(Boolean).join("/"),
+  ),
 }));
 
 vi.mock("@dashboard/lib/auth", () => ({
@@ -57,6 +70,11 @@ vi.mock("@dashboard/lib/dashboard-config/store", () => ({
   invalidateDashboardConfigCache: store.invalidateDashboardConfigCache,
   readDashboardConfig: store.readDashboardConfig,
   writeDashboardConfig: store.writeDashboardConfig,
+}));
+
+vi.mock("@dashboard/lib/state-repo", () => ({
+  resolveStateRepo: stateRepo.resolveStateRepo,
+  stateRepoPath: stateRepo.stateRepoPath,
 }));
 
 vi.mock("@dashboard/lib/logger", () => ({
@@ -106,6 +124,46 @@ describe("GET /api/kody/dashboard-config", () => {
     expect(auth.getUserOctokit).toHaveBeenCalled();
     expect(store.readDashboardConfig).toHaveBeenCalledWith(
       { marker: "viewer-octokit" },
+      "acme",
+      "widgets",
+    );
+  });
+
+  it("adds source links for existing repo-backed views", async () => {
+    store.readDashboardConfig.mockResolvedValueOnce({
+      doc: {
+        version: 1,
+        defaultPreviewUrl: undefined,
+        namedPreviews: [
+          {
+            id: "shop",
+            label: "Shop",
+            url: "/api/kody/views/shop1-html-050ae2c2/index.html",
+            repoViewPath: "views/shop1-html-050ae2c2",
+          },
+        ],
+      },
+      sha: "sha-1",
+    });
+
+    const res = await GET(
+      new NextRequest("http://localhost/api/kody/dashboard-config"),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      config: {
+        namedPreviews: [
+          {
+            repoViewEntryPath: "index.html",
+            repoViewSourceUrl:
+              "https://github.com/acme-state/kody-state/blob/main/widgets/views/shop1-html-050ae2c2/index.html",
+          },
+        ],
+      },
+    });
+    expect(stateRepo.resolveStateRepo).toHaveBeenCalledWith(
+      { marker: "app-octokit" },
       "acme",
       "widgets",
     );

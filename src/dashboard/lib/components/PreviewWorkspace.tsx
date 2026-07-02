@@ -35,9 +35,11 @@ import {
   normalizeEnvUrl,
   repoViewIdFromPath,
   resolveEnvironments,
+  resolvePreviewFolders,
   setEnvExpiry,
   STATIC_PREVIEW_TTL_MS,
   type PreviewEnvironment,
+  type PreviewEnvironmentFolder,
 } from "../preview-environments";
 import {
   BRANCH_PREVIEW_POLL_MS,
@@ -142,6 +144,10 @@ export function PreviewWorkspace({
 
   const environments = useMemo(
     () => resolveEnvironments(configQuery.data?.config),
+    [configQuery.data],
+  );
+  const previewFolders = useMemo(
+    () => resolvePreviewFolders(configQuery.data?.config.previewFolders),
     [configQuery.data],
   );
   const configLoaded = configQuery.data !== undefined;
@@ -322,8 +328,30 @@ export function PreviewWorkspace({
     },
   });
 
+  const saveFoldersMutation = useMutation({
+    mutationFn: (next: PreviewEnvironmentFolder[]) =>
+      saveDashboardConfig({
+        previewFolders: next,
+        actorLogin: githubUser?.login,
+      }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["kody-dashboard-config"], data);
+    },
+    onError: (err) => {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to save preview folders",
+      );
+    },
+  });
+
   const persist = async (next: PreviewEnvironment[]): Promise<void> => {
     await saveMutation.mutateAsync(next);
+  };
+
+  const persistFolders = async (
+    next: PreviewEnvironmentFolder[],
+  ): Promise<void> => {
+    await saveFoldersMutation.mutateAsync(next);
   };
 
   const addBranch = async (repoRef: string, branch: string): Promise<void> => {
@@ -409,6 +437,10 @@ export function PreviewWorkspace({
         res.url,
         res.repoPath,
         uploadContext,
+        {
+          sourceUrl: res.sourceHtmlUrl ?? null,
+          entryPath: res.entryPath ?? null,
+        },
       );
       await persist(next);
       const created = next[next.length - 1];
@@ -504,16 +536,18 @@ export function PreviewWorkspace({
           environments.length > 0 ? (
             <PreviewEnvSwitcher
               environments={environments}
+              folders={previewFolders}
               repoFullName={repoFullName}
               selectedId={selectedEnv?.id ?? null}
               onSelect={selectEnv}
               onSave={persist}
+              onSaveFolders={persistFolders}
               onAddBranch={addBranch}
               onUpload={uploadFiles}
               onRemoveStatic={removeStatic}
               onRemoveRepoView={removeRepoView}
               onExtend={extendEnv}
-              isSaving={saveMutation.isPending}
+              isSaving={saveMutation.isPending || saveFoldersMutation.isPending}
               variant="address"
             />
           ) : null
