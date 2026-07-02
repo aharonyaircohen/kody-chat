@@ -58,7 +58,7 @@ interface StoreConfig {
 }
 
 const DEFAULT_COMPANY_STORE = "aharonyaircohen/kody-company-store";
-const DEFAULT_COMPANY_STORE_REF = "stable";
+const DEFAULT_COMPANY_STORE_REF = "main";
 
 let manifestMemo: { key: string; value: Promise<StoreManifest | null> } | null =
   null;

@@ -190,7 +190,7 @@ export function SettingsManager() {
                   className="bg-black/30 border-white/10 font-mono"
                 />
                 <p className="text-xs text-white/45">
-                  Branch or tag in the store repository. Examples: stable, main,
+                  Branch or tag in the store repository. Examples: main, stable,
                   v1.2.3.
                 </p>
               </div>

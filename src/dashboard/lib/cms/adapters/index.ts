@@ -28,7 +28,7 @@ const STORE_ROOT_ENV = "KODY_STORE_ROOT";
 const DEFAULT_STORE = {
   owner: "aharonyaircohen",
   repo: "kody-company-store",
-  ref: "stable",
+  ref: "main",
 };
 const REMOTE_MODULE_TTL_MS = 60_000;
 

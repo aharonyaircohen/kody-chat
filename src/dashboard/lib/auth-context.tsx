@@ -28,7 +28,7 @@ import {
 
 export const DEFAULT_KODY_STORE_REPO_URL =
   "https://github.com/aharonyaircohen/kody-company-store";
-export const DEFAULT_KODY_STORE_REF = "stable";
+export const DEFAULT_KODY_STORE_REF = "main";
 
 export interface KodyRepoEntry {
   /** Original `https://github.com/owner/repo` URL the user pasted (optional). */
