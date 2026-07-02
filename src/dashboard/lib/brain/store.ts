@@ -95,10 +95,15 @@ export interface BrainSavedImage {
 /** Persisted Brain image record. Stores the active GHCR ref and saved refs. */
 export interface BrainImageFile {
   version: 1;
-  imageRef: string;
+  imageRef?: string;
   createdAt: string;
   updatedAt: string;
   images: BrainSavedImage[];
+  forgottenImageRefs?: string[];
+  runningImageRef?: string;
+  runningAt?: string;
+  runningApp?: string;
+  runningMachineId?: string;
 }
 
 export interface BrainImageSaveFile {
@@ -145,34 +150,71 @@ function isBrainSavedImage(value: unknown): value is BrainSavedImage {
   );
 }
 
+function validBrainImageRefs(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value)].filter(
+    (item): item is string =>
+      typeof item === "string" && isValidBrainImageRef(item),
+  );
+}
+
 function normalizeBrainImageFile(value: unknown): BrainImageFile | null {
   if (!value || typeof value !== "object") return null;
   const v = value as Record<string, unknown>;
+  if (typeof v.imageRef === "string" && !isValidBrainImageRef(v.imageRef)) {
+    return null;
+  }
+  const rawImageRef =
+    typeof v.imageRef === "string" && isValidBrainImageRef(v.imageRef)
+      ? v.imageRef
+      : undefined;
   const validBase =
     v.version === 1 &&
-    typeof v.imageRef === "string" &&
-    isValidBrainImageRef(v.imageRef) &&
     typeof v.createdAt === "string" &&
     typeof v.updatedAt === "string";
   if (!validBase) return null;
-  const imageRef = v.imageRef as string;
   const createdAt = v.createdAt as string;
   const updatedAt = v.updatedAt as string;
 
   const images = Array.isArray(v.images)
     ? v.images.filter(isBrainSavedImage)
     : [];
-  const merged = upsertBrainSavedImage(images, {
-    imageRef,
-    createdAt,
-    updatedAt,
-  });
+  const merged = rawImageRef
+    ? upsertBrainSavedImage(images, {
+        imageRef: rawImageRef,
+        createdAt,
+        updatedAt,
+      })
+    : sortBrainSavedImages(images);
+  const imageRefs = new Set(merged.map((image) => image.imageRef));
+  const forgottenImageRefs = validBrainImageRefs(v.forgottenImageRefs).filter(
+    (imageRef) => !imageRefs.has(imageRef),
+  );
+  const forgotten = new Set(forgottenImageRefs);
+  const visibleImages = merged.filter(
+    (image) => !forgotten.has(image.imageRef),
+  );
+  const selectedImageRef =
+    rawImageRef && !forgotten.has(rawImageRef)
+      ? rawImageRef
+      : visibleImages[0]?.imageRef;
   return {
     version: 1,
-    imageRef,
+    ...(selectedImageRef ? { imageRef: selectedImageRef } : {}),
     createdAt,
     updatedAt,
-    images: sortBrainSavedImages(merged),
+    images: sortBrainSavedImages(visibleImages),
+    ...(forgottenImageRefs.length > 0 ? { forgottenImageRefs } : {}),
+    ...(typeof v.runningImageRef === "string" &&
+    isValidBrainImageRef(v.runningImageRef) &&
+    !forgotten.has(v.runningImageRef)
+      ? { runningImageRef: v.runningImageRef }
+      : {}),
+    ...(typeof v.runningAt === "string" ? { runningAt: v.runningAt } : {}),
+    ...(typeof v.runningApp === "string" ? { runningApp: v.runningApp } : {}),
+    ...(typeof v.runningMachineId === "string"
+      ? { runningMachineId: v.runningMachineId }
+      : {}),
   };
 }
 
@@ -536,6 +578,67 @@ export async function selectBrainImage(
       ...selected,
       updatedAt: now,
     }),
+    ...(current.forgottenImageRefs?.filter((ref) => ref !== imageRef).length
+      ? {
+          forgottenImageRefs: current.forgottenImageRefs.filter(
+            (ref) => ref !== imageRef,
+          ),
+        }
+      : {}),
+    ...(current.runningImageRef
+      ? { runningImageRef: current.runningImageRef }
+      : {}),
+    ...(current.runningAt ? { runningAt: current.runningAt } : {}),
+    ...(current.runningApp ? { runningApp: current.runningApp } : {}),
+    ...(current.runningMachineId
+      ? { runningMachineId: current.runningMachineId }
+      : {}),
+  };
+  await writeBrainImage(login, token, updated);
+  return updated;
+}
+
+export async function markBrainImageRunning(
+  login: string,
+  token: string,
+  input: {
+    imageRef: string;
+    app: string;
+    machineId: string;
+    runningAt?: string;
+  },
+): Promise<BrainImageFile> {
+  if (!isValidBrainImageRef(input.imageRef)) {
+    throw new Error("Invalid Brain image ref");
+  }
+  const current = await readBrainImage(login, token);
+  if (!current) {
+    throw new Error("No Brain images saved");
+  }
+  const selected = current.images.find(
+    (image) => image.imageRef === input.imageRef,
+  );
+  if (!selected) {
+    throw new Error("Brain image is not saved");
+  }
+  const runningAt = input.runningAt ?? new Date().toISOString();
+  const forgottenImageRefs = current.forgottenImageRefs?.filter(
+    (ref) => ref !== input.imageRef,
+  );
+  const updated: BrainImageFile = {
+    version: 1,
+    imageRef: input.imageRef,
+    createdAt: current.createdAt,
+    updatedAt: runningAt,
+    images: upsertBrainSavedImage(current.images, {
+      ...selected,
+      updatedAt: runningAt,
+    }),
+    ...(forgottenImageRefs?.length ? { forgottenImageRefs } : {}),
+    runningImageRef: input.imageRef,
+    runningAt,
+    runningApp: input.app,
+    runningMachineId: input.machineId,
   };
   await writeBrainImage(login, token, updated);
   return updated;
@@ -550,22 +653,46 @@ export async function deleteBrainImage(
     throw new Error("Invalid Brain image ref");
   }
   const current = await readBrainImage(login, token);
-  if (!current) return null;
+  const now = new Date().toISOString();
+  if (!current) {
+    const updated: BrainImageFile = {
+      version: 1,
+      createdAt: now,
+      updatedAt: now,
+      images: [],
+      forgottenImageRefs: [imageRef],
+    };
+    await writeBrainImage(login, token, updated);
+    return updated;
+  }
   const remaining = current.images.filter(
     (image) => image.imageRef !== imageRef,
   );
-  if (remaining.length === current.images.length) return current;
-  if (remaining.length === 0) {
-    await clearBrainImage(login, token);
-    return null;
-  }
-  const nextCurrent = current.imageRef === imageRef ? remaining[0] : null;
+  const forgottenImageRefs = [
+    ...(current.forgottenImageRefs ?? []).filter((ref) => ref !== imageRef),
+    imageRef,
+  ];
+  const nextImageRef =
+    current.imageRef === imageRef ? remaining[0]?.imageRef : current.imageRef;
   const updated: BrainImageFile = {
     version: 1,
-    imageRef: nextCurrent?.imageRef ?? current.imageRef,
+    ...(nextImageRef ? { imageRef: nextImageRef } : {}),
     createdAt: current.createdAt,
-    updatedAt: new Date().toISOString(),
+    updatedAt: now,
     images: remaining,
+    forgottenImageRefs,
+    ...(current.runningImageRef && current.runningImageRef !== imageRef
+      ? { runningImageRef: current.runningImageRef }
+      : {}),
+    ...(current.runningImageRef && current.runningImageRef !== imageRef
+      ? { runningAt: current.runningAt }
+      : {}),
+    ...(current.runningImageRef && current.runningImageRef !== imageRef
+      ? { runningApp: current.runningApp }
+      : {}),
+    ...(current.runningImageRef && current.runningImageRef !== imageRef
+      ? { runningMachineId: current.runningMachineId }
+      : {}),
   };
   await writeBrainImage(login, token, updated);
   return updated;

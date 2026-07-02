@@ -11,6 +11,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireKodyAuth } from "@dashboard/lib/auth";
 import { resolveBrainService } from "@dashboard/lib/brain/service-resolver";
 import {
+  readBrainRuntimeView,
+  selectBrainRuntimeImage,
+} from "@dashboard/lib/brain/runtime-manager";
+import {
   clearBrainImageSave,
   deleteBrainImage,
   readBrainImage,
@@ -92,12 +96,18 @@ function savePollResponse(
 
 function imageManagementResponse(
   image: Awaited<ReturnType<typeof readBrainImage>>,
+  runtime: Awaited<ReturnType<typeof readBrainRuntimeView>> | null,
   discoveredImages: BrainSavedImage[] = [],
 ) {
   const images = mergeBrainSavedImages(image, discoveredImages);
   return {
     ok: true,
-    imageRef: image?.imageRef ?? null,
+    imageRef: runtime?.desiredImageRef ?? image?.imageRef ?? null,
+    runningImageRef: runtime?.runningImageRef ?? null,
+    runningAt: runtime?.runningAt ?? null,
+    runningApp: runtime?.runningApp ?? null,
+    runningMachineId: runtime?.runningMachineId ?? null,
+    runtime: runtime ?? null,
     images,
     createdAt: image?.createdAt ?? null,
     updatedAt: image?.updatedAt ?? null,
@@ -179,15 +189,22 @@ function mergeBrainSavedImages(
   discoveredImages: BrainSavedImage[],
 ): BrainSavedImage[] {
   const merged = new Map<string, BrainSavedImage>();
+  const forgotten = new Set(image?.forgottenImageRefs ?? []);
   for (const discovered of discoveredImages) {
+    if (forgotten.has(discovered.imageRef)) continue;
     merged.set(discovered.imageRef, discovered);
   }
   for (const saved of image?.images ?? []) {
+    if (forgotten.has(saved.imageRef)) continue;
     if (!merged.has(saved.imageRef)) {
       merged.set(saved.imageRef, saved);
     }
   }
-  if (image && !merged.has(image.imageRef)) {
+  if (
+    image?.imageRef &&
+    !forgotten.has(image.imageRef) &&
+    !merged.has(image.imageRef)
+  ) {
     merged.set(image.imageRef, {
       imageRef: image.imageRef,
       createdAt: image.createdAt,
@@ -437,8 +454,12 @@ export async function GET(req: NextRequest) {
         ctx.context.account,
         ctx.context.githubToken,
       );
+      const runtime = await readBrainRuntimeView(
+        ctx.context.account,
+        ctx.context.githubToken,
+      );
       return NextResponse.json({
-        ...imageManagementResponse(image, discoveredImages),
+        ...imageManagementResponse(image, runtime, discoveredImages),
         save: save
           ? {
               status: save.status,
@@ -541,6 +562,9 @@ export async function GET(req: NextRequest) {
         },
         ...(previous?.images ?? []),
       ],
+      ...(previous?.forgottenImageRefs?.length
+        ? { forgottenImageRefs: previous.forgottenImageRefs }
+        : {}),
     });
     await clearBrainImageSave(ctx.context.account, ctx.context.githubToken);
 
@@ -622,6 +646,15 @@ export async function PATCH(req: NextRequest) {
           createdAt: current?.createdAt ?? requestedImage.createdAt,
           updatedAt: current?.updatedAt ?? now,
           images,
+          ...(current?.forgottenImageRefs?.filter(
+            (ref) => ref !== body.imageRef,
+          ).length
+            ? {
+                forgottenImageRefs: current.forgottenImageRefs.filter(
+                  (ref) => ref !== body.imageRef,
+                ),
+              }
+            : {}),
         });
       }
     }
@@ -630,7 +663,16 @@ export async function PATCH(req: NextRequest) {
       ctx.context.githubToken,
       body.imageRef,
     );
-    return NextResponse.json(imageManagementResponse(image));
+    await selectBrainRuntimeImage(
+      ctx.context.account,
+      ctx.context.githubToken,
+      body.imageRef,
+    );
+    const runtime = await readBrainRuntimeView(
+      ctx.context.account,
+      ctx.context.githubToken,
+    );
+    return NextResponse.json(imageManagementResponse(image, runtime));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(
@@ -673,7 +715,11 @@ export async function DELETE(req: NextRequest) {
       ctx.context.githubToken,
       imageRef,
     );
-    return NextResponse.json(imageManagementResponse(image));
+    const runtime = await readBrainRuntimeView(
+      ctx.context.account,
+      ctx.context.githubToken,
+    );
+    return NextResponse.json(imageManagementResponse(image, runtime));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json(

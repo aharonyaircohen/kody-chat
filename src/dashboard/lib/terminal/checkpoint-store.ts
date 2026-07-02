@@ -31,6 +31,10 @@ const TransportSchema = z.discriminatedUnion("type", [
     label: z.string().min(1).max(120).optional(),
   }),
   z.object({
+    type: z.literal("brain"),
+    label: z.string().min(1).max(120).optional(),
+  }),
+  z.object({
     type: z.literal("fly"),
     app: z.string().min(1).max(120),
     machineId: z.string().min(1).max(120),

@@ -13,17 +13,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
-import {
-  readBrainApp,
-  readBrainImage,
-  writeBrainApp,
-} from "@dashboard/lib/brain/store";
+import { readBrainApp, writeBrainApp } from "@dashboard/lib/brain/store";
 import { resolveBrainTarget } from "@dashboard/lib/brain/target";
-import {
-  brainFlyRuntimeImageRef,
-  brainGhcrAuth,
-  prepareBrainRuntimeImage,
-} from "@dashboard/lib/brain/image-runtime";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -112,16 +103,6 @@ export async function POST(req: NextRequest) {
       appNameOverride: override,
     });
 
-    const image = await readBrainImage(
-      ctx.context.account,
-      ctx.context.githubToken,
-    ).catch(() => null);
-    const ghcr = brainGhcrAuth({
-      allSecrets: ctx.context.allSecrets,
-      githubToken: ctx.context.githubToken,
-      account: ctx.context.account,
-    });
-
     const result = await provisionBrain({
       flyToken: ctx.context.flyToken,
       account: ctx.context.account,
@@ -135,31 +116,6 @@ export async function POST(req: NextRequest) {
       suspendOnIdle: brainSuspendOnIdleFrom(req),
       dashboardUrl: requestOrigin(req),
       appNameOverride: target.app,
-      ...(image?.imageRef
-        ? {
-            imageRef: image.imageRef,
-            resolveRuntimeImageRef: ({ app, imageRef }) =>
-              Promise.resolve(brainFlyRuntimeImageRef({ app, imageRef })),
-            prepareRuntimeImage: async ({
-              app,
-              sourceImageRef,
-              runtimeImageRef,
-            }) => {
-              await prepareBrainRuntimeImage({
-                owner: ctx.context.owner,
-                repo: ctx.context.repo,
-                app,
-                imageRef: sourceImageRef,
-                runtimeImageRef,
-                flyToken: ctx.context.flyToken!,
-                ghcrToken: ghcr.token,
-                ghcrUser: ghcr.user,
-                orgSlug: target.orgSlug,
-                defaultRegion: ctx.context.flyDefaultRegion,
-              });
-            },
-          }
-        : {}),
     });
 
     try {

@@ -12,6 +12,7 @@ export const TERMINAL_CHECKPOINT_LIMIT = 40;
 
 export type TerminalCheckpointTransport =
   | { type: "local"; label?: string }
+  | { type: "brain"; label?: string }
   | {
       type: "fly";
       app: string;
@@ -90,6 +91,7 @@ export function terminalCheckpointKey({
     if (transport.feature === "brain") return "brain:user";
     return `fly:${transport.app}:${transport.machineId}`;
   }
+  if (transport.type === "brain") return "brain:user";
   return `local:${chatSessionId}`;
 }
 
@@ -104,5 +106,6 @@ export function terminalCheckpointLabel(
     if (transport.feature === "brain") return "Brain terminal";
     return transport.label ?? `${transport.app} ${transport.machineId}`;
   }
+  if (transport.type === "brain") return transport.label ?? "Brain terminal";
   return transport.label ?? "Local terminal";
 }

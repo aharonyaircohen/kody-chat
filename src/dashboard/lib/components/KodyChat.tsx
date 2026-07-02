@@ -189,6 +189,12 @@ type MessageDirection = "ltr" | "rtl" | "auto";
 function checkpointTransportFromChatTransport(
   transport: ChatTerminalTransport,
 ): TerminalCheckpointTransport {
+  if (transport.type === "brain") {
+    return {
+      type: "brain",
+      label: transport.label,
+    };
+  }
   if (transport.type === "fly") {
     return {
       type: "fly",
@@ -4805,6 +4811,10 @@ export function KodyChat({
             aria-label="Terminal target"
           >
             <option value="local">Local terminal</option>
+            {(activeTerminalTransport.type === "brain" ||
+              terminalMachines.some((machine) => machine.feature === "brain")) && (
+              <option value="brain">Brain terminal</option>
+            )}
             {activeTerminalTransport.type === "fly" &&
               !terminalMachines.some(
                 (machine) =>
@@ -4814,7 +4824,9 @@ export function KodyChat({
                   {flyTerminalTargetLabel(activeTerminalTransport)} · selected
                 </option>
               )}
-            {terminalMachines.map((machine) => (
+            {terminalMachines
+              .filter((machine) => machine.feature !== "brain")
+              .map((machine) => (
               <option
                 key={terminalFlyMachineKey(machine)}
                 value={terminalFlyMachineKey(machine)}

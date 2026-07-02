@@ -13,19 +13,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
-import {
-  brainFlyRuntimeImageRef,
-  brainGhcrAuth,
-  prepareBrainRuntimeImage,
-} from "@dashboard/lib/brain/image-runtime";
-import { readBrainImage, writeBrainApp } from "@dashboard/lib/brain/store";
+import { readBrainRuntimeView } from "@dashboard/lib/brain/runtime-manager";
 import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
 import { startMachine } from "@dashboard/lib/previews/fly-previews";
-import { provisionBrain } from "@dashboard/lib/runners/brain-fly";
 import {
   flyConfigFromContext,
   resolveFlyContext,
@@ -49,8 +43,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const Body = z.object({
-  app: z.string().min(1).max(120),
-  machineId: z.string().min(1).max(120),
+  target: z.literal("brain").optional(),
+  app: z.string().min(1).max(120).optional(),
+  machineId: z.string().min(1).max(120).optional(),
   feature: z.enum(["runner", "brain"]).optional(),
   chatSessionId: z.string().min(1).max(160).optional(),
   resetSession: z.boolean().optional(),
@@ -66,18 +61,37 @@ const Body = z.object({
     .optional(),
   cols: z.number().int().min(20).max(300).optional(),
   rows: z.number().int().min(8).max(120).optional(),
+}).superRefine((value, ctx) => {
+  if (value.target === "brain") return;
+  if (!value.app) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["app"],
+      message: "app is required",
+    });
+  }
+  if (!value.machineId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["machineId"],
+      message: "machineId is required",
+    });
+  }
 });
 
 const TARGET_STATUS: Record<string, number> = {
   machine_not_found: 404,
   machine_not_terminal_capable: 403,
   machine_not_running: 409,
+  selected_image_not_running: 409,
 };
 
 const TARGET_MESSAGE: Record<string, string> = {
   machine_not_found: "Machine not found.",
   machine_not_terminal_capable: "Only Brain machines can open a Fly terminal.",
   machine_not_running: "Machine is still waking up. Try Connect again.",
+  selected_image_not_running:
+    "Selected image is not running. Apply it from Brain Images first.",
 };
 
 const WAKE_POLL_ATTEMPTS = 10;
@@ -92,83 +106,6 @@ function terminalTargetFlyConfig(
   orgSlug: string | undefined,
 ): FlyPreviewConfig {
   return orgSlug && orgSlug !== cfg.orgSlug ? { ...cfg, orgSlug } : cfg;
-}
-
-async function prepareSelectedBrainImageForTerminal(input: {
-  req: NextRequest;
-  ctx: Extract<Awaited<ReturnType<typeof resolveFlyContext>>, { ok: true }>;
-  app: string;
-  orgSlug: string;
-  cfg: FlyPreviewConfig;
-}): Promise<{ app: string; machineId: string; orgSlug: string } | null> {
-  setGitHubContext(
-    input.ctx.context.owner,
-    input.ctx.context.repo,
-    input.ctx.context.githubToken,
-    input.ctx.context.storeRepoUrl,
-    input.ctx.context.storeRef,
-  );
-  try {
-    const image = await readBrainImage(
-      input.ctx.context.account,
-      input.ctx.context.githubToken,
-    ).catch(() => null);
-    if (!image?.imageRef) return null;
-
-    const ghcr = brainGhcrAuth({
-      allSecrets: input.ctx.context.allSecrets,
-      githubToken: input.ctx.context.githubToken,
-      account: input.ctx.context.account,
-    });
-    const result = await provisionBrain({
-      flyToken: input.cfg.token,
-      account: input.ctx.context.account,
-      model: input.ctx.context.engineModel,
-      modelConfig: input.ctx.context.engineModelConfig,
-      githubToken: input.ctx.context.githubToken,
-      allSecrets: input.ctx.context.allSecrets,
-      perfTier: input.ctx.context.perfTier,
-      orgSlug: input.orgSlug,
-      defaultRegion: input.cfg.defaultRegion,
-      dashboardUrl: new URL(input.req.url).origin,
-      appNameOverride: input.app,
-      imageRef: image.imageRef,
-      resolveRuntimeImageRef: ({ app, imageRef }) =>
-        Promise.resolve(brainFlyRuntimeImageRef({ app, imageRef })),
-      prepareRuntimeImage: async ({
-        app,
-        sourceImageRef,
-        runtimeImageRef,
-      }) => {
-        await prepareBrainRuntimeImage({
-          owner: input.ctx.context.owner,
-          repo: input.ctx.context.repo,
-          app,
-          imageRef: sourceImageRef,
-          runtimeImageRef,
-          flyToken: input.cfg.token,
-          ghcrToken: ghcr.token,
-          ghcrUser: ghcr.user,
-          orgSlug: input.orgSlug,
-          defaultRegion: input.cfg.defaultRegion,
-        });
-      },
-    });
-    await writeBrainApp(input.ctx.context.account, input.ctx.context.githubToken, {
-      version: 1,
-      appName: result.app,
-      orgSlug: result.org,
-      createdAt: new Date().toISOString(),
-    }).catch((err) => {
-      logger.warn(
-        { err, owner: input.ctx.context.owner, app: result.app },
-        "terminal: record Brain app after image selection failed",
-      );
-    });
-    return { app: result.app, machineId: result.machineId, orgSlug: result.org };
-  } finally {
-    clearGitHubContext();
-  }
 }
 
 export async function POST(req: NextRequest) {
@@ -201,7 +138,68 @@ export async function POST(req: NextRequest) {
   try {
     let inventory = await listFlyInventory(cfg);
     await appendSavedBrainMachineToInventory(req, inventory);
-    const requested = resolveTerminalTargetMachine(inventory, parsed.data);
+    const brainRequested =
+      parsed.data.target === "brain" || parsed.data.feature === "brain";
+    let targetInput:
+      | { app: string; machineId: string; feature?: "runner" | "brain" }
+      | null =
+      parsed.data.app && parsed.data.machineId
+        ? {
+            app: parsed.data.app,
+            machineId: parsed.data.machineId,
+            feature: parsed.data.feature,
+          }
+        : null;
+    if (brainRequested) {
+      setGitHubContext(
+        ctx.context.owner,
+        ctx.context.repo,
+        ctx.context.githubToken,
+        ctx.context.storeRepoUrl,
+        ctx.context.storeRef,
+      );
+      try {
+        const runtime = await readBrainRuntimeView(
+          ctx.context.account,
+          ctx.context.githubToken,
+        );
+        if (
+          runtime?.desiredImageRef &&
+          runtime.desiredImageRef !== runtime.runningImageRef
+        ) {
+          return NextResponse.json(
+            {
+              error: "selected_image_not_running",
+              message: TARGET_MESSAGE.selected_image_not_running,
+              imageRef: runtime.desiredImageRef,
+              runningImageRef: runtime.runningImageRef,
+              runtimeSource: runtime.source,
+            },
+            { status: TARGET_STATUS.selected_image_not_running },
+          );
+        }
+        if (runtime?.runningApp && runtime.runningMachineId) {
+          targetInput = {
+            app: runtime.runningApp,
+            machineId: runtime.runningMachineId,
+            feature: "brain",
+          };
+        }
+      } finally {
+        clearGitHubContext();
+      }
+    }
+
+    if (!targetInput) {
+      return NextResponse.json(
+        {
+          error: "machine_not_found",
+          message: TARGET_MESSAGE.machine_not_found,
+        },
+        { status: TARGET_STATUS.machine_not_found },
+      );
+    }
+    const requested = resolveTerminalTargetMachine(inventory, targetInput);
     if (!requested) {
       return NextResponse.json(
         {
@@ -220,29 +218,8 @@ export async function POST(req: NextRequest) {
         { status: TARGET_STATUS.machine_not_terminal_capable },
       );
     }
-    let selectedCfg = terminalTargetFlyConfig(cfg, requested.orgSlug);
-    let selectedApp = requested.app;
-    let selectedMachineId = requested.machineId;
-    let selectedLabel = requested.label;
-    let selectedFeature = requested.feature;
-    if (requested.feature === "brain") {
-      const prepared = await prepareSelectedBrainImageForTerminal({
-        req,
-        ctx,
-        app: requested.app,
-        orgSlug: selectedCfg.orgSlug,
-        cfg: selectedCfg,
-      });
-      if (prepared) {
-        selectedApp = prepared.app;
-        selectedMachineId = prepared.machineId;
-        selectedCfg = terminalTargetFlyConfig(cfg, prepared.orgSlug);
-      }
-    }
     if (!isTerminalMachineLive(requested.state)) {
-      if (selectedMachineId !== requested.machineId) {
-        // The selected image path already produced the machine to connect to.
-      } else if (!isTerminalMachineStartable(requested.state)) {
+      if (!isTerminalMachineStartable(requested.state)) {
         return NextResponse.json(
           {
             error: "machine_not_running",
@@ -255,7 +232,11 @@ export async function POST(req: NextRequest) {
           { app: requested.app, machineId: requested.machineId },
           "terminal: waking machine",
         );
-        await startMachine(requested.app, requested.machineId, selectedCfg);
+        await startMachine(
+          requested.app,
+          requested.machineId,
+          terminalTargetFlyConfig(cfg, requested.orgSlug),
+        );
         const selectedInput = {
           app: requested.app,
           machineId: requested.machineId,
@@ -270,35 +251,29 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    if (selectedMachineId === requested.machineId) {
-      const selected = selectTerminalTarget(inventory, {
-        app: requested.app,
-        machineId: requested.machineId,
-      });
-      if (!selected.ok) {
-        return NextResponse.json(
-          { error: selected.error, message: TARGET_MESSAGE[selected.error] },
-          { status: TARGET_STATUS[selected.error] ?? 400 },
-        );
-      }
-      selectedCfg = terminalTargetFlyConfig(cfg, selected.machine.orgSlug);
-      selectedApp = selected.machine.app;
-      selectedMachineId = selected.machine.machineId;
-      selectedLabel = selected.machine.label;
-      selectedFeature = selected.machine.feature;
+    const selected = selectTerminalTarget(inventory, {
+      app: requested.app,
+      machineId: requested.machineId,
+    });
+    if (!selected.ok) {
+      return NextResponse.json(
+        { error: selected.error, message: TARGET_MESSAGE[selected.error] },
+        { status: TARGET_STATUS[selected.error] ?? 400 },
+      );
     }
+    const selectedCfg = terminalTargetFlyConfig(cfg, selected.machine.orgSlug);
     const bridge = await ensureTerminalBridge(selectedCfg);
     const activityLimitMs = terminalActivityLimitForTarget(
-      selectedFeature,
+      selected.machine.feature,
       parsed.data.activityLimitMs,
     );
     const now = Math.floor(Date.now() / 1000);
     const token = mintTerminalBridgeToken({
       owner: ctx.context.owner,
       repo: ctx.context.repo,
-      app: selectedApp,
+      app: selected.machine.app,
       orgSlug: selectedCfg.orgSlug,
-      machineId: selectedMachineId,
+      machineId: selected.machine.machineId,
       chatSessionId: parsed.data.chatSessionId,
       resetSession: parsed.data.resetSession,
       ...(activityLimitMs !== undefined ? { activityLimitMs } : {}),
@@ -312,9 +287,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      app: selectedApp,
-      machineId: selectedMachineId,
-      label: selectedLabel,
+      app: selected.machine.app,
+      machineId: selected.machine.machineId,
+      label: selected.machine.label,
       bridgeApp: bridge.app,
       expiresAt: new Date((now + 120) * 1000).toISOString(),
       webSocketUrl,

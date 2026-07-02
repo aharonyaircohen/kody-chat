@@ -11,6 +11,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
+import { readBrainRuntimeView } from "@dashboard/lib/brain/runtime-manager";
+import {
+  clearGitHubContext,
+  setGitHubContext,
+} from "@dashboard/lib/github-client";
 import {
   flyConfigFromContext,
   resolveFlyContext,
@@ -26,10 +31,27 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const Body = z.object({
-  app: z.string().min(1).max(120),
-  machineId: z.string().min(1).max(120),
+  target: z.literal("brain").optional(),
+  app: z.string().min(1).max(120).optional(),
+  machineId: z.string().min(1).max(120).optional(),
   feature: z.enum(["runner", "brain"]).optional(),
   chatSessionId: z.string().min(1).max(160),
+}).superRefine((value, ctx) => {
+  if (value.target === "brain") return;
+  if (!value.app) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["app"],
+      message: "app is required",
+    });
+  }
+  if (!value.machineId) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["machineId"],
+      message: "machineId is required",
+    });
+  }
 });
 
 function terminalTargetFlyConfig(
@@ -68,12 +90,73 @@ export async function POST(req: NextRequest) {
   }
 
   let targetCfg = cfg;
+  let targetApp = parsed.data.app ?? "";
+  let targetMachineId = parsed.data.machineId ?? "";
+  const brainRequested =
+    parsed.data.target === "brain" || parsed.data.feature === "brain";
   try {
     const inventory = await listFlyInventory(cfg);
     await appendSavedBrainMachineToInventory(req, inventory);
-    const target = resolveTerminalTargetMachine(inventory, parsed.data);
-    targetCfg = terminalTargetFlyConfig(cfg, target?.orgSlug);
+    let targetInput:
+      | { app: string; machineId: string; feature?: "runner" | "brain" }
+      | null =
+      parsed.data.app && parsed.data.machineId
+        ? {
+            app: parsed.data.app,
+            machineId: parsed.data.machineId,
+            feature: parsed.data.feature,
+          }
+        : null;
+    if (brainRequested) {
+      setGitHubContext(
+        ctx.context.owner,
+        ctx.context.repo,
+        ctx.context.githubToken,
+        ctx.context.storeRepoUrl,
+        ctx.context.storeRef,
+      );
+      try {
+        const runtime = await readBrainRuntimeView(
+          ctx.context.account,
+          ctx.context.githubToken,
+        );
+        if (
+          runtime?.desiredImageRef &&
+          runtime.desiredImageRef !== runtime.runningImageRef
+        ) {
+          return NextResponse.json({ ok: true, alive: false });
+        }
+        if (runtime?.runningApp && runtime.runningMachineId) {
+          targetInput = {
+            app: runtime.runningApp,
+            machineId: runtime.runningMachineId,
+            feature: "brain",
+          };
+        }
+      } finally {
+        clearGitHubContext();
+      }
+    }
+    if (!targetInput) {
+      return NextResponse.json({ ok: true, alive: false });
+    }
+    const target = resolveTerminalTargetMachine(inventory, targetInput);
+    if (!target) {
+      if (!brainRequested && parsed.data.app && parsed.data.machineId) {
+        targetApp = parsed.data.app;
+        targetMachineId = parsed.data.machineId;
+      } else {
+        return NextResponse.json({ ok: true, alive: false });
+      }
+    } else {
+      targetCfg = terminalTargetFlyConfig(cfg, target.orgSlug);
+      targetApp = target.app;
+      targetMachineId = target.machineId;
+    }
   } catch {
+    if (brainRequested) {
+      return NextResponse.json({ ok: true, alive: false });
+    }
     targetCfg = cfg;
   }
 
@@ -81,13 +164,16 @@ export async function POST(req: NextRequest) {
   if (!bridge) {
     return NextResponse.json({ ok: true, alive: false });
   }
+  if (!targetApp || !targetMachineId) {
+    return NextResponse.json({ ok: true, alive: false });
+  }
 
   const token = mintTerminalBridgeToken({
     owner: ctx.context.owner,
     repo: ctx.context.repo,
-    app: parsed.data.app,
+    app: targetApp,
     orgSlug: targetCfg.orgSlug,
-    machineId: parsed.data.machineId,
+    machineId: targetMachineId,
     chatSessionId: parsed.data.chatSessionId,
     flyToken: targetCfg.token,
     ttlSeconds: 30,

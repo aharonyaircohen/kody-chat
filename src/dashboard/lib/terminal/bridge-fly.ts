@@ -17,7 +17,7 @@ const REQUEST_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_INTERVAL_MS = 2_000;
 
-export const TERMINAL_BRIDGE_VERSION = "2026-07-02.2";
+export const TERMINAL_BRIDGE_VERSION = "2026-07-02.4";
 export const TERMINAL_BRIDGE_BASE_IMAGE =
   process.env.KODY_TERMINAL_BRIDGE_BASE_IMAGE ?? "node:22-bookworm";
 
@@ -506,7 +506,7 @@ function runOneShotFlyCommand(claims, command, timeoutMs, maxOutputBytes) {
       "console",
       "--app",
       claims.app,
-      ...(claims.orgSlug ? ["--org", claims.orgSlug] : []),
+      ...flyctlOrgArgs(claims.orgSlug),
       "--machine",
       claims.machineId,
       "--command",
@@ -626,6 +626,10 @@ function runOneShotLocalCommand(claims, command, timeoutMs, maxOutputBytes) {
   });
 }
 
+function flyctlOrgArgs(orgSlug) {
+  return orgSlug && orgSlug !== "personal" ? ["--org", orgSlug] : [];
+}
+
 function persistentSessionKey(claims) {
   if (!claims.chatSessionId) return null;
   return [
@@ -723,7 +727,7 @@ function createFlyConsoleSession(claims, key) {
     "console",
     "--app",
     claims.app,
-    ...(claims.orgSlug ? ["--org", claims.orgSlug] : []),
+    ...flyctlOrgArgs(claims.orgSlug),
     "--machine",
     claims.machineId,
     "--pty",
@@ -931,9 +935,27 @@ function attachSocketToSession(socket, session) {
       session.inputBytes += Buffer.byteLength(msg.data);
       session.lastTouched = Date.now();
       console.log("terminal input bytes=" + session.inputBytes);
-      if (!session.child.stdin.destroyed) {
-        session.child.stdin.write(msg.data);
+      if (session.child.stdin.destroyed || !session.child.stdin.writable) {
+        sendJson(socket, {
+          type: "input-rejected",
+          id: msg.id,
+          message: "Terminal stdin is closed.",
+        });
+        return;
       }
+      session.child.stdin.write(msg.data, (err) => {
+        sendJson(socket, err
+          ? {
+              type: "input-rejected",
+              id: msg.id,
+              message: err.message || "Terminal stdin write failed.",
+            }
+          : {
+              type: "input-accepted",
+              id: msg.id,
+              bytes: Buffer.byteLength(msg.data),
+            });
+      });
       return;
     }
     if (msg.type === "resize") {

@@ -289,7 +289,141 @@ describe("Brain image store", () => {
           imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
         }),
       ],
+      forgottenImageRefs: ["ghcr.io/alice/kody-brain-snapshot:old"],
     });
+    const content = JSON.parse(
+      (state.writeStateText.mock.calls[0]?.[0] as { content: string }).content,
+    ) as { forgottenImageRefs?: string[] };
+    expect(content.forgottenImageRefs).toEqual([
+      "ghcr.io/alice/kody-brain-snapshot:old",
+    ]);
+  });
+
+  it("remembers a forgotten discovered Brain image even when it was not saved locally", async () => {
+    state.readStateText.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    state.writeStateText.mockResolvedValue({ sha: "new-sha" });
+    const { deleteBrainImage } = await import("@dashboard/lib/brain/store");
+
+    await expect(
+      deleteBrainImage(
+        "Alice",
+        "token",
+        "ghcr.io/alice/kody-brain-snapshot:discovered",
+      ),
+    ).resolves.toMatchObject({
+      images: [],
+      forgottenImageRefs: ["ghcr.io/alice/kody-brain-snapshot:discovered"],
+    });
+
+    const content = JSON.parse(
+      (state.writeStateText.mock.calls[0]?.[0] as { content: string }).content,
+    ) as { imageRef?: string; images?: unknown[]; forgottenImageRefs?: string[] };
+    expect(content.imageRef).toBeUndefined();
+    expect(content.images).toEqual([]);
+    expect(content.forgottenImageRefs).toEqual([
+      "ghcr.io/alice/kody-brain-snapshot:discovered",
+    ]);
+  });
+
+  it("marks a selected Brain image as running after apply succeeds", async () => {
+    state.readStateText
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          version: 1,
+          imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+          createdAt: "2026-06-25T10:00:00.000Z",
+          updatedAt: "2026-06-26T10:00:00.000Z",
+          images: [
+            {
+              imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+              createdAt: "2026-06-26T10:00:00.000Z",
+              updatedAt: "2026-06-26T10:00:00.000Z",
+            },
+          ],
+        }),
+        sha: "sha",
+      })
+      .mockResolvedValueOnce({ sha: "sha", content: "{}" });
+    state.writeStateText.mockResolvedValue({ sha: "new-sha" });
+    const { markBrainImageRunning } =
+      await import("@dashboard/lib/brain/store");
+
+    await expect(
+      markBrainImageRunning("Alice", "token", {
+        imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+        app: "kody-brain-alice",
+        machineId: "machine-new",
+        runningAt: "2026-07-02T10:00:00.000Z",
+      }),
+    ).resolves.toMatchObject({
+      imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+      runningImageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+      runningApp: "kody-brain-alice",
+      runningMachineId: "machine-new",
+    });
+
+    const content = JSON.parse(
+      (state.writeStateText.mock.calls[0]?.[0] as { content: string }).content,
+    ) as { runningImageRef?: string; runningMachineId?: string };
+    expect(content.runningImageRef).toBe(
+      "ghcr.io/alice/kody-brain-snapshot:new",
+    );
+    expect(content.runningMachineId).toBe("machine-new");
+  });
+
+  it("marks an applied saved Brain image as selected and running", async () => {
+    state.readStateText
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          version: 1,
+          imageRef: "ghcr.io/alice/kody-brain-snapshot:old",
+          createdAt: "2026-06-25T10:00:00.000Z",
+          updatedAt: "2026-06-26T10:00:00.000Z",
+          forgottenImageRefs: ["ghcr.io/alice/kody-brain-snapshot:new"],
+          images: [
+            {
+              imageRef: "ghcr.io/alice/kody-brain-snapshot:old",
+              createdAt: "2026-06-25T10:00:00.000Z",
+              updatedAt: "2026-06-25T10:00:00.000Z",
+            },
+            {
+              imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+              createdAt: "2026-06-26T10:00:00.000Z",
+              updatedAt: "2026-06-26T10:00:00.000Z",
+            },
+          ],
+        }),
+        sha: "sha",
+      })
+      .mockResolvedValueOnce({ sha: "sha", content: "{}" });
+    state.writeStateText.mockResolvedValue({ sha: "new-sha" });
+    const { markBrainImageRunning } =
+      await import("@dashboard/lib/brain/store");
+
+    await expect(
+      markBrainImageRunning("Alice", "token", {
+        imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+        app: "kody-brain-alice",
+        machineId: "machine-new",
+        runningAt: "2026-07-02T10:00:00.000Z",
+      }),
+    ).resolves.toMatchObject({
+      imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+      runningImageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+    });
+
+    const content = JSON.parse(
+      (state.writeStateText.mock.calls[0]?.[0] as { content: string }).content,
+    ) as {
+      imageRef?: string;
+      runningImageRef?: string;
+      forgottenImageRefs?: string[];
+    };
+    expect(content.imageRef).toBe("ghcr.io/alice/kody-brain-snapshot:new");
+    expect(content.runningImageRef).toBe(
+      "ghcr.io/alice/kody-brain-snapshot:new",
+    );
+    expect(content.forgottenImageRefs).toBeUndefined();
   });
 
   it("accepts GHCR image refs", async () => {

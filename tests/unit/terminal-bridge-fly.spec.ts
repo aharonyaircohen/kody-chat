@@ -122,6 +122,8 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"console"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("claims.orgSlug");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"--org"');
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("function flyctlOrgArgs");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain('orgSlug !== "personal"');
     expect(consoleSession).toContain("FLY_API_TOKEN: claims.flyToken");
     expect(consoleSession).toContain("FLY_ACCESS_TOKEN: claims.flyToken");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("--pty");
@@ -177,6 +179,18 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain("SSH shell did not answer");
   });
 
+  it("does not pass the Fly pseudo-org personal to flyctl ssh", () => {
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      'return orgSlug && orgSlug !== "personal" ? ["--org", orgSlug] : [];',
+    );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      "...flyctlOrgArgs(claims.orgSlug)",
+    );
+    expect(TERMINAL_BRIDGE_SCRIPT).not.toContain(
+      '...(claims.orgSlug ? ["--org", claims.orgSlug] : [])',
+    );
+  });
+
   it("keeps the local Fly wrapper from echoing browser input", () => {
     expect(TERMINAL_BRIDGE_PTY_RELAY_SCRIPT).toContain("def disable_echo(fd):");
     expect(TERMINAL_BRIDGE_PTY_RELAY_SCRIPT).toContain("termios.ECHO");
@@ -201,6 +215,21 @@ describe("ensureTerminalBridge", () => {
     expect(attachSession).not.toContain("session.outputBuffer");
     expect(attachSession).not.toContain("session.pendingOutput");
     expect(attachSession).toContain('type: "ready"');
+  });
+
+  it("acknowledges accepted terminal input and rejects unwritable stdin", () => {
+    const attachSession = TERMINAL_BRIDGE_SCRIPT.match(
+      /function attachSocketToSession[\s\S]*?\n}\n\nfunction startFlyConsole/,
+    )?.[0];
+
+    expect(attachSession).toBeTruthy();
+    expect(attachSession).toContain('type: "input-accepted"');
+    expect(attachSession).toContain('type: "input-rejected"');
+    expect(attachSession).toContain("msg.id");
+    expect(attachSession).toContain("session.child.stdin.write");
+    expect(attachSession).not.toContain(
+      "if (!session.child.stdin.destroyed) {\n        session.child.stdin.write(msg.data);",
+    );
   });
 
   it("does not mirror typed input when the wrapped process enables PTY echo", async () => {

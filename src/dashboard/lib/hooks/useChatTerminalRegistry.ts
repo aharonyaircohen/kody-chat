@@ -6,7 +6,7 @@
  * Per-chat terminal UI registry. Chat sessions own their terminal mode,
  * mounted terminal surface, selected transport, and connection state.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { SessionMeta } from "../chat-types";
 import type {
@@ -43,7 +43,10 @@ export interface MountedChatTerminal {
 export function isBrainTerminalTransport(
   transport: ChatTerminalTransport,
 ): boolean {
-  return transport.type === "fly" && transport.feature === "brain";
+  return (
+    transport.type === "brain" ||
+    (transport.type === "fly" && transport.feature === "brain")
+  );
 }
 
 export function findMountedBrainTerminal(
@@ -61,7 +64,16 @@ export function normalizeMountedChatTerminals(
   terminals: MountedChatTerminal[],
 ): MountedChatTerminal[] {
   const supported = terminals.flatMap((terminal): MountedChatTerminal[] => {
-    if (isBrainTerminalTransport(terminal.transport)) return [terminal];
+    if (isBrainTerminalTransport(terminal.transport)) {
+      const transport = BRAIN_TERMINAL_TRANSPORT;
+      return [
+        {
+          ...terminal,
+          id: `${terminal.sessionId}::${chatTerminalTransportKey(transport)}`,
+          transport,
+        },
+      ];
+    }
     if (terminal.transport.type !== "local") return [];
     const transport = terminal.transport.label
       ? ({ type: "local", label: terminal.transport.label } as const)
@@ -91,6 +103,9 @@ function chatTerminalTransportsEqual(
   if (first.type === "local" && second.type === "local") {
     return first.label === second.label;
   }
+  if (first.type === "brain" && second.type === "brain") {
+    return true;
+  }
   if (first.type === "fly" && second.type === "fly") {
     return (
       first.app === second.app &&
@@ -110,6 +125,18 @@ function mountedChatTerminalsEqual(
     first.id === second.id &&
     first.sessionId === second.sessionId &&
     chatTerminalTransportsEqual(first.transport, second.transport)
+  );
+}
+
+function mountedChatTerminalListsEqual(
+  first: MountedChatTerminal[],
+  second: MountedChatTerminal[],
+): boolean {
+  return (
+    first.length === second.length &&
+    first.every((terminal, index) =>
+      mountedChatTerminalsEqual(terminal, second[index]),
+    )
   );
 }
 
@@ -137,6 +164,10 @@ export function upsertMountedChatTerminal(
 
 export const LOCAL_TERMINAL_TRANSPORT: ChatTerminalTransport = {
   type: "local",
+};
+export const BRAIN_TERMINAL_TRANSPORT: ChatTerminalTransport = {
+  type: "brain",
+  label: "Brain terminal",
 };
 
 const TERMINAL_REGISTRY_STORAGE_KEY_BASE = "kody-chat-terminal-v1";
@@ -174,6 +205,9 @@ function isTransport(value: unknown): value is ChatTerminalTransport {
   if (!value || typeof value !== "object") return false;
   const transport = value as Partial<ChatTerminalTransport>;
   if (transport.type === "local") {
+    return transport.label === undefined || typeof transport.label === "string";
+  }
+  if (transport.type === "brain") {
     return transport.label === undefined || typeof transport.label === "string";
   }
   return (
@@ -259,13 +293,14 @@ export function terminalMachineIdShort(machineId: string): string {
 function chatTerminalTransportFromMachine(
   machine: FlyMachineRow,
 ): ChatTerminalTransport {
+  if (machine.feature === "brain") return BRAIN_TERMINAL_TRANSPORT;
   const transport: ChatTerminalTransport = {
     type: "fly",
     app: machine.app,
     machineId: machine.machineId,
     label: machine.label,
   };
-  if (machine.feature === "brain" || machine.feature === "runner") {
+  if (machine.feature === "runner") {
     transport.feature = machine.feature;
   }
   return transport;
@@ -274,13 +309,15 @@ function chatTerminalTransportFromMachine(
 export function normalizeTerminalTransport(
   transport: ChatTerminalTransport,
   terminalMachines: FlyMachineRow[],
-  options: { inventoryLoaded?: boolean } = {},
+  _options: { inventoryLoaded?: boolean } = {},
 ): ChatTerminalTransport {
   if (transport.type !== "fly") {
+    if (transport.type === "brain") return BRAIN_TERMINAL_TRANSPORT;
     return transport.label
       ? { type: "local", label: transport.label }
       : LOCAL_TERMINAL_TRANSPORT;
   }
+  if (transport.feature === "brain") return BRAIN_TERMINAL_TRANSPORT;
 
   const machine = terminalMachines.find(
     (candidate) =>
@@ -288,22 +325,13 @@ export function normalizeTerminalTransport(
       candidate.machineId === transport.machineId,
   );
   if (machine) {
-    if (transport.label === machine.label && transport.feature === "brain") {
-      return transport;
-    }
     return chatTerminalTransportFromMachine(machine);
-  }
-  if (transport.feature === "brain") {
-    const currentBrain = terminalMachines.find(
-      (candidate) => candidate.feature === "brain",
-    );
-    if (currentBrain) return chatTerminalTransportFromMachine(currentBrain);
-    return options.inventoryLoaded ? LOCAL_TERMINAL_TRANSPORT : transport;
   }
   return LOCAL_TERMINAL_TRANSPORT;
 }
 
 function chatTerminalTransportKey(transport: ChatTerminalTransport): string {
+  if (transport.type === "brain") return "brain";
   if (transport.type === "fly")
     return `fly:${transport.app}:${transport.machineId}`;
   return "local";
@@ -314,6 +342,30 @@ function chatTerminalInstanceId(
   transport: ChatTerminalTransport,
 ): string {
   return `${sessionId}::${chatTerminalTransportKey(transport)}`;
+}
+
+export function reconcileMountedChatTerminalsWithInventory(
+  terminals: MountedChatTerminal[],
+  terminalMachines: FlyMachineRow[],
+  options: { inventoryLoaded?: boolean } = {},
+): MountedChatTerminal[] {
+  return normalizeMountedChatTerminals(
+    terminals.map((terminal) => {
+      const transport = normalizeTerminalTransport(
+        terminal.transport,
+        terminalMachines,
+        options,
+      );
+      const id = chatTerminalInstanceId(terminal.sessionId, transport);
+      if (
+        terminal.id === id &&
+        chatTerminalTransportsEqual(terminal.transport, transport)
+      ) {
+        return terminal;
+      }
+      return { ...terminal, id, transport };
+    }),
+  );
 }
 
 export function useChatTerminalRegistry({
@@ -373,8 +425,9 @@ export function useChatTerminalRegistry({
   const mode = activeSessionId
     ? (modeBySessionId[activeSessionId] ?? "ai")
     : "ai";
-  const terminalMachines = (flyInventory?.machines ?? []).filter(
-    canUseChatTerminalFlyMachine,
+  const terminalMachines = useMemo(
+    () => (flyInventory?.machines ?? []).filter(canUseChatTerminalFlyMachine),
+    [flyInventory],
   );
   const activeTransportBase = activeSessionId
     ? (transportBySessionId[activeSessionId] ?? LOCAL_TERMINAL_TRANSPORT)
@@ -388,7 +441,9 @@ export function useChatTerminalRegistry({
     ? chatTerminalInstanceId(activeSessionId, activeTransport)
     : null;
   const activeTargetValue =
-    activeTransport.type === "fly"
+    activeTransport.type === "brain"
+      ? "brain"
+      : activeTransport.type === "fly"
       ? terminalFlyMachineKey(activeTransport)
       : "local";
   const activeConnectionState = activeSessionId
@@ -582,9 +637,44 @@ export function useChatTerminalRegistry({
   }, []);
 
   useEffect(() => {
+    const refresh = () => void refreshFlyMachines();
+    window.addEventListener("kody:fly-machines-refresh", refresh);
+    return () =>
+      window.removeEventListener("kody:fly-machines-refresh", refresh);
+  }, [refreshFlyMachines]);
+
+  useEffect(() => {
     if (mode !== "terminal") return;
     void refreshFlyMachines();
   }, [activeSessionId, mode, refreshFlyMachines]);
+
+  useEffect(() => {
+    if (flyInventory === null) return;
+    setMountedTerminals((prev) => {
+      const next = reconcileMountedChatTerminalsWithInventory(
+        prev,
+        terminalMachines,
+        { inventoryLoaded: true },
+      );
+      return mountedChatTerminalListsEqual(prev, next) ? prev : next;
+    });
+    setTransportBySessionId((prev) => {
+      let changed = false;
+      const next: Record<string, ChatTerminalTransport> = {};
+      for (const [sessionId, transport] of Object.entries(prev)) {
+        const normalized = normalizeTerminalTransport(
+          transport,
+          terminalMachines,
+          { inventoryLoaded: true },
+        );
+        next[sessionId] = normalized;
+        if (!chatTerminalTransportsEqual(transport, normalized)) {
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [flyInventory, terminalMachines]);
 
   const setActiveTransport = useCallback(
     (transport: ChatTerminalTransport) => {
@@ -617,6 +707,10 @@ export function useChatTerminalRegistry({
     (value: string) => {
       if (value === "local") {
         setActiveTransport(LOCAL_TERMINAL_TRANSPORT);
+        return;
+      }
+      if (value === "brain") {
+        setActiveTransport(BRAIN_TERMINAL_TRANSPORT);
         return;
       }
       const machine = terminalMachines.find(
@@ -706,7 +800,8 @@ export function useChatTerminalRegistry({
     const flyTerminals = mountedTerminals.filter(
       (terminal) =>
         terminal.sessionId === activeSessionId &&
-        terminal.transport.type === "fly",
+        (terminal.transport.type === "fly" ||
+          terminal.transport.type === "brain"),
     );
     if (flyTerminals.length === 0) return;
 
@@ -716,17 +811,29 @@ export function useChatTerminalRegistry({
       if (Object.keys(headers).length === 0) return;
       await Promise.all(
         flyTerminals.map(async (terminal) => {
-          if (terminal.transport.type !== "fly") return;
+          if (
+            terminal.transport.type !== "fly" &&
+            terminal.transport.type !== "brain"
+          ) {
+            return;
+          }
+          const statusRequest =
+            terminal.transport.type === "brain"
+              ? {
+                  target: "brain",
+                  chatSessionId: activeSessionId,
+                }
+              : {
+                  app: terminal.transport.app,
+                  machineId: terminal.transport.machineId,
+                  feature: terminal.transport.feature,
+                  chatSessionId: activeSessionId,
+                };
           try {
             const res = await fetch("/api/kody/terminal/status", {
               method: "POST",
               headers: { "Content-Type": "application/json", ...headers },
-              body: JSON.stringify({
-                app: terminal.transport.app,
-                machineId: terminal.transport.machineId,
-                feature: terminal.transport.feature,
-                chatSessionId: activeSessionId,
-              }),
+              body: JSON.stringify(statusRequest),
             });
             if (!res.ok) return;
             const body = (await res.json().catch(() => ({}))) as {

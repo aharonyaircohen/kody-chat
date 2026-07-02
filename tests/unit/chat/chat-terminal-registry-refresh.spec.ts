@@ -41,4 +41,11 @@ describe("chat terminal registry refresh persistence", () => {
     expect(REGISTRY_SOURCE).toContain("/api/kody/chat/terminal/status?");
     expect(REGISTRY_SOURCE).toContain("${params}");
   });
+
+  it("refreshes and reconciles Brain terminal targets after image apply", () => {
+    expect(REGISTRY_SOURCE).toContain('"kody:fly-machines-refresh"');
+    expect(REGISTRY_SOURCE).toContain("reconcileMountedChatTerminalsWithInventory");
+    expect(REGISTRY_SOURCE).toContain("normalizeTerminalTransport(");
+    expect(REGISTRY_SOURCE).toContain("setMountedTerminals((prev)");
+  });
 });

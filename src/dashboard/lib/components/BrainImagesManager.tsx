@@ -13,6 +13,7 @@ import {
   CheckCircle2,
   ExternalLink,
   Loader2,
+  Play,
   RefreshCw,
   Trash2,
 } from "lucide-react";
@@ -21,6 +22,7 @@ import { toast } from "sonner";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { buildAuthHeaders, useAuth } from "../auth-context";
+import { ConfirmDialog } from "./ConfirmDialog";
 import { PageShell } from "./PageShell";
 
 interface BrainSavedImage {
@@ -41,6 +43,10 @@ interface BrainImageSaveState {
 interface BrainImagesResponse {
   ok?: boolean;
   imageRef?: string | null;
+  runningImageRef?: string | null;
+  runningAt?: string | null;
+  runningApp?: string | null;
+  runningMachineId?: string | null;
   images?: BrainSavedImage[];
   save?: BrainImageSaveState | null;
   message?: string;
@@ -72,15 +78,20 @@ export function BrainImagesManager() {
   const headers = useMemo(() => (auth ? buildAuthHeaders(auth) : null), [auth]);
   const [images, setImages] = useState<BrainSavedImage[]>([]);
   const [activeImageRef, setActiveImageRef] = useState<string | null>(null);
+  const [runningImageRef, setRunningImageRef] = useState<string | null>(null);
+  const [runningAt, setRunningAt] = useState<string | null>(null);
   const [save, setSave] = useState<BrainImageSaveState | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyRef, setBusyRef] = useState<string | null>(null);
+  const [pendingForgetRef, setPendingForgetRef] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadImages = useCallback(async () => {
     if (!headers) {
       setImages([]);
       setActiveImageRef(null);
+      setRunningImageRef(null);
+      setRunningAt(null);
       setSave(null);
       setLoading(false);
       return;
@@ -100,16 +111,25 @@ export function BrainImagesManager() {
       }
       setImages(body.images ?? []);
       setActiveImageRef(body.imageRef ?? null);
+      setRunningImageRef(body.runningImageRef ?? null);
+      setRunningAt(body.runningAt ?? null);
       setSave(body.save ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load images");
       setImages([]);
       setActiveImageRef(null);
+      setRunningImageRef(null);
+      setRunningAt(null);
       setSave(null);
     } finally {
       setLoading(false);
     }
   }, [headers]);
+
+  const pendingForgetImage = useMemo(
+    () => images.find((image) => image.imageRef === pendingForgetRef) ?? null,
+    [images, pendingForgetRef],
+  );
 
   useEffect(() => {
     void loadImages();
@@ -130,11 +150,35 @@ export function BrainImagesManager() {
           body.message ?? body.error ?? `Select failed (${res.status})`,
         );
       }
-      setImages(body.images ?? []);
-      setActiveImageRef(body.imageRef ?? null);
+      await loadImages();
       toast.success("Brain image selected");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Select failed");
+    } finally {
+      setBusyRef(null);
+    }
+  }
+
+  async function applyImage(imageRef: string) {
+    if (!headers) return;
+    setBusyRef(imageRef);
+    try {
+      const res = await fetch("/api/kody/brain/image/apply", {
+        method: "POST",
+        headers: { "content-type": "application/json", ...headers },
+        body: JSON.stringify({ imageRef }),
+      });
+      const body = (await res.json().catch(() => ({}))) as BrainImagesResponse;
+      if (!res.ok) {
+        throw new Error(
+          body.message ?? body.error ?? `Apply failed (${res.status})`,
+        );
+      }
+      await loadImages();
+      window.dispatchEvent(new Event("kody:fly-machines-refresh"));
+      toast.success("Brain image applied");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Apply failed");
     } finally {
       setBusyRef(null);
     }
@@ -154,8 +198,7 @@ export function BrainImagesManager() {
           body.message ?? body.error ?? `Forget failed (${res.status})`,
         );
       }
-      setImages(body.images ?? []);
-      setActiveImageRef(body.imageRef ?? null);
+      await loadImages();
       toast.success("Brain image forgotten");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Forget failed");
@@ -180,8 +223,15 @@ export function BrainImagesManager() {
               </div>
               <div className="mt-1 truncate text-xs text-white/50">
                 {activeImageRef
-                  ? `Active: ${packageName(activeImageRef)}:${imageTag(activeImageRef)}`
-                  : "No active Brain image selected"}
+                  ? `Selected: ${packageName(activeImageRef)}:${imageTag(activeImageRef)}`
+                  : "No Brain image selected"}
+              </div>
+              <div className="mt-1 truncate text-xs text-white/50">
+                {runningImageRef
+                  ? `Running: ${packageName(runningImageRef)}:${imageTag(runningImageRef)}${
+                      runningAt ? ` since ${formatDate(runningAt)}` : ""
+                    }`
+                  : "No saved Brain image is marked as running"}
               </div>
               {save?.status === "running" && (
                 <div className="mt-1 text-xs text-amber-300">
@@ -229,7 +279,8 @@ export function BrainImagesManager() {
             </div>
           ) : (
             images.map((image) => {
-              const active = image.imageRef === activeImageRef;
+              const selected = image.imageRef === activeImageRef;
+              const running = image.imageRef === runningImageRef;
               const busy = busyRef === image.imageRef;
               return (
                 <div
@@ -238,7 +289,7 @@ export function BrainImagesManager() {
                 >
                   <div className="min-w-0 space-y-1">
                     <div className="flex min-w-0 items-center gap-2">
-                      {active && (
+                      {running && (
                         <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />
                       )}
                       <span className="truncate font-mono text-sm text-white">
@@ -256,11 +307,26 @@ export function BrainImagesManager() {
                     <Button
                       type="button"
                       size="sm"
-                      variant={active ? "secondary" : "outline"}
-                      disabled={active || busy}
+                      variant={selected ? "secondary" : "outline"}
+                      disabled={selected || busy}
                       onClick={() => void selectImage(image.imageRef)}
                     >
-                      {active ? "Active" : "Select"}
+                      {selected ? "Selected" : "Select"}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={running ? "secondary" : "default"}
+                      disabled={running || busy}
+                      className="gap-2"
+                      onClick={() => void applyImage(image.imageRef)}
+                    >
+                      {busy ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Play className="h-4 w-4" />
+                      )}
+                      {running ? "Running" : "Apply"}
                     </Button>
                     <Button
                       type="button"
@@ -284,7 +350,7 @@ export function BrainImagesManager() {
                       title="Forget image"
                       aria-label="Forget image"
                       disabled={busy}
-                      onClick={() => void forgetImage(image.imageRef)}
+                      onClick={() => setPendingForgetRef(image.imageRef)}
                     >
                       {busy ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -299,6 +365,23 @@ export function BrainImagesManager() {
           )}
         </div>
       </div>
+      <ConfirmDialog
+        open={pendingForgetRef !== null}
+        title="Forget Brain image?"
+        description={
+          pendingForgetImage
+            ? `Remove ${packageName(pendingForgetImage.imageRef)}:${imageTag(
+                pendingForgetImage.imageRef,
+              )} from this list. This does not delete the GHCR package image.`
+            : "Remove this Brain image from this list. This does not delete the GHCR package image."
+        }
+        confirmLabel="Forget"
+        variant="destructive"
+        onConfirm={() => {
+          if (pendingForgetRef) void forgetImage(pendingForgetRef);
+        }}
+        onClose={() => setPendingForgetRef(null)}
+      />
     </PageShell>
   );
 }

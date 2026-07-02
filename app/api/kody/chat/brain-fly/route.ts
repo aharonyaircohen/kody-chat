@@ -26,17 +26,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
-import {
-  readBrainApp,
-  readBrainImage,
-  writeBrainApp,
-} from "@dashboard/lib/brain/store";
+import { readBrainApp, writeBrainApp } from "@dashboard/lib/brain/store";
 import { resolveBrainTarget } from "@dashboard/lib/brain/target";
-import {
-  brainFlyRuntimeImageRef,
-  brainGhcrAuth,
-  prepareBrainRuntimeImage,
-} from "@dashboard/lib/brain/image-runtime";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -153,16 +144,6 @@ export async function POST(req: NextRequest) {
       contextOrgSlug: ctx.context.flyOrgSlug,
       stored,
     });
-    const image = await readBrainImage(
-      ctx.context.account,
-      ctx.context.githubToken,
-    ).catch(() => null);
-    const ghcr = brainGhcrAuth({
-      allSecrets: ctx.context.allSecrets,
-      githubToken: ctx.context.githubToken,
-      account: ctx.context.account,
-    });
-
     let provisioned: { url: string; apiKey: string; app?: string };
     try {
       const result = await provisionBrain({
@@ -180,31 +161,6 @@ export async function POST(req: NextRequest) {
         suspendOnIdle: brainSuspendOnIdleFrom(req),
         dashboardUrl,
         appNameOverride: target.app,
-        ...(image?.imageRef
-          ? {
-              imageRef: image.imageRef,
-              resolveRuntimeImageRef: ({ app, imageRef }) =>
-                Promise.resolve(brainFlyRuntimeImageRef({ app, imageRef })),
-              prepareRuntimeImage: async ({
-                app,
-                sourceImageRef,
-                runtimeImageRef,
-              }) => {
-                await prepareBrainRuntimeImage({
-                  owner: ctx.context.owner,
-                  repo: ctx.context.repo,
-                  app,
-                  imageRef: sourceImageRef,
-                  runtimeImageRef,
-                  flyToken: ctx.context.flyToken!,
-                  ghcrToken: ghcr.token,
-                  ghcrUser: ghcr.user,
-                  orgSlug: target.orgSlug,
-                  defaultRegion: ctx.context.flyDefaultRegion,
-                });
-              },
-            }
-          : {}),
       });
       provisioned = { url: result.url, apiKey: result.apiKey, app: result.app };
       try {

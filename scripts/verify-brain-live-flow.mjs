@@ -59,6 +59,7 @@ try {
 
   let brain = await ensureBrainMachine();
   brain = await ensureBrainRunning(brain);
+  await verifyBrainRuntimeSelection();
 
   await verifyTerminalSession(brain, {
     command: markerWriteCommand(marker),
@@ -85,9 +86,9 @@ try {
     process.exit(0);
   }
 
-  await saveBrainImage();
+  const savedImage = await saveBrainImage();
   await destroyBrain();
-  brain = await provisionBrainFromSavedImage();
+  brain = await applyBrainImage(savedImage.imageRef);
   await verifyTerminalSession(brain, {
     command: markerReadCommand(),
     expect: `KODY_LIVE_MARKER:${marker}`,
@@ -265,6 +266,37 @@ function brainTransport(status) {
   };
 }
 
+async function brainImageState() {
+  return api("GET", "/api/kody/brain/image", undefined, {
+    timeoutMs: 120_000,
+  });
+}
+
+async function verifyBrainRuntimeSelection() {
+  const image = await brainImageState();
+  if (image.imageRef && image.imageRef !== image.runningImageRef) {
+    throw new Error(
+      `Selected Brain image is not applied. Apply it before live terminal verification. Selected=${image.imageRef} running=${image.runningImageRef ?? "none"}`,
+    );
+  }
+  if (image.runningImageRef && (!image.runningApp || !image.runningMachineId)) {
+    throw new Error(
+      `Brain runtime state has a running image without app/machine: ${JSON.stringify(image)}`,
+    );
+  }
+  if (image.runningImageRef) {
+    step(
+      "Brain runtime state",
+      `${image.runningImageRef} on ${image.runningApp}/${image.runningMachineId}`,
+    );
+    return;
+  }
+  step(
+    "Brain runtime state",
+    "no applied image recorded; semantic terminal route must still resolve a live Brain or fail clearly",
+  );
+}
+
 async function terminalSession(status, resetSession = false) {
   const deadline = Date.now() + 3 * 60_000;
   let lastErr = null;
@@ -275,8 +307,7 @@ async function terminalSession(status, resetSession = false) {
         "POST",
         "/api/kody/terminal/session",
         {
-          app: status.app,
-          machineId: status.machineId,
+          target: "brain",
           chatSessionId,
           resetSession,
           cols: 120,
@@ -333,8 +364,7 @@ async function verifyTerminalStatus(status) {
     "POST",
     "/api/kody/terminal/status",
     {
-      app: status.app,
-      machineId: status.machineId,
+      target: "brain",
       chatSessionId,
     },
     { timeoutMs: 60_000 },
@@ -641,15 +671,21 @@ async function destroyBrain() {
   await sleep(5_000);
 }
 
-async function provisionBrainFromSavedImage() {
-  step("Recreating Brain", "provision should use the saved GHCR image");
-  await api("POST", "/api/kody/brain/provision", {}, { timeoutMs: 240_000 });
+async function applyBrainImage(imageRef) {
+  step("Applying Brain image", imageRef);
+  await api(
+    "POST",
+    "/api/kody/brain/image/apply",
+    { imageRef },
+    { timeoutMs: 15 * 60_000 },
+  );
   const status = await waitForBrain(
     (next) => next.app && next.machineId && next.state === "running",
-    "restored Brain to be running",
+    "applied Brain to be running",
     15 * 60_000,
   );
-  step("Brain recreated", `${status.app}/${status.machineId}`);
+  await verifyBrainRuntimeSelection();
+  step("Brain image applied", `${status.app}/${status.machineId}`);
   return status;
 }
 

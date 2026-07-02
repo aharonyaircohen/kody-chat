@@ -26,6 +26,14 @@ const PROVISION_SOURCES = [
   "../../app/api/kody/brain/login/route.ts",
   "../../app/api/kody/chat/brain-fly/route.ts",
 ].map((file) => readFileSync(resolve(__dirname, file), "utf8"));
+const APPLY_ROUTE_SOURCE = readFileSync(
+  resolve(__dirname, "../../app/api/kody/brain/image/apply/route.ts"),
+  "utf8",
+);
+const APPLY_SERVICE_SOURCE = readFileSync(
+  resolve(__dirname, "../../src/dashboard/lib/brain/image-apply.ts"),
+  "utf8",
+);
 
 describe("Brain image save route", () => {
   it("exports Brain state through the terminal bridge and records a GHCR image ref", () => {
@@ -69,15 +77,26 @@ describe("Brain image save route", () => {
     expect(BRIDGE_SOURCE).toContain("REQUEST_TIMEOUT_MS = 90_000");
   });
 
-  it("reuses the saved image ref through the restore hook on all Brain provision paths", () => {
+  it("keeps image apply explicit and out of normal Brain provision paths", () => {
     for (const source of PROVISION_SOURCES) {
       expect(source).toContain("resolveBrainTarget");
-      expect(source).toContain("readBrainImage");
-      expect(source).toContain("imageRef: image.imageRef");
-      expect(source).toContain("prepareBrainRuntimeImage");
-      expect(source).toContain("resolveRuntimeImageRef");
-      expect(source).toContain("prepareRuntimeImage");
-      expect(source).toContain("orgSlug: target.orgSlug");
+      expect(source).not.toContain("readBrainImage");
+      expect(source).not.toContain("prepareBrainRuntimeImage");
+      expect(source).not.toContain("resolveRuntimeImageRef");
+      expect(source).not.toContain("prepareRuntimeImage");
     }
+    expect(APPLY_ROUTE_SOURCE).toContain("applySelectedBrainImage");
+    expect(APPLY_ROUTE_SOURCE).toContain("const body =");
+    expect(APPLY_ROUTE_SOURCE).toContain("imageRef: body.imageRef");
+    expect(APPLY_SERVICE_SOURCE).toContain("readBrainImage");
+    expect(APPLY_SERVICE_SOURCE).toContain(
+      "const imageRef = input.imageRef ?? image.imageRef",
+    );
+    expect(APPLY_SERVICE_SOURCE).toContain("imageRef,");
+    expect(APPLY_SERVICE_SOURCE).toContain("prepareBrainRuntimeImage");
+    expect(APPLY_SERVICE_SOURCE).toContain("resolveRuntimeImageRef");
+    expect(APPLY_SERVICE_SOURCE).toContain("beginBrainRuntimeApply");
+    expect(APPLY_SERVICE_SOURCE).toContain("completeBrainRuntimeApply");
+    expect(APPLY_SERVICE_SOURCE).not.toContain("markBrainImageRunning");
   });
 });

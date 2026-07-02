@@ -67,4 +67,14 @@ describe("ChatTerminalSurface timeout guard", () => {
     expect(SOURCE).toContain("onChromeStateChange");
     expect(SOURCE).toContain('flyConnectionStateRef.current === "connected"');
   });
+
+  it("waits for bridge input acknowledgement before reporting input sent", () => {
+    expect(SOURCE).toContain("nextFlyInputIdRef");
+    expect(SOURCE).toContain("pendingFlyInputAckTimerRef");
+    expect(SOURCE).toContain('type: "input"');
+    expect(SOURCE).toContain("id: inputId");
+    expect(SOURCE).toContain('message.type === "input-accepted"');
+    expect(SOURCE).toContain('message.type === "input-rejected"');
+    expect(SOURCE).toContain("Terminal input was not accepted");
+  });
 });
