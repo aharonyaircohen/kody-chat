@@ -116,7 +116,13 @@ export async function GET(req: NextRequest) {
 
   const headerAuth = getRequestAuth(req);
   if (headerAuth) {
-    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
+    setGitHubContext(
+      headerAuth.owner,
+      headerAuth.repo,
+      headerAuth.token,
+      headerAuth.storeRepoUrl,
+      headerAuth.storeRef,
+    );
   }
 
   try {
@@ -170,7 +176,13 @@ export async function POST(req: NextRequest) {
 
   const headerAuth = getRequestAuth(req);
   if (headerAuth) {
-    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
+    setGitHubContext(
+      headerAuth.owner,
+      headerAuth.repo,
+      headerAuth.token,
+      headerAuth.storeRepoUrl,
+      headerAuth.storeRef,
+    );
   }
 
   try {

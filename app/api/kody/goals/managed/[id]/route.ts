@@ -209,7 +209,13 @@ async function getContext(req: NextRequest) {
 
   const headerAuth = getRequestAuth(req);
   if (headerAuth) {
-    setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
+    setGitHubContext(
+      headerAuth.owner,
+      headerAuth.repo,
+      headerAuth.token,
+      headerAuth.storeRepoUrl,
+      headerAuth.storeRef,
+    );
   }
   if (!headerAuth) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });

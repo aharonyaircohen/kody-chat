@@ -17,6 +17,7 @@ const h = vi.hoisted(() => ({
   getEngineConfig: vi.fn(),
   writeConfigPatch: vi.fn(),
   getUserOctokit: vi.fn(),
+  setGitHubContext: vi.fn(),
 }));
 
 vi.mock("@dashboard/lib/auth", () => ({
@@ -27,11 +28,13 @@ vi.mock("@dashboard/lib/auth", () => ({
     owner: "test-owner",
     repo: "test-repo",
     token: "ghp_test-token",
+    storeRepoUrl: "https://github.com/acme/store",
+    storeRef: "stable",
   })),
 }));
 
 vi.mock("@dashboard/lib/github-client", () => ({
-  setGitHubContext: vi.fn(),
+  setGitHubContext: h.setGitHubContext,
   clearGitHubContext: vi.fn(),
 }));
 
@@ -114,6 +117,27 @@ afterEach(() => {
 });
 
 describe("PATCH /api/kody/goals/managed/[id]", () => {
+  it("passes Store context while updating managed goals", async () => {
+    h.getUserOctokit.mockResolvedValue({ rest: {} });
+    h.readManagedGoalFile.mockResolvedValue({
+      state: localGoalState(),
+      sha: "goal-sha",
+      path: "todos/codebase-health.json",
+    });
+    h.writeManagedGoalFile.mockResolvedValue(undefined);
+
+    const res = await PATCH(patchRequest({ state: "paused" }), params());
+
+    expect(res.status).toBe(200);
+    expect(h.setGitHubContext).toHaveBeenCalledWith(
+      "test-owner",
+      "test-repo",
+      "ghp_test-token",
+      "https://github.com/acme/store",
+      "stable",
+    );
+  });
+
   it("preserves standalone capabilities when route is not edited", async () => {
     h.getUserOctokit.mockResolvedValue({ rest: {} });
     h.readManagedGoalFile.mockResolvedValue({

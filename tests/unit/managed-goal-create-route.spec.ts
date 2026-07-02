@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
     machineId: "m-goal",
     ref: "main",
   })),
+  setGitHubContext: vi.fn(),
 }));
 
 vi.mock("@dashboard/lib/auth", () => ({
@@ -27,11 +28,13 @@ vi.mock("@dashboard/lib/auth", () => ({
     owner: "test-owner",
     repo: "test-repo",
     token: "ghp_test-token",
+    storeRepoUrl: "https://github.com/acme/store",
+    storeRef: "stable",
   })),
 }));
 
 vi.mock("@dashboard/lib/github-client", () => ({
-  setGitHubContext: vi.fn(),
+  setGitHubContext: h.setGitHubContext,
   clearGitHubContext: vi.fn(),
 }));
 
@@ -220,6 +223,26 @@ describe("POST /api/kody/goals/managed", () => {
 });
 
 describe("GET /api/kody/goals/managed", () => {
+  it("passes Store context while listing managed goals", async () => {
+    h.getUserOctokit.mockResolvedValue({ rest: {} });
+    h.listManagedGoalFiles.mockResolvedValue([]);
+    h.getEngineConfig.mockResolvedValue({
+      config: { company: { activeGoals: [] } },
+      sha: null,
+    });
+
+    const res = await GET(listRequest());
+
+    expect(res.status).toBe(200);
+    expect(h.setGitHubContext).toHaveBeenCalledWith(
+      "test-owner",
+      "test-repo",
+      "ghp_test-token",
+      "https://github.com/acme/store",
+      "stable",
+    );
+  });
+
   it("lists active Store goals from config without listing entire Store", async () => {
     h.getUserOctokit.mockResolvedValue({ rest: {} });
     h.listManagedGoalFiles.mockResolvedValue([]);
