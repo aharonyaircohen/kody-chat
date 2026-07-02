@@ -3,36 +3,55 @@
  * @domain kody
  * @pattern dashboard-deep-link
  * @ai-summary Maps a GitHub issue/PR `html_url` to the equivalent in-app
- *   dashboard task route (`/<number>`) so push notifications open inside
+ *   dashboard task route (`/repo/:owner/:repo/:number` when the repo is known,
+ *   otherwise legacy `/<number>`) so notifications and chat links open inside
  *   Kody instead of github.com.
  *
- *   Dashboard targets are returned as ROOT-RELATIVE paths (`/123`,
- *   `/messages?...`). They end up in a web-push payload and are resolved
- *   by the service worker against its own registration origin — i.e. the
+ *   Dashboard targets are returned as ROOT-RELATIVE paths
+ *   (`/repo/owner/repo/123`, `/messages?...`). They end up in a web-push
+ *   payload and are resolved by the service worker against its own registration
+ *   origin — i.e. the
  *   actually-deployed domain — so this works on every deployment with no
  *   `NEXT_PUBLIC_SERVER_URL` config. Cross-origin github.com URLs (with
  *   no clean dashboard mapping) are still returned absolute, unchanged.
  *
- *   Issues and PRs share the dashboard task page (`app/[issueNumber]/
- *   page.tsx`) because GitHub uses a shared number pool for both — the
- *   page renders whichever artifact owns that number. Discussion and
- *   commit URLs have no equivalent dashboard route, so their GitHub URL
- *   is returned unchanged (callers fall back to github.com, preserving
- *   anchors there).
+ *   Issues and PRs share the dashboard task page because GitHub uses a shared
+ *   number pool for both — the page renders whichever artifact owns that
+ *   number. Discussion and commit URLs have no equivalent dashboard route, so
+ *   their GitHub URL is returned unchanged (callers fall back to github.com,
+ *   preserving anchors there).
  */
 import "server-only";
 
-// Matches the issue/PR number in a GitHub html_url. Covers:
+import { routes, type RepoRef } from "./routes";
+
+// Matches a GitHub issue/PR html_url. Covers:
 //   https://github.com/owner/repo/issues/123
 //   https://github.com/owner/repo/issues/123#issuecomment-456
 //   https://github.com/owner/repo/pull/123
 //   https://github.com/owner/repo/pull/123#issuecomment-456
 //   https://github.com/owner/repo/pull/123#discussion_r789
 //   https://github.com/owner/repo/pull/123#pullrequestreview-789
-const TASK_PATH_RE = /\/(?:issues|pull)\/(\d+)(?:[#?/].*)?$/;
+const TASK_URL_RE =
+  /^https:\/\/github\.com\/([^/]+)\/([^/]+)\/(?:issues|pull)\/(\d+)(?:[#?/].*)?$/;
+
+type DashboardTaskRepo = RepoRef | string | null | undefined;
+
+function normalizeRepoRef(repo: DashboardTaskRepo): RepoRef | null {
+  if (!repo) return null;
+  if (typeof repo !== "string") return repo;
+  const [owner, repoName, extra] = repo.split("/");
+  if (!owner || !repoName || extra) return null;
+  return { owner, repo: repoName };
+}
 
 /** Root-relative dashboard task page for an issue or PR number. */
-export function dashboardTaskUrl(threadNumber: number): string {
+export function dashboardTaskUrl(
+  threadNumber: number,
+  repo?: DashboardTaskRepo,
+): string {
+  const repoRef = normalizeRepoRef(repo);
+  if (repoRef) return routes.repoTask(repoRef, threadNumber);
   return `/${threadNumber}`;
 }
 
@@ -93,10 +112,10 @@ export function dashboardThreadUrl(opts: {
     return githubUrl;
   }
 
-  const m = githubUrl.match(TASK_PATH_RE);
+  const m = githubUrl.match(TASK_URL_RE);
   if (!m) return githubUrl;
 
-  return dashboardTaskUrl(Number(m[1]));
+  return dashboardTaskUrl(Number(m[3]), { owner: m[1], repo: m[2] });
 }
 
 /**

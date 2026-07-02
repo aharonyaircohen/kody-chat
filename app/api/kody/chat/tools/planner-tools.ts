@@ -108,7 +108,7 @@ export function createPlannerTools(ctx: Ctx) {
           return {
             number: data.number,
             title: data.title,
-            url: dashboardTaskUrl(data.number),
+            url: dashboardTaskUrl(data.number, { owner, repo }),
             labels,
             assignees: data.assignees
               ?.map((a) => a?.login)

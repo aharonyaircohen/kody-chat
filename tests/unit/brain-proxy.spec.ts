@@ -63,6 +63,19 @@ describe("formatTaskContext", () => {
       },
     })!;
     expect(out).toContain("PR: #9 (open) — /9");
+    expect(
+      formatTaskContext(
+        {
+          issueNumber: 1,
+          associatedPR: {
+            number: 9,
+            state: "open",
+            html_url: "https://github.com/x/y/pull/9",
+          },
+        },
+        "x/y",
+      ),
+    ).toContain("PR: #9 (open) — /repo/x/y/9");
   });
 });
 

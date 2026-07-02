@@ -133,7 +133,7 @@ async function dispatchOnPr(
 
     return {
       number: prNumber,
-      url: dashboardTaskUrl(prNumber),
+      url: dashboardTaskUrl(prNumber, { owner, repo }),
       command: `@kody ${capabilityAction.action}`,
       triggered: true,
       note: `Posted \`@kody ${capabilityAction.action}\` on PR #${prNumber}. Engine should pick it up shortly.`,
@@ -194,7 +194,7 @@ async function dispatchOnIssue(
 
     return {
       number: issueNumber,
-      url: dashboardTaskUrl(issueNumber),
+      url: dashboardTaskUrl(issueNumber, { owner, repo }),
       command: header,
       triggered: true,
       note: `Posted \`${header}\` on issue #${issueNumber}. The engine will pick it up shortly and start executing — clone, edit, commit, open PR.`,

@@ -334,7 +334,7 @@ Pick honestly. The default lean is "no action" unless the report contains a conc
     }
     if (task.associatedPR?.number) {
       lines.push(
-        `- Associated PR: #${task.associatedPR.number} (${task.associatedPR.state ?? "?"}) ${dashboardTaskUrl(task.associatedPR.number)}`.trim(),
+        `- Associated PR: #${task.associatedPR.number} (${task.associatedPR.state ?? "?"}) ${dashboardTaskUrl(task.associatedPR.number, repo)}`.trim(),
       );
     }
     if (task.body) {

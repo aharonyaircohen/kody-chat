@@ -88,7 +88,7 @@ export function createGitHubTools(ctx: Ctx) {
               createdAt: c.created_at,
               body: clip(c.body, 2_000),
             })),
-            url: dashboardTaskUrl(issue.data.number),
+            url: dashboardTaskUrl(issue.data.number, { owner, repo }),
           };
         } catch (err) {
           logger.warn({ err, owner, repo, number }, "github_get_issue failed");
@@ -187,7 +187,7 @@ export function createGitHubTools(ctx: Ctx) {
             body: clip(pr.data.body, MAX_BODY_CHARS),
             changedFiles,
             ...(includeDiff ? { diffTruncated: patchTruncated } : {}),
-            url: dashboardTaskUrl(pr.data.number),
+            url: dashboardTaskUrl(pr.data.number, { owner, repo }),
           };
         } catch (err) {
           logger.warn(
@@ -648,7 +648,7 @@ export function createGitHubTools(ctx: Ctx) {
                 typeof l === "string" ? l : (l.name ?? ""),
               ),
               updatedAt: i.updated_at,
-              url: dashboardTaskUrl(i.number),
+              url: dashboardTaskUrl(i.number, { owner, repo }),
             })),
           };
         } catch (err) {
@@ -687,7 +687,7 @@ export function createGitHubTools(ctx: Ctx) {
             ok: true,
             id: res.data.id,
             number,
-            url: dashboardTaskUrl(number),
+            url: dashboardTaskUrl(number, { owner, repo }),
             createdAt: res.data.created_at,
           };
         } catch (err) {
@@ -749,7 +749,7 @@ export function createGitHubTools(ctx: Ctx) {
               ok: true,
               alreadyClosed: true,
               number,
-              url: dashboardTaskUrl(number),
+              url: dashboardTaskUrl(number, { owner, repo }),
             };
           }
 
@@ -777,7 +777,7 @@ export function createGitHubTools(ctx: Ctx) {
             number: res.data.number,
             state: res.data.state,
             stateReason: res.data.state_reason ?? reason,
-            url: dashboardTaskUrl(res.data.number),
+            url: dashboardTaskUrl(res.data.number, { owner, repo }),
             commented: !!(comment && comment.trim().length > 0),
           };
         } catch (err) {
@@ -961,7 +961,7 @@ export function createGitHubTools(ctx: Ctx) {
               post.data.head.sha,
             strategy,
             branchDeleted,
-            url: dashboardTaskUrl(prNumber),
+            url: dashboardTaskUrl(prNumber, { owner, repo }),
           };
         } catch (err) {
           logger.warn({ err, owner, repo, prNumber }, "merge_pr failed");

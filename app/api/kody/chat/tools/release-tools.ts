@@ -133,7 +133,7 @@ export function createReleaseTools(ctx: Ctx) {
             return {
               number: issue.number,
               title: issue.title,
-              url: dashboardTaskUrl(issue.number),
+              url: dashboardTaskUrl(issue.number, { owner, repo }),
               command,
               triggered: false,
               note:
@@ -149,7 +149,7 @@ export function createReleaseTools(ctx: Ctx) {
           return {
             number: issue.number,
             title: issue.title,
-            url: dashboardTaskUrl(issue.number),
+            url: dashboardTaskUrl(issue.number, { owner, repo }),
             command,
             triggered: true,
             note: `Release triggered via \`${command}\` on issue #${issue.number}.`,

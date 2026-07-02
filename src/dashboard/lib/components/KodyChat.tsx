@@ -5899,10 +5899,10 @@ export function KodyChat({
                       }, 120);
                     }}
                     placeholder={placeholder}
-                    rows={7}
+                    rows={5}
                     disabled={composerDisabled}
                     textareaRef={composerTextareaRef}
-                    textareaClassName="min-h-[136px] max-h-[36vh]"
+                    textareaClassName="min-h-[104px] max-h-[36vh]"
                     className="min-w-0"
                   />
                 ) : (

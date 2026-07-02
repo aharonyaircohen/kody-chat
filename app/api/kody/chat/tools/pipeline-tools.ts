@@ -109,7 +109,7 @@ export function createPipelineTools(ctx: Ctx) {
               labels: pr.labels ?? [],
               ciStatus: pr.ciStatus ?? null,
               mergeable: pr.mergeable ?? null,
-              url: dashboardTaskUrl(pr.number),
+              url: dashboardTaskUrl(pr.number, { owner, repo }),
             })),
           };
         } catch (err) {

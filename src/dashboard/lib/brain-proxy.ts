@@ -168,6 +168,7 @@ interface BrainEvent {
 
 export function formatTaskContext(
   tc: BrainTaskContext | undefined,
+  repo?: string,
 ): string | null {
   if (!tc || !tc.issueNumber) return null;
   const parts: string[] = [];
@@ -185,7 +186,7 @@ export function formatTaskContext(
   if (tc.associatedPR?.number) {
     const state = tc.associatedPR.state ? ` (${tc.associatedPR.state})` : "";
     parts.push(
-      `- PR: #${tc.associatedPR.number}${state} — ${dashboardTaskUrl(tc.associatedPR.number)}`,
+      `- PR: #${tc.associatedPR.number}${state} — ${dashboardTaskUrl(tc.associatedPR.number, repo)}`,
     );
   }
   if (tc.body) {
@@ -237,7 +238,7 @@ export function buildDecoratedMessage(
   const repoPreamble = repo
     ? `[Repository]\nThis is Repo Brain for ${repo}. The selected repository is the only repository in scope for this chat. Inspect and answer from this repo's code/issues/PRs and refer to it by name. Do not offer, claim, or imply access to other repositories from this chat. If the user asks about another repository, say this chat is scoped to ${repo} and ask them to switch the selected repo or use an org/personal brain.\n\nBefore making any code change or fix, first explain what you intend to change and why, then STOP and wait for the user to explicitly approve. Do NOT edit, commit, or push in the same turn as the explanation — the approval ask must be the last thing you do that turn. Only after the user says go: make the change, commit with a clear conventional-commit message, and push to the working branch as the final step — don't leave approved changes uncommitted.`
     : null;
-  const taskPreamble = formatTaskContext(opts.taskContext);
+  const taskPreamble = formatTaskContext(opts.taskContext, repo);
   const capabilityPreamble = formatCapabilityContext(opts.capabilityContext);
   // Style overlay goes LAST so its output rules win by recency over the
   // repo/task/capability context blocks above it.
