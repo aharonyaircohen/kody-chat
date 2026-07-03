@@ -52,4 +52,14 @@ describe("BrainImagesManager", () => {
     expect(SOURCE).toContain("disabled={running || busy}");
     expect(SOURCE).not.toContain("disabled={!selected || running || busy}");
   });
+
+  it("shows selected, running, and saved image state separately", () => {
+    expect(SOURCE).toContain("Selected image controls what Apply will run");
+    expect(SOURCE).toContain("Running image is");
+    expect(SOURCE).toContain("Latest save");
+    expect(SOURCE).toContain("Selected image");
+    expect(SOURCE).toContain("Running image");
+    expect(SOURCE).toContain("Saved {formatDate(image.updatedAt)}");
+    expect(SOURCE).toContain("`Applied ${formatDate(runningAt)}`");
+  });
 });

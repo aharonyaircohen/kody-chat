@@ -64,6 +64,10 @@ function packageName(imageRef: string): string {
   return withoutTag.split("/").slice(-1)[0] ?? imageRef;
 }
 
+function imageLabel(imageRef: string): string {
+  return `${packageName(imageRef)}:${imageTag(imageRef)}`;
+}
+
 function formatDate(value: string): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -129,6 +133,14 @@ export function BrainImagesManager() {
   const pendingForgetImage = useMemo(
     () => images.find((image) => image.imageRef === pendingForgetRef) ?? null,
     [images, pendingForgetRef],
+  );
+  const selectedImage = useMemo(
+    () => images.find((image) => image.imageRef === activeImageRef) ?? null,
+    [activeImageRef, images],
+  );
+  const runningImage = useMemo(
+    () => images.find((image) => image.imageRef === runningImageRef) ?? null,
+    [images, runningImageRef],
   );
 
   useEffect(() => {
@@ -216,49 +228,101 @@ export function BrainImagesManager() {
     >
       <div className="space-y-4">
         <Card className="border-white/[0.08] bg-white/[0.03]">
-          <CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <div className="text-sm font-semibold text-white">
-                Saved images
+          <CardContent className="flex flex-col gap-4 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-white">
+                  Saved images
+                </div>
+                <div className="mt-1 text-xs text-white/50">
+                  Selected image controls what Apply will run. Running image is
+                  what the terminal is using now.
+                </div>
               </div>
-              <div className="mt-1 truncate text-xs text-white/50">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void loadImages()}
+                disabled={loading}
+                className="gap-2 sm:self-start"
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Refresh
+              </Button>
+            </div>
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="min-w-0 rounded-md border border-white/[0.08] bg-black/20 p-3">
+                <div className="text-[11px] font-semibold uppercase text-white/45">
+                  Selected
+                </div>
+                <div className="mt-1 truncate font-mono text-xs text-white">
+                  {activeImageRef ? imageLabel(activeImageRef) : "None"}
+                </div>
+                <div className="mt-1 text-xs text-white/45">
+                  {selectedImage
+                    ? `Saved ${formatDate(selectedImage.updatedAt)}`
+                    : "No image chosen"}
+                </div>
+              </div>
+              <div className="min-w-0 rounded-md border border-emerald-400/20 bg-emerald-400/[0.06] p-3">
+                <div className="text-[11px] font-semibold uppercase text-emerald-200/70">
+                  Running
+                </div>
+                <div className="mt-1 truncate font-mono text-xs text-white">
+                  {runningImageRef ? imageLabel(runningImageRef) : "None"}
+                </div>
+                <div className="mt-1 text-xs text-white/45">
+                  {runningAt
+                    ? `Applied ${formatDate(runningAt)}`
+                    : runningImage
+                      ? `Saved ${formatDate(runningImage.updatedAt)}`
+                      : "Terminal has no applied image"}
+                </div>
+              </div>
+              <div className="min-w-0 rounded-md border border-white/[0.08] bg-black/20 p-3">
+                <div className="text-[11px] font-semibold uppercase text-white/45">
+                  Saved
+                </div>
+                <div className="mt-1 truncate font-mono text-xs text-white">
+                  {images[0] ? imageLabel(images[0].imageRef) : "None"}
+                </div>
+                <div className="mt-1 text-xs text-white/45">
+                  {images[0]
+                    ? `Latest save ${formatDate(images[0].updatedAt)}`
+                    : "No saved images yet"}
+                </div>
+              </div>
+            </div>
+            {save?.status === "running" && (
+              <div className="rounded-md border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-200">
+                Save running: {imageTag(save.imageRef)}
+              </div>
+            )}
+            {save?.status === "failed" && (
+              <div className="rounded-md border border-rose-400/20 bg-rose-400/[0.06] px-3 py-2 text-xs text-rose-200">
+                Last save failed: {save.error ?? save.jobId}
+              </div>
+            )}
+            <div className="sr-only">
+              <div className="text-sm font-semibold text-white">
+                Brain image state summary
+              </div>
+              <div>
                 {activeImageRef
-                  ? `Selected: ${packageName(activeImageRef)}:${imageTag(activeImageRef)}`
+                  ? `Selected image ${imageLabel(activeImageRef)}`
                   : "No Brain image selected"}
               </div>
-              <div className="mt-1 truncate text-xs text-white/50">
+              <div>
                 {runningImageRef
-                  ? `Running: ${packageName(runningImageRef)}:${imageTag(runningImageRef)}${
-                      runningAt ? ` since ${formatDate(runningAt)}` : ""
-                    }`
+                  ? `Running image ${imageLabel(runningImageRef)}`
                   : "No saved Brain image is marked as running"}
               </div>
-              {save?.status === "running" && (
-                <div className="mt-1 text-xs text-amber-300">
-                  Save running: {imageTag(save.imageRef)}
-                </div>
-              )}
-              {save?.status === "failed" && (
-                <div className="mt-1 text-xs text-rose-300">
-                  Last save failed: {save.error ?? save.jobId}
-                </div>
-              )}
             </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void loadImages()}
-              disabled={loading}
-              className="gap-2"
-            >
-              {loading ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              Refresh
-            </Button>
           </CardContent>
         </Card>
 
@@ -293,14 +357,27 @@ export function BrainImagesManager() {
                         <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />
                       )}
                       <span className="truncate font-mono text-sm text-white">
-                        {packageName(image.imageRef)}:{imageTag(image.imageRef)}
+                        {imageLabel(image.imageRef)}
                       </span>
+                      {selected && (
+                        <span className="shrink-0 rounded border border-sky-300/20 bg-sky-300/10 px-1.5 py-0.5 text-[11px] font-medium text-sky-200">
+                          Selected
+                        </span>
+                      )}
+                      {running && (
+                        <span className="shrink-0 rounded border border-emerald-300/20 bg-emerald-300/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-200">
+                          Running
+                        </span>
+                      )}
                     </div>
                     <div className="truncate font-mono text-xs text-white/35">
                       {image.imageRef}
                     </div>
                     <div className="text-xs text-white/45">
-                      Created {formatDate(image.createdAt)}
+                      Saved {formatDate(image.updatedAt)}
+                      {image.updatedAt !== image.createdAt
+                        ? ` · Created ${formatDate(image.createdAt)}`
+                        : ""}
                     </div>
                   </div>
                   <div className="flex items-center gap-1 sm:justify-end">
@@ -370,7 +447,7 @@ export function BrainImagesManager() {
         title="Forget Brain image?"
         description={
           pendingForgetImage
-            ? `Remove ${packageName(pendingForgetImage.imageRef)}:${imageTag(
+            ? `Remove ${imageLabel(
                 pendingForgetImage.imageRef,
               )} from this list. This does not delete the GHCR package image.`
             : "Remove this Brain image from this list. This does not delete the GHCR package image."
