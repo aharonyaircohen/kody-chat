@@ -93,18 +93,16 @@ describe("settings navigation", () => {
     );
   });
 
-  it("keeps Dashboard fixed and Attention in the primary side-panel views", () => {
+  it("keeps Dashboard as the only attention-style home entry", () => {
     expect(navLabelForPath("/")).toBe("Dashboard");
-    expect(navLabelForPath("/attention")).toBe("Attention");
+    expect(navLabelForPath("/attention")).toBeNull();
     expect(sectionHrefs(ENGINEER_MODE_SECTIONS, PRIMARY_VIEW_TITLE)).toEqual([
-      "/attention",
       "/tasks",
       "/vibe",
       "/preview",
     ]);
     expect(sectionHrefs(MOBILE_NAV_SECTIONS, PRIMARY_VIEW_TITLE)).toEqual([
       "/",
-      "/attention",
       "/tasks",
       "/vibe",
       "/preview",

@@ -92,17 +92,6 @@ export const DASHBOARD_NAV_ITEM: SettingsNavItem = {
   tint: "text-emerald-300 bg-emerald-500/10",
 };
 
-/** Attention — the operations overview at `/attention`. Rendered in the nav's "Views"
- *  group; `/` no longer redirects, it lands here. */
-export const ATTENTION_NAV_ITEM: SettingsNavItem = {
-  href: "/attention",
-  label: "Attention",
-  icon: Activity,
-  exact: true,
-  description: "What needs attention, what is running, and what finished.",
-  tint: "text-amber-300 bg-amber-500/10",
-};
-
 /** Vibe — chat-driven preview. Now a first-class nav entry (it used to be a
  *  header on/off toggle). */
 export const VIBE_NAV_ITEM: SettingsNavItem = {
@@ -456,7 +445,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
 const ALL_NAV_ITEMS: readonly SettingsNavItem[] = [
   HOME_NAV_ITEM,
   DASHBOARD_NAV_ITEM,
-  ATTENTION_NAV_ITEM,
   TASKS_NAV_ITEM,
   VIBE_NAV_ITEM,
   PREVIEW_NAV_ITEM,
@@ -483,7 +471,7 @@ function settingsSection(title: string): SettingsNavSection {
 export const VIBE_MODE_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: PRIMARY_VIEW_TITLE,
-    items: [ATTENTION_NAV_ITEM, VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
+    items: [VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
   },
   {
     title: PRIMARY_NAV_TITLE,
@@ -509,12 +497,7 @@ export const VIBE_MODE_SECTIONS: readonly SettingsNavSection[] = [
 export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: PRIMARY_VIEW_TITLE,
-    items: [
-      ATTENTION_NAV_ITEM,
-      TASKS_NAV_ITEM,
-      VIBE_NAV_ITEM,
-      PREVIEW_NAV_ITEM,
-    ],
+    items: [TASKS_NAV_ITEM, VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
   },
   settingsSection("AI Agency"),
   {
@@ -541,13 +524,7 @@ export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
 export const MOBILE_NAV_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: PRIMARY_VIEW_TITLE,
-    items: [
-      DASHBOARD_NAV_ITEM,
-      ATTENTION_NAV_ITEM,
-      TASKS_NAV_ITEM,
-      VIBE_NAV_ITEM,
-      PREVIEW_NAV_ITEM,
-    ],
+    items: [DASHBOARD_NAV_ITEM, TASKS_NAV_ITEM, VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
   },
   ...ENGINEER_MODE_SECTIONS.filter(
     (section) => section.title !== PRIMARY_VIEW_TITLE,

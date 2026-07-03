@@ -58,7 +58,7 @@ export function TriageStrip() {
           Triage
         </h2>
         <span className="text-[11px] text-muted-foreground tabular-nums">
-          {items.length} need attention · dismiss lasts 4h
+          {items.length} need attention
         </span>
       </div>
       <Card className="overflow-hidden">
