@@ -19,8 +19,16 @@ import { listStoreCapabilityFiles } from "@dashboard/lib/capabilities";
 import { listStoreAgentFiles } from "@dashboard/lib/agent-files";
 import { listStoreCommandFiles } from "@dashboard/lib/commands/files";
 import { listCompanyStoreGoalTemplateFiles } from "@dashboard/lib/managed-goals-files";
-import { managedGoalModel } from "@dashboard/lib/managed-goals";
+import {
+  managedGoalModel,
+  type ManagedGoalRecord,
+  type ManagedGoalState,
+} from "@dashboard/lib/managed-goals";
 import { listCompanyStoreWorkflowDefinitionFiles } from "@dashboard/lib/workflow-definition-files";
+import {
+  getEngineConfig,
+  type ActiveGoalConfigEntry,
+} from "@dashboard/lib/engine/config";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -33,6 +41,12 @@ type CatalogKind =
   | "capability"
   | "command";
 
+interface CatalogReferenceBlocker {
+  kind: CatalogKind;
+  slug: string;
+  title?: string;
+}
+
 interface CatalogItem {
   slug: string;
   title: string;
@@ -44,6 +58,99 @@ interface CatalogItem {
   action?: string | null;
   agent?: string | null;
   schedule?: string | null;
+  installed?: boolean;
+  uninstallBlockedBy?: CatalogReferenceBlocker[];
+}
+
+type ActiveCatalogConfig = {
+  agents: Set<string>;
+  capabilities: Set<string>;
+  commands: Set<string>;
+  goals: Set<string>;
+  workflows: Set<string>;
+};
+
+function activeGoalSlug(entry: ActiveGoalConfigEntry): string {
+  return typeof entry === "string" ? entry : entry.template;
+}
+
+function isCatalogItemInstalled(
+  item: CatalogItem,
+  active: ActiveCatalogConfig,
+): boolean {
+  if (item.kind === "agent") return active.agents.has(item.slug);
+  if (item.kind === "capability") return active.capabilities.has(item.slug);
+  if (item.kind === "command") return active.commands.has(item.slug);
+  if (item.kind === "workflow") return active.workflows.has(item.slug);
+  return active.goals.has(item.slug);
+}
+
+function goalCapabilitySlugs(state: ManagedGoalState): string[] {
+  const compatibility = state as ManagedGoalState & {
+    capabilities?: unknown;
+  };
+  if (Array.isArray(compatibility.capabilities)) {
+    return compatibility.capabilities.filter(
+      (capability): capability is string => typeof capability === "string",
+    );
+  }
+  return [];
+}
+
+function catalogRemovalBlockers(
+  item: CatalogItem,
+  context: {
+    active: ActiveCatalogConfig;
+    capabilities: CatalogItem[];
+    goalTemplates: ManagedGoalRecord[];
+    storeWorkflows: Array<{
+      id: string;
+      workflow: { name?: string; capabilities: string[] };
+    }>;
+  },
+): CatalogReferenceBlocker[] {
+  if (item.kind === "agent") {
+    return context.capabilities
+      .filter(
+        (capability) =>
+          context.active.capabilities.has(capability.slug) &&
+          capability.agent === item.slug,
+      )
+      .map((capability) => ({
+        kind: "capability",
+        slug: capability.slug,
+        title: capability.title || capability.slug,
+      }));
+  }
+
+  if (item.kind !== "capability") return [];
+
+  const workflowBlockers: CatalogReferenceBlocker[] =
+    context.storeWorkflows
+      .filter(
+        (workflow) =>
+          context.active.workflows.has(workflow.id) &&
+          workflow.workflow.capabilities.includes(item.slug),
+      )
+      .map((workflow) => ({
+        kind: "workflow",
+        slug: workflow.id,
+        title: workflow.workflow.name || workflow.id,
+      }));
+
+  const goalBlockers: CatalogReferenceBlocker[] = context.goalTemplates
+    .filter(
+      (goal) =>
+        context.active.goals.has(goal.id) &&
+        goalCapabilitySlugs(goal.state).includes(item.slug),
+    )
+    .map((goal) => ({
+      kind: managedGoalModel(goal),
+      slug: goal.id,
+      title: goal.state.destination?.outcome || goal.id,
+    }));
+
+  return [...workflowBlockers, ...goalBlockers];
 }
 
 function firstText(value: string | null | undefined): string {
@@ -78,16 +185,33 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     }
 
-    const [capabilities, agents, storeCommands, goalTemplates, storeWorkflows] =
-      await Promise.all([
-        listStoreCapabilityFiles(octokit),
-        listStoreAgentFiles(octokit),
-        listStoreCommandFiles(new Set(), octokit),
-        listCompanyStoreGoalTemplateFiles(octokit),
-        listCompanyStoreWorkflowDefinitionFiles(octokit),
-      ]);
+    const [
+      capabilities,
+      agents,
+      storeCommands,
+      goalTemplates,
+      storeWorkflows,
+      engineConfig,
+    ] = await Promise.all([
+      listStoreCapabilityFiles(octokit),
+      listStoreAgentFiles(octokit),
+      listStoreCommandFiles(new Set(), octokit),
+      listCompanyStoreGoalTemplateFiles(octokit),
+      listCompanyStoreWorkflowDefinitionFiles(octokit),
+      getEngineConfig(octokit, headerAuth.owner, headerAuth.repo, {
+        force: true,
+      }),
+    ]);
 
     const items: CatalogItem[] = [];
+    const config = engineConfig.config;
+    const active = {
+      agents: new Set(config.company?.activeAgents ?? []),
+      capabilities: new Set(config.company?.activeCapabilities ?? []),
+      commands: new Set(config.company?.activeCommands ?? []),
+      goals: new Set((config.company?.activeGoals ?? []).map(activeGoalSlug)),
+      workflows: new Set(config.company?.activeWorkflows ?? []),
+    };
 
     for (const item of capabilities) {
       items.push({
@@ -150,11 +274,28 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    const catalogItems = items
+      .map((item) => ({
+        ...item,
+        installed: isCatalogItemInstalled(item, active),
+        uninstallBlockedBy: isCatalogItemInstalled(item, active)
+          ? catalogRemovalBlockers(item, {
+              active,
+              capabilities: items.filter(
+                (candidate) => candidate.kind === "capability",
+              ),
+              goalTemplates,
+              storeWorkflows,
+            })
+          : [],
+      }))
+      .sort((a, b) =>
+        `${a.kind}:${a.slug}`.localeCompare(`${b.kind}:${b.slug}`),
+      );
+
     return NextResponse.json(
       {
-        items: items.sort((a, b) =>
-          `${a.kind}:${a.slug}`.localeCompare(`${b.kind}:${b.slug}`),
-        ),
+        items: catalogItems,
       },
       { headers: { "Cache-Control": "no-store" } },
     );

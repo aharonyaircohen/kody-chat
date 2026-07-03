@@ -26,6 +26,7 @@ const companyStore = vi.hoisted(() => ({
 
 const managedGoals = vi.hoisted(() => ({
   listCompanyStoreGoalTemplateFiles: vi.fn(),
+  managedGoalModel: vi.fn(),
 }));
 
 const workflowDefinitions = vi.hoisted(() => ({
@@ -64,6 +65,10 @@ vi.mock("@dashboard/lib/managed-goals-files", () => ({
     managedGoals.listCompanyStoreGoalTemplateFiles,
 }));
 
+vi.mock("@dashboard/lib/managed-goals", () => ({
+  managedGoalModel: managedGoals.managedGoalModel,
+}));
+
 vi.mock("@dashboard/lib/workflow-definition-files", () => ({
   listCompanyStoreWorkflowDefinitionFiles:
     workflowDefinitions.listCompanyStoreWorkflowDefinitionFiles,
@@ -78,11 +83,11 @@ vi.mock("@dashboard/lib/engine/config", () => ({
   writeConfigPatch: engineConfig.writeConfigPatch,
 }));
 
-import { POST } from "../../app/api/kody/store-catalog/import/route";
+import { DELETE, POST } from "../../app/api/kody/store-catalog/import/route";
 
-function req(body: unknown): NextRequest {
+function req(body: unknown, method = "POST"): NextRequest {
   return new NextRequest("http://localhost/api/kody/store-catalog/import", {
-    method: "POST",
+    method,
     body: JSON.stringify(body),
   });
 }
@@ -138,18 +143,44 @@ describe("store catalog import route", () => {
     managedGoals.listCompanyStoreGoalTemplateFiles.mockResolvedValue([
       {
         id: "weekly-quality",
-        state: { capabilities: ["release-watch"] },
+        path: "todos/weekly-quality.json",
+        state: {
+          version: 1,
+          state: "active",
+          type: "improve",
+          destination: { outcome: "Weekly Quality", evidence: [] },
+          capabilities: ["release-watch"],
+          route: [],
+          facts: {},
+          blockers: [],
+        },
       },
       {
         id: "daily-triage",
-        state: { capabilities: ["release-watch"] },
+        path: "todos/daily-triage.json",
+        state: {
+          version: 1,
+          state: "active",
+          type: "agentLoop",
+          destination: { outcome: "Daily Triage", evidence: [] },
+          capabilities: ["release-watch"],
+          route: [],
+          facts: {},
+          blockers: [],
+          scheduleMode: "agentLoop",
+        },
       },
     ]);
+    managedGoals.managedGoalModel.mockImplementation(
+      (goal: { state: { scheduleMode?: string } }) =>
+        goal.state.scheduleMode === "agentLoop" ? "agentLoop" : "agentGoal",
+    );
     workflowDefinitions.listCompanyStoreWorkflowDefinitionFiles.mockResolvedValue(
       [
         {
           id: "release-workflow",
           workflow: {
+            name: "Release Workflow",
             capabilities: ["release-watch"],
           },
         },
@@ -479,6 +510,167 @@ describe("store catalog import route", () => {
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toMatchObject({
       error: "validation_error",
+    });
+    expect(engineConfig.writeConfigPatch).not.toHaveBeenCalled();
+  });
+
+  it("removes an installed store command reference", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+    engineConfig.getEngineConfig.mockResolvedValue({
+      config: {
+        executables: { default: "run" },
+        company: {
+          activeCommands: ["factory", "ship"],
+        },
+      },
+      sha: "config-sha",
+    });
+
+    const res = await DELETE(
+      req({ kind: "command", slug: "factory" }, "DELETE"),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      kind: "command",
+      slug: "factory",
+      removed: true,
+      status: "removed",
+      path: "company.activeCommands",
+    });
+    expect(engineConfig.writeConfigPatch).toHaveBeenCalledWith(
+      octokit,
+      "acme",
+      "widgets",
+      { activeCommands: ["ship"] },
+      "chore(kody): remove store command factory",
+    );
+  });
+
+  it("removes an installed store goal reference by template object", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+    engineConfig.getEngineConfig.mockResolvedValue({
+      config: {
+        executables: { default: "run" },
+        company: {
+          activeGoals: [
+            { template: "weekly-quality", every: "1w" },
+            "daily-triage",
+          ],
+        },
+      },
+      sha: "config-sha",
+    });
+
+    const res = await DELETE(
+      req({ kind: "agentGoal", slug: "weekly-quality" }, "DELETE"),
+    );
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      kind: "agentGoal",
+      slug: "weekly-quality",
+      removed: true,
+      status: "removed",
+      path: "company.activeGoals",
+    });
+    expect(engineConfig.writeConfigPatch).toHaveBeenCalledWith(
+      octokit,
+      "acme",
+      "widgets",
+      { activeGoals: ["daily-triage"] },
+      "chore(kody): remove store agentGoal weekly-quality",
+    );
+  });
+
+  it("blocks removing an agent used by an installed capability", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+    engineConfig.getEngineConfig.mockResolvedValue({
+      config: {
+        executables: { default: "run" },
+        company: {
+          activeAgents: ["atlas-agent"],
+          activeCapabilities: ["release-watch"],
+        },
+      },
+      sha: "config-sha",
+    });
+
+    const res = await DELETE(
+      req({ kind: "agent", slug: "atlas-agent" }, "DELETE"),
+    );
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toMatchObject({
+      error: "store_reference_in_use",
+      blockers: [{ kind: "capability", slug: "release-watch" }],
+    });
+    expect(engineConfig.writeConfigPatch).not.toHaveBeenCalled();
+  });
+
+  it("blocks removing a capability used by installed workflows or goals", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+    engineConfig.getEngineConfig.mockResolvedValue({
+      config: {
+        executables: { default: "run" },
+        company: {
+          activeCapabilities: ["release-watch"],
+          activeGoals: [{ template: "weekly-quality", every: "1w" }],
+          activeWorkflows: ["release-workflow"],
+        },
+      },
+      sha: "config-sha",
+    });
+
+    const res = await DELETE(
+      req({ kind: "capability", slug: "release-watch" }, "DELETE"),
+    );
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toMatchObject({
+      error: "store_reference_in_use",
+      blockers: expect.arrayContaining([
+        {
+          kind: "workflow",
+          slug: "release-workflow",
+          title: "Release Workflow",
+        },
+        {
+          kind: "agentGoal",
+          slug: "weekly-quality",
+          title: "Weekly Quality",
+        },
+      ]),
+    });
+    expect(engineConfig.writeConfigPatch).not.toHaveBeenCalled();
+  });
+
+  it("does not rewrite config when a store reference is already missing", async () => {
+    const octokit = makeOctokit();
+    auth.getUserOctokit.mockResolvedValue(octokit);
+    engineConfig.getEngineConfig.mockResolvedValue({
+      config: {
+        executables: { default: "run" },
+        company: {
+          activeAgents: ["atlas-agent"],
+        },
+      },
+      sha: "config-sha",
+    });
+
+    const res = await DELETE(req({ kind: "agent", slug: "kody" }, "DELETE"));
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      kind: "agent",
+      slug: "kody",
+      removed: false,
+      status: "already_missing",
+      path: "company.activeAgents",
     });
     expect(engineConfig.writeConfigPatch).not.toHaveBeenCalled();
   });

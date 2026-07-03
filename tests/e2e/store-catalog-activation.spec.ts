@@ -28,6 +28,12 @@ interface CatalogItem {
   action?: string | null;
   agent?: string | null;
   schedule?: string | null;
+  installed?: boolean;
+  uninstallBlockedBy?: Array<{
+    kind: CatalogKind;
+    slug: string;
+    title?: string;
+  }>;
 }
 
 const auth = {
@@ -140,10 +146,73 @@ async function mockStoreCatalog(page: Page): Promise<unknown[]> {
   return imports;
 }
 
-async function expectNeutralCatalog(page: Page): Promise<void> {
-  await expect(
-    page.getByText(/^(Active|Not active|Customized|Available)$/),
-  ).toHaveCount(0);
+async function mockStoreCatalogWithInstallState(page: Page): Promise<
+  Array<{ method: string; kind: CatalogKind; slug: string }>
+> {
+  const requests: Array<{ method: string; kind: CatalogKind; slug: string }> =
+    [];
+  const items = catalogSeeds.map((item) => ({
+    ...item,
+    installed:
+      (item.kind === "command" && item.slug === "factory") ||
+      (item.kind === "capability" && item.slug === "release-watch"),
+    uninstallBlockedBy:
+      item.kind === "capability" && item.slug === "release-watch"
+        ? [
+            {
+              kind: "workflow" as const,
+              slug: "release-workflow",
+              title: "Release Workflow",
+            },
+          ]
+        : [],
+  }));
+
+  await page.route("**/api/kody/store-catalog", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ items }),
+    });
+  });
+
+  await page.route("**/api/kody/store-catalog/import", async (route) => {
+    const body = route.request().postDataJSON() as {
+      kind: CatalogKind;
+      slug: string;
+    };
+    const method = route.request().method();
+    requests.push({ method, ...body });
+    const item = items.find(
+      (candidate) =>
+        candidate.kind === body.kind && candidate.slug === body.slug,
+    );
+    if (item) item.installed = method !== "DELETE";
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        method === "DELETE"
+          ? {
+              kind: body.kind,
+              slug: body.slug,
+              removed: true,
+              status: "removed",
+              path: `company.active.${body.slug}`,
+            }
+          : {
+              kind: body.kind,
+              slug: body.slug,
+              imported: true,
+              status: "imported",
+              path: `company.active.${body.slug}`,
+            },
+      ),
+    });
+  });
+
+  return requests;
 }
 
 async function mockIdentity(page: Page): Promise<void> {
@@ -174,6 +243,11 @@ async function openStoreCatalog(page: Page): Promise<void> {
   ).toBeVisible({ timeout: 10_000 });
 }
 
+async function closeCatalogModal(page: Page): Promise<void> {
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+}
+
 async function addCatalogItem(
   page: Page,
   item: { kind: CatalogKind; slug: string },
@@ -185,8 +259,7 @@ async function addCatalogItem(
   const button = page.getByTestId(
     `store-catalog-import-${item.kind}-${item.slug}`,
   );
-  await expect(button).toContainText("Add from Store");
-  await expectNeutralCatalog(page);
+  await expect(button).toContainText("Install");
   await Promise.all([
     page.waitForResponse(
       (response) =>
@@ -195,8 +268,7 @@ async function addCatalogItem(
     ),
     button.click(),
   ]);
-  await expect(button).toContainText("Add from Store");
-  await expectNeutralCatalog(page);
+  await expect(button).toContainText("Install");
 }
 
 test.describe("Store Catalog add", () => {
@@ -213,9 +285,11 @@ test.describe("Store Catalog add", () => {
     await page.goto("/store-catalog/agent/atlas-agent", {
       waitUntil: "domcontentloaded",
     });
+    await expect(page.getByRole("dialog")).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Atlas Agent" }),
-    ).toBeVisible();
+      page.getByTestId("store-catalog-import-agent-atlas-agent"),
+    ).toContainText("Install");
+    await closeCatalogModal(page);
 
     const capabilitiesTab = page.getByRole("tab", { name: "Capabilities" });
     await capabilitiesTab.click();
@@ -227,6 +301,22 @@ test.describe("Store Catalog add", () => {
     await expect(
       page.getByTestId("store-catalog-row-agent-atlas-agent"),
     ).toHaveCount(0);
+  });
+
+  test("opens item details in a modal from a card", async ({ page }) => {
+    await mockStoreCatalog(page);
+    await openStoreCatalog(page);
+
+    await page.getByTestId("store-catalog-row-agent-atlas-agent").click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    await expect(
+      dialog.getByRole("heading", { name: "Atlas Agent" }),
+    ).toBeVisible();
+    await expect(
+      page.getByTestId("store-catalog-import-agent-atlas-agent"),
+    ).toContainText("Install");
   });
 
   test("shows workflow capabilities under the Workflows filter", async ({
@@ -279,5 +369,53 @@ test.describe("Store Catalog add", () => {
       { kind: "workflow", slug: "release-workflow" },
       { kind: "command", slug: "factory" },
     ]);
+  });
+
+  test("uninstalls an active store item from its detail page", async ({
+    page,
+  }) => {
+    const requests = await mockStoreCatalogWithInstallState(page);
+
+    await openStoreCatalog(page);
+    await page.goto("/store-catalog/command/factory", {
+      waitUntil: "domcontentloaded",
+    });
+
+    const button = page.getByTestId("store-catalog-import-command-factory");
+    await expect(button).toContainText("Uninstall");
+    await Promise.all([
+      page.waitForResponse(
+        (response) =>
+          response.url().includes("/api/kody/store-catalog/import") &&
+          response.request().method() === "DELETE" &&
+          response.status() === 200,
+      ),
+      button.click(),
+    ]);
+    await expect(button).toContainText("Install");
+    expect(requests).toContainEqual({
+      method: "DELETE",
+      kind: "command",
+      slug: "factory",
+    });
+  });
+
+  test("blocks uninstall when an installed item is still referenced", async ({
+    page,
+  }) => {
+    await mockStoreCatalogWithInstallState(page);
+
+    await openStoreCatalog(page);
+    await page.goto("/store-catalog/capability/release-watch", {
+      waitUntil: "domcontentloaded",
+    });
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText("Required by Release Workflow.");
+    const button = page.getByTestId(
+      "store-catalog-import-capability-release-watch",
+    );
+    await expect(button).toContainText("Uninstall");
+    await expect(button).toBeDisabled();
   });
 });

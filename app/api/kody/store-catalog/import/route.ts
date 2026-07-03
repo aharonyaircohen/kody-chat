@@ -31,7 +31,10 @@ import {
 } from "@dashboard/lib/engine/config";
 import { readResolvedCapabilityFile } from "@dashboard/lib/capabilities";
 import { listCompanyStoreGoalTemplateFiles } from "@dashboard/lib/managed-goals-files";
-import type { ManagedGoalState } from "@dashboard/lib/managed-goals";
+import {
+  managedGoalModel,
+  type ManagedGoalState,
+} from "@dashboard/lib/managed-goals";
 import { isWorkflowDefinitionId } from "@dashboard/lib/workflow-definitions";
 import { listCompanyStoreWorkflowDefinitionFiles } from "@dashboard/lib/workflow-definition-files";
 
@@ -57,6 +60,18 @@ type ImportResult = {
   imported: boolean;
   status: "imported" | "already_local";
   path: string;
+};
+
+type RemoveResult = {
+  removed: boolean;
+  status: "removed" | "already_missing";
+  path: string;
+};
+
+type StoreReferenceBlocker = {
+  kind: ImportKind;
+  slug: string;
+  title?: string;
 };
 
 type ActivationPlan = {
@@ -139,6 +154,13 @@ function hasGoal(
   return (entries ?? []).some((entry) => activeGoalSlug(entry) === slug);
 }
 
+function removeGoal(
+  entries: ActiveGoalConfigEntry[] | undefined,
+  slug: string,
+): ActiveGoalConfigEntry[] {
+  return (entries ?? []).filter((entry) => activeGoalSlug(entry) !== slug);
+}
+
 function emptyActivationPlan(): ActivationPlan {
   return {
     activeAgents: [],
@@ -162,6 +184,21 @@ function dependencyNotFound(kind: string, slug: string): Error {
   return Object.assign(
     new Error(`Store dependency "${slug}" (${kind}) was not found.`),
     { status: 404 },
+  );
+}
+
+function storeReferenceInUse(
+  kind: ImportKind,
+  slug: string,
+  blockers: StoreReferenceBlocker[],
+): Error {
+  return Object.assign(
+    new Error(
+      `Store ${kind} "${slug}" is used by ${blockers
+        .map((blocker) => blocker.title || blocker.slug)
+        .join(", ")}.`,
+    ),
+    { status: 409, blockers },
   );
 }
 
@@ -236,6 +273,97 @@ function goalCapabilitySlugs(state: ManagedGoalState): string[] {
     );
   }
   return [];
+}
+
+async function removalBlockersFor({
+  octokit,
+  config,
+  kind,
+  slug,
+}: {
+  octokit: Octokit;
+  config: {
+    company?: {
+      activeCapabilities?: string[];
+      activeGoals?: ActiveGoalConfigEntry[];
+      activeWorkflows?: string[];
+    };
+  };
+  kind: ImportKind;
+  slug: string;
+}): Promise<StoreReferenceBlocker[]> {
+  if (kind === "agent") {
+    const activeCapabilities = config.company?.activeCapabilities ?? [];
+    const blockers: StoreReferenceBlocker[] = [];
+    for (const capabilitySlug of activeCapabilities) {
+      const capability = await readResolvedCapabilityFile(
+        capabilitySlug,
+        octokit,
+      );
+      if (capability?.agent === slug) {
+        blockers.push({ kind: "capability", slug: capabilitySlug });
+      }
+    }
+    return blockers;
+  }
+
+  if (kind !== "capability") return [];
+
+  const activeWorkflows = new Set(config.company?.activeWorkflows ?? []);
+  const activeGoals = new Set(
+    (config.company?.activeGoals ?? []).map(activeGoalSlug),
+  );
+  const [workflows, goals] = await Promise.all([
+    listCompanyStoreWorkflowDefinitionFiles(octokit),
+    listCompanyStoreGoalTemplateFiles(octokit),
+  ]);
+  const blockers: StoreReferenceBlocker[] = [];
+
+  for (const workflow of workflows) {
+    if (
+      activeWorkflows.has(workflow.id) &&
+      workflow.workflow.capabilities.includes(slug)
+    ) {
+      blockers.push({
+        kind: "workflow",
+        slug: workflow.id,
+        title: workflow.workflow.name || workflow.id,
+      });
+    }
+  }
+
+  for (const goal of goals) {
+    if (
+      activeGoals.has(goal.id) &&
+      goalCapabilitySlugs(goal.state).includes(slug)
+    ) {
+      blockers.push({
+        kind: managedGoalModel(goal),
+        slug: goal.id,
+        title: goal.state.destination?.outcome || goal.id,
+      });
+    }
+  }
+
+  return blockers;
+}
+
+async function assertRemovableReference(args: {
+  octokit: Octokit;
+  config: {
+    company?: {
+      activeCapabilities?: string[];
+      activeGoals?: ActiveGoalConfigEntry[];
+      activeWorkflows?: string[];
+    };
+  };
+  kind: ImportKind;
+  slug: string;
+}): Promise<void> {
+  const blockers = await removalBlockersFor(args);
+  if (blockers.length > 0) {
+    throw storeReferenceInUse(args.kind, args.slug, blockers);
+  }
 }
 
 async function activationPlanFor(
@@ -378,6 +506,75 @@ async function addStoreReference({
   };
 }
 
+async function removeStoreReference({
+  octokit,
+  owner,
+  repo,
+  kind,
+  slug,
+}: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  kind: ImportKind;
+  slug: string;
+}): Promise<RemoveResult> {
+  const { config } = await getEngineConfig(octokit, owner, repo, {
+    force: true,
+  });
+  const patch: ConfigPatch = {};
+  const path = configPathFor(kind);
+
+  if (kind === "agent") {
+    const current = config.company?.activeAgents ?? [];
+    const next = current.filter((value) => value !== slug);
+    if (next.length === current.length) {
+      return { removed: false, status: "already_missing", path };
+    }
+    await assertRemovableReference({ octokit, config, kind, slug });
+    patch.activeAgents = next.length > 0 ? next : null;
+  } else if (kind === "capability") {
+    const current = config.company?.activeCapabilities ?? [];
+    const next = current.filter((value) => value !== slug);
+    if (next.length === current.length) {
+      return { removed: false, status: "already_missing", path };
+    }
+    await assertRemovableReference({ octokit, config, kind, slug });
+    patch.activeCapabilities = next.length > 0 ? next : null;
+  } else if (kind === "command") {
+    const current = config.company?.activeCommands ?? [];
+    const next = current.filter((value) => value !== slug);
+    if (next.length === current.length) {
+      return { removed: false, status: "already_missing", path };
+    }
+    patch.activeCommands = next.length > 0 ? next : null;
+  } else if (kind === "workflow") {
+    const current = config.company?.activeWorkflows ?? [];
+    const next = current.filter((value) => value !== slug);
+    if (next.length === current.length) {
+      return { removed: false, status: "already_missing", path };
+    }
+    patch.activeWorkflows = next.length > 0 ? next : null;
+  } else {
+    const current = config.company?.activeGoals ?? [];
+    const next = removeGoal(current, slug);
+    if (next.length === current.length) {
+      return { removed: false, status: "already_missing", path };
+    }
+    patch.activeGoals = next.length > 0 ? next : null;
+  }
+
+  await writeConfigPatch(
+    octokit,
+    owner,
+    repo,
+    patch,
+    `chore(kody): remove store ${kind} ${slug}`,
+  );
+
+  return { removed: true, status: "removed", path };
+}
+
 function errorResponse(error: unknown) {
   const status = (error as { status?: number })?.status;
   if (status === 401) {
@@ -394,6 +591,18 @@ function errorResponse(error: unknown) {
           error instanceof Error ? error.message : "Store item not found.",
       },
       { status: 404 },
+    );
+  }
+  if (status === 409) {
+    return NextResponse.json(
+      {
+        error: "store_reference_in_use",
+        message:
+          error instanceof Error ? error.message : "Store reference is in use.",
+        blockers:
+          (error as { blockers?: StoreReferenceBlocker[] })?.blockers ?? [],
+      },
+      { status: 409 },
     );
   }
   return NextResponse.json(
@@ -449,6 +658,69 @@ export async function POST(req: NextRequest) {
     }
 
     const result = await addStoreReference({
+      octokit,
+      owner: auth.owner,
+      repo: auth.repo,
+      kind,
+      slug,
+    });
+
+    return NextResponse.json({
+      kind,
+      slug,
+      ...result,
+    });
+  } catch (error: unknown) {
+    return errorResponse(error);
+  } finally {
+    clearGitHubContext();
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  const authError = await requireKodyAuth(req);
+  if (authError) return authError;
+
+  const auth = getRequestAuth(req);
+  if (!auth) {
+    return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
+  }
+
+  setGitHubContext(
+    auth.owner,
+    auth.repo,
+    auth.token,
+    auth.storeRepoUrl,
+    auth.storeRef,
+  );
+
+  try {
+    const body = await req.json().catch(() => null);
+    const parsed = importSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json(
+        { error: "validation_error", details: parsed.error.format() },
+        { status: 400 },
+      );
+    }
+
+    const verify = await verifyActorLogin(req, undefined);
+    if ("status" in verify) return verify;
+
+    const { kind, slug } = parsed.data;
+    if (!validSlug(kind, slug)) {
+      return NextResponse.json(
+        { error: "invalid_slug", message: `Invalid ${kind} slug: "${slug}".` },
+        { status: 400 },
+      );
+    }
+
+    const octokit = await getUserOctokit(req);
+    if (!octokit) {
+      return NextResponse.json({ error: "no_octokit" }, { status: 401 });
+    }
+
+    const result = await removeStoreReference({
       octokit,
       owner: auth.owner,
       repo: auth.repo,
