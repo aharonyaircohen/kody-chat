@@ -37,6 +37,17 @@ describe("BrainImagesManager", () => {
     );
   });
 
+  it("requires confirmation before replacing the terminal image", () => {
+    expect(SOURCE).toContain("const [pendingApplyRef, setPendingApplyRef]");
+    expect(SOURCE).toContain("requestApplyImage(image.imageRef)");
+    expect(SOURCE).toContain("This will replace the Brain machine image");
+    expect(SOURCE).toContain("Unsaved changes in the current machine may be lost");
+    expect(SOURCE).toContain('confirmLabel="Run image"');
+    expect(SOURCE).toContain(
+      "if (pendingApplyRef) void applyImage(pendingApplyRef);",
+    );
+  });
+
   it("refreshes terminal machine targets after applying an image", () => {
     expect(SOURCE).toContain(
       'window.dispatchEvent(new Event("kody:fly-machines-refresh"));',
@@ -47,7 +58,7 @@ describe("BrainImagesManager", () => {
     expect(SOURCE).toContain('body: JSON.stringify({ imageRef }),');
     expect(SOURCE).toContain('headers: { "content-type": "application/json", ...headers },');
     expect(SOURCE).toContain("Run this image");
-    expect(SOURCE).toContain("Running");
+    expect(SOURCE).toContain("Terminal image");
     expect(SOURCE).toContain("disabled={running || busy}");
     expect(SOURCE).not.toContain("selectImage(");
     expect(SOURCE).not.toContain('toast.success("Brain image selected")');
@@ -55,13 +66,14 @@ describe("BrainImagesManager", () => {
     expect(SOURCE).not.toContain("disabled={!selected || running || busy}");
   });
 
-  it("shows selected, running, and saved image state separately", () => {
-    expect(SOURCE).toContain("Run this image changes both the selected image");
-    expect(SOURCE).toContain("Running image is");
+  it("shows terminal image, latest save, and saved image count separately", () => {
+    expect(SOURCE).toContain("Run this image replaces the Brain machine image");
+    expect(SOURCE).toContain("Terminal image");
     expect(SOURCE).toContain("Latest save");
-    expect(SOURCE).toContain("Selected image");
-    expect(SOURCE).toContain("Running image");
-    expect(SOURCE).toContain("Selected image is not running yet");
+    expect(SOURCE).toContain("Saved images");
+    expect(SOURCE).not.toContain(">Selected<");
+    expect(SOURCE).not.toContain(">Running<");
+    expect(SOURCE).toContain("Pending image");
     expect(SOURCE).toContain('Machine {machineState ?? "state unknown"}');
     expect(SOURCE).toContain("machineImageRef");
     expect(SOURCE).toContain("Saved {formatDate(image.updatedAt)}");

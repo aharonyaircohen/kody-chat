@@ -91,6 +91,7 @@ export function BrainImagesManager() {
   const [save, setSave] = useState<BrainImageSaveState | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyRef, setBusyRef] = useState<string | null>(null);
+  const [pendingApplyRef, setPendingApplyRef] = useState<string | null>(null);
   const [pendingForgetRef, setPendingForgetRef] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -140,13 +141,13 @@ export function BrainImagesManager() {
     }
   }, [headers]);
 
+  const pendingApplyImage = useMemo(
+    () => images.find((image) => image.imageRef === pendingApplyRef) ?? null,
+    [images, pendingApplyRef],
+  );
   const pendingForgetImage = useMemo(
     () => images.find((image) => image.imageRef === pendingForgetRef) ?? null,
     [images, pendingForgetRef],
-  );
-  const selectedImage = useMemo(
-    () => images.find((image) => image.imageRef === activeImageRef) ?? null,
-    [activeImageRef, images],
   );
   const runningImage = useMemo(
     () => images.find((image) => image.imageRef === runningImageRef) ?? null,
@@ -184,6 +185,14 @@ export function BrainImagesManager() {
     } finally {
       setBusyRef(null);
     }
+  }
+
+  function requestApplyImage(imageRef: string) {
+    if (runningImageRef && runningImageRef !== imageRef) {
+      setPendingApplyRef(imageRef);
+      return;
+    }
+    void applyImage(imageRef);
   }
 
   async function forgetImage(imageRef: string) {
@@ -225,8 +234,8 @@ export function BrainImagesManager() {
                   Saved images
                 </div>
                 <div className="mt-1 text-xs text-white/50">
-                  Run this image changes both the selected image and the
-                  terminal image.
+                  Run this image replaces the Brain machine image used by the
+                  terminal.
                 </div>
               </div>
               <Button
@@ -248,20 +257,7 @@ export function BrainImagesManager() {
             <div className="grid gap-3 md:grid-cols-3">
               <div className="min-w-0 rounded-md border border-white/[0.08] bg-black/20 p-3">
                 <div className="text-[11px] font-semibold uppercase text-white/45">
-                  Selected
-                </div>
-                <div className="mt-1 truncate font-mono text-xs text-white">
-                  {activeImageRef ? imageLabel(activeImageRef) : "None"}
-                </div>
-                <div className="mt-1 text-xs text-white/45">
-                  {selectedImage
-                    ? `Saved ${formatDate(selectedImage.updatedAt)}`
-                    : "No image chosen"}
-                </div>
-              </div>
-              <div className="min-w-0 rounded-md border border-emerald-400/20 bg-emerald-400/[0.06] p-3">
-                <div className="text-[11px] font-semibold uppercase text-emerald-200/70">
-                  Running
+                  Terminal image
                 </div>
                 <div className="mt-1 truncate font-mono text-xs text-white">
                   {runningImageRef ? imageLabel(runningImageRef) : "None"}
@@ -271,7 +267,7 @@ export function BrainImagesManager() {
                     ? `Applied ${formatDate(runningAt)}`
                     : runningImage
                       ? `Saved ${formatDate(runningImage.updatedAt)}`
-                      : "Terminal has no applied image"}
+                      : "Terminal has no image"}
                 </div>
                 {machineImageRef && (
                   <div className="mt-2 truncate font-mono text-[11px] text-emerald-100/70">
@@ -282,15 +278,34 @@ export function BrainImagesManager() {
               </div>
               <div className="min-w-0 rounded-md border border-white/[0.08] bg-black/20 p-3">
                 <div className="text-[11px] font-semibold uppercase text-white/45">
-                  Saved
+                  Latest save
                 </div>
                 <div className="mt-1 truncate font-mono text-xs text-white">
                   {images[0] ? imageLabel(images[0].imageRef) : "None"}
                 </div>
                 <div className="mt-1 text-xs text-white/45">
                   {images[0]
-                    ? `Latest save ${formatDate(images[0].updatedAt)}`
+                    ? `Saved ${formatDate(images[0].updatedAt)}`
                     : "No saved images yet"}
+                </div>
+              </div>
+              <div className="min-w-0 rounded-md border border-white/[0.08] bg-black/20 p-3">
+                <div className="text-[11px] font-semibold uppercase text-white/45">
+                  Saved images
+                </div>
+                <div className="mt-1 truncate font-mono text-xs text-white">
+                  {images.length === 1
+                    ? "1 image"
+                    : `${images.length} images`}
+                </div>
+                <div className="mt-1 text-xs text-white/45">
+                  {save?.status === "running"
+                    ? `Saving ${imageTag(save.imageRef)}`
+                    : save?.status === "failed"
+                      ? "Last save failed"
+                      : images.length > 0
+                        ? "Newest first"
+                        : "No saved images yet"}
                 </div>
               </div>
             </div>
@@ -301,8 +316,9 @@ export function BrainImagesManager() {
             )}
             {selectedNeedsApply && (
               <div className="rounded-md border border-amber-400/25 bg-amber-400/[0.08] px-3 py-2 text-xs text-amber-100">
-                Selected image is not running yet. Click Run this image on that
-                row before opening the Brain terminal.
+                Pending image {imageLabel(activeImageRef)} is not the terminal
+                image yet. Click Run this image on that row before opening the
+                Brain terminal.
               </div>
             )}
             {!selectedNeedsApply && runningNeedsMachineProof && (
@@ -322,13 +338,13 @@ export function BrainImagesManager() {
               </div>
               <div>
                 {activeImageRef
-                  ? `Selected image ${imageLabel(activeImageRef)}`
-                  : "No Brain image selected"}
+                  ? `Pending image ${imageLabel(activeImageRef)}`
+                  : "No pending Brain image"}
               </div>
               <div>
                 {runningImageRef
-                  ? `Running image ${imageLabel(runningImageRef)}`
-                  : "No saved Brain image is marked as running"}
+                  ? `Terminal image ${imageLabel(runningImageRef)}`
+                  : "No terminal Brain image"}
               </div>
             </div>
           </CardContent>
@@ -351,7 +367,6 @@ export function BrainImagesManager() {
             </div>
           ) : (
             images.map((image) => {
-              const selected = image.imageRef === activeImageRef;
               const running = image.imageRef === runningImageRef;
               const busy = busyRef === image.imageRef;
               return (
@@ -367,14 +382,9 @@ export function BrainImagesManager() {
                       <span className="truncate font-mono text-sm text-white">
                         {imageLabel(image.imageRef)}
                       </span>
-                      {selected && (
-                        <span className="shrink-0 rounded border border-sky-300/20 bg-sky-300/10 px-1.5 py-0.5 text-[11px] font-medium text-sky-200">
-                          Selected
-                        </span>
-                      )}
                       {running && (
                         <span className="shrink-0 rounded border border-emerald-300/20 bg-emerald-300/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-200">
-                          Running
+                          Terminal image
                         </span>
                       )}
                     </div>
@@ -395,14 +405,14 @@ export function BrainImagesManager() {
                       variant={running ? "secondary" : "default"}
                       disabled={running || busy}
                       className="gap-2"
-                      onClick={() => void applyImage(image.imageRef)}
+                      onClick={() => requestApplyImage(image.imageRef)}
                     >
                       {busy ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <Play className="h-4 w-4" />
                       )}
-                      {running ? "Running" : "Run this image"}
+                      {running ? "Terminal image" : "Run this image"}
                     </Button>
                     <Button
                       type="button"
@@ -441,6 +451,22 @@ export function BrainImagesManager() {
           )}
         </div>
       </div>
+      <ConfirmDialog
+        open={pendingApplyRef !== null}
+        title="Run this Brain image?"
+        description={
+          pendingApplyImage
+            ? `This will replace the Brain machine image with ${imageLabel(
+                pendingApplyImage.imageRef,
+              )}. Unsaved changes in the current machine may be lost unless saved as an image first.`
+            : "This will replace the Brain machine image. Unsaved changes in the current machine may be lost unless saved as an image first."
+        }
+        confirmLabel="Run image"
+        onConfirm={() => {
+          if (pendingApplyRef) void applyImage(pendingApplyRef);
+        }}
+        onClose={() => setPendingApplyRef(null)}
+      />
       <ConfirmDialog
         open={pendingForgetRef !== null}
         title="Forget Brain image?"
