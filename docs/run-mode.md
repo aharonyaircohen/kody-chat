@@ -16,11 +16,13 @@ Show Run Mode on the item the user runs:
 - Loop
 - Goal
 - Workflow
-- Capability
 
 If a loop runs capabilities through a goal or workflow, the dashboard should
 show the mode on the loop and save the needed capability permissions behind the
 scenes.
+
+Capabilities do not need their own management page for this. They receive the
+saved permission from the workflow, goal, or loop that uses them.
 
 ## Storage
 

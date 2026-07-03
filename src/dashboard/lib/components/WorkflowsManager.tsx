@@ -35,6 +35,13 @@ import {
 } from "@dashboard/ui/dialog";
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
+import { useTrust } from "../cto/useTrust";
+import {
+  applyRunModeToCapabilities,
+  runModeForCapabilities,
+  workflowCapabilitySlugs,
+  type RunMode,
+} from "../cto/run-mode";
 import { useCapabilities } from "../hooks/useCapabilities";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import {
@@ -53,6 +60,7 @@ import { selectionPath } from "../selection-routing";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
+import { RunModeBadge, RunModeControl } from "./RunModeControl";
 import { SearchableMultiSelect } from "./SearchableSelect";
 
 const BASE_PATH = "/workflows";
@@ -135,6 +143,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
   const updateWorkflow = useUpdateWorkflowDefinition(editingWorkflow?.id ?? "");
   const deleteWorkflow = useDeleteWorkflowDefinition();
   const runWorkflow = useRunWorkflowDefinition();
+  const trust = useTrust();
 
   const filtered = useMemo(
     () => workflows.filter((workflow) => workflowMatches(workflow, search)),
@@ -232,11 +241,33 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
             <WorkflowDetail
               workflow={selectedWorkflow}
               capabilityBySlug={capabilityBySlug}
+              runMode={runModeForCapabilities(
+                trust.groups,
+                workflowCapabilitySlugs(selectedWorkflow),
+              )}
+              runModePending={trust.isMutating}
               onBack={() => selectWorkflow(null)}
-              onRun={() => runWorkflow.mutate(selectedWorkflow.id)}
+              onRun={async () => {
+                const capabilitySlugs =
+                  workflowCapabilitySlugs(selectedWorkflow);
+                await applyRunModeToCapabilities(
+                  trust.setTrust,
+                  capabilitySlugs,
+                  runModeForCapabilities(trust.groups, capabilitySlugs),
+                );
+                await runWorkflow.mutateAsync(selectedWorkflow.id);
+              }}
+              onRunModeChange={(mode) =>
+                applyRunModeToCapabilities(
+                  trust.setTrust,
+                  workflowCapabilitySlugs(selectedWorkflow),
+                  mode,
+                )
+              }
               runPending={
-                runWorkflow.isPending &&
-                runWorkflow.variables === selectedWorkflow.id
+                (runWorkflow.isPending &&
+                  runWorkflow.variables === selectedWorkflow.id) ||
+                trust.isMutating
               }
               onEdit={() => setEditingWorkflow(selectedWorkflow)}
               onDelete={() => setDeletingWorkflow(selectedWorkflow)}
@@ -276,6 +307,10 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
               <li key={workflow.id}>
                 <WorkflowRow
                   workflow={workflow}
+                  runMode={runModeForCapabilities(
+                    trust.groups,
+                    workflowCapabilitySlugs(workflow),
+                  )}
                   isActive={selectedId === workflow.id}
                   onSelect={() => selectWorkflow(workflow.id)}
                 />
@@ -346,10 +381,12 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
 
 function WorkflowRow({
   workflow,
+  runMode,
   isActive,
   onSelect,
 }: {
   workflow: WorkflowDefinitionRecord;
+  runMode: RunMode;
   isActive: boolean;
   onSelect: () => void;
 }) {
@@ -371,7 +408,13 @@ function WorkflowRow({
             {workflow.id}
           </div>
         </div>
-        {isStoreWorkflow(workflow) ? <StoreWorkflowBadge /> : null}
+        <div className="flex shrink-0 items-center gap-2">
+          <RunModeBadge
+            mode={runMode}
+            capabilityCount={workflow.workflow.capabilities.length}
+          />
+          {isStoreWorkflow(workflow) ? <StoreWorkflowBadge /> : null}
+        </div>
         <span className="shrink-0 rounded border border-cyan-500/20 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-700 dark:text-cyan-200">
           {workflow.workflow.capabilities.length}
         </span>
@@ -383,16 +426,22 @@ function WorkflowRow({
 function WorkflowDetail({
   workflow,
   capabilityBySlug,
+  runMode,
+  runModePending,
   onBack,
   onRun,
+  onRunModeChange,
   runPending,
   onEdit,
   onDelete,
 }: {
   workflow: WorkflowDefinitionRecord;
   capabilityBySlug: Map<string, { slug: string; describe?: string }>;
+  runMode: RunMode;
+  runModePending: boolean;
   onBack: () => void;
-  onRun: () => void;
+  onRun: () => void | Promise<void>;
+  onRunModeChange: (mode: RunMode) => void | Promise<void>;
   runPending: boolean;
   onEdit: () => void;
   onDelete: () => void;
@@ -437,10 +486,16 @@ function WorkflowDetail({
             ) : null}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <RunModeControl
+            mode={runMode}
+            capabilityCount={workflow.workflow.capabilities.length}
+            pending={runModePending}
+            onChange={(mode) => void onRunModeChange(mode)}
+          />
           <Button
             size="sm"
-            onClick={onRun}
+            onClick={() => void onRun()}
             disabled={!runnable || runPending}
             title={
               runnable
@@ -569,9 +624,7 @@ function WorkflowDialog({
   }, [initial, open]);
 
   const canSave =
-    form.name.trim().length > 0 &&
-    form.capabilities.length > 0 &&
-    !saving;
+    form.name.trim().length > 0 && form.capabilities.length > 0 && !saving;
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

@@ -32,4 +32,12 @@ describe("WorkflowsManager run button", () => {
     expect(SOURCE).toMatch(/workflow\.runnable === true/);
     expect(SOURCE).toMatch(/disabled=\{!runnable \|\| runPending\}/);
   });
+
+  it("shows Auto / Manual run mode and cascades it to workflow capabilities", () => {
+    expect(SOURCE).toContain("RunModeControl");
+    expect(SOURCE).toContain("RunModeBadge");
+    expect(SOURCE).toContain("workflowCapabilitySlugs(selectedWorkflow)");
+    expect(SOURCE).toContain("applyRunModeToCapabilities(");
+    expect(SOURCE).toContain("runWorkflow.mutateAsync(selectedWorkflow.id)");
+  });
 });

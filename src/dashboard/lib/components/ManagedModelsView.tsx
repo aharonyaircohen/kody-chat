@@ -58,6 +58,13 @@ import {
   useRunCapability,
   type CapabilitySummary,
 } from "../hooks/useCapabilities";
+import { useTrust } from "../cto/useTrust";
+import {
+  applyRunModeToCapabilities,
+  managedModelCapabilitySlugs,
+  runModeForCapabilities,
+  type RunMode,
+} from "../cto/run-mode";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import {
   useCreateManagedGoal,
@@ -91,6 +98,7 @@ import { selectionPath } from "../selection-routing";
 import { cn } from "../utils";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
+import { RunModeBadge, RunModeControl } from "./RunModeControl";
 import {
   SearchableSelect,
   SearchableMultiSelect,
@@ -1536,6 +1544,8 @@ function EditManagedGoalDialog({
 
 function GoalRow({
   goal,
+  runMode,
+  runModeCapabilityCount,
   isActive,
   onSelect,
   onDelete,
@@ -1543,6 +1553,8 @@ function GoalRow({
   kindLabel,
 }: {
   goal: ManagedGoalRecord;
+  runMode: RunMode;
+  runModeCapabilityCount: number;
   isActive: boolean;
   onSelect: () => void;
   onDelete: () => void;
@@ -1579,6 +1591,10 @@ function GoalRow({
           <span className="font-mono text-sm truncate flex-1 text-white/90">
             {goal.id}
           </span>
+          <RunModeBadge
+            mode={runMode}
+            capabilityCount={runModeCapabilityCount}
+          />
           <GoalActivityBadge state={goal.state.state} />
           {storeBacked ? <StoreModelBadge label={label} /> : null}
         </div>
@@ -1708,10 +1724,14 @@ function GoalDetail({
   goal,
   capabilities,
   copy,
+  runMode,
+  runModeCapabilityCount,
+  runModePending,
   onBack,
   onActivate,
   onPause,
   onRun,
+  onRunModeChange,
   onEdit,
   onDelete,
   isUpdating,
@@ -1720,10 +1740,14 @@ function GoalDetail({
   goal: ManagedGoalRecord;
   capabilities: CapabilitySummary[];
   copy: ManagedModelViewCopy;
+  runMode: RunMode;
+  runModeCapabilityCount: number;
+  runModePending: boolean;
   onBack: () => void;
   onActivate: () => void;
   onPause: () => void;
-  onRun: () => void;
+  onRun: () => void | Promise<void>;
+  onRunModeChange: (mode: RunMode) => void | Promise<void>;
   onEdit: () => void;
   onDelete: () => void;
   isUpdating: boolean;
@@ -1796,6 +1820,12 @@ function GoalDetail({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <RunModeControl
+                mode={runMode}
+                capabilityCount={runModeCapabilityCount}
+                pending={runModePending}
+                onChange={(mode) => void onRunModeChange(mode)}
+              />
               <Button
                 asChild
                 variant="outline"
@@ -1811,7 +1841,7 @@ function GoalDetail({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={onRun}
+                onClick={() => void onRun()}
                 disabled={!canRun || isRunning}
                 className="h-8 w-8 px-0"
                 title={
@@ -2283,6 +2313,8 @@ export function ManagedModelsView({
   const goals = useMemo(() => fetchedGoals ?? [], [fetchedGoals]);
   const goalsLoaded = fetchedGoals !== undefined;
   const { data: capabilities = [] } = useCapabilities();
+  const { data: workflows = [] } = useWorkflowDefinitions();
+  const trust = useTrust();
   const setGoalState = useSetManagedGoalState();
   const runManagedGoal = useRunManagedGoal();
   const deleteManagedGoal = useDeleteManagedGoal();
@@ -2302,6 +2334,17 @@ export function ManagedModelsView({
   const selectedGoal = useMemo(
     () => modelGoals.find((goal) => goal.id === selectedId) ?? null,
     [modelGoals, selectedId],
+  );
+  const selectedRunCapabilitySlugs = useMemo(
+    () =>
+      selectedGoal
+        ? managedModelCapabilitySlugs(selectedGoal, goals, workflows)
+        : [],
+    [goals, selectedGoal, workflows],
+  );
+  const selectedRunMode = useMemo(
+    () => runModeForCapabilities(trust.groups, selectedRunCapabilitySlugs),
+    [selectedRunCapabilitySlugs, trust.groups],
   );
   const deleteGoalStoreBacked = deleteGoal
     ? isStoreBackedManagedGoal(deleteGoal)
@@ -2386,6 +2429,9 @@ export function ManagedModelsView({
               goal={selectedGoal}
               capabilities={capabilities}
               copy={copy}
+              runMode={selectedRunMode}
+              runModeCapabilityCount={selectedRunCapabilitySlugs.length}
+              runModePending={trust.isMutating}
               onBack={() => selectGoal(null)}
               onEdit={() => setEditingGoal(selectedGoal)}
               onDelete={() => setDeleteGoal(selectedGoal)}
@@ -2401,11 +2447,26 @@ export function ManagedModelsView({
                   state: "inactive",
                 })
               }
-              onRun={() => runManagedGoal.mutate(selectedGoal.id)}
+              onRun={async () => {
+                await applyRunModeToCapabilities(
+                  trust.setTrust,
+                  selectedRunCapabilitySlugs,
+                  selectedRunMode,
+                );
+                await runManagedGoal.mutateAsync(selectedGoal.id);
+              }}
+              onRunModeChange={(mode) =>
+                applyRunModeToCapabilities(
+                  trust.setTrust,
+                  selectedRunCapabilitySlugs,
+                  mode,
+                )
+              }
               isUpdating={setGoalState.isPending}
               isRunning={
-                runManagedGoal.isPending &&
-                runManagedGoal.variables === selectedGoal.id
+                (runManagedGoal.isPending &&
+                  runManagedGoal.variables === selectedGoal.id) ||
+                trust.isMutating
               }
             />
           ) : (
@@ -2443,6 +2504,13 @@ export function ManagedModelsView({
               <li key={goal.id}>
                 <GoalRow
                   goal={goal}
+                  runMode={runModeForCapabilities(
+                    trust.groups,
+                    managedModelCapabilitySlugs(goal, goals, workflows),
+                  )}
+                  runModeCapabilityCount={
+                    managedModelCapabilitySlugs(goal, goals, workflows).length
+                  }
                   isActive={selectedId === goal.id}
                   label={copy.singular}
                   kindLabel={copy.kindLabel}

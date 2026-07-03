@@ -114,6 +114,17 @@ describe("ManagedModelsView model form", () => {
     );
   });
 
+  it("shows Auto / Manual run mode on goal and loop pages and cascades to capabilities", () => {
+    expect(source).toContain("RunModeControl");
+    expect(source).toContain("RunModeBadge");
+    expect(source).toContain("managedModelCapabilitySlugs(");
+    expect(source).toContain("applyRunModeToCapabilities(");
+    expect(source).toContain("runManagedGoal.mutateAsync(selectedGoal.id)");
+    expect(source).toContain('const basePath = model === "agentLoop"');
+    expect(source).toContain('"/agent-loops"');
+    expect(source).toContain('"/agent-goals"');
+  });
+
   it("keeps agentGoal edits capability-driven without exposing type labels", () => {
     const dialog = source.slice(
       source.indexOf("function EditManagedGoalDialog"),
