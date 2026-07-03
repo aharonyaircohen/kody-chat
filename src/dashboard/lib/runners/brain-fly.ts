@@ -75,6 +75,14 @@ const IP_ALLOC_RETRY_DELAYS_MS =
   process.env.NODE_ENV === "test"
     ? [0, 0, 0, 0, 0]
     : [500, 1000, 1500, 2000, 2500];
+const MACHINE_RECONCILE_DELAYS_MS =
+  process.env.NODE_ENV === "test"
+    ? [0, 0, 0, 0]
+    : [500, 1000, 1500, 2500, 4000];
+const MACHINE_START_DELAYS_MS =
+  process.env.NODE_ENV === "test"
+    ? [0, 0, 0, 0]
+    : [1000, 1500, 2000, 3000, 5000, 8000];
 
 export class BrainFlyProvisionTransientError extends Error {
   retryAfterSeconds = 3;
@@ -180,6 +188,7 @@ export interface BrainStatusInput {
   flyToken: string;
   account: string;
   appNameOverride?: string;
+  machineIdOverride?: string;
   orgSlug?: string;
   defaultRegion?: string;
 }
@@ -188,6 +197,7 @@ export interface SuspendBrainInput {
   flyToken: string;
   account: string;
   appNameOverride?: string;
+  machineIdOverride?: string;
   orgSlug?: string;
   defaultRegion?: string;
 }
@@ -196,6 +206,7 @@ export interface ResumeBrainInput {
   flyToken: string;
   account: string;
   appNameOverride?: string;
+  machineIdOverride?: string;
   orgSlug?: string;
   defaultRegion?: string;
 }
@@ -417,6 +428,8 @@ interface FlyMachine {
   state?: string;
   config?: BrainMachineConfig;
   region?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 /**
@@ -625,20 +638,85 @@ export async function allocateIpsIfMissing(
   );
 }
 
-async function findExistingMachine(
+function isLiveMachine(machine: FlyMachine): boolean {
+  return machine.state !== "destroyed" && machine.state !== "destroying";
+}
+
+function machineTimestamp(machine: FlyMachine): number {
+  const raw = machine.created_at ?? machine.updated_at;
+  const parsed = raw ? Date.parse(raw) : NaN;
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function sortLiveMachines(machines: FlyMachine[]): FlyMachine[] {
+  return machines
+    .filter(isLiveMachine)
+    .sort((a, b) => machineTimestamp(b) - machineTimestamp(a));
+}
+
+async function listExistingMachines(
   flyToken: string,
   appName: string,
-): Promise<FlyMachine | null> {
+): Promise<FlyMachine[]> {
   const list = await flyFetch<FlyMachine[]>(
     `/apps/${encodeURIComponent(appName)}/machines`,
     { token: flyToken, allow404: true },
   );
-  if (!list || list.length === 0) return null;
-  // Prefer non-destroyed machines.
-  const live = list.find(
-    (m) => m.state !== "destroyed" && m.state !== "destroying",
+  if (!list || list.length === 0) return [];
+  return sortLiveMachines(list);
+}
+
+function chooseExistingMachine(
+  machines: FlyMachine[],
+  opts: { machineId?: string; imageRef?: string } = {},
+): FlyMachine | null {
+  if (opts.machineId) {
+    return machines.find((m) => m.id === opts.machineId) ?? null;
+  }
+  if (opts.imageRef) {
+    const matching = machines.find((m) =>
+      m.config?.image ? sameImageRepoTag(m.config.image, opts.imageRef!) : false,
+    );
+    if (matching) return matching;
+  }
+  return machines[0] ?? null;
+}
+
+async function findExistingMachine(
+  flyToken: string,
+  appName: string,
+  opts: { machineId?: string; imageRef?: string } = {},
+): Promise<FlyMachine | null> {
+  const machines = await listExistingMachines(flyToken, appName);
+  return chooseExistingMachine(machines, opts);
+}
+
+async function reconcileSingleActiveMachine(
+  flyToken: string,
+  appName: string,
+  keepMachineId: string,
+): Promise<FlyMachine> {
+  const destroyRequested = new Set<string>();
+  let lastLiveIds: string[] = [];
+  for (let attempt = 0; attempt <= MACHINE_RECONCILE_DELAYS_MS.length; attempt++) {
+    const machines = await listExistingMachines(flyToken, appName);
+    lastLiveIds = machines.map((m) => m.id);
+    const keep = machines.find((m) => m.id === keepMachineId) ?? null;
+    if (keep) {
+      const extras = machines.filter((m) => m.id !== keepMachineId);
+      for (const extra of extras) {
+        if (destroyRequested.has(extra.id)) continue;
+        destroyRequested.add(extra.id);
+        await destroyMachine(flyToken, appName, extra.id);
+      }
+      if (extras.length === 0) return keep;
+    }
+    const delay = MACHINE_RECONCILE_DELAYS_MS[attempt] ?? 0;
+    if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+  }
+  throw new BrainFlyProvisionTransientError(
+    `brain-fly: replacement machine ${keepMachineId} was not the sole active machine in ${appName}; live machines: ${lastLiveIds.join(", ") || "none"}`,
   );
-  return live ?? null;
 }
 
 /**
@@ -670,6 +748,39 @@ function isBrainMachineRunning(machine: FlyMachine): boolean {
     machine.state === "starting" ||
     machine.state === "created" ||
     machine.state === "replacing"
+  );
+}
+
+async function startMachine(
+  flyToken: string,
+  appName: string,
+  machineId: string,
+): Promise<void> {
+  await flyFetch<unknown>(
+    `/apps/${encodeURIComponent(appName)}/machines/${encodeURIComponent(machineId)}/start`,
+    { method: "POST", token: flyToken, allow404: true },
+  );
+}
+
+async function waitForMachineRunningState(
+  flyToken: string,
+  appName: string,
+  machineId: string,
+): Promise<FlyMachine> {
+  let lastState = "missing";
+  for (let attempt = 0; attempt <= MACHINE_START_DELAYS_MS.length; attempt++) {
+    const machine = await findExistingMachine(flyToken, appName, {
+      machineId,
+    });
+    if (machine) {
+      lastState = machine.state ?? "unknown";
+      if (isBrainMachineRunning(machine)) return machine;
+    }
+    const delay = MACHINE_START_DELAYS_MS[attempt] ?? 0;
+    if (delay > 0) await new Promise((r) => setTimeout(r, delay));
+  }
+  throw new BrainFlyProvisionTransientError(
+    `brain-fly: machine ${machineId} in ${appName} did not enter running state after start; last state: ${lastState}`,
   );
 }
 
@@ -911,7 +1022,9 @@ export async function provisionBrain(
       runtimeImageRef: image,
     });
 
-  const existing = await findExistingMachine(input.flyToken, app);
+  const existing = await findExistingMachine(input.flyToken, app, {
+    imageRef: image,
+  });
   if (existing) {
     const existingImage = existing.config?.image ?? "";
     // Heal machines pinned to a stale image ref. A machine created before
@@ -937,14 +1050,18 @@ export async function provisionBrain(
         input.apiKeyOverride ||
         generateApiKey();
       await prepareRuntimeImage();
-      const machine = await createMachine(
+      const created = await createMachine(
         input.flyToken,
         app,
         machineInput,
         apiKey,
         { replacement: true },
       );
-      await destroyMachine(input.flyToken, app, existing.id);
+      const machine = await reconcileSingleActiveMachine(
+        input.flyToken,
+        app,
+        created.id,
+      );
       return {
         app,
         url,
@@ -976,14 +1093,18 @@ export async function provisionBrain(
         },
         "brain-fly: recreating machine — boot env changed",
       );
-      const machine = await createMachine(
+      const created = await createMachine(
         input.flyToken,
         app,
         machineInput,
         existingKey,
         { replacement: true },
       );
-      await destroyMachine(input.flyToken, app, existing.id);
+      const machine = await reconcileSingleActiveMachine(
+        input.flyToken,
+        app,
+        created.id,
+      );
       return {
         app,
         url,
@@ -1110,7 +1231,9 @@ export async function suspendBrain(input: SuspendBrainInput): Promise<void> {
   }
   const app = input.appNameOverride ?? brainAppName(input.account);
 
-  const machine = await findExistingMachine(input.flyToken, app);
+  const machine = await findExistingMachine(input.flyToken, app, {
+    machineId: input.machineIdOverride,
+  });
   if (!machine) {
     logger.info({ app }, "brain-fly: suspend — no machine to suspend");
     return;
@@ -1146,7 +1269,9 @@ export async function resumeBrain(input: ResumeBrainInput): Promise<void> {
   }
   const app = input.appNameOverride ?? brainAppName(input.account);
 
-  const machine = await findExistingMachine(input.flyToken, app);
+  const machine = await findExistingMachine(input.flyToken, app, {
+    machineId: input.machineIdOverride,
+  });
   if (!machine) {
     logger.info({ app }, "brain-fly: resume — no machine to resume");
     return;
@@ -1156,10 +1281,20 @@ export async function resumeBrain(input: ResumeBrainInput): Promise<void> {
     return;
   }
 
-  await waitForBrainHealth(brainAppUrl(app), 60_000);
+  try {
+    await startMachine(input.flyToken, app, machine.id);
+    await waitForMachineRunningState(input.flyToken, app, machine.id);
+  } catch (err) {
+    logger.warn(
+      { app, machineId: machine.id, err },
+      "brain-fly: direct machine start failed; falling back to edge wake",
+    );
+    await waitForBrainHealth(brainAppUrl(app), 60_000);
+    await waitForMachineRunningState(input.flyToken, app, machine.id);
+  }
   logger.info(
     { app, machineId: machine.id },
-    "brain-fly: machine resumed via edge proxy",
+    "brain-fly: machine resumed",
   );
 }
 
@@ -1184,7 +1319,9 @@ export async function brainStatus(
     return { app, state: "off", org: orgSlug };
   }
 
-  const machine = await findExistingMachine(input.flyToken, app);
+  const machine = await findExistingMachine(input.flyToken, app, {
+    machineId: input.machineIdOverride,
+  });
   if (!machine) {
     return {
       app,

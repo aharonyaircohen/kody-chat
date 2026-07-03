@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
+import { readBrainRuntimeView } from "@dashboard/lib/brain/runtime-manager";
 import { readBrainApp } from "@dashboard/lib/brain/store";
 import {
   clearGitHubContext,
@@ -54,6 +55,7 @@ export async function POST(req: NextRequest) {
   try {
     let storedAppName: string | undefined;
     let storedOrgSlug: string | undefined;
+    let runtimeMachineId: string | undefined;
     try {
       const stored = await readBrainApp(
         ctx.context.account,
@@ -61,10 +63,26 @@ export async function POST(req: NextRequest) {
       );
       storedAppName = stored?.appName;
       storedOrgSlug = stored?.orgSlug;
+      const runtime = await readBrainRuntimeView(
+        ctx.context.account,
+        ctx.context.githubToken,
+      );
+      if (runtime.runningApp && !storedAppName) {
+        storedAppName = runtime.runningApp;
+      }
+      if (runtime.runningOrgSlug && !storedOrgSlug) {
+        storedOrgSlug = runtime.runningOrgSlug;
+      }
+      if (
+        runtime.runningMachineId &&
+        (!storedAppName || runtime.runningApp === storedAppName)
+      ) {
+        runtimeMachineId = runtime.runningMachineId;
+      }
     } catch (readErr) {
       logger.warn(
         { err: readErr, owner: ctx.context.owner },
-        "brain suspend: stored record read failed (non-fatal)",
+        "brain suspend: stored/runtime record read failed (non-fatal)",
       );
     }
 
@@ -74,6 +92,7 @@ export async function POST(req: NextRequest) {
       orgSlug: storedOrgSlug ?? ctx.context.flyOrgSlug,
       defaultRegion: ctx.context.flyDefaultRegion,
       ...(storedAppName ? { appNameOverride: storedAppName } : {}),
+      ...(runtimeMachineId ? { machineIdOverride: runtimeMachineId } : {}),
     });
     return NextResponse.json({ ok: true });
   } catch (err) {

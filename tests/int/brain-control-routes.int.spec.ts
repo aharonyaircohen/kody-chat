@@ -41,6 +41,15 @@ vi.mock("@dashboard/lib/brain/store", () => ({
   clearBrainApp: vi.fn(async () => undefined),
 }));
 
+vi.mock("@dashboard/lib/brain/runtime-manager", () => ({
+  readBrainRuntimeView: vi.fn(async () => ({
+    source: "runtime",
+    runningApp: "brain-1",
+    runningMachineId: "machine-runtime",
+    runningOrgSlug: "guy-koren",
+  })),
+}));
+
 vi.mock("@dashboard/lib/runners/brain-fly", () => brainFly);
 
 vi.mock("@dashboard/lib/github-client", () => ({
@@ -84,6 +93,7 @@ describe("Brain control routes", () => {
     expect(brainFly.resumeBrain).toHaveBeenCalledWith(
       expect.objectContaining({
         appNameOverride: "brain-1",
+        machineIdOverride: "machine-runtime",
         orgSlug: "guy-koren",
       }),
     );
@@ -96,6 +106,7 @@ describe("Brain control routes", () => {
     expect(brainFly.suspendBrain).toHaveBeenCalledWith(
       expect.objectContaining({
         appNameOverride: "brain-1",
+        machineIdOverride: "machine-runtime",
         orgSlug: "guy-koren",
       }),
     );

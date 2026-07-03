@@ -19,6 +19,7 @@ import {
   destroyBrain,
   flyFetch,
   provisionBrain,
+  resumeBrain,
   sameImageRepoTag,
 } from "@dashboard/lib/runners/brain-fly";
 
@@ -339,6 +340,20 @@ describe("provisionBrain", () => {
   });
 
   it("recreates reused Brain machines when model env changes", async () => {
+    let machineList: Array<Record<string, unknown>> = [
+      {
+        id: "m-existing",
+        state: "started",
+        region: "fra",
+        config: {
+          image: `${DEFAULT_IMAGE}@sha256:fresh`,
+          env: {
+            BRAIN_API_KEY: "preexisting-key",
+            MODEL: "minimax/MiniMax-M3",
+          },
+        },
+      },
+    ];
     const calls = installFetchStub((call) => {
       if (
         call.url.endsWith("/apps/kody-brain-alice") &&
@@ -350,33 +365,23 @@ describe("provisionBrain", () => {
         call.url.endsWith("/apps/kody-brain-alice/machines") &&
         call.method === "GET"
       ) {
-        return {
-          json: [
-            {
-              id: "m-existing",
-              state: "started",
-              region: "fra",
-              config: {
-                image: `${DEFAULT_IMAGE}@sha256:fresh`,
-                env: {
-                  BRAIN_API_KEY: "preexisting-key",
-                  MODEL: "minimax/MiniMax-M3",
-                },
-              },
-            },
-          ],
-        };
+        return { json: machineList };
       }
       if (
         call.method === "DELETE" &&
         call.url.includes("/apps/kody-brain-alice/machines/m-existing")
       ) {
+        machineList = machineList.filter((m) => m.id !== "m-existing");
         return { status: 200, json: { ok: true } };
       }
       if (
         call.method === "POST" &&
         call.url.endsWith("/apps/kody-brain-alice/machines")
       ) {
+        machineList = [
+          ...machineList,
+          { id: "m-fresh", state: "starting", region: "fra", config: {} },
+        ];
         return { json: { id: "m-fresh", state: "starting", region: "fra" } };
       }
       throw new Error(`unexpected call: ${call.method} ${call.url}`);
@@ -429,6 +434,21 @@ describe("provisionBrain", () => {
       modelName: "MiniMax-M3",
       apiKeyEnvVar: "MINIMAX_API_KEY",
     };
+    let machineList: Array<Record<string, unknown>> = [
+      {
+        id: "m-existing",
+        state: "suspended",
+        region: "fra",
+        config: {
+          image: `${DEFAULT_IMAGE}@sha256:fresh`,
+          env: {
+            BRAIN_API_KEY: "preexisting-key",
+            MODEL: "minimax/MiniMax-M3",
+            KODY_MODEL_CONFIG: JSON.stringify(modelConfig),
+          },
+        },
+      },
+    ];
     const calls = installFetchStub((call) => {
       if (
         call.url.endsWith("/apps/kody-brain-alice") &&
@@ -440,28 +460,19 @@ describe("provisionBrain", () => {
         call.url.endsWith("/apps/kody-brain-alice/machines") &&
         call.method === "GET"
       ) {
-        return {
-          json: [
-            {
-              id: "m-existing",
-              state: "suspended",
-              region: "fra",
-              config: {
-                image: `${DEFAULT_IMAGE}@sha256:fresh`,
-                env: {
-                  BRAIN_API_KEY: "preexisting-key",
-                  MODEL: "minimax/MiniMax-M3",
-                  KODY_MODEL_CONFIG: JSON.stringify(modelConfig),
-                },
-              },
-            },
-          ],
-        };
+        return { json: machineList };
       }
-      if (call.method === "DELETE" && call.url.includes("/machines/m-existing"))
+      if (call.method === "DELETE" && call.url.includes("/machines/m-existing")) {
+        machineList = machineList.filter((m) => m.id !== "m-existing");
         return { status: 200, json: { ok: true } };
-      if (call.method === "POST" && call.url.endsWith("/machines"))
+      }
+      if (call.method === "POST" && call.url.endsWith("/machines")) {
+        machineList = [
+          ...machineList,
+          { id: "m-fresh", state: "starting", region: "fra", config: {} },
+        ];
         return { json: { id: "m-fresh", state: "starting", region: "fra" } };
+      }
       throw new Error(`unexpected call: ${call.method} ${call.url}`);
     });
 
@@ -1088,27 +1099,51 @@ describe("provisionBrain image-ref healing", () => {
   });
 
   it("recreates a machine pinned to the stale registry.fly.io image", async () => {
+    let machineList: Array<Record<string, unknown>> = [
+      {
+        id: "m-stale",
+        state: "suspended",
+        region: "fra",
+        config: {
+          image: "registry.fly.io/kody-brain:latest@sha256:dead",
+          env: { BRAIN_API_KEY: "old-key" },
+        },
+      },
+      {
+        id: "m-other-stale",
+        state: "started",
+        region: "fra",
+        config: {
+          image: "registry.fly.io/kody-brain:old@sha256:dead",
+          env: { BRAIN_API_KEY: "other-key" },
+        },
+      },
+    ];
     const calls = installFetchStub((call) => {
       if (call.method === "GET" && call.url.endsWith("/apps/kody-brain-alice"))
         return { json: { name: "kody-brain-alice" } };
       if (call.method === "GET" && call.url.endsWith("/machines"))
-        return {
-          json: [
-            {
-              id: "m-stale",
-              state: "suspended",
-              region: "fra",
-              config: {
-                image: "registry.fly.io/kody-brain:latest@sha256:dead",
-                env: { BRAIN_API_KEY: "old-key" },
-              },
-            },
-          ],
-        };
-      if (call.method === "DELETE" && call.url.includes("/machines/m-stale"))
+        return { json: machineList };
+      if (call.method === "DELETE" && call.url.includes("/machines/m-stale")) {
+        machineList = machineList.filter((m) => m.id !== "m-stale");
         return { status: 200, json: { ok: true } };
-      if (call.method === "POST" && call.url.endsWith("/machines"))
-        return { json: { id: "m-fresh", state: "starting", region: "fra" } };
+      }
+      if (
+        call.method === "DELETE" &&
+        call.url.includes("/machines/m-other-stale")
+      ) {
+        machineList = machineList.filter((m) => m.id !== "m-other-stale");
+        return { status: 200, json: { ok: true } };
+      }
+      if (call.method === "POST" && call.url.endsWith("/machines")) {
+        machineList = [
+          ...machineList,
+          { id: "m-fresh", state: "starting", region: "fra", config: {} },
+        ];
+        return {
+          json: { id: "m-fresh", state: "starting", region: "fra" },
+        };
+      }
       throw new Error(`unexpected: ${call.method} ${call.url}`);
     });
 
@@ -1128,6 +1163,16 @@ describe("provisionBrain image-ref healing", () => {
     );
     expect(createIndex).toBeGreaterThanOrEqual(0);
     expect(deleteIndex).toBeGreaterThan(createIndex);
+    expect(
+      calls.some(
+        (c) =>
+          c.method === "DELETE" && c.url.includes("/machines/m-other-stale"),
+      ),
+    ).toBe(true);
+    const verifyIndex = calls.findLastIndex(
+      (c) => c.method === "GET" && c.url.endsWith("/machines"),
+    );
+    expect(verifyIndex).toBeGreaterThan(deleteIndex);
     const del = calls.find(
       (c) => c.method === "DELETE" && c.url.includes("/machines/m-stale"),
     )!;
@@ -1277,35 +1322,41 @@ describe("provisionBrain image-ref healing", () => {
   });
 
   it("recreates a reused machine when the Dashboard CMS URL is missing", async () => {
+    let machineList: Array<Record<string, unknown>> = [
+      {
+        id: "m-good",
+        state: "started",
+        region: "fra",
+        config: {
+          image: `${DEFAULT_IMAGE}@sha256:fresh`,
+          env: { BRAIN_API_KEY: "live-key", GITHUB_TOKEN: "gh" },
+          services: [
+            {
+              internal_port: 8080,
+              autostop: "suspend",
+              autostart: true,
+              min_machines_running: 0,
+            },
+          ],
+        },
+      },
+    ];
     const calls = installFetchStub((call) => {
       if (call.method === "GET" && call.url.endsWith("/apps/kody-brain-alice"))
         return { json: { name: "kody-brain-alice" } };
       if (call.method === "GET" && call.url.endsWith("/machines"))
-        return {
-          json: [
-            {
-              id: "m-good",
-              state: "started",
-              region: "fra",
-              config: {
-                image: `${DEFAULT_IMAGE}@sha256:fresh`,
-                env: { BRAIN_API_KEY: "live-key", GITHUB_TOKEN: "gh" },
-                services: [
-                  {
-                    internal_port: 8080,
-                    autostop: "suspend",
-                    autostart: true,
-                    min_machines_running: 0,
-                  },
-                ],
-              },
-            },
-          ],
-        };
-      if (call.method === "DELETE" && call.url.includes("/machines/m-good"))
+        return { json: machineList };
+      if (call.method === "DELETE" && call.url.includes("/machines/m-good")) {
+        machineList = machineList.filter((m) => m.id !== "m-good");
         return { status: 200, json: { ok: true } };
-      if (call.method === "POST" && call.url.endsWith("/machines"))
+      }
+      if (call.method === "POST" && call.url.endsWith("/machines")) {
+        machineList = [
+          ...machineList,
+          { id: "m-fresh", state: "starting", region: "fra", config: {} },
+        ];
         return { json: { id: "m-fresh", state: "starting", region: "fra" } };
+      }
       throw new Error(`unexpected: ${call.method} ${call.url}`);
     });
 
@@ -1603,6 +1654,35 @@ describe("brainStatus", () => {
     expect(out.machineId).toBe("m");
   });
 
+  it("honors an exact machine override instead of the first Fly machine", async () => {
+    installFetchStub((call) => {
+      if (
+        call.method === "GET" &&
+        call.url.endsWith("/apps/kody-brain-alice")
+      ) {
+        return { json: { name: "kody-brain-alice" } };
+      }
+      if (call.method === "GET" && call.url.endsWith("/machines")) {
+        return {
+          json: [
+            { id: "m-old", state: "started", config: { env: {} } },
+            { id: "m-runtime", state: "suspended", config: { env: {} } },
+          ],
+        };
+      }
+      throw new Error(`unexpected: ${call.method} ${call.url}`);
+    });
+
+    const out = await brainStatus({
+      flyToken: TOKEN,
+      account: "alice",
+      machineIdOverride: "m-runtime",
+    });
+
+    expect(out.state).toBe("suspended");
+    expect(out.machineId).toBe("m-runtime");
+  });
+
   it("maps suspended/suspending to suspended", async () => {
     installFetchStub((call) => {
       if (
@@ -1641,5 +1721,51 @@ describe("brainStatus", () => {
     await expect(
       brainStatus({ flyToken: "", account: "alice" }),
     ).rejects.toThrow(/flyToken required/);
+  });
+});
+
+describe("resumeBrain", () => {
+  it("starts and verifies the exact machine override instead of waking by app only", async () => {
+    let runtimeState = "suspended";
+    const calls = installFetchStub((call) => {
+      if (
+        call.method === "GET" &&
+        call.url.endsWith("/apps/kody-brain-alice")
+      ) {
+        return { json: { name: "kody-brain-alice" } };
+      }
+      if (call.method === "GET" && call.url.endsWith("/machines")) {
+        return {
+          json: [
+            { id: "m-old", state: "started", config: { env: {} } },
+            { id: "m-runtime", state: runtimeState, config: { env: {} } },
+          ],
+        };
+      }
+      if (
+        call.method === "POST" &&
+        call.url.endsWith("/machines/m-runtime/start")
+      ) {
+        runtimeState = "started";
+        return { status: 200, json: { ok: true } };
+      }
+      if (call.url.includes("/healthz")) {
+        throw new Error("resume should target the machine before app health");
+      }
+      throw new Error(`unexpected: ${call.method} ${call.url}`);
+    });
+
+    await resumeBrain({
+      flyToken: TOKEN,
+      account: "alice",
+      machineIdOverride: "m-runtime",
+    });
+
+    expect(
+      calls.some(
+        (c) =>
+          c.method === "POST" && c.url.endsWith("/machines/m-runtime/start"),
+      ),
+    ).toBe(true);
   });
 });

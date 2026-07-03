@@ -8,6 +8,7 @@
  */
 import "server-only";
 
+import { readBrainRuntimeView } from "@dashboard/lib/brain/runtime-manager";
 import { readBrainApp, type BrainAppFile } from "@dashboard/lib/brain/store";
 import { resolveBrainTarget } from "@dashboard/lib/brain/target";
 import { listMachines } from "@dashboard/lib/previews/fly-previews";
@@ -24,6 +25,7 @@ export type BrainServiceReason =
   | "not_provisioned"
   | "stored_app_not_found"
   | "app_has_no_machine"
+  | "runtime_machine_not_found"
   | "machine_lookup_failed";
 
 export interface BrainServiceResolution {
@@ -50,19 +52,27 @@ export async function resolveBrainService(input: {
   const stored = await readBrainApp(input.account, input.githubToken).catch(
     () => null,
   );
+  const runtime = await readBrainRuntimeView(
+    input.account,
+    input.githubToken,
+  ).catch(() => null);
   const target = resolveBrainTarget({
     account: input.account,
     contextOrgSlug: input.orgSlug,
     stored,
     appNameOverride: input.appNameOverride,
   });
-  const app = target.app;
-  const orgSlug = target.orgSlug;
+  const app = input.appNameOverride ?? runtime?.runningApp ?? target.app;
+  const orgSlug = runtime?.runningOrgSlug ?? target.orgSlug;
+  const runtimeMachineId =
+    runtime?.runningApp === app ? runtime.runningMachineId : undefined;
+  const targetMachineId = input.machineIdOverride ?? runtimeMachineId;
 
   const status = await brainStatus({
     flyToken: input.flyToken,
     account: input.account,
     appNameOverride: app,
+    machineIdOverride: targetMachineId,
     orgSlug,
     defaultRegion: input.defaultRegion,
   });
@@ -75,7 +85,6 @@ export async function resolveBrainService(input: {
       orgSlug,
       defaultRegion: input.defaultRegion,
     });
-    const targetMachineId = input.machineIdOverride ?? status.machineId;
     machine = rowsForFlyApp(app, machines, Date.now(), {
       feature: "brain",
       label: app,
@@ -88,7 +97,9 @@ export async function resolveBrainService(input: {
   }
 
   const reason: BrainServiceReason | undefined =
-    machineLookupFailed && status.state !== "off"
+    targetMachineId && !machine && !machineLookupFailed
+      ? "runtime_machine_not_found"
+      : machineLookupFailed && status.state !== "off"
       ? "machine_lookup_failed"
       : status.state !== "off"
         ? undefined
@@ -105,7 +116,7 @@ export async function resolveBrainService(input: {
     stored,
     state: status.state,
     url: status.url,
-    machineId: machine?.machineId ?? status.machineId,
+    machineId: machine?.machineId ?? targetMachineId ?? status.machineId,
     machine,
     reason,
   };
