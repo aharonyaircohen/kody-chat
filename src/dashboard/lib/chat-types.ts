@@ -43,6 +43,11 @@ export interface ChatMessage {
    * streaming updates can't find the placeholder to append chunks to.
    */
   isLoading?: boolean;
+  /**
+   * Synthetic message that should remain available to the model but should not
+   * render as a visible chat bubble.
+   */
+  hidden?: boolean;
 }
 
 /**

@@ -35,6 +35,7 @@ describe("chatToMessage", () => {
       toolCalls,
       isLoading: false,
       attachments: [],
+      hidden: true,
     };
     const msg = chatToMessage(chat);
     expect(msg.role).toBe("assistant");
@@ -42,6 +43,7 @@ describe("chatToMessage", () => {
     expect(msg.timestamp).toBe("2026-05-24T00:00:00.000Z");
     expect(msg.toolCalls).toEqual(toolCalls);
     expect(msg.attachments).toEqual([]);
+    expect(msg.hidden).toBe(true);
   });
 });
 
@@ -52,12 +54,14 @@ describe("messageToChat", () => {
       content: "hi there",
       timestamp: "2026-05-24T01:02:03.000Z",
       toolCalls,
+      hidden: true,
     };
     const chat = messageToChat(msg);
     expect(chat.role).toBe("user");
     expect(chat.text).toBe("hi there");
     expect(chat.timestamp).toBe("2026-05-24T01:02:03.000Z");
     expect(chat.toolCalls).toEqual(toolCalls);
+    expect(chat.hidden).toBe(true);
   });
 
   it("defaults a missing timestamp to an ISO string", () => {
@@ -75,12 +79,14 @@ describe("round-trip", () => {
       timestamp: "2026-05-24T02:00:00.000Z",
       toolCalls,
       attachments: [],
+      hidden: true,
     };
     const back = messageToChat(chatToMessage(original));
     expect(back.role).toBe(original.role);
     expect(back.text).toBe(original.text);
     expect(back.timestamp).toBe(original.timestamp);
     expect(back.toolCalls).toEqual(original.toolCalls);
+    expect(back.hidden).toBe(true);
   });
 });
 

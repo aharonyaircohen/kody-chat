@@ -66,6 +66,7 @@ export function chatToMessage(chat: ChatMessage): Message {
     toolCalls: chat.toolCalls,
     isLoading: chat.isLoading,
     attachments: chat.attachments,
+    hidden: chat.hidden,
   };
 }
 
@@ -80,6 +81,7 @@ export function messageToChat(msg: Message): ChatMessage {
     toolCalls: msg.toolCalls,
     isLoading: msg.isLoading,
     attachments: msg.attachments,
+    hidden: msg.hidden,
   };
 }
 
