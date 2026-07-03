@@ -24,6 +24,10 @@ import {
   stateRepoPath,
   type StateRepoTarget,
 } from "../state-repo";
+import {
+  createGitHubStorageAdapter,
+  createGitHubStorageFetchClient,
+} from "../storage";
 
 const GITHUB_API = "https://api.github.com";
 const CACHE_TTL_MS = 10 * 60 * 1000;
@@ -76,21 +80,14 @@ async function readOnce(
   if (!isVaultConfigured()) return null;
   try {
     const target = await resolvePublicStateRepo(owner, repo, fetchImpl);
-    const res = await fetchContents(
-      target.owner,
-      target.repo,
+    const file = await createGitHubStorageAdapter(
+      createGitHubStorageFetchClient(fetchImpl),
+    ).readText(
+      { owner: target.owner, repo: target.repo },
       stateRepoPath(target, VAULT_PATH),
-      fetchImpl,
     );
-    if (!res.ok) return null;
-    const body = (await res.json()) as { content?: string; encoding?: string };
-    if (!body.content) return null;
-    const payload = Buffer.from(
-      body.content,
-      (body.encoding ?? "base64") as BufferEncoding,
-    )
-      .toString("utf8")
-      .trim();
+    if (!file) return null;
+    const payload = file.content.trim();
     const doc = JSON.parse(decrypt(payload)) as VaultDoc;
     const value = doc.secrets?.[secretName]?.value;
     return typeof value === "string" && value.trim() ? value : null;

@@ -8,7 +8,10 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
+import {
+  createGitHubStorageAdapter,
+  type GitHubStorageTarget,
+} from "@dashboard/lib/storage";
 import { getEngineConfig, type KodyConfig } from "./engine/config";
 import { STATE_BRANCH } from "./state-branch";
 
@@ -59,23 +62,6 @@ export interface StateRepoWriteFile {
 export interface StateRepoWriteBase64File {
   path: string;
   contentBase64: string;
-}
-
-interface ContentFile {
-  type?: string;
-  encoding?: string;
-  content?: string;
-  sha?: string;
-  html_url?: string;
-  size?: number;
-}
-
-interface ContentEntry {
-  name?: string;
-  path?: string;
-  type?: string;
-  size?: number;
-  html_url?: string;
 }
 
 type ConfigWithStateAliases = KodyConfig & {
@@ -251,42 +237,12 @@ function stateRepoScopedPath(
   return stateRepoPath(target, filePath);
 }
 
-async function ensureStateBranch(
-  octokit: Octokit,
-  target: StateRepoTarget,
-): Promise<void> {
-  try {
-    await octokit.git.getRef({
-      owner: target.owner,
-      repo: target.repo,
-      ref: `heads/${target.branch}`,
-    });
-    return;
-  } catch (err) {
-    if ((err as { status?: number }).status !== 404) throw err;
-  }
-
-  const repoInfo = await octokit.repos.get({
+function stateStorageTarget(target: StateRepoTarget): GitHubStorageTarget {
+  return {
     owner: target.owner,
     repo: target.repo,
-  });
-  const defaultBranch = repoInfo.data.default_branch;
-  const defaultRef = await octokit.git.getRef({
-    owner: target.owner,
-    repo: target.repo,
-    ref: `heads/${defaultBranch}`,
-  });
-
-  try {
-    await octokit.git.createRef({
-      owner: target.owner,
-      repo: target.repo,
-      ref: `refs/heads/${target.branch}`,
-      sha: defaultRef.data.object.sha,
-    });
-  } catch (err) {
-    if ((err as { status?: number }).status !== 422) throw err;
-  }
+    ref: target.branch,
+  };
 }
 
 export async function readStateText(
@@ -298,33 +254,21 @@ export async function readStateText(
 ): Promise<StateRepoFile | null> {
   const target = await resolveStateRepo(octokit, owner, repo);
   const path = stateRepoScopedPath(target, filePath, options.scope);
-  try {
-    const res = await octokit.repos.getContent({
-      owner: target.owner,
-      repo: target.repo,
-      path,
-      ref: target.branch,
-      headers: options.headers,
-    });
-    const data = res.data as ContentFile | ContentFile[];
-    if (Array.isArray(data) || data.type !== "file" || !data.content) {
-      return null;
-    }
-    return {
-      path,
-      content: Buffer.from(
-        data.content,
-        (data.encoding ?? "base64") as BufferEncoding,
-      ).toString("utf8"),
-      sha: data.sha ?? "",
-      etag: (res.headers as Record<string, string | undefined>)?.etag,
-      htmlUrl: data.html_url,
-      size: data.size,
-    };
-  } catch (err) {
-    if ((err as { status?: number }).status === 404) return null;
-    throw err;
-  }
+  const file = await createGitHubStorageAdapter(octokit).readText(
+    stateStorageTarget(target),
+    path,
+    { headers: options.headers },
+  );
+  return file
+    ? {
+        path: file.path,
+        content: file.content,
+        sha: file.version,
+        etag: file.etag,
+        htmlUrl: file.url,
+        size: file.size,
+      }
+    : null;
 }
 
 export async function readStateFileMetadata(
@@ -335,27 +279,18 @@ export async function readStateFileMetadata(
 ): Promise<StateRepoFileMetadata | null> {
   const target = await resolveStateRepo(octokit, owner, repo);
   const path = stateRepoPath(target, filePath);
-  try {
-    const res = await octokit.repos.getContent({
-      owner: target.owner,
-      repo: target.repo,
-      path,
-      ref: target.branch,
-    });
-    const data = res.data as ContentFile | ContentFile[];
-    if (Array.isArray(data) || data.type !== "file" || !data.sha) {
-      return null;
-    }
-    return {
-      path,
-      sha: data.sha,
-      htmlUrl: data.html_url,
-      size: data.size,
-    };
-  } catch (err) {
-    if ((err as { status?: number }).status === 404) return null;
-    throw err;
-  }
+  const file = await createGitHubStorageAdapter(octokit).readMetadata(
+    stateStorageTarget(target),
+    path,
+  );
+  return file
+    ? {
+        path: file.path,
+        sha: file.version,
+        htmlUrl: file.url,
+        size: file.size,
+      }
+    : null;
 }
 
 export async function listStateDirectory(
@@ -367,47 +302,22 @@ export async function listStateDirectory(
 ): Promise<{ entries: StateRepoEntry[]; etag?: string; targetPath: string }> {
   const target = await resolveStateRepo(octokit, owner, repo);
   const targetPath = stateRepoPath(target, dirPath);
-  try {
-    const res = await octokit.repos.getContent({
-      owner: target.owner,
-      repo: target.repo,
-      path: targetPath,
-      ref: target.branch,
-      headers: options.headers,
-    });
-    const data = res.data as ContentEntry | ContentEntry[];
-    return {
-      entries: Array.isArray(data)
-        ? data
-            .filter(
-              (
-                entry,
-              ): entry is ContentEntry & {
-                name: string;
-                path: string;
-                type: string;
-              } =>
-                typeof entry.name === "string" &&
-                typeof entry.path === "string" &&
-                typeof entry.type === "string",
-            )
-            .map((entry) => ({
-              name: entry.name,
-              path: entry.path,
-              type: entry.type,
-              size: entry.size,
-              htmlUrl: entry.html_url,
-            }))
-        : [],
-      etag: (res.headers as Record<string, string | undefined>)?.etag,
-      targetPath,
-    };
-  } catch (err) {
-    if ((err as { status?: number }).status === 404) {
-      return { entries: [], targetPath };
-    }
-    throw err;
-  }
+  const result = await createGitHubStorageAdapter(octokit).list(
+    stateStorageTarget(target),
+    targetPath,
+    { headers: options.headers },
+  );
+  return {
+    targetPath,
+    etag: result.etag,
+    entries: result.entries.map((entry) => ({
+      name: entry.name,
+      path: entry.path,
+      type: entry.type,
+      size: entry.size,
+      htmlUrl: entry.url,
+    })),
+  };
 }
 
 export async function writeStateText({
@@ -432,19 +342,16 @@ export async function writeStateText({
   scope?: StateRepoScope;
 }): Promise<{ sha: string | null; path: string; htmlUrl: string | null }> {
   const target = await resolveStateRepo(octokit, owner, repo);
-  await ensureStateBranch(octokit, target);
   const targetPath = stateRepoScopedPath(target, path, scope);
-  const res = await writeGitHubFileWithRetry(octokit, {
-    owner: target.owner,
-    repo: target.repo,
+  const res = await createGitHubStorageAdapter(octokit).writeText({
+    target: stateStorageTarget(target),
     path: targetPath,
-    branch: target.branch,
     message,
-    content: Buffer.from(content, "utf8").toString("base64"),
-    ...(sha ? { sha } : {}),
+    content,
+    ...(sha ? { version: sha } : {}),
     ...(maxAttempts ? { maxAttempts } : {}),
   });
-  return { sha: res.sha, path: targetPath, htmlUrl: res.htmlUrl };
+  return { sha: res.version, path: targetPath, htmlUrl: res.url };
 }
 
 export async function writeStateBase64({
@@ -469,19 +376,16 @@ export async function writeStateBase64({
   scope?: StateRepoScope;
 }): Promise<{ sha: string | null; path: string; htmlUrl: string | null }> {
   const target = await resolveStateRepo(octokit, owner, repo);
-  await ensureStateBranch(octokit, target);
   const targetPath = stateRepoScopedPath(target, path, scope);
-  const res = await writeGitHubFileWithRetry(octokit, {
-    owner: target.owner,
-    repo: target.repo,
+  const res = await createGitHubStorageAdapter(octokit).writeBase64({
+    target: stateStorageTarget(target),
     path: targetPath,
-    branch: target.branch,
     message,
-    content: contentBase64,
-    ...(sha ? { sha } : {}),
+    contentBase64,
+    ...(sha ? { version: sha } : {}),
     ...(maxAttempts ? { maxAttempts } : {}),
   });
-  return { sha: res.sha, path: targetPath, htmlUrl: res.htmlUrl };
+  return { sha: res.version, path: targetPath, htmlUrl: res.url };
 }
 
 export async function writeStateFiles({
@@ -502,44 +406,15 @@ export async function writeStateFiles({
   }
 
   const target = await resolveStateRepo(octokit, owner, repo);
-  await ensureStateBranch(octokit, target);
-  const ref = await octokit.git.getRef({
-    owner: target.owner,
-    repo: target.repo,
-    ref: `heads/${target.branch}`,
-  });
-  const baseSha = ref.data.object.sha;
-  const baseCommit = await octokit.git.getCommit({
-    owner: target.owner,
-    repo: target.repo,
-    commit_sha: baseSha,
-  });
-  const tree = await octokit.git.createTree({
-    owner: target.owner,
-    repo: target.repo,
-    base_tree: baseCommit.data.tree.sha,
-    tree: files.map((file) => ({
+  const res = await createGitHubStorageAdapter(octokit).writeTextFiles({
+    target: stateStorageTarget(target),
+    message,
+    files: files.map((file) => ({
       path: stateRepoPath(target, file.path),
-      mode: "100644",
-      type: "blob",
       content: file.content,
     })),
   });
-  const commit = await octokit.git.createCommit({
-    owner: target.owner,
-    repo: target.repo,
-    message,
-    tree: tree.data.sha,
-    parents: [baseSha],
-  });
-  await octokit.git.updateRef({
-    owner: target.owner,
-    repo: target.repo,
-    ref: `heads/${target.branch}`,
-    sha: commit.data.sha,
-  });
-
-  return { sha: commit.data.sha };
+  return { sha: res.version };
 }
 
 export async function writeStateBase64Files({
@@ -560,55 +435,15 @@ export async function writeStateBase64Files({
   }
 
   const target = await resolveStateRepo(octokit, owner, repo);
-  await ensureStateBranch(octokit, target);
-  const ref = await octokit.git.getRef({
-    owner: target.owner,
-    repo: target.repo,
-    ref: `heads/${target.branch}`,
-  });
-  const baseSha = ref.data.object.sha;
-  const baseCommit = await octokit.git.getCommit({
-    owner: target.owner,
-    repo: target.repo,
-    commit_sha: baseSha,
-  });
-  const blobs = await Promise.all(
-    files.map(async (file) => {
-      const blob = await octokit.git.createBlob({
-        owner: target.owner,
-        repo: target.repo,
-        content: file.contentBase64,
-        encoding: "base64",
-      });
-      return { path: stateRepoPath(target, file.path), sha: blob.data.sha };
-    }),
-  );
-  const tree = await octokit.git.createTree({
-    owner: target.owner,
-    repo: target.repo,
-    base_tree: baseCommit.data.tree.sha,
-    tree: blobs.map((blob) => ({
-      path: blob.path,
-      mode: "100644",
-      type: "blob",
-      sha: blob.sha,
+  const res = await createGitHubStorageAdapter(octokit).writeBase64Files({
+    target: stateStorageTarget(target),
+    message,
+    files: files.map((file) => ({
+      path: stateRepoPath(target, file.path),
+      contentBase64: file.contentBase64,
     })),
   });
-  const commit = await octokit.git.createCommit({
-    owner: target.owner,
-    repo: target.repo,
-    message,
-    tree: tree.data.sha,
-    parents: [baseSha],
-  });
-  await octokit.git.updateRef({
-    owner: target.owner,
-    repo: target.repo,
-    ref: `heads/${target.branch}`,
-    sha: commit.data.sha,
-  });
-
-  return { sha: commit.data.sha, branch: target.branch, target };
+  return { sha: res.version, branch: target.branch, target };
 }
 
 export async function deleteStateFile({
@@ -629,14 +464,11 @@ export async function deleteStateFile({
   scope?: StateRepoScope;
 }): Promise<void> {
   const target = await resolveStateRepo(octokit, owner, repo);
-  await ensureStateBranch(octokit, target);
-  await octokit.repos.deleteFile({
-    owner: target.owner,
-    repo: target.repo,
+  await createGitHubStorageAdapter(octokit).deleteFile({
+    target: stateStorageTarget(target),
     path: stateRepoScopedPath(target, path, scope),
-    branch: target.branch,
     message,
-    sha,
+    version: sha,
   });
 }
 
@@ -654,64 +486,9 @@ export async function deleteStateDirectory({
   message: string;
 }): Promise<{ deleted: number }> {
   const target = await resolveStateRepo(octokit, owner, repo);
-  await ensureStateBranch(octokit, target);
-  const ref = await octokit.git.getRef({
-    owner: target.owner,
-    repo: target.repo,
-    ref: `heads/${target.branch}`,
-  });
-  const baseSha = ref.data.object.sha;
-  const baseCommit = await octokit.git.getCommit({
-    owner: target.owner,
-    repo: target.repo,
-    commit_sha: baseSha,
-  });
-  const currentTree = await octokit.git.getTree({
-    owner: target.owner,
-    repo: target.repo,
-    tree_sha: baseCommit.data.tree.sha,
-    recursive: "true",
-  });
-  if (currentTree.data.truncated) {
-    throw new Error("State repo tree is too large to delete safely");
-  }
-
-  const prefix = `${stateRepoPath(target, path).replace(/\/+$/g, "")}/`;
-  const deletions = currentTree.data.tree
-    .filter(
-      (entry) =>
-        entry.type === "blob" &&
-        typeof entry.path === "string" &&
-        entry.path.startsWith(prefix),
-    )
-    .map((entry) => ({
-      path: entry.path!,
-      mode: "100644" as const,
-      type: "blob" as const,
-      sha: null,
-    }));
-
-  if (deletions.length === 0) return { deleted: 0 };
-
-  const tree = await octokit.git.createTree({
-    owner: target.owner,
-    repo: target.repo,
-    base_tree: baseCommit.data.tree.sha,
-    tree: deletions,
-  });
-  const commit = await octokit.git.createCommit({
-    owner: target.owner,
-    repo: target.repo,
+  return createGitHubStorageAdapter(octokit).deleteDirectory({
+    target: stateStorageTarget(target),
+    path: stateRepoPath(target, path),
     message,
-    tree: tree.data.sha,
-    parents: [baseSha],
   });
-  await octokit.git.updateRef({
-    owner: target.owner,
-    repo: target.repo,
-    ref: `heads/${target.branch}`,
-    sha: commit.data.sha,
-  });
-
-  return { deleted: deletions.length };
 }

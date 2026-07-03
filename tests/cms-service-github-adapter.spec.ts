@@ -145,6 +145,57 @@ describe("CMS service GitHub adapter integration", () => {
     });
   });
 
+  it("passes the shared storage transport into the GitHub CMS adapter", async () => {
+    const req = request("transport-ref");
+    octokit.seedText(
+      "aharonyaircohen",
+      "kody-company-store",
+      "transport-ref",
+      "cms/adapters/github/index.mjs",
+      [
+        "export function createCmsAdapter(options) {",
+        "  if (!options.transport) throw new Error('missing shared storage transport')",
+        "  return {",
+        "    async create(_collectionName, data) {",
+        "      const path = `content/articles/${data.id}.json`",
+        "      await options.transport.writeFile(path, `${JSON.stringify(data)}\\n`, { message: 'transport create' })",
+        "      return JSON.parse(await options.transport.readFile(path))",
+        "    },",
+        "  }",
+        "}",
+      ].join("\n"),
+    );
+    octokit.seedText(
+      "aharonyaircohen",
+      "kody-company-store",
+      "transport-ref",
+      "cms/contract/index.mjs",
+      readStoreFile("cms/contract/index.mjs"),
+    );
+
+    await expect(
+      createCmsDocument(
+        req,
+        octokit as never,
+        "A-Guy-educ",
+        "A-Guy-Web",
+        "articles",
+        { id: "transport", title: "Transport", status: "draft" },
+      ),
+    ).resolves.toEqual({
+      id: "transport",
+      title: "Transport",
+      status: "draft",
+    });
+    expect(octokit.writes[0]).toMatchObject({
+      owner: "A-Guy-educ",
+      repo: "kody-state",
+      path: "A-Guy-Web/content/articles/transport.json",
+      branch: "main",
+      message: "transport create",
+    });
+  });
+
   it("rejects documents that do not match the CMS schema before adapter writes", async () => {
     const req = request();
 
@@ -608,10 +659,14 @@ class FakeOctokit {
       const prefix = `${key.replace(/\/+$/g, "")}/`;
       const entries = [...this.files.keys()]
         .filter((fileKey) => fileKey.startsWith(prefix))
-        .map((fileKey) => ({
-          type: "file",
-          path: fileKey.slice(`${owner}/${repo}/${ref}/`.length),
-        }));
+        .map((fileKey) => {
+          const entryPath = fileKey.slice(`${owner}/${repo}/${ref}/`.length);
+          return {
+            type: "file",
+            name: entryPath.split("/").at(-1),
+            path: entryPath,
+          };
+        });
       if (entries.length > 0) return { data: entries };
       throw Object.assign(new Error("not found"), { status: 404 });
     },
@@ -643,5 +698,9 @@ class FakeOctokit {
       );
       return { data: {} };
     },
+  };
+
+  git = {
+    getRef: async () => ({ data: { object: { sha: "head-1" } } }),
   };
 }
