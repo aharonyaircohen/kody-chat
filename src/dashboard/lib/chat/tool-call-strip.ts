@@ -53,6 +53,7 @@ const KNOWN_TOOL_NAMES: ReadonlySet<string> = new Set([
   "recall",
   "update_memory",
   "preview_act",
+  "show_view",
   "read_capability_creation_guide",
 ]);
 

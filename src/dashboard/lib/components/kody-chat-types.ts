@@ -11,6 +11,7 @@
 import type { AttachmentRef, ChatContext, ChatMessage } from "../chat-types";
 import type { AgentId } from "../agents";
 import type { GoalRef } from "../goal-mention";
+import type { ChatViewDirective } from "@dashboard/lib/chat-ui-actions";
 
 export interface Message {
   role: "user" | "assistant";
@@ -53,6 +54,7 @@ export interface Message {
    * just not for the user's eyes.
    */
   hidden?: boolean;
+  view?: ChatViewDirective;
 }
 
 /**
@@ -67,6 +69,7 @@ export function chatToMessage(chat: ChatMessage): Message {
     isLoading: chat.isLoading,
     attachments: chat.attachments,
     hidden: chat.hidden,
+    view: chat.view,
   };
 }
 
@@ -82,6 +85,7 @@ export function messageToChat(msg: Message): ChatMessage {
     isLoading: msg.isLoading,
     attachments: msg.attachments,
     hidden: msg.hidden,
+    view: msg.view,
   };
 }
 

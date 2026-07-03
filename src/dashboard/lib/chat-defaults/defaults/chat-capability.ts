@@ -46,6 +46,8 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     "create_refactor",
     "create_documentation",
     "create_chore",
+    // ── User-managed view renderers
+    "show_view",
     // ── Kody admin (actor-gated) ───────────────────────────────────────────
     "switch_agent",
     "list_dashboard_features",

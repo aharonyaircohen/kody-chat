@@ -60,6 +60,52 @@ describe("Kody chat evals", () => {
     expect(prompt).not.toContain("Ask in small batches");
     expect(prompt).not.toContain("repeat. Stop ONLY");
   });
+
+  it("keeps rendered view data scoped to explicit values or the active workflow step", async () => {
+    const promptWithPreview = buildSystemPrompt(
+      composeBasePrompt(await loadChatDefaults("acme", "repo")),
+      { owner: "acme", repo: "repo" },
+      undefined,
+      {
+        previewContext: "Preview shows a Hebrew marketing page.",
+        viewRendererRules:
+          "- Purpose `approval`: Use this purpose for approval cards.\n  Data keys: title, body, actions",
+      },
+    );
+
+    expect(promptWithPreview).toContain("Generic view rendering");
+    expect(promptWithPreview).toContain(
+      "If the user asks to show, render, or display a UI/card, call `show_view`",
+    );
+    expect(promptWithPreview).toContain(
+      "Do not print JSON or describe the tool call",
+    );
+    expect(promptWithPreview).toContain(
+      "Dashboard chooses the matching user-managed renderer",
+    );
+    expect(promptWithPreview).toContain(
+      "For approval views, a short title is enough",
+    );
+    expect(promptWithPreview).toContain(
+      "UI-card requests are display requests, not issue-creation requests",
+    );
+    expect(promptWithPreview).toContain(
+      'If the user says "Show approval-card UI: Create this issue?", render that literal card',
+    );
+    expect(promptWithPreview).toContain(
+      "Each field in `data` must come from one of two places",
+    );
+    expect(promptWithPreview).toContain(
+      "Do not silently copy preview, page, repo, task, memory, or research context into view fields",
+    );
+    expect(promptWithPreview).toContain(
+      "Do not name a renderer, preset, or hardcoded view type",
+    );
+    expect(promptWithPreview).toContain("Available renderer rules");
+    expect(promptWithPreview).toContain("Purpose `approval`");
+    expect(promptWithPreview).toContain("Use this purpose for approval cards");
+    expect(promptWithPreview).toContain("Data keys: title, body, actions");
+  });
 });
 
 describe("Kody chat evals", () => {

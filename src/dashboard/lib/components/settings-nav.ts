@@ -337,6 +337,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-violet-300 bg-violet-500/10",
       },
       {
+        href: "/views/renderers",
+        label: "View Renderers",
+        icon: LayoutGrid,
+        description: "Renderer JSON for structured chat UI.",
+        tint: "text-cyan-300 bg-cyan-500/10",
+      },
+      {
         href: "/instructions",
         label: "Instructions",
         icon: ScrollText,

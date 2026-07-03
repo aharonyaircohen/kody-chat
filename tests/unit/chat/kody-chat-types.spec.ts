@@ -7,6 +7,10 @@
  */
 import { describe, it, expect } from "vitest";
 import {
+  RENDER_VIEW_DIRECTIVE,
+  type RenderedViewDirective,
+} from "@dashboard/lib/chat-ui-actions";
+import {
   chatToMessage,
   messageToChat,
   ISSUE_CREATION_TOOL_NAMES,
@@ -26,6 +30,23 @@ const toolCalls = [
   },
 ];
 
+const renderedView: RenderedViewDirective = {
+  action: RENDER_VIEW_DIRECTIVE,
+  view: "renderer",
+  id: "view-test",
+  rendererSlug: "my-renderer",
+  rendererName: "My renderer",
+  resultTarget: "chat",
+  blocks: [
+    { type: "title", bind: "title" },
+    { type: "buttons", bind: "actions" },
+  ],
+  data: {
+    title: "Create this issue?",
+    actions: [{ id: "approve", label: "Approve", response: "approve" }],
+  },
+};
+
 describe("chatToMessage", () => {
   it("maps storage shape (text) onto UI shape (content)", () => {
     const chat: ChatMessage = {
@@ -36,6 +57,7 @@ describe("chatToMessage", () => {
       isLoading: false,
       attachments: [],
       hidden: true,
+      view: renderedView,
     };
     const msg = chatToMessage(chat);
     expect(msg.role).toBe("assistant");
@@ -44,6 +66,17 @@ describe("chatToMessage", () => {
     expect(msg.toolCalls).toEqual(toolCalls);
     expect(msg.attachments).toEqual([]);
     expect(msg.hidden).toBe(true);
+    expect(msg.view).toEqual(renderedView);
+  });
+
+  it("preserves generic rendered views", () => {
+    const chat: ChatMessage = {
+      role: "assistant",
+      text: "",
+      timestamp: "2026-05-24T00:00:00.000Z",
+      view: renderedView,
+    };
+    expect(chatToMessage(chat).view).toEqual(renderedView);
   });
 });
 
@@ -55,6 +88,7 @@ describe("messageToChat", () => {
       timestamp: "2026-05-24T01:02:03.000Z",
       toolCalls,
       hidden: true,
+      view: renderedView,
     };
     const chat = messageToChat(msg);
     expect(chat.role).toBe("user");
@@ -62,6 +96,7 @@ describe("messageToChat", () => {
     expect(chat.timestamp).toBe("2026-05-24T01:02:03.000Z");
     expect(chat.toolCalls).toEqual(toolCalls);
     expect(chat.hidden).toBe(true);
+    expect(chat.view).toEqual(renderedView);
   });
 
   it("defaults a missing timestamp to an ISO string", () => {
@@ -80,6 +115,7 @@ describe("round-trip", () => {
       toolCalls,
       attachments: [],
       hidden: true,
+      view: renderedView,
     };
     const back = messageToChat(chatToMessage(original));
     expect(back.role).toBe(original.role);
@@ -87,6 +123,7 @@ describe("round-trip", () => {
     expect(back.timestamp).toBe(original.timestamp);
     expect(back.toolCalls).toEqual(original.toolCalls);
     expect(back.hidden).toBe(true);
+    expect(back.view).toEqual(renderedView);
   });
 });
 

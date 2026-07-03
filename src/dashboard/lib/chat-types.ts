@@ -5,6 +5,8 @@
  * @ai-summary Shared types for chat persistence across dashboard and pipeline
  */
 
+import type { ChatViewDirective } from "./chat-ui-actions";
+
 /**
  * Reference to an attachment blob stored in IndexedDB.
  * Lives on a ChatMessage; the binary itself is in the `kody-attachments`
@@ -48,6 +50,8 @@ export interface ChatMessage {
    * render as a visible chat bubble.
    */
   hidden?: boolean;
+  /** Optional structured UI rendered under an assistant chat message. */
+  view?: ChatViewDirective;
 }
 
 /**

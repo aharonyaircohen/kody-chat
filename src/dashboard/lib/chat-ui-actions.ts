@@ -11,6 +11,7 @@ import type { AgentId } from "./agents";
 
 export const SWITCH_AGENT_DIRECTIVE = "switch_agent" as const;
 export const PREVIEW_ACT_DIRECTIVE = "preview_act" as const;
+export const RENDER_VIEW_DIRECTIVE = "render_view" as const;
 
 /**
  * Voice is a modality, not an agent — every agent in the registry is a
@@ -61,6 +62,39 @@ export interface PreviewActDirective {
   reason: string;
 }
 
+export interface RenderedViewAction {
+  id: string;
+  label: string;
+  response: string;
+  variant?: "primary" | "secondary" | "danger";
+}
+
+export type RenderedViewDataValue =
+  | string
+  | number
+  | boolean
+  | null
+  | RenderedViewAction[];
+
+export interface RenderedViewBlock {
+  type: "title" | "text" | "markdown" | "buttons" | "input";
+  bind: string;
+  label?: string;
+}
+
+export interface RenderedViewDirective {
+  action: typeof RENDER_VIEW_DIRECTIVE;
+  view: "renderer";
+  id: string;
+  rendererSlug: string;
+  rendererName: string;
+  resultTarget: "chat";
+  blocks: RenderedViewBlock[];
+  data: Record<string, RenderedViewDataValue>;
+}
+
+export type ChatViewDirective = RenderedViewDirective;
+
 export function isPreviewActDirective(
   value: unknown,
 ): value is PreviewActDirective {
@@ -74,6 +108,72 @@ export function isPreviewActDirective(
     v.op === "scroll" ||
     v.op === "wait";
   return okOp && typeof v.reason === "string";
+}
+
+function isRenderedViewAction(value: unknown): value is RenderedViewAction {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  const validVariant =
+    v.variant === undefined ||
+    v.variant === "primary" ||
+    v.variant === "secondary" ||
+    v.variant === "danger";
+  return (
+    typeof v.id === "string" &&
+    typeof v.label === "string" &&
+    typeof v.response === "string" &&
+    validVariant
+  );
+}
+
+function isRenderedViewDataValue(value: unknown): value is RenderedViewDataValue {
+  return (
+    value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean" ||
+    (Array.isArray(value) && value.every(isRenderedViewAction))
+  );
+}
+
+export function isRenderedViewDirective(
+  value: unknown,
+): value is RenderedViewDirective {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  if (
+    v.action !== RENDER_VIEW_DIRECTIVE ||
+    v.view !== "renderer" ||
+    typeof v.id !== "string" ||
+    typeof v.rendererSlug !== "string" ||
+    typeof v.rendererName !== "string" ||
+    v.resultTarget !== "chat" ||
+    !Array.isArray(v.blocks) ||
+    !v.data ||
+    typeof v.data !== "object" ||
+    Array.isArray(v.data)
+  ) {
+    return false;
+  }
+  const validBlocks = v.blocks.every((block) => {
+    if (!block || typeof block !== "object") return false;
+    const b = block as Record<string, unknown>;
+    const validType =
+      b.type === "title" ||
+      b.type === "text" ||
+      b.type === "markdown" ||
+      b.type === "buttons" ||
+      b.type === "input";
+    return (
+      validType &&
+      typeof b.bind === "string" &&
+      (b.label === undefined || typeof b.label === "string")
+    );
+  });
+  if (!validBlocks) return false;
+  return Object.values(v.data as Record<string, unknown>).every(
+    isRenderedViewDataValue,
+  );
 }
 
 export function isSwitchAgentDirective(

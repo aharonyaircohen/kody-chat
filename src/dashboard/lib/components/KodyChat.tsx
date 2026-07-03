@@ -15,6 +15,7 @@ import { MarkdownPreview } from "./MarkdownPreview";
 import { MarkdownEditor } from "./MarkdownEditor";
 import {
   Brain,
+  Check,
   ClipboardCopy,
   Globe,
   Paperclip,
@@ -170,7 +171,10 @@ import {
 } from "../vibe/recent-issue";
 import {
   isPreviewActDirective,
+  isRenderedViewDirective,
   isSwitchAgentDirective,
+  type RenderedViewAction,
+  type RenderedViewDirective,
   type PreviewActDirective,
 } from "@dashboard/lib/chat-ui-actions";
 import {
@@ -185,6 +189,104 @@ import {
 } from "@dashboard/lib/terminal/kody-terminal-directive";
 
 type MessageDirection = "ltr" | "rtl" | "auto";
+
+function RenderedViewCard({
+  view,
+  disabled,
+  onAction,
+}: {
+  view: RenderedViewDirective;
+  disabled: boolean;
+  onAction: (action: RenderedViewAction) => void;
+}) {
+  const textValue = (bind: string) => {
+    const value = view.data[bind];
+    if (Array.isArray(value)) return "";
+    if (value === null || value === undefined) return "";
+    return String(value);
+  };
+  return (
+    <div className="mt-3 rounded-md border border-border bg-background/80 p-3 text-sm">
+      <div className="space-y-3">
+        {view.blocks.map((block, index) => {
+          const key = `${block.type}-${block.bind}-${index}`;
+          if (block.type === "title") {
+            return (
+              <div key={key} className="font-medium text-foreground">
+                {textValue(block.bind)}
+              </div>
+            );
+          }
+          if (block.type === "text") {
+            return (
+              <div key={key} className="text-muted-foreground">
+                {textValue(block.bind)}
+              </div>
+            );
+          }
+          if (block.type === "markdown") {
+            return (
+              <MarkdownPreview
+                key={key}
+                content={textValue(block.bind)}
+                className="chat-message-text prose-sm break-words"
+              />
+            );
+          }
+          if (block.type === "input") {
+            return (
+              <label key={key} className="block space-y-1">
+                {block.label ? (
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {block.label}
+                  </span>
+                ) : null}
+                <input
+                  value={textValue(block.bind)}
+                  readOnly
+                  className="h-8 w-full rounded-md border border-border bg-muted/40 px-2 text-sm text-foreground"
+                />
+              </label>
+            );
+          }
+          const actions = view.data[block.bind];
+          if (!Array.isArray(actions)) return null;
+          return (
+            <div key={key} className="flex flex-wrap gap-2">
+              {actions.map((action) => {
+                const isPrimary = action.variant === "primary";
+                const isDanger = action.variant === "danger";
+                const Icon = isPrimary
+                  ? Check
+                  : isDanger
+                    ? X
+                    : MousePointerClick;
+                return (
+                  <button
+                    key={action.id}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => onAction(action)}
+                    className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                      isPrimary
+                        ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
+                        : isDanger
+                          ? "border-destructive/40 text-destructive hover:bg-destructive/10"
+                          : "border-border bg-background hover:bg-accent"
+                    }`}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    {action.label}
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function checkpointTransportFromChatTransport(
   transport: ChatTerminalTransport,
@@ -371,6 +473,7 @@ export function KodyChat({
   const dragCounterRef = useRef(0);
   const [, setLoading] = useState(false);
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
+  const [usedViewIds, setUsedViewIds] = useState<Set<string>>(() => new Set());
   const [selectedAgentId, setSelectedAgentId] = useState<AgentId>(
     lockedAgentId ?? "kody-live",
   );
@@ -3051,12 +3154,12 @@ export function KodyChat({
           // → snapshot → follow-up user turn) doesn't race the in-flight
           // assistant render.
           let pendingPreviewAct: ReturnType<typeof JSON.parse> | null = null;
+          let pendingView: RenderedViewDirective | null = null;
 
           const composeContent = () =>
             (reasoningBuf ? `<think>${reasoningBuf}</think>\n\n` : "") +
             textBuf;
 
-          // eslint-disable-next-line no-constant-condition
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
@@ -3217,6 +3320,28 @@ export function KodyChat({
                   if (isPreviewActDirective(chunk.output)) {
                     pendingPreviewAct = chunk.output;
                   }
+                  if (isRenderedViewDirective(chunk.output)) {
+                    const renderedView = chunk.output;
+                    pendingView = renderedView;
+                    setMessages((prev) => {
+                      const copy = [...prev];
+                      let idx = copy.findIndex(
+                        (m) => m.role === "assistant" && m.isLoading,
+                      );
+                      if (idx < 0) {
+                        copy.push({
+                          role: "assistant",
+                          content: "",
+                          timestamp: new Date().toISOString(),
+                          isLoading: true,
+                          toolCalls: [],
+                        });
+                        idx = copy.length - 1;
+                      }
+                      copy[idx] = { ...copy[idx], view: renderedView };
+                      return copy;
+                    });
+                  }
                   // Issue creation: one of the `create_*` / `report_bug`
                   // tools that returned `{ number: <positive int> }` is a
                   // newly opened GitHub issue. Capture so the post-stream
@@ -3325,7 +3450,8 @@ export function KodyChat({
                 !answer.trim() &&
                 !reasoning.trim() &&
                 !hadTools &&
-                !pendingSwitchAgent;
+                !pendingSwitchAgent &&
+                !pendingView;
               copy[idx] = producedNothing
                 ? {
                     ...m,
@@ -3755,6 +3881,28 @@ export function KodyChat({
   // this to push synthetic follow-up turns without forward-referencing
   // sendText itself.
   sendTextRef.current = sendText;
+
+  const handleRenderedViewAction = useCallback(
+    (view: RenderedViewDirective, action: RenderedViewAction) => {
+      if (usedViewIds.has(view.id)) return;
+      setUsedViewIds((prev) => {
+        const next = new Set(prev);
+        next.add(view.id);
+        return next;
+      });
+      const resultPayload = JSON.stringify({
+        kind: "view_result",
+        view: "renderer",
+        viewId: view.id,
+        rendererSlug: view.rendererSlug,
+        actionId: action.id,
+      });
+      void sendText(`${action.response}\n\n<view_result>${resultPayload}</view_result>`, [], {
+        displayContent: action.label,
+      });
+    },
+    [sendText, usedViewIds],
+  );
 
   // Planner auto-kickoff. The "Plan with chat" button is the user's consent
   // to start; landing them on a blank prompt and asking them to type "go" is
@@ -5752,6 +5900,23 @@ export function KodyChat({
                                   className="chat-message-text prose-base break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words"
                                 />
                               )}
+                              {msg.view &&
+                                isRenderedViewDirective(msg.view) && (
+                                  <RenderedViewCard
+                                    view={msg.view}
+                                    disabled={
+                                      !!msg.isLoading ||
+                                      i !== messages.length - 1 ||
+                                      usedViewIds.has(msg.view.id)
+                                    }
+                                    onAction={(action) =>
+                                      handleRenderedViewAction(
+                                        msg.view as RenderedViewDirective,
+                                        action,
+                                      )
+                                    }
+                                  />
+                                )}
                               {/* Never a blank bubble: while the turn is in flight and
                             no visible answer text has arrived yet, show the
                             thinking indicator — but only after the 800ms grace

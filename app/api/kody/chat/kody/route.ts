@@ -78,7 +78,7 @@ import { createKodyTools } from "../tools/kody-tools";
 import { applyVibeToolPolicy } from "./vibe-tool-policy";
 import { fetchUrlTool } from "../tools/fetch-url";
 import { featureTools } from "../tools/feature-tools";
-import { uiTools } from "../tools/ui-tools";
+import { createUiTools } from "../tools/ui-tools";
 import { createCommandTools } from "../tools/commands-tools";
 import { createContextTools } from "../tools/context-tools";
 import { createTodoTools } from "../tools/todo-tools";
@@ -101,6 +101,7 @@ import {
   readMemoryFile,
   writeMemoryFile,
 } from "@dashboard/lib/memory-files";
+import { loadViewRendererRulesForPrompt } from "@dashboard/lib/view-renderers/renderers";
 import { loadInstructionsForPrompt } from "@dashboard/lib/instructions/files";
 import { loadContextForPrompt } from "@dashboard/lib/context/files";
 import { buildExplicitMemoryDraft } from "./explicit-memory";
@@ -112,6 +113,10 @@ import {
   appendAgentChatSpeakerOverride,
   buildAgentChatIdentity,
 } from "@dashboard/lib/agent-chat-identity";
+import {
+  buildExplicitViewRequestInstruction,
+  parseExplicitViewRequest,
+} from "./view-request";
 
 export const runtime = "nodejs";
 // Research turns can chain up to ~10 tool rounds (search → read → blame → …)
@@ -527,6 +532,8 @@ export async function POST(req: NextRequest) {
     );
   }
   const messages = trimToRecent(allMessages);
+  const latestUserText = getLatestUserText(messages);
+  const explicitViewRequest = parseExplicitViewRequest(latestUserText);
   const trimmedCount = allMessages.length - messages.length;
   const hasImageParts = messagesHaveImageParts(messages);
 
@@ -567,6 +574,7 @@ export async function POST(req: NextRequest) {
   let memoryIndex: string | null = null;
   let userInstructions: string | null = null;
   let context: string | null = null;
+  let viewRendererRules: string | null = null;
   if (repo) {
     setGitHubContext(
       repo.owner,
@@ -602,6 +610,18 @@ export async function POST(req: NextRequest) {
         "kody-direct: context load failed (continuing without it)",
       );
     }
+    try {
+      viewRendererRules = await loadViewRendererRulesForPrompt({
+        octokit: createUserOctokit(repo.token),
+        owner: repo.owner,
+        repo: repo.repo,
+      });
+    } catch (err) {
+      traceWarn(
+        { traceId, err: err instanceof Error ? err.message : String(err) },
+        "kody-direct: view renderer rules load failed (continuing without them)",
+      );
+    }
   }
 
   // Pick the agentIdentity. Agents whose backend is `kody-direct` are
@@ -632,9 +652,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const explicitMemoryDraft = buildExplicitMemoryDraft(
-    getLatestUserText(messages) ?? "",
-  );
+  const explicitMemoryDraft = buildExplicitMemoryDraft(latestUserText ?? "");
   if (repo && explicitMemoryDraft) {
     try {
       const octokit = createUserOctokit(repo.token);
@@ -739,16 +757,18 @@ export async function POST(req: NextRequest) {
   // improvements) — the model picks the right tool from the descriptions,
   // not by guessing from names. Tool building requires repo + actor
   // resolution done above.
-  const baseTools: Record<string, unknown> = {
-    fetch_url: fetchUrlTool,
-    ...featureTools,
-    ...uiTools,
-  };
+  let uiToolSet = createUiTools();
   let extraTools: Record<string, unknown> = {};
   if (repo) {
     // Per-request Octokit (no shared singleton) so the GitHub tools
     // don't race other concurrent /api/kody/chat/kody requests.
     const octokit = createUserOctokit(repo.token);
+    uiToolSet = createUiTools({
+      octokit,
+      owner: repo.owner,
+      repo: repo.repo,
+      actorLogin: verifiedActorLogin,
+    });
     extraTools = {
       ...extraTools,
       ...createGitHubTools({ octokit, owner: repo.owner, repo: repo.repo }),
@@ -910,6 +930,11 @@ export async function POST(req: NextRequest) {
       })),
     };
   }
+  const baseTools: Record<string, unknown> = {
+    fetch_url: fetchUrlTool,
+    ...featureTools,
+    ...uiToolSet,
+  };
   // Kody chat tool policy (see vibe-tool-policy.ts): strips implementation
   // starters from this endpoint, and strips issue-creation tools in vibe mode
   // once a task is scoped so the model can't file a duplicate.
@@ -925,6 +950,27 @@ export async function POST(req: NextRequest) {
     chatBundle.capability.tools,
   );
   const tools = allowlistedTools as Parameters<typeof streamText>[0]["tools"];
+  const forceShowViewTool =
+    Boolean(explicitViewRequest) &&
+    Object.prototype.hasOwnProperty.call(allowlistedTools, "show_view");
+  if (explicitViewRequest && !forceShowViewTool) {
+    modelMessages = [
+      ...modelMessages,
+      {
+        role: "system",
+        content:
+          "The latest user message asks to render a UI card, but `show_view` is not available in this chat's tool set. Tell the user the UI tool is unavailable; do not claim the card was rendered.",
+      },
+    ];
+  } else if (explicitViewRequest) {
+    modelMessages = [
+      ...modelMessages,
+      {
+        role: "system",
+        content: buildExplicitViewRequestInstruction(explicitViewRequest),
+      },
+    ];
+  }
 
   // Build the system prompt. The tool index (name + description) is
   // computed from the FINAL allowlisted tools and injected into the
@@ -955,6 +1001,7 @@ export async function POST(req: NextRequest) {
       flyConfigured,
       userInstructions,
       context,
+      viewRendererRules,
     },
   );
 
@@ -1049,6 +1096,9 @@ This turn includes an image from the user. For questions about what is visible i
       system: groundedSystemPrompt,
       messages: modelMessages,
       tools,
+      ...(forceShowViewTool
+        ? { toolChoice: { type: "tool" as const, toolName: "show_view" } }
+        : {}),
       // Optimized for deep analysis: see DEFAULT_MAX_STEPS for the cap
       // rationale and the per-model override path. The constant lives at
       // module level so tests can assert the value.

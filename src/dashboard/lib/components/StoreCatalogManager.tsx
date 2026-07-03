@@ -106,6 +106,100 @@ const KIND_LABEL: Record<CatalogItemKind, string> = {
   command: "Command",
 };
 
+const KIND_COLORS: Record<
+  CatalogKind,
+  {
+    tabActive: string;
+    tabIdle: string;
+    icon: string;
+    iconHover: string;
+    borderHover: string;
+    tint: string;
+    text: string;
+  }
+> = {
+  all: {
+    tabActive:
+      "border-slate-500/40 bg-slate-500/10 text-slate-700 dark:text-slate-100",
+    tabIdle:
+      "border-border bg-background/60 text-muted-foreground hover:text-slate-700 dark:hover:text-slate-100",
+    icon: "text-slate-600 dark:text-slate-300",
+    iconHover: "group-hover:text-slate-600 dark:group-hover:text-slate-300",
+    borderHover: "hover:border-slate-500/30",
+    tint: "bg-slate-500/10",
+    text: "text-slate-700 dark:text-slate-100",
+  },
+  agent: {
+    tabActive:
+      "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-100",
+    tabIdle:
+      "border-border bg-background/60 text-muted-foreground hover:text-sky-700 dark:hover:text-sky-100",
+    icon: "text-sky-600 dark:text-sky-300",
+    iconHover: "group-hover:text-sky-600 dark:group-hover:text-sky-300",
+    borderHover: "hover:border-sky-500/30",
+    tint: "bg-sky-500/10",
+    text: "text-sky-700 dark:text-sky-100",
+  },
+  agentGoal: {
+    tabActive:
+      "border-violet-500/40 bg-violet-500/10 text-violet-700 dark:text-violet-100",
+    tabIdle:
+      "border-border bg-background/60 text-muted-foreground hover:text-violet-700 dark:hover:text-violet-100",
+    icon: "text-violet-600 dark:text-violet-300",
+    iconHover:
+      "group-hover:text-violet-600 dark:group-hover:text-violet-300",
+    borderHover: "hover:border-violet-500/30",
+    tint: "bg-violet-500/10",
+    text: "text-violet-700 dark:text-violet-100",
+  },
+  agentLoop: {
+    tabActive:
+      "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-100",
+    tabIdle:
+      "border-border bg-background/60 text-muted-foreground hover:text-amber-700 dark:hover:text-amber-100",
+    icon: "text-amber-600 dark:text-amber-300",
+    iconHover: "group-hover:text-amber-600 dark:group-hover:text-amber-300",
+    borderHover: "hover:border-amber-500/30",
+    tint: "bg-amber-500/10",
+    text: "text-amber-700 dark:text-amber-100",
+  },
+  workflow: {
+    tabActive:
+      "border-indigo-500/40 bg-indigo-500/10 text-indigo-700 dark:text-indigo-100",
+    tabIdle:
+      "border-border bg-background/60 text-muted-foreground hover:text-indigo-700 dark:hover:text-indigo-100",
+    icon: "text-indigo-600 dark:text-indigo-300",
+    iconHover:
+      "group-hover:text-indigo-600 dark:group-hover:text-indigo-300",
+    borderHover: "hover:border-indigo-500/30",
+    tint: "bg-indigo-500/10",
+    text: "text-indigo-700 dark:text-indigo-100",
+  },
+  capability: {
+    tabActive:
+      "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-100",
+    tabIdle:
+      "border-border bg-background/60 text-muted-foreground hover:text-emerald-700 dark:hover:text-emerald-100",
+    icon: "text-emerald-600 dark:text-emerald-300",
+    iconHover:
+      "group-hover:text-emerald-600 dark:group-hover:text-emerald-300",
+    borderHover: "hover:border-emerald-500/30",
+    tint: "bg-emerald-500/10",
+    text: "text-emerald-700 dark:text-emerald-100",
+  },
+  command: {
+    tabActive:
+      "border-rose-500/40 bg-rose-500/10 text-rose-700 dark:text-rose-100",
+    tabIdle:
+      "border-border bg-background/60 text-muted-foreground hover:text-rose-700 dark:hover:text-rose-100",
+    icon: "text-rose-600 dark:text-rose-300",
+    iconHover: "group-hover:text-rose-600 dark:group-hover:text-rose-300",
+    borderHover: "hover:border-rose-500/30",
+    tint: "bg-rose-500/10",
+    text: "text-rose-700 dark:text-rose-100",
+  },
+};
+
 const CATEGORY_FILTERS = KIND_FILTERS.filter(
   (filter) => filter.id !== "all",
 ) as Array<{ id: CatalogItemKind; label: string; icon: LucideIcon }>;
@@ -179,6 +273,10 @@ function displayKindIcon(item: StoreCatalogItem): LucideIcon {
   return (
     KIND_FILTERS.find((filter) => filter.id === item.kind)?.icon ?? Package
   );
+}
+
+function displayKindColor(item: StoreCatalogItem) {
+  return KIND_COLORS[isWorkflowCatalogItem(item) ? "workflow" : item.kind];
 }
 
 function itemMatchesKind(item: StoreCatalogItem, kind: CatalogKind): boolean {
@@ -476,6 +574,7 @@ export function StoreCatalogManager({
           {KIND_FILTERS.map((filter) => {
             const active = filter.id === kind;
             const Icon = filter.icon;
+            const colors = KIND_COLORS[filter.id];
             return (
               <button
                 key={filter.id}
@@ -485,9 +584,7 @@ export function StoreCatalogManager({
                 onClick={() => selectCatalogKind(filter.id)}
                 className={cn(
                   "inline-flex h-7 items-center gap-1.5 rounded-md border px-2 text-xs transition-colors",
-                  active
-                    ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-100"
-                    : "border-border bg-background/60 text-muted-foreground hover:text-foreground",
+                  active ? colors.tabActive : colors.tabIdle,
                 )}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -516,7 +613,7 @@ export function StoreCatalogManager({
               >
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-2">
-                    <GroupIcon className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
+                    <GroupIcon className={cn("h-4 w-4", KIND_COLORS[group.id].icon)} />
                     <h2
                       id={`store-group-${group.id}`}
                       className="text-sm font-semibold text-foreground"
@@ -573,16 +670,27 @@ function CatalogCard({
   onSelect: () => void;
 }) {
   const Icon = displayKindIcon(item);
+  const colors = displayKindColor(item);
   const uninstallBlocked = (item.uninstallBlockedBy ?? []).length > 0;
   return (
     <button
       type="button"
       onClick={onSelect}
       data-testid={`store-catalog-row-${item.kind}-${item.slug}`}
-      className="group min-h-[6.25rem] w-full rounded-md border border-border bg-card p-3 text-left transition-colors hover:border-emerald-500/30 hover:bg-muted/30"
+      className={cn(
+        "group min-h-[6.25rem] w-full rounded-md border border-border bg-card p-3 text-left transition-colors hover:bg-muted/30",
+        colors.borderHover,
+      )}
     >
       <div className="flex min-w-0 items-start gap-2.5">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-muted/40 text-muted-foreground transition-colors group-hover:text-emerald-600 dark:group-hover:text-emerald-300">
+        <span
+          className={cn(
+            "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border transition-colors",
+            colors.tint,
+            colors.text,
+            colors.iconHover,
+          )}
+        >
           <Icon className="h-4 w-4" />
         </span>
         <div className="min-w-0">
@@ -600,6 +708,15 @@ function CatalogCard({
         </p>
       ) : null}
       <div className="mt-2 flex min-h-5 flex-wrap items-center gap-1.5">
+        <span
+          className={cn(
+            "rounded-md border border-current/20 px-1.5 py-0.5 text-[11px]",
+            colors.tint,
+            colors.text,
+          )}
+        >
+          {displayKindLabel(item)}
+        </span>
         {item.installed ? (
           <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.5 text-[11px] text-emerald-700 dark:text-emerald-100">
             <CheckCircle2 className="h-3 w-3" />
@@ -632,6 +749,7 @@ function CatalogDetail({
   busy: boolean;
 }) {
   const Icon = displayKindIcon(item);
+  const colors = displayKindColor(item);
   const installed = item.installed === true;
   const blockers = item.uninstallBlockedBy ?? [];
   const uninstallBlocked = installed && blockers.length > 0;
@@ -640,14 +758,24 @@ function CatalogDetail({
     <DialogContent className="max-w-2xl border-border bg-card text-card-foreground">
       <DialogHeader className="pr-8">
         <div className="flex min-w-0 items-center gap-2">
-          <Icon className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-300" />
+          <span
+            className={cn(
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-current/20",
+              colors.tint,
+              colors.text,
+            )}
+          >
+            <Icon className="h-4 w-4" />
+          </span>
           <DialogTitle className="truncate text-xl text-foreground">
             {item.title || item.slug}
           </DialogTitle>
         </div>
         <DialogDescription className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span className="font-mono">{item.slug}</span>
-          <span>{displayKindLabel(item)}</span>
+          <span className={cn("font-medium", colors.text)}>
+            {displayKindLabel(item)}
+          </span>
           {installed ? (
             <span className="inline-flex items-center gap-1 rounded-md border border-emerald-500/25 bg-emerald-500/10 px-1.5 py-0.5 text-emerald-700 dark:text-emerald-100">
               <CheckCircle2 className="h-3 w-3" />

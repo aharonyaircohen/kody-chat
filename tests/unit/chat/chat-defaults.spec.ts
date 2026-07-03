@@ -159,9 +159,15 @@ describe("chat-defaults bundle", () => {
         }
       }
     }
-    // Direct imports aliased in the route — `fetch_url: fetchUrlTool`
-    // is the only one currently; if more land, add them here.
+    // Direct/factory-provided tools that are not discoverable by the simple
+    // map-key regex above.
     toolKeys.add("fetch_url");
+    for (const name of [
+      "switch_agent",
+      "preview_act",
+      "show_view",
+    ])
+      toolKeys.add(name);
     for (const name of [
       "cms_list_collections",
       "cms_describe_collection",
@@ -178,6 +184,28 @@ describe("chat-defaults bundle", () => {
           "Either implement the tool or remove it from the allowlist.",
       ).toBe(true);
     }
+  });
+
+  it("allowlists view tools so Kody can render chat UI", () => {
+    expect(DEFAULT_CHAT_CAPABILITY.tools).toContain("show_view");
+    expect(DEFAULT_CHAT_CAPABILITY.tools).not.toContain("show_approval_view");
+  });
+
+  it("documents show_view as purpose-based renderer matching", () => {
+    const uiTools = readFileSync("app/api/kody/chat/tools/ui-tools.ts", "utf8");
+    expect(uiTools).toContain("user-managed view purpose");
+    expect(uiTools).toContain("views/renderers/*.json");
+    expect(uiTools).toContain("purpose matches the request");
+    expect(uiTools).toContain("do not print JSON");
+    expect(uiTools).toContain("simple string labels");
+    expect(uiTools).toContain("renderer defines defaults");
+    expect(uiTools).toContain("Only put data into the view");
+    expect(uiTools).toContain(
+      "Do not silently copy preview, page, repo, task, memory, or research context into view fields",
+    );
+    expect(uiTools).not.toContain("rendererSlug");
+    expect(uiTools).not.toContain("preset");
+    expect(uiTools).not.toContain("show_approval_view");
   });
 
   it("exposes 4 workflows — kody-analyzer, kody-operator, kody-vibe, kody-mem", () => {
