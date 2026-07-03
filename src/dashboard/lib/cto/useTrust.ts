@@ -21,6 +21,7 @@ import { useAuth } from "../auth-context";
 import { kodyApi } from "../api";
 import {
   TRUST_MANIFEST_VERSION,
+  applyTrustOp,
   summarizeTrust,
   type TrustDecisionLogEntry,
   type TrustCapabilityView,
@@ -30,6 +31,8 @@ import {
 
 export const trustQueryKey = (owner?: string, repo?: string) =>
   ["cto-trust", owner ?? "", repo ?? ""] as const;
+
+type TrustQueryPayload = Awaited<ReturnType<typeof kodyApi.cto.trust>>;
 
 export interface UseTrustResult {
   /** Per-capability view rows (auto-first), or [] while loading. */
@@ -70,13 +73,46 @@ export function useTrust(): UseTrustResult {
     staleTime: 60_000,
   });
 
-  const mutation = useMutation({
+  const mutation = useMutation<
+    Awaited<ReturnType<typeof kodyApi.cto.setTrust>>,
+    Error,
+    { capability: string; op: TrustOp },
+    { previous?: TrustQueryPayload }
+  >({
     mutationFn: (input: { capability: string; op: TrustOp }) =>
       kodyApi.cto.setTrust({
         ...input,
         ...(auth?.user?.login ? { actorLogin: auth.user.login } : {}),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+    onMutate: async (input) => {
+      await qc.cancelQueries({ queryKey: key });
+      const previous = qc.getQueryData<TrustQueryPayload>(key);
+      qc.setQueryData<TrustQueryPayload>(key, (current) =>
+        applyTrustCacheOp(current, input),
+      );
+      return { previous };
+    },
+    onError: (_error, _input, context) => {
+      if (context?.previous) qc.setQueryData(key, context.previous);
+    },
+    onSuccess: (data) => {
+      qc.setQueryData<TrustQueryPayload>(key, (current) => {
+        if (!current) return current;
+        if (!data.stats) {
+          const { [data.capability]: _removed, ...capabilities } =
+            current.capabilities;
+          return { ...current, capabilities };
+        }
+        return {
+          ...current,
+          capabilities: {
+            ...current.capabilities,
+            [data.capability]: data.stats,
+          },
+        };
+      });
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: key }),
   });
 
   const groups = useMemo<TrustCapabilityView[]>(() => {
@@ -106,5 +142,26 @@ export function useTrust(): UseTrustResult {
       await mutation.mutateAsync(input);
     },
     isMutating: mutation.isPending,
+  };
+}
+
+function applyTrustCacheOp(
+  current: TrustQueryPayload | undefined,
+  input: { capability: string; op: TrustOp },
+): TrustQueryPayload | undefined {
+  if (!current) return current;
+  const manifest = applyTrustOp(
+    {
+      version: TRUST_MANIFEST_VERSION,
+      capabilities: current.capabilities,
+      log: current.log,
+    },
+    input.op,
+    input.capability,
+  );
+  return {
+    ...current,
+    capabilities: manifest.capabilities,
+    log: manifest.log,
   };
 }

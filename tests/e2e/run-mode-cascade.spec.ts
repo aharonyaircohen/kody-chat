@@ -300,6 +300,11 @@ async function clickModeAndExpectTrust(
   await expect
     .poll(() => trustPosts.length, { timeout: 10_000 })
     .toBe(start + expectedCapabilities.length);
+  const runMode = page.getByRole("group", { name: "Run Mode" });
+  await expect(runMode.getByRole("button", { name: mode })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
   expect(trustPosts.slice(start).sort(compareTrustPosts)).toEqual(
     expectedCapabilities
       .map((capability) => ({ capability, op }))
