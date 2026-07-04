@@ -36,7 +36,6 @@ import {
 import { Card } from "@dashboard/ui/card";
 import { Button } from "@dashboard/ui/button";
 import { HappeningNow } from "./HappeningNow";
-import { TriageStrip } from "./TriageStrip";
 import { useKodyTasks } from "../hooks";
 import { useReports } from "../hooks/useReports";
 import { useDefaultBranchCI } from "../hooks/useDefaultBranchCI";
@@ -1082,13 +1081,45 @@ export function DashboardHome() {
           updatedAt={dataUpdatedAt}
         />
 
+        <section>
+          <SectionHeader title="At a glance" href="/tasks" cta="Open board" />
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <StatTile
+              icon={Activity}
+              label="Active"
+              value={tasksLoading ? "—" : countBy(all, ACTIVE_COLUMNS)}
+              tint="text-amber-300 bg-amber-500/10"
+              href="/tasks"
+            />
+            <StatTile
+              icon={GitPullRequest}
+              label="In review"
+              value={tasksLoading ? "—" : countBy(all, ["review"])}
+              tint="text-sky-300 bg-sky-500/10"
+              href="/tasks"
+            />
+            <StatTile
+              icon={Inbox}
+              label="Backlog"
+              value={tasksLoading ? "—" : countBy(all, ["open"])}
+              tint="text-zinc-300 bg-white/[0.06]"
+              href="/tasks"
+            />
+            <StatTile
+              icon={CheckCircle2}
+              label="Done"
+              value={tasksLoading ? "—" : countBy(all, ["done"])}
+              tint="text-emerald-300 bg-emerald-500/10"
+              href="/tasks"
+            />
+          </div>
+        </section>
+
         <HappeningNow
           tasks={all}
           tasksLoading={tasksLoading}
           updatedAt={dataUpdatedAt}
         />
-
-        <TriageStrip />
 
         <section>
           <div className="mb-2 flex items-center justify-between">
@@ -1121,40 +1152,6 @@ export function DashboardHome() {
               tasks={all}
               tasksLoading={tasksLoading}
               ci={mainCi}
-            />
-          </div>
-        </section>
-
-        <section>
-          <SectionHeader title="At a glance" href="/tasks" cta="Open board" />
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatTile
-              icon={Activity}
-              label="Active"
-              value={tasksLoading ? "—" : countBy(all, ACTIVE_COLUMNS)}
-              tint="text-amber-300 bg-amber-500/10"
-              href="/tasks"
-            />
-            <StatTile
-              icon={GitPullRequest}
-              label="In review"
-              value={tasksLoading ? "—" : countBy(all, ["review"])}
-              tint="text-sky-300 bg-sky-500/10"
-              href="/tasks"
-            />
-            <StatTile
-              icon={Inbox}
-              label="Backlog"
-              value={tasksLoading ? "—" : countBy(all, ["open"])}
-              tint="text-zinc-300 bg-white/[0.06]"
-              href="/tasks"
-            />
-            <StatTile
-              icon={CheckCircle2}
-              label="Done"
-              value={tasksLoading ? "—" : countBy(all, ["done"])}
-              tint="text-emerald-300 bg-emerald-500/10"
-              href="/tasks"
             />
           </div>
         </section>
