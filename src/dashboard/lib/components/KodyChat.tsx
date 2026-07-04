@@ -46,6 +46,7 @@ import {
   Save,
   Square,
   SquareTerminal,
+  Bug,
 } from "lucide-react";
 import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
 import {
@@ -144,6 +145,10 @@ import {
   purgeOrphans,
 } from "../attachment-store";
 import { ConfirmDialog } from "./ConfirmDialog";
+import {
+  ChatIssueReportDialog,
+  type ChatIssueReportState,
+} from "./ChatIssueReportDialog";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { useRemoteStatus } from "../hooks/useRemoteStatus";
 import { useAgents } from "../hooks/useAgents";
@@ -217,21 +222,35 @@ function RenderedViewCard({
   onAction: (action: RenderedViewAction) => void;
 }) {
   const ui = getRenderedViewUi(view);
-  const [formValues, setFormValues] = useState<Record<string, string[]>>({});
-  const toggleFormValue = (name: string, value: string) => {
+  const [formValues, setFormValues] = useState<
+    Record<string, Array<{ value: string; label: string }>>
+  >({});
+  const toggleFormValue = (name: string, value: string, label: string) => {
     setFormValues((current) => {
       const values = current[name] ?? [];
-      const nextValues = values.includes(value)
-        ? values.filter((candidate) => candidate !== value)
-        : [...values, value];
+      const nextValues = values.some((candidate) => candidate.value === value)
+        ? values.filter((candidate) => candidate.value !== value)
+        : [...values, { value, label }];
       return { ...current, [name]: nextValues };
     });
   };
   const submitForm = (label: string) => {
+    const selected = Object.values(formValues).flat();
+    const selectedText =
+      selected.length > 0
+        ? selected
+            .map((item) =>
+              item.value === item.label
+                ? item.label
+                : `${item.label} (${item.value})`,
+            )
+            .join(", ")
+        : "none";
     onAction({
       id: "submit",
       label,
-      response: JSON.stringify(formValues),
+      response: `Selected: ${selectedText}`,
+      result: formValues,
     });
   };
   const renderButton = (
@@ -356,7 +375,9 @@ function RenderedViewCard({
       return renderButton(node, key, layout);
     }
     if (node.type === "checkbox") {
-      const checked = (formValues[node.name] ?? []).includes(node.value);
+      const checked = (formValues[node.name] ?? []).some(
+        (candidate) => candidate.value === node.value,
+      );
       return (
         <label
           key={key}
@@ -370,7 +391,7 @@ function RenderedViewCard({
             type="checkbox"
             checked={checked}
             disabled={disabled}
-            onChange={() => toggleFormValue(node.name, node.value)}
+            onChange={() => toggleFormValue(node.name, node.value, node.label)}
             className="h-4 w-4 shrink-0 rounded border-border accent-primary"
           />
           <span className="min-w-0 flex-1 truncate font-medium">
@@ -460,6 +481,36 @@ function getMessageDirection(text: string): MessageDirection {
   }
 
   return "auto";
+}
+
+function reportValue(value: unknown, max = 1_000): string | null {
+  if (value === null || value === undefined || value === "") return null;
+  const raw =
+    typeof value === "string"
+      ? value
+      : Array.isArray(value)
+        ? value.join(", ")
+        : typeof value === "object"
+          ? JSON.stringify(value)
+          : String(value);
+  const compact = raw.replace(/\s+/g, " ").trim();
+  if (!compact) return null;
+  return compact.length > max ? `${compact.slice(0, max - 3)}...` : compact;
+}
+
+function reportItem(
+  label: string,
+  value: unknown,
+  max?: number,
+): { label: string; value: string } | null {
+  const normalized = reportValue(value, max);
+  return normalized ? { label, value: normalized } : null;
+}
+
+function compactReportItems(
+  items: Array<{ label: string; value: string } | null>,
+): Array<{ label: string; value: string }> {
+  return items.filter(Boolean) as Array<{ label: string; value: string }>;
 }
 
 export function KodyChat({
@@ -977,6 +1028,9 @@ export function KodyChat({
   // chat.message / chat.exit continue to flow. Runs once.
   const liveRestoreAttemptedRef = useRef(false);
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+  const [showIssueReport, setShowIssueReport] = useState(false);
+  const [issueReportState, setIssueReportState] =
+    useState<ChatIssueReportState | null>(null);
   const [voiceMuted, setVoiceMuted] = useState(false);
   const [voiceOverlayOpen, setVoiceOverlayOpen] = useState(false);
   // Per-user Piper voice choice. Starts at the default to keep SSR/first
@@ -1591,6 +1645,108 @@ export function KodyChat({
     [sessionHook],
   );
   const activeLoading = messages.some((m) => m.isLoading);
+
+  const captureIssueReportState = useCallback((): ChatIssueReportState => {
+    const visibleMessages = messages.filter((message) => !message.hidden);
+    const recentMessages = visibleMessages.slice(-6).map((message) => ({
+      role: message.role,
+      text:
+        reportValue(
+          message.content ||
+            (message.toolCalls?.length
+              ? `[${message.toolCalls.length} tool call(s)]`
+              : ""),
+          1_200,
+        ) ?? "[empty message]",
+    }));
+    const recentToolCalls = [
+      ...visibleMessages.flatMap((message) => message.toolCalls ?? []),
+      ...toolCalls,
+    ]
+      .slice(-8)
+      .map((tool) => ({
+        name: tool.name,
+        status: tool.status,
+        summary: reportValue(tool.result ?? tool.arguments, 800) ?? undefined,
+      }));
+
+    const pageItems = compactReportItems([
+      reportItem("Page", currentPageRef.current),
+      reportItem("Path", pathname),
+      reportItem(
+        "Repo",
+        auth?.owner && auth?.repo ? `${auth.owner}/${auth.repo}` : null,
+      ),
+      reportItem("User", actorLogin),
+    ]);
+
+    const chatItems = compactReportItems([
+      reportItem("Mode", chatMode),
+      reportItem("Agent", currentAgent.name),
+      reportItem("Selected model", selectedModelId),
+      reportItem("Active loading", activeLoading ? "yes" : "no"),
+      reportItem("Live runner", interactiveState),
+      reportItem("Live target", interactiveTarget),
+      reportItem("Live error", liveState.errorMessage, 500),
+      reportItem("Session", sessionHook.activeSession?.id),
+    ]);
+
+    const contextItems = compactReportItems([
+      reportItem(
+        "Task",
+        selectedTask
+          ? `#${selectedTask.issueNumber} ${selectedTask.title}`
+          : null,
+        500,
+      ),
+      reportItem("Task column", selectedTask?.column),
+      reportItem("Task pipeline", selectedTask?.pipeline?.state),
+      reportItem("Capability", selectedCapability?.slug),
+      reportItem("Report", selectedReport?.slug),
+      reportItem(
+        "Goal",
+        plannerGoal ? `${plannerGoal.id}: ${plannerGoal.name}` : null,
+      ),
+      reportItem("Org", selectedOrg?.org),
+    ]);
+
+    return {
+      sections: [
+        ...(pageItems.length ? [{ title: "Page", items: pageItems }] : []),
+        ...(chatItems.length ? [{ title: "Chat", items: chatItems }] : []),
+        ...(contextItems.length
+          ? [{ title: "Selected context", items: contextItems }]
+          : []),
+      ],
+      recentMessages,
+      recentToolCalls,
+    };
+  }, [
+    activeLoading,
+    actorLogin,
+    auth?.owner,
+    auth?.repo,
+    chatMode,
+    currentAgent.name,
+    interactiveState,
+    interactiveTarget,
+    liveState.errorMessage,
+    messages,
+    pathname,
+    plannerGoal,
+    selectedCapability,
+    selectedModelId,
+    selectedOrg,
+    selectedReport,
+    selectedTask,
+    sessionHook.activeSession?.id,
+    toolCalls,
+  ]);
+
+  const openIssueReport = useCallback(() => {
+    setIssueReportState(captureIssueReportState());
+    setShowIssueReport(true);
+  }, [captureIssueReportState]);
 
   // 800ms grace period for the typing indicator (issue #330). The agentIdentity
   // tells the model to emit a short status line (≤8 words) as the very first
@@ -4082,12 +4238,13 @@ export function KodyChat({
         viewId: view.id,
         rendererSlug: view.rendererSlug,
         actionId: action.id,
+        ...(action.result ? { result: action.result } : {}),
       });
       void sendText(
         `${action.response}\n\n<view_result>${resultPayload}</view_result>`,
         [],
         {
-          displayContent: action.label,
+          displayContent: action.result ? action.response : action.label,
         },
       );
     },
@@ -6629,8 +6786,30 @@ export function KodyChat({
             )}
             {chatMode === "terminal" && terminalBottomControls}
             {chatMode === "terminal" && <div className="flex-1" />}
+            {chatMode === "terminal" && (
+              <button
+                type="button"
+                onClick={openIssueReport}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 transition-colors hover:border-red-300 hover:bg-red-100 hover:text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50"
+                title="Report issue to Kody"
+                aria-label="Report issue to Kody"
+              >
+                <Bug className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )}
             {chatMode === "terminal" && chatModeToggle}
             {chatMode === "ai" && <div className="flex-1" />}
+            {chatMode === "ai" && (
+              <button
+                type="button"
+                onClick={openIssueReport}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 transition-colors hover:border-red-300 hover:bg-red-100 hover:text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50"
+                title="Report issue to Kody"
+                aria-label="Report issue to Kody"
+              >
+                <Bug className="h-4 w-4" aria-hidden="true" />
+              </button>
+            )}
             {chatMode === "ai" && chatModeToggle}
           </div>
         </div>
@@ -6643,6 +6822,11 @@ export function KodyChat({
           variant="destructive"
           onConfirm={executeClearHistory}
           onClose={() => setShowClearConfirm(false)}
+        />
+        <ChatIssueReportDialog
+          open={showIssueReport}
+          onClose={() => setShowIssueReport(false)}
+          capturedState={issueReportState}
         />
       </div>
     </div>

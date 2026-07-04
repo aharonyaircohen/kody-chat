@@ -39,6 +39,46 @@ const diagnosticsSchema = z
   })
   .optional();
 
+const capturedStateSchema = z
+  .object({
+    sections: z
+      .array(
+        z.object({
+          title: z.string().min(1).max(80),
+          items: z
+            .array(
+              z.object({
+                label: z.string().min(1).max(80),
+                value: z.string().max(2_000),
+              }),
+            )
+            .max(20),
+        }),
+      )
+      .max(8)
+      .optional(),
+    recentMessages: z
+      .array(
+        z.object({
+          role: z.enum(["user", "assistant"]),
+          text: z.string().max(2_000),
+        }),
+      )
+      .max(8)
+      .optional(),
+    recentToolCalls: z
+      .array(
+        z.object({
+          name: z.string().min(1).max(100),
+          status: z.string().min(1).max(30),
+          summary: z.string().max(1_000).optional(),
+        }),
+      )
+      .max(12)
+      .optional(),
+  })
+  .optional();
+
 const reportSchema = z.object({
   title: z.string().min(1).max(200),
   area: z.enum(KODY_BUG_AREAS),
@@ -49,6 +89,7 @@ const reportSchema = z.object({
   where: z.string().optional(),
   reporterLogin: z.string().optional(),
   diagnostics: diagnosticsSchema,
+  capturedState: capturedStateSchema,
 });
 
 type ReportInput = z.infer<typeof reportSchema>;
@@ -62,6 +103,54 @@ const SEVERITY_BADGE: Record<(typeof KODY_BUG_SEVERITIES)[number], string> = {
 function section(heading: string, value?: string): string {
   const body = value?.trim() ? value.trim() : "_Not specified_";
   return `## ${heading}\n${body}\n\n`;
+}
+
+function fence(value: string): string {
+  return value.replace(/```/g, "'''");
+}
+
+function formatCapturedState(input: ReportInput): string {
+  const state = input.capturedState;
+  if (!state) return "";
+
+  const sections = state.sections ?? [];
+  const messages = state.recentMessages ?? [];
+  const tools = state.recentToolCalls ?? [];
+  if (sections.length === 0 && messages.length === 0 && tools.length === 0) {
+    return "";
+  }
+
+  let md = "<details>\n<summary>Captured chat state</summary>\n\n";
+
+  for (const section of sections) {
+    if (section.items.length === 0) continue;
+    md += `### ${section.title}\n`;
+    md += section.items
+      .map(({ label, value }) => `- **${label}:** ${value}`)
+      .join("\n");
+    md += "\n\n";
+  }
+
+  if (tools.length > 0) {
+    md += "### Recent tool calls\n";
+    md += tools
+      .map((tool) => {
+        const summary = tool.summary ? ` — ${tool.summary}` : "";
+        return `- **${tool.name}:** ${tool.status}${summary}`;
+      })
+      .join("\n");
+    md += "\n\n";
+  }
+
+  if (messages.length > 0) {
+    md += "### Recent visible messages\n";
+    for (const message of messages) {
+      md += `**${message.role}:**\n\n\`\`\`\n${fence(message.text)}\n\`\`\`\n\n`;
+    }
+  }
+
+  md += "</details>\n\n";
+  return md;
 }
 
 function formatBody(input: ReportInput): string {
@@ -93,6 +182,8 @@ function formatBody(input: ReportInput): string {
     md += rows.map(([k, v]) => `- **${k}:** ${v}`).join("\n");
     md += "\n\n</details>\n\n";
   }
+
+  md += formatCapturedState(input);
 
   md += "---\n_Filed from the Kody dashboard “Report a Kody bug” form._";
   return md;
@@ -150,14 +241,18 @@ export async function POST(req: NextRequest) {
         html_url: issue.html_url,
       },
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const err =
+      error && typeof error === "object"
+        ? (error as { status?: number; message?: string })
+        : null;
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: "Validation error", details: error.issues },
         { status: 400 },
       );
     }
-    if (error?.status === 401) {
+    if (err?.status === 401) {
       return NextResponse.json(
         {
           error: "github_token_expired",
@@ -166,7 +261,7 @@ export async function POST(req: NextRequest) {
         { status: 401 },
       );
     }
-    if (error?.status === 403 || error?.status === 404) {
+    if (err?.status === 403 || err?.status === 404) {
       return NextResponse.json(
         {
           error: "cannot_file",
@@ -178,7 +273,7 @@ export async function POST(req: NextRequest) {
     }
     logger.error({ err: error }, "Failed to file Kody bug report");
     return NextResponse.json(
-      { error: "Failed to file bug report", details: error?.message },
+      { error: "Failed to file bug report", details: err?.message },
       { status: 500 },
     );
   } finally {

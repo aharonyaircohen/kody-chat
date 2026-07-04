@@ -276,13 +276,19 @@ function renderedMultiSelectionView() {
   };
 }
 
-async function mockChatStream(page: Page): Promise<void> {
+async function mockChatStream(
+  page: Page,
+  options: {
+    onRequest?: (body: { messages?: Array<{ content?: string }> }) => void;
+  } = {},
+): Promise<void> {
   let turn = 0;
   await page.route("**/api/kody/chat/kody", async (route: Route) => {
     turn += 1;
     const body = route.request().postDataJSON() as {
       messages?: Array<{ content?: string }>;
     };
+    options.onRequest?.(body);
     const latest = body.messages?.at(-1)?.content ?? "";
     const output =
       latest.includes("multiple") && latest.includes("reports")
@@ -408,6 +414,40 @@ test.describe("Kody chat renderer output", () => {
     await expect(confirm).toBeDisabled();
     await expect(cto).toBeDisabled();
     await expect(health).toBeDisabled();
+  });
+
+  test("multi-selection submit sends selected items, not only the submit label", async ({
+    page,
+  }) => {
+    const sentMessages: string[] = [];
+    await page.unroute("**/api/kody/chat/kody");
+    await mockChatStream(page, {
+      onRequest: (body) => {
+        const latest = body.messages?.at(-1)?.content;
+        if (latest) sentMessages.push(latest);
+      },
+    });
+    await openChat(page);
+
+    await sendChatMessage(page, "let me select multiple reports");
+
+    const cto = page.getByRole("checkbox", { name: "CTO Report" });
+    const health = page.getByRole("checkbox", { name: "Kody Health Check" });
+    const confirm = page.getByRole("button", { name: "Confirm reports" });
+    await cto.click();
+    await health.click();
+    await confirm.click();
+
+    await expect(
+      page.getByText("Selected: CTO Report (cto), Kody Health Check (health)"),
+    ).toBeVisible();
+    await expect(
+      page.getByText("Confirm reports", { exact: true }),
+    ).toHaveCount(1);
+    await expect.poll(() => sentMessages.length).toBeGreaterThanOrEqual(2);
+    expect(sentMessages.at(-1)).toContain("cto");
+    expect(sentMessages.at(-1)).toContain("health");
+    expect(sentMessages.at(-1)).not.toBe("Confirm reports");
   });
 
   test("approval request uses renderer-capable Kody path when a model exists without a saved default", async ({

@@ -67,6 +67,7 @@ export interface RenderedViewAction {
   label: string;
   response: string;
   variant?: "primary" | "secondary" | "danger";
+  result?: Record<string, Array<{ value: string; label: string }>>;
 }
 
 export type RenderedViewDataValue =

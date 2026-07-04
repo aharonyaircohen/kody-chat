@@ -2383,6 +2383,18 @@ export interface KodyBugReportInput {
   where?: string;
   reporterLogin?: string;
   diagnostics?: Record<string, string | undefined>;
+  capturedState?: {
+    sections?: Array<{
+      title: string;
+      items: Array<{ label: string; value: string }>;
+    }>;
+    recentMessages?: Array<{ role: "user" | "assistant"; text: string }>;
+    recentToolCalls?: Array<{
+      name: string;
+      status: string;
+      summary?: string;
+    }>;
+  };
 }
 
 export interface KodyBugReportResult {

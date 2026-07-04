@@ -117,6 +117,16 @@ describe("view renderer chat intent", () => {
     ).toBe(true);
   });
 
+  it("does not require another renderer after a rendered view result", () => {
+    expect(
+      shouldRequireViewOutputForTurn({
+        userText:
+          'Selected: CTO Report (cto), Kody Health Check (health)\n\n<view_result>{"kind":"view_result","view":"renderer","actionId":"submit","result":{"selected":[{"value":"cto","label":"CTO Report"},{"value":"health","label":"Kody Health Check"}]}}</view_result>',
+        definitions: [multiChoiceRenderer],
+      }),
+    ).toBe(false);
+  });
+
   it("uses renderer definition text for non-list interactions too", () => {
     expect(
       shouldRequireViewOutputForTurn({

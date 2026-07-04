@@ -133,7 +133,9 @@ export function shouldRequireViewOutputForTurn({
   userText: string | null | undefined;
   definitions: readonly ViewRendererDefinition[];
 }): boolean {
-  const userStems = tokenStems(userText ?? "");
+  const text = userText ?? "";
+  if (/<view_result>[\s\S]*<\/view_result>/i.test(text)) return false;
+  const userStems = tokenStems(text);
   if (userStems.size === 0 || definitions.length === 0) return false;
   const rendererStems = tokenStems(
     definitions.map(rendererIntentText).join(" "),
