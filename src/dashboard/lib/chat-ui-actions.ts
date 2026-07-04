@@ -77,7 +77,7 @@ export type RenderedViewDataValue =
   | RenderedViewAction[];
 
 export interface RenderedViewBlock {
-  type: "title" | "text" | "markdown" | "buttons" | "input";
+  type: "title" | "text" | "markdown" | "buttons" | "selection" | "input";
   bind: string;
   label?: string;
 }
@@ -126,7 +126,9 @@ function isRenderedViewAction(value: unknown): value is RenderedViewAction {
   );
 }
 
-function isRenderedViewDataValue(value: unknown): value is RenderedViewDataValue {
+function isRenderedViewDataValue(
+  value: unknown,
+): value is RenderedViewDataValue {
   return (
     value === null ||
     typeof value === "string" ||
@@ -163,6 +165,7 @@ export function isRenderedViewDirective(
       b.type === "text" ||
       b.type === "markdown" ||
       b.type === "buttons" ||
+      b.type === "selection" ||
       b.type === "input";
     return (
       validType &&

@@ -41,8 +41,8 @@ describe("view renderers management page", () => {
     expect(manager).toContain("defaults:");
     expect(manager).toContain(">Rule<");
     expect(manager).toContain(">Defaults<");
-    expect(manager).toContain("Create this issue?");
-    expect(manager).toContain("Kody will continue only after you approve.");
+    expect(manager).toContain("Example title");
+    expect(manager).toContain("Example supporting text.");
     expect(manager).toContain("No actions configured.");
     expect(manager).toContain(
       "router.push(`/views/renderers/${encodeURIComponent(renderer.slug)}`)",

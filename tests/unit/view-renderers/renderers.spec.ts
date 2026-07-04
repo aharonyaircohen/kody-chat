@@ -4,24 +4,78 @@
  */
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_VIEW_RENDERER,
   buildRenderedViewDirective,
   buildViewRendererRulesPrompt,
   matchViewRendererDefinition,
+  normalizeViewRendererData,
   parseViewRendererDefinition,
   serializeViewRendererDefinition,
+  type ViewRendererDefinition,
 } from "@dashboard/lib/view-renderers/renderers";
 
 describe("view renderer definitions", () => {
-  it("parses the default layout renderer", () => {
+  const decisionRenderer: ViewRendererDefinition = {
+    slug: "decision-card",
+    name: "Decision card",
+    purpose: "decision",
+    aliases: ["approval"],
+    rule: "Use this purpose when Kody presents a decision.",
+    data: {
+      title: { description: "Short heading." },
+      body: { description: "Supporting text." },
+      actions: {
+        type: "actions",
+        description: "Available responses.",
+      },
+    },
+    defaults: {
+      actions: [
+        {
+          id: "continue",
+          label: "Continue",
+          response: "continue",
+          variant: "primary",
+        },
+      ],
+    },
+    type: "layout",
+    blocks: [
+      { type: "title", bind: "title" },
+      { type: "text", bind: "body" },
+      { type: "buttons", bind: "actions" },
+    ],
+  };
+
+  const choiceRenderer: ViewRendererDefinition = {
+    slug: "choice-list",
+    name: "Choice list",
+    purpose: "choice",
+    rule: "Use this purpose when Kody presents choices.",
+    data: {
+      items: {
+        type: "selection",
+        description: "Choices the user can select from.",
+      },
+    },
+    type: "layout",
+    blocks: [
+      { type: "title", bind: "title" },
+      { type: "text", bind: "body" },
+      { type: "selection", bind: "items" },
+    ],
+  };
+
+  it("parses a layout renderer", () => {
     const parsed = parseViewRendererDefinition(
-      serializeViewRendererDefinition(DEFAULT_VIEW_RENDERER),
+      serializeViewRendererDefinition(decisionRenderer),
     );
 
-    expect(parsed.slug).toBe("basic-card");
-    expect(parsed.purpose).toBe("approval");
-    expect(parsed.rule).toContain("approve");
-    expect(parsed.defaults?.actions).toHaveLength(3);
+    expect(parsed.slug).toBe("decision-card");
+    expect(parsed.purpose).toBe("decision");
+    expect(parsed.aliases).toEqual(["approval"]);
+    expect(parsed.rule).toBeTruthy();
+    expect(parsed.data?.title?.description).toBe("Short heading.");
+    expect(parsed.defaults?.actions).toHaveLength(1);
     expect(parsed.type).toBe("layout");
     expect(parsed.blocks.map((block) => block.type)).toEqual([
       "title",
@@ -31,10 +85,48 @@ describe("view renderer definitions", () => {
   });
 
   it("formats renderer rules for the chat prompt", () => {
-    const prompt = buildViewRendererRulesPrompt([DEFAULT_VIEW_RENDERER]);
+    const prompt = buildViewRendererRulesPrompt([
+      decisionRenderer,
+      choiceRenderer,
+    ]);
 
-    expect(prompt).toContain("Purpose `approval`");
-    expect(prompt).toContain("Data keys: title, body, actions");
+    expect(prompt).toContain("Purpose `decision`");
+    expect(prompt).toContain("Aliases: `approval`");
+    expect(prompt).toContain("Data keys:");
+    expect(prompt).toContain("  - title (title): Short heading.");
+    expect(prompt).toContain(
+      "  - actions (actions, default available): Available responses.",
+    );
+    expect(prompt).toContain("Purpose `choice`");
+    expect(prompt).toContain(
+      "  - items (selection): Choices the user can select from.",
+    );
+  });
+
+  it("matches renderer aliases without hardcoded purpose names", () => {
+    const matched = matchViewRendererDefinition(
+      [decisionRenderer],
+      "approval",
+      {
+        title: "Create this issue?",
+      },
+    );
+
+    expect(matched?.slug).toBe("decision-card");
+  });
+
+  it("parses a selection block renderer", () => {
+    const parsed = parseViewRendererDefinition(
+      serializeViewRendererDefinition(choiceRenderer),
+    );
+
+    expect(parsed.slug).toBe("choice-list");
+    expect(parsed.purpose).toBe("choice");
+    expect(parsed.blocks.map((block) => block.type)).toEqual([
+      "title",
+      "text",
+      "selection",
+    ]);
   });
 
   it("rejects unknown block types", () => {
@@ -54,15 +146,15 @@ describe("view renderer definitions", () => {
   it("builds a generic chat render directive", () => {
     const directive = buildRenderedViewDirective({
       id: "view-test",
-      definition: DEFAULT_VIEW_RENDERER,
+      definition: decisionRenderer,
       data: {
-        title: "Create this issue?",
-        body: "Review before continuing.",
+        title: "Choose next step",
+        body: "Pick one option before continuing.",
         actions: [
           {
-            id: "approve",
-            label: "Approve",
-            response: "approve",
+            id: "continue",
+            label: "Continue",
+            response: "continue",
             variant: "primary",
           },
         ],
@@ -73,7 +165,7 @@ describe("view renderer definitions", () => {
       action: "render_view",
       view: "renderer",
       id: "view-test",
-      rendererSlug: "basic-card",
+      rendererSlug: "decision-card",
       resultTarget: "chat",
     });
     expect(directive.blocks.map((block) => block.type)).toEqual([
@@ -81,33 +173,76 @@ describe("view renderer definitions", () => {
       "text",
       "buttons",
     ]);
-    expect(directive.data.title).toBe("Create this issue?");
+    expect(directive.data.title).toBe("Choose next step");
   });
 
   it("fills missing fields from renderer defaults", () => {
     const directive = buildRenderedViewDirective({
       id: "view-test",
-      definition: DEFAULT_VIEW_RENDERER,
+      definition: decisionRenderer,
       data: {
-        title: "Create this issue?",
+        title: "Choose next step",
       },
     });
 
-    expect(directive.data.actions).toEqual(DEFAULT_VIEW_RENDERER.defaults?.actions);
+    expect(directive.data.actions).toEqual(decisionRenderer.defaults?.actions);
+  });
+
+  it("normalizes renderer data using field types, not renderer names", () => {
+    const data = normalizeViewRendererData(choiceRenderer, {
+      title: "Choose one",
+      items: ["Alpha", "Beta"],
+    });
+
+    expect(data.items).toEqual([
+      { id: "alpha", label: "Alpha", response: "alpha" },
+      { id: "beta", label: "Beta", response: "beta" },
+    ]);
+  });
+
+  it("normalizes array-like tool data for list fields", () => {
+    const data = normalizeViewRendererData(choiceRenderer, {
+      title: "Choose one",
+      items: {
+        0: "op 1",
+        1: "op2",
+        2: "op 3",
+      },
+    });
+
+    expect(data.items).toEqual([
+      { id: "op-1", label: "op 1", response: "op-1" },
+      { id: "op2", label: "op2", response: "op2" },
+      { id: "op-3", label: "op 3", response: "op-3" },
+    ]);
+  });
+
+  it("normalizes single-key tool wrappers for list fields", () => {
+    const data = normalizeViewRendererData(choiceRenderer, {
+      title: "Choose one",
+      items: {
+        anything: ["Alpha", "Beta"],
+      },
+    });
+
+    expect(data.items).toEqual([
+      { id: "alpha", label: "Alpha", response: "alpha" },
+      { id: "beta", label: "Beta", response: "beta" },
+    ]);
   });
 
   it("matches the renderer whose binds best fit the data", () => {
     const titleOnly = {
       slug: "title-only",
       name: "Title only",
-      purpose: "approval",
+      purpose: "decision",
       type: "layout" as const,
       blocks: [{ type: "title" as const, bind: "title" }],
     };
     const titleBodyActions = {
       slug: "title-body-actions",
       name: "Title body actions",
-      purpose: "approval",
+      purpose: "decision",
       type: "layout" as const,
       blocks: [
         { type: "title" as const, bind: "title" },
@@ -117,27 +252,23 @@ describe("view renderer definitions", () => {
     };
 
     expect(
-      matchViewRendererDefinition(
-        [titleOnly, titleBodyActions],
-        "approval",
-        {
-          title: "Create this issue?",
-          body: "Kody will continue only after you approve.",
-          actions: [{ id: "approve", label: "Approve", response: "approve" }],
-        },
-      )?.slug,
+      matchViewRendererDefinition([titleOnly, titleBodyActions], "decision", {
+        title: "Choose next step",
+        body: "Pick one option before continuing.",
+        actions: [{ id: "continue", label: "Continue", response: "continue" }],
+      })?.slug,
     ).toBe("title-body-actions");
   });
 
   it("falls back to a partial renderer when no exact shape exists", () => {
     const matched = matchViewRendererDefinition(
-      [DEFAULT_VIEW_RENDERER],
-      "approval",
+      [decisionRenderer],
+      "decision",
       {
-        title: "Create this issue?",
+        title: "Choose next step",
       },
     );
 
-    expect(matched?.slug).toBe("basic-card");
+    expect(matched?.slug).toBe("decision-card");
   });
 });

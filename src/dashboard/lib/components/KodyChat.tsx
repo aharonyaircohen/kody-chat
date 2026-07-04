@@ -178,6 +178,12 @@ import {
   type PreviewActDirective,
 } from "@dashboard/lib/chat-ui-actions";
 import {
+  FINAL_ANSWER_TOOL,
+  getFinalAnswerContent,
+  getToolErrorMessage,
+  isFinalAnswerOutput,
+} from "@dashboard/lib/chat-output-tools";
+import {
   terminalCheckpointLabel,
   type TerminalCheckpoint,
   type TerminalCheckpointTransport,
@@ -247,6 +253,35 @@ function RenderedViewCard({
                   className="h-8 w-full rounded-md border border-border bg-muted/40 px-2 text-sm text-foreground"
                 />
               </label>
+            );
+          }
+          if (block.type === "selection") {
+            const actions = view.data[block.bind];
+            if (!Array.isArray(actions)) return null;
+            return (
+              <div key={key} className="space-y-2">
+                {block.label ? (
+                  <div className="text-xs font-medium text-muted-foreground">
+                    {block.label}
+                  </div>
+                ) : null}
+                <div className="space-y-1.5">
+                  {actions.map((action) => (
+                    <button
+                      key={action.id}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => onAction(action)}
+                      className="flex w-full items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2 text-left text-sm transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <span className="min-w-0 truncate font-medium">
+                        {action.label}
+                      </span>
+                      <MousePointerClick className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                    </button>
+                  ))}
+                </div>
+              </div>
             );
           }
           const actions = view.data[block.bind];
@@ -747,11 +782,16 @@ export function KodyChat({
   // before this field existed) or points at an entry that has
   // since been removed from the list.
   //
-  // Resolution order matches the previous auto-default behavior:
+  // Resolution order:
   //   1. `defaultChatEntryKey` — Settings → "Default chat" pick.
   //   2. Legacy: a Kody model with `default: true` on the Models page.
-  //   3. Brain if configured.
-  //   4. First valid Live entry (Kody Live, or Live-Fly when on Fly).
+  //   3. First configured Kody model.
+  //   4. Brain if configured.
+  //   5. First valid Live entry (Kody Live, or Live-Fly when on Fly).
+  //
+  // Renderers are part of the in-process Kody chat protocol. If a repo has
+  // a Kody model configured but no saved default, default to that renderer-
+  // capable path instead of Live, while still letting Settings override it.
   const defaultAgentEntry = useMemo<ChatDropdownEntry | null>(() => {
     if (defaultChatEntryKey) {
       const entry = agentList.find((e) => e.key === defaultChatEntryKey);
@@ -764,6 +804,8 @@ export function KodyChat({
       const entry = agentList.find((e) => e.key === `kody:${defModel.id}`);
       if (entry) return entry;
     }
+    const firstKodyModel = agentList.find((e) => e.agentId === "kody");
+    if (firstKodyModel) return firstKodyModel;
     if (brainConfigured) {
       const entry = agentList.find(
         (e) => e.key === "brain" || e.key === "brain-fly",
@@ -3155,6 +3197,7 @@ export function KodyChat({
           // assistant render.
           let pendingPreviewAct: ReturnType<typeof JSON.parse> | null = null;
           let pendingView: RenderedViewDirective | null = null;
+          let lastToolErrorText: string | null = null;
 
           const composeContent = () =>
             (reasoningBuf ? `<think>${reasoningBuf}</think>\n\n` : "") +
@@ -3259,6 +3302,16 @@ export function KodyChat({
                   "toolName" in chunk
                 ) {
                   toolNameById.set(chunk.toolCallId, chunk.toolName);
+                  if (chunk.toolName === FINAL_ANSWER_TOOL) {
+                    const content = getFinalAnswerContent(
+                      "input" in chunk ? chunk.input : undefined,
+                    );
+                    if (content !== null) {
+                      textBuf = content;
+                      emitVoiceDelta?.(stripReasoning(textBuf));
+                    }
+                    continue;
+                  }
                   // Push a "running" tool-call chip onto the in-flight
                   // assistant bubble so the user sees live progress as the
                   // model works — same UX as the kody-live runner path.
@@ -3311,6 +3364,36 @@ export function KodyChat({
                   "output" in chunk
                 ) {
                   const name = toolNameById.get(chunk.toolCallId);
+                  if (name === FINAL_ANSWER_TOOL) {
+                    const content = isFinalAnswerOutput(chunk.output)
+                      ? chunk.output.content
+                      : null;
+                    if (content !== null) {
+                      textBuf = content;
+                      emitVoiceDelta?.(stripReasoning(textBuf));
+                    }
+                    continue;
+                  }
+                  const toolErrorText = getToolErrorMessage(chunk.output);
+                  if (toolErrorText) {
+                    lastToolErrorText = toolErrorText;
+                    setMessages((prev) => {
+                      const copy = [...prev];
+                      const idx = copy.findIndex(
+                        (m) => m.role === "assistant" && m.isLoading,
+                      );
+                      if (idx < 0) return copy;
+                      const existing = copy[idx].toolCalls ?? [];
+                      const next = existing.map((tc) =>
+                        tc.id === chunk.toolCallId
+                          ? { ...tc, status: "error" as const }
+                          : tc,
+                      );
+                      copy[idx] = { ...copy[idx], toolCalls: next };
+                      return copy;
+                    });
+                    continue;
+                  }
                   // Any tool may emit a switch directive — match by shape,
                   // not by tool name, so UI tools can remain thin.
                   if (isSwitchAgentDirective(chunk.output)) {
@@ -3381,6 +3464,10 @@ export function KodyChat({
                   chunk.type === "tool-output-error" &&
                   "toolCallId" in chunk
                 ) {
+                  lastToolErrorText =
+                    "errorText" in chunk && typeof chunk.errorText === "string"
+                      ? chunk.errorText
+                      : "Tool call failed";
                   // Flip the matching running chip to "error" so a failed
                   // tool call is visible instead of staying stuck on
                   // "running" forever.
@@ -3445,28 +3532,42 @@ export function KodyChat({
             if (idx >= 0) {
               const m = copy[idx];
               const { reasoning, answer } = parseReasoning(m.content ?? "");
-              const hadTools = (m.toolCalls?.length ?? 0) > 0;
+              const hadSuccessfulTools = (m.toolCalls ?? []).some(
+                (tc) => tc.status === "success",
+              );
+              const shouldSurfaceToolError =
+                !answer.trim() &&
+                !!lastToolErrorText &&
+                !pendingSwitchAgent &&
+                !pendingView;
               const producedNothing =
                 !answer.trim() &&
                 !reasoning.trim() &&
-                !hadTools &&
+                !hadSuccessfulTools &&
                 !pendingSwitchAgent &&
                 !pendingView;
-              copy[idx] = producedNothing
+              copy[idx] = shouldSurfaceToolError
                 ? {
                     ...m,
                     isLoading: false,
                     isError: true,
-                    content:
-                      "Kody returned no response. The model may not be configured for this repo, or it ended the turn without a reply — try again, or check Chat Models in Settings.",
+                    content: `Error: ${lastToolErrorText}`,
                   }
-                : {
-                    ...m,
-                    ...(typeof assistantDisplayOverride === "string"
-                      ? { content: assistantDisplayOverride }
-                      : {}),
-                    isLoading: false,
-                  };
+                : producedNothing
+                  ? {
+                      ...m,
+                      isLoading: false,
+                      isError: true,
+                      content:
+                        "Kody returned no response. The model may not be configured for this repo, or it ended the turn without a reply — try again, or check Chat Models in Settings.",
+                    }
+                  : {
+                      ...m,
+                      ...(typeof assistantDisplayOverride === "string"
+                        ? { content: assistantDisplayOverride }
+                        : {}),
+                      isLoading: false,
+                    };
             }
             return copy;
           });
@@ -3897,9 +3998,13 @@ export function KodyChat({
         rendererSlug: view.rendererSlug,
         actionId: action.id,
       });
-      void sendText(`${action.response}\n\n<view_result>${resultPayload}</view_result>`, [], {
-        displayContent: action.label,
-      });
+      void sendText(
+        `${action.response}\n\n<view_result>${resultPayload}</view_result>`,
+        [],
+        {
+          displayContent: action.label,
+        },
+      );
     },
     [sendText, usedViewIds],
   );
@@ -4960,9 +5065,9 @@ export function KodyChat({
           >
             <option value="local">Local terminal</option>
             {(activeTerminalTransport.type === "brain" ||
-              terminalMachines.some((machine) => machine.feature === "brain")) && (
-              <option value="brain">Brain terminal</option>
-            )}
+              terminalMachines.some(
+                (machine) => machine.feature === "brain",
+              )) && <option value="brain">Brain terminal</option>}
             {activeTerminalTransport.type === "fly" &&
               !terminalMachines.some(
                 (machine) =>
@@ -4975,14 +5080,14 @@ export function KodyChat({
             {terminalMachines
               .filter((machine) => machine.feature !== "brain")
               .map((machine) => (
-              <option
-                key={terminalFlyMachineKey(machine)}
-                value={terminalFlyMachineKey(machine)}
-              >
-                {flyMachineTerminalLabel(machine)} · {machine.state} ·{" "}
-                {machine.region} · {terminalMachineIdShort(machine.machineId)}
-              </option>
-            ))}
+                <option
+                  key={terminalFlyMachineKey(machine)}
+                  value={terminalFlyMachineKey(machine)}
+                >
+                  {flyMachineTerminalLabel(machine)} · {machine.state} ·{" "}
+                  {machine.region} · {terminalMachineIdShort(machine.machineId)}
+                </option>
+              ))}
           </select>
           {flyInventoryError && (
             <span className="max-w-48 min-w-0 truncate text-body-xs text-destructive">

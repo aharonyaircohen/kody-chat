@@ -14,8 +14,6 @@ import {
 } from "@dashboard/lib/auth";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import {
-  DEFAULT_RENDERER_SLUG,
-  DEFAULT_VIEW_RENDERER,
   deleteViewRendererDefinitionFile,
   isValidViewRendererSlug,
   parseViewRendererDefinition,
@@ -43,23 +41,19 @@ function requireRepo(req: NextRequest) {
   return { auth };
 }
 
-function toRow(
-  definition: ViewRendererDefinition,
-  source: "repo" | "builtin",
-  htmlUrl = "",
-) {
+function toRow(definition: ViewRendererDefinition, htmlUrl = "") {
   return {
     slug: definition.slug,
     name: definition.name,
     description: definition.description ?? "",
     purpose: definition.purpose,
     rule: definition.rule ?? "",
+    data: definition.data ?? {},
     defaults: definition.defaults ?? {},
     type: definition.type,
     blocks: definition.blocks,
-    source,
+    source: "repo" as const,
     htmlUrl,
-    readOnly: source === "builtin",
     definition: serializeViewRendererDefinition(definition),
   };
 }
@@ -90,12 +84,7 @@ export async function GET(
     });
     if (existing) {
       return NextResponse.json({
-        renderer: toRow(existing.definition, "repo", existing.htmlUrl),
-      });
-    }
-    if (slug === DEFAULT_RENDERER_SLUG) {
-      return NextResponse.json({
-        renderer: toRow(DEFAULT_VIEW_RENDERER, "builtin"),
+        renderer: toRow(existing.definition, existing.htmlUrl),
       });
     }
     return NextResponse.json({ error: "not_found" }, { status: 404 });
@@ -146,7 +135,7 @@ export async function PATCH(
       repo: required.auth.repo,
       slug,
     });
-    if (!existing && slug !== DEFAULT_RENDERER_SLUG) {
+    if (!existing) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
     const written = await writeViewRendererDefinitionFile({
@@ -154,16 +143,16 @@ export async function PATCH(
       owner: required.auth.owner,
       repo: required.auth.repo,
       definition,
-      ...(existing?.sha ? { sha: existing.sha } : {}),
-      message: `${existing ? "chore" : "feat"}(renderers): ${existing ? "update" : "override"} ${slug}`,
+      sha: existing.sha,
+      message: `chore(renderers): update ${slug}`,
     });
     recordAudit(req, {
       action: "view-renderer.update",
       resource: slug,
-      detail: `${existing ? "edited" : "overrode"} view renderer ${slug}`,
+      detail: `edited view renderer ${slug}`,
     });
     return NextResponse.json({
-      renderer: toRow(written.definition, "repo", written.htmlUrl),
+      renderer: toRow(written.definition, written.htmlUrl),
     });
   } catch (error) {
     console.error("[ViewRenderers] Error updating renderer:", error);

@@ -42,8 +42,8 @@ const renderedView: RenderedViewDirective = {
     { type: "buttons", bind: "actions" },
   ],
   data: {
-    title: "Create this issue?",
-    actions: [{ id: "approve", label: "Approve", response: "approve" }],
+    title: "Choose next step",
+    actions: [{ id: "continue", label: "Continue", response: "continue" }],
   },
 };
 

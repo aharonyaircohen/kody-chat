@@ -43,12 +43,19 @@ interface RendererRow {
   description: string;
   purpose: string;
   rule: string;
+  data?: Record<
+    string,
+    {
+      description?: string;
+      type?: "text" | "markdown" | "actions" | "selection" | "input" | "value";
+      optional?: boolean;
+    }
+  >;
   defaults?: Record<string, unknown>;
   type: "layout";
   blocks: Array<{ type: string; bind: string; label?: string }>;
-  source: "repo" | "builtin";
+  source: "repo";
   htmlUrl: string;
-  readOnly: boolean;
   definition: string;
 }
 
@@ -72,36 +79,49 @@ interface RendererQueryScope {
 }
 
 const SAMPLE_VALUES: Record<string, string> = {
-  title: "Create this issue?",
-  body: "Kody will continue only after you approve.",
+  title: "Example title",
+  body: "Example supporting text.",
 };
+
+const SAMPLE_LIST_ITEMS: RendererPreviewAction[] = [
+  { id: "option-a", label: "Option A", response: "option-a" },
+  { id: "option-b", label: "Option B", response: "option-b" },
+  { id: "option-c", label: "Option C", response: "option-c" },
+];
 
 const DEFAULT_RENDERER_JSON = JSON.stringify(
   {
     slug: "my-renderer",
     name: "My renderer",
     description: "Reusable UI shape.",
-    purpose: "approval",
-    rule:
-      "Use this purpose when Kody asks the user to approve, edit, cancel, or continue before taking the next step.",
+    purpose: "decision",
+    rule: "Use this purpose when Kody presents a decision that needs one response before continuing.",
+    data: {
+      title: { description: "Short heading for the decision." },
+      body: { description: "The decision question or supporting context." },
+      actions: {
+        type: "actions",
+        description: "The available responses for the user.",
+      },
+    },
     defaults: {
       actions: [
         {
-          id: "approve",
-          label: "Approve",
-          response: "approve",
+          id: "continue",
+          label: "Continue",
+          response: "continue",
           variant: "primary",
         },
         {
-          id: "edit",
-          label: "Edit first",
-          response: "edit",
+          id: "change",
+          label: "Change",
+          response: "change",
           variant: "secondary",
         },
         {
-          id: "cancel",
-          label: "Cancel",
-          response: "cancel",
+          id: "stop",
+          label: "Stop",
+          response: "stop",
           variant: "secondary",
         },
       ],
@@ -139,6 +159,10 @@ function parseRendererJson(raw: string): RendererRow | null {
       parsed.defaults && typeof parsed.defaults === "object"
         ? (parsed.defaults as Record<string, unknown>)
         : null;
+    const data =
+      parsed.data && typeof parsed.data === "object"
+        ? (parsed.data as RendererRow["data"])
+        : null;
     return {
       slug: parsed.slug,
       name: parsed.name,
@@ -146,12 +170,12 @@ function parseRendererJson(raw: string): RendererRow | null {
         typeof parsed.description === "string" ? parsed.description : "",
       purpose: parsed.purpose,
       rule: typeof parsed.rule === "string" ? parsed.rule : "",
+      ...(data ? { data } : {}),
       ...(defaults ? { defaults } : {}),
       type: "layout",
       blocks: parsed.blocks as RendererRow["blocks"],
       source: "repo",
       htmlUrl: "",
-      readOnly: false,
       definition: raw,
     };
   } catch {
@@ -272,7 +296,7 @@ function ViewRenderersManagerInner({
   });
   const renderers = useMemo(() => data ?? [], [data]);
   const selected = selectedSlug
-    ? renderers.find((renderer) => renderer.slug === selectedSlug) ?? null
+    ? (renderers.find((renderer) => renderer.slug === selectedSlug) ?? null)
     : null;
   const draft = parseRendererJson(definition);
   const filtered = useMemo(() => {
@@ -633,6 +657,8 @@ function buildRendererPreviewData(
     if (data[block.bind] !== undefined) continue;
     if (block.type === "buttons") {
       data[block.bind] = [];
+    } else if (block.type === "selection") {
+      data[block.bind] = SAMPLE_LIST_ITEMS.map((item) => ({ ...item }));
     } else {
       data[block.bind] = SAMPLE_VALUES[block.bind] ?? block.label ?? block.bind;
     }
@@ -686,7 +712,11 @@ function RendererEditorDialog({
           <Button variant="ghost" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button className="gap-1" disabled={!isValid || isSaving} onClick={onSave}>
+          <Button
+            className="gap-1"
+            disabled={!isValid || isSaving}
+            onClick={onSave}
+          >
             {isSaving ? (
               <Loader2 className="h-4 w-4 animate-spin" />
             ) : (
@@ -743,8 +773,42 @@ function RendererBlockPreview({
             </button>
           ))
         ) : (
-          <p className="text-xs text-muted-foreground">No actions configured.</p>
+          <p className="text-xs text-muted-foreground">
+            No actions configured.
+          </p>
         )}
+      </div>
+    );
+  }
+  if (block.type === "selection") {
+    const actions = isPreviewActionList(value) ? value : [];
+    return (
+      <div className="space-y-2">
+        {block.label ? (
+          <div className="text-xs font-medium text-muted-foreground">
+            {block.label}
+          </div>
+        ) : null}
+        <div className="space-y-1.5">
+          {actions.length > 0 ? (
+            actions.map((action) => (
+              <button
+                key={action.id}
+                type="button"
+                className="flex w-full items-center justify-between gap-3 rounded-md border border-white/[0.12] bg-white/[0.04] px-3 py-2 text-left text-sm text-white/85 transition-colors"
+              >
+                <span className="min-w-0 truncate font-medium">
+                  {action.label}
+                </span>
+                <span className="text-xs text-muted-foreground">Select</span>
+              </button>
+            ))
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              No items configured.
+            </p>
+          )}
+        </div>
       </div>
     );
   }
@@ -764,14 +828,7 @@ function RendererBlockPreview({
 
 function SourceBadge({ source }: { source: RendererRow["source"] }) {
   return (
-    <span
-      className={cn(
-        "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase",
-        source === "repo"
-          ? "bg-emerald-500/15 text-emerald-300"
-          : "bg-white/[0.08] text-white/50",
-      )}
-    >
+    <span className="shrink-0 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase text-emerald-300">
       {source}
     </span>
   );

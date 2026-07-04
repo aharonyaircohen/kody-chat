@@ -15,8 +15,6 @@ import {
 } from "@dashboard/lib/auth";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import {
-  DEFAULT_RENDERER_SLUG,
-  DEFAULT_VIEW_RENDERER,
   isValidViewRendererSlug,
   listViewRendererDefinitionFiles,
   parseViewRendererDefinition,
@@ -49,23 +47,19 @@ function requireRepo(req: NextRequest) {
   return { auth };
 }
 
-function toRow(
-  definition: ViewRendererDefinition,
-  source: "repo" | "builtin",
-  htmlUrl = "",
-) {
+function toRow(definition: ViewRendererDefinition, htmlUrl = "") {
   return {
     slug: definition.slug,
     name: definition.name,
     description: definition.description ?? "",
     purpose: definition.purpose,
     rule: definition.rule ?? "",
+    data: definition.data ?? {},
     defaults: definition.defaults ?? {},
     type: definition.type,
     blocks: definition.blocks,
-    source,
+    source: "repo" as const,
     htmlUrl,
-    readOnly: source === "builtin",
     definition: serializeViewRendererDefinition(definition),
   };
 }
@@ -89,18 +83,13 @@ export async function GET(req: NextRequest) {
       owner: required.auth.owner,
       repo: required.auth.repo,
     });
-    const rows = files.map((file) =>
-      toRow(file.definition, file.source, file.htmlUrl),
+    const rows = files
+      .map((file) => toRow(file.definition, file.htmlUrl))
+      .sort((a, b) => a.slug.localeCompare(b.slug));
+    return NextResponse.json(
+      { renderers: rows },
+      { headers: NO_STORE_HEADERS },
     );
-    if (!rows.some((row) => row.slug === DEFAULT_RENDERER_SLUG)) {
-      rows.unshift(toRow(DEFAULT_VIEW_RENDERER, "builtin"));
-    }
-    rows.sort((a, b) => {
-      if (a.slug === DEFAULT_RENDERER_SLUG) return -1;
-      if (b.slug === DEFAULT_RENDERER_SLUG) return 1;
-      return a.slug.localeCompare(b.slug);
-    });
-    return NextResponse.json({ renderers: rows }, { headers: NO_STORE_HEADERS });
   } catch (error) {
     console.error("[ViewRenderers] Error listing renderers:", error);
     return NextResponse.json(
@@ -160,7 +149,7 @@ export async function POST(req: NextRequest) {
       detail: `created view renderer ${definition.slug}`,
     });
     return NextResponse.json({
-      renderer: toRow(written.definition, "repo", written.htmlUrl),
+      renderer: toRow(written.definition, written.htmlUrl),
     });
   } catch (error) {
     console.error("[ViewRenderers] Error creating renderer:", error);

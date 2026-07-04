@@ -166,6 +166,7 @@ describe("chat-defaults bundle", () => {
       "switch_agent",
       "preview_act",
       "show_view",
+      "final_answer",
     ])
       toolKeys.add(name);
     for (const name of [
@@ -187,8 +188,8 @@ describe("chat-defaults bundle", () => {
   });
 
   it("allowlists view tools so Kody can render chat UI", () => {
+    expect(DEFAULT_CHAT_CAPABILITY.tools).toContain("final_answer");
     expect(DEFAULT_CHAT_CAPABILITY.tools).toContain("show_view");
-    expect(DEFAULT_CHAT_CAPABILITY.tools).not.toContain("show_approval_view");
   });
 
   it("documents show_view as purpose-based renderer matching", () => {
@@ -205,7 +206,6 @@ describe("chat-defaults bundle", () => {
     );
     expect(uiTools).not.toContain("rendererSlug");
     expect(uiTools).not.toContain("preset");
-    expect(uiTools).not.toContain("show_approval_view");
   });
 
   it("exposes 4 workflows — kody-analyzer, kody-operator, kody-vibe, kody-mem", () => {

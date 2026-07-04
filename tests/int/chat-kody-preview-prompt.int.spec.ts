@@ -6,12 +6,19 @@
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
+import { RENDER_VIEW_DIRECTIVE } from "@dashboard/lib/chat-ui-actions";
 
 const streamTextMock = vi.hoisted(() => vi.fn());
 const createUIMessageStreamResponseMock = vi.hoisted(() => vi.fn());
+const loadViewRendererContextForPromptMock = vi.hoisted(() => vi.fn());
+const resolveBestViewRendererDefinitionMock = vi.hoisted(() => vi.fn());
 
 vi.mock("ai", () => ({
   tool: (definition: unknown) => definition,
+  jsonSchema: (schema: unknown, options?: unknown) => ({
+    jsonSchema: schema,
+    ...(options && typeof options === "object" ? options : {}),
+  }),
   streamText: streamTextMock,
   stepCountIs: vi.fn(() => vi.fn()),
   createUIMessageStream: vi.fn((config: unknown) => config),
@@ -57,6 +64,18 @@ vi.mock("@dashboard/lib/context/files", () => ({
   loadContextForPrompt: vi.fn(async () => null),
 }));
 
+vi.mock("@dashboard/lib/view-renderers/renderers", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("@dashboard/lib/view-renderers/renderers")
+    >();
+  return {
+    ...actual,
+    loadViewRendererContextForPrompt: loadViewRendererContextForPromptMock,
+    resolveBestViewRendererDefinition: resolveBestViewRendererDefinitionMock,
+  };
+});
+
 vi.mock("../../app/api/kody/chat/resolve-model", () => ({
   resolveChatModel: vi.fn(async () => ({
     model: { modelId: "test-model" },
@@ -92,10 +111,55 @@ function makeRequest(body: unknown): NextRequest {
   });
 }
 
+const approvalRendererDefinition = {
+  slug: "approval-card",
+  name: "Approval Card",
+  purpose: "approval-card",
+  rule: "Use this purpose when Kody asks the user for approval.",
+  data: {
+    title: { type: "text", description: "Short approval question." },
+    body: { type: "text", optional: true },
+    actions: { type: "actions", optional: true },
+  },
+  defaults: {
+    actions: [
+      {
+        id: "approve",
+        label: "Approve",
+        response: "approve",
+        variant: "primary",
+      },
+      { id: "cancel", label: "Cancel", response: "cancel" },
+    ],
+  },
+  type: "layout",
+  blocks: [
+    { type: "title", bind: "title" },
+    { type: "text", bind: "body" },
+    { type: "buttons", bind: "actions" },
+  ],
+} as const;
+
 describe("POST /api/kody/chat/kody preview prompt", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     process.env.KODY_MASTER_KEY = "kody-direct-test-secret";
+    loadViewRendererContextForPromptMock.mockResolvedValue({
+      rules:
+        "- Purpose `approval-card`: Use this purpose when Kody asks the user for approval.\n" +
+        "  Data keys:\n" +
+        "  - title (text): Short approval question.\n" +
+        "  - body (text, optional)\n" +
+        "  - actions (actions, default available, optional)",
+      definitions: [approvalRendererDefinition],
+    });
+    resolveBestViewRendererDefinitionMock.mockResolvedValue({
+      definition: approvalRendererDefinition,
+      source: "repo",
+      sha: "approval-fixture",
+      htmlUrl:
+        "https://github.test/acme/app/views/renderers/approval-card.json",
+    });
     streamTextMock.mockReturnValue({
       toUIMessageStream: vi.fn(() => ({})),
     });
@@ -123,5 +187,130 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     expect(system).toContain("create a GitHub issue");
     expect(system).toContain("Do not answer with a fresh design direction");
     expect(system).toContain("Source path: views/demo-123");
+  });
+
+  it("exposes a working show_view contract for approval renderer requests", async () => {
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+
+    const res = await POST(
+      makeRequest({
+        messages: [
+          {
+            role: "user",
+            content: "aske me a q and ask for approval to confirm it",
+          },
+        ],
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(streamTextMock).toHaveBeenCalledTimes(1);
+    const options = streamTextMock.mock.calls[0]?.[0];
+    const showView = options?.tools?.show_view as
+      | {
+          description?: string;
+          inputSchema?: {
+            jsonSchema?: {
+              oneOf?: Array<{
+                properties?: {
+                  purpose?: { enum?: string[] };
+                  data?: {
+                    required?: string[];
+                    properties?: Record<string, unknown>;
+                  };
+                };
+              }>;
+            };
+          };
+          execute?: (input: Record<string, unknown>) => Promise<unknown>;
+        }
+      | undefined;
+
+    expect(showView?.description).toContain("Available renderer rules");
+    const approvalVariant = showView?.inputSchema?.jsonSchema?.oneOf?.find(
+      (variant) => variant.properties?.purpose?.enum?.[0] === "approval-card",
+    );
+    expect(approvalVariant?.properties?.data).toMatchObject({
+      required: ["title"],
+      properties: {
+        title: expect.objectContaining({ type: "string" }),
+      },
+    });
+    expect(showView?.execute).toBeTypeOf("function");
+
+    const output = await showView?.execute?.({
+      purpose: "approval-card",
+      data: {
+        title: "Confirm this question?",
+        body: "Should I continue?",
+      },
+    });
+
+    expect(output).toMatchObject({
+      action: RENDER_VIEW_DIRECTIVE,
+      view: "renderer",
+      rendererSlug: "approval-card",
+      data: {
+        title: "Confirm this question?",
+        body: "Should I continue?",
+      },
+    });
+    expect(resolveBestViewRendererDefinitionMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        purpose: "approval-card",
+        data: {
+          title: "Confirm this question?",
+          body: "Should I continue?",
+        },
+      }),
+    );
+  });
+
+  it("repairs an empty show_view tool call using renderer definitions", async () => {
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+
+    const res = await POST(
+      makeRequest({
+        messages: [
+          {
+            role: "user",
+            content: "aske me a q and ask for approval to confirm it",
+          },
+        ],
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const repairToolCall = streamTextMock.mock.calls[0]?.[0]
+      ?.experimental_repairToolCall as
+      | ((input: {
+          toolCall: {
+            type: "tool-call";
+            toolCallId: string;
+            toolName: string;
+            input: string;
+          };
+        }) => Promise<{ input: string } | null>)
+      | undefined;
+
+    expect(repairToolCall).toBeTypeOf("function");
+    const repaired = await repairToolCall?.({
+      toolCall: {
+        type: "tool-call",
+        toolCallId: "empty-show-view",
+        toolName: "show_view",
+        input: "{}",
+      },
+    });
+
+    expect(repaired).toMatchObject({
+      toolName: "show_view",
+    });
+    expect(JSON.parse(repaired?.input ?? "{}")).toMatchObject({
+      purpose: "approval-card",
+      data: {
+        title: expect.stringContaining("approval"),
+      },
+    });
   });
 });

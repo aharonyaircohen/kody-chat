@@ -24,16 +24,24 @@ describe("isRenderedViewDirective", () => {
           { type: "title", bind: "title" },
           { type: "text", bind: "body" },
           { type: "buttons", bind: "actions" },
+          { type: "selection", bind: "items" },
         ],
         data: {
-          title: "Create this issue?",
-          body: "Review before continuing.",
+          title: "Choose next step",
+          body: "Pick one option before continuing.",
           actions: [
             {
-              id: "approve",
-              label: "Approve",
-              response: "approve",
+              id: "continue",
+              label: "Continue",
+              response: "continue",
               variant: "primary",
+            },
+          ],
+          items: [
+            {
+              id: "one",
+              label: "Option one",
+              response: "one",
             },
           ],
         },

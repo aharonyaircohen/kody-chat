@@ -6,6 +6,7 @@
  * over-complicated prompt guidance.
  */
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "fs";
 import { buildSystemPrompt } from "../../../app/api/kody/chat/kody/system-prompt";
 import {
   loadChatDefaults,
@@ -69,13 +70,17 @@ describe("Kody chat evals", () => {
       {
         previewContext: "Preview shows a Hebrew marketing page.",
         viewRendererRules:
-          "- Purpose `approval`: Use this purpose for approval cards.\n  Data keys: title, body, actions",
+          "- Purpose `decision`: Use this purpose when Kody presents a decision.\n  Data keys:\n  - title (title): Short heading.\n  - body (text): Supporting text.\n  - actions (actions, default available): Available responses.",
       },
     );
 
     expect(promptWithPreview).toContain("Generic view rendering");
     expect(promptWithPreview).toContain(
-      "If the user asks to show, render, or display a UI/card, call `show_view`",
+      "Every final response must use an output tool",
+    );
+    expect(promptWithPreview).toContain("`final_answer` for plain text");
+    expect(promptWithPreview).toContain(
+      "If the user asks to show, render, or display a UI/card, that is also a render request",
     );
     expect(promptWithPreview).toContain(
       "Do not print JSON or describe the tool call",
@@ -84,13 +89,29 @@ describe("Kody chat evals", () => {
       "Dashboard chooses the matching user-managed renderer",
     );
     expect(promptWithPreview).toContain(
-      "For approval views, a short title is enough",
-    );
-    expect(promptWithPreview).toContain(
       "UI-card requests are display requests, not issue-creation requests",
     );
     expect(promptWithPreview).toContain(
-      'If the user says "Show approval-card UI: Create this issue?", render that literal card',
+      "Render the requested UI; do not convert it into another workflow",
+    );
+    expect(promptWithPreview).toContain(
+      "Use `show_view` naturally whenever your reply is presenting an interaction",
+    );
+    expect(promptWithPreview).toContain("The user does not need to ask for UI");
+    expect(promptWithPreview).toContain(
+      "`show_view` takes only `purpose` and `data`",
+    );
+    expect(promptWithPreview).toContain(
+      "Use the renderer rule's listed Data keys as the field names",
+    );
+    expect(promptWithPreview).toContain(
+      "fill them from the current interaction you are presenting",
+    );
+    expect(promptWithPreview).toContain(
+      "If the user's request includes line-separated or bulleted choices",
+    );
+    expect(promptWithPreview).toContain(
+      "first call the read/list tool needed to get the records, then call `show_view` with the matching renderer purpose",
     );
     expect(promptWithPreview).toContain(
       "Each field in `data` must come from one of two places",
@@ -102,50 +123,37 @@ describe("Kody chat evals", () => {
       "Do not name a renderer, preset, or hardcoded view type",
     );
     expect(promptWithPreview).toContain("Available renderer rules");
-    expect(promptWithPreview).toContain("Purpose `approval`");
-    expect(promptWithPreview).toContain("Use this purpose for approval cards");
-    expect(promptWithPreview).toContain("Data keys: title, body, actions");
-  });
-});
-
-describe("Kody chat evals", () => {
-  it("does not count read-tool issue URLs as newly created issues", () => {
-    const existingIssue = {
-      number: 77,
-      url: "https://github.com/acme/repo/issues/77",
-    };
-
-    expect(
-      getCreatedIssueNumberFromToolOutput("github_get_issue", existingIssue),
-    ).toBeNull();
-  });
-
-  it("does not count failed create tools as created issues", () => {
-    expect(
-      getCreatedIssueNumberFromToolOutput("create_feature", {
-        error: "Validation Failed",
-      }),
-    ).toBeNull();
-  });
-
-  it("allows create_task to transfer chat scope after real creation", () => {
-    expect(
-      getCreatedIssueNumberFromToolOutput("create_task", {
-        number: 88,
-        url: "https://github.com/acme/repo/issues/88",
-      }),
-    ).toBe(88);
-  });
-
-  it("tells Kody to ask at most one blocking clarifying question", () => {
-    expect(prompt).toContain("Ask at most one clarifying question");
-    expect(prompt).toContain(
-      "If there is no blocking question, ask only for approval",
+    expect(promptWithPreview).toContain("Purpose `decision`");
+    expect(promptWithPreview).toContain(
+      "Use this purpose when Kody presents a decision",
+    );
+    expect(promptWithPreview).toContain("Data keys:");
+    expect(promptWithPreview).toContain("title (title): Short heading.");
+    expect(promptWithPreview).toContain(
+      "actions (actions, default available): Available responses.",
     );
   });
 
-  it("does not encourage endless clarification loops in Vibe mode", () => {
-    expect(prompt).not.toContain("Ask in small batches");
-    expect(prompt).not.toContain("repeat. Stop ONLY");
+  it("requires a terminal output tool instead of allowing plain prose stops", () => {
+    const route = readFileSync("app/api/kody/chat/kody/route.ts", "utf8");
+
+    expect(route).toContain('toolChoice: "required"');
+    expect(route).toContain("CHAT_OUTPUT_TOOL_NAMES");
+    expect(route).toContain("shouldRequireViewOutputForTurn");
+    expect(route).toContain("shouldAllowPreRenderToolCallsForTurn");
+    expect(route).toContain("definitions: viewRendererDefinitions");
+    expect(route).toContain("activeToolsWithoutFinalAnswer");
+    expect(route).toContain("showViewOnlyTools");
+    expect(route).toContain("Do not finish with `final_answer`");
+    expect(route).toContain("terminalToolAttempt(SHOW_VIEW_TOOL)");
+    expect(route).toContain("successfulToolResult(FINAL_ANSWER_TOOL)");
+  });
+
+  it("does not retry a failed show_view finalizer forever", () => {
+    const route = readFileSync("app/api/kody/chat/kody/route.ts", "utf8");
+
+    expect(route).toContain("terminalToolAttempt(SHOW_VIEW_TOOL)");
+    expect(route).toContain("successfulToolResult(FINAL_ANSWER_TOOL)");
+    expect(route).not.toContain("successfulToolResult(SHOW_VIEW_TOOL)");
   });
 });

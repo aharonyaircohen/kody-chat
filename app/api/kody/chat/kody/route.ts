@@ -27,6 +27,8 @@ import {
   createUIMessageStream,
   createUIMessageStreamResponse,
   type ModelMessage,
+  type StopCondition,
+  type ToolSet,
 } from "ai";
 import {
   getAgent,
@@ -79,6 +81,16 @@ import { applyVibeToolPolicy } from "./vibe-tool-policy";
 import { fetchUrlTool } from "../tools/fetch-url";
 import { featureTools } from "../tools/feature-tools";
 import { createUiTools } from "../tools/ui-tools";
+import {
+  CHAT_OUTPUT_TOOL_NAMES,
+  FINAL_ANSWER_TOOL,
+  SHOW_VIEW_TOOL,
+  isToolErrorOutput,
+} from "@dashboard/lib/chat-output-tools";
+import {
+  shouldAllowPreRenderToolCallsForTurn,
+  shouldRequireViewOutputForTurn,
+} from "@dashboard/lib/view-renderers/chat-intent";
 import { createCommandTools } from "../tools/commands-tools";
 import { createContextTools } from "../tools/context-tools";
 import { createTodoTools } from "../tools/todo-tools";
@@ -101,7 +113,11 @@ import {
   readMemoryFile,
   writeMemoryFile,
 } from "@dashboard/lib/memory-files";
-import { loadViewRendererRulesForPrompt } from "@dashboard/lib/view-renderers/renderers";
+import {
+  loadViewRendererContextForPrompt,
+  type ViewRendererDefinition,
+} from "@dashboard/lib/view-renderers/renderers";
+import { repairShowViewToolCall } from "@dashboard/lib/view-renderers/chat-contract";
 import { loadInstructionsForPrompt } from "@dashboard/lib/instructions/files";
 import { loadContextForPrompt } from "@dashboard/lib/context/files";
 import { buildExplicitMemoryDraft } from "./explicit-memory";
@@ -213,6 +229,23 @@ const MAX_HISTORY_MESSAGES = 50;
  * (rely on `maxDuration` alone).
  */
 export const DEFAULT_MAX_STEPS = 100;
+
+function successfulToolResult(toolName: string): StopCondition<ToolSet> {
+  return ({ steps }) =>
+    steps[steps.length - 1]?.toolResults?.some(
+      (result) =>
+        result.toolName === toolName && !isToolErrorOutput(result.output),
+    ) ?? false;
+}
+
+function terminalToolAttempt(toolName: string): StopCondition<ToolSet> {
+  return ({ steps }) => {
+    const lastStep = steps[steps.length - 1];
+    return (
+      lastStep?.toolCalls?.some((call) => call.toolName === toolName) ?? false
+    );
+  };
+}
 
 // Stream tracing uses console.* (not the pino `logger`) on purpose: pino
 // buffers writes asynchronously, and Vercel functions can be killed or
@@ -575,6 +608,7 @@ export async function POST(req: NextRequest) {
   let userInstructions: string | null = null;
   let context: string | null = null;
   let viewRendererRules: string | null = null;
+  let viewRendererDefinitions: ViewRendererDefinition[] = [];
   if (repo) {
     setGitHubContext(
       repo.owner,
@@ -611,11 +645,13 @@ export async function POST(req: NextRequest) {
       );
     }
     try {
-      viewRendererRules = await loadViewRendererRulesForPrompt({
+      const viewRendererContext = await loadViewRendererContextForPrompt({
         octokit: createUserOctokit(repo.token),
         owner: repo.owner,
         repo: repo.repo,
       });
+      viewRendererRules = viewRendererContext.rules;
+      viewRendererDefinitions = viewRendererContext.definitions;
     } catch (err) {
       traceWarn(
         { traceId, err: err instanceof Error ? err.message : String(err) },
@@ -623,7 +659,6 @@ export async function POST(req: NextRequest) {
       );
     }
   }
-
   // Pick the agentIdentity. Agents whose backend is `kody-direct` are
   // served natively here; the rest (engine, brain, kody-live) don't have
   // a usable in-process prompt to swap in.
@@ -768,6 +803,8 @@ export async function POST(req: NextRequest) {
       owner: repo.owner,
       repo: repo.repo,
       actorLogin: verifiedActorLogin,
+      viewRendererRules,
+      viewRendererDefinitions,
     });
     extraTools = {
       ...extraTools,
@@ -942,17 +979,41 @@ export async function POST(req: NextRequest) {
     { ...baseTools, ...extraTools },
     { vibeMode, hasCurrentTask: body.task?.issueNumber != null },
   );
-  // Bundle allowlist — the chat capability's `tools` field is the single source
-  // of truth for which tools the chat exposes. Empty list = expose all
-  // (preserves current behavior when the bundle is unconfigured).
-  const allowlistedTools = filterToolsByAllowlist(
+  // Bundle allowlist controls domain tools. Core output tools are preserved
+  // below because they are the chat protocol, not repo capability surface.
+  const filteredTools = filterToolsByAllowlist(
     mergedTools,
     chatBundle.capability.tools,
   );
+  const allowlistedTools: Record<string, unknown> = { ...filteredTools };
+  for (const name of CHAT_OUTPUT_TOOL_NAMES) {
+    if (Object.prototype.hasOwnProperty.call(mergedTools, name)) {
+      allowlistedTools[name] = mergedTools[name];
+    }
+  }
   const tools = allowlistedTools as Parameters<typeof streamText>[0]["tools"];
+  const requireViewOutput =
+    !explicitViewRequest &&
+    shouldRequireViewOutputForTurn({
+      userText: latestUserText,
+      definitions: viewRendererDefinitions,
+    }) &&
+    Object.prototype.hasOwnProperty.call(allowlistedTools, SHOW_VIEW_TOOL);
+  const activeToolsWithoutFinalAnswer = Object.keys(allowlistedTools).filter(
+    (name) => name !== FINAL_ANSWER_TOOL,
+  ) as Array<keyof NonNullable<typeof tools>>;
+  const shouldAllowPreRenderTools =
+    requireViewOutput &&
+    shouldAllowPreRenderToolCallsForTurn({
+      userText: latestUserText,
+      toolNames: Object.keys(allowlistedTools),
+    });
+  const showViewOnlyTools = [SHOW_VIEW_TOOL] as Array<
+    keyof NonNullable<typeof tools>
+  >;
   const forceShowViewTool =
     Boolean(explicitViewRequest) &&
-    Object.prototype.hasOwnProperty.call(allowlistedTools, "show_view");
+    Object.prototype.hasOwnProperty.call(allowlistedTools, SHOW_VIEW_TOOL);
   if (explicitViewRequest && !forceShowViewTool) {
     modelMessages = [
       ...modelMessages,
@@ -968,6 +1029,15 @@ export async function POST(req: NextRequest) {
       {
         role: "system",
         content: buildExplicitViewRequestInstruction(explicitViewRequest),
+      },
+    ];
+  } else if (requireViewOutput) {
+    modelMessages = [
+      ...modelMessages,
+      {
+        role: "system",
+        content:
+          "The latest user message asks for an interactive response that matches the available renderer rules. Use read/list tools first if needed, then finish this turn with `show_view`. Do not finish with `final_answer`.",
       },
     ];
   }
@@ -995,7 +1065,9 @@ export async function POST(req: NextRequest) {
       org: body.org,
       currentPage: body.currentPage,
       previewContext:
-        typeof body.previewContext === "string" ? body.previewContext : undefined,
+        typeof body.previewContext === "string"
+          ? body.previewContext
+          : undefined,
       memoryIndex,
       vibeMode,
       flyConfigured,
@@ -1097,12 +1169,44 @@ This turn includes an image from the user. For questions about what is visible i
       messages: modelMessages,
       tools,
       ...(forceShowViewTool
-        ? { toolChoice: { type: "tool" as const, toolName: "show_view" } }
+        ? { toolChoice: { type: "tool" as const, toolName: SHOW_VIEW_TOOL } }
+        : { toolChoice: "required" as const }),
+      ...(requireViewOutput
+        ? {
+            prepareStep: ({ steps }) => {
+              const hasPreRenderToolResult = steps.some((step) =>
+                step.toolResults.some(
+                  (result) =>
+                    result.toolName !== SHOW_VIEW_TOOL &&
+                    result.toolName !== FINAL_ANSWER_TOOL,
+                ),
+              );
+              return {
+                activeTools:
+                  shouldAllowPreRenderTools && !hasPreRenderToolResult
+                    ? activeToolsWithoutFinalAnswer
+                    : showViewOnlyTools,
+                toolChoice: "required" as const,
+              };
+            },
+          }
         : {}),
       // Optimized for deep analysis: see DEFAULT_MAX_STEPS for the cap
       // rationale and the per-model override path. The constant lives at
       // module level so tests can assert the value.
-      stopWhen: stepCountIs(resolvedModel.maxSteps ?? DEFAULT_MAX_STEPS),
+      stopWhen: [
+        terminalToolAttempt(SHOW_VIEW_TOOL),
+        successfulToolResult(FINAL_ANSWER_TOOL),
+        stepCountIs(resolvedModel.maxSteps ?? DEFAULT_MAX_STEPS),
+      ],
+      experimental_repairToolCall: async ({ toolCall }) => {
+        if (toolCall.toolName !== SHOW_VIEW_TOOL) return null;
+        return repairShowViewToolCall({
+          toolCall,
+          definitions: viewRendererDefinitions,
+          userText: latestUserText,
+        });
+      },
       // Per-provider thinking config so reasoning-delta chunks actually
       // reach the client. Without this, `sendReasoning: true` below has
       // nothing to stream and the chat looks idle until the final answer.

@@ -54,6 +54,7 @@ const KNOWN_TOOL_NAMES: ReadonlySet<string> = new Set([
   "update_memory",
   "preview_act",
   "show_view",
+  "final_answer",
   "read_capability_creation_guide",
 ]);
 
@@ -65,6 +66,20 @@ const KNOWN_TOOL_NAMES: ReadonlySet<string> = new Set([
  */
 const TOOL_CALL_BLOCK_RE =
   /<\s*tool_call\b[^>]*>[\s\S]*?(?:<\s*\/\s*tool_call\s*>|$)/gi;
+
+/**
+ * Some OpenAI-compatible providers emit tool invocations as
+ * `<invoke name="tool">…</invoke>` in text/reasoning deltas instead of
+ * SDK-native tool-call chunks. Treat the whole block as tool traffic.
+ */
+const PROVIDER_INVOKE_BLOCK_RE =
+  /<\s*invoke\b[^>]*>[\s\S]*?(?:<\s*\/\s*invoke\s*>\s*|$)/gi;
+
+/**
+ * Provider channel separators can appear between streamed XML fragments,
+ * for example `]<]minimax[>[`. They are transport noise, not answer text.
+ */
+const PROVIDER_CHANNEL_SEPARATOR_RE = /\]<\][a-z0-9_-]+\[>\[/gi;
 
 /**
  * Self-closing tag (`<name … />`) — capture the tag name so we can
@@ -85,7 +100,9 @@ const DANGLING_TAG_NAMES: readonly string[] = [
 ];
 
 function stripToolCallBlocks(text: string): string {
-  return text.replace(TOOL_CALL_BLOCK_RE, "");
+  return text
+    .replace(TOOL_CALL_BLOCK_RE, "")
+    .replace(PROVIDER_INVOKE_BLOCK_RE, "");
 }
 
 function stripSelfClosingToolTags(text: string): string {
@@ -270,6 +287,7 @@ function stripAllLeakedParagraphs(text: string): {
 export function stripToolCallMarkup(text: string): string {
   if (!text) return text;
   let result = stripToolCallBlocks(text);
+  result = result.replace(PROVIDER_CHANNEL_SEPARATOR_RE, "");
   result = stripSelfClosingToolTags(result);
   result = stripDanglingToolTagTail(result);
   result = collapseBlankLines(result);
@@ -289,14 +307,15 @@ export function parseAssistantContent(raw: string): {
 } {
   if (!raw) return { reasoning: "", answer: "" };
   const { reasoning, answer } = parseReasoning(raw);
+  const sanitizedReasoning = stripToolCallMarkup(reasoning);
   const { text, leaked } = stripLeakedReasoning(
     stripToolCallMarkup(answer),
-    reasoning,
+    sanitizedReasoning,
   );
   const combinedReasoning = leaked
-    ? reasoning
-      ? `${reasoning}\n\n${leaked}`
+    ? sanitizedReasoning
+      ? `${sanitizedReasoning}\n\n${leaked}`
       : leaked
-    : reasoning;
+    : sanitizedReasoning;
   return { reasoning: combinedReasoning, answer: text };
 }

@@ -93,6 +93,38 @@ describe("stripToolCallMarkup", () => {
     const out = stripToolCallMarkup(input);
     expect(out).not.toMatch(/\n{3,}/);
   });
+
+  it("removes provider invoke blocks from visible text", () => {
+    const input = [
+      "Found the file.",
+      '<invoke name="github_list_tree">',
+      "<path>/src/app</path>",
+      "</invoke>",
+      "Reading it next.",
+    ].join("\n");
+
+    expect(stripToolCallMarkup(input)).toBe("Found the file.\nReading it next.");
+  });
+
+  it("removes streamed provider invoke markup with channel separators", () => {
+    const input =
+      'Let me explore it.\n\n<invoke name="github_list_tree">]<]minimax[>[<path>/src/app/(frontend)/start]<]minimax[>[</path>]<]minimax[>[</invoke> ]<]minimax[>[Done.';
+
+    const out = stripToolCallMarkup(input);
+
+    expect(out).toBe("Let me explore it.\n\nDone.");
+    expect(out).not.toContain("invoke");
+    expect(out).not.toContain("minimax");
+    expect(out).not.toContain("<path>");
+  });
+
+  it("removes an unclosed provider invoke block during streaming", () => {
+    const out = stripToolCallMarkup(
+      'Searching now.\n<invoke name="github_list_tree">]<]minimax[>[<path>/src',
+    );
+
+    expect(out).toBe("Searching now.");
+  });
 });
 
 describe("parseAssistantContent", () => {
@@ -110,6 +142,17 @@ describe("parseAssistantContent", () => {
     );
     expect(reasoning).toBe("private plan");
     expect(answer).toBe("Final answer");
+  });
+
+  it("strips provider tool markup from hidden reasoning too", () => {
+    const { reasoning, answer } = parseAssistantContent(
+      '<think>Looking now.\n<invoke name="github_list_tree">]<]minimax[>[<path>/src/app</path>]</invoke></think>\n\nThe login code is in /src/app.',
+    );
+
+    expect(reasoning).toBe("Looking now.");
+    expect(reasoning).not.toContain("invoke");
+    expect(reasoning).not.toContain("minimax");
+    expect(answer).toBe("The login code is in /src/app.");
   });
 
   it("strips both reasoning and tool-call markup from the answer", () => {

@@ -166,17 +166,21 @@ ${opts.previewContext.trim()}`,
   sections.push(
     `## Generic view rendering
 
-Use \`show_view\` for chat UI cards.
+Every final response must use an output tool: \`show_view\` for a matching UI interaction, or \`final_answer\` for plain text.
 
-If the user asks to show, render, or display a UI/card, call \`show_view\`. Do not print JSON or describe the tool call.
+If the user asks to show, render, or display a UI/card, that is also a render request. Do not print JSON or describe the tool call.
 
-UI-card requests are display requests, not issue-creation requests. If the user says "Show approval-card UI: Create this issue?", render that literal card; do not ask what issue they want to create.
+UI-card requests are display requests, not issue-creation requests. Render the requested UI; do not convert it into another workflow unless the user asks for that.
 
-When the situation matches an available renderer rule, call \`show_view\` with that rule's \`purpose\`.
+Use \`show_view\` naturally whenever your reply is presenting an interaction that matches an available renderer rule, including choices, confirmations, edits, and continue/cancel decisions. The user does not need to ask for UI explicitly.
 
-Send only \`purpose\` and \`data\`. Dashboard chooses the matching user-managed renderer from the available renderers.
+\`show_view\` takes only \`purpose\` and \`data\`; Dashboard chooses the matching user-managed renderer from the available renderers.
 
-For approval views, a short title is enough. If the user does not provide buttons, omit \`data.actions\`; Dashboard fills renderer defaults.
+Never call \`show_view\` with empty \`data\`. Use the renderer rule's listed Data keys as the field names, and fill them from the current interaction you are presenting.
+
+If the user's request includes line-separated or bulleted choices, preserve those choices as a list under the matching Data key from the renderer rule.
+
+If the user asks to list/show available records and also asks to choose, pick, select, open, or allow selection of one, first call the read/list tool needed to get the records, then call \`show_view\` with the matching renderer purpose and those records as the matching selectable field.
 
 Each field in \`data\` must come from one of two places:
 - the user explicitly asked to put that value in the view,
@@ -329,7 +333,7 @@ Required steps for Pass 1:
 2. **Inline research summary.** Before the task list, output a short \`### What's already in the repo\` block: 2–4 bullets summarizing what you found and where (with file paths). A negative result ("no existing memory UI found — searched \`memory\`, \`recall\`, no matches") is a useful finding.
 3. **Then output the task list.** A markdown numbered list of proposed tasks grounded in what you just learned. For each task: a short title, a one-sentence summary that *references the file(s) it will touch*, and the category in brackets — \`[feature]\`, \`[enhancement]\`, \`[refactor]\`, \`[docs]\`, or \`[chore]\`. Keep it tight: only the next 3–8 tasks. Partial-but-correct beats complete-but-hallucinated.
 
-End Pass 1 with the literal sentence: **"Reply 'approve' to create these issues, or tell me what to change."** Then call \`show_view\` with \`purpose: "approval"\`, \`data.title\`, \`data.body\`, and \`data.actions\` for the approval choice, then stop. The rendered view is only UI; do not call \`create_task_for_goal\` until the next user turn approves.
+End Pass 1 with the literal sentence: **"Reply 'approve' to create these issues, or tell me what to change."** Then, if an available renderer rule matches this approval choice, call \`show_view\` with that rule's \`purpose\` and matching \`data\` keys, then stop. The rendered view is only UI; do not call \`create_task_for_goal\` until the next user turn approves.
 
 If your research turned up nothing relevant (the mission is greenfield in this codebase), say so explicitly — "Searched for X, Y, Z; no existing code matches. Treating this as greenfield." — and propose tasks accordingly.
 
@@ -409,7 +413,7 @@ Everything in the base prompt about \`kody_run_issue\`, the \`@kody\` executor h
 
 1. **Research — extensive.** Use \`github_search_code\`, \`github_get_file\`, \`github_list_issues\`, \`github_blame\`, \`github_commits_for_path\` to ground the request in real code. Cite file paths and line numbers as you go. Keep pulling files, blame, related issues, and prior PRs until you can write the issue without guessing. Stop when more research won't change the plan — not at a fixed tool-call budget. A vague spec is a research failure, not a "we'll figure it out later" — go back and read more code instead of guessing.
 2. **Plan.** Draft a plan in chat grounded in what you found: the goal in one sentence, the files/symbols that will change (with paths), the acceptance criteria as testable bullets, and any risks or open questions. Keep it small and shippable — one PR's worth of work. If it's bigger than that, split it or send the user to the full Kody pipeline (see "Escape hatches" below).
-3. **Align with the user — concise approval gate.** Show the plan. Ask at most one clarifying question, only if it changes scope, data safety, user-facing behavior, or acceptance criteria. Use repo evidence and sensible defaults for minor missing details. If there is no blocking question, ask only for approval and call \`show_view\` with \`purpose: "approval"\`, \`data.title\`, \`data.body\`, and \`data.actions\` for the approval choice.
+3. **Align with the user — concise approval gate.** Show the plan. Ask at most one clarifying question, only if it changes scope, data safety, user-facing behavior, or acceptance criteria. Use repo evidence and sensible defaults for minor missing details. If there is no blocking question, ask only for approval and, if an available renderer rule matches this interaction, call \`show_view\` with that rule's \`purpose\` and matching \`data\` keys.
 4. **Create the issue.** Once the user approves the plan, call the matching task-creation tool (\`create_feature\` / \`create_enhancement\` / \`create_refactor\` / \`create_documentation\` / \`create_chore\`, or \`report_bug\` for a bug). Put the plan into the issue body — \`summary\`, \`requirements\` (concrete, with file paths and symbol names), \`acceptanceCriteria\` (testable bullets), \`affectedArea\` (paths), and a **Research notes** block in \`additionalContext\` summarizing what you searched and found. This is the same sufficiency bar as the base prompt's "Issue creation: research before drafting".
 5. **Stop after issue creation.** Reply with the issue number, title, and URL. Do not open a branch, do not open a draft PR, do not switch agents, and do not start a runner. If the user wants implementation, point them to run it from the issue workflow outside Kody chat.
 

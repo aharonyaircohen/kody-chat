@@ -9,14 +9,12 @@
  */
 import { randomUUID } from "crypto";
 import type { Octokit } from "@octokit/rest";
-import { tool } from "ai";
+import { jsonSchema, tool } from "ai";
 import { z } from "zod";
 import { AGENTS, type AgentId } from "@dashboard/lib/agents";
 import {
   PREVIEW_ACT_DIRECTIVE,
   SWITCH_AGENT_DIRECTIVE,
-  type RenderedViewAction,
-  type RenderedViewDataValue,
   type PreviewActDirective,
   type SwitchAgentDirective,
   type SwitchAgentTargetId,
@@ -24,7 +22,18 @@ import {
 import {
   buildRenderedViewDirective,
   resolveBestViewRendererDefinition,
+  type ViewRendererDefinition,
 } from "@dashboard/lib/view-renderers/renderers";
+import {
+  buildShowViewInputJsonSchema,
+  collectShowViewData,
+  validateShowViewInput,
+  type ShowViewInput,
+} from "@dashboard/lib/view-renderers/chat-contract";
+import {
+  FINAL_ANSWER_TOOL,
+  SHOW_VIEW_TOOL,
+} from "@dashboard/lib/chat-output-tools";
 
 const SELECTABLE_AGENT_IDS = Object.values(AGENTS).map(
   (a) => a.id,
@@ -35,6 +44,8 @@ interface UiToolsCtx {
   owner?: string;
   repo?: string;
   actorLogin?: string | null;
+  viewRendererRules?: string | null;
+  viewRendererDefinitions?: ViewRendererDefinition[];
 }
 
 export const switchAgentTool = tool({
@@ -148,63 +159,6 @@ export const previewActTool = tool({
   },
 });
 
-const ViewActionInputSchema = z.object({
-  id: z.string().trim().min(1).max(64),
-  label: z.string().trim().min(1).max(60),
-  response: z.string().trim().min(1).max(500),
-  variant: z.enum(["primary", "secondary", "danger"]).optional(),
-});
-
-const ViewActionListInputSchema = z
-  .array(z.union([ViewActionInputSchema, z.string().trim().min(1).max(60)]))
-  .max(10);
-
-const ViewDataValueInputSchema = z.union([
-  z.string().max(2_000),
-  z.number(),
-  z.boolean(),
-  z.null(),
-  ViewActionListInputSchema,
-]);
-
-type ViewDataInputValue = z.infer<typeof ViewDataValueInputSchema>;
-
-function actionIdFromLabel(label: string): string {
-  const id = label
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  return id || "action";
-}
-
-function normalizeViewAction(
-  action: z.infer<typeof ViewActionListInputSchema>[number],
-): RenderedViewAction {
-  if (typeof action === "string") {
-    const label = action.trim();
-    const id = actionIdFromLabel(label);
-    return { id, label, response: id };
-  }
-  return {
-    id: action.id,
-    label: action.label,
-    response: action.response,
-    ...(action.variant ? { variant: action.variant } : {}),
-  };
-}
-
-export function normalizeViewDataForTool(
-  data: Record<string, ViewDataInputValue>,
-): Record<string, RenderedViewDataValue> {
-  return Object.fromEntries(
-    Object.entries(data).map(([key, value]) => [
-      key,
-      Array.isArray(value) ? value.map(normalizeViewAction) : value,
-    ]),
-  ) as Record<string, RenderedViewDataValue>;
-}
-
 function hasRepoContext(
   ctx: UiToolsCtx,
 ): ctx is UiToolsCtx & { octokit: Octokit; owner: string; repo: string } {
@@ -212,54 +166,67 @@ function hasRepoContext(
 }
 
 export function createUiTools(ctx: UiToolsCtx = {}) {
+  const viewRendererRules = ctx.viewRendererRules?.trim();
+  const showViewInputSchema = jsonSchema<ShowViewInput>(
+    buildShowViewInputJsonSchema(ctx.viewRendererDefinitions ?? []),
+    {
+      validate: validateShowViewInput,
+    },
+  );
   return {
+    [FINAL_ANSWER_TOOL]: tool({
+      description:
+        "Finish the turn with plain text when no chat UI renderer is needed. " +
+        "Use this for ordinary answers, summaries, and status updates.",
+      inputSchema: z.object({
+        content: z
+          .string()
+          .min(1)
+          .max(12000)
+          .describe("The final user-visible answer."),
+      }),
+      execute: async ({ content }) => ({ content }),
+    }),
     switch_agent: switchAgentTool,
     preview_act: previewActTool,
-    show_view: tool({
+    [SHOW_VIEW_TOOL]: tool({
       description:
         "Render data in the chat UI using a user-managed view purpose. " +
         "Dashboard loads all renderers from views/renderers/*.json and chooses the renderer whose purpose matches the request. " +
-        "Call this tool when the user asks to show, render, or display a UI card; do not print JSON for the user to copy. " +
-        "Pass plain data values only. For button data, you may pass simple string labels or action objects with id, label, response, and optional variant. " +
-        "If the selected renderer defines defaults, omitted fields such as approval buttons are filled by Dashboard. " +
-        "Only put data into the view when it is explicitly requested by the user or belongs to the current workflow step you are presenting for action. " +
+        "Use this when the next user interaction matches an available renderer rule. " +
+        "Also use it when the user asks to show, render, or display a UI card; do not print JSON for the user to copy. " +
+        "Pass plain data values only. For list-style data, pass simple string labels. " +
+        "Do not pass empty data. Use the selected renderer rule's Data keys as the object keys, and include any user-provided line-separated or bulleted choices under the matching list key. " +
+        "If the selected renderer defines defaults, omitted fields are filled by Dashboard. " +
+        "Only put data into the view when it belongs to the current interaction you are presenting for action. " +
         "Do not silently copy preview, page, repo, task, memory, or research context into view fields. " +
-        "This tool only shows UI; it does not execute the selected action.",
-      inputSchema: z.object({
-        purpose: z
-          .string()
-          .trim()
-          .min(1)
-          .max(64)
-          .describe(
-            "The semantic view purpose from the available renderer rules, such as approval. This is not a renderer slug.",
-          ),
-        data: z
-          .record(z.string(), ViewDataValueInputSchema)
-          .describe(
-            "Current values to render, keyed by semantic names. Example: title, body, actions.",
-          ),
-      }),
-      execute: async ({ purpose, data }) => {
+        "This tool only shows UI; it does not execute the selected action." +
+        (viewRendererRules
+          ? `\n\nAvailable renderer rules:\n${viewRendererRules}`
+          : ""),
+      inputSchema: showViewInputSchema,
+      execute: async (input) => {
+        const data = collectShowViewData(input);
         if (Object.keys(data).length === 0) {
           return { error: "show_view requires data" };
         }
-        const normalizedData = normalizeViewDataForTool(data);
         try {
           const resolved = await resolveBestViewRendererDefinition({
             ...(hasRepoContext(ctx)
               ? { octokit: ctx.octokit, owner: ctx.owner, repo: ctx.repo }
               : {}),
-            purpose,
-            data: normalizedData,
+            purpose: input.purpose,
+            data,
           });
           return buildRenderedViewDirective({
             id: `view-${randomUUID()}`,
             definition: resolved.definition,
-            data: normalizedData,
+            data,
           });
         } catch (err) {
-          return { error: err instanceof Error ? err.message : String(err) };
+          return {
+            error: err instanceof Error ? err.message : String(err),
+          };
         }
       },
     }),

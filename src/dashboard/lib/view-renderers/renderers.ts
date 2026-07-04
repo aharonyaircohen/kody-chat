@@ -20,7 +20,6 @@ import {
 } from "@dashboard/lib/state-repo";
 
 export const VIEW_RENDERERS_DIR = "views/renderers";
-export const DEFAULT_RENDERER_SLUG = "basic-card";
 
 const SLUG_RE = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
@@ -46,6 +45,11 @@ const RendererBlockSchema = z.discriminatedUnion("type", [
     bind: z.string().trim().min(1).max(80),
   }),
   z.object({
+    type: z.literal("selection"),
+    bind: z.string().trim().min(1).max(80),
+    label: z.string().trim().min(1).max(80).optional(),
+  }),
+  z.object({
     type: z.literal("input"),
     bind: z.string().trim().min(1).max(80),
     label: z.string().trim().min(1).max(80).optional(),
@@ -64,8 +68,16 @@ const RendererDefaultValueSchema = z.union([
   z.number(),
   z.boolean(),
   z.null(),
-  z.array(RendererActionDefaultSchema).max(10),
+  z.array(RendererActionDefaultSchema).max(20),
 ]);
+
+const RendererDataFieldSchema = z.object({
+  description: z.string().trim().min(1).max(300).optional(),
+  type: z
+    .enum(["text", "markdown", "actions", "selection", "input", "value"])
+    .optional(),
+  optional: z.boolean().optional(),
+});
 
 const ViewRendererDefinitionSchema = z
   .object({
@@ -73,7 +85,9 @@ const ViewRendererDefinitionSchema = z
     name: z.string().trim().min(1).max(120),
     description: z.string().trim().max(300).optional(),
     purpose: z.string().regex(SLUG_RE).optional(),
+    aliases: z.array(z.string().regex(SLUG_RE)).max(20).optional(),
     rule: z.string().trim().min(1).max(1_000).optional(),
+    data: z.record(z.string(), RendererDataFieldSchema).optional(),
     defaults: z.record(z.string(), RendererDefaultValueSchema).optional(),
     type: z.literal("layout"),
     blocks: z.array(RendererBlockSchema).min(1).max(20),
@@ -89,47 +103,15 @@ export type ViewRendererDefinition = z.infer<
 
 export interface ViewRendererDefinitionFile {
   definition: ViewRendererDefinition;
-  source: "repo" | "builtin";
+  source: "repo";
   sha: string;
   htmlUrl: string;
 }
 
-export const DEFAULT_VIEW_RENDERER: ViewRendererDefinition = {
-  slug: DEFAULT_RENDERER_SLUG,
-  name: "Basic card",
-  description: "Title, text, and action buttons.",
-  purpose: "approval",
-  rule:
-    "Use this purpose when Kody asks the user to approve, edit, cancel, or continue before taking the next step.",
-  defaults: {
-    actions: [
-      {
-        id: "approve",
-        label: "Approve",
-        response: "approve",
-        variant: "primary",
-      },
-      {
-        id: "edit",
-        label: "Edit first",
-        response: "edit",
-        variant: "secondary",
-      },
-      {
-        id: "cancel",
-        label: "Cancel",
-        response: "cancel",
-        variant: "secondary",
-      },
-    ],
-  },
-  type: "layout",
-  blocks: [
-    { type: "title", bind: "title" },
-    { type: "text", bind: "body" },
-    { type: "buttons", bind: "actions" },
-  ],
-};
+export interface ViewRendererPromptContext {
+  rules: string | null;
+  definitions: ViewRendererDefinition[];
+}
 
 function filePathForSlug(slug: string): string {
   return `${VIEW_RENDERERS_DIR}/${slug}.json`;
@@ -169,9 +151,10 @@ export function buildRenderedViewDirective({
 }: {
   id: string;
   definition: ViewRendererDefinition;
-  data: Record<string, RenderedViewDataValue>;
+  data: Record<string, unknown>;
 }): RenderedViewDirective {
-  const mergedData = mergeViewRendererDefaults(definition, data);
+  const normalizedData = normalizeViewRendererData(definition, data);
+  const mergedData = mergeViewRendererDefaults(definition, normalizedData);
   return {
     action: RENDER_VIEW_DIRECTIVE,
     view: "renderer",
@@ -184,7 +167,9 @@ export function buildRenderedViewDirective({
   };
 }
 
-function cloneDefaultValue(value: RenderedViewDataValue): RenderedViewDataValue {
+function cloneDefaultValue(
+  value: RenderedViewDataValue,
+): RenderedViewDataValue {
   if (Array.isArray(value)) {
     return value.map((action) => ({ ...action }));
   }
@@ -209,14 +194,173 @@ function rendererBindSet(definition: ViewRendererDefinition): Set<string> {
   return new Set(definition.blocks.map((block) => block.bind));
 }
 
+function blockTypeForBind(
+  definition: ViewRendererDefinition,
+  bind: string,
+): string {
+  const block = definition.blocks.find((candidate) => candidate.bind === bind);
+  if (!block) return "value";
+  if (block.type === "buttons") return "actions";
+  return block.type;
+}
+
+function isRendererAction(
+  value: unknown,
+): value is z.infer<typeof RendererActionDefaultSchema> {
+  const result = RendererActionDefaultSchema.safeParse(value);
+  return result.success;
+}
+
+function actionIdFromLabel(label: string): string {
+  const id = label
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return id || "action";
+}
+
+function normalizeRendererAction(
+  value: string | z.infer<typeof RendererActionDefaultSchema>,
+): z.infer<typeof RendererActionDefaultSchema> {
+  if (typeof value !== "string") {
+    return {
+      id: value.id,
+      label: value.label,
+      response: value.response,
+      ...(value.variant ? { variant: value.variant } : {}),
+    };
+  }
+  const label = value.trim();
+  const id = actionIdFromLabel(label);
+  return { id, label, response: id };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function primitiveRendererValue(
+  value: unknown,
+): RenderedViewDataValue | undefined {
+  return value === null ||
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+    ? value
+    : undefined;
+}
+
+function listItemsFromValue(
+  value: unknown,
+): Array<string | z.infer<typeof RendererActionDefaultSchema>> | null {
+  if (Array.isArray(value)) {
+    const items = value.filter(
+      (item): item is string | z.infer<typeof RendererActionDefaultSchema> =>
+        typeof item === "string" || isRendererAction(item),
+    );
+    return items.length === value.length ? items : null;
+  }
+  if (isRendererAction(value)) return [value];
+  if (!isRecord(value)) return null;
+
+  const keys = Object.keys(value);
+  const numericKeys = keys.filter((key) => /^\d+$/.test(key));
+  if (numericKeys.length === keys.length && numericKeys.length > 0) {
+    return listItemsFromValue(
+      numericKeys
+        .sort((a, b) => Number(a) - Number(b))
+        .map((key) => value[key]),
+    );
+  }
+
+  if (keys.length === 1) {
+    return listItemsFromValue(value[keys[0]]);
+  }
+
+  return listItemsFromValue(Object.values(value));
+}
+
+function isListRendererField(
+  definition: ViewRendererDefinition,
+  bind: string,
+): boolean {
+  const type =
+    definition.data?.[bind]?.type ?? blockTypeForBind(definition, bind);
+  return type === "actions" || type === "selection";
+}
+
+function normalizeRendererFieldValue({
+  definition,
+  bind,
+  value,
+}: {
+  definition: ViewRendererDefinition;
+  bind: string;
+  value: unknown;
+}): RenderedViewDataValue {
+  if (isListRendererField(definition, bind)) {
+    const items = listItemsFromValue(value);
+    if (!items) {
+      throw new Error(
+        `Invalid renderer data for "${bind}": expected a list of choices`,
+      );
+    }
+    return items.map(normalizeRendererAction);
+  }
+  const primitive = primitiveRendererValue(value);
+  if (primitive !== undefined) return primitive;
+  throw new Error(
+    `Invalid renderer data for "${bind}": expected a scalar value`,
+  );
+}
+
+export function normalizeViewRendererData(
+  definition: ViewRendererDefinition,
+  data: Record<string, unknown>,
+): Record<string, RenderedViewDataValue> {
+  const normalized: Record<string, RenderedViewDataValue> = {};
+  for (const bind of rendererBindSet(definition)) {
+    if (!Object.prototype.hasOwnProperty.call(data, bind)) continue;
+    const value = data[bind];
+    if (value === undefined) continue;
+    normalized[bind] = normalizeRendererFieldValue({
+      definition,
+      bind,
+      value,
+    });
+  }
+  return normalized;
+}
+
+function dataKeyLines(definition: ViewRendererDefinition): string[] {
+  const defaults = definition.defaults ?? {};
+  return [...rendererBindSet(definition)].map((bind) => {
+    const field = definition.data?.[bind];
+    const type = field?.type ?? blockTypeForBind(definition, bind);
+    const markers = [
+      type,
+      Object.prototype.hasOwnProperty.call(defaults, bind)
+        ? "default available"
+        : null,
+      field?.optional ? "optional" : null,
+    ].filter(Boolean);
+    const suffix = field?.description ? `: ${field.description}` : "";
+    return `  - ${bind}${markers.length > 0 ? ` (${markers.join(", ")})` : ""}${suffix}`;
+  });
+}
+
 export function buildViewRendererRulesPrompt(
   definitions: ViewRendererDefinition[],
 ): string | null {
   const lines = definitions
     .filter((definition) => definition.rule?.trim())
     .map((definition) => {
-      const binds = [...rendererBindSet(definition)].join(", ");
-      return `- Purpose \`${definition.purpose}\`: ${definition.rule?.trim()}\n  Data keys: ${binds}`;
+      const aliases =
+        definition.aliases && definition.aliases.length > 0
+          ? `\n  Aliases: ${definition.aliases.map((alias) => `\`${alias}\``).join(", ")}`
+          : "";
+      return `- Purpose \`${definition.purpose}\`: ${definition.rule?.trim()}${aliases}\n  Data keys:\n${dataKeyLines(definition).join("\n")}`;
     });
   return lines.length > 0 ? lines.join("\n") : null;
 }
@@ -224,19 +368,24 @@ export function buildViewRendererRulesPrompt(
 export function matchViewRendererDefinition(
   definitions: ViewRendererDefinition[],
   purpose: string,
-  data: Record<string, RenderedViewDataValue>,
+  data: Record<string, unknown>,
 ): ViewRendererDefinition | null {
   const dataKeys = Object.keys(data).filter((key) => data[key] !== undefined);
   if (dataKeys.length === 0) return null;
   const purposeMatches = definitions.filter(
-    (definition) => definition.purpose === purpose,
+    (definition) =>
+      definition.purpose === purpose ||
+      definition.slug === purpose ||
+      definition.aliases?.includes(purpose),
   );
   if (purposeMatches.length === 0) return null;
   const matches = purposeMatches
     .map((definition, index) => {
       const binds = rendererBindSet(definition);
       const matched = dataKeys.filter((key) => binds.has(key)).length;
-      const missing = [...binds].filter((bind) => !dataKeys.includes(bind)).length;
+      const missing = [...binds].filter(
+        (bind) => !dataKeys.includes(bind),
+      ).length;
       return { definition, index, matched, missing, bindCount: binds.size };
     })
     .filter((candidate) => candidate.matched > 0)
@@ -275,31 +424,21 @@ export async function resolveViewRendererDefinition({
   octokit,
   owner,
   repo,
-  slug = DEFAULT_RENDERER_SLUG,
+  slug,
 }: {
-  octokit?: Octokit;
-  owner?: string;
-  repo?: string;
-  slug?: string;
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  slug: string;
 }): Promise<ViewRendererDefinitionFile> {
-  if (octokit && owner && repo) {
-    const file = await readViewRendererDefinitionFile({
-      octokit,
-      owner,
-      repo,
-      slug,
-    });
-    if (file) return file;
-  }
-  if (slug !== DEFAULT_RENDERER_SLUG) {
-    throw new Error(`View renderer "${slug}" not found`);
-  }
-  return {
-    definition: DEFAULT_VIEW_RENDERER,
-    source: "builtin",
-    sha: "",
-    htmlUrl: "",
-  };
+  const file = await readViewRendererDefinitionFile({
+    octokit,
+    owner,
+    repo,
+    slug,
+  });
+  if (file) return file;
+  throw new Error(`View renderer "${slug}" not found`);
 }
 
 export async function resolveBestViewRendererDefinition({
@@ -313,29 +452,22 @@ export async function resolveBestViewRendererDefinition({
   owner?: string;
   repo?: string;
   purpose: string;
-  data: Record<string, RenderedViewDataValue>;
+  data: Record<string, unknown>;
 }): Promise<ViewRendererDefinitionFile> {
   const files =
     octokit && owner && repo
       ? await listViewRendererDefinitionFiles({ octokit, owner, repo })
       : [];
-  const candidates = files.map((file) => file.definition);
-  const matched = matchViewRendererDefinition(
-    candidates.length > 0 ? candidates : [DEFAULT_VIEW_RENDERER],
-    purpose,
-    data,
-  );
+  const definitions = files.map((file) => file.definition);
+  const matched = matchViewRendererDefinition(definitions, purpose, data);
   if (!matched) {
     throw new Error(`No view renderer matches purpose "${purpose}"`);
   }
   const repoFile = files.find((file) => file.definition.slug === matched.slug);
-  if (repoFile) return repoFile;
-  return {
-    definition: matched,
-    source: "builtin",
-    sha: "",
-    htmlUrl: "",
-  };
+  if (!repoFile) {
+    throw new Error(`View renderer "${matched.slug}" not found`);
+  }
+  return repoFile;
 }
 
 export async function loadViewRendererRulesForPrompt({
@@ -347,17 +479,27 @@ export async function loadViewRendererRulesForPrompt({
   owner: string;
   repo: string;
 }): Promise<string | null> {
+  return (await loadViewRendererContextForPrompt({ octokit, owner, repo }))
+    .rules;
+}
+
+export async function loadViewRendererContextForPrompt({
+  octokit,
+  owner,
+  repo,
+}: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+}): Promise<ViewRendererPromptContext> {
   const files = await listViewRendererDefinitionFiles({ octokit, owner, repo });
-  const definitions = files.map((file) => file.definition);
-  if (!definitions.some((definition) => definition.slug === DEFAULT_RENDERER_SLUG)) {
-    definitions.unshift(DEFAULT_VIEW_RENDERER);
-  }
-  definitions.sort((a, b) => {
-    if (a.slug === DEFAULT_RENDERER_SLUG) return -1;
-    if (b.slug === DEFAULT_RENDERER_SLUG) return 1;
-    return a.slug.localeCompare(b.slug);
-  });
-  return buildViewRendererRulesPrompt(definitions);
+  const definitions = files
+    .map((file) => file.definition)
+    .sort((a, b) => a.slug.localeCompare(b.slug));
+  return {
+    rules: buildViewRendererRulesPrompt(definitions),
+    definitions,
+  };
 }
 
 export async function listViewRendererDefinitionFiles({
