@@ -12,14 +12,16 @@ const dashboardHomeSource = () =>
   );
 
 describe("DashboardHome CI status", () => {
-  it("shows main CI in the compact header status chip", () => {
+  it("shows main CI in the compact health row", () => {
     const source = dashboardHomeSource();
 
     expect(source).toContain("useDefaultBranchCI()");
     expect(source).not.toContain("<KodyStatusBanner");
-    expect(source).toContain('text: "CI failing"');
-    expect(source).toContain('text: "CI running"');
-    expect(source).toContain('text: "CI green"');
+    expect(source).toContain("function HealthRow");
+    expect(source).toContain("Health");
+    expect(source).toContain('text: "Failing"');
+    expect(source).toContain('text: "Running"');
+    expect(source).toContain('text: "Green"');
     expect(source).toContain("mainCi={mainCi}");
     expect(source).toContain("mainCiLoading={mainCiFetching && !mainCi}");
     expect(source).toContain("ci={mainCi}");

@@ -168,7 +168,7 @@ function AllClear({ message }: { message: string }) {
   );
 }
 
-function DashboardHeader({
+function HealthRow({
   mainCi,
   mainCiLoading,
 }: {
@@ -184,45 +184,130 @@ function DashboardHeader({
     ciState === "failure"
       ? {
           tone: "border-rose-400/20 bg-rose-500/10 text-rose-200",
-          text: "CI failing",
+          text: "Failing",
         }
       : ciState === "pending"
         ? {
             tone: "border-sky-400/20 bg-sky-500/10 text-sky-200",
-            text: "CI running",
+            text: "Running",
           }
         : ciState === "success"
           ? {
               tone: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
-              text: "CI green",
+              text: "Green",
             }
           : ciState === "loading"
             ? {
                 tone: "border-white/10 bg-white/[0.04] text-muted-foreground",
-                text: "Checking CI",
+                text: "Checking",
               }
             : {
                 tone: "border-white/10 bg-white/[0.04] text-muted-foreground",
-                text: "CI unknown",
+                text: "Unknown",
               };
+  const { data, isLoading } = useHealth();
+  const level = data?.level ?? "ok";
+  const problems = (data?.signals ?? [])
+    .filter((s) => s.level !== "ok")
+    .slice(0, 3);
+  const engineStatus = isLoading
+    ? "Checking"
+    : level === "ok"
+      ? "Healthy"
+      : level === "degraded"
+        ? "Degraded"
+        : "Down";
+  const engineTitle =
+    problems.length > 0
+      ? problems.map((signal) => `${signal.label}: ${signal.detail}`).join("\n")
+      : "Open engine activity";
+  const ciRunUrl = mainCi?.latestRun?.html_url;
+  const ciDetail = mainCi?.latestRun?.updated_at
+    ? `${mainCi.branch} · ${timeAgo(mainCi.latestRun.updated_at)}`
+    : mainCi?.branch
+      ? `${mainCi.branch} branch`
+      : "Main branch";
+  const engineDetail = isLoading
+    ? "Checking activity"
+    : problems.length > 0
+      ? `${problems.length} signal${problems.length === 1 ? "" : "s"} need attention`
+      : "Activity checks clear";
+  const cellClassName =
+    "flex min-h-16 items-center gap-3 px-3 py-2.5 transition-colors hover:bg-white/[0.04]";
+  const ciCellContent = (
+    <>
+      <span
+        className={cn(
+          "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
+          ciStatus.tone,
+        )}
+      >
+        <GitBranch className="h-3.5 w-3.5" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-body-xs text-muted-foreground">CI</span>
+        <span className="block truncate text-body-sm font-medium">
+          {ciStatus.text}
+        </span>
+        <span className="block truncate text-body-xs text-muted-foreground">
+          {ciDetail}
+        </span>
+      </span>
+      {ciRunUrl ? (
+        <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      ) : null}
+    </>
+  );
 
   return (
-    <header className="border-b border-white/[0.06] pb-4">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
-          <h1 className="text-lg font-semibold tracking-normal">Dashboard</h1>
-          <span
-            className={cn(
-              "inline-flex h-7 items-center rounded-md border px-2.5 text-body-xs font-medium",
-              ciStatus.tone,
-            )}
+    <Card className="mb-3 overflow-hidden p-0">
+      <div className="grid grid-cols-1 divide-y divide-white/[0.06] sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+        {ciRunUrl ? (
+          <a
+            href={ciRunUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cellClassName}
             title={mainCi ? `Main CI on ${mainCi.branch}` : "Main CI status"}
           >
-            {ciStatus.text}
+            {ciCellContent}
+          </a>
+        ) : (
+          <span
+            className={cellClassName}
+            title={mainCi ? `Main CI on ${mainCi.branch}` : "Main CI status"}
+          >
+            {ciCellContent}
           </span>
-        </div>
+        )}
+        <RepoScopedLink
+          href="/activity"
+          title={engineTitle}
+          className={cellClassName}
+        >
+          <span
+            className={cn(
+              "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
+              LEVEL_TINT[level],
+            )}
+          >
+            <Activity className="h-3.5 w-3.5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-body-xs text-muted-foreground">
+              Engine
+            </span>
+            <span className="block truncate text-body-sm font-medium">
+              {engineStatus}
+            </span>
+            <span className="block truncate text-body-xs text-muted-foreground">
+              {engineDetail}
+            </span>
+          </span>
+          <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+        </RepoScopedLink>
       </div>
-    </header>
+    </Card>
   );
 }
 
@@ -597,50 +682,6 @@ function sourceReportMarkdown(report: Report): string {
   return `Source report: [\`${path}\`](${report.htmlUrl})`;
 }
 
-function EngineHealthTile() {
-  const { data, isLoading } = useHealth();
-  const level = data?.level ?? "ok";
-  const problems = (data?.signals ?? [])
-    .filter((s) => s.level !== "ok")
-    .slice(0, 3);
-  const value = isLoading
-    ? "..."
-    : level === "ok"
-      ? "Healthy"
-      : level === "degraded"
-        ? "Degraded"
-        : "Down";
-  const title =
-    problems.length > 0
-      ? problems.map((signal) => `${signal.label}: ${signal.detail}`).join("\n")
-      : "Open engine activity";
-
-  return (
-    <RepoScopedLink href="/activity" className="block" title={title}>
-      <Card className="h-full p-3 transition-colors hover:bg-white/[0.04]">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
-              LEVEL_TINT[level],
-            )}
-          >
-            <Activity className="h-3.5 w-3.5" />
-          </span>
-          <div className="min-w-0">
-            <div className="truncate text-xl font-semibold leading-none">
-              {value}
-            </div>
-            <div className="mt-1 truncate text-body-xs text-muted-foreground">
-              Engine
-            </div>
-          </div>
-        </div>
-      </Card>
-    </RepoScopedLink>
-  );
-}
-
 const ACTOR_TINT: Record<string, string> = {
   user: "bg-sky-400",
   scheduler: "bg-amber-400",
@@ -810,14 +851,10 @@ export function DashboardHome() {
   return (
     <div className="flex-1 min-h-0 overflow-y-auto">
       <div className="mx-auto max-w-6xl space-y-8 px-4 py-6 md:px-6">
-        <DashboardHeader
-          mainCi={mainCi}
-          mainCiLoading={mainCiFetching && !mainCi}
-        />
-
         <section>
           <SectionHeader title="At a glance" />
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+          <HealthRow mainCi={mainCi} mainCiLoading={mainCiFetching && !mainCi} />
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             <StatTile
               icon={Activity}
               label="Active"
@@ -846,7 +883,6 @@ export function DashboardHome() {
               tint="text-emerald-300 bg-emerald-500/10"
               href="/tasks"
             />
-            <EngineHealthTile />
           </div>
         </section>
 
