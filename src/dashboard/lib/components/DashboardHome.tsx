@@ -29,7 +29,6 @@ import {
   Plus,
   RefreshCw,
   Target,
-  X,
 } from "lucide-react";
 
 import { Card } from "@dashboard/ui/card";
@@ -41,7 +40,6 @@ import { useDefaultBranchCI } from "../hooks/useDefaultBranchCI";
 import { useHealth } from "../hooks/useHealth";
 import { useActivityLog } from "../hooks/useActivityLog";
 import {
-  useAcknowledgeHealthSignal,
   useCreateFixCITask,
   useRerunCIRun,
   useRetryTask,
@@ -623,100 +621,47 @@ function sourceReportMarkdown(report: Report): string {
   return `Source report: [\`${path}\`](${report.htmlUrl})`;
 }
 
-function EngineHealthCard() {
+function EngineHealthTile() {
   const { data, isLoading } = useHealth();
-  const ack = useAcknowledgeHealthSignal();
   const level = data?.level ?? "ok";
   const problems = (data?.signals ?? [])
     .filter((s) => s.level !== "ok")
     .slice(0, 3);
-  const ackedCount = problems.filter((s) => ack.isAcknowledged(s.id)).length;
+  const value = isLoading
+    ? "..."
+    : level === "ok"
+      ? "Healthy"
+      : level === "degraded"
+        ? "Degraded"
+        : "Down";
+  const title =
+    problems.length > 0
+      ? problems.map((signal) => `${signal.label}: ${signal.detail}`).join("\n")
+      : "Open engine activity";
 
   return (
-    <Card className="space-y-3 p-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <RepoScopedLink href="/activity" className="block" title={title}>
+      <Card className="h-full p-3 transition-colors hover:bg-white/[0.04]">
         <div className="flex items-center gap-2">
           <span
             className={cn(
-              "inline-flex h-10 w-10 items-center justify-center rounded-md",
+              "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md",
               LEVEL_TINT[level],
             )}
           >
-            <Activity className="w-4 h-4" />
+            <Activity className="h-3.5 w-3.5" />
           </span>
-          <div>
-            <div className="text-body-sm font-medium">Engine health</div>
-            <div className="text-body-xs text-muted-foreground">
-              {isLoading
-                ? "Checking..."
-                : level === "ok"
-                  ? "All systems healthy."
-                  : level === "degraded"
-                    ? "Degraded - runs work but are at risk."
-                    : "Down - runs are blocked."}
+          <div className="min-w-0">
+            <div className="truncate text-xl font-semibold leading-none">
+              {value}
+            </div>
+            <div className="mt-1 truncate text-body-xs text-muted-foreground">
+              Engine
             </div>
           </div>
         </div>
-        <RepoScopedLink
-          href="/activity"
-          className="inline-flex items-center gap-1 text-body-xs text-muted-foreground hover:text-foreground"
-        >
-          Activity <ArrowRight className="w-3 h-3" />
-        </RepoScopedLink>
-      </div>
-      {problems.length > 0 ? (
-        <div className="space-y-1 border-t border-white/[0.06] pt-2">
-          {problems.map((s) => {
-            const isAcked = ack.isAcknowledged(s.id);
-            return (
-              <div
-                key={s.id}
-                className={cn(
-                  "flex items-start gap-2 px-2 py-1.5 -mx-2 rounded-md",
-                  isAcked && "opacity-50",
-                )}
-              >
-                <span
-                  className={cn(
-                    "text-label uppercase tracking-wide px-2 py-1 rounded shrink-0 mt-0.5",
-                    LEVEL_TINT[s.level],
-                  )}
-                >
-                  {s.label}
-                </span>
-                <span className="text-body-xs text-muted-foreground flex-1">
-                  {s.detail}
-                </span>
-                {isAcked ? (
-                  <button
-                    type="button"
-                    onClick={() => ack.unacknowledge(s.id)}
-                    className="text-body-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-                    title="Restore this signal"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => ack.acknowledge(s.id)}
-                    className="text-body-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
-                    title="Acknowledge - mute this signal until the next state change"
-                  >
-                    Ack
-                  </button>
-                )}
-              </div>
-            );
-          })}
-          {ackedCount > 0 ? (
-            <div className="text-body-xs text-muted-foreground px-2 pt-1">
-              {ackedCount} acknowledged - click the x to restore.
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-    </Card>
+      </Card>
+    </RepoScopedLink>
   );
 }
 
@@ -899,7 +844,7 @@ export function DashboardHome() {
 
         <section>
           <SectionHeader title="At a glance" />
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
             <StatTile
               icon={Activity}
               label="Active"
@@ -928,9 +873,7 @@ export function DashboardHome() {
               tint="text-emerald-300 bg-emerald-500/10"
               href="/tasks"
             />
-          </div>
-          <div className="mt-3">
-            <EngineHealthCard />
+            <EngineHealthTile />
           </div>
         </section>
 

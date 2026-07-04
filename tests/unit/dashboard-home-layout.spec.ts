@@ -15,7 +15,7 @@ describe("DashboardHome layout", () => {
   it("keeps the overview first and removes redundant home sections", () => {
     const source = dashboardHomeSource();
     const atAGlance = source.indexOf('title="At a glance"');
-    const engineHealth = source.indexOf("<EngineHealthCard");
+    const engineHealth = source.indexOf("<EngineHealthTile");
     const happeningNow = source.indexOf("<HappeningNow");
     const needsAttention = source.indexOf("Needs attention");
 
