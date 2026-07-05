@@ -28,23 +28,17 @@ import {
   readManagedGoalFile,
   writeManagedGoalFile,
 } from "@dashboard/lib/managed-goals-files";
-import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
-import {
-  goalRunRequest,
-  withStoreTarget,
-} from "@dashboard/lib/runners/run-request";
+import { buildKodyWorkflowDispatchInputs } from "@dashboard/lib/kody-workflow-dispatch";
 
 function activeGoalResponse(
   goal: ManagedGoalRecord,
-  runner: "pool" | "fly",
-  machineId: string,
   ref: string,
 ) {
   return NextResponse.json({
     ok: true,
-    runner,
-    machineId,
+    workflowId: "kody.yml",
     ref,
+    action: "goal-manager",
     goal,
   });
 }
@@ -128,27 +122,36 @@ export async function POST(
       };
     }
 
-    const run = await runScheduledKodyOnRunner(req, {
-      taskId: `managed-goal-run-${id}-${Date.now()}`,
-      runRequest: withStoreTarget(goalRunRequest(id), headerAuth),
+    const repoMeta = await octokit.rest.repos.get({
+      owner: headerAuth.owner,
+      repo: headerAuth.repo,
     });
-    if (!run.ok) {
-      return NextResponse.json(
-        {
-          error: "runner_failed",
-          message: run.error,
-        },
-        { status: run.status },
-      );
-    }
+    const ref = repoMeta.data.default_branch || "main";
+    const inputs = await buildKodyWorkflowDispatchInputs(octokit, {
+      owner: headerAuth.owner,
+      repo: headerAuth.repo,
+      ref,
+      action: "goal-manager",
+      message: id,
+      storeRepoUrl: headerAuth.storeRepoUrl,
+      storeRef: headerAuth.storeRef,
+    });
+
+    await octokit.rest.actions.createWorkflowDispatch({
+      owner: headerAuth.owner,
+      repo: headerAuth.repo,
+      workflow_id: "kody.yml",
+      ref,
+      inputs,
+    });
 
     recordAudit(req, {
       action: "goal.run",
       resource: id,
-      detail: `manual runner dispatch for goal ${id}`,
+      detail: `manual workflow dispatch for goal ${id}`,
     });
 
-    return activeGoalResponse(goal, run.runner, run.machineId, run.ref);
+    return activeGoalResponse(goal, ref);
   } catch (err: any) {
     console.error("[managed-goals/run] dispatch failed", err);
     return NextResponse.json(

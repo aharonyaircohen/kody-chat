@@ -15,18 +15,12 @@ import {
   flyConfigFromContext,
   resolveFlyContext,
 } from "@dashboard/lib/runners/fly-context";
-import {
-  applySavedBrainMachineToInventory,
-  resolveSavedBrainServiceForRequest,
-  type SavedBrainServiceForRequest,
-} from "@dashboard/lib/runners/fly-inventory-server";
-import {
-  listFlyInventory,
-  type FlyInventory,
-  type FlyMachineRow,
-} from "@dashboard/lib/runners/fly-inventory";
-import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
 import { findTerminalBridge } from "@dashboard/lib/terminal/bridge-fly";
+import {
+  loadTerminalInventoryAuthority,
+  terminalBridgeConfigCandidates,
+  terminalFlyConfigForMachine,
+} from "@dashboard/lib/terminal/server-inventory";
 import {
   resolveBrainTerminalTargetInput,
   resolveTerminalTargetMachine,
@@ -60,39 +54,12 @@ const Body = z.object({
   }
 });
 
-function terminalTargetFlyConfig(
-  cfg: FlyPreviewConfig,
-  orgSlug: string | undefined,
-): FlyPreviewConfig {
-  return orgSlug && orgSlug !== cfg.orgSlug ? { ...cfg, orgSlug } : cfg;
-}
-
-function terminalFlyConfigForMachine(
-  cfg: FlyPreviewConfig,
-  machine: FlyMachineRow,
-  savedBrain: SavedBrainServiceForRequest | null,
-): FlyPreviewConfig {
-  const savedBrainMachine = savedBrain?.brain.machine;
-  const usesSavedBrainToken =
-    machine.feature === "brain" &&
-    savedBrain &&
-    savedBrainMachine?.app === machine.app &&
-    savedBrainMachine.machineId === machine.machineId;
-  const baseCfg = usesSavedBrainToken
-    ? { ...cfg, token: savedBrain.flyToken }
-    : cfg;
-  return terminalTargetFlyConfig(baseCfg, machine.orgSlug);
-}
-
-async function appendSavedBrainForTerminal(
-  req: NextRequest,
-  inventory: FlyInventory,
-): Promise<SavedBrainServiceForRequest | null> {
-  const savedBrain = await resolveSavedBrainServiceForRequest(req);
-  if (savedBrain) {
-    applySavedBrainMachineToInventory(inventory, savedBrain.brain);
-  }
-  return savedBrain;
+function isFlyBridgeAuthError(err: unknown): boolean {
+  const text = err instanceof Error ? err.message : String(err);
+  return (
+    /Fly Machines API (401|403) on \/(apps|apps\/)/.test(text) ||
+    /fetch failed|Connect Timeout|ETIMEDOUT|ECONNRESET/i.test(text)
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -129,8 +96,15 @@ export async function POST(req: NextRequest) {
   const brainRequested =
     parsed.data.target === "brain" || parsed.data.feature === "brain";
   try {
-    const inventory = await listFlyInventory(cfg);
-    const savedBrain = await appendSavedBrainForTerminal(req, inventory);
+    const { inventory, savedBrain } = await loadTerminalInventoryAuthority(
+      req,
+      cfg,
+      {
+        brainRequested,
+        app: parsed.data.app,
+        machineId: parsed.data.machineId,
+      },
+    );
     let targetInput:
       | { app: string; machineId: string; feature?: "runner" | "brain" }
       | null =
@@ -167,7 +141,19 @@ export async function POST(req: NextRequest) {
     targetCfg = cfg;
   }
 
-  const bridge = await findTerminalBridge(targetCfg);
+  let bridge = null;
+  let bridgeCfg = targetCfg;
+  for (const candidate of terminalBridgeConfigCandidates(targetCfg)) {
+    try {
+      bridge = await findTerminalBridge(candidate);
+      if (bridge) {
+        bridgeCfg = candidate;
+        break;
+      }
+    } catch (err) {
+      if (!isFlyBridgeAuthError(err)) throw err;
+    }
+  }
   if (!bridge) {
     return NextResponse.json({ ok: true, alive: false });
   }
@@ -179,10 +165,10 @@ export async function POST(req: NextRequest) {
     owner: ctx.context.owner,
     repo: ctx.context.repo,
     app: targetApp,
-    orgSlug: targetCfg.orgSlug,
+    orgSlug: bridgeCfg.orgSlug,
     machineId: targetMachineId,
     chatSessionId: parsed.data.chatSessionId,
-    flyToken: targetCfg.token,
+    flyToken: bridgeCfg.token,
     ttlSeconds: 30,
     secret: bridge.secret,
   });

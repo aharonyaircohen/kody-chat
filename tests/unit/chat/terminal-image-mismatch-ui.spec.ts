@@ -27,10 +27,11 @@ describe("Brain terminal image mismatch UI", () => {
     expect(SURFACE_SOURCE).toContain("Selected image is not running");
     expect(SURFACE_SOURCE).toContain("imageRef?: string");
     expect(SURFACE_SOURCE).toContain("runningImageRef?: string | null");
-    expect(SURFACE_SOURCE).toContain("imageWarning?:");
-    expect(SURFACE_SOURCE).toContain("Connecting to the active Brain machine");
+    expect(SURFACE_SOURCE).toContain("Run image first");
 
     expect(SURFACE_SOURCE).not.toContain("Apply selected Brain image");
+    expect(SURFACE_SOURCE).not.toContain("imageWarning?:");
+    expect(SURFACE_SOURCE).not.toContain("Connecting to the active Brain machine");
     expect(CHAT_SOURCE).not.toContain("handleApplySelectedBrainImage");
     expect(CHAT_SOURCE).not.toContain("activeTerminalChrome?.recoveryAction");
     expect(CHAT_SOURCE).not.toContain("Apply selected Brain image");

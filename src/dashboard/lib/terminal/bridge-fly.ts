@@ -1318,11 +1318,19 @@ async function findExistingMachine(
   cfg: FlyPreviewConfig,
   app: string,
 ): Promise<FlyMachine | null> {
+  const machines = await listExistingMachines(cfg, app);
+  return machines[0] ?? null;
+}
+
+async function listExistingMachines(
+  cfg: FlyPreviewConfig,
+  app: string,
+): Promise<FlyMachine[]> {
   const machines = await flyFetch<FlyMachine[]>(
     `/apps/${encodeURIComponent(app)}/machines`,
     { token: cfg.token, allow404: true },
   );
-  return machines?.find(liveMachine) ?? null;
+  return machines?.filter(liveMachine) ?? [];
 }
 
 async function destroyMachine(
@@ -1450,8 +1458,15 @@ export async function ensureTerminalBridge(
   const app = terminalBridgeAppName(cfg);
   const appWasCreated = await ensureApp(cfg, app);
 
-  const existing = await findExistingMachine(cfg, app);
+  const existingMachines = await listExistingMachines(cfg, app);
+  const reusableMachines = existingMachines.filter(canReuseMachine);
+  const existing = reusableMachines[0] ?? existingMachines[0] ?? null;
   if (existing && canReuseMachine(existing)) {
+    for (const extra of existingMachines) {
+      if (extra.id !== existing.id) {
+        await destroyMachine(cfg, app, extra.id);
+      }
+    }
     const secret = machineSecret(existing)!;
     const url = bridgeUrl(app);
     try {

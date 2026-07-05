@@ -14,8 +14,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
-import { readBrainRuntimeView } from "@dashboard/lib/brain/runtime-manager";
-import { readBrainApp } from "@dashboard/lib/brain/store";
+import { resolveBrainService } from "@dashboard/lib/brain/service-resolver";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -53,46 +52,21 @@ export async function POST(req: NextRequest) {
   );
 
   try {
-    let storedAppName: string | undefined;
-    let storedOrgSlug: string | undefined;
-    let runtimeMachineId: string | undefined;
-    try {
-      const stored = await readBrainApp(
-        ctx.context.account,
-        ctx.context.githubToken,
-      );
-      storedAppName = stored?.appName;
-      storedOrgSlug = stored?.orgSlug;
-      const runtime = await readBrainRuntimeView(
-        ctx.context.account,
-        ctx.context.githubToken,
-      );
-      if (runtime.runningApp && !storedAppName) {
-        storedAppName = runtime.runningApp;
-      }
-      if (runtime.runningOrgSlug && !storedOrgSlug) {
-        storedOrgSlug = runtime.runningOrgSlug;
-      }
-      if (
-        runtime.runningMachineId &&
-        (!storedAppName || runtime.runningApp === storedAppName)
-      ) {
-        runtimeMachineId = runtime.runningMachineId;
-      }
-    } catch (readErr) {
-      logger.warn(
-        { err: readErr, owner: ctx.context.owner },
-        "brain suspend: stored/runtime record read failed (non-fatal)",
-      );
-    }
-
-    await suspendBrain({
+    const brain = await resolveBrainService({
       flyToken: ctx.context.flyToken,
       account: ctx.context.account,
-      orgSlug: storedOrgSlug ?? ctx.context.flyOrgSlug,
+      githubToken: ctx.context.githubToken,
+      orgSlug: ctx.context.flyOrgSlug,
       defaultRegion: ctx.context.flyDefaultRegion,
-      ...(storedAppName ? { appNameOverride: storedAppName } : {}),
-      ...(runtimeMachineId ? { machineIdOverride: runtimeMachineId } : {}),
+    });
+
+    await suspendBrain({
+      flyToken: brain.flyToken,
+      account: ctx.context.account,
+      orgSlug: brain.orgSlug,
+      defaultRegion: ctx.context.flyDefaultRegion,
+      appNameOverride: brain.app,
+      ...(brain.machineId ? { machineIdOverride: brain.machineId } : {}),
     });
     return NextResponse.json({ ok: true });
   } catch (err) {

@@ -115,7 +115,10 @@ function isRuntimeOperation(value: unknown): value is BrainRuntimeOperation {
   );
 }
 
-function normalizeRuntimeState(value: unknown): BrainRuntimeStateFile | null {
+function normalizeRuntimeState(
+  value: unknown,
+  opts: { forWrite?: boolean } = {},
+): BrainRuntimeStateFile | null {
   if (!value || typeof value !== "object") return null;
   const v = value as Record<string, unknown>;
   if (v.version !== 1 || typeof v.updatedAt !== "string") return null;
@@ -129,6 +132,14 @@ function normalizeRuntimeState(value: unknown): BrainRuntimeStateFile | null {
     typeof v.desiredImageRef === "string" ? v.desiredImageRef : undefined;
   const running = isRuntimeRunning(v.running) ? v.running : undefined;
   const operation = isRuntimeOperation(v.operation) ? v.operation : undefined;
+  if (
+    opts.forWrite &&
+    operation?.type === "apply-image" &&
+    operation.status === "completed" &&
+    !running
+  ) {
+    return null;
+  }
   return {
     version: 1,
     ...(desiredImageRef ? { desiredImageRef } : {}),
@@ -180,7 +191,7 @@ export async function writeBrainRuntimeState(
   _token: string,
   file: BrainRuntimeStateFile,
 ): Promise<void> {
-  const normalized = normalizeRuntimeState(file);
+  const normalized = normalizeRuntimeState(file, { forWrite: true });
   if (!normalized) {
     throw new Error("Invalid Brain runtime state");
   }

@@ -23,7 +23,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
-import { clearBrainApp, readBrainApp } from "@dashboard/lib/brain/store";
+import { resolveBrainService } from "@dashboard/lib/brain/service-resolver";
+import { clearBrainApp } from "@dashboard/lib/brain/store";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -61,33 +62,20 @@ export async function POST(req: NextRequest) {
   );
 
   try {
-    // If the dashboard has a stored record for this user, the Fly app may
-    // be living under a `-2`/`-3` suffix from a previous auto-rename. Read
-    // the record and pass the actual app name to destroyBrain so we don't
-    // target a default name that the token can't see. Best-effort: if the
-    // read fails we fall back to the default name and let Fly respond.
-    let storedAppName: string | undefined;
-    let storedOrgSlug: string | undefined;
-    try {
-      const stored = await readBrainApp(
-        ctx.context.account,
-        ctx.context.githubToken,
-      );
-      storedAppName = stored?.appName;
-      storedOrgSlug = stored?.orgSlug;
-    } catch (readErr) {
-      logger.warn(
-        { err: readErr, owner: ctx.context.owner },
-        "brain destroy: stored record read failed (non-fatal)",
-      );
-    }
-
-    await destroyBrain({
+    const brain = await resolveBrainService({
       flyToken: ctx.context.flyToken,
       account: ctx.context.account,
-      orgSlug: storedOrgSlug ?? ctx.context.flyOrgSlug,
+      githubToken: ctx.context.githubToken,
+      orgSlug: ctx.context.flyOrgSlug,
       defaultRegion: ctx.context.flyDefaultRegion,
-      ...(storedAppName ? { appNameOverride: storedAppName } : {}),
+    });
+
+    await destroyBrain({
+      flyToken: brain.flyToken,
+      account: ctx.context.account,
+      orgSlug: brain.orgSlug,
+      defaultRegion: ctx.context.flyDefaultRegion,
+      appNameOverride: brain.app,
     });
     try {
       await clearBrainApp(ctx.context.account, ctx.context.githubToken);

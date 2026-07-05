@@ -63,11 +63,12 @@ test.describe("KodyChat terminal mode smoke", () => {
     });
     page.on("pageerror", (err) => errors.push(err.message));
 
-    await page.goto(`${BASE_URL}/login`);
+    await page.goto(BASE_URL);
     await page.waitForLoadState("domcontentloaded");
     await injectAuth(page);
 
-    await page.goto(`${BASE_URL}/`);
+    const { owner, repo } = parseRepo(TEST_REPO);
+    await page.goto(`${BASE_URL}/repo/${owner}/${repo}`);
     await page.waitForLoadState("domcontentloaded");
 
     const viewport = await page.viewportSize();
@@ -79,9 +80,9 @@ test.describe("KodyChat terminal mode smoke", () => {
     const composer = page.locator("textarea:not(.xterm-helper-textarea)");
     await expect(composer).toBeVisible({ timeout: 15_000 });
 
-    const terminalButton = page.getByRole("button", { name: "Terminal" });
+    const terminalButton = page.getByRole("button", { name: /Terminal/ });
     await expect(terminalButton).toHaveCount(1);
-    await terminalButton.click();
+    await terminalButton.first().click();
 
     await expect(page.getByLabel("Terminal target")).toBeVisible({
       timeout: 10_000,

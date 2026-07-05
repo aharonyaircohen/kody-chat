@@ -8,6 +8,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import {
   ArrowDown,
   ArrowLeft,
@@ -2687,11 +2688,21 @@ export function ManagedModelsView({
                 })
               }
               onRun={async () => {
-                await applyRunModeToCapabilities(
-                  trust.setTrust,
-                  selectedRunCapabilitySlugs,
-                  selectedRunMode,
-                );
+                try {
+                  await applyRunModeToCapabilities(
+                    trust.setTrust,
+                    selectedRunCapabilitySlugs,
+                    selectedRunMode,
+                  );
+                } catch (error) {
+                  toast.error("Failed to prepare run", {
+                    description:
+                      error instanceof Error
+                        ? error.message
+                        : "Could not update run mode.",
+                  });
+                  return;
+                }
                 await runManagedGoal.mutateAsync(selectedGoal.id);
               }}
               onRunModeChange={(mode) =>

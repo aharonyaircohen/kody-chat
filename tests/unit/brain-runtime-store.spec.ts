@@ -77,4 +77,27 @@ describe("Brain runtime store", () => {
     ).rejects.toThrow("Invalid Brain runtime state");
     expect(state.writeStateText).not.toHaveBeenCalled();
   });
+
+  it("rejects completed apply state without a recorded running machine", async () => {
+    const { writeBrainRuntimeState } = await import(
+      "@dashboard/lib/brain/runtime-store"
+    );
+
+    await expect(
+      writeBrainRuntimeState("Alice", "token", {
+        version: 1,
+        desiredImageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+        operation: {
+          id: "op-1",
+          type: "apply-image",
+          status: "completed",
+          imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
+          startedAt: "2026-07-02T10:00:00.000Z",
+          updatedAt: "2026-07-02T10:01:00.000Z",
+        },
+        updatedAt: "2026-07-02T10:01:00.000Z",
+      }),
+    ).rejects.toThrow("Invalid Brain runtime state");
+    expect(state.writeStateText).not.toHaveBeenCalled();
+  });
 });

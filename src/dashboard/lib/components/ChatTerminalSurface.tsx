@@ -244,6 +244,11 @@ export const ChatTerminalSurface = forwardRef<
   const sessionEndNotifiedRef = useRef(false);
   const pollBusyRef = useRef(false);
   const stopRef = useRef<() => Promise<void>>(async () => {});
+  const reconnectFlyRef = useRef<
+    (opts?: { force?: boolean; resetSession?: boolean }) => void
+  >(() => {});
+  const onConnectionStateChangeRef = useRef(onConnectionStateChange);
+  const onSessionEndedRef = useRef(onSessionEnded);
   const [ready, setReady] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [session, setSession] = useState<TerminalSessionState | null>(null);
@@ -274,6 +279,21 @@ export const ChatTerminalSurface = forwardRef<
     transportRef.current = transport;
   }, [transport]);
 
+  useEffect(() => {
+    onConnectionStateChangeRef.current = onConnectionStateChange;
+  }, [onConnectionStateChange]);
+
+  useEffect(() => {
+    onSessionEndedRef.current = onSessionEnded;
+  }, [onSessionEnded]);
+
+  const notifyConnectionState = useCallback(
+    (state: ChatTerminalConnectionState) => {
+      onConnectionStateChangeRef.current?.(state);
+    },
+    [],
+  );
+
   const appendCapturedOutput = useCallback((data: string) => {
     const cleaned = cleanTerminalText(data);
     if (!cleaned) return;
@@ -286,7 +306,7 @@ export const ChatTerminalSurface = forwardRef<
     (state: ChatTerminalConnectionState) => {
       flyConnectionStateRef.current = state;
       setFlyConnectionState(state);
-      onConnectionStateChange?.(state);
+      notifyConnectionState(state);
       if (state === "connected") {
         setInputSignal({ tone: "ready", label: "Ready for input" });
       } else if (state === "connecting") {
@@ -300,7 +320,7 @@ export const ChatTerminalSurface = forwardRef<
         setInputSignal({ tone: "blocked", label: "Input blocked" });
       }
     },
-    [onConnectionStateChange],
+    [notifyConnectionState],
   );
 
   const setInputSignalBriefly = useCallback(
@@ -339,12 +359,17 @@ export const ChatTerminalSurface = forwardRef<
       setInputSignal({ tone: "queued", label: "Sending input" });
       pendingFlyInputAckTimerRef.current = window.setTimeout(() => {
         pendingFlyInputAckTimerRef.current = null;
-        setError("Terminal input was not accepted.");
+        setError("Terminal input stalled; reconnecting.");
         setInputSignal({ tone: "blocked", label: "Input blocked" });
+        const ws = flySocketRef.current;
+        flySocketRef.current = null;
+        updateFlyConnectionState("connecting");
+        ws?.close(4000, "terminal input acknowledgement timed out");
+        reconnectFlyRef.current({ force: true, resetSession: false });
       }, TERMINAL_INPUT_TIMEOUT_MS);
       return inputId;
     },
-    [clearPendingFlyInputAck],
+    [clearPendingFlyInputAck, updateFlyConnectionState],
   );
 
   const acknowledgeFlyInput = useCallback(
@@ -524,8 +549,8 @@ export const ChatTerminalSurface = forwardRef<
     sessionEndNotifiedRef.current = true;
     const snapshot = getTerminalSnapshot();
     if (!snapshot.output.trim()) return;
-    onSessionEnded?.(snapshot);
-  }, [getTerminalSnapshot, onSessionEnded]);
+    onSessionEndedRef.current?.(snapshot);
+  }, [getTerminalSnapshot]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -637,7 +662,7 @@ export const ChatTerminalSurface = forwardRef<
       sessionEndNotifiedRef.current = false;
       sessionRef.current = data.session;
       setSession(data.session);
-      onConnectionStateChange?.("connected");
+      notifyConnectionState("connected");
       setInputSignal({ tone: "ready", label: "Ready for input" });
     } catch (err) {
       const message =
@@ -645,12 +670,12 @@ export const ChatTerminalSurface = forwardRef<
       localStartFailureKeyRef.current = startKey;
       setError(message);
       setInputSignal({ tone: "blocked", label: "Input blocked" });
-      onConnectionStateChange?.("error");
+      notifyConnectionState("error");
       terminal.writeln(`\x1b[31m${message}\x1b[0m`);
     } finally {
       setConnecting(false);
     }
-  }, [chatSessionId, connecting, onConnectionStateChange]);
+  }, [chatSessionId, connecting, notifyConnectionState]);
 
   const disconnectFly = useCallback(() => {
     if (flySocketRef.current || flyTargetKeyRef.current) {
@@ -788,29 +813,8 @@ export const ChatTerminalSurface = forwardRef<
           throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
         }
         flyConnectFailureKeyRef.current = null;
-        const session = (await res.json()) as {
-          webSocketUrl: string;
-          imageWarning?: {
-            type?: string;
-            imageRef?: string;
-            runningImageRef?: string | null;
-          };
-        };
+        const session = (await res.json()) as { webSocketUrl: string };
         if (!isCurrentFlyConnect()) return;
-        if (
-          session.imageWarning?.type === "selected_image_not_running" &&
-          typeof session.imageWarning.imageRef === "string"
-        ) {
-          const selectedLabel = shortBrainImageLabel(
-            session.imageWarning.imageRef,
-          );
-          const runningLabel = shortBrainImageLabel(
-            session.imageWarning.runningImageRef,
-          );
-          terminal.writeln(
-            `\x1b[33mSelected image is not running. Selected: ${selectedLabel}; running: ${runningLabel}. Connecting to the active Brain machine.\x1b[0m`,
-          );
-        }
         const ws = new WebSocket(session.webSocketUrl);
         if (!isCurrentFlyConnect()) {
           ws.close(1000, "stale terminal connection");
@@ -918,6 +922,12 @@ export const ChatTerminalSurface = forwardRef<
     ],
   );
 
+  useEffect(() => {
+    reconnectFlyRef.current = (opts) => {
+      void connectFly(opts);
+    };
+  }, [connectFly]);
+
   const pollOutput = useCallback(async () => {
     const current = sessionRef.current;
     if (!current || pollBusyRef.current) return;
@@ -960,7 +970,7 @@ export const ChatTerminalSurface = forwardRef<
           `\r\nProcess exited${event.code === undefined ? "" : ` (${event.code})`}`,
         );
         sessionRef.current = { ...nextSession, alive: false };
-        onConnectionStateChange?.("closed");
+        notifyConnectionState("closed");
         notifyTerminalSessionEnded();
         setSession((existing) =>
           existing ? { ...existing, alive: false } : existing,
@@ -982,7 +992,7 @@ export const ChatTerminalSurface = forwardRef<
   }, [
     appendCapturedOutput,
     notifyTerminalSessionEnded,
-    onConnectionStateChange,
+    notifyConnectionState,
   ]);
 
   useEffect(() => {
@@ -1025,7 +1035,7 @@ export const ChatTerminalSurface = forwardRef<
       sessionRef.current = null;
       setSession(null);
       setInputSignal({ tone: "blocked", label: "Input blocked" });
-      onConnectionStateChange?.("closed");
+      notifyConnectionState("closed");
       await fetchWithTimeout(
         "/api/kody/chat/terminal/stop",
         {
@@ -1037,7 +1047,7 @@ export const ChatTerminalSurface = forwardRef<
       ).catch(() => {});
       if (announce) terminalRef.current?.writeln("\r\nTerminal stopped");
     },
-    [notifyTerminalSessionEnded, onConnectionStateChange],
+    [notifyConnectionState, notifyTerminalSessionEnded],
   );
   useEffect(() => {
     stopRef.current = () => stop();

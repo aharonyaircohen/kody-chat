@@ -130,6 +130,7 @@ describe("ManagedModelsView model form", () => {
     expect(source).toContain("RunModeBadge");
     expect(source).toContain("managedModelCapabilitySlugs(");
     expect(source).toContain("applyRunModeToCapabilities(");
+    expect(source).toContain('toast.error("Failed to prepare run"');
     expect(source).toContain("runManagedGoal.mutateAsync(selectedGoal.id)");
     expect(source).toContain('const basePath = model === "agentLoop"');
     expect(source).toContain('"/agent-loops"');

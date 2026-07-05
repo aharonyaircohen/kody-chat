@@ -38,6 +38,7 @@ describe("WorkflowsManager run button", () => {
     expect(SOURCE).toContain("RunModeBadge");
     expect(SOURCE).toContain("workflowCapabilitySlugs(selectedWorkflow)");
     expect(SOURCE).toContain("applyRunModeToCapabilities(");
+    expect(SOURCE).toContain('toast.error("Failed to prepare run"');
     expect(SOURCE).toContain("runWorkflow.mutateAsync(selectedWorkflow.id)");
   });
 

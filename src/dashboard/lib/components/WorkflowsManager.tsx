@@ -250,11 +250,21 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
               onRun={async () => {
                 const capabilitySlugs =
                   workflowCapabilitySlugs(selectedWorkflow);
-                await applyRunModeToCapabilities(
-                  trust.setTrust,
-                  capabilitySlugs,
-                  runModeForCapabilities(trust.groups, capabilitySlugs),
-                );
+                try {
+                  await applyRunModeToCapabilities(
+                    trust.setTrust,
+                    capabilitySlugs,
+                    runModeForCapabilities(trust.groups, capabilitySlugs),
+                  );
+                } catch (error) {
+                  toast.error("Failed to prepare run", {
+                    description:
+                      error instanceof Error
+                        ? error.message
+                        : "Could not update run mode.",
+                  });
+                  return;
+                }
                 await runWorkflow.mutateAsync(selectedWorkflow.id);
               }}
               onRunModeChange={(mode) =>

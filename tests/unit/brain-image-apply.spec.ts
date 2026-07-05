@@ -44,9 +44,14 @@ const brainFly = vi.hoisted(() => ({
   provisionBrain: vi.fn(),
 }));
 
+const serviceResolver = vi.hoisted(() => ({
+  resolveBrainService: vi.fn(),
+}));
+
 vi.mock("@dashboard/lib/brain/store", () => store);
 vi.mock("@dashboard/lib/brain/runtime-manager", () => runtimeManager);
 vi.mock("@dashboard/lib/brain/image-runtime", () => runtime);
+vi.mock("@dashboard/lib/brain/service-resolver", () => serviceResolver);
 vi.mock("@dashboard/lib/runners/brain-fly", () => ({
   brainAppName: (account: string) => `kody-brain-${account}`,
   provisionBrain: brainFly.provisionBrain,
@@ -81,6 +86,16 @@ describe("applySelectedBrainImage", () => {
       machineId: "machine-new",
       region: "fra",
       org: "personal",
+    });
+    serviceResolver.resolveBrainService.mockResolvedValue({
+      app: "kody-brain-octocat",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+      flyToken: "fly-token",
+      stored: null,
+      state: "running",
+      url: "https://kody-brain-octocat.fly.dev",
+      machineId: "machine-old",
     });
     store.markBrainImageRunning.mockResolvedValue({
       version: 1,
@@ -222,5 +237,43 @@ describe("applySelectedBrainImage", () => {
       "ghcr.io/acme/kody-brain-octocat:new",
     );
     expect(result.image.imageRef).toBe("ghcr.io/acme/kody-brain-octocat:new");
+  });
+
+  it("uses the resolver-selected Fly token for stored Brain operations", async () => {
+    serviceResolver.resolveBrainService.mockResolvedValueOnce({
+      app: "custom-brain",
+      orgSlug: "other-org",
+      defaultRegion: "fra",
+      flyToken: "fallback-fly-token",
+      stored: {
+        version: 1,
+        appName: "custom-brain",
+        orgSlug: "other-org",
+        createdAt: "2026-07-02T00:00:00.000Z",
+      },
+      state: "suspended",
+      url: "https://custom-brain.fly.dev",
+      machineId: "machine-old",
+    });
+
+    await applySelectedBrainImage({
+      owner: "acme",
+      repo: "widgets",
+      account: "octocat",
+      githubToken: "gh-token",
+      allSecrets: {},
+      flyToken: "vault-fly-token",
+      flyOrgSlug: "personal",
+      flyDefaultRegion: "fra",
+      dashboardUrl: "https://dash.test",
+    });
+
+    expect(brainFly.provisionBrain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        flyToken: "fallback-fly-token",
+        appNameOverride: "custom-brain",
+        orgSlug: "other-org",
+      }),
+    );
   });
 });

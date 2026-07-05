@@ -461,6 +461,8 @@ function terminalCheckpointSearchParams(
 }
 
 const LETTER_RE = /\p{L}/u;
+const BRAIN_IMAGE_SAVE_POLL_INTERVAL_MS = 5_000;
+const BRAIN_IMAGE_SAVE_MAX_POLLS = 1_440; // 2 hours at 5 seconds.
 
 function isRtlCodePoint(codePoint: number): boolean {
   return (
@@ -1459,8 +1461,10 @@ export function KodyChat({
       }
 
       toast.success("Brain image save started");
-      for (let attempt = 0; attempt < 180; attempt++) {
-        await new Promise((resolve) => setTimeout(resolve, 5_000));
+      for (let attempt = 0; attempt < BRAIN_IMAGE_SAVE_MAX_POLLS; attempt++) {
+        await new Promise((resolve) =>
+          setTimeout(resolve, BRAIN_IMAGE_SAVE_POLL_INTERVAL_MS),
+        );
         const poll = await fetch(
           `/api/kody/brain/image?jobId=${encodeURIComponent(body.jobId)}`,
           { headers: authHeaders() },
@@ -1484,7 +1488,7 @@ export function KodyChat({
           );
         }
       }
-      throw new Error("Brain image save is still running after 15 minutes");
+      throw new Error("Brain image save is still running after 2 hours");
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to save Brain image",

@@ -32,6 +32,7 @@ export interface BrainServiceResolution {
   app: string;
   orgSlug: string;
   defaultRegion: string;
+  flyToken: string;
   stored: BrainAppFile | null;
   state: BrainStatusResult["state"];
   url?: string;
@@ -39,6 +40,24 @@ export interface BrainServiceResolution {
   machineImageRef?: string;
   machine?: FlyMachineRow;
   reason?: BrainServiceReason;
+}
+
+function envFlyTokenFallback(primaryToken: string): string | undefined {
+  const token =
+    process.env.FLY_API_TOKEN?.trim() || process.env.FLY_IO_TOKEN?.trim();
+  return token && token !== primaryToken ? token : undefined;
+}
+
+function sameResolvedBrainMachine(
+  a: BrainServiceResolution,
+  b: BrainServiceResolution,
+): boolean {
+  return Boolean(
+    a.app === b.app &&
+      a.machineId &&
+      b.machineId &&
+      a.machineId === b.machineId,
+  );
 }
 
 export async function resolveBrainService(input: {
@@ -72,57 +91,80 @@ export async function resolveBrainService(input: {
     runtime?.runningApp === app ? runtime.runningMachineId : undefined;
   const targetMachineId = input.machineIdOverride ?? runtimeMachineId;
 
-  const status = await brainStatus({
-    flyToken: input.flyToken,
-    account: input.account,
-    appNameOverride: app,
-    machineIdOverride: targetMachineId,
-    orgSlug,
-    defaultRegion: input.defaultRegion,
-  });
-
-  let machine: FlyMachineRow | undefined;
-  let machineLookupFailed = false;
-  try {
-    const machines = await listMachines(app, {
-      token: input.flyToken,
+  const resolveWithToken = async (
+    flyToken: string,
+  ): Promise<BrainServiceResolution> => {
+    const status = await brainStatus({
+      flyToken,
+      account: input.account,
+      appNameOverride: app,
+      machineIdOverride: targetMachineId,
       orgSlug,
       defaultRegion: input.defaultRegion,
     });
-    machine = rowsForFlyApp(app, machines, Date.now(), {
-      feature: "brain",
-      label: app,
-      orgSlug,
-    }).find((row) =>
-      targetMachineId ? row.machineId === targetMachineId : true,
-    );
-  } catch {
-    machineLookupFailed = true;
-  }
 
-  const reason: BrainServiceReason | undefined =
-    targetMachineId && !machine && !machineLookupFailed
-      ? "runtime_machine_not_found"
-      : machineLookupFailed && status.state !== "off"
-      ? "machine_lookup_failed"
-      : status.state !== "off"
-        ? undefined
-        : stored
-          ? status.url
-            ? "app_has_no_machine"
-            : "stored_app_not_found"
-          : "not_provisioned";
+    let machine: FlyMachineRow | undefined;
+    let machineLookupFailed = false;
+    try {
+      const machines = await listMachines(app, {
+        token: flyToken,
+        orgSlug,
+        defaultRegion: input.defaultRegion,
+      });
+      machine = rowsForFlyApp(app, machines, Date.now(), {
+        feature: "brain",
+        label: app,
+        orgSlug,
+      }).find((row) =>
+        targetMachineId ? row.machineId === targetMachineId : true,
+      );
+    } catch {
+      machineLookupFailed = true;
+    }
 
-  return {
-    app: status.app,
-    orgSlug: status.org ?? orgSlug,
-    defaultRegion: input.defaultRegion,
-    stored,
-    state: status.state,
-    url: status.url,
-    machineId: machine?.machineId ?? targetMachineId ?? status.machineId,
-    machineImageRef: machine?.imageRef ?? status.machineImageRef,
-    machine,
-    reason,
+    const reason: BrainServiceReason | undefined =
+      targetMachineId && !machine && !machineLookupFailed
+        ? "runtime_machine_not_found"
+        : machineLookupFailed && status.state !== "off"
+          ? "machine_lookup_failed"
+          : status.state !== "off"
+            ? undefined
+            : stored
+              ? status.url
+                ? "app_has_no_machine"
+                : "stored_app_not_found"
+              : "not_provisioned";
+
+    return {
+      app: status.app,
+      orgSlug: status.org ?? orgSlug,
+      defaultRegion: input.defaultRegion,
+      flyToken,
+      stored,
+      state: status.state,
+      url: status.url,
+      machineId: machine?.machineId ?? targetMachineId ?? status.machineId,
+      machineImageRef: machine?.imageRef ?? status.machineImageRef,
+      machine,
+      reason,
+    };
   };
+
+  const primary = await resolveWithToken(input.flyToken);
+  const fallback =
+    stored || runtime?.runningApp
+      ? envFlyTokenFallback(input.flyToken)
+      : undefined;
+  if (fallback) {
+    const fallbackResult = await resolveWithToken(fallback).catch(() => null);
+    if (
+      fallbackResult &&
+      (primary.machine
+        ? sameResolvedBrainMachine(primary, fallbackResult)
+        : fallbackResult.machine || fallbackResult.state !== "off")
+    ) {
+      return fallbackResult;
+    }
+  }
+  return primary;
 }

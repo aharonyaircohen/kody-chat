@@ -14,6 +14,7 @@ import { z } from "zod";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
 import { readBrainRuntimeView } from "@dashboard/lib/brain/runtime-manager";
+import { brainTerminalBlocker } from "@dashboard/lib/brain/runtime-authority";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -25,17 +26,14 @@ import {
   resolveFlyContext,
 } from "@dashboard/lib/runners/fly-context";
 import {
-  applySavedBrainMachineToInventory,
-  resolveSavedBrainServiceForRequest,
-  type SavedBrainServiceForRequest,
-} from "@dashboard/lib/runners/fly-inventory-server";
+  ensureTerminalBridge,
+  type TerminalBridgeInfo,
+} from "@dashboard/lib/terminal/bridge-fly";
 import {
-  listFlyInventory,
-  type FlyInventory,
-  type FlyMachineRow,
-} from "@dashboard/lib/runners/fly-inventory";
-import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
-import { ensureTerminalBridge } from "@dashboard/lib/terminal/bridge-fly";
+  loadTerminalInventoryAuthority,
+  terminalBridgeConfigCandidates,
+  terminalFlyConfigForMachine,
+} from "@dashboard/lib/terminal/server-inventory";
 import {
   buildTerminalWebSocketUrl,
   isTerminalFeatureAllowed,
@@ -112,39 +110,50 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function terminalTargetFlyConfig(
-  cfg: FlyPreviewConfig,
-  orgSlug: string | undefined,
-): FlyPreviewConfig {
-  return orgSlug && orgSlug !== cfg.orgSlug ? { ...cfg, orgSlug } : cfg;
+function isFlyBridgeAuthError(err: unknown): boolean {
+  const text = err instanceof Error ? err.message : String(err);
+  return (
+    /Fly Machines API (401|403) on \/(apps|apps\/)/.test(text) ||
+    /startMachine failed: (401|403)/.test(text) ||
+    /fetch failed|Connect Timeout|ETIMEDOUT|ECONNRESET/i.test(text)
+  );
 }
 
-function terminalFlyConfigForMachine(
-  cfg: FlyPreviewConfig,
-  machine: FlyMachineRow,
-  savedBrain: SavedBrainServiceForRequest | null,
-): FlyPreviewConfig {
-  const savedBrainMachine = savedBrain?.brain.machine;
-  const usesSavedBrainToken =
-    machine.feature === "brain" &&
-    savedBrain &&
-    savedBrainMachine?.app === machine.app &&
-    savedBrainMachine.machineId === machine.machineId;
-  const baseCfg = usesSavedBrainToken
-    ? { ...cfg, token: savedBrain.flyToken }
-    : cfg;
-  return terminalTargetFlyConfig(baseCfg, machine.orgSlug);
-}
-
-async function appendSavedBrainForTerminal(
-  req: NextRequest,
-  inventory: FlyInventory,
-): Promise<SavedBrainServiceForRequest | null> {
-  const savedBrain = await resolveSavedBrainServiceForRequest(req);
-  if (savedBrain) {
-    applySavedBrainMachineToInventory(inventory, savedBrain.brain);
+async function ensureTerminalBridgeForTarget(
+  cfg: ReturnType<typeof terminalFlyConfigForMachine>,
+): Promise<{ bridge: TerminalBridgeInfo; terminalCfg: typeof cfg }> {
+  let lastErr: unknown;
+  const candidates = terminalBridgeConfigCandidates(cfg);
+  for (const candidate of candidates) {
+    try {
+      return {
+        bridge: await ensureTerminalBridge(candidate),
+        terminalCfg: candidate,
+      };
+    } catch (err) {
+      lastErr = err;
+      if (!isFlyBridgeAuthError(err)) throw err;
+    }
   }
-  return savedBrain;
+  throw lastErr;
+}
+
+async function startMachineForTarget(
+  app: string,
+  machineId: string,
+  cfg: ReturnType<typeof terminalFlyConfigForMachine>,
+): Promise<void> {
+  let lastErr: unknown;
+  for (const candidate of terminalBridgeConfigCandidates(cfg)) {
+    try {
+      await startMachine(app, machineId, candidate);
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (!isFlyBridgeAuthError(err)) throw err;
+    }
+  }
+  throw lastErr;
 }
 
 export async function POST(req: NextRequest) {
@@ -175,18 +184,17 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    let inventory = await listFlyInventory(cfg);
-    let savedBrain = await appendSavedBrainForTerminal(req, inventory);
     const brainRequested =
       parsed.data.target === "brain" || parsed.data.feature === "brain";
-    let imageWarning:
-      | {
-          type: "selected_image_not_running";
-          imageRef: string;
-          runningImageRef?: string | null;
-          runtimeSource?: string;
-        }
-      | undefined;
+    let { inventory, savedBrain } = await loadTerminalInventoryAuthority(
+      req,
+      cfg,
+      {
+        brainRequested,
+        app: parsed.data.app,
+        machineId: parsed.data.machineId,
+      },
+    );
     let targetInput:
       | { app: string; machineId: string; feature?: "runner" | "brain" }
       | null =
@@ -210,18 +218,30 @@ export async function POST(req: NextRequest) {
           ctx.context.account,
           ctx.context.githubToken,
         );
-        if (
-          runtime?.desiredImageRef &&
-          runtime.desiredImageRef !== runtime.runningImageRef
-        ) {
-          imageWarning = {
-            type: "selected_image_not_running",
-            imageRef: runtime.desiredImageRef,
-            runningImageRef: runtime.runningImageRef,
-            runtimeSource: runtime.source,
-          };
+        const blocker = brainTerminalBlocker(runtime);
+        if (blocker) {
+          return NextResponse.json(
+            {
+              error: "selected_image_not_running",
+              message: TARGET_MESSAGE.selected_image_not_running,
+              imageRef: blocker.desiredImageRef,
+              runningImageRef: blocker.runningImageRef,
+              machineImageRef: blocker.machineImageRef,
+              runtimeSource: runtime.source,
+              drift: blocker,
+            },
+            { status: TARGET_STATUS.selected_image_not_running },
+          );
         }
-        targetInput = resolveBrainTerminalTargetInput(inventory, targetInput);
+        if (runtime.runningApp && runtime.runningMachineId) {
+          targetInput = {
+            app: runtime.runningApp,
+            machineId: runtime.runningMachineId,
+            feature: "brain",
+          };
+        } else {
+          targetInput = resolveBrainTerminalTargetInput(inventory, targetInput);
+        }
       } finally {
         clearGitHubContext();
       }
@@ -274,7 +294,7 @@ export async function POST(req: NextRequest) {
           requested,
           savedBrain,
         );
-        await startMachine(
+        await startMachineForTarget(
           requested.app,
           requested.machineId,
           requestedCfg,
@@ -285,9 +305,13 @@ export async function POST(req: NextRequest) {
         };
         for (let attempt = 0; attempt < WAKE_POLL_ATTEMPTS; attempt++) {
           if (attempt > 0) await sleep(WAKE_POLL_INTERVAL_MS);
-          inventory = await listFlyInventory(cfg);
-          savedBrain =
-            (await appendSavedBrainForTerminal(req, inventory)) ?? savedBrain;
+          const refreshed = await loadTerminalInventoryAuthority(req, cfg, {
+            brainRequested: requested.feature === "brain",
+            app: requested.app,
+            machineId: requested.machineId,
+          });
+          inventory = refreshed.inventory;
+          savedBrain = refreshed.savedBrain ?? savedBrain;
           const next = resolveTerminalTargetMachine(inventory, selectedInput);
           if (next && isTerminalMachineLive(next.state)) break;
         }
@@ -309,7 +333,8 @@ export async function POST(req: NextRequest) {
       selected.machine,
       savedBrain,
     );
-    const bridge = await ensureTerminalBridge(selectedCfg);
+    const { bridge, terminalCfg } =
+      await ensureTerminalBridgeForTarget(selectedCfg);
     const activityLimitMs = terminalActivityLimitForTarget(
       selected.machine.feature,
       parsed.data.activityLimitMs,
@@ -319,12 +344,12 @@ export async function POST(req: NextRequest) {
       owner: ctx.context.owner,
       repo: ctx.context.repo,
       app: selected.machine.app,
-      orgSlug: selectedCfg.orgSlug,
+      orgSlug: terminalCfg.orgSlug,
       machineId: selected.machine.machineId,
       chatSessionId: parsed.data.chatSessionId,
       resetSession: parsed.data.resetSession,
       ...(activityLimitMs !== undefined ? { activityLimitMs } : {}),
-      flyToken: selectedCfg.token,
+      flyToken: terminalCfg.token,
       cols: parsed.data.cols,
       rows: parsed.data.rows,
       now,
@@ -340,7 +365,6 @@ export async function POST(req: NextRequest) {
       bridgeApp: bridge.app,
       expiresAt: new Date((now + 120) * 1000).toISOString(),
       webSocketUrl,
-      ...(imageWarning ? { imageWarning } : {}),
     });
   } catch (err) {
     logger.error(

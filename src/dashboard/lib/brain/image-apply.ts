@@ -21,6 +21,7 @@ import {
   writeBrainApp,
   type BrainImageFile,
 } from "@dashboard/lib/brain/store";
+import { resolveBrainService } from "@dashboard/lib/brain/service-resolver";
 import {
   beginBrainRuntimeApply,
   completeBrainRuntimeApply,
@@ -85,6 +86,16 @@ export async function applySelectedBrainImage(
       contextOrgSlug: input.flyOrgSlug,
       stored,
     });
+    const service = await resolveBrainService({
+      flyToken: input.flyToken,
+      account: input.account,
+      githubToken: input.githubToken,
+      orgSlug: input.flyOrgSlug,
+      defaultRegion: input.flyDefaultRegion,
+      appNameOverride: target.app,
+    });
+    const operationFlyToken = service.flyToken;
+    const operationOrgSlug = service.orgSlug;
     const ghcr = brainGhcrAuth({
       allSecrets: input.allSecrets,
       githubToken: input.githubToken,
@@ -92,17 +103,17 @@ export async function applySelectedBrainImage(
     });
 
     const brain = await provisionBrain({
-      flyToken: input.flyToken,
+      flyToken: operationFlyToken,
       account: input.account,
       model: input.engineModel,
       modelConfig: input.engineModelConfig,
       githubToken: input.githubToken,
       allSecrets: input.allSecrets,
       perfTier: input.perfTier,
-      orgSlug: target.orgSlug,
+      orgSlug: operationOrgSlug,
       defaultRegion: input.flyDefaultRegion,
       dashboardUrl: input.dashboardUrl,
-      appNameOverride: target.app,
+      appNameOverride: service.app,
       imageRef,
       resolveRuntimeImageRef: ({ app, imageRef }) =>
         Promise.resolve(brainFlyRuntimeImageRef({ app, imageRef })),
@@ -113,10 +124,10 @@ export async function applySelectedBrainImage(
           app,
           imageRef: sourceImageRef,
           runtimeImageRef,
-          flyToken: input.flyToken,
+          flyToken: operationFlyToken,
           ghcrToken: ghcr.token,
           ghcrUser: ghcr.user,
-          orgSlug: target.orgSlug,
+          orgSlug: operationOrgSlug,
           defaultRegion: input.flyDefaultRegion,
         });
       },

@@ -37,15 +37,15 @@ describe("Brain Fly route GitHub context", () => {
     }
   });
 
-  it("uses the stored app name for every machine control route", () => {
+  it("uses the resolved Brain service for every machine control route", () => {
     for (const routePath of [
       "app/api/kody/brain/destroy/route.ts",
       "app/api/kody/brain/suspend/route.ts",
       "app/api/kody/brain/resume/route.ts",
     ]) {
       const source = readRoute(routePath);
-      expect(source, routePath).toContain("readBrainApp(");
-      expect(source, routePath).toContain("appNameOverride: storedAppName");
+      expect(source, routePath).toContain("resolveBrainService(");
+      expect(source, routePath).toContain("appNameOverride: brain.app");
     }
   });
 });

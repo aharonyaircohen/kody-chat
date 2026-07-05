@@ -40,6 +40,14 @@ interface BrainImageSaveState {
   error?: string;
 }
 
+interface BrainRuntimeDrift {
+  code: string;
+  message: string;
+  desiredImageRef?: string;
+  runningImageRef?: string | null;
+  machineImageRef?: string | null;
+}
+
 interface BrainImagesResponse {
   ok?: boolean;
   imageRef?: string | null;
@@ -49,6 +57,7 @@ interface BrainImagesResponse {
   runningMachineId?: string | null;
   machineImageRef?: string | null;
   machineState?: string | null;
+  drift?: BrainRuntimeDrift | null;
   images?: BrainSavedImage[];
   save?: BrainImageSaveState | null;
   message?: string;
@@ -88,6 +97,7 @@ export function BrainImagesManager() {
   const [runningAt, setRunningAt] = useState<string | null>(null);
   const [machineImageRef, setMachineImageRef] = useState<string | null>(null);
   const [machineState, setMachineState] = useState<string | null>(null);
+  const [drift, setDrift] = useState<BrainRuntimeDrift | null>(null);
   const [save, setSave] = useState<BrainImageSaveState | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyRef, setBusyRef] = useState<string | null>(null);
@@ -103,6 +113,7 @@ export function BrainImagesManager() {
       setRunningAt(null);
       setMachineImageRef(null);
       setMachineState(null);
+      setDrift(null);
       setSave(null);
       setLoading(false);
       return;
@@ -126,6 +137,7 @@ export function BrainImagesManager() {
       setRunningAt(body.runningAt ?? null);
       setMachineImageRef(body.machineImageRef ?? null);
       setMachineState(body.machineState ?? null);
+      setDrift(body.drift ?? null);
       setSave(body.save ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load images");
@@ -135,6 +147,7 @@ export function BrainImagesManager() {
       setRunningAt(null);
       setMachineImageRef(null);
       setMachineState(null);
+      setDrift(null);
       setSave(null);
     } finally {
       setLoading(false);
@@ -315,7 +328,11 @@ export function BrainImagesManager() {
             )}
             {selectedNeedsApply && (
               <div className="rounded-md border border-amber-400/25 bg-amber-400/[0.08] px-3 py-2 text-xs text-amber-100">
-                Pending image {imageLabel(activeImageRef)} is not running yet.
+                {drift?.code === "completed_apply_missing_running"
+                  ? drift.message
+                  : `Pending image ${imageLabel(
+                      activeImageRef,
+                    )} is not running yet.`}{" "}
                 Click Run this image on that row before opening Brain.
               </div>
             )}

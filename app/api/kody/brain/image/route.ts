@@ -15,6 +15,10 @@ import {
   selectBrainRuntimeImage,
 } from "@dashboard/lib/brain/runtime-manager";
 import {
+  readBrainRuntimeAuthority,
+  type BrainRuntimeDrift,
+} from "@dashboard/lib/brain/runtime-authority";
+import {
   clearBrainImageSave,
   deleteBrainImage,
   readBrainImage,
@@ -99,6 +103,7 @@ function imageManagementResponse(
   runtime: Awaited<ReturnType<typeof readBrainRuntimeView>> | null,
   machine: { imageRef?: string; state?: string } | null = null,
   discoveredImages: BrainSavedImage[] = [],
+  drift: BrainRuntimeDrift | null = null,
 ) {
   const images = mergeBrainSavedImages(image, discoveredImages);
   return {
@@ -111,6 +116,7 @@ function imageManagementResponse(
     machineImageRef: machine?.imageRef ?? null,
     machineState: machine?.state ?? null,
     runtime: runtime ?? null,
+    drift,
     images,
     createdAt: image?.createdAt ?? null,
     updatedAt: image?.updatedAt ?? null,
@@ -316,6 +322,7 @@ export async function POST(req: NextRequest) {
     });
     const app = brain.app;
     const machineId = brain.machineId;
+    const brainFlyToken = brain.flyToken;
     if (brain.state === "off" || !machineId || !brain.url) {
       return NextResponse.json(
         {
@@ -329,7 +336,7 @@ export async function POST(req: NextRequest) {
     await waitForBrainHealth(brain.url, 120_000);
 
     const bridge = await ensureTerminalBridge({
-      token: flyToken,
+      token: brainFlyToken,
       orgSlug: brain.orgSlug,
       defaultRegion: brain.defaultRegion,
     });
@@ -344,7 +351,7 @@ export async function POST(req: NextRequest) {
       app,
       orgSlug: brain.orgSlug,
       machineId,
-      flyToken,
+      flyToken: brainFlyToken,
       ghcrToken: ghcr.token,
       localExec: true,
       ttlSeconds: 900,
@@ -457,30 +464,26 @@ export async function GET(req: NextRequest) {
         ctx.context.account,
         ctx.context.githubToken,
       );
-      const runtime = await readBrainRuntimeView(
-        ctx.context.account,
-        ctx.context.githubToken,
-      );
-      const service = ctx.context.flyToken
-        ? await resolveBrainService({
-            flyToken: ctx.context.flyToken,
-            account: ctx.context.account,
-            githubToken: ctx.context.githubToken,
-            orgSlug: ctx.context.flyOrgSlug,
-            defaultRegion: ctx.context.flyDefaultRegion,
-          }).catch(() => null)
-        : null;
+      const authority = await readBrainRuntimeAuthority({
+        flyToken: ctx.context.flyToken,
+        account: ctx.context.account,
+        githubToken: ctx.context.githubToken,
+        orgSlug: ctx.context.flyOrgSlug,
+        defaultRegion: ctx.context.flyDefaultRegion,
+        allowServiceFailure: true,
+      });
       return NextResponse.json({
         ...imageManagementResponse(
           image,
-          runtime,
-          service
+          authority.runtime,
+          authority.service
             ? {
-                imageRef: service.machineImageRef,
-                state: service.state,
+                imageRef: authority.service.machineImageRef,
+                state: authority.service.state,
               }
             : null,
           discoveredImages,
+          authority.drift,
         ),
         save: save
           ? {

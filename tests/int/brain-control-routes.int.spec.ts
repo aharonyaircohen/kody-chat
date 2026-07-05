@@ -12,6 +12,24 @@ const brainFly = vi.hoisted(() => ({
   suspendBrain: vi.fn(async () => undefined),
 }));
 
+const brainService = vi.hoisted(() => ({
+  resolveBrainService: vi.fn(async () => ({
+    app: "brain-1",
+    orgSlug: "guy-koren",
+    defaultRegion: "fra",
+    flyToken: "fallback-fly-token",
+    stored: {
+      version: 1,
+      appName: "brain-1",
+      orgSlug: "guy-koren",
+      createdAt: "2026-06-30T00:00:00.000Z",
+    },
+    state: "running",
+    url: "https://brain-1.fly.dev",
+    machineId: "machine-runtime",
+  })),
+}));
+
 vi.mock("@dashboard/lib/auth", () => ({
   requireKodyAuth: vi.fn(async () => null),
 }));
@@ -31,23 +49,9 @@ vi.mock("@dashboard/lib/runners/fly-context", () => ({
   })),
 }));
 
+vi.mock("@dashboard/lib/brain/service-resolver", () => brainService);
 vi.mock("@dashboard/lib/brain/store", () => ({
-  readBrainApp: vi.fn(async () => ({
-    version: 1,
-    appName: "brain-1",
-    orgSlug: "guy-koren",
-    createdAt: "2026-06-30T00:00:00.000Z",
-  })),
   clearBrainApp: vi.fn(async () => undefined),
-}));
-
-vi.mock("@dashboard/lib/brain/runtime-manager", () => ({
-  readBrainRuntimeView: vi.fn(async () => ({
-    source: "runtime",
-    runningApp: "brain-1",
-    runningMachineId: "machine-runtime",
-    runningOrgSlug: "guy-koren",
-  })),
 }));
 
 vi.mock("@dashboard/lib/runners/brain-fly", () => brainFly);
@@ -80,6 +84,7 @@ describe("Brain control routes", () => {
     expect(res.status).toBe(200);
     expect(brainFly.destroyBrain).toHaveBeenCalledWith(
       expect.objectContaining({
+        flyToken: "fallback-fly-token",
         appNameOverride: "brain-1",
         orgSlug: "guy-koren",
       }),
@@ -92,6 +97,7 @@ describe("Brain control routes", () => {
     expect(res.status).toBe(200);
     expect(brainFly.resumeBrain).toHaveBeenCalledWith(
       expect.objectContaining({
+        flyToken: "fallback-fly-token",
         appNameOverride: "brain-1",
         machineIdOverride: "machine-runtime",
         orgSlug: "guy-koren",
@@ -105,6 +111,7 @@ describe("Brain control routes", () => {
     expect(res.status).toBe(200);
     expect(brainFly.suspendBrain).toHaveBeenCalledWith(
       expect.objectContaining({
+        flyToken: "fallback-fly-token",
         appNameOverride: "brain-1",
         machineIdOverride: "machine-runtime",
         orgSlug: "guy-koren",

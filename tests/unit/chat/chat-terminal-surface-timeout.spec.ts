@@ -78,4 +78,13 @@ describe("ChatTerminalSurface timeout guard", () => {
     expect(SOURCE).toContain('message.type === "input-rejected"');
     expect(SOURCE).toContain("Terminal input was not accepted");
   });
+
+  it("reconnects the browser socket when Fly input acknowledgement stalls", () => {
+    expect(SOURCE).toContain("reconnectFlyRef");
+    expect(SOURCE).toContain("Terminal input stalled; reconnecting.");
+    expect(SOURCE).toContain("terminal input acknowledgement timed out");
+    expect(SOURCE).toContain(
+      "reconnectFlyRef.current({ force: true, resetSession: false });",
+    );
+  });
 });
