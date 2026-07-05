@@ -234,8 +234,7 @@ export function BrainImagesManager() {
                   Saved images
                 </div>
                 <div className="mt-1 text-xs text-white/50">
-                  Run this image replaces the Brain machine image used by the
-                  terminal.
+                  Run this image replaces the saved Brain machine image.
                 </div>
               </div>
               <Button
@@ -257,7 +256,7 @@ export function BrainImagesManager() {
             <div className="grid gap-3 md:grid-cols-3">
               <div className="min-w-0 rounded-md border border-white/[0.08] bg-black/20 p-3">
                 <div className="text-[11px] font-semibold uppercase text-white/45">
-                  Terminal image
+                  Running Brain image
                 </div>
                 <div className="mt-1 truncate font-mono text-xs text-white">
                   {runningImageRef ? imageLabel(runningImageRef) : "None"}
@@ -267,7 +266,7 @@ export function BrainImagesManager() {
                     ? `Applied ${formatDate(runningAt)}`
                     : runningImage
                       ? `Saved ${formatDate(runningImage.updatedAt)}`
-                      : "Terminal has no image"}
+                      : "Brain has no image"}
                 </div>
                 {machineImageRef && (
                   <div className="mt-2 truncate font-mono text-[11px] text-emerald-100/70">
@@ -316,9 +315,8 @@ export function BrainImagesManager() {
             )}
             {selectedNeedsApply && (
               <div className="rounded-md border border-amber-400/25 bg-amber-400/[0.08] px-3 py-2 text-xs text-amber-100">
-                Pending image {imageLabel(activeImageRef)} is not the terminal
-                image yet. Click Run this image on that row before opening the
-                Brain terminal.
+                Pending image {imageLabel(activeImageRef)} is not running yet.
+                Click Run this image on that row before opening Brain.
               </div>
             )}
             {!selectedNeedsApply && runningNeedsMachineProof && (
@@ -343,8 +341,8 @@ export function BrainImagesManager() {
               </div>
               <div>
                 {runningImageRef
-                  ? `Terminal image ${imageLabel(runningImageRef)}`
-                  : "No terminal Brain image"}
+                  ? `Running Brain image ${imageLabel(runningImageRef)}`
+                  : "No running Brain image"}
               </div>
             </div>
           </CardContent>
@@ -384,7 +382,7 @@ export function BrainImagesManager() {
                       </span>
                       {running && (
                         <span className="shrink-0 rounded border border-emerald-300/20 bg-emerald-300/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-200">
-                          Terminal image
+                          Running Brain image
                         </span>
                       )}
                     </div>
@@ -412,7 +410,7 @@ export function BrainImagesManager() {
                       ) : (
                         <Play className="h-4 w-4" />
                       )}
-                      {running ? "Terminal image" : "Run this image"}
+                      {running ? "Running Brain image" : "Run this image"}
                     </Button>
                     <Button
                       type="button"

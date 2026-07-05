@@ -1312,10 +1312,16 @@ export async function brainStatus(
   const app = input.appNameOverride ?? brainAppName(input.account);
   const orgSlug = brainOrgSlug(input);
 
-  const existing = await flyFetch<FlyApp>(`/apps/${encodeURIComponent(app)}`, {
-    token: input.flyToken,
-    allow404: true,
-  });
+  let existing: FlyApp | null = null;
+  try {
+    existing = await flyFetch<FlyApp>(`/apps/${encodeURIComponent(app)}`, {
+      token: input.flyToken,
+      allow404: true,
+    });
+  } catch (err) {
+    const status = (err as { status?: number })?.status;
+    if (status !== 403) throw err;
+  }
   if (!existing) {
     return { app, state: "off", org: orgSlug };
   }

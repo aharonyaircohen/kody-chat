@@ -37,7 +37,7 @@ describe("BrainImagesManager", () => {
     );
   });
 
-  it("requires confirmation before replacing the terminal image", () => {
+  it("requires confirmation before replacing the running Brain image", () => {
     expect(SOURCE).toContain("const [pendingApplyRef, setPendingApplyRef]");
     expect(SOURCE).toContain("requestApplyImage(image.imageRef)");
     expect(SOURCE).toContain("This will replace the Brain machine image");
@@ -58,7 +58,7 @@ describe("BrainImagesManager", () => {
     expect(SOURCE).toContain('body: JSON.stringify({ imageRef }),');
     expect(SOURCE).toContain('headers: { "content-type": "application/json", ...headers },');
     expect(SOURCE).toContain("Run this image");
-    expect(SOURCE).toContain("Terminal image");
+    expect(SOURCE).toContain("Running Brain image");
     expect(SOURCE).toContain("disabled={running || busy}");
     expect(SOURCE).not.toContain("selectImage(");
     expect(SOURCE).not.toContain('toast.success("Brain image selected")');
@@ -66,9 +66,9 @@ describe("BrainImagesManager", () => {
     expect(SOURCE).not.toContain("disabled={!selected || running || busy}");
   });
 
-  it("shows terminal image, latest save, and saved image count separately", () => {
-    expect(SOURCE).toContain("Run this image replaces the Brain machine image");
-    expect(SOURCE).toContain("Terminal image");
+  it("shows running Brain image, latest save, and saved image count separately", () => {
+    expect(SOURCE).toContain("Run this image replaces the saved Brain machine image");
+    expect(SOURCE).toContain("Running Brain image");
     expect(SOURCE).toContain("Latest save");
     expect(SOURCE).toContain("Saved images");
     expect(SOURCE).not.toContain(">Selected<");

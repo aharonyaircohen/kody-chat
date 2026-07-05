@@ -374,6 +374,21 @@ describe("streamBrainChat — SSE translation", () => {
     });
   });
 
+  it("forwards firstTurn to Brain when requested", async () => {
+    const { calls } = installFetchStub({ events: [{ type: "done" }] });
+    await streamBrainChat({
+      brainUrl: "https://b.example.com",
+      brainKey: "k",
+      chatId: "c1",
+      message: "hi",
+      firstTurn: true,
+    });
+    const body = JSON.parse(calls[0]!.init!.body as string) as {
+      firstTurn?: boolean;
+    };
+    expect(body.firstTurn).toBe(true);
+  });
+
   it("returns 502 JSON when fetch throws", async () => {
     installFetchStub({ throwError: true });
     const res = await streamBrainChat({

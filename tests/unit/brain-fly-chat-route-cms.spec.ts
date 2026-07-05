@@ -103,7 +103,9 @@ beforeEach(() => {
 
 describe("POST /api/kody/chat/brain-fly CMS context", () => {
   it("uses resolveFlyContext repo and token for Brain CMS even when getRequestAuth is unavailable later", async () => {
-    const res = await POST(request({ chatId: "c1", message: "show course" }));
+    const res = await POST(
+      request({ chatId: "c1", message: "show course", includeContext: true }),
+    );
 
     expect(res.status).toBe(200);
     expect(streamBrainChat).toHaveBeenCalledOnce();
@@ -119,6 +121,7 @@ describe("POST /api/kody/chat/brain-fly CMS context", () => {
       },
       repoToken: "ghp_ctx_token",
       dashboardUrl: "https://dashboard.example.test",
+      firstTurn: true,
     });
     expect(streamBrainChat.mock.calls[0]![0]).not.toHaveProperty("repo");
     expect(streamBrainChat.mock.calls[0]![0]).not.toHaveProperty(

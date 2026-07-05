@@ -1618,6 +1618,20 @@ describe("brainStatus", () => {
     });
   });
 
+  it("returns state='off' when the Fly token cannot see the stored app", async () => {
+    installFetchStub(() => ({ status: 403, text: "forbidden" }));
+    const out = await brainStatus({
+      flyToken: TOKEN,
+      account: "alice",
+      appNameOverride: "kody-brain-aguyaharonyair",
+    });
+    expect(out).toEqual({
+      app: "kody-brain-aguyaharonyair",
+      state: "off",
+      org: "personal",
+    });
+  });
+
   it("returns state='off' with url when the app exists but has no live machines", async () => {
     installFetchStub((call) => {
       if (

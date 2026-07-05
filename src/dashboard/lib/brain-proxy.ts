@@ -127,6 +127,8 @@ export interface BrainChatRequest {
    * is *not* serving — kept here for forward compatibility.
    */
   reasoningEffort?: string;
+  /** True when the dashboard knows this is a brand-new Brain conversation. */
+  firstTurn?: boolean;
   /**
    * When true, append the plain-language style preamble so Brain answers in
    * simpler terms (short sentences, no jargon, lead with the answer). Set by
@@ -349,6 +351,7 @@ export async function streamBrainChat(
               ...(input.reasoningEffort
                 ? { reasoningEffort: input.reasoningEffort }
                 : {}),
+              ...(input.firstTurn === true ? { firstTurn: true } : {}),
             }),
           }),
       signal: connectController.signal,

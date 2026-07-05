@@ -72,6 +72,8 @@ One doc per dashboard-managed store / capability.
 
 - ✅ [Runners](runners.md) — GitHub Actions (default) vs Fly Machines
   (per-repo, opt-in, auto-fallback); the `/runner` page.
+- ✅ [Brain runtime model](brain-runtime-model.md) — the boundary between
+  Brain image, Brain terminal, repo Brain state, and dashboard control records.
 - ✅ [Brain terminal Codex setup](brain-terminal-codex.md) — one-time setup
   prompt for making Codex inside Brain terminal read Kody state context.
 - ✅ [Vibe & Voice](vibe-and-voice.md) — preview-driven element picking into

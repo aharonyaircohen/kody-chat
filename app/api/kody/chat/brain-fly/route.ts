@@ -290,6 +290,7 @@ export async function POST(req: NextRequest) {
       ...(body.reasoningEffort
         ? { reasoningEffort: body.reasoningEffort }
         : {}),
+      firstTurn: !isResume && body.includeContext === true,
       // Repo Brain on Fly answers in plain, simple terms (external /brain
       // keeps its own style). See PLAIN_LANGUAGE_PREAMBLE in brain-proxy.
       plainLanguage: true,
