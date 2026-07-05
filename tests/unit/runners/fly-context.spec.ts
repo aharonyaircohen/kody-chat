@@ -77,18 +77,9 @@ afterEach(() => {
 });
 
 describe("resolveFlyContext", () => {
-  it("prefers the server env Fly token over the connected repo vault token", async () => {
+  it("prefers the connected repo vault Fly token over server env", async () => {
     vi.stubEnv("FLY_API_TOKEN", "fly_server");
 
-    const result = await resolveFlyContext(req());
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.context.flyToken).toBe("fly_server");
-    expect(result.context.allSecrets).toEqual({ MINIMAX_API_KEY: "mini" });
-  });
-
-  it("falls back to the connected repo vault token when server env has no Fly token", async () => {
     const result = await resolveFlyContext(req());
 
     expect(result.ok).toBe(true);
@@ -97,7 +88,7 @@ describe("resolveFlyContext", () => {
     expect(result.context.allSecrets).toEqual({ MINIMAX_API_KEY: "mini" });
   });
 
-  it("uses server env when the vault has no Fly token", async () => {
+  it("falls back to server env when the vault has no Fly token", async () => {
     vi.stubEnv("FLY_API_TOKEN", "fly_server");
     readVault.mockResolvedValue(vault({ GEMINI_API_KEY: "gemini" }));
 

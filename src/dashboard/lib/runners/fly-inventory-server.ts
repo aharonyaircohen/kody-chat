@@ -34,6 +34,12 @@ export function refreshFlyInventoryCounts(
   };
 }
 
+function envFlyTokenFallback(primaryToken: string): string | undefined {
+  const token =
+    process.env.FLY_API_TOKEN?.trim() || process.env.FLY_IO_TOKEN?.trim();
+  return token && token !== primaryToken ? token : undefined;
+}
+
 export async function appendSavedBrainMachineToInventory(
   req: NextRequest,
   inventory: FlyInventory,
@@ -49,13 +55,19 @@ export async function appendSavedBrainMachineToInventory(
     ctx.context.storeRef,
   );
   try {
-    const brain = await resolveBrainService({
-      flyToken: ctx.context.flyToken,
-      account: ctx.context.account,
-      githubToken: ctx.context.githubToken,
-      orgSlug: ctx.context.flyOrgSlug,
-      defaultRegion: ctx.context.flyDefaultRegion,
-    });
+    const resolveBrain = (flyToken: string) =>
+      resolveBrainService({
+        flyToken,
+        account: ctx.context.account,
+        githubToken: ctx.context.githubToken,
+        orgSlug: ctx.context.flyOrgSlug,
+        defaultRegion: ctx.context.flyDefaultRegion,
+      });
+    let brain = await resolveBrain(ctx.context.flyToken);
+    const fallbackToken = envFlyTokenFallback(ctx.context.flyToken);
+    if (brain.stored && !brain.machine && fallbackToken) {
+      brain = await resolveBrain(fallbackToken);
+    }
     const app = brain.app;
     if (!brain.machine) {
       if (brain.stored) {

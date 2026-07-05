@@ -198,16 +198,14 @@ export async function resolveFlyContext(
 
   const allSecrets = await buildAllSecretsFromVault(octokit, owner, repo);
 
-  // Fly Machines API token. Single source of truth: env wins, vault is
-  // the per-repo fallback. No fallback dance, no per-call retry, no
-  // multi-token probing — if the chosen token can't create, the user
-  // sees Fly's error verbatim and updates the token in one place.
+  // Fly Machines API token. The connected repo's vault owns normal machine
+  // inventory; env is only the server fallback when the repo has no token.
   const vaultFlyToken = allSecrets.FLY_API_TOKEN?.trim() || undefined;
   if ("FLY_API_TOKEN" in allSecrets) delete allSecrets.FLY_API_TOKEN;
   const flyToken =
-    process.env.FLY_API_TOKEN?.trim() ||
-    process.env.FLY_IO_TOKEN?.trim() ||
-    vaultFlyToken;
+    vaultFlyToken ??
+    process.env.FLY_API_TOKEN?.trim() ??
+    process.env.FLY_IO_TOKEN?.trim();
   const flyOrgSlug =
     allSecrets.FLY_ORG_SLUG?.trim() ||
     process.env.FLY_ORG_SLUG?.trim() ||
