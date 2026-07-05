@@ -116,7 +116,7 @@ export function GoalControlInner({
     refetch,
     error,
   } = useGoals();
-  const { data: tasks = [] } = useKodyTasks();
+  const { data: tasks = [] } = useKodyTasks({ includeDetails: true });
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);

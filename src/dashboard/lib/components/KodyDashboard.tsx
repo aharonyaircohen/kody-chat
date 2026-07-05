@@ -337,6 +337,7 @@ export function KodyDashboard({
     dataUpdatedAt,
   } = useKodyTasksPage({
     days,
+    includeDetails: true,
     viewMode: apiViewMode,
     page: isPagedTaskView ? currentTaskPage : undefined,
     perPage: isPagedTaskView ? TASK_PAGE_SIZE : undefined,

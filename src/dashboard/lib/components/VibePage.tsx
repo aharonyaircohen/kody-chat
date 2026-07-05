@@ -187,7 +187,10 @@ export function VibePage() {
   // the screen. On desktop the Sheet stays closed; the aside renders.
   const [mobileIssuesOpen, setMobileIssuesOpen] = useState(false);
 
-  const tasksQuery = useKodyTasks({ refetchInterval: "auto" });
+  const tasksQuery = useKodyTasks({
+    includeDetails: true,
+    refetchInterval: "auto",
+  });
   const tasks = tasksQuery.data;
 
   // Newly-created issues that we've optimistically pinned in the tasks

@@ -201,6 +201,7 @@ export async function GET(req: NextRequest) {
     const statusFilter = searchParams.get("status") ?? "all";
     const labelFilter = searchParams.get("label") ?? "all";
     const priorityFilter = searchParams.get("priority") ?? "all";
+    const includeDetails = searchParams.get("includeDetails") !== "false";
     const searchQuery = (searchParams.get("q") ?? "").trim().toLowerCase();
     const sortField = searchParams.get("sort") ?? "updatedAt";
     const sortDirection =
@@ -322,41 +323,48 @@ export async function GET(req: NextRequest) {
     // `state.goalIssueNumber` to skip umbrella rows from pipeline-status
     // fetch and pair them with `goal-<id>` branches) is gone.
 
-    // Fetch Vercel preview URLs for PRs that have them (1 bulk + N status calls, cached)
-    const prShas = openPRs.map((pr) => pr.head.sha);
-    const previewUrls = await fetchDeploymentPreviews(prShas);
+    const previewByPrNumber = new Map<number, string>();
+    if (includeDetails) {
+      // Fetch Vercel preview URLs for PRs that have them (1 bulk + N status calls, cached).
+      // This is detail-only work: hot-polled list surfaces send includeDetails=false.
+      const prShas = openPRs.map((pr) => pr.head.sha);
+      const previewUrls = await fetchDeploymentPreviews(prShas);
 
-    // Detect Fly-preview opt-in once for this repo: cheap vault probe.
-    // Falls through silently when the repo isn't opted in, so non-Fly
-    // repos behave exactly as before (only Vercel URLs surfaced).
-    const flyPreviewCfg = await (async () => {
-      try {
-        const octokit = await getUserOctokit(req);
-        if (!octokit) return null;
-        return await resolvePreviewConfigForOctokit({
-          octokit,
-          owner: getOwner(),
-          repo: getRepo(),
-        });
-      } catch {
-        return null;
+      // Detect Fly-preview opt-in once for this repo: cheap vault probe.
+      // Falls through silently when the repo isn't opted in, so non-Fly
+      // repos behave exactly as before (only Vercel URLs surfaced).
+      const flyPreviewCfg = await (async () => {
+        try {
+          const octokit = await getUserOctokit(req);
+          if (!octokit) return null;
+          return await resolvePreviewConfigForOctokit({
+            octokit,
+            owner: getOwner(),
+            repo: getRepo(),
+          });
+        } catch {
+          return null;
+        }
+      })();
+
+      // Build preview URL lookup keyed by PR number.
+      //
+      // Fly previews win only when the per-PR app actually has a ready URL.
+      // Otherwise we fall back to deployment previews (Vercel) or leave the
+      // task without a preview link, instead of publishing a DNS-dead Fly host.
+      const repoFullName = `${getOwner()}/${getRepo()}`;
+      const resolvedPreviewByPrNumber = await buildPreviewUrlByPrNumber({
+        openPRs,
+        deploymentPreviewUrls: previewUrls,
+        flyPreviewConfig: flyPreviewCfg,
+        repo: repoFullName,
+        signFlyPreviewUrl: ({ url, pr }) =>
+          signedFlyPreviewUrl(url, repoFullName, pr),
+      });
+      for (const [prNumber, previewUrl] of resolvedPreviewByPrNumber) {
+        previewByPrNumber.set(prNumber, previewUrl);
       }
-    })();
-
-    // Build preview URL lookup keyed by PR number.
-    //
-    // Fly previews win only when the per-PR app actually has a ready URL.
-    // Otherwise we fall back to deployment previews (Vercel) or leave the
-    // task without a preview link, instead of publishing a DNS-dead Fly host.
-    const repoFullName = `${getOwner()}/${getRepo()}`;
-    const previewByPrNumber = await buildPreviewUrlByPrNumber({
-      openPRs,
-      deploymentPreviewUrls: previewUrls,
-      flyPreviewConfig: flyPreviewCfg,
-      repo: repoFullName,
-      signFlyPreviewUrl: ({ url, pr }) =>
-        signedFlyPreviewUrl(url, repoFullName, pr),
-    });
+    }
 
     // First pass: match workflow runs once per issue (reused later in the
     // mapping loop) and identify issue numbers that need branch lookup
@@ -401,28 +409,14 @@ export async function GET(req: NextRequest) {
     const branchByIssueNumber =
       await findBranchesByIssueNumbers(activeIssueNumbers);
 
-    // Batch fetch canonical kody state for any engine-touched issue.
-    // Two signals indicate the engine wrote a state comment:
-    //   1. A `kody:*` label — engine reached the label-application stage.
-    //   2. A matched kody workflow run — engine *started* on this issue,
-    //      even if the run was cancelled before labels landed (e.g. a
-    //      concurrency-loser). Without this, an issue whose chain died
-    //      from a concurrency cancel never gets its state read; column
-    //      derivation falls to step 6 and treats the cancelled run as a
-    //      build failure even though the engine recorded `status: running`.
-    // Terminal (kody:done/failed) issues are included on purpose — that's
-    // exactly where the user wants to see the recorded state (failure
-    // reason on failed, last action on done). Reuses fetchComments' ETag
-    // cache, so polling cost is effectively zero (304 hits).
-    const kodyTouchedIssueNumbers = issues
-      .filter(
-        (i) =>
-          i.labels.some((l) => l.name.toLowerCase().startsWith("kody:")) ||
-          (typeof i.number === "number" &&
-            workflowRunByIssueNumber.has(i.number)),
-      )
-      .map((i) => i.number)
-      .filter((n): n is number => typeof n === "number" && n > 0);
+    // Batch fetch canonical kody state only for live work.
+    //
+    // This route is hot-polled by the dashboard. Reading kody state means
+    // listing issue comments, so doing it for every historical `kody:*` issue
+    // can drain the shared GitHub quota quickly across cold serverless
+    // instances, multiple tabs, and focus refetches. Terminal rows still have
+    // label/PR fallbacks here; the detail route reads full comments on demand.
+    const kodyTouchedIssueNumbers = activeIssueNumbers;
     const kodyStateByIssueNumber = new Map<number, KodyTaskState>();
     await Promise.all(
       kodyTouchedIssueNumbers.map(async (n) => {
@@ -563,7 +557,8 @@ export async function GET(req: NextRequest) {
             : null,
           assignees: issue.assignees,
           isKodyAssigned: issue.isKodyAssigned,
-          previewUrl: pr ? previewByPrNumber.get(pr.number) : undefined,
+          previewUrl:
+            includeDetails && pr ? previewByPrNumber.get(pr.number) : undefined,
           // Substatus from labels and workflow run data
           isTimeout: workflowRun?.conclusion === "timed_out",
           gateType,
