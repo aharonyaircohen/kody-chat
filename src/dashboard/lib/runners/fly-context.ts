@@ -205,9 +205,9 @@ export async function resolveFlyContext(
   const vaultFlyToken = allSecrets.FLY_API_TOKEN?.trim() || undefined;
   if ("FLY_API_TOKEN" in allSecrets) delete allSecrets.FLY_API_TOKEN;
   const flyToken =
-    vaultFlyToken ??
-    process.env.FLY_API_TOKEN?.trim() ??
-    process.env.FLY_IO_TOKEN?.trim();
+    process.env.FLY_API_TOKEN?.trim() ||
+    process.env.FLY_IO_TOKEN?.trim() ||
+    vaultFlyToken;
   const flyOrgSlug =
     allSecrets.FLY_ORG_SLUG?.trim() ||
     process.env.FLY_ORG_SLUG?.trim() ||
