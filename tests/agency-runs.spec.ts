@@ -18,7 +18,7 @@ describe("listAgencyRuns", () => {
     vi.useRealTimers();
   });
 
-  it("overlays live GitHub workflow status on persisted Kody rows", async () => {
+  it("overlays live GitHub workflow status on non-terminal Kody rows", async () => {
     vi.mocked(readStateText).mockResolvedValue({
       content: JSON.stringify({
         updatedAt: "2026-07-06T06:19:43.979Z",
@@ -27,7 +27,7 @@ describe("listAgencyRuns", () => {
             id: "goal:ci-health:gh-123-1-1",
             subjectType: "goal",
             subjectId: "ci-health",
-            status: "success",
+            status: "waiting",
             title: "ci-health",
             summary: "dispatch dev-ci-health: ready for loop tick",
             updatedAt: "2026-07-06T06:19:43.979Z",
@@ -72,6 +72,63 @@ describe("listAgencyRuns", () => {
     expect(octokit.actions.listWorkflowRunsForRepo).toHaveBeenCalledTimes(1);
   });
 
+  it("does not turn a completed dispatch row back into running from its GitHub run", async () => {
+    vi.mocked(readStateText).mockResolvedValue({
+      content: JSON.stringify({
+        updatedAt: "2026-07-06T06:19:43.979Z",
+        runs: [
+          {
+            id: "loop:daily-web-release-loop:gh-28789039386-1-1",
+            subjectType: "loop",
+            subjectId: "daily-web-release-loop",
+            status: "success",
+            title: "daily-web-release-loop",
+            summary: "dispatch goal web-release-2026-07-06",
+            currentStep: "loop.tick.dispatch",
+            updatedAt: "2026-07-06T06:19:43.979Z",
+            githubRunId: "28789039386",
+            githubRunUrl:
+              "https://github.com/A-Guy-educ/A-Guy-Web/actions/runs/28789039386",
+          },
+        ],
+      }),
+      etag: "etag-1",
+      path: "runs/index.json",
+      sha: "sha-1",
+    });
+
+    const octokit = {
+      actions: {
+        listWorkflowRunsForRepo: vi.fn().mockResolvedValue({
+          data: {
+            workflow_runs: [
+              {
+                id: 28789039386,
+                status: "in_progress",
+                conclusion: null,
+                html_url:
+                  "https://github.com/A-Guy-educ/A-Guy-Web/actions/runs/28789039386",
+              },
+            ],
+          },
+        }),
+      },
+    };
+
+    const payload = await listAgencyRuns({
+      octokit: octokit as never,
+      owner: "o",
+      repo: "r-dispatch-terminal",
+    });
+
+    expect(payload.runs[0]).toMatchObject({
+      id: "loop:daily-web-release-loop:gh-28789039386-1-1",
+      status: "success",
+      currentStep: "loop.tick.dispatch",
+      summary: "dispatch goal web-release-2026-07-06",
+    });
+  });
+
   it("keeps persisted statuses when the live GitHub overlay is unavailable", async () => {
     vi.mocked(readStateText).mockResolvedValue({
       content: JSON.stringify({
@@ -106,7 +163,7 @@ describe("listAgencyRuns", () => {
     expect(payload.runs[0]?.status).toBe("success");
   });
 
-  it("shows dispatch rows as stuck when their child goal is stale and active", async () => {
+  it("shows non-terminal dispatch rows as stuck when their child goal is stale and active", async () => {
     vi.mocked(readStateText)
       .mockResolvedValueOnce({
         content: JSON.stringify({
@@ -115,7 +172,7 @@ describe("listAgencyRuns", () => {
               id: "loop:daily-web-release-loop:gh-28758779842-1-1",
               subjectType: "loop",
               subjectId: "daily-web-release-loop",
-              status: "success",
+              status: "waiting",
               title: "daily-web-release-loop",
               summary: "dispatch goal web-release-2026-07-06",
               currentStep: "loop.tick.dispatch",

@@ -264,6 +264,14 @@ function statusFromGitHubRun(run: GitHubWorkflowRun): AgencyRunStatus | null {
   return null;
 }
 
+function canApplyLiveStatusOverlay(run: AgencyRunSummary): boolean {
+  return (
+    run.status === "running" ||
+    run.status === "waiting" ||
+    run.status === "recorded"
+  );
+}
+
 function originValue(value: unknown): AgencyRunOrigin {
   if (
     value === "manual" ||
@@ -674,6 +682,7 @@ async function applyGitHubRunOverlay({
   }
 
   return runs.map((run) => {
+    if (!canApplyLiveStatusOverlay(run)) return run;
     if (!run.githubRunId) return run;
     const githubRun = byId.get(run.githubRunId);
     if (!githubRun) return run;
@@ -723,6 +732,7 @@ async function applyDispatchTargetOverlay({
   if (!goals.size) return runs;
 
   return runs.map((run) => {
+    if (!canApplyLiveStatusOverlay(run)) return run;
     const targetId = targetIds.get(run.id);
     const goal = targetId ? goals.get(targetId) : null;
     if (!targetId || !goal) return run;
@@ -789,17 +799,17 @@ export async function listAgencyRuns({
     .filter((run): run is AgencyRunSummary => run !== null)
     .sort((a, b) => sortTime(b) - sortTime(a))
     .slice(0, boundedLimit);
-  const runsWithGitHub = await applyGitHubRunOverlay({
+  const runsWithDispatchTargets = await applyDispatchTargetOverlay({
     octokit,
     owner,
     repo,
     runs: indexedRuns,
   });
-  const runs = await applyDispatchTargetOverlay({
+  const runs = await applyGitHubRunOverlay({
     octokit,
     owner,
     repo,
-    runs: runsWithGitHub,
+    runs: runsWithDispatchTargets,
   });
 
   return {
