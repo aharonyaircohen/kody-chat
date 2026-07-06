@@ -14,6 +14,7 @@ import {
   readStateText,
   writeStateText,
 } from "./state-repo";
+import { createServerTtlCache } from "./server-ttl-cache";
 import {
   companyStoreAssetPath,
   listCompanyStoreDirectorySafe,
@@ -38,6 +39,10 @@ import {
 } from "./managed-goals";
 
 const TODOS_ROOT = "todos";
+const MANAGED_GOALS_LIST_TTL_MS = 60_000;
+const managedGoalFilesCache = createServerTtlCache<ManagedGoalRecord[]>({
+  ttlMs: MANAGED_GOALS_LIST_TTL_MS,
+});
 
 interface ContentFile {
   type?: string;
@@ -46,6 +51,10 @@ interface ContentFile {
   encoding?: string;
   content?: string;
   sha?: string;
+}
+
+function managedGoalFilesCacheKey(owner: string, repo: string): string {
+  return `${owner}/${repo}`;
 }
 
 export async function readManagedGoalFile(
@@ -124,27 +133,29 @@ export async function listManagedGoalFiles(
   owner = getOwner(),
   repo = getRepo(),
 ): Promise<ManagedGoalRecord[]> {
-  const goals: ManagedGoalRecord[] = [];
-  const seen = new Set<string>();
+  return managedGoalFilesCache.get(managedGoalFilesCacheKey(owner, repo), async () => {
+    const goals: ManagedGoalRecord[] = [];
+    const seen = new Set<string>();
 
-  const todoEntries = await listManagedTodoFiles(octokit, owner, repo);
-  for (const entry of todoEntries) {
-    if (!entry.name?.endsWith(".json")) continue;
-    const id = entry.name.slice(0, -5);
-    if (seen.has(id)) continue;
-    const file = await readManagedGoalFile(id, octokit, owner, repo);
-    if (!file) continue;
-    goals.push({
-      id,
-      path: file.path,
-      state: file.state,
-      source: "local",
-      recordType: "instance",
-    });
-    seen.add(id);
-  }
+    const todoEntries = await listManagedTodoFiles(octokit, owner, repo);
+    for (const entry of todoEntries) {
+      if (!entry.name?.endsWith(".json")) continue;
+      const id = entry.name.slice(0, -5);
+      if (seen.has(id)) continue;
+      const file = await readManagedGoalFile(id, octokit, owner, repo);
+      if (!file) continue;
+      goals.push({
+        id,
+        path: file.path,
+        state: file.state,
+        source: "local",
+        recordType: "instance",
+      });
+      seen.add(id);
+    }
 
-  return goals.sort((a, b) => a.id.localeCompare(b.id));
+    return goals.sort((a, b) => a.id.localeCompare(b.id));
+  });
 }
 
 export async function listCompanyStoreGoalTemplateFiles(
@@ -234,6 +245,7 @@ export async function writeManagedGoalFile({
         ? (sha ?? existing.sha)
         : undefined,
   });
+  managedGoalFilesCache.delete(managedGoalFilesCacheKey(owner, repo));
 }
 
 async function readManagedGoalTodoFile(
@@ -289,4 +301,5 @@ export async function deleteManagedGoalFile({
     message: message ?? `chore(goals): delete managed goal ${id}`,
     sha: sha ?? existing.sha,
   });
+  managedGoalFilesCache.delete(managedGoalFilesCacheKey(owner, repo));
 }

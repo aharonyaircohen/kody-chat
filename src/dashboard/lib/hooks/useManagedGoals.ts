@@ -135,8 +135,8 @@ export function useManagedGoals() {
     queryKey,
     queryFn: () => kodyApi.goals.listManaged(),
     enabled: !!auth,
-    staleTime: 30_000,
-    refetchInterval: 30_000,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
     refetchIntervalInBackground: false,
     retry: (failureCount, error) => {
       if (error instanceof SessionExpiredError) return false;
@@ -152,8 +152,8 @@ export function useManagedGoalRunHistory(id: string, enabled = true) {
     queryKey: managedGoalQueryKeys.runHistory(managedGoalQueryScope(auth), id),
     queryFn: () => kodyApi.goals.runHistory(id),
     enabled: !!auth && enabled && !!id,
-    staleTime: 15_000,
-    refetchInterval: enabled ? 15_000 : false,
+    staleTime: 60_000,
+    refetchInterval: enabled ? 60_000 : false,
     refetchIntervalInBackground: false,
   });
 }
