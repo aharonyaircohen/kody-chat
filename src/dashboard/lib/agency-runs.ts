@@ -32,6 +32,7 @@ type ManagedGoalStatusValue = "inactive" | "active" | "paused" | "done";
 
 type ManagedGoalStateLite = {
   state: ManagedGoalStatusValue;
+  type: string | null;
   stage: string | null;
   updatedAt: string | null;
   blockers: string[];
@@ -204,6 +205,7 @@ function parseManagedGoalState(json: string): ManagedGoalStateLite | null {
   const facts = asRecord(parsed?.facts) ?? {};
   return {
     state,
+    type: stringValue(parsed?.type),
     stage: stringValue(parsed?.stage),
     updatedAt: stringValue(parsed?.updatedAt),
     blockers: Array.isArray(parsed?.blockers)
@@ -217,6 +219,8 @@ function dispatchGoalId(run: AgencyRunSummary): string | null {
   const text = [run.summary, run.decision, run.currentStep].filter(Boolean).join("\n");
   const match = text.match(/\bdispatch goal ([A-Za-z0-9_.-]+)/i);
   if (match?.[1]) return match[1];
+  const waitingMatch = text.match(/\b(?:stuck\s+)?waiting on goal\s+([A-Za-z0-9_.-]+)/i);
+  if (waitingMatch?.[1]) return waitingMatch[1];
   if (run.kind === "goal" && /\bdispatchWorkflow\b/i.test(text)) return run.targetId;
   return null;
 }
@@ -269,6 +273,7 @@ function canApplyLiveStatusOverlay(run: AgencyRunSummary): boolean {
 }
 
 function canApplyDispatchTargetOverlay(run: AgencyRunSummary): boolean {
+  if (run.kind === "loop" && dispatchGoalId(run)) return true;
   return (
     run.status === "running" ||
     run.status === "waiting" ||
@@ -279,6 +284,75 @@ function canApplyDispatchTargetOverlay(run: AgencyRunSummary): boolean {
 function isWaitingOnDispatchTarget(run: AgencyRunSummary): boolean {
   const text = [run.summary, run.decision, run.currentStep].filter(Boolean).join("\n");
   return /\b(?:stuck\s+)?waiting on goal\s+[A-Za-z0-9_.-]+/i.test(text);
+}
+
+function relatedWorkflowRun(
+  parent: AgencyRunSummary,
+  goal: ManagedGoalStateLite,
+  runs: AgencyRunSummary[],
+): AgencyRunSummary | null {
+  if (!goal.type || !parent.githubRunId) return null;
+  return (
+    runs
+      .filter(
+        (run) =>
+          run.kind === "workflow" &&
+          run.targetId === goal.type &&
+          run.githubRunId === parent.githubRunId,
+      )
+      .sort((a, b) => sortTime(b) - sortTime(a))[0] ?? null
+  );
+}
+
+function statusFromDispatchTarget(
+  targetId: string,
+  goal: ManagedGoalStateLite,
+  workflowRun: AgencyRunSummary | null,
+): {
+  status: AgencyRunStatus;
+  currentStep: string;
+  summary: string;
+} {
+  if (
+    workflowRun &&
+    ["failed", "blocked", "cancelled", "stuck"].includes(workflowRun.status)
+  ) {
+    return {
+      status: workflowRun.status,
+      currentStep: workflowRun.currentStep
+        ? `${targetId}: ${workflowRun.currentStep}`
+        : stepFromManagedGoal(targetId, goal),
+      summary:
+        workflowRun.summary ??
+        `${targetId} ${humanWorkflowStatus(workflowRun.status)}`,
+    };
+  }
+  if (workflowRun && (workflowRun.status === "running" || workflowRun.status === "waiting")) {
+    return {
+      status: workflowRun.status,
+      currentStep: workflowRun.currentStep
+        ? `${targetId}: ${workflowRun.currentStep}`
+        : stepFromManagedGoal(targetId, goal),
+      summary: `waiting on goal ${targetId}`,
+    };
+  }
+  const status = statusFromManagedGoal(goal);
+  return {
+    status,
+    currentStep: stepFromManagedGoal(targetId, goal),
+    summary:
+      status === "stuck"
+        ? `stuck waiting on goal ${targetId}`
+        : `waiting on goal ${targetId}`,
+  };
+}
+
+function humanWorkflowStatus(status: AgencyRunStatus): string {
+  if (status === "failed") return "failed";
+  if (status === "blocked") return "blocked";
+  if (status === "cancelled") return "cancelled";
+  if (status === "stuck") return "stuck";
+  return status;
 }
 
 function originValue(value: unknown): AgencyRunOrigin {
@@ -752,15 +826,12 @@ async function applyDispatchTargetOverlay({
     const targetId = targetIds.get(run.id);
     const goal = targetId ? goals.get(targetId) : null;
     if (!targetId || !goal) return run;
-    const status = statusFromManagedGoal(goal);
+    const target = statusFromDispatchTarget(targetId, goal, relatedWorkflowRun(run, goal, runs));
     return {
       ...run,
-      status,
-      currentStep: stepFromManagedGoal(targetId, goal),
-      summary:
-        status === "stuck"
-          ? `stuck waiting on goal ${targetId}`
-          : `waiting on goal ${targetId}`,
+      status: target.status,
+      currentStep: target.currentStep,
+      summary: target.summary,
     };
   });
 }
@@ -815,17 +886,17 @@ export async function listAgencyRuns({
     .filter((run): run is AgencyRunSummary => run !== null)
     .sort((a, b) => sortTime(b) - sortTime(a))
     .slice(0, boundedLimit);
-  const runsWithDispatchTargets = await applyDispatchTargetOverlay({
+  const runsWithGitHub = await applyGitHubRunOverlay({
     octokit,
     owner,
     repo,
     runs: indexedRuns,
   });
-  const runs = await applyGitHubRunOverlay({
+  const runs = await applyDispatchTargetOverlay({
     octokit,
     owner,
     repo,
-    runs: runsWithDispatchTargets,
+    runs: runsWithGitHub,
   });
 
   return {

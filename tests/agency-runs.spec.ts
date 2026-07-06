@@ -129,6 +129,82 @@ describe("listAgencyRuns", () => {
     });
   });
 
+  it("shows a loop dispatch through the failed child workflow outcome", async () => {
+    vi.mocked(readStateText)
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          updatedAt: "2026-07-06T12:23:12.356Z",
+          runs: [
+            {
+              id: "workflow:web-release:gh-28789039386-1-6",
+              subjectType: "workflow",
+              subjectId: "web-release",
+              status: "failed",
+              title: "Web Release",
+              summary:
+                "release-merge: PR #763 auto-merge did not complete after 1800s (state: OPEN)",
+              currentStep: "release-merge",
+              updatedAt: "2026-07-06T12:23:12.356Z",
+              githubRunId: "28789039386",
+            },
+            {
+              id: "loop:daily-web-release-loop:gh-28789039386-1-1",
+              subjectType: "loop",
+              subjectId: "daily-web-release-loop",
+              status: "success",
+              title: "daily-web-release-loop",
+              summary: "dispatch goal web-release-2026-07-06",
+              currentStep: "loop.tick.dispatch",
+              updatedAt: "2026-07-06T11:45:45.513Z",
+              githubRunId: "28789039386",
+            },
+          ],
+        }),
+        etag: "etag-1",
+        path: "runs/index.json",
+        sha: "sha-1",
+      })
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          version: 1,
+          state: "active",
+          type: "web-release",
+          stage: "workflow",
+          facts: {
+            releasePromotionPrExists: true,
+            releaseBranchMerged: false,
+            productionDeployed: false,
+          },
+          blockers: [],
+          updatedAt: "2026-07-06T11:52:37Z",
+        }),
+        path: "todos/web-release-2026-07-06.json",
+        sha: "sha-2",
+      });
+
+    const octokit = {
+      actions: {
+        listWorkflowRunsForRepo: vi.fn().mockResolvedValue({
+          data: { workflow_runs: [] },
+        }),
+      },
+    };
+
+    const payload = await listAgencyRuns({
+      octokit: octokit as never,
+      owner: "o",
+      repo: "r-child-workflow-failed",
+    });
+
+    expect(payload.runs.find((run) => run.kind === "loop")).toMatchObject({
+      id: "loop:daily-web-release-loop:gh-28789039386-1-1",
+      status: "failed",
+      currentStep: "web-release-2026-07-06: release-merge",
+      summary:
+        "release-merge: PR #763 auto-merge did not complete after 1800s (state: OPEN)",
+    });
+  });
+
   it("does not turn an idle waiting loop row into a GitHub shell success", async () => {
     vi.mocked(readStateText).mockResolvedValue({
       content: JSON.stringify({
