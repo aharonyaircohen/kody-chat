@@ -210,13 +210,66 @@ function modelLabel(run: AgencyRunSummary): string | null {
 
 export type AgencyRunDiagnosis = {
   status: string;
+  pointLabel: string;
+  stoppedAt: string;
   why: string;
-  lastGoodEvent: string;
+  lastObserved: string;
   expectedNextEvent: string;
   missingEvidence: string[];
   owner: string;
   nextAction: string;
 };
+
+function waitingGoalTarget(value: string | null): string | null {
+  if (!value) return null;
+  const match = value.match(/\b(?:stuck\s+)?waiting on goal\s+([A-Za-z0-9_.@-]+)/i);
+  return match?.[1] ?? null;
+}
+
+function handoffChain(value: string | null): { from: string; to: string } | null {
+  if (!value) return null;
+  const formatted = value.match(
+    /\bHand-off:\s*([A-Za-z0-9_.@-]+)\s*(?:->|→)\s*([A-Za-z0-9_.@-]+)/i,
+  );
+  if (formatted?.[1] && formatted[2]) return { from: formatted[1], to: formatted[2] };
+  const inline = value.match(
+    /\b([A-Za-z0-9_.@-]+):\s*in-process hand-off\s*(?:->|→)\s*([A-Za-z0-9_.@-]+)/i,
+  );
+  if (inline?.[1] && inline[2]) return { from: inline[1], to: inline[2] };
+  return null;
+}
+
+function firstTextMatch<T>(
+  values: string[],
+  matcher: (value: string) => T | null,
+): T | null {
+  for (const value of values) {
+    const match = matcher(value);
+    if (match) return match;
+  }
+  return null;
+}
+
+function runLabel(run: AgencyRunSummary): string {
+  return run.targetLabel || run.targetId;
+}
+
+function observedEvent(
+  latestName: string | null,
+  latestReason: string | null,
+  currentStep: string | null,
+): string {
+  if (latestName && latestReason) return `${latestName}: ${latestReason}`;
+  return latestName ?? currentStep ?? "Run record created";
+}
+
+function displayedChain(
+  chain: { from: string; to: string },
+  subject: string,
+): string {
+  const from = chain.from.toLowerCase() === "kody" ? subject : chain.from;
+  return `${from} -> ${chain.to}`;
+}
 
 function hasFinalOutcome(run: AgencyRunSummary, events: Record<string, unknown>[]): boolean {
   if (["success", "failed", "blocked", "cancelled"].includes(run.status)) return true;
@@ -232,16 +285,30 @@ function hasFinalOutcome(run: AgencyRunSummary, events: Record<string, unknown>[
 export function agencyRunDiagnosis(
   run: AgencyRunSummary,
   events: Record<string, unknown>[],
+  workflowLines: string[] = [],
 ): AgencyRunDiagnosis {
   const latest = events.at(-1) ?? null;
   const latestName = eventName(latest);
   const latestReason = eventDecisionSummary(latest) ?? eventResultSummary(latest);
+  const diagnosticText = [
+    run.summary,
+    run.currentStep,
+    run.decision,
+    latestReason,
+    ...workflowLines,
+  ].filter((value): value is string => Boolean(value));
+  const waitingGoal = firstTextMatch(diagnosticText, waitingGoalTarget);
+  const chain = firstTextMatch(diagnosticText, handoffChain);
   const handoff =
     handoffTarget(run.currentStep) ??
     handoffTarget(run.summary) ??
-    handoffTarget(latestReason);
+    handoffTarget(latestReason) ??
+    chain?.to ??
+    waitingGoal;
+  const subject = runLabel(run);
   const finalOutcome = hasFinalOutcome(run, events);
   const missingEvidence = [
+    waitingGoal && !finalOutcome ? `No completion event from ${waitingGoal}.` : null,
     !finalOutcome && ["running", "waiting", "stuck", "recorded"].includes(run.status)
       ? "No final outcome event."
       : null,
@@ -250,37 +317,67 @@ export function agencyRunDiagnosis(
   ].filter((line): line is string => line !== null);
 
   if (run.status === "stuck") {
+    const stoppedAt = waitingGoal
+      ? `${subject} -> ${waitingGoal}`
+      : chain
+        ? displayedChain(chain, subject)
+        : handoff
+          ? `${subject} -> ${handoff}`
+          : latestName ?? subject;
     return {
       status: "Stuck",
-      why: handoff
-        ? `Kody handed work to ${handoff}, but no later progress was recorded.`
-        : latestName
-          ? `The last recorded event is ${latestName}, but the run did not finish.`
-          : "Kody has no progress event after the run started.",
-      lastGoodEvent: latestName ?? "Run record created",
-      expectedNextEvent: handoff
-        ? `${handoff} should report progress or finish.`
-        : "The run should report progress or finish.",
+      pointLabel: "Stopped at",
+      stoppedAt,
+      why: waitingGoal
+        ? `${waitingGoal} did not finish or report new progress after ${subject} handed work to it.`
+        : chain
+          ? `${chain.to} was expected to report back after the hand-off, but no completion event is recorded.`
+          : handoff
+            ? `${handoff} was expected to report progress or finish, but no completion event is recorded.`
+            : latestName
+              ? `The run stopped after ${latestName}; no completion event is recorded.`
+              : "Kody has no progress event after the run started.",
+      lastObserved: observedEvent(latestName, latestReason, run.currentStep),
+      expectedNextEvent: waitingGoal
+        ? `${waitingGoal} should report progress or completion.`
+        : handoff
+          ? `${handoff} should report progress or finish.`
+          : "The run should report progress or finish.",
       missingEvidence,
-      owner: handoff ?? runtimeLabel(run) ?? run.actor ?? "Kody",
-      nextAction: handoff
-        ? `Open the raw timeline or source log and check why ${handoff} did not report back.`
-        : "Open the raw timeline or source log and check the last recorded event.",
+      owner: waitingGoal ?? handoff ?? runtimeLabel(run) ?? run.actor ?? "Kody",
+      nextAction: waitingGoal
+        ? `Inspect ${waitingGoal}'s state or source log, then check why it did not report back to ${subject}.`
+        : handoff
+          ? `Open the raw timeline or source log and check why ${handoff} did not report back.`
+          : "Open the raw timeline or source log and check the last recorded event.",
     };
   }
 
   if (run.status === "running" || run.status === "waiting") {
+    const activePoint = waitingGoal
+      ? `${subject} -> ${waitingGoal}`
+      : chain
+        ? displayedChain(chain, subject)
+        : handoff
+          ? `${subject} -> ${handoff}`
+          : subject;
     return {
       status: humanStatus(run.status),
-      why: latestName
-        ? `The latest event is ${latestName}.`
-        : "Kody has not recorded a progress event yet.",
-      lastGoodEvent: latestName ?? "Run record created",
-      expectedNextEvent: handoff
-        ? `${handoff} should report progress or finish.`
-        : "The run should report progress or finish.",
+      pointLabel: run.status === "waiting" ? "Waiting at" : "Current point",
+      stoppedAt: activePoint,
+      why: waitingGoal
+        ? `${subject} is waiting for ${waitingGoal} to report back.`
+        : latestName
+          ? `The latest event is ${latestName}.`
+          : "Kody has not recorded a progress event yet.",
+      lastObserved: observedEvent(latestName, latestReason, run.currentStep),
+      expectedNextEvent: waitingGoal
+        ? `${waitingGoal} should report progress or completion.`
+        : handoff
+          ? `${handoff} should report progress or finish.`
+          : "The run should report progress or finish.",
       missingEvidence,
-      owner: handoff ?? runtimeLabel(run) ?? run.actor ?? "Kody",
+      owner: waitingGoal ?? handoff ?? runtimeLabel(run) ?? run.actor ?? "Kody",
       nextAction:
         run.status === "waiting"
           ? "Wait for the delegated work to report back, then refresh this page."
@@ -291,8 +388,10 @@ export function agencyRunDiagnosis(
   if (run.status === "failed" || run.status === "blocked") {
     return {
       status: humanStatus(run.status),
+      pointLabel: "Stopped at",
+      stoppedAt: latestName ?? runtimeLabel(run) ?? subject,
       why: latestReason ?? displayValue(run.decision) ?? "Kody recorded a stop condition.",
-      lastGoodEvent: latestName ?? "Run record created",
+      lastObserved: observedEvent(latestName, latestReason, run.currentStep),
       expectedNextEvent: "Operator review is needed before this run can be trusted.",
       missingEvidence,
       owner: runtimeLabel(run) ?? run.actor ?? "Kody",
@@ -302,11 +401,13 @@ export function agencyRunDiagnosis(
 
   return {
     status: humanStatus(run.status),
+    pointLabel: run.status === "success" || run.status === "cancelled" ? "Ended at" : "Recorded at",
+    stoppedAt: latestName ?? runtimeLabel(run) ?? subject,
     why:
       run.status === "success"
         ? "Kody recorded a completed run."
         : latestReason ?? displayValue(run.summary) ?? "Kody recorded this run.",
-    lastGoodEvent: latestName ?? "Run record created",
+    lastObserved: observedEvent(latestName, latestReason, run.currentStep),
     expectedNextEvent:
       run.status === "success" || run.status === "cancelled"
         ? "No next event is expected."
@@ -478,6 +579,14 @@ export function operatorHappenedLines(
   return [operatorHappened(run, events, workflowSummary)];
 }
 
+export function shouldWaitForRunStory(
+  run: AgencyRunSummary,
+  hasDetailData: boolean,
+  isFetching: boolean,
+): boolean {
+  return isFetching && !hasDetailData && Boolean(run.sourcePath || run.githubRunId);
+}
+
 function operatorNext(
   run: AgencyRunSummary,
   events: Record<string, unknown>[],
@@ -572,7 +681,13 @@ function RunDiagnosisPanel({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="text-[10px] uppercase tracking-wide text-white/35">
-            Diagnosis
+            {diagnosis.pointLabel}
+          </div>
+          <div className="mt-1 break-words font-mono text-base font-semibold leading-6 text-white/90">
+            {diagnosis.stoppedAt}
+          </div>
+          <div className="mt-2 text-[10px] uppercase tracking-wide text-white/35">
+            Why
           </div>
           <div className="mt-1 text-sm font-medium leading-5 text-white/85">
             {diagnosis.why}
@@ -584,9 +699,9 @@ function RunDiagnosisPanel({
       </div>
       <div className="mt-3 grid gap-3 md:grid-cols-4">
         <div className="space-y-1">
-          <div className="text-white/35">Last good event</div>
+          <div className="text-white/35">Last observed</div>
           <div className="break-words text-white/75">
-            {diagnosis.lastGoodEvent}
+            {diagnosis.lastObserved}
           </div>
         </div>
         <div className="space-y-1">
@@ -618,6 +733,15 @@ function RunDiagnosisPanel({
   );
 }
 
+function RunStoryLoadingPanel() {
+  return (
+    <section className="rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-3 text-sm leading-5 text-white/65">
+      <Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" />
+      Loading run detail...
+    </section>
+  );
+}
+
 function RunRow({
   run,
   expanded,
@@ -645,14 +769,20 @@ function RunRow({
     stateRepo: parseGitHubRepoUrl(auth?.storeRepoUrl),
   };
   const events = rawEvents.slice(-4).reverse();
-  const happened = operatorHappenedLines(
+  const waitingForRunStory = shouldWaitForRunStory(
     run,
-    rawEvents,
-    workflowSummary,
-    workflowLines,
+    Boolean(detail.data),
+    detail.isFetching,
   );
-  const diagnosis = agencyRunDiagnosis(run, rawEvents);
-  const next = operatorNext(run, rawEvents, workflowSummary);
+  const happened = waitingForRunStory
+    ? []
+    : operatorHappenedLines(run, rawEvents, workflowSummary, workflowLines);
+  const diagnosis = waitingForRunStory
+    ? null
+    : agencyRunDiagnosis(run, rawEvents, workflowLines);
+  const next = waitingForRunStory
+    ? null
+    : operatorNext(run, rawEvents, workflowSummary);
   return (
     <article className="border-b border-white/[0.06] last:border-b-0">
       <button
@@ -700,12 +830,21 @@ function RunRow({
       </button>
       {expanded ? (
         <div className="space-y-4 border-t border-white/[0.05] bg-black/20 px-3 py-3 text-xs">
-          <RunDiagnosisPanel diagnosis={diagnosis} />
+          {diagnosis ? (
+            <RunDiagnosisPanel diagnosis={diagnosis} />
+          ) : (
+            <RunStoryLoadingPanel />
+          )}
 
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-1">
               <div className="text-white/35">What happened</div>
-              {happened.length > 1 ? (
+              {waitingForRunStory ? (
+                <div className="text-sm leading-5 text-white/55">
+                  <Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" />
+                  Loading run story...
+                </div>
+              ) : happened.length > 1 ? (
                 <ul className="space-y-1 text-sm leading-5 text-white/80">
                   {happened.map((line, index) => (
                     <li key={`${line}-${index}`} className="flex gap-2">
@@ -722,7 +861,9 @@ function RunRow({
             </div>
             <div className="space-y-1">
               <div className="text-white/35">Next state</div>
-              <div className="text-sm leading-5 text-white/80">{next}</div>
+              <div className="text-sm leading-5 text-white/80">
+                {next ?? "Loading run state..."}
+              </div>
             </div>
           </div>
 

@@ -8,6 +8,7 @@ import {
   operatorHappenedLines,
   operatorRunFactLines,
   runEvidenceViewTarget,
+  shouldWaitForRunStory,
 } from "../../src/dashboard/lib/components/AgencyRunsPage";
 import type { AgencyRunSummary } from "../../src/dashboard/lib/agency-runs";
 
@@ -204,10 +205,12 @@ describe("Agency Runs page", () => {
     ]);
 
     expect(diagnosis.status).toBe("Stuck");
+    expect(diagnosis.pointLabel).toBe("Stopped at");
+    expect(diagnosis.stoppedAt).toBe("ci-health -> dev-ci-health");
     expect(diagnosis.why).toBe(
-      "Kody handed work to dev-ci-health, but no later progress was recorded.",
+      "dev-ci-health was expected to report back after the hand-off, but no completion event is recorded.",
     );
-    expect(diagnosis.lastGoodEvent).toBe("kody: in-process hand-off");
+    expect(diagnosis.lastObserved).toBe("kody: in-process hand-off: dev-ci-health (hop 1/60)");
     expect(diagnosis.expectedNextEvent).toBe(
       "dev-ci-health should report progress or finish.",
     );
@@ -216,5 +219,69 @@ describe("Agency Runs page", () => {
     expect(diagnosis.nextAction).toBe(
       "Open the raw timeline or source log and check why dev-ci-health did not report back.",
     );
+  });
+
+  it("shows the child goal as the stuck point when a loop waits on dispatched work", () => {
+    const run: AgencyRunSummary = {
+      id: "run-2",
+      kind: "loop",
+      targetId: "ci-health",
+      targetLabel: "ci-health",
+      targetModel: "loop",
+      origin: "manual",
+      status: "stuck",
+      title: "CI health loop",
+      summary: "stuck waiting on goal dev-ci-health",
+      currentStep: "dev-ci-health: active / pending evidence",
+      decision: null,
+      startedAt: "2026-07-06T06:00:00.000Z",
+      updatedAt: "2026-07-06T06:25:00.000Z",
+      durationMs: 1_500_000,
+      kodyRunId: "kody-run-2",
+      githubRunId: null,
+      githubRunUrl: null,
+      logUrl: null,
+      statePath: "todos/dev-ci-health.json",
+      sourcePath: "logs/goals/ci-health/runs/run.jsonl",
+      action: "run",
+      capability: null,
+      workflow: "dev-ci-health",
+      executable: "goal-manager",
+      agent: "kody",
+      model: "claude/claude-sonnet-4-5",
+      modelProvider: "anthropic",
+      modelName: "Claude Sonnet 4.5",
+      reasoningEffort: null,
+      actor: "operator",
+    };
+
+    const diagnosis = agencyRunDiagnosis(run, [], [
+      "Hand-off: kody -> dev-ci-health (hop 1/60).",
+    ]);
+
+    expect(diagnosis.stoppedAt).toBe("ci-health -> dev-ci-health");
+    expect(diagnosis.why).toBe(
+      "dev-ci-health did not finish or report new progress after ci-health handed work to it.",
+    );
+    expect(diagnosis.lastObserved).toBe("dev-ci-health: active / pending evidence");
+    expect(diagnosis.expectedNextEvent).toBe(
+      "dev-ci-health should report progress or completion.",
+    );
+    expect(diagnosis.missingEvidence).toEqual([
+      "No completion event from dev-ci-health.",
+      "No final outcome event.",
+    ]);
+    expect(diagnosis.owner).toBe("dev-ci-health");
+  });
+
+  it("does not show fallback run facts while run story detail is loading", () => {
+    const run = {
+      sourcePath: "logs/goals/ai-agency-health/runs/run.jsonl",
+      githubRunId: "28770677390",
+    } as AgencyRunSummary;
+
+    expect(shouldWaitForRunStory(run, false, true)).toBe(true);
+    expect(shouldWaitForRunStory(run, true, true)).toBe(false);
+    expect(shouldWaitForRunStory(run, false, false)).toBe(false);
   });
 });
