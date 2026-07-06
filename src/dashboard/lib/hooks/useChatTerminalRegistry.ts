@@ -788,7 +788,7 @@ export function useChatTerminalRegistry({
     };
 
     void refreshStatus();
-    const interval = setInterval(() => void refreshStatus(), 30_000);
+    const interval = setInterval(() => void refreshStatus(), 60_000);
     return () => {
       cancelled = true;
       clearInterval(interval);
@@ -856,7 +856,7 @@ export function useChatTerminalRegistry({
     };
 
     void refreshStatus();
-    const interval = setInterval(() => void refreshStatus(), 30_000);
+    const interval = setInterval(() => void refreshStatus(), 60_000);
     return () => {
       cancelled = true;
       clearInterval(interval);

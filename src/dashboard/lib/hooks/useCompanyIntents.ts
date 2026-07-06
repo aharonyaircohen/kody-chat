@@ -44,8 +44,8 @@ export function useCompanyIntents() {
     queryKey: companyIntentQueryKeys.list,
     queryFn: () => kodyApi.companyIntents.list(),
     enabled: Boolean(getStoredAuth()),
-    staleTime: 30_000,
-    refetchInterval: 30_000,
+    staleTime: 120_000,
+    refetchInterval: 120_000,
     refetchIntervalInBackground: false,
     retry: (failureCount, error) => {
       if (

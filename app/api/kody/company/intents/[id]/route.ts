@@ -35,6 +35,7 @@ import {
   type CompanyIntentManagerHealth,
   type CompanyIntentRecord,
 } from "@dashboard/lib/company-intents";
+import { clearCompanyIntentRecordsCache } from "@dashboard/lib/company-intents-read-cache";
 import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
 
 const intentStatusSchema = z.enum(["active", "paused", "archived"]);
@@ -277,6 +278,7 @@ export async function PATCH(
       sha: existing.sha,
       message: `chore(intents): update ${id}`,
     });
+    clearCompanyIntentRecordsCache(headerAuth.owner, headerAuth.repo);
 
     const updated = await readRecord(
       octokit,

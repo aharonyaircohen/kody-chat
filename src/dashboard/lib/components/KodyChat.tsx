@@ -463,8 +463,8 @@ function terminalCheckpointSearchParams(
 }
 
 const LETTER_RE = /\p{L}/u;
-const BRAIN_IMAGE_SAVE_POLL_INTERVAL_MS = 5_000;
-const BRAIN_IMAGE_SAVE_MAX_POLLS = 1_440; // 2 hours at 5 seconds.
+const BRAIN_IMAGE_SAVE_POLL_INTERVAL_MS = 10_000;
+const BRAIN_IMAGE_SAVE_MAX_POLLS = 720; // 2 hours at 10 seconds.
 
 function isRtlCodePoint(codePoint: number): boolean {
   return (
