@@ -98,6 +98,10 @@ function eventSummary(event: Record<string, unknown>): {
   };
 }
 
+function eventName(event: Record<string, unknown> | null): string | null {
+  return textValue(event?.event) ?? textValue(event?.type);
+}
+
 function StatusIcon({ status }: { status: AgencyRunStatus }) {
   if (status === "success") return <CheckCircle2 className="h-3.5 w-3.5" />;
   if (status === "failed") return <XCircle className="h-3.5 w-3.5" />;
@@ -141,6 +145,14 @@ function dispatchTarget(value: string | null): string | null {
   if (!value) return null;
   const match = value.match(/^dispatch\s+([^:]+)(?::\s*(.+))?$/i);
   return match?.[1]?.trim() ?? null;
+}
+
+function handoffTarget(value: string | null): string | null {
+  if (!value) return null;
+  const arrowMatch = value.match(/(?:->|→)\s*([A-Za-z0-9_.@-]+)/);
+  if (arrowMatch?.[1]) return arrowMatch[1];
+  const handoffMatch = value.match(/\bhand-?off\b.*?\bto\s+([A-Za-z0-9_.@-]+)/i);
+  return handoffMatch?.[1] ?? null;
 }
 
 function displayValue(value: string | null): string | null {
@@ -194,6 +206,118 @@ function modelLabel(run: AgencyRunSummary): string | null {
     return `${run.modelName} (${run.model})`;
   }
   return run.modelName ?? run.model;
+}
+
+export type AgencyRunDiagnosis = {
+  status: string;
+  why: string;
+  lastGoodEvent: string;
+  expectedNextEvent: string;
+  missingEvidence: string[];
+  owner: string;
+  nextAction: string;
+};
+
+function hasFinalOutcome(run: AgencyRunSummary, events: Record<string, unknown>[]): boolean {
+  if (["success", "failed", "blocked", "cancelled"].includes(run.status)) return true;
+  return events.some((event) => {
+    const name = eventName(event) ?? "";
+    const status = textValue(event.status) ?? "";
+    return /complete|completed|success|failed|failure|blocked|cancelled|outcome|finish/i.test(
+      `${name} ${status}`,
+    );
+  });
+}
+
+export function agencyRunDiagnosis(
+  run: AgencyRunSummary,
+  events: Record<string, unknown>[],
+): AgencyRunDiagnosis {
+  const latest = events.at(-1) ?? null;
+  const latestName = eventName(latest);
+  const latestReason = eventDecisionSummary(latest) ?? eventResultSummary(latest);
+  const handoff =
+    handoffTarget(run.currentStep) ??
+    handoffTarget(run.summary) ??
+    handoffTarget(latestReason);
+  const finalOutcome = hasFinalOutcome(run, events);
+  const missingEvidence = [
+    !finalOutcome && ["running", "waiting", "stuck", "recorded"].includes(run.status)
+      ? "No final outcome event."
+      : null,
+    !run.sourcePath && events.length === 0 ? "No source log." : null,
+    run.githubRunId && !run.githubRunUrl ? "No GitHub run link." : null,
+  ].filter((line): line is string => line !== null);
+
+  if (run.status === "stuck") {
+    return {
+      status: "Stuck",
+      why: handoff
+        ? `Kody handed work to ${handoff}, but no later progress was recorded.`
+        : latestName
+          ? `The last recorded event is ${latestName}, but the run did not finish.`
+          : "Kody has no progress event after the run started.",
+      lastGoodEvent: latestName ?? "Run record created",
+      expectedNextEvent: handoff
+        ? `${handoff} should report progress or finish.`
+        : "The run should report progress or finish.",
+      missingEvidence,
+      owner: handoff ?? runtimeLabel(run) ?? run.actor ?? "Kody",
+      nextAction: handoff
+        ? `Open the raw timeline or source log and check why ${handoff} did not report back.`
+        : "Open the raw timeline or source log and check the last recorded event.",
+    };
+  }
+
+  if (run.status === "running" || run.status === "waiting") {
+    return {
+      status: humanStatus(run.status),
+      why: latestName
+        ? `The latest event is ${latestName}.`
+        : "Kody has not recorded a progress event yet.",
+      lastGoodEvent: latestName ?? "Run record created",
+      expectedNextEvent: handoff
+        ? `${handoff} should report progress or finish.`
+        : "The run should report progress or finish.",
+      missingEvidence,
+      owner: handoff ?? runtimeLabel(run) ?? run.actor ?? "Kody",
+      nextAction:
+        run.status === "waiting"
+          ? "Wait for the delegated work to report back, then refresh this page."
+          : "Refresh this page or open the raw timeline if it stays unchanged.",
+    };
+  }
+
+  if (run.status === "failed" || run.status === "blocked") {
+    return {
+      status: humanStatus(run.status),
+      why: latestReason ?? displayValue(run.decision) ?? "Kody recorded a stop condition.",
+      lastGoodEvent: latestName ?? "Run record created",
+      expectedNextEvent: "Operator review is needed before this run can be trusted.",
+      missingEvidence,
+      owner: runtimeLabel(run) ?? run.actor ?? "Kody",
+      nextAction: "Open the raw timeline and run evidence to inspect the stop reason.",
+    };
+  }
+
+  return {
+    status: humanStatus(run.status),
+    why:
+      run.status === "success"
+        ? "Kody recorded a completed run."
+        : latestReason ?? displayValue(run.summary) ?? "Kody recorded this run.",
+    lastGoodEvent: latestName ?? "Run record created",
+    expectedNextEvent:
+      run.status === "success" || run.status === "cancelled"
+        ? "No next event is expected."
+        : "No expected next event was recorded.",
+    missingEvidence,
+    owner: runtimeLabel(run) ?? run.actor ?? "Kody",
+    nextAction:
+      run.status === "success"
+        ? "No action needed."
+        : "Open the raw timeline and run evidence if this state looks wrong.",
+  };
 }
 
 export function operatorRunFactLines(run: AgencyRunSummary): string[] {
@@ -438,6 +562,62 @@ function RunEvidenceLine({
   );
 }
 
+function RunDiagnosisPanel({
+  diagnosis,
+}: {
+  diagnosis: AgencyRunDiagnosis;
+}) {
+  return (
+    <section className="rounded-md border border-white/[0.08] bg-white/[0.03] px-3 py-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="text-[10px] uppercase tracking-wide text-white/35">
+            Diagnosis
+          </div>
+          <div className="mt-1 text-sm font-medium leading-5 text-white/85">
+            {diagnosis.why}
+          </div>
+        </div>
+        <span className="inline-flex w-fit shrink-0 rounded border border-white/[0.1] bg-black/20 px-2 py-1 text-[10px] uppercase tracking-wide text-white/60">
+          {diagnosis.status}
+        </span>
+      </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-4">
+        <div className="space-y-1">
+          <div className="text-white/35">Last good event</div>
+          <div className="break-words text-white/75">
+            {diagnosis.lastGoodEvent}
+          </div>
+        </div>
+        <div className="space-y-1">
+          <div className="text-white/35">Expected next event</div>
+          <div className="break-words text-white/75">
+            {diagnosis.expectedNextEvent}
+          </div>
+        </div>
+        <div className="space-y-1">
+          <div className="text-white/35">Missing evidence</div>
+          <div className="break-words text-white/75">
+            {diagnosis.missingEvidence.length
+              ? diagnosis.missingEvidence.join(" ")
+              : "Nothing obvious."}
+          </div>
+        </div>
+        <div className="space-y-1">
+          <div className="text-white/35">Owner</div>
+          <div className="break-words text-white/75">{diagnosis.owner}</div>
+        </div>
+      </div>
+      <div className="mt-3 border-t border-white/[0.06] pt-2">
+        <div className="text-white/35">Next action</div>
+        <div className="mt-0.5 text-sm leading-5 text-white/80">
+          {diagnosis.nextAction}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function RunRow({
   run,
   expanded,
@@ -471,6 +651,7 @@ function RunRow({
     workflowSummary,
     workflowLines,
   );
+  const diagnosis = agencyRunDiagnosis(run, rawEvents);
   const next = operatorNext(run, rawEvents, workflowSummary);
   return (
     <article className="border-b border-white/[0.06] last:border-b-0">
@@ -519,6 +700,8 @@ function RunRow({
       </button>
       {expanded ? (
         <div className="space-y-4 border-t border-white/[0.05] bg-black/20 px-3 py-3 text-xs">
+          <RunDiagnosisPanel diagnosis={diagnosis} />
+
           <div className="grid gap-3 md:grid-cols-2">
             <div className="space-y-1">
               <div className="text-white/35">What happened</div>

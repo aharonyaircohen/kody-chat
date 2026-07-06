@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import {
+  agencyRunDiagnosis,
   formatRunEvidenceLine,
   operatorHappenedLines,
   operatorRunFactLines,
@@ -35,6 +36,7 @@ describe("Agency Runs page", () => {
   });
 
   it("opens run details with run story before raw events", () => {
+    const diagnosisIndex = pageSource.indexOf("Diagnosis");
     const happenedIndex = pageSource.indexOf("What happened");
     const nextIndex = pageSource.indexOf("Next state");
     const rawIndex = pageSource.indexOf("Raw event timeline");
@@ -42,12 +44,15 @@ describe("Agency Runs page", () => {
 
     expect(pageSource).toContain("function operatorHappened");
     expect(pageSource).toContain("function operatorNext");
+    expect(pageSource).toContain("Diagnosis");
     expect(pageSource).toContain("What happened");
     expect(pageSource).toContain("Run evidence");
     expect(pageSource).toContain("Next state");
     expect(pageSource).toContain("Raw event timeline");
     expect(pageSource).not.toContain(">Outcome<");
+    expect(diagnosisIndex).toBeGreaterThan(-1);
     expect(happenedIndex).toBeGreaterThan(-1);
+    expect(diagnosisIndex).toBeLessThan(happenedIndex);
     expect(nextIndex).toBeGreaterThan(happenedIndex);
     expect(rawIndex).toBeGreaterThan(nextIndex);
     expect(evidenceIndex).toBeGreaterThan(rawIndex);
@@ -154,5 +159,62 @@ describe("Agency Runs page", () => {
       external: true,
       label: "Open reference",
     });
+  });
+
+  it("diagnoses a stuck handoff without hiding the raw evidence", () => {
+    const run: AgencyRunSummary = {
+      id: "run-1",
+      kind: "loop",
+      targetId: "ci-health",
+      targetLabel: "ci-health",
+      targetModel: "loop",
+      origin: "manual",
+      status: "stuck",
+      title: "CI health loop",
+      summary: "dispatch goal ci-health",
+      currentStep: "kody: in-process hand-off -> dev-ci-health (hop 1/60)",
+      decision: null,
+      startedAt: "2026-07-06T06:00:00.000Z",
+      updatedAt: "2026-07-06T06:01:00.000Z",
+      durationMs: 61_000,
+      kodyRunId: "kody-run-1",
+      githubRunId: "123456",
+      githubRunUrl: "https://github.com/test/repo/actions/runs/123456",
+      logUrl: null,
+      statePath: null,
+      sourcePath: "logs/goals/ci-health/runs/run.jsonl",
+      action: "run",
+      capability: null,
+      workflow: "dev-ci-health",
+      executable: "goal-manager",
+      agent: "kody",
+      model: "claude/claude-sonnet-4-5",
+      modelProvider: "anthropic",
+      modelName: "Claude Sonnet 4.5",
+      reasoningEffort: null,
+      actor: "operator",
+    };
+
+    const diagnosis = agencyRunDiagnosis(run, [
+      {
+        event: "kody: in-process hand-off",
+        time: "2026-07-06T06:01:00.000Z",
+        summary: "dev-ci-health (hop 1/60)",
+      },
+    ]);
+
+    expect(diagnosis.status).toBe("Stuck");
+    expect(diagnosis.why).toBe(
+      "Kody handed work to dev-ci-health, but no later progress was recorded.",
+    );
+    expect(diagnosis.lastGoodEvent).toBe("kody: in-process hand-off");
+    expect(diagnosis.expectedNextEvent).toBe(
+      "dev-ci-health should report progress or finish.",
+    );
+    expect(diagnosis.missingEvidence).toContain("No final outcome event.");
+    expect(diagnosis.owner).toBe("dev-ci-health");
+    expect(diagnosis.nextAction).toBe(
+      "Open the raw timeline or source log and check why dev-ci-health did not report back.",
+    );
   });
 });
