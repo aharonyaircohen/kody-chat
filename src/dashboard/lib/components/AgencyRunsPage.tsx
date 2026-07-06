@@ -375,20 +375,6 @@ function RunRow({
                   {happened[0]}
                 </div>
               )}
-              {evidenceLines.length > 0 ? (
-                <details className="group mt-2 rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-1.5">
-                  <summary className="cursor-pointer select-none text-xs text-white/45 hover:text-white/70">
-                    Run evidence
-                  </summary>
-                  <ul className="mt-2 space-y-1 text-xs leading-5 text-white/60">
-                    {evidenceLines.map((line, index) => (
-                      <li key={`${line}-${index}`} className="break-words">
-                        {line}
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              ) : null}
             </div>
             <div className="space-y-1">
               <div className="text-white/35">Next state</div>
@@ -501,6 +487,21 @@ function RunRow({
               <div className="mt-2 text-white/45">No source log</div>
             )}
           </details>
+
+          {evidenceLines.length > 0 ? (
+            <details className="border-t border-white/[0.05] pt-3">
+              <summary className="cursor-pointer text-white/45 hover:text-white/70">
+                Run evidence
+              </summary>
+              <ul className="mt-2 space-y-1 rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2 text-xs leading-5 text-white/60">
+                {evidenceLines.map((line, index) => (
+                  <li key={`${line}-${index}`} className="break-words">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          ) : null}
         </div>
       ) : null}
     </article>

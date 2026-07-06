@@ -36,6 +36,7 @@ describe("Agency Runs page", () => {
     const outcomeIndex = pageSource.indexOf("What happened");
     const nextIndex = pageSource.indexOf("Next state");
     const rawIndex = pageSource.indexOf("Raw event timeline");
+    const evidenceIndex = pageSource.indexOf("Run evidence");
 
     expect(pageSource).toContain("function operatorHappened");
     expect(pageSource).toContain("function operatorNext");
@@ -46,6 +47,7 @@ describe("Agency Runs page", () => {
     expect(outcomeIndex).toBeGreaterThan(-1);
     expect(nextIndex).toBeGreaterThan(outcomeIndex);
     expect(rawIndex).toBeGreaterThan(nextIndex);
+    expect(evidenceIndex).toBeGreaterThan(rawIndex);
   });
 
   it("expands dispatch-only summaries into useful run facts", () => {
