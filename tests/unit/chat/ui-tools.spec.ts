@@ -124,6 +124,25 @@ describe("ui tools", () => {
     });
   });
 
+  it("does not synthesize renderer data during execution", async () => {
+    const tools = createUiTools({
+      viewRendererDefinitions: [decisionRenderer],
+      userText: "i want to open new issue, changelog is not properly populated",
+    }) as Record<string, unknown>;
+    const showView = tools.show_view as {
+      execute: (value: Record<string, unknown>) => Promise<{ error?: string }>;
+    };
+
+    await expect(
+      showView.execute({
+        purpose: "decision",
+        data: {},
+      }),
+    ).resolves.toMatchObject({
+      error: expect.stringContaining("show_view requires data"),
+    });
+  });
+
   it("advertises renderer data as an open object in the provider schema", async () => {
     const tools = createUiTools() as Record<string, unknown>;
     const showView = tools.show_view as {

@@ -129,7 +129,16 @@ async function mockShellApis(page: Page): Promise<void> {
   );
 }
 
-function renderedApprovalView() {
+function renderedApprovalView(
+  overrides: {
+    title?: string;
+    body?: string;
+    bodyType?: "text" | "markdown";
+  } = {},
+) {
+  const title = overrides.title ?? "Confirm this question?";
+  const body = overrides.body ?? "Should I continue?";
+  const bodyType = overrides.bodyType ?? "text";
   return {
     action: "render_view",
     view: "renderer",
@@ -140,8 +149,8 @@ function renderedApprovalView() {
     ui: {
       type: "stack",
       children: [
-        { type: "text", value: "Confirm this question?", variant: "title" },
-        { type: "text", value: "Should I continue?" },
+        { type: "text", value: title, variant: "title" },
+        { type: bodyType, value: body },
         {
           type: "row",
           children: [
@@ -165,8 +174,8 @@ function renderedApprovalView() {
       ],
     },
     data: {
-      title: "Confirm this question?",
-      body: "Should I continue?",
+      title,
+      body,
       actions: [
         {
           id: "approve",
@@ -370,6 +379,135 @@ test.describe("Kody chat renderer output", () => {
     await expect(approve).toBeDisabled();
   });
 
+  test("rejected final-answer approval prose does not leak before renderer", async ({
+    page,
+  }) => {
+    const leakedQuestion =
+      "Also, before I open it — the dashboard Changelog page reads from the repo's CHANGELOG.md. Want me to peek at that file to see what it's actually serving right now, so the issue points to the real cause?";
+    await page.unroute("**/api/kody/chat/kody");
+    await page.route("**/api/kody/chat/kody", async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+        body: sseBody([
+          {
+            type: "text-delta",
+            delta: leakedQuestion,
+          },
+          {
+            type: "tool-input-available",
+            toolCallId: "tool-final-answer",
+            toolName: "final_answer",
+            input: { content: leakedQuestion },
+          },
+          {
+            type: "tool-output-available",
+            toolCallId: "tool-final-answer",
+            output: {
+              error:
+                "final_answer requires show_view for this interactive response",
+            },
+          },
+          {
+            type: "tool-input-available",
+            toolCallId: "tool-show-view",
+            toolName: "show_view",
+            input: {
+              purpose: "approval-card",
+              data: { title: "Peek at CHANGELOG.md first?" },
+            },
+          },
+          {
+            type: "tool-output-available",
+            toolCallId: "tool-show-view",
+            output: renderedApprovalView({
+              title: "Peek at CHANGELOG.md first?",
+              body: "This will make the issue point to the real cause.",
+            }),
+          },
+        ]),
+      });
+    });
+    await openChat(page);
+
+    await sendChatMessage(page, "open a bug for the changelog page");
+
+    await expect(page.getByText("Peek at CHANGELOG.md first?")).toBeVisible();
+    await expect(page.getByText(leakedQuestion)).toHaveCount(0);
+  });
+
+  test("plain interactive text without an output tool is not accepted as final", async ({
+    page,
+  }) => {
+    const plainQuestion = "Want me to file this as a bug now?";
+    await page.unroute("**/api/kody/chat/kody");
+    await page.route("**/api/kody/chat/kody", async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+        body: sseBody([{ type: "text-delta", delta: plainQuestion }]),
+      });
+    });
+    await openChat(page);
+
+    await sendChatMessage(
+      page,
+      "i want to open new issue, changelog is not properly being populated",
+    );
+
+    await expect(page.getByText(plainQuestion)).toHaveCount(0);
+    await expect(page.getByText(/output tool/i)).toBeVisible();
+  });
+
+  test("approval markdown body renders as formatted content", async ({
+    page,
+  }) => {
+    await page.unroute("**/api/kody/chat/kody");
+    await page.route("**/api/kody/chat/kody", async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+        body: sseBody([
+          {
+            type: "tool-input-available",
+            toolCallId: "tool-markdown-view",
+            toolName: "show_view",
+            input: {
+              purpose: "approval-card",
+              data: { title: "File this bug?" },
+            },
+          },
+          {
+            type: "tool-output-available",
+            toolCallId: "tool-markdown-view",
+            output: renderedApprovalView({
+              title: "File this bug?",
+              bodyType: "markdown",
+              body: "**Title:** Changelog not populated\n\n**Steps to reproduce:**\n1. Open the Changelog page\n2. Scroll to the top\n\n**Expected:** Each release lists merged work.",
+            }),
+          },
+        ]),
+      });
+    });
+    await openChat(page);
+
+    await sendChatMessage(page, "ask approval to file the changelog bug");
+
+    await expect(page.getByText("File this bug?")).toBeVisible();
+    await expect(page.getByText("Title:")).toBeVisible();
+    await expect(page.getByText("Open the Changelog page")).toBeVisible();
+    await expect(page.getByText("**Title:**")).toHaveCount(0);
+  });
+
   test("report selection request renders a selectable list and locks after one click", async ({
     page,
   }) => {
@@ -503,6 +641,8 @@ test.describe("Kody chat renderer output", () => {
   test("failed renderer tool output does not leave a blank assistant reply", async ({
     page,
   }) => {
+    const unfinishedProse =
+      "Let me just use show_view to ask you directly in-chat:";
     await page.unroute("**/api/kody/chat/kody");
     await page.route("**/api/kody/chat/kody", async (route: Route) => {
       await route.fulfill({
@@ -512,6 +652,10 @@ test.describe("Kody chat renderer output", () => {
           "cache-control": "no-cache",
         },
         body: sseBody([
+          {
+            type: "text-delta",
+            delta: unfinishedProse,
+          },
           {
             type: "tool-input-available",
             toolCallId: "tool-render-error",
@@ -535,6 +679,7 @@ test.describe("Kody chat renderer output", () => {
     );
 
     await expect(page.getByText(/show_view requires data/i)).toBeVisible();
+    await expect(page.getByText(unfinishedProse)).toHaveCount(0);
   });
 
   test("provider invoke markup does not leak into the visible chat", async ({

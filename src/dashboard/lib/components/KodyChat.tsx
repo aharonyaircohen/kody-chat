@@ -195,10 +195,12 @@ import {
 } from "@dashboard/lib/chat-ui-actions";
 import {
   FINAL_ANSWER_TOOL,
+  SHOW_VIEW_TOOL,
   getFinalAnswerContent,
   getToolErrorMessage,
   isFinalAnswerOutput,
 } from "@dashboard/lib/chat-output-tools";
+import { looksLikeAssistantInteraction } from "@dashboard/lib/view-renderers/chat-intent";
 import {
   terminalCheckpointLabel,
   type TerminalCheckpoint,
@@ -351,7 +353,7 @@ function RenderedViewCard({
         <MarkdownPreview
           key={key}
           content={node.value}
-          className="chat-message-text prose-sm break-words"
+          className="chat-message-text break-words text-[15px] leading-7 prose-p:my-2 prose-li:my-1"
         />
       );
     }
@@ -3492,6 +3494,7 @@ export function KodyChat({
           let pendingPreviewAct: ReturnType<typeof JSON.parse> | null = null;
           let pendingView: RenderedViewDirective | null = null;
           let lastToolErrorText: string | null = null;
+          let lastToolErrorToolName: string | null = null;
 
           const composeContent = () =>
             (reasoningBuf ? `<think>${reasoningBuf}</think>\n\n` : "") +
@@ -3597,13 +3600,6 @@ export function KodyChat({
                 ) {
                   toolNameById.set(chunk.toolCallId, chunk.toolName);
                   if (chunk.toolName === FINAL_ANSWER_TOOL) {
-                    const content = getFinalAnswerContent(
-                      "input" in chunk ? chunk.input : undefined,
-                    );
-                    if (content !== null) {
-                      textBuf = content;
-                      emitVoiceDelta?.(stripReasoning(textBuf));
-                    }
                     continue;
                   }
                   // Push a "running" tool-call chip onto the in-flight
@@ -3671,6 +3667,10 @@ export function KodyChat({
                   const toolErrorText = getToolErrorMessage(chunk.output);
                   if (toolErrorText) {
                     lastToolErrorText = toolErrorText;
+                    lastToolErrorToolName = name ?? null;
+                    if (name === SHOW_VIEW_TOOL) {
+                      textBuf = "";
+                    }
                     setMessages((prev) => {
                       const copy = [...prev];
                       const idx = copy.findIndex(
@@ -3683,7 +3683,11 @@ export function KodyChat({
                           ? { ...tc, status: "error" as const }
                           : tc,
                       );
-                      copy[idx] = { ...copy[idx], toolCalls: next };
+                      copy[idx] = {
+                        ...copy[idx],
+                        ...(name === SHOW_VIEW_TOOL ? { content: "" } : {}),
+                        toolCalls: next,
+                      };
                       return copy;
                     });
                     continue;
@@ -3700,6 +3704,7 @@ export function KodyChat({
                   if (isRenderedViewDirective(chunk.output)) {
                     const renderedView = chunk.output;
                     pendingView = renderedView;
+                    textBuf = "";
                     setMessages((prev) => {
                       const copy = [...prev];
                       let idx = copy.findIndex(
@@ -3830,8 +3835,14 @@ export function KodyChat({
                 (tc) => tc.status === "success",
               );
               const shouldSurfaceToolError =
-                !answer.trim() &&
                 !!lastToolErrorText &&
+                !pendingSwitchAgent &&
+                !pendingView &&
+                (!answer.trim() || lastToolErrorToolName === SHOW_VIEW_TOOL);
+              const producedPlainInteractiveQuestion =
+                answer.trim().length > 0 &&
+                looksLikeAssistantInteraction(answer) &&
+                !hadSuccessfulTools &&
                 !pendingSwitchAgent &&
                 !pendingView;
               const producedNothing =
@@ -3847,21 +3858,29 @@ export function KodyChat({
                     isError: true,
                     content: `Error: ${lastToolErrorText}`,
                   }
-                : producedNothing
+                : producedPlainInteractiveQuestion
                   ? {
                       ...m,
                       isLoading: false,
                       isError: true,
                       content:
-                        "Kody returned no response. The model may not be configured for this repo, or it ended the turn without a reply — try again, or check Chat Models in Settings.",
+                        "Error: Kody ended with an interactive question without using an output tool. Please retry with a renderer-capable model.",
                     }
-                  : {
-                      ...m,
-                      ...(typeof assistantDisplayOverride === "string"
-                        ? { content: assistantDisplayOverride }
-                        : {}),
-                      isLoading: false,
-                    };
+                  : producedNothing
+                    ? {
+                        ...m,
+                        isLoading: false,
+                        isError: true,
+                        content:
+                          "Kody returned no response. The model may not be configured for this repo, or it ended the turn without a reply — try again, or check Chat Models in Settings.",
+                      }
+                    : {
+                        ...m,
+                        ...(typeof assistantDisplayOverride === "string"
+                          ? { content: assistantDisplayOverride }
+                          : {}),
+                        isLoading: false,
+                      };
             }
             return copy;
           });

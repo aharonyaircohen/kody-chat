@@ -222,7 +222,14 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
           : ""),
       inputSchema: showViewInputSchema,
       execute: async (input) => {
-        const data = collectShowViewData(input);
+        const validated = validateShowViewInput(input);
+        if (validated.success === false) {
+          return {
+            error: validated.error.message,
+          };
+        }
+        const resolvedInput = validated.value;
+        const data = collectShowViewData({ ...resolvedInput });
         if (Object.keys(data).length === 0) {
           return { error: "show_view requires data" };
         }
@@ -231,7 +238,7 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
             ...(hasRepoContext(ctx)
               ? { octokit: ctx.octokit, owner: ctx.owner, repo: ctx.repo }
               : {}),
-            purpose: input.purpose,
+            purpose: resolvedInput.purpose,
             data,
             userText: ctx.userText,
           });

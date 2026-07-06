@@ -115,7 +115,7 @@ function rendererSupportsUserInteraction(
   return uiHasInteractiveAtom(definition.ui);
 }
 
-function looksLikeAssistantInteraction(text: string): boolean {
+export function looksLikeAssistantInteraction(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed.includes("?")) return false;
   return (

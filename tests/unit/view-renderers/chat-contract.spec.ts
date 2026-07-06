@@ -256,4 +256,60 @@ describe("view renderer chat contract", () => {
       }),
     });
   });
+
+  it("repairs purpose-only show_view calls by filling required data", () => {
+    const repaired = repairShowViewToolCall({
+      toolCall: {
+        toolName: "show_view",
+        input: JSON.stringify({ purpose: "approval" }),
+      },
+      definitions: [choiceRenderer, decisionRenderer],
+      userText: "Want me to inspect the changelog before filing the issue?",
+    });
+
+    expect(repaired).toEqual({
+      toolName: "show_view",
+      input: JSON.stringify({
+        purpose: "decision",
+        data: {
+          title: "Want me to inspect the changelog before filing the issue?",
+          body: "Want me to inspect the changelog before filing the issue?",
+        },
+      }),
+    });
+  });
+
+  it("uses the assistant interaction question when repairing after final_answer", () => {
+    const repaired = repairShowViewToolCall({
+      toolCall: {
+        toolName: "show_view",
+        input: "{}",
+      },
+      definitions: [decisionRenderer],
+      userText: "i want to open new issue, changelog is not properly populated",
+      context: [
+        {
+          role: "assistant",
+          content: [
+            {
+              type: "tool-call",
+              toolName: "final_answer",
+              input: { content: "Want me to file this as a bug now?" },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(repaired).toEqual({
+      toolName: "show_view",
+      input: JSON.stringify({
+        purpose: "decision",
+        data: {
+          title: "Want me to file this as a bug now?",
+          body: "Want me to file this as a bug now?",
+        },
+      }),
+    });
+  });
 });

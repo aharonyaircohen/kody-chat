@@ -304,6 +304,19 @@ function rendererMatchScore(
   return score;
 }
 
+function rendererPurposeMatches(
+  definition: ViewRendererDefinition,
+  purpose: string | null | undefined,
+): boolean {
+  const normalized = purpose?.trim();
+  if (!normalized) return false;
+  return (
+    definition.purpose === normalized ||
+    definition.slug === normalized ||
+    definition.aliases?.includes(normalized) === true
+  );
+}
+
 function firstUsefulLine(text: string): string {
   const line =
     text
@@ -322,6 +335,51 @@ function listItemsFromUserText(text: string): string[] {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === "object" && !Array.isArray(value));
+}
+
+function textFromContentPart(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) return value.flatMap(textFromContentPart);
+  if (!isRecord(value)) return [];
+  if (typeof value.text === "string") return [value.text];
+  if (typeof value.content === "string") return [value.content];
+  if (isRecord(value.input) && typeof value.input.content === "string") {
+    return [value.input.content];
+  }
+  return Object.entries(value)
+    .filter(([key]) => key !== "output")
+    .flatMap(([, entry]) => textFromContentPart(entry));
+}
+
+function interactionTextFromRepairContext(
+  context: readonly unknown[] | undefined,
+): string | null {
+  const candidates: string[] = [];
+  const visit = (value: unknown) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      for (const item of value) visit(item);
+      return;
+    }
+    if (!isRecord(value)) return;
+    if (value.role === "assistant") {
+      candidates.push(...textFromContentPart(value.content));
+      return;
+    }
+    if (value.toolName === "final_answer") {
+      candidates.push(...textFromContentPart(value.input));
+    }
+    for (const key of ["steps", "toolCalls", "toolResults", "content"]) {
+      visit(value[key]);
+    }
+  };
+  visit(context);
+  return (
+    candidates
+      .map((candidate) => candidate.trim())
+      .reverse()
+      .find((candidate) => candidate.includes("?")) ?? null
+  );
 }
 
 interface CandidateList {
@@ -429,10 +487,12 @@ export function buildFallbackShowViewInput({
   definitions,
   userText,
   context,
+  purpose,
 }: {
   definitions: ViewRendererDefinition[];
   userText: string | null | undefined;
   context?: readonly unknown[];
+  purpose?: string | null;
 }): FallbackShowViewInput | null {
   const text = userText?.trim();
   if (!text || definitions.length === 0) return null;
@@ -441,30 +501,63 @@ export function buildFallbackShowViewInput({
       definition,
       index,
       score: rendererMatchScore(definition, text),
+      purposeMatched: rendererPurposeMatches(definition, purpose),
     }))
-    .filter((candidate) => candidate.score > 0)
+    .filter((candidate) => candidate.score > 0 || candidate.purposeMatched)
     .sort((a, b) =>
-      a.score === b.score ? a.index - b.index : b.score - a.score,
+      a.purposeMatched !== b.purposeMatched
+        ? a.purposeMatched
+          ? -1
+          : 1
+        : a.score === b.score
+          ? a.index - b.index
+          : b.score - a.score,
     );
-  const definition = ranked[0]?.definition;
-  if (!definition) return null;
-  const data: Record<string, unknown> = {};
-  const required = requiredRendererBinds(definition);
-  const binds =
-    required.length > 0 ? required : [...rendererDataKeySet(definition)];
-  for (const bind of binds) {
-    const value = fallbackValueForRendererBind(definition, bind, text, context);
-    if (value === undefined) {
-      if (required.includes(bind)) return null;
-      continue;
+  const candidates = [
+    ...ranked.map((candidate) => candidate.definition),
+    ...definitions.filter(
+      (definition) =>
+        !ranked.some((candidate) => candidate.definition === definition),
+    ),
+  ];
+  for (const definition of candidates) {
+    const data: Record<string, unknown> = {};
+    const required = requiredRendererBinds(definition);
+    const binds =
+      required.length > 0 ? required : [...rendererDataKeySet(definition)];
+    let missingRequired = false;
+    for (const bind of binds) {
+      const value = fallbackValueForRendererBind(
+        definition,
+        bind,
+        text,
+        context,
+      );
+      if (value === undefined) {
+        if (required.includes(bind)) {
+          missingRequired = true;
+          break;
+        }
+        continue;
+      }
+      data[bind] = value;
     }
-    data[bind] = value;
+    if (missingRequired || Object.keys(data).length === 0) continue;
+    return {
+      purpose: definition.purpose,
+      data,
+    };
   }
-  if (Object.keys(data).length === 0) return null;
-  return {
-    purpose: definition.purpose,
-    data,
-  };
+  return null;
+}
+
+function parseShowViewToolCallInput(input: string): Record<string, unknown> {
+  try {
+    const parsed = JSON.parse(input);
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
 }
 
 export function repairShowViewToolCall<T extends RepairableShowViewToolCall>({
@@ -478,10 +571,15 @@ export function repairShowViewToolCall<T extends RepairableShowViewToolCall>({
   userText: string | null | undefined;
   context?: readonly unknown[];
 }): T | null {
+  const partialInput = parseShowViewToolCallInput(toolCall.input);
+  const purpose =
+    typeof partialInput.purpose === "string" ? partialInput.purpose : null;
+  const interactionText = interactionTextFromRepairContext(context) ?? userText;
   const fallback = buildFallbackShowViewInput({
     definitions,
-    userText,
+    userText: interactionText,
     context,
+    purpose,
   });
   if (!fallback) return null;
   return {

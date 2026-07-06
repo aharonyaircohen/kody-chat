@@ -36,6 +36,7 @@ import {
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
+import { MarkdownPreview } from "./MarkdownPreview";
 import {
   parseViewRendererDefinitionInput,
   serializeViewRendererDefinition,
@@ -328,11 +329,15 @@ function buildRendererPreviewNodes(
         type: template.type,
         children: value
           .map((item, index) =>
-            buildRendererPreviewNodes(template.item as RendererUiTemplateNode, data, {
-              ...locals,
-              [localName]: item,
-              index,
-            }),
+            buildRendererPreviewNodes(
+              template.item as RendererUiTemplateNode,
+              data,
+              {
+                ...locals,
+                [localName]: item,
+                index,
+              },
+            ),
           )
           .filter((node): node is RenderedViewUiNode => Boolean(node)),
       };
@@ -875,10 +880,17 @@ function RendererPreviewNode({
         </p>
       );
     }
-    return <p className="text-sm leading-6 text-muted-foreground">{node.value}</p>;
+    return (
+      <p className="text-sm leading-6 text-muted-foreground">{node.value}</p>
+    );
   }
   if (node.type === "markdown") {
-    return <p className="text-sm leading-6 text-muted-foreground">{node.value}</p>;
+    return (
+      <MarkdownPreview
+        content={node.value}
+        className="chat-message-text break-words text-[15px] leading-7 prose-p:my-2 prose-li:my-1"
+      />
+    );
   }
   if (node.type === "input") {
     return (
