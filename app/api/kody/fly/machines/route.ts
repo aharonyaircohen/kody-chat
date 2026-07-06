@@ -17,9 +17,9 @@ import { logger } from "@dashboard/lib/logger";
 import {
   appendSavedBrainMachineToInventory,
   emptyFlyInventory,
+  listFlyInventoryCached,
   refreshFlyInventoryCounts,
 } from "@dashboard/lib/runners/fly-inventory-server";
-import { listFlyInventory } from "@dashboard/lib/runners/fly-inventory";
 import {
   flyConfigFromContext,
   resolveFlyContext,
@@ -41,14 +41,18 @@ export async function GET(req: NextRequest) {
   let inventoryErr: unknown = null;
   try {
     if (cfg) {
-      const listed = await listFlyInventory(cfg);
+      const listed = await listFlyInventoryCached(cfg);
       inventory.machines.push(...listed.machines);
     }
   } catch (err) {
     inventoryErr = err;
   }
 
-  const addedBrain = await appendSavedBrainMachineToInventory(req, inventory);
+  const addedBrain = await appendSavedBrainMachineToInventory(
+    req,
+    inventory,
+    ctx.context,
+  );
   if (inventory.machines.length > 0 || addedBrain) {
     return NextResponse.json(refreshFlyInventoryCounts(inventory));
   }

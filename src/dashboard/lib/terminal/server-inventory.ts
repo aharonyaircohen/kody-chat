@@ -13,18 +13,19 @@ import "server-only";
 import type { NextRequest } from "next/server";
 
 import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
-import {
-  listFlyInventory,
-  type FlyInventory,
-  type FlyMachineRow,
+import type {
+  FlyInventory,
+  FlyMachineRow,
 } from "@dashboard/lib/runners/fly-inventory";
 import {
   applySavedBrainMachineToInventory,
   emptyFlyInventory,
+  listFlyInventoryCached,
   refreshFlyInventoryCounts,
   resolveSavedBrainServiceForRequest,
   type SavedBrainServiceForRequest,
 } from "@dashboard/lib/runners/fly-inventory-server";
+import type { FlyContext } from "@dashboard/lib/runners/fly-context";
 
 export interface TerminalInventoryRequestTarget {
   brainRequested?: boolean;
@@ -107,8 +108,9 @@ export async function loadTerminalInventoryAuthority(
   req: NextRequest,
   cfg: FlyPreviewConfig,
   target: TerminalInventoryRequestTarget,
+  context?: FlyContext,
 ): Promise<TerminalInventoryAuthority> {
-  const savedBrain = await resolveSavedBrainServiceForRequest(req);
+  const savedBrain = await resolveSavedBrainServiceForRequest(req, context);
   if (savedBrainTargetsRequest(savedBrain, target)) {
     return {
       inventory: savedBrainInventory(savedBrain!),
@@ -124,7 +126,7 @@ export async function loadTerminalInventoryAuthority(
 
   let inventory: FlyInventory;
   try {
-    inventory = await listFlyInventory(cfg);
+    inventory = await listFlyInventoryCached(cfg);
   } catch (err) {
     if (savedBrainTargetsRequest(savedBrain, target)) {
       return {

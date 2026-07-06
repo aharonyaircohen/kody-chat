@@ -76,6 +76,19 @@ interface BrainImagesResponse {
   error?: string;
 }
 
+interface BrainImageSavePollResponse {
+  ok?: boolean;
+  status?: "idle" | "running" | "completed" | "failed";
+  phase?: BrainImageSaveState["phase"];
+  message?: string;
+  lastOutput?: string;
+  jobId?: string;
+  imageRef?: string;
+  startedAt?: string;
+  updatedAt?: string;
+  error?: string;
+}
+
 function imageTag(imageRef: string): string {
   const withoutDigest = imageRef.split("@")[0] ?? imageRef;
   const marker = withoutDigest.lastIndexOf(":");
@@ -206,6 +219,71 @@ export function BrainImagesManager() {
     }
   }, [headers]);
 
+  const pollSave = useCallback(
+    async (jobId: string) => {
+      if (!headers) return;
+      const res = await fetch(
+        `/api/kody/brain/image?jobId=${encodeURIComponent(jobId)}`,
+        { headers, cache: "no-store" },
+      );
+      const body = (await res
+        .json()
+        .catch(() => ({}))) as BrainImageSavePollResponse;
+      if (!res.ok) {
+        throw new Error(body.message ?? body.error ?? `Poll failed (${res.status})`);
+      }
+      if (body.status === "idle") {
+        setSave(null);
+        return;
+      }
+      if (body.status === "completed") {
+        setSave(null);
+        await loadImages();
+        return;
+      }
+      if (body.status === "failed") {
+        setSave((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: "failed",
+                phase: "failed",
+                message: body.message ?? prev.message,
+                lastOutput: body.lastOutput ?? prev.lastOutput,
+                updatedAt: body.updatedAt ?? new Date().toISOString(),
+                error: body.error ?? body.message,
+              }
+            : prev,
+        );
+        return;
+      }
+      if (body.status === "running") {
+        setSave((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: "running",
+                phase: body.phase ?? prev.phase,
+                message: body.message ?? prev.message,
+                lastOutput: body.lastOutput ?? prev.lastOutput,
+                updatedAt: body.updatedAt ?? new Date().toISOString(),
+              }
+            : {
+                status: "running",
+                phase: body.phase ?? "starting",
+                message: body.message,
+                lastOutput: body.lastOutput,
+                jobId: body.jobId ?? jobId,
+                imageRef: body.imageRef ?? "",
+                startedAt: body.startedAt ?? new Date().toISOString(),
+                updatedAt: body.updatedAt ?? new Date().toISOString(),
+              },
+        );
+      }
+    },
+    [headers, loadImages],
+  );
+
   const pendingApplyImage = useMemo(
     () => images.find((image) => image.imageRef === pendingApplyRef) ?? null,
     [images, pendingApplyRef],
@@ -229,9 +307,9 @@ export function BrainImagesManager() {
 
   useEffect(() => {
     if (save?.status !== "running") return;
-    const interval = window.setInterval(() => void loadImages(), 5000);
+    const interval = window.setInterval(() => void pollSave(save.jobId), 5000);
     return () => window.clearInterval(interval);
-  }, [loadImages, save?.status]);
+  }, [pollSave, save?.jobId, save?.status]);
 
   async function applyImage(imageRef: string) {
     if (!headers) return;

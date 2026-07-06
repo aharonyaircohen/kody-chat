@@ -7,6 +7,7 @@
  */
 import "server-only";
 
+import { createHash } from "node:crypto";
 import type { NextRequest } from "next/server";
 
 import {
@@ -18,12 +19,27 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
+import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
 import {
   resolveFlyContext,
   type FlyContext,
 } from "@dashboard/lib/runners/fly-context";
-import type { FlyInventory } from "@dashboard/lib/runners/fly-inventory";
+import {
+  listFlyInventory,
+  type FlyInventory,
+} from "@dashboard/lib/runners/fly-inventory";
 import { isFlyMachineRunning } from "@dashboard/lib/runners/fly-machine-model";
+import { createServerTtlCache } from "@dashboard/lib/server-ttl-cache";
+
+const FLY_INVENTORY_TTL_MS = 15_000;
+const SAVED_BRAIN_SERVICE_TTL_MS = 15_000;
+const flyInventoryCache = createServerTtlCache<FlyInventory>({
+  ttlMs: FLY_INVENTORY_TTL_MS,
+});
+const savedBrainServiceCache =
+  createServerTtlCache<SavedBrainServiceForRequest | null>({
+    ttlMs: SAVED_BRAIN_SERVICE_TTL_MS,
+  });
 
 export function emptyFlyInventory(): FlyInventory {
   return { machines: [], running: 0, total: 0 };
@@ -44,6 +60,24 @@ function envFlyTokenFallback(primaryToken: string): string | undefined {
   const token =
     process.env.FLY_API_TOKEN?.trim() || process.env.FLY_IO_TOKEN?.trim();
   return token && token !== primaryToken ? token : undefined;
+}
+
+function tokenKey(token: string): string {
+  return createHash("sha256").update(token).digest("hex").slice(0, 16);
+}
+
+function flyInventoryKey(cfg: FlyPreviewConfig): string {
+  return `${cfg.orgSlug ?? ""}:${tokenKey(cfg.token)}`;
+}
+
+function savedBrainServiceKey(context: FlyContext): string {
+  return [
+    context.owner,
+    context.repo,
+    context.account,
+    context.flyOrgSlug ?? "",
+    tokenKey(context.flyToken ?? ""),
+  ].join(":");
 }
 
 export interface SavedBrainServiceForRequest {
@@ -72,55 +106,70 @@ export function applySavedBrainMachineToInventory(
   return true;
 }
 
+export async function listFlyInventoryCached(
+  cfg: FlyPreviewConfig,
+): Promise<FlyInventory> {
+  return flyInventoryCache.get(flyInventoryKey(cfg), () => listFlyInventory(cfg));
+}
+
 export async function resolveSavedBrainServiceForRequest(
   req: NextRequest,
+  context?: FlyContext,
 ): Promise<SavedBrainServiceForRequest | null> {
-  const ctx = await resolveFlyContext(req);
-  if (!ctx.ok || !ctx.context.flyToken) return null;
+  const ctx = context
+    ? { ok: true as const, context }
+    : await resolveFlyContext(req);
+  if (!ctx.ok) return null;
+  const resolvedContext = ctx.context;
+  const initialFlyToken = resolvedContext.flyToken;
+  if (!initialFlyToken) return null;
 
-  setGitHubContext(
-    ctx.context.owner,
-    ctx.context.repo,
-    ctx.context.githubToken,
-    ctx.context.storeRepoUrl,
-    ctx.context.storeRef,
-  );
-  try {
-    const resolveBrain = (flyToken: string) =>
-      resolveBrainService({
-        flyToken,
-        account: ctx.context.account,
-        githubToken: ctx.context.githubToken,
-        orgSlug: ctx.context.flyOrgSlug,
-        defaultRegion: ctx.context.flyDefaultRegion,
-      });
-    let flyToken = ctx.context.flyToken;
-    let brain = await resolveBrain(flyToken);
-    const fallbackToken = envFlyTokenFallback(ctx.context.flyToken);
-    if (brain.stored && !brain.machine && fallbackToken) {
-      const fallbackBrain = await resolveBrain(fallbackToken);
-      if (fallbackBrain.machine) {
-        brain = fallbackBrain;
-        flyToken = fallbackToken;
-      }
-    }
-    return { brain, context: ctx.context, flyToken };
-  } catch (err) {
-    logger.warn(
-      { err, owner: ctx.context.owner },
-      "fly-inventory: saved Brain machine lookup failed",
+  return savedBrainServiceCache.get(savedBrainServiceKey(resolvedContext), async () => {
+    setGitHubContext(
+      resolvedContext.owner,
+      resolvedContext.repo,
+      resolvedContext.githubToken,
+      resolvedContext.storeRepoUrl,
+      resolvedContext.storeRef,
     );
-    return null;
-  } finally {
-    clearGitHubContext();
-  }
+    try {
+      const resolveBrain = (flyToken: string) =>
+        resolveBrainService({
+          flyToken,
+          account: resolvedContext.account,
+          githubToken: resolvedContext.githubToken,
+          orgSlug: resolvedContext.flyOrgSlug,
+          defaultRegion: resolvedContext.flyDefaultRegion,
+        });
+      let flyToken = initialFlyToken;
+      let brain = await resolveBrain(flyToken);
+      const fallbackToken = envFlyTokenFallback(initialFlyToken);
+      if (brain.stored && !brain.machine && fallbackToken) {
+        const fallbackBrain = await resolveBrain(fallbackToken);
+        if (fallbackBrain.machine) {
+          brain = fallbackBrain;
+          flyToken = fallbackToken;
+        }
+      }
+      return { brain, context: resolvedContext, flyToken };
+    } catch (err) {
+      logger.warn(
+        { err, owner: resolvedContext.owner },
+        "fly-inventory: saved Brain machine lookup failed",
+      );
+      return null;
+    } finally {
+      clearGitHubContext();
+    }
+  });
 }
 
 export async function appendSavedBrainMachineToInventory(
   req: NextRequest,
   inventory: FlyInventory,
+  context?: FlyContext,
 ): Promise<boolean> {
-  const resolved = await resolveSavedBrainServiceForRequest(req);
+  const resolved = await resolveSavedBrainServiceForRequest(req, context);
   return resolved
     ? applySavedBrainMachineToInventory(inventory, resolved.brain)
     : false;

@@ -10,6 +10,7 @@
 import "server-only";
 
 import { logger } from "@dashboard/lib/logger";
+import { createServerTtlCache } from "@dashboard/lib/server-ttl-cache";
 import { brainGhcrImageRef } from "./image-save";
 import type { BrainImageFile, BrainSavedImage } from "./store";
 
@@ -24,6 +25,10 @@ interface GitHubPackageVersion {
 }
 
 const IMAGE_TAG_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/;
+const DISCOVERED_IMAGES_TTL_MS = 60_000;
+const discoveredImagesCache = createServerTtlCache<BrainSavedImage[]>({
+  ttlMs: DISCOVERED_IMAGES_TTL_MS,
+});
 
 function brainImagePackage(input: { owner: string; account: string }): {
   baseRef: string;
@@ -208,8 +213,11 @@ export async function discoverBrainPackageImages(input: {
   account: string;
   githubToken: string;
 }): Promise<BrainSavedImage[]> {
+  const cacheKey = `${input.owner}/${input.repo}:${input.account}`;
   try {
-    return await fetchBrainPackageImages(input);
+    return await discoveredImagesCache.get(cacheKey, () =>
+      fetchBrainPackageImages(input),
+    );
   } catch (err) {
     logger.warn(
       { err, owner: input.owner, repo: input.repo },
@@ -217,4 +225,8 @@ export async function discoverBrainPackageImages(input: {
     );
     return [];
   }
+}
+
+export function clearBrainPackageImageDiscoveryCache() {
+  discoveredImagesCache.clear();
 }

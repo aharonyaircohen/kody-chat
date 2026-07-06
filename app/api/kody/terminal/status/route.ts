@@ -104,6 +104,7 @@ export async function POST(req: NextRequest) {
         app: parsed.data.app,
         machineId: parsed.data.machineId,
       },
+      ctx.context,
     );
     let targetInput:
       | { app: string; machineId: string; feature?: "runner" | "brain" }
