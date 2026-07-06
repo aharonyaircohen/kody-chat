@@ -538,6 +538,17 @@ function isStateEvidence(
   return Boolean(context.currentRepo && path.startsWith(`${context.currentRepo.repo}/`));
 }
 
+function stateEvidencePath(path: string, context: RunEvidenceViewContext): string {
+  const normalized = path.replace(/^\/+|\/+$/g, "");
+  if (
+    context.currentRepo &&
+    normalized.startsWith(`${context.currentRepo.repo}/`)
+  ) {
+    return normalized.slice(context.currentRepo.repo.length + 1);
+  }
+  return normalized;
+}
+
 export function runEvidenceViewTarget(
   line: string,
   context: RunEvidenceViewContext,
@@ -556,7 +567,11 @@ export function runEvidenceViewTarget(
   const path = reference.value.replace(/^\/+|\/+$/g, "");
   if (!path) return null;
   if (isStateEvidence(formatted, path, context)) {
-    return null;
+    return {
+      href: `/state-files/${encodePath(stateEvidencePath(path, context))}`,
+      external: false,
+      label: "View state file",
+    };
   }
 
   return {

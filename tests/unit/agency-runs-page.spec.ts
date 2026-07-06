@@ -146,10 +146,18 @@ describe("Agency Runs page", () => {
         "Report file: A-Guy-Web/reports/ai-agency-health/runs/latest.md",
         context,
       ),
-    ).toBeNull();
+    ).toEqual({
+      href: "/state-files/reports/ai-agency-health/runs/latest.md",
+      external: false,
+      label: "View state file",
+    });
     expect(
       runEvidenceViewTarget("Source log: logs/goals/ci-health/runs/run.jsonl", context),
-    ).toBeNull();
+    ).toEqual({
+      href: "/state-files/logs/goals/ci-health/runs/run.jsonl",
+      external: false,
+      label: "View state file",
+    });
     expect(
       runEvidenceViewTarget(
         "GitHub run URL: https://github.com/test/repo/actions/runs/123456",
