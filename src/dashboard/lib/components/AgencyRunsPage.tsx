@@ -131,11 +131,16 @@ function textValue(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function dispatchLabel(value: string | null): string | null {
+function dispatchTarget(value: string | null): string | null {
   if (!value) return null;
   const match = value.match(/^dispatch\s+([^:]+)(?::\s*(.+))?$/i);
-  if (!match?.[1]) return null;
-  return `Kody decided to run ${match[1].trim()}.`;
+  return match?.[1]?.trim() ?? null;
+}
+
+function displayValue(value: string | null): string | null {
+  if (!value) return null;
+  if (dispatchTarget(value)) return null;
+  return value;
 }
 
 function eventResultSummary(event: Record<string, unknown> | null): string | null {
@@ -168,21 +173,65 @@ function operatorHappened(
     workflowSummary ??
     eventResultSummary(latest) ??
     eventDecisionSummary(latest) ??
-    dispatchLabel(run.summary) ??
-    dispatchLabel(run.decision) ??
-    run.summary ??
-    run.decision ??
+    displayValue(run.summary) ??
+    displayValue(run.decision) ??
     "Kody recorded this run."
   );
 }
 
-function operatorHappenedLines(
+function runtimeLabel(run: AgencyRunSummary): string | null {
+  return run.executable ?? run.capability ?? run.workflow ?? run.action;
+}
+
+function modelLabel(run: AgencyRunSummary): string | null {
+  if (run.modelName && run.model && run.modelName !== run.model) {
+    return `${run.modelName} (${run.model})`;
+  }
+  return run.modelName ?? run.model;
+}
+
+export function operatorRunFactLines(run: AgencyRunSummary): string[] {
+  const lines = [
+    `${run.kind[0]?.toUpperCase() ?? ""}${run.kind.slice(1)}: ${
+      run.targetLabel || run.targetId
+    }.`,
+    `Status: ${humanStatus(run.status)}.`,
+    displayValue(run.currentStep) ? `Step: ${run.currentStep}.` : null,
+    `Trigger: ${run.origin}.`,
+    runtimeLabel(run) ? `Runtime: ${runtimeLabel(run)}.` : null,
+    modelLabel(run) ? `Model: ${modelLabel(run)}.` : null,
+    run.kodyRunId ? `Kody run: ${run.kodyRunId}.` : null,
+    run.githubRunId ? `GitHub run: ${run.githubRunId}.` : null,
+    run.startedAt ? `Started: ${formatTime(run.startedAt)}.` : null,
+    run.updatedAt ? `Updated: ${formatTime(run.updatedAt)}.` : null,
+    run.durationMs !== null ? `Duration: ${formatDuration(run.durationMs)}.` : null,
+  ];
+  return lines.filter((line): line is string => line !== null);
+}
+
+function rawRunEvidenceLines(run: AgencyRunSummary): string[] {
+  const lines = [
+    run.summary ? `Summary: ${run.summary}` : null,
+    run.decision ? `Decision: ${run.decision}` : null,
+    run.currentStep ? `Current step: ${run.currentStep}` : null,
+    run.sourcePath ? `Source log: ${run.sourcePath}` : null,
+    run.statePath ? `State path: ${run.statePath}` : null,
+    run.logUrl ? `Kody log URL: ${run.logUrl}` : null,
+    run.githubRunUrl ? `GitHub run URL: ${run.githubRunUrl}` : null,
+  ];
+  return lines.filter((line): line is string => line !== null);
+}
+
+export function operatorHappenedLines(
   run: AgencyRunSummary,
   events: Record<string, unknown>[],
   workflowSummary: string | null,
   workflowLines: string[],
 ): string[] {
   if (workflowLines.length > 0) return workflowLines;
+  if (!workflowSummary && (dispatchTarget(run.summary) ?? dispatchTarget(run.decision))) {
+    return operatorRunFactLines(run);
+  }
   return [operatorHappened(run, events, workflowSummary)];
 }
 
@@ -238,7 +287,10 @@ function RunRow({
   const rawEvents = detail.data?.events ?? [];
   const workflowSummary = detail.data?.workflowLog?.summary ?? null;
   const workflowLines = detail.data?.workflowLog?.lines ?? [];
-  const evidenceLines = detail.data?.workflowLog?.evidenceLines ?? [];
+  const evidenceLines = [
+    ...(detail.data?.workflowLog?.evidenceLines ?? []),
+    ...rawRunEvidenceLines(run),
+  ];
   const events = rawEvents.slice(-4).reverse();
   const happened = operatorHappenedLines(
     run,

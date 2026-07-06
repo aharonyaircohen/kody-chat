@@ -2,6 +2,12 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import {
+  operatorHappenedLines,
+  operatorRunFactLines,
+} from "../../src/dashboard/lib/components/AgencyRunsPage";
+import type { AgencyRunSummary } from "../../src/dashboard/lib/agency-runs";
+
 const pageSource = readFileSync(
   "src/dashboard/lib/components/AgencyRunsPage.tsx",
   "utf8",
@@ -40,5 +46,50 @@ describe("Agency Runs page", () => {
     expect(outcomeIndex).toBeGreaterThan(-1);
     expect(nextIndex).toBeGreaterThan(outcomeIndex);
     expect(rawIndex).toBeGreaterThan(nextIndex);
+  });
+
+  it("expands dispatch-only summaries into useful run facts", () => {
+    const run: AgencyRunSummary = {
+      id: "run-1",
+      kind: "goal",
+      targetId: "web-release-2026-07-06",
+      targetLabel: "web-release-2026-07-06",
+      targetModel: "managed-goal",
+      origin: "scheduled",
+      status: "running",
+      title: "Daily web release",
+      summary: "dispatch goal web-release-2026-07-06",
+      currentStep: "dispatch goal web-release-2026-07-06",
+      decision: null,
+      startedAt: "2026-07-06T06:00:00.000Z",
+      updatedAt: "2026-07-06T06:01:00.000Z",
+      durationMs: 61_000,
+      kodyRunId: "kody-run-1",
+      githubRunId: "123456",
+      githubRunUrl: "https://github.com/test/repo/actions/runs/123456",
+      logUrl: null,
+      statePath: "todos/web-release-2026-07-06.json",
+      sourcePath: "logs/goals/web-release-2026-07-06/runs/run.jsonl",
+      action: "run",
+      capability: "web-release",
+      workflow: null,
+      executable: "goal-manager",
+      agent: "kody",
+      model: "claude/claude-sonnet-4-5",
+      modelProvider: "anthropic",
+      modelName: "Claude Sonnet 4.5",
+      reasoningEffort: null,
+      actor: "scheduler",
+    };
+
+    const lines = operatorHappenedLines(run, [], null, []);
+
+    expect(lines).toContain("Goal: web-release-2026-07-06.");
+    expect(lines).toContain("Status: Running.");
+    expect(lines).toContain("Trigger: scheduled.");
+    expect(lines).toContain("Runtime: goal-manager.");
+    expect(lines).toContain("Model: Claude Sonnet 4.5 (claude/claude-sonnet-4-5).");
+    expect(lines.join("\n")).not.toContain("dispatch goal web-release-2026-07-06");
+    expect(operatorRunFactLines(run)).toEqual(lines);
   });
 });
