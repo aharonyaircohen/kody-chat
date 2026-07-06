@@ -32,7 +32,7 @@ interface FlyPreviewsListProps {
   flyTokenConfigured: boolean;
 }
 
-const REFRESH_MS = 15_000;
+const REFRESH_MS = 60_000;
 
 function previewUrl(app: string): string {
   return `https://${app}.fly.dev`;
