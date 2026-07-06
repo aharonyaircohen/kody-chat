@@ -6,6 +6,7 @@ import {
   formatRunEvidenceLine,
   operatorHappenedLines,
   operatorRunFactLines,
+  runEvidenceViewTarget,
 } from "../../src/dashboard/lib/components/AgencyRunsPage";
 import type { AgencyRunSummary } from "../../src/dashboard/lib/agency-runs";
 
@@ -119,6 +120,47 @@ describe("Agency Runs page", () => {
       label: null,
       value: "No source log",
       tone: "plain",
+    });
+  });
+
+  it("builds view targets for evidence file references", () => {
+    const context = {
+      currentRepo: { owner: "A-Guy-educ", repo: "A-Guy-Web" },
+      stateRepo: { owner: "A-Guy-educ", repo: "kody-state" },
+      stateRef: "main",
+    };
+
+    expect(runEvidenceViewTarget("Changed file: src/app/page.tsx", context)).toEqual({
+      href: "/files/src/app/page.tsx",
+      external: false,
+      label: "View file",
+    });
+    expect(
+      runEvidenceViewTarget(
+        "Report file: A-Guy-Web/reports/ai-agency-health/runs/latest.md",
+        context,
+      ),
+    ).toEqual({
+      href: "https://github.com/A-Guy-educ/kody-state/blob/main/A-Guy-Web/reports/ai-agency-health/runs/latest.md",
+      external: true,
+      label: "View state file",
+    });
+    expect(
+      runEvidenceViewTarget("Source log: logs/goals/ci-health/runs/run.jsonl", context),
+    ).toEqual({
+      href: "https://github.com/A-Guy-educ/kody-state/blob/main/A-Guy-Web/logs/goals/ci-health/runs/run.jsonl",
+      external: true,
+      label: "View state file",
+    });
+    expect(
+      runEvidenceViewTarget(
+        "GitHub run URL: https://github.com/test/repo/actions/runs/123456",
+        context,
+      ),
+    ).toEqual({
+      href: "https://github.com/test/repo/actions/runs/123456",
+      external: true,
+      label: "Open reference",
     });
   });
 });

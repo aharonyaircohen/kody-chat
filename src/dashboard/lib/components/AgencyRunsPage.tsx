@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock3,
+  Eye,
   ExternalLink,
   Loader2,
   RefreshCw,
@@ -21,11 +22,17 @@ import {
 import { Button } from "@dashboard/ui/button";
 import { useAgencyRunDetail, useAgencyRuns } from "../hooks/useAgencyRuns";
 import { useRepoScopedHref } from "../hooks/useRepoScopedHref";
+import {
+  DEFAULT_KODY_STORE_REF,
+  DEFAULT_KODY_STORE_REPO_URL,
+  useAuth,
+} from "../auth-context";
 import type {
   AgencyRunKind,
   AgencyRunStatus,
   AgencyRunSummary,
 } from "../agency-runs";
+import type { RepoRef } from "../routes";
 import { cn } from "../utils";
 import { PageShell } from "./PageShell";
 
@@ -229,6 +236,21 @@ export type FormattedRunEvidenceLine = {
   tone: "field" | "raw" | "plain";
 };
 
+export type RunEvidenceViewTarget = {
+  href: string;
+  external: boolean;
+  label: string;
+};
+
+type RunEvidenceViewContext = {
+  currentRepo: RepoRef | null;
+  stateRepo: RepoRef | null;
+  stateRef: string;
+};
+
+const FILE_REFERENCE_RE =
+  /\b[A-Za-z0-9_.@-]+(?:\/[A-Za-z0-9_.@()[\]-]+)+\.(?:mdx?|jsonl?|log|txt|ya?ml|tsx?|jsx?|css|scss)\b/i;
+
 export function formatRunEvidenceLine(line: string): FormattedRunEvidenceLine {
   const splitAt = line.indexOf(": ");
   if (splitAt < 0) {
@@ -241,6 +263,98 @@ export function formatRunEvidenceLine(line: string): FormattedRunEvidenceLine {
       ? "raw"
       : "field";
   return { raw: line, label, value, tone };
+}
+
+function encodePath(path: string): string {
+  return path
+    .replace(/^\/+|\/+$/g, "")
+    .split("/")
+    .filter(Boolean)
+    .map(encodeURIComponent)
+    .join("/");
+}
+
+function parseGitHubRepoUrl(value: string | null | undefined): RepoRef | null {
+  const input = (value ?? "").trim() || DEFAULT_KODY_STORE_REPO_URL;
+  const match = input.match(
+    /^https:\/\/github\.com\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)(?:\.git)?\/?$/i,
+  );
+  if (!match?.[1] || !match[2]) return null;
+  return { owner: match[1], repo: match[2] };
+}
+
+function firstReference(
+  value: string,
+): { kind: "url" | "path"; value: string } | null {
+  const url = value.match(/https?:\/\/[^\s<>"')\]]+/i)?.[0];
+  if (url) return { kind: "url", value: url.replace(/[.,;]+$/g, "") };
+  const path = value.match(FILE_REFERENCE_RE)?.[0];
+  return path ? { kind: "path", value: path } : null;
+}
+
+function isStateEvidence(
+  formatted: FormattedRunEvidenceLine,
+  path: string,
+  context: RunEvidenceViewContext,
+): boolean {
+  const label = formatted.label?.toLowerCase() ?? "";
+  if (
+    label === "report file" ||
+    label === "source log" ||
+    label === "state path" ||
+    label === "raw workflow line"
+  ) {
+    return true;
+  }
+  if (
+    context.stateRepo &&
+    formatted.value.includes(`${context.stateRepo.owner}/${context.stateRepo.repo}`)
+  ) {
+    return true;
+  }
+  return Boolean(context.currentRepo && path.startsWith(`${context.currentRepo.repo}/`));
+}
+
+function stateEvidencePath(path: string, context: RunEvidenceViewContext): string {
+  const normalized = path.replace(/^\/+|\/+$/g, "");
+  if (!context.currentRepo) return normalized;
+  if (normalized.startsWith(`${context.currentRepo.repo}/`)) return normalized;
+  return `${context.currentRepo.repo}/${normalized}`;
+}
+
+export function runEvidenceViewTarget(
+  line: string,
+  context: RunEvidenceViewContext,
+): RunEvidenceViewTarget | null {
+  const formatted = formatRunEvidenceLine(line);
+  const reference = firstReference(formatted.value);
+  if (!reference) return null;
+  if (reference.kind === "url") {
+    return {
+      href: reference.value,
+      external: true,
+      label: "Open reference",
+    };
+  }
+
+  const path = reference.value.replace(/^\/+|\/+$/g, "");
+  if (!path) return null;
+  if (isStateEvidence(formatted, path, context)) {
+    if (!context.stateRepo) return null;
+    return {
+      href: `https://github.com/${context.stateRepo.owner}/${context.stateRepo.repo}/blob/${encodeURIComponent(
+        context.stateRef || DEFAULT_KODY_STORE_REF,
+      )}/${encodePath(stateEvidencePath(path, context))}`,
+      external: true,
+      label: "View state file",
+    };
+  }
+
+  return {
+    href: `/files/${encodePath(path)}`,
+    external: false,
+    label: "View file",
+  };
 }
 
 export function operatorHappenedLines(
@@ -284,15 +398,35 @@ function operatorNext(
   return latestReason ?? "No next action was recorded.";
 }
 
-function RunEvidenceLine({ line }: { line: string }) {
+function RunEvidenceLine({
+  line,
+  viewTarget,
+}: {
+  line: string;
+  viewTarget: RunEvidenceViewTarget | null;
+}) {
   const formatted = formatRunEvidenceLine(line);
+  const target = viewTarget;
+  const viewLink = target ? (
+    <a
+      href={target.href}
+      target={target.external ? "_blank" : undefined}
+      rel={target.external ? "noreferrer" : undefined}
+      className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded border border-white/[0.08] text-white/45 hover:bg-white/[0.05] hover:text-white"
+      title={target.label}
+      aria-label={target.label}
+    >
+      <Eye className="h-3.5 w-3.5" />
+    </a>
+  ) : null;
   if (!formatted.label) {
     return (
       <li
-        className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2 text-white/60"
+        className="flex items-start justify-between gap-2 rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2 text-white/60"
         data-raw-evidence={formatted.raw}
       >
-        {formatted.value}
+        <span className="min-w-0 break-words">{formatted.value}</span>
+        {viewLink}
       </li>
     );
   }
@@ -301,8 +435,11 @@ function RunEvidenceLine({ line }: { line: string }) {
       className="rounded-md border border-white/[0.06] bg-white/[0.02] px-2 py-2"
       data-raw-evidence={formatted.raw}
     >
-      <div className="text-[10px] uppercase tracking-wide text-white/35">
-        {formatted.label}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 text-[10px] uppercase tracking-wide text-white/35">
+          {formatted.label}
+        </div>
+        {viewLink}
       </div>
       {formatted.tone === "raw" ? (
         <pre className="mt-1 whitespace-pre-wrap break-words rounded bg-black/30 px-2 py-1.5 font-mono text-[11px] leading-5 text-white/65">
@@ -327,6 +464,7 @@ function RunRow({
   onToggle: () => void;
 }) {
   const scopedHref = useRepoScopedHref();
+  const { auth } = useAuth();
   const detail = useAgencyRunDetail(
     expanded ? run.sourcePath : null,
     expanded ? run.githubRunId : null,
@@ -338,6 +476,11 @@ function RunRow({
     ...(detail.data?.workflowLog?.evidenceLines ?? []),
     ...rawRunEvidenceLines(run),
   ];
+  const evidenceViewContext: RunEvidenceViewContext = {
+    currentRepo: auth ? { owner: auth.owner, repo: auth.repo } : null,
+    stateRepo: parseGitHubRepoUrl(auth?.storeRepoUrl),
+    stateRef: auth?.storeRef ?? DEFAULT_KODY_STORE_REF,
+  };
   const events = rawEvents.slice(-4).reverse();
   const happened = operatorHappenedLines(
     run,
@@ -530,7 +673,18 @@ function RunRow({
               </summary>
               <ul className="mt-2 space-y-1 text-xs leading-5">
                 {evidenceLines.map((line, index) => (
-                  <RunEvidenceLine key={`${line}-${index}`} line={line} />
+                  <RunEvidenceLine
+                    key={`${line}-${index}`}
+                    line={line}
+                    viewTarget={(() => {
+                      const target = runEvidenceViewTarget(
+                        line,
+                        evidenceViewContext,
+                      );
+                      if (!target || target.external) return target;
+                      return { ...target, href: scopedHref(target.href) };
+                    })()}
+                  />
                 ))}
               </ul>
             </details>
