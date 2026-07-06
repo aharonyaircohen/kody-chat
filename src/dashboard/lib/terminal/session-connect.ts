@@ -164,7 +164,7 @@ export async function startTerminalSession(input: {
     brainRequested,
     app: data.app,
     machineId: data.machineId,
-  });
+  }, context);
   if (brainRequested && savedBrain?.brain.reason === "fly_access_denied") {
     throw targetError("fly_access_denied", {
       app: savedBrain.brain.app,
@@ -240,7 +240,7 @@ export async function startTerminalSession(input: {
         brainRequested: requested.feature === "brain",
         app: requested.app,
         machineId: requested.machineId,
-      });
+      }, context);
       inventory = refreshed.inventory;
       savedBrain = refreshed.savedBrain ?? savedBrain;
       const next = resolveTerminalTargetMachine(inventory, selectedInput);
