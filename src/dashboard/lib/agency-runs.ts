@@ -16,6 +16,7 @@ export type AgencyRunStatus =
   | "waiting"
   | "success"
   | "failed"
+  | "stuck"
   | "blocked"
   | "cancelled"
   | "recorded";
@@ -25,6 +26,16 @@ type GitHubWorkflowRun = {
   status?: string | null;
   conclusion?: string | null;
   html_url?: string | null;
+};
+
+type ManagedGoalStatusValue = "inactive" | "active" | "paused" | "done";
+
+type ManagedGoalStateLite = {
+  state: ManagedGoalStatusValue;
+  stage: string | null;
+  updatedAt: string | null;
+  blockers: string[];
+  facts: Record<string, unknown>;
 };
 
 export interface AgencyRunSummary {
@@ -117,6 +128,7 @@ interface RunIndexFile {
 }
 
 const RUN_INDEX_PATH = "runs/index.json";
+const DISPATCH_STUCK_MS = 20 * 60_000;
 const readCache = new Map<
   string,
   { etag: string | undefined; json: string; path: string }
@@ -148,6 +160,7 @@ function statusValue(value: unknown): AgencyRunStatus {
     value === "waiting" ||
     value === "success" ||
     value === "failed" ||
+    value === "stuck" ||
     value === "blocked" ||
     value === "cancelled" ||
     value === "recorded"
@@ -155,6 +168,63 @@ function statusValue(value: unknown): AgencyRunStatus {
     return value;
   }
   return "recorded";
+}
+
+function managedGoalPath(goalId: string): string | null {
+  if (!goalId || /[\\/]/.test(goalId) || goalId.includes("..")) return null;
+  return `todos/${goalId}.json`;
+}
+
+function parseManagedGoalState(json: string): ManagedGoalStateLite | null {
+  const parsed = asRecord(JSON.parse(json));
+  const state = parsed?.state;
+  if (
+    state !== "inactive" &&
+    state !== "active" &&
+    state !== "paused" &&
+    state !== "done"
+  ) {
+    return null;
+  }
+  const facts = asRecord(parsed?.facts) ?? {};
+  return {
+    state,
+    stage: stringValue(parsed?.stage),
+    updatedAt: stringValue(parsed?.updatedAt),
+    blockers: Array.isArray(parsed?.blockers)
+      ? parsed.blockers.filter((item): item is string => typeof item === "string")
+      : [],
+    facts,
+  };
+}
+
+function dispatchGoalId(run: AgencyRunSummary): string | null {
+  const text = [run.summary, run.decision, run.currentStep].filter(Boolean).join("\n");
+  const match = text.match(/\bdispatch goal ([A-Za-z0-9_.-]+)/i);
+  if (match?.[1]) return match[1];
+  if (run.kind === "goal" && /\bdispatchWorkflow\b/i.test(text)) return run.targetId;
+  return null;
+}
+
+function pendingEvidence(goal: ManagedGoalStateLite): string | null {
+  const pending = goal.facts.pendingEvidence;
+  if (typeof pending === "string" && pending.trim()) return pending.trim();
+  return null;
+}
+
+function statusFromManagedGoal(goal: ManagedGoalStateLite, nowMs = Date.now()): AgencyRunStatus {
+  if (goal.state === "done") return "success";
+  if (goal.blockers.length > 0) return "blocked";
+  if (goal.state === "paused" || goal.state === "inactive") return "waiting";
+  const updatedAt = goal.updatedAt ? Date.parse(goal.updatedAt) : NaN;
+  if (Number.isFinite(updatedAt) && nowMs - updatedAt > DISPATCH_STUCK_MS) return "stuck";
+  return "running";
+}
+
+function stepFromManagedGoal(goalId: string, goal: ManagedGoalStateLite): string {
+  const stage = goal.stage ?? goal.state;
+  const evidence = pendingEvidence(goal);
+  return evidence ? `${goalId}: ${stage} / ${evidence}` : `${goalId}: ${stage}`;
 }
 
 function statusFromGitHubRun(run: GitHubWorkflowRun): AgencyRunStatus | null {
@@ -331,6 +401,58 @@ async function applyGitHubRunOverlay({
   });
 }
 
+async function applyDispatchTargetOverlay({
+  octokit,
+  owner,
+  repo,
+  runs,
+}: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  runs: AgencyRunSummary[];
+}): Promise<AgencyRunSummary[]> {
+  const targetIds = new Map<string, string>();
+  for (const run of runs) {
+    const targetId = dispatchGoalId(run);
+    if (targetId) targetIds.set(run.id, targetId);
+  }
+  if (!targetIds.size) return runs;
+
+  const goals = new Map<string, ManagedGoalStateLite>();
+  await Promise.all(
+    Array.from(new Set(targetIds.values())).map(async (goalId) => {
+      const path = managedGoalPath(goalId);
+      if (!path) return;
+      try {
+        const file = await readStateText(octokit, owner, repo, path);
+        if (!file) return;
+        const goal = parseManagedGoalState(file.content);
+        if (goal) goals.set(goalId, goal);
+      } catch {
+        // Keep the run index usable when a target goal file disappeared.
+      }
+    }),
+  );
+  if (!goals.size) return runs;
+
+  return runs.map((run) => {
+    const targetId = targetIds.get(run.id);
+    const goal = targetId ? goals.get(targetId) : null;
+    if (!targetId || !goal) return run;
+    const status = statusFromManagedGoal(goal);
+    return {
+      ...run,
+      status,
+      currentStep: stepFromManagedGoal(targetId, goal),
+      summary:
+        status === "stuck"
+          ? `stuck waiting on goal ${targetId}`
+          : `waiting on goal ${targetId}`,
+    };
+  });
+}
+
 async function readRunIndexFile({
   octokit,
   owner,
@@ -381,11 +503,17 @@ export async function listAgencyRuns({
     .filter((run): run is AgencyRunSummary => run !== null)
     .sort((a, b) => sortTime(b) - sortTime(a))
     .slice(0, boundedLimit);
-  const runs = await applyGitHubRunOverlay({
+  const runsWithGitHub = await applyGitHubRunOverlay({
     octokit,
     owner,
     repo,
     runs: indexedRuns,
+  });
+  const runs = await applyDispatchTargetOverlay({
+    octokit,
+    owner,
+    repo,
+    runs: runsWithGitHub,
   });
 
   return {

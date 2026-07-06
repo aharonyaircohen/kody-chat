@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { listAgencyRuns } from "../src/dashboard/lib/agency-runs";
 import { readStateText } from "../src/dashboard/lib/state-repo";
@@ -8,6 +8,16 @@ vi.mock("../src/dashboard/lib/state-repo", () => ({
 }));
 
 describe("listAgencyRuns", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-06T06:30:00Z"));
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("overlays live GitHub workflow status on persisted Kody rows", async () => {
     vi.mocked(readStateText).mockResolvedValue({
       content: JSON.stringify({
@@ -51,7 +61,7 @@ describe("listAgencyRuns", () => {
     const payload = await listAgencyRuns({
       octokit: octokit as never,
       owner: "o",
-      repo: "r",
+      repo: "r1",
     });
 
     expect(payload.runs[0]).toMatchObject({
@@ -90,9 +100,78 @@ describe("listAgencyRuns", () => {
     const payload = await listAgencyRuns({
       octokit: octokit as never,
       owner: "o",
-      repo: "r",
+      repo: "r2",
     });
 
     expect(payload.runs[0]?.status).toBe("success");
+  });
+
+  it("shows dispatch rows as stuck when their child goal is stale and active", async () => {
+    vi.mocked(readStateText)
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          runs: [
+            {
+              id: "loop:daily-web-release-loop:gh-28758779842-1-1",
+              subjectType: "loop",
+              subjectId: "daily-web-release-loop",
+              status: "success",
+              title: "daily-web-release-loop",
+              summary: "dispatch goal web-release-2026-07-06",
+              currentStep: "loop.tick.dispatch",
+              decision: "dispatch - dispatch goal web-release-2026-07-06",
+              updatedAt: "2026-07-05T23:37:45Z",
+              githubRunId: "28758779842",
+            },
+          ],
+        }),
+        etag: "etag-1",
+        path: "runs/index.json",
+        sha: "sha-1",
+      })
+      .mockResolvedValueOnce({
+        content: JSON.stringify({
+          version: 1,
+          state: "active",
+          type: "web-release",
+          stage: "workflow",
+          facts: {
+            pendingEvidence: "releasePrExists",
+          },
+          blockers: [],
+          updatedAt: "2026-07-05T23:37:51Z",
+        }),
+        path: "todos/web-release-2026-07-06.json",
+        sha: "sha-2",
+      });
+
+    const octokit = {
+      actions: {
+        listWorkflowRunsForRepo: vi.fn().mockResolvedValue({
+          data: {
+            workflow_runs: [
+              {
+                id: 28758779842,
+                status: "completed",
+                conclusion: "success",
+              },
+            ],
+          },
+        }),
+      },
+    };
+
+    const payload = await listAgencyRuns({
+      octokit: octokit as never,
+      owner: "o",
+      repo: "r3",
+    });
+
+    expect(payload.runs[0]).toMatchObject({
+      id: "loop:daily-web-release-loop:gh-28758779842-1-1",
+      status: "stuck",
+      currentStep: "web-release-2026-07-06: workflow / releasePrExists",
+      summary: "stuck waiting on goal web-release-2026-07-06",
+    });
   });
 });

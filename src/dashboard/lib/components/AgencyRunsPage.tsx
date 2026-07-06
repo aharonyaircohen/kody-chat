@@ -62,6 +62,8 @@ function statusTone(status: AgencyRunStatus): string {
     return "border-emerald-400/25 bg-emerald-400/10 text-emerald-200";
   if (status === "failed")
     return "border-rose-400/30 bg-rose-400/10 text-rose-200";
+  if (status === "stuck")
+    return "border-red-400/30 bg-red-400/10 text-red-200";
   if (status === "blocked")
     return "border-amber-400/30 bg-amber-400/10 text-amber-200";
   if (status === "running")
@@ -93,6 +95,7 @@ function eventSummary(event: Record<string, unknown>): {
 function StatusIcon({ status }: { status: AgencyRunStatus }) {
   if (status === "success") return <CheckCircle2 className="h-3.5 w-3.5" />;
   if (status === "failed") return <XCircle className="h-3.5 w-3.5" />;
+  if (status === "stuck") return <AlertTriangle className="h-3.5 w-3.5" />;
   if (status === "blocked") return <AlertTriangle className="h-3.5 w-3.5" />;
   if (status === "running")
     return <Loader2 className="h-3.5 w-3.5 animate-spin" />;
