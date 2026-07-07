@@ -20,6 +20,9 @@ describe("rate limit polling guardrails", () => {
     expect(
       source("src/dashboard/lib/hooks/useChatTerminalRegistry.ts"),
     ).toContain("setInterval(() => void refreshStatus(), 60_000)");
+    expect(source("src/dashboard/lib/hooks/useAgencyRuns.ts")).toContain(
+      "const AGENCY_RUNS_REFETCH_MS = 120_000",
+    );
     expect(source("src/dashboard/lib/hooks/useManagedGoals.ts")).toContain(
       "refetchInterval: 60_000",
     );
@@ -35,6 +38,15 @@ describe("rate limit polling guardrails", () => {
     expect(
       source("src/dashboard/lib/runners/fly-inventory-server.ts"),
     ).toContain("listFlyInventoryCached");
+    const brainImageManagement = source(
+      "src/dashboard/lib/brain/image-management.ts",
+    );
+    expect(brainImageManagement.indexOf("getTerminalBridgeExecJob")).toBeLessThan(
+      brainImageManagement.indexOf("refresh: true"),
+    );
+    expect(source("src/dashboard/lib/agency-runs.ts")).toContain(
+      "WORKFLOW_OVERLAY_TTL_MS = 60_000",
+    );
     expect(source("src/dashboard/lib/managed-goals-files.ts")).toContain(
       "managedGoalFilesCache.get",
     );

@@ -21,13 +21,13 @@ describe("github background polling route policy", () => {
     }
   });
 
-  it("keeps live polling on routes that show task or issue data", () => {
+  it("keeps task polling on routes that show task or issue data", () => {
     for (const route of ["/", "/tasks", "/vibe", "/123", "/123/comments"]) {
       expect(routeShowsGitHubIssuesOrTasks(route)).toBe(true);
       expect(shouldPollChatGoalsForRoute(route)).toBe(true);
-      expect(shouldPollInboxFeedForRoute(route)).toBe(true);
-      expect(shouldEnableSidebarInboxBadgeData(route)).toBe(true);
-      expect(shouldEnableSidebarMessagesBadgeData(route)).toBe(true);
+      expect(shouldPollInboxFeedForRoute(route)).toBe(false);
+      expect(shouldEnableSidebarInboxBadgeData(route)).toBe(false);
+      expect(shouldEnableSidebarMessagesBadgeData(route)).toBe(false);
       expect(shouldEnableSidebarReportsBadgeData(route)).toBe(true);
     }
   });

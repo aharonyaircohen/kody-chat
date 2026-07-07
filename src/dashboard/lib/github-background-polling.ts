@@ -51,21 +51,19 @@ export function shouldPollChatGoalsForRoute(
 export function shouldPollInboxFeedForRoute(
   pathname: string | null | undefined,
 ): boolean {
-  return routeShowsGitHubIssuesOrTasks(pathname) || routeShowsInbox(pathname);
+  return routeShowsInbox(pathname);
 }
 
 export function shouldEnableSidebarInboxBadgeData(
   pathname: string | null | undefined,
 ): boolean {
-  return routeShowsGitHubIssuesOrTasks(pathname) || routeShowsInbox(pathname);
+  return routeShowsInbox(pathname);
 }
 
 export function shouldEnableSidebarMessagesBadgeData(
   pathname: string | null | undefined,
 ): boolean {
-  return (
-    routeShowsGitHubIssuesOrTasks(pathname) || routeShowsMessages(pathname)
-  );
+  return routeShowsMessages(pathname);
 }
 
 export function shouldEnableSidebarReportsBadgeData(

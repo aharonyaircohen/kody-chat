@@ -145,13 +145,26 @@ interface RunIndexFile {
 
 const RUN_INDEX_PATH = "runs/index.json";
 const DISPATCH_STUCK_MS = 20 * 60_000;
+const WORKFLOW_OVERLAY_TTL_MS = 60_000;
 const readCache = new Map<
   string,
   { etag: string | undefined; json: string; path: string }
 >();
+const managedGoalReadCache = new Map<
+  string,
+  { etag: string | undefined; json: string }
+>();
+const workflowOverlayCache = new Map<
+  string,
+  { expiresAt: number; runs: GitHubWorkflowRun[] }
+>();
 
 function cacheKey(owner: string, repo: string) {
   return `${owner}/${repo}`;
+}
+
+function pathCacheKey(owner: string, repo: string, path: string): string {
+  return `${owner}/${repo}:${path}`;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -777,23 +790,42 @@ async function applyGitHubRunOverlay({
   repo: string;
   runs: AgencyRunSummary[];
 }): Promise<AgencyRunSummary[]> {
-  const ids = new Set(runs.map((run) => run.githubRunId).filter(Boolean));
+  const overlayCandidates = runs.filter(
+    (run) =>
+      run.githubRunId &&
+      canApplyLiveStatusOverlay(run) &&
+      !dispatchGoalId(run) &&
+      !isWaitingOnDispatchTarget(run),
+  );
+  const ids = new Set(overlayCandidates.map((run) => run.githubRunId));
   if (!ids.size) return runs;
 
-  let response: Awaited<
-    ReturnType<Octokit["actions"]["listWorkflowRunsForRepo"]>
-  >;
-  try {
-    response = await octokit.actions.listWorkflowRunsForRepo({
-      owner,
-      repo,
-      per_page: 100,
+  const workflowCacheKey = cacheKey(owner, repo);
+  const cached = workflowOverlayCache.get(workflowCacheKey);
+  let workflowRuns: GitHubWorkflowRun[];
+  if (cached && cached.expiresAt > Date.now()) {
+    workflowRuns = cached.runs;
+  } else {
+    let response: Awaited<
+      ReturnType<Octokit["actions"]["listWorkflowRunsForRepo"]>
+    >;
+    try {
+      response = await octokit.actions.listWorkflowRunsForRepo({
+        owner,
+        repo,
+        per_page: 100,
+      });
+    } catch {
+      return runs;
+    }
+    workflowRuns = response.data.workflow_runs;
+    workflowOverlayCache.set(workflowCacheKey, {
+      expiresAt: Date.now() + WORKFLOW_OVERLAY_TTL_MS,
+      runs: workflowRuns,
     });
-  } catch {
-    return runs;
   }
   const byId = new Map<string, GitHubWorkflowRun>();
-  for (const run of response.data.workflow_runs) {
+  for (const run of workflowRuns) {
     if (run.id !== undefined && run.id !== null) byId.set(String(run.id), run);
   }
 
@@ -817,6 +849,37 @@ async function applyGitHubRunOverlay({
       githubRunUrl,
     };
   });
+}
+
+async function readManagedGoalState({
+  octokit,
+  owner,
+  repo,
+  path,
+}: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  path: string;
+}): Promise<ManagedGoalStateLite | null> {
+  const key = pathCacheKey(owner, repo, path);
+  const cached = managedGoalReadCache.get(key);
+  try {
+    const file = await readStateText(octokit, owner, repo, path, {
+      headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
+    });
+    if (!file) return null;
+    managedGoalReadCache.set(key, {
+      etag: file.etag,
+      json: file.content,
+    });
+    return parseManagedGoalState(file.content);
+  } catch (error: unknown) {
+    const status = (error as { status?: number })?.status;
+    if (status === 304 && cached) return parseManagedGoalState(cached.json);
+    if (status === 404) return null;
+    throw error;
+  }
 }
 
 async function applyDispatchTargetOverlay({
@@ -843,9 +906,7 @@ async function applyDispatchTargetOverlay({
       const path = managedGoalPath(goalId);
       if (!path) return;
       try {
-        const file = await readStateText(octokit, owner, repo, path);
-        if (!file) return;
-        const goal = parseManagedGoalState(file.content);
+        const goal = await readManagedGoalState({ octokit, owner, repo, path });
         if (goal) goals.set(goalId, goal);
       } catch {
         // Keep the run index usable when a target goal file disappeared.

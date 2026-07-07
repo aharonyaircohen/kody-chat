@@ -253,23 +253,6 @@ export async function pollBrainImageSave(input: {
     );
   }
 
-  const discoveredImages = await discoverImages(context, {
-    refresh: true,
-    scope: save.expectedImageRef,
-  });
-  const completedImage = discoveredImages.find(
-    (image) => image.imageRef === save.expectedImageRef,
-  );
-  if (completedImage) {
-    return recordCompletedBrainImageSave({
-      account: context.account,
-      githubToken: context.githubToken,
-      save,
-      imageRef: save.expectedImageRef,
-      finishedAt: completedImage.updatedAt,
-    });
-  }
-
   const bridge = await ensureTerminalBridge({
     token: context.flyToken,
     orgSlug: save.orgSlug,

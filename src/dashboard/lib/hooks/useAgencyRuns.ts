@@ -9,6 +9,8 @@ import { useQuery } from "@tanstack/react-query";
 import { kodyApi } from "../api";
 import { useAuth, type KodyAuth } from "../auth-context";
 
+const AGENCY_RUNS_REFETCH_MS = 120_000;
+
 function scope(auth: KodyAuth | null) {
   if (!auth) return "no-auth";
   return {
@@ -43,8 +45,8 @@ export function useAgencyRuns() {
     queryKey: agencyRunsQueryKeys.list(auth),
     queryFn: () => kodyApi.agencyRuns.list(),
     enabled: !!auth,
-    staleTime: 30_000,
-    refetchInterval: 30_000,
+    staleTime: AGENCY_RUNS_REFETCH_MS,
+    refetchInterval: AGENCY_RUNS_REFETCH_MS,
     refetchIntervalInBackground: false,
   });
 }
