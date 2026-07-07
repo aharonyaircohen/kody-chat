@@ -52,7 +52,9 @@ describe("Brain image save route", () => {
     expect(ROUTE_SOURCE).toContain("selectBrainImageRef");
     expect(ROUTE_SOURCE).toContain("forgetBrainImageRef");
     expect(IMAGE_SAVE_COMMAND_SOURCE).toContain("ensureTerminalBridge");
-    expect(IMAGE_SAVE_COMMAND_SOURCE).toContain("startTerminalBridgeLocalExecJob");
+    expect(IMAGE_SAVE_COMMAND_SOURCE).toContain(
+      "startTerminalBridgeLocalExecJob",
+    );
     expect(IMAGE_MANAGEMENT_SOURCE).toContain("getTerminalBridgeExecJob");
     expect(BRIDGE_EXEC_CLIENT_SOURCE).toContain("/exec");
     expect(BRIDGE_EXEC_CLIENT_SOURCE).toContain("/jobs");
@@ -66,7 +68,9 @@ describe("Brain image save route", () => {
     expect(ROUTE_SOURCE).toContain("export async function GET");
     expect(IMAGE_SAVE_COMMAND_SOURCE).toContain("resolveBrainService");
     expect(IMAGE_SAVE_COMMAND_SOURCE).not.toContain("machineIdOverride");
-    expect(IMAGE_SAVE_COMMAND_SOURCE).not.toContain("appNameOverride: parsed.data.app");
+    expect(IMAGE_SAVE_COMMAND_SOURCE).not.toContain(
+      "appNameOverride: parsed.data.app",
+    );
     expect(IMAGE_SAVE_COMMAND_SOURCE).toContain("brainImageBuildCommand({");
     expect(IMAGE_SAVE_COMMAND_SOURCE).toContain("orgSlug: brain.orgSlug,");
     expect(BRIDGE_EXEC_CLIENT_SOURCE).toContain("local: true");
@@ -100,11 +104,15 @@ describe("Brain image save route", () => {
     expect(APPLY_ROUTE_SOURCE).toContain("applyBrainImage");
     expect(APPLY_ROUTE_SOURCE).toContain("const body =");
     expect(APPLY_ROUTE_SOURCE).toContain("imageRef: body.imageRef");
+    expect(APPLY_ROUTE_SOURCE).toContain("reset: body.reset === true");
     expect(APPLY_SERVICE_SOURCE).toContain("readBrainImage");
     expect(APPLY_SERVICE_SOURCE).toContain(
       "input.imageRef ?? runtimeView.desiredImageRef ?? image?.imageRef",
     );
     expect(APPLY_SERVICE_SOURCE).toContain("imageRef,");
+    expect(APPLY_SERVICE_SOURCE).toContain(
+      "replaceExistingMachine: input.resetExistingMachine === true",
+    );
     expect(APPLY_SERVICE_SOURCE).toContain("prepareBrainRuntimeImage");
     expect(APPLY_SERVICE_SOURCE).toContain("resolveRuntimeImageRef");
     expect(APPLY_SERVICE_SOURCE).toContain("beginBrainRuntimeApply");

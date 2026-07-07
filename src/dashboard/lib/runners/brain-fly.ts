@@ -131,6 +131,12 @@ export interface ProvisionBrainInput {
   defaultRegion?: string;
   /** Optional saved Brain image ref. Defaults to the public base Brain image. */
   imageRef?: string;
+  /**
+   * Replace the active machine even when the requested image tag already
+   * matches. Used by explicit image restore/rerun to discard unsaved machine
+   * state and boot from the saved image again.
+   */
+  replaceExistingMachine?: boolean;
   /** Optional hook that maps a durable saved image to a Fly-pullable runtime ref. */
   resolveRuntimeImageRef?: (input: {
     app: string;
@@ -693,7 +699,9 @@ function chooseExistingMachine(
   }
   if (opts.imageRef) {
     const matching = machines.find((m) =>
-      m.config?.image ? sameImageRepoTag(m.config.image, opts.imageRef!) : false,
+      m.config?.image
+        ? sameImageRepoTag(m.config.image, opts.imageRef!)
+        : false,
     );
     if (matching) return matching;
   }
@@ -716,7 +724,11 @@ async function reconcileSingleActiveMachine(
 ): Promise<FlyMachine> {
   const destroyRequested = new Set<string>();
   let lastLiveIds: string[] = [];
-  for (let attempt = 0; attempt <= MACHINE_RECONCILE_DELAYS_MS.length; attempt++) {
+  for (
+    let attempt = 0;
+    attempt <= MACHINE_RECONCILE_DELAYS_MS.length;
+    attempt++
+  ) {
     const machines = await listExistingMachines(flyToken, appName);
     lastLiveIds = machines.map((m) => m.id);
     const keep = machines.find((m) => m.id === keepMachineId) ?? null;
@@ -1045,6 +1057,42 @@ export async function provisionBrain(
   });
   if (existing) {
     const existingImage = existing.config?.image ?? "";
+    if (input.replaceExistingMachine === true) {
+      logger.info(
+        {
+          app,
+          machineId: existing.id,
+          image,
+        },
+        "brain-fly: recreating machine — replacement requested",
+      );
+      const apiKey =
+        existing.config?.env?.BRAIN_API_KEY ||
+        input.apiKeyOverride ||
+        generateApiKey();
+      await prepareRuntimeImage();
+      const created = await createMachine(
+        input.flyToken,
+        app,
+        machineInput,
+        apiKey,
+        { replacement: true },
+      );
+      const machine = await reconcileSingleActiveMachine(
+        input.flyToken,
+        app,
+        created.id,
+      );
+      return {
+        app,
+        url,
+        apiKey,
+        machineId: machine.id,
+        region: machine.region ?? defaultRegion,
+        org: flyApp.organization?.slug ?? orgSlug,
+        ...(originalName ? { originalName } : {}),
+      };
+    }
     // Heal machines pinned to a stale image ref. A machine created before
     // an image-ref change (the `registry.fly.io/...` → public
     // `ghcr.io/...` migration) is frozen on the old, now-unreachable ref
@@ -1314,7 +1362,11 @@ export async function updateBrainSuspension(
     );
   } else {
     logger.info(
-      { app, machineId: machine.id, autostop: brainAutostop({ suspendOnIdle }) },
+      {
+        app,
+        machineId: machine.id,
+        autostop: brainAutostop({ suspendOnIdle }),
+      },
       "brain-fly: suspension config already current",
     );
   }
@@ -1368,10 +1420,7 @@ export async function resumeBrain(input: ResumeBrainInput): Promise<void> {
     await waitForBrainHealth(brainAppUrl(app), 60_000);
     await waitForMachineRunningState(input.flyToken, app, machine.id);
   }
-  logger.info(
-    { app, machineId: machine.id },
-    "brain-fly: machine resumed",
-  );
+  logger.info({ app, machineId: machine.id }, "brain-fly: machine resumed");
 }
 
 /**

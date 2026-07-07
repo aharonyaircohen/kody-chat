@@ -25,6 +25,7 @@ export const maxDuration = 300;
 
 interface ApplyBody {
   imageRef?: string;
+  reset?: boolean;
 }
 
 export async function POST(req: NextRequest) {
@@ -59,6 +60,7 @@ export async function POST(req: NextRequest) {
       context: ctx.context,
       dashboardUrl: requestOrigin(req),
       imageRef: body.imageRef,
+      reset: body.reset === true,
     });
     return NextResponse.json({
       ok: true,

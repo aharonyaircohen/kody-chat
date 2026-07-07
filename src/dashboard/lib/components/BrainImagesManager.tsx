@@ -15,6 +15,7 @@ import {
   Loader2,
   Play,
   RefreshCw,
+  RotateCcw,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -44,6 +45,7 @@ interface BrainImageSaveState {
     | "completed"
     | "failed";
   message?: string;
+  heartbeatAt?: string;
   lastOutput?: string;
   jobId: string;
   imageRef: string;
@@ -81,6 +83,7 @@ interface BrainImageSavePollResponse {
   status?: "idle" | "running" | "completed" | "failed";
   phase?: BrainImageSaveState["phase"];
   message?: string;
+  heartbeatAt?: string;
   lastOutput?: string;
   jobId?: string;
   imageRef?: string;
@@ -151,6 +154,19 @@ function elapsedLabel(startedAt: string, updatedAt?: string): string {
   if (minutes < 60) return `${minutes}m ${rest}s elapsed`;
   const hours = Math.floor(minutes / 60);
   return `${hours}h ${minutes % 60}m elapsed`;
+}
+
+function liveSignalLabel(heartbeatAt?: string): string | null {
+  if (!heartbeatAt) return null;
+  const heartbeat = new Date(heartbeatAt).getTime();
+  const now = Date.now();
+  if (!Number.isFinite(heartbeat) || heartbeat > now) return null;
+  const seconds = Math.max(0, Math.round((now - heartbeat) / 1000));
+  if (seconds < 60) return `live signal ${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `live signal ${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  return `live signal ${hours}h ${minutes % 60}m ago`;
 }
 
 export function BrainImagesManager() {
@@ -230,7 +246,9 @@ export function BrainImagesManager() {
         .json()
         .catch(() => ({}))) as BrainImageSavePollResponse;
       if (!res.ok) {
-        throw new Error(body.message ?? body.error ?? `Poll failed (${res.status})`);
+        throw new Error(
+          body.message ?? body.error ?? `Poll failed (${res.status})`,
+        );
       }
       if (body.status === "idle") {
         setSave(null);
@@ -249,6 +267,7 @@ export function BrainImagesManager() {
                 status: "failed",
                 phase: "failed",
                 message: body.message ?? prev.message,
+                heartbeatAt: body.heartbeatAt ?? prev.heartbeatAt,
                 lastOutput: body.lastOutput ?? prev.lastOutput,
                 updatedAt: body.updatedAt ?? new Date().toISOString(),
                 error: body.error ?? body.message,
@@ -265,6 +284,7 @@ export function BrainImagesManager() {
                 status: "running",
                 phase: body.phase ?? prev.phase,
                 message: body.message ?? prev.message,
+                heartbeatAt: body.heartbeatAt ?? prev.heartbeatAt,
                 lastOutput: body.lastOutput ?? prev.lastOutput,
                 updatedAt: body.updatedAt ?? new Date().toISOString(),
               }
@@ -272,6 +292,7 @@ export function BrainImagesManager() {
                 status: "running",
                 phase: body.phase ?? "starting",
                 message: body.message,
+                heartbeatAt: body.heartbeatAt,
                 lastOutput: body.lastOutput,
                 jobId: body.jobId ?? jobId,
                 imageRef: body.imageRef ?? "",
@@ -288,6 +309,8 @@ export function BrainImagesManager() {
     () => images.find((image) => image.imageRef === pendingApplyRef) ?? null,
     [images, pendingApplyRef],
   );
+  const pendingApplyIsRunning =
+    pendingApplyRef !== null && pendingApplyRef === runningImageRef;
   const pendingForgetImage = useMemo(
     () => images.find((image) => image.imageRef === pendingForgetRef) ?? null,
     [images, pendingForgetRef],
@@ -311,14 +334,14 @@ export function BrainImagesManager() {
     return () => window.clearInterval(interval);
   }, [pollSave, save?.jobId, save?.status]);
 
-  async function applyImage(imageRef: string) {
+  async function applyImage(imageRef: string, reset = false) {
     if (!headers) return;
     setBusyRef(imageRef);
     try {
       const res = await fetch("/api/kody/brain/image/apply", {
         method: "POST",
         headers: { "content-type": "application/json", ...headers },
-        body: JSON.stringify({ imageRef }),
+        body: JSON.stringify({ imageRef, reset }),
       });
       const body = (await res.json().catch(() => ({}))) as BrainImagesResponse;
       if (!res.ok) {
@@ -337,11 +360,7 @@ export function BrainImagesManager() {
   }
 
   function requestApplyImage(imageRef: string) {
-    if (runningImageRef && runningImageRef !== imageRef) {
-      setPendingApplyRef(imageRef);
-      return;
-    }
-    void applyImage(imageRef);
+    setPendingApplyRef(imageRef);
   }
 
   async function forgetImage(imageRef: string) {
@@ -442,9 +461,7 @@ export function BrainImagesManager() {
                   Saved images
                 </div>
                 <div className="mt-1 truncate font-mono text-xs text-white">
-                  {images.length === 1
-                    ? "1 image"
-                    : `${images.length} images`}
+                  {images.length === 1 ? "1 image" : `${images.length} images`}
                 </div>
                 <div className="mt-1 text-xs text-white/45">
                   {save?.status === "running"
@@ -464,8 +481,10 @@ export function BrainImagesManager() {
                   {phaseLabel(save)}
                 </div>
                 <div className="mt-1 text-amber-100/70">
-                  {imageTag(save.imageRef)} ·{" "}
-                  {elapsedLabel(save.startedAt, save.updatedAt)}
+                  {imageTag(save.imageRef)} · {elapsedLabel(save.startedAt)}
+                  {liveSignalLabel(save.heartbeatAt)
+                    ? ` · ${liveSignalLabel(save.heartbeatAt)}`
+                    : ""}
                 </div>
                 {save.lastOutput && (
                   <pre className="mt-2 max-h-24 overflow-auto whitespace-pre-wrap rounded bg-black/25 p-2 font-mono text-[11px] text-amber-50/70">
@@ -539,15 +558,16 @@ export function BrainImagesManager() {
                 >
                   <div className="min-w-0 space-y-1">
                     <div className="flex min-w-0 items-center gap-2">
-                      {running && (
-                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />
-                      )}
                       <span className="truncate font-mono text-sm text-white">
                         {imageLabel(image.imageRef)}
                       </span>
                       {running && (
-                        <span className="shrink-0 rounded border border-emerald-300/20 bg-emerald-300/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-200">
-                          Running Brain image
+                        <span
+                          className="inline-flex shrink-0 items-center rounded border border-emerald-400/20 bg-emerald-400/10 p-1 text-emerald-300"
+                          title="Active Brain image"
+                          aria-label="Active Brain image"
+                        >
+                          <CheckCircle2 className="h-3 w-3" />
                         </span>
                       )}
                     </div>
@@ -564,18 +584,27 @@ export function BrainImagesManager() {
                   <div className="flex items-center gap-1 sm:justify-end">
                     <Button
                       type="button"
-                      size="sm"
-                      variant={running ? "secondary" : "default"}
-                      disabled={running || busy}
-                      className="gap-2"
+                      size="icon"
+                      variant={running ? "outline" : "default"}
+                      disabled={busy}
+                      title={running ? "Rerun Brain image" : "Run Brain image"}
+                      aria-label={
+                        running ? "Rerun Brain image" : "Run Brain image"
+                      }
+                      className={
+                        running
+                          ? "border-amber-400/35 bg-amber-400/10 text-amber-100 hover:bg-amber-400/15 hover:text-amber-50"
+                          : undefined
+                      }
                       onClick={() => requestApplyImage(image.imageRef)}
                     >
                       {busy ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : running ? (
+                        <RotateCcw className="h-4 w-4" />
                       ) : (
                         <Play className="h-4 w-4" />
                       )}
-                      {running ? "Running Brain image" : "Run this image"}
                     </Button>
                     <Button
                       type="button"
@@ -616,17 +645,26 @@ export function BrainImagesManager() {
       </div>
       <ConfirmDialog
         open={pendingApplyRef !== null}
-        title="Run this Brain image?"
+        title={
+          pendingApplyIsRunning
+            ? "Rerun this Brain image?"
+            : "Run this Brain image?"
+        }
         description={
-          pendingApplyImage
-            ? `This will replace the Brain machine image with ${imageLabel(
+          pendingApplyIsRunning && pendingApplyImage
+            ? `This will rerun the active Brain image ${imageLabel(
                 pendingApplyImage.imageRef,
               )}. Unsaved changes in the current machine may be lost unless saved as an image first.`
-            : "This will replace the Brain machine image. Unsaved changes in the current machine may be lost unless saved as an image first."
+            : pendingApplyImage
+              ? `This will replace the Brain machine image with ${imageLabel(
+                  pendingApplyImage.imageRef,
+                )}. Unsaved changes in the current machine may be lost unless saved as an image first.`
+              : "This will replace the Brain machine image. Unsaved changes in the current machine may be lost unless saved as an image first."
         }
-        confirmLabel="Run image"
+        confirmLabel={pendingApplyIsRunning ? "Rerun image" : "Run image"}
         onConfirm={() => {
-          if (pendingApplyRef) void applyImage(pendingApplyRef);
+          if (pendingApplyRef)
+            void applyImage(pendingApplyRef, pendingApplyIsRunning);
         }}
         onClose={() => setPendingApplyRef(null)}
       />

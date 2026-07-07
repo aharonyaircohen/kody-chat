@@ -18,6 +18,7 @@ export interface ApplyBrainImageCommandInput {
   context: FlyContext;
   dashboardUrl: string;
   imageRef?: string;
+  reset?: boolean;
 }
 
 export async function applyBrainImage(
@@ -43,5 +44,6 @@ export async function applyBrainImage(
     engineModelConfig: context.engineModelConfig,
     perfTier: context.perfTier,
     imageRef: input.imageRef,
+    resetExistingMachine: input.reset === true,
   });
 }

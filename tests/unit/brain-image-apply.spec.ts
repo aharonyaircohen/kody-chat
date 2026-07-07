@@ -281,6 +281,29 @@ describe("applySelectedBrainImage", () => {
     expect(store.selectBrainImage).not.toHaveBeenCalled();
   });
 
+  it("requests machine replacement when restoring the active image", async () => {
+    await applySelectedBrainImage({
+      owner: "acme",
+      repo: "widgets",
+      account: "octocat",
+      githubToken: "gh-token",
+      allSecrets: {},
+      flyToken: "fly-token",
+      flyOrgSlug: "personal",
+      flyDefaultRegion: "fra",
+      dashboardUrl: "https://dash.test",
+      imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
+      resetExistingMachine: true,
+    });
+
+    expect(brainFly.provisionBrain).toHaveBeenCalledWith(
+      expect.objectContaining({
+        imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
+        replaceExistingMachine: true,
+      }),
+    );
+  });
+
   it("applies a recently discovered GHCR image when the saved image record is stale", async () => {
     store.readBrainImage.mockResolvedValueOnce({
       version: 1,

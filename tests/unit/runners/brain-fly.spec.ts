@@ -34,9 +34,8 @@ interface RecordedCall {
 }
 
 function graphType(call: RecordedCall): string | undefined {
-  return (
-    call.body as { variables?: { type?: string } } | undefined
-  )?.variables?.type;
+  return (call.body as { variables?: { type?: string } } | undefined)?.variables
+    ?.type;
 }
 
 function installFetchStub(
@@ -340,6 +339,82 @@ describe("provisionBrain", () => {
     expect(out.machineId).toBe("m-existing");
   });
 
+  it("recreates an existing same-image machine when replacement is requested", async () => {
+    const runtimeImage = "registry.fly.io/kody-brain-alice:20260707t121923z";
+    let machineList: Array<Record<string, unknown>> = [
+      {
+        id: "m-existing",
+        state: "started",
+        region: "fra",
+        config: {
+          image: `${runtimeImage}@sha256:current`,
+          env: { BRAIN_API_KEY: "preexisting-key" },
+        },
+      },
+    ];
+    const prepareRuntimeImage = vi.fn(async () => undefined);
+    const calls = installFetchStub((call) => {
+      if (
+        call.url.endsWith("/apps/kody-brain-alice") &&
+        call.method === "GET"
+      ) {
+        return { json: { name: "kody-brain-alice" } };
+      }
+      if (
+        call.url.endsWith("/apps/kody-brain-alice/machines") &&
+        call.method === "GET"
+      ) {
+        return { json: machineList };
+      }
+      if (
+        call.method === "DELETE" &&
+        call.url.includes("/machines/m-existing")
+      ) {
+        machineList = machineList.filter((m) => m.id !== "m-existing");
+        return { status: 200, json: { ok: true } };
+      }
+      if (
+        call.method === "POST" &&
+        call.url.endsWith("/apps/kody-brain-alice/machines")
+      ) {
+        machineList = [
+          ...machineList,
+          {
+            id: "m-fresh",
+            state: "starting",
+            region: "fra",
+            config: { image: runtimeImage },
+          },
+        ];
+        return { json: { id: "m-fresh", state: "starting", region: "fra" } };
+      }
+      throw new Error(`unexpected call: ${call.method} ${call.url}`);
+    });
+
+    const out = await provisionBrain({
+      flyToken: TOKEN,
+      account: "alice",
+      githubToken: "gh-pat",
+      imageRef: "ghcr.io/acme/kody-brain-alice:20260707t121923z",
+      replaceExistingMachine: true,
+      resolveRuntimeImageRef: async () => runtimeImage,
+      prepareRuntimeImage,
+    });
+
+    expect(out.apiKey).toBe("preexisting-key");
+    expect(out.machineId).toBe("m-fresh");
+    expect(prepareRuntimeImage).toHaveBeenCalledWith({
+      app: "kody-brain-alice",
+      sourceImageRef: "ghcr.io/acme/kody-brain-alice:20260707t121923z",
+      runtimeImageRef: runtimeImage,
+    });
+    expect(
+      calls.some(
+        (c) => c.method === "DELETE" && c.url.includes("/machines/m-existing"),
+      ),
+    ).toBe(true);
+  });
+
   it("recreates reused Brain machines when model env changes", async () => {
     let machineList: Array<Record<string, unknown>> = [
       {
@@ -463,7 +538,10 @@ describe("provisionBrain", () => {
       ) {
         return { json: machineList };
       }
-      if (call.method === "DELETE" && call.url.includes("/machines/m-existing")) {
+      if (
+        call.method === "DELETE" &&
+        call.url.includes("/machines/m-existing")
+      ) {
         machineList = machineList.filter((m) => m.id !== "m-existing");
         return { status: 200, json: { ok: true } };
       }
@@ -779,9 +857,9 @@ describe("allocateIpsIfMissing", () => {
       undefined,
     );
     expect(
-      calls.filter((c) => c.url === "https://api.fly.io/graphql").map(
-        (c) => graphType(c),
-      ),
+      calls
+        .filter((c) => c.url === "https://api.fly.io/graphql")
+        .map((c) => graphType(c)),
     ).toEqual(["shared_v4", "v6"]);
   });
 
@@ -831,9 +909,9 @@ describe("allocateIpsIfMissing", () => {
       undefined,
     );
     expect(
-      calls.filter((c) => c.url === "https://api.fly.io/graphql").map(
-        (c) => graphType(c),
-      ),
+      calls
+        .filter((c) => c.url === "https://api.fly.io/graphql")
+        .map((c) => graphType(c)),
     ).toEqual(["shared_v4", "v6"]);
   });
 
@@ -1471,20 +1549,21 @@ describe("updateBrainSuspension", () => {
           ],
         };
       }
-      if (
-        call.method === "POST" &&
-        call.url.endsWith("/machines/m-existing")
-      ) {
+      if (call.method === "POST" && call.url.endsWith("/machines/m-existing")) {
         return { json: { id: "m-existing", state: "started" } };
       }
       if (
         call.url.endsWith("/apps") ||
         call.url.endsWith("/apps/kody-brain-alice")
       ) {
-        throw new Error(`must not provision from suspension update: ${call.url}`);
+        throw new Error(
+          `must not provision from suspension update: ${call.url}`,
+        );
       }
       if (call.method === "DELETE") {
-        throw new Error(`must not recreate from suspension update: ${call.url}`);
+        throw new Error(
+          `must not recreate from suspension update: ${call.url}`,
+        );
       }
       throw new Error(`unexpected: ${call.method} ${call.url}`);
     });
@@ -1512,9 +1591,9 @@ describe("updateBrainSuspension", () => {
         }
       ).config.services[0]!.autostop,
     ).toBe(false);
-    expect(calls.some((c) => c.method === "POST" && c.url.endsWith("/apps"))).toBe(
-      false,
-    );
+    expect(
+      calls.some((c) => c.method === "POST" && c.url.endsWith("/apps")),
+    ).toBe(false);
   });
 
   it("rejects suspension updates when no Brain machine exists", async () => {

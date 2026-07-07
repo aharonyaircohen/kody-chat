@@ -57,6 +57,7 @@ export interface ApplyBrainImageInput {
   engineModelConfig?: EngineRuntimeModelConfig;
   perfTier?: PerfTier;
   imageRef?: string;
+  resetExistingMachine?: boolean;
 }
 
 export interface ApplyBrainImageResult {
@@ -151,6 +152,7 @@ export async function applySelectedBrainImage(
       dashboardUrl: input.dashboardUrl,
       appNameOverride: service.app,
       imageRef,
+      replaceExistingMachine: input.resetExistingMachine === true,
       resolveRuntimeImageRef: ({ app, imageRef }) =>
         Promise.resolve(brainFlyRuntimeImageRef({ app, imageRef })),
       prepareRuntimeImage: async ({ app, sourceImageRef, runtimeImageRef }) => {
