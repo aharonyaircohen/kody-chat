@@ -127,6 +127,14 @@ describe("ensureTerminalBridge", () => {
     expect(consoleSession).toContain("FLY_API_TOKEN: claims.flyToken");
     expect(consoleSession).toContain("FLY_ACCESS_TOKEN: claims.flyToken");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("--pty");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("function repoShellCommand");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("claims.repoToken");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("repoTokenHash");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("/workspace/repos/");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("GH_TOKEN");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("GITHUB_TOKEN");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("http.extraheader=");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("clone --depth 1");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('url.pathname === "/exec"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('url.pathname === "/jobs"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
@@ -169,9 +177,15 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"set-option"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"status"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"off"');
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain('"mouse"');
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain('"on"');
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain('"history-limit"');
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("TERMINAL_TMUX_HISTORY_LIMIT");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("function tmuxPaneCommand");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"attach-session"');
-    expect(TERMINAL_BRIDGE_SCRIPT).not.toContain("Reattached terminal session.");
+    expect(TERMINAL_BRIDGE_SCRIPT).not.toContain(
+      "Reattached terminal session.",
+    );
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain("RESTORE_PROBE_TIMEOUT_MS");
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain("startRestoreProbe");
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain(
@@ -183,7 +197,6 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('type: "ready"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("findReadyProof");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("\\/dev\\/(?:pts\\/[0-9]+|tty");
-    expect(consoleSession).not.toContain("--command");
     expect(consoleSession).not.toContain("script");
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain(
       "Terminal opened, but it did not report a real TTY.",
@@ -455,8 +468,7 @@ os.write(sys.stdout.fileno(), b"REMOTE:" + data)
                       image: TERMINAL_BRIDGE_BASE_IMAGE,
                       env: {
                         BRIDGE_AUTH_SECRET: "winner-secret",
-                        KODY_TERMINAL_BRIDGE_VERSION:
-                          TERMINAL_BRIDGE_VERSION,
+                        KODY_TERMINAL_BRIDGE_VERSION: TERMINAL_BRIDGE_VERSION,
                       },
                     },
                   },
@@ -545,7 +557,9 @@ os.write(sys.stdout.fileno(), b"REMOTE:" + data)
             },
           };
         }
-        return { json: { id: "fresh-bridge", state: "started", region: "fra" } };
+        return {
+          json: { id: "fresh-bridge", state: "started", region: "fra" },
+        };
       }
       throw new Error(`unexpected call: ${call.method} ${call.url}`);
     });

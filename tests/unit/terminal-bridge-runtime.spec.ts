@@ -111,7 +111,7 @@ function readState(name) {
   try {
     return JSON.parse(fs.readFileSync(sessionFile(name), "utf8"));
   } catch {
-    return { marker: "", attachCount: 0, statusOff: false };
+    return { marker: "", attachCount: 0, statusOff: false, mouseOn: false, historyLimit: "" };
   }
 }
 function writeState(name, state) {
@@ -126,7 +126,7 @@ if (args[0] === "kill-session") {
 }
 if (args[0] === "new-session") {
   const name = args[args.indexOf("-s") + 1];
-  writeState(name, { marker: "", attachCount: 0, statusOff: false });
+  writeState(name, { marker: "", attachCount: 0, statusOff: false, mouseOn: false, historyLimit: "" });
   process.exit(0);
 }
 if (args[0] === "set-option") {
@@ -134,8 +134,15 @@ if (args[0] === "set-option") {
   const state = readState(name);
   if (args.includes("status") && args.includes("off")) {
     state.statusOff = true;
-    writeState(name, state);
   }
+  if (args.includes("mouse") && args.includes("on")) {
+    state.mouseOn = true;
+  }
+  const historyLimitIndex = args.indexOf("history-limit");
+  if (historyLimitIndex !== -1) {
+    state.historyLimit = args[historyLimitIndex + 1] || "";
+  }
+  writeState(name, state);
   process.exit(0);
 }
 if (args[0] === "attach-session") {
@@ -145,6 +152,9 @@ if (args[0] === "attach-session") {
   writeState(name, state);
   if (!state.statusOff) {
     process.stdout.write("[" + name.slice(0, 10) + ":flyctl]*\\r\\n");
+  }
+  if (!state.mouseOn || Number(state.historyLimit) < 50000) {
+    process.stdout.write("TMUX_SCROLL_DISABLED\\r\\n");
   }
   if (state.marker) {
     process.stdout.write("\\x1b[2J\\x1b[H" + "TMUX_REDRAW:" + state.marker + "\\r\\n");
@@ -292,7 +302,11 @@ function watchSocket(socket: net.Socket, initial = Buffer.alloc(0)): RuntimeSock
   }
 
   socket.on("data", (chunk) => {
-    events.push(`bytes:${chunk.length}:${chunk.subarray(0, 4).toString("hex")}`);
+    events.push(
+      `bytes:${chunk.length}:${chunk.subarray(0, 4).toString("hex")}:${chunk
+        .toString("utf8")
+        .slice(0, 180)}`,
+    );
     frameBuffer = Buffer.concat([frameBuffer, chunk]);
     consumeFrames();
   });
@@ -404,6 +418,17 @@ describe("terminal bridge runtime restore", () => {
     ).toBe(false);
   }
 
+  function expectTmuxScrollEnabled(probe: RuntimeSocket): void {
+    expect(
+      probe.messages.some(
+        (message) =>
+          message.type === "output" &&
+          typeof message.data === "string" &&
+          message.data.includes("TMUX_SCROLL_DISABLED"),
+      ),
+    ).toBe(false);
+  }
+
   it(
     "reattaches a refreshed websocket to the same live terminal",
     async () => {
@@ -436,6 +461,8 @@ describe("terminal bridge runtime restore", () => {
       await secondProbe.waitFor((message) => message.type === "ready");
       expectNoTmuxStatusLine(firstProbe);
       expectNoTmuxStatusLine(secondProbe);
+      expectTmuxScrollEnabled(firstProbe);
+      expectTmuxScrollEnabled(secondProbe);
       const secondMarker = `KODY_RUNTIME_SECOND_${Date.now()}`;
       secondSocket.send(
         JSON.stringify({ type: "input", id: 2, data: `printf "${secondMarker}\\n"\r` }),
@@ -483,6 +510,8 @@ describe("terminal bridge runtime restore", () => {
       await secondProbe.waitFor((message) => message.type === "ready");
       expectNoTmuxStatusLine(firstProbe);
       expectNoTmuxStatusLine(secondProbe);
+      expectTmuxScrollEnabled(firstProbe);
+      expectTmuxScrollEnabled(secondProbe);
       secondSocket.close(1000, "done");
     },
     TEST_TIMEOUT_MS,

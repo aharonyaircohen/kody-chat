@@ -20,6 +20,10 @@ const CHAT_SOURCE = readFileSync(
   resolve(__dirname, "../../src/dashboard/lib/components/KodyChat.tsx"),
   "utf8",
 );
+const GLOBALS_SOURCE = readFileSync(
+  resolve(__dirname, "../../src/dashboard/globals.css"),
+  "utf8",
+);
 
 describe("terminal chrome style", () => {
   it("uses Kody app chrome instead of terminal chrome", () => {
@@ -29,6 +33,15 @@ describe("terminal chrome style", () => {
     expect(SURFACE_SOURCE).not.toContain(
       "border-b border-white/10 bg-black/30 px-2 py-1.5",
     );
+  });
+
+  it("keeps terminal history scrollable", () => {
+    expect(SURFACE_SOURCE).toContain("scrollback: 10000");
+    expect(SURFACE_SOURCE).toContain("terminal-scroll-host h-full min-h-0 overflow-auto");
+    expect(SURFACE_SOURCE).not.toContain('className="h-full min-h-0 overflow-hidden"');
+    expect(GLOBALS_SOURCE).toContain(".terminal-scroll-host .xterm-viewport");
+    expect(GLOBALS_SOURCE).toContain("overflow-y: auto !important");
+    expect(GLOBALS_SOURCE).toContain("scrollbar-width: thin");
   });
 
   it("uses shared Kody tokens for terminal toolbar controls", () => {

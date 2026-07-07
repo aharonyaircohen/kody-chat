@@ -106,8 +106,7 @@ const inventoryServer = vi.hoisted(() => ({
         return false;
       }
       inv.machines = inv.machines.filter(
-        (machine) =>
-          machine.feature !== "brain" && machine.app !== brain.app,
+        (machine) => machine.feature !== "brain" && machine.app !== brain.app,
       );
       inv.machines.push({ ...brain.machine, orgSlug: brain.orgSlug });
       return true;
@@ -411,8 +410,7 @@ beforeEach(() => {
         return false;
       }
       inv.machines = inv.machines.filter(
-        (machine) =>
-          machine.feature !== "brain" && machine.app !== brain.app,
+        (machine) => machine.feature !== "brain" && machine.app !== brain.app,
       );
       inv.machines.push({ ...brain.machine, orgSlug: brain.orgSlug });
       return true;
@@ -503,6 +501,7 @@ describe("POST /api/kody/terminal/session", () => {
         machineId: "brain-1",
         chatSessionId: "brain:acme:widgets:kody-brain-octocat:brain-1",
         resetSession: true,
+        repoToken: "ghp_test",
         cols: 132,
         rows: 40,
         flyToken: "fly-token",
@@ -974,7 +973,9 @@ describe("POST /api/kody/terminal/session", () => {
     let started = false;
     flyPreview.startMachine
       .mockRejectedValueOnce(
-        new Error('startMachine failed: 403 Forbidden — {"error":"unauthorized"}'),
+        new Error(
+          'startMachine failed: 403 Forbidden — {"error":"unauthorized"}',
+        ),
       )
       .mockImplementationOnce(async () => {
         started = true;

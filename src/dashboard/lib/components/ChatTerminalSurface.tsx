@@ -1271,7 +1271,7 @@ export const ChatTerminalSurface = forwardRef<
         </div>
       )}
       <div className="min-h-0 flex-1 overflow-hidden p-2">
-        <div ref={hostRef} className="h-full min-h-0 overflow-hidden" />
+        <div ref={hostRef} className="terminal-scroll-host h-full min-h-0 overflow-auto" />
       </div>
     </div>
   );

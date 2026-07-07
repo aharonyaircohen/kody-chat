@@ -23,10 +23,7 @@ import {
   type FlyContext,
 } from "@dashboard/lib/runners/fly-context";
 
-import {
-  ensureTerminalBridge,
-  type TerminalBridgeInfo,
-} from "./bridge-fly";
+import { ensureTerminalBridge, type TerminalBridgeInfo } from "./bridge-fly";
 import {
   loadTerminalInventoryAuthority,
   terminalBridgeConfigCandidates,
@@ -161,11 +158,16 @@ export async function startTerminalSession(input: {
   }
 
   const brainRequested = data.target === "brain" || data.feature === "brain";
-  let { inventory, savedBrain } = await loadTerminalInventoryAuthority(req, cfg, {
-    brainRequested,
-    app: data.app,
-    machineId: data.machineId,
-  }, context);
+  let { inventory, savedBrain } = await loadTerminalInventoryAuthority(
+    req,
+    cfg,
+    {
+      brainRequested,
+      app: data.app,
+      machineId: data.machineId,
+    },
+    context,
+  );
   if (brainRequested && savedBrain?.brain.reason === "fly_access_denied") {
     throw targetError("fly_access_denied", {
       app: savedBrain.brain.app,
@@ -225,7 +227,11 @@ export async function startTerminalSession(input: {
       { app: requested.app, machineId: requested.machineId },
       "terminal: waking machine",
     );
-    const requestedCfg = terminalFlyConfigForMachine(cfg, requested, savedBrain);
+    const requestedCfg = terminalFlyConfigForMachine(
+      cfg,
+      requested,
+      savedBrain,
+    );
     await startMachineForTarget(
       requested.app,
       requested.machineId,
@@ -237,11 +243,16 @@ export async function startTerminalSession(input: {
     };
     for (let attempt = 0; attempt < WAKE_POLL_ATTEMPTS; attempt++) {
       if (attempt > 0) await sleep(WAKE_POLL_INTERVAL_MS);
-      const refreshed = await loadTerminalInventoryAuthority(req, cfg, {
-        brainRequested: requested.feature === "brain",
-        app: requested.app,
-        machineId: requested.machineId,
-      }, context);
+      const refreshed = await loadTerminalInventoryAuthority(
+        req,
+        cfg,
+        {
+          brainRequested: requested.feature === "brain",
+          app: requested.app,
+          machineId: requested.machineId,
+        },
+        context,
+      );
       inventory = refreshed.inventory;
       savedBrain = refreshed.savedBrain ?? savedBrain;
       const next = resolveTerminalTargetMachine(inventory, selectedInput);
@@ -261,9 +272,8 @@ export async function startTerminalSession(input: {
     selected.machine,
     savedBrain,
   );
-  const { bridge, terminalCfg } = await ensureTerminalBridgeForTarget(
-    selectedCfg,
-  );
+  const { bridge, terminalCfg } =
+    await ensureTerminalBridgeForTarget(selectedCfg);
   const activityLimitMs = terminalActivityLimitForTarget(
     selected.machine.feature,
     data.activityLimitMs,
@@ -286,6 +296,9 @@ export async function startTerminalSession(input: {
     chatSessionId: bridgeSessionId,
     resetSession: data.resetSession,
     ...(activityLimitMs !== undefined ? { activityLimitMs } : {}),
+    ...(selected.machine.feature === "brain"
+      ? { repoToken: context.githubToken }
+      : {}),
     flyToken: terminalCfg.token,
     cols: data.cols,
     rows: data.rows,
