@@ -24,6 +24,10 @@ const GLOBALS_SOURCE = readFileSync(
   resolve(__dirname, "../../src/dashboard/globals.css"),
   "utf8",
 );
+const PACKAGE_SOURCE = readFileSync(
+  resolve(__dirname, "../../package.json"),
+  "utf8",
+);
 
 describe("terminal chrome style", () => {
   it("uses Kody app chrome instead of terminal chrome", () => {
@@ -107,5 +111,12 @@ describe("terminal chrome style", () => {
     expect(SURFACE_SOURCE).toContain("navigator.clipboard.writeText");
     expect(SURFACE_SOURCE).toContain("Copy selection");
     expect(SURFACE_SOURCE).not.toContain("selectionCopy");
+  });
+
+  it("loads web links in the terminal UI surface", () => {
+    expect(PACKAGE_SOURCE).toContain('"@xterm/addon-web-links"');
+    expect(SURFACE_SOURCE).toContain('import("@xterm/addon-web-links")');
+    expect(SURFACE_SOURCE).toContain("new WebLinksAddon");
+    expect(SURFACE_SOURCE).toContain("terminal.loadAddon(webLinksAddon)");
   });
 });

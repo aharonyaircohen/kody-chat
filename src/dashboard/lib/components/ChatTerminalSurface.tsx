@@ -622,10 +622,13 @@ export const ChatTerminalSurface = forwardRef<
     const disposables: Array<{ dispose: () => void }> = [];
 
     void (async () => {
-      const [{ Terminal }, { FitAddon }] = await Promise.all([
-        import("@xterm/xterm"),
-        import("@xterm/addon-fit"),
-      ]);
+      const [{ Terminal }, { FitAddon }, { WebLinksAddon }] = await Promise.all(
+        [
+          import("@xterm/xterm"),
+          import("@xterm/addon-fit"),
+          import("@xterm/addon-web-links"),
+        ],
+      );
       if (disposed) return;
 
       const terminal = new Terminal({
@@ -651,7 +654,12 @@ export const ChatTerminalSurface = forwardRef<
         },
       });
       const fitAddon = new FitAddon();
+      const webLinksAddon = new WebLinksAddon((_event, uri) => {
+        const opened = window.open(uri, "_blank", "noopener,noreferrer");
+        if (opened) opened.opener = null;
+      });
       terminal.loadAddon(fitAddon);
+      terminal.loadAddon(webLinksAddon);
       terminal.open(host);
       fitAddon.fit();
 
