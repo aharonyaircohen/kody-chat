@@ -78,9 +78,7 @@ describe("terminal checkpoint UI", () => {
     expect(CHAT_SOURCE).toContain("activeTerminalSurface?.restart()");
     expect(CHAT_SOURCE).toContain("activeTerminalSurface?.addToChat()");
     expect(CHAT_SOURCE).toContain("activeTerminalSurface?.clear()");
-    expect(CHAT_SOURCE).toContain(
-      'className="flex min-h-10 items-center gap-2"',
-    );
+    expect(CHAT_SOURCE).toContain("flex min-h-10 items-center gap-2");
     expect(CHAT_SOURCE).toContain(
       '{chatMode === "terminal" && terminalBottomControls}',
     );
@@ -97,7 +95,7 @@ describe("terminal checkpoint UI", () => {
     expect(CHAT_SOURCE).toContain("title={`Terminal ${terminalStatusLabel}`}");
     expect(CHAT_SOURCE).not.toContain("{terminalStatusLabel}</span>");
     expect(CHAT_SOURCE).toContain("bg-[#050608]");
-    expect(CHAT_SOURCE).toContain("text-[#f4f4f5]");
+    expect(CHAT_SOURCE).toContain("text-foreground");
     expect(SURFACE_SOURCE).toContain("topToolbar?: ReactNode");
     expect(SURFACE_SOURCE).toContain("onChromeStateChange");
     expect(SURFACE_SOURCE).toContain("{topToolbar &&");

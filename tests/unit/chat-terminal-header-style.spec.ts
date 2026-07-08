@@ -37,8 +37,12 @@ describe("terminal chrome style", () => {
 
   it("keeps terminal history scrollable", () => {
     expect(SURFACE_SOURCE).toContain("scrollback: 10000");
-    expect(SURFACE_SOURCE).toContain("terminal-scroll-host h-full min-h-0 overflow-auto");
-    expect(SURFACE_SOURCE).not.toContain('className="h-full min-h-0 overflow-hidden"');
+    expect(SURFACE_SOURCE).toContain(
+      "terminal-scroll-host h-full min-h-0 overflow-auto",
+    );
+    expect(SURFACE_SOURCE).not.toContain(
+      'className="h-full min-h-0 overflow-hidden"',
+    );
     expect(GLOBALS_SOURCE).toContain(".terminal-scroll-host .xterm-viewport");
     expect(GLOBALS_SOURCE).toContain("overflow-y: auto !important");
     expect(GLOBALS_SOURCE).toContain("scrollbar-width: thin");
@@ -64,7 +68,9 @@ describe("terminal chrome style", () => {
     expect(CHAT_SOURCE).not.toContain(
       'data-testid="chat-terminal-bottom-status"\n        className="flex min-w-0 shrink items-center gap-2 rounded-md border border-border bg-background px-2 py-1"',
     );
-    expect(CHAT_SOURCE).not.toContain('chatMode === "terminal" ? "bg-[#050608]"');
+    expect(CHAT_SOURCE).not.toContain(
+      'chatMode === "terminal" ? "bg-[#050608]"',
+    );
     expect(CHAT_SOURCE).toContain('"border-b border-border/40 pb-2"');
     expect(CHAT_SOURCE).toContain('"pt-2"');
   });
@@ -89,6 +95,17 @@ describe("terminal chrome style", () => {
       'data-testid="chat-terminal-input-status-icon"',
     );
     expect(CHAT_SOURCE).not.toContain("terminalInputStatusClassName");
-    expect(CHAT_SOURCE).not.toContain("border-amber-500/70 focus:ring-amber-500/35");
+    expect(CHAT_SOURCE).not.toContain(
+      "border-amber-500/70 focus:ring-amber-500/35",
+    );
+  });
+
+  it("keeps terminal copy selection in the UI surface", () => {
+    expect(SURFACE_SOURCE).toContain("terminal.onSelectionChange");
+    expect(SURFACE_SOURCE).toContain("terminal.getSelection()");
+    expect(SURFACE_SOURCE).toContain("copySelectedTerminalText");
+    expect(SURFACE_SOURCE).toContain("navigator.clipboard.writeText");
+    expect(SURFACE_SOURCE).toContain("Copy selection");
+    expect(SURFACE_SOURCE).not.toContain("selectionCopy");
   });
 });

@@ -219,6 +219,7 @@ export const ChatTerminalSurface = forwardRef<
   const flyReconnectNoticeRef = useRef(false);
   const nextFlyInputIdRef = useRef(1);
   const pendingFlyInputAckTimerRef = useRef<number | null>(null);
+  const terminalSelectionClearTimerRef = useRef<number | null>(null);
   const localStartFailureKeyRef = useRef<string | null>(null);
   const disposedRef = useRef(false);
   const activeRef = useRef(active);
@@ -237,6 +238,7 @@ export const ChatTerminalSurface = forwardRef<
   const [connecting, setConnecting] = useState(false);
   const [session, setSession] = useState<TerminalSessionState | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selectedTerminalText, setSelectedTerminalText] = useState("");
   const [inputSignal, setInputSignal] = useState<TerminalInputSignal>({
     tone: "idle",
     label: "No input",
@@ -343,6 +345,29 @@ export const ChatTerminalSurface = forwardRef<
       pendingFlyInputAckTimerRef.current = null;
     }
   }, []);
+
+  const clearScheduledTerminalSelection = useCallback(() => {
+    if (terminalSelectionClearTimerRef.current !== null) {
+      window.clearTimeout(terminalSelectionClearTimerRef.current);
+      terminalSelectionClearTimerRef.current = null;
+    }
+  }, []);
+
+  const rememberTerminalSelection = useCallback(
+    (text: string) => {
+      clearScheduledTerminalSelection();
+      const selection = text.trim();
+      if (selection) {
+        setSelectedTerminalText(text);
+        return;
+      }
+      terminalSelectionClearTimerRef.current = window.setTimeout(() => {
+        setSelectedTerminalText("");
+        terminalSelectionClearTimerRef.current = null;
+      }, 6000);
+    },
+    [clearScheduledTerminalSelection],
+  );
 
   const scheduleFlyReconnect = useCallback(
     (reason = "Terminal connection interrupted; reconnecting.") => {
@@ -632,6 +657,11 @@ export const ChatTerminalSurface = forwardRef<
 
       disposables.push(terminal.onData(sendRawInput));
       disposables.push(
+        terminal.onSelectionChange(() => {
+          rememberTerminalSelection(terminal.getSelection());
+        }),
+      );
+      disposables.push(
         terminal.onResize(({ cols, rows }) => sendResize(cols, rows)),
       );
 
@@ -657,7 +687,7 @@ export const ChatTerminalSurface = forwardRef<
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [sendRawInput, sendResize]);
+  }, [rememberTerminalSelection, sendRawInput, sendResize]);
 
   const start = useCallback(async () => {
     const terminal = terminalRef.current;
@@ -853,12 +883,8 @@ export const ChatTerminalSurface = forwardRef<
             warning.code === "selected_image_not_running" &&
             warning.desiredImageRef
           ) {
-            const selectedLabel = shortBrainImageLabel(
-              warning.desiredImageRef,
-            );
-            const runningLabel = shortBrainImageLabel(
-              warning.runningImageRef,
-            );
+            const selectedLabel = shortBrainImageLabel(warning.desiredImageRef);
+            const runningLabel = shortBrainImageLabel(warning.runningImageRef);
             terminal.writeln(
               `\x1b[33mSelected image differs from running Brain. Selected: ${selectedLabel}; running: ${runningLabel}. Terminal is connecting to the running Brain.\x1b[0m`,
             );
@@ -879,9 +905,7 @@ export const ChatTerminalSurface = forwardRef<
               cols: terminalRef.current.cols,
               rows: terminalRef.current.rows,
             };
-            ws.send(
-              JSON.stringify(message),
-            );
+            ws.send(JSON.stringify(message));
           }
         };
         ws.onmessage = async (event) => {
@@ -938,7 +962,10 @@ export const ChatTerminalSurface = forwardRef<
           if (flySocketRef.current !== ws || !isCurrentFlyConnect()) return;
           flySocketRef.current = null;
           notifyTerminalSessionEnded();
-          if (event.code === 1000 || flyConnectionStateRef.current === "error") {
+          if (
+            event.code === 1000 ||
+            flyConnectionStateRef.current === "error"
+          ) {
             updateFlyConnectionState("closed");
             return;
           }
@@ -992,7 +1019,10 @@ export const ChatTerminalSurface = forwardRef<
 
     window.addEventListener("focus", reconnectVisibleRemoteTerminal);
     window.addEventListener("online", reconnectVisibleRemoteTerminal);
-    document.addEventListener("visibilitychange", reconnectVisibleRemoteTerminal);
+    document.addEventListener(
+      "visibilitychange",
+      reconnectVisibleRemoteTerminal,
+    );
     return () => {
       window.removeEventListener("focus", reconnectVisibleRemoteTerminal);
       window.removeEventListener("online", reconnectVisibleRemoteTerminal);
@@ -1070,11 +1100,7 @@ export const ChatTerminalSurface = forwardRef<
     } finally {
       pollBusyRef.current = false;
     }
-  }, [
-    appendCapturedOutput,
-    notifyTerminalSessionEnded,
-    notifyConnectionState,
-  ]);
+  }, [appendCapturedOutput, notifyTerminalSessionEnded, notifyConnectionState]);
 
   useEffect(() => {
     if (!ready || !active) return;
@@ -1148,13 +1174,18 @@ export const ChatTerminalSurface = forwardRef<
         window.clearTimeout(inputSignalTimerRef.current);
         inputSignalTimerRef.current = null;
       }
+      clearScheduledTerminalSelection();
       clearPendingFlyInputAck();
       clearScheduledFlyReconnect();
       flyConnectSeqRef.current += 1;
       flyConnectInFlightKeyRef.current = null;
       flySocketRef.current?.close(1000, "terminal unmounted");
     };
-  }, [clearPendingFlyInputAck, clearScheduledFlyReconnect]);
+  }, [
+    clearPendingFlyInputAck,
+    clearScheduledFlyReconnect,
+    clearScheduledTerminalSelection,
+  ]);
 
   const addToChat = useCallback(() => {
     const text = usefulCapturedOutput(outputCaptureRef.current);
@@ -1167,9 +1198,25 @@ export const ChatTerminalSurface = forwardRef<
 
   const clear = useCallback(() => {
     outputCaptureRef.current = "";
+    clearScheduledTerminalSelection();
+    setSelectedTerminalText("");
     terminalRef.current?.clear();
     terminalRef.current?.focus();
-  }, []);
+  }, [clearScheduledTerminalSelection]);
+
+  const copySelectedTerminalText = useCallback(async () => {
+    if (!selectedTerminalText.trim()) return;
+    if (!navigator.clipboard) {
+      toast.error("Clipboard is not available");
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(selectedTerminalText);
+      toast.success("Terminal selection copied");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Copy failed");
+    }
+  }, [selectedTerminalText]);
 
   const restart = useCallback(() => {
     pendingFlyInputRef.current = "";
@@ -1228,16 +1275,15 @@ export const ChatTerminalSurface = forwardRef<
     ],
   );
 
-  const statusText =
-    isRemoteTerminalTransport(transport)
-      ? (error ??
-        `${
-          transport.type === "brain"
-            ? (transport.label ?? "Brain terminal")
-            : (transport.label ?? transport.app)
-        } · ${flyConnectionState}`)
-      : (error ??
-        (session?.alive ? session.cwd : connecting ? "starting" : "closed"));
+  const statusText = isRemoteTerminalTransport(transport)
+    ? (error ??
+      `${
+        transport.type === "brain"
+          ? (transport.label ?? "Brain terminal")
+          : (transport.label ?? transport.app)
+      } · ${flyConnectionState}`)
+    : (error ??
+      (session?.alive ? session.cwd : connecting ? "starting" : "closed"));
   const actionBusy = connecting || flyConnectionState === "connecting";
 
   useEffect(() => {
@@ -1262,8 +1308,20 @@ export const ChatTerminalSurface = forwardRef<
           {topToolbar}
         </div>
       )}
-      <div className="min-h-0 flex-1 overflow-hidden p-2">
-        <div ref={hostRef} className="terminal-scroll-host h-full min-h-0 overflow-auto" />
+      <div className="relative min-h-0 flex-1 overflow-hidden p-2">
+        {selectedTerminalText.trim() && (
+          <button
+            type="button"
+            className="absolute right-4 top-4 z-20 rounded-md border border-border bg-background px-2 py-1 text-body-xs text-foreground shadow-sm transition-colors hover:bg-muted"
+            onClick={() => void copySelectedTerminalText()}
+          >
+            Copy selection
+          </button>
+        )}
+        <div
+          ref={hostRef}
+          className="terminal-scroll-host h-full min-h-0 overflow-auto"
+        />
       </div>
     </div>
   );

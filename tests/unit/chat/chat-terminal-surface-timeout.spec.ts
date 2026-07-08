@@ -93,8 +93,8 @@ describe("ChatTerminalSurface timeout guard", () => {
     expect(SOURCE).toContain("Terminal connection interrupted; reconnecting.");
     expect(SOURCE).toContain('window.addEventListener("focus"');
     expect(SOURCE).toContain('window.addEventListener("online"');
-    expect(SOURCE).toContain('document.addEventListener("visibilitychange"');
-    expect(SOURCE).toContain("document.visibilityState === \"visible\"");
+    expect(SOURCE).toContain('"visibilitychange"');
+    expect(SOURCE).toContain('document.visibilityState === "visible"');
     expect(SOURCE).toContain(
       "reconnectFlyRef.current({ force: true, resetSession: false });",
     );
