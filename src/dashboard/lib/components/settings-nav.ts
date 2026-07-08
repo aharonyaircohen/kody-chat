@@ -457,7 +457,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
 ] as const;
 
 /** Every nav item, flattened — home + primary + all section items. */
-const ALL_NAV_ITEMS: readonly SettingsNavItem[] = [
+export const ALL_NAV_ITEMS: readonly SettingsNavItem[] = [
   HOME_NAV_ITEM,
   DASHBOARD_NAV_ITEM,
   TASKS_NAV_ITEM,

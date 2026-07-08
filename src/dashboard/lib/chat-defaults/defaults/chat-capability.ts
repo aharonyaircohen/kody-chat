@@ -52,6 +52,7 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     "show_view",
     // ── Kody admin (actor-gated) ───────────────────────────────────────────
     "switch_agent",
+    "dashboard_navigate",
     "list_dashboard_features",
     "describe_feature",
     // ── CMS (repo-gated, schema-driven) ──────────────────────────────────

@@ -164,6 +164,7 @@ describe("chat-defaults bundle", () => {
     toolKeys.add("fetch_url");
     for (const name of [
       "switch_agent",
+      "dashboard_navigate",
       "preview_act",
       "show_view",
       "final_answer",

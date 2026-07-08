@@ -13,12 +13,18 @@ import { jsonSchema, tool } from "ai";
 import { z } from "zod";
 import { AGENTS, type AgentId } from "@dashboard/lib/agents";
 import {
+  DASHBOARD_NAVIGATE_DIRECTIVE,
   PREVIEW_ACT_DIRECTIVE,
   SWITCH_AGENT_DIRECTIVE,
+  type DashboardNavigateDirective,
   type PreviewActDirective,
   type SwitchAgentDirective,
   type SwitchAgentTargetId,
 } from "@dashboard/lib/chat-ui-actions";
+import {
+  dashboardNavigationCatalogForPrompt,
+  resolveDashboardNavigationTarget,
+} from "@dashboard/lib/dashboard-navigation";
 import {
   buildRenderedViewDirective,
   resolveBestViewRendererDefinition,
@@ -162,6 +168,53 @@ export const previewActTool = tool({
   },
 });
 
+export const dashboardNavigateTool = tool({
+  description:
+    "Navigate the user's Dashboard shell to a known internal page. " +
+    "Call ONLY when the user clearly asks to go to, open, show, or take them to a dashboard place. " +
+    'For informational questions like "where is X?" or "what page handles X?", answer with final_answer instead of moving the user. ' +
+    "Never call during unrelated answers, never use external URLs, and never invent routes. " +
+    "If the user asks for a specific task or issue number, use routeId=task and set issueNumber. " +
+    "Allowed dashboard routes:\n" +
+    dashboardNavigationCatalogForPrompt(),
+  inputSchema: z.object({
+    routeId: z
+      .string()
+      .min(1)
+      .describe("Known route id from the allowed dashboard routes list."),
+    issueNumber: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Required only when routeId is task."),
+    reason: z
+      .string()
+      .min(1)
+      .max(200)
+      .describe("One short sentence explaining why this page is being opened."),
+  }),
+  execute: async ({
+    routeId,
+    issueNumber,
+    reason,
+  }): Promise<DashboardNavigateDirective | { error: string }> => {
+    const resolved = resolveDashboardNavigationTarget({
+      routeId,
+      issueNumber,
+      reason,
+    });
+    if ("error" in resolved) return resolved;
+    return {
+      action: DASHBOARD_NAVIGATE_DIRECTIVE,
+      routeId: resolved.routeId,
+      href: resolved.href,
+      label: resolved.label,
+      reason: resolved.reason,
+    };
+  },
+});
+
 function hasRepoContext(
   ctx: UiToolsCtx,
 ): ctx is UiToolsCtx & { octokit: Octokit; owner: string; repo: string } {
@@ -204,6 +257,7 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
       },
     }),
     switch_agent: switchAgentTool,
+    dashboard_navigate: dashboardNavigateTool,
     preview_act: previewActTool,
     [SHOW_VIEW_TOOL]: tool({
       description:

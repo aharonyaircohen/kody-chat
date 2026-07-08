@@ -6,10 +6,38 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  DASHBOARD_NAVIGATE_DIRECTIVE,
   RENDER_VIEW_DIRECTIVE,
   getRenderedViewUi,
+  isDashboardNavigateDirective,
   isRenderedViewDirective,
 } from "@dashboard/lib/chat-ui-actions";
+
+describe("isDashboardNavigateDirective", () => {
+  it("accepts internal dashboard navigation directives", () => {
+    expect(
+      isDashboardNavigateDirective({
+        action: DASHBOARD_NAVIGATE_DIRECTIVE,
+        routeId: "secrets",
+        href: "/secrets",
+        label: "Secrets",
+        reason: "Opening the secrets vault.",
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects external-style hrefs", () => {
+    expect(
+      isDashboardNavigateDirective({
+        action: DASHBOARD_NAVIGATE_DIRECTIVE,
+        routeId: "bad",
+        href: "//evil.test",
+        label: "Bad",
+        reason: "Nope.",
+      }),
+    ).toBe(false);
+  });
+});
 
 describe("isRenderedViewDirective", () => {
   it("accepts a generic renderer view directive", () => {

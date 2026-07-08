@@ -11,6 +11,7 @@ import type { AgentId } from "./agents";
 
 export const SWITCH_AGENT_DIRECTIVE = "switch_agent" as const;
 export const PREVIEW_ACT_DIRECTIVE = "preview_act" as const;
+export const DASHBOARD_NAVIGATE_DIRECTIVE = "dashboard_navigate" as const;
 export const RENDER_VIEW_DIRECTIVE = "render_view" as const;
 
 /**
@@ -59,6 +60,19 @@ export interface PreviewActDirective {
   dy?: number;
   ms?: number;
   /** Short rationale shown to the user (e.g. "logging you in to verify"). */
+  reason: string;
+}
+
+/**
+ * A chat-driven navigation request inside the Dashboard shell. The server
+ * validates the route against the dashboard navigation catalog, then the
+ * client scopes it to the active repo and calls the Next router.
+ */
+export interface DashboardNavigateDirective {
+  action: typeof DASHBOARD_NAVIGATE_DIRECTIVE;
+  routeId: string;
+  href: string;
+  label: string;
   reason: string;
 }
 
@@ -139,6 +153,22 @@ export function isPreviewActDirective(
     v.op === "scroll" ||
     v.op === "wait";
   return okOp && typeof v.reason === "string";
+}
+
+export function isDashboardNavigateDirective(
+  value: unknown,
+): value is DashboardNavigateDirective {
+  if (!value || typeof value !== "object") return false;
+  const v = value as Record<string, unknown>;
+  return (
+    v.action === DASHBOARD_NAVIGATE_DIRECTIVE &&
+    typeof v.routeId === "string" &&
+    typeof v.href === "string" &&
+    v.href.startsWith("/") &&
+    !v.href.startsWith("//") &&
+    typeof v.label === "string" &&
+    typeof v.reason === "string"
+  );
 }
 
 function isRenderedViewAction(value: unknown): value is RenderedViewAction {

@@ -18,7 +18,7 @@ const BRIDGE_HEALTH_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_INTERVAL_MS = 2_000;
 const BRIDGE_CREATE_ATTEMPTS = 3;
 
-export const TERMINAL_BRIDGE_VERSION = "2026-07-07.4";
+export const TERMINAL_BRIDGE_VERSION = "2026-07-07.5";
 export const TERMINAL_BRIDGE_BASE_IMAGE =
   process.env.KODY_TERMINAL_BRIDGE_BASE_IMAGE ?? "node:22-bookworm";
 
@@ -288,14 +288,6 @@ function verifyTerminalToken(token) {
   }
   if (!/^[A-Za-z0-9_.-]{1,100}$/.test(claims.repo)) {
     throw new Error("terminal token repo invalid");
-  }
-  if (
-    claims.repoToken !== undefined &&
-    (typeof claims.repoToken !== "string" ||
-      claims.repoToken.length < 1 ||
-      claims.repoToken.length > 10000)
-  ) {
-    throw new Error("terminal token repo token invalid");
   }
   return claims;
 }
@@ -693,13 +685,9 @@ function flyctlOrgArgs(orgSlug) {
 
 function persistentSessionKey(claims) {
   if (!claims.chatSessionId) return null;
-  const repoTokenHash = claims.repoToken
-    ? crypto.createHash("sha256").update(claims.repoToken).digest("hex").slice(0, 16)
-    : "";
   return [
     claims.owner,
     claims.repo,
-    repoTokenHash,
     claims.orgSlug || "",
     claims.app,
     claims.machineId,
@@ -707,25 +695,8 @@ function persistentSessionKey(claims) {
   ].join("::");
 }
 
-function repoShellCommand(claims) {
-  if (!claims.repoToken) return null;
-  const repoDir = "/workspace/repos/" + claims.owner + "/" + claims.repo;
-  const repoParent = "/workspace/repos/" + claims.owner;
-  const repoUrl = "https://github.com/" + claims.owner + "/" + claims.repo + ".git";
-  const authHeader = "AUTHORIZATION: bearer " + claims.repoToken;
-  return [
-    "mkdir -p " + shellQuote(repoParent),
-    "export GH_TOKEN=" + shellQuote(claims.repoToken),
-    "export GITHUB_TOKEN=" + shellQuote(claims.repoToken),
-    "if [ ! -d " + shellQuote(repoDir + "/.git") + " ]; then rm -rf " + shellQuote(repoDir) + " && git -c " + shellQuote("http.extraheader=" + authHeader) + " clone --depth 1 " + shellQuote(repoUrl) + " " + shellQuote(repoDir) + "; else git -C " + shellQuote(repoDir) + " -c " + shellQuote("http.extraheader=" + authHeader) + " fetch --depth 1 origin >/dev/null 2>&1 || true; fi",
-    "git -C " + shellQuote(repoDir) + " remote set-url origin " + shellQuote(repoUrl) + " >/dev/null 2>&1 || true",
-    "cd " + shellQuote(repoDir),
-    'exec "${"$"}{SHELL:-/bin/bash}" -l',
-  ].join(" && ");
-}
-
 function directFlySshCommand(claims) {
-  const command = [
+  return [
     "flyctl",
     "ssh",
     "console",
@@ -736,8 +707,6 @@ function directFlySshCommand(claims) {
     claims.machineId,
     "--pty",
   ];
-  const shellCommand = repoShellCommand(claims);
-  return shellCommand ? [...command, "--command", shellCommand] : command;
 }
 
 function shellQuote(value) {

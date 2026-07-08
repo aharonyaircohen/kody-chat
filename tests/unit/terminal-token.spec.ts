@@ -17,7 +17,6 @@ describe("terminal bridge token", () => {
       chatSessionId: "chat-1",
       resetSession: true,
       activityLimitMs: 2 * 60 * 60_000,
-      repoToken: "ghp_repo_secret",
       flyToken: "FlyV1 secret-token",
       orgSlug: "guy-koren",
       cols: 132,
@@ -27,7 +26,6 @@ describe("terminal bridge token", () => {
     });
 
     expect(token).not.toContain("secret-token");
-    expect(token).not.toContain("ghp_repo_secret");
     const claims = verifyTerminalBridgeToken(token, {
       now: 110,
       secret: SECRET,
@@ -40,7 +38,6 @@ describe("terminal bridge token", () => {
       chatSessionId: "chat-1",
       resetSession: true,
       activityLimitMs: 2 * 60 * 60_000,
-      repoToken: "ghp_repo_secret",
       flyToken: "FlyV1 secret-token",
       orgSlug: "guy-koren",
       cols: 132,

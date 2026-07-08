@@ -501,12 +501,16 @@ describe("POST /api/kody/terminal/session", () => {
         machineId: "brain-1",
         chatSessionId: "brain:acme:widgets:kody-brain-octocat:brain-1",
         resetSession: true,
-        repoToken: "ghp_test",
         cols: 132,
         rows: 40,
         flyToken: "fly-token",
         orgSlug: "personal",
         secret: "bridge-secret",
+      }),
+    );
+    expect(token.mintTerminalBridgeToken).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        repoToken: expect.any(String),
       }),
     );
     expect(brainFly.provisionBrain).not.toHaveBeenCalled();
@@ -1016,6 +1020,46 @@ describe("POST /api/kody/terminal/session", () => {
       "brain-current",
       expect.objectContaining({ token: "operator-fly-token" }),
     );
+  });
+
+  it("continues when Fly reports the Brain is already starting", async () => {
+    flyPreview.startMachine.mockRejectedValueOnce(
+      new Error(
+        'startMachine failed: 409 Conflict — {"error":"aborted: machine still attempting to start"}',
+      ),
+    );
+    inventory.listFlyInventory.mockImplementation(async () => ({
+      running: 0,
+      total: 0,
+      machines: [],
+    }));
+    let resolveCount = 0;
+    inventoryServer.resolveSavedBrainServiceForRequest.mockImplementation(
+      async () =>
+        savedBrainResolution(
+          "local-2",
+          "brain-current",
+          "guy-koren",
+          resolveCount++ === 0 ? "stopped" : "started",
+        ) as never,
+    );
+
+    const res = await sessionPOST(
+      makeSessionReq({
+        app: "local-2",
+        machineId: "brain-current",
+        chatSessionId: "chat-1",
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      app: "local-2",
+      machineId: "brain-current",
+    });
+    expect(flyPreview.startMachine).toHaveBeenCalledTimes(1);
+    expect(token.mintTerminalBridgeToken).toHaveBeenCalled();
   });
 
   it("keeps waiting for a waking Brain machine before returning a terminal token", async () => {

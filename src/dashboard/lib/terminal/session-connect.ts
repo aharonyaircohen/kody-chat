@@ -96,6 +96,14 @@ function isFlyBridgeAuthError(err: unknown): boolean {
   );
 }
 
+function isFlyMachineAlreadyStartingError(err: unknown): boolean {
+  const text = err instanceof Error ? err.message : String(err);
+  return (
+    /startMachine failed: 409/.test(text) &&
+    /machine still attempting to start/i.test(text)
+  );
+}
+
 async function ensureTerminalBridgeForTarget(
   cfg: ReturnType<typeof terminalFlyConfigForMachine>,
 ): Promise<{ bridge: TerminalBridgeInfo; terminalCfg: typeof cfg }> {
@@ -127,6 +135,7 @@ async function startMachineForTarget(
       return;
     } catch (err) {
       lastErr = err;
+      if (isFlyMachineAlreadyStartingError(err)) return;
       if (!isFlyBridgeAuthError(err)) throw err;
     }
   }
@@ -296,9 +305,6 @@ export async function startTerminalSession(input: {
     chatSessionId: bridgeSessionId,
     resetSession: data.resetSession,
     ...(activityLimitMs !== undefined ? { activityLimitMs } : {}),
-    ...(selected.machine.feature === "brain"
-      ? { repoToken: context.githubToken }
-      : {}),
     flyToken: terminalCfg.token,
     cols: data.cols,
     rows: data.rows,

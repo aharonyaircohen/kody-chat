@@ -111,7 +111,7 @@ function readState(name) {
   try {
     return JSON.parse(fs.readFileSync(sessionFile(name), "utf8"));
   } catch {
-    return { marker: "", attachCount: 0, statusOff: false, mouseOn: false, historyLimit: "" };
+    return { marker: "", attachCount: 0, statusOff: false, mouseOn: false, historyLimit: "", exitsOnAttach: false };
   }
 }
 function writeState(name, state) {
@@ -126,7 +126,14 @@ if (args[0] === "kill-session") {
 }
 if (args[0] === "new-session") {
   const name = args[args.indexOf("-s") + 1];
-  writeState(name, { marker: "", attachCount: 0, statusOff: false, mouseOn: false, historyLimit: "" });
+  writeState(name, {
+    marker: "",
+    attachCount: 0,
+    statusOff: false,
+    mouseOn: false,
+    historyLimit: "",
+    exitsOnAttach: args.slice(args.indexOf("-s") + 2).join(" ").includes("--command"),
+  });
   process.exit(0);
 }
 if (args[0] === "set-option") {
@@ -150,6 +157,10 @@ if (args[0] === "attach-session") {
   const state = readState(name);
   state.attachCount += 1;
   writeState(name, state);
+  if (state.exitsOnAttach) {
+    process.stdout.write("[exited]\\r\\n");
+    process.exit(0);
+  }
   if (!state.statusOff) {
     process.stdout.write("[" + name.slice(0, 10) + ":flyctl]*\\r\\n");
   }

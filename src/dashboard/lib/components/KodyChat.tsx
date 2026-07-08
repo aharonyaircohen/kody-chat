@@ -8,7 +8,7 @@ import {
   useMemo,
   type ReactNode,
 } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { navLabelForPath } from "./settings-nav";
 import {
   liveReducer,
@@ -185,14 +185,17 @@ import {
 } from "../vibe/recent-issue";
 import {
   getRenderedViewUi,
+  isDashboardNavigateDirective,
   isPreviewActDirective,
   isRenderedViewDirective,
   isSwitchAgentDirective,
+  type DashboardNavigateDirective,
   type RenderedViewAction,
   type RenderedViewDirective,
   type RenderedViewUiNode,
   type PreviewActDirective,
 } from "@dashboard/lib/chat-ui-actions";
+import { repoScopedHref } from "@dashboard/lib/routes";
 import {
   FINAL_ANSWER_TOOL,
   SHOW_VIEW_TOOL,
@@ -533,6 +536,7 @@ export function KodyChat({
   attachmentInjection,
   previewContext,
 }: KodyChatProps) {
+  const router = useRouter();
   // Current route — drives the page-aware composer placeholder AND tells the
   // model which dashboard page the user is looking at ("what am I viewing?").
   const pathname = usePathname();
@@ -801,6 +805,14 @@ export function KodyChat({
       });
     },
     [],
+  );
+  const runDashboardNavigateFromDirective = useCallback(
+    (directive: DashboardNavigateDirective) => {
+      const href = auth ? repoScopedHref(auth, directive.href) : directive.href;
+      router.push(href);
+      toast.success(`Opened ${directive.label}`);
+    },
+    [auth, router],
   );
   const currentAgent = AGENTS[selectedAgentId] ?? AGENT_KODY;
   const agentList = buildAgentList(
@@ -3481,6 +3493,8 @@ export function KodyChat({
           // closes so the assistant bubble settles before the agent flips —
           // otherwise the in-flight message would be re-routed mid-render.
           let pendingSwitchAgent: ReturnType<typeof JSON.parse> | null = null;
+          let pendingDashboardNavigate: ReturnType<typeof JSON.parse> | null =
+            null;
           // Issue number returned by a `create_*` / `report_bug` tool, if
           // any. Captured here so we can transfer the in-flight conversation
           // to the new issue's chat store once the stream settles. See the
@@ -3698,6 +3712,9 @@ export function KodyChat({
                     // Defer the dispatch — see comment on pendingSwitchAgent.
                     pendingSwitchAgent = chunk.output;
                   }
+                  if (isDashboardNavigateDirective(chunk.output)) {
+                    pendingDashboardNavigate = chunk.output;
+                  }
                   if (isPreviewActDirective(chunk.output)) {
                     pendingPreviewAct = chunk.output;
                   }
@@ -3837,6 +3854,7 @@ export function KodyChat({
               const shouldSurfaceToolError =
                 !!lastToolErrorText &&
                 !pendingSwitchAgent &&
+                !pendingDashboardNavigate &&
                 !pendingView &&
                 (!answer.trim() || lastToolErrorToolName === SHOW_VIEW_TOOL);
               const producedPlainInteractiveQuestion =
@@ -3844,12 +3862,14 @@ export function KodyChat({
                 looksLikeAssistantInteraction(answer) &&
                 !hadSuccessfulTools &&
                 !pendingSwitchAgent &&
+                !pendingDashboardNavigate &&
                 !pendingView;
               const producedNothing =
                 !answer.trim() &&
                 !reasoning.trim() &&
                 !hadSuccessfulTools &&
                 !pendingSwitchAgent &&
+                !pendingDashboardNavigate &&
                 !pendingView;
               copy[idx] = shouldSurfaceToolError
                 ? {
@@ -3941,6 +3961,12 @@ export function KodyChat({
           if (pendingPreviewAct && isPreviewActDirective(pendingPreviewAct)) {
             const directive = pendingPreviewAct as PreviewActDirective;
             void runPreviewActionFromDirective(directive);
+          }
+          if (
+            pendingDashboardNavigate &&
+            isDashboardNavigateDirective(pendingDashboardNavigate)
+          ) {
+            runDashboardNavigateFromDirective(pendingDashboardNavigate);
           }
           // Planner mode: a Pass 2 turn typically creates one or more issues
           // via `create_task_for_goal`. We can't observe per-tool results
@@ -4286,6 +4312,7 @@ export function KodyChat({
       repoAgentSlugs,
       selectedAgentId,
       actorLogin,
+      runDashboardNavigateFromDirective,
       sessionHook,
       connectSSE,
     ],

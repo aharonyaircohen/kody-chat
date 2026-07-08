@@ -127,14 +127,9 @@ describe("ensureTerminalBridge", () => {
     expect(consoleSession).toContain("FLY_API_TOKEN: claims.flyToken");
     expect(consoleSession).toContain("FLY_ACCESS_TOKEN: claims.flyToken");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("--pty");
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain("function repoShellCommand");
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain("claims.repoToken");
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain("repoTokenHash");
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain("/workspace/repos/");
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain("GH_TOKEN");
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain("GITHUB_TOKEN");
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain("http.extraheader=");
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain("clone --depth 1");
+    expect(TERMINAL_BRIDGE_SCRIPT).not.toContain("function repoShellCommand");
+    expect(TERMINAL_BRIDGE_SCRIPT).not.toContain("claims.repoToken");
+    expect(TERMINAL_BRIDGE_SCRIPT).not.toContain("repoTokenHash");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('url.pathname === "/exec"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('url.pathname === "/jobs"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
@@ -197,6 +192,7 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('type: "ready"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("findReadyProof");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("\\/dev\\/(?:pts\\/[0-9]+|tty");
+    expect(consoleSession).not.toContain("--command");
     expect(consoleSession).not.toContain("script");
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain(
       "Terminal opened, but it did not report a real TTY.",
