@@ -53,6 +53,7 @@ import {
 import type { Attachment } from "../../components/kody-chat-types";
 import type { LivePhase } from "../core/kody-chat-reducer";
 import type { AgentId } from "../../agents";
+import { ChatPluginSlot } from "./ChatPluginProvider";
 
 /** Trailing-button role — computed by the host (spec-pinned there). */
 export type ComposerAction = "send" | "start" | "stop" | "cancel";
@@ -575,6 +576,9 @@ export function Composer({
             chatMode === "terminal" ? "pt-2" : ""
           }`}
         >
+          {/* Plugin composer-leading slot (Step 4) — start of the action
+            row; renders nothing (no wrapper) with zero plugins. */}
+          <ChatPluginSlot slot="composer-leading" />
           {chatMode === "ai" && (
             <>
               {/* Attachment button — hidden file input lives alongside the
@@ -653,6 +657,9 @@ export function Composer({
             </button>
           )}
           {chatMode === "ai" && chatModeToggle}
+          {/* Plugin composer-actions slot (Step 4) — end of the action
+            row; renders nothing (no wrapper) with zero plugins. */}
+          <ChatPluginSlot slot="composer-actions" />
         </div>
       </div>
     </>

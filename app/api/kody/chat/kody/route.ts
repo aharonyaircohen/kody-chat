@@ -26,10 +26,16 @@ import {
   stepCountIs,
   createUIMessageStream,
   createUIMessageStreamResponse,
+  tool,
   type ModelMessage,
   type StopCondition,
   type ToolSet,
 } from "ai";
+import { getChatServerToolRegistry } from "@dashboard/lib/chat/platform/server-tools";
+import type {
+  ChatPluginToolDefinition,
+  ChatToolServerContext,
+} from "@dashboard/lib/chat/platform";
 import {
   getAgent,
   isValidAgentId,
@@ -992,6 +998,62 @@ export async function POST(req: NextRequest) {
   for (const name of CHAT_OUTPUT_TOOL_NAMES) {
     if (Object.prototype.hasOwnProperty.call(mergedTools, name)) {
       allowlistedTools[name] = mergedTools[name];
+    }
+  }
+  // Plugin server tools (platform Step 4). Plugins registered in the
+  // server-only registry contribute tools ON TOP of the built-in map —
+  // never instead of it. With zero plugins registered `collect()` returns
+  // {} and the tool map is byte-identical to the built-in set. A plugin
+  // tool whose name collides with any built-in (or another plugin — the
+  // registry throws at collect time) is a deploy-time bug: fail the
+  // request loudly with a 500 instead of silently overriding. Tools are
+  // repo-scoped (ChatToolServerContext), so repo-less requests skip them.
+  if (repo) {
+    const pluginToolCtx: ChatToolServerContext = {
+      owner: repo.owner,
+      repo: repo.repo,
+      token: repo.token,
+    };
+    let pluginTools: Record<string, ChatPluginToolDefinition>;
+    try {
+      pluginTools = getChatServerToolRegistry().collect(pluginToolCtx);
+    } catch (err) {
+      clearGitHubContext();
+      const msg = err instanceof Error ? err.message : String(err);
+      traceError(
+        { traceId, err: msg },
+        "kody-direct: chat plugin tool collect failed",
+      );
+      return NextResponse.json(
+        { error: `chat_plugin_tools_failed: ${msg}` },
+        { status: 500 },
+      );
+    }
+    for (const [name, def] of Object.entries(pluginTools)) {
+      if (
+        Object.prototype.hasOwnProperty.call(mergedTools, name) ||
+        Object.prototype.hasOwnProperty.call(allowlistedTools, name)
+      ) {
+        clearGitHubContext();
+        traceError(
+          { traceId, tool: name },
+          "kody-direct: chat plugin tool collides with a built-in tool",
+        );
+        return NextResponse.json(
+          {
+            error: `chat_plugin_tool_collision: plugin tool "${name}" collides with a built-in chat tool`,
+          },
+          { status: 500 },
+        );
+      }
+      // Adapt the plugin contract to the AI SDK tool shape. Input is
+      // zod-validated inside the registry's execute wrapper (collect()
+      // parses through the plugin's schema before the handler runs).
+      allowlistedTools[name] = tool({
+        description: def.description,
+        inputSchema: def.inputSchema,
+        execute: async (input: unknown) => def.execute(input, pluginToolCtx),
+      });
     }
   }
   const tools = allowlistedTools as Parameters<typeof streamText>[0]["tools"];

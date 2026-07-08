@@ -439,4 +439,23 @@ test.describe("Admin Kody chat regression", () => {
     await expect(roots.first()).toBeVisible({ timeout: 15_000 });
     await expect(roots).toHaveCount(1);
   });
+
+  test("admin chat renders with zero plugin DOM (platform Step 4 pin)", async ({
+    page,
+  }) => {
+    // The plugin slot mount points (header-actions, composer-leading,
+    // composer-actions, footer) render a data-testid="chat-plugin-slot"
+    // wrapper ONLY when a plugin contributed to the slot. The admin
+    // surface registers no plugins, so the platform wiring must be
+    // invisible: zero slot wrappers anywhere on the page.
+    await page.goto(`${BASE_URL}/chat`);
+    const chat = page.locator('[data-testid="kody-chat-root"]').first();
+    await expect(chat).toBeVisible({ timeout: 15_000 });
+    // Composer chrome is up (the slots' neighbors rendered)…
+    await expect(chat.getByTitle("Attach files")).toBeVisible();
+    // …and no plugin slot wrapper exists.
+    await expect(page.locator('[data-testid="chat-plugin-slot"]')).toHaveCount(
+      0,
+    );
+  });
 });

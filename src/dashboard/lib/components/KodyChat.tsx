@@ -32,6 +32,15 @@ import {
   type ChatModelEntry,
 } from "../chat/platform/agent-entries";
 import {
+  createChatPluginRegistry,
+  FULL_GRANT,
+  type ChatHostEffect,
+} from "../chat/platform";
+import {
+  ChatPluginProvider,
+  ChatPluginSlot,
+} from "../chat/surface/ChatPluginProvider";
+import {
   repoBrainConversationKey,
   repoBrainScopeKey,
 } from "../brain/repo-scope";
@@ -276,6 +285,8 @@ export function KodyChat({
   previewContext,
   presentation = "rail",
   hideTerminalMode,
+  plugins,
+  capabilityGrant,
 }: KodyChatProps) {
   const router = useRouter();
   // Current route — drives the page-aware composer placeholder AND tells the
@@ -395,6 +406,43 @@ export function KodyChat({
   // dropdown sets `selectedAgentId='kody'` and stashes the gateway id here.
   // The chat request forwards it as `body.model`. Null = no override.
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+  // ─── Chat plugin platform (Step 4) ───
+  // One registry PER MOUNT (plan H4: ChatRailShell mounts KodyChat twice;
+  // plugin manifests are global pure data, instantiation is per mount).
+  // `plugins`/`capabilityGrant` are mount-time config — read once in the
+  // useState initializer, never re-registered on re-render. With no
+  // `plugins` prop the registry stays empty: slots render nothing and the
+  // send-middleware chain is a pass-through.
+  const [pluginRegistry] = useState(() => {
+    const registry = createChatPluginRegistry();
+    const grant = capabilityGrant ?? FULL_GRANT;
+    for (const entry of plugins ?? []) {
+      registry.register(entry.plugin, grant);
+    }
+    return registry;
+  });
+  // Host-effect switch. Plugins dispatch effects (scope changes, navigation
+  // requests) here — Step 5 fills in real cases when the first plugin that
+  // needs one moves in; until then unknown kinds are ignored by design.
+  const handlePluginHostEffect = useCallback((effect: ChatHostEffect) => {
+    switch (effect.kind) {
+      default:
+        break;
+    }
+  }, []);
+  useEffect(() => {
+    const unsubscribe = pluginRegistry.onHostEffect(handlePluginHostEffect);
+    return () => {
+      unsubscribe();
+    };
+  }, [pluginRegistry, handlePluginHostEffect]);
+  // Read-only host snapshot handed to slot components and send middleware.
+  // Minimal by design (plan H2 host-context channel) — grows per plugin
+  // need, not speculatively.
+  const pluginHost = useMemo(
+    () => ({ pathname, agentId: selectedAgentId }),
+    [pathname, selectedAgentId],
+  );
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
   // Thinking-level state. The chat header shows a small `🧠` dropdown
   // next to the agent picker when the current model declares a
@@ -3916,7 +3964,7 @@ export function KodyChat({
     // the slash form (every backend just gets normal text). Unknown
     // slugs pass through unchanged so users can still type "/" prefixed
     // text freely.
-    const rawInput = input.trim();
+    const typedInput = input.trim();
 
     // "Direct chat to a goal by id": if the message mentions a known
     // goal (`#<n>` / `goal:<n>`), re-scope this chat to that goal's
@@ -3927,7 +3975,7 @@ export function KodyChat({
     // already in just strips the token (the `!==` guard skips a
     // redundant re-scope).
     if (onDirectToGoal && knownGoals && knownGoals.length > 0) {
-      const mention = parseGoalMention(rawInput, knownGoals);
+      const mention = parseGoalMention(typedInput, knownGoals);
       if (mention) {
         if (mention.goalId !== plannerGoal?.id) {
           onDirectToGoal(mention.goalId);
@@ -3943,15 +3991,15 @@ export function KodyChat({
     // entirely: hits the install endpoint, renders the result as a chat
     // message. Anchored to the start so "//init" or text containing
     // "/init" still passes through to normal handling.
-    if (/^\/init(\s|$)/.test(rawInput)) {
+    if (/^\/init(\s|$)/.test(typedInput)) {
       setInput("");
       setSlashMenuOpen(false);
       setSlashSelectedIndex(0);
-      const force = /\s--force(\s|$)/.test(rawInput);
+      const force = /\s--force(\s|$)/.test(typedInput);
       const now = new Date().toISOString();
       setMessages((prev) => [
         ...prev,
-        { role: "user" as const, content: rawInput, timestamp: now },
+        { role: "user" as const, content: typedInput, timestamp: now },
         {
           role: "assistant" as const,
           content: "⚙️ Installing the Kody engine in this repo…",
@@ -3999,6 +4047,26 @@ export function KodyChat({
       }
       return;
     }
+
+    // Plugin send-middleware chain (Step 4). Registered middleware runs
+    // over the typed text at the same point where the built-in
+    // terminal-intent / slash-expansion handling happens today. The
+    // built-ins below are NOT plugins yet (they move in Step 5) — they
+    // keep running on the chain's output. With zero plugins the chain is
+    // empty: `rawInput` === `typedInput` and nothing else changes. A
+    // middleware that consumes the message stops the send entirely.
+    const middlewareOutcome = pluginRegistry.runSendMiddleware(typedInput, {
+      host: pluginHost,
+      dispatchHostEffect: handlePluginHostEffect,
+    });
+    if (middlewareOutcome.consumedBy) {
+      setInput("");
+      setSlashMenuOpen(false);
+      setAgentMentionTrigger(null);
+      setSlashSelectedIndex(0);
+      return;
+    }
+    const rawInput = middlewareOutcome.text;
 
     const terminalIntent = parseKodyTerminalIntent(rawInput);
     const expanded = terminalIntent
@@ -4707,440 +4775,450 @@ export function KodyChat({
     ) : null;
 
   return (
-    <div
-      data-testid="kody-chat-root"
-      className={`relative flex h-full overflow-hidden bg-background ${
-        standalonePresentation ? "" : "md:border-l"
-      }`}
-      onDragEnter={handleDragEnter}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-    >
-      {/* Drag overlay — visible while a file is being dragged over the chat */}
-      {isDraggingFile && (
-        <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-primary/10 border-2 border-dashed border-primary rounded-md backdrop-blur-sm">
-          <div className="px-4 py-3 bg-background/90 rounded-lg shadow-lg text-base font-medium text-primary">
-            Drop to attach
+    // Plugin platform mount (Step 4): the provider exposes THIS mount's
+    // registry to the surface pieces (HeaderControls / Composer slots and
+    // the footer slot below). With no plugins the provider is inert and
+    // every slot renders nothing — zero DOM diff.
+    <ChatPluginProvider registry={pluginRegistry} host={pluginHost}>
+      <div
+        data-testid="kody-chat-root"
+        className={`relative flex h-full overflow-hidden bg-background ${
+          standalonePresentation ? "" : "md:border-l"
+        }`}
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        {/* Drag overlay — visible while a file is being dragged over the chat */}
+        {isDraggingFile && (
+          <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-primary/10 border-2 border-dashed border-primary rounded-md backdrop-blur-sm">
+            <div className="px-4 py-3 bg-background/90 rounded-lg shadow-lg text-base font-medium text-primary">
+              Drop to attach
+            </div>
           </div>
-        </div>
-      )}
-      {/* Session Sidebar */}
-      <SessionsPanel
-        open={showSessionSidebar}
-        isGlobalMode={isGlobalMode}
-        pinned={sessionSidebarPinned}
-        railFullscreen={railFullscreen}
-        standalonePresentation={standalonePresentation}
-        sessions={sessionHook.sessions}
-        activeSessionId={sessionHook.activeSession?.id || null}
-        modeBySessionId={
-          vibeMode ? undefined : terminalRegistry.modeBySessionId
-        }
-        onSwitchSession={(id) => {
-          sessionHook.switchSession(id);
-        }}
-        onCreateSession={() => {
-          sessionHook.createSession();
-        }}
-        onDeleteSession={sessionHook.deleteSession}
-        onRenameSession={sessionHook.renameSession}
-        onPinSession={sessionHook.pinSession}
-        onTogglePinned={() => setSessionSidebarPinned((prev) => !prev)}
-        onClose={() => setShowSessionSidebar(false)}
-      />
-
-      <div className="relative flex min-w-0 flex-1 flex-col">
-        {/* Voice Chat Overlay */}
-        {voiceOverlayOpen && (
-          <VoiceChatOverlay
-            state={voiceChat.state}
-            currentTranscript={voiceChat.currentTranscript}
-            turnCount={voiceChat.turnCount}
-            error={voiceChat.error}
-            ttsEngine={voiceChat.ttsEngine}
-            ttsError={voiceChat.ttsError}
-            voiceId={voiceId}
-            voices={PIPER_VOICES}
-            onSelectVoice={handleSelectVoice}
-            messages={messages}
-            agentName={currentAgent.name}
-            onStop={() => {
-              voiceChat.stopConversation();
-              setVoiceOverlayOpen(false);
-              setVoiceMuted(false);
-            }}
-            onInterrupt={() => {
-              voiceChat.interruptConversation();
-            }}
-            onToggleMute={handleVoiceToggleMute}
-            isMuted={voiceMuted}
-          />
         )}
-        {/* Header with context — extracted to chat/surface/HeaderControls.
+        {/* Session Sidebar */}
+        <SessionsPanel
+          open={showSessionSidebar}
+          isGlobalMode={isGlobalMode}
+          pinned={sessionSidebarPinned}
+          railFullscreen={railFullscreen}
+          standalonePresentation={standalonePresentation}
+          sessions={sessionHook.sessions}
+          activeSessionId={sessionHook.activeSession?.id || null}
+          modeBySessionId={
+            vibeMode ? undefined : terminalRegistry.modeBySessionId
+          }
+          onSwitchSession={(id) => {
+            sessionHook.switchSession(id);
+          }}
+          onCreateSession={() => {
+            sessionHook.createSession();
+          }}
+          onDeleteSession={sessionHook.deleteSession}
+          onRenameSession={sessionHook.renameSession}
+          onPinSession={sessionHook.pinSession}
+          onTogglePinned={() => setSessionSidebarPinned((prev) => !prev)}
+          onClose={() => setShowSessionSidebar(false)}
+        />
+
+        <div className="relative flex min-w-0 flex-1 flex-col">
+          {/* Voice Chat Overlay */}
+          {voiceOverlayOpen && (
+            <VoiceChatOverlay
+              state={voiceChat.state}
+              currentTranscript={voiceChat.currentTranscript}
+              turnCount={voiceChat.turnCount}
+              error={voiceChat.error}
+              ttsEngine={voiceChat.ttsEngine}
+              ttsError={voiceChat.ttsError}
+              voiceId={voiceId}
+              voices={PIPER_VOICES}
+              onSelectVoice={handleSelectVoice}
+              messages={messages}
+              agentName={currentAgent.name}
+              onStop={() => {
+                voiceChat.stopConversation();
+                setVoiceOverlayOpen(false);
+                setVoiceMuted(false);
+              }}
+              onInterrupt={() => {
+                voiceChat.interruptConversation();
+              }}
+              onToggleMute={handleVoiceToggleMute}
+              isMuted={voiceMuted}
+            />
+          )}
+          {/* Header with context — extracted to chat/surface/HeaderControls.
           Menu open/close state, selection state, and the per-session agent
           pick stay here; the region is presentation-only. */}
-        <HeaderControls
-          currentEntry={currentEntry}
-          currentAgent={currentAgent}
-          lockedAgentId={lockedAgentId}
-          agentMenuOpen={agentMenuOpen}
-          setAgentMenuOpen={setAgentMenuOpen}
-          messageCount={messages.length}
-          currentReasoning={currentReasoning}
-          effectiveReasoningEffort={effectiveReasoningEffort}
-          setReasoningEffort={setReasoningEffort}
-          reasoningMenuOpen={reasoningMenuOpen}
-          setReasoningMenuOpen={setReasoningMenuOpen}
-          agentList={agentList}
-          selectedAgentId={selectedAgentId}
-          selectedModelId={selectedModelId}
-          onSelectEntry={(a) => {
-            setSelectedAgentId(a.agentId);
-            setSelectedModelId(a.modelId);
-            // Per-session pick: the same agent stays active when the user
-            // comes back to THIS conversation. Each session remembers its
-            // own choice — switching to another chat and back restores the
-            // agent that was active for that thread, not whichever one the
-            // user just clicked.
-            //
-            // The global `defaultChatEntryKey` is intentionally NOT touched
-            // here. Settings → "Default chat" is the single owner of the
-            // default for new sessions; the chat picker only mutates the
-            // active session.
-            const activeId = sessionHook.activeSession?.id;
-            if (activeId) {
-              sessionHook.setSessionAgent(activeId, a.key);
+          <HeaderControls
+            currentEntry={currentEntry}
+            currentAgent={currentAgent}
+            lockedAgentId={lockedAgentId}
+            agentMenuOpen={agentMenuOpen}
+            setAgentMenuOpen={setAgentMenuOpen}
+            messageCount={messages.length}
+            currentReasoning={currentReasoning}
+            effectiveReasoningEffort={effectiveReasoningEffort}
+            setReasoningEffort={setReasoningEffort}
+            reasoningMenuOpen={reasoningMenuOpen}
+            setReasoningMenuOpen={setReasoningMenuOpen}
+            agentList={agentList}
+            selectedAgentId={selectedAgentId}
+            selectedModelId={selectedModelId}
+            onSelectEntry={(a) => {
+              setSelectedAgentId(a.agentId);
+              setSelectedModelId(a.modelId);
+              // Per-session pick: the same agent stays active when the user
+              // comes back to THIS conversation. Each session remembers its
+              // own choice — switching to another chat and back restores the
+              // agent that was active for that thread, not whichever one the
+              // user just clicked.
+              //
+              // The global `defaultChatEntryKey` is intentionally NOT touched
+              // here. Settings → "Default chat" is the single owner of the
+              // default for new sessions; the chat picker only mutates the
+              // active session.
+              const activeId = sessionHook.activeSession?.id;
+              if (activeId) {
+                sessionHook.setSessionAgent(activeId, a.key);
+              }
+              setAgentMenuOpen(false);
+            }}
+            remoteStatus={remoteStatus}
+            onNewConversation={() => {
+              // Seed the new session with the current effective agent so a
+              // fresh conversation inherits the agent the user is currently
+              // on. Without this, the new session would have no agentKey and
+              // fall back to the global default on first render — which is
+              // fine for the very first session but surprises users who
+              // expect a "new chat" to start where the last one left off.
+              const seed = currentEntry?.key;
+              sessionHook.createSession(seed ? { agentKey: seed } : undefined);
+              setToolCalls([]);
+            }}
+            activeLoading={activeLoading}
+            showSessionSidebar={showSessionSidebar}
+            onToggleSessionSidebar={() =>
+              setShowSessionSidebar(!showSessionSidebar)
             }
-            setAgentMenuOpen(false);
-          }}
-          remoteStatus={remoteStatus}
-          onNewConversation={() => {
-            // Seed the new session with the current effective agent so a
-            // fresh conversation inherits the agent the user is currently
-            // on. Without this, the new session would have no agentKey and
-            // fall back to the global default on first render — which is
-            // fine for the very first session but surprises users who
-            // expect a "new chat" to start where the last one left off.
-            const seed = currentEntry?.key;
-            sessionHook.createSession(seed ? { agentKey: seed } : undefined);
-            setToolCalls([]);
-          }}
-          activeLoading={activeLoading}
-          showSessionSidebar={showSessionSidebar}
-          onToggleSessionSidebar={() =>
-            setShowSessionSidebar(!showSessionSidebar)
-          }
-          onToggleFullscreen={onToggleFullscreen}
-          railFullscreen={railFullscreen}
-          onCollapseRail={onCollapseRail}
-          onClose={onClose}
-          isTaskMode={isTaskMode}
-          selectedTask={selectedTask}
-          isCapabilityMode={isCapabilityMode}
-          selectedCapability={selectedCapability}
-          isPlannerMode={isPlannerMode}
-          plannerGoal={plannerGoal}
-          onPlannerExit={onPlannerExit}
-          activeSessionTitle={sessionHook.activeSession?.title}
-        />
+            onToggleFullscreen={onToggleFullscreen}
+            railFullscreen={railFullscreen}
+            onCollapseRail={onCollapseRail}
+            onClose={onClose}
+            isTaskMode={isTaskMode}
+            selectedTask={selectedTask}
+            isCapabilityMode={isCapabilityMode}
+            selectedCapability={selectedCapability}
+            isPlannerMode={isPlannerMode}
+            plannerGoal={plannerGoal}
+            onPlannerExit={onPlannerExit}
+            activeSessionTitle={sessionHook.activeSession?.title}
+          />
 
-        {/* Kody waiting for instructions banner */}
-        {isKodyWaiting && actionState && (
-          <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2 text-sm text-amber-800">
-            <span className="relative flex h-3 w-3">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500" />
-            </span>
-            <span className="font-medium">
-              Kody is waiting for your instructions
-            </span>
-            {actionState.step && (
-              <span className="text-amber-600">
-                — paused at{" "}
-                <code className="bg-amber-100 px-1 rounded">
-                  {actionState.step}
-                </code>
+          {/* Kody waiting for instructions banner */}
+          {isKodyWaiting && actionState && (
+            <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2 text-sm text-amber-800">
+              <span className="relative flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500" />
               </span>
-            )}
-          </div>
-        )}
-
-        {/* Messages area */}
-        <MessageList
-          chatMode={chatMode}
-          messages={messages}
-          setMessages={setMessages}
-          onResend={(content) => {
-            void sendText(content, []);
-          }}
-          activeLoading={activeLoading}
-          agentName={currentAgent.name}
-          activeSessionId={sessionHook.activeSession?.id}
-          toolCalls={toolCalls}
-          usedViewIds={usedViewIds}
-          onRenderedViewAction={handleRenderedViewAction}
-          emptyState={
-            <div className="text-center text-muted-foreground text-base py-8">
-              {isTaskMode ? (
-                <>
-                  <p className="font-medium">Chat about this task</p>
-                  <p className="text-sm mt-1">
-                    {vibeMode
-                      ? "Messages stay in this Vibe thread"
-                      : "Messages will be saved to the task"}
-                  </p>
-                  <p className="text-sm mt-3 font-medium text-foreground">
-                    I can help you:
-                  </p>
-                  <ul className="mt-2 text-left text-sm space-y-2 max-w-sm mx-auto">
-                    <li className="flex items-start gap-2">
-                      <span className="text-primary">•</span>
-                      <span>
-                        Diagnose the linked PR if it didn&apos;t fully fix the
-                        issue — try{" "}
-                        <span className="font-mono">
-                          &quot;diagnose{" "}
-                          {selectedTask?.associatedPR
-                            ? `PR #${selectedTask.associatedPR.number}`
-                            : "this PR"}
-                          &quot;
-                        </span>
-                        . I&apos;ll read the diff, find the gap, and draft a
-                        sharper <span className="font-mono">@kody fix</span> for
-                        your approval.
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-primary">•</span>
-                      <span>
-                        Explain the issue, the PR diff, or pipeline status
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-primary">•</span>
-                      <span>
-                        Browse and search the repository for related code
-                      </span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-primary">•</span>
-                      <span>
-                        Draft a follow-up{" "}
-                        <span className="font-mono">@kody</span> instruction
-                      </span>
-                    </li>
-                  </ul>
-                </>
-              ) : isCapabilityMode && selectedCapability ? (
-                <>
-                  <p className="font-medium text-foreground">
-                    Chat about `{selectedCapability.slug}`
-                  </p>
-                  <p className="text-sm mt-1 max-w-sm mx-auto">
-                    Ask anything about this capability&apos;s intent, scope, or
-                    rules. Each capability has its own thread.
-                  </p>
-                </>
-              ) : isPlannerMode && plannerGoal ? (
-                <>
-                  <p className="font-medium text-foreground">
-                    Plan tasks for &ldquo;{plannerGoal.name}&rdquo;
-                  </p>
-                  <p className="text-sm mt-1 max-w-md mx-auto">
-                    Say <span className="font-mono">&quot;plan it&quot;</span>{" "}
-                    (or paste extra context first). I&apos;ll propose a task
-                    list, you approve, then I&apos;ll deepen each spec and
-                    create the issues attached to this goal.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p className="font-medium">Hi! I can help you with:</p>
-                  <ul className="mt-3 text-left text-sm space-y-2">
-                    <li className="flex items-start gap-2">
-                      <span className="text-primary">•</span>
-                      <span>Browse repository files and code</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-primary">•</span>
-                      <span>Search code across the codebase</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-primary">•</span>
-                      <span>List and explain tasks</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-primary">•</span>
-                      <span>Show pipeline status and progress</span>
-                    </li>
-                    <li className="flex items-start gap-2">
-                      <span className="text-primary">•</span>
-                      <span>
-                        Diagnose a Kody PR that didn&apos;t fully solve its
-                        issue — try{" "}
-                        <span className="font-mono">
-                          &quot;diagnose PR #1404&quot;
-                        </span>
-                      </span>
-                    </li>
-                  </ul>
-                </>
+              <span className="font-medium">
+                Kody is waiting for your instructions
+              </span>
+              {actionState.step && (
+                <span className="text-amber-600">
+                  — paused at{" "}
+                  <code className="bg-amber-100 px-1 rounded">
+                    {actionState.step}
+                  </code>
+                </span>
               )}
             </div>
-          }
-          terminalSurfaces={mountedChatTerminals.map((terminal) => {
-            const isActiveTerminal =
-              chatMode === "terminal" &&
-              activeSessionIdForReset === terminal.sessionId &&
-              activeTerminalInstanceId === terminal.id;
-            return (
-              <div
-                key={terminal.id}
-                className={isActiveTerminal ? "h-full min-h-0" : "hidden"}
-              >
-                <ChatTerminalSurface
-                  ref={(node) => {
-                    terminalSurfaceRefs.current[terminal.id] = node;
-                    if (!node) delete terminalSurfaceRefs.current[terminal.id];
-                  }}
-                  active={isActiveTerminal}
-                  chatSessionId={terminal.sessionId}
-                  transport={terminal.transport}
-                  topToolbar={terminalTopControls}
-                  onAddToChat={addTerminalContextToChat}
-                  onChromeStateChange={(state) => {
-                    setTerminalChromeById((existing) => {
-                      const current = existing[terminal.id];
-                      if (
-                        current &&
-                        current.statusText === state.statusText &&
-                        current.inputLabel === state.inputLabel &&
-                        current.inputTone === state.inputTone &&
-                        current.actionBusy === state.actionBusy
-                      ) {
-                        return existing;
-                      }
-                      return { ...existing, [terminal.id]: state };
-                    });
-                  }}
-                  onConnectionStateChange={(state) => {
-                    recordTerminalConnectionState(terminal.id, state);
-                  }}
-                  onSessionEnded={(snapshot) =>
-                    void saveTerminalCheckpoint(terminal, snapshot)
-                  }
-                />
-              </div>
-            );
-          })}
-        />
+          )}
 
-        {/* Composer — extracted to chat/surface/Composer (Step 3). All
+          {/* Messages area */}
+          <MessageList
+            chatMode={chatMode}
+            messages={messages}
+            setMessages={setMessages}
+            onResend={(content) => {
+              void sendText(content, []);
+            }}
+            activeLoading={activeLoading}
+            agentName={currentAgent.name}
+            activeSessionId={sessionHook.activeSession?.id}
+            toolCalls={toolCalls}
+            usedViewIds={usedViewIds}
+            onRenderedViewAction={handleRenderedViewAction}
+            emptyState={
+              <div className="text-center text-muted-foreground text-base py-8">
+                {isTaskMode ? (
+                  <>
+                    <p className="font-medium">Chat about this task</p>
+                    <p className="text-sm mt-1">
+                      {vibeMode
+                        ? "Messages stay in this Vibe thread"
+                        : "Messages will be saved to the task"}
+                    </p>
+                    <p className="text-sm mt-3 font-medium text-foreground">
+                      I can help you:
+                    </p>
+                    <ul className="mt-2 text-left text-sm space-y-2 max-w-sm mx-auto">
+                      <li className="flex items-start gap-2">
+                        <span className="text-primary">•</span>
+                        <span>
+                          Diagnose the linked PR if it didn&apos;t fully fix the
+                          issue — try{" "}
+                          <span className="font-mono">
+                            &quot;diagnose{" "}
+                            {selectedTask?.associatedPR
+                              ? `PR #${selectedTask.associatedPR.number}`
+                              : "this PR"}
+                            &quot;
+                          </span>
+                          . I&apos;ll read the diff, find the gap, and draft a
+                          sharper <span className="font-mono">@kody fix</span>{" "}
+                          for your approval.
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-primary">•</span>
+                        <span>
+                          Explain the issue, the PR diff, or pipeline status
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-primary">•</span>
+                        <span>
+                          Browse and search the repository for related code
+                        </span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-primary">•</span>
+                        <span>
+                          Draft a follow-up{" "}
+                          <span className="font-mono">@kody</span> instruction
+                        </span>
+                      </li>
+                    </ul>
+                  </>
+                ) : isCapabilityMode && selectedCapability ? (
+                  <>
+                    <p className="font-medium text-foreground">
+                      Chat about `{selectedCapability.slug}`
+                    </p>
+                    <p className="text-sm mt-1 max-w-sm mx-auto">
+                      Ask anything about this capability&apos;s intent, scope,
+                      or rules. Each capability has its own thread.
+                    </p>
+                  </>
+                ) : isPlannerMode && plannerGoal ? (
+                  <>
+                    <p className="font-medium text-foreground">
+                      Plan tasks for &ldquo;{plannerGoal.name}&rdquo;
+                    </p>
+                    <p className="text-sm mt-1 max-w-md mx-auto">
+                      Say <span className="font-mono">&quot;plan it&quot;</span>{" "}
+                      (or paste extra context first). I&apos;ll propose a task
+                      list, you approve, then I&apos;ll deepen each spec and
+                      create the issues attached to this goal.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium">Hi! I can help you with:</p>
+                    <ul className="mt-3 text-left text-sm space-y-2">
+                      <li className="flex items-start gap-2">
+                        <span className="text-primary">•</span>
+                        <span>Browse repository files and code</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-primary">•</span>
+                        <span>Search code across the codebase</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-primary">•</span>
+                        <span>List and explain tasks</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-primary">•</span>
+                        <span>Show pipeline status and progress</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-primary">•</span>
+                        <span>
+                          Diagnose a Kody PR that didn&apos;t fully solve its
+                          issue — try{" "}
+                          <span className="font-mono">
+                            &quot;diagnose PR #1404&quot;
+                          </span>
+                        </span>
+                      </li>
+                    </ul>
+                  </>
+                )}
+              </div>
+            }
+            terminalSurfaces={mountedChatTerminals.map((terminal) => {
+              const isActiveTerminal =
+                chatMode === "terminal" &&
+                activeSessionIdForReset === terminal.sessionId &&
+                activeTerminalInstanceId === terminal.id;
+              return (
+                <div
+                  key={terminal.id}
+                  className={isActiveTerminal ? "h-full min-h-0" : "hidden"}
+                >
+                  <ChatTerminalSurface
+                    ref={(node) => {
+                      terminalSurfaceRefs.current[terminal.id] = node;
+                      if (!node)
+                        delete terminalSurfaceRefs.current[terminal.id];
+                    }}
+                    active={isActiveTerminal}
+                    chatSessionId={terminal.sessionId}
+                    transport={terminal.transport}
+                    topToolbar={terminalTopControls}
+                    onAddToChat={addTerminalContextToChat}
+                    onChromeStateChange={(state) => {
+                      setTerminalChromeById((existing) => {
+                        const current = existing[terminal.id];
+                        if (
+                          current &&
+                          current.statusText === state.statusText &&
+                          current.inputLabel === state.inputLabel &&
+                          current.inputTone === state.inputTone &&
+                          current.actionBusy === state.actionBusy
+                        ) {
+                          return existing;
+                        }
+                        return { ...existing, [terminal.id]: state };
+                      });
+                    }}
+                    onConnectionStateChange={(state) => {
+                      recordTerminalConnectionState(terminal.id, state);
+                    }}
+                    onSessionEnded={(snapshot) =>
+                      void saveTerminalCheckpoint(terminal, snapshot)
+                    }
+                  />
+                </div>
+              );
+            })}
+          />
+
+          {/* Composer — extracted to chat/surface/Composer (Step 3). All
           state (input, slash menu, mentions, attachments, chips, voice)
           and every handler stay here; the region is presentation-only.
           The context-chip pills render the ChatRailApi `composerInjection`
           contract fed through the effect above. */}
-        <Composer
-          chatMode={chatMode}
-          activeLoading={activeLoading}
-          attachments={attachments}
-          onRemoveAttachment={removeAttachment}
-          contextChips={contextChips}
-          onRemoveContextChip={removeContextChip}
-          isKodyLive={isKodyLive}
-          interactiveState={interactiveState}
-          bootElapsed={bootElapsed}
-          selectedAgentId={selectedAgentId}
-          interactiveTarget={interactiveTarget}
-          liveErrorMessage={liveState.errorMessage}
-          onRestartLive={restartInteractiveSession}
-          input={input}
-          composerTextareaRef={composerTextareaRef}
-          richComposerEnabled={richComposerEnabled}
-          placeholder={placeholder}
-          composerDisabled={composerDisabled}
-          onInputChange={handleComposerInputChange}
-          onKeyDown={handleKeyDown}
-          onPaste={handlePaste}
-          onCaretMove={refreshAgentMentionTrigger}
-          onMenusClose={closeComposerMenus}
-          slashMenuOpen={slashMenuOpen}
-          slashCommands={slashCommands}
-          slashSelectedIndex={slashSelectedIndex}
-          onSlashSelect={applySlashSelection}
-          onSlashHover={setSlashSelectedIndex}
-          agentMentionsOpen={
-            Boolean(agentMentionTrigger) && filteredAgentMentions.length > 0
-          }
-          agentMentions={filteredAgentMentions}
-          agentMentionSelectedIndex={agentMentionSelectedIndex}
-          onAgentMentionHover={setAgentMentionSelectedIndex}
-          onAgentMentionSelect={applyAgentMentionSelection}
-          composerAction={composerAction}
-          hasComposerContent={hasComposerContent}
-          terminalSendDisabled={terminalSendDisabled}
-          terminalSendBusy={terminalSendBusy}
-          terminalInputLabel={activeTerminalChrome?.inputLabel}
-          onSend={sendMessage}
-          onStop={handleStop}
-          onEndLiveSession={endInteractiveSession}
-          onStartLiveSession={startInteractiveSession}
-          terminalProblemMessage={terminalProblemMessage}
-          fileInputRef={fileInputRef}
-          onFileSelect={handleFileSelect}
-          voiceActive={voiceOverlayOpen}
-          voiceSupported={voiceChat.isSupported && currentAgent.supportsVoice}
-          onVoiceTap={() => {
-            // Handle tap based on current voice state:
-            // - If AI is speaking: interrupt and start listening (voice interrupt)
-            // - If listening/processing: stop conversation
-            // - If idle: start conversation
-            if (voiceChat.state === "speaking") {
-              // Voice interrupt: cancel AI speech and start listening
-              voiceChat.interruptConversation();
-              setVoiceOverlayOpen(true);
-              setVoiceMuted(false);
-            } else if (voiceOverlayOpen) {
-              // Already in voice mode - stop it
-              voiceChat.stopConversation();
-              setVoiceOverlayOpen(false);
-              setVoiceMuted(false);
-            } else {
-              // Not in voice mode - start it
+          <Composer
+            chatMode={chatMode}
+            activeLoading={activeLoading}
+            attachments={attachments}
+            onRemoveAttachment={removeAttachment}
+            contextChips={contextChips}
+            onRemoveContextChip={removeContextChip}
+            isKodyLive={isKodyLive}
+            interactiveState={interactiveState}
+            bootElapsed={bootElapsed}
+            selectedAgentId={selectedAgentId}
+            interactiveTarget={interactiveTarget}
+            liveErrorMessage={liveState.errorMessage}
+            onRestartLive={restartInteractiveSession}
+            input={input}
+            composerTextareaRef={composerTextareaRef}
+            richComposerEnabled={richComposerEnabled}
+            placeholder={placeholder}
+            composerDisabled={composerDisabled}
+            onInputChange={handleComposerInputChange}
+            onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
+            onCaretMove={refreshAgentMentionTrigger}
+            onMenusClose={closeComposerMenus}
+            slashMenuOpen={slashMenuOpen}
+            slashCommands={slashCommands}
+            slashSelectedIndex={slashSelectedIndex}
+            onSlashSelect={applySlashSelection}
+            onSlashHover={setSlashSelectedIndex}
+            agentMentionsOpen={
+              Boolean(agentMentionTrigger) && filteredAgentMentions.length > 0
+            }
+            agentMentions={filteredAgentMentions}
+            agentMentionSelectedIndex={agentMentionSelectedIndex}
+            onAgentMentionHover={setAgentMentionSelectedIndex}
+            onAgentMentionSelect={applyAgentMentionSelection}
+            composerAction={composerAction}
+            hasComposerContent={hasComposerContent}
+            terminalSendDisabled={terminalSendDisabled}
+            terminalSendBusy={terminalSendBusy}
+            terminalInputLabel={activeTerminalChrome?.inputLabel}
+            onSend={sendMessage}
+            onStop={handleStop}
+            onEndLiveSession={endInteractiveSession}
+            onStartLiveSession={startInteractiveSession}
+            terminalProblemMessage={terminalProblemMessage}
+            fileInputRef={fileInputRef}
+            onFileSelect={handleFileSelect}
+            voiceActive={voiceOverlayOpen}
+            voiceSupported={voiceChat.isSupported && currentAgent.supportsVoice}
+            onVoiceTap={() => {
+              // Handle tap based on current voice state:
+              // - If AI is speaking: interrupt and start listening (voice interrupt)
+              // - If listening/processing: stop conversation
+              // - If idle: start conversation
+              if (voiceChat.state === "speaking") {
+                // Voice interrupt: cancel AI speech and start listening
+                voiceChat.interruptConversation();
+                setVoiceOverlayOpen(true);
+                setVoiceMuted(false);
+              } else if (voiceOverlayOpen) {
+                // Already in voice mode - stop it
+                voiceChat.stopConversation();
+                setVoiceOverlayOpen(false);
+                setVoiceMuted(false);
+              } else {
+                // Not in voice mode - start it
+                voiceChat.startConversation();
+                setVoiceOverlayOpen(true);
+              }
+            }}
+            onVoiceLongPressStart={() => {
               voiceChat.startConversation();
               setVoiceOverlayOpen(true);
-            }
-          }}
-          onVoiceLongPressStart={() => {
-            voiceChat.startConversation();
-            setVoiceOverlayOpen(true);
-          }}
-          onVoiceLongPressEnd={() => {
-            /* let conversation handle it */
-          }}
-          messageCount={messages.length}
-          onClearHistory={() => setShowClearConfirm(true)}
-          onReportIssue={openIssueReport}
-          terminalBottomControls={terminalBottomControls}
-          chatModeToggle={chatModeToggle}
-        />
+            }}
+            onVoiceLongPressEnd={() => {
+              /* let conversation handle it */
+            }}
+            messageCount={messages.length}
+            onClearHistory={() => setShowClearConfirm(true)}
+            onReportIssue={openIssueReport}
+            terminalBottomControls={terminalBottomControls}
+            chatModeToggle={chatModeToggle}
+          />
 
-        <ConfirmDialog
-          open={showClearConfirm}
-          title="Clear history"
-          description="Clear conversation history? This cannot be undone."
-          confirmLabel="Clear"
-          variant="destructive"
-          onConfirm={executeClearHistory}
-          onClose={() => setShowClearConfirm(false)}
-        />
-        <ChatIssueReportDialog
-          open={showIssueReport}
-          onClose={() => setShowIssueReport(false)}
-          capturedState={issueReportState}
-        />
+          {/* Plugin footer slot — renders nothing until a plugin contributes. */}
+          <ChatPluginSlot slot="footer" />
+
+          <ConfirmDialog
+            open={showClearConfirm}
+            title="Clear history"
+            description="Clear conversation history? This cannot be undone."
+            confirmLabel="Clear"
+            variant="destructive"
+            onConfirm={executeClearHistory}
+            onClose={() => setShowClearConfirm(false)}
+          />
+          <ChatIssueReportDialog
+            open={showIssueReport}
+            onClose={() => setShowIssueReport(false)}
+            capturedState={issueReportState}
+          />
+        </div>
       </div>
-    </div>
+    </ChatPluginProvider>
   );
 }

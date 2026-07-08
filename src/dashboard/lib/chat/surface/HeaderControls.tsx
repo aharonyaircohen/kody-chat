@@ -29,6 +29,7 @@ import type { ChatDropdownEntry } from "../platform/agent-entries";
 import type { ModelReasoning } from "../core/reasoning-adapter";
 import { writeReasoningEffort } from "../core/reasoning-pref";
 import type { KodyTask } from "../../types";
+import { ChatPluginSlot } from "./ChatPluginProvider";
 
 interface HeaderControlsProps {
   /**
@@ -347,6 +348,9 @@ export function HeaderControls({
 
         {/* Right: Action buttons (session sidebar, task history) */}
         <div className="flex items-center gap-1">
+          {/* Plugin header-actions slot (Step 4) — empty until a plugin
+            contributes; renders nothing (no wrapper) with zero plugins. */}
+          <ChatPluginSlot slot="header-actions" />
           {/* New conversation — wires to useChatSessions.createSession().
             The unified thread means there's only ONE store across all
             pages, so a new conversation is the only way to reset. The

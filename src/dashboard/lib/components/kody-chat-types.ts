@@ -12,6 +12,7 @@ import type { AttachmentRef, ChatContext, ChatMessage } from "../chat-types";
 import type { AgentId } from "../agents";
 import type { GoalRef } from "../goal-mention";
 import type { ChatViewDirective } from "@dashboard/lib/chat-ui-actions";
+import type { ChatCapabilityGrant, ChatPlugin } from "../chat/platform";
 
 export interface Message {
   role: "user" | "assistant";
@@ -211,6 +212,20 @@ export interface KodyChatProps {
    * Admin dashboard chat leaves this unset.
    */
   hideTerminalMode?: boolean;
+  /**
+   * Chat plugins to register into this mount's registry (plan H4: one
+   * registry per KodyChat instance — plugin manifests are global pure data,
+   * instantiation is per mount). Mount-time config: the list is read once
+   * when the mount's registry is created. Default: no plugins — the surface
+   * renders exactly as before the platform existed.
+   */
+  plugins?: Array<{ plugin: ChatPlugin }>;
+  /**
+   * Capability grant applied when registering `plugins`. Defaults to
+   * `FULL_GRANT` (the admin surface composes everything). Grants gate
+   * client-side composition only — not a security boundary (plan M6).
+   */
+  capabilityGrant?: ChatCapabilityGrant;
 }
 
 /**
