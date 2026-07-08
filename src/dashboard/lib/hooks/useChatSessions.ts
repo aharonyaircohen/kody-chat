@@ -39,8 +39,10 @@ const lastKnownRepoKey = new Map<ChatSessionScope, string>();
  *
  * Repo switching reloads the page (see auth-context.tsx setCurrentRepo), so this
  * value is stable for a given (repo, scope) pair.
+ *
+ * Exported for unit tests (tests/unit/chat-sessions-persistence.spec.ts).
  */
-function getStorageKey(scope: ChatSessionScope): string {
+export function getStorageKey(scope: ChatSessionScope): string {
   const base =
     scope === "global" ? STORAGE_KEY_BASE : `${STORAGE_KEY_BASE}-${scope}`;
   const unscopedFallback = scope === "global" ? LEGACY_UNSCOPED_KEY : base;
@@ -84,8 +86,10 @@ function derivePreview(messages: ChatMessage[]): string | undefined {
 /**
  * Migrate v2 store (agent-scoped) to v3 store (single session).
  * Sessions from all agents are merged — agentId field is dropped.
+ *
+ * Exported for unit tests.
  */
-function migrateFromV2(v2Data: GlobalChatStore | null): GlobalChatStore {
+export function migrateFromV2(v2Data: GlobalChatStore | null): GlobalChatStore {
   const store: GlobalChatStore = {
     version: 3,
     sessions: [],
@@ -128,8 +132,10 @@ function migrateFromV2(v2Data: GlobalChatStore | null): GlobalChatStore {
  * no per-repo key has been written yet for the current repo, adopt the legacy
  * blob under the current repo key and delete the legacy entry. This preserves
  * the user's existing chats for whichever repo they were last using.
+ *
+ * Exported for unit tests.
  */
-function loadStore(
+export function loadStore(
   storageKey: string,
   scope: ChatSessionScope,
 ): GlobalChatStore {
@@ -201,8 +207,10 @@ function writePending(storageKey: string): void {
  * Synchronously commit any debounced-but-unwritten save for a key. Called
  * before the hook loads a different scope/key so an in-flight write of real
  * history is never silently dropped by the scope swap.
+ *
+ * Exported for unit tests.
  */
-function flushSave(storageKey: string): void {
+export function flushSave(storageKey: string): void {
   const timeout = saveTimeouts.get(storageKey);
   if (timeout) {
     clearTimeout(timeout);
@@ -211,7 +219,8 @@ function flushSave(storageKey: string): void {
   writePending(storageKey);
 }
 
-function saveStore(store: GlobalChatStore, storageKey: string): void {
+/** Exported for unit tests. */
+export function saveStore(store: GlobalChatStore, storageKey: string): void {
   if (typeof window === "undefined") return;
 
   pendingSaves.set(storageKey, JSON.stringify(store));

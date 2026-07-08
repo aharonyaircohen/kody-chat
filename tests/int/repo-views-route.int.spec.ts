@@ -39,7 +39,7 @@ vi.mock("@dashboard/lib/state-repo", () => ({
   stateRepoPath: stateRepo.stateRepoPath,
 }));
 
-import { GET } from "../app/api/kody/views/[...path]/route";
+import { GET } from "../../app/api/kody/views/[...path]/route";
 import { STATE_BRANCH } from "@dashboard/lib/state-branch";
 import { mintRepoViewToken } from "@dashboard/lib/view-token";
 

@@ -106,7 +106,7 @@ vi.mock("@dashboard/lib/auth", () => auth);
 vi.mock("@dashboard/lib/github-client", () => github);
 vi.mock("@dashboard/lib/cms/service", () => service);
 
-import { DELETE, GET, POST } from "../app/api/kody/cms/mcp/route";
+import { DELETE, GET, POST } from "../../app/api/kody/cms/mcp/route";
 
 describe("CMS MCP HTTP compatibility", () => {
   afterEach(() => {

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { listAgencyRuns } from "../src/dashboard/lib/agency-runs";
-import { readStateText } from "../src/dashboard/lib/state-repo";
+import { listAgencyRuns } from "../../src/dashboard/lib/agency-runs";
+import { readStateText } from "../../src/dashboard/lib/state-repo";
 
-vi.mock("../src/dashboard/lib/state-repo", () => ({
+vi.mock("../../src/dashboard/lib/state-repo", () => ({
   readStateText: vi.fn(),
 }));
 

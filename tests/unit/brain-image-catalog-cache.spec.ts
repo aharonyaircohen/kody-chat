@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearBrainPackageImageDiscoveryCache,
   discoverBrainPackageImages,
-} from "../src/dashboard/lib/brain/image-catalog";
+} from "../../src/dashboard/lib/brain/image-catalog";
 
 describe("Brain image catalog discovery cache", () => {
   afterEach(() => {

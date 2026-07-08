@@ -75,7 +75,7 @@ const service = vi.hoisted(() => ({
 vi.mock("@dashboard/lib/cms/roles", () => roles);
 vi.mock("@dashboard/lib/cms/service", () => service);
 
-import { createCmsTools } from "../app/api/kody/chat/tools/cms-tools";
+import { createCmsTools } from "../../app/api/kody/chat/tools/cms-tools";
 
 describe("CMS chat tools", () => {
   it("exposes compact generic CMS tools to Kody chat", async () => {

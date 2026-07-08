@@ -26,8 +26,17 @@ export default defineConfig({
   /* Reporter — GitHub Actions annotate failures inline */
   reporter: process.env.CI ? [["github"], ["html"]] : [["list"]],
 
-  /* Shared setup: inject auth cookie if KODY_BOT_TOKEN is available */
-  webServer: undefined, // Preview URLs are already live — no local server needed
+  /* PW_LOCAL=1 (test:e2e:local / test:gate scripts) starts the dev server and
+     targets it, overriding any deployed BASE_URL from .env. Without PW_LOCAL,
+     deployed-URL runs remain the backstop mode — no local server started. */
+  webServer: process.env.PW_LOCAL
+    ? {
+        command: "pnpm dev",
+        url: "http://127.0.0.1:3333",
+        reuseExistingServer: true,
+        timeout: 120_000,
+      }
+    : undefined,
 
   use: {
     /* Target URL — set via BASE_URL env var */

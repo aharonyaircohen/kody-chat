@@ -12,6 +12,10 @@ import { test, expect, type Page } from "@playwright/test";
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 const TEST_REPO = "https://github.com/test-owner/test-repo";
 
+function sseBody(events: unknown[]): string {
+  return events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
+}
+
 async function seedAuth(page: Page): Promise<void> {
   await page.goto(`${BASE_URL}/login`);
   await page.waitForLoadState("domcontentloaded");
@@ -70,6 +74,15 @@ test.describe("Admin Kody chat regression", () => {
         }),
       }),
     );
+    // Hermetic default for the commands menu — individual tests override
+    // (later page.route registrations take precedence in Playwright).
+    await page.route("**/api/kody/commands", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ commands: [] }),
+      }),
+    );
     await seedAuth(page);
   });
 
@@ -104,5 +117,256 @@ test.describe("Admin Kody chat regression", () => {
       chat.getByRole("button", { name: "Toggle conversations" }),
     ).toBeVisible();
     await expect(chat.getByRole("button", { name: /Terminal/i })).toBeVisible();
+  });
+
+  test("/chat composer is the rich markdown editor and Preview toggles", async ({
+    page,
+  }) => {
+    await page.goto(`${BASE_URL}/chat`);
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    await expect(chat).toBeVisible({ timeout: 15_000 });
+
+    // /chat renders the full-page (railFullscreen) composer, which is the
+    // rich MarkdownEditor with a toolbar — not the bare textarea.
+    await expect(chat.locator('button[title="Bold"]')).toBeVisible({
+      timeout: 15_000,
+    });
+    const previewButton = chat.locator('button[title="Preview"]');
+    await expect(previewButton).toBeVisible();
+
+    const composer = chat.locator("textarea").first();
+    await expect(composer).toBeVisible();
+
+    // Preview mode swaps the textarea for the rendered preview pane.
+    await previewButton.click();
+    await expect(chat.getByText("Nothing to preview")).toBeVisible();
+    await expect(chat.locator("textarea")).toHaveCount(0);
+
+    // Back to write mode — textarea returns, no crash.
+    await chat.locator('button[title="Write"]').click();
+    await expect(chat.locator("textarea").first()).toBeVisible();
+    await expect(chat.locator("textarea").first()).toBeEditable();
+  });
+
+  test("send streams SSE and renders the assistant reply", async ({
+    page,
+  }) => {
+    await page.route("**/api/kody/chat/kody", (route) =>
+      route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+        body: sseBody([
+          { type: "text-delta", delta: "Hello " },
+          { type: "text-delta", delta: "from the mocked stream." },
+        ]),
+      }),
+    );
+
+    await page.goto(`${BASE_URL}/chat`);
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    await expect(chat).toBeVisible({ timeout: 15_000 });
+
+    const composer = chat.locator("textarea").first();
+    await expect(composer).toBeEditable({ timeout: 15_000 });
+    await composer.fill("hi there");
+    await chat.getByRole("button", { name: "Send message" }).click();
+
+    // .first(): the text also shows up as the session-sidebar preview.
+    await expect(chat.getByText("hi there").first()).toBeVisible();
+    await expect(chat.getByText("Hello from the mocked stream.")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(chat.getByText(/^Error:/)).toHaveCount(0);
+  });
+
+  test("chat POST carries repo + dashboard-page context", async ({ page }) => {
+    let capturedBody: Record<string, unknown> | null = null;
+    let capturedHeaders: Record<string, string> | null = null;
+    await page.route("**/api/kody/chat/kody", (route) => {
+      capturedBody = route.request().postDataJSON() as Record<string, unknown>;
+      capturedHeaders = route.request().headers();
+      return route.fulfill({
+        status: 200,
+        headers: { "content-type": "text/event-stream; charset=utf-8" },
+        body: sseBody([{ type: "text-delta", delta: "ack" }]),
+      });
+    });
+
+    await page.goto(`${BASE_URL}/chat`);
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    await expect(chat).toBeVisible({ timeout: 15_000 });
+
+    const composer = chat.locator("textarea").first();
+    await expect(composer).toBeEditable({ timeout: 15_000 });
+    await composer.fill("context ping");
+    await chat.getByRole("button", { name: "Send message" }).click();
+    await expect(chat.getByText("ack")).toBeVisible({ timeout: 15_000 });
+
+    expect(capturedBody).not.toBeNull();
+    const body = capturedBody!;
+    // Stable payload fields (see KodyChat sendText → /api/kody/chat/kody):
+    // agentId + model come from the seeded "kody:gpt-x" default entry;
+    // currentPage is the dashboard-page context noun phrase.
+    expect(body.agentId).toBe("kody");
+    expect(body.model).toBe("gpt-x");
+    expect(String(body.currentPage)).toContain("/chat");
+    expect(JSON.stringify(body.messages)).toContain("context ping");
+    // Repo context rides in the auth headers on every chat call.
+    expect(capturedHeaders?.["x-kody-owner"]).toBe("test-owner");
+    expect(capturedHeaders?.["x-kody-repo"]).toBe("test-repo");
+  });
+
+  test("Stop aborts an in-flight stream and returns to idle", async ({
+    page,
+  }) => {
+    // Never fulfill promptly — the fetch stays pending so the assistant
+    // bubble stays in the loading state until Stop aborts it.
+    await page.route("**/api/kody/chat/kody", async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 10_000));
+      await route
+        .fulfill({
+          status: 200,
+          headers: { "content-type": "text/event-stream; charset=utf-8" },
+          body: sseBody([{ type: "text-delta", delta: "too late" }]),
+        })
+        .catch(() => {
+          // Client already aborted / page closed — expected.
+        });
+    });
+
+    await page.goto(`${BASE_URL}/chat`);
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    await expect(chat).toBeVisible({ timeout: 15_000 });
+
+    const composer = chat.locator("textarea").first();
+    await expect(composer).toBeEditable({ timeout: 15_000 });
+    await composer.fill("never finishes");
+    await chat.getByRole("button", { name: "Send message" }).click();
+
+    // The trailing button swaps into its Stop role while in flight.
+    const stopButton = chat.getByRole("button", { name: "Stop run" });
+    await expect(stopButton).toBeVisible({ timeout: 15_000 });
+    await stopButton.click();
+
+    // Back to idle: stop affordance gone, composer editable again, and no
+    // error bubble (AbortError is swallowed by design).
+    await expect(chat.getByRole("button", { name: "Stop run" })).toHaveCount(
+      0,
+    );
+    await expect(chat.locator("textarea").first()).toBeEditable();
+    await expect(chat.getByText(/^Error:/)).toHaveCount(0);
+  });
+
+  test("AI/Terminal mode toggle renders with AI chat pressed", async ({
+    page,
+  }) => {
+    await page.goto(`${BASE_URL}/chat`);
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    await expect(chat).toBeVisible({ timeout: 15_000 });
+
+    const aiButton = chat.getByRole("button", { name: "AI chat", exact: true });
+    await expect(aiButton).toBeVisible({ timeout: 15_000 });
+    await expect(aiButton).toHaveAttribute("aria-pressed", "true");
+
+    // Do NOT click Terminal — it boots real transports. Presence + state only.
+    const terminalButton = chat.getByRole("button", { name: /^Terminal/ });
+    await expect(terminalButton).toBeVisible();
+    await expect(terminalButton).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("slash menu lists mocked commands and inserts the slug", async ({
+    page,
+  }) => {
+    await page.route("**/api/kody/commands", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          commands: [
+            {
+              slug: "plan",
+              description: "Plan work",
+              argumentHint: "",
+              body: "x",
+              source: "builtin",
+            },
+          ],
+        }),
+      }),
+    );
+
+    const commandsLoaded = page.waitForResponse("**/api/kody/commands");
+    await page.goto(`${BASE_URL}/chat`);
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    await expect(chat).toBeVisible({ timeout: 15_000 });
+    await commandsLoaded;
+
+    const composer = chat.locator("textarea").first();
+    await expect(composer).toBeEditable({ timeout: 15_000 });
+    await composer.fill("/");
+
+    const option = chat.getByRole("option", { name: /\/plan/ });
+    await expect(option).toBeVisible({ timeout: 10_000 });
+    await option.click();
+    await expect(chat.locator("textarea").first()).toHaveValue("/plan ");
+  });
+
+  test("attachment and voice affordances mount in the composer row", async ({
+    page,
+  }) => {
+    await page.goto(`${BASE_URL}/chat`);
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    await expect(chat).toBeVisible({ timeout: 15_000 });
+
+    await expect(chat.locator('button[title="Attach files"]')).toBeVisible({
+      timeout: 15_000,
+    });
+    // VoiceButton is gated on agent.supportsVoice (true for the in-process
+    // `kody` agent) AND browser STT+TTS support (present in Chromium).
+    await expect(
+      chat.getByRole("button", { name: "Start voice chat" }),
+    ).toBeVisible();
+  });
+
+  test("session sidebar toggles and survives New conversation", async ({
+    page,
+  }) => {
+    await page.goto(`${BASE_URL}/chat`);
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    await expect(chat).toBeVisible({ timeout: 15_000 });
+
+    // On /chat the sessions sidebar is OPEN by default (fullscreen chat).
+    // "Toggle conversations" therefore closes it first, then reopens it.
+    const sidebar = page.locator('[data-testid="session-sidebar"]');
+    await expect(sidebar).toBeVisible({ timeout: 15_000 });
+
+    const toggle = chat.getByRole("button", { name: "Toggle conversations" });
+    await expect(toggle).toBeVisible();
+    await toggle.click();
+    await expect(sidebar).toBeHidden();
+    await toggle.click();
+    await expect(sidebar).toBeVisible();
+
+    // Two "New conversation" buttons exist (sidebar + chat header) — use
+    // the sidebar-scoped one.
+    await sidebar.getByRole("button", { name: "New conversation" }).click();
+    await expect(sidebar).toBeVisible();
+    await expect(chat.locator("textarea").first()).toBeEditable();
+  });
+
+  test("/chat mounts exactly one KodyChat instance (regression pin)", async ({
+    page,
+  }) => {
+    // ChatRailShell mounts ONE persistent KodyChat (full-pane on /chat).
+    // The mobile sheet only mounts when mobileOpen && !isChatRoute, and
+    // app/chat/page.tsx renders null — so on /chat the real count is 1.
+    // Pin that: a second mount would double streams and session writes.
+    await page.goto(`${BASE_URL}/chat`);
+    const roots = page.locator('[data-testid="kody-chat-root"]');
+    await expect(roots.first()).toBeVisible({ timeout: 15_000 });
+    await expect(roots).toHaveCount(1);
   });
 });

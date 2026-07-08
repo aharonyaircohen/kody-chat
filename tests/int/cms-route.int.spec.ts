@@ -112,27 +112,27 @@ vi.mock("@dashboard/lib/vault/get-secret", () => vault);
 import {
   GET as collectionGET,
   POST as collectionPOST,
-} from "../app/api/kody/cms/[collection]/route";
+} from "../../app/api/kody/cms/[collection]/route";
 import {
   DELETE as documentDELETE,
   GET as documentGET,
   PATCH as documentPATCH,
-} from "../app/api/kody/cms/[collection]/[id]/route";
+} from "../../app/api/kody/cms/[collection]/[id]/route";
 import {
   GET as indexGET,
   PATCH as indexPATCH,
   POST as indexPOST,
-} from "../app/api/kody/cms/route";
+} from "../../app/api/kody/cms/route";
 import {
   DELETE as mcpDELETE,
   GET as mcpGET,
   POST as mcpPOST,
-} from "../app/api/kody/cms/mcp/route";
+} from "../../app/api/kody/cms/mcp/route";
 import {
   DELETE as modelDELETE,
   PATCH as modelPATCH,
-} from "../app/api/kody/cms/model/route";
-import { POST as schemaPOST } from "../app/api/kody/cms/schema/route";
+} from "../../app/api/kody/cms/model/route";
+import { POST as schemaPOST } from "../../app/api/kody/cms/schema/route";
 
 function request(url = "https://dash.test/api/kody/cms") {
   return new NextRequest(url, {

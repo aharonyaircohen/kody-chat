@@ -10,7 +10,7 @@ import {
   slugifyCompanyIntentId,
   sortCompanyIntentRecords,
   type CompanyIntentRecord,
-} from "../src/dashboard/lib/company-intents";
+} from "../../src/dashboard/lib/company-intents";
 
 describe("company intents", () => {
   it("parses the engine intent file shape", () => {
