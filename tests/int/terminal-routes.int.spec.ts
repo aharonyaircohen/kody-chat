@@ -499,7 +499,7 @@ describe("POST /api/kody/terminal/session", () => {
         repo: "widgets",
         app: "kody-brain-octocat",
         machineId: "brain-1",
-        chatSessionId: "brain:acme:widgets:kody-brain-octocat:brain-1",
+        chatSessionId: "brain:acme:widgets:kody-brain-octocat:brain-1:chat-1",
         resetSession: true,
         cols: 132,
         rows: 40,

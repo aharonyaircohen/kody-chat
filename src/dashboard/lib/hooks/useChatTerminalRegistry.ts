@@ -31,7 +31,6 @@ interface UseChatTerminalRegistryOptions {
   sessions: SessionMeta[];
   sessionsHydrated?: boolean;
   storageScope?: string;
-  switchSession?: (sessionId: string) => void;
 }
 
 export interface MountedChatTerminal {
@@ -86,13 +85,7 @@ export function normalizeMountedChatTerminals(
       },
     ];
   });
-  const activeBrain = findMountedBrainTerminal(supported);
-  if (!activeBrain) return supported;
-  return supported.filter(
-    (terminal) =>
-      !isBrainTerminalTransport(terminal.transport) ||
-      terminal.id === activeBrain.id,
-  );
+  return supported;
 }
 
 function chatTerminalTransportsEqual(
@@ -144,20 +137,20 @@ export function upsertMountedChatTerminal(
   terminals: MountedChatTerminal[],
   nextTerminal: MountedChatTerminal,
 ): MountedChatTerminal[] {
-  if (!isBrainTerminalTransport(nextTerminal.transport)) {
-    return terminals.some((terminal) => terminal.id === nextTerminal.id)
-      ? terminals
-      : [...terminals, nextTerminal];
+  const [normalizedNext] = normalizeMountedChatTerminals([nextTerminal]);
+  if (!normalizedNext) return terminals;
+  const existingIndex = terminals.findIndex(
+    (terminal) => terminal.id === normalizedNext.id,
+  );
+  if (existingIndex === -1) {
+    return normalizeMountedChatTerminals([...terminals, normalizedNext]);
   }
-
-  const existingBrain = findMountedBrainTerminal(terminals);
-  if (!existingBrain)
-    return normalizeMountedChatTerminals([...terminals, nextTerminal]);
-  if (mountedChatTerminalsEqual(existingBrain, nextTerminal)) return terminals;
-
+  if (mountedChatTerminalsEqual(terminals[existingIndex], normalizedNext)) {
+    return terminals;
+  }
   return normalizeMountedChatTerminals(
-    terminals.map((terminal) =>
-      terminal.id === existingBrain.id ? nextTerminal : terminal,
+    terminals.map((terminal, index) =>
+      index === existingIndex ? normalizedNext : terminal,
     ),
   );
 }
@@ -374,7 +367,6 @@ export function useChatTerminalRegistry({
   sessions,
   sessionsHydrated = true,
   storageScope = "global",
-  switchSession,
 }: UseChatTerminalRegistryOptions) {
   const storageKey = terminalRegistryStorageKey(storageScope);
   const [initialRegistryState] = useState(() =>
@@ -480,32 +472,6 @@ export function useChatTerminalRegistry({
     [activeSessionId, setSessionMode],
   );
 
-  const focusMountedBrainTerminal = useCallback(
-    (transport: ChatTerminalTransport): string | null => {
-      if (!isBrainTerminalTransport(transport)) return null;
-      const existingBrain = findMountedBrainTerminal(mountedTerminals);
-      if (!existingBrain) return null;
-      setMountedTerminals((prev) =>
-        upsertMountedChatTerminal(prev, {
-          id: chatTerminalInstanceId(existingBrain.sessionId, transport),
-          sessionId: existingBrain.sessionId,
-          transport,
-        }),
-      );
-      setTransportBySessionId((prev) =>
-        chatTerminalTransportKey(
-          prev[existingBrain.sessionId] ?? LOCAL_TERMINAL_TRANSPORT,
-        ) === chatTerminalTransportKey(transport)
-          ? prev
-          : { ...prev, [existingBrain.sessionId]: transport },
-      );
-      setSessionMode(existingBrain.sessionId, "terminal");
-      switchSession?.(existingBrain.sessionId);
-      return existingBrain.sessionId;
-    },
-    [mountedTerminals, setSessionMode, switchSession],
-  );
-
   useEffect(() => {
     if (!sessionsHydrated) return;
 
@@ -574,9 +540,6 @@ export function useChatTerminalRegistry({
         terminalMachines,
         { inventoryLoaded: flyInventory !== null },
       );
-      const existingBrainSessionId =
-        focusMountedBrainTerminal(terminalTransport);
-      if (existingBrainSessionId) return existingBrainSessionId;
       mountTerminal(sessionId, terminalTransport);
       if (transport) {
         setTransportBySessionId((prev) =>
@@ -594,7 +557,6 @@ export function useChatTerminalRegistry({
       activeSessionId,
       createSession,
       flyInventory,
-      focusMountedBrainTerminal,
       mountTerminal,
       setSessionMode,
       terminalMachines,
@@ -684,7 +646,6 @@ export function useChatTerminalRegistry({
         terminalMachines,
         { inventoryLoaded: flyInventory !== null },
       );
-      if (focusMountedBrainTerminal(nextTransport)) return;
       mountTerminal(activeSessionId, nextTransport);
       setTransportBySessionId((prev) =>
         chatTerminalTransportKey(
@@ -697,7 +658,6 @@ export function useChatTerminalRegistry({
     [
       activeSessionId,
       flyInventory,
-      focusMountedBrainTerminal,
       mountTerminal,
       terminalMachines,
     ],

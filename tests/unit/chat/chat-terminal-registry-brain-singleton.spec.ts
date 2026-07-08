@@ -1,5 +1,5 @@
 /**
- * @fileoverview Unit coverage for the single Brain terminal registry rule.
+ * @fileoverview Unit coverage for per-chat Brain terminal registry rules.
  * @testFramework vitest
  * @domain terminal
  */
@@ -11,7 +11,6 @@ import { describe, expect, it } from "vitest";
 import {
   BRAIN_TERMINAL_TRANSPORT,
   canUseChatTerminalFlyMachine,
-  findMountedBrainTerminal,
   isBrainTerminalTransport,
   normalizeMountedChatTerminals,
   normalizeTerminalTransport,
@@ -57,7 +56,7 @@ function terminal(
   };
 }
 
-describe("chat terminal registry Brain singleton", () => {
+describe("chat terminal registry Brain sessions", () => {
   it("filters Fly terminal choices to Brain machines only", () => {
     const baseMachine = {
       app: "kody-runner",
@@ -76,7 +75,7 @@ describe("chat terminal registry Brain singleton", () => {
     ).toBe(false);
   });
 
-  it("recognizes Brain as the singleton terminal transport", () => {
+  it("recognizes Brain as a semantic terminal transport", () => {
     expect(isBrainTerminalTransport(BRAIN_TERMINAL_TRANSPORT)).toBe(true);
     expect(
       isBrainTerminalTransport({
@@ -96,41 +95,41 @@ describe("chat terminal registry Brain singleton", () => {
     ).toBe(false);
   });
 
-  it("keeps only the newest mounted Brain terminal", () => {
+  it("keeps one mounted Brain terminal per chat session", () => {
     const firstBrain = terminal("brain-1", "chat-1", "brain");
-    const runner = terminal("runner-1", "chat-2", "runner");
-    const secondBrain = terminal("brain-2", "chat-3", "brain");
+    const secondBrain = terminal("brain-2", "chat-2", "brain");
 
-    expect(findMountedBrainTerminal([firstBrain, runner, secondBrain])).toBe(
-      secondBrain,
-    );
     expect(
-      normalizeMountedChatTerminals([firstBrain, runner, secondBrain]),
+      normalizeMountedChatTerminals([firstBrain, secondBrain]),
     ).toEqual([
       {
-        id: "chat-3::brain",
-        sessionId: "chat-3",
+        id: "chat-1::brain",
+        sessionId: "chat-1",
+        transport: BRAIN_TERMINAL_TRANSPORT,
+      },
+      {
+        id: "chat-2::brain",
+        sessionId: "chat-2",
         transport: BRAIN_TERMINAL_TRANSPORT,
       },
     ]);
   });
 
-  it("updates the mounted Brain terminal when Brain is selected again", () => {
-    const local = {
-      id: "chat-1::local",
-      sessionId: "chat-1",
-      transport: { type: "local" },
-    } satisfies MountedChatTerminal;
-    const previousBrain = terminal("brain-old", "chat-1", "brain");
-    const selectedBrain = {
+  it("adds a second chat Brain terminal without replacing the first", () => {
+    const firstBrain = {
       id: "chat-1::brain",
       sessionId: "chat-1",
       transport: BRAIN_TERMINAL_TRANSPORT,
     } satisfies MountedChatTerminal;
+    const selectedBrain = {
+      id: "chat-2::brain",
+      sessionId: "chat-2",
+      transport: BRAIN_TERMINAL_TRANSPORT,
+    } satisfies MountedChatTerminal;
 
     expect(
-      upsertMountedChatTerminal([local, previousBrain], selectedBrain),
-    ).toEqual([local, selectedBrain]);
+      upsertMountedChatTerminal([firstBrain], selectedBrain),
+    ).toEqual([firstBrain, selectedBrain]);
   });
 
   it("normalizes stale Brain machine selections to semantic Brain intent", () => {
@@ -209,16 +208,12 @@ describe("chat terminal registry Brain singleton", () => {
     expect(CHAT_SOURCE).toContain('<option value="brain">');
   });
 
-  it("focuses the existing Brain session instead of creating another one", () => {
-    expect(REGISTRY_SOURCE).toContain("switchSession?:");
-    expect(REGISTRY_SOURCE).toContain("focusMountedBrainTerminal");
-    expect(REGISTRY_SOURCE).toContain(
-      "switchSession?.(existingBrain.sessionId)",
+  it("does not switch chats when opening a Brain terminal", () => {
+    expect(REGISTRY_SOURCE).not.toContain("focusMountedBrainTerminal");
+    expect(REGISTRY_SOURCE).not.toContain("switchSession?.(");
+    expect(CHAT_SOURCE).not.toContain(
+      "switchSession: sessionHook.switchSession",
     );
-    expect(REGISTRY_SOURCE).toContain(
-      "if (focusMountedBrainTerminal(nextTransport)) return;",
-    );
-    expect(CHAT_SOURCE).toContain("switchSession: sessionHook.switchSession");
   });
 
   it("saves Brain images through the Brain service, not stale terminal ids", () => {

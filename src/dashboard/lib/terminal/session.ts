@@ -157,7 +157,10 @@ export function terminalBridgeSessionIdForTarget(input: {
   requestedChatSessionId?: string;
 }): string | undefined {
   if (input.feature !== "brain") return input.requestedChatSessionId;
-  return `brain:${input.owner}:${input.repo}:${input.app}:${input.machineId}`;
+  const base = `brain:${input.owner}:${input.repo}:${input.app}:${input.machineId}`;
+  return input.requestedChatSessionId
+    ? `${base}:${input.requestedChatSessionId}`
+    : base;
 }
 
 export function buildTerminalWebSocketUrl(

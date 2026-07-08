@@ -167,7 +167,7 @@ describe("terminal session policy", () => {
     expect(terminalActivityLimitForTarget("preview", null)).toBeUndefined();
   });
 
-  it("uses a stable bridge session id for Brain terminals", () => {
+  it("uses a per-chat bridge session id for Brain terminals", () => {
     expect(
       terminalBridgeSessionIdForTarget({
         owner: "acme",
@@ -177,7 +177,17 @@ describe("terminal session policy", () => {
         feature: "brain",
         requestedChatSessionId: "browser-chat-1",
       }),
-    ).toBe("brain:acme:widgets:kody-brain-alice:brain-1");
+    ).toBe("brain:acme:widgets:kody-brain-alice:brain-1:browser-chat-1");
+    expect(
+      terminalBridgeSessionIdForTarget({
+        owner: "acme",
+        repo: "widgets",
+        app: "kody-brain-alice",
+        machineId: "brain-1",
+        feature: "brain",
+        requestedChatSessionId: "browser-chat-2",
+      }),
+    ).toBe("brain:acme:widgets:kody-brain-alice:brain-1:browser-chat-2");
     expect(
       terminalBridgeSessionIdForTarget({
         owner: "acme",
