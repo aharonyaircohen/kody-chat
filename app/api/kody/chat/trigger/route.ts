@@ -24,6 +24,7 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@dashboard/lib/auth";
+import { rejectSurfaceScopedRequest } from "@dashboard/lib/chat/platform/surface-scope";
 import { logger } from "@dashboard/lib/logger";
 import { mintSessionToken } from "@dashboard/lib/chat-token";
 import { maybeAppendPluginToolsToken } from "@dashboard/lib/chat/platform/plugin-tools-config";
@@ -83,6 +84,10 @@ interface ChatMessage {
 // the same wording.
 
 export async function POST(req: NextRequest) {
+  // Surface tickets (phase 2 step 6) are limited to the in-process kody
+  // endpoint; this backend is admin-only. PAT requests pass untouched.
+  const surfaceRejection = rejectSurfaceScopedRequest(req.headers);
+  if (surfaceRejection) return surfaceRejection;
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
 

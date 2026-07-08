@@ -32,6 +32,10 @@ import {
   type ToolSet,
 } from "ai";
 import { getChatServerToolRegistry } from "@dashboard/lib/chat/platform/server-tools";
+import {
+  resolveSurfaceScope,
+  CLIENT_SURFACE_TOOL_ALLOWLIST,
+} from "@dashboard/lib/chat/platform/surface-scope";
 import type {
   ChatPluginToolDefinition,
   ChatToolServerContext,
@@ -479,8 +483,16 @@ export async function POST(req: NextRequest) {
   const traceId = randomBytes(4).toString("hex");
   const reqStartedAt = Date.now();
 
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
+  // Surface scoping (phase 2 step 6). Admin PAT headers → full scope,
+  // byte-identical to before. A valid surface ticket without a PAT →
+  // restricted client scope (agent forced, tools filtered below). Neither →
+  // today's 401 via requireKodyAuth, unchanged.
+  const surfaceScope = resolveSurfaceScope(req.headers);
+  if (surfaceScope.kind === "none") {
+    const authError = await requireKodyAuth(req);
+    if (authError) return authError;
+  }
+  const clientSurface = surfaceScope.kind === "client";
 
   // Key resolution is per-model: each LLM_MODELS entry names which secret
   // to read at request time. We defer the actual lookup until after we
@@ -593,9 +605,14 @@ export async function POST(req: NextRequest) {
   if ("error" in resolution) return resolution.error;
   const { model, resolvedModel } = resolution;
   const modelId = resolvedModel.id;
-  const actorResult = await verifyActorLogin(req, body.actorLogin);
-  if (actorResult instanceof NextResponse) return actorResult;
-  const verifiedActorLogin = actorResult.identity.login;
+  // Client-surface turns carry no PAT, so there is no GitHub identity to
+  // verify — actor-gated tools (remote_*) simply stay off (null login).
+  let verifiedActorLogin: string | null = null;
+  if (!clientSurface) {
+    const actorResult = await verifyActorLogin(req, body.actorLogin);
+    if (actorResult instanceof NextResponse) return actorResult;
+    verifiedActorLogin = actorResult.identity.login;
+  }
   // Only vision-capable models get real image parts. For text-only models
   // (looked up from LiteLLM's supports_vision data) inline the image as text
   // so the attachment still rides along instead of being dropped/rejected.
@@ -682,8 +699,12 @@ export async function POST(req: NextRequest) {
   // VoiceButton), so a voice turn with a non-direct agent is either a
   // stale client or someone calling the API directly — neither should
   // be answered as Kody.
+  // Client-surface scope forces the brand's default in-process agent —
+  // an external user must not be able to pick an arbitrary agent id.
   const requestedAgentId =
-    body.agentId && isValidAgentId(body.agentId) ? body.agentId : "kody";
+    !clientSurface && body.agentId && isValidAgentId(body.agentId)
+      ? body.agentId
+      : "kody";
   const requestedAgent: AgentConfig = getAgent(requestedAgentId);
   if (voiceMode && requestedAgent.backend !== "kody-direct") {
     return NextResponse.json(
@@ -761,8 +782,12 @@ export async function POST(req: NextRequest) {
   // The bundle is the source of truth for the chat's prompt base + tool
   // allowlist. Repo-stored with a TS fallback; step 1 returns TS defaults.
   const chatBundle = await loadChatDefaults(repo?.owner, repo?.repo);
+  // Agent identity swaps (@slug) are admin-only — client-surface turns
+  // always speak as the brand's default agent.
   const agentSlug =
-    typeof body.agentSlug === "string" ? body.agentSlug.trim() : "";
+    !clientSurface && typeof body.agentSlug === "string"
+      ? body.agentSlug.trim()
+      : "";
   let activeAgentIdentity = chatBundle.agentIdentity;
   let addressedAgentMember: Awaited<ReturnType<typeof readResolvedAgentFile>> =
     null;
@@ -990,10 +1015,22 @@ export async function POST(req: NextRequest) {
   );
   // Bundle allowlist controls domain tools. Core output tools are preserved
   // below because they are the chat protocol, not repo capability surface.
-  const filteredTools = filterToolsByAllowlist(
+  const bundleFilteredTools = filterToolsByAllowlist(
     mergedTools,
     chatBundle.capability.tools,
   );
+  // Client-surface scope hard-caps the result at the conservative surface
+  // subset (read-only feature discovery + fetch_url). Applied AFTER the
+  // bundle allowlist (an empty bundle list means "allow all", so a plain
+  // intersection would fail open). Core output tools are re-added below
+  // regardless — they are the chat protocol, not capability surface.
+  const filteredTools = clientSurface
+    ? Object.fromEntries(
+        Object.entries(bundleFilteredTools).filter(([name]) =>
+          CLIENT_SURFACE_TOOL_ALLOWLIST.includes(name),
+        ),
+      )
+    : bundleFilteredTools;
   const allowlistedTools: Record<string, unknown> = { ...filteredTools };
   for (const name of CHAT_OUTPUT_TOOL_NAMES) {
     if (Object.prototype.hasOwnProperty.call(mergedTools, name)) {

@@ -11,8 +11,23 @@ rules, and a minimal worked example.
 > **Security caveat (M6), read first:** capability grants are **UI
 > composition, not a security boundary**. Everything client-side executes in
 > the browser with the same localStorage-PAT auth; any /client user can hit
-> any API route regardless of what the registry renders. Server-side
-> per-surface scoping (HMAC surface tokens) is phase 2+.
+> any API route regardless of what the registry renders.
+>
+> **Server-side per-surface scoping (phase 2 step 6) is now enforced but
+> dormant.** [`chat/platform/surface-scope.ts`](../src/dashboard/lib/chat/platform/surface-scope.ts)
+> mints HMAC "surface tickets" (`kody-surface:` purpose off
+> `KODY_MASTER_KEY`, 4h expiry, preview-ticket pattern) binding
+> `{surface: client, brandSlug, owner/repo}`. The chat backends enforce it:
+> a ticket-only request may reach **only** the in-process kody route, with
+> the agent forced to the brand default and tools hard-capped at
+> `CLIENT_SURFACE_TOOL_ALLOWLIST` (`fetch_url` + read-only feature
+> discovery); the trigger and brain routes reject tickets with 403. Admin
+> PAT requests are byte-identical to before, and no-credential requests
+> still 401. **What launch still requires:** ClientChatSurface does not yet
+> mint or send tickets — the logged-in flow keeps using the PAT. Facing
+> external users needs a ticket-minting endpoint behind the operator's
+> auth, the client surface switching to ticket headers, and a brand
+> registry that binds slugs to repos server-side.
 
 ## Layout
 
