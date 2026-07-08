@@ -14,6 +14,7 @@ import { describe, expect, it } from "vitest";
 import {
   EMPTY_TRUST_MANIFEST,
   TRUST_GRADUATION_THRESHOLD,
+  applySubjectTrustOp,
   applyTrustDecision,
   applyTrustOp,
   degradeCapability,
@@ -25,6 +26,7 @@ import {
   serializeTrustManifest,
   summarizeTrust,
   trustDecisionKey,
+  trustSubjectKey,
   type TrustManifest,
 } from "@dashboard/lib/cto/trust-state";
 
@@ -94,6 +96,26 @@ describe("operator overrides", () => {
     applyTrustOp(grad, "degrade", "qa");
     expect(grad).toEqual(snap);
   });
+
+  it("graduate/degrade/reset subject trust independently from capabilities", () => {
+    const subject = trustSubjectKey("loop", "daily-web-release-loop");
+    const grad = applySubjectTrustOp(EMPTY_TRUST_MANIFEST, "graduate", subject);
+
+    expect(grad.subjects[subject]).toMatchObject({
+      mode: "auto",
+      consecutiveApprovals: TRUST_GRADUATION_THRESHOLD,
+    });
+    expect(grad.capabilities).toEqual({});
+    expect(
+      applySubjectTrustOp(grad, "degrade", subject).subjects[subject],
+    ).toMatchObject({
+      mode: "ask",
+      consecutiveApprovals: 0,
+    });
+    expect(
+      applySubjectTrustOp(grad, "reset", subject).subjects[subject],
+    ).toBeUndefined();
+  });
 });
 
 describe("parse/serialize", () => {
@@ -106,7 +128,13 @@ describe("parse/serialize", () => {
 
   it("normalizes minimal direct trust config into dashboard stats", () => {
     const parsed = parseTrustManifest(
-      JSON.stringify({ capabilities: { "dev-ci-health": { mode: "auto" } } }),
+      JSON.stringify({
+        capabilities: { "dev-ci-health": { mode: "auto" } },
+        subjects: {
+          "loop:daily-web-release-loop": { mode: "auto" },
+          "bad subject": { mode: "auto" },
+        },
+      }),
     );
 
     expect(parsed.capabilities["dev-ci-health"]).toEqual({
@@ -115,6 +143,13 @@ describe("parse/serialize", () => {
       consecutiveApprovals: TRUST_GRADUATION_THRESHOLD,
       mode: "auto",
     });
+    expect(parsed.subjects["loop:daily-web-release-loop"]).toEqual({
+      approvals: 0,
+      rejections: 0,
+      consecutiveApprovals: TRUST_GRADUATION_THRESHOLD,
+      mode: "auto",
+    });
+    expect(parsed.subjects).not.toHaveProperty("bad subject");
   });
 });
 

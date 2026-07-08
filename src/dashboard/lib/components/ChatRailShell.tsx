@@ -2,7 +2,7 @@
  * @fileType component
  * @domain layout
  * @pattern chat-rail-shell
- * @ai-summary Root-level chrome that owns ONE persistent <KodyChat /> for
+ * @ai-summary Root-level chrome that owns ONE persistent <OperatorChat /> for
  *   the entire authenticated dashboard. Pages render as `{children}` and
  *   push their chat context up via `useChatScope()`. The chat instance
  *   stays mounted across every navigation — scroll position, streaming
@@ -29,7 +29,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { KodyChat } from "./KodyChat";
+import { OperatorChat } from "./OperatorChat";
 import { AppHeader } from "./AppHeader";
 import { Sidebar } from "./Sidebar";
 import { RepoManager } from "./RepoManager";
@@ -49,6 +49,7 @@ import {
   resolveRepoRouteAuthSync,
 } from "../routes";
 import { routeOwnsAppHeader } from "./header-ownership";
+import { getBrandBySlug } from "../brand/config";
 
 interface ChatRailApi {
   scope: ChatContext | null;
@@ -126,6 +127,8 @@ const PUBLIC_ROUTE_PREFIXES: readonly string[] = [];
 
 function isPublicRoute(pathname: string | null): boolean {
   if (!pathname) return false;
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length === 1 && getBrandBySlug(segments[0])) return true;
   return PUBLIC_ROUTE_PREFIXES.some(
     (p) => pathname === p || pathname.startsWith(`${p}/`),
   );
@@ -404,7 +407,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     );
 
   const chatPane = auth ? (
-    <KodyChat
+    <OperatorChat
       context={scope}
       actorLogin={githubUser?.login}
       lockedAgentId={lockedAgentId}
@@ -511,7 +514,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
             !currentRepoPath.startsWith("/messages") && (
               <div className="fixed inset-x-0 bottom-0 top-16 z-30 flex flex-col border-t border-border bg-background md:hidden">
                 {auth ? (
-                  <KodyChat
+                  <OperatorChat
                     context={scope}
                     actorLogin={githubUser?.login}
                     onClose={() => setMobileOpenPersist(false)}

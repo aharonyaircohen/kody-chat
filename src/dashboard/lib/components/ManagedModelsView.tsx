@@ -61,6 +61,7 @@ import {
   type CapabilitySummary,
 } from "../hooks/useCapabilities";
 import { useTrust } from "../cto/useTrust";
+import { trustSubjectKey } from "../cto/trust-state";
 import {
   applyRunModeToCapabilities,
   managedModelCapabilitySlugs,
@@ -116,6 +117,13 @@ import {
 const defaultGoalType = MANAGED_GOAL_TYPES[0]!;
 const USER_VISIBLE_OBJECTIVE_TYPE_IDS = new Set<ManagedGoalTypeId>(["improve"]);
 type AgentGoalExecutionTarget = "workflow" | "capabilities";
+
+function approvalEnabled(
+  subjectMode: "ask" | "auto" | undefined,
+  fallback: boolean,
+): boolean {
+  return subjectMode ? subjectMode === "auto" : fallback;
+}
 
 function userVisibleObjectiveGoalTypes(): ManagedGoalTypeDefinition[] {
   return MANAGED_GOAL_TYPES.filter(
@@ -2805,7 +2813,6 @@ export function ManagedModelsView({
     () => modelGoals.find((goal) => goal.id === selectedId) ?? null,
     [modelGoals, selectedId],
   );
-  const updateSelectedGoal = useUpdateManagedGoal(selectedGoal?.id ?? "");
   const selectedRunCapabilitySlugs = useMemo(
     () =>
       selectedGoal
@@ -2817,6 +2824,21 @@ export function ManagedModelsView({
     () => runModeForCapabilities(trust.groups, selectedRunCapabilitySlugs),
     [selectedRunCapabilitySlugs, trust.groups],
   );
+  const selectedGoalSubject = selectedGoal
+    ? trustSubjectKey(
+        managedGoalModel(selectedGoal) === "agentLoop" ? "loop" : "goal",
+        selectedGoal.id,
+      )
+    : null;
+  const selectedGoalSubjectMode = selectedGoalSubject
+    ? trust.subjects[selectedGoalSubject]?.mode
+    : undefined;
+  const selectedRunWithoutApproval = selectedGoal
+    ? approvalEnabled(
+        selectedGoalSubjectMode,
+        selectedGoal.state.runWithoutApproval === true,
+      )
+    : false;
   const deleteGoalStoreBacked = deleteGoal
     ? isStoreBackedManagedGoal(deleteGoal)
     : false;
@@ -2903,8 +2925,8 @@ export function ManagedModelsView({
               runMode={selectedRunMode}
               runModeCapabilityCount={selectedRunCapabilitySlugs.length}
               runModePending={trust.isMutating}
-              runWithoutApproval={selectedGoal.state.runWithoutApproval === true}
-              runWithoutApprovalPending={updateSelectedGoal.isPending}
+              runWithoutApproval={selectedRunWithoutApproval}
+              runWithoutApprovalPending={trust.isMutating}
               onBack={() => selectGoal(null)}
               onEdit={() => setEditingGoal(selectedGoal)}
               onDelete={() => setDeleteGoal(selectedGoal)}
@@ -2946,8 +2968,10 @@ export function ManagedModelsView({
                 )
               }
               onRunWithoutApprovalChange={async (enabled) => {
-                await updateSelectedGoal.mutateAsync({
-                  runWithoutApproval: enabled,
+                if (!selectedGoalSubject) return;
+                await trust.setSubjectTrust({
+                  subject: selectedGoalSubject,
+                  op: enabled ? "graduate" : "degrade",
                 });
               }}
               isUpdating={setGoalState.isPending}

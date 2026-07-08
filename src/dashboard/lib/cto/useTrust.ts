@@ -21,22 +21,30 @@ import { useAuth } from "../auth-context";
 import { kodyApi } from "../api";
 import {
   TRUST_MANIFEST_VERSION,
+  applySubjectTrustOp,
   applyTrustOp,
   summarizeTrust,
+  type TrustCapabilityStats,
   type TrustDecisionLogEntry,
   type TrustCapabilityView,
   type TrustManifest,
   type TrustOp,
+  type TrustSubjectKey,
 } from "./trust-state";
 
 export const trustQueryKey = (owner?: string, repo?: string) =>
   ["cto-trust", owner ?? "", repo ?? ""] as const;
 
 type TrustQueryPayload = Awaited<ReturnType<typeof kodyApi.cto.trust>>;
+type TrustMutationInput =
+  | { capability: string; subject?: never; op: TrustOp }
+  | { capability?: never; subject: TrustSubjectKey; op: TrustOp };
 
 export interface UseTrustResult {
   /** Per-capability view rows (auto-first), or [] while loading. */
   groups: TrustCapabilityView[];
+  /** Repo-owned trigger policy for managed goals, loops, and workflows. */
+  subjects: Record<TrustSubjectKey, TrustCapabilityStats>;
   /** Recent decision log (most recent last), bounded server-side. */
   log: TrustDecisionLogEntry[];
   isLoading: boolean;
@@ -46,6 +54,11 @@ export interface UseTrustResult {
   refetch: () => Promise<void>;
   /** Apply one whole-capability trust override; resolves once the write lands. */
   setTrust: (input: { capability: string; op: TrustOp }) => Promise<void>;
+  /** Apply one managed subject trust override; resolves once the write lands. */
+  setSubjectTrust: (input: {
+    subject: TrustSubjectKey;
+    op: TrustOp;
+  }) => Promise<void>;
   /** True while a `setTrust` mutation is in flight. */
   isMutating: boolean;
 }
@@ -76,10 +89,10 @@ export function useTrust(): UseTrustResult {
   const mutation = useMutation<
     Awaited<ReturnType<typeof kodyApi.cto.setTrust>>,
     Error,
-    { capability: string; op: TrustOp },
+    TrustMutationInput,
     { previous?: TrustQueryPayload }
   >({
-    mutationFn: (input: { capability: string; op: TrustOp }) =>
+    mutationFn: (input: TrustMutationInput) =>
       kodyApi.cto.setTrust({
         ...input,
         ...(auth?.user?.login ? { actorLogin: auth.user.login } : {}),
@@ -98,6 +111,21 @@ export function useTrust(): UseTrustResult {
     onSuccess: (data) => {
       qc.setQueryData<TrustQueryPayload>(key, (current) => {
         if (!current) return current;
+        const subjects = current.subjects ?? {};
+        if (data.subject) {
+          if (!data.stats) {
+            const { [data.subject]: _removed, ...nextSubjects } = subjects;
+            return { ...current, subjects: nextSubjects };
+          }
+          return {
+            ...current,
+            subjects: {
+              ...subjects,
+              [data.subject]: data.stats,
+            },
+          };
+        }
+        if (!data.capability) return current;
         if (!data.stats) {
           const { [data.capability]: _removed, ...capabilities } =
             current.capabilities;
@@ -120,6 +148,7 @@ export function useTrust(): UseTrustResult {
     const manifest: TrustManifest = {
       version: TRUST_MANIFEST_VERSION,
       capabilities: trustQuery.data.capabilities,
+      subjects: trustQuery.data.subjects ?? {},
       log: trustQuery.data.log,
     };
     const capabilityLinks = (capabilitiesQuery.data ?? []).map((d) => ({
@@ -131,6 +160,7 @@ export function useTrust(): UseTrustResult {
 
   return {
     groups,
+    subjects: trustQuery.data?.subjects ?? {},
     log: trustQuery.data?.log ?? [],
     isLoading: trustQuery.isLoading,
     isFetching: trustQuery.isFetching || capabilitiesQuery.isFetching,
@@ -141,27 +171,31 @@ export function useTrust(): UseTrustResult {
     setTrust: async (input) => {
       await mutation.mutateAsync(input);
     },
+    setSubjectTrust: async (input) => {
+      await mutation.mutateAsync(input);
+    },
     isMutating: mutation.isPending,
   };
 }
 
 function applyTrustCacheOp(
   current: TrustQueryPayload | undefined,
-  input: { capability: string; op: TrustOp },
+  input: TrustMutationInput,
 ): TrustQueryPayload | undefined {
   if (!current) return current;
-  const manifest = applyTrustOp(
-    {
-      version: TRUST_MANIFEST_VERSION,
-      capabilities: current.capabilities,
-      log: current.log,
-    },
-    input.op,
-    input.capability,
-  );
+  const baseManifest = {
+    version: TRUST_MANIFEST_VERSION,
+    capabilities: current.capabilities,
+    subjects: current.subjects ?? {},
+    log: current.log,
+  };
+  const manifest = input.subject
+    ? applySubjectTrustOp(baseManifest, input.op, input.subject)
+    : applyTrustOp(baseManifest, input.op, input.capability);
   return {
     ...current,
     capabilities: manifest.capabilities,
+    subjects: manifest.subjects,
     log: manifest.log,
   };
 }

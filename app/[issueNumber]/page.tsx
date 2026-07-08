@@ -8,12 +8,15 @@
  *   use `force-static` here — it caused Next.js to bake `/vibe` (and
  *   any other non-numeric sibling-route path) into a cached 307 redirect
  *   at the edge, silently shadowing the real static routes for ~5min
- *   stale-time windows. The runtime `notFound()` for non-numeric segments
- *   makes the catch-all decline gracefully so sibling routes (vibe, capabilities,
- *   settings, …) win at routing.
+ *   stale-time windows. The runtime classifier keeps numeric segments as
+ *   task pages, known brand slugs as client chat, and all other non-numeric
+ *   segments as `notFound()` so sibling routes (vibe, capabilities, settings,
+ *   …) win at routing.
  */
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
+import { classifyRootSegment } from "@dashboard/lib/brand/routes";
+import { BrandClientChat } from "@dashboard/lib/components/BrandClientChat";
 import { KodyDashboard } from "@dashboard/lib/components/KodyDashboard";
 import { buildTaskMetadata } from "../metadata";
 
@@ -28,9 +31,17 @@ export async function generateMetadata({
   params: Promise<{ issueNumber: string }>;
 }): Promise<Metadata> {
   const { issueNumber } = await params;
-  const parsed = parseInt(issueNumber, 10);
-  if (isNaN(parsed)) return { title: "Kody Operations Dashboard" };
-  return buildTaskMetadata(parsed);
+  const classified = classifyRootSegment(issueNumber);
+  if (classified.kind === "task") {
+    return buildTaskMetadata(classified.issueNumber);
+  }
+  if (classified.kind === "brand") {
+    return {
+      title: `${classified.brand.displayName} Chat`,
+      description: classified.brand.tagline,
+    };
+  }
+  return { title: "Kody Operations Dashboard" };
 }
 
 export default async function KodyTaskPage({
@@ -39,15 +50,18 @@ export default async function KodyTaskPage({
   params: Promise<{ issueNumber: string }>;
 }) {
   const { issueNumber } = await params;
-  // Only numeric segments are real issues. For any non-numeric segment
-  // (e.g. "vibe", "capabilities", "settings") we must 404, not redirect — a
-  // cached `force-static` redirect here shadows sibling static routes
-  // at the edge and silently sends users to /. notFound() lets Next.js
-  // prefer the matching sibling page (e.g. app/vibe/page.tsx).
-  const parsed = parseInt(issueNumber, 10);
-  if (isNaN(parsed) || !/^\d+$/.test(issueNumber)) {
-    notFound();
+  // Numeric segments are task pages. Known non-numeric brand slugs render
+  // client chat. Everything else must 404, not redirect — a cached
+  // `force-static` redirect here shadows sibling static routes at the edge
+  // and silently sends users to /.
+  const classified = classifyRootSegment(issueNumber);
+  if (classified.kind === "brand") {
+    return <BrandClientChat brand={classified.brand} />;
   }
 
-  return <KodyDashboard initialIssueNumber={parsed} />;
+  if (classified.kind === "task") {
+    return <KodyDashboard initialIssueNumber={classified.issueNumber} />;
+  }
+
+  notFound();
 }

@@ -78,7 +78,7 @@ import { MarkdownPreview } from "./MarkdownPreview";
 import { TaskList } from "./TaskList";
 import { GoalDiscussion } from "./GoalDiscussion";
 import { GoalAssigneePicker } from "./GoalAssigneePicker";
-import { KodyChat } from "./KodyChat";
+import { OperatorChat } from "./OperatorChat";
 
 interface GoalProgress {
   total: number;
@@ -658,7 +658,7 @@ export function PlanGoalDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="flex-1 min-h-0">
-          <KodyChat
+          <OperatorChat
             context={{
               kind: "goal-planner",
               goal,

@@ -535,6 +535,7 @@ export function KodyChat({
   composerInjection,
   attachmentInjection,
   previewContext,
+  clientSurface,
 }: KodyChatProps) {
   const router = useRouter();
   // Current route — drives the page-aware composer placeholder AND tells the
@@ -3403,6 +3404,7 @@ export function KodyChat({
               // strips the @kody dispatch tools. Only meaningful when the
               // chat is hosted on /vibe; the dashboard rail leaves it off.
               ...(vibeMode ? { vibeMode: true } : {}),
+              ...(clientSurface ? { clientSurface: true } : {}),
               // Forward the user-managed gateway model id when one is
               // active. The server validates against the LLM_MODELS list,
               // so a stale value falls back to the configured default.
@@ -5341,7 +5343,7 @@ export function KodyChat({
               : genericPlaceholder;
 
   const chatModeToggle =
-    !lockedAgentId && !vibeMode ? (
+    !clientSurface && !lockedAgentId && !vibeMode ? (
       <div
         className={`inline-flex items-center rounded-md border p-0.5 ${
           chatMode === "terminal"
@@ -5646,11 +5648,15 @@ export function KodyChat({
                 // when the selection points at a model that was just removed.
                 const headerIcon = currentEntry?.icon ?? currentAgent.icon;
                 const headerName = currentEntry?.name ?? currentAgent.name;
-                return lockedAgentId ? (
+                return lockedAgentId || clientSurface ? (
                   <div
                     className="flex items-center gap-2.5 px-3 py-2"
-                    title={`${headerName} (locked for this view)`}
-                    aria-label={`${headerName} (locked)`}
+                    title={
+                      clientSurface
+                        ? headerName
+                        : `${headerName} (locked for this view)`
+                    }
+                    aria-label={clientSurface ? headerName : `${headerName} (locked)`}
                   >
                     {(() => {
                       const Icon = headerIcon;
@@ -5792,7 +5798,7 @@ export function KodyChat({
                   )}
                 </div>
               )}
-              {!lockedAgentId && agentMenuOpen && (
+              {!clientSurface && !lockedAgentId && agentMenuOpen && (
                 <ul
                   role="listbox"
                   className="absolute top-full left-0 mt-1 z-30 min-w-[260px] rounded-md border bg-popover shadow-md"
@@ -5857,7 +5863,7 @@ export function KodyChat({
             </div>
 
             {/* Remote dev status indicator — only visible when configured */}
-            {remoteStatus?.configured && (
+            {!clientSurface && remoteStatus?.configured && (
               <div
                 className="flex items-center gap-1 text-xs text-muted-foreground"
                 title={
@@ -5888,7 +5894,7 @@ export function KodyChat({
                 button is visible everywhere except on locked views (Vibe),
                 where the parent owns the chat lifecycle. Icon-only to
                 match the other header controls (collapse, fullscreen). */}
-              {!lockedAgentId && (
+              {!clientSurface && !lockedAgentId && (
                 <button
                   type="button"
                   onClick={() => {
@@ -5919,22 +5925,24 @@ export function KodyChat({
                 threads are unified; the sidebar just lists sessions from
                 the global store. Icon-only to match the other header
                 controls (collapse, fullscreen). */}
-              <button
-                type="button"
-                onClick={() => setShowSessionSidebar(!showSessionSidebar)}
-                className={`p-2 rounded-md border transition-all ${
-                  showSessionSidebar
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-background border-transparent hover:border-border"
-                }`}
-                title="Conversations"
-                aria-label="Toggle conversations"
-              >
-                <MessageSquare className="w-4 h-4" aria-hidden="true" />
-              </button>
+              {!clientSurface && (
+                <button
+                  type="button"
+                  onClick={() => setShowSessionSidebar(!showSessionSidebar)}
+                  className={`p-2 rounded-md border transition-all ${
+                    showSessionSidebar
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "text-muted-foreground hover:text-foreground hover:bg-background border-transparent hover:border-border"
+                  }`}
+                  title="Conversations"
+                  aria-label="Toggle conversations"
+                >
+                  <MessageSquare className="w-4 h-4" aria-hidden="true" />
+                </button>
+              )}
 
               {/* Fullscreen / restore (desktop rail only) */}
-              {onToggleFullscreen && (
+              {!clientSurface && onToggleFullscreen && (
                 <button
                   type="button"
                   onClick={onToggleFullscreen}
@@ -5955,7 +5963,7 @@ export function KodyChat({
               )}
 
               {/* Collapse to a strip (desktop rail only) */}
-              {onCollapseRail && (
+              {!clientSurface && onCollapseRail && (
                 <button
                   type="button"
                   onClick={onCollapseRail}
@@ -5968,7 +5976,7 @@ export function KodyChat({
               )}
 
               {/* Close (mobile sheet) — only when an onClose handler is provided */}
-              {onClose && (
+              {!clientSurface && onClose && (
                 <button
                   type="button"
                   onClick={onClose}
@@ -5983,7 +5991,7 @@ export function KodyChat({
           </div>
 
           {/* Context bar: task, capability, planner, or global */}
-          <div className="mt-1 sm:mt-2">
+          {!clientSurface && <div className="mt-1 sm:mt-2">
             {isTaskMode && selectedTask ? (
               <div className="flex items-center gap-2 text-sm">
                 <span className="px-1.5 py-0.5 bg-primary text-primary-foreground rounded font-medium">
@@ -6040,7 +6048,7 @@ export function KodyChat({
                 );
               })()
             )}
-          </div>
+          </div>}
         </div>
 
         {/* Kody waiting for instructions banner */}
@@ -6146,6 +6154,13 @@ export function KodyChat({
                     (or paste extra context first). I&apos;ll propose a task
                     list, you approve, then I&apos;ll deepen each spec and
                     create the issues attached to this goal.
+                  </p>
+                </>
+              ) : clientSurface ? (
+                <>
+                  <p className="font-medium">Chat with Kody</p>
+                  <p className="text-sm mt-1 max-w-sm mx-auto">
+                    Ask a question and Kody will help from this client chat.
                   </p>
                 </>
               ) : (
@@ -6912,7 +6927,7 @@ export function KodyChat({
             )}
             {chatMode === "terminal" && terminalBottomControls}
             {chatMode === "terminal" && <div className="flex-1" />}
-            {chatMode === "terminal" && (
+            {!clientSurface && chatMode === "terminal" && (
               <button
                 type="button"
                 onClick={openIssueReport}
@@ -6925,7 +6940,7 @@ export function KodyChat({
             )}
             {chatMode === "terminal" && chatModeToggle}
             {chatMode === "ai" && <div className="flex-1" />}
-            {chatMode === "ai" && (
+            {!clientSurface && chatMode === "ai" && (
               <button
                 type="button"
                 onClick={openIssueReport}

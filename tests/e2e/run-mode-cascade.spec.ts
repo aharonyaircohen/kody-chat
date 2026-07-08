@@ -21,7 +21,8 @@ const auth = {
 };
 
 type TrustPost = {
-  capability: string;
+  capability?: string;
+  subject?: string;
   op: "graduate" | "degrade" | "reset";
 };
 
@@ -256,23 +257,44 @@ async function mockTrust(page: Page, posts: TrustPost[]): Promise<void> {
           },
         ]),
       );
-      await fulfillJson(route, { capabilities, log: [] });
+      const subjects = Object.fromEntries(
+        [...modes.entries()]
+          .filter(([key]) => key.includes(":"))
+          .map(([subject, mode]) => [
+            subject,
+            {
+              approvals: 0,
+              rejections: 0,
+              consecutiveApprovals: 0,
+              mode,
+            },
+          ]),
+      );
+      await fulfillJson(route, { capabilities, subjects, log: [] });
       return;
     }
 
     if (request.method() === "POST") {
       const body = request.postDataJSON() as TrustPost;
-      posts.push({ capability: body.capability, op: body.op });
-      modes.set(body.capability, body.op === "graduate" ? "auto" : "ask");
+      const key = body.capability ?? body.subject;
+      if (!key) throw new Error("missing trust key");
+      posts.push({
+        capability: body.capability,
+        subject: body.subject,
+        op: body.op,
+      });
+      modes.set(key, body.op === "graduate" ? "auto" : "ask");
       await fulfillJson(route, {
         ok: true,
-        capability: body.capability,
+        ...(body.capability
+          ? { capability: body.capability }
+          : { subject: body.subject }),
         op: body.op,
         stats: {
           approvals: 0,
           rejections: 0,
           consecutiveApprovals: 0,
-          mode: modes.get(body.capability) ?? "ask",
+          mode: modes.get(key) ?? "ask",
         },
       });
       return;
@@ -309,15 +331,13 @@ async function openItemPage(
     approval === "required"
       ? /^Human approval required/
       : /^Human approval not required/;
-  await expect(
-    page.getByRole("button", { name: approvalLabel }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: approvalLabel })).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Kody cannot trigger" }),
   ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: approvalLabel }),
-  ).toHaveText("");
+  await expect(page.getByRole("button", { name: approvalLabel })).toHaveText(
+    "",
+  );
   await expect(
     page.getByRole("button", { name: "Kody cannot trigger" }),
   ).toHaveText("");
@@ -379,7 +399,9 @@ async function clickRunAndExpectCascade(
 }
 
 function compareTrustPosts(a: TrustPost, b: TrustPost): number {
-  return `${a.capability}:${a.op}`.localeCompare(`${b.capability}:${b.op}`);
+  const left = a.capability ?? a.subject ?? "";
+  const right = b.capability ?? b.subject ?? "";
+  return `${left}:${a.op}`.localeCompare(`${right}:${b.op}`);
 }
 
 test.describe("approval control cascade", () => {

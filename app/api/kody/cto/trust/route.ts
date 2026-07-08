@@ -26,18 +26,30 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { readTrust, mutateTrust } from "@dashboard/lib/cto/trust-store";
-import { applyTrustOp, TRUST_OPS } from "@dashboard/lib/cto/trust-state";
+import {
+  applySubjectTrustOp,
+  applyTrustOp,
+  isTrustSubjectKey,
+  TRUST_OPS,
+} from "@dashboard/lib/cto/trust-state";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
-const bodySchema = z.object({
-  capability: z
-    .string()
-    .min(1)
-    .max(40)
-    .regex(/^[a-z0-9][a-z0-9-]*$/i),
-  op: z.enum(TRUST_OPS),
-  actorLogin: z.string().optional(),
-});
+const bodySchema = z
+  .object({
+    capability: z
+      .string()
+      .min(1)
+      .max(40)
+      .regex(/^[a-z0-9][a-z0-9-]*$/i)
+      .optional(),
+    subject: z.string().refine(isTrustSubjectKey).optional(),
+    op: z.enum(TRUST_OPS),
+    actorLogin: z.string().optional(),
+  })
+  .refine((body) => Boolean(body.capability) !== Boolean(body.subject), {
+    message: "Provide exactly one of capability or subject",
+    path: ["capability"],
+  });
 
 /** GET — full capability trust stats + recent log for the /trust page. */
 export async function GET(req: NextRequest) {
@@ -53,6 +65,7 @@ export async function GET(req: NextRequest) {
     const manifest = await readTrust();
     return NextResponse.json({
       capabilities: manifest.capabilities,
+      subjects: manifest.subjects,
       log: manifest.log,
     });
   } catch (err: unknown) {
@@ -91,7 +104,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "bad_json" }, { status: 400 });
     }
 
-    const { capability, op, actorLogin } = payload;
+    const { capability, subject, op, actorLogin } = payload;
 
     if (actorLogin) {
       const actorResult = await verifyActorLogin(req, actorLogin);
@@ -99,21 +112,26 @@ export async function POST(req: NextRequest) {
     }
 
     const manifest = await mutateTrust((current) =>
-      applyTrustOp(current, op, capability),
+      capability
+        ? applyTrustOp(current, op, capability)
+        : applySubjectTrustOp(current, op, subject!),
     );
+    const target = capability ?? subject!;
 
     recordAudit(req, {
       action: `trust.${op}`,
-      resource: capability,
-      capability,
-      detail: `${op} trust for ${capability}`,
+      resource: target,
+      ...(capability ? { capability } : {}),
+      detail: `${op} trust for ${target}`,
     });
 
     return NextResponse.json({
       ok: true,
-      capability,
+      ...(capability ? { capability } : { subject }),
       op,
-      stats: manifest.capabilities[capability] ?? null,
+      stats: capability
+        ? (manifest.capabilities[capability] ?? null)
+        : (manifest.subjects[subject!] ?? null),
     });
   } catch (err: unknown) {
     const message =

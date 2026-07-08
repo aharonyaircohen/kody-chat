@@ -36,6 +36,7 @@ import {
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
 import { useTrust } from "../cto/useTrust";
+import { trustSubjectKey } from "../cto/trust-state";
 import {
   applyRunModeToCapabilities,
   runModeForCapabilities,
@@ -124,6 +125,13 @@ function isStoreWorkflow(workflow: WorkflowDefinitionRecord | null): boolean {
   return workflow?.source === "store" || workflow?.readOnly === true;
 }
 
+function approvalEnabled(
+  subjectMode: "ask" | "auto" | undefined,
+  fallback: boolean,
+): boolean {
+  return subjectMode ? subjectMode === "auto" : fallback;
+}
+
 export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
   const router = useRouter();
   const autoSelectFirst = useMediaQuery("(min-width: 768px)");
@@ -145,7 +153,6 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
     useCapabilities();
   const createWorkflow = useCreateWorkflowDefinition();
   const updateWorkflow = useUpdateWorkflowDefinition(editingWorkflow?.id ?? "");
-  const updateSelectedWorkflow = useUpdateWorkflowDefinition(selectedId ?? "");
   const deleteWorkflow = useDeleteWorkflowDefinition();
   const runWorkflow = useRunWorkflowDefinition();
   const trust = useTrust();
@@ -166,6 +173,18 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
     () => runModeForCapabilities(trust.groups, selectedRunCapabilitySlugs),
     [selectedRunCapabilitySlugs, trust.groups],
   );
+  const selectedWorkflowSubject = selectedWorkflow
+    ? trustSubjectKey("workflow", selectedWorkflow.id)
+    : null;
+  const selectedWorkflowSubjectMode = selectedWorkflowSubject
+    ? trust.subjects[selectedWorkflowSubject]?.mode
+    : undefined;
+  const selectedRunWithoutApproval = selectedWorkflow
+    ? approvalEnabled(
+        selectedWorkflowSubjectMode,
+        selectedWorkflow.workflow.runWithoutApproval === true,
+      )
+    : false;
   const capabilityBySlug = useMemo(
     () =>
       new Map(capabilities.map((capability) => [capability.slug, capability])),
@@ -256,10 +275,8 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
               capabilityBySlug={capabilityBySlug}
               runMode={selectedRunMode}
               runModePending={trust.isMutating}
-              runWithoutApproval={
-                selectedWorkflow.workflow.runWithoutApproval === true
-              }
-              runWithoutApprovalPending={updateSelectedWorkflow.isPending}
+              runWithoutApproval={selectedRunWithoutApproval}
+              runWithoutApprovalPending={trust.isMutating}
               onBack={() => selectWorkflow(null)}
               onRun={async () => {
                 try {
@@ -287,8 +304,10 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
                 )
               }
               onRunWithoutApprovalChange={async (enabled) => {
-                await updateSelectedWorkflow.mutateAsync({
-                  runWithoutApproval: enabled,
+                if (!selectedWorkflowSubject) return;
+                await trust.setSubjectTrust({
+                  subject: selectedWorkflowSubject,
+                  op: enabled ? "graduate" : "degrade",
                 });
               }}
               runPending={

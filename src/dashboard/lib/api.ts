@@ -2207,6 +2207,15 @@ export const ctoApi = {
         mode: "ask" | "auto";
       }
     >;
+    subjects: Record<
+      import("./cto/trust-state").TrustSubjectKey,
+      {
+        approvals: number;
+        rejections: number;
+        consecutiveApprovals: number;
+        mode: "ask" | "auto";
+      }
+    >;
     log: import("./cto/trust-state").TrustDecisionLogEntry[];
   }> => {
     const res = await fetch(`${API_BASE}/cto/trust`, {
@@ -2221,12 +2230,14 @@ export const ctoApi = {
    * Never posts an `@kody` command — it only rewrites trust state.
    */
   setTrust: async (input: {
-    capability: string;
+    capability?: string;
+    subject?: import("./cto/trust-state").TrustSubjectKey;
     op: import("./cto/trust-state").TrustOp;
     actorLogin?: string;
   }): Promise<{
     ok: true;
-    capability: string;
+    capability?: string;
+    subject?: import("./cto/trust-state").TrustSubjectKey;
     op: import("./cto/trust-state").TrustOp;
     stats: {
       approvals: number;

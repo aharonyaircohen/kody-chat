@@ -30,6 +30,8 @@ export const TRUST_GRADUATION_THRESHOLD = 10;
 
 export type TrustMode = "ask" | "auto";
 export type TrustDecision = "approve" | "reject" | "dismiss";
+export type TrustSubjectKind = "goal" | "loop" | "workflow";
+export type TrustSubjectKey = `${TrustSubjectKind}:${string}`;
 
 /** Whole-capability trust stats. */
 export interface TrustCapabilityStats {
@@ -56,6 +58,8 @@ export interface TrustManifest {
   version: typeof TRUST_MANIFEST_VERSION;
   /** Trust stats keyed by capability slug. */
   capabilities: Record<string, TrustCapabilityStats>;
+  /** Repo-owned autonomy policy for managed goals, loops, and workflows. */
+  subjects: Record<TrustSubjectKey, TrustCapabilityStats>;
   log: TrustDecisionLogEntry[];
 }
 
@@ -67,6 +71,7 @@ export interface TrustLatestDecision {
 export const EMPTY_TRUST_MANIFEST: TrustManifest = {
   version: TRUST_MANIFEST_VERSION,
   capabilities: {},
+  subjects: {},
   log: [],
 };
 
@@ -85,11 +90,36 @@ function withStats(
   };
 }
 
+function withSubjectStats(
+  manifest: TrustManifest,
+  subject: TrustSubjectKey,
+  stats: TrustCapabilityStats,
+): TrustManifest {
+  return {
+    ...manifest,
+    subjects: { ...manifest.subjects, [subject]: stats },
+  };
+}
+
 export function statsFor(
   manifest: TrustManifest,
   capability: string,
 ): TrustCapabilityStats {
   return manifest.capabilities[capability] ?? freshStats();
+}
+
+export function statsForSubject(
+  manifest: TrustManifest,
+  subject: TrustSubjectKey,
+): TrustCapabilityStats {
+  return manifest.subjects[subject] ?? freshStats();
+}
+
+export function modeForSubject(
+  manifest: TrustManifest,
+  subject: TrustSubjectKey,
+): TrustMode | null {
+  return manifest.subjects[subject]?.mode ?? null;
 }
 
 /**
@@ -221,6 +251,54 @@ export function applyTrustOp(
   }
 }
 
+export function graduateSubject(
+  manifest: TrustManifest,
+  subject: TrustSubjectKey,
+  threshold: number = TRUST_GRADUATION_THRESHOLD,
+): TrustManifest {
+  const prev = statsForSubject(manifest, subject);
+  return withSubjectStats(manifest, subject, {
+    ...prev,
+    mode: "auto",
+    consecutiveApprovals: Math.max(prev.consecutiveApprovals, threshold),
+  });
+}
+
+export function degradeSubject(
+  manifest: TrustManifest,
+  subject: TrustSubjectKey,
+): TrustManifest {
+  const prev = statsForSubject(manifest, subject);
+  return withSubjectStats(manifest, subject, {
+    ...prev,
+    mode: "ask",
+    consecutiveApprovals: 0,
+  });
+}
+
+export function resetSubject(
+  manifest: TrustManifest,
+  subject: TrustSubjectKey,
+): TrustManifest {
+  const { [subject]: _removed, ...subjects } = manifest.subjects;
+  return { ...manifest, subjects };
+}
+
+export function applySubjectTrustOp(
+  manifest: TrustManifest,
+  op: TrustOp,
+  subject: TrustSubjectKey,
+): TrustManifest {
+  switch (op) {
+    case "reset":
+      return resetSubject(manifest, subject);
+    case "graduate":
+      return graduateSubject(manifest, subject);
+    case "degrade":
+      return degradeSubject(manifest, subject);
+  }
+}
+
 /** True when the engine may let this capability self-dispatch. */
 export function isGraduated(
   manifest: TrustManifest,
@@ -240,6 +318,7 @@ export function parseTrustManifest(
   try {
     const parsed = JSON.parse(raw) as {
       capabilities?: Record<string, Partial<TrustCapabilityStats>>;
+      subjects?: Record<string, Partial<TrustCapabilityStats>>;
       log?: Array<Partial<TrustDecisionLogEntry> & { capability?: string }>;
     };
     const capabilities =
@@ -250,6 +329,16 @@ export function parseTrustManifest(
               normalizeStats(stats),
             ]),
           )
+        : {};
+    const subjects: Record<TrustSubjectKey, TrustCapabilityStats> =
+      parsed.subjects && typeof parsed.subjects === "object"
+        ? (Object.fromEntries(
+            Object.entries(parsed.subjects).flatMap(([subject, stats]) =>
+              isTrustSubjectKey(subject)
+                ? [[subject, normalizeStats(stats)]]
+                : [],
+            ),
+          ) as Record<TrustSubjectKey, TrustCapabilityStats>)
         : {};
     const log = Array.isArray(parsed.log)
       ? parsed.log.flatMap((entry): TrustDecisionLogEntry[] => {
@@ -278,11 +367,23 @@ export function parseTrustManifest(
     return {
       version: TRUST_MANIFEST_VERSION,
       capabilities,
+      subjects,
       log,
     };
   } catch {
     return structuredClone(EMPTY_TRUST_MANIFEST);
   }
+}
+
+export function trustSubjectKey(
+  kind: TrustSubjectKind,
+  id: string,
+): TrustSubjectKey {
+  return `${kind}:${id}` as TrustSubjectKey;
+}
+
+export function isTrustSubjectKey(value: string): value is TrustSubjectKey {
+  return /^(goal|loop|workflow):[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(value);
 }
 
 function normalizeStats(
