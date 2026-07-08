@@ -204,12 +204,6 @@ export interface KodyChatProps {
    * before the inspector extension can return a live DOM snapshot.
    */
   previewContext?: string | null;
-  /**
-   * Client-facing branded surface. Keeps the real Kody chat UI/model path, but
-   * hides operator-only controls such as agent picking, terminal mode, issue
-   * reporting, and dashboard fullscreen controls.
-   */
-  clientSurface?: boolean;
 }
 
 /**

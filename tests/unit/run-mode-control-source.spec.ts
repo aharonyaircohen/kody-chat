@@ -26,7 +26,9 @@ describe("RunModeControl source", () => {
   it("keeps icon controls tooltipable while unavailable", () => {
     expect(source).toContain("SimpleTooltip");
     expect(source).toContain("aria-disabled={unavailable}");
+    expect(source).toContain("if (capabilityCount === 0) return null");
     expect(source).not.toContain("disabled={disabled || pending}");
+    expect(source).not.toContain("No capabilities to approve");
   });
 
   it("writes workflow, goal, and loop trigger approval through subject trust", () => {

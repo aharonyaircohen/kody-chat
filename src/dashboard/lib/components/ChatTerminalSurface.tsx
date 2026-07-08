@@ -189,6 +189,20 @@ function shortBrainImageLabel(imageRef?: string | null): string {
   return imageRef.split("/").pop() ?? imageRef;
 }
 
+function wheelDeltaToTerminalLines(
+  event: WheelEvent,
+  viewportRows: number,
+): number {
+  if (event.deltaY === 0) return 0;
+  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
+    return Math.max(1, viewportRows - 1);
+  }
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
+    return Math.max(1, Math.ceil(Math.abs(event.deltaY)));
+  }
+  return Math.max(1, Math.ceil(Math.abs(event.deltaY) / 24));
+}
+
 export const ChatTerminalSurface = forwardRef<
   ChatTerminalSurfaceHandle,
   ChatTerminalSurfaceProps
@@ -639,6 +653,15 @@ export const ChatTerminalSurface = forwardRef<
       terminal.loadAddon(webLinksAddon);
       terminal.open(host);
       fitAddon.fit();
+
+      terminal.attachCustomWheelEventHandler((event) => {
+        const lines = wheelDeltaToTerminalLines(event, terminal.rows);
+        if (lines === 0) return true;
+        event.preventDefault();
+        event.stopPropagation();
+        terminal.scrollLines(event.deltaY > 0 ? lines : -lines);
+        return false;
+      });
 
       disposables.push(terminal.onData(sendRawInput));
       disposables.push(

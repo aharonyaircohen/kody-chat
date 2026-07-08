@@ -552,11 +552,6 @@ export async function POST(req: NextRequest) {
      * no reasoning config — `applyReasoning` then returns `{}`.
      */
     reasoningEffort?: string;
-    /**
-     * Client-facing branded chat. Uses the same Kody model path, but limits
-     * tools to chat output tools so operator/repo actions cannot run.
-     */
-    clientSurface?: boolean;
   };
   try {
     body = (await req.json()) as typeof body;
@@ -740,7 +735,6 @@ export async function POST(req: NextRequest) {
     }
   }
   const vibeMode = body.vibeMode === true;
-  const clientSurface = body.clientSurface === true;
 
   // In vibe mode the agent decides Fly vs. Live without asking. Probe
   // the vault for FLY_API_TOKEN so the prompt can tell the agent which
@@ -994,9 +988,7 @@ export async function POST(req: NextRequest) {
     mergedTools,
     chatBundle.capability.tools,
   );
-  const allowlistedTools: Record<string, unknown> = clientSurface
-    ? {}
-    : { ...filteredTools };
+  const allowlistedTools: Record<string, unknown> = { ...filteredTools };
   for (const name of CHAT_OUTPUT_TOOL_NAMES) {
     if (Object.prototype.hasOwnProperty.call(mergedTools, name)) {
       allowlistedTools[name] = mergedTools[name];
@@ -1049,16 +1041,6 @@ export async function POST(req: NextRequest) {
         role: "system",
         content:
           "The latest user message asks for an interactive response that matches the available renderer rules. Use read/list tools first if needed, then finish this turn with `show_view`. Do not finish with `final_answer`.",
-      },
-    ];
-  }
-  if (clientSurface) {
-    modelMessages = [
-      ...modelMessages,
-      {
-        role: "system",
-        content:
-          "This is a branded client chat surface. Answer as Kody in a user-facing way. Do not claim you can run repository, terminal, secret, workflow, admin, or operator actions.",
       },
     ];
   }

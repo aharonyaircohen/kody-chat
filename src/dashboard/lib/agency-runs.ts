@@ -8,6 +8,7 @@
 import type { Octokit } from "@octokit/rest";
 
 import { readStateText } from "./state-repo";
+import { createServerTtlCache } from "./server-ttl-cache";
 
 export type AgencyRunKind = "goal" | "loop" | "workflow";
 export type AgencyRunOrigin = "manual" | "scheduled" | "event" | "local";
@@ -146,6 +147,9 @@ interface RunIndexFile {
 const RUN_INDEX_PATH = "runs/index.json";
 const DISPATCH_STUCK_MS = 20 * 60_000;
 const WORKFLOW_OVERLAY_TTL_MS = 60_000;
+const AGENCY_RUNS_TTL_MS = 60_000;
+const AGENCY_RUN_DETAIL_TTL_MS = 60_000;
+const WORKFLOW_LOG_INSIGHT_TTL_MS = 60_000;
 const readCache = new Map<
   string,
   { etag: string | undefined; json: string; path: string }
@@ -158,6 +162,16 @@ const workflowOverlayCache = new Map<
   string,
   { expiresAt: number; runs: GitHubWorkflowRun[] }
 >();
+const agencyRunsCache = createServerTtlCache<AgencyRunsPayload>({
+  ttlMs: AGENCY_RUNS_TTL_MS,
+});
+const agencyRunDetailCache = createServerTtlCache<AgencyRunDetailPayload>({
+  ttlMs: AGENCY_RUN_DETAIL_TTL_MS,
+});
+const workflowLogInsightCache =
+  createServerTtlCache<AgencyRunWorkflowLogInsight | null>({
+    ttlMs: WORKFLOW_LOG_INSIGHT_TTL_MS,
+  });
 
 function cacheKey(owner: string, repo: string) {
   return `${owner}/${repo}`;
@@ -669,43 +683,47 @@ async function readWorkflowLogInsight({
   githubRunId: string | null | undefined;
 }): Promise<AgencyRunWorkflowLogInsight | null> {
   if (!githubRunId || !/^\d+$/.test(githubRunId)) return null;
-  try {
-    const jobsResponse = await octokit.request(
-      "GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs",
-      {
-        owner,
-        repo,
-        run_id: Number(githubRunId),
-        per_page: 20,
-      },
-    );
-    const jobsData = jobsResponse.data as {
-      jobs?: Array<{ id?: number | string | null; name?: string | null }>;
-    };
-    const job =
-      jobsData.jobs?.find((item) => item.name === "run") ?? jobsData.jobs?.[0];
-    if (!job?.id) return null;
+  const key = `${owner}/${repo}:${githubRunId}`;
+  return workflowLogInsightCache.get(key, async () => {
+    try {
+      const jobsResponse = await octokit.request(
+        "GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs",
+        {
+          owner,
+          repo,
+          run_id: Number(githubRunId),
+          per_page: 20,
+        },
+      );
+      const jobsData = jobsResponse.data as {
+        jobs?: Array<{ id?: number | string | null; name?: string | null }>;
+      };
+      const job =
+        jobsData.jobs?.find((item) => item.name === "run") ??
+        jobsData.jobs?.[0];
+      if (!job?.id) return null;
 
-    const logsResponse = await octokit.request(
-      "GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs",
-      {
-        owner,
-        repo,
-        job_id: Number(job.id),
-      },
-    );
-    const data = logsResponse.data;
-    const raw =
-      typeof data === "string"
-        ? data
-        : data instanceof ArrayBuffer
-          ? Buffer.from(data).toString("utf8")
-          : "";
-    if (!raw) return null;
-    return summarizeWorkflowLog(String(job.id), stringValue(job.name), raw);
-  } catch {
-    return null;
-  }
+      const logsResponse = await octokit.request(
+        "GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs",
+        {
+          owner,
+          repo,
+          job_id: Number(job.id),
+        },
+      );
+      const data = logsResponse.data;
+      const raw =
+        typeof data === "string"
+          ? data
+          : data instanceof ArrayBuffer
+            ? Buffer.from(data).toString("utf8")
+            : "";
+      if (!raw) return null;
+      return summarizeWorkflowLog(String(job.id), stringValue(job.name), raw);
+    } catch {
+      return null;
+    }
+  });
 }
 
 function assertAllowedDetailPath(path: string): void {
@@ -979,39 +997,42 @@ export async function listAgencyRuns({
   limit?: number;
 }): Promise<AgencyRunsPayload> {
   const boundedLimit = Math.max(1, Math.min(100, Math.floor(limit)));
-  const { index, etag } = await readRunIndexFile({ octokit, owner, repo });
-  const indexedRuns = index.runs
-    .map(rowToAgencyRun)
-    .filter((run): run is AgencyRunSummary => run !== null)
-    .sort((a, b) => sortTime(b) - sortTime(a))
-    .slice(0, boundedLimit);
-  const runsWithGitHub = await applyGitHubRunOverlay({
-    octokit,
-    owner,
-    repo,
-    runs: indexedRuns,
-  });
-  const runs = await applyDispatchTargetOverlay({
-    octokit,
-    owner,
-    repo,
-    runs: runsWithGitHub,
-  });
+  const key = `${owner}/${repo}:${boundedLimit}`;
+  return agencyRunsCache.get(key, async () => {
+    const { index, etag } = await readRunIndexFile({ octokit, owner, repo });
+    const indexedRuns = index.runs
+      .map(rowToAgencyRun)
+      .filter((run): run is AgencyRunSummary => run !== null)
+      .sort((a, b) => sortTime(b) - sortTime(a))
+      .slice(0, boundedLimit);
+    const runsWithGitHub = await applyGitHubRunOverlay({
+      octokit,
+      owner,
+      repo,
+      runs: indexedRuns,
+    });
+    const runs = await applyDispatchTargetOverlay({
+      octokit,
+      owner,
+      repo,
+      runs: runsWithGitHub,
+    });
 
-  return {
-    runs,
-    counts: {
-      goal: runs.filter((run) => run.kind === "goal").length,
-      loop: runs.filter((run) => run.kind === "loop").length,
-      workflow: runs.filter((run) => run.kind === "workflow").length,
-    },
-    computedAt: new Date().toISOString(),
-    source: {
-      path: RUN_INDEX_PATH,
-      updatedAt: index.updatedAt,
-      etag,
-    },
-  };
+    return {
+      runs,
+      counts: {
+        goal: runs.filter((run) => run.kind === "goal").length,
+        loop: runs.filter((run) => run.kind === "loop").length,
+        workflow: runs.filter((run) => run.kind === "workflow").length,
+      },
+      computedAt: new Date().toISOString(),
+      source: {
+        path: RUN_INDEX_PATH,
+        updatedAt: index.updatedAt,
+        etag,
+      },
+    };
+  });
 }
 
 export async function readAgencyRunDetail({
@@ -1028,15 +1049,18 @@ export async function readAgencyRunDetail({
   githubRunId?: string | null;
 }): Promise<AgencyRunDetailPayload> {
   assertAllowedDetailPath(sourcePath);
-  const [file, workflowLog] = await Promise.all([
-    readStateText(octokit, owner, repo, sourcePath),
-    readWorkflowLogInsight({ octokit, owner, repo, githubRunId }),
-  ]);
-  return {
-    path: sourcePath,
-    htmlUrl: file?.htmlUrl ?? null,
-    events: parseJsonl(file?.content ?? ""),
-    workflowLog,
-    computedAt: new Date().toISOString(),
-  };
+  const key = `${owner}/${repo}:${sourcePath}:${githubRunId ?? ""}`;
+  return agencyRunDetailCache.get(key, async () => {
+    const [file, workflowLog] = await Promise.all([
+      readStateText(octokit, owner, repo, sourcePath),
+      readWorkflowLogInsight({ octokit, owner, repo, githubRunId }),
+    ]);
+    return {
+      path: sourcePath,
+      htmlUrl: file?.htmlUrl ?? null,
+      events: parseJsonl(file?.content ?? ""),
+      workflowLog,
+      computedAt: new Date().toISOString(),
+    };
+  });
 }

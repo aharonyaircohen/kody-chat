@@ -258,10 +258,9 @@ export function KodyDashboard({
 
   // Persist the list scroll position across list → task detail → back.
   // The list subtree fully unmounts when a task is selected, so a module-
-  // scoped store keyed by the active filter signature is what survives.
-  const listScrollRef = useScrollRestoration(
-    `dash:${taskListLayout}:${viewMode}:${currentTaskPage}:${dateFilter}:${statusFilter}:${labelFilter}:${priorityFilter}:${debouncedSearch}:${sortField}:${sortDirection}`,
-  );
+  // scoped store keyed by the API list page + filters is what survives.
+  const taskListScrollKey = `dash:${taskListLayout}:${viewMode}:page-${currentTaskPage}:${dateFilter}:${statusFilter}:${labelFilter}:${priorityFilter}:${debouncedSearch}:${sortField}:${sortDirection}`;
+  const listScrollRef = useScrollRestoration(taskListScrollKey);
 
   // Persistent chat lives in the root layout (ChatRailShell). We just
   // push our context up and read mobile-open from the shared rail API.

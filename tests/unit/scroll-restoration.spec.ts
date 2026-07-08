@@ -6,11 +6,15 @@ const SOURCE = readFileSync(
   resolve(process.cwd(), "src/dashboard/lib/hooks/useScrollRestoration.ts"),
   "utf8",
 );
+const DASHBOARD_SOURCE = readFileSync(
+  resolve(process.cwd(), "src/dashboard/lib/components/KodyDashboard.tsx"),
+  "utf8",
+);
 
 describe("scroll restoration", () => {
   it("restores the saved scroll position immediately and across layout frames", () => {
     const savedIndex = SOURCE.indexOf(
-      "const saved = scrollStore.get(keyRef.current) ?? 0;",
+      "const saved = scrollStore.get(restoreKey) ?? 0;",
     );
     const immediateIndex = SOURCE.indexOf(
       "node.scrollTop = saved;",
@@ -23,6 +27,21 @@ describe("scroll restoration", () => {
     expect(rafIndex).toBeGreaterThan(immediateIndex);
     expect(SOURCE.match(/node\.scrollTop = saved;/g)?.length).toBeGreaterThan(
       1,
+    );
+  });
+
+  it("restores again when the caller key changes without remounting", () => {
+    expect(SOURCE).toContain("useLayoutEffect");
+    expect(SOURCE).toContain("const nodeRef = useRef<HTMLElement | null>(null)");
+    expect(SOURCE).toContain("restoreScroll(nodeRef.current, key)");
+    expect(SOURCE).toContain("}, [key, restoreScroll]);");
+  });
+
+  it("keys the dashboard task list by API page and filters", () => {
+    expect(DASHBOARD_SOURCE).toContain("const taskListScrollKey =");
+    expect(DASHBOARD_SOURCE).toContain("page-${currentTaskPage}");
+    expect(DASHBOARD_SOURCE).toContain(
+      "const listScrollRef = useScrollRestoration(taskListScrollKey);",
     );
   });
 });

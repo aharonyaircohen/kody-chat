@@ -44,6 +44,10 @@ describe("terminal chrome style", () => {
     expect(SURFACE_SOURCE).toContain(
       "terminal-scroll-host h-full min-h-0 overflow-auto",
     );
+    expect(SURFACE_SOURCE).toContain("wheelDeltaToTerminalLines");
+    expect(SURFACE_SOURCE).toContain("terminal.attachCustomWheelEventHandler");
+    expect(SURFACE_SOURCE).toContain("terminal.scrollLines");
+    expect(SURFACE_SOURCE).toContain("event.preventDefault()");
     expect(SURFACE_SOURCE).not.toContain(
       'className="h-full min-h-0 overflow-hidden"',
     );

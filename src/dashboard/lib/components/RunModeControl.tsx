@@ -48,9 +48,11 @@ export function RunModeControl({
   pending?: boolean;
   onChange: (mode: RunMode) => void;
 }) {
+  if (capabilityCount === 0) return null;
+
   const approvalRequired = mode !== "auto";
   const Icon = approvalRequired ? ShieldCheck : ShieldOff;
-  const unavailable = disabled || pending || capabilityCount === 0;
+  const unavailable = disabled || pending;
   return (
     <SimpleTooltip content={runModeTooltip(mode, capabilityCount)}>
       <Button
@@ -142,8 +144,7 @@ function runModeTitle(mode: RunMode, capabilityCount?: number): string {
     : `Human approval required${suffix}`;
 }
 
-function runModeTooltip(mode: RunMode, capabilityCount: number): string {
-  if (capabilityCount === 0) return "No capabilities to approve.";
+function runModeTooltip(mode: RunMode, _capabilityCount?: number): string {
   return mode === "auto"
     ? "Click to require human approval for these capabilities."
     : "Click to let these capabilities run without human approval.";

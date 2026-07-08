@@ -194,6 +194,50 @@ describe("agency runs", () => {
     });
   });
 
+  it("caches selected GitHub run log summaries across repeated detail reads", async () => {
+    stateRepo.readStateText.mockResolvedValue({
+      path: "A-Guy-Web/logs/goals/cache-check/runs/run.jsonl",
+      sha: "sha",
+      htmlUrl: "https://github.com/test/state/cache-check.jsonl",
+      content: [
+        JSON.stringify({
+          time: "2026-07-05T10:00:00.000Z",
+          event: "goal.tick.dispatch",
+          status: "dispatch",
+        }),
+      ].join("\n"),
+    });
+    const octokit = {
+      request: vi
+        .fn()
+        .mockResolvedValueOnce({
+          data: { jobs: [{ id: 99, name: "run" }] },
+        })
+        .mockResolvedValueOnce({
+          data: ["DONE", "PR_SUMMARY:", "- Cached summary."].join("\n"),
+        }),
+    };
+
+    const first = await readAgencyRunDetail({
+      octokit: octokit as never,
+      owner: "cache-owner",
+      repo: "cache-repo",
+      sourcePath: "logs/goals/cache-check/runs/run.jsonl",
+      githubRunId: "789",
+    });
+    const second = await readAgencyRunDetail({
+      octokit: octokit as never,
+      owner: "cache-owner",
+      repo: "cache-repo",
+      sourcePath: "logs/goals/cache-check/runs/run.jsonl",
+      githubRunId: "789",
+    });
+
+    expect(second).toEqual(first);
+    expect(octokit.request).toHaveBeenCalledTimes(2);
+    expect(stateRepo.readStateText).toHaveBeenCalledTimes(1);
+  });
+
   it("formats noisy agency health summaries into readable lines", async () => {
     stateRepo.readStateText.mockResolvedValue({
       path: "A-Guy-Web/logs/goals/ai-agency-health/runs/run.jsonl",
@@ -238,7 +282,7 @@ describe("agency runs", () => {
         "State repo: A-Guy-educ/kody-state.",
         "Health matrix: YELLOW (80 rows).",
         "Boundary eval: version 1, status pass.",
-        "Raw boundary eval: KODY_AGENCY_BOUNDARY_EVAL={\"version\":1,\"status\":\"pass\",\"findings\":[{\"rule\":\"observe-does-not-act\"},{\"rule\":\"verify-does-not-fix\"},{\"rule\":\"capability-does-not-own-goal-progress\"}]}",
+        'Raw boundary eval: KODY_AGENCY_BOUNDARY_EVAL={"version":1,"status":"pass","findings":[{"rule":"observe-does-not-act"},{"rule":"verify-does-not-fix"},{"rule":"capability-does-not-own-goal-progress"}]}',
       ]),
     );
     expect(payload.workflowLog?.evidenceLines.join("\n")).toContain(
