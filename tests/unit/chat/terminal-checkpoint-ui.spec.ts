@@ -55,9 +55,7 @@ describe("terminal checkpoint UI", () => {
 
   it("does not replay a checkpoint over a live terminal session", () => {
     expect(CHAT_SOURCE).toContain("activeSessionHasLiveTerminal");
-    expect(CHAT_SOURCE).toContain(
-      'if (activeSessionHasLiveTerminal) return;',
-    );
+    expect(CHAT_SOURCE).toContain("if (activeSessionHasLiveTerminal) return;");
   });
 
   it("uses the save icon for Brain image saves from the terminal toolbar", () => {
@@ -101,7 +99,9 @@ describe("terminal checkpoint UI", () => {
     );
     expect(CHAT_SOURCE).toContain("title={`Terminal ${terminalStatusLabel}`}");
     expect(CHAT_SOURCE).not.toContain("{terminalStatusLabel}</span>");
-    expect(CHAT_SOURCE).toContain("bg-[#050608]");
+    // The terminal-mode container chrome (`bg-[#050608]`) moved to
+    // chat/surface/MessageList in Step 3.3 — style pins are a Playwright
+    // concern (phase-1 DOM decision), so the source assertion retired.
     expect(CHAT_SOURCE).toContain("text-foreground");
     expect(SURFACE_SOURCE).toContain("topToolbar?: ReactNode");
     expect(SURFACE_SOURCE).toContain("onChromeStateChange");

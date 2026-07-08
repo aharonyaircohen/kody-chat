@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  useState,
-  useRef,
-  useEffect,
-  useCallback,
-  useMemo,
-  type ReactNode,
-} from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { navLabelForPath } from "./settings-nav";
 import {
@@ -18,10 +11,8 @@ import {
   type LiveAction,
   type LiveSessionState,
 } from "../chat/core/kody-chat-reducer";
-import { MarkdownPreview } from "./MarkdownPreview";
 import { MarkdownEditor } from "./MarkdownEditor";
 import {
-  Check,
   ClipboardCopy,
   Paperclip,
   Send,
@@ -31,7 +22,6 @@ import {
   FileCode,
   MessageSquare,
   Eraser,
-  ChevronDown,
   Loader2,
   MousePointerClick,
   RefreshCw,
@@ -130,8 +120,6 @@ import {
   type Attachment,
   type KodyChatProps,
 } from "./kody-chat-types";
-import { MessageAttachments } from "./MessageAttachments";
-import { TypingIndicator } from "./TypingIndicator";
 import {
   ChatTerminalSurface,
   type ChatTerminalChromeState,
@@ -177,10 +165,8 @@ import { useKodyActionState } from "../hooks/useKodyActionState";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { SessionsPanel } from "../chat/surface/SessionsPanel";
 import { HeaderControls } from "../chat/surface/HeaderControls";
-import { ToolCallList, ThinkingPanel, ReasoningPanel } from "./ToolCallCard";
+import { MessageList } from "../chat/surface/MessageList";
 import { parseReasoning, stripReasoning } from "../chat/core/reasoning";
-import { parseAssistantContent } from "../chat/core/tool-call-strip";
-import { softFormatUserMessageForDisplay } from "../chat/core/user-message-format";
 import {
   extractFirstStaffMentionCandidate,
   extractStaffMentions,
@@ -188,21 +174,17 @@ import {
   replaceStaffMentionTrigger,
   type StaffMentionTrigger,
 } from "../mentions/agent-mentions";
-import { MessageActions } from "./MessageActions";
 import {
   pickVibeRequestIssueNumber,
   type RecentVibeIssue,
 } from "../vibe/recent-issue";
 import {
-  getRenderedViewUi,
   isDashboardNavigateDirective,
   isPreviewActDirective,
-  isRenderedViewDirective,
   isSwitchAgentDirective,
   type DashboardNavigateDirective,
   type RenderedViewAction,
   type RenderedViewDirective,
-  type RenderedViewUiNode,
   type PreviewActDirective,
 } from "@dashboard/lib/chat-ui-actions";
 import { repoScopedHref } from "@dashboard/lib/routes";
@@ -217,219 +199,6 @@ import {
   extractKodyTerminalPayload,
   parseKodyTerminalIntent,
 } from "@dashboard/lib/terminal/kody-terminal-directive";
-
-type MessageDirection = "ltr" | "rtl" | "auto";
-
-function RenderedViewCard({
-  view,
-  disabled,
-  onAction,
-}: {
-  view: RenderedViewDirective;
-  disabled: boolean;
-  onAction: (action: RenderedViewAction) => void;
-}) {
-  const ui = getRenderedViewUi(view);
-  const [formValues, setFormValues] = useState<
-    Record<string, Array<{ value: string; label: string }>>
-  >({});
-  const toggleFormValue = (name: string, value: string, label: string) => {
-    setFormValues((current) => {
-      const values = current[name] ?? [];
-      const nextValues = values.some((candidate) => candidate.value === value)
-        ? values.filter((candidate) => candidate.value !== value)
-        : [...values, { value, label }];
-      return { ...current, [name]: nextValues };
-    });
-  };
-  const submitForm = (label: string) => {
-    const selected = Object.values(formValues).flat();
-    const selectedText =
-      selected.length > 0
-        ? selected
-            .map((item) =>
-              item.value === item.label
-                ? item.label
-                : `${item.label} (${item.value})`,
-            )
-            .join(", ")
-        : "none";
-    onAction({
-      id: "submit",
-      label,
-      response: `Selected: ${selectedText}`,
-      result: formValues,
-    });
-  };
-  const renderButton = (
-    node: Extract<RenderedViewUiNode, { type: "button" }>,
-    key: string,
-    layout: "row" | "list",
-  ) => {
-    const isPrimary = node.action.variant === "primary";
-    const isDanger = node.action.variant === "danger";
-    const Icon = isPrimary ? Check : isDanger ? X : MousePointerClick;
-    const tone = isPrimary
-      ? "border-primary bg-primary text-primary-foreground hover:bg-primary/90"
-      : isDanger
-        ? "border-destructive/40 text-destructive hover:bg-destructive/10"
-        : "border-border bg-background hover:bg-accent";
-    if (layout === "list") {
-      return (
-        <button
-          key={key}
-          type="button"
-          disabled={disabled}
-          onClick={() => onAction(node.action)}
-          className={`flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${tone}`}
-        >
-          <span className="min-w-0 truncate font-medium">{node.label}</span>
-          <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-        </button>
-      );
-    }
-    return (
-      <button
-        key={key}
-        type="button"
-        disabled={disabled}
-        onClick={() => onAction(node.action)}
-        className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${tone}`}
-      >
-        <Icon className="h-3.5 w-3.5" />
-        {node.label}
-      </button>
-    );
-  };
-  const renderNode = (
-    node: RenderedViewUiNode,
-    key: string,
-    layout: "row" | "list" = "row",
-  ): ReactNode => {
-    if (node.type === "stack") {
-      return (
-        <div key={key} className="space-y-3">
-          {node.children.map((child, index) =>
-            renderNode(child, `${key}-${index}`),
-          )}
-        </div>
-      );
-    }
-    if (node.type === "row") {
-      return (
-        <div key={key} className="flex flex-wrap gap-2">
-          {node.children.map((child, index) =>
-            renderNode(child, `${key}-${index}`, "row"),
-          )}
-        </div>
-      );
-    }
-    if (node.type === "list") {
-      return (
-        <div key={key} className="space-y-1.5">
-          {node.children.map((child, index) =>
-            renderNode(child, `${key}-${index}`, "list"),
-          )}
-        </div>
-      );
-    }
-    if (node.type === "text") {
-      if (node.variant === "title") {
-        return (
-          <div key={key} className="font-medium text-foreground">
-            {node.value}
-          </div>
-        );
-      }
-      if (node.variant === "label") {
-        return (
-          <div key={key} className="text-xs font-medium text-muted-foreground">
-            {node.value}
-          </div>
-        );
-      }
-      return (
-        <div key={key} className="text-muted-foreground">
-          {node.value}
-        </div>
-      );
-    }
-    if (node.type === "markdown") {
-      return (
-        <MarkdownPreview
-          key={key}
-          content={node.value}
-          className="chat-message-text break-words text-[15px] leading-7 prose-p:my-2 prose-li:my-1"
-        />
-      );
-    }
-    if (node.type === "input") {
-      return (
-        <label key={key} className="block space-y-1">
-          {node.label ? (
-            <span className="text-xs font-medium text-muted-foreground">
-              {node.label}
-            </span>
-          ) : null}
-          <input
-            value={node.value}
-            readOnly={node.readOnly ?? true}
-            className="h-8 w-full rounded-md border border-border bg-muted/40 px-2 text-sm text-foreground"
-          />
-        </label>
-      );
-    }
-    if (node.type === "button") {
-      return renderButton(node, key, layout);
-    }
-    if (node.type === "checkbox") {
-      const checked = (formValues[node.name] ?? []).some(
-        (candidate) => candidate.value === node.value,
-      );
-      return (
-        <label
-          key={key}
-          className={`flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left text-sm transition-colors ${
-            checked
-              ? "border-primary/50 bg-primary/10"
-              : "border-border bg-background hover:bg-accent"
-          } ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}
-        >
-          <input
-            type="checkbox"
-            checked={checked}
-            disabled={disabled}
-            onChange={() => toggleFormValue(node.name, node.value, node.label)}
-            className="h-4 w-4 shrink-0 rounded border-border accent-primary"
-          />
-          <span className="min-w-0 flex-1 truncate font-medium">
-            {node.label}
-          </span>
-        </label>
-      );
-    }
-    if (node.type === "submit") {
-      return (
-        <button
-          key={key}
-          type="button"
-          disabled={disabled}
-          onClick={() => submitForm(node.label)}
-          className="inline-flex h-8 items-center gap-1.5 rounded-md border border-primary bg-primary px-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <Check className="h-3.5 w-3.5" />
-          {node.label}
-        </button>
-      );
-    }
-    return null;
-  };
-  return (
-    <div className="mt-3 rounded-md border border-border bg-background/80 p-3 text-sm">
-      {renderNode(ui, "root")}
-    </div>
-  );
-}
 
 function checkpointTransportFromChatTransport(
   transport: ChatTerminalTransport,
@@ -468,30 +237,8 @@ function terminalCheckpointSearchParams(
   return `?${params.toString()}`;
 }
 
-const LETTER_RE = /\p{L}/u;
 const BRAIN_IMAGE_SAVE_POLL_INTERVAL_MS = 10_000;
 const BRAIN_IMAGE_SAVE_MAX_POLLS = 720; // 2 hours at 10 seconds.
-
-function isRtlCodePoint(codePoint: number): boolean {
-  return (
-    codePoint === 0x061c ||
-    codePoint === 0x200f ||
-    (codePoint >= 0x0590 && codePoint <= 0x08ff) ||
-    (codePoint >= 0xfb1d && codePoint <= 0xfdff) ||
-    (codePoint >= 0xfe70 && codePoint <= 0xfefc)
-  );
-}
-
-function getMessageDirection(text: string): MessageDirection {
-  for (const char of text) {
-    const codePoint = char.codePointAt(0);
-    if (!codePoint) continue;
-    if (isRtlCodePoint(codePoint)) return "rtl";
-    if (codePoint === 0x200e || LETTER_RE.test(char)) return "ltr";
-  }
-
-  return "auto";
-}
 
 function reportValue(value: unknown, max = 1_000): string | null {
   if (value === null || value === undefined || value === "") return null;
@@ -1064,9 +811,6 @@ export function KodyChat({
     setVoiceId(id);
     saveVoicePreference(id);
   }, []);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const [isAtBottom, setIsAtBottom] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -1811,25 +1555,6 @@ export function KodyChat({
     setShowIssueReport(true);
   }, [captureIssueReportState]);
 
-  // 800ms grace period for the typing indicator (issue #330). The agentIdentity
-  // tells the model to emit a short status line (≤8 words) as the very first
-  // word of every reply so the bubble is never blank. The grace timer is the
-  // UI backstop for that prompt — if the model is still silent after 800ms
-  // (engine first-byte lag, slow cold start, no status line), we surface the
-  // existing TypingIndicator. The moment the first visible token lands, the
-  // per-bubble `!hasAnswer` check hides it again. Resets on every new turn
-  // (any change in `activeLoading`).
-  const [showTypingAfterGrace, setShowTypingAfterGrace] = useState(false);
-  useEffect(() => {
-    if (!activeLoading) {
-      setShowTypingAfterGrace(false);
-      return;
-    }
-    setShowTypingAfterGrace(false);
-    const t = setTimeout(() => setShowTypingAfterGrace(true), 800);
-    return () => clearTimeout(t);
-  }, [activeLoading]);
-
   const addTerminalContextToChat = useCallback(
     (context: string) => {
       setContextChips((prev) => [
@@ -2472,26 +2197,6 @@ export function KodyChat({
   // message list. Per-page scope (task / capability / planner / report) flows
   // through the per-turn system-prompt blocks, not separate stores. The
   // "New conversation" button is the only way to reset the thread.
-
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
-    messagesEndRef.current?.scrollIntoView({ behavior });
-    setIsAtBottom(true);
-  }, []);
-
-  // Track whether the user is pinned to the bottom. We only auto-scroll on new
-  // content when they are — otherwise scrolling up to read history would fight
-  // every streamed token. Threshold is generous (80px) to account for the
-  // input bar and "new messages" pill overlap.
-  const handleMessagesScroll = useCallback(() => {
-    const el = messagesContainerRef.current;
-    if (!el) return;
-    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-    setIsAtBottom(distanceFromBottom < 80);
-  }, []);
-
-  useEffect(() => {
-    if (isAtBottom) scrollToBottom();
-  }, [messages, activeLoading, isAtBottom, scrollToBottom]);
 
   // Cleanup SSE on unmount
   useEffect(() => {
@@ -5165,16 +4870,20 @@ export function KodyChat({
         )}
 
         {/* Messages area */}
-        <div
-          ref={messagesContainerRef}
-          onScroll={handleMessagesScroll}
-          className={`flex-1 min-h-0 relative ${
-            chatMode === "terminal"
-              ? "overflow-hidden bg-[#050608]"
-              : "overflow-auto px-1.5 py-2 sm:p-4 space-y-4"
-          }`}
-        >
-          {chatMode === "ai" && messages.length === 0 && !activeLoading && (
+        <MessageList
+          chatMode={chatMode}
+          messages={messages}
+          setMessages={setMessages}
+          onResend={(content) => {
+            void sendText(content, []);
+          }}
+          activeLoading={activeLoading}
+          agentName={currentAgent.name}
+          activeSessionId={sessionHook.activeSession?.id}
+          toolCalls={toolCalls}
+          usedViewIds={usedViewIds}
+          onRenderedViewAction={handleRenderedViewAction}
+          emptyState={
             <div className="text-center text-muted-foreground text-base py-8">
               {isTaskMode ? (
                 <>
@@ -5282,9 +4991,8 @@ export function KodyChat({
                 </>
               )}
             </div>
-          )}
-
-          {mountedChatTerminals.map((terminal) => {
+          }
+          terminalSurfaces={mountedChatTerminals.map((terminal) => {
             const isActiveTerminal =
               chatMode === "terminal" &&
               activeSessionIdForReset === terminal.sessionId &&
@@ -5329,246 +5037,7 @@ export function KodyChat({
               </div>
             );
           })}
-
-          {chatMode === "ai" &&
-            messages.map((msg, i) => {
-              if (msg.hidden) return null;
-
-              const parsedAssistant =
-                msg.role === "assistant"
-                  ? parseAssistantContent(msg.content)
-                  : null;
-              const visibleText = parsedAssistant?.answer || msg.content;
-              const messageDirection = getMessageDirection(visibleText);
-
-              return (
-                <div
-                  key={i}
-                  data-role={msg.role}
-                  className={`group flex ${msg.role === "user" ? "justify-end" : "justify-start"} relative`}
-                >
-                  <div
-                    dir={messageDirection}
-                    className={`max-w-[92%] sm:max-w-[85%] min-w-0 break-words rounded-lg px-3 py-2 text-[17px] leading-relaxed ${
-                      msg.role === "user"
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-muted"
-                    }`}
-                  >
-                    {/* Message Actions */}
-                    <MessageActions
-                      role={msg.role}
-                      content={msg.content}
-                      isLast={i === messages.length - 1}
-                      isLoading={!!msg.isLoading}
-                      hasToolCalls={!!msg.toolCalls && msg.toolCalls.length > 0}
-                      onCopy={() => msg.content}
-                      onRetry={
-                        msg.role === "assistant" && i === messages.length - 1
-                          ? () => {
-                              // Walk back to the last user message. Drop both that
-                              // user turn AND the failed assistant reply — sendText
-                              // pushes a fresh user bubble, so trimming both keeps
-                              // the transcript intact (no duplicate user msg).
-                              let userIdx = -1;
-                              for (let j = i - 1; j >= 0; j--) {
-                                if (messages[j].role === "user") {
-                                  userIdx = j;
-                                  break;
-                                }
-                              }
-                              if (userIdx < 0) return;
-                              const lastUserContent = messages[userIdx].content;
-                              setMessages((prev) => prev.slice(0, userIdx));
-                              void sendText(lastUserContent, []);
-                            }
-                          : undefined
-                      }
-                      onEdit={
-                        msg.role === "user"
-                          ? (content) => {
-                              // Drop the edited user msg + everything after it,
-                              // then resubmit. sendText repushes the user bubble
-                              // with the new content, so we don't keep the old one.
-                              setMessages((prev) => prev.slice(0, i));
-                              void sendText(content, []);
-                            }
-                          : undefined
-                      }
-                      onDelete={() => {
-                        setMessages((prev) =>
-                          prev.filter((_, idx) => idx !== i),
-                        );
-                      }}
-                    />
-
-                    {msg.role === "assistant" ? (
-                      <>
-                        {msg.toolCalls && msg.toolCalls.length > 0 && (
-                          <ThinkingPanel
-                            toolCalls={msg.toolCalls}
-                            isStreaming={!!msg.isLoading}
-                            persistKey={
-                              sessionHook.activeSession?.id && !msg.isLoading
-                                ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
-                                : undefined
-                            }
-                          />
-                        )}
-                        {(() => {
-                          // Strip model-emitted tool-call markup (`<kody_run_issue />`
-                          // and `<tool_call>…</tool_call>` blocks) from the visible
-                          // answer — the structured call is already surfaced via
-                          // the ThinkingPanel above, and the raw XML in the
-                          // text stream is just noise. Bare URLs get auto-linked
-                          // by `remark-gfm` below.
-                          const { reasoning, answer } = parsedAssistant ?? {
-                            reasoning: "",
-                            answer: "",
-                          };
-                          const isActive =
-                            activeLoading && i === messages.length - 1;
-                          const hasAnswer = answer.trim().length > 0;
-                          return (
-                            <>
-                              {reasoning && (
-                                <ReasoningPanel
-                                  content={reasoning}
-                                  isStreaming={!!msg.isLoading}
-                                  persistKey={
-                                    sessionHook.activeSession?.id &&
-                                    !msg.isLoading
-                                      ? `${sessionHook.activeSession.id}:${msg.timestamp ?? i}`
-                                      : undefined
-                                  }
-                                />
-                              )}
-                              {hasAnswer && (
-                                <MarkdownPreview
-                                  content={answer}
-                                  dir={messageDirection}
-                                  className="chat-message-text prose-base break-words [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words"
-                                />
-                              )}
-                              {msg.view &&
-                                isRenderedViewDirective(msg.view) && (
-                                  <RenderedViewCard
-                                    view={msg.view}
-                                    disabled={
-                                      !!msg.isLoading ||
-                                      i !== messages.length - 1 ||
-                                      usedViewIds.has(msg.view.id)
-                                    }
-                                    onAction={(action) =>
-                                      handleRenderedViewAction(
-                                        msg.view as RenderedViewDirective,
-                                        action,
-                                      )
-                                    }
-                                  />
-                                )}
-                              {/* Never a blank bubble: while the turn is in flight and
-                            no visible answer text has arrived yet, show the
-                            thinking indicator — but only after the 800ms grace
-                            timer (issue #330). The agentIdentity's status-line rule
-                            should already have given the model a chance to
-                            emit a first-line within that window; the indicator
-                            is the backstop for when it didn't. Covers the
-                            reasoning-only / tool-call phase where content is
-                            just <think> blocks. */}
-                              {isActive &&
-                                showTypingAfterGrace &&
-                                !hasAnswer && (
-                                  <TypingIndicator label={currentAgent.name} />
-                                )}
-                            </>
-                          );
-                        })()}
-                      </>
-                    ) : (
-                      <>
-                        {msg.attachments && msg.attachments.length > 0 && (
-                          <MessageAttachments attachments={msg.attachments} />
-                        )}
-                        {msg.content && (
-                          <MarkdownPreview
-                            content={softFormatUserMessageForDisplay(
-                              msg.content,
-                            )}
-                            dir={messageDirection}
-                            variant="compact"
-                            className="chat-message-text prose-base break-words prose-invert prose-headings:my-1 prose-headings:text-primary-foreground prose-p:my-0 prose-p:whitespace-pre-wrap prose-p:leading-relaxed prose-p:text-primary-foreground prose-strong:text-primary-foreground prose-a:text-primary-foreground prose-a:underline prose-code:bg-primary-foreground/20 prose-code:text-primary-foreground prose-pre:bg-primary-foreground/15 prose-ul:my-1 prose-ul:text-primary-foreground prose-ol:my-1 prose-ol:text-primary-foreground prose-li:my-0 prose-li:marker:text-primary-foreground/70 prose-blockquote:my-1 prose-blockquote:text-primary-foreground prose-table:text-primary-foreground prose-th:text-primary-foreground [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words"
-                          />
-                        )}
-                      </>
-                    )}
-                    {activeLoading &&
-                      i === messages.length - 1 &&
-                      msg.role === "assistant" &&
-                      parsedAssistant?.answer.trim() && (
-                        <span className="inline-block ml-2 animate-pulse text-primary">
-                          ●
-                        </span>
-                      )}
-                  </div>
-                </div>
-              );
-            })}
-
-          {/* Typing indicator shown before an assistant placeholder exists.
-            Covers the Kody-engine first-byte window where the placeholder is
-            only pushed once the first SSE event arrives. Gated on the same
-            800ms grace timer as the in-bubble indicator (#330) so a fast
-            model that emits the agentIdentity's status line quickly never flashes
-            the typing bubble. */}
-          {chatMode === "ai" &&
-            activeLoading &&
-            showTypingAfterGrace &&
-            messages.length > 0 &&
-            messages[messages.length - 1]?.role === "user" && (
-              <div className="flex justify-start">
-                <div className="max-w-[92%] sm:max-w-[85%] rounded-lg px-3 py-2 bg-muted">
-                  <TypingIndicator label={currentAgent.name} />
-                </div>
-              </div>
-            )}
-
-          {/* Tool calls display - using ToolCallList component */}
-          {chatMode === "ai" && toolCalls.length > 0 && (
-            <div className="flex justify-start">
-              <ToolCallList
-                toolCalls={toolCalls.map((tc) => ({
-                  name: tc.name,
-                  arguments: tc.arguments,
-                  result: tc.result,
-                  status: tc.status,
-                  startedAt: tc.startedAt,
-                  durationMs: tc.durationMs,
-                  description: tc.description,
-                }))}
-              />
-            </div>
-          )}
-
-          <div ref={messagesEndRef} />
-        </div>
-
-        {/* "Jump to latest" pill — visible only when the user has scrolled up
-          and is therefore not pinned to the bottom. Clicking re-engages
-          sticky scrolling. */}
-        {!isAtBottom && (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => scrollToBottom("smooth")}
-              className="absolute -top-14 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-full bg-primary px-4 py-2 text-body-xs font-medium text-primary-foreground shadow-lg transition-opacity hover:opacity-90"
-              aria-label="Jump to latest messages"
-            >
-              <ChevronDown className="w-3.5 h-3.5" />
-              {activeLoading ? "New messages" : "Jump to latest"}
-            </button>
-          </div>
-        )}
+        />
 
         {/* Attachments preview */}
         {chatMode === "ai" && attachments.length > 0 && (
