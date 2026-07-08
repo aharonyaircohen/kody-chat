@@ -18,7 +18,7 @@ const BRIDGE_HEALTH_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_INTERVAL_MS = 2_000;
 const BRIDGE_CREATE_ATTEMPTS = 3;
 
-export const TERMINAL_BRIDGE_VERSION = "2026-07-07.5";
+export const TERMINAL_BRIDGE_VERSION = "2026-07-08.1";
 export const TERMINAL_BRIDGE_BASE_IMAGE =
   process.env.KODY_TERMINAL_BRIDGE_BASE_IMAGE ?? "node:22-bookworm";
 
@@ -49,6 +49,7 @@ exec node /app/bridge.mjs
 
 export const TERMINAL_BRIDGE_PTY_RELAY_SCRIPT = String.raw`#!/usr/bin/env python3
 import fcntl
+import json
 import os
 import select
 import signal
@@ -104,7 +105,14 @@ if pid == 0:
 slave_control_fd = slave
 stdin_fd = sys.stdin.fileno()
 stdout_fd = sys.stdout.fileno()
+control_fd = 3
+try:
+    os.fstat(control_fd)
+except OSError:
+    control_fd = None
 stdin_open = True
+control_open = control_fd is not None
+control_buffer = b""
 
 def stop_child(signum, frame):
     try:
@@ -128,6 +136,8 @@ while True:
     read_fds = [master]
     if stdin_open:
         read_fds.append(stdin_fd)
+    if control_open and control_fd is not None:
+        read_fds.append(control_fd)
     readable, _, _ = select.select(read_fds, [], [], 0.25)
     if master in readable:
         try:
@@ -144,6 +154,26 @@ while True:
             continue
         disable_echo(slave_control_fd)
         os.write(master, data)
+    if control_open and control_fd is not None and control_fd in readable:
+        data = os.read(control_fd, 65536)
+        if not data:
+            control_open = False
+            continue
+        control_buffer += data
+        while b"\n" in control_buffer:
+            line, control_buffer = control_buffer.split(b"\n", 1)
+            try:
+                message = json.loads(line.decode("utf8"))
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                continue
+            if message.get("type") == "resize":
+                next_rows = int(message.get("rows") or rows)
+                next_cols = int(message.get("cols") or cols)
+                set_winsize(slave_control_fd, next_rows, next_cols)
+                try:
+                    os.kill(pid, signal.SIGWINCH)
+                except ProcessLookupError:
+                    pass
 
 try:
     os.close(master)
@@ -153,6 +183,11 @@ try:
     os.close(slave_control_fd)
 except OSError:
     pass
+if control_fd is not None:
+    try:
+        os.close(control_fd)
+    except OSError:
+        pass
 
 sys.exit(exit_code)
 `;
@@ -824,6 +859,23 @@ function isRetryableFlySshStartupFailure(output) {
   );
 }
 
+function normalizeTerminalSize(cols, rows) {
+  const nextCols = Number(cols);
+  const nextRows = Number(rows);
+  if (!Number.isFinite(nextCols) || !Number.isFinite(nextRows)) return null;
+  return {
+    cols: Math.min(1000, Math.max(1, Math.floor(nextCols))),
+    rows: Math.min(1000, Math.max(1, Math.floor(nextRows))),
+  };
+}
+
+function sendResizeToPty(session, cols, rows) {
+  const size = normalizeTerminalSize(cols, rows);
+  const control = session.resizeControl;
+  if (!size || !control || control.destroyed || !control.writable) return;
+  control.write(JSON.stringify({ type: "resize", ...size }) + "\n");
+}
+
 setInterval(() => {
   const now = Date.now();
   for (const [key, session] of persistentSessions) {
@@ -878,6 +930,7 @@ function createFlyConsoleSession(claims, key) {
     readyProbeTimer: null,
     readyTimer: null,
     retryTimer: null,
+    resizeControl: null,
     restartChild: null,
   };
   const statusTimer = setInterval(() => {
@@ -958,9 +1011,10 @@ function createFlyConsoleSession(claims, key) {
     session.sawOutput = false;
     const child = spawn("python3", args, {
       env,
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["pipe", "pipe", "pipe", "pipe"],
     });
     session.child = child;
+    session.resizeControl = child.stdio[3] || null;
 
     child.stdout.on("data", handleOutput);
     child.stderr.on("data", handleOutput);
@@ -1106,7 +1160,7 @@ function attachSocketToSession(socket, session) {
     }
     if (msg.type === "resize") {
       session.lastTouched = Date.now();
-      console.log("terminal resize cols=" + msg.cols + " rows=" + msg.rows);
+      sendResizeToPty(session, msg.cols, msg.rows);
     }
   });
 

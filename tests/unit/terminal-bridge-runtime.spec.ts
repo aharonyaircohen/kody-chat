@@ -68,6 +68,7 @@ async function startBridge(): Promise<{ port: number; dir: string }> {
     join(binDir, "python3"),
     `#!/usr/bin/env node
 const { spawn } = require("node:child_process");
+const fs = require("node:fs");
 const relayArgs = process.argv.slice(2);
 const command = relayArgs[0] === "/app/pty-relay.py" ? relayArgs.slice(1) : relayArgs;
 if (command.length === 0) process.exit(2);
@@ -75,6 +76,26 @@ const child = spawn(command[0], command.slice(1), {
   env: process.env,
   stdio: ["pipe", "pipe", "pipe"],
 });
+try {
+  const control = fs.createReadStream(null, { fd: 3, autoClose: false, encoding: "utf8" });
+  let controlBuffer = "";
+  control.on("error", () => {});
+  control.on("data", (chunk) => {
+    controlBuffer += String(chunk);
+    let newline = controlBuffer.indexOf("\\n");
+    while (newline !== -1) {
+      const line = controlBuffer.slice(0, newline);
+      controlBuffer = controlBuffer.slice(newline + 1);
+      try {
+        const message = JSON.parse(line);
+        if (message?.type === "resize") {
+          process.stdout.write("PTY_RESIZE:" + message.cols + "x" + message.rows + "\\r\\n");
+        }
+      } catch {}
+      newline = controlBuffer.indexOf("\\n");
+    }
+  });
+} catch {}
 process.stdin.resume();
 process.stdin.on("data", (chunk) => {
   child.stdin.write(chunk);
@@ -524,6 +545,28 @@ describe("terminal bridge runtime restore", () => {
       expectTmuxScrollEnabled(firstProbe);
       expectTmuxScrollEnabled(secondProbe);
       secondSocket.close(1000, "done");
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "forwards browser resize messages to the PTY relay",
+    async () => {
+      const { port } = await startBridge();
+      const token = terminalToken();
+
+      const socket = await openSocket(port, token);
+      await socket.waitFor((message) => message.type === "ready");
+
+      socket.send(JSON.stringify({ type: "resize", cols: 120, rows: 44 }));
+
+      await socket.waitFor(
+        (message) =>
+          message.type === "output" &&
+          typeof message.data === "string" &&
+          message.data.includes("PTY_RESIZE:120x44"),
+      );
+      socket.close(1000, "done");
     },
     TEST_TIMEOUT_MS,
   );

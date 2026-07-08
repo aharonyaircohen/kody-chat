@@ -21,6 +21,10 @@ import type { Terminal as XTerm } from "@xterm/xterm";
 import { toast } from "sonner";
 
 import { getStoredBrainTerminalActivityLimit } from "../api";
+import {
+  parseTerminalBridgeServerMessage,
+  type TerminalBridgeClientMessage,
+} from "../terminal/bridge-protocol";
 import { authHeaders } from "./kody-chat-live-session";
 
 interface TerminalSessionState {
@@ -140,29 +144,6 @@ function transportKey(transport: ChatTerminalTransport): string {
   if (transport.type === "fly")
     return `fly:${transport.app}:${transport.machineId}`;
   return "local";
-}
-
-function parseBridgeMessage(
-  raw: string,
-): {
-  type?: string;
-  data?: string;
-  message?: string;
-  code?: number;
-  id?: number;
-} | null {
-  try {
-    const parsed = JSON.parse(raw) as {
-      type?: string;
-      data?: string;
-      message?: string;
-      code?: number;
-      id?: number;
-    };
-    return parsed && typeof parsed === "object" ? parsed : null;
-  } catch {
-    return null;
-  }
 }
 
 function stripTerminalSequences(value: string): string {
@@ -451,7 +432,12 @@ export const ChatTerminalSurface = forwardRef<
     if (isRemoteTerminalTransport(transportRef.current)) {
       const ws = flySocketRef.current;
       if (ws?.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify({ type: "resize", cols, rows }));
+        const message: TerminalBridgeClientMessage = {
+          type: "resize",
+          cols,
+          rows,
+        };
+        ws.send(JSON.stringify(message));
       }
       return;
     }
@@ -478,7 +464,12 @@ export const ChatTerminalSurface = forwardRef<
         ) {
           const inputId = nextFlyInputIdRef.current;
           nextFlyInputIdRef.current += 1;
-          ws.send(JSON.stringify({ type: "input", id: inputId, data: input }));
+          const message: TerminalBridgeClientMessage = {
+            type: "input",
+            id: inputId,
+            data: input,
+          };
+          ws.send(JSON.stringify(message));
           waitForFlyInputAck(inputId);
         } else if (
           ws?.readyState === WebSocket.OPEN ||
@@ -883,12 +874,13 @@ export const ChatTerminalSurface = forwardRef<
         ws.onopen = () => {
           if (flySocketRef.current !== ws || !isCurrentFlyConnect()) return;
           if (terminalRef.current) {
+            const message: TerminalBridgeClientMessage = {
+              type: "resize",
+              cols: terminalRef.current.cols,
+              rows: terminalRef.current.rows,
+            };
             ws.send(
-              JSON.stringify({
-                type: "resize",
-                cols: terminalRef.current.cols,
-                rows: terminalRef.current.rows,
-              }),
+              JSON.stringify(message),
             );
           }
         };
@@ -898,7 +890,7 @@ export const ChatTerminalSurface = forwardRef<
             typeof event.data === "string"
               ? event.data
               : await (event.data as Blob).text();
-          const message = parseBridgeMessage(raw);
+          const message = parseTerminalBridgeServerMessage(raw);
           if (!message) {
             appendCapturedOutput(raw);
             terminalRef.current?.write(raw);
