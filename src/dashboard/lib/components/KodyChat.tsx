@@ -183,7 +183,7 @@ import { RepoScopedLink } from "./RepoScopedLink";
 import { useChatSessions } from "../chat/core/use-chat-sessions";
 import { useKodyActionState } from "../hooks/useKodyActionState";
 import { useMediaQuery } from "../hooks/useMediaQuery";
-import { SessionSidebar } from "./SessionSidebar";
+import { SessionsPanel } from "../chat/surface/SessionsPanel";
 import { ToolCallList, ThinkingPanel, ReasoningPanel } from "./ToolCallCard";
 import { parseReasoning, stripReasoning } from "../chat/core/reasoning";
 import { parseAssistantContent } from "../chat/core/tool-call-strip";
@@ -5031,48 +5031,29 @@ export function KodyChat({
         </div>
       )}
       {/* Session Sidebar */}
-      {showSessionSidebar &&
-        isGlobalMode &&
-        !sessionSidebarPinned &&
-        !railFullscreen && (
-          <button
-            type="button"
-            aria-label="Close conversations"
-            onClick={() => setShowSessionSidebar(false)}
-            className="absolute inset-0 z-40 cursor-default bg-black/20"
-          />
-        )}
-      {showSessionSidebar && isGlobalMode && (
-        <SessionSidebar
-          sessions={sessionHook.sessions}
-          activeSessionId={sessionHook.activeSession?.id || null}
-          onSwitchSession={(id) => {
-            sessionHook.switchSession(id);
-          }}
-          onCreateSession={() => {
-            sessionHook.createSession();
-          }}
-          onDeleteSession={sessionHook.deleteSession}
-          onRenameSession={sessionHook.renameSession}
-          onPinSession={sessionHook.pinSession}
-          modeBySessionId={
-            vibeMode ? undefined : terminalRegistry.modeBySessionId
-          }
-          pinnedOpen={sessionSidebarPinned}
-          onTogglePinnedOpen={() => setSessionSidebarPinned((prev) => !prev)}
-          onClose={() => setShowSessionSidebar(false)}
-          fullscreen={railFullscreen}
-          className={
-            railFullscreen
-              ? "relative z-10 w-80 min-w-0 max-w-full basis-80 shrink shadow-none"
-              : `absolute left-0 top-0 bottom-0 w-full sm:w-72 z-50 ${
-                  standalonePresentation
-                    ? "border-r-0 shadow-none"
-                    : "shadow-lg"
-                }`
-          }
-        />
-      )}
+      <SessionsPanel
+        open={showSessionSidebar}
+        isGlobalMode={isGlobalMode}
+        pinned={sessionSidebarPinned}
+        railFullscreen={railFullscreen}
+        standalonePresentation={standalonePresentation}
+        sessions={sessionHook.sessions}
+        activeSessionId={sessionHook.activeSession?.id || null}
+        modeBySessionId={
+          vibeMode ? undefined : terminalRegistry.modeBySessionId
+        }
+        onSwitchSession={(id) => {
+          sessionHook.switchSession(id);
+        }}
+        onCreateSession={() => {
+          sessionHook.createSession();
+        }}
+        onDeleteSession={sessionHook.deleteSession}
+        onRenameSession={sessionHook.renameSession}
+        onPinSession={sessionHook.pinSession}
+        onTogglePinned={() => setSessionSidebarPinned((prev) => !prev)}
+        onClose={() => setShowSessionSidebar(false)}
+      />
 
       <div className="relative flex min-w-0 flex-1 flex-col">
         {/* Voice Chat Overlay */}
