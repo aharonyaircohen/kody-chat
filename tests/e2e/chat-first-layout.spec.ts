@@ -94,9 +94,14 @@ test.describe("Chat-first layout (beta toggle)", () => {
       page.locator('[role="separator"][aria-label="Resize chat"]'),
     ).toHaveCount(0);
 
-    // The routed page renders inside the side panel.
+    // The routed page renders inside the side panel — and on /tasks it is
+    // the TASKS PLUGIN's panel view (phase 2 step 3 pilot), not the raw
+    // route children: the plugin wrapper testid proves the route→panel
+    // substitution ran, and the board it wraps is the same KodyDashboard.
     const panel = page.locator('[data-testid="chat-first-panel"]');
     await expect(panel).toBeVisible();
+    const pluginPanel = panel.locator('[data-testid="chat-panel-tasks"]');
+    await expect(pluginPanel).toBeAttached({ timeout: 15_000 });
     await expect(panel.getByText(/New Task/i).first()).toBeVisible({
       timeout: 15_000,
     });
@@ -120,10 +125,18 @@ test.describe("Chat-first layout (beta toggle)", () => {
     await expect(panel.getByText("Chat-first layout (beta)")).toBeVisible({
       timeout: 15_000,
     });
+    // Non-mapped routes keep raw route-content rendering — the tasks
+    // plugin panel only substitutes on /tasks (step 3 pilot scope).
+    await expect(
+      page.locator('[data-testid="chat-panel-tasks"]'),
+    ).toHaveCount(0);
 
-    // Back → the route (source of truth) restores the tasks panel.
+    // Back → the route (source of truth) restores the tasks PLUGIN panel.
     await page.goBack();
     await expect(page).toHaveURL(/\/tasks/);
+    await expect(
+      page.locator('[data-testid="chat-panel-tasks"]'),
+    ).toBeAttached({ timeout: 15_000 });
     await expect(
       page
         .locator('[data-testid="chat-first-panel"]')
@@ -165,5 +178,13 @@ test.describe("Chat-first layout (beta toggle)", () => {
     await expect(
       page.locator('[data-testid="chat-first-panel"]'),
     ).toHaveCount(0);
+    // The tasks plugin panel never renders in the classic layout — /tasks
+    // shows the raw route children (byte-identical pre-plugin behavior).
+    await expect(
+      page.locator('[data-testid="chat-panel-tasks"]'),
+    ).toHaveCount(0);
+    await expect(page.getByText(/New Task/i).first()).toBeVisible({
+      timeout: 15_000,
+    });
   });
 });

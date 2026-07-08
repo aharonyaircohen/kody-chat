@@ -63,6 +63,7 @@ import { terminalChatPlugin } from "../chat/plugins/terminal/plugin";
 import { commandsChatPlugin } from "../chat/plugins/commands";
 import { vibeChatPlugin } from "../chat/plugins/vibe";
 import { goalsChatPlugin } from "../chat/plugins/goals";
+import { tasksChatPlugin, TASKS_PANEL_ID } from "../chat/plugins/tasks";
 
 // Admin plugin composition (Step 6 / M6: the HOST owns the plugin list, so
 // each surface bundles only what it imports). Both KodyChat mounts (desktop
@@ -75,7 +76,35 @@ const ADMIN_CHAT_PLUGINS = [
   { plugin: commandsChatPlugin },
   { plugin: vibeChatPlugin },
   { plugin: goalsChatPlugin },
+  // Tasks page-plugin (phase 2 step 3 pilot) — contributes the "tasks"
+  // panel view the flipped layout renders in place of the raw /tasks route
+  // children. Inert with the chat-first toggle off.
+  { plugin: tasksChatPlugin },
 ];
+
+// ─── Route → plugin panel mapping (phase 2 step 3 pilot) ───────────────
+// Host-side map for now (deliberately simple): in the flipped layout, when
+// the current repo-relative route has an entry here AND a registered admin
+// plugin contributes a panel with that id, the shell renders the PLUGIN's
+// panel view instead of the raw route children. Only /tasks pilots the
+// mechanism this step — every other route keeps route-content rendering.
+// With the chat-first toggle OFF this map is never consulted.
+const ROUTE_PANEL_IDS: Readonly<Record<string, string>> = {
+  "/tasks": TASKS_PANEL_ID,
+};
+
+// Stable host-context snapshot for route panels (no per-render identity
+// churn). Step 3 panels take no host context yet.
+const EMPTY_PANEL_HOST: Readonly<Record<string, unknown>> = Object.freeze({});
+
+function findAdminPanel(panelId: string | undefined) {
+  if (!panelId) return null;
+  for (const { plugin } of ADMIN_CHAT_PLUGINS) {
+    const match = plugin.panels?.find((panel) => panel.id === panelId);
+    if (match) return match;
+  }
+  return null;
+}
 
 interface ChatRailApi {
   scope: ChatContext | null;
@@ -444,6 +473,13 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
     !repoRouteBlocksPage &&
     (routeOwnsAppHeader(currentRepoPath) || pageHeaderOwnedByChild);
   const lockedAgentId = isOrgRoute ? "kody" : undefined;
+  // Flipped layout only: if a registered plugin owns a panel for this
+  // route, its view replaces the raw route children (step 3 pilot —
+  // currently just /tasks). Auth-sync blocking states below still win.
+  const routePanel = flipActive
+    ? findAdminPanel(ROUTE_PANEL_IDS[currentRepoPath])
+    : null;
+  const RoutePanelRender = routePanel?.render;
   const pageContent =
     repoRouteAuthSync.status === "switch" ? (
       <div className="flex-1 flex items-center justify-center p-6 text-body-sm text-muted-foreground">
@@ -451,6 +487,8 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
       </div>
     ) : repoRouteAuthSync.status === "missing" ? (
       <RepoManager />
+    ) : RoutePanelRender ? (
+      <RoutePanelRender host={EMPTY_PANEL_HOST} />
     ) : (
       children
     );
