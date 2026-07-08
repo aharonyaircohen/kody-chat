@@ -36,7 +36,7 @@ const CHAT_TYPES_PATH = resolve(
 );
 const HOOK_PATH = resolve(
   __dirname,
-  "../../../src/dashboard/lib/hooks/useChatSessions.ts",
+  "../../../src/dashboard/lib/chat/core/use-chat-sessions.ts",
 );
 const KODY_CHAT_PATH = resolve(
   __dirname,
@@ -170,13 +170,14 @@ describe("KodyChat — writes per-session agent on every change path", () => {
   it("rehydrated Kody Live session mirrors onto the active session", () => {
     // After a page refresh, rehydrate restores the runner AND seeds
     // the active session's agentKey so a subsequent session switch
-    // doesn't bounce the user off Live. The `type: "REHYDRATE_RESTORED"`
-    // dispatch literal is the precise anchor — the same string also
-    // appears in a comment further up the file, which is why this
-    // test scopes to the action object, not the bare identifier.
+    // doesn't bounce the user off Live. The REHYDRATE_RESTORED action
+    // itself is now built by chat/core/rehydration.ts
+    // (buildRehydrateAction), so the anchor is the restored branch of
+    // rehydrateForScope — the "Mirror the rehydrated runner agent"
+    // comment sits directly above the setSessionAgent call.
     const rehydrateBlock = extractRegionAround(
       KODY_CHAT_SOURCE,
-      'type: "REHYDRATE_RESTORED"',
+      "Mirror the rehydrated runner agent",
     );
     expect(rehydrateBlock).toMatch(
       /sessionHook\.setSessionAgent\(\s*rehydrateId,\s*rehydrateEntry\.key\s*\)/,

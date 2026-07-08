@@ -5,8 +5,12 @@
  * @ai-summary Session management hook for Kody global chat - CRUD operations with localStorage persistence
  */
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { createEmptyGlobalStore } from "../chat-types";
-import type { ChatMessage, GlobalChatStore, SessionMeta } from "../chat-types";
+import { createEmptyGlobalStore } from "../../chat-types";
+import type {
+  ChatMessage,
+  GlobalChatStore,
+  SessionMeta,
+} from "../../chat-types";
 
 const STORAGE_KEY_BASE = "kody-sessions-v3";
 const LEGACY_UNSCOPED_KEY = "kody-sessions-v3";
@@ -110,9 +114,7 @@ export function migrateFromV2(v2Data: GlobalChatStore | null): GlobalChatStore {
       pinned: session.pinned,
     });
     store.messages[session.id] =
-      (
-        v2Data.messages as Record<string, import("../chat-types").ChatMessage[]>
-      )[session.id] || [];
+      (v2Data.messages as Record<string, ChatMessage[]>)[session.id] || [];
   }
 
   // Pick any non-empty active session as the new active
@@ -173,8 +175,9 @@ export function loadStore(
         }
       }
     }
-  } catch (error) {
-    console.error("Failed to load chat sessions:", error);
+  } catch {
+    // Corrupt/truncated JSON or storage failure — fall through to an empty
+    // store rather than throwing (chat/core is console-free by lint).
   }
 
   return createEmptyGlobalStore();
@@ -198,8 +201,8 @@ function writePending(storageKey: string): void {
   pendingSaves.delete(storageKey);
   try {
     localStorage.setItem(storageKey, serialized);
-  } catch (error) {
-    console.error("Failed to save chat sessions:", error);
+  } catch {
+    // Quota exceeded / storage disabled — non-fatal, same as before.
   }
 }
 

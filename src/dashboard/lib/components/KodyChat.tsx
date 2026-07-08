@@ -104,6 +104,11 @@ import {
   type LiveScopeKey,
 } from "../chat/core/kody-chat-live-session";
 import {
+  buildRehydrateAction,
+  decideLivePersistence,
+  shouldRehydrateScope,
+} from "../chat/core/rehydration";
+import {
   bootPhaseLabel,
   composeUserWireContent,
   formatElapsed,
@@ -163,7 +168,7 @@ import {
 import { VoiceButton } from "./VoiceButton";
 import { VoiceChatOverlay } from "./VoiceChatOverlay";
 import { RepoScopedLink } from "./RepoScopedLink";
-import { useChatSessions } from "../hooks/useChatSessions";
+import { useChatSessions } from "../chat/core/use-chat-sessions";
 import { useKodyActionState } from "../hooks/useKodyActionState";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { SessionSidebar } from "./SessionSidebar";
@@ -1146,39 +1151,29 @@ export function KodyChat({
   // clearing on a genuine transition INTO idle/ended/etc.
   const persistenceMountedRef = useRef(false);
   useEffect(() => {
-    const {
-      phase,
-      sessionId,
-      scopeKey,
-      bootStartedAt: at,
-      target,
-      runUrl,
-    } = liveState;
-    if ((phase === "booting" || phase === "ready") && sessionId) {
-      saveLiveSession(scopeKey, {
-        sessionId,
-        state: phase,
-        startedAt: at ?? Date.now(),
-        target: target ?? undefined,
-        runUrl: runUrl ?? undefined,
-      });
-      persistenceMountedRef.current = true;
-      return;
+    // Decision logic lives in chat/core/rehydration.ts (pure, unit-tested);
+    // this effect only performs the storage side effects it prescribes.
+    const decision = decideLivePersistence(
+      liveState,
+      persistenceMountedRef.current,
+    );
+    switch (decision.kind) {
+      case "save":
+        saveLiveSession(decision.scopeKey, decision.record);
+        persistenceMountedRef.current = true;
+        return;
+      case "skip-initial":
+        // First render with idle/null state — leave any persisted record
+        // alone; the rehydrate effect below will pick it up.
+        persistenceMountedRef.current = true;
+        return;
+      case "clear":
+        clearLiveSession(decision.scopeKey);
+        return;
+      case "none":
+        return;
     }
-    if (!persistenceMountedRef.current) {
-      // First render with idle/null state — leave any persisted record
-      // alone; the rehydrate effect below will pick it up.
-      persistenceMountedRef.current = true;
-      return;
-    }
-    if (
-      phase === "ended" ||
-      phase === "error" ||
-      phase === "stuck" ||
-      (phase === "idle" && !sessionId)
-    ) {
-      clearLiveSession(scopeKey);
-    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     liveState.phase,
     liveState.sessionId,
@@ -1220,7 +1215,7 @@ export function KodyChat({
   // Use one session bucket for Vibe. The selected task is request context, not
   // a separate visible conversation; otherwise issue creation navigates to an
   // empty task chat and hides the message that created the issue.
-  const desiredSessionScope: import("../hooks/useChatSessions").ChatSessionScope =
+  const desiredSessionScope: import("../chat/core/use-chat-sessions").ChatSessionScope =
     vibeMode ? "vibe-default" : "global";
   // Commit scope changes only after they settle. A transient context flip
   // (parent re-render / task refetch momentarily dropping the selection)
@@ -1229,7 +1224,7 @@ export function KodyChat({
   // window absorbs flickers (they revert within the same tick) while real
   // user-driven task select/clear persists well past it.
   const [sessionStoreScope, setSessionStoreScope] =
-    useState<import("../hooks/useChatSessions").ChatSessionScope>(
+    useState<import("../chat/core/use-chat-sessions").ChatSessionScope>(
       desiredSessionScope,
     );
   const sessionHook = useChatSessions(sessionStoreScope);
@@ -4529,19 +4524,14 @@ export function KodyChat({
       eventSourceRef.current?.close();
       eventSourceRef.current = null;
       stopInteractivePoll();
+      // Record ↔ action mapping (REHYDRATE_IDLE vs REHYDRATE_RESTORED,
+      // incl. bootStartedAt only while booting) is pure logic in
+      // chat/core/rehydration.ts.
       if (!saved) {
-        dispatchLive({ type: "REHYDRATE_IDLE", scopeKey });
+        dispatchLive(buildRehydrateAction(scopeKey, null));
         return;
       }
-      dispatchLive({
-        type: "REHYDRATE_RESTORED",
-        scopeKey,
-        sessionId: saved.sessionId,
-        phase: saved.state,
-        bootStartedAt: saved.state === "booting" ? saved.startedAt : null,
-        target: saved.target ?? null,
-        runUrl: saved.runUrl ?? null,
-      });
+      dispatchLive(buildRehydrateAction(scopeKey, saved));
       setSelectedAgentId("kody-live");
       // Mirror the rehydrated runner agent onto the active session so
       // a refresh / re-open lands back on Kody Live. The Fly variant
@@ -4561,9 +4551,14 @@ export function KodyChat({
 
   useEffect(() => {
     const nextScope = getLiveScopeKey(context, vibeMode);
+    // Duplicate-rehydrate suppression lives in chat/core/rehydration.ts:
+    // same scope + restore already attempted → no-op.
     if (
-      nextScope === currentScopeKeyRef.current &&
-      liveRestoreAttemptedRef.current
+      !shouldRehydrateScope(
+        nextScope,
+        currentScopeKeyRef.current,
+        liveRestoreAttemptedRef.current,
+      )
     ) {
       return;
     }

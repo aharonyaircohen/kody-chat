@@ -17,7 +17,7 @@ const REGISTRY_SOURCE = readFileSync(
   "utf8",
 );
 const SESSIONS_SOURCE = readFileSync(
-  resolve(__dirname, "../../../src/dashboard/lib/hooks/useChatSessions.ts"),
+  resolve(__dirname, "../../../src/dashboard/lib/chat/core/use-chat-sessions.ts"),
   "utf8",
 );
 const CHAT_SOURCE = readFileSync(

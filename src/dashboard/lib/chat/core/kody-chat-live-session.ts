@@ -16,6 +16,12 @@ import {
 } from "../../api";
 import type { ChatContext } from "../../chat-types";
 import type { LiveScopeKey } from "./kody-chat-reducer";
+import {
+  brainChatIdMapSchema,
+  kodyAuthRepoSchema,
+  liveSessionMapSchema,
+  persistedLiveSessionSchema,
+} from "./live-session-schemas";
 
 export type { LiveScopeKey };
 
@@ -74,8 +80,10 @@ export function isBrainChatPinned(logicalKey: string): boolean {
   try {
     const raw = window.localStorage.getItem(BRAIN_CHAT_ID_KEY);
     if (!raw) return false;
-    const map = JSON.parse(raw) as Record<string, string>;
-    return typeof map[logicalKey] === "string";
+    // Corrupt payload (bad JSON / not an object) → not pinned.
+    const parsed = brainChatIdMapSchema.safeParse(JSON.parse(raw));
+    if (!parsed.success) return false;
+    return typeof parsed.data[logicalKey] === "string";
   } catch {
     return false;
   }
@@ -89,18 +97,28 @@ export function stickyBrainChatId(
   if (typeof window === "undefined") return safeCandidate;
   try {
     const raw = window.localStorage.getItem(BRAIN_CHAT_ID_KEY);
-    const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    // Corrupt payload (bad JSON / not an object) → start from an empty map,
+    // pinning the candidate — same "treat as absent" fallback as before.
+    const parsed = raw ? brainChatIdMapSchema.safeParse(JSON.parse(raw)) : null;
+    const map: Record<string, unknown> = parsed?.success ? parsed.data : {};
     const pinned = map[logicalKey];
     if (pinned) {
+      // A corrupt non-string pin can't be repaired or reused — fall back to
+      // the candidate without touching storage (pre-zod behavior).
+      if (typeof pinned !== "string") return safeCandidate;
       const safePinned = safeBrainChatId(pinned);
       if (safePinned !== pinned) {
-        map[logicalKey] = safePinned;
-        window.localStorage.setItem(BRAIN_CHAT_ID_KEY, JSON.stringify(map));
+        window.localStorage.setItem(
+          BRAIN_CHAT_ID_KEY,
+          JSON.stringify({ ...map, [logicalKey]: safePinned }),
+        );
       }
       return safePinned;
     }
-    map[logicalKey] = safeCandidate;
-    window.localStorage.setItem(BRAIN_CHAT_ID_KEY, JSON.stringify(map));
+    window.localStorage.setItem(
+      BRAIN_CHAT_ID_KEY,
+      JSON.stringify({ ...map, [logicalKey]: safeCandidate }),
+    );
   } catch {
     // localStorage unavailable/corrupt — fall back to the candidate. Worst
     // case is the pre-fix behavior, not a crash.
@@ -135,9 +153,11 @@ function liveSessionStorageKey(): string {
   try {
     const raw = window.localStorage.getItem("kody_auth");
     if (!raw) return LIVE_SESSION_UNSCOPED_KEY;
-    const auth = JSON.parse(raw) as { owner?: string; repo?: string };
-    if (!auth.owner || !auth.repo) return LIVE_SESSION_UNSCOPED_KEY;
-    return `${LIVE_SESSION_STORAGE_KEY_BASE}:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`;
+    // Corrupt/incomplete auth (bad JSON, missing/empty/non-string
+    // owner/repo) → the unscoped key, same as before.
+    const auth = kodyAuthRepoSchema.safeParse(JSON.parse(raw));
+    if (!auth.success) return LIVE_SESSION_UNSCOPED_KEY;
+    return `${LIVE_SESSION_STORAGE_KEY_BASE}:${auth.data.owner.toLowerCase()}/${auth.data.repo.toLowerCase()}`;
   } catch {
     return LIVE_SESSION_UNSCOPED_KEY;
   }
@@ -179,17 +199,22 @@ function readAllLiveSessions(): LiveSessionMap {
   try {
     const storageKey = liveSessionStorageKey();
     const raw = window.localStorage.getItem(storageKey);
-    let parsed: LiveSessionMap = raw ? (JSON.parse(raw) as LiveSessionMap) : {};
+    // Outer shape first (corrupt map → treated as empty); entries stay
+    // unknown so one bad record can't discard its healthy siblings — the
+    // per-entry prune below validates each one.
+    const rawParsed = raw ? liveSessionMapSchema.safeParse(JSON.parse(raw)) : null;
+    let parsed: Record<string, unknown> = rawParsed?.success
+      ? rawParsed.data
+      : {};
     // One-time migration from the legacy single-record format.
     const legacy = window.localStorage.getItem(LIVE_SESSION_LEGACY_KEY);
     if (legacy && Object.keys(parsed).length === 0) {
       try {
-        const legacyRecord = JSON.parse(legacy) as PersistedLiveSession;
-        if (
-          legacyRecord?.sessionId &&
-          typeof legacyRecord.startedAt === "number"
-        ) {
-          parsed = { global: legacyRecord };
+        const legacyRecord = persistedLiveSessionSchema.safeParse(
+          JSON.parse(legacy),
+        );
+        if (legacyRecord.success) {
+          parsed = { global: legacyRecord.data };
           window.localStorage.setItem(storageKey, JSON.stringify(parsed));
         }
       } catch {
@@ -210,9 +235,11 @@ function readAllLiveSessions(): LiveSessionMap {
       );
       if (unscopedRaw) {
         try {
-          const unscoped = JSON.parse(unscopedRaw) as LiveSessionMap;
-          if (unscoped && typeof unscoped === "object") {
-            parsed = unscoped;
+          const unscoped = liveSessionMapSchema.safeParse(
+            JSON.parse(unscopedRaw),
+          );
+          if (unscoped.success) {
+            parsed = unscoped.data;
             window.localStorage.setItem(storageKey, JSON.stringify(parsed));
           }
         } catch {
@@ -221,24 +248,23 @@ function readAllLiveSessions(): LiveSessionMap {
         window.localStorage.removeItem(LIVE_SESSION_UNSCOPED_KEY);
       }
     }
-    // Drop stale entries so callers never see expired records.
+    // Drop stale or malformed entries so callers never see expired or
+    // invalid records (immutably — build the pruned map, don't mutate).
     const now = Date.now();
     let changed = false;
-    for (const [key, rec] of Object.entries(parsed)) {
-      if (!rec?.sessionId || typeof rec.startedAt !== "number") {
-        delete parsed[key];
+    const pruned: LiveSessionMap = {};
+    for (const [key, value] of Object.entries(parsed)) {
+      const rec = persistedLiveSessionSchema.safeParse(value);
+      if (!rec.success || now - rec.data.startedAt > LIVE_SESSION_MAX_AGE_MS) {
         changed = true;
         continue;
       }
-      if (now - rec.startedAt > LIVE_SESSION_MAX_AGE_MS) {
-        delete parsed[key];
-        changed = true;
-      }
+      pruned[key] = rec.data;
     }
     if (changed) {
-      window.localStorage.setItem(storageKey, JSON.stringify(parsed));
+      window.localStorage.setItem(storageKey, JSON.stringify(pruned));
     }
-    return parsed;
+    return pruned;
   } catch {
     return {};
   }

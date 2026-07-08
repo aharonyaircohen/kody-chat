@@ -17,7 +17,7 @@ const KODY_CHAT_SOURCE = readFileSync(
   "utf8",
 );
 const USE_CHAT_SESSIONS_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/hooks/useChatSessions.ts"),
+  resolve(__dirname, "../../src/dashboard/lib/chat/core/use-chat-sessions.ts"),
   "utf8",
 );
 const SYSTEM_PROMPT_SOURCE = readFileSync(

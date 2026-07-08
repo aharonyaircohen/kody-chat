@@ -1,6 +1,6 @@
 /**
  * Golden-fixture unit tests for chat session persistence
- * (src/dashboard/lib/hooks/useChatSessions.ts + related key builders).
+ * (src/dashboard/lib/chat/core/use-chat-sessions.ts + related key builders).
  *
  * Phase-1 step 0 (finding M1e/f): pin the localStorage schema, the storage
  * key strings, and the migration order so any silent format change fails
@@ -57,7 +57,7 @@ function installStorage(auth?: object): MemStorage {
  */
 async function loadModule() {
   vi.resetModules();
-  return import("@dashboard/lib/hooks/useChatSessions");
+  return import("@dashboard/lib/chat/core/use-chat-sessions");
 }
 
 const AUTH = { owner: "test-owner", repo: "test-repo", token: "t" };
@@ -67,7 +67,9 @@ const LEGACY_KEY = "kody-sessions-v3";
 let errorSpy: ReturnType<typeof vi.spyOn>;
 
 beforeEach(() => {
-  // loadStore logs corrupt-payload errors via console.error — keep output clean.
+  // Corrupt-payload paths are silent since the chat/core move (no-console is
+  // a lint error there); the spy stays as a guard that nothing regresses to
+  // logging in these paths.
   errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
