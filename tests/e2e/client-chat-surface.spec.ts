@@ -1,0 +1,130 @@
+/**
+ * @fileoverview Client chat surface. This route is separate from the dashboard
+ * shell, but the chat itself is still the real KodyChat component.
+ *
+ * @testFramework playwright
+ * @domain e2e-mocked
+ */
+
+import { test, expect, type Page } from "@playwright/test";
+
+const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
+
+async function seedAuth(page: Page): Promise<void> {
+  await page.goto(`${BASE_URL}/login`);
+  await page.waitForLoadState("domcontentloaded");
+  await page.evaluate(() => {
+    const auth = {
+      repoUrl: "https://github.com/test-owner/test-repo",
+      owner: "test-owner",
+      repo: "test-repo",
+      token: "ghp_placeholder",
+      user: { login: "client-chat-e2e", avatar_url: "", id: 1 },
+      loggedInAt: Date.now(),
+    };
+    localStorage.setItem("kody_auth", JSON.stringify(auth));
+    localStorage.setItem(
+      "kody-default-chat-entry:test-owner/test-repo",
+      "kody:gpt-x",
+    );
+    localStorage.removeItem("kody-sessions-v3:test-owner/test-repo");
+    localStorage.removeItem("kody-sessions-v3");
+    localStorage.removeItem("kody-chat:sessions-panel-pinned");
+  });
+}
+
+test.describe("Client chat surface", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route("**/api/kody/models", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          models: [
+            {
+              id: "gpt-x",
+              label: "GPT X",
+              enabled: true,
+              reasoning: {
+                default: "medium",
+                efforts: [
+                  { value: "low", label: "Low" },
+                  { value: "medium", label: "Medium" },
+                  { value: "high", label: "High" },
+                ],
+              },
+            },
+            { id: "claude-y", label: "Claude Y", enabled: true },
+          ],
+        }),
+      }),
+    );
+    await seedAuth(page);
+  });
+
+  test("/client/kody renders one standalone Kody chat", async ({ page }) => {
+    await page.goto(`${BASE_URL}/client/kody`);
+    await page.waitForLoadState("domcontentloaded");
+
+    await expect(
+      page.locator('[data-testid="client-chat-surface"]'),
+    ).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.locator('[data-testid="client-brand-name"]')).toHaveText(
+      "Kody",
+    );
+    await expect(page.locator("aside, nav").first()).toHaveCount(0);
+
+    const chats = page.locator('[aria-label="Kody chat"]');
+    await expect(chats).toHaveCount(1);
+    const chat = chats.first();
+
+    await chat.locator('button[aria-haspopup="listbox"]').first().click();
+    const listbox = page.getByRole("listbox").filter({
+      has: page.getByRole("option", { name: /GPT X|Claude Y|Kody Live/i }),
+    });
+    await expect(
+      listbox.getByRole("option", { name: /Kody Live/i }),
+    ).toBeVisible();
+    await expect(listbox.getByRole("option", { name: /GPT X/i })).toBeVisible();
+    await expect(
+      listbox.getByRole("option", { name: /Claude Y/i }),
+    ).toBeVisible();
+    await listbox.getByRole("option", { name: /GPT X/i }).click();
+
+    await expect(
+      chat.locator('button[title^="Thinking level"]').first(),
+    ).toHaveAttribute("title", /Medium/);
+    await expect(chat.locator("textarea").first()).toBeEditable();
+    await expect(chat.locator('button[title="Bold"]')).toBeVisible();
+    await expect(chat.locator('button[title="Preview"]')).toBeVisible();
+    await expect(chat.getByRole("button", { name: /Terminal/i })).toHaveCount(
+      0,
+    );
+
+    const chatRoot = page.locator('[data-testid="kody-chat-root"]').first();
+    await expect(chatRoot).toBeVisible();
+    await expect(chatRoot).toHaveCSS("border-left-width", "0px");
+    await expect(async () => {
+      const surfaceBox = await page
+        .locator('[data-testid="client-chat-surface"]')
+        .boundingBox();
+      const chatBox = await chatRoot.boundingBox();
+      expect(surfaceBox).not.toBeNull();
+      expect(chatBox).not.toBeNull();
+      expect(Math.round(chatBox!.width)).toBe(Math.round(surfaceBox!.width));
+    }).toPass();
+
+    const sessionSidebar = page.locator('[data-testid="session-sidebar"]');
+    await expect(sessionSidebar).toBeVisible();
+    const panelPin = page.getByRole("button", {
+      name: "Pin conversations panel",
+    });
+    await expect(panelPin).toBeVisible();
+    await panelPin.click();
+    await expect(
+      page.getByRole("button", { name: "Unpin conversations panel" }),
+    ).toBeVisible();
+  });
+});

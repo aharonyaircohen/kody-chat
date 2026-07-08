@@ -204,6 +204,13 @@ export interface KodyChatProps {
    * before the inspector extension can return a live DOM snapshot.
    */
   previewContext?: string | null;
+  /** Where the chat is mounted. `standalone` keeps the client route borderless. */
+  presentation?: "rail" | "standalone";
+  /**
+   * Presentation-only: hide the terminal mode switch for chat-only surfaces.
+   * Admin dashboard chat leaves this unset.
+   */
+  hideTerminalMode?: boolean;
 }
 
 /**

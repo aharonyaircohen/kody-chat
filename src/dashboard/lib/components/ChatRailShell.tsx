@@ -120,9 +120,9 @@ const NOOP_API: ChatRailApi = {
   setPageOwnsHeader: () => {},
 };
 
-// Routes that must NOT render the chat rail (none currently — the rail
-// is gated on `auth` instead, so unauth users see no rail anywhere).
-const PUBLIC_ROUTE_PREFIXES: readonly string[] = [];
+// Routes that must NOT render the dashboard rail. Client chat owns its own
+// full-page shell and must not inherit admin dashboard chrome.
+const PUBLIC_ROUTE_PREFIXES: readonly string[] = ["/client"];
 
 function isPublicRoute(pathname: string | null): boolean {
   if (!pathname) return false;
@@ -133,6 +133,7 @@ function isPublicRoute(pathname: string | null): boolean {
 
 export function ChatRailShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const publicRoute = isPublicRoute(pathname);
   const { auth, loading, setCurrentRepo } = useAuth();
   const { githubUser } = useGitHubIdentity();
   const [scope, setScope] = useState<ChatContext | null>(null);
@@ -158,7 +159,8 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   // dashboard page) so it works from any route — chat is always mounted
   // here. We pass the live goals straight down; the parser resolves the
   // number/slug to a canonical id.
-  const shouldPollChatGoals = shouldPollChatGoalsForRoute(pathname);
+  const shouldPollChatGoals =
+    !publicRoute && shouldPollChatGoalsForRoute(pathname);
   const { data: goalsData } = useGoals({ enabled: shouldPollChatGoals });
   const goals = useMemo(() => goalsData ?? [], [goalsData]);
   const directToGoal = useCallback(
@@ -196,13 +198,16 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
+    if (publicRoute) return;
     if (loading || !auth || !pathname) return;
     const target = legacyRepoRedirectPath(auth, pathname);
     if (!target) return;
     router.replace(`${target}${window.location.search}${window.location.hash}`);
-  }, [auth, loading, pathname, router]);
+  }, [auth, loading, pathname, publicRoute, router]);
 
-  const repoRouteAuthSync = resolveRepoRouteAuthSync(pathname ?? "/", auth);
+  const repoRouteAuthSync = publicRoute
+    ? ({ status: "none" } as const)
+    : resolveRepoRouteAuthSync(pathname ?? "/", auth);
 
   useEffect(() => {
     if (loading || repoRouteAuthSync.status !== "switch") return;
@@ -348,7 +353,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   // user sees the full app shell from the first paint. The chat itself
   // is swapped for a "connect a repo" placeholder below when `auth`
   // is null, since `<KodyChat />` needs a PAT to be useful.
-  const showRail = hydrated && !loading && !isPublicRoute(pathname);
+  const showRail = hydrated && !loading && !publicRoute;
 
   if (!showRail) {
     return (

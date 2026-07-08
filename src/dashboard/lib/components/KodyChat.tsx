@@ -535,6 +535,8 @@ export function KodyChat({
   composerInjection,
   attachmentInjection,
   previewContext,
+  presentation = "rail",
+  hideTerminalMode,
 }: KodyChatProps) {
   const router = useRouter();
   // Current route — drives the page-aware composer placeholder AND tells the
@@ -5286,6 +5288,7 @@ export function KodyChat({
   // the same interactive session model, so they share this UI state.
   const isKodyLive =
     selectedAgentId === "kody-live" || selectedAgentId === "kody-live-fly";
+  const standalonePresentation = presentation === "standalone";
 
   // The composer's primary button switches role for Kody Live agents based
   // on whether there's input AND the current session state:
@@ -5341,7 +5344,7 @@ export function KodyChat({
               : genericPlaceholder;
 
   const chatModeToggle =
-    !lockedAgentId && !vibeMode ? (
+    !hideTerminalMode && !lockedAgentId && !vibeMode ? (
       <div
         className={`inline-flex items-center rounded-md border p-0.5 ${
           chatMode === "terminal"
@@ -5552,7 +5555,10 @@ export function KodyChat({
 
   return (
     <div
-      className="relative flex h-full overflow-hidden md:border-l bg-background"
+      data-testid="kody-chat-root"
+      className={`relative flex h-full overflow-hidden bg-background ${
+        standalonePresentation ? "" : "md:border-l"
+      }`}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
@@ -5601,7 +5607,11 @@ export function KodyChat({
           className={
             railFullscreen
               ? "relative z-10 w-80 min-w-0 max-w-full basis-80 shrink shadow-none"
-              : "absolute left-0 top-0 bottom-0 w-full sm:w-72 z-50 shadow-lg"
+              : `absolute left-0 top-0 bottom-0 w-full sm:w-72 z-50 ${
+                  standalonePresentation
+                    ? "border-r-0 shadow-none"
+                    : "shadow-lg"
+                }`
           }
         />
       )}
@@ -6598,9 +6608,7 @@ export function KodyChat({
               hairline separates input from action rows. */}
             <div
               className={`flex items-center gap-2 ${
-                chatMode === "terminal"
-                  ? "border-b border-border/40 pb-2"
-                  : ""
+                chatMode === "terminal" ? "border-b border-border/40 pb-2" : ""
               }`}
             >
               <div className="flex-1 relative">
@@ -6772,7 +6780,8 @@ export function KodyChat({
                 const title =
                   chatMode === "terminal"
                     ? terminalSendDisabled
-                      ? (activeTerminalChrome?.inputLabel ?? "Input unavailable")
+                      ? (activeTerminalChrome?.inputLabel ??
+                        "Input unavailable")
                       : terminalSendBusy
                         ? "Sending command"
                         : "Send command"

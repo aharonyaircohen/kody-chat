@@ -113,6 +113,7 @@ export function SessionSidebar({
 
   return (
     <div
+      data-testid="session-sidebar"
       className={cn("flex flex-col h-full bg-background border-r", className)}
     >
       {/* Header */}
