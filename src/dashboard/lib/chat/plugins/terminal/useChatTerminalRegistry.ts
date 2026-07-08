@@ -1,25 +1,63 @@
 /**
  * @fileType hook
- * @domain terminal
+ * @domain chat-plugin-terminal
  * @pattern chat-terminal-registry
  *
  * Per-chat terminal UI registry. Chat sessions own their terminal mode,
  * mounted terminal surface, selected transport, and connection state.
+ * All state rules live in registry-state.ts (pure, behavior-tested);
+ * this hook is the React wiring: state, persistence effects, and the
+ * Fly-inventory / status polling loops (polling cadence ≥ 15s — see
+ * tests/unit/rate-limit-polling.spec.ts).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { SessionMeta } from "../chat-types";
+import type { SessionMeta } from "../../../chat-types";
+import { authHeaders } from "../../core/kody-chat-live-session";
+import type { FlyMachineRow } from "../../../runners/fly-machine-model";
+import {
+  FLY_MACHINES_REFRESH_EVENT,
+  LOCAL_TERMINAL_TRANSPORT,
+  canUseChatTerminalFlyMachine,
+  chatTerminalInstanceId,
+  chatTerminalTransportKey,
+  chatTerminalTransportsEqual,
+  loadPersistedTerminalRegistry,
+  localTerminalStatusPath,
+  mountedChatTerminalListsEqual,
+  normalizeTerminalTransport,
+  pruneInstanceKeyedRecord,
+  pruneMountedChatTerminals,
+  pruneSessionKeyedRecord,
+  reconcileMountedChatTerminalsWithInventory,
+  remoteTerminalStatusRequest,
+  resolveTerminalTargetSelection,
+  savePersistedTerminalRegistry,
+  terminalRegistryStorageKey,
+  terminalTargetValue,
+  upsertMountedChatTerminal,
+} from "./registry-state";
 import type {
   ChatTerminalConnectionState,
+  ChatTerminalMode,
   ChatTerminalTransport,
-} from "../components/ChatTerminalSurface";
-import { authHeaders } from "../chat/core/kody-chat-live-session";
-import {
-  isFlyTerminalCapable,
-  type FlyMachineRow,
-} from "../runners/fly-machine-model";
+  MountedChatTerminal,
+} from "./types";
 
-export type ChatTerminalMode = "ai" | "terminal";
+export type { ChatTerminalMode, MountedChatTerminal } from "./types";
+export {
+  BRAIN_TERMINAL_TRANSPORT,
+  LOCAL_TERMINAL_TRANSPORT,
+  canUseChatTerminalFlyMachine,
+  findMountedBrainTerminal,
+  isBrainTerminalTransport,
+  normalizeMountedChatTerminals,
+  normalizeTerminalTransport,
+  reconcileMountedChatTerminalsWithInventory,
+  terminalFlyMachineKey,
+  terminalMachineIdShort,
+  upsertMountedChatTerminal,
+} from "./registry-state";
 
 interface TerminalFlyInventory {
   machines: FlyMachineRow[];
@@ -31,334 +69,6 @@ interface UseChatTerminalRegistryOptions {
   sessions: SessionMeta[];
   sessionsHydrated?: boolean;
   storageScope?: string;
-}
-
-export interface MountedChatTerminal {
-  id: string;
-  sessionId: string;
-  transport: ChatTerminalTransport;
-}
-
-export function isBrainTerminalTransport(
-  transport: ChatTerminalTransport,
-): boolean {
-  return (
-    transport.type === "brain" ||
-    (transport.type === "fly" && transport.feature === "brain")
-  );
-}
-
-export function findMountedBrainTerminal(
-  terminals: MountedChatTerminal[],
-): MountedChatTerminal | null {
-  for (let index = terminals.length - 1; index >= 0; index -= 1) {
-    if (isBrainTerminalTransport(terminals[index].transport)) {
-      return terminals[index];
-    }
-  }
-  return null;
-}
-
-export function normalizeMountedChatTerminals(
-  terminals: MountedChatTerminal[],
-): MountedChatTerminal[] {
-  const supported = terminals.flatMap((terminal): MountedChatTerminal[] => {
-    if (isBrainTerminalTransport(terminal.transport)) {
-      const transport = BRAIN_TERMINAL_TRANSPORT;
-      return [
-        {
-          ...terminal,
-          id: `${terminal.sessionId}::${chatTerminalTransportKey(transport)}`,
-          transport,
-        },
-      ];
-    }
-    if (terminal.transport.type !== "local") return [];
-    const transport = terminal.transport.label
-      ? ({ type: "local", label: terminal.transport.label } as const)
-      : ({ type: "local" } as const);
-    return [
-      {
-        ...terminal,
-        id: `${terminal.sessionId}::${chatTerminalTransportKey(transport)}`,
-        transport,
-      },
-    ];
-  });
-  return supported;
-}
-
-function chatTerminalTransportsEqual(
-  first: ChatTerminalTransport,
-  second: ChatTerminalTransport,
-): boolean {
-  if (first.type !== second.type) return false;
-  if (first.type === "local" && second.type === "local") {
-    return first.label === second.label;
-  }
-  if (first.type === "brain" && second.type === "brain") {
-    return true;
-  }
-  if (first.type === "fly" && second.type === "fly") {
-    return (
-      first.app === second.app &&
-      first.machineId === second.machineId &&
-      first.feature === second.feature &&
-      first.label === second.label
-    );
-  }
-  return false;
-}
-
-function mountedChatTerminalsEqual(
-  first: MountedChatTerminal,
-  second: MountedChatTerminal,
-): boolean {
-  return (
-    first.id === second.id &&
-    first.sessionId === second.sessionId &&
-    chatTerminalTransportsEqual(first.transport, second.transport)
-  );
-}
-
-function mountedChatTerminalListsEqual(
-  first: MountedChatTerminal[],
-  second: MountedChatTerminal[],
-): boolean {
-  return (
-    first.length === second.length &&
-    first.every((terminal, index) =>
-      mountedChatTerminalsEqual(terminal, second[index]),
-    )
-  );
-}
-
-export function upsertMountedChatTerminal(
-  terminals: MountedChatTerminal[],
-  nextTerminal: MountedChatTerminal,
-): MountedChatTerminal[] {
-  const [normalizedNext] = normalizeMountedChatTerminals([nextTerminal]);
-  if (!normalizedNext) return terminals;
-  const existingIndex = terminals.findIndex(
-    (terminal) => terminal.id === normalizedNext.id,
-  );
-  if (existingIndex === -1) {
-    return normalizeMountedChatTerminals([...terminals, normalizedNext]);
-  }
-  if (mountedChatTerminalsEqual(terminals[existingIndex], normalizedNext)) {
-    return terminals;
-  }
-  return normalizeMountedChatTerminals(
-    terminals.map((terminal, index) =>
-      index === existingIndex ? normalizedNext : terminal,
-    ),
-  );
-}
-
-export const LOCAL_TERMINAL_TRANSPORT: ChatTerminalTransport = {
-  type: "local",
-};
-export const BRAIN_TERMINAL_TRANSPORT: ChatTerminalTransport = {
-  type: "brain",
-  label: "Brain terminal",
-};
-
-const TERMINAL_REGISTRY_STORAGE_KEY_BASE = "kody-chat-terminal-v1";
-const TERMINAL_REGISTRY_FALLBACK_KEY = "kody-chat-terminal-v1";
-const lastKnownTerminalStorageKey = new Map<string, string>();
-
-interface PersistedTerminalRegistryState {
-  version: 1;
-  modeBySessionId?: Record<string, ChatTerminalMode>;
-  mountedTerminals?: MountedChatTerminal[];
-  transportBySessionId?: Record<string, ChatTerminalTransport>;
-}
-
-function terminalRegistryStorageKey(scope: string): string {
-  const base =
-    scope === "global"
-      ? TERMINAL_REGISTRY_STORAGE_KEY_BASE
-      : `${TERMINAL_REGISTRY_STORAGE_KEY_BASE}-${scope}`;
-  if (typeof window === "undefined") return TERMINAL_REGISTRY_FALLBACK_KEY;
-  const fallback = () => lastKnownTerminalStorageKey.get(scope) ?? base;
-  try {
-    const raw = window.localStorage.getItem("kody_auth");
-    if (!raw) return fallback();
-    const auth = JSON.parse(raw) as { owner?: string; repo?: string };
-    if (!auth.owner || !auth.repo) return fallback();
-    const key = `${base}:${auth.owner.toLowerCase()}/${auth.repo.toLowerCase()}`;
-    lastKnownTerminalStorageKey.set(scope, key);
-    return key;
-  } catch {
-    return fallback();
-  }
-}
-
-function isTransport(value: unknown): value is ChatTerminalTransport {
-  if (!value || typeof value !== "object") return false;
-  const transport = value as Partial<ChatTerminalTransport>;
-  if (transport.type === "local") {
-    return transport.label === undefined || typeof transport.label === "string";
-  }
-  if (transport.type === "brain") {
-    return transport.label === undefined || typeof transport.label === "string";
-  }
-  return (
-    transport.type === "fly" &&
-    typeof transport.app === "string" &&
-    typeof transport.machineId === "string" &&
-    (transport.feature === undefined ||
-      transport.feature === "runner" ||
-      transport.feature === "brain")
-  );
-}
-
-function loadPersistedTerminalRegistry(
-  storageKey: string,
-): Required<PersistedTerminalRegistryState> {
-  const fallback: Required<PersistedTerminalRegistryState> = {
-    version: 1,
-    modeBySessionId: {},
-    mountedTerminals: [],
-    transportBySessionId: {},
-  };
-  if (typeof window === "undefined") return fallback;
-  try {
-    const raw = window.localStorage.getItem(storageKey);
-    if (!raw) return fallback;
-    const parsed = JSON.parse(raw) as PersistedTerminalRegistryState;
-    if (parsed.version !== 1) return fallback;
-
-    const transportBySessionId: Record<string, ChatTerminalTransport> = {};
-    for (const [sessionId, transport] of Object.entries(
-      parsed.transportBySessionId ?? {},
-    )) {
-      if (isTransport(transport)) transportBySessionId[sessionId] = transport;
-    }
-
-    const mountedTerminals = normalizeMountedChatTerminals(
-      (parsed.mountedTerminals ?? []).filter(
-        (terminal) =>
-          typeof terminal.id === "string" &&
-          typeof terminal.sessionId === "string" &&
-          isTransport(terminal.transport),
-      ),
-    );
-
-    return {
-      version: 1,
-      modeBySessionId: parsed.modeBySessionId ?? {},
-      mountedTerminals,
-      transportBySessionId,
-    };
-  } catch {
-    return fallback;
-  }
-}
-
-function savePersistedTerminalRegistry(
-  storageKey: string,
-  state: PersistedTerminalRegistryState,
-): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(storageKey, JSON.stringify(state));
-  } catch {
-    /* localStorage is best-effort UI persistence */
-  }
-}
-
-export function canUseChatTerminalFlyMachine(machine: FlyMachineRow): boolean {
-  return isFlyTerminalCapable(machine.feature);
-}
-
-export function terminalFlyMachineKey(machine: {
-  app: string;
-  machineId: string;
-}): string {
-  return `${machine.app}:${machine.machineId}`;
-}
-
-export function terminalMachineIdShort(machineId: string): string {
-  return machineId.length > 12 ? `${machineId.slice(0, 12)}...` : machineId;
-}
-
-function chatTerminalTransportFromMachine(
-  machine: FlyMachineRow,
-): ChatTerminalTransport {
-  if (machine.feature === "brain") return BRAIN_TERMINAL_TRANSPORT;
-  const transport: ChatTerminalTransport = {
-    type: "fly",
-    app: machine.app,
-    machineId: machine.machineId,
-    label: machine.label,
-  };
-  if (machine.feature === "runner") {
-    transport.feature = machine.feature;
-  }
-  return transport;
-}
-
-export function normalizeTerminalTransport(
-  transport: ChatTerminalTransport,
-  terminalMachines: FlyMachineRow[],
-  _options: { inventoryLoaded?: boolean } = {},
-): ChatTerminalTransport {
-  if (transport.type !== "fly") {
-    if (transport.type === "brain") return BRAIN_TERMINAL_TRANSPORT;
-    return transport.label
-      ? { type: "local", label: transport.label }
-      : LOCAL_TERMINAL_TRANSPORT;
-  }
-  if (transport.feature === "brain") return BRAIN_TERMINAL_TRANSPORT;
-
-  const machine = terminalMachines.find(
-    (candidate) =>
-      candidate.app === transport.app &&
-      candidate.machineId === transport.machineId,
-  );
-  if (machine) {
-    return chatTerminalTransportFromMachine(machine);
-  }
-  return LOCAL_TERMINAL_TRANSPORT;
-}
-
-function chatTerminalTransportKey(transport: ChatTerminalTransport): string {
-  if (transport.type === "brain") return "brain";
-  if (transport.type === "fly")
-    return `fly:${transport.app}:${transport.machineId}`;
-  return "local";
-}
-
-function chatTerminalInstanceId(
-  sessionId: string,
-  transport: ChatTerminalTransport,
-): string {
-  return `${sessionId}::${chatTerminalTransportKey(transport)}`;
-}
-
-export function reconcileMountedChatTerminalsWithInventory(
-  terminals: MountedChatTerminal[],
-  terminalMachines: FlyMachineRow[],
-  options: { inventoryLoaded?: boolean } = {},
-): MountedChatTerminal[] {
-  return normalizeMountedChatTerminals(
-    terminals.map((terminal) => {
-      const transport = normalizeTerminalTransport(
-        terminal.transport,
-        terminalMachines,
-        options,
-      );
-      const id = chatTerminalInstanceId(terminal.sessionId, transport);
-      if (
-        terminal.id === id &&
-        chatTerminalTransportsEqual(terminal.transport, transport)
-      ) {
-        return terminal;
-      }
-      return { ...terminal, id, transport };
-    }),
-  );
 }
 
 export function useChatTerminalRegistry({
@@ -432,12 +142,7 @@ export function useChatTerminalRegistry({
   const activeInstanceId = activeSessionId
     ? chatTerminalInstanceId(activeSessionId, activeTransport)
     : null;
-  const activeTargetValue =
-    activeTransport.type === "brain"
-      ? "brain"
-      : activeTransport.type === "fly"
-      ? terminalFlyMachineKey(activeTransport)
-      : "local";
+  const activeTargetValue = terminalTargetValue(activeTransport);
   const activeConnectionState = activeSessionId
     ? (connectionStateByInstanceId[activeInstanceId ?? ""] ?? "idle")
     : "idle";
@@ -477,52 +182,18 @@ export function useChatTerminalRegistry({
 
     const knownSessionIds = new Set(sessions.map((session) => session.id));
 
-    setMountedTerminals((prev) => {
-      const next = prev.filter((terminal) =>
-        knownSessionIds.has(terminal.sessionId),
-      );
-      return next.length === prev.length ? prev : next;
-    });
-
-    setModeBySessionId((prev) => {
-      let changed = false;
-      const next: Record<string, ChatTerminalMode> = {};
-      for (const [sessionId, mode] of Object.entries(prev)) {
-        if (knownSessionIds.has(sessionId)) {
-          next[sessionId] = mode;
-        } else {
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-
-    setTransportBySessionId((prev) => {
-      let changed = false;
-      const next: Record<string, ChatTerminalTransport> = {};
-      for (const [sessionId, transport] of Object.entries(prev)) {
-        if (knownSessionIds.has(sessionId)) {
-          next[sessionId] = transport;
-        } else {
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
-
-    setConnectionStateByInstanceId((prev) => {
-      let changed = false;
-      const next: Record<string, ChatTerminalConnectionState> = {};
-      for (const [instanceId, state] of Object.entries(prev)) {
-        const sessionId = instanceId.split("::")[0];
-        if (knownSessionIds.has(sessionId)) {
-          next[instanceId] = state;
-        } else {
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
+    setMountedTerminals((prev) =>
+      pruneMountedChatTerminals(prev, knownSessionIds),
+    );
+    setModeBySessionId((prev) =>
+      pruneSessionKeyedRecord(prev, knownSessionIds),
+    );
+    setTransportBySessionId((prev) =>
+      pruneSessionKeyedRecord(prev, knownSessionIds),
+    );
+    setConnectionStateByInstanceId((prev) =>
+      pruneInstanceKeyedRecord(prev, knownSessionIds),
+    );
   }, [sessions, sessionsHydrated]);
 
   useEffect(() => {
@@ -600,9 +271,9 @@ export function useChatTerminalRegistry({
 
   useEffect(() => {
     const refresh = () => void refreshFlyMachines();
-    window.addEventListener("kody:fly-machines-refresh", refresh);
+    window.addEventListener(FLY_MACHINES_REFRESH_EVENT, refresh);
     return () =>
-      window.removeEventListener("kody:fly-machines-refresh", refresh);
+      window.removeEventListener(FLY_MACHINES_REFRESH_EVENT, refresh);
   }, [refreshFlyMachines]);
 
   useEffect(() => {
@@ -665,19 +336,12 @@ export function useChatTerminalRegistry({
 
   const selectTarget = useCallback(
     (value: string) => {
-      if (value === "local") {
-        setActiveTransport(LOCAL_TERMINAL_TRANSPORT);
-        return;
-      }
-      if (value === "brain") {
-        setActiveTransport(BRAIN_TERMINAL_TRANSPORT);
-        return;
-      }
-      const machine = terminalMachines.find(
-        (candidate) => terminalFlyMachineKey(candidate) === value,
+      const transport = resolveTerminalTargetSelection(
+        value,
+        terminalMachines,
       );
-      if (!machine) return;
-      setActiveTransport(chatTerminalTransportFromMachine(machine));
+      if (!transport) return;
+      setActiveTransport(transport);
     },
     [setActiveTransport, terminalMachines],
   );
@@ -723,14 +387,10 @@ export function useChatTerminalRegistry({
       await Promise.all(
         localTerminals.map(async (terminal) => {
           if (terminal.transport.type !== "local") return;
-          const params = new URLSearchParams({
-            chatSessionId: activeSessionId,
-          });
           try {
-            const res = await fetch(
-              `/api/kody/chat/terminal/status?${params}`,
-              { headers },
-            );
+            const res = await fetch(localTerminalStatusPath(activeSessionId), {
+              headers,
+            });
             if (!res.ok) return;
             const body = (await res.json().catch(() => ({}))) as {
               session?: { alive?: boolean } | null;
@@ -781,18 +441,10 @@ export function useChatTerminalRegistry({
           ) {
             return;
           }
-          const statusRequest =
-            terminal.transport.type === "brain"
-              ? {
-                  target: "brain",
-                  chatSessionId: activeSessionId,
-                }
-              : {
-                  app: terminal.transport.app,
-                  machineId: terminal.transport.machineId,
-                  feature: terminal.transport.feature,
-                  chatSessionId: activeSessionId,
-                };
+          const statusRequest = remoteTerminalStatusRequest(
+            terminal.transport,
+            activeSessionId,
+          );
           try {
             const res = await fetch("/api/kody/terminal/status", {
               method: "POST",

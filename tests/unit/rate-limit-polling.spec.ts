@@ -12,13 +12,15 @@ describe("rate limit polling guardrails", () => {
       source("src/dashboard/lib/components/FlyPreviewsList.tsx"),
     ).toContain("const REFRESH_MS = 60_000");
     expect(
-      source("src/dashboard/lib/components/KodyChat.tsx"),
+      source("src/dashboard/lib/chat/plugins/terminal/TerminalControls.tsx"),
     ).toContain("const BRAIN_IMAGE_SAVE_POLL_INTERVAL_MS = 10_000");
     expect(
       source("src/dashboard/lib/components/BrainImagesManager.tsx"),
     ).toContain("/api/kody/brain/image?jobId=");
     expect(
-      source("src/dashboard/lib/hooks/useChatTerminalRegistry.ts"),
+      source(
+        "src/dashboard/lib/chat/plugins/terminal/useChatTerminalRegistry.ts",
+      ),
     ).toContain("setInterval(() => void refreshStatus(), 60_000)");
     expect(source("src/dashboard/lib/hooks/useAgencyRuns.ts")).toContain(
       "const AGENCY_RUNS_REFETCH_MS = 120_000",

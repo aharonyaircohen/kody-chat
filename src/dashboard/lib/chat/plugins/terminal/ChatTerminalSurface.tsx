@@ -1,9 +1,12 @@
 /**
  * @fileType component
- * @domain terminal
+ * @domain chat-plugin-terminal
  * @pattern chat-terminal-surface
  *
- * xterm-backed terminal surface for KodyChat Terminal mode.
+ * xterm-backed terminal surface for KodyChat Terminal mode. The remote
+ * (Fly/Brain) connection engine lives in fly-connection.ts; pure text
+ * helpers in terminal-text.ts (Step 5a split — the component keeps the
+ * xterm lifecycle, the local pty session, and input routing).
  */
 "use client";
 
@@ -20,12 +23,46 @@ import type { FitAddon as XTermFitAddon } from "@xterm/addon-fit";
 import type { Terminal as XTerm } from "@xterm/xterm";
 import { toast } from "sonner";
 
-import { getStoredBrainTerminalActivityLimit } from "../api";
+import { authHeaders } from "../../core/kody-chat-live-session";
 import {
-  parseTerminalBridgeServerMessage,
-  type TerminalBridgeClientMessage,
-} from "../terminal/bridge-protocol";
-import { authHeaders } from "../chat/core/kody-chat-live-session";
+  connectFly,
+  disconnectFly,
+  clearPendingFlyInputAck,
+  clearScheduledFlyReconnect,
+  fetchWithTimeout,
+  isRemoteTerminalTransport,
+  scheduleFlyReconnect,
+  transportKey,
+  updateFlyConnectionState,
+  waitForFlyInputAck,
+  LOCAL_OUTPUT_READ_TIMEOUT_MS,
+  LOCAL_OUTPUT_WAIT_MS,
+  TERMINAL_INPUT_TIMEOUT_MS,
+  TERMINAL_RESIZE_TIMEOUT_MS,
+  TERMINAL_START_TIMEOUT_MS,
+  TERMINAL_STOP_TIMEOUT_MS,
+  type FlyConnectionDeps,
+} from "./fly-connection";
+import {
+  cleanTerminalText,
+  MAX_CAPTURE_CHARS,
+  usefulCapturedOutput,
+} from "./terminal-text";
+import { mountChatTerminal } from "./xterm-setup";
+import type {
+  ChatTerminalChromeState,
+  ChatTerminalConnectionState,
+  ChatTerminalSnapshot,
+  ChatTerminalTransport,
+  TerminalInputSignal,
+} from "./types";
+
+export type {
+  ChatTerminalChromeState,
+  ChatTerminalConnectionState,
+  ChatTerminalSnapshot,
+  ChatTerminalTransport,
+} from "./types";
 
 interface TerminalSessionState {
   sessionId: string;
@@ -33,31 +70,6 @@ interface TerminalSessionState {
   shell: string;
   cursor: number;
   alive: boolean;
-}
-
-export type ChatTerminalTransport =
-  | { type: "local"; label?: string }
-  | { type: "brain"; label?: string }
-  | {
-      type: "fly";
-      app: string;
-      machineId: string;
-      label?: string;
-      feature?: "runner" | "brain";
-    };
-
-export type ChatTerminalConnectionState =
-  | "idle"
-  | "connecting"
-  | "restoring"
-  | "connected"
-  | "closed"
-  | "error";
-
-export interface ChatTerminalSnapshot {
-  cwd?: string;
-  shell?: string;
-  output: string;
 }
 
 type TerminalOutputEvent =
@@ -74,18 +86,6 @@ type TerminalOutputEvent =
       signal?: number;
       at: string;
     };
-
-type TerminalInputSignal = {
-  tone: "idle" | "ready" | "sent" | "queued" | "blocked";
-  label: string;
-};
-
-export interface ChatTerminalChromeState {
-  statusText: string;
-  inputLabel: string;
-  inputTone: TerminalInputSignal["tone"];
-  actionBusy: boolean;
-}
 
 interface ChatTerminalSurfaceProps {
   active: boolean;
@@ -109,98 +109,6 @@ export interface ChatTerminalSurfaceHandle {
   focus: () => void;
   getSnapshot: () => ChatTerminalSnapshot;
   restoreSnapshot: (snapshot: { name: string; output?: string }) => void;
-}
-
-const MAX_CAPTURE_CHARS = 16_000;
-const MAX_CAPTURE_LINES = 160;
-const TERMINAL_RESIZE_TIMEOUT_MS = 3_000;
-const TERMINAL_INPUT_TIMEOUT_MS = 8_000;
-const TERMINAL_STOP_TIMEOUT_MS = 8_000;
-const LOCAL_OUTPUT_WAIT_MS = 1_500;
-const LOCAL_OUTPUT_READ_TIMEOUT_MS = 5_000;
-const TERMINAL_START_TIMEOUT_MS = 20_000;
-const FLY_CONNECT_TIMEOUT_MS = 75_000;
-const FLY_RECONNECT_DELAY_MS = 750;
-
-function fetchWithTimeout(
-  input: RequestInfo | URL,
-  init: RequestInit,
-  timeoutMs: number,
-): Promise<Response> {
-  const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
-  return fetch(input, { ...init, signal: controller.signal }).finally(() =>
-    window.clearTimeout(timeout),
-  );
-}
-
-function isRemoteTerminalTransport(
-  transport: ChatTerminalTransport,
-): transport is Exclude<ChatTerminalTransport, { type: "local" }> {
-  return transport.type === "fly" || transport.type === "brain";
-}
-
-function transportKey(transport: ChatTerminalTransport): string {
-  if (transport.type === "brain") return "brain";
-  if (transport.type === "fly")
-    return `fly:${transport.app}:${transport.machineId}`;
-  return "local";
-}
-
-function stripTerminalSequences(value: string): string {
-  return value
-    .replace(/\x1B\][^\x07]*(?:\x07|\x1B\\)/g, "")
-    .replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "")
-    .replace(/\x1B[@-Z\\-_]/g, "");
-}
-
-function cleanTerminalText(value: string): string {
-  const stripped = stripTerminalSequences(value)
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n");
-  let output = "";
-  for (const char of stripped) {
-    if (char === "\b" || char === "\x7f") {
-      output = output.slice(0, -1);
-      continue;
-    }
-    if (char === "\n" || char === "\t" || char >= " ") {
-      output += char;
-    }
-  }
-  return output;
-}
-
-function usefulCapturedOutput(value: string): string {
-  const lines = cleanTerminalText(value)
-    .split("\n")
-    .map((line) => line.trimEnd())
-    .filter((line) => line.trim().length > 0);
-  const tail = lines.slice(-MAX_CAPTURE_LINES).join("\n").trim();
-  return tail.length > MAX_CAPTURE_CHARS
-    ? tail.slice(tail.length - MAX_CAPTURE_CHARS).trimStart()
-    : tail;
-}
-
-function shortBrainImageLabel(imageRef?: string | null): string {
-  if (!imageRef) return "none";
-  const tag = imageRef.split(":").pop();
-  if (tag && tag !== imageRef) return tag;
-  return imageRef.split("/").pop() ?? imageRef;
-}
-
-function wheelDeltaToTerminalLines(
-  event: WheelEvent,
-  viewportRows: number,
-): number {
-  if (event.deltaY === 0) return 0;
-  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
-    return Math.max(1, viewportRows - 1);
-  }
-  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
-    return Math.max(1, Math.ceil(Math.abs(event.deltaY)));
-  }
-  return Math.max(1, Math.ceil(Math.abs(event.deltaY) / 24));
 }
 
 export const ChatTerminalSurface = forwardRef<
@@ -243,9 +151,6 @@ export const ChatTerminalSurface = forwardRef<
   const sessionEndNotifiedRef = useRef(false);
   const pollBusyRef = useRef(false);
   const stopRef = useRef<() => Promise<void>>(async () => {});
-  const reconnectFlyRef = useRef<
-    (opts?: { force?: boolean; resetSession?: boolean }) => void
-  >(() => {});
   const onConnectionStateChangeRef = useRef(onConnectionStateChange);
   const onSessionEndedRef = useRef(onSessionEnded);
   const [ready, setReady] = useState(false);
@@ -302,35 +207,6 @@ export const ChatTerminalSurface = forwardRef<
     );
   }, []);
 
-  const updateFlyConnectionState = useCallback(
-    (state: ChatTerminalConnectionState) => {
-      flyConnectionStateRef.current = state;
-      setFlyConnectionState(state);
-      notifyConnectionState(state);
-      if (state === "connected") {
-        setInputSignal({ tone: "ready", label: "Ready for input" });
-      } else if (state === "restoring") {
-        setInputSignal({ tone: "blocked", label: "Restoring terminal" });
-      } else if (state === "connecting") {
-        setInputSignal({ tone: "blocked", label: "Waiting for terminal" });
-      } else if (state === "closed" || state === "error") {
-        if (pendingFlyInputAckTimerRef.current !== null) {
-          window.clearTimeout(pendingFlyInputAckTimerRef.current);
-          pendingFlyInputAckTimerRef.current = null;
-        }
-        setInputSignal({ tone: "blocked", label: "Input blocked" });
-      }
-    },
-    [notifyConnectionState],
-  );
-
-  const clearScheduledFlyReconnect = useCallback(() => {
-    if (flyReconnectTimerRef.current !== null) {
-      window.clearTimeout(flyReconnectTimerRef.current);
-      flyReconnectTimerRef.current = null;
-    }
-  }, []);
-
   const setInputSignalBriefly = useCallback(
     (signal: TerminalInputSignal, fallback?: TerminalInputSignal) => {
       if (inputSignalTimerRef.current !== null) {
@@ -353,13 +229,6 @@ export const ChatTerminalSurface = forwardRef<
     },
     [],
   );
-
-  const clearPendingFlyInputAck = useCallback(() => {
-    if (pendingFlyInputAckTimerRef.current !== null) {
-      window.clearTimeout(pendingFlyInputAckTimerRef.current);
-      pendingFlyInputAckTimerRef.current = null;
-    }
-  }, []);
 
   const clearScheduledTerminalSelection = useCallback(() => {
     if (terminalSelectionClearTimerRef.current !== null) {
@@ -384,85 +253,73 @@ export const ChatTerminalSurface = forwardRef<
     [clearScheduledTerminalSelection],
   );
 
-  const scheduleFlyReconnect = useCallback(
-    (reason = "Terminal connection interrupted; reconnecting.") => {
-      if (
-        disposedRef.current ||
-        !isRemoteTerminalTransport(transportRef.current)
-      ) {
-        return;
-      }
-      const ws = flySocketRef.current;
-      flySocketRef.current = null;
-      clearPendingFlyInputAck();
-      setError(null);
-      updateFlyConnectionState("connecting");
-      setInputSignal({ tone: "blocked", label: "Reconnecting terminal" });
-      if (!flyReconnectNoticeRef.current) {
-        terminalRef.current?.writeln(`\r\n\x1b[33m${reason}\x1b[0m`);
-        flyReconnectNoticeRef.current = true;
-      }
-      try {
-        ws?.close(4001, reason);
-      } catch {}
-      clearScheduledFlyReconnect();
-      flyReconnectTimerRef.current = window.setTimeout(() => {
-        flyReconnectTimerRef.current = null;
-        flyReconnectNoticeRef.current = false;
-        reconnectFlyRef.current({ force: true, resetSession: false });
-      }, FLY_RECONNECT_DELAY_MS);
-    },
-    [
-      clearPendingFlyInputAck,
-      clearScheduledFlyReconnect,
-      updateFlyConnectionState,
-    ],
+  const getTerminalSnapshot = useCallback(
+    (): ChatTerminalSnapshot => ({
+      cwd: sessionRef.current?.cwd,
+      shell: sessionRef.current?.shell,
+      output: usefulCapturedOutput(outputCaptureRef.current),
+    }),
+    [],
   );
 
-  const waitForFlyInputAck = useCallback(
-    (inputId: number) => {
-      clearPendingFlyInputAck();
-      setInputSignal({ tone: "queued", label: "Sending input" });
-      pendingFlyInputAckTimerRef.current = window.setTimeout(() => {
-        pendingFlyInputAckTimerRef.current = null;
-        setError("Terminal input stalled; reconnecting.");
-        setInputSignal({ tone: "blocked", label: "Input blocked" });
-        const ws = flySocketRef.current;
-        flySocketRef.current = null;
-        updateFlyConnectionState("connecting");
-        ws?.close(4000, "terminal input acknowledgement timed out");
-        reconnectFlyRef.current({ force: true, resetSession: false });
-      }, TERMINAL_INPUT_TIMEOUT_MS);
-      return inputId;
-    },
-    [clearPendingFlyInputAck, updateFlyConnectionState],
+  const notifyTerminalSessionEnded = useCallback(() => {
+    if (sessionEndNotifiedRef.current) return;
+    sessionEndNotifiedRef.current = true;
+    const snapshot = getTerminalSnapshot();
+    if (!snapshot.output.trim()) return;
+    onSessionEndedRef.current?.(snapshot);
+  }, [getTerminalSnapshot]);
+
+  // Fly/Brain connection engine deps — rebuilt every render so async engine
+  // callbacks (socket handlers, timers) always read live state through the
+  // ref, exactly like the pre-split in-component closures.
+  const flyDepsRef = useRef<FlyConnectionDeps>(
+    null as unknown as FlyConnectionDeps,
+  );
+  flyDepsRef.current = {
+    chatSessionId,
+    terminalRef,
+    fitAddonRef,
+    transportRef,
+    disposedRef,
+    sessionEndNotifiedRef,
+    flySocketRef,
+    flyConnectionStateRef,
+    flyTargetKeyRef,
+    flyConnectSeqRef,
+    flyConnectInFlightKeyRef,
+    flyConnectFailureKeyRef,
+    flyReconnectTimerRef,
+    flyReconnectNoticeRef,
+    pendingFlyInputAckTimerRef,
+    setFlyConnectionState,
+    notifyConnectionState,
+    setError,
+    setInputSignal,
+    setInputSignalBriefly,
+    appendCapturedOutput,
+    notifyTerminalSessionEnded,
+  };
+
+  const connectFlyTerminal = useCallback(
+    (opts?: { force?: boolean; resetSession?: boolean }) =>
+      connectFly(flyDepsRef, opts),
+    [],
   );
 
-  const acknowledgeFlyInput = useCallback(
-    (accepted: boolean, message?: string) => {
-      clearPendingFlyInputAck();
-      if (accepted) {
-        setInputSignalBriefly({ tone: "sent", label: "Input sent" });
-        return;
-      }
-      const text = message ?? "Terminal input was not accepted.";
-      setError(text);
-      setInputSignal({ tone: "blocked", label: "Input blocked" });
-      terminalRef.current?.writeln(`\r\n\x1b[31m${text}\x1b[0m`);
-    },
-    [clearPendingFlyInputAck, setInputSignalBriefly],
-  );
+  const disconnectFlyTerminal = useCallback(() => {
+    disconnectFly(flyDepsRef);
+  }, []);
+
+  const scheduleFlyTerminalReconnect = useCallback((reason?: string) => {
+    scheduleFlyReconnect(flyDepsRef, reason);
+  }, []);
 
   const sendResize = useCallback((cols: number, rows: number) => {
     if (isRemoteTerminalTransport(transportRef.current)) {
       const ws = flySocketRef.current;
       if (ws?.readyState === WebSocket.OPEN) {
-        const message: TerminalBridgeClientMessage = {
-          type: "resize",
-          cols,
-          rows,
-        };
-        ws.send(JSON.stringify(message));
+        ws.send(JSON.stringify({ type: "resize", cols, rows }));
       }
       return;
     }
@@ -489,13 +346,8 @@ export const ChatTerminalSurface = forwardRef<
         ) {
           const inputId = nextFlyInputIdRef.current;
           nextFlyInputIdRef.current += 1;
-          const message: TerminalBridgeClientMessage = {
-            type: "input",
-            id: inputId,
-            data: input,
-          };
-          ws.send(JSON.stringify(message));
-          waitForFlyInputAck(inputId);
+          ws.send(JSON.stringify({ type: "input", id: inputId, data: input }));
+          waitForFlyInputAck(flyDepsRef, inputId);
         } else {
           setInputSignalBriefly({
             tone: "blocked",
@@ -527,7 +379,7 @@ export const ChatTerminalSurface = forwardRef<
         TERMINAL_INPUT_TIMEOUT_MS,
       ).catch(() => {});
     },
-    [setInputSignalBriefly, waitForFlyInputAck],
+    [setInputSignalBriefly],
   );
 
   const canSendInput = useCallback(() => {
@@ -587,103 +439,31 @@ export const ChatTerminalSurface = forwardRef<
     [canSendInput, sendRawInput],
   );
 
-  const getTerminalSnapshot = useCallback(
-    (): ChatTerminalSnapshot => ({
-      cwd: sessionRef.current?.cwd,
-      shell: sessionRef.current?.shell,
-      output: usefulCapturedOutput(outputCaptureRef.current),
-    }),
-    [],
-  );
-
-  const notifyTerminalSessionEnded = useCallback(() => {
-    if (sessionEndNotifiedRef.current) return;
-    sessionEndNotifiedRef.current = true;
-    const snapshot = getTerminalSnapshot();
-    if (!snapshot.output.trim()) return;
-    onSessionEndedRef.current?.(snapshot);
-  }, [getTerminalSnapshot]);
-
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
 
     let disposed = false;
     let observer: ResizeObserver | null = null;
-    const disposables: Array<{ dispose: () => void }> = [];
+    let disposables: Array<{ dispose: () => void }> = [];
 
     void (async () => {
-      const [{ Terminal }, { FitAddon }, { WebLinksAddon }] = await Promise.all(
-        [
-          import("@xterm/xterm"),
-          import("@xterm/addon-fit"),
-          import("@xterm/addon-web-links"),
-        ],
-      );
-      if (disposed) return;
-
-      const terminal = new Terminal({
-        cursorBlink: true,
-        cursorStyle: "block",
-        fontFamily:
-          "'SFMono-Regular', 'Cascadia Code', 'Liberation Mono', Menlo, monospace",
-        fontSize: 13,
-        lineHeight: 1.2,
-        scrollback: 10000,
-        theme: {
-          background: "#050608",
-          foreground: "#d7dde8",
-          cursor: "#ffffff",
-          black: "#0a0d12",
-          blue: "#7aa2f7",
-          cyan: "#7dcfff",
-          green: "#9ece6a",
-          magenta: "#bb9af7",
-          red: "#f7768e",
-          white: "#c0caf5",
-          yellow: "#e0af68",
+      const mounted = await mountChatTerminal(
+        host,
+        {
+          onData: sendRawInput,
+          onSelectionChange: rememberTerminalSelection,
+          onResize: sendResize,
+          isActive: () => activeRef.current,
         },
-      });
-      const fitAddon = new FitAddon();
-      const webLinksAddon = new WebLinksAddon((_event, uri) => {
-        const opened = window.open(uri, "_blank", "noopener,noreferrer");
-        if (opened) opened.opener = null;
-      });
-      terminal.loadAddon(fitAddon);
-      terminal.loadAddon(webLinksAddon);
-      terminal.open(host);
-      fitAddon.fit();
-
-      terminal.attachCustomWheelEventHandler((event) => {
-        const lines = wheelDeltaToTerminalLines(event, terminal.rows);
-        if (lines === 0) return true;
-        event.preventDefault();
-        event.stopPropagation();
-        terminal.scrollLines(event.deltaY > 0 ? lines : -lines);
-        return false;
-      });
-
-      disposables.push(terminal.onData(sendRawInput));
-      disposables.push(
-        terminal.onSelectionChange(() => {
-          rememberTerminalSelection(terminal.getSelection());
-        }),
+        () => disposed,
       );
-      disposables.push(
-        terminal.onResize(({ cols, rows }) => sendResize(cols, rows)),
-      );
+      if (!mounted) return;
 
-      observer = new ResizeObserver(() => {
-        requestAnimationFrame(() => {
-          if (!activeRef.current) return;
-          fitAddon.fit();
-          sendResize(terminal.cols, terminal.rows);
-        });
-      });
-      observer.observe(host);
-
-      terminalRef.current = terminal;
-      fitAddonRef.current = fitAddon;
+      observer = mounted.observer;
+      disposables = mounted.disposables;
+      terminalRef.current = mounted.terminal;
+      fitAddonRef.current = mounted.fitAddon;
       setReady(true);
     })();
 
@@ -751,270 +531,6 @@ export const ChatTerminalSurface = forwardRef<
     }
   }, [chatSessionId, connecting, notifyConnectionState]);
 
-  const disconnectFly = useCallback(() => {
-    if (flySocketRef.current || flyTargetKeyRef.current) {
-      notifyTerminalSessionEnded();
-    }
-    clearScheduledFlyReconnect();
-    flyReconnectNoticeRef.current = false;
-    flyConnectSeqRef.current += 1;
-    flyConnectInFlightKeyRef.current = null;
-    flySocketRef.current?.close(1000, "terminal transport changed");
-    flySocketRef.current = null;
-    flyTargetKeyRef.current = null;
-    updateFlyConnectionState("closed");
-  }, [
-    clearScheduledFlyReconnect,
-    notifyTerminalSessionEnded,
-    updateFlyConnectionState,
-  ]);
-
-  const connectFly = useCallback(
-    async (opts: { force?: boolean; resetSession?: boolean } = {}) => {
-      const terminal = terminalRef.current;
-      const current = transportRef.current;
-      if (!terminal || !isRemoteTerminalTransport(current)) return;
-      clearScheduledFlyReconnect();
-
-      const key = transportKey(current);
-      const existingState = flyConnectionStateRef.current;
-      const attemptKey = `${chatSessionId}:${key}`;
-      if (opts.force) {
-        flyConnectFailureKeyRef.current = null;
-        flyConnectInFlightKeyRef.current = null;
-      } else if (flyConnectFailureKeyRef.current === attemptKey) {
-        return;
-      } else if (flyConnectInFlightKeyRef.current === attemptKey) {
-        return;
-      }
-      if (
-        !opts.force &&
-        flyTargetKeyRef.current === key &&
-        (existingState === "connecting" ||
-          existingState === "restoring" ||
-          existingState === "connected")
-      ) {
-        return;
-      }
-
-      if (flySocketRef.current || flyTargetKeyRef.current) {
-        notifyTerminalSessionEnded();
-      }
-      flySocketRef.current?.close(1000, "reconnecting terminal");
-      flySocketRef.current = null;
-      flyTargetKeyRef.current = key;
-      const seq = flyConnectSeqRef.current + 1;
-      flyConnectSeqRef.current = seq;
-      flyConnectInFlightKeyRef.current = attemptKey;
-      const isCurrentFlyConnect = () =>
-        !disposedRef.current &&
-        flyConnectSeqRef.current === seq &&
-        flyTargetKeyRef.current === key &&
-        isRemoteTerminalTransport(transportRef.current);
-      sessionEndNotifiedRef.current = false;
-      updateFlyConnectionState("connecting");
-      setError(null);
-      terminal.writeln(
-        `\x1b[38;5;245mConnecting to ${
-          current.type === "brain"
-            ? (current.label ?? "Brain terminal")
-            : (current.label ?? current.app)
-        }\x1b[0m`,
-      );
-
-      try {
-        fitAddonRef.current?.fit();
-        const activityLimit = getStoredBrainTerminalActivityLimit();
-        const shouldSendBrainActivityLimit =
-          current.type === "brain" ||
-          (current.type === "fly" &&
-            (current.feature === "brain" || current.feature === undefined));
-        const requestBody =
-          current.type === "brain"
-            ? {
-                target: "brain" as const,
-                chatSessionId,
-                resetSession: opts.resetSession,
-                ...(shouldSendBrainActivityLimit && activityLimit !== null
-                  ? {
-                      activityLimitMs:
-                        activityLimit === "never" ? null : activityLimit,
-                    }
-                  : {}),
-                cols: terminal.cols,
-                rows: terminal.rows,
-              }
-            : {
-                app: current.app,
-                machineId: current.machineId,
-                feature: current.feature,
-                chatSessionId,
-                resetSession: opts.resetSession,
-                ...(shouldSendBrainActivityLimit && activityLimit !== null
-                  ? {
-                      activityLimitMs:
-                        activityLimit === "never" ? null : activityLimit,
-                    }
-                  : {}),
-                cols: terminal.cols,
-                rows: terminal.rows,
-              };
-        const res = await fetchWithTimeout(
-          "/api/kody/terminal/session",
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json", ...authHeaders() },
-            body: JSON.stringify(requestBody),
-          },
-          FLY_CONNECT_TIMEOUT_MS,
-        );
-        if (!isCurrentFlyConnect()) return;
-        if (!res.ok) {
-          const body = (await res.json().catch(() => ({}))) as {
-            message?: string;
-            error?: string;
-          };
-          throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
-        }
-        flyConnectFailureKeyRef.current = null;
-        const session = (await res.json()) as {
-          webSocketUrl: string;
-          warnings?: Array<{
-            code?: string;
-            message?: string;
-            desiredImageRef?: string;
-            runningImageRef?: string | null;
-          }>;
-        };
-        if (!isCurrentFlyConnect()) return;
-        for (const warning of session.warnings ?? []) {
-          if (
-            warning.code === "selected_image_not_running" &&
-            warning.desiredImageRef
-          ) {
-            const selectedLabel = shortBrainImageLabel(warning.desiredImageRef);
-            const runningLabel = shortBrainImageLabel(warning.runningImageRef);
-            terminal.writeln(
-              `\x1b[33mSelected image differs from running Brain. Selected: ${selectedLabel}; running: ${runningLabel}. Terminal is connecting to the running Brain.\x1b[0m`,
-            );
-          }
-        }
-        const ws = new WebSocket(session.webSocketUrl);
-        if (!isCurrentFlyConnect()) {
-          ws.close(1000, "stale terminal connection");
-          return;
-        }
-        flySocketRef.current = ws;
-
-        ws.onopen = () => {
-          if (flySocketRef.current !== ws || !isCurrentFlyConnect()) return;
-          if (terminalRef.current) {
-            const message: TerminalBridgeClientMessage = {
-              type: "resize",
-              cols: terminalRef.current.cols,
-              rows: terminalRef.current.rows,
-            };
-            ws.send(JSON.stringify(message));
-          }
-        };
-        ws.onmessage = async (event) => {
-          if (flySocketRef.current !== ws || !isCurrentFlyConnect()) return;
-          const raw =
-            typeof event.data === "string"
-              ? event.data
-              : await (event.data as Blob).text();
-          const message = parseTerminalBridgeServerMessage(raw);
-          if (!message) {
-            appendCapturedOutput(raw);
-            terminalRef.current?.write(raw);
-            return;
-          }
-          if (message.type === "output" && typeof message.data === "string") {
-            appendCapturedOutput(message.data);
-            terminalRef.current?.write(message.data);
-            return;
-          }
-          if (message.type === "restore-start") {
-            updateFlyConnectionState("restoring");
-            return;
-          }
-          if (message.type === "restore-complete") {
-            updateFlyConnectionState("connected");
-            return;
-          }
-          if (message.type === "ready") {
-            updateFlyConnectionState("connected");
-            return;
-          }
-          if (message.type === "input-accepted") {
-            acknowledgeFlyInput(true);
-            return;
-          }
-          if (message.type === "input-rejected") {
-            acknowledgeFlyInput(false, message.message);
-            return;
-          }
-          if (message.type === "error") {
-            const text = message.message ?? "Terminal bridge error";
-            setError(text);
-            updateFlyConnectionState("error");
-            terminalRef.current?.writeln(`\r\n\x1b[31m${text}\x1b[0m`);
-            return;
-          }
-          if (message.type === "exit") {
-            notifyTerminalSessionEnded();
-            flySocketRef.current = null;
-            updateFlyConnectionState("closed");
-            terminalRef.current?.writeln(
-              `\r\nProcess exited${message.code === undefined ? "" : ` (${message.code})`}`,
-            );
-          }
-        };
-        ws.onerror = () => {
-          if (flySocketRef.current !== ws || !isCurrentFlyConnect()) return;
-          scheduleFlyReconnect();
-        };
-        ws.onclose = (event) => {
-          if (flySocketRef.current !== ws || !isCurrentFlyConnect()) return;
-          flySocketRef.current = null;
-          notifyTerminalSessionEnded();
-          if (
-            event.code === 1000 ||
-            flyConnectionStateRef.current === "error"
-          ) {
-            updateFlyConnectionState("closed");
-            return;
-          }
-          scheduleFlyReconnect();
-        };
-      } catch (err) {
-        if (!isCurrentFlyConnect()) return;
-        const message =
-          err instanceof Error ? err.message : "Failed to connect terminal";
-        flyConnectFailureKeyRef.current = attemptKey;
-        setError(message);
-        updateFlyConnectionState("error");
-        terminal.writeln(`\x1b[31m${message}\x1b[0m`);
-      } finally {
-        if (
-          flyConnectSeqRef.current === seq &&
-          flyConnectInFlightKeyRef.current === attemptKey
-        ) {
-          flyConnectInFlightKeyRef.current = null;
-        }
-      }
-    },
-    [
-      acknowledgeFlyInput,
-      appendCapturedOutput,
-      chatSessionId,
-      clearScheduledFlyReconnect,
-      notifyTerminalSessionEnded,
-      scheduleFlyReconnect,
-      updateFlyConnectionState,
-    ],
-  );
-
   useEffect(() => {
     function reconnectVisibleRemoteTerminal() {
       if (
@@ -1028,7 +544,7 @@ export const ChatTerminalSurface = forwardRef<
         document.visibilityState === "visible" &&
         flyConnectionStateRef.current !== "connected"
       ) {
-        scheduleFlyReconnect();
+        scheduleFlyTerminalReconnect();
       }
     }
 
@@ -1046,13 +562,7 @@ export const ChatTerminalSurface = forwardRef<
         reconnectVisibleRemoteTerminal,
       );
     };
-  }, [scheduleFlyReconnect]);
-
-  useEffect(() => {
-    reconnectFlyRef.current = (opts) => {
-      void connectFly(opts);
-    };
-  }, [connectFly]);
+  }, [scheduleFlyTerminalReconnect]);
 
   const pollOutput = useCallback(async (options: { waitMs?: number } = {}) => {
     const current = sessionRef.current;
@@ -1126,16 +636,16 @@ export const ChatTerminalSurface = forwardRef<
     if (!ready || !active) return;
     fitAddonRef.current?.fit();
     if (isRemoteTerminalTransport(transport)) {
-      void connectFly();
+      void connectFlyTerminal();
       return;
     }
-    disconnectFly();
+    disconnectFlyTerminal();
     void start();
   }, [
     active,
-    connectFly,
+    connectFlyTerminal,
     currentTransportKey,
-    disconnectFly,
+    disconnectFlyTerminal,
     ready,
     start,
     transport,
@@ -1204,17 +714,13 @@ export const ChatTerminalSurface = forwardRef<
         inputSignalTimerRef.current = null;
       }
       clearScheduledTerminalSelection();
-      clearPendingFlyInputAck();
-      clearScheduledFlyReconnect();
+      clearPendingFlyInputAck(flyDepsRef);
+      clearScheduledFlyReconnect(flyDepsRef);
       flyConnectSeqRef.current += 1;
       flyConnectInFlightKeyRef.current = null;
       flySocketRef.current?.close(1000, "terminal unmounted");
     };
-  }, [
-    clearPendingFlyInputAck,
-    clearScheduledFlyReconnect,
-    clearScheduledTerminalSelection,
-  ]);
+  }, [clearScheduledTerminalSelection]);
 
   const addToChat = useCallback(() => {
     const text = usefulCapturedOutput(outputCaptureRef.current);
@@ -1248,16 +754,16 @@ export const ChatTerminalSurface = forwardRef<
   }, [selectedTerminalText]);
 
   const restart = useCallback(() => {
-    clearScheduledFlyReconnect();
+    clearScheduledFlyReconnect(flyDepsRef);
     flyReconnectNoticeRef.current = false;
     setInputSignal({ tone: "blocked", label: "Waiting for terminal" });
     if (isRemoteTerminalTransport(transportRef.current)) {
-      void connectFly({ force: true, resetSession: true });
+      void connectFlyTerminal({ force: true, resetSession: true });
       return;
     }
     localStartFailureKeyRef.current = null;
     void stop().then(() => start());
-  }, [clearScheduledFlyReconnect, connectFly, start, stop]);
+  }, [connectFlyTerminal, start, stop]);
 
   useImperativeHandle(
     ref,
@@ -1279,7 +785,7 @@ export const ChatTerminalSurface = forwardRef<
         const text = usefulCapturedOutput(snapshot.output ?? "");
         setError(null);
         if (isRemoteTerminalTransport(transportRef.current)) {
-          updateFlyConnectionState("closed");
+          updateFlyConnectionState(flyDepsRef, "closed");
         }
         outputCaptureRef.current = text;
         terminal.clear();
@@ -1299,7 +805,6 @@ export const ChatTerminalSurface = forwardRef<
       restart,
       sendImplementationInput,
       sendTerminalText,
-      updateFlyConnectionState,
     ],
   );
 

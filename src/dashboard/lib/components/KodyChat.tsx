@@ -11,19 +11,7 @@ import {
   type LiveAction,
   type LiveSessionState,
 } from "../chat/core/kody-chat-reducer";
-import {
-  ClipboardCopy,
-  Image as ImageIcon,
-  FileText,
-  FileCode,
-  MessageSquare,
-  Eraser,
-  Loader2,
-  RefreshCw,
-  RotateCcw,
-  Save,
-  SquareTerminal,
-} from "lucide-react";
+import { FileText, FileCode } from "lucide-react";
 import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
 import {
   buildAgentList,
@@ -55,14 +43,26 @@ import { toast } from "sonner";
 import type { KodyTask } from "../types";
 import {
   LOCAL_TERMINAL_TRANSPORT,
-  terminalFlyMachineKey,
-  terminalMachineIdShort,
+  TERMINAL_DISPLAY_MODE,
+  TerminalBottomControls,
+  TerminalModeToggle,
+  TerminalTopControls,
+  checkpointTransportFromChatTransport,
+  readTerminalIntentEffect,
+  shouldLoadTerminalCheckpoint,
+  terminalCheckpointLoadKey,
+  terminalCheckpointSearchParams,
+  terminalChatPlugin,
+  useBrainImageSave,
   useChatTerminalRegistry,
-} from "../hooks/useChatTerminalRegistry";
-import {
-  flyMachineTerminalLabel,
-  flyTerminalTargetLabel,
-} from "../runners/fly-machine-model";
+  ChatTerminalSurface,
+  type ChatTerminalMode,
+  type ChatTerminalChromeState,
+  type ChatTerminalSnapshot,
+  type ChatTerminalTransport,
+  type ChatTerminalSurfaceHandle,
+  type TerminalIntentEffectPayload,
+} from "../chat/plugins/terminal";
 import {
   useSlashCommands,
   parseSlashTrigger,
@@ -119,14 +119,6 @@ import {
   type Attachment,
   type KodyChatProps,
 } from "./kody-chat-types";
-import {
-  ChatTerminalSurface,
-  type ChatTerminalChromeState,
-  type ChatTerminalSnapshot,
-  type ChatTerminalTransport,
-  type ChatTerminalSurfaceHandle,
-} from "./ChatTerminalSurface";
-
 import { flushSync } from "react-dom";
 import type {
   AttachmentRef,
@@ -156,7 +148,6 @@ import {
   saveVoicePreference,
 } from "@dashboard/lib/voice/voices";
 import { VoiceChatOverlay } from "./VoiceChatOverlay";
-import { RepoScopedLink } from "./RepoScopedLink";
 import { useChatSessions } from "../chat/core/use-chat-sessions";
 import { useKodyActionState } from "../hooks/useKodyActionState";
 import { useMediaQuery } from "../hooks/useMediaQuery";
@@ -190,53 +181,8 @@ import { SHOW_VIEW_TOOL } from "@dashboard/lib/chat-output-tools";
 import {
   terminalCheckpointLabel,
   type TerminalCheckpoint,
-  type TerminalCheckpointTransport,
 } from "@dashboard/lib/terminal/checkpoint-types";
-import {
-  buildKodyTerminalPrompt,
-  extractKodyTerminalPayload,
-  parseKodyTerminalIntent,
-} from "@dashboard/lib/terminal/kody-terminal-directive";
-
-function checkpointTransportFromChatTransport(
-  transport: ChatTerminalTransport,
-): TerminalCheckpointTransport {
-  if (transport.type === "brain") {
-    return {
-      type: "brain",
-      label: transport.label,
-    };
-  }
-  if (transport.type === "fly") {
-    return {
-      type: "fly",
-      app: transport.app,
-      machineId: transport.machineId,
-      label: transport.label,
-      feature: transport.feature,
-    };
-  }
-  return {
-    type: "local",
-    label: transport.label,
-  };
-}
-
-function terminalCheckpointSearchParams(
-  actorLogin: string | null | undefined,
-  transport: ChatTerminalTransport,
-  chatSessionId: string,
-): string {
-  const params = new URLSearchParams({
-    chatSessionId,
-    transport: JSON.stringify(checkpointTransportFromChatTransport(transport)),
-  });
-  if (actorLogin) params.set("actorLogin", actorLogin);
-  return `?${params.toString()}`;
-}
-
-const BRAIN_IMAGE_SAVE_POLL_INTERVAL_MS = 10_000;
-const BRAIN_IMAGE_SAVE_MAX_POLLS = 720; // 2 hours at 10 seconds.
+import { extractKodyTerminalPayload } from "@dashboard/lib/terminal/kody-terminal-directive";
 
 function reportValue(value: unknown, max = 1_000): string | null {
   if (value === null || value === undefined || value === "") return null;
@@ -410,21 +356,44 @@ export function KodyChat({
   // One registry PER MOUNT (plan H4: ChatRailShell mounts KodyChat twice;
   // plugin manifests are global pure data, instantiation is per mount).
   // `plugins`/`capabilityGrant` are mount-time config — read once in the
-  // useState initializer, never re-registered on re-render. With no
-  // `plugins` prop the registry stays empty: slots render nothing and the
-  // send-middleware chain is a pass-through.
+  // useState initializer, never re-registered on re-render. The terminal
+  // plugin (Step 5a) registers by default; `hideTerminalMode` surfaces
+  // (ClientChatSurface) skip it, so they carry no terminal display mode or
+  // terminal-intent middleware. With no plugins at all the registry is
+  // inert: slots render nothing and the send-middleware chain passes
+  // through.
   const [pluginRegistry] = useState(() => {
     const registry = createChatPluginRegistry();
     const grant = capabilityGrant ?? FULL_GRANT;
-    for (const entry of plugins ?? []) {
+    const entries = [
+      ...(hideTerminalMode ? [] : [{ plugin: terminalChatPlugin }]),
+      ...(plugins ?? []),
+    ];
+    for (const entry of entries) {
       registry.register(entry.plugin, grant);
     }
     return registry;
   });
+  // Terminal-intent hand-off: the terminal plugin's send middleware
+  // dispatches this effect SYNCHRONOUSLY during runSendMiddleware, so
+  // sendMessage reads the ref right after the chain returns.
+  const pendingTerminalIntentRef = useRef<TerminalIntentEffectPayload | null>(
+    null,
+  );
+  const consumePendingTerminalIntent =
+    useCallback((): TerminalIntentEffectPayload | null => {
+      const intent = pendingTerminalIntentRef.current;
+      pendingTerminalIntentRef.current = null;
+      return intent;
+    }, []);
   // Host-effect switch. Plugins dispatch effects (scope changes, navigation
-  // requests) here — Step 5 fills in real cases when the first plugin that
-  // needs one moves in; until then unknown kinds are ignored by design.
+  // requests) here — unknown kinds are ignored by design.
   const handlePluginHostEffect = useCallback((effect: ChatHostEffect) => {
+    const terminalIntent = readTerminalIntentEffect(effect);
+    if (terminalIntent) {
+      pendingTerminalIntentRef.current = terminalIntent;
+      return;
+    }
     switch (effect.kind) {
       default:
         break;
@@ -1094,7 +1063,17 @@ export function KodyChat({
     sessionsHydrated: sessionHook.hydrated,
     storageScope: sessionStoreScope,
   });
-  const chatMode = vibeMode ? "ai" : terminalRegistry.mode;
+  // Display-mode arbitration (plan H2d): the terminal plugin DECLARES the
+  // "terminal" mode; the platform resolves it. Vibe is a HOST mode — the
+  // host forces "ai", which always wins, so vibe-suppresses-terminal never
+  // becomes a plugin→plugin import. With the terminal plugin unregistered
+  // (hideTerminalMode) the mode can never resolve to "terminal".
+  const resolvedDisplayMode = pluginRegistry.resolveDisplayMode(
+    [terminalRegistry.mode],
+    vibeMode ? "ai" : undefined,
+  );
+  const chatMode: ChatTerminalMode =
+    resolvedDisplayMode === TERMINAL_DISPLAY_MODE ? "terminal" : "ai";
   const terminalMachines = terminalRegistry.terminalMachines;
   const activeTerminalTransport = terminalRegistry.activeTransport;
   const activeTerminalInstanceId = terminalRegistry.activeInstanceId;
@@ -1116,13 +1095,9 @@ export function KodyChat({
       : activeTerminalConnectionState === "connecting"
         ? "Starting"
         : "Off";
-  const [brainImageBusy, setBrainImageBusy] = useState(false);
-  const [brainImageSaveStatus, setBrainImageSaveStatus] = useState<{
-    phase?: string;
-    message?: string;
-    startedAt?: string;
-    updatedAt?: string;
-  } | null>(null);
+  // Brain image save action + status (plugin hook — called here so a save
+  // keeps polling while the user leaves terminal mode).
+  const brainImageSave = useBrainImageSave();
   const [pendingTerminalRestore, setPendingTerminalRestore] =
     useState<TerminalCheckpoint | null>(null);
   const [pendingKodyTerminalPayload, setPendingKodyTerminalPayload] = useState<
@@ -1165,14 +1140,23 @@ export function KodyChat({
     [actorLogin],
   );
   useEffect(() => {
-    if (chatMode !== "terminal" || !activeSessionIdForReset) return;
-    if (activeSessionHasLiveTerminal) return;
-    const checkpointKey = JSON.stringify({
+    if (!activeSessionIdForReset) return;
+    const checkpointKey = terminalCheckpointLoadKey({
       actorLogin,
-      activeSessionIdForReset,
-      activeTerminalValue,
+      activeSessionId: activeSessionIdForReset,
+      activeTargetValue: activeTerminalValue,
     });
-    if (loadedTerminalCheckpointKeyRef.current === checkpointKey) return;
+    if (
+      !shouldLoadTerminalCheckpoint({
+        chatMode,
+        activeSessionId: activeSessionIdForReset,
+        hasLiveTerminal: activeSessionHasLiveTerminal,
+        loadedKey: loadedTerminalCheckpointKeyRef.current,
+        nextKey: checkpointKey,
+      })
+    ) {
+      return;
+    }
     loadedTerminalCheckpointKeyRef.current = checkpointKey;
     void loadTerminalCheckpoint(
       activeTerminalTransport,
@@ -1230,113 +1214,6 @@ export function KodyChat({
     },
     [actorLogin],
   );
-
-  const handleSaveBrainImage = useCallback(async () => {
-    setBrainImageBusy(true);
-    setBrainImageSaveStatus({
-      phase: "starting",
-      message: "Starting Brain image save",
-      startedAt: new Date().toISOString(),
-    });
-    try {
-      const res = await fetch("/api/kody/brain/image", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...authHeaders() },
-        body: JSON.stringify({}),
-      });
-      const body = (await res.json().catch(() => ({}))) as {
-        status?: string;
-        phase?: string;
-        jobId?: string;
-        imageRef?: string;
-        startedAt?: string;
-        updatedAt?: string;
-        message?: string;
-        error?: string;
-      };
-      if (!res.ok) {
-        throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
-      }
-      if (body.status === "completed" && body.imageRef) {
-        setBrainImageSaveStatus({
-          phase: body.phase ?? "completed",
-          message: body.message ?? "Brain image saved",
-          startedAt: body.startedAt,
-          updatedAt: body.updatedAt,
-        });
-        toast.success("Brain image saved");
-        return;
-      }
-      if (body.status !== "running" || !body.jobId) {
-        throw new Error(body.message ?? body.error ?? "Save did not start");
-      }
-
-      toast.success("Brain image save started");
-      setBrainImageSaveStatus({
-        phase: body.phase ?? "starting",
-        message: body.message ?? "Starting Brain image save",
-        startedAt: body.startedAt,
-        updatedAt: body.updatedAt,
-      });
-      for (let attempt = 0; attempt < BRAIN_IMAGE_SAVE_MAX_POLLS; attempt++) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, BRAIN_IMAGE_SAVE_POLL_INTERVAL_MS),
-        );
-        const poll = await fetch(
-          `/api/kody/brain/image?jobId=${encodeURIComponent(body.jobId)}`,
-          { headers: authHeaders() },
-        );
-        const status = (await poll.json().catch(() => ({}))) as {
-          ok?: boolean;
-          status?: string;
-          phase?: string;
-          imageRef?: string;
-          startedAt?: string;
-          updatedAt?: string;
-          message?: string;
-          error?: string;
-        };
-        if (poll.ok && status.status === "running") {
-          setBrainImageSaveStatus({
-            phase: status.phase ?? "starting",
-            message: status.message ?? "Saving Brain image",
-            startedAt: status.startedAt ?? body.startedAt,
-            updatedAt: status.updatedAt,
-          });
-        }
-        if (poll.ok && status.status === "completed" && status.imageRef) {
-          setBrainImageSaveStatus({
-            phase: status.phase ?? "completed",
-            message: status.message ?? "Brain image saved",
-            startedAt: status.startedAt ?? body.startedAt,
-            updatedAt: status.updatedAt,
-          });
-          toast.success("Brain image saved");
-          return;
-        }
-        if (!poll.ok || status.status === "failed" || status.ok === false) {
-          throw new Error(
-            status.message ??
-              status.error ??
-              `Save failed (HTTP ${poll.status})`,
-          );
-        }
-      }
-      throw new Error("Brain image save is still running after 2 hours");
-    } catch (err) {
-      setBrainImageSaveStatus({
-        phase: "failed",
-        message:
-          err instanceof Error ? err.message : "Failed to save Brain image",
-      });
-      toast.error(
-        err instanceof Error ? err.message : "Failed to save Brain image",
-      );
-    } finally {
-      setBrainImageBusy(false);
-      window.setTimeout(() => setBrainImageSaveStatus(null), 4000);
-    }
-  }, []);
 
   const sendKodyTerminalPayloadToTerminal = useCallback(
     (payload: string) => {
@@ -4048,13 +3925,14 @@ export function KodyChat({
       return;
     }
 
-    // Plugin send-middleware chain (Step 4). Registered middleware runs
-    // over the typed text at the same point where the built-in
-    // terminal-intent / slash-expansion handling happens today. The
-    // built-ins below are NOT plugins yet (they move in Step 5) — they
-    // keep running on the chain's output. With zero plugins the chain is
-    // empty: `rawInput` === `typedInput` and nothing else changes. A
-    // middleware that consumes the message stops the send entirely.
+    // Plugin send-middleware chain (Step 4). The terminal plugin's
+    // terminal-intent middleware (order 100, Step 5a) runs here: it
+    // rewrites `/terminal <x>` to the Kody terminal prompt and hands the
+    // raw typed text back through a synchronous host effect. Slash
+    // expansion stays a built-in until Step 5b (order 200) — it keeps
+    // running on the chain's output, skipped for terminal intents exactly
+    // as before. A middleware that consumes the message stops the send.
+    pendingTerminalIntentRef.current = null;
     const middlewareOutcome = pluginRegistry.runSendMiddleware(typedInput, {
       host: pluginHost,
       dispatchHostEffect: handlePluginHostEffect,
@@ -4066,14 +3944,18 @@ export function KodyChat({
       setSlashSelectedIndex(0);
       return;
     }
-    const rawInput = middlewareOutcome.text;
+    const terminalIntent = consumePendingTerminalIntent();
 
-    const terminalIntent = parseKodyTerminalIntent(rawInput);
+    // For terminal intents the user bubble shows the raw typed text while
+    // the model receives the middleware-built Kody prompt.
+    const rawInput = terminalIntent
+      ? terminalIntent.rawText
+      : middlewareOutcome.text;
     const expanded = terminalIntent
       ? null
       : expandSlashCommand(rawInput, slashCommands);
     const baseMessage = terminalIntent
-      ? buildKodyTerminalPrompt(terminalIntent.intent)
+      ? middlewareOutcome.text
       : expanded
         ? expanded.text
         : rawInput;
@@ -4564,154 +4446,37 @@ export function KodyChat({
               ? `Ask about capability \`${selectedCapability?.slug ?? ""}\`...`
               : genericPlaceholder;
 
+  // Terminal chrome — plugin components passed as HOST ReactNodes (not
+  // registry slots) so the DOM stays byte-identical (see
+  // chat/plugins/terminal/TerminalControls.tsx). Visibility rules are host
+  // state: no toggle when the surface hides terminal mode, pins an agent,
+  // or runs vibe.
   const chatModeToggle =
     !hideTerminalMode && !lockedAgentId && !vibeMode ? (
-      <div
-        className={`inline-flex items-center rounded-md border p-0.5 ${
-          chatMode === "terminal"
-            ? "justify-self-end border-white/10 bg-white/5"
-            : "bg-background/70"
-        }`}
-      >
-        <button
-          type="button"
-          onClick={() => setActiveChatMode("ai")}
-          className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-body-xs font-medium transition-colors ${
-            chatMode === "ai"
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          }`}
-          aria-pressed={chatMode === "ai"}
-          title="AI chat"
-          aria-label="AI chat"
-        >
-          <MessageSquare className="h-4 w-4" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          onClick={openTerminalMode}
-          className={`relative inline-flex h-8 w-8 items-center justify-center rounded text-body-xs font-medium transition-colors ${
-            chatMode === "terminal"
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          }`}
-          aria-pressed={chatMode === "terminal"}
-          title={`Terminal ${terminalStatusLabel}`}
-          aria-label={`Terminal ${terminalStatusLabel}`}
-        >
-          <SquareTerminal className="h-4 w-4" aria-hidden="true" />
-          {activeSessionHasLiveTerminal &&
-            chatMode === "ai" &&
-            activeTerminalConnectionState === "connected" && (
-              <span
-                className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-emerald-500"
-                aria-hidden="true"
-              />
-            )}
-        </button>
-      </div>
+      <TerminalModeToggle
+        chatMode={chatMode}
+        terminalStatusLabel={terminalStatusLabel}
+        hasLiveTerminal={activeSessionHasLiveTerminal}
+        connectionState={activeTerminalConnectionState}
+        onSelectAiMode={() => setActiveChatMode("ai")}
+        onOpenTerminal={openTerminalMode}
+      />
     ) : null;
-
-  const brainImageSaveLabel =
-    brainImageSaveStatus?.message ??
-    (brainImageBusy ? "Saving Brain image" : "Save Brain image");
 
   const terminalTopControls =
     chatMode === "terminal" ? (
-      <div
-        data-testid="chat-terminal-toolbar"
-        className="flex w-full min-w-0 items-center gap-2"
-      >
-        <div
-          data-testid="chat-terminal-target-row"
-          className="flex min-w-0 flex-1 items-center gap-2"
-        >
-          <select
-            value={activeTerminalValue}
-            onChange={(event) => handleTerminalTargetSelect(event.target.value)}
-            className="h-8 min-w-0 flex-1 rounded-md border border-border bg-background px-2 text-body-xs text-foreground outline-none focus:ring-1 focus:ring-ring"
-            title="Terminal target"
-            aria-label="Terminal target"
-          >
-            <option value="local">Local terminal</option>
-            {(activeTerminalTransport.type === "brain" ||
-              terminalMachines.some(
-                (machine) => machine.feature === "brain",
-              )) && <option value="brain">Brain terminal</option>}
-            {activeTerminalTransport.type === "fly" &&
-              !terminalMachines.some(
-                (machine) =>
-                  terminalFlyMachineKey(machine) === activeTerminalValue,
-              ) && (
-                <option value={activeTerminalValue}>
-                  {flyTerminalTargetLabel(activeTerminalTransport)} · selected
-                </option>
-              )}
-            {terminalMachines
-              .filter((machine) => machine.feature !== "brain")
-              .map((machine) => (
-                <option
-                  key={terminalFlyMachineKey(machine)}
-                  value={terminalFlyMachineKey(machine)}
-                >
-                  {flyMachineTerminalLabel(machine)} · {machine.state} ·{" "}
-                  {machine.region} · {terminalMachineIdShort(machine.machineId)}
-                </option>
-              ))}
-          </select>
-          {flyInventoryError && (
-            <span className="max-w-48 min-w-0 truncate text-body-xs text-destructive">
-              {flyInventoryError}
-            </span>
-          )}
-        </div>
-        <div
-          data-testid="chat-terminal-actions-row"
-          className="flex shrink-0 items-center gap-1"
-        >
-          <RepoScopedLink
-            href="/fly/brain-images"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            title="Manage Brain images"
-            aria-label="Manage Brain images"
-          >
-            <ImageIcon className="h-4 w-4" aria-hidden="true" />
-          </RepoScopedLink>
-          <button
-            type="button"
-            onClick={() => void handleSaveBrainImage()}
-            disabled={brainImageBusy}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-            title={brainImageSaveLabel}
-            aria-label={brainImageSaveLabel}
-          >
-            {brainImageBusy ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="h-4 w-4" />
-            )}
-          </button>
-          {brainImageBusy && (
-            <span className="hidden max-w-40 truncate text-[11px] text-amber-100/80 lg:inline">
-              {brainImageSaveLabel}
-            </span>
-          )}
-          <button
-            type="button"
-            onClick={() => void refreshChatTerminalFlyMachines()}
-            disabled={flyInventoryLoading}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-            title="Refresh Fly machines"
-            aria-label="Refresh Fly machines"
-          >
-            {flyInventoryLoading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
-            )}
-          </button>
-        </div>
-      </div>
+      <TerminalTopControls
+        activeTargetValue={activeTerminalValue}
+        onSelectTarget={handleTerminalTargetSelect}
+        activeTransport={activeTerminalTransport}
+        terminalMachines={terminalMachines}
+        flyInventoryError={flyInventoryError}
+        flyInventoryLoading={flyInventoryLoading}
+        onRefreshMachines={() => void refreshChatTerminalFlyMachines()}
+        brainImageBusy={brainImageSave.busy}
+        brainImageSaveLabel={brainImageSave.label}
+        onSaveBrainImage={() => void brainImageSave.save()}
+      />
     ) : null;
   const activeTerminalSurface = activeTerminalInstanceId
     ? terminalSurfaceRefs.current[activeTerminalInstanceId]
@@ -4733,45 +4498,12 @@ export function KodyChat({
       : null;
   const terminalBottomControls =
     chatMode === "terminal" ? (
-      <div
-        data-testid="chat-terminal-bottom-status"
-        className="flex min-w-0 shrink items-center gap-2"
-      >
-        <div className="flex shrink-0 items-center gap-1">
-          <button
-            type="button"
-            onClick={() => activeTerminalSurface?.addToChat()}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            title="Add terminal output to AI chat"
-            aria-label="Add terminal output to AI chat"
-          >
-            <ClipboardCopy className="h-4 w-4" />
-          </button>
-          <button
-            type="button"
-            onClick={() => activeTerminalSurface?.restart()}
-            disabled={activeTerminalChrome?.actionBusy}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
-            title="Restart terminal"
-            aria-label="Restart terminal"
-          >
-            {activeTerminalChrome?.actionBusy ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RotateCcw className="h-4 w-4" />
-            )}
-          </button>
-          <button
-            type="button"
-            onClick={() => activeTerminalSurface?.clear()}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            title="Clear terminal"
-            aria-label="Clear terminal"
-          >
-            <Eraser className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
+      <TerminalBottomControls
+        onAddToChat={() => activeTerminalSurface?.addToChat()}
+        onRestart={() => activeTerminalSurface?.restart()}
+        onClear={() => activeTerminalSurface?.clear()}
+        actionBusy={activeTerminalChrome?.actionBusy}
+      />
     ) : null;
 
   return (

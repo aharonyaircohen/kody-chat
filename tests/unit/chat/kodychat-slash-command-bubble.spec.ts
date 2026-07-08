@@ -111,11 +111,13 @@ describe("KodyChat submit handler — slash command bubble text (issue #140)", (
   });
 
   it("submit handler builds the model-facing userMessage from the expanded text, not rawInput", () => {
-    // The local `baseMessage` must select the terminal prompt or
-    // `expanded.text` before falling back to `rawInput`.
-    // This is the source of truth for what the model sees on the wire.
+    // The local `baseMessage` must select the terminal prompt (built by the
+    // terminal plugin's middleware — Step 5a — and carried in
+    // `middlewareOutcome.text`) or `expanded.text` before falling back to
+    // `rawInput`. This is the source of truth for what the model sees on
+    // the wire.
     const baseMessageDecl = SOURCE.match(
-      /const\s+baseMessage\s*=\s*terminalIntent\s*\?\s*buildKodyTerminalPrompt\(terminalIntent\.intent\)\s*:\s*expanded\s*\?\s*expanded\.text\s*:\s*rawInput\s*;/,
+      /const\s+baseMessage\s*=\s*terminalIntent\s*\?\s*middlewareOutcome\.text\s*:\s*expanded\s*\?\s*expanded\.text\s*:\s*rawInput\s*;/,
     );
     expect(
       baseMessageDecl,
