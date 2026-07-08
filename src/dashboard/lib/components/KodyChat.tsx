@@ -21,10 +21,8 @@ import {
 import { MarkdownPreview } from "./MarkdownPreview";
 import { MarkdownEditor } from "./MarkdownEditor";
 import {
-  Brain,
   Check,
   ClipboardCopy,
-  Globe,
   Paperclip,
   Send,
   X,
@@ -33,14 +31,9 @@ import {
   FileCode,
   MessageSquare,
   Eraser,
-  Target,
   ChevronDown,
   Loader2,
-  PanelLeftClose,
-  Maximize2,
-  Minimize2,
   MousePointerClick,
-  Plus,
   RefreshCw,
   RotateCcw,
   Save,
@@ -62,7 +55,6 @@ import {
 import { readDefaultChatEntry } from "../chat/platform/default-entry";
 import {
   readReasoningEffort,
-  writeReasoningEffort,
   resolveEffort,
 } from "../chat/core/reasoning-pref";
 import { getStoredAuth, getStoredBrainConfig, getStoredFlyPerf } from "../api";
@@ -184,6 +176,7 @@ import { useChatSessions } from "../chat/core/use-chat-sessions";
 import { useKodyActionState } from "../hooks/useKodyActionState";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { SessionsPanel } from "../chat/surface/SessionsPanel";
+import { HeaderControls } from "../chat/surface/HeaderControls";
 import { ToolCallList, ThinkingPanel, ReasoningPanel } from "./ToolCallCard";
 import { parseReasoning, stripReasoning } from "../chat/core/reasoning";
 import { parseAssistantContent } from "../chat/core/tool-call-strip";
@@ -5082,415 +5075,73 @@ export function KodyChat({
             isMuted={voiceMuted}
           />
         )}
-        {/* Header with context */}
-        <div className="border-b bg-gradient-to-r from-muted/80 to-muted/40 px-3 py-2.5 sm:px-5 sm:py-4">
-          <div className="flex items-center justify-between">
-            {/* Left: agent picker (locked label when parent forces an agent) */}
-            <div className="relative flex items-center gap-2">
-              {(() => {
-                // Header label/icon prefers the matched dropdown entry — that
-                // way a user-managed model surfaces its own label (e.g.
-                // "Claude Sonnet 4.6") rather than the generic "Kody" agent
-                // name. Falls back to the static agent for locked views or
-                // when the selection points at a model that was just removed.
-                const headerIcon = currentEntry?.icon ?? currentAgent.icon;
-                const headerName = currentEntry?.name ?? currentAgent.name;
-                return lockedAgentId ? (
-                  <div
-                    className="flex items-center gap-2.5 px-3 py-2"
-                    title={`${headerName} (locked for this view)`}
-                    aria-label={`${headerName} (locked)`}
-                  >
-                    {(() => {
-                      const Icon = headerIcon;
-                      return (
-                        <Icon className="w-5 h-5" aria-label={headerName} />
-                      );
-                    })()}
-                    <span className="font-semibold text-base">
-                      {headerName}
-                    </span>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setAgentMenuOpen((v) => !v)}
-                    className="flex items-center gap-2.5 rounded-md px-3 py-2 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
-                    aria-haspopup="listbox"
-                    aria-expanded={agentMenuOpen}
-                    title={`Switch assistant (current: ${headerName})`}
-                  >
-                    {(() => {
-                      const Icon = headerIcon;
-                      return (
-                        <Icon className="w-5 h-5" aria-label={headerName} />
-                      );
-                    })()}
-                    <span className="font-semibold text-base">
-                      {headerName}
-                    </span>
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path d="m6 9 6 6 6-6" />
-                    </svg>
-                  </button>
-                );
-              })()}
-              {messages.length > 0 && (
-                <span className="ml-1 rounded-full bg-primary/10 px-2 py-1 text-body-xs text-primary">
-                  {messages.length}
-                </span>
-              )}
-              {/* Thinking-level control. Rendered only when the active model
-                declares a `reasoning` block (or one is auto-detected from
-                the model name). Three cases:
-                  • 1 effort  → static pill (e.g. o1 / R1 → "On")
-                  • 2+ efforts → dropdown, current value highlighted
-                  • no reasoning → nothing rendered (most models) */}
-              {currentReasoning && (
-                <div className="relative">
-                  {currentReasoning.efforts.length === 1 ? (
-                    <span
-                      className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/60 px-3 py-1.5 text-body-xs font-medium text-muted-foreground"
-                      title={`This model always reasons at ${currentReasoning.efforts[0].label.toLowerCase()}.`}
-                      aria-label={`Thinking: ${currentReasoning.efforts[0].label}`}
-                    >
-                      <Brain className="w-3.5 h-3.5" aria-hidden="true" />
-                      {currentReasoning.efforts[0].label}
-                    </span>
-                  ) : (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setReasoningMenuOpen((v) => !v);
-                          setAgentMenuOpen(false);
-                        }}
-                        className="flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/60 px-3 py-1.5 text-body-xs font-medium hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
-                        aria-haspopup="listbox"
-                        aria-expanded={reasoningMenuOpen}
-                        title={`Thinking level (current: ${currentReasoning.efforts.find((e) => e.value === effectiveReasoningEffort)?.label ?? "default"})`}
-                      >
-                        <Brain className="w-3.5 h-3.5" aria-hidden="true" />
-                        <span>
-                          {currentReasoning.efforts.find(
-                            (e) => e.value === effectiveReasoningEffort,
-                          )?.label ?? "—"}
-                        </span>
-                        <svg
-                          xmlns="http://www.w3.org/2000/svg"
-                          width="12"
-                          height="12"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
-                        >
-                          <path d="m6 9 6 6 6-6" />
-                        </svg>
-                      </button>
-                      {reasoningMenuOpen && (
-                        <ul
-                          role="listbox"
-                          className="absolute top-full left-0 mt-1 z-30 min-w-[140px] rounded-md border bg-popover shadow-md"
-                        >
-                          {currentReasoning.efforts.map((effort) => (
-                            <li key={effort.value}>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setReasoningEffort(effort.value);
-                                  if (selectedModelId) {
-                                    writeReasoningEffort(
-                                      selectedModelId,
-                                      effort.value,
-                                    );
-                                  }
-                                  setReasoningMenuOpen(false);
-                                }}
-                                className={`w-full text-left px-3 py-2 text-sm hover:bg-accent ${
-                                  effectiveReasoningEffort === effort.value
-                                    ? "bg-accent/50 font-medium"
-                                    : ""
-                                }`}
-                                role="option"
-                                aria-selected={
-                                  effectiveReasoningEffort === effort.value
-                                }
-                              >
-                                {effort.label}
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </>
-                  )}
-                </div>
-              )}
-              {!lockedAgentId && agentMenuOpen && (
-                <ul
-                  role="listbox"
-                  className="absolute top-full left-0 mt-1 z-30 min-w-[260px] rounded-md border bg-popover shadow-md"
-                >
-                  {agentList.map((a) => {
-                    const isSelected =
-                      a.agentId === selectedAgentId &&
-                      (a.modelId ?? null) === selectedModelId;
-                    return (
-                      <li key={a.key}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedAgentId(a.agentId);
-                            setSelectedModelId(a.modelId);
-                            // Per-session pick: the same agent stays
-                            // active when the user comes back to THIS
-                            // conversation. Each session remembers its
-                            // own choice — switching to another chat and
-                            // back restores the agent that was active
-                            // for that thread, not whichever one the
-                            // user just clicked.
-                            //
-                            // The global `defaultChatEntryKey` is
-                            // intentionally NOT touched here. Settings →
-                            // "Default chat" is the single owner of the
-                            // default for new sessions; the chat picker
-                            // only mutates the active session.
-                            const activeId = sessionHook.activeSession?.id;
-                            if (activeId) {
-                              sessionHook.setSessionAgent(activeId, a.key);
-                            }
-                            setAgentMenuOpen(false);
-                          }}
-                          className={`w-full text-left px-3 py-2 hover:bg-accent text-sm flex items-start gap-2 ${
-                            isSelected ? "bg-accent/50" : ""
-                          }`}
-                          role="option"
-                          aria-selected={isSelected}
-                        >
-                          {(() => {
-                            const Icon = a.icon;
-                            return (
-                              <Icon
-                                className="w-4 h-4 mt-0.5"
-                                aria-hidden="true"
-                              />
-                            );
-                          })()}
-                          <span className="flex flex-col flex-1 min-w-0">
-                            <span className="font-medium">{a.name}</span>
-                            <span className="text-xs text-muted-foreground">
-                              {a.description}
-                            </span>
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-
-            {/* Remote dev status indicator — only visible when configured */}
-            {remoteStatus?.configured && (
-              <div
-                className="flex items-center gap-1 text-xs text-muted-foreground"
-                title={
-                  remoteStatus.online
-                    ? "Remote dev: online"
-                    : "Remote dev: offline"
-                }
-              >
-                <span
-                  className={`w-2 h-2 rounded-full ${remoteStatus.online ? "bg-green-500" : "bg-red-400"}`}
-                  aria-label={
-                    remoteStatus.online
-                      ? "Remote dev online"
-                      : "Remote dev offline"
-                  }
-                />
-                <span className="hidden sm:inline">
-                  {remoteStatus.online ? "Remote" : "Offline"}
-                </span>
-              </div>
-            )}
-
-            {/* Right: Action buttons (session sidebar, task history) */}
-            <div className="flex items-center gap-1">
-              {/* New conversation — wires to useChatSessions.createSession().
-                The unified thread means there's only ONE store across all
-                pages, so a new conversation is the only way to reset. The
-                button is visible everywhere except on locked views (Vibe),
-                where the parent owns the chat lifecycle. Icon-only to
-                match the other header controls (collapse, fullscreen). */}
-              {!lockedAgentId && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    // Seed the new session with the current effective
-                    // agent so a fresh conversation inherits the agent
-                    // the user is currently on. Without this, the new
-                    // session would have no agentKey and fall back to
-                    // the global default on first render — which is
-                    // fine for the very first session but surprises
-                    // users who expect a "new chat" to start where the
-                    // last one left off.
-                    const seed = currentEntry?.key;
-                    sessionHook.createSession(
-                      seed ? { agentKey: seed } : undefined,
-                    );
-                    setToolCalls([]);
-                  }}
-                  disabled={activeLoading}
-                  className="p-2 rounded-md border border-transparent text-muted-foreground hover:text-foreground hover:bg-background hover:border-border transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Start a new conversation"
-                  aria-label="New conversation"
-                >
-                  <Plus className="w-4 h-4" aria-hidden="true" />
-                </button>
-              )}
-
-              {/* Session sidebar toggle — available in any mode now that all
-                threads are unified; the sidebar just lists sessions from
-                the global store. Icon-only to match the other header
-                controls (collapse, fullscreen). */}
-              <button
-                type="button"
-                onClick={() => setShowSessionSidebar(!showSessionSidebar)}
-                className={`p-2 rounded-md border transition-all ${
-                  showSessionSidebar
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "text-muted-foreground hover:text-foreground hover:bg-background border-transparent hover:border-border"
-                }`}
-                title="Conversations"
-                aria-label="Toggle conversations"
-              >
-                <MessageSquare className="w-4 h-4" aria-hidden="true" />
-              </button>
-
-              {/* Fullscreen / restore (desktop rail only) */}
-              {onToggleFullscreen && (
-                <button
-                  type="button"
-                  onClick={onToggleFullscreen}
-                  aria-label={
-                    railFullscreen
-                      ? "Restore chat width"
-                      : "Expand chat fullscreen"
-                  }
-                  title={railFullscreen ? "Restore" : "Fullscreen"}
-                  className="ml-1 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
-                >
-                  {railFullscreen ? (
-                    <Minimize2 className="w-4 h-4" />
-                  ) : (
-                    <Maximize2 className="w-4 h-4" />
-                  )}
-                </button>
-              )}
-
-              {/* Collapse to a strip (desktop rail only) */}
-              {onCollapseRail && (
-                <button
-                  type="button"
-                  onClick={onCollapseRail}
-                  aria-label="Collapse chat"
-                  title="Collapse"
-                  className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
-                >
-                  <PanelLeftClose className="w-4 h-4" />
-                </button>
-              )}
-
-              {/* Close (mobile sheet) — only when an onClose handler is provided */}
-              {onClose && (
-                <button
-                  type="button"
-                  onClick={onClose}
-                  aria-label="Close chat"
-                  title="Close"
-                  className="ml-1 p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Context bar: task, capability, planner, or global */}
-          <div className="mt-1 sm:mt-2">
-            {isTaskMode && selectedTask ? (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="px-1.5 py-0.5 bg-primary text-primary-foreground rounded font-medium">
-                  #{selectedTask.issueNumber}
-                </span>
-                <span className="truncate text-muted-foreground">
-                  {selectedTask.title}
-                </span>
-              </div>
-            ) : isCapabilityMode && selectedCapability ? (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 rounded font-medium inline-flex items-center gap-1">
-                  <Target className="w-3 h-3" />
-                  {selectedCapability.slug}
-                </span>
-                <span className="truncate text-muted-foreground">
-                  {selectedCapability.title}
-                </span>
-              </div>
-            ) : isPlannerMode && plannerGoal ? (
-              <div className="flex items-center gap-2 text-sm">
-                <span className="px-1.5 py-0.5 bg-sky-500/15 text-sky-400 rounded font-medium inline-flex items-center gap-1">
-                  Planning
-                </span>
-                <span className="truncate text-muted-foreground flex-1 min-w-0">
-                  {plannerGoal.name}
-                </span>
-                {onPlannerExit ? (
-                  <button
-                    type="button"
-                    onClick={onPlannerExit}
-                    className="shrink-0 text-muted-foreground hover:text-foreground p-0.5 rounded hover:bg-accent"
-                    aria-label="Stop planning this goal"
-                    title="Stop planning"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                ) : null}
-              </div>
-            ) : (
-              (() => {
-                const sessionTitle = sessionHook.activeSession?.title;
-                const hasRealTitle =
-                  !!sessionTitle && sessionTitle !== "New conversation";
-                return (
-                  <div className="text-sm text-muted-foreground flex items-center gap-1.5">
-                    <Globe className="w-3 h-3 shrink-0" />
-                    <span className="truncate">
-                      {hasRealTitle
-                        ? sessionTitle
-                        : "Global chat — not tied to any task"}
-                    </span>
-                  </div>
-                );
-              })()
-            )}
-          </div>
-        </div>
+        {/* Header with context — extracted to chat/surface/HeaderControls.
+          Menu open/close state, selection state, and the per-session agent
+          pick stay here; the region is presentation-only. */}
+        <HeaderControls
+          currentEntry={currentEntry}
+          currentAgent={currentAgent}
+          lockedAgentId={lockedAgentId}
+          agentMenuOpen={agentMenuOpen}
+          setAgentMenuOpen={setAgentMenuOpen}
+          messageCount={messages.length}
+          currentReasoning={currentReasoning}
+          effectiveReasoningEffort={effectiveReasoningEffort}
+          setReasoningEffort={setReasoningEffort}
+          reasoningMenuOpen={reasoningMenuOpen}
+          setReasoningMenuOpen={setReasoningMenuOpen}
+          agentList={agentList}
+          selectedAgentId={selectedAgentId}
+          selectedModelId={selectedModelId}
+          onSelectEntry={(a) => {
+            setSelectedAgentId(a.agentId);
+            setSelectedModelId(a.modelId);
+            // Per-session pick: the same agent stays active when the user
+            // comes back to THIS conversation. Each session remembers its
+            // own choice — switching to another chat and back restores the
+            // agent that was active for that thread, not whichever one the
+            // user just clicked.
+            //
+            // The global `defaultChatEntryKey` is intentionally NOT touched
+            // here. Settings → "Default chat" is the single owner of the
+            // default for new sessions; the chat picker only mutates the
+            // active session.
+            const activeId = sessionHook.activeSession?.id;
+            if (activeId) {
+              sessionHook.setSessionAgent(activeId, a.key);
+            }
+            setAgentMenuOpen(false);
+          }}
+          remoteStatus={remoteStatus}
+          onNewConversation={() => {
+            // Seed the new session with the current effective agent so a
+            // fresh conversation inherits the agent the user is currently
+            // on. Without this, the new session would have no agentKey and
+            // fall back to the global default on first render — which is
+            // fine for the very first session but surprises users who
+            // expect a "new chat" to start where the last one left off.
+            const seed = currentEntry?.key;
+            sessionHook.createSession(seed ? { agentKey: seed } : undefined);
+            setToolCalls([]);
+          }}
+          activeLoading={activeLoading}
+          showSessionSidebar={showSessionSidebar}
+          onToggleSessionSidebar={() =>
+            setShowSessionSidebar(!showSessionSidebar)
+          }
+          onToggleFullscreen={onToggleFullscreen}
+          railFullscreen={railFullscreen}
+          onCollapseRail={onCollapseRail}
+          onClose={onClose}
+          isTaskMode={isTaskMode}
+          selectedTask={selectedTask}
+          isCapabilityMode={isCapabilityMode}
+          selectedCapability={selectedCapability}
+          isPlannerMode={isPlannerMode}
+          plannerGoal={plannerGoal}
+          onPlannerExit={onPlannerExit}
+          activeSessionTitle={sessionHook.activeSession?.title}
+        />
 
         {/* Kody waiting for instructions banner */}
         {isKodyWaiting && actionState && (
