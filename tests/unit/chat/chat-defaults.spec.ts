@@ -360,7 +360,7 @@ describe("composeChatPrompt", () => {
     // Tools allowlist.
     expect(prompt).toContain("## Tools available");
     expect(prompt).toContain("`github_search_code`");
-    expect(prompt).not.toContain("`kody_run_issue`");
+    expect(prompt).toContain("`kody_run_issue`");
     expect(prompt).not.toContain("`remote_write`");
   });
 

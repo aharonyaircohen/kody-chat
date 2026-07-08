@@ -1117,17 +1117,6 @@ function attachSocketToSession(socket, session) {
   socket.on("end", detach);
   socket.on("error", detach);
 
-  const isRestoring = Boolean(session.key && session.ready);
-  if (isRestoring) {
-    sendJson(socket, restoreStartMessage(session.outputBuffer || ""));
-    setTimeout(() => {
-      if (session.sockets.has(socket)) {
-        sendJson(socket, restoreCompleteMessage());
-        sendJson(socket, { type: "ready" });
-      }
-    }, 250);
-  }
-
   parseFrames(socket, (text) => {
     let msg;
     try {
@@ -1176,6 +1165,17 @@ function attachSocketToSession(socket, session) {
       sendResizeToPty(session, msg.cols, msg.rows);
     }
   });
+
+  const isRestoring = Boolean(session.key && session.ready);
+  if (isRestoring) {
+    sendJson(socket, restoreStartMessage(session.outputBuffer || ""));
+    setTimeout(() => {
+      if (session.sockets.has(socket)) {
+        sendJson(socket, restoreCompleteMessage());
+        sendJson(socket, { type: "ready" });
+      }
+    }, 250);
+  }
 
   if (!session.ready) {
     sendJson(socket, {

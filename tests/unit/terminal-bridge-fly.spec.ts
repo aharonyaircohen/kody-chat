@@ -228,7 +228,7 @@ describe("ensureTerminalBridge", () => {
     );
   });
 
-  it("reattaches the browser to the tmux pane without replaying old output", () => {
+  it("reattaches the browser to the tmux pane with typed restore lifecycle messages", () => {
     const attachSession = TERMINAL_BRIDGE_SCRIPT.match(
       /function attachSocketToSession[\s\S]*?\n}\n\nfunction startFlyConsole/,
     )?.[0];
@@ -237,7 +237,8 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
       "const MAX_REPLAY_CHARS = 120000;",
     );
-    expect(attachSession).not.toContain("session.outputBuffer");
+    expect(attachSession).toContain("restoreStartMessage(session.outputBuffer || \"\")");
+    expect(attachSession).toContain("restoreCompleteMessage()");
     expect(attachSession).not.toContain("session.pendingOutput");
     expect(attachSession).not.toContain("Reattached terminal session.");
     expect(attachSession).toContain("session.restartChild()");

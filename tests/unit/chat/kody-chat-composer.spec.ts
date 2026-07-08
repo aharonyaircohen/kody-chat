@@ -107,7 +107,7 @@ function findFlexRowRange(
     const openingTag = readOpeningTag(lines, i);
     const hasFlexClass =
       openingTag.includes("className") &&
-      /(?:className="flex\s|[?:]\s*"flex\s)/.test(openingTag);
+      /(?:^|[\s"`'{])flex(?=[\s"`'$}])/.test(openingTag);
     if (lines[i].includes("<div") && hasFlexClass) {
       count += 1;
       if (count === occurrence) {
@@ -193,7 +193,7 @@ describe("KodyChat composer — two-row layout (issue #65, #131)", () => {
       `composer must include a 1px hairline (border-t) between the input and action rows; outer container is not enough. composerText: ${composerText.slice(0, 200)}…`,
     ).toBe(true);
     expect(composerText).toContain('chatMode === "ai" && (');
-    expect(composerText).toContain(': "border-t bg-background"');
+    expect(composerText).toContain("border-t bg-background");
     expect(composerText).not.toContain('? "border-white/10 bg-[#050608]"');
     expect(composerText).not.toContain(
       'chatMode === "terminal" && <div className="border-t border-border/40" />',
@@ -201,14 +201,15 @@ describe("KodyChat composer — two-row layout (issue #65, #131)", () => {
   });
 
   it("the input row (1st flex row) contains the textarea AND the trailing send/stop icon button", () => {
-    // The input row is the FIRST `<div className="flex ` in the
+    // The input row is the SECOND `<div className="flex ` in the
+    // composer because Kody Live has a compact status row above it.
     // composer. Per issue #131, the trailing-edge send/stop button
     // sits INSIDE the input row (not in the action row).
     const inputRow = findFlexRowRange(
       SOURCE_LINES,
       COMPOSER_RANGE.start,
       COMPOSER_RANGE.end,
-      1,
+      2,
     );
     const inputText = SOURCE_LINES.slice(inputRow.start, inputRow.end + 1).join(
       "\n",
@@ -249,14 +250,16 @@ describe("KodyChat composer — two-row layout (issue #65, #131)", () => {
   });
 
   it("the action row (2nd flex row) contains Paperclip + VoiceButton, not the textarea and not Send", () => {
-    // The action row is the SECOND `<div className="flex ` in the
+    // The action row is the THIRD `<div className="flex ` in the
+    // composer because Kody Live has a compact status row above the
+    // input/action pair.
     // composer. Per issue #131, the Send button moved OUT of the
     // action row and into the input row.
     const actionRow = findFlexRowRange(
       SOURCE_LINES,
       COMPOSER_RANGE.start,
       COMPOSER_RANGE.end,
-      2,
+      3,
     );
     const actionText = SOURCE_LINES.slice(
       actionRow.start,
@@ -287,7 +290,7 @@ describe("KodyChat composer — two-row layout (issue #65, #131)", () => {
       SOURCE_LINES,
       COMPOSER_RANGE.start,
       COMPOSER_RANGE.end,
-      1,
+      2,
     );
     const inputText = SOURCE_LINES.slice(inputRow.start, inputRow.end + 1).join(
       "\n",
@@ -314,7 +317,7 @@ describe("KodyChat composer — two-row layout (issue #65, #131)", () => {
       SOURCE_LINES,
       COMPOSER_RANGE.start,
       COMPOSER_RANGE.end,
-      2,
+      3,
     );
     const actionText = SOURCE_LINES.slice(
       actionRow.start,

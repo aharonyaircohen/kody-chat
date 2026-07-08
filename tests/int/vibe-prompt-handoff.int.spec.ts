@@ -23,7 +23,8 @@ describe("vibe system prompt — issue-only boundary", () => {
     );
 
     expect(prompt).toMatch(/issue \*\*already exists\*\*/i);
-    expect(prompt).toMatch(/do not start work from chat/i);
+    expect(prompt).toMatch(/do not execute code changes yourself/i);
+    expect(prompt).toMatch(/call `kody_run_issue` for the current issue/i);
     expect(prompt).toMatch(/do not open a draft PR/i);
     expect(prompt).not.toMatch(/targetAgent|Runner availability/i);
   });
