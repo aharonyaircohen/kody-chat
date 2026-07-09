@@ -53,6 +53,22 @@ interface RawKodyConfig {
 const cache = new Map<string, { token: string | null; expiresAt: number }>();
 
 /**
+ * Authenticate reads with the server's GITHUB_TOKEN when the caller didn't
+ * bring a token. Unauthenticated reads share a 60-req/hr per-IP budget on
+ * Vercel — when it drains, every "public" read 403s and providers/vault
+ * silently resolve to nothing.
+ */
+function withServerToken(fetchImpl: typeof fetch): typeof fetch {
+  const token = process.env.GITHUB_TOKEN?.trim();
+  if (!token || fetchImpl !== fetch) return fetchImpl;
+  return (input, init) =>
+    fetch(input, {
+      ...init,
+      headers: { ...(init?.headers ?? {}), Authorization: `Bearer ${token}` },
+    });
+}
+
+/**
  * Read `secretName` (default `GITHUB_TOKEN`) from a public repo's vault using
  * only `KODY_MASTER_KEY`. Null if the repo isn't public, the vault/secret is
  * absent, or the master key is unset/wrong. Never throws.
@@ -67,7 +83,7 @@ export async function resolveVaultGithubToken(
   const hit = cache.get(key);
   if (hit && hit.expiresAt > Date.now()) return hit.token;
 
-  const token = await readOnce(owner, repo, secretName, fetchImpl);
+  const token = await readOnce(owner, repo, secretName, withServerToken(fetchImpl));
   cache.set(key, { token, expiresAt: Date.now() + CACHE_TTL_MS });
   return token;
 }
@@ -89,9 +105,10 @@ export async function resolvePublicStateVariable(
 
   let value: string | null = null;
   try {
-    const target = await resolvePublicStateRepo(owner, repo, fetchImpl);
+    const authedFetch = withServerToken(fetchImpl);
+    const target = await resolvePublicStateRepo(owner, repo, authedFetch);
     const file = await createGitHubStorageAdapter(
-      createGitHubStorageFetchClient(fetchImpl),
+      createGitHubStorageFetchClient(authedFetch),
     ).readText(
       { owner: target.owner, repo: target.repo },
       stateRepoPath(target, "variables.json"),
