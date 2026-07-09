@@ -12,5 +12,7 @@ describe("DialogContent", () => {
     expect(SOURCE).toContain("dialogHeightClass");
     expect(SOURCE).toContain("h-[calc(100vh-2rem)]");
     expect(SOURCE).toContain("grid-rows-[auto_minmax(0,1fr)]");
+    expect(SOURCE).toContain("overflow-y-auto");
+    expect(SOURCE).not.toContain("overflow-hidden");
   });
 });

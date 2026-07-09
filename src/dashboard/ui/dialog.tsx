@@ -47,7 +47,7 @@ const dialogHeightClass: Record<
 > = {
   content: "max-h-[90vh] overflow-y-auto",
   viewport:
-    "h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)] overflow-hidden",
+    "h-[calc(100vh-2rem)] max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)] overflow-y-auto",
 };
 
 const DialogContent = React.forwardRef<

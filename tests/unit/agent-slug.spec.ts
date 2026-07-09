@@ -32,4 +32,10 @@ describe("shared slug normalization", () => {
     expect(slugifyTitle("Company Profile")).toBe("company-profile");
     expect(normalizeSlug("חברה", "context")).toMatch(/^context-[a-z0-9]+$/);
   });
+
+  it("supports hyphenated slugs", () => {
+    expect(slugifyTitle("release-notes manager")).toBe(
+      "release-notes-manager",
+    );
+  });
 });
