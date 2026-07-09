@@ -32,7 +32,6 @@
     "activeCapabilities": [
       "capability-call",
       "cms-content-editor",
-      "auto-fix-ci",
       "dev-ci-health"
     ],
     "activeExecutables": [
