@@ -23,6 +23,7 @@
     "activeGoals": [
       "codebase-health",
       "ci-health",
+      "task-delivery",
       "prs-stay-mergeable",
       "cms-content-editing",
       "web-release"
@@ -33,7 +34,15 @@
     "activeCapabilities": [
       "capability-call",
       "cms-content-editor",
-      "dev-ci-health"
+      "dev-ci-health",
+      "task-verifier",
+      "assigned-task-runner",
+      "health-check",
+      "task-leader",
+      "review",
+      "ui-review",
+      "fix",
+      "merge"
     ],
     "activeExecutables": [
       "agent-ask"
