@@ -120,7 +120,9 @@ describe("GET /api/kody/capabilities", () => {
       json.capabilities.map((entry: { slug: string }) => entry.slug),
     ).toEqual(["local-one", "store-on"]);
     expect(json.implementations).toBeUndefined();
-    expect(h.listCapabilityFiles).toHaveBeenCalledTimes(1);
+    expect(h.listCapabilityFiles).toHaveBeenCalledWith({
+      activeStoreSlugs: new Set(["store-on"]),
+    });
   });
 });
 

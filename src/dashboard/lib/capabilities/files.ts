@@ -298,7 +298,11 @@ export async function listLocalCapabilityFiles(): Promise<CapabilitySummary[]> {
   return listCapabilityFolders(octokit, target, branch);
 }
 
-export async function listCapabilityFiles(): Promise<CapabilitySummary[]> {
+export async function listCapabilityFiles(
+  options: {
+    activeStoreSlugs?: Set<string>;
+  } = {},
+): Promise<CapabilitySummary[]> {
   const octokit = getOctokit();
   const { target, branch } = await getStateRepoContext(octokit);
 
@@ -306,6 +310,8 @@ export async function listCapabilityFiles(): Promise<CapabilitySummary[]> {
   const store = await listStoreCapabilityFiles(
     octokit,
     new Set(local.map((e) => e.slug)),
+    CAPABILITY_STORAGE,
+    options.activeStoreSlugs,
   );
   return mergeAssetsBySlug(local, store);
 }
@@ -314,6 +320,7 @@ export async function listStoreCapabilityFiles(
   octokit: Octokit,
   localSlugs: Set<string> = new Set(),
   storage: CapabilityStorage = CAPABILITY_STORAGE,
+  activeStoreSlugs?: Set<string>,
 ): Promise<CapabilitySummary[]> {
   const slugs = await listCompanyStoreAssetSlugs(
     octokit,
@@ -323,6 +330,7 @@ export async function listStoreCapabilityFiles(
   const summaries = await Promise.all(
     slugs
       .filter((slug) => !localSlugs.has(slug))
+      .filter((slug) => !activeStoreSlugs || activeStoreSlugs.has(slug))
       .map((slug) => readStoreCapabilitySummary(slug, octokit, storage)),
   );
   return summaries.filter((s): s is CapabilitySummary => s !== null);

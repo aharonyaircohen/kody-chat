@@ -80,7 +80,9 @@ export async function GET(req: NextRequest) {
         }
       }
     }
-    const capabilities = (await listCapabilityFiles()).filter(
+    const capabilities = (
+      await listCapabilityFiles({ activeStoreSlugs: activeCapabilities })
+    ).filter(
       (item) => item.source !== "store" || activeCapabilities.has(item.slug),
     );
     return NextResponse.json(
