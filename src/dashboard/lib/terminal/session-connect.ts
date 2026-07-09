@@ -17,13 +17,13 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
-import { startMachine } from "@dashboard/lib/previews/fly-previews";
+import { startServerProviderMachine } from "@dashboard/lib/infrastructure/server-machines";
 import {
-  flyConfigFromContext,
-  type FlyContext,
-} from "@dashboard/lib/runners/fly-context";
+  serverProviderConfigFromContext,
+  type ServerProviderContext,
+} from "@dashboard/lib/infrastructure/server-context";
 
-import { ensureTerminalBridge, type TerminalBridgeInfo } from "./bridge-fly";
+import { ensureServerProviderTerminalBridge, type ServerProviderTerminalBridgeInfo } from "@dashboard/lib/infrastructure/server-terminal";
 import {
   loadTerminalInventoryAuthority,
   terminalBridgeConfigCandidates,
@@ -91,7 +91,7 @@ function isFlyBridgeAuthError(err: unknown): boolean {
   const text = err instanceof Error ? err.message : String(err);
   return (
     /Fly Machines API (401|403) on \/(apps|apps\/)/.test(text) ||
-    /startMachine failed: (401|403)/.test(text) ||
+    /(startServerProviderMachine|startMachine) failed: (401|403)/.test(text) ||
     /fetch failed|Connect Timeout|ETIMEDOUT|ECONNRESET/i.test(text)
   );
 }
@@ -99,20 +99,20 @@ function isFlyBridgeAuthError(err: unknown): boolean {
 function isFlyMachineAlreadyStartingError(err: unknown): boolean {
   const text = err instanceof Error ? err.message : String(err);
   return (
-    /startMachine failed: 409/.test(text) &&
+    /(startServerProviderMachine|startMachine) failed: 409/.test(text) &&
     /machine still attempting to start/i.test(text)
   );
 }
 
-async function ensureTerminalBridgeForTarget(
+async function ensureServerProviderTerminalBridgeForTarget(
   cfg: ReturnType<typeof terminalFlyConfigForMachine>,
-): Promise<{ bridge: TerminalBridgeInfo; terminalCfg: typeof cfg }> {
+): Promise<{ bridge: ServerProviderTerminalBridgeInfo; terminalCfg: typeof cfg }> {
   let lastErr: unknown;
   const candidates = terminalBridgeConfigCandidates(cfg);
   for (const candidate of candidates) {
     try {
       return {
-        bridge: await ensureTerminalBridge(candidate),
+        bridge: await ensureServerProviderTerminalBridge(candidate),
         terminalCfg: candidate,
       };
     } catch (err) {
@@ -123,7 +123,7 @@ async function ensureTerminalBridgeForTarget(
   throw lastErr;
 }
 
-async function startMachineForTarget(
+async function startServerProviderMachineForTarget(
   app: string,
   machineId: string,
   cfg: ReturnType<typeof terminalFlyConfigForMachine>,
@@ -131,7 +131,7 @@ async function startMachineForTarget(
   let lastErr: unknown;
   for (const candidate of terminalBridgeConfigCandidates(cfg)) {
     try {
-      await startMachine(app, machineId, candidate);
+      await startServerProviderMachine(app, machineId, candidate);
       return;
     } catch (err) {
       lastErr = err;
@@ -153,11 +153,11 @@ function targetError(code: string, details: Record<string, unknown> = {}) {
 
 export async function startTerminalSession(input: {
   req: NextRequest;
-  context: FlyContext;
+  context: ServerProviderContext;
   data: StartTerminalSessionData;
 }) {
   const { req, context, data } = input;
-  const cfg = flyConfigFromContext(context);
+  const cfg = serverProviderConfigFromContext(context);
   if (!cfg) {
     throw new TerminalSessionError(
       "fly_token_missing",
@@ -241,7 +241,7 @@ export async function startTerminalSession(input: {
       requested,
       savedBrain,
     );
-    await startMachineForTarget(
+    await startServerProviderMachineForTarget(
       requested.app,
       requested.machineId,
       requestedCfg,
@@ -282,7 +282,7 @@ export async function startTerminalSession(input: {
     savedBrain,
   );
   const { bridge, terminalCfg } =
-    await ensureTerminalBridgeForTarget(selectedCfg);
+    await ensureServerProviderTerminalBridgeForTarget(selectedCfg);
   const activityLimitMs = terminalActivityLimitForTarget(
     selected.machine.feature,
     data.activityLimitMs,

@@ -10,10 +10,10 @@ import "server-only";
 import {
   startTerminalBridgeLocalExecJob,
 } from "@dashboard/lib/terminal/bridge-exec-client";
-import { ensureTerminalBridge } from "@dashboard/lib/terminal/bridge-fly";
+import { ensureServerProviderTerminalBridge } from "@dashboard/lib/infrastructure/server-terminal";
 import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token";
-import { DEFAULT_IMAGE, waitForBrainHealth } from "@dashboard/lib/runners/brain-fly";
-import type { FlyContext } from "@dashboard/lib/runners/fly-context";
+import { defaultServerBrainImage, waitForServerBrainHealth } from "@dashboard/lib/infrastructure/server-brain";
+import type { ServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
 
 import {
   brainGhcrImageRef,
@@ -33,7 +33,7 @@ const FLY_BRIDGE_ACCESS_DENIED_MESSAGE =
   "Fly token cannot create or access the terminal bridge app needed to save Brain image.";
 
 export interface StartBrainImageSaveInput {
-  context: FlyContext;
+  context: ServerProviderContext;
 }
 
 function flyAccessDenied(error: unknown): boolean {
@@ -111,9 +111,9 @@ export async function startBrainImageSave(input: StartBrainImageSaveInput) {
     error.reason = brain.reason;
     throw error;
   }
-  await waitForBrainHealth(brain.url, 120_000);
+  await waitForServerBrainHealth(brain.url, 120_000);
 
-  const bridge = await ensureTerminalBridge({
+  const bridge = await ensureServerProviderTerminalBridge({
     token: brainFlyToken,
     orgSlug: brain.orgSlug,
     defaultRegion: brain.defaultRegion,
@@ -159,7 +159,7 @@ export async function startBrainImageSave(input: StartBrainImageSaveInput) {
       machineId,
       orgSlug: brain.orgSlug,
       tag,
-      baseImageRef: DEFAULT_IMAGE,
+      baseImageRef: defaultServerBrainImage,
       imageRef: expectedImageRef,
       ghcrUser: ghcr.user,
     }),

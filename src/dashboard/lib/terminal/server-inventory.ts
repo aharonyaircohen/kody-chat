@@ -12,20 +12,20 @@ import "server-only";
 
 import type { NextRequest } from "next/server";
 
-import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
+import type { ServerProviderConfig } from "@dashboard/lib/infrastructure/server-machines";
 import {
-  listFlyInventory,
-  FlyInventory,
-  FlyMachineRow,
-} from "@dashboard/lib/runners/fly-inventory";
+  listServerProviderInventory,
+  ServerProviderInventory,
+  ServerProviderMachineRow,
+} from "@dashboard/lib/infrastructure/server-machines";
 import {
   applySavedBrainMachineToInventory,
-  emptyFlyInventory,
-  refreshFlyInventoryCounts,
+  emptyServerProviderInventory,
+  refreshServerProviderInventoryCounts,
   resolveSavedBrainServiceForRequest,
   type SavedBrainServiceForRequest,
-} from "@dashboard/lib/runners/fly-inventory-server";
-import type { FlyContext } from "@dashboard/lib/runners/fly-context";
+} from "@dashboard/lib/infrastructure/server-brain";
+import type { ServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
 
 export interface TerminalInventoryRequestTarget {
   brainRequested?: boolean;
@@ -34,22 +34,22 @@ export interface TerminalInventoryRequestTarget {
 }
 
 export interface TerminalInventoryAuthority {
-  inventory: FlyInventory;
+  inventory: ServerProviderInventory;
   savedBrain: SavedBrainServiceForRequest | null;
 }
 
 export function terminalTargetFlyConfig(
-  cfg: FlyPreviewConfig,
+  cfg: ServerProviderConfig,
   orgSlug: string | undefined,
-): FlyPreviewConfig {
+): ServerProviderConfig {
   return orgSlug && orgSlug !== cfg.orgSlug ? { ...cfg, orgSlug } : cfg;
 }
 
 export function terminalFlyConfigForMachine(
-  cfg: FlyPreviewConfig,
-  machine: FlyMachineRow,
+  cfg: ServerProviderConfig,
+  machine: ServerProviderMachineRow,
   savedBrain: SavedBrainServiceForRequest | null,
-): FlyPreviewConfig {
+): ServerProviderConfig {
   const savedBrainMachine = savedBrain?.brain.machine;
   const usesSavedBrainToken =
     machine.feature === "brain" &&
@@ -64,8 +64,8 @@ export function terminalFlyConfigForMachine(
 }
 
 export function terminalBridgeConfigCandidates(
-  targetCfg: FlyPreviewConfig,
-): FlyPreviewConfig[] {
+  targetCfg: ServerProviderConfig,
+): ServerProviderConfig[] {
   const seen = new Set([targetCfg.token]);
   const candidates = [targetCfg];
   for (const token of [
@@ -98,17 +98,17 @@ function savedBrainTargetsRequest(
 
 function savedBrainInventory(
   savedBrain: SavedBrainServiceForRequest,
-): FlyInventory {
-  const inventory = emptyFlyInventory();
+): ServerProviderInventory {
+  const inventory = emptyServerProviderInventory();
   applySavedBrainMachineToInventory(inventory, savedBrain.brain);
-  return refreshFlyInventoryCounts(inventory);
+  return refreshServerProviderInventoryCounts(inventory);
 }
 
 export async function loadTerminalInventoryAuthority(
   req: NextRequest,
-  cfg: FlyPreviewConfig,
+  cfg: ServerProviderConfig,
   target: TerminalInventoryRequestTarget,
-  context?: FlyContext,
+  context?: ServerProviderContext,
 ): Promise<TerminalInventoryAuthority> {
   const savedBrain = await resolveSavedBrainServiceForRequest(req, context);
   if (savedBrainTargetsRequest(savedBrain, target)) {
@@ -119,14 +119,14 @@ export async function loadTerminalInventoryAuthority(
   }
   if (target.brainRequested && !target.app && !target.machineId) {
     return {
-      inventory: emptyFlyInventory(),
+      inventory: emptyServerProviderInventory(),
       savedBrain,
     };
   }
 
-  let inventory: FlyInventory;
+  let inventory: ServerProviderInventory;
   try {
-    inventory = await listFlyInventory(cfg);
+    inventory = await listServerProviderInventory(cfg);
   } catch (err) {
     if (savedBrainTargetsRequest(savedBrain, target)) {
       return {
@@ -139,7 +139,7 @@ export async function loadTerminalInventoryAuthority(
 
   if (savedBrain) {
     applySavedBrainMachineToInventory(inventory, savedBrain.brain);
-    inventory = refreshFlyInventoryCounts(inventory);
+    inventory = refreshServerProviderInventoryCounts(inventory);
   }
 
   return { inventory, savedBrain };

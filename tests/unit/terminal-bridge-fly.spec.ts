@@ -13,8 +13,8 @@ import {
   TERMINAL_BRIDGE_BASE_IMAGE,
   TERMINAL_BRIDGE_VERSION,
   terminalBridgeAppName,
-} from "@dashboard/lib/terminal/bridge-fly";
-import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
+} from "@dashboard/lib/infrastructure/plugins/fly/terminal/bridge";
+import type { FlyPreviewConfig } from "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client";
 
 const CFG: FlyPreviewConfig = {
   token: "fly-test-token",

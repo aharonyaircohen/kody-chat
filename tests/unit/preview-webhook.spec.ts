@@ -49,10 +49,10 @@ vi.mock("@dashboard/lib/previews/sweep", () => ({
 vi.mock("@dashboard/lib/dashboard-config/store", () => ({
   readDashboardConfig: mocks.readDashboardConfig,
 }));
-vi.mock("@dashboard/lib/runners/fly-inventory", () => ({
+vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/inventory", () => ({
   listFlyInventory: vi.fn(),
 }));
-vi.mock("@dashboard/lib/runners/fly-activity-store", () => ({
+vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/activity-store", () => ({
   readActivityFile: vi.fn(),
   recordSnapshot: vi.fn(),
   snapshotDue: vi.fn(() => false),

@@ -34,7 +34,7 @@ vi.mock("@dashboard/lib/logger", () => ({
   },
 }));
 
-import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
+import { resolveFlyContext } from "@dashboard/lib/infrastructure/plugins/fly/runners/context";
 
 function req(): NextRequest {
   return {

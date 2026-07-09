@@ -1,6 +1,6 @@
 /**
  * Unit tests for the Fly preview machine API client
- * (src/dashboard/lib/previews/fly-previews.ts).
+ * (src/dashboard/lib/infrastructure/plugins/fly/previews/machines-client.ts).
  *
  * Focus: `createMachine`'s `checks` block gating. A periodic HTTP check
  * (GET / every 15s) keeps a Fly machine "active" forever, which prevents
@@ -22,7 +22,7 @@ import {
   destroyApp,
   sleepPreviewMachine,
   type FlyPreviewConfig,
-} from "@dashboard/lib/previews/fly-previews";
+} from "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client";
 
 const CFG: FlyPreviewConfig = {
   token: "test-token",

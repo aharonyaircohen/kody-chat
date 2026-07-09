@@ -40,7 +40,7 @@ vi.mock("@dashboard/lib/auth", () => ({
   requireKodyAuth: vi.fn(async () => null),
 }));
 
-vi.mock("@dashboard/lib/runners/fly-context", () => ({
+vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/context", () => ({
   resolveFlyContext: vi.fn(async () => ({
     ok: true,
     context: {
@@ -60,7 +60,7 @@ vi.mock("@dashboard/lib/brain/store", () => ({
   clearBrainApp: vi.fn(async () => undefined),
 }));
 
-vi.mock("@dashboard/lib/runners/brain-fly", () => brainFly);
+vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/brain", () => brainFly);
 
 vi.mock("@dashboard/lib/github-client", () => ({
   setGitHubContext: vi.fn(),

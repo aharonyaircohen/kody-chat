@@ -7,7 +7,7 @@
  * Image selection drift is a Brain warning, not a terminal blocker.
  */
 
-import type { FlyInventory } from "@dashboard/lib/runners/fly-inventory";
+import type { ServerProviderInventory } from "@dashboard/lib/infrastructure/server-machines";
 import {
   resolveBrainTerminalTargetInput,
   type TerminalTargetInput,
@@ -47,7 +47,7 @@ function warningFromDrift(
 
 export function resolveBrainTerminalConnect(input: {
   runtime: BrainRuntimeView;
-  inventory: FlyInventory;
+  inventory: ServerProviderInventory;
   requestedTarget: TerminalTargetInput | null;
 }): BrainTerminalConnectDecision {
   const warning = warningFromDrift(brainRuntimeDrift(input.runtime, null));
@@ -71,7 +71,7 @@ export function resolveBrainTerminalConnect(input: {
 
 export function connectBrainTerminal(input: {
   runtime: BrainRuntimeView;
-  inventory: FlyInventory;
+  inventory: ServerProviderInventory;
   requestedTarget: TerminalTargetInput | null;
 }): BrainTerminalConnectDecision {
   return resolveBrainTerminalConnect(input);

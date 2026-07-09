@@ -31,9 +31,9 @@ import {
   alignPreviewMachineSleep,
   destroyApp,
   listAppsByPrefix,
-  listMachines,
+  listServerProviderMachines,
   sleepPreviewMachine,
-} from "@dashboard/lib/previews/fly-previews";
+} from "@dashboard/lib/infrastructure/server-machines";
 import {
   resolveFlyPreviewsForRepo,
   resolvePreviewConfigForRepo,
@@ -239,7 +239,7 @@ export async function sweepExpiredPreviews(
         }
       }
 
-      const machines = await listMachines(appName, cfg);
+      const machines = await listServerProviderMachines(appName, cfg);
       // Oldest machine's creation time = the app's effective age. No machines
       // (a half-torn-down app) → treat as sweepable so it doesn't linger.
       const createdTimes = machines

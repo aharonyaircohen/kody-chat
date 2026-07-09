@@ -19,8 +19,8 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
-import type { PerfTier } from "@dashboard/lib/runners/brain-fly";
-import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
+import type { ServerBrainPerfTier } from "@dashboard/lib/infrastructure/server-brain";
+import { resolveServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
 import { requestOrigin } from "@dashboard/lib/request-origin";
 
 export const runtime = "nodejs";
@@ -32,8 +32,8 @@ const NO_STORE_HEADERS = {
 
 function brainPerfFrom(
   req: NextRequest,
-  fallback?: PerfTier,
-): PerfTier | undefined {
+  fallback?: ServerBrainPerfTier,
+): ServerBrainPerfTier | undefined {
   const raw = req.headers.get("x-kody-brain-perf");
   return raw === "low" || raw === "medium" || raw === "high" ? raw : fallback;
 }
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
 
-  const ctx = await resolveFlyContext(req);
+  const ctx = await resolveServerProviderContext(req);
   if (!ctx.ok) {
     return NextResponse.json(
       { error: ctx.error },

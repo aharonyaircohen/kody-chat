@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const listAppsByPrefix = vi.fn();
 const listMachines = vi.fn();
 
-vi.mock("@dashboard/lib/previews/fly-previews", () => ({
+vi.mock("@dashboard/lib/infrastructure/plugins/fly/previews/machines-client", () => ({
   listAppsByPrefix: (...args: unknown[]) => listAppsByPrefix(...args),
   listMachines: (...args: unknown[]) => listMachines(...args),
 }));
@@ -12,8 +12,8 @@ import {
   classifyApp,
   listFlyInventory,
   rowsForFlyApp,
-} from "@dashboard/lib/runners/fly-inventory";
-import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
+} from "@dashboard/lib/infrastructure/plugins/fly/runners/inventory";
+import type { FlyPreviewConfig } from "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client";
 
 const cfg: FlyPreviewConfig = {
   token: "fly_test",

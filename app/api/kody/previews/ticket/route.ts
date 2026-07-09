@@ -22,7 +22,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getRequestAuth, requireKodyAuth } from "@dashboard/lib/auth";
-import { flyHostname } from "@dashboard/lib/previews/fly-previews";
+import { serverProviderHostname } from "@dashboard/lib/infrastructure/server-machines";
 import { previewAppName } from "@dashboard/lib/previews/preview-key";
 import {
   mintBranchPreviewTicket,
@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
       ? { repo: parsed.data.repo, pr: parsed.data.pr! }
       : { repo: parsed.data.repo, branch: parsed.data.branch! },
   );
-  const url = new URL(flyHostname(appName));
+  const url = new URL(serverProviderHostname(appName));
   url.searchParams.set("kp", ticket);
 
   return NextResponse.json({ ticket, expiresAt, url: url.toString() });

@@ -62,7 +62,7 @@
 //      would bill one customer's previews against another.
 //
 //   2. **No preview state in the dashboard.** Status comes from Fly
-//      (`getPreview` → `appExists` + `listMachines`) using the deterministic
+//      (`getPreview` → `appExists` + `listServerProviderMachines`) using the deterministic
 //      app name. Storing a parallel preview state file would just drift.
 //
 //   3. **App-name stability is a contract.** Preview URLs, doorman ticket
@@ -109,7 +109,7 @@
  */
 
 import { getDeploymentProvider } from "@dashboard/lib/infrastructure/installed";
-import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
+import type { ServerProviderConfig } from "@dashboard/lib/infrastructure/server-machines";
 import {
   type BranchPreviewKey,
   type PreviewKey,
@@ -141,28 +141,28 @@ export interface PreviewInfo {
 
 export async function createPreview(
   input: CreatePreviewInput,
-  cfg: FlyPreviewConfig,
+  cfg: ServerProviderConfig,
 ): Promise<PreviewInfo> {
   return getDeploymentProvider().create(input, cfg) as Promise<PreviewInfo>;
 }
 
 export async function destroyPreview(
   key: PreviewKey,
-  cfg: FlyPreviewConfig,
+  cfg: ServerProviderConfig,
 ): Promise<void> {
   await getDeploymentProvider().destroy(key, cfg);
 }
 
 export async function getPreview(
   key: PreviewKey,
-  cfg: FlyPreviewConfig,
+  cfg: ServerProviderConfig,
 ): Promise<PreviewInfo | null> {
   return getDeploymentProvider().get(key, cfg) as Promise<PreviewInfo | null>;
 }
 
 export async function wakePreview(
   key: PreviewKey,
-  cfg: FlyPreviewConfig,
+  cfg: ServerProviderConfig,
 ): Promise<PreviewInfo | null> {
   return getDeploymentProvider().wake!(key, cfg) as Promise<PreviewInfo | null>;
 }

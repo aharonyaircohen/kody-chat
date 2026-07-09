@@ -38,14 +38,14 @@ import { resolvePreviewConfigForRepo } from "./config";
 import { createPreview, destroyPreview } from "./preview-lifecycle";
 import { sweepExpiredPreviews } from "./sweep";
 import { routePreviewBuild } from "./preview-router";
-import type { FlyPreviewConfig } from "./fly-previews";
-import { listFlyInventory } from "@dashboard/lib/runners/fly-inventory";
+import type { ServerProviderConfig } from "@dashboard/lib/infrastructure/server-machines";
+import { listServerProviderInventory } from "@dashboard/lib/infrastructure/server-machines";
 import {
-  readActivityFile,
-  recordSnapshot,
+  readServerProviderActivityFile,
+  recordServerProviderSnapshot,
   snapshotDue,
-  snapshotFromInventory,
-} from "@dashboard/lib/runners/fly-activity-store";
+  snapshotFromServerProviderInventory,
+} from "@dashboard/lib/infrastructure/server-activity";
 
 /**
  * Feature flag — `1` (default) routes per-PR preview builds through
@@ -99,7 +99,7 @@ async function fetchChangedPaths(
 
 function queuePreviewMaintenance(
   repoFullName: string,
-  cfg: FlyPreviewConfig,
+  cfg: ServerProviderConfig,
   bg: { token: string } | null | undefined,
   owner: string,
   repo: string,
@@ -121,10 +121,12 @@ function queuePreviewMaintenance(
     const oct = new Octokit({ auth: bg.token });
     void (async () => {
       const now = Date.now();
-      const file = await readActivityFile(oct, owner, repo);
+      const file = (await readServerProviderActivityFile(oct, owner, repo)) as {
+        snapshots?: Array<{ ts: number }>;
+      };
       if (!snapshotDue(file, now)) return;
-      const inv = await listFlyInventory(cfg);
-      await recordSnapshot(oct, owner, repo, snapshotFromInventory(inv, now));
+      const inv = await listServerProviderInventory(cfg);
+      await recordServerProviderSnapshot(oct, owner, repo, snapshotFromServerProviderInventory(inv, now));
     })().catch((err) =>
       logger.warn(
         { err, repo: repoFullName },

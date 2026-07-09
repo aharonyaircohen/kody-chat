@@ -14,9 +14,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
   batchSuspendRunning,
   countRunningInGroup,
-} from "@dashboard/lib/runners/fly-suspend-all";
-import { isFlyMachineRunning } from "@dashboard/lib/runners/fly-machine-model";
-import type { FlyMachineRow } from "@dashboard/lib/runners/fly-inventory";
+} from "@dashboard/lib/infrastructure/plugins/fly/runners/suspend-all";
+import { isFlyMachineRunning } from "@dashboard/lib/infrastructure/plugins/fly/runners/machine-model";
+import type { FlyMachineRow } from "@dashboard/lib/infrastructure/plugins/fly/runners/inventory";
 
 function row(
   machineId: string,

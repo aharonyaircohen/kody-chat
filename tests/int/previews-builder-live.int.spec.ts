@@ -29,7 +29,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import {
   destroyApp,
   type FlyPreviewConfig,
-} from "@dashboard/lib/previews/fly-previews";
+} from "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client";
 import {
   previewAppName,
   type PreviewKey,

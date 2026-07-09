@@ -18,16 +18,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireKodyAuth } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
 import {
-  flyConfigFromContext,
-  resolveFlyContext,
-} from "@dashboard/lib/runners/fly-context";
-import { computeActivity } from "@dashboard/lib/runners/fly-activity";
+  serverProviderConfigFromContext,
+  resolveServerProviderContext,
+} from "@dashboard/lib/infrastructure/server-context";
+import { computeServerProviderActivity } from "@dashboard/lib/infrastructure/server-activity";
 import {
-  readActivityFile,
-  recordSnapshot,
-  snapshotFromInventory,
-} from "@dashboard/lib/runners/fly-activity-store";
-import { listFlyInventory } from "@dashboard/lib/runners/fly-inventory";
+  readServerProviderActivityFile,
+  recordServerProviderSnapshot,
+  snapshotFromServerProviderInventory,
+} from "@dashboard/lib/infrastructure/server-activity";
+import { listServerProviderInventory } from "@dashboard/lib/infrastructure/server-machines";
 
 export const runtime = "nodejs";
 
@@ -35,11 +35,11 @@ export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
 
-  const ctx = await resolveFlyContext(req);
+  const ctx = await resolveServerProviderContext(req);
   if (!ctx.ok) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
-  const cfg = flyConfigFromContext(ctx.context);
+  const cfg = serverProviderConfigFromContext(ctx.context);
   if (!cfg) {
     return NextResponse.json(
       {
@@ -54,14 +54,14 @@ export async function GET(req: NextRequest) {
     // Record a fresh snapshot (throttled in the store), then compute from the
     // full timeline including it. A snapshot/read failure shouldn't blank the
     // view, so the record step is best-effort.
-    const inventory = await listFlyInventory(cfg);
+    const inventory = await listServerProviderInventory(cfg);
     const now = Date.now();
     try {
-      await recordSnapshot(
+      await recordServerProviderSnapshot(
         ctx.context.octokit,
         ctx.context.owner,
         ctx.context.repo,
-        snapshotFromInventory(inventory, now),
+        snapshotFromServerProviderInventory(inventory, now),
       );
     } catch (err) {
       logger.warn(
@@ -70,12 +70,12 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const file = await readActivityFile(
+    const file = (await readServerProviderActivityFile(
       ctx.context.octokit,
       ctx.context.owner,
       ctx.context.repo,
-    );
-    const activity = computeActivity(file);
+    )) as { snapshots: unknown[] };
+    const activity = computeServerProviderActivity(file);
     return NextResponse.json({
       activity,
       snapshots: file.snapshots.length,

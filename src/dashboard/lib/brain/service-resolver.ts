@@ -11,15 +11,15 @@ import "server-only";
 import { readBrainRuntimeView } from "@dashboard/lib/brain/runtime-manager";
 import { readBrainApp, type BrainAppFile } from "@dashboard/lib/brain/store";
 import { resolveBrainTarget } from "@dashboard/lib/brain/target";
-import { listMachines } from "@dashboard/lib/previews/fly-previews";
+import { listServerProviderMachines } from "@dashboard/lib/infrastructure/server-machines";
 import {
-  brainStatus,
-  type BrainStatusResult,
-} from "@dashboard/lib/runners/brain-fly";
+  serverBrainStatus,
+  type ServerBrainStatusResult,
+} from "@dashboard/lib/infrastructure/server-brain";
 import {
-  rowsForFlyApp,
-  type FlyMachineRow,
-} from "@dashboard/lib/runners/fly-inventory";
+  rowsForServerProviderApp,
+  type ServerProviderMachineRow,
+} from "@dashboard/lib/infrastructure/server-machines";
 
 export type BrainServiceReason =
   | "not_provisioned"
@@ -29,19 +29,21 @@ export type BrainServiceReason =
   | "machine_lookup_failed"
   | "fly_access_denied";
 
-export interface BrainServiceResolution {
+export interface ServerBrainServiceResolution {
   app: string;
   orgSlug: string;
   defaultRegion: string;
   flyToken: string;
   stored: BrainAppFile | null;
-  state: BrainStatusResult["state"];
+  state: ServerBrainStatusResult["state"];
   url?: string;
   machineId?: string;
   machineImageRef?: string;
-  machine?: FlyMachineRow;
+  machine?: ServerProviderMachineRow;
   reason?: BrainServiceReason;
 }
+
+export type BrainServiceResolution = ServerBrainServiceResolution;
 
 function envFlyTokenFallback(primaryToken: string): string | undefined {
   const token =
@@ -50,8 +52,8 @@ function envFlyTokenFallback(primaryToken: string): string | undefined {
 }
 
 function sameResolvedBrainMachine(
-  a: BrainServiceResolution,
-  b: BrainServiceResolution,
+  a: ServerBrainServiceResolution,
+  b: ServerBrainServiceResolution,
 ): boolean {
   return Boolean(
     a.app === b.app &&
@@ -76,7 +78,7 @@ export async function resolveBrainService(input: {
   defaultRegion: string;
   appNameOverride?: string;
   machineIdOverride?: string;
-}): Promise<BrainServiceResolution> {
+}): Promise<ServerBrainServiceResolution> {
   const stored = await readBrainApp(input.account, input.githubToken).catch(
     () => null,
   );
@@ -101,8 +103,8 @@ export async function resolveBrainService(input: {
 
   const resolveWithToken = async (
     flyToken: string,
-  ): Promise<BrainServiceResolution> => {
-    const status = await brainStatus({
+  ): Promise<ServerBrainServiceResolution> => {
+    const status = await serverBrainStatus({
       flyToken,
       account: input.account,
       appNameOverride: app,
@@ -111,16 +113,16 @@ export async function resolveBrainService(input: {
       defaultRegion: input.defaultRegion,
     });
 
-    let machine: FlyMachineRow | undefined;
+    let machine: ServerProviderMachineRow | undefined;
     let machineLookupFailed = false;
     let machineAccessDenied = Boolean(status.accessDenied);
     try {
-      const machines = await listMachines(app, {
+      const machines = await listServerProviderMachines(app, {
         token: flyToken,
         orgSlug,
         defaultRegion: input.defaultRegion,
       });
-      machine = rowsForFlyApp(app, machines, Date.now(), {
+      machine = rowsForServerProviderApp(app, machines, Date.now(), {
         feature: "brain",
         label: app,
         orgSlug,

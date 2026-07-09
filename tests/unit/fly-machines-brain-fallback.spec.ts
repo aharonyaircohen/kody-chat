@@ -14,7 +14,7 @@ const ROUTE_SOURCE = readFileSync(
   "utf8",
 );
 const HELPER_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/runners/fly-inventory-server.ts"),
+  resolve(__dirname, "../../src/dashboard/lib/infrastructure/plugins/fly/runners/inventory-server.ts"),
   "utf8",
 );
 

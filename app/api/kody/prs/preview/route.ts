@@ -24,7 +24,7 @@ import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import { flyPrPreviewUrl } from "@dashboard/lib/previews/fly-pr-preview-url";
+import { serverProviderPrPreviewUrl } from "@dashboard/lib/infrastructure/server-preview-url";
 import { mintPreviewTicket } from "@dashboard/lib/preview-token";
 
 // Git SHAs are 40 hex chars; accept 7-40 to tolerate abbreviated refs.
@@ -53,12 +53,12 @@ export async function GET(req: NextRequest) {
     }
 
     // Prefer the Fly preview when this repo builds previews on Fly and the
-    // per-PR app exists. flyPrPreviewUrl returns null for every "not on Fly"
+    // per-PR app exists. serverProviderPrPreviewUrl returns null for every "not on Fly"
     // case, so we transparently fall back to the Vercel lookup below.
     if (parsed.data.pr && headerAuth) {
       const octokit = await getUserOctokit(req);
       if (octokit) {
-        const flyUrl = await flyPrPreviewUrl(
+        const flyUrl = await serverProviderPrPreviewUrl(
           octokit,
           headerAuth.owner,
           headerAuth.repo,

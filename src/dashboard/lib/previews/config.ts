@@ -34,7 +34,7 @@ import {
 import { logger } from "@dashboard/lib/logger";
 import { readVault } from "@dashboard/lib/vault/store";
 
-import type { FlyPreviewConfig } from "./fly-previews";
+import type { ServerProviderConfig } from "@dashboard/lib/infrastructure/server-machines";
 
 export interface ResolvePreviewConfigInput {
   octokit: Octokit;
@@ -62,7 +62,7 @@ async function readVaultMap(
 
 export async function resolvePreviewConfigForOctokit(
   input: ResolvePreviewConfigInput,
-): Promise<FlyPreviewConfig | null> {
+): Promise<ServerProviderConfig | null> {
   const secrets = await readVaultMap(input.octokit, input.owner, input.repo);
 
   const token =
@@ -90,7 +90,7 @@ export async function resolvePreviewConfigForOctokit(
 export async function resolvePreviewConfigForRepo(
   owner: string,
   repo: string,
-): Promise<FlyPreviewConfig | null> {
+): Promise<ServerProviderConfig | null> {
   const bg = await resolveBackgroundToken(owner, repo);
   if (!bg) {
     logger.warn(

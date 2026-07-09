@@ -9,16 +9,16 @@
 import "server-only";
 
 import {
-  destroyBrain,
-  isBrainFlyProvisionTransientError,
-  provisionBrain,
-  resumeBrain,
-  suspendBrain,
-  updateBrainSuspension,
-  type PerfTier,
-  type ProvisionBrainResult,
-} from "@dashboard/lib/runners/brain-fly";
-import type { FlyContext } from "@dashboard/lib/runners/fly-context";
+  destroyServerBrain,
+  isServerBrainProvisionTransientError,
+  provisionServerBrain,
+  resumeServerBrain,
+  suspendServerBrain,
+  updateServerBrainSuspension,
+  type ServerBrainPerfTier,
+  type ProvisionServerBrainResult,
+} from "@dashboard/lib/infrastructure/server-brain";
+import type { ServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
 
 import { resolveBrainService } from "./service-resolver";
 import { clearBrainApp, readBrainApp, writeBrainApp } from "./store";
@@ -33,10 +33,10 @@ export type BrainServerCommand =
 
 export interface ManageBrainServerInput {
   command: BrainServerCommand;
-  context: FlyContext;
+  context: ServerProviderContext;
   dashboardUrl?: string;
   appNameOverride?: string;
-  perfTier?: PerfTier;
+  perfTier?: ServerBrainPerfTier;
   suspendOnIdle?: boolean;
 }
 
@@ -51,7 +51,7 @@ export class BrainCommandError extends Error {
   }
 }
 
-function requireFlyToken(context: FlyContext): string {
+function requireFlyToken(context: ServerProviderContext): string {
   if (!context.flyToken) {
     throw new BrainCommandError(
       "Fly token missing - add FLY_API_TOKEN to the repo Secrets vault.",
@@ -62,7 +62,7 @@ function requireFlyToken(context: FlyContext): string {
   return context.flyToken;
 }
 
-async function resolveCurrentBrain(context: FlyContext) {
+async function resolveCurrentBrain(context: ServerProviderContext) {
   return resolveBrainService({
     flyToken: requireFlyToken(context),
     account: context.account,
@@ -74,7 +74,7 @@ async function resolveCurrentBrain(context: FlyContext) {
 
 export function manageBrainServer(
   input: ManageBrainServerInput & { command: "provision" },
-): Promise<ProvisionBrainResult>;
+): Promise<ProvisionServerBrainResult>;
 export function manageBrainServer(
   input: ManageBrainServerInput & {
     command: "resume" | "suspend" | "destroy";
@@ -98,8 +98,8 @@ export async function manageBrainServer(input: ManageBrainServerInput) {
       appNameOverride: input.appNameOverride,
     });
     try {
-      const result = await provisionBrain({
-        flyToken,
+      const result = await provisionServerBrain({
+        providerToken: flyToken,
         account: context.account,
         model: context.engineModel,
         modelConfig: context.engineModelConfig,
@@ -120,12 +120,13 @@ export async function manageBrainServer(input: ManageBrainServerInput) {
       });
       return result;
     } catch (err) {
-      if (isBrainFlyProvisionTransientError(err)) {
+      if (isServerBrainProvisionTransientError(err)) {
+        const retryable = err as Error & { retryAfterSeconds?: number };
         throw new BrainCommandError(
-          err.message,
+          retryable.message,
           503,
           "brain_provision_retryable",
-          err.retryAfterSeconds,
+          retryable.retryAfterSeconds,
         );
       }
       throw err;
@@ -135,8 +136,8 @@ export async function manageBrainServer(input: ManageBrainServerInput) {
   const brain = await resolveCurrentBrain(context);
 
   if (input.command === "resume") {
-    await resumeBrain({
-      flyToken: brain.flyToken,
+    await resumeServerBrain({
+      providerToken: brain.flyToken,
       account: context.account,
       orgSlug: brain.orgSlug,
       defaultRegion: context.flyDefaultRegion,
@@ -147,8 +148,8 @@ export async function manageBrainServer(input: ManageBrainServerInput) {
   }
 
   if (input.command === "suspend") {
-    await suspendBrain({
-      flyToken: brain.flyToken,
+    await suspendServerBrain({
+      providerToken: brain.flyToken,
       account: context.account,
       orgSlug: brain.orgSlug,
       defaultRegion: context.flyDefaultRegion,
@@ -159,8 +160,8 @@ export async function manageBrainServer(input: ManageBrainServerInput) {
   }
 
   if (input.command === "destroy") {
-    await destroyBrain({
-      flyToken: brain.flyToken,
+    await destroyServerBrain({
+      providerToken: brain.flyToken,
       account: context.account,
       orgSlug: brain.orgSlug,
       defaultRegion: context.flyDefaultRegion,
@@ -187,8 +188,8 @@ export async function manageBrainServer(input: ManageBrainServerInput) {
     }
     return {
       ok: true,
-      ...(await updateBrainSuspension({
-        flyToken: brain.flyToken,
+      ...(await updateServerBrainSuspension({
+        providerToken: brain.flyToken,
         account: context.account,
         orgSlug: brain.orgSlug,
         defaultRegion: context.flyDefaultRegion,

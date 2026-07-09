@@ -29,14 +29,14 @@ import { Card, CardContent } from "@dashboard/ui/card";
 import {
   batchSuspendRunning,
   countRunningInGroup,
-} from "@dashboard/lib/runners/fly-suspend-all";
+} from "@dashboard/lib/infrastructure/server-machine-model";
 import {
   FLY_FEATURE_TITLE,
-  isFlyMachineRunning,
-  type FlyFeature,
-  type FlyInventory,
-  type FlyMachineRow,
-} from "@dashboard/lib/runners/fly-machine-model";
+  isServerProviderMachineRunning,
+  type ServerProviderFeature,
+  type ServerProviderInventory,
+  type ServerProviderMachineRow,
+} from "@dashboard/lib/infrastructure/server-machine-model";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 interface FlyMachinesTableProps {
@@ -45,7 +45,7 @@ interface FlyMachinesTableProps {
 }
 
 // Display order + friendly group titles.
-const FEATURE_ORDER: FlyFeature[] = [
+const FEATURE_ORDER: ServerProviderFeature[] = [
   "preview",
   "runner",
   "brain",
@@ -56,7 +56,7 @@ const FEATURE_ORDER: FlyFeature[] = [
 // Preview apps are throwaway per-PR envs — "Destroy" should remove the whole
 // app (URL + IPs), not just one machine. Long-lived service apps keep the app
 // and only destroy the machine.
-function destroysWholeApp(feature: FlyFeature): boolean {
+function destroysWholeApp(feature: ServerProviderFeature): boolean {
   return feature === "preview" || feature === "preview-base";
 }
 
@@ -105,12 +105,12 @@ export function FlyMachinesTable({
 }: FlyMachinesTableProps) {
   const hasAuth = Object.keys(headers).length > 0;
 
-  const [inv, setInv] = useState<FlyInventory | null>(null);
+  const [inv, setInv] = useState<ServerProviderInventory | null>(null);
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
-  const [confirm, setConfirm] = useState<FlyMachineRow | null>(null);
-  const [busyFeature, setBusyFeature] = useState<FlyFeature | null>(null);
-  const [confirmFeature, setConfirmFeature] = useState<FlyFeature | null>(null);
+  const [confirm, setConfirm] = useState<ServerProviderMachineRow | null>(null);
+  const [busyFeature, setBusyFeature] = useState<ServerProviderFeature | null>(null);
+  const [confirmFeature, setConfirmFeature] = useState<ServerProviderFeature | null>(null);
 
   const refresh = useCallback(async () => {
     if (!hasAuth || !flyTokenConfigured) {
@@ -124,7 +124,7 @@ export function FlyMachinesTable({
         setInv(null);
         return;
       }
-      setInv((await res.json()) as FlyInventory);
+      setInv((await res.json()) as ServerProviderInventory);
     } catch {
       setInv(null);
     } finally {
@@ -137,7 +137,7 @@ export function FlyMachinesTable({
   }, [refresh]);
 
   async function act(
-    row: FlyMachineRow,
+    row: ServerProviderMachineRow,
     action: "suspend" | "start" | "destroy" | "destroyApp",
   ) {
     setBusyId(row.machineId);
@@ -172,7 +172,7 @@ export function FlyMachinesTable({
     }
   }
 
-  async function suspendGroup(feature: FlyFeature) {
+  async function suspendGroup(feature: ServerProviderFeature) {
     const rows = (inv?.machines ?? []).filter((m) => m.feature === feature);
     setBusyFeature(feature);
     try {
@@ -291,7 +291,7 @@ export function FlyMachinesTable({
               <div className="divide-y divide-white/[0.06]">
                 {rows.map((row) => {
                   const busy = groupBusy || busyId === row.machineId;
-                  const running = isFlyMachineRunning(row.state);
+                  const running = isServerProviderMachineRunning(row.state);
                   return (
                     <div
                       key={row.machineId}

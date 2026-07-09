@@ -14,7 +14,7 @@ import {
   BRAIN_IMAGE_JOB_OUTPUT_BYTES,
   brainImageJobTimeoutMs,
 } from "@dashboard/lib/brain/image-timeouts";
-import { ensureTerminalBridge } from "@dashboard/lib/terminal/bridge-fly";
+import { ensureServerProviderTerminalBridge } from "@dashboard/lib/infrastructure/server-terminal";
 import { runTerminalBridgeLocalExec } from "@dashboard/lib/terminal/bridge-exec-client";
 import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token";
 
@@ -132,7 +132,7 @@ export async function prepareBrainRuntimeImage(input: {
       app: input.app,
       imageRef: input.imageRef,
     });
-  const bridge = await ensureTerminalBridge({
+  const bridge = await ensureServerProviderTerminalBridge({
     token: input.flyToken,
     orgSlug: input.orgSlug,
     defaultRegion: input.defaultRegion,

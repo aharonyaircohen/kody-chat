@@ -22,7 +22,7 @@ import {
 } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
 import { getEngineConfig } from "@dashboard/lib/engine/config";
-import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
+import type { FlyPreviewConfig } from "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client";
 import { readVault } from "@dashboard/lib/vault/store";
 import { loadChatModels } from "@dashboard/lib/variables/load-chat-models";
 import {

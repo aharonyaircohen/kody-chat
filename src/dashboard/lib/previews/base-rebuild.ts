@@ -31,7 +31,7 @@
 
 import { logger } from "@dashboard/lib/logger";
 import { spawnPreviewBuilder } from "@dashboard/lib/previews/builder-client";
-import { type FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
+import { type ServerProviderConfig } from "@dashboard/lib/infrastructure/server-machines";
 import { basePreviewAppName } from "@dashboard/lib/previews/preview-key";
 import { loadVaultContextForBuild } from "@dashboard/lib/previews/vault-build-context";
 
@@ -58,7 +58,7 @@ export interface RebuildBaseInput {
   /** Head SHA of the default-branch push (or branch ref) to build from. */
   ref: string;
   /** Fly config resolved from the target repo's vault. */
-  cfg: FlyPreviewConfig;
+  cfg: ServerProviderConfig;
   /** GitHub token for the clone — App installation token preferred. */
   githubToken?: string;
 }

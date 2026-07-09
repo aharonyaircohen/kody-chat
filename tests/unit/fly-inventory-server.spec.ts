@@ -55,7 +55,7 @@ const githubContext = vi.hoisted(() => ({
   clearGitHubContext: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/runners/fly-context", () => flyContext);
+vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/context", () => flyContext);
 vi.mock("@dashboard/lib/brain/service-resolver", () => brainResolver);
 vi.mock("@dashboard/lib/github-client", () => githubContext);
 vi.mock("@dashboard/lib/logger", () => ({
@@ -65,8 +65,8 @@ vi.mock("@dashboard/lib/logger", () => ({
 import {
   appendSavedBrainMachineToInventory,
   resolveSavedBrainServiceForRequest,
-} from "@dashboard/lib/runners/fly-inventory-server";
-import type { FlyInventory } from "@dashboard/lib/runners/fly-machine-model";
+} from "@dashboard/lib/infrastructure/plugins/fly/runners/inventory-server";
+import type { FlyInventory } from "@dashboard/lib/infrastructure/plugins/fly/runners/machine-model";
 
 describe("appendSavedBrainMachineToInventory", () => {
   beforeEach(() => {

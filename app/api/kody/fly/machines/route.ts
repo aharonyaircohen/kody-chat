@@ -16,14 +16,14 @@ import { requireKodyAuth } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
 import {
   appendSavedBrainMachineToInventory,
-  emptyFlyInventory,
-  listFlyInventoryCached,
-  refreshFlyInventoryCounts,
-} from "@dashboard/lib/runners/fly-inventory-server";
+  emptyServerProviderInventory,
+  listServerProviderInventoryCached,
+  refreshServerProviderInventoryCounts,
+} from "@dashboard/lib/infrastructure/server-brain";
 import {
-  flyConfigFromContext,
-  resolveFlyContext,
-} from "@dashboard/lib/runners/fly-context";
+  serverProviderConfigFromContext,
+  resolveServerProviderContext,
+} from "@dashboard/lib/infrastructure/server-context";
 
 export const runtime = "nodejs";
 
@@ -31,17 +31,17 @@ export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
 
-  const ctx = await resolveFlyContext(req);
+  const ctx = await resolveServerProviderContext(req);
   if (!ctx.ok) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
-  const cfg = flyConfigFromContext(ctx.context);
+  const cfg = serverProviderConfigFromContext(ctx.context);
 
-  const inventory = emptyFlyInventory();
+  const inventory = emptyServerProviderInventory();
   let inventoryErr: unknown = null;
   try {
     if (cfg) {
-      const listed = await listFlyInventoryCached(cfg);
+      const listed = await listServerProviderInventoryCached(cfg);
       inventory.machines.push(...listed.machines);
     }
   } catch (err) {
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
     ctx.context,
   );
   if (inventory.machines.length > 0 || addedBrain) {
-    return NextResponse.json(refreshFlyInventoryCounts(inventory));
+    return NextResponse.json(refreshServerProviderInventoryCounts(inventory));
   }
 
   if (!cfg) {

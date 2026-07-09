@@ -34,8 +34,8 @@ import { RepoScopedLink } from "../../../components/RepoScopedLink";
 import {
   flyMachineTerminalLabel,
   flyTerminalTargetLabel,
-  type FlyMachineRow,
-} from "../../../runners/fly-machine-model";
+  type ServerProviderMachineRow,
+} from "@dashboard/lib/infrastructure/server-machine-model";
 import {
   terminalFlyMachineKey,
   terminalMachineIdShort,
@@ -124,7 +124,7 @@ export function TerminalTopControls({
   activeTargetValue: string;
   onSelectTarget: (value: string) => void;
   activeTransport: ChatTerminalTransport;
-  terminalMachines: FlyMachineRow[];
+  terminalMachines: ServerProviderMachineRow[];
   flyInventoryError: string | null;
   flyInventoryLoading: boolean;
   onRefreshMachines: () => void;

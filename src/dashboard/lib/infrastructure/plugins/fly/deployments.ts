@@ -23,7 +23,7 @@ import {
   waitForMachineStarted,
   type FlyPreviewConfig,
   type MachineInfo,
-} from "@dashboard/lib/previews/fly-previews";
+} from "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client";
 import {
   previewAppName,
   type BranchPreviewKey,

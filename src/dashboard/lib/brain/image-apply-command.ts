@@ -7,7 +7,7 @@
  */
 import "server-only";
 
-import type { FlyContext } from "@dashboard/lib/runners/fly-context";
+import type { ServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
 
 import {
   applySelectedBrainImage,
@@ -15,7 +15,7 @@ import {
 } from "./image-apply";
 
 export interface ApplyBrainImageCommandInput {
-  context: FlyContext;
+  context: ServerProviderContext;
   dashboardUrl: string;
   imageRef?: string;
   reset?: boolean;

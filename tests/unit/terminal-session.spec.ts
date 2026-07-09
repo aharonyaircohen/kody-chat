@@ -10,7 +10,7 @@ import {
   terminalActivityLimitForTarget,
   terminalBridgeSessionIdForTarget,
 } from "@dashboard/lib/terminal/session";
-import type { FlyInventory } from "@dashboard/lib/runners/fly-inventory";
+import type { FlyInventory } from "@dashboard/lib/infrastructure/plugins/fly/runners/inventory";
 
 const INVENTORY: FlyInventory = {
   running: 2,

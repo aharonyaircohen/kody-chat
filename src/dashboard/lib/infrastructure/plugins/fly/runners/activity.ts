@@ -9,9 +9,9 @@
  *   the stored file in.
  */
 
-import { classifyApp } from "./fly-inventory";
-import { isFlyMachineRunning, type FlyFeature } from "./fly-machine-model";
-import { estimateCost, type MachineSize } from "./fly-rates";
+import { classifyApp } from "./inventory";
+import { isFlyMachineRunning, type FlyFeature } from "./machine-model";
+import { estimateCost, type MachineSize } from "./rates";
 
 /** One machine's state at one snapshot moment. */
 export interface ActivitySample extends MachineSize {

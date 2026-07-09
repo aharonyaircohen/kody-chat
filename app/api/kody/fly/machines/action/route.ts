@@ -22,13 +22,13 @@ import { logger } from "@dashboard/lib/logger";
 import {
   destroyApp,
   destroyMachine,
-  startMachine,
+  startServerProviderMachine,
   suspendMachine,
-} from "@dashboard/lib/previews/fly-previews";
+} from "@dashboard/lib/infrastructure/server-machines";
 import {
-  flyConfigFromContext,
-  resolveFlyContext,
-} from "@dashboard/lib/runners/fly-context";
+  serverProviderConfigFromContext,
+  resolveServerProviderContext,
+} from "@dashboard/lib/infrastructure/server-context";
 
 export const runtime = "nodejs";
 
@@ -68,11 +68,11 @@ export async function POST(req: NextRequest) {
     if ("status" in verify) return verify;
   }
 
-  const ctx = await resolveFlyContext(req);
+  const ctx = await resolveServerProviderContext(req);
   if (!ctx.ok) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
-  const cfg = flyConfigFromContext(ctx.context);
+  const cfg = serverProviderConfigFromContext(ctx.context);
   if (!cfg) {
     return NextResponse.json({ error: "fly_token_missing" }, { status: 503 });
   }
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
         await suspendMachine(app, machineId!, cfg);
         break;
       case "start":
-        await startMachine(app, machineId!, cfg);
+        await startServerProviderMachine(app, machineId!, cfg);
         break;
       case "destroy":
         await destroyMachine(app, machineId!, cfg);

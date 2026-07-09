@@ -11,8 +11,8 @@
  */
 import {
   isFlyTerminalCapable,
-  type FlyMachineRow,
-} from "../../../runners/fly-machine-model";
+  type ServerProviderMachineRow,
+} from "@dashboard/lib/infrastructure/server-machine-model";
 import type {
   ChatTerminalConnectionState,
   ChatTerminalMode,
@@ -252,7 +252,7 @@ export function savePersistedTerminalRegistry(
   }
 }
 
-export function canUseChatTerminalFlyMachine(machine: FlyMachineRow): boolean {
+export function canUseChatTerminalFlyMachine(machine: ServerProviderMachineRow): boolean {
   return isFlyTerminalCapable(machine.feature);
 }
 
@@ -268,7 +268,7 @@ export function terminalMachineIdShort(machineId: string): string {
 }
 
 export function chatTerminalTransportFromMachine(
-  machine: FlyMachineRow,
+  machine: ServerProviderMachineRow,
 ): ChatTerminalTransport {
   if (machine.feature === "brain") return BRAIN_TERMINAL_TRANSPORT;
   const transport: ChatTerminalTransport = {
@@ -285,7 +285,7 @@ export function chatTerminalTransportFromMachine(
 
 export function normalizeTerminalTransport(
   transport: ChatTerminalTransport,
-  terminalMachines: FlyMachineRow[],
+  terminalMachines: ServerProviderMachineRow[],
   _options: { inventoryLoaded?: boolean } = {},
 ): ChatTerminalTransport {
   if (transport.type !== "fly") {
@@ -339,7 +339,7 @@ export function terminalTargetValue(transport: ChatTerminalTransport): string {
  */
 export function resolveTerminalTargetSelection(
   value: string,
-  terminalMachines: FlyMachineRow[],
+  terminalMachines: ServerProviderMachineRow[],
 ): ChatTerminalTransport | null {
   if (value === "local") return LOCAL_TERMINAL_TRANSPORT;
   if (value === "brain") return BRAIN_TERMINAL_TRANSPORT;
@@ -352,7 +352,7 @@ export function resolveTerminalTargetSelection(
 
 export function reconcileMountedChatTerminalsWithInventory(
   terminals: MountedChatTerminal[],
-  terminalMachines: FlyMachineRow[],
+  terminalMachines: ServerProviderMachineRow[],
   options: { inventoryLoaded?: boolean } = {},
 ): MountedChatTerminal[] {
   return normalizeMountedChatTerminals(

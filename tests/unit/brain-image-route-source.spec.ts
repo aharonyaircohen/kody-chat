@@ -22,7 +22,7 @@ const IMAGE_MANAGEMENT_SOURCE = readFileSync(
   "utf8",
 );
 const BRIDGE_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/terminal/bridge-fly.ts"),
+  resolve(__dirname, "../../src/dashboard/lib/infrastructure/plugins/fly/terminal/bridge.ts"),
   "utf8",
 );
 const BRIDGE_EXEC_CLIENT_SOURCE = readFileSync(
@@ -51,7 +51,9 @@ describe("Brain image save route", () => {
     expect(ROUTE_SOURCE).toContain("pollBrainImageSave");
     expect(ROUTE_SOURCE).toContain("selectBrainImageRef");
     expect(ROUTE_SOURCE).toContain("forgetBrainImageRef");
-    expect(IMAGE_SAVE_COMMAND_SOURCE).toContain("ensureTerminalBridge");
+    expect(IMAGE_SAVE_COMMAND_SOURCE).toContain(
+      "ensureServerProviderTerminalBridge",
+    );
     expect(IMAGE_SAVE_COMMAND_SOURCE).toContain(
       "startTerminalBridgeLocalExecJob",
     );

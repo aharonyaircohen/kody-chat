@@ -22,7 +22,7 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
-import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
+import { resolveServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
 
 export const runtime = "nodejs";
 
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const ctx = await resolveFlyContext(req);
+  const ctx = await resolveServerProviderContext(req);
   if (!ctx.ok) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }

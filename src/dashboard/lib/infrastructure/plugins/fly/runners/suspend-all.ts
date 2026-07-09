@@ -15,8 +15,8 @@
  * `POST /api/kody/fly/machines/action`) and so this helper is testable
  * without a network.
  */
-import type { FlyMachineRow } from "./fly-inventory";
-import { isFlyMachineRunning } from "./fly-machine-model";
+import type { FlyMachineRow } from "./inventory";
+import { isFlyMachineRunning } from "./machine-model";
 
 export interface SuspendResult {
   machineId: string;

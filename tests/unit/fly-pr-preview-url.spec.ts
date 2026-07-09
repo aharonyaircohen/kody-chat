@@ -11,7 +11,7 @@ const lifecycle = vi.hoisted(() => ({
 vi.mock("@dashboard/lib/previews/config", () => config);
 vi.mock("@dashboard/lib/previews/preview-lifecycle", () => lifecycle);
 
-import { flyPrPreviewUrl } from "@dashboard/lib/previews/fly-pr-preview-url";
+import { flyPrPreviewUrl } from "@dashboard/lib/infrastructure/plugins/fly/previews/pr-preview-url";
 
 describe("flyPrPreviewUrl", () => {
   beforeEach(() => {

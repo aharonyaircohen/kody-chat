@@ -18,7 +18,7 @@ vi.mock("@dashboard/lib/auth", () => ({
   getRequestAuth: (...args: unknown[]) => getRequestAuth(...args),
 }));
 
-vi.mock("@dashboard/lib/runners/fly-context", () => ({
+vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/context", () => ({
   resolveFlyContext: (...args: unknown[]) => resolveFlyContext(...args),
 }));
 
@@ -33,7 +33,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
   clearGitHubContext: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/runners/brain-fly", () => ({
+vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/brain", () => ({
   brainAppName: (account: string) => `kody-brain-${account}`,
   provisionBrain: (...args: unknown[]) => provisionBrain(...args),
   waitForBrainHealth: (...args: unknown[]) => waitForBrainHealth(...args),

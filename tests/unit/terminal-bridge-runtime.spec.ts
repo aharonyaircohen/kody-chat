@@ -11,7 +11,7 @@ import { join } from "node:path";
 import net from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { TERMINAL_BRIDGE_SCRIPT } from "@dashboard/lib/terminal/bridge-fly";
+import { TERMINAL_BRIDGE_SCRIPT } from "@dashboard/lib/infrastructure/plugins/fly/terminal/bridge";
 import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token";
 
 const BRIDGE_SECRET = "runtime-bridge-secret";

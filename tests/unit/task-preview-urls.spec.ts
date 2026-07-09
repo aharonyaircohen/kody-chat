@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
+import type { FlyPreviewConfig } from "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client";
 import type { GitHubPR } from "@dashboard/lib/types";
 
 const lifecycle = vi.hoisted(() => ({

@@ -37,10 +37,10 @@ import type { BrainRuntimeStateFile } from "@dashboard/lib/brain/runtime-store";
 import { resolveBrainTarget } from "@dashboard/lib/brain/target";
 import { logger } from "@dashboard/lib/logger";
 import {
-  provisionBrain,
-  type PerfTier,
-  type ProvisionBrainResult,
-} from "@dashboard/lib/runners/brain-fly";
+  provisionServerBrain,
+  type ServerBrainPerfTier,
+  type ProvisionServerBrainResult,
+} from "@dashboard/lib/infrastructure/server-brain";
 import type { EngineRuntimeModelConfig } from "@dashboard/lib/variables/models";
 
 export interface ApplyBrainImageInput {
@@ -55,14 +55,14 @@ export interface ApplyBrainImageInput {
   dashboardUrl: string;
   engineModel?: string;
   engineModelConfig?: EngineRuntimeModelConfig;
-  perfTier?: PerfTier;
+  perfTier?: ServerBrainPerfTier;
   imageRef?: string;
   resetExistingMachine?: boolean;
 }
 
 export interface ApplyBrainImageResult {
   image: BrainImageFile;
-  brain: ProvisionBrainResult;
+  brain: ProvisionServerBrainResult;
   runtime: BrainRuntimeStateFile;
 }
 
@@ -139,8 +139,8 @@ export async function applySelectedBrainImage(
     }
     const operationFlyToken = service.flyToken;
     const operationOrgSlug = service.orgSlug;
-    const brain = await provisionBrain({
-      flyToken: operationFlyToken,
+    const brain = await provisionServerBrain({
+      providerToken: operationFlyToken,
       account: input.account,
       model: input.engineModel,
       modelConfig: input.engineModelConfig,

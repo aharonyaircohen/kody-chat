@@ -9,9 +9,9 @@
 import crypto from "node:crypto";
 
 import { logger } from "@dashboard/lib/logger";
-import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
-import { allocateIpsIfMissing } from "@dashboard/lib/runners/brain-fly";
-import { TERMINAL_BRIDGE_RUNTIME_HELPERS_SCRIPT } from "./bridge-runtime";
+import type { FlyPreviewConfig } from "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client";
+import { allocateIpsIfMissing } from "@dashboard/lib/infrastructure/plugins/fly/runners/brain";
+import { TERMINAL_BRIDGE_RUNTIME_HELPERS_SCRIPT } from "@dashboard/lib/terminal/bridge-runtime";
 
 const FLY_API_BASE = "https://api.machines.dev/v1";
 const REQUEST_TIMEOUT_MS = 90_000;

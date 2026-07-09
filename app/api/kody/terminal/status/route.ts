@@ -12,10 +12,10 @@ import { z } from "zod";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
 import {
-  flyConfigFromContext,
-  resolveFlyContext,
-} from "@dashboard/lib/runners/fly-context";
-import { findTerminalBridge } from "@dashboard/lib/terminal/bridge-fly";
+  serverProviderConfigFromContext,
+  resolveServerProviderContext,
+} from "@dashboard/lib/infrastructure/server-context";
+import { findServerProviderTerminalBridge } from "@dashboard/lib/infrastructure/server-terminal";
 import {
   loadTerminalInventoryAuthority,
   terminalBridgeConfigCandidates,
@@ -86,11 +86,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const ctx = await resolveFlyContext(req);
+  const ctx = await resolveServerProviderContext(req);
   if (!ctx.ok) {
     return unavailable("fly_context_unavailable");
   }
-  const cfg = flyConfigFromContext(ctx.context);
+  const cfg = serverProviderConfigFromContext(ctx.context);
   if (!cfg) {
     return unavailable("fly_config_unavailable");
   }
@@ -151,7 +151,7 @@ export async function POST(req: NextRequest) {
   let bridgeCfg = targetCfg;
   for (const candidate of terminalBridgeConfigCandidates(targetCfg)) {
     try {
-      bridge = await findTerminalBridge(candidate);
+      bridge = await findServerProviderTerminalBridge(candidate);
       if (bridge) {
         bridgeCfg = candidate;
         break;

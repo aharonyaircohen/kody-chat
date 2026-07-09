@@ -19,7 +19,7 @@
  * image (`nginx:alpine` by default) and injects the uploaded file(s)
  * straight into the machine via Fly's `config.files`. That means it's
  * ready in seconds, not minutes, and the dashboard's only Fly calls are
- * createApp → allocateSharedIps → createMachine.
+ * createApp → allocateSharedIps → createServerProviderMachine.
  *
  * Lifecycle reuse: status (`getPreview`) and teardown (`destroyPreview`)
  * in `preview-lifecycle.ts` already work for any `PreviewKey`, so a
@@ -27,17 +27,17 @@
  * which is what this file provides.
  *
  * Per-repo billing: the caller passes the target repo's own
- * `FlyPreviewConfig` (resolved from that repo's vault `FLY_API_TOKEN`).
+ * `ServerProviderConfig` (resolved from that repo's vault `FLY_API_TOKEN`).
  */
 
 import { logger } from "@dashboard/lib/logger";
 import {
   allocateSharedIps,
   createApp,
-  createMachine,
-  flyHostname,
-  type FlyPreviewConfig,
-} from "@dashboard/lib/previews/fly-previews";
+  createServerProviderMachine,
+  serverProviderHostname,
+  type ServerProviderConfig,
+} from "@dashboard/lib/infrastructure/server-machines";
 import {
   previewAppName,
   type StaticPreviewKey,
@@ -73,7 +73,7 @@ export interface StaticPreviewInfo {
 
 export async function createStaticPreview(
   input: CreateStaticPreviewInput,
-  cfg: FlyPreviewConfig,
+  cfg: ServerProviderConfig,
 ): Promise<StaticPreviewInfo> {
   if (input.files.length === 0) {
     throw new Error("createStaticPreview: no files to serve");
@@ -87,7 +87,7 @@ export async function createStaticPreview(
   await createApp(appName, cfg);
   await allocateSharedIps(appName, cfg);
 
-  const machine = await createMachine(
+  const machine = await createServerProviderMachine(
     {
       appName,
       region: cfg.defaultRegion,
@@ -111,7 +111,7 @@ export async function createStaticPreview(
 
   return {
     appName,
-    url: flyHostname(appName),
+    url: serverProviderHostname(appName),
     machineId: machine.id,
     state:
       machine.state === "started"

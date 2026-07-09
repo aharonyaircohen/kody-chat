@@ -8,7 +8,6 @@
  */
 
 import { type BrainAppFile } from "@dashboard/lib/brain/store";
-import { brainAppName } from "@dashboard/lib/runners/brain-fly";
 
 export type BrainTargetSource = "override" | "stored" | "default";
 
@@ -16,6 +15,10 @@ export interface BrainTarget {
   app: string;
   orgSlug: string;
   source: BrainTargetSource;
+}
+
+function defaultBrainAppName(account: string): string {
+  return `kody-brain-${account.toLowerCase().replace(/[^a-z0-9-]/g, "-")}`;
 }
 
 export function resolveBrainTarget(input: {
@@ -45,7 +48,7 @@ export function resolveBrainTarget(input: {
   }
 
   return {
-    app: brainAppName(input.account),
+    app: defaultBrainAppName(input.account),
     orgSlug: input.contextOrgSlug,
     source: "default",
   };

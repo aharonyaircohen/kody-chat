@@ -16,9 +16,9 @@ import { toast } from "sonner";
 
 import { Button } from "@dashboard/ui/button";
 import type {
-  FlyInventory,
-  FlyMachineRow,
-} from "@dashboard/lib/runners/fly-machine-model";
+  ServerProviderInventory,
+  ServerProviderMachineRow,
+} from "@dashboard/lib/infrastructure/server-machine-model";
 
 interface BranchPreviewResponse {
   previews?: Array<{
@@ -51,7 +51,7 @@ function prNumberFromLabel(label: string): number | null {
   return Number.isFinite(pr) ? pr : null;
 }
 
-function previewKind(row: FlyMachineRow): string {
+function previewKind(row: ServerProviderMachineRow): string {
   if (/^PR #\d+$/.test(row.label)) return row.label;
   if (row.label === "static") return "Static";
   if (row.label === "branch") return "Branch";
@@ -90,7 +90,7 @@ export function FlyPreviewsList({
   flyTokenConfigured,
 }: FlyPreviewsListProps) {
   const hasAuth = Object.keys(headers).length > 0;
-  const [inventory, setInventory] = useState<FlyInventory | null>(null);
+  const [inventory, setInventory] = useState<ServerProviderInventory | null>(null);
   const [branchNamesByApp, setBranchNamesByApp] = useState<
     Record<string, string>
   >({});
@@ -115,7 +115,7 @@ export function FlyPreviewsList({
           setBranchNamesByApp({});
           return;
         }
-        setInventory((await machinesRes.json()) as FlyInventory);
+        setInventory((await machinesRes.json()) as ServerProviderInventory);
 
         if (branchesRes.ok) {
           const branchBody =
@@ -161,7 +161,7 @@ export function FlyPreviewsList({
   );
 
   async function signedPreviewUrl(
-    row: FlyMachineRow,
+    row: ServerProviderMachineRow,
     url: string,
     branchName?: string,
   ): Promise<string> {
@@ -186,7 +186,7 @@ export function FlyPreviewsList({
     return signed.toString();
   }
 
-  async function copyUrl(row: FlyMachineRow, url: string, branchName?: string) {
+  async function copyUrl(row: ServerProviderMachineRow, url: string, branchName?: string) {
     try {
       await navigator.clipboard.writeText(
         await signedPreviewUrl(row, url, branchName),
@@ -198,7 +198,7 @@ export function FlyPreviewsList({
   }
 
   async function openPreview(
-    row: FlyMachineRow,
+    row: ServerProviderMachineRow,
     url: string,
     branchName?: string,
   ) {

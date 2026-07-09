@@ -11,7 +11,7 @@
  * or shows the Brain URL/key.
  *
  * Lifecycle:
- *   1. requireKodyAuth + resolveFlyContext (reads FLY_API_TOKEN from the
+ *   1. requireKodyAuth + resolveServerProviderContext (reads FLY_API_TOKEN from the
  *      repo's secrets vault).
  *   2. manageBrainServer("provision") — idempotent. Creates the per-user app + machine
  *      on the first call (~30s); reuses both on later calls and returns
@@ -43,9 +43,9 @@ import {
   type BrainTaskContext,
 } from "@dashboard/lib/brain-proxy";
 import {
-  waitForBrainHealth,
-} from "@dashboard/lib/runners/brain-fly";
-import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
+  waitForServerBrainHealth,
+} from "@dashboard/lib/infrastructure/server-brain";
+import { resolveServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
 import { requestOrigin } from "@dashboard/lib/request-origin";
 import {
   withPageContext,
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
 
-  const ctx = await resolveFlyContext(req);
+  const ctx = await resolveServerProviderContext(req);
   if (!ctx.ok) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }
@@ -173,7 +173,7 @@ export async function POST(req: NextRequest) {
     // On reuse / resume-from-suspend the server is already up and this
     // returns on the first poll.
     try {
-      await waitForBrainHealth(provisioned.url, 240_000);
+      await waitForServerBrainHealth(provisioned.url, 240_000);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error(

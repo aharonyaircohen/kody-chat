@@ -9,7 +9,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { spawnRunner } from "@dashboard/lib/runners/fly";
+import { spawnRunner } from "@dashboard/lib/infrastructure/plugins/fly/runners/fly";
 import {
   chatRunRequest,
   goalRunRequest,

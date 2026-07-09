@@ -7,10 +7,10 @@
  * and for building the dashboard-managed bridge websocket URL.
  */
 import type {
-  FlyFeature,
-  FlyInventory,
-  FlyMachineRow,
-} from "@dashboard/lib/runners/fly-inventory";
+  ServerProviderFeature,
+  ServerProviderInventory,
+  ServerProviderMachineRow,
+} from "@dashboard/lib/infrastructure/server-machines";
 
 export type TerminalTargetError =
   | "machine_not_found"
@@ -20,12 +20,12 @@ export type TerminalTargetError =
 export interface TerminalTargetInput {
   app: string;
   machineId: string;
-  feature?: FlyFeature;
+  feature?: ServerProviderFeature;
 }
 
 export interface TerminalTargetResult {
   ok: true;
-  machine: FlyMachineRow;
+  machine: ServerProviderMachineRow;
 }
 
 export interface TerminalTargetFailure {
@@ -33,11 +33,11 @@ export interface TerminalTargetFailure {
   error: TerminalTargetError;
 }
 
-const TERMINAL_FEATURES = new Set<FlyFeature>(["brain"]);
+const TERMINAL_FEATURES = new Set<ServerProviderFeature>(["brain"]);
 const LIVE_STATES = new Set(["started", "running"]);
 const STARTABLE_STATES = new Set(["suspended", "stopped"]);
 
-export function isTerminalFeatureAllowed(feature: FlyFeature): boolean {
+export function isTerminalFeatureAllowed(feature: ServerProviderFeature): boolean {
   return TERMINAL_FEATURES.has(feature);
 }
 
@@ -50,8 +50,8 @@ export function isTerminalMachineStartable(state: string): boolean {
 }
 
 export function upsertTerminalTargetMachine(
-  inventory: FlyInventory,
-  machine: FlyMachineRow,
+  inventory: ServerProviderInventory,
+  machine: ServerProviderMachineRow,
   orgSlug: string,
 ): void {
   inventory.machines = inventory.machines.filter(
@@ -66,9 +66,9 @@ export function upsertTerminalTargetMachine(
 }
 
 export function findTerminalTargetMachine(
-  inventory: FlyInventory,
+  inventory: ServerProviderInventory,
   input: TerminalTargetInput,
-): FlyMachineRow | null {
+): ServerProviderMachineRow | null {
   return (
     inventory.machines.find(
       (m) => m.app === input.app && m.machineId === input.machineId,
@@ -77,9 +77,9 @@ export function findTerminalTargetMachine(
 }
 
 export function resolveTerminalTargetMachine(
-  inventory: FlyInventory,
+  inventory: ServerProviderInventory,
   input: TerminalTargetInput,
-): FlyMachineRow | null {
+): ServerProviderMachineRow | null {
   const exact = findTerminalTargetMachine(inventory, input);
   if (exact) return exact;
 
@@ -97,8 +97,8 @@ export function resolveTerminalTargetMachine(
 }
 
 export function resolveBrainTerminalTargetInput(
-  inventory: FlyInventory,
-  input?: { app?: string; machineId?: string; feature?: FlyFeature } | null,
+  inventory: ServerProviderInventory,
+  input?: { app?: string; machineId?: string; feature?: ServerProviderFeature } | null,
 ): { app: string; machineId: string; feature: "brain" } | null {
   if (input?.app && input.machineId) {
     const target = resolveTerminalTargetMachine(inventory, {
@@ -127,7 +127,7 @@ export function resolveBrainTerminalTargetInput(
 }
 
 export function selectTerminalTarget(
-  inventory: FlyInventory,
+  inventory: ServerProviderInventory,
   input: TerminalTargetInput,
 ): TerminalTargetResult | TerminalTargetFailure {
   const machine = resolveTerminalTargetMachine(inventory, input);
@@ -142,7 +142,7 @@ export function selectTerminalTarget(
 }
 
 export function terminalActivityLimitForTarget(
-  feature: FlyFeature,
+  feature: ServerProviderFeature,
   requested: number | null | undefined,
 ): number | null | undefined {
   return feature === "brain" ? requested : undefined;
@@ -153,7 +153,7 @@ export function terminalBridgeSessionIdForTarget(input: {
   repo: string;
   app: string;
   machineId: string;
-  feature: FlyFeature;
+  feature: ServerProviderFeature;
   requestedChatSessionId?: string;
 }): string | undefined {
   if (input.feature !== "brain") return input.requestedChatSessionId;

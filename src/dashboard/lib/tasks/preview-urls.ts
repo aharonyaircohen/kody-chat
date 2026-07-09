@@ -5,7 +5,7 @@
  * @ai-summary Resolves task preview URLs without fabricating Fly hosts before previews exist.
  */
 
-import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
+import type { ServerProviderConfig } from "@dashboard/lib/infrastructure/server-machines";
 import { getPreview } from "@dashboard/lib/previews/preview-lifecycle";
 import type { GitHubPR } from "@dashboard/lib/types";
 
@@ -20,7 +20,7 @@ export interface SignFlyPreviewUrlInput {
 export interface BuildPreviewUrlByPrNumberInput {
   openPRs: PreviewPr[];
   deploymentPreviewUrls: Map<string, string>;
-  flyPreviewConfig: FlyPreviewConfig | null;
+  flyPreviewConfig: ServerProviderConfig | null;
   repo: string;
   signFlyPreviewUrl?: (input: SignFlyPreviewUrlInput) => string | null;
 }
@@ -28,7 +28,7 @@ export interface BuildPreviewUrlByPrNumberInput {
 async function getReadyFlyPreviewUrl(
   repo: string,
   pr: number,
-  cfg: FlyPreviewConfig,
+  cfg: ServerProviderConfig,
 ): Promise<string | null> {
   try {
     const preview = await getPreview({ repo, pr }, cfg);

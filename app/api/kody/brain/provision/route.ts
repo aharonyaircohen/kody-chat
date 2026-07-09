@@ -8,7 +8,7 @@
  * Idempotent provision of the per-user Brain Fly app. Drives the
  * Settings "Repo Brain on Fly" toggle - the user flips it ON and we create
  * (or reuse) the app + machine. Returns the same shape as the chat
- * route's internal provisionBrain call.
+ * route's internal provisionServerBrain call.
  *
  * Auth: requireKodyAuth. The Fly token comes from `ctx.context.flyToken`,
  * which is resolved in `fly-context.ts` as: repo vault `FLY_API_TOKEN` →
@@ -27,7 +27,7 @@
  * name (and the org Fly reports). On failure, Fly's message surfaces
  * verbatim — no swallowing, no retry.
  *
- * The chat route /api/kody/chat/brain-fly still calls provisionBrain
+ * The chat route /api/kody/chat/brain-fly still calls provisionServerBrain
  * directly as a safety net (idempotent), so this route is purely for
  * the user-initiated path from Settings.
  */
@@ -44,8 +44,8 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
-import type { PerfTier } from "@dashboard/lib/runners/brain-fly";
-import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
+import type { ServerBrainPerfTier } from "@dashboard/lib/infrastructure/server-brain";
+import { resolveServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
 import { requestOrigin } from "@dashboard/lib/request-origin";
 
 export const runtime = "nodejs";
@@ -56,8 +56,8 @@ export const maxDuration = 300;
  * fall back to the shared tier, then the server default. */
 function brainPerfFrom(
   req: NextRequest,
-  fallback?: PerfTier,
-): PerfTier | undefined {
+  fallback?: ServerBrainPerfTier,
+): ServerBrainPerfTier | undefined {
   const raw = req.headers.get("x-kody-brain-perf");
   return raw === "low" || raw === "medium" || raw === "high" ? raw : fallback;
 }
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
 
-  const ctx = await resolveFlyContext(req);
+  const ctx = await resolveServerProviderContext(req);
   if (!ctx.ok) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }

@@ -26,8 +26,8 @@ import {
   type ActivitySample,
   type ActivitySnapshot,
   type FlyActivityFile,
-} from "./fly-activity";
-import type { FlyInventory } from "./fly-inventory";
+} from "./activity";
+import type { FlyInventory } from "./inventory";
 
 export const ACTIVITY_FILE_PATH = "state/fly-activity.json";
 

@@ -12,7 +12,7 @@ import { z } from "zod";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
 import { logger } from "@dashboard/lib/logger";
-import { resolveFlyContext } from "@dashboard/lib/runners/fly-context";
+import { resolveServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
 import {
   startTerminalSession,
   TerminalSessionError,
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const ctx = await resolveFlyContext(req);
+  const ctx = await resolveServerProviderContext(req);
   if (!ctx.ok) {
     return NextResponse.json({ error: ctx.error }, { status: ctx.status });
   }

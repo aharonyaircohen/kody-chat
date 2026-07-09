@@ -8,12 +8,12 @@
  */
 import "server-only";
 
-import type { FlyContext } from "@dashboard/lib/runners/fly-context";
+import type { ServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
 import {
   getTerminalBridgeExecJob,
   type TerminalBridgeExecJob,
 } from "@dashboard/lib/terminal/bridge-exec-client";
-import { ensureTerminalBridge } from "@dashboard/lib/terminal/bridge-fly";
+import { ensureServerProviderTerminalBridge } from "@dashboard/lib/infrastructure/server-terminal";
 import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token";
 
 import {
@@ -123,7 +123,7 @@ function imageManagementResponse(
 }
 
 async function discoverImages(
-  context: FlyContext,
+  context: ServerProviderContext,
   options: { refresh?: boolean; scope?: string } = {},
 ): Promise<BrainSavedImage[]> {
   const ghcr = brainGhcrAuth({
@@ -183,7 +183,7 @@ async function reconcileBrainImageSaveForManagement(input: {
 }
 
 async function findCompletedBrainImageSave(
-  context: FlyContext,
+  context: ServerProviderContext,
   save: BrainImageSaveFile,
 ): Promise<BrainSavedImage | null> {
   const images = await discoverImages(context, {
@@ -242,7 +242,7 @@ async function recordCompletedBrainImageSave(input: {
   };
 }
 
-export async function readBrainImageManagement(input: { context: FlyContext }) {
+export async function readBrainImageManagement(input: { context: ServerProviderContext }) {
   const { context } = input;
   const image = await readBrainImage(context.account, context.githubToken);
   const discoveredImages = await discoverImages(context);
@@ -290,7 +290,7 @@ export async function readBrainImageManagement(input: { context: FlyContext }) {
 }
 
 export async function pollBrainImageSave(input: {
-  context: FlyContext;
+  context: ServerProviderContext;
   jobId: string;
 }) {
   const { context, jobId } = input;
@@ -348,7 +348,7 @@ export async function pollBrainImageSave(input: {
   const operationFlyToken = service.flyToken;
   const operationOrgSlug = service.orgSlug;
 
-  const bridge = await ensureTerminalBridge({
+  const bridge = await ensureServerProviderTerminalBridge({
     token: operationFlyToken,
     orgSlug: operationOrgSlug,
     defaultRegion: save.defaultRegion,
@@ -446,7 +446,7 @@ export async function pollBrainImageSave(input: {
 }
 
 export async function selectBrainImageRef(input: {
-  context: FlyContext;
+  context: ServerProviderContext;
   imageRef: string;
 }) {
   const { context, imageRef } = input;
@@ -484,7 +484,7 @@ export async function selectBrainImageRef(input: {
 }
 
 export async function forgetBrainImageRef(input: {
-  context: FlyContext;
+  context: ServerProviderContext;
   imageRef: string;
 }) {
   const { context, imageRef } = input;

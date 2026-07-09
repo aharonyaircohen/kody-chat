@@ -24,7 +24,7 @@ vi.mock("@dashboard/lib/auth", () => ({
   requireKodyAuth: vi.fn(async () => null),
 }));
 
-vi.mock("@dashboard/lib/runners/fly-context", () => ({
+vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/context", () => ({
   resolveFlyContext: vi.fn(async () => ({
     ok: true,
     context: {
@@ -58,12 +58,12 @@ vi.mock("@dashboard/lib/brain/service-resolver", () => ({
   })),
 }));
 
-vi.mock("@dashboard/lib/runners/brain-fly", () => ({
+vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/brain", () => ({
   DEFAULT_IMAGE: "ghcr.io/aharonyaircohen/kody-brain:latest",
   waitForBrainHealth: vi.fn(async () => undefined),
 }));
 
-vi.mock("@dashboard/lib/terminal/bridge-fly", () => ({
+vi.mock("@dashboard/lib/infrastructure/plugins/fly/terminal/bridge", () => ({
   ensureTerminalBridge: vi.fn(async () => ({
     app: "kody-terminal-guy-koren",
     url: "https://bridge.test",
@@ -98,7 +98,7 @@ vi.mock("@dashboard/lib/brain/image-runtime", () => ({
 
 import { DELETE, GET, PATCH, POST } from "../../app/api/kody/brain/image/route";
 import { resolveBrainService } from "../../src/dashboard/lib/brain/service-resolver";
-import { ensureTerminalBridge } from "../../src/dashboard/lib/terminal/bridge-fly";
+import { ensureTerminalBridge } from "../../src/dashboard/lib/infrastructure/plugins/fly/terminal/bridge";
 
 afterEach(() => {
   vi.useRealTimers();

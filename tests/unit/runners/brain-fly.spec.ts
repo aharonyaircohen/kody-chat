@@ -22,7 +22,7 @@ import {
   resumeBrain,
   sameImageRepoTag,
   updateBrainSuspension,
-} from "@dashboard/lib/runners/brain-fly";
+} from "@dashboard/lib/infrastructure/plugins/fly/runners/brain";
 
 const TOKEN = "fly-test-token";
 

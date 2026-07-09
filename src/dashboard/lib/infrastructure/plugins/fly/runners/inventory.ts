@@ -18,19 +18,19 @@ import {
   listMachines,
   type MachineInfo,
   type FlyPreviewConfig,
-} from "@dashboard/lib/previews/fly-previews";
+} from "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client";
 import {
   isFlyMachineRunning,
   type FlyFeature,
   type FlyInventory,
   type FlyMachineRow,
-} from "./fly-machine-model";
+} from "./machine-model";
 
 export type {
   FlyFeature,
   FlyInventory,
   FlyMachineRow,
-} from "./fly-machine-model";
+} from "./machine-model";
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 

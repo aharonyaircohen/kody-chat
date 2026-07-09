@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { SessionMeta } from "../../../chat-types";
 import { authHeaders } from "../../core/kody-chat-live-session";
-import type { FlyMachineRow } from "../../../runners/fly-machine-model";
+import type { ServerProviderMachineRow } from "@dashboard/lib/infrastructure/server-machine-model";
 import {
   FLY_MACHINES_REFRESH_EVENT,
   LOCAL_TERMINAL_TRANSPORT,
@@ -59,8 +59,8 @@ export {
   upsertMountedChatTerminal,
 } from "./registry-state";
 
-interface TerminalFlyInventory {
-  machines: FlyMachineRow[];
+interface TerminalServerProviderInventory {
+  machines: ServerProviderMachineRow[];
 }
 
 interface UseChatTerminalRegistryOptions {
@@ -94,11 +94,11 @@ export function useChatTerminalRegistry({
   >(initialRegistryState.transportBySessionId);
   const [connectionStateByInstanceId, setConnectionStateByInstanceId] =
     useState<Record<string, ChatTerminalConnectionState>>({});
-  const [flyInventory, setFlyInventory] = useState<TerminalFlyInventory | null>(
+  const [flyInventory, setServerProviderInventory] = useState<TerminalServerProviderInventory | null>(
     null,
   );
-  const [flyInventoryLoading, setFlyInventoryLoading] = useState(false);
-  const [flyInventoryError, setFlyInventoryError] = useState<string | null>(
+  const [flyInventoryLoading, setServerProviderInventoryLoading] = useState(false);
+  const [flyInventoryError, setServerProviderInventoryError] = useState<string | null>(
     null,
   );
 
@@ -238,17 +238,17 @@ export function useChatTerminalRegistry({
   const refreshFlyMachines = useCallback(async () => {
     const headers = authHeaders();
     if (Object.keys(headers).length === 0) {
-      setFlyInventory({ machines: [] });
-      setFlyInventoryError(null);
+      setServerProviderInventory({ machines: [] });
+      setServerProviderInventoryError(null);
       return;
     }
 
-    setFlyInventoryLoading(true);
-    setFlyInventoryError(null);
+    setServerProviderInventoryLoading(true);
+    setServerProviderInventoryError(null);
     try {
       const res = await fetch("/api/kody/fly/machines", { headers });
       if (res.status === 503) {
-        setFlyInventory({ machines: [] });
+        setServerProviderInventory({ machines: [] });
         return;
       }
       if (!res.ok) {
@@ -258,14 +258,14 @@ export function useChatTerminalRegistry({
         };
         throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
       }
-      setFlyInventory((await res.json()) as TerminalFlyInventory);
+      setServerProviderInventory((await res.json()) as TerminalServerProviderInventory);
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load Fly machines";
-      setFlyInventoryError(message);
-      setFlyInventory({ machines: [] });
+      setServerProviderInventoryError(message);
+      setServerProviderInventory({ machines: [] });
     } finally {
-      setFlyInventoryLoading(false);
+      setServerProviderInventoryLoading(false);
     }
   }, []);
 

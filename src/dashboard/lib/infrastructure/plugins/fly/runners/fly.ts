@@ -17,7 +17,7 @@
  */
 
 import { logger } from "@dashboard/lib/logger";
-import type { KodyRunRequest } from "./run-request";
+import type { KodyRunRequest } from "@dashboard/lib/runners/run-request";
 
 const FLY_API_BASE = "https://api.machines.dev/v1";
 

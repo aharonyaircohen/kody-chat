@@ -19,16 +19,16 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@dashboard/lib/logger";
-import type { FlyPreviewConfig } from "@dashboard/lib/previews/fly-previews";
+import type { FlyPreviewConfig } from "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client";
 import {
   resolveFlyContext,
   type FlyContext,
-} from "@dashboard/lib/runners/fly-context";
+} from "@dashboard/lib/infrastructure/plugins/fly/runners/context";
 import {
   listFlyInventory,
   type FlyInventory,
-} from "@dashboard/lib/runners/fly-inventory";
-import { isFlyMachineRunning } from "@dashboard/lib/runners/fly-machine-model";
+} from "@dashboard/lib/infrastructure/plugins/fly/runners/inventory";
+import { isFlyMachineRunning } from "@dashboard/lib/infrastructure/plugins/fly/runners/machine-model";
 import { createServerTtlCache } from "@dashboard/lib/server-ttl-cache";
 
 const FLY_INVENTORY_TTL_MS = 15_000;

@@ -30,8 +30,8 @@ const brainFly = vi.hoisted(() => ({
 vi.mock("@dashboard/lib/brain/store", () => store);
 vi.mock("@dashboard/lib/brain/runtime-manager", () => runtimeManager);
 vi.mock("@dashboard/lib/brain/target", () => target);
-vi.mock("@dashboard/lib/previews/fly-previews", () => flyPreviews);
-vi.mock("@dashboard/lib/runners/brain-fly", () => brainFly);
+vi.mock("@dashboard/lib/infrastructure/plugins/fly/previews/machines-client", () => flyPreviews);
+vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/brain", () => brainFly);
 
 describe("resolveBrainService", () => {
   beforeEach(() => {

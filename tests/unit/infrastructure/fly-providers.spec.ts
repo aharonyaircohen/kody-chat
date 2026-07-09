@@ -21,9 +21,9 @@ const builder = vi.hoisted(() => ({
   spawnPreviewBuilder: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/runners/fly", () => runner);
+vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/fly", () => runner);
 vi.mock("@dashboard/lib/runners/pool-client", () => pool);
-vi.mock("@dashboard/lib/previews/fly-previews", () => flyPreview);
+vi.mock("@dashboard/lib/infrastructure/plugins/fly/previews/machines-client", () => flyPreview);
 vi.mock("@dashboard/lib/previews/builder-client", () => builder);
 vi.mock("@dashboard/lib/previews/vault-build-context", () => ({
   loadVaultContextForBuild: vi.fn(),
@@ -41,7 +41,7 @@ import { flyServerProvider } from "@dashboard/lib/infrastructure/plugins/fly/ser
 import {
   createInfrastructureRegistry,
 } from "@dashboard/lib/infrastructure/registry";
-import type { FlyContext } from "@dashboard/lib/runners/fly-context";
+import type { FlyContext } from "@dashboard/lib/infrastructure/plugins/fly/runners/context";
 import { chatRunRequest } from "@dashboard/lib/runners/run-request";
 
 function flyContext(overrides: Partial<FlyContext> = {}): FlyContext {

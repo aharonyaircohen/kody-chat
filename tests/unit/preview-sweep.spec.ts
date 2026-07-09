@@ -21,7 +21,7 @@ vi.mock("@dashboard/lib/previews/config", () => ({
   resolveFlyPreviewsForRepo: mocks.resolveFlyPreviewsForRepo,
   resolvePreviewConfigForRepo: mocks.resolvePreviewConfigForRepo,
 }));
-vi.mock("@dashboard/lib/previews/fly-previews", () => ({
+vi.mock("@dashboard/lib/infrastructure/plugins/fly/previews/machines-client", () => ({
   listAppsByPrefix: mocks.listAppsByPrefix,
   listMachines: mocks.listMachines,
   destroyApp: mocks.destroyApp,

@@ -8,8 +8,8 @@ import { describe, it, expect } from "vitest";
 import {
   computeActivity,
   type FlyActivityFile,
-} from "@dashboard/lib/runners/fly-activity";
-import { estimateCost, hourlyCost } from "@dashboard/lib/runners/fly-rates";
+} from "@dashboard/lib/infrastructure/plugins/fly/runners/activity";
+import { estimateCost, hourlyCost } from "@dashboard/lib/infrastructure/plugins/fly/runners/rates";
 
 const HOUR = 3_600_000;
 

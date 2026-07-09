@@ -26,10 +26,10 @@ const resolveFlyContext = vi.fn();
 vi.mock("@dashboard/lib/runners/pool-client", () => ({
   claimFromPool: (...args: unknown[]) => claimFromPool(...args),
 }));
-vi.mock("@dashboard/lib/runners/fly", () => ({
+vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/fly", () => ({
   spawnRunner: (...args: unknown[]) => spawnRunner(...args),
 }));
-vi.mock("@dashboard/lib/runners/fly-context", () => ({
+vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/context", () => ({
   resolveFlyContext: (...args: unknown[]) => resolveFlyContext(...args),
 }));
 
