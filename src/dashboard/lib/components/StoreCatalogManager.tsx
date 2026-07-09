@@ -52,7 +52,8 @@ export type CatalogKind =
   | "agentLoop"
   | "workflow"
   | "capability"
-  | "command";
+  | "command"
+  | "feature";
 
 type CatalogItemKind = Exclude<CatalogKind, "all">;
 
@@ -68,6 +69,7 @@ interface StoreCatalogItem {
   agent?: string | null;
   schedule?: string | null;
   installed?: boolean;
+  setupHref?: string | null;
   uninstallBlockedBy?: Array<{
     kind: CatalogItemKind;
     slug: string;
@@ -96,6 +98,7 @@ const KIND_FILTERS: Array<{
   { id: "workflow", label: "Workflows", icon: Workflow },
   { id: "capability", label: "Capabilities", icon: Layers },
   { id: "command", label: "Commands", icon: Bot },
+  { id: "feature", label: "Features", icon: Package },
 ];
 
 const KIND_LABEL: Record<CatalogItemKind, string> = {
@@ -105,6 +108,7 @@ const KIND_LABEL: Record<CatalogItemKind, string> = {
   workflow: "Workflow",
   capability: "Capability",
   command: "Command",
+  feature: "Feature",
 };
 
 const KIND_COLORS: Record<
@@ -198,6 +202,17 @@ const KIND_COLORS: Record<
     borderHover: "hover:border-rose-500/30",
     tint: "bg-rose-500/10",
     text: "text-rose-700 dark:text-rose-100",
+  },
+  feature: {
+    tabActive:
+      "border-teal-500/40 bg-teal-500/10 text-teal-700 dark:text-teal-100",
+    tabIdle:
+      "border-border bg-background/60 text-muted-foreground hover:text-teal-700 dark:hover:text-teal-100",
+    icon: "text-teal-600 dark:text-teal-300",
+    iconHover: "group-hover:text-teal-600 dark:group-hover:text-teal-300",
+    borderHover: "hover:border-teal-500/30",
+    tint: "bg-teal-500/10",
+    text: "text-teal-700 dark:text-teal-100",
   },
 };
 
@@ -500,9 +515,14 @@ export function StoreCatalogManager({
   const installMutation = useMutation({
     mutationFn: (item: StoreCatalogItem) =>
       addCatalogStoreReference(headers, item),
-    onSuccess: async (result) => {
+    onSuccess: async (result, item) => {
       await queryClient.invalidateQueries({ queryKey });
       await invalidateOperationsQueries(queryClient);
+      if (item.setupHref) {
+        toast.success("Installed — opening setup wizard");
+        router.push(item.setupHref);
+        return;
+      }
       toast.success(
         result.imported ? "Installed from Store" : "Already installed",
       );

@@ -35,6 +35,7 @@ import {
   managedGoalModel,
   type ManagedGoalState,
 } from "@dashboard/lib/managed-goals";
+import { getBuiltinFeature } from "@dashboard/lib/features/catalog";
 import { isWorkflowDefinitionId } from "@dashboard/lib/workflow-definitions";
 import { listCompanyStoreWorkflowDefinitionFiles } from "@dashboard/lib/workflow-definition-files";
 
@@ -47,14 +48,16 @@ type ImportKind =
   | "agentGoal"
   | "agentLoop"
   | "workflow"
-  | "command";
+  | "command"
+  | "feature";
 
 type ActiveConfigField =
   | "activeAgents"
   | "activeCapabilities"
   | "activeCommands"
   | "activeGoals"
-  | "activeWorkflows";
+  | "activeWorkflows"
+  | "activeFeatures";
 
 type ImportResult = {
   imported: boolean;
@@ -80,6 +83,7 @@ type ActivationPlan = {
   activeCommands: string[];
   activeGoals: string[];
   activeWorkflows: string[];
+  activeFeatures: string[];
 };
 
 const importSchema = z.object({
@@ -90,6 +94,7 @@ const importSchema = z.object({
     "agentLoop",
     "workflow",
     "command",
+    "feature",
   ]),
   slug: z.string().min(1).max(128),
 });
@@ -101,6 +106,7 @@ function validSlug(kind: ImportKind, slug: string): boolean {
     case "agentGoal":
     case "agentLoop":
     case "command":
+    case "feature":
       return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
     case "workflow":
       return isWorkflowDefinitionId(slug);
@@ -112,6 +118,7 @@ function configFieldFor(kind: ImportKind): ActiveConfigField {
   if (kind === "capability") return "activeCapabilities";
   if (kind === "command") return "activeCommands";
   if (kind === "workflow") return "activeWorkflows";
+  if (kind === "feature") return "activeFeatures";
   return "activeGoals";
 }
 
@@ -168,6 +175,7 @@ function emptyActivationPlan(): ActivationPlan {
     activeCommands: [],
     activeGoals: [],
     activeWorkflows: [],
+    activeFeatures: [],
   };
 }
 
@@ -231,6 +239,8 @@ async function assertStoreItemExists(
   } else if (kind === "workflow") {
     const workflows = await listCompanyStoreWorkflowDefinitionFiles(octokit);
     if (workflows.some((workflow) => workflow.id === slug)) return;
+  } else if (kind === "feature") {
+    if (getBuiltinFeature(slug)) return;
   } else {
     const goals = await listCompanyStoreGoalTemplateFiles(octokit);
     if (goals.some((goal) => goal.id === slug)) return;
@@ -388,6 +398,11 @@ async function activationPlanFor(
     return plan;
   }
 
+  if (kind === "feature") {
+    addPlanSlug(plan, "activeFeatures", slug);
+    return plan;
+  }
+
   if (kind === "workflow") {
     addPlanSlug(plan, "activeWorkflows", slug);
     const workflows = await listCompanyStoreWorkflowDefinitionFiles(octokit);
@@ -448,6 +463,10 @@ async function addStoreReference({
     plan.activeWorkflows.length > 0
       ? addSlugs(config.company?.activeWorkflows, plan.activeWorkflows)
       : undefined;
+  const nextActiveFeatures =
+    plan.activeFeatures.length > 0
+      ? addSlugs(config.company?.activeFeatures, plan.activeFeatures)
+      : undefined;
   const nextActiveGoals =
     plan.activeGoals.length > 0 &&
     plan.activeGoals.some(
@@ -481,6 +500,11 @@ async function addStoreReference({
         ? nextActiveWorkflows
         : undefined,
     activeGoals: nextActiveGoals,
+    activeFeatures:
+      nextActiveFeatures &&
+      !sameStringList(config.company?.activeFeatures, nextActiveFeatures)
+        ? nextActiveFeatures
+        : undefined,
   };
 
   if (Object.values(patch).every((value) => value === undefined)) {
@@ -555,6 +579,13 @@ async function removeStoreReference({
       return { removed: false, status: "already_missing", path };
     }
     patch.activeWorkflows = next.length > 0 ? next : null;
+  } else if (kind === "feature") {
+    const current = config.company?.activeFeatures ?? [];
+    const next = current.filter((value) => value !== slug);
+    if (next.length === current.length) {
+      return { removed: false, status: "already_missing", path };
+    }
+    patch.activeFeatures = next.length > 0 ? next : null;
   } else {
     const current = config.company?.activeGoals ?? [];
     const next = removeGoal(current, slug);

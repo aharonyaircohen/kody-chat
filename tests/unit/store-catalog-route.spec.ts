@@ -153,6 +153,12 @@ describe("store catalog route", () => {
           workflowSteps: [],
           installed: false,
         },
+        {
+          slug: "client-signin",
+          kind: "feature",
+          setupHref: "/setup/client-signin",
+          installed: false,
+        },
       ],
     });
   });

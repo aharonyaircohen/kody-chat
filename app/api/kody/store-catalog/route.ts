@@ -29,6 +29,7 @@ import {
   getEngineConfig,
   type ActiveGoalConfigEntry,
 } from "@dashboard/lib/engine/config";
+import { BUILTIN_FEATURES } from "@dashboard/lib/features/catalog";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -39,7 +40,8 @@ type CatalogKind =
   | "agentLoop"
   | "workflow"
   | "capability"
-  | "command";
+  | "command"
+  | "feature";
 
 interface CatalogReferenceBlocker {
   kind: CatalogKind;
@@ -60,6 +62,8 @@ interface CatalogItem {
   schedule?: string | null;
   installed?: boolean;
   uninstallBlockedBy?: CatalogReferenceBlocker[];
+  /** Dashboard route to a setup wizard offered after install (features). */
+  setupHref?: string | null;
 }
 
 type ActiveCatalogConfig = {
@@ -68,6 +72,7 @@ type ActiveCatalogConfig = {
   commands: Set<string>;
   goals: Set<string>;
   workflows: Set<string>;
+  features: Set<string>;
 };
 
 function activeGoalSlug(entry: ActiveGoalConfigEntry): string {
@@ -82,6 +87,7 @@ function isCatalogItemInstalled(
   if (item.kind === "capability") return active.capabilities.has(item.slug);
   if (item.kind === "command") return active.commands.has(item.slug);
   if (item.kind === "workflow") return active.workflows.has(item.slug);
+  if (item.kind === "feature") return active.features.has(item.slug);
   return active.goals.has(item.slug);
 }
 
@@ -211,6 +217,7 @@ export async function GET(req: NextRequest) {
       commands: new Set(config.company?.activeCommands ?? []),
       goals: new Set((config.company?.activeGoals ?? []).map(activeGoalSlug)),
       workflows: new Set(config.company?.activeWorkflows ?? []),
+      features: new Set(config.company?.activeFeatures ?? []),
     };
 
     for (const item of capabilities) {
@@ -271,6 +278,17 @@ export async function GET(req: NextRequest) {
         description: item.workflow.capabilities.join(" -> "),
         kind: "workflow",
         htmlUrl: item.htmlUrl ?? null,
+      });
+    }
+
+    for (const feature of BUILTIN_FEATURES) {
+      items.push({
+        slug: feature.slug,
+        title: feature.title,
+        description: feature.description,
+        kind: "feature",
+        htmlUrl: null,
+        setupHref: feature.setupHref ?? null,
       });
     }
 

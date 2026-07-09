@@ -84,6 +84,8 @@ export interface KodyConfig {
     activeCommands?: string[];
     activeGoals?: ActiveGoalConfigEntry[];
     activeWorkflows?: string[];
+    /** Dashboard-native features (engine ignores this list). */
+    activeFeatures?: string[];
   };
   /** Git defaults the engine reads. `defaultBranch` is the base branch new
    * work branches off / targets (engine default: `main`). */
@@ -638,7 +640,8 @@ function setCompanyField(
     | "activeCapabilities"
     | "activeCommands"
     | "activeGoals"
-    | "activeWorkflows",
+    | "activeWorkflows"
+    | "activeFeatures",
   value: string[] | ActiveGoalConfigEntry[],
 ): void {
   const prevCompany = companyRecordFrom(next.company);
@@ -750,6 +753,7 @@ export interface ConfigPatch {
   activeCommands?: string[] | null;
   activeGoals?: ActiveGoalConfigEntry[] | null;
   activeWorkflows?: string[] | null;
+  activeFeatures?: string[] | null;
   state?: KodyStateConfig | null;
   defaultBranch?: string | null;
   perImplementation?: Record<string, string> | null;
@@ -856,6 +860,13 @@ export async function writeConfigPatch(
           ? cleanSlugList(patch.activeWorkflows)
           : [];
         setCompanyField(next, "activeWorkflows", list);
+      }
+
+      if (patch.activeFeatures !== undefined) {
+        const list = patch.activeFeatures
+          ? cleanSlugList(patch.activeFeatures)
+          : [];
+        setCompanyField(next, "activeFeatures", list);
       }
 
       if (patch.state !== undefined) {
