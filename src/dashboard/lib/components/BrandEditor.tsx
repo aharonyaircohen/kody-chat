@@ -68,11 +68,11 @@ export function BrandEditor({
   const [authRequired, setAuthRequired] = useState(
     initial?.auth?.required ?? false,
   );
-  const [allowedEmails, setAllowedEmails] = useState(
-    (initial?.auth?.allowedEmails ?? []).join("\n"),
-  );
-  const [allowedDomains, setAllowedDomains] = useState(
-    (initial?.auth?.allowedDomains ?? []).join("\n"),
+  const [allowedList, setAllowedList] = useState(
+    [
+      ...(initial?.auth?.allowedEmails ?? []),
+      ...(initial?.auth?.allowedDomains ?? []),
+    ].join("\n"),
   );
   const [touchedSlug, setTouchedSlug] = useState(false);
 
@@ -242,37 +242,23 @@ export function BrandEditor({
           </div>
 
           {authRequired && (
-            <>
-              <div>
-                <Label htmlFor="brand-auth-emails" className="text-xs">
-                  Allowed emails (one per line)
-                </Label>
-                <Textarea
-                  id="brand-auth-emails"
-                  value={allowedEmails}
-                  onChange={(event) => setAllowedEmails(event.target.value)}
-                  rows={3}
-                  placeholder={"jane@acme.com"}
-                  className="font-mono"
-                />
-              </div>
-              <div>
-                <Label htmlFor="brand-auth-domains" className="text-xs">
-                  Allowed domains (one per line)
-                </Label>
-                <Textarea
-                  id="brand-auth-domains"
-                  value={allowedDomains}
-                  onChange={(event) => setAllowedDomains(event.target.value)}
-                  rows={3}
-                  placeholder={"acme.com"}
-                  className="font-mono"
-                />
-                <p className="mt-1 text-xs text-white/50">
-                  Leave both empty to allow any signed-in Google account.
-                </p>
-              </div>
-            </>
+            <div className="sm:col-span-2">
+              <Label htmlFor="brand-auth-allowed" className="text-xs">
+                Who can access
+              </Label>
+              <Textarea
+                id="brand-auth-allowed"
+                value={allowedList}
+                onChange={(event) => setAllowedList(event.target.value)}
+                rows={3}
+                placeholder={"jane@acme.com\nacme.com"}
+                className="font-mono"
+              />
+              <p className="mt-1 text-xs text-white/50">
+                Emails or whole domains, one per line. Empty = any Google
+                account.
+              </p>
+            </div>
           )}
 
           <div className="sm:col-span-2">
@@ -308,8 +294,12 @@ export function BrandEditor({
                 agentSlug: agentSlug.trim() || undefined,
                 auth: {
                   required: authRequired,
-                  allowedEmails: splitLines(allowedEmails),
-                  allowedDomains: splitLines(allowedDomains),
+                  allowedEmails: splitLines(allowedList).filter((entry) =>
+                    entry.includes("@"),
+                  ),
+                  allowedDomains: splitLines(allowedList).filter(
+                    (entry) => !entry.includes("@"),
+                  ),
                 },
                 isUpdate: !isNew,
               });
