@@ -13,6 +13,7 @@ import {
   Bot,
   Brain,
   Building2,
+  Wand2,
   CheckCircle2,
   Compass,
   Cpu,
@@ -351,6 +352,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         icon: Palette,
         description: "Client chat branding for /client surfaces.",
         tint: "text-cyan-300 bg-cyan-500/10",
+      },
+      {
+        href: "/setup",
+        label: "Setup",
+        icon: Wand2,
+        description: "Guided wizards for configuring features.",
+        tint: "text-teal-300 bg-teal-500/10",
       },
       {
         href: "/views/renderers",
