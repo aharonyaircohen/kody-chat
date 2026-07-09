@@ -3,10 +3,14 @@
  * @domain client-auth
  * @pattern branded-signin-gate
  * @ai-summary Server-rendered sign-in / access-denied screens for gated
- *   client brands. Uses Auth.js server actions (signIn/signOut) so no client
- *   JS is needed; styling picks up the brand accent.
+ *   client brands. Mirrors the ClientChatSurface shell (same header, theme
+ *   tokens, and locale direction) so the gate feels like the brand page it
+ *   protects. Uses Auth.js server actions (signIn/signOut) — no client JS.
  */
+import { Zap } from "lucide-react";
+
 import type { ClientBrand } from "../client-brand";
+import { directionForLocale } from "../chat/platform/i18n";
 import { signIn, signOut } from "./auth";
 
 interface ClientAuthGateProps {
@@ -26,112 +30,84 @@ export function ClientAuthGate({
 }: ClientAuthGateProps) {
   return (
     <main
-      style={{
-        minHeight: "100dvh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        fontFamily: "system-ui, sans-serif",
-        background: "#f8fafc",
-      }}
+      data-testid="client-auth-gate"
+      dir={directionForLocale(brand.locale ?? "en")}
+      className="flex h-dvh min-h-dvh flex-col bg-background text-foreground"
     >
-      <div
-        style={{
-          width: "min(360px, 90vw)",
-          padding: "2rem",
-          borderRadius: 16,
-          background: "#ffffff",
-          boxShadow: "0 4px 24px rgba(15, 23, 42, 0.08)",
-          textAlign: "center",
-        }}
-      >
-        <div
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 12,
-            margin: "0 auto 0.75rem",
-            background: brand.accent,
-            color: "#ffffff",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontWeight: 700,
-            fontSize: "1.1rem",
-          }}
-        >
-          {brand.name.charAt(0).toUpperCase()}
+      <header className="shrink-0 border-b border-border bg-background px-4 py-3">
+        <div className="flex w-full items-center gap-3">
+          <span
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-white shadow-sm"
+            style={{ backgroundColor: brand.accent }}
+            aria-hidden="true"
+          >
+            <Zap className="h-4 w-4" />
+          </span>
+          <span className="truncate text-base font-semibold">
+            {brand.name}
+          </span>
         </div>
-        <h1 style={{ fontSize: "1.25rem", margin: "0 0 0.5rem" }}>
-          {brand.name}
-        </h1>
+      </header>
 
-        {misconfigured ? (
-          <>
-            <p style={{ color: "#64748b", fontSize: "0.9rem" }}>
-              This space requires sign-in, but sign-in isn&apos;t set up yet.
-              Please contact whoever manages this space.
-            </p>
-            <p
-              style={{
-                marginTop: "0.75rem",
-                color: "#94a3b8",
-                fontSize: "0.75rem",
-              }}
-            >
-              Admin: add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on the
-              dashboard Secrets page to enable Google sign-in.
-            </p>
-          </>
-        ) : deniedEmail ? (
-          <>
-            <p style={{ color: "#64748b", fontSize: "0.9rem" }}>
-              {deniedEmail} does not have access to this space.
-            </p>
-            <form
-              action={async () => {
-                "use server";
-                await signOut({ redirectTo: callbackUrl });
-              }}
-            >
-              <button type="submit" style={buttonStyle(brand.accent)}>
-                Switch account
-              </button>
-            </form>
-          </>
-        ) : (
-          <>
-            <p style={{ color: "#64748b", fontSize: "0.9rem" }}>
-              Sign in to continue.
-            </p>
-            <form
-              action={async () => {
-                "use server";
-                await signIn("google", { redirectTo: callbackUrl });
-              }}
-            >
-              <button type="submit" style={buttonStyle(brand.accent)}>
-                Continue with Google
-              </button>
-            </form>
-          </>
-        )}
+      <div className="flex flex-1 items-center justify-center px-4">
+        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-6 text-center shadow-sm">
+          {misconfigured ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                This space requires sign-in, but sign-in isn&apos;t set up
+                yet. Please contact whoever manages this space.
+              </p>
+              <p className="mt-3 text-xs text-muted-foreground/70">
+                Admin: add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET on the
+                dashboard Secrets page to enable Google sign-in.
+              </p>
+            </>
+          ) : deniedEmail ? (
+            <>
+              <p className="text-sm text-muted-foreground">
+                {deniedEmail} does not have access to this space.
+              </p>
+              <form
+                action={async () => {
+                  "use server";
+                  await signOut({ redirectTo: callbackUrl });
+                }}
+              >
+                <GateButton accent={brand.accent} label="Switch account" />
+              </form>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">
+                Sign in to continue.
+              </p>
+              <form
+                action={async () => {
+                  "use server";
+                  await signIn("google", { redirectTo: callbackUrl });
+                }}
+              >
+                <GateButton
+                  accent={brand.accent}
+                  label="Continue with Google"
+                />
+              </form>
+            </>
+          )}
+        </div>
       </div>
     </main>
   );
 }
 
-function buttonStyle(accent: string): React.CSSProperties {
-  return {
-    marginTop: "1rem",
-    width: "100%",
-    padding: "0.65rem 1rem",
-    borderRadius: 10,
-    border: "none",
-    cursor: "pointer",
-    fontSize: "0.95rem",
-    fontWeight: 600,
-    color: "#ffffff",
-    background: accent,
-  };
+function GateButton({ accent, label }: { accent: string; label: string }) {
+  return (
+    <button
+      type="submit"
+      className="mt-4 w-full rounded-lg px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-opacity hover:opacity-90"
+      style={{ backgroundColor: accent }}
+    >
+      {label}
+    </button>
+  );
 }
