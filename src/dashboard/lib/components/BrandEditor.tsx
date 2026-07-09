@@ -24,6 +24,7 @@ import {
   CLIENT_AUTH_PROVIDERS,
   type ClientAuthProvider,
 } from "@dashboard/lib/client-auth/allowlist";
+import { providerLabel } from "@dashboard/lib/client-auth/catalog";
 import type {
   BrandAgentOption,
   BrandModelOption,
@@ -251,11 +252,11 @@ export function BrandEditor({
           {authRequired && (
             <div className="sm:col-span-2">
               <Label className="text-xs">Sign-in methods</Label>
-              <div className="mt-1 flex gap-4">
+              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-2">
                 {CLIENT_AUTH_PROVIDERS.map((provider) => (
                   <label
                     key={provider}
-                    className="flex items-center gap-2 text-sm capitalize"
+                    className="flex items-center gap-2 text-sm"
                   >
                     <input
                       type="checkbox"
@@ -268,7 +269,7 @@ export function BrandEditor({
                         )
                       }
                     />
-                    {provider}
+                    {providerLabel(provider)}
                   </label>
                 ))}
               </div>

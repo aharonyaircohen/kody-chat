@@ -63,3 +63,13 @@ describe("isEmailAllowed", () => {
     expect(isEmailAllowed(auth, "dev@other.org")).toBe(false);
   });
 });
+
+describe("provider catalog", () => {
+  it("keeps only catalog provider ids", async () => {
+    const auth = normalizeClientBrandAuth({
+      required: true,
+      providers: ["google", "slack", "bogus", "credentials"],
+    });
+    expect(auth?.providers).toEqual(["google", "slack"]);
+  });
+});

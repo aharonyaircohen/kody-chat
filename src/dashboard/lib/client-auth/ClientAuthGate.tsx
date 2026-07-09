@@ -12,12 +12,8 @@ import { Zap } from "lucide-react";
 import type { ClientBrand } from "../client-brand";
 import { directionForLocale } from "../chat/platform/i18n";
 import type { ClientAuthProvider } from "./allowlist";
+import { providerLabel } from "./catalog";
 import { signIn, signOut } from "./auth";
-
-const PROVIDER_LABELS: Record<ClientAuthProvider, string> = {
-  google: "Continue with Google",
-  github: "Continue with GitHub",
-};
 
 interface ClientAuthGateProps {
   brand: ClientBrand;
@@ -101,7 +97,7 @@ export function ClientAuthGate({
                 >
                   <GateButton
                     accent={brand.accent}
-                    label={PROVIDER_LABELS[provider]}
+                    label={`Continue with ${providerLabel(provider)}`}
                   />
                 </form>
               ))}

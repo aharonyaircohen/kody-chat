@@ -8,8 +8,11 @@
  *   tested without any GitHub or Auth.js dependency.
  */
 
-export const CLIENT_AUTH_PROVIDERS = ["google", "github"] as const;
-export type ClientAuthProvider = (typeof CLIENT_AUTH_PROVIDERS)[number];
+import { PROVIDER_CATALOG } from "./catalog";
+
+/** Provider ids a brand may enable (the catalog keys). */
+export const CLIENT_AUTH_PROVIDERS = Object.keys(PROVIDER_CATALOG);
+export type ClientAuthProvider = string;
 
 export interface ClientBrandAuth {
   /** When true, `/client/<slug>` requires a signed-in, allowed user. */
@@ -34,8 +37,7 @@ export function normalizeClientBrandAuth(
     d.replace(/^@/, ""),
   );
   const providers = normalizeList(raw.providers).filter(
-    (p): p is ClientAuthProvider =>
-      (CLIENT_AUTH_PROVIDERS as readonly string[]).includes(p),
+    (p) => p in PROVIDER_CATALOG,
   );
   return {
     required: raw.required === true,

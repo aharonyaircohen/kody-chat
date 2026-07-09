@@ -10,33 +10,68 @@
  */
 import NextAuth from "next-auth";
 import type { Provider } from "next-auth/providers";
-import GitHub from "next-auth/providers/github";
-import Google from "next-auth/providers/google";
 
 import { parseClientBrandRepoCookie, CLIENT_BRAND_REPO_COOKIE } from "../client-brand-repo-cookie";
-import { CLIENT_AUTH_PROVIDERS, type ClientAuthProvider } from "./allowlist";
+import { PROVIDER_CATALOG, isSupportedProviderId } from "./catalog";
 import { resolveProviderCredentials } from "./credentials";
 import { deriveClientAuthSecret } from "./secret";
 
 export const CLIENT_AUTH_SESSION_COOKIE = "kody_client_session";
 
-const PROVIDER_FACTORIES: Record<
-  ClientAuthProvider,
-  (creds: { clientId: string; clientSecret: string }) => Provider
-> = {
-  google: (creds) => Google(creds),
-  github: (creds) => GitHub(creds),
+type ProviderModule = {
+  default: (options: Record<string, unknown>) => Provider;
 };
+
+// Explicit lazy imports (Turbopack can't bundle a fully dynamic
+// `next-auth/providers/${id}` without dragging in nodemailer/webauthn).
+// Adding a provider = one line here + one catalog entry.
+const PROVIDER_IMPORTS: Record<string, () => Promise<ProviderModule>> = {
+  google: () => import("next-auth/providers/google"),
+  github: () => import("next-auth/providers/github"),
+  "microsoft-entra-id": () => import("next-auth/providers/microsoft-entra-id"),
+  apple: () => import("next-auth/providers/apple"),
+  facebook: () => import("next-auth/providers/facebook"),
+  slack: () => import("next-auth/providers/slack"),
+  discord: () => import("next-auth/providers/discord"),
+  linkedin: () => import("next-auth/providers/linkedin"),
+  gitlab: () => import("next-auth/providers/gitlab"),
+  auth0: () => import("next-auth/providers/auth0"),
+  okta: () => import("next-auth/providers/okta"),
+  keycloak: () => import("next-auth/providers/keycloak"),
+};
+
+/** Load an Auth.js provider module by its id (id = module filename). */
+async function loadProvider(
+  id: string,
+  creds: { clientId: string; clientSecret: string; extra?: Record<string, string> },
+): Promise<Provider | null> {
+  const load = isSupportedProviderId(id) ? PROVIDER_IMPORTS[id] : undefined;
+  if (!load) return null;
+  try {
+    const mod = await load();
+    return mod.default({
+      clientId: creds.clientId,
+      clientSecret: creds.clientSecret,
+      ...(creds.extra ?? {}),
+    });
+  } catch {
+    return null;
+  }
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth(async (req) => {
   const repoContext = parseClientBrandRepoCookie(
     req?.cookies.get(CLIENT_BRAND_REPO_COOKIE)?.value,
   );
-  const providers: Provider[] = [];
-  for (const provider of CLIENT_AUTH_PROVIDERS) {
-    const creds = await resolveProviderCredentials(provider, repoContext);
-    if (creds) providers.push(PROVIDER_FACTORIES[provider](creds));
-  }
+  // Register every catalog provider whose credentials are configured for
+  // this repo; per-brand `providers` lists then choose what to offer.
+  const loaded = await Promise.all(
+    Object.keys(PROVIDER_CATALOG).map(async (id) => {
+      const creds = await resolveProviderCredentials(id, repoContext);
+      return creds ? loadProvider(id, creds) : null;
+    }),
+  );
+  const providers = loaded.filter((p): p is Provider => p !== null);
 
   return {
     secret: deriveClientAuthSecret(),
