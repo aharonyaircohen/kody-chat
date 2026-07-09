@@ -171,6 +171,22 @@ fallback when an id doesn't resolve (`getAgent()` → `AGENT_KODY`).
 
 The legacy `/api/kody/chat` endpoint is deprecated and returns 410.
 
+### Chat plugin rules (load-bearing)
+
+Chat UI features are **plugins** under `src/dashboard/lib/chat/plugins/`
+built on the `ChatPlugin` contract
+([src/dashboard/lib/chat/platform/types.ts](src/dashboard/lib/chat/platform/types.ts)):
+slots, send middleware, panels, tools, session state, theming. Layering
+(`core ← platform ← plugins/surface`) is lint-enforced as errors.
+
+**If a plugin needs chat lifecycle events** (message start/end, thinking,
+stream progress): do **NOT** import `core/kody-chat-reducer.ts` or wire
+into core/stream internals — ESLint blocks it. The correct move is to
+**extend the `ChatPlugin` contract** with a lifecycle hook dispatched by
+the platform. No such hook exists yet by design; the first real consumer
+defines its shape. See "Layering rules" in
+[docs/chat-platform.md](docs/chat-platform.md).
+
 ### Slash commands (`/commands`)
 
 The chat composer has a slash-command menu. Typing `/` opens a filtered

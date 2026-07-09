@@ -24,6 +24,15 @@ const chatLayerZones = [
   { target: `${CHAT}/platform`, from: `${CHAT}/surface`, message: "platform must not import surface" },
   { target: `${CHAT}/platform`, from: `${CHAT}/plugins`, message: "platform must not import plugins" },
   { target: `${CHAT}/platform`, from: "./src/dashboard/lib/components", message: "platform must not import components" },
+  // plugins may use platform + core utilities — but never the stream
+  // reducer. Lifecycle needs (message start/end, thinking, stream events)
+  // go through the ChatPlugin contract (platform/types.ts): add a hook to
+  // the manifest, don't wire into core internals.
+  {
+    target: `${CHAT}/plugins`,
+    from: `${CHAT}/core/kody-chat-reducer.ts`,
+    message: "plugins must not import the chat reducer — extend the ChatPlugin contract (platform/types.ts) with a lifecycle hook instead",
+  },
   // plugins may use platform + core, never each other.
   ...CHAT_PLUGIN_DIRS.map((dir) => ({
     target: `${CHAT}/plugins/${dir}`,
@@ -154,6 +163,13 @@ export default [
             `@/dashboard/lib/chat/plugins/${d}*`,
           ]),
           message: `plugins must not import sibling plugins (${dir})`,
+        },
+        {
+          group: [
+            "@dashboard/lib/chat/core/kody-chat-reducer*",
+            "@/dashboard/lib/chat/core/kody-chat-reducer*",
+          ],
+          message: "plugins must not import the chat reducer — extend the ChatPlugin contract (platform/types.ts) with a lifecycle hook instead",
         },
       ]}],
     },

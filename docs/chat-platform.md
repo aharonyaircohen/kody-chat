@@ -304,6 +304,13 @@ zones + per-layer `no-restricted-imports` alias blocks):
 - `platform` imports only `core`.
 - `plugins/<x>` may import `platform` + `core` (+ app-wide shared modules) —
   **never a sibling plugin**.
+- `plugins/<x>` must **never import the chat reducer**
+  (`core/kody-chat-reducer.ts`). If a plugin needs chat lifecycle events
+  (message start/end, thinking, stream progress), the correct move is to
+  **extend the `ChatPlugin` contract** in `platform/types.ts` with a
+  lifecycle hook and have the platform dispatch it — not to wire into core
+  internals. No such hook exists yet **by design** (YAGNI): the first
+  plugin that needs one defines its shape.
 - `surface` is not importable by `core`.
 - Extra standards inside `chat/**`: `no-console: error`,
   `no-explicit-any: error`, `max-lines: 800`.
