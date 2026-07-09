@@ -43,6 +43,13 @@ const KNOWN_CLIENT_BRANDS: Record<string, ClientBrand> = {
   },
 };
 
+export const BUILTIN_CLIENT_BRANDS: readonly ClientBrand[] = Object.values(
+  KNOWN_CLIENT_BRANDS,
+).map((brand) => ({
+  ...brand,
+  locale: normalizeClientBrandLocale(brand.locale),
+}));
+
 export function normalizeClientBrandLocale(input?: string): string {
   const normalized = (input ?? "").trim().toLowerCase().replace(/_/g, "-");
   return /^[a-z]{2,3}(-[a-z0-9]{2,8})*$/.test(normalized)
@@ -78,4 +85,38 @@ export function getClientBrand(slug: string): ClientBrand {
   };
 
   return { ...base, locale: normalizeClientBrandLocale(base.locale) };
+}
+
+export function getBuiltinClientBrand(slug: string): ClientBrand | null {
+  const normalized = normalizeClientBrandSlug(slug);
+  const brand = KNOWN_CLIENT_BRANDS[normalized];
+  return brand
+    ? { ...brand, locale: normalizeClientBrandLocale(brand.locale) }
+    : null;
+}
+
+export async function resolveClientBrand(
+  slug: string,
+): Promise<ClientBrand | null> {
+  const normalized = normalizeClientBrandSlug(slug);
+  try {
+    const { findBrandFileFromList, isBrandDeleted } = await import("./brands");
+    if (await isBrandDeleted(normalized)) return null;
+    const repoBrand = await findBrandFileFromList(normalized);
+    if (repoBrand) {
+      return {
+        slug: repoBrand.slug,
+        name: repoBrand.name,
+        accent: repoBrand.accent,
+        locale: normalizeClientBrandLocale(repoBrand.locale),
+        ...(repoBrand.welcomeText !== undefined
+          ? { welcomeText: repoBrand.welcomeText }
+          : {}),
+      };
+    }
+  } catch {
+    // Public /client routes may not have a repo auth context. Keep the
+    // existing fallback behavior rather than breaking the client surface.
+  }
+  return getBuiltinClientBrand(normalized);
 }

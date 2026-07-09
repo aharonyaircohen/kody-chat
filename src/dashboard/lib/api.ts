@@ -2205,6 +2205,7 @@ export const ctoApi = {
         rejections: number;
         consecutiveApprovals: number;
         mode: "ask" | "auto";
+        level: import("./cto/trust-state").TrustLevel;
       }
     >;
     subjects: Record<
@@ -2214,6 +2215,7 @@ export const ctoApi = {
         rejections: number;
         consecutiveApprovals: number;
         mode: "ask" | "auto";
+        level: import("./cto/trust-state").TrustLevel;
       }
     >;
     log: import("./cto/trust-state").TrustDecisionLogEntry[];
@@ -2232,18 +2234,21 @@ export const ctoApi = {
   setTrust: async (input: {
     capability?: string;
     subject?: import("./cto/trust-state").TrustSubjectKey;
-    op: import("./cto/trust-state").TrustOp;
+    op?: import("./cto/trust-state").TrustOp;
+    level?: import("./cto/trust-state").TrustLevel;
     actorLogin?: string;
   }): Promise<{
     ok: true;
     capability?: string;
     subject?: import("./cto/trust-state").TrustSubjectKey;
-    op: import("./cto/trust-state").TrustOp;
+    op?: import("./cto/trust-state").TrustOp;
+    level?: import("./cto/trust-state").TrustLevel;
     stats: {
       approvals: number;
       rejections: number;
       consecutiveApprovals: number;
       mode: "ask" | "auto";
+      level: import("./cto/trust-state").TrustLevel;
     } | null;
   }> => {
     const res = await fetch(`${API_BASE}/cto/trust`, {

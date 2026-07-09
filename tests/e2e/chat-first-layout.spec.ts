@@ -210,6 +210,7 @@ test.describe("Chat-first layout (beta toggle)", () => {
       ["/agent-goals", "agent-goals"],
       ["/agent-loops", "agent-loops"],
       ["/agents", "agents"],
+      ["/brands", "brands"],
       ["/capabilities", "capabilities"],
       ["/changelog", "changelog"],
       ["/commands", "commands-page"],

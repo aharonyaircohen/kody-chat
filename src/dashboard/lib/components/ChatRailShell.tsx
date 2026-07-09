@@ -83,6 +83,7 @@ import {
   AGENT_LOOPS_PANEL_ID,
 } from "../chat/plugins/agent-loops";
 import { agentsChatPlugin, AGENTS_PANEL_ID } from "../chat/plugins/agents";
+import { brandsChatPlugin, BRANDS_PANEL_ID } from "../chat/plugins/brands";
 import {
   capabilitiesChatPlugin,
   CAPABILITIES_PANEL_ID,
@@ -161,6 +162,7 @@ const ADMIN_CHAT_PLUGINS = [
   { plugin: agentGoalsChatPlugin },
   { plugin: agentLoopsChatPlugin },
   { plugin: agentsChatPlugin },
+  { plugin: brandsChatPlugin },
   { plugin: capabilitiesChatPlugin },
   { plugin: changelogChatPlugin },
   { plugin: commandsPageChatPlugin },
@@ -201,6 +203,7 @@ const ROUTE_PANEL_IDS: Readonly<Record<string, string>> = {
   "/agent-goals": AGENT_GOALS_PANEL_ID,
   "/agent-loops": AGENT_LOOPS_PANEL_ID,
   "/agents": AGENTS_PANEL_ID,
+  "/brands": BRANDS_PANEL_ID,
   "/capabilities": CAPABILITIES_PANEL_ID,
   "/changelog": CHANGELOG_PANEL_ID,
   "/commands": COMMANDS_PAGE_PANEL_ID,

@@ -15,6 +15,8 @@ import {
   EMPTY_TRUST_MANIFEST,
   TRUST_GRADUATION_THRESHOLD,
   applySubjectTrustOp,
+  applySubjectTrustLevel,
+  applyCapabilityTrustLevel,
   applyTrustDecision,
   applyTrustOp,
   degradeCapability,
@@ -26,6 +28,8 @@ import {
   serializeTrustManifest,
   summarizeTrust,
   trustDecisionKey,
+  trustLevelForCapability,
+  trustLevelForSubject,
   trustSubjectKey,
   type TrustManifest,
 } from "@dashboard/lib/cto/trust-state";
@@ -58,6 +62,7 @@ describe("applyTrustDecision — whole-capability keying", () => {
       taskNumber: 999,
     });
     expect(after.capabilities.qa.mode).toBe("ask");
+    expect(after.capabilities.qa.level).toBe("approval-required");
     expect(after.capabilities.qa.consecutiveApprovals).toBe(0);
   });
 
@@ -91,6 +96,7 @@ describe("operator overrides", () => {
       rejections: 0,
       consecutiveApprovals: 0,
       mode: "ask",
+      level: "approval-required",
     });
     const snap = structuredClone(grad);
     applyTrustOp(grad, "degrade", "qa");
@@ -103,6 +109,7 @@ describe("operator overrides", () => {
 
     expect(grad.subjects[subject]).toMatchObject({
       mode: "auto",
+      level: "can-run",
       consecutiveApprovals: TRUST_GRADUATION_THRESHOLD,
     });
     expect(grad.capabilities).toEqual({});
@@ -110,11 +117,76 @@ describe("operator overrides", () => {
       applySubjectTrustOp(grad, "degrade", subject).subjects[subject],
     ).toMatchObject({
       mode: "ask",
+      level: "approval-required",
       consecutiveApprovals: 0,
     });
     expect(
       applySubjectTrustOp(grad, "reset", subject).subjects[subject],
     ).toBeUndefined();
+  });
+
+  it("sets the three visible subject trust levels directly", () => {
+    const subject = trustSubjectKey("goal", "web-release");
+    const canRun = applySubjectTrustLevel(
+      EMPTY_TRUST_MANIFEST,
+      subject,
+      "can-run",
+    );
+    expect(trustLevelForSubject(canRun.subjects[subject])).toBe("can-run");
+    expect(canRun.subjects[subject]).toMatchObject({
+      mode: "auto",
+      consecutiveApprovals: TRUST_GRADUATION_THRESHOLD,
+    });
+
+    const autoApproval = applySubjectTrustLevel(
+      canRun,
+      subject,
+      "auto-approval",
+    );
+    expect(trustLevelForSubject(autoApproval.subjects[subject])).toBe(
+      "auto-approval",
+    );
+
+    const approvalRequired = applySubjectTrustLevel(
+      autoApproval,
+      subject,
+      "approval-required",
+    );
+    expect(trustLevelForSubject(approvalRequired.subjects[subject])).toBe(
+      "approval-required",
+    );
+    expect(approvalRequired.subjects[subject].mode).toBe("ask");
+  });
+
+  it("keeps capability can-run separate from capability auto-approval", () => {
+    const canRun = applyCapabilityTrustLevel(
+      EMPTY_TRUST_MANIFEST,
+      "release-prepare",
+      "can-run",
+    );
+    const subject = trustSubjectKey("capability", "release-prepare");
+
+    expect(
+      trustLevelForCapability(
+        canRun.capabilities["release-prepare"],
+        canRun.subjects[subject],
+      ),
+    ).toBe("can-run");
+    expect(canRun.subjects[subject].mode).toBe("auto");
+    expect(canRun.capabilities["release-prepare"].mode).toBe("ask");
+
+    const autoApproval = applyCapabilityTrustLevel(
+      canRun,
+      "release-prepare",
+      "auto-approval",
+    );
+    expect(
+      trustLevelForCapability(
+        autoApproval.capabilities["release-prepare"],
+        autoApproval.subjects[subject],
+      ),
+    ).toBe("auto-approval");
+    expect(autoApproval.capabilities["release-prepare"].mode).toBe("auto");
   });
 });
 
@@ -142,12 +214,14 @@ describe("parse/serialize", () => {
       rejections: 0,
       consecutiveApprovals: TRUST_GRADUATION_THRESHOLD,
       mode: "auto",
+      level: "can-run",
     });
     expect(parsed.subjects["loop:daily-web-release-loop"]).toEqual({
       approvals: 0,
       rejections: 0,
       consecutiveApprovals: TRUST_GRADUATION_THRESHOLD,
       mode: "auto",
+      level: "can-run",
     });
     expect(parsed.subjects).not.toHaveProperty("bad subject");
   });

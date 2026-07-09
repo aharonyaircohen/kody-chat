@@ -29,6 +29,7 @@ async function seedAuth(page: Page): Promise<void> {
       "kody-default-chat-entry:test-owner/test-repo",
       "kody:gpt-x",
     );
+    localStorage.setItem("kody:chat-first-layout", "0");
   });
 }
 
@@ -60,6 +61,57 @@ test.describe("Route smoke", () => {
     const chat = page.locator('[aria-label="Kody chat"]').first();
     await expect(chat).toBeVisible({ timeout: 15_000 });
     await expect(chat.locator("textarea").first()).toBeVisible();
+  });
+
+  test("/brands keeps the default dashboard page structure", async ({
+    page,
+  }) => {
+    await page.route("**/api/kody/brands", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          brands: [
+            {
+              slug: "acme",
+              name: "Acme",
+              accent: "#7c3aed",
+              locale: "en",
+              welcomeText: "Welcome to Acme",
+              source: "repo",
+              htmlUrl: "https://github.com/test-owner/test-repo/blob/main/brands/acme.json",
+            },
+          ],
+        }),
+      }),
+    );
+
+    await page.goto(`${BASE_URL}/brands`);
+    await page.waitForLoadState("domcontentloaded");
+
+    await expect(page.getByRole("heading", { name: "Brands" })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.locator('[aria-label="Kody chat"]').first()).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(
+      page.getByRole("searchbox", { name: "Search brands" }),
+    ).toBeVisible();
+    await expect(page.getByText("/client/acme").first()).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Open Acme client surface" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Delete Acme", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Delete", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText("Public surfaces")).toHaveCount(0);
+    await expect(page.locator('[data-testid="chat-panel-brands"]')).toHaveCount(
+      0,
+    );
   });
 
   test("/client/kody mounts the client chat surface", async ({ page }) => {

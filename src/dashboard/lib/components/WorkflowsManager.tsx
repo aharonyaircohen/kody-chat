@@ -36,13 +36,11 @@ import {
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
 import { useTrust } from "../cto/useTrust";
-import { trustSubjectKey } from "../cto/trust-state";
 import {
-  applyRunModeToCapabilities,
-  runModeForCapabilities,
-  workflowCapabilitySlugs,
-  type RunMode,
-} from "../cto/run-mode";
+  trustLevelForSubject,
+  trustSubjectKey,
+  type TrustLevel,
+} from "../cto/trust-state";
 import { useCapabilities } from "../hooks/useCapabilities";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import {
@@ -61,11 +59,7 @@ import { selectionPath } from "../selection-routing";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
-import {
-  KodyTriggerControl,
-  RunModeBadge,
-  RunModeControl,
-} from "./RunModeControl";
+import { TrustLevelControl } from "./TrustLevelControl";
 import { SearchableMultiSelect } from "./SearchableSelect";
 
 const BASE_PATH = "/workflows";
@@ -125,13 +119,6 @@ function isStoreWorkflow(workflow: WorkflowDefinitionRecord | null): boolean {
   return workflow?.source === "store" || workflow?.readOnly === true;
 }
 
-function approvalEnabled(
-  subjectMode: "ask" | "auto" | undefined,
-  fallback: boolean,
-): boolean {
-  return subjectMode ? subjectMode === "auto" : fallback;
-}
-
 export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
   const router = useRouter();
   const autoSelectFirst = useMediaQuery("(min-width: 768px)");
@@ -165,26 +152,17 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
     () => workflows.find((workflow) => workflow.id === selectedId) ?? null,
     [selectedId, workflows],
   );
-  const selectedRunCapabilitySlugs = useMemo(
-    () => (selectedWorkflow ? workflowCapabilitySlugs(selectedWorkflow) : []),
-    [selectedWorkflow],
-  );
-  const selectedRunMode = useMemo(
-    () => runModeForCapabilities(trust.groups, selectedRunCapabilitySlugs),
-    [selectedRunCapabilitySlugs, trust.groups],
-  );
   const selectedWorkflowSubject = selectedWorkflow
     ? trustSubjectKey("workflow", selectedWorkflow.id)
     : null;
-  const selectedWorkflowSubjectMode = selectedWorkflowSubject
-    ? trust.subjects[selectedWorkflowSubject]?.mode
-    : undefined;
-  const selectedRunWithoutApproval = selectedWorkflow
-    ? approvalEnabled(
-        selectedWorkflowSubjectMode,
+  const selectedTrustLevel = selectedWorkflow
+    ? trustLevelForSubject(
+        selectedWorkflowSubject
+          ? trust.subjects[selectedWorkflowSubject]
+          : undefined,
         selectedWorkflow.workflow.runWithoutApproval === true,
       )
-    : false;
+    : "approval-required";
   const capabilityBySlug = useMemo(
     () =>
       new Map(capabilities.map((capability) => [capability.slug, capability])),
@@ -273,47 +251,22 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
             <WorkflowDetail
               workflow={selectedWorkflow}
               capabilityBySlug={capabilityBySlug}
-              runMode={selectedRunMode}
-              runModePending={trust.isMutating}
-              runWithoutApproval={selectedRunWithoutApproval}
-              runWithoutApprovalPending={trust.isMutating}
+              trustLevel={selectedTrustLevel}
+              trustPending={trust.isMutating}
               onBack={() => selectWorkflow(null)}
               onRun={async () => {
-                try {
-                  await applyRunModeToCapabilities(
-                    trust.setTrust,
-                    selectedRunCapabilitySlugs,
-                    selectedRunMode,
-                  );
-                } catch (error) {
-                  toast.error("Failed to prepare run", {
-                    description:
-                      error instanceof Error
-                        ? error.message
-                        : "Could not update run mode.",
-                  });
-                  return;
-                }
                 await runWorkflow.mutateAsync(selectedWorkflow.id);
               }}
-              onRunModeChange={(mode) =>
-                applyRunModeToCapabilities(
-                  trust.setTrust,
-                  selectedRunCapabilitySlugs,
-                  mode,
-                )
-              }
-              onRunWithoutApprovalChange={async (enabled) => {
+              onTrustLevelChange={async (level) => {
                 if (!selectedWorkflowSubject) return;
-                await trust.setSubjectTrust({
+                await trust.setTrustLevel({
                   subject: selectedWorkflowSubject,
-                  op: enabled ? "graduate" : "degrade",
+                  level,
                 });
               }}
               runPending={
-                (runWorkflow.isPending &&
-                  runWorkflow.variables === selectedWorkflow.id) ||
-                trust.isMutating
+                runWorkflow.isPending &&
+                runWorkflow.variables === selectedWorkflow.id
               }
               onEdit={() => setEditingWorkflow(selectedWorkflow)}
               onDelete={() => setDeletingWorkflow(selectedWorkflow)}
@@ -353,10 +306,6 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
               <li key={workflow.id}>
                 <WorkflowRow
                   workflow={workflow}
-                  runMode={runModeForCapabilities(
-                    trust.groups,
-                    workflowCapabilitySlugs(workflow),
-                  )}
                   isActive={selectedId === workflow.id}
                   onSelect={() => selectWorkflow(workflow.id)}
                 />
@@ -427,12 +376,10 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
 
 function WorkflowRow({
   workflow,
-  runMode,
   isActive,
   onSelect,
 }: {
   workflow: WorkflowDefinitionRecord;
-  runMode: RunMode;
   isActive: boolean;
   onSelect: () => void;
 }) {
@@ -455,10 +402,6 @@ function WorkflowRow({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <RunModeBadge
-            mode={runMode}
-            capabilityCount={workflow.workflow.capabilities.length}
-          />
           {isStoreWorkflow(workflow) ? <StoreWorkflowBadge /> : null}
         </div>
         <span className="shrink-0 rounded border border-cyan-500/20 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-700 dark:text-cyan-200">
@@ -472,28 +415,22 @@ function WorkflowRow({
 function WorkflowDetail({
   workflow,
   capabilityBySlug,
-  runMode,
-  runModePending,
-  runWithoutApproval,
-  runWithoutApprovalPending,
+  trustLevel,
+  trustPending,
   onBack,
   onRun,
-  onRunModeChange,
-  onRunWithoutApprovalChange,
+  onTrustLevelChange,
   runPending,
   onEdit,
   onDelete,
 }: {
   workflow: WorkflowDefinitionRecord;
   capabilityBySlug: Map<string, { slug: string; describe?: string }>;
-  runMode: RunMode;
-  runModePending: boolean;
-  runWithoutApproval: boolean;
-  runWithoutApprovalPending: boolean;
+  trustLevel: TrustLevel;
+  trustPending: boolean;
   onBack: () => void;
   onRun: () => void | Promise<void>;
-  onRunModeChange: (mode: RunMode) => void | Promise<void>;
-  onRunWithoutApprovalChange: (enabled: boolean) => void | Promise<void>;
+  onTrustLevelChange: (level: TrustLevel) => void | Promise<void>;
   runPending: boolean;
   onEdit: () => void;
   onDelete: () => void;
@@ -539,16 +476,10 @@ function WorkflowDetail({
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <RunModeControl
-            mode={runMode}
-            capabilityCount={workflow.workflow.capabilities.length}
-            pending={runModePending}
-            onChange={(mode) => void onRunModeChange(mode)}
-          />
-          <KodyTriggerControl
-            enabled={runWithoutApproval}
-            pending={runWithoutApprovalPending}
-            onChange={(enabled) => void onRunWithoutApprovalChange(enabled)}
+          <TrustLevelControl
+            value={trustLevel}
+            pending={trustPending}
+            onChange={(level) => void onTrustLevelChange(level)}
           />
           <Button
             size="sm"

@@ -33,12 +33,15 @@ describe("WorkflowsManager run button", () => {
     expect(SOURCE).toMatch(/disabled=\{!runnable \|\| runPending\}/);
   });
 
-  it("shows icon-only run mode and cascades it to workflow capabilities", () => {
-    expect(SOURCE).toContain("RunModeControl");
-    expect(SOURCE).toContain("RunModeBadge");
-    expect(SOURCE).toContain("workflowCapabilitySlugs(selectedWorkflow)");
-    expect(SOURCE).toContain("applyRunModeToCapabilities(");
-    expect(SOURCE).toContain('toast.error("Failed to prepare run"');
+  it("uses the visible trust-level control before running workflows", () => {
+    expect(SOURCE).toContain("TrustLevelControl");
+    expect(SOURCE).toContain("trustLevelForSubject");
+    expect(SOURCE).toContain('trustSubjectKey("workflow"');
+    expect(SOURCE).toContain("trust.setTrustLevel");
+    expect(SOURCE).not.toContain("RunModeControl");
+    expect(SOURCE).not.toContain("RunModeBadge");
+    expect(SOURCE).not.toContain("KodyTriggerControl");
+    expect(SOURCE).not.toContain("applyRunModeToCapabilities(");
     expect(SOURCE).toContain("runWorkflow.mutateAsync(selectedWorkflow.id)");
   });
 

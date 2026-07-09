@@ -27,6 +27,7 @@ import {
   MessageSquare,
   MonitorPlay,
   Package,
+  Palette,
   Route,
   ScrollText,
   Settings as SettingsIcon,
@@ -343,6 +344,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         icon: Bot,
         description: "Slash commands in the chat composer.",
         tint: "text-violet-300 bg-violet-500/10",
+      },
+      {
+        href: "/brands",
+        label: "Brands",
+        icon: Palette,
+        description: "Client chat branding for /client surfaces.",
+        tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
         href: "/views/renderers",

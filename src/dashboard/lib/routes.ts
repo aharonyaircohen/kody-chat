@@ -26,6 +26,7 @@ const REPO_OWNED_LEGACY_PREFIXES = [
   "/agent-goals",
   "/agent-loops",
   "/agents",
+  "/brands",
   "/capabilities",
   "/changelog",
   "/chat",

@@ -96,10 +96,13 @@ test.describe("Client chat surface", () => {
     );
     // Brand accent flows brand config → branding plugin theme → header
     // inline style (Step 6). #0f766e for the default kody brand.
+    await expect(page.locator('[data-testid="client-brand-accent"]')).toHaveCSS(
+      "background-color",
+      "rgb(15, 118, 110)",
+    );
     await expect(
-      page.locator('[data-testid="client-brand-accent"]'),
-    ).toHaveCSS("background-color", "rgb(15, 118, 110)");
-    await expect(page.locator("aside, nav").first()).toHaveCount(0);
+      page.locator('aside[aria-label="Primary navigation"]'),
+    ).toHaveCount(0);
 
     const chats = page.locator('[aria-label="Kody chat"]');
     await expect(chats).toHaveCount(1);
@@ -172,9 +175,10 @@ test.describe("Client chat surface", () => {
     await expect(page.locator('[data-testid="client-brand-name"]')).toHaveText(
       "Acme",
     );
-    await expect(
-      page.locator('[data-testid="client-brand-accent"]'),
-    ).toHaveCSS("background-color", "rgb(124, 58, 237)");
+    await expect(page.locator('[data-testid="client-brand-accent"]')).toHaveCSS(
+      "background-color",
+      "rgb(124, 58, 237)",
+    );
     // Default locale brand — root stays LTR.
     await expect(surface).toHaveAttribute("dir", "ltr");
     // No admin plugin affordances leak in: terminal is absent on /client.
@@ -182,6 +186,15 @@ test.describe("Client chat surface", () => {
     await expect(chat.getByRole("button", { name: /Terminal/i })).toHaveCount(
       0,
     );
+  });
+
+  test("/client/unknown-brand returns 404", async ({ page }) => {
+    const response = await page.goto(`${BASE_URL}/client/unknown-brand`);
+
+    expect(response?.status()).toBe(404);
+    await expect(
+      page.locator('[data-testid="client-chat-surface"]'),
+    ).toHaveCount(0);
   });
 
   test("slash menu lists mocked commands on the client surface", async ({

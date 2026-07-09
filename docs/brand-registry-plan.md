@@ -1,60 +1,58 @@
-# Brand registry + admin UI — plan
+# Brand registry + admin UI — implemented
 
 The parallel track from [chat-platform-phase2.md](chat-platform-phase2.md)
 (and step 7 of [chat-platform-phase3.md](chat-platform-phase3.md)): brands
-stop being hardcoded TS and become operator-editable data feeding the
-existing branding plugin and `/client/<slug>` surfaces.
+are now operator-editable data feeding the existing branding plugin and
+`/client/<slug>` surfaces.
 
 Constraints honored: GitHub is the only datastore (no DB, no Vercel
 features); rate-limit rules (cached reads, `invalidate*` after writes);
-current UI/UX unchanged — this adds one admin page, touches nothing else.
+current UI/UX unchanged — this added one admin page and left the client
+surface server-rendered.
 
 ## Current state
 
-- Brands are a hardcoded map in
-  [client-brand.ts](../src/dashboard/lib/client-brand.ts)
+- Repo brands live at `brands/<slug>.json` in the resolved state repo via
+  [brands/files.ts](../src/dashboard/lib/brands/files.ts).
+- Built-ins remain in [client-brand.ts](../src/dashboard/lib/client-brand.ts)
   (`kody`, `kody-he`, `acme`; unknown slugs get a title-cased default).
 - Consumed by `app/client/[brandSlug]/page.tsx` (server component, already
   async), `ClientChatSurface`, and the branding plugin factory
   (`chat/plugins/branding`), which contributes name/accent/locale/welcome
   to the chat theme.
 
-## Steps (one commit each, `pnpm test:gate` green per commit)
+## Shipped shape
 
-**Step 1 — Storage.** Brand files at `brands/<slug>.json` through the
+**Storage.** Brand files are at `brands/<slug>.json` through the
 existing state-repo layer ([state-repo.ts](../src/dashboard/lib/state-repo.ts)),
 exactly like slash commands ([commands/files.ts](../src/dashboard/lib/commands/files.ts)).
-New `src/dashboard/lib/brands/files.ts`: list/read/write/delete, cached
-reads, zod schema (`slug`, `name`, `accent`, `locale?`, `welcomeText?`)
-validating at the boundary. Slug normalization reuses
-`normalizeClientBrandSlug`.
+`src/dashboard/lib/brands/files.ts` owns list/read/write/delete, cached
+reads, zod validation (`slug`, `name`, `accent`, `locale?`, `welcomeText?`),
+and slug/locale normalization.
 
-**Step 2 — API.** `app/api/kody/brands/route.ts` (GET list) and
+**API.** `app/api/kody/brands/route.ts` (GET list, POST create) and
 `app/api/kody/brands/[slug]/route.ts` (GET, PATCH upsert, DELETE) —
 mirroring [commands/[slug]/route.ts](../app/api/kody/commands/%5Bslug%5D/route.ts):
 `requireKodyAuth`, `getUserOctokit`, `verifyActorLogin` on writes. Response
 shapes follow the commands convention (`{ brand }`, `{ brands }`,
 `{ error }`). Every write invalidates the brands cache.
 
-**Step 3 — Resolution.** `getClientBrand` grows an async, server-only
-sibling `resolveClientBrand(slug)`: repo file → hardcoded map → title-cased
+**Resolution.** `resolveClientBrand(slug)`: repo file → hardcoded map → title-cased
 default (existing behavior preserved exactly; the three built-ins become
 seeds/fallbacks, so nothing breaks with an empty repo). The `/client`
 page and metadata switch to it; `ClientChatSurface` keeps receiving the
 resolved brand as props (no client-side fetch).
 
-**Step 4 — Admin UI.** New `brands` page-plugin
+**Admin UI.** `brands` page-plugin
 (`src/dashboard/lib/chat/plugins/brands/`) + route
 `app/(chat-rail)/brands/page.tsx` — same shape as
 [commands/page.tsx](<../app/(chat-rail)/commands/page.tsx>): table of
 brands, create/edit form (name, accent color picker, locale, welcome
-text), delete with confirm, live preview link to `/client/<slug>`. Same
-lazy-panel bundle discipline as the other page-plugins.
+text), delete with confirm, live preview link to `/client/<slug>`.
 
-**Step 5 — Tests + docs.** Unit: files/zod/resolution fallbacks. Int:
-API routes (fixture repo). E2E: pinned brands in
-`tests/e2e/client-chat-surface.spec.ts` stay green (they ride the
-fallback path). Update CLAUDE.md chat section + this doc's status.
+**Tests + docs.** Unit coverage now pins files/zod behavior, API route
+behavior, resolver fallbacks, page-plugin registration, and plugin directory
+coverage. Pinned E2E client brands continue to ride the fallback path.
 
 ## Out of scope
 

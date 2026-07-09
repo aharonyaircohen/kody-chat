@@ -21,12 +21,15 @@ import { useAuth } from "../auth-context";
 import { kodyApi } from "../api";
 import {
   TRUST_MANIFEST_VERSION,
+  applyCapabilityTrustLevel,
   applySubjectTrustOp,
+  applySubjectTrustLevel,
   applyTrustOp,
   summarizeTrust,
   type TrustCapabilityStats,
   type TrustDecisionLogEntry,
   type TrustCapabilityView,
+  type TrustLevel,
   type TrustManifest,
   type TrustOp,
   type TrustSubjectKey,
@@ -38,11 +41,15 @@ export const trustQueryKey = (owner?: string, repo?: string) =>
 type TrustQueryPayload = Awaited<ReturnType<typeof kodyApi.cto.trust>>;
 type TrustMutationInput =
   | { capability: string; subject?: never; op: TrustOp }
-  | { capability?: never; subject: TrustSubjectKey; op: TrustOp };
+  | { capability?: never; subject: TrustSubjectKey; op: TrustOp }
+  | { capability: string; subject?: never; level: TrustLevel }
+  | { capability?: never; subject: TrustSubjectKey; level: TrustLevel };
 
 export interface UseTrustResult {
   /** Per-capability view rows (auto-first), or [] while loading. */
   groups: TrustCapabilityView[];
+  /** Raw trust stats keyed by capability slug. */
+  capabilities: Record<string, TrustCapabilityStats>;
   /** Repo-owned trigger policy for managed goals, loops, and workflows. */
   subjects: Record<TrustSubjectKey, TrustCapabilityStats>;
   /** Recent decision log (most recent last), bounded server-side. */
@@ -59,6 +66,12 @@ export interface UseTrustResult {
     subject: TrustSubjectKey;
     op: TrustOp;
   }) => Promise<void>;
+  /** Set one visible trust level for a runnable item. */
+  setTrustLevel: (
+    input:
+      | { capability: string; level: TrustLevel }
+      | { subject: TrustSubjectKey; level: TrustLevel },
+  ) => Promise<void>;
   /** True while a `setTrust` mutation is in flight. */
   isMutating: boolean;
 }
@@ -160,6 +173,7 @@ export function useTrust(): UseTrustResult {
 
   return {
     groups,
+    capabilities: trustQuery.data?.capabilities ?? {},
     subjects: trustQuery.data?.subjects ?? {},
     log: trustQuery.data?.log ?? [],
     isLoading: trustQuery.isLoading,
@@ -172,6 +186,9 @@ export function useTrust(): UseTrustResult {
       await mutation.mutateAsync(input);
     },
     setSubjectTrust: async (input) => {
+      await mutation.mutateAsync(input);
+    },
+    setTrustLevel: async (input) => {
       await mutation.mutateAsync(input);
     },
     isMutating: mutation.isPending,
@@ -189,9 +206,14 @@ function applyTrustCacheOp(
     subjects: current.subjects ?? {},
     log: current.log,
   };
-  const manifest = input.subject
-    ? applySubjectTrustOp(baseManifest, input.op, input.subject)
-    : applyTrustOp(baseManifest, input.op, input.capability);
+  const manifest =
+    "level" in input
+      ? input.subject
+        ? applySubjectTrustLevel(baseManifest, input.subject, input.level)
+        : applyCapabilityTrustLevel(baseManifest, input.capability, input.level)
+      : input.subject
+        ? applySubjectTrustOp(baseManifest, input.op, input.subject)
+        : applyTrustOp(baseManifest, input.op, input.capability);
   return {
     ...current,
     capabilities: manifest.capabilities,

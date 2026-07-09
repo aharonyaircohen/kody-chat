@@ -267,11 +267,11 @@ config, never re-registered on re-render):
 **Surfaces import only their granted plugins** (per-surface plugin lists — no
 global self-registering side-effect registry). Current hosts:
 
-| Host                                                                                                                              | Plugins                         | Grant                                     |
-| --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- | ----------------------------------------- |
-| [`ChatRailShell.tsx`](../src/dashboard/lib/components/ChatRailShell.tsx) (desktop rail + mobile sheet — same list on both mounts) | terminal, commands, vibe, goals | `FULL_GRANT` (default)                    |
-| [`GoalControl.tsx`](../src/dashboard/lib/components/GoalControl.tsx) (planner dialog)                                             | terminal, commands, vibe        | `FULL_GRANT` (default)                    |
-| [`ClientChatSurface.tsx`](../src/dashboard/lib/components/ClientChatSurface.tsx) (/client/[brandSlug])                            | branding, commands              | `["theme", "middleware", "host-effects"]` |
+| Host                                                                                                                              | Plugins                                      | Grant                                     |
+| --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- | ----------------------------------------- |
+| [`ChatRailShell.tsx`](../src/dashboard/lib/components/ChatRailShell.tsx) (desktop rail + mobile sheet — same list on both mounts) | terminal, commands, vibe, goals, page panels | `FULL_GRANT` (default)                    |
+| [`GoalControl.tsx`](../src/dashboard/lib/components/GoalControl.tsx) (planner dialog)                                             | terminal, commands, vibe                     | `FULL_GRANT` (default)                    |
+| [`ClientChatSurface.tsx`](../src/dashboard/lib/components/ClientChatSurface.tsx) (/client/[brandSlug])                            | branding, commands                           | `["theme", "middleware", "host-effects"]` |
 
 ### Bundle discipline (Step 7)
 
@@ -374,17 +374,17 @@ asserted in vitest).
 
 Who owns what (phase-1 end state — update when phase 1.6 moves a row):
 
-| State | Owner | Persistence |
-| ----- | ----- | ----------- |
-| Sessions (list, active id, per-session agent) | `chat/core/use-chat-sessions.ts` | `kody-sessions-v3:<owner>/<repo>` |
-| Live-runner lifecycle (booting/ready/awaiting) | reducer `chat/core/kody-chat-reducer.ts`, orchestrated by KodyChat | `kody-live-sessions:<owner>/<repo>` via `chat/core/kody-chat-live-session.ts` |
-| Rehydration ordering | `chat/core/rehydration.ts` (pure), effects in KodyChat | — |
-| Messages / streaming buffers | per-turn handler `components/kody-chat-transport-events.ts`, state in KodyChat | in the session store |
-| Plugin registry (slots, middleware, modes, theme) | per-mount, created by KodyChat from host-supplied lists | — |
-| Display mode (ai/terminal) | registry arbitration; vibe forces "ai" (host mode by decision M2) | terminal plugin session state |
-| Composer input, slash/mention menus, attachments | KodyChat (host), rendered by `chat/surface/Composer` | — |
-| composerInjection / previewContext | ChatRailShell (frozen `ChatRailApi` contract) | — |
-| Agent/model selection, reasoning effort | KodyChat (phase 1.6: extract) | `kody-default-chat-entry:<owner>/<repo>`, reasoning-pref |
-| Data loading (models, dashboard config, Fly probe) | KodyChat (phase 1.6: extract) | — |
-| Voice | KodyChat + `useKodyTTS*` hooks (phase 1.6: extract) | — |
-| Brand/theme on /client | `plugins/branding` via `registry.theme()` | brand config in `client-brand.ts` |
+| State                                              | Owner                                                                          | Persistence                                                                   |
+| -------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| Sessions (list, active id, per-session agent)      | `chat/core/use-chat-sessions.ts`                                               | `kody-sessions-v3:<owner>/<repo>`                                             |
+| Live-runner lifecycle (booting/ready/awaiting)     | reducer `chat/core/kody-chat-reducer.ts`, orchestrated by KodyChat             | `kody-live-sessions:<owner>/<repo>` via `chat/core/kody-chat-live-session.ts` |
+| Rehydration ordering                               | `chat/core/rehydration.ts` (pure), effects in KodyChat                         | —                                                                             |
+| Messages / streaming buffers                       | per-turn handler `components/kody-chat-transport-events.ts`, state in KodyChat | in the session store                                                          |
+| Plugin registry (slots, middleware, modes, theme)  | per-mount, created by KodyChat from host-supplied lists                        | —                                                                             |
+| Display mode (ai/terminal)                         | registry arbitration; vibe forces "ai" (host mode by decision M2)              | terminal plugin session state                                                 |
+| Composer input, slash/mention menus, attachments   | KodyChat (host), rendered by `chat/surface/Composer`                           | —                                                                             |
+| composerInjection / previewContext                 | ChatRailShell (frozen `ChatRailApi` contract)                                  | —                                                                             |
+| Agent/model selection, reasoning effort            | KodyChat (phase 1.6: extract)                                                  | `kody-default-chat-entry:<owner>/<repo>`, reasoning-pref                      |
+| Data loading (models, dashboard config, Fly probe) | KodyChat (phase 1.6: extract)                                                  | —                                                                             |
+| Voice                                              | KodyChat + `useKodyTTS*` hooks (phase 1.6: extract)                            | —                                                                             |
+| Brand/theme on /client                             | `plugins/branding` via `registry.theme()`                                      | `brands/<slug>.json` in state repo, then `client-brand.ts` fallback           |

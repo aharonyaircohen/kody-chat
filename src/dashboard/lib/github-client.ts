@@ -256,6 +256,20 @@ export function invalidateCommandsCache(slug?: string): void {
 }
 
 /**
+ * Invalidate cache entries for client brand files. Pass a slug to scope to one
+ * brand, or omit to clear the listing cache.
+ */
+export function invalidateBrandsCache(slug?: string): void {
+  if (typeof slug === "string" && slug.length > 0) {
+    invalidateCache("brand:");
+    revalidateTagSafe(`gh:brand:${slug}`);
+  } else {
+    invalidateCache("brands:");
+    revalidateTagSafe("gh:brands");
+  }
+}
+
+/**
  * Invalidate cache entries for memory files. Pass an id to scope to one
  * memory, or omit to clear the listing/index cache (e.g. on bulk changes).
  */

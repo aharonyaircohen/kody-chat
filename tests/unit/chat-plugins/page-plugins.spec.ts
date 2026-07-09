@@ -23,6 +23,7 @@ import { agencyRunsChatPlugin } from "@dashboard/lib/chat/plugins/agency-runs";
 import { agentGoalsChatPlugin } from "@dashboard/lib/chat/plugins/agent-goals";
 import { agentLoopsChatPlugin } from "@dashboard/lib/chat/plugins/agent-loops";
 import { agentsChatPlugin } from "@dashboard/lib/chat/plugins/agents";
+import { brandsChatPlugin } from "@dashboard/lib/chat/plugins/brands";
 import { capabilitiesChatPlugin } from "@dashboard/lib/chat/plugins/capabilities";
 import { changelogChatPlugin } from "@dashboard/lib/chat/plugins/changelog";
 import { commandsPageChatPlugin } from "@dashboard/lib/chat/plugins/commands-page";
@@ -59,26 +60,47 @@ const PAGE_PLUGINS: readonly PagePluginCase[] = [
   { slug: "agent-goals", title: "Goals", plugin: agentGoalsChatPlugin },
   { slug: "agent-loops", title: "Loops", plugin: agentLoopsChatPlugin },
   { slug: "agents", title: "Agent", plugin: agentsChatPlugin },
-  { slug: "capabilities", title: "Capabilities", plugin: capabilitiesChatPlugin },
+  { slug: "brands", title: "Brands", plugin: brandsChatPlugin },
+  {
+    slug: "capabilities",
+    title: "Capabilities",
+    plugin: capabilitiesChatPlugin,
+  },
   { slug: "changelog", title: "Changelog", plugin: changelogChatPlugin },
   { slug: "commands-page", title: "Commands", plugin: commandsPageChatPlugin },
   { slug: "company", title: "AI Agency", plugin: companyChatPlugin },
-  { slug: "company-intents", title: "Intents", plugin: companyIntentsChatPlugin },
+  {
+    slug: "company-intents",
+    title: "Intents",
+    plugin: companyIntentsChatPlugin,
+  },
   { slug: "config", title: "Config", plugin: configChatPlugin },
   { slug: "context", title: "Context", plugin: contextChatPlugin },
   { slug: "docs", title: "Docs", plugin: docsChatPlugin },
   { slug: "files", title: "Files", plugin: filesChatPlugin },
   { slug: "inbox", title: "Inbox", plugin: inboxChatPlugin },
-  { slug: "instructions", title: "Instructions", plugin: instructionsChatPlugin },
+  {
+    slug: "instructions",
+    title: "Instructions",
+    plugin: instructionsChatPlugin,
+  },
   { slug: "memory", title: "Memory", plugin: memoryChatPlugin },
   { slug: "messages", title: "Messages", plugin: messagesChatPlugin },
   { slug: "models", title: "Chat Models", plugin: modelsChatPlugin },
-  { slug: "notifications", title: "Notifications", plugin: notificationsChatPlugin },
+  {
+    slug: "notifications",
+    title: "Notifications",
+    plugin: notificationsChatPlugin,
+  },
   { slug: "preview", title: "Views", plugin: previewChatPlugin },
   { slug: "reports", title: "Reports", plugin: reportsChatPlugin },
   { slug: "secrets", title: "Secrets", plugin: secretsChatPlugin },
   { slug: "settings", title: "Settings", plugin: settingsChatPlugin },
-  { slug: "store-catalog", title: "Store Catalog", plugin: storeCatalogChatPlugin },
+  {
+    slug: "store-catalog",
+    title: "Store Catalog",
+    plugin: storeCatalogChatPlugin,
+  },
   { slug: "todos", title: "Todos", plugin: todosChatPlugin },
   { slug: "variables", title: "Variables", plugin: variablesChatPlugin },
   { slug: "workflows", title: "Workflows", plugin: workflowsChatPlugin },

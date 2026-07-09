@@ -6,9 +6,10 @@
  *   around the real KodyChat and stays outside the dashboard chat rail.
  */
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 
 import { ClientChatSurface } from "@dashboard/lib/components/ClientChatSurface";
-import { getClientBrand } from "@dashboard/lib/client-brand";
+import { resolveClientBrand } from "@dashboard/lib/client-brand";
 import { getClientSurfaceCatalog } from "@dashboard/lib/client-chat-strings";
 
 interface ClientChatPageProps {
@@ -19,7 +20,9 @@ export async function generateMetadata({
   params,
 }: ClientChatPageProps): Promise<Metadata> {
   const { brandSlug } = await params;
-  const brand = getClientBrand(brandSlug);
+  const brand = await resolveClientBrand(brandSlug);
+  if (!brand) notFound();
+
   const catalog = getClientSurfaceCatalog(brand.locale ?? "en");
 
   return {
@@ -32,7 +35,8 @@ export async function generateMetadata({
 
 export default async function ClientChatPage({ params }: ClientChatPageProps) {
   const { brandSlug } = await params;
-  const brand = getClientBrand(brandSlug);
+  const brand = await resolveClientBrand(brandSlug);
+  if (!brand) notFound();
 
   return <ClientChatSurface brand={brand} />;
 }

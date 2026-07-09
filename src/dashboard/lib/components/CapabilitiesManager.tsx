@@ -56,6 +56,12 @@ import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
 import { AuthGuard } from "../auth-guard";
 import { useAuth, buildAuthHeaders } from "../auth-context";
+import { useTrust } from "../cto/useTrust";
+import {
+  trustLevelForCapability,
+  trustSubjectKey,
+  type TrustLevel,
+} from "../cto/trust-state";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import {
   COMMON_TOOLS,
@@ -70,6 +76,7 @@ import {
   type PermissionMode,
 } from "../capabilities/profile";
 import type { ChatModelEntry } from "../chat/platform/agent-entries";
+import { TrustLevelControl } from "./TrustLevelControl";
 
 /** One-line explanation per tool, shown beside its checkbox. */
 const TOOL_DESCRIPTIONS: Record<string, string> = {
@@ -397,7 +404,6 @@ function CapabilitiesManagerInner({
   const queryScope = capabilityQueryScopeFromAuth(auth, resource);
   const listQueryKey = capabilityQueryKeys.list(queryScope);
   const queryClient = useQueryClient();
-
   const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: listQueryKey,
     queryFn: () => listApi(headers, apiBase),
@@ -406,6 +412,7 @@ function CapabilitiesManagerInner({
   });
   const capabilities = useMemo(() => data?.capabilities ?? [], [data]);
   const capabilitiesLoaded = data !== undefined;
+  const trust = useTrust();
 
   const remove = useMutation({
     mutationFn: (slug: string) => deleteApi(headers, slug, apiBase),
@@ -438,6 +445,17 @@ function CapabilitiesManagerInner({
     () => capabilities.find((e) => e.slug === selectedSlug) ?? null,
     [capabilities, selectedSlug],
   );
+  const selectedCapabilitySubject = selected
+    ? trustSubjectKey("capability", selected.slug)
+    : null;
+  const selectedTrustLevel = selected
+    ? trustLevelForCapability(
+        trust.capabilities[selected.slug],
+        selectedCapabilitySubject
+          ? trust.subjects[selectedCapabilitySubject]
+          : undefined,
+      )
+    : "approval-required";
   const existingSlugs = useMemo(
     () => new Set(capabilities.map((e) => e.slug)),
     [capabilities],
@@ -587,6 +605,22 @@ function CapabilitiesManagerInner({
                       : "Failed to load"
                     : null
                 }
+                trustLevel={selectedTrustLevel}
+                trustPending={trust.isMutating}
+                onTrustLevelChange={async (level) => {
+                  try {
+                    await trust.setTrustLevel({
+                      capability: selected.slug,
+                      level,
+                    });
+                  } catch (err) {
+                    toast.error(
+                      err instanceof Error
+                        ? err.message
+                        : "Failed to update trust level",
+                    );
+                  }
+                }}
                 onBack={() => selectCapability(null)}
                 onEdit={() => {
                   if (!selected.readOnly) setEditingSlug(selected.slug);
@@ -731,6 +765,9 @@ function CapabilityDetail({
   detail,
   detailLoading,
   detailError,
+  trustLevel,
+  trustPending,
+  onTrustLevelChange,
   onBack,
   onEdit,
   onDelete,
@@ -739,6 +776,9 @@ function CapabilityDetail({
   detail: CapabilityDetail | null;
   detailLoading: boolean;
   detailError: string | null;
+  trustLevel: TrustLevel;
+  trustPending: boolean;
+  onTrustLevelChange: (level: TrustLevel) => void | Promise<void>;
   onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -798,6 +838,11 @@ function CapabilityDetail({
               </div>
             </div>
             <div className="flex items-center gap-2 shrink-0">
+              <TrustLevelControl
+                value={trustLevel}
+                pending={trustPending}
+                onChange={(level) => void onTrustLevelChange(level)}
+              />
               <Button
                 variant="outline"
                 size="sm"

@@ -195,6 +195,18 @@ Drop `.kody/commands/.disable-builtins` to suppress every built-in for the repo.
 - Chat wiring: [src/dashboard/lib/components/SlashCommandMenu.tsx](src/dashboard/lib/components/SlashCommandMenu.tsx), [src/dashboard/lib/commands/useSlashCommands.ts](src/dashboard/lib/commands/useSlashCommands.ts)
 - Full docs: [docs/commands.md](docs/commands.md)
 
+### Client brands (`/brands`, `/client/<slug>`)
+
+Client chat brands are operator-editable data, not hardcoded-only TS. Repo
+brands live at `brands/<slug>.json` in the resolved state repo and feed
+`/client/<slug>` through `resolveClientBrand()`. Built-ins in
+[`client-brand.ts`](src/dashboard/lib/client-brand.ts) remain fallback seeds
+(`kody`, `kody-he`, `acme`), and unknown slugs still get a title-cased default.
+Branding stays theme-only: name, accent, locale, and optional welcome text.
+
+- Storage/API: [src/dashboard/lib/brands/files.ts](src/dashboard/lib/brands/files.ts), [app/api/kody/brands/route.ts](app/api/kody/brands/route.ts), [app/api/kody/brands/[slug]/route.ts](app/api/kody/brands/[slug]/route.ts)
+- UI: [app/(chat-rail)/brands/page.tsx](<app/(chat-rail)/brands/page.tsx>), [src/dashboard/lib/components/BrandsManager.tsx](src/dashboard/lib/components/BrandsManager.tsx)
+
 Important: Claude Code's `` !`shell` `` injection is **not** supported.
 That's a CLI preprocessing feature (it shells out before the message is
 sent); the dashboard server has no working tree to shell into. Stick to

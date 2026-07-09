@@ -125,16 +125,39 @@ describe("ManagedModelsView model form", () => {
     );
   });
 
-  it("shows icon-only run mode on goal and loop pages and cascades to capabilities", () => {
-    expect(source).toContain("RunModeControl");
-    expect(source).toContain("RunModeBadge");
-    expect(source).toContain("managedModelCapabilitySlugs(");
-    expect(source).toContain("applyRunModeToCapabilities(");
-    expect(source).toContain('toast.error("Failed to prepare run"');
+  it("uses one visible trust-level control on goal and loop pages", () => {
+    expect(source).not.toContain("RunModeControl");
+    expect(source).not.toContain("RunModeBadge");
+    expect(source).not.toContain("managedModelCapabilitySlugs(");
+    expect(source).not.toContain("applyRunModeToCapabilities(");
+    expect(source).toContain("TrustLevelControl");
+    expect(source).toContain("trustLevelForSubject");
+    expect(source).toContain("trust.setTrustLevel");
+    expect(source).not.toContain("KodyTriggerControl");
     expect(source).toContain("runManagedGoal.mutateAsync(selectedGoal.id)");
     expect(source).toContain('const basePath = model === "agentLoop"');
     expect(source).toContain('"/agent-loops"');
     expect(source).toContain('"/agent-goals"');
+  });
+
+  it("places the loop auto-run toggle next to the trust control", () => {
+    const headerActions = source.slice(
+      source.indexOf("<TrustLevelControl"),
+      source.indexOf(
+        "<Button",
+        source.indexOf("Manage ${copy.singular} todos"),
+      ),
+    );
+
+    expect(headerActions.indexOf("<TrustLevelControl")).toBe(0);
+    expect(headerActions.indexOf("{canActivate ? (")).toBeGreaterThan(
+      headerActions.indexOf("<TrustLevelControl"),
+    );
+    expect(headerActions.indexOf("{canPause ? (")).toBeGreaterThan(
+      headerActions.indexOf("<TrustLevelControl"),
+    );
+    expect(source).toContain('"Enable loop auto-run"');
+    expect(source).toContain('"Disable loop auto-run"');
   });
 
   it("shows compact runtime status on agentLoop detail pages", () => {

@@ -24,6 +24,7 @@ export const CHAT_PLUGIN_DIRS = Object.freeze([
   "agent-goals",
   "agent-loops",
   "agents",
+  "brands",
   "capabilities",
   "changelog",
   "commands-page",

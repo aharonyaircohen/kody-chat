@@ -28,8 +28,11 @@ import {
 import { readTrust, mutateTrust } from "@dashboard/lib/cto/trust-store";
 import {
   applySubjectTrustOp,
+  applySubjectTrustLevel,
+  applyCapabilityTrustLevel,
   applyTrustOp,
   isTrustSubjectKey,
+  TRUST_LEVELS,
   TRUST_OPS,
 } from "@dashboard/lib/cto/trust-state";
 import { recordAudit } from "@dashboard/lib/activity/audit";
@@ -43,12 +46,17 @@ const bodySchema = z
       .regex(/^[a-z0-9][a-z0-9-]*$/i)
       .optional(),
     subject: z.string().refine(isTrustSubjectKey).optional(),
-    op: z.enum(TRUST_OPS),
+    op: z.enum(TRUST_OPS).optional(),
+    level: z.enum(TRUST_LEVELS).optional(),
     actorLogin: z.string().optional(),
   })
   .refine((body) => Boolean(body.capability) !== Boolean(body.subject), {
     message: "Provide exactly one of capability or subject",
     path: ["capability"],
+  })
+  .refine((body) => Boolean(body.op) !== Boolean(body.level), {
+    message: "Provide exactly one of op or level",
+    path: ["op"],
   });
 
 /** GET — full capability trust stats + recent log for the /trust page. */
@@ -104,31 +112,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "bad_json" }, { status: 400 });
     }
 
-    const { capability, subject, op, actorLogin } = payload;
+    const { capability, subject, op, level, actorLogin } = payload;
 
     if (actorLogin) {
       const actorResult = await verifyActorLogin(req, actorLogin);
       if (actorResult instanceof NextResponse) return actorResult;
     }
 
-    const manifest = await mutateTrust((current) =>
-      capability
-        ? applyTrustOp(current, op, capability)
-        : applySubjectTrustOp(current, op, subject!),
-    );
+    const manifest = await mutateTrust((current) => {
+      if (level) {
+        return capability
+          ? applyCapabilityTrustLevel(current, capability, level)
+          : applySubjectTrustLevel(current, subject!, level);
+      }
+      return capability
+        ? applyTrustOp(current, op!, capability)
+        : applySubjectTrustOp(current, op!, subject!);
+    });
     const target = capability ?? subject!;
+    const action = level ? `trust.set.${level}` : `trust.${op}`;
 
     recordAudit(req, {
-      action: `trust.${op}`,
+      action,
       resource: target,
       ...(capability ? { capability } : {}),
-      detail: `${op} trust for ${target}`,
+      detail: `${level ?? op} trust for ${target}`,
     });
 
     return NextResponse.json({
       ok: true,
       ...(capability ? { capability } : { subject }),
-      op,
+      ...(op ? { op } : { level }),
       stats: capability
         ? (manifest.capabilities[capability] ?? null)
         : (manifest.subjects[subject!] ?? null),

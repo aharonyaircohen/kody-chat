@@ -29,8 +29,14 @@ export const TRUST_LOG_MAX = 500;
 export const TRUST_GRADUATION_THRESHOLD = 10;
 
 export type TrustMode = "ask" | "auto";
+export const TRUST_LEVELS = [
+  "approval-required",
+  "can-run",
+  "auto-approval",
+] as const;
+export type TrustLevel = (typeof TRUST_LEVELS)[number];
 export type TrustDecision = "approve" | "reject" | "dismiss";
-export type TrustSubjectKind = "goal" | "loop" | "workflow";
+export type TrustSubjectKind = "goal" | "loop" | "workflow" | "capability";
 export type TrustSubjectKey = `${TrustSubjectKind}:${string}`;
 
 /** Whole-capability trust stats. */
@@ -41,6 +47,8 @@ export interface TrustCapabilityStats {
   consecutiveApprovals: number;
   /** "ask" until graduated; "auto" lets the engine run the capability without asking. */
   mode: TrustMode;
+  /** User-facing trust level for one runnable item. */
+  level: TrustLevel;
 }
 
 export interface TrustDecisionLogEntry {
@@ -76,7 +84,13 @@ export const EMPTY_TRUST_MANIFEST: TrustManifest = {
 };
 
 export function freshStats(): TrustCapabilityStats {
-  return { approvals: 0, rejections: 0, consecutiveApprovals: 0, mode: "ask" };
+  return {
+    approvals: 0,
+    rejections: 0,
+    consecutiveApprovals: 0,
+    mode: "ask",
+    level: "approval-required",
+  };
 }
 
 function withStats(
@@ -152,11 +166,17 @@ export function applyTrustDecision(
     : isApprove && consecutiveApprovals >= threshold
       ? "auto"
       : prev.mode;
+  const level: TrustLevel = isReject
+    ? "approval-required"
+    : isApprove && consecutiveApprovals >= threshold
+      ? "auto-approval"
+      : prev.level;
   const next = withStats(manifest, entry.capability, {
     approvals: prev.approvals + (isApprove ? 1 : 0),
     rejections: prev.rejections + (isReject ? 1 : 0),
     consecutiveApprovals,
     mode,
+    level,
   });
   const logEntry: TrustDecisionLogEntry = {
     capability: entry.capability,
@@ -219,6 +239,7 @@ export function graduateCapability(
   return withStats(manifest, capability, {
     ...prev,
     mode: "auto",
+    level: "auto-approval",
     consecutiveApprovals: Math.max(prev.consecutiveApprovals, threshold),
   });
 }
@@ -232,6 +253,7 @@ export function degradeCapability(
   return withStats(manifest, capability, {
     ...prev,
     mode: "ask",
+    level: "approval-required",
     consecutiveApprovals: 0,
   });
 }
@@ -260,6 +282,7 @@ export function graduateSubject(
   return withSubjectStats(manifest, subject, {
     ...prev,
     mode: "auto",
+    level: "can-run",
     consecutiveApprovals: Math.max(prev.consecutiveApprovals, threshold),
   });
 }
@@ -272,6 +295,7 @@ export function degradeSubject(
   return withSubjectStats(manifest, subject, {
     ...prev,
     mode: "ask",
+    level: "approval-required",
     consecutiveApprovals: 0,
   });
 }
@@ -297,6 +321,71 @@ export function applySubjectTrustOp(
     case "degrade":
       return degradeSubject(manifest, subject);
   }
+}
+
+export function statsForTrustLevel(
+  previous: TrustCapabilityStats | undefined,
+  level: TrustLevel,
+  threshold: number = TRUST_GRADUATION_THRESHOLD,
+): TrustCapabilityStats {
+  const prev = previous ?? freshStats();
+  const canRun = level !== "approval-required";
+  return {
+    ...prev,
+    mode: canRun ? "auto" : "ask",
+    level,
+    consecutiveApprovals: canRun
+      ? Math.max(prev.consecutiveApprovals, threshold)
+      : 0,
+  };
+}
+
+export function applySubjectTrustLevel(
+  manifest: TrustManifest,
+  subject: TrustSubjectKey,
+  level: TrustLevel,
+): TrustManifest {
+  return withSubjectStats(
+    manifest,
+    subject,
+    statsForTrustLevel(manifest.subjects[subject], level),
+  );
+}
+
+export function applyCapabilityTrustLevel(
+  manifest: TrustManifest,
+  capability: string,
+  level: TrustLevel,
+): TrustManifest {
+  const subject = trustSubjectKey("capability", capability);
+  const next = applySubjectTrustLevel(manifest, subject, level);
+  const capabilityLevel =
+    level === "auto-approval" ? "auto-approval" : "approval-required";
+  return withStats(
+    next,
+    capability,
+    statsForTrustLevel(next.capabilities[capability], capabilityLevel),
+  );
+}
+
+export function trustLevelForSubject(
+  stats: TrustCapabilityStats | null | undefined,
+  fallbackCanRun = false,
+): TrustLevel {
+  if (stats?.level) return stats.level;
+  if (stats?.mode === "auto" || fallbackCanRun) return "can-run";
+  return "approval-required";
+}
+
+export function trustLevelForCapability(
+  capabilityStats: TrustCapabilityStats | null | undefined,
+  subjectStats: TrustCapabilityStats | null | undefined,
+): TrustLevel {
+  if (subjectStats?.level) return subjectStats.level;
+  if (capabilityStats?.level === "auto-approval") return "auto-approval";
+  if (capabilityStats?.mode === "auto") return "auto-approval";
+  if (subjectStats?.mode === "auto") return "can-run";
+  return "approval-required";
 }
 
 /** True when the engine may let this capability self-dispatch. */
@@ -383,13 +472,23 @@ export function trustSubjectKey(
 }
 
 export function isTrustSubjectKey(value: string): value is TrustSubjectKey {
-  return /^(goal|loop|workflow):[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(value);
+  return /^(goal|loop|workflow|capability):[A-Za-z0-9][A-Za-z0-9_-]{0,79}$/.test(
+    value,
+  );
 }
 
 function normalizeStats(
   stats: Partial<TrustCapabilityStats> | null | undefined,
 ): TrustCapabilityStats {
   const mode = stats?.mode === "auto" ? "auto" : "ask";
+  const level =
+    stats?.level === "auto-approval" ||
+    stats?.level === "can-run" ||
+    stats?.level === "approval-required"
+      ? stats.level
+      : mode === "auto"
+        ? "can-run"
+        : "approval-required";
   const consecutiveApprovals =
     typeof stats?.consecutiveApprovals === "number"
       ? Math.max(0, stats.consecutiveApprovals)
@@ -404,6 +503,7 @@ function normalizeStats(
       typeof stats?.rejections === "number" ? Math.max(0, stats.rejections) : 0,
     consecutiveApprovals,
     mode,
+    level,
   };
 }
 
