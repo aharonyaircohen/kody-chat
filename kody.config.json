@@ -24,7 +24,8 @@
       "codebase-health",
       "ci-health",
       "prs-stay-mergeable",
-      "cms-content-editing"
+      "cms-content-editing",
+      "web-release"
     ],
     "activeAgents": [
       "ceo"
