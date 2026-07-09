@@ -21,6 +21,10 @@ import {
 } from "@dashboard/lib/client-brand-repo-cookie";
 import { mintClientSurfaceTicket } from "@dashboard/lib/chat/platform/surface-scope";
 import { resolveVaultGithubToken } from "@dashboard/lib/vault/bootstrap";
+import { auth } from "@dashboard/lib/client-auth/auth";
+import { isEmailAllowed } from "@dashboard/lib/client-auth/allowlist";
+import { resolveGoogleCredentials } from "@dashboard/lib/client-auth/credentials";
+import { ClientAuthGate } from "@dashboard/lib/client-auth/ClientAuthGate";
 
 interface ClientChatPageProps {
   params: Promise<{ brandSlug: string }>;
@@ -64,6 +68,28 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
   const context = await clientBrandRepoContext();
   const brand = await resolveClientBrand(brandSlug, context);
   if (!brand) notFound();
+
+  if (brand.auth?.required) {
+    const callbackUrl = `/client/${brand.slug}`;
+    const google = await resolveGoogleCredentials(context);
+    if (!google) {
+      return <ClientAuthGate brand={brand} callbackUrl={callbackUrl} misconfigured />;
+    }
+    const session = await auth();
+    const email = session?.user?.email;
+    if (!email) {
+      return <ClientAuthGate brand={brand} callbackUrl={callbackUrl} />;
+    }
+    if (!isEmailAllowed(brand.auth, email)) {
+      return (
+        <ClientAuthGate
+          brand={brand}
+          callbackUrl={callbackUrl}
+          deniedEmail={email}
+        />
+      );
+    }
+  }
 
   let ticket: string | undefined;
   if (context?.token) {

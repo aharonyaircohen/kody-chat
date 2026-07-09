@@ -7,6 +7,7 @@
  *   client surface host.
  */
 import { slugifyTitle } from "./slug";
+import type { ClientBrandAuth } from "./client-auth/allowlist";
 
 export interface ClientBrand {
   slug: string;
@@ -22,6 +23,8 @@ export interface ClientBrand {
   modelId?: string;
   /** Optional agency agent identity slug from `agents/<slug>.md`. */
   agentSlug?: string;
+  /** Optional sign-in policy for the client surface (Google via Auth.js). */
+  auth?: ClientBrandAuth;
 }
 
 export interface ClientBrandResolveContext {

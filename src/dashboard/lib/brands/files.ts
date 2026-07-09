@@ -27,6 +27,7 @@ import {
   normalizeClientBrandSlug,
   type ClientBrand,
 } from "../client-brand";
+import { normalizeClientBrandAuth } from "../client-auth/allowlist";
 import { slugifyTitle } from "../slug";
 
 export interface BrandFile extends ClientBrand {
@@ -52,6 +53,13 @@ const brandFileSchema = z.object({
   welcomeText: z.string().trim().max(1000).optional(),
   modelId: z.string().trim().min(1).max(160).optional(),
   agentSlug: z.string().trim().min(1).max(80).optional(),
+  auth: z
+    .object({
+      required: z.boolean().optional(),
+      allowedEmails: z.array(z.string().trim().max(320)).max(500).optional(),
+      allowedDomains: z.array(z.string().trim().max(255)).max(100).optional(),
+    })
+    .optional(),
 });
 
 type BrandFileInput = z.infer<typeof brandFileSchema>;
@@ -163,6 +171,10 @@ function normalizeBrandInput(input: BrandFileInput, fallbackSlug?: string) {
     ...(input.agentSlug?.trim()
       ? { agentSlug: normalizeAgentSlug(input.agentSlug) }
       : {}),
+    ...(() => {
+      const auth = normalizeClientBrandAuth(input.auth);
+      return auth ? { auth } : {};
+    })(),
   } satisfies ClientBrand;
 }
 
