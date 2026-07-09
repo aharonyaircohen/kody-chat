@@ -8,9 +8,14 @@
  *   tested without any GitHub or Auth.js dependency.
  */
 
+export const CLIENT_AUTH_PROVIDERS = ["google", "github"] as const;
+export type ClientAuthProvider = (typeof CLIENT_AUTH_PROVIDERS)[number];
+
 export interface ClientBrandAuth {
   /** When true, `/client/<slug>` requires a signed-in, allowed user. */
   required: boolean;
+  /** Sign-in methods offered to visitors (default: ["google"]). */
+  providers?: ClientAuthProvider[];
   /** Exact emails allowed (case-insensitive). */
   allowedEmails?: string[];
   /** Email domains allowed, without "@" (case-insensitive), e.g. "acme.com". */
@@ -28,11 +33,23 @@ export function normalizeClientBrandAuth(
   const domains = normalizeList(raw.allowedDomains).map((d) =>
     d.replace(/^@/, ""),
   );
+  const providers = normalizeList(raw.providers).filter(
+    (p): p is ClientAuthProvider =>
+      (CLIENT_AUTH_PROVIDERS as readonly string[]).includes(p),
+  );
   return {
     required: raw.required === true,
+    ...(providers.length ? { providers } : {}),
     ...(emails.length ? { allowedEmails: emails } : {}),
     ...(domains.length ? { allowedDomains: domains } : {}),
   };
+}
+
+/** Providers a brand offers, defaulting to Google. */
+export function brandAuthProviders(
+  auth: ClientBrandAuth,
+): ClientAuthProvider[] {
+  return auth.providers?.length ? auth.providers : ["google"];
 }
 
 function normalizeList(value: unknown): string[] {
