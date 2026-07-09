@@ -316,6 +316,11 @@ export interface WriteBrandOptions {
   welcomeText?: string;
   modelId?: string;
   agentSlug?: string;
+  auth?: {
+    required?: boolean;
+    allowedEmails?: string[];
+    allowedDomains?: string[];
+  };
   sha?: string;
   message?: string;
 }
@@ -329,6 +334,7 @@ function buildFileContent(opts: Omit<WriteBrandOptions, "octokit" | "sha">) {
     welcomeText: opts.welcomeText,
     modelId: opts.modelId,
     agentSlug: opts.agentSlug,
+    auth: opts.auth,
   });
   return `${JSON.stringify(brand, null, 2)}\n`;
 }
@@ -366,6 +372,7 @@ export async function writeBrandFile(
     welcomeText: opts.welcomeText,
     modelId: opts.modelId,
     agentSlug: opts.agentSlug,
+    auth: opts.auth,
   });
   const filePath = brandFilePath(brand.slug);
   await writeStateText({

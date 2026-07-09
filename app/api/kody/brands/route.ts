@@ -47,6 +47,13 @@ const brandInputSchema = z.object({
   welcomeText: z.string().trim().max(1000).optional(),
   modelId: z.string().trim().min(1).max(160).optional(),
   agentSlug: z.string().trim().min(1).max(80).optional(),
+  auth: z
+    .object({
+      required: z.boolean().optional(),
+      allowedEmails: z.array(z.string().trim().max(320)).max(500).optional(),
+      allowedDomains: z.array(z.string().trim().max(255)).max(100).optional(),
+    })
+    .optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -149,6 +156,7 @@ export async function POST(req: NextRequest) {
       welcomeText: parsed.welcomeText,
       modelId: parsed.modelId,
       agentSlug: parsed.agentSlug,
+      auth: parsed.auth,
     });
 
     recordAudit(req, {

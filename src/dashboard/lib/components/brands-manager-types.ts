@@ -5,6 +5,8 @@
  * @ai-summary Shared data shapes for the client brand admin UI.
  */
 
+import type { ClientBrandAuth } from "@dashboard/lib/client-auth/allowlist";
+
 export interface BrandRow {
   slug: string;
   name: string;
@@ -13,6 +15,7 @@ export interface BrandRow {
   welcomeText?: string;
   modelId?: string;
   agentSlug?: string;
+  auth?: ClientBrandAuth;
   source: "repo" | "builtin";
   sha: string;
   updatedAt: string;
@@ -32,6 +35,7 @@ export interface SavePayload {
   welcomeText?: string;
   modelId?: string;
   agentSlug?: string;
+  auth?: ClientBrandAuth;
   isUpdate: boolean;
 }
 

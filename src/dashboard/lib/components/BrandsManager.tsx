@@ -558,6 +558,28 @@ function BrandDetail({
           </div>
         </BrandDetailSection>
 
+        <BrandDetailSection title="Access" icon={<Sparkles />}>
+          <div className="grid gap-3 md:grid-cols-2">
+            <DetailField
+              label="Sign-in"
+              value={brand.auth?.required ? "Google sign-in required" : "Public"}
+            />
+            <DetailField
+              label="Allowed"
+              value={
+                brand.auth?.required
+                  ? [
+                      ...(brand.auth.allowedEmails ?? []),
+                      ...(brand.auth.allowedDomains ?? []).map(
+                        (domain) => `@${domain}`,
+                      ),
+                    ].join(", ") || "Any Google account"
+                  : "Everyone"
+              }
+            />
+          </div>
+        </BrandDetailSection>
+
         <BrandDetailSection title="Appearance" icon={<Palette />}>
           <div className="grid gap-3 md:grid-cols-2">
             <DetailField label="Accent" value={brand.accent} />

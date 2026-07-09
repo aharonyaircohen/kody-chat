@@ -30,6 +30,13 @@ import type {
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const HEX_RE = /^#[0-9a-fA-F]{6}$/;
 
+function splitLines(value: string): string[] {
+  return value
+    .split(/[\n,]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 interface BrandEditorProps {
   initial: BrandRow | null;
   isNew: boolean;
@@ -58,6 +65,15 @@ export function BrandEditor({
   const [welcomeText, setWelcomeText] = useState(initial?.welcomeText ?? "");
   const [modelId, setModelId] = useState(initial?.modelId ?? "");
   const [agentSlug, setAgentSlug] = useState(initial?.agentSlug ?? "");
+  const [authRequired, setAuthRequired] = useState(
+    initial?.auth?.required ?? false,
+  );
+  const [allowedEmails, setAllowedEmails] = useState(
+    (initial?.auth?.allowedEmails ?? []).join("\n"),
+  );
+  const [allowedDomains, setAllowedDomains] = useState(
+    (initial?.auth?.allowedDomains ?? []).join("\n"),
+  );
   const [touchedSlug, setTouchedSlug] = useState(false);
 
   const slugError = (() => {
@@ -215,6 +231,51 @@ export function BrandEditor({
           </div>
 
           <div className="sm:col-span-2">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={authRequired}
+                onChange={(event) => setAuthRequired(event.target.checked)}
+              />
+              Require Google sign-in
+            </label>
+          </div>
+
+          {authRequired && (
+            <>
+              <div>
+                <Label htmlFor="brand-auth-emails" className="text-xs">
+                  Allowed emails (one per line)
+                </Label>
+                <Textarea
+                  id="brand-auth-emails"
+                  value={allowedEmails}
+                  onChange={(event) => setAllowedEmails(event.target.value)}
+                  rows={3}
+                  placeholder={"jane@acme.com"}
+                  className="font-mono"
+                />
+              </div>
+              <div>
+                <Label htmlFor="brand-auth-domains" className="text-xs">
+                  Allowed domains (one per line)
+                </Label>
+                <Textarea
+                  id="brand-auth-domains"
+                  value={allowedDomains}
+                  onChange={(event) => setAllowedDomains(event.target.value)}
+                  rows={3}
+                  placeholder={"acme.com"}
+                  className="font-mono"
+                />
+                <p className="mt-1 text-xs text-white/50">
+                  Leave both empty to allow any signed-in Google account.
+                </p>
+              </div>
+            </>
+          )}
+
+          <div className="sm:col-span-2">
             <Label htmlFor="brand-welcome" className="text-xs">
               Welcome text
             </Label>
@@ -245,6 +306,11 @@ export function BrandEditor({
                 welcomeText: welcomeText.trim() || undefined,
                 modelId: modelId.trim() || undefined,
                 agentSlug: agentSlug.trim() || undefined,
+                auth: {
+                  required: authRequired,
+                  allowedEmails: splitLines(allowedEmails),
+                  allowedDomains: splitLines(allowedDomains),
+                },
                 isUpdate: !isNew,
               });
             }}
