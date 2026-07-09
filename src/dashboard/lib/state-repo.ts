@@ -132,6 +132,30 @@ export function normalizeStatePath(raw: string, field = "statePath"): string {
   return parts.join("/");
 }
 
+export function normalizeStateBasePath(
+  raw: string,
+  field = "state.path",
+): string {
+  const value = raw.trim().replace(/^\/+|\/+$/g, "");
+  if (!value) return "";
+
+  const parts = value.split("/");
+  for (const part of parts) {
+    if (!part || part === "." || part === "..") {
+      throw new Error(
+        `kody.config.json: ${field} must be a relative path without "." or ".."`,
+      );
+    }
+    if (!/^[A-Za-z0-9_.-]+$/.test(part)) {
+      throw new Error(
+        `kody.config.json: ${field} contains invalid path part "${part}"`,
+      );
+    }
+  }
+
+  return parts.join("/");
+}
+
 export function normalizeStateBranch(
   raw: string | undefined,
   field = "state.branch",
@@ -184,8 +208,8 @@ export function resolveStateRepoConfig(
   return {
     repo: stateRepo,
     path:
-      typeof pathRaw === "string" && pathRaw.trim().length > 0
-        ? normalizeStatePath(pathRaw)
+      typeof pathRaw === "string"
+        ? normalizeStateBasePath(pathRaw)
         : normalizeStatePath(repo),
     branch:
       typeof branchRaw === "string" && branchRaw.trim().length > 0

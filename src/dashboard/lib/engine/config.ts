@@ -680,7 +680,7 @@ function cleanStateConfig(
 ): KodyStateConfig | null {
   if (!raw) return null;
   const repo = raw.repo?.trim().replace(/\/+$/, "") ?? "";
-  const path = raw.path?.trim() ?? "";
+  const path = raw.path?.trim().replace(/^\/+|\/+$/g, "") ?? "";
   const branch = raw.branch?.trim() ?? "";
   const pathSegments = path.split("/");
   if (
@@ -689,11 +689,11 @@ function cleanStateConfig(
     return null;
   }
   if (
-    !path ||
-    path.startsWith("/") ||
+    raw.path === undefined ||
     path.includes("\\") ||
     pathSegments.some(
-      (segment) => !segment || segment === "." || segment === "..",
+      (segment) =>
+        path.length > 0 && (!segment || segment === "." || segment === ".."),
     )
   ) {
     return null;

@@ -311,6 +311,38 @@ describe("writeConfigPatch — state repo", () => {
     });
   });
 
+  it("writes an explicit root state repo path", async () => {
+    const { octokit, lastWritten } = octokitWithConfig({
+      defaultImplementation: "run",
+      github: { owner: "o", repo: "r" },
+    });
+
+    await writeConfigPatch(octokit, "o", "r", {
+      state: { repo: "https://github.com/o/kody-state", path: "" },
+    });
+
+    expect(lastWritten().state).toEqual({
+      repo: "https://github.com/o/kody-state",
+      path: "",
+    });
+  });
+
+  it("normalizes slash state repo path to root", async () => {
+    const { octokit, lastWritten } = octokitWithConfig({
+      defaultImplementation: "run",
+      github: { owner: "o", repo: "r" },
+    });
+
+    await writeConfigPatch(octokit, "o", "r", {
+      state: { repo: "https://github.com/o/kody-state", path: "/" },
+    });
+
+    expect(lastWritten().state).toEqual({
+      repo: "https://github.com/o/kody-state",
+      path: "",
+    });
+  });
+
   it("clears state repo config", async () => {
     const { octokit, lastWritten } = octokitWithConfig({
       defaultImplementation: "run",

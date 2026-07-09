@@ -83,6 +83,32 @@ describe("state repo storage boundary", () => {
     });
   });
 
+  it("writes state files at the state repo root when base path is blank", async () => {
+    engineConfig.getEngineConfig.mockResolvedValueOnce({
+      config: {
+        state: {
+          repo: "https://github.com/acme/kody-state",
+          path: "",
+          branch: "main",
+        },
+      },
+    });
+
+    await expect(
+      writeStateText({
+        octokit: octokit as never,
+        owner: "A-Guy-educ",
+        repo: "A-Guy-Web",
+        path: "memory/root.md",
+        content: "# Root\n",
+        message: "write root memory",
+      }),
+    ).resolves.toMatchObject({
+      path: "memory/root.md",
+      sha: "sha-next",
+    });
+  });
+
   it("keeps multi-file commits and directory deletes compatible", async () => {
     await expect(
       writeStateFiles({

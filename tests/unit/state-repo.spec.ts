@@ -33,4 +33,44 @@ describe("state repo config", () => {
       branch: "main",
     });
   });
+
+  it("keeps explicit empty state path as the state repo root", () => {
+    expect(
+      resolveStateRepoConfig(
+        {
+          defaultImplementation: "run",
+          state: {
+            repo: "https://github.com/acme/kody-state",
+            path: "",
+          },
+        },
+        "acme",
+        "widgets",
+      ),
+    ).toEqual({
+      repo: "https://github.com/acme/kody-state",
+      path: "",
+      branch: "main",
+    });
+  });
+
+  it("normalizes slash state path to the state repo root", () => {
+    expect(
+      resolveStateRepoConfig(
+        {
+          defaultImplementation: "run",
+          state: {
+            repo: "https://github.com/acme/kody-state",
+            path: "/",
+          },
+        },
+        "acme",
+        "widgets",
+      ),
+    ).toEqual({
+      repo: "https://github.com/acme/kody-state",
+      path: "",
+      branch: "main",
+    });
+  });
 });

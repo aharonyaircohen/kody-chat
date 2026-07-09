@@ -96,15 +96,15 @@ const stateRepoSchema = z
 const statePathSchema = z
   .string()
   .trim()
-  .min(1)
   .max(255)
+  .transform((value) => value.replace(/^\/+|\/+$/g, ""))
   .refine(
     (value) =>
-      !value.startsWith("/") &&
       !value.includes("\\") &&
-      value
-        .split("/")
-        .every((segment) => segment && segment !== "." && segment !== ".."),
+      (value.length === 0 ||
+        value
+          .split("/")
+          .every((segment) => segment && segment !== "." && segment !== "..")),
     { message: "must be a relative path without parent segments" },
   );
 const stateSchema = z.object({

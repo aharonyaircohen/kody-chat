@@ -69,7 +69,8 @@ function cleanStatePath(value: string): string {
 }
 
 function isValidStatePath(value: string): boolean {
-  if (!value || value.includes("\\")) return false;
+  if (value.includes("\\")) return false;
+  if (!value) return true;
   return value
     .split("/")
     .every((segment) => segment && segment !== "." && segment !== "..");
@@ -128,6 +129,7 @@ function StateRepoCard({ cfg }: { cfg: UseEngineConfig }) {
     ? `https://github.com/${auth.owner}/kody-state`
     : "";
   const defaultPath = auth?.repo ?? "";
+  const hasSavedState = !!config?.state?.repo && config?.state?.path !== undefined;
   const savedRepo = config?.state?.repo ?? "";
   const savedPath = config?.state?.path ?? "";
   const [repoDraft, setRepoDraft] = useState("");
@@ -136,16 +138,17 @@ function StateRepoCard({ cfg }: { cfg: UseEngineConfig }) {
   useEffect(() => {
     if (!config) return;
     setRepoDraft(savedRepo || defaultRepo);
-    setPathDraft(savedPath || defaultPath);
-  }, [config, defaultPath, defaultRepo, savedPath, savedRepo]);
+    setPathDraft(hasSavedState ? savedPath : defaultPath);
+  }, [config, defaultPath, defaultRepo, hasSavedState, savedPath, savedRepo]);
 
   const repoValue = cleanStateRepoUrl(repoDraft);
   const pathValue = cleanStatePath(pathDraft);
   const repoValid = STATE_REPO_PATTERN.test(repoValue);
   const pathValid = isValidStatePath(pathValue);
   const dirty =
-    !!config && (repoValue !== savedRepo || pathValue !== savedPath);
-  const hasSavedState = !!config?.state?.repo && !!config?.state?.path;
+    !!config &&
+    (repoValue !== savedRepo ||
+      pathValue !== (hasSavedState ? savedPath : defaultPath));
 
   async function handleSave() {
     if (!repoValid || !pathValid) {
@@ -208,7 +211,7 @@ function StateRepoCard({ cfg }: { cfg: UseEngineConfig }) {
                       void handleSave();
                     }
                   }}
-                  placeholder="repo-name"
+                  placeholder="repo-name or / for root"
                   disabled={saving}
                   className="h-8 text-sm font-mono"
                 />
@@ -236,14 +239,15 @@ function StateRepoCard({ cfg }: { cfg: UseEngineConfig }) {
                 Currently:{" "}
                 <span className="text-white/70 font-mono">
                   {hasSavedState
-                    ? `${savedRepo}/${savedPath}`
+                    ? `${savedRepo}/${savedPath || "(root)"}`
                     : "not registered"}
                 </span>
               </p>
             </div>
             {(!repoValid || !pathValid) && (
               <p className="text-[11px] text-rose-300">
-                Use a GitHub repository URL and a relative path.
+                Use a GitHub repository URL and a relative path, or blank / for
+                root.
               </p>
             )}
           </>
