@@ -339,16 +339,7 @@ export function SettingsManager() {
           <Card className="border-white/[0.08] bg-white/[0.02]">
             <CardContent className="p-4">
               <div className="grid grid-cols-2 gap-2">
-                <Button
-                  asChild
-                  variant="outline"
-                  className="justify-start gap-2 bg-white/[0.02] border-white/10 hover:bg-white/[0.06]"
-                >
-                  <RepoScopedLink href="/runner">
-                    <Rocket className="w-4 h-4" />
-                    Fly Runner
-                  </RepoScopedLink>
-                </Button>
+                {/* Fly Runner is a dashboard-host page — no /runner here. */}
                 <Button
                   asChild
                   variant="outline"
