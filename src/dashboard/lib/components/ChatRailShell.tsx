@@ -36,6 +36,7 @@ import { KodyChat } from "./KodyChat";
 import { AppHeader } from "./AppHeader";
 import { ChatShell } from "@kody-ade/kody-chat/components/ChatShell";
 import { SidebarChrome } from "./SidebarChrome";
+import { ENGINEER_MODE_SECTIONS } from "./settings-nav";
 import { RepoManager } from "./RepoManager";
 import { CommandPalette } from "./CommandPalette";
 import { SettingsDrawerProvider } from "./SettingsDrawer";
@@ -607,8 +608,11 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
               wrapper only supplies the dashboard-specific chat pane, header,
               and page content. Shell chrome (repo switcher in the sidepanel,
               rail resize) is inherited from @kody-ade/kody-chat. */}
+          {/* Explicit sections: the Engineer list is the superset (Vibe and
+              Preview included), so the old Vibe/Engineer toggle is gone. */}
           <ChatShell
             title="Kody"
+            sections={ENGINEER_MODE_SECTIONS}
             sidebarHeaderExtra={<SidebarChrome />}
             chat={chatPane}
             isChatHome={isChatRoute}
