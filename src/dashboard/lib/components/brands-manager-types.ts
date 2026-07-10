@@ -39,6 +39,11 @@ export interface SavePayload {
   isUpdate: boolean;
 }
 
+export interface BrandLanguageOption {
+  code: string;
+  name: string;
+}
+
 export interface BrandModelOption {
   id: string;
   label: string;

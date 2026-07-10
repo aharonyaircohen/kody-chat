@@ -27,6 +27,7 @@ import {
 import { providerLabel } from "@dashboard/lib/client-auth/catalog";
 import type {
   BrandAgentOption,
+  BrandLanguageOption,
   BrandModelOption,
   BrandRow,
   SavePayload,
@@ -47,6 +48,7 @@ interface BrandEditorProps {
   isNew: boolean;
   saving: boolean;
   existingSlugs: Set<string>;
+  languageOptions: BrandLanguageOption[];
   modelOptions: BrandModelOption[];
   agentOptions: BrandAgentOption[];
   onClose: () => void;
@@ -58,6 +60,7 @@ export function BrandEditor({
   isNew,
   saving,
   existingSlugs,
+  languageOptions,
   modelOptions,
   agentOptions,
   onClose,
@@ -189,15 +192,23 @@ export function BrandEditor({
 
           <div>
             <Label htmlFor="brand-locale" className="text-xs">
-              Locale
+              Language
             </Label>
-            <Input
+            <select
               id="brand-locale"
               value={locale}
               onChange={(event) => setLocale(event.target.value)}
-              placeholder="en"
-              className="font-mono"
-            />
+              className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
+            >
+              {languageOptions.some((option) => option.code === locale) ? null : (
+                <option value={locale}>{locale}</option>
+              )}
+              {languageOptions.map((option) => (
+                <option key={option.code} value={option.code}>
+                  {option.name} ({option.code})
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="sm:col-span-2">

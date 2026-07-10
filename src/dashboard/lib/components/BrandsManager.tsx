@@ -32,6 +32,7 @@ import { EmptyState } from "@dashboard/lib/components/EmptyState";
 import { MasterDetailShell } from "@dashboard/lib/components/MasterDetailShell";
 import type {
   BrandRow,
+  BrandLanguageOption,
   BrandModelOption,
   BrandsQueryScope,
   SavePayload,
@@ -131,6 +132,25 @@ async function deleteBrandApi(
   }
 }
 
+async function listBrandLanguagesApi(
+  headers: Record<string, string>,
+): Promise<BrandLanguageOption[]> {
+  const res = await fetch("/api/kody/languages", {
+    headers,
+    cache: "no-store",
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    languages?: Array<{ code?: string; name?: string }>;
+  };
+  if (!res.ok || !Array.isArray(json.languages)) return [];
+  return json.languages
+    .filter((language) => language.code)
+    .map((language) => ({
+      code: language.code!,
+      name: language.name || language.code!,
+    }));
+}
+
 function brandSurfacePath(slug: string): string {
   return `/client/${slug}`;
 }
@@ -180,6 +200,12 @@ export function BrandsManager({
   const { data: modelOptions = [] } = useQuery<BrandModelOption[]>({
     queryKey: ["kody-brands-model-options", queryScope.owner, queryScope.repo],
     queryFn: () => listBrandModelsApi(headers),
+    enabled: !!auth,
+    staleTime: 30_000,
+  });
+  const { data: languageOptions = [] } = useQuery<BrandLanguageOption[]>({
+    queryKey: ["kody-brands-language-options", queryScope.owner, queryScope.repo],
+    queryFn: () => listBrandLanguagesApi(headers),
     enabled: !!auth,
     staleTime: 30_000,
   });
@@ -370,6 +396,7 @@ export function BrandsManager({
           initial={editing.brand}
           isNew={editing.isNew}
           existingSlugs={new Set(brands.map((brand) => brand.slug))}
+          languageOptions={languageOptions}
           modelOptions={modelOptions}
           agentOptions={agentOptions}
           saving={save.isPending}
