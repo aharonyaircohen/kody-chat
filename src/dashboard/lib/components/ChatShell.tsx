@@ -139,6 +139,9 @@ export function ChatShell({
       hideTerminalMode
       railFullscreen={isChatHome}
       plugins={chatPlugins}
+      // kody-chat is a plain assistant — hosts that pass their own `chat`
+      // (the dashboard) keep their product's welcome.
+      emptyStateWelcome={<p className="font-medium">Hi! How can I help?</p>}
     />
   );
 

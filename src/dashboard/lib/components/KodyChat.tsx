@@ -126,6 +126,7 @@ export function KodyChat({
   onCollapseRail,
   onToggleFullscreen,
   railFullscreen,
+  emptyStateWelcome,
   lockedAgentId,
   lockedModelId,
   lockedAgentSlug,
@@ -1624,6 +1625,7 @@ export function KodyChat({
           roleLayout={messageRoleLayout}
           emptyState={
             <EmptyState
+              welcome={emptyStateWelcome}
               isTaskMode={isTaskMode}
               vibeMode={vibeMode}
               selectedTask={selectedTask}

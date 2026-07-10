@@ -14,6 +14,8 @@ import type { KodyTask } from "@dashboard/lib/types";
 import { VIBE_TASK_EMPTY_STATE_HINT } from "../plugins/vibe";
 
 interface EmptyStateProps {
+  /** Host override for the global-mode welcome (plain chat products). */
+  welcome?: React.ReactNode;
   isTaskMode: boolean;
   vibeMode?: boolean;
   selectedTask: KodyTask | null;
@@ -24,6 +26,7 @@ interface EmptyStateProps {
 }
 
 export function EmptyState({
+  welcome,
   isTaskMode,
   vibeMode,
   selectedTask,
@@ -101,6 +104,8 @@ export function EmptyState({
             this goal.
           </p>
         </>
+      ) : welcome !== undefined ? (
+        welcome
       ) : (
         <>
           <p className="font-medium">Hi! I can help you with:</p>

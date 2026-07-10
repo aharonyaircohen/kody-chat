@@ -145,6 +145,8 @@ export interface KodyChatProps {
   onToggleFullscreen?: () => void;
   /** Whether the rail is currently fullscreen — picks the expand icon. */
   railFullscreen?: boolean;
+  /** Host override for the global-mode empty-state welcome. */
+  emptyStateWelcome?: React.ReactNode;
   /**
    * Force a specific agent and hide the picker. Used by the Vibe page,
    * which is always Kody Live. When set, the chevron + dropdown are
