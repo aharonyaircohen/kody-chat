@@ -1,14 +1,10 @@
 /**
  * @fileType page
- * @domain client-chat
- * @pattern brand-selected-page
- * @ai-summary Selected Brand route. Keeps brand selection addressable at
- *   `/brands/<slug>`.
+ * @pattern package-page-reexport
+ * @ai-summary This URL serves the canonical shared page from the package —
+ *   this file only registers the route.
  */
-import { BrandsManager } from "@dashboard/lib/components/BrandsManager";
 import { buildKodyMetadata } from "../../../metadata";
-
-export const dynamic = "force-dynamic";
 
 export const metadata = buildKodyMetadata({
   title: "Brand - Kody Operations Dashboard",
@@ -16,11 +12,4 @@ export const metadata = buildKodyMetadata({
   path: "/brands",
 });
 
-export default async function SelectedBrandPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
-  const { slug } = await params;
-  return <BrandsManager selectedSlug={slug} />;
-}
+export { default } from "../../../../src/dashboard/lib/pages/brand-detail";

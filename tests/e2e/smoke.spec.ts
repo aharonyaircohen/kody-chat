@@ -55,7 +55,9 @@ test.describe("Route smoke", () => {
     await expect(page.locator('[data-testid="chat-shell"]')).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByRole("link", { name: "Secrets" })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Secrets", exact: true }),
+    ).toBeVisible();
   });
 
   test("sidebar shows version, theme toggle, and collapse", async ({

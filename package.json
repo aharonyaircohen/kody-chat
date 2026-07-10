@@ -19,6 +19,7 @@
     "./core/transports/*": "./src/dashboard/lib/chat/core/transports/*.ts",
     "./plugins/*": "./src/dashboard/lib/chat/plugins/*/index.ts",
     "./pages/client-brand": "./app/client/[brandSlug]/page.tsx",
+    "./pages/*": "./src/dashboard/lib/pages/*.tsx",
     "./components/KodyChat": "./src/dashboard/lib/components/KodyChat.tsx",
     "./components/*": "./src/dashboard/lib/components/*.tsx",
     "./components/ChatShell": "./src/dashboard/lib/components/ChatShell.tsx",

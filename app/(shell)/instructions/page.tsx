@@ -1,8 +1,7 @@
-"use client";
-
-import { instructionsChatPlugin, INSTRUCTIONS_PANEL_ID } from "@dashboard/lib/chat/plugins/instructions";
-import { PluginPanel } from "@dashboard/lib/components/PluginPanel";
-
-export default function Page() {
-  return <PluginPanel plugin={instructionsChatPlugin} panelId={INSTRUCTIONS_PANEL_ID} />;
-}
+/**
+ * @fileType page
+ * @pattern package-page-reexport
+ * @ai-summary This URL serves the canonical shared page from the package —
+ *   this file only registers the route.
+ */
+export { default } from "../../../src/dashboard/lib/pages/instructions";
