@@ -9,7 +9,8 @@ import type { Metadata } from "next";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
-import { ClientChatSurface } from "@dashboard/lib/components/ClientChatSurface";
+// Package-owned (hosts deleted their copies) — must stay relative.
+import { ClientChatSurface } from "../../../src/dashboard/lib/components/ClientChatSurface";
 import {
   resolveClientBrand,
   type ClientBrandResolveContext,
