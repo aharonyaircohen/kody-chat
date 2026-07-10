@@ -32,8 +32,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@dashboard/ui/dialog";
-import { Input } from "@dashboard/ui/input";
-import { Label } from "@dashboard/ui/label";
 import { Textarea } from "@dashboard/ui/textarea";
 import { EmptyState } from "@dashboard/lib/components/EmptyState";
 import { MasterDetailShell } from "@dashboard/lib/components/MasterDetailShell";
@@ -42,10 +40,7 @@ import { selectionPath } from "@dashboard/lib/selection-routing";
 import { cn } from "@dashboard/lib/utils";
 import {
   CLIENT_LANGUAGE_STRING_KEYS,
-  CLIENT_LANGUAGE_STRING_LABELS,
-  EN_CLIENT_LANGUAGE,
   isValidLanguageCode,
-  type ClientLanguageStringKey,
 } from "@dashboard/lib/client-language";
 
 interface LanguageRow {
@@ -499,18 +494,11 @@ function LanguageDetail({
       <div className="mx-auto max-w-4xl space-y-4 p-4 md:p-8">
         <section className="rounded-md border border-white/[0.08] bg-white/[0.03] p-4">
           <h2 className="mb-3 text-sm font-medium text-white/80">
-            Client chat strings
+            Language JSON
           </h2>
-          <div className="space-y-3">
-            {CLIENT_LANGUAGE_STRING_KEYS.map((key) => (
-              <LanguageStringField
-                key={key}
-                stringKey={key}
-                value={language.strings[key] ?? ""}
-                fallback={EN_CLIENT_LANGUAGE.strings[key] ?? ""}
-              />
-            ))}
-          </div>
+          <pre className="overflow-x-auto rounded-md border border-white/[0.06] bg-black/20 p-3 font-mono text-xs leading-5 text-white/80">
+            {languageToJson(language)}
+          </pre>
         </section>
 
         <section className="rounded-md border border-white/[0.08] bg-white/[0.03] p-4">
@@ -526,33 +514,30 @@ function LanguageDetail({
   );
 }
 
-function LanguageStringField({
-  stringKey,
-  value,
-  fallback,
-}: {
-  stringKey: ClientLanguageStringKey;
-  value: string;
-  fallback: string;
-}) {
-  const translated = value !== "";
-  return (
-    <div className="rounded-md border border-white/[0.06] bg-black/20 p-3">
-      <p className="text-xs text-muted-foreground">
-        {CLIENT_LANGUAGE_STRING_LABELS[stringKey]}
-        <span className="ml-2 font-mono text-[10px] text-white/35">
-          {stringKey}
-        </span>
-      </p>
-      <p
-        className={cn(
-          "mt-1 whitespace-pre-wrap text-sm",
-          translated ? "text-white/80" : "italic text-white/40",
-        )}
-      >
-        {translated ? value : fallback || "(chat default)"}
-      </p>
-    </div>
+function languageToJson(language: LanguageRow): string {
+  return JSON.stringify(
+    {
+      code: language.code,
+      name: language.name,
+      strings: language.strings,
+    },
+    null,
+    2,
+  );
+}
+
+/** Template for a new pack: every known key, empty = English fallback. */
+function newLanguageTemplate(): string {
+  return JSON.stringify(
+    {
+      code: "",
+      name: "",
+      strings: Object.fromEntries(
+        CLIENT_LANGUAGE_STRING_KEYS.map((key) => [key, ""]),
+      ),
+    },
+    null,
+    2,
   );
 }
 
@@ -571,33 +556,61 @@ function LanguageEditor({
   onClose: () => void;
   onSave: (payload: SavePayload) => Promise<void>;
 }) {
-  const [code, setCode] = useState(initial?.code ?? "");
-  const [name, setName] = useState(initial?.name ?? "");
-  const [strings, setStrings] = useState<Record<string, string>>(
-    () => ({ ...(initial?.strings ?? {}) }),
+  const [json, setJson] = useState(() =>
+    initial ? languageToJson(initial) : newLanguageTemplate(),
   );
   const [formError, setFormError] = useState<string | null>(null);
 
-  const normalizedCode = code.trim().toLowerCase().replace(/_/g, "-");
-
   const submit = async () => {
-    if (!isValidLanguageCode(normalizedCode)) {
-      setFormError('Code must be a BCP-47-style tag like "he" or "fr-ca".');
+    let parsed: {
+      code?: unknown;
+      name?: unknown;
+      strings?: unknown;
+    };
+    try {
+      parsed = JSON.parse(json);
+    } catch {
+      setFormError("Invalid JSON — fix the syntax and try again.");
       return;
     }
-    if (isNew && existingCodes.has(normalizedCode)) {
-      setFormError(`Language "${normalizedCode}" already exists.`);
+    const code = String(parsed.code ?? "")
+      .trim()
+      .toLowerCase()
+      .replace(/_/g, "-");
+    const name = String(parsed.name ?? "").trim();
+    const strings = parsed.strings;
+    if (!isValidLanguageCode(code)) {
+      setFormError('"code" must be a BCP-47-style tag like "he" or "fr-ca".');
       return;
     }
-    if (!name.trim()) {
-      setFormError("Name is required.");
+    if (isNew && existingCodes.has(code)) {
+      setFormError(`Language "${code}" already exists.`);
+      return;
+    }
+    if (!isNew && initial && code !== initial.code) {
+      setFormError(
+        `"code" can't change here (this file is languages/${initial.code}.json).`,
+      );
+      return;
+    }
+    if (!name) {
+      setFormError('"name" is required.');
+      return;
+    }
+    if (
+      typeof strings !== "object" ||
+      strings === null ||
+      Array.isArray(strings) ||
+      Object.values(strings).some((value) => typeof value !== "string")
+    ) {
+      setFormError('"strings" must be an object of key → text.');
       return;
     }
     setFormError(null);
     await onSave({
-      code: normalizedCode,
-      name: name.trim(),
-      strings,
+      code,
+      name,
+      strings: strings as Record<string, string>,
       isUpdate: !isNew,
     });
   };
@@ -606,52 +619,24 @@ function LanguageEditor({
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>{isNew ? "New language" : `Edit ${name}`}</DialogTitle>
+          <DialogTitle>
+            {isNew ? "New language" : `Edit ${initial?.name ?? ""}`}
+          </DialogTitle>
           <DialogDescription>
-            Translations for the /client chat surface. Empty fields fall back
-            to the built-in English text.
+            Edit the language JSON directly. Empty string values fall back to
+            the built-in English text; unknown keys are dropped on save.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-2">
-            <div className="space-y-1.5">
-              <Label htmlFor="language-code">Code</Label>
-              <Input
-                id="language-code"
-                value={code}
-                onChange={(event) => setCode(event.target.value)}
-                placeholder="he"
-                disabled={!isNew}
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="language-name">Name</Label>
-              <Input
-                id="language-name"
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                placeholder="עברית"
-              />
-            </div>
-          </div>
-
-          {CLIENT_LANGUAGE_STRING_KEYS.map((key) => (
-            <div key={key} className="space-y-1.5">
-              <Label htmlFor={`language-${key}`}>
-                {CLIENT_LANGUAGE_STRING_LABELS[key]}
-              </Label>
-              <Textarea
-                id={`language-${key}`}
-                value={strings[key] ?? ""}
-                onChange={(event) =>
-                  setStrings((prev) => ({ ...prev, [key]: event.target.value }))
-                }
-                placeholder={EN_CLIENT_LANGUAGE.strings[key] || "(chat default)"}
-                rows={key === "chat.client.welcome" ? 3 : 2}
-              />
-            </div>
-          ))}
+          <Textarea
+            aria-label="Language JSON"
+            value={json}
+            onChange={(event) => setJson(event.target.value)}
+            spellCheck={false}
+            rows={22}
+            className="font-mono text-xs leading-5"
+          />
 
           {formError && <p className="text-sm text-red-300">{formError}</p>}
 
