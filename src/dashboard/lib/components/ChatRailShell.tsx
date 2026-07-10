@@ -35,6 +35,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { KodyChat } from "./KodyChat";
 import { AppHeader } from "./AppHeader";
 import { ChatShell } from "@kody-ade/kody-chat/components/ChatShell";
+import { SidebarChrome } from "./SidebarChrome";
 import { RepoManager } from "./RepoManager";
 import { CommandPalette } from "./CommandPalette";
 import { SettingsDrawerProvider } from "./SettingsDrawer";
@@ -608,6 +609,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
               rail resize) is inherited from @kody-ade/kody-chat. */}
           <ChatShell
             title="Kody"
+            sidebarHeaderExtra={<SidebarChrome />}
             chat={chatPane}
             isChatHome={isChatRoute}
             showMobileHeader={false}

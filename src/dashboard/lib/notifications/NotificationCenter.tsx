@@ -19,6 +19,12 @@ interface NotificationCenterProps {
   browserPermission: NotificationPermission;
   isSupported: boolean;
   onRequestPermission: () => void;
+  /**
+   * Popover placement: "header" (default) drops below, right-aligned;
+   * "rail" opens as a flyout to the RIGHT of the sidepanel (fixed
+   * position, so the rail's overflow-hidden can't clip it).
+   */
+  anchor?: "header" | "rail";
 }
 
 function timeAgo(iso: string): string {
@@ -36,7 +42,12 @@ export function NotificationCenter({
   browserPermission,
   isSupported,
   onRequestPermission,
+  anchor = "header",
 }: NotificationCenterProps) {
+  const [flyoutPos, setFlyoutPos] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
   const [open, setOpen] = useState(false);
   const [showPrefs, setShowPrefs] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -87,7 +98,14 @@ export function NotificationCenter({
       {/* Bell button with unread badge */}
       <button
         type="button"
-        onClick={() => {
+        onClick={(e) => {
+          if (anchor === "rail" && !open) {
+            const rect = e.currentTarget.getBoundingClientRect();
+            setFlyoutPos({
+              left: rect.right + 10,
+              top: Math.max(8, rect.top - 4),
+            });
+          }
           setOpen(!open);
           setShowPrefs(false);
         }}
@@ -109,7 +127,17 @@ export function NotificationCenter({
 
       {/* Dropdown */}
       {open && (
-        <div className="absolute right-0 top-full mt-1 w-80 bg-background border rounded-lg shadow-xl z-50 overflow-hidden">
+        <div
+          className={cn(
+            "w-80 bg-background border rounded-lg shadow-xl z-50 overflow-hidden",
+            anchor === "rail" ? "fixed" : "absolute right-0 top-full mt-1",
+          )}
+          style={
+            anchor === "rail" && flyoutPos
+              ? { left: flyoutPos.left, top: flyoutPos.top }
+              : undefined
+          }
+        >
           {/* Header */}
           <div className="flex items-center justify-between px-3 py-2 border-b">
             <span className="text-sm font-semibold">Notifications</span>

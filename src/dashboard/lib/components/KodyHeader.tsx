@@ -19,12 +19,9 @@ import { usePathname } from "next/navigation";
 import { Menu, MessageSquare, RefreshCw } from "lucide-react";
 
 import { Button } from "@dashboard/ui/button";
-import { NotificationCenter } from "../notifications/NotificationCenter";
-import { useNotifications } from "../notifications/NotificationsProvider";
 import { cn } from "../utils";
 import { useAuth } from "../auth-context";
 import { useChatScope } from "./ChatRailShell";
-import { RepoSwitcher } from "@kody-ade/kody-chat/components/RepoSwitcher";
 import { SimpleTooltip } from "./SimpleTooltip";
 
 interface KodyHeaderProps {
@@ -71,20 +68,12 @@ export function KodyHeader({
   const pathname = usePathname();
   const { auth } = useAuth();
   const { openMobileChat } = useChatScope();
-  const {
-    store: notificationStore,
-    permission: notificationPermission,
-    isSupported: notificationsSupported,
-    requestPermission,
-  } = useNotifications();
 
   return (
     <div className="flex min-h-16 items-center justify-between border-b border-white/[0.06] bg-black/20 px-5 py-4 md:px-7">
-      <div className="flex min-w-0 items-center gap-3.5">
-        <div className="flex min-w-0 items-baseline gap-2.5">
-          <RepoSwitcher />
-        </div>
-      </div>
+      {/* Repo switching + notifications live in the sidepanel header now
+          (SidebarChrome) — the left group only reserves layout space. */}
+      <div className="flex min-w-0 items-center gap-3.5" />
 
       {/* Desktop controls — data tools (search/filter) sit here, separated from
           the title/Vibe identity group, then a divider before app actions. */}
@@ -97,13 +86,6 @@ export function KodyHeader({
         ) : null}
 
         {desktopExtras}
-
-        <NotificationCenter
-          store={notificationStore}
-          browserPermission={notificationPermission}
-          isSupported={notificationsSupported}
-          onRequestPermission={requestPermission}
-        />
 
         {showRefresh && (
           <SimpleTooltip content="Refresh" side="bottom">

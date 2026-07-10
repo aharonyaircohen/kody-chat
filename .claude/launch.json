@@ -4,8 +4,20 @@
     {
       "name": "kody-chat",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--dir", "/Users/aguy/projects/kody-chat", "dev"],
+      "runtimeArgs": [
+        "--dir",
+        "/Users/aguy/projects/kody-chat",
+        "dev"
+      ],
       "port": 3344
+    },
+    {
+      "name": "kody-dash",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "dev"
+      ],
+      "port": 3333
     }
   ]
 }
