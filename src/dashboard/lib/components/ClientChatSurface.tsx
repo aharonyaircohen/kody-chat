@@ -16,10 +16,10 @@ import { useMemo } from "react";
 import { Zap } from "lucide-react";
 
 import type { ClientBrand } from "@dashboard/lib/client-brand";
-import { directionForLocale } from "@dashboard/lib/chat/platform/i18n";
-import type { ChatCapabilityGrant } from "@dashboard/lib/chat/platform";
-import { createBrandingPlugin } from "@dashboard/lib/chat/plugins/branding";
-import { commandsChatPlugin } from "@dashboard/lib/chat/plugins/commands";
+import { directionForLocale } from "../chat/platform/i18n";
+import type { ChatCapabilityGrant } from "../chat/platform";
+import { createBrandingPlugin } from "../chat/plugins/branding";
+import { commandsChatPlugin } from "../chat/plugins/commands";
 import { getClientSurfaceCatalog } from "@dashboard/lib/client-chat-strings";
 import { KodyChat } from "./KodyChat";
 

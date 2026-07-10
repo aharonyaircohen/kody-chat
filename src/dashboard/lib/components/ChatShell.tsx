@@ -15,7 +15,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Menu, Zap } from "lucide-react";
 import type { ChatPlugin } from "../chat/platform/types";
-import { KodyChat } from "@dashboard/lib/components/KodyChat";
+import { KodyChat } from "./KodyChat";
 // Package-owned (the dashboard deletes its copies) — must stay relative.
 import { Sidebar } from "./Sidebar";
 import { MobileMenu } from "./MobileMenu";

@@ -10,7 +10,7 @@
  *   reaches only the intent middleware + mode constants, so registering the
  *   plugin costs nothing heavy and the surfaces stay React.lazy-only.
  */
-import type { ChatPlugin } from "@dashboard/lib/chat/platform";
+import type { ChatPlugin } from "../../platform";
 import { terminalIntentMiddleware } from "./intent-middleware";
 import { TERMINAL_DISPLAY_MODE, TERMINAL_PLUGIN_ID } from "./mode";
 
