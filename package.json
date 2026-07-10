@@ -2,7 +2,7 @@
   "name": "@kody-ade/kody-chat",
   "version": "0.1.0",
   "license": "MIT",
-  "description": "Kody Chat — multi-tenant branded client chat product and embeddable chat platform",
+  "description": "Kody Chat \u2014 multi-tenant branded client chat product and embeddable chat platform",
   "repository": {
     "type": "git",
     "url": "https://github.com/aharonyaircohen/kody-chat.git"
@@ -25,7 +25,9 @@
     "./components/Sidebar": "./src/dashboard/lib/components/Sidebar.tsx",
     "./components/PluginPanel": "./src/dashboard/lib/components/PluginPanel.tsx",
     "./auth-guard": "./src/dashboard/lib/auth-guard.tsx",
-    "./client-brand": "./src/dashboard/lib/client-brand.ts"
+    "./client-brand": "./src/dashboard/lib/client-brand.ts",
+    "./client-language": "./src/dashboard/lib/client-language.ts",
+    "./languages": "./src/dashboard/lib/languages/index.ts"
   },
   "scripts": {
     "dev": "next dev --turbopack -p 3344",
