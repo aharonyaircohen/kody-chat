@@ -96,7 +96,7 @@ export function ChatShell({
           sections={sections}
           pinnedItem={pinnedItem}
           brandLabel={title}
-          headerExtra={<RepoSwitcher />}
+          headerExtra={<RepoSwitcher variant="rail" />}
         />
 
         {/* Chat rail — LEFT of the page content, right of the nav, matching

@@ -14,6 +14,7 @@ import {
   Building2,
   Check,
   ChevronDown,
+  FolderGit2,
   ExternalLink,
   Plus,
   Star,
@@ -46,7 +47,16 @@ function groupReposByOwner(repos: KodyRepoEntry[]): RepoGroup[] {
   return Array.from(groups.values());
 }
 
-export function RepoSwitcher() {
+export interface RepoSwitcherProps {
+  /**
+   * Presentation: "header" (default) is the dashboard's page-header
+   * dropdown; "rail" renders as a sidepanel row (icon left, full width,
+   * menu sized to the rail so it never clips).
+   */
+  variant?: "header" | "rail";
+}
+
+export function RepoSwitcher({ variant = "header" }: RepoSwitcherProps = {}) {
   const { auth, setCurrentRepo, removeRepo } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
@@ -91,27 +101,47 @@ export function RepoSwitcher() {
   const title = current ? current.repo : "Kody Operations";
   const repoGroups = groupReposByOwner(auth.repos);
 
+  const rail = variant === "rail";
+
   return (
-    <div ref={rootRef} className="relative inline-flex">
+    <div ref={rootRef} className={rail ? "relative flex w-full" : "relative inline-flex"}>
       <button
         type="button"
         onClick={() => setMenuOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={menuOpen}
         title="Switch repository"
-        className="group inline-flex items-center gap-1.5 min-w-0 rounded-md px-1.5 -mx-1.5 py-0.5 hover:bg-white/[0.06] transition-colors"
+        className={
+          rail
+            ? "group flex h-10 w-full min-w-0 items-center gap-3.5 rounded-md px-3.5 text-body-sm text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+            : "group inline-flex items-center gap-1.5 min-w-0 rounded-md px-1.5 -mx-1.5 py-0.5 hover:bg-white/[0.06] transition-colors"
+        }
       >
-        <span className="text-lg md:text-xl font-semibold text-foreground truncate">
-          {title}
-        </span>
-        <ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
+        {rail ? (
+          <>
+            <FolderGit2 className="h-5 w-5 shrink-0" />
+            <span className="min-w-0 flex-1 truncate text-left">{title}</span>
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
+          </>
+        ) : (
+          <>
+            <span className="text-lg md:text-xl font-semibold text-foreground truncate">
+              {title}
+            </span>
+            <ChevronDown className="w-4 h-4 shrink-0 text-muted-foreground group-hover:text-foreground transition-colors" />
+          </>
+        )}
       </button>
 
       {menuOpen && (
         <div
           role="listbox"
           aria-label="Connected repositories"
-          className="absolute top-full left-0 mt-1.5 z-50 min-w-[20rem] max-w-[24rem] max-h-[75vh] overflow-y-auto rounded-md border border-zinc-700 bg-zinc-900 shadow-lg py-1"
+          className={
+            rail
+              ? "absolute top-full left-0 right-0 z-50 mt-1 max-h-[60vh] overflow-y-auto rounded-md border border-zinc-700 bg-zinc-900 py-1 shadow-lg"
+              : "absolute top-full left-0 mt-1.5 z-50 min-w-[20rem] max-w-[24rem] max-h-[75vh] overflow-y-auto rounded-md border border-zinc-700 bg-zinc-900 shadow-lg py-1"
+          }
         >
           {repoGroups.map((group) => (
             <div
