@@ -15,14 +15,14 @@ import {
   resolveClientBrand,
   type ClientBrandResolveContext,
 } from "@dashboard/lib/client-brand";
-import { getClientSurfaceCatalog } from "@dashboard/lib/client-chat-strings";
-import { resolveClientLanguageStrings } from "@dashboard/lib/client-language";
+import { getClientSurfaceCatalog } from "../../../src/dashboard/lib/client-chat-strings";
+import { resolveClientLanguageStrings } from "../../../src/dashboard/lib/client-language";
 import {
   CLIENT_BRAND_REPO_COOKIE,
   parseClientBrandRepoCookie,
   type ClientBrandRepoContext,
 } from "@dashboard/lib/client-brand-repo-cookie";
-import { mintClientSurfaceTicket } from "@dashboard/lib/chat/platform/surface-scope";
+import { mintClientSurfaceTicket } from "../../../src/dashboard/lib/chat/platform/surface-scope";
 import { resolveVaultGithubToken } from "@dashboard/lib/vault/bootstrap";
 import { defaultClientBrandRepoContext } from "@dashboard/lib/client-brand-default-repo";
 import { auth, signIn, signOut } from "@dashboard/lib/client-auth/auth";

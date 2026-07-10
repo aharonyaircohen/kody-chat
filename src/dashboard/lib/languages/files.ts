@@ -10,13 +10,13 @@
 
 import type { Octokit } from "@octokit/rest";
 import { z } from "zod";
-import { getOctokit, getOwner, getRepo } from "../github-client";
+import { getOctokit, getOwner, getRepo } from "@dashboard/lib/github-client";
 import {
   deleteStateFile,
   listStateDirectory,
   readStateText,
   writeStateText,
-} from "../state-repo";
+} from "@dashboard/lib/state-repo";
 import {
   isValidLanguageCode,
   normalizeClientLanguageCode,

@@ -41,7 +41,7 @@ import { cn } from "@dashboard/lib/utils";
 import {
   CLIENT_LANGUAGE_STRING_KEYS,
   isValidLanguageCode,
-} from "@dashboard/lib/client-language";
+} from "../client-language";
 
 interface LanguageRow {
   code: string;
