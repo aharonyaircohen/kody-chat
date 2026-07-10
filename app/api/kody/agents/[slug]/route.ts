@@ -103,7 +103,10 @@ export async function PATCH(
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
 
-    const existing = await readAgentFile(slug);
+    // Store-linked agents (readOnly, sha "") are editable too: the first
+    // save materializes a repo copy at .kody/agents/<slug>.md, which the
+    // resolver prefers over the Store version from then on.
+    const existing = await readResolvedAgentFile(slug);
     if (!existing) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }

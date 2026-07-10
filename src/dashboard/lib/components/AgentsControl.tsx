@@ -361,10 +361,7 @@ export function AgentsControlInner({
               <StaffDetail
                 member={selectedMember}
                 onBack={() => selectAgent(null)}
-                onEdit={() => {
-                  if (!selectedMember.readOnly)
-                    setEditingMember(selectedMember);
-                }}
+                onEdit={() => setEditingMember(selectedMember)}
                 onDelete={() => {
                   setPendingDelete(selectedMember);
                 }}
@@ -534,11 +531,10 @@ function StaffDetail({
                   variant="outline"
                   size="sm"
                   onClick={onEdit}
-                  disabled={member.readOnly}
                   className="w-9 px-0"
                   title={
                     member.readOnly
-                      ? "Store-linked agent are read-only"
+                      ? "Edit — saves a repo copy that overrides the Store version"
                       : "Edit agent"
                   }
                   aria-label="Edit agent"
@@ -597,11 +593,10 @@ function StaffDetail({
               size="sm"
               variant="outline"
               onClick={onEdit}
-              disabled={member.readOnly}
               className="gap-1.5 mt-1"
               title={
                 member.readOnly
-                  ? "Store-linked agent are read-only"
+                  ? "Edit — saves a repo copy that overrides the Store version"
                   : "Edit agent"
               }
             >
