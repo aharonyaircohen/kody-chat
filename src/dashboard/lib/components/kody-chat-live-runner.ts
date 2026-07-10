@@ -29,7 +29,7 @@ import {
   type LivePhase,
   type LiveAction,
   type LiveSessionState,
-} from "../chat/core/kody-chat-reducer";
+} from "@kody-ade/kody-chat/core/kody-chat-reducer";
 import {
   authHeaders,
   getLiveScopeKey,
@@ -39,12 +39,12 @@ import {
   liveAuthFor,
   liveAuthHeaders,
   type LiveScopeKey,
-} from "../chat/core/kody-chat-live-session";
+} from "@kody-ade/kody-chat/core/kody-chat-live-session";
 import {
   buildRehydrateAction,
   decideLivePersistence,
   shouldRehydrateScope,
-} from "../chat/core/rehydration";
+} from "@kody-ade/kody-chat/core/rehydration";
 import { getStoredFlyPerf } from "../api";
 import type { AgentId } from "../agents";
 import type { ChatContext } from "../chat-types";

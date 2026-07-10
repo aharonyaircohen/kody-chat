@@ -16,11 +16,11 @@ import {
   TASKS_PLUGIN_ID,
   tasksChatPlugin,
 } from "@dashboard/lib/chat/plugins/tasks";
-import { FULL_GRANT } from "@dashboard/lib/chat/platform/capabilities";
+import { FULL_GRANT } from "@kody-ade/kody-chat/platform/capabilities";
 import {
   ChatPluginRegistrationError,
   createChatPluginRegistry,
-} from "@dashboard/lib/chat/platform/registry";
+} from "@kody-ade/kody-chat/platform/registry";
 
 describe("tasks chat plugin manifest", () => {
   it("declares only the panels capability (no server-tool half)", () => {

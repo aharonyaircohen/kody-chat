@@ -11,16 +11,16 @@ import { describe, expect, it, vi } from "vitest";
 import {
   ChatPluginRegistrationError,
   createChatPluginRegistry,
-} from "@dashboard/lib/chat/platform/registry";
+} from "@kody-ade/kody-chat/platform/registry";
 import {
   CHAT_CAPABILITIES,
   FULL_GRANT,
   type ChatCapability,
-} from "@dashboard/lib/chat/platform/capabilities";
+} from "@kody-ade/kody-chat/platform/capabilities";
 import type {
   ChatPlugin,
   ChatSendMiddlewareContext,
-} from "@dashboard/lib/chat/platform/types";
+} from "@kody-ade/kody-chat/platform/types";
 
 const noopCtx: ChatSendMiddlewareContext = {
   host: {},

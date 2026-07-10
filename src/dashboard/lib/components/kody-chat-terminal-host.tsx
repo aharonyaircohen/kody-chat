@@ -39,8 +39,8 @@ import {
 import { toast } from "sonner";
 
 import type { SessionMeta } from "../chat-types";
-import type { ChatPluginRegistry } from "../chat/platform";
-import { authHeaders } from "../chat/core/kody-chat-live-session";
+import type { ChatPluginRegistry } from "@kody-ade/kody-chat/platform";
+import { authHeaders } from "@kody-ade/kody-chat/core/kody-chat-live-session";
 // Terminal plugin — deep imports on purpose (Step 7 bundle check). The
 // barrel (plugins/terminal/index.ts) statically reaches ChatTerminalSurface,
 // fly-connection and TerminalControls; importing it here would drag the

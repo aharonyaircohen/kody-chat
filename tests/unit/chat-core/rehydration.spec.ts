@@ -23,13 +23,13 @@ import {
   buildRehydrateAction,
   decideLivePersistence,
   shouldRehydrateScope,
-} from "@dashboard/lib/chat/core/rehydration";
+} from "@kody-ade/kody-chat/core/rehydration";
 import {
   initialLiveState,
   liveReducer,
   type LiveSessionState,
-} from "@dashboard/lib/chat/core/kody-chat-reducer";
-import type { PersistedLiveSession } from "@dashboard/lib/chat/core/kody-chat-live-session";
+} from "@kody-ade/kody-chat/core/kody-chat-reducer";
+import type { PersistedLiveSession } from "@kody-ade/kody-chat/core/kody-chat-live-session";
 
 const NOW = 1_750_000_000_000;
 

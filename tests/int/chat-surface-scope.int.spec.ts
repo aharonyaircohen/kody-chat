@@ -83,7 +83,7 @@ import {
   CLIENT_SURFACE_TOOL_ALLOWLIST,
   mintClientSurfaceTicket,
   SURFACE_TICKET_HEADER,
-} from "@dashboard/lib/chat/platform/surface-scope";
+} from "@kody-ade/kody-chat/platform/surface-scope";
 import {
   CHAT_OUTPUT_TOOL_NAMES,
   FINAL_ANSWER_TOOL,

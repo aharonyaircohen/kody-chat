@@ -12,7 +12,7 @@
 
 import { AuthGuard } from "../../../auth-guard";
 import { AgentsPageTabs } from "../../../components/AgentsPageTabs";
-import type { ChatPanelViewProps } from "../../platform";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
 
 export const AGENTS_PANEL_TESTID = "chat-panel-agents";
 

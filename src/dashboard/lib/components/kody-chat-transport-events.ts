@@ -14,8 +14,8 @@
  *   injected, so the mapping stays unit-testable in node.
  */
 
-import type { ChatEvent } from "../chat/core/transports/transport-types";
-import { BRAIN_ERROR_CODE_EXHAUSTED } from "../chat/core/transports/brain";
+import type { ChatEvent } from "@kody-ade/kody-chat/core/transports/transport-types";
+import { BRAIN_ERROR_CODE_EXHAUSTED } from "@kody-ade/kody-chat/core/transports/brain";
 import type {
   DashboardNavigateDirective,
   PreviewActDirective,
@@ -23,7 +23,7 @@ import type {
   SwitchAgentDirective,
 } from "@dashboard/lib/chat-ui-actions";
 import { SHOW_VIEW_TOOL } from "@dashboard/lib/chat-output-tools";
-import { stripReasoning } from "../chat/core/reasoning";
+import { stripReasoning } from "@kody-ade/kody-chat/core/reasoning";
 import {
   getCreatedIssueNumberFromToolOutput,
   type Message,

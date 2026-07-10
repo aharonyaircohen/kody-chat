@@ -11,7 +11,7 @@
 "use client";
 
 import { FilesPage } from "../../../../components/files/FilesPage";
-import type { ChatPanelViewProps } from "../../platform";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
 
 export const FILES_PANEL_TESTID = "chat-panel-files";
 

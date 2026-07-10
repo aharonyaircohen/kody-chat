@@ -13,7 +13,7 @@ import {
   createChatPluginRegistry,
   type ChatHostEffect,
   type ChatPlugin,
-} from "@dashboard/lib/chat/platform";
+} from "@kody-ade/kody-chat/platform";
 import {
   TERMINAL_INTENT_EFFECT,
   TERMINAL_INTENT_MIDDLEWARE_ID,

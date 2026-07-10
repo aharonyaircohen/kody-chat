@@ -24,15 +24,15 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@dashboard/lib/auth";
-import { rejectSurfaceScopedRequest } from "@dashboard/lib/chat/platform/surface-scope";
+import { rejectSurfaceScopedRequest } from "@kody-ade/kody-chat/platform/surface-scope";
 import { logger } from "@dashboard/lib/logger";
 import { mintSessionToken } from "@dashboard/lib/chat-token";
-import { maybeAppendPluginToolsToken } from "@dashboard/lib/chat/platform/plugin-tools-config";
+import { maybeAppendPluginToolsToken } from "@kody-ade/kody-chat/platform/plugin-tools-config";
 import {
   applyVibePrimerToMessages,
   type VibeTaskContext,
 } from "@dashboard/lib/vibe/primer";
-import { applyPageContextToLastUser } from "@dashboard/lib/chat/core/page-context";
+import { applyPageContextToLastUser } from "@kody-ade/kody-chat/core/page-context";
 import { recordDispatchFailure } from "@dashboard/lib/health/dispatch-failures";
 import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
 

@@ -20,7 +20,7 @@ import {
   parseClientBrandRepoCookie,
   type ClientBrandRepoContext,
 } from "@dashboard/lib/client-brand-repo-cookie";
-import { mintClientSurfaceTicket } from "@dashboard/lib/chat/platform/surface-scope";
+import { mintClientSurfaceTicket } from "@kody-ade/kody-chat/platform/surface-scope";
 import { resolveVaultGithubToken } from "@dashboard/lib/vault/bootstrap";
 import { defaultClientBrandRepoContext } from "@dashboard/lib/client-brand-default-repo";
 import { auth, signIn, signOut } from "@dashboard/lib/client-auth/auth";

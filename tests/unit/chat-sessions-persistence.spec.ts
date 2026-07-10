@@ -21,11 +21,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { readFileSync } from "fs";
 import { resolve } from "path";
 import type { GlobalChatStore } from "@dashboard/lib/chat-types";
-import { defaultChatEntryStorageKey } from "@dashboard/lib/chat/platform/default-entry";
+import { defaultChatEntryStorageKey } from "@kody-ade/kody-chat/platform/default-entry";
 import {
   saveLiveSession,
   type PersistedLiveSession,
-} from "@dashboard/lib/chat/core/kody-chat-live-session";
+} from "@kody-ade/kody-chat/core/kody-chat-live-session";
 
 // ─── node-env localStorage fake ──────────────────────────────────────────────
 
@@ -57,7 +57,7 @@ function installStorage(auth?: object): MemStorage {
  */
 async function loadModule() {
   vi.resetModules();
-  return import("@dashboard/lib/chat/core/use-chat-sessions");
+  return import("@kody-ade/kody-chat/core/use-chat-sessions");
 }
 
 const AUTH = { owner: "test-owner", repo: "test-repo", token: "t" };

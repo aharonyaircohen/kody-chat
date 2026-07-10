@@ -13,7 +13,7 @@
  *   commands DATA layer (`lib/commands/{files,index,substitute}.ts` + API
  *   routes) is shared with the /commands page and stays outside chat/.
  */
-import type { ChatPlugin } from "../../platform";
+import type { ChatPlugin } from "@kody-ade/kody-chat/platform";
 import { slashExpansionMiddleware } from "./expansion-middleware";
 
 export const COMMANDS_PLUGIN_ID = "commands";

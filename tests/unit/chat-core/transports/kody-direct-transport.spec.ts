@@ -14,7 +14,7 @@ import {
   sendKodyDirectTurn,
   kodyDirectTransport,
   type KodyDirectTurnConfig,
-} from "@dashboard/lib/chat/core/transports/kody-direct";
+} from "@kody-ade/kody-chat/core/transports/kody-direct";
 import {
   sseResponse,
   abortingResponse,

@@ -9,7 +9,7 @@
  *   nothing changes anywhere. Server half intentionally absent (honest
  *   boundary — see the tasks pilot manifest).
  */
-import { createLazyPanel, type ChatPlugin } from "../../platform";
+import { createLazyPanel, type ChatPlugin } from "@kody-ade/kody-chat/platform";
 
 export const INBOX_PLUGIN_ID = "inbox";
 export const INBOX_PANEL_ID = "inbox";

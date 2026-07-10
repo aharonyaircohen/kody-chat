@@ -14,7 +14,7 @@ import {
   buildKodyTerminalPrompt,
   parseKodyTerminalIntent,
 } from "../../../terminal/kody-terminal-directive";
-import type { ChatHostEffect, ChatSendMiddleware } from "../../platform";
+import type { ChatHostEffect, ChatSendMiddleware } from "@kody-ade/kody-chat/platform";
 
 export const TERMINAL_INTENT_MIDDLEWARE_ID = "terminal-intent";
 export const TERMINAL_INTENT_MIDDLEWARE_ORDER = 100;

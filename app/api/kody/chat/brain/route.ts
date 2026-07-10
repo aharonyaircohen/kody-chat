@@ -18,7 +18,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestAuth, requireKodyAuth } from "@dashboard/lib/auth";
-import { rejectSurfaceScopedRequest } from "@dashboard/lib/chat/platform/surface-scope";
+import { rejectSurfaceScopedRequest } from "@kody-ade/kody-chat/platform/surface-scope";
 import {
   streamBrainChat,
   type BrainAttachment,
@@ -28,7 +28,7 @@ import {
 import {
   withPageContext,
   withDashboardContext,
-} from "@dashboard/lib/chat/core/page-context";
+} from "@kody-ade/kody-chat/core/page-context";
 import { loadContextForPrompt } from "@dashboard/lib/context/files";
 import { requestOrigin } from "@dashboard/lib/request-origin";
 

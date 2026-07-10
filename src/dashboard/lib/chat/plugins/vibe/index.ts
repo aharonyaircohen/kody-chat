@@ -43,7 +43,7 @@
  *   there). Registration exists to reserve the id and pin the boundary
  *   above.
  */
-import type { ChatPlugin } from "../../platform";
+import type { ChatPlugin } from "@kody-ade/kody-chat/platform";
 
 export const VIBE_PLUGIN_ID = "vibe";
 

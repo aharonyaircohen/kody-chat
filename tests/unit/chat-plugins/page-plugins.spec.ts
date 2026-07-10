@@ -11,12 +11,12 @@
  */
 import { describe, expect, it } from "vitest";
 
-import type { ChatPlugin } from "@dashboard/lib/chat/platform";
-import { FULL_GRANT } from "@dashboard/lib/chat/platform/capabilities";
+import type { ChatPlugin } from "@kody-ade/kody-chat/platform";
+import { FULL_GRANT } from "@kody-ade/kody-chat/platform/capabilities";
 import {
   ChatPluginRegistrationError,
   createChatPluginRegistry,
-} from "@dashboard/lib/chat/platform/registry";
+} from "@kody-ade/kody-chat/platform/registry";
 
 import { activityChatPlugin } from "@dashboard/lib/chat/plugins/activity";
 import { agencyRunsChatPlugin } from "@dashboard/lib/chat/plugins/agency-runs";

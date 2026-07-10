@@ -119,8 +119,8 @@ vi.mock("ai", async (importOriginal) => {
 });
 
 import { POST as kodyChatPOST } from "../../app/api/kody/chat/kody/route";
-import { getChatServerToolRegistry } from "@dashboard/lib/chat/platform/server-tools";
-import type { ChatToolServerContext } from "@dashboard/lib/chat/platform";
+import { getChatServerToolRegistry } from "@kody-ade/kody-chat/platform/server-tools";
+import type { ChatToolServerContext } from "@kody-ade/kody-chat/platform";
 
 function makeRequest(): NextRequest {
   return new NextRequest("https://dash.test/api/kody/chat/kody", {

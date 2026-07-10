@@ -26,7 +26,7 @@
  *   that's part of the frozen ChatRailApi/ChatContext host contract (plan
  *   H4) and is also mounted by GoalControl without any mention routing.
  */
-import type { ChatPlugin } from "../../platform";
+import type { ChatPlugin } from "@kody-ade/kody-chat/platform";
 import { goalMentionMiddleware } from "./mention-middleware";
 
 export const GOALS_PLUGIN_ID = "goals";

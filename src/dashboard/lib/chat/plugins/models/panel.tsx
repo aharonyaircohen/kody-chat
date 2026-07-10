@@ -11,7 +11,7 @@
 "use client";
 
 import { ModelsManager } from "../../../components/ModelsManager";
-import type { ChatPanelViewProps } from "../../platform";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
 
 export const MODELS_PANEL_TESTID = "chat-panel-models";
 

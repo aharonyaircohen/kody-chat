@@ -11,7 +11,7 @@
 "use client";
 
 import { SettingsManager } from "../../../components/SettingsManager";
-import type { ChatPanelViewProps } from "../../platform";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
 
 export const SETTINGS_PANEL_TESTID = "chat-panel-settings";
 

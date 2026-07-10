@@ -46,7 +46,7 @@ import {
   getFileIcon,
 } from "../../components/kody-chat-helpers";
 import type { Attachment } from "../../components/kody-chat-types";
-import type { LivePhase } from "../core/kody-chat-reducer";
+import type { LivePhase } from "@kody-ade/kody-chat/core/kody-chat-reducer";
 import type { AgentId } from "../../agents";
 import { ChatPluginSlot } from "./ChatPluginProvider";
 

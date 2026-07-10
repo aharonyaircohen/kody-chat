@@ -18,7 +18,7 @@
  *   via the host-context snapshot (`knownGoals` key), same pattern as the
  *   commands plugin's `slashCommands`.
  */
-import type { ChatHostEffect, ChatSendMiddleware } from "../../platform";
+import type { ChatHostEffect, ChatSendMiddleware } from "@kody-ade/kody-chat/platform";
 import { parseGoalMention, type GoalRef } from "./goal-mention";
 
 export const GOAL_MENTION_MIDDLEWARE_ID = "goal-mention";

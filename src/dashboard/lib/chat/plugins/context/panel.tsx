@@ -12,7 +12,7 @@
 
 import { AuthGuard } from "../../../auth-guard";
 import { ContextControl } from "../../../components/ContextControl";
-import type { ChatPanelViewProps } from "../../platform";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
 
 export const CONTEXT_PANEL_TESTID = "chat-panel-context";
 

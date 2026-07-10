@@ -174,9 +174,19 @@ The legacy `/api/kody/chat` endpoint is deprecated and returns 410.
 
 ### Chat plugin rules (load-bearing)
 
+The chat **core + platform layers live in the `@kody-ade/kody-chat`
+package** (repo: https://github.com/aharonyaircohen/kody-chat, currently a
+`file:../kody-chat` tarball until the npm publish) — import them as
+`@kody-ade/kody-chat/platform[/*]` and `@kody-ade/kody-chat/core/*`.
+Never re-create `src/dashboard/lib/chat/{core,platform}` here. The package
+imports shared host libs via the `@dashboard` alias; next.config.mjs +
+vitest.config.ts map that back into this repo so there is exactly ONE
+module instance of github-client / active-repo / chat-types. To update:
+edit in ../kody-chat, run its `pnpm test:gate`, `pnpm pack`, then
+reinstall here.
+
 Chat UI features are **plugins** under `src/dashboard/lib/chat/plugins/`
-built on the `ChatPlugin` contract
-([src/dashboard/lib/chat/platform/types.ts](src/dashboard/lib/chat/platform/types.ts)):
+built on the `ChatPlugin` contract (`@kody-ade/kody-chat/platform/types`):
 slots, send middleware, panels, tools, session state, theming. Layering
 (`core ← platform ← plugins/surface`) is lint-enforced as errors.
 

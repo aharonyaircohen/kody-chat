@@ -12,7 +12,7 @@
 
 import { AuthGuard } from "../../../auth-guard";
 import { RepoConfigManager } from "../../../components/RepoConfigManager";
-import type { ChatPanelViewProps } from "../../platform";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
 
 export const CONFIG_PANEL_TESTID = "chat-panel-config";
 

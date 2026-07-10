@@ -43,7 +43,7 @@ import { useAuth } from "../auth-context";
 import { shouldPollChatGoalsForRoute } from "../github-background-polling";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useChatFirstLayout } from "../hooks/use-chat-first-layout";
-import { trace } from "../chat/platform";
+import { trace } from "@kody-ade/kody-chat/platform";
 import { useGoals } from "../hooks/useGoals";
 import type { ChatContext } from "../chat-types";
 import { cn } from "../utils";

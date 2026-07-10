@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { previewChatContextBlock } from "@dashboard/lib/chat/core/preview-context";
+import { previewChatContextBlock } from "@kody-ade/kody-chat/core/preview-context";
 import type { PreviewEnvironment } from "@dashboard/lib/preview-environments";
 
 describe("previewChatContextBlock", () => {

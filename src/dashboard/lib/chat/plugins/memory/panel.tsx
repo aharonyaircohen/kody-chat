@@ -12,7 +12,7 @@
 
 import { AuthGuard } from "../../../auth-guard";
 import { MemoryManager } from "../../../components/MemoryManager";
-import type { ChatPanelViewProps } from "../../platform";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
 
 export const MEMORY_PANEL_TESTID = "chat-panel-memory";
 

@@ -12,7 +12,7 @@
 import {
   createChatCatalog,
   type ChatMessageCatalog,
-} from "./chat/platform/i18n";
+} from "@kody-ade/kody-chat/platform/i18n";
 
 const EN_CLIENT_SURFACE_MESSAGES: Readonly<Record<string, string>> = {
   "chat.client.metaTitle": "{brand} Chat",

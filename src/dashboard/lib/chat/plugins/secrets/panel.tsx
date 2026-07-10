@@ -11,7 +11,7 @@
 "use client";
 
 import { SecretsManager } from "../../../components/SecretsManager";
-import type { ChatPanelViewProps } from "../../platform";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
 
 export const SECRETS_PANEL_TESTID = "chat-panel-secrets";
 

@@ -11,7 +11,7 @@
 "use client";
 
 import { MessagesView } from "../../../components/MessagesView";
-import type { ChatPanelViewProps } from "../../platform";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
 
 export const MESSAGES_PANEL_TESTID = "chat-panel-messages";
 

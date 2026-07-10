@@ -19,7 +19,7 @@ import {
   FULL_GRANT,
   createChatPluginRegistry,
   type ChatHostEffect,
-} from "@dashboard/lib/chat/platform";
+} from "@kody-ade/kody-chat/platform";
 import {
   SLASH_COMMANDS_HOST_KEY,
   SLASH_EXPANSION_MIDDLEWARE_ID,

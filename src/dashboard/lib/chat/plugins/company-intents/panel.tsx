@@ -11,7 +11,7 @@
 "use client";
 
 import { CompanyIntentsView } from "../../../components/CompanyIntentsView";
-import type { ChatPanelViewProps } from "../../platform";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
 
 export const COMPANY_INTENTS_PANEL_TESTID = "chat-panel-company-intents";
 

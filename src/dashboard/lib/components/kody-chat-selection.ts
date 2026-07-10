@@ -26,11 +26,11 @@ import {
   shouldWaitForModelBackedEntryResolution,
   type ChatDropdownEntry,
   type ChatModelEntry,
-} from "../chat/platform/agent-entries";
-import { readDefaultChatEntry } from "../chat/platform/default-entry";
-import { readReasoningEffort } from "../chat/core/reasoning-pref";
-import type { ModelReasoning } from "../chat/core/reasoning-adapter";
-import type { UseChatSessionsResult } from "../chat/core/use-chat-sessions";
+} from "@kody-ade/kody-chat/platform/agent-entries";
+import { readDefaultChatEntry } from "@kody-ade/kody-chat/platform/default-entry";
+import { readReasoningEffort } from "@kody-ade/kody-chat/core/reasoning-pref";
+import type { ModelReasoning } from "@kody-ade/kody-chat/core/reasoning-adapter";
+import type { UseChatSessionsResult } from "@kody-ade/kody-chat/core/use-chat-sessions";
 
 /**
  * Resolve the global default agent entry — the value a session with

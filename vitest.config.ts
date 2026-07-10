@@ -11,6 +11,15 @@ export default defineConfig({
     include: ["tests/**/*.spec.ts"],
     // Playwright specs live under tests/e2e — vitest must not load them.
     exclude: ["node_modules/**", "tests/e2e/**"],
+    server: {
+      deps: {
+        // @kody-ade/kody-chat ships TS source — vitest must transform it
+        // instead of treating it as a prebuilt external. Its @dashboard
+        // imports then resolve via the aliases below, back into this repo
+        // (single module instance for shared libs).
+        inline: [/@kody-ade\/kody-chat/],
+      },
+    },
     coverage: {
       reporter: ["text", "json", "html"],
     },

@@ -27,7 +27,7 @@ const KODY_CHAT_SOURCE =
     "utf8",
   );
 const USE_CHAT_SESSIONS_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/chat/core/use-chat-sessions.ts"),
+  resolve(__dirname, "../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/chat/core/use-chat-sessions.ts"),
   "utf8",
 );
 const SYSTEM_PROMPT_SOURCE = readFileSync(

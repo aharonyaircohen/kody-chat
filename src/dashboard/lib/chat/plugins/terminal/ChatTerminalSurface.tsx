@@ -23,7 +23,7 @@ import type { FitAddon as XTermFitAddon } from "@xterm/addon-fit";
 import type { Terminal as XTerm } from "@xterm/xterm";
 import { toast } from "sonner";
 
-import { authHeaders } from "../../core/kody-chat-live-session";
+import { authHeaders } from "@kody-ade/kody-chat/core/kody-chat-live-session";
 import {
   connectFly,
   disconnectFly,

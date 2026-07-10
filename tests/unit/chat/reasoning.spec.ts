@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseReasoning,
   stripReasoning,
-} from "@dashboard/lib/chat/core/reasoning";
+} from "@kody-ade/kody-chat/core/reasoning";
 
 describe("parseReasoning", () => {
   it("splits a standard think block from the visible answer", () => {

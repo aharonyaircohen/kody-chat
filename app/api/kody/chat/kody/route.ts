@@ -31,15 +31,15 @@ import {
   type StopCondition,
   type ToolSet,
 } from "ai";
-import { getChatServerToolRegistry } from "@dashboard/lib/chat/platform/server-tools";
+import { getChatServerToolRegistry } from "@kody-ade/kody-chat/platform/server-tools";
 import {
   resolveSurfaceScope,
   CLIENT_SURFACE_TOOL_ALLOWLIST,
-} from "@dashboard/lib/chat/platform/surface-scope";
+} from "@kody-ade/kody-chat/platform/surface-scope";
 import type {
   ChatPluginToolDefinition,
   ChatToolServerContext,
-} from "@dashboard/lib/chat/platform";
+} from "@kody-ade/kody-chat/platform";
 import {
   getAgent,
   isValidAgentId,
@@ -66,8 +66,8 @@ import {
   type ClientBrand,
 } from "@dashboard/lib/client-brand";
 import { resolveChatModel } from "../resolve-model";
-import { supportsVision } from "@dashboard/lib/chat/core/vision-support";
-import { formatAttachmentForTextBackend } from "@dashboard/lib/chat/core/attachment-text";
+import { supportsVision } from "@kody-ade/kody-chat/core/vision-support";
+import { formatAttachmentForTextBackend } from "@kody-ade/kody-chat/core/attachment-text";
 import {
   buildSystemPrompt,
   formatUserInstructionsPromptSection,
@@ -124,7 +124,7 @@ import { createNotificationTools } from "../tools/notifications-tools";
 import { createCompanyTools } from "../tools/company-tools";
 import { createInboxTools } from "../tools/inbox-tools";
 import { createCmsTools } from "../tools/cms-tools";
-import { applyReasoning } from "@dashboard/lib/chat/core/reasoning-adapter";
+import { applyReasoning } from "@kody-ade/kody-chat/core/reasoning-adapter";
 import { createAgentAdminTools } from "../tools/agent-admin-tools";
 import { createMacroTools } from "../tools/macros-tools";
 import {

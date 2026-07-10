@@ -17,8 +17,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ChatModelEntry } from "../chat/platform/agent-entries";
-import { authHeaders } from "../chat/core/kody-chat-live-session";
+import type { ChatModelEntry } from "@kody-ade/kody-chat/platform/agent-entries";
+import { authHeaders } from "@kody-ade/kody-chat/core/kody-chat-live-session";
 
 export interface ChatDataSources {
   /**

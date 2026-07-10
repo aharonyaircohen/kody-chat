@@ -17,8 +17,8 @@
 
 import { createContext, useContext, type ReactNode } from "react";
 
-import type { ChatPluginRegistry } from "../platform";
-import type { ChatSlotId } from "../platform";
+import type { ChatPluginRegistry } from "@kody-ade/kody-chat/platform";
+import type { ChatSlotId } from "@kody-ade/kody-chat/platform";
 
 interface ChatPluginContextValue {
   registry: ChatPluginRegistry;

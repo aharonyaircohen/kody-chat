@@ -20,8 +20,8 @@ import {
   PLUGIN_TOOLS_MCP_PATH,
   pluginToolsMcpUrl,
   verifyPluginToolsBearer,
-} from "@dashboard/lib/chat/platform/plugin-tools-config";
-import { getChatServerToolRegistry } from "@dashboard/lib/chat/platform/server-tools";
+} from "@kody-ade/kody-chat/platform/plugin-tools-config";
+import { getChatServerToolRegistry } from "@kody-ade/kody-chat/platform/server-tools";
 import { mintSessionToken } from "@dashboard/lib/chat-token";
 
 beforeAll(() => {

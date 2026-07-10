@@ -36,7 +36,7 @@ const CHAT_TYPES_PATH = resolve(
 );
 const HOOK_PATH = resolve(
   __dirname,
-  "../../../src/dashboard/lib/chat/core/use-chat-sessions.ts",
+  "../../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/chat/core/use-chat-sessions.ts",
 );
 const KODY_CHAT_PATH = resolve(
   __dirname,

@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 import {
   isModelBackedEntryKey,
   shouldWaitForModelBackedEntryResolution,
-} from "@dashboard/lib/chat/platform/agent-entries";
+} from "@kody-ade/kody-chat/platform/agent-entries";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Phase 1.6c moved the per-session agent sync effect (and the rest of

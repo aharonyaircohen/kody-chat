@@ -12,7 +12,7 @@
 
 import { AuthGuard } from "../../../auth-guard";
 import { ChangelogView } from "../../../components/ChangelogView";
-import type { ChatPanelViewProps } from "../../platform";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
 
 export const CHANGELOG_PANEL_TESTID = "chat-panel-changelog";
 

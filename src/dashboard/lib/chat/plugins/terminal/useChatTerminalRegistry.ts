@@ -13,7 +13,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { SessionMeta } from "../../../chat-types";
-import { authHeaders } from "../../core/kody-chat-live-session";
+import { authHeaders } from "@kody-ade/kody-chat/core/kody-chat-live-session";
 import type { ServerProviderMachineRow } from "@dashboard/lib/infrastructure/server-machine-model";
 import {
   FLY_MACHINES_REFRESH_EVENT,

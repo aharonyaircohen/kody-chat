@@ -33,8 +33,8 @@ import {
   ToolCallList,
 } from "../../components/ToolCallCard";
 import type { Message, ToolCall } from "../../components/kody-chat-types";
-import { parseAssistantContent } from "../core/tool-call-strip";
-import { softFormatUserMessageForDisplay } from "../core/user-message-format";
+import { parseAssistantContent } from "@kody-ade/kody-chat/core/tool-call-strip";
+import { softFormatUserMessageForDisplay } from "@kody-ade/kody-chat/core/user-message-format";
 import {
   isRenderedViewDirective,
   type RenderedViewAction,

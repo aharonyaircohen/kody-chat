@@ -11,7 +11,7 @@ import {
   ChatCatalogCollisionError,
   createChatCatalog,
   directionForLocale,
-} from "@dashboard/lib/chat/platform/i18n";
+} from "@kody-ade/kody-chat/platform/i18n";
 
 describe("chat i18n catalog", () => {
   it("resolves registered keys and substitutes params", () => {

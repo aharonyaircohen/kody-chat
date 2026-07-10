@@ -12,7 +12,7 @@ import type { AttachmentRef, ChatContext, ChatMessage } from "../chat-types";
 import type { AgentId } from "../agents";
 import type { GoalRef } from "../chat/plugins/goals";
 import type { ChatViewDirective } from "@dashboard/lib/chat-ui-actions";
-import type { ChatCapabilityGrant, ChatPlugin } from "../chat/platform";
+import type { ChatCapabilityGrant, ChatPlugin } from "@kody-ade/kody-chat/platform";
 
 export interface Message {
   role: "user" | "assistant";

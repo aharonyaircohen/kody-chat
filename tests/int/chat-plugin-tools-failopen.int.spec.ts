@@ -26,8 +26,8 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 
 import { POST as triggerPOST } from "../../app/api/kody/chat/trigger/route";
-import { buildPluginToolsBearer } from "@dashboard/lib/chat/platform/plugin-tools-config";
-import { getChatServerToolRegistry } from "@dashboard/lib/chat/platform/server-tools";
+import { buildPluginToolsBearer } from "@kody-ade/kody-chat/platform/plugin-tools-config";
+import { getChatServerToolRegistry } from "@kody-ade/kody-chat/platform/server-tools";
 import { STATE_BRANCH } from "@dashboard/lib/state-branch";
 
 const GITHUB_API = "https://api.github.com";

@@ -10,7 +10,7 @@ import { describe, it, expect } from "vitest";
 import {
   parseBrainWireEvent,
   parseKodyDirectChunk,
-} from "@dashboard/lib/chat/core/transports/envelope";
+} from "@kody-ade/kody-chat/core/transports/envelope";
 
 describe("parseBrainWireEvent", () => {
   it("parses a well-formed chat.message event", () => {

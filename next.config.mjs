@@ -51,6 +51,12 @@ const nextConfig = {
   // exits and every route that logs an error crashes with a 500. Leaving them
   // external means the worker loads from the real node_modules path.
   serverExternalPackages: ["pino", "thread-stream", "pino-pretty", "node-pty"],
+  // The chat core/platform layers ship as TS source from @kody-ade/kody-chat;
+  // Next must compile them like project code. The package imports its shared
+  // host libs via the `@dashboard` alias — the resolveAlias entries below make
+  // those resolve to THIS repo's src/dashboard so there is exactly one module
+  // instance (github-client context, active-repo state, React contexts).
+  transpilePackages: ["@kody-ade/kody-chat"],
   // Dev runs on Turbopack, which (unlike Next's webpack) does not auto-stub
   // Node-only builtins for the browser bundle. `@mintplex-labs/piper-tts-web`
   // (lazy-loaded by the voice TTS hook) statically references `require("fs")`
@@ -60,6 +66,8 @@ const nextConfig = {
   turbopack: {
     resolveAlias: {
       fs: { browser: "./src/dashboard/lib/empty-module.js" },
+      "@dashboard/*": "./src/dashboard/*",
+      "@/*": "./src/*",
     },
   },
   // Exclude engine files from webpack compilation
@@ -67,6 +75,13 @@ const nextConfig = {
     config.watchOptions = {
       ...config.watchOptions,
       ignored: ["**/src/engine/**"],
+    };
+    // tsconfig paths don't apply to files inside node_modules — the
+    // @kody-ade/kody-chat sources need @dashboard/@/ resolved explicitly.
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      "@dashboard": new URL("./src/dashboard", import.meta.url).pathname,
+      "@": new URL("./src", import.meta.url).pathname,
     };
     // github-client.ts lazily require()s the `async_hooks` Node builtin for
     // per-request context isolation. It's imported transitively by client

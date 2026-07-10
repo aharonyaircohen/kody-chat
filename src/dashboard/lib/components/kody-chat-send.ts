@@ -33,8 +33,8 @@
 import type { MutableRefObject } from "react";
 import { toast } from "sonner";
 import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
-import type { ChatDropdownEntry } from "../chat/platform/agent-entries";
-import { trace, type createChatPluginRegistry } from "../chat/platform";
+import type { ChatDropdownEntry } from "@kody-ade/kody-chat/platform/agent-entries";
+import { trace, type createChatPluginRegistry } from "@kody-ade/kody-chat/platform";
 import {
   repoBrainConversationKey,
   repoBrainScopeKey,
@@ -47,19 +47,19 @@ import {
   isBrainChatPinned,
   liveAuthHeaders,
   brainHeaders,
-} from "../chat/core/kody-chat-live-session";
+} from "@kody-ade/kody-chat/core/kody-chat-live-session";
 import {
   brainTransport,
   type BrainTurnConfig,
-} from "../chat/core/transports/brain";
+} from "@kody-ade/kody-chat/core/transports/brain";
 import {
   kodyDirectTransport,
   type KodyDirectTurnConfig,
-} from "../chat/core/transports/kody-direct";
+} from "@kody-ade/kody-chat/core/transports/kody-direct";
 import {
   kodyLiveTransport,
   type KodyLiveTurnConfig,
-} from "../chat/core/transports/kody-live";
+} from "@kody-ade/kody-chat/core/transports/kody-live";
 import {
   createTransportTurnHandler,
   type TransportTurnState,
@@ -69,7 +69,7 @@ import {
   formatFileSize,
   shouldCollectPreviewContextForTurn,
 } from "./kody-chat-helpers";
-import { formatAttachmentForTextBackend } from "../chat/core/attachment-text";
+import { formatAttachmentForTextBackend } from "@kody-ade/kody-chat/core/attachment-text";
 import {
   chatToMessage,
   type Message,
@@ -78,9 +78,9 @@ import {
   type KodyChatProps,
 } from "./kody-chat-types";
 import type { AttachmentRef, ChatContext } from "../chat-types";
-import type { useChatSessions } from "../chat/core/use-chat-sessions";
+import type { useChatSessions } from "@kody-ade/kody-chat/core/use-chat-sessions";
 import type { useLiveRunner } from "./kody-chat-live-runner";
-import { parseReasoning, stripReasoning } from "../chat/core/reasoning";
+import { parseReasoning, stripReasoning } from "@kody-ade/kody-chat/core/reasoning";
 import {
   extractFirstStaffMentionCandidate,
   type StaffMentionTrigger,

@@ -11,8 +11,8 @@
  */
 
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { sendKodyDirectTurn } from "@dashboard/lib/chat/core/transports/kody-direct";
-import { sendBrainTurn } from "@dashboard/lib/chat/core/transports/brain";
+import { sendKodyDirectTurn } from "@kody-ade/kody-chat/core/transports/kody-direct";
+import { sendBrainTurn } from "@kody-ade/kody-chat/core/transports/brain";
 import {
   createTransportTurnHandler,
   type TransportTurnHandler,

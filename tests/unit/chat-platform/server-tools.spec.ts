@@ -12,7 +12,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { getChatServerToolRegistry } from "@dashboard/lib/chat/platform/server-tools";
+import { getChatServerToolRegistry } from "@kody-ade/kody-chat/platform/server-tools";
 
 describe("chat platform server tool registry singleton", () => {
   it("returns the same registry instance on every call", () => {

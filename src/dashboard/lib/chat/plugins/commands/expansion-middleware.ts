@@ -18,7 +18,7 @@
 import type {
   ChatHostEffect,
   ChatSendMiddleware,
-} from "../../platform";
+} from "@kody-ade/kody-chat/platform";
 import { expandSlashCommand, type SlashCommand } from "./useSlashCommands";
 
 export const SLASH_EXPANSION_MIDDLEWARE_ID = "slash-expansion";

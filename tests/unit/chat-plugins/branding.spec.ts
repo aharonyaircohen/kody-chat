@@ -17,7 +17,7 @@ import { getClientBrand } from "@dashboard/lib/client-brand";
 import {
   ChatPluginRegistrationError,
   createChatPluginRegistry,
-} from "@dashboard/lib/chat/platform/registry";
+} from "@kody-ade/kody-chat/platform/registry";
 
 describe("branding chat plugin factory", () => {
   it("declares only the theme capability", () => {

@@ -10,7 +10,7 @@ import {
   FULL_GRANT,
   trace,
   type ChatHostEffect,
-} from "../chat/platform";
+} from "@kody-ade/kody-chat/platform";
 import { ChatSurfaceLayout } from "../chat/surface/ChatSurfaceLayout";
 import { useAuth } from "../auth-context";
 import { toast } from "sonner";
@@ -43,7 +43,7 @@ import { formatMacrosCatalog, type Macro } from "../macros";
 import {
   authHeaders,
   clearLiveSession,
-} from "../chat/core/kody-chat-live-session";
+} from "@kody-ade/kody-chat/core/kody-chat-live-session";
 import { runSendText, runSendMessage, type SendTextFn } from "./kody-chat-send";
 import {
   chatToMessage,
@@ -71,7 +71,7 @@ import { useAgentSelection } from "./kody-chat-selection";
 import { useVoiceOrchestration } from "./kody-chat-voice";
 import { PIPER_VOICES } from "@dashboard/lib/voice/voices";
 import { VoiceChatOverlay } from "./VoiceChatOverlay";
-import { useChatSessions } from "../chat/core/use-chat-sessions";
+import { useChatSessions } from "@kody-ade/kody-chat/core/use-chat-sessions";
 import { useKodyActionState } from "../hooks/useKodyActionState";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { SessionsPanel } from "../chat/surface/SessionsPanel";
@@ -374,7 +374,7 @@ export function KodyChat({
   // Use one session bucket for Vibe. The selected task is request context, not
   // a separate visible conversation; otherwise issue creation navigates to an
   // empty task chat and hides the message that created the issue.
-  const desiredSessionScope: import("../chat/core/use-chat-sessions").ChatSessionScope =
+  const desiredSessionScope: import("@kody-ade/kody-chat/core/use-chat-sessions").ChatSessionScope =
     vibeMode ? "vibe-default" : "global";
   // Commit scope changes only after they settle. A transient context flip
   // (parent re-render / task refetch momentarily dropping the selection)
@@ -383,7 +383,7 @@ export function KodyChat({
   // window absorbs flickers (they revert within the same tick) while real
   // user-driven task select/clear persists well past it.
   const [sessionStoreScope, setSessionStoreScope] =
-    useState<import("../chat/core/use-chat-sessions").ChatSessionScope>(
+    useState<import("@kody-ade/kody-chat/core/use-chat-sessions").ChatSessionScope>(
       desiredSessionScope,
     );
   const sessionHook = useChatSessions(sessionStoreScope);

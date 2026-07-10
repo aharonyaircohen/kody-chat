@@ -16,7 +16,7 @@
 
 import type { DragEventHandler, ReactNode } from "react";
 
-import type { ChatPluginRegistry } from "../platform";
+import type { ChatPluginRegistry } from "@kody-ade/kody-chat/platform";
 import { ChatPluginProvider, ChatPluginSlot } from "./ChatPluginProvider";
 
 interface ChatSurfaceLayoutProps {

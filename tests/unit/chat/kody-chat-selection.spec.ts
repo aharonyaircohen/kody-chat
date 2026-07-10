@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildAgentList,
   type ChatModelEntry,
-} from "@dashboard/lib/chat/platform/agent-entries";
+} from "@kody-ade/kody-chat/platform/agent-entries";
 import {
   familySnapEntry,
   resolveDefaultAgentEntry,

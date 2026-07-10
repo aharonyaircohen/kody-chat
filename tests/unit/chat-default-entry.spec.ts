@@ -18,7 +18,7 @@ import {
   readDefaultChatEntry,
   writeDefaultChatEntry,
   clearDefaultChatEntry,
-} from "@dashboard/lib/chat/platform/default-entry";
+} from "@kody-ade/kody-chat/platform/default-entry";
 
 class MemStorage {
   private m = new Map<string, string>();

@@ -12,7 +12,7 @@
  *   blocks input, reconnect-once notice, bounded fetches.
  */
 import { getStoredBrainTerminalActivityLimit } from "../../../api";
-import { authHeaders } from "../../core/kody-chat-live-session";
+import { authHeaders } from "@kody-ade/kody-chat/core/kody-chat-live-session";
 import {
   parseTerminalBridgeServerMessage,
   type TerminalBridgeClientMessage,

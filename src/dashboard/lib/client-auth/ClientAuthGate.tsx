@@ -10,7 +10,7 @@
 import { Zap } from "lucide-react";
 
 import type { ClientBrand } from "../client-brand";
-import { directionForLocale } from "../chat/platform/i18n";
+import { directionForLocale } from "@kody-ade/kody-chat/platform/i18n";
 import type { ClientAuthProvider } from "./allowlist";
 import { providerLabel } from "./catalog";
 import { signIn, signOut } from "./auth";
