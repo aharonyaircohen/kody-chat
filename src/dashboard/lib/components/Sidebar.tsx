@@ -85,6 +85,11 @@ export interface SidebarProps {
   pinnedItem?: SettingsNavItem | null;
   /** Product label next to the logo. */
   brandLabel?: string;
+  /**
+   * Optional slot rendered just below the brand header (e.g. a repo
+   * switcher). Hidden while the rail is collapsed.
+   */
+  headerExtra?: React.ReactNode;
 }
 
 export function Sidebar(props: SidebarProps = {}) {
@@ -99,6 +104,7 @@ function SidebarContent({
   sections: hostSections,
   pinnedItem = DASHBOARD_NAV_ITEM,
   brandLabel = "Kody",
+  headerExtra,
 }: SidebarProps) {
   const pathname = usePathname() ?? "/";
   const router = useRouter();
@@ -288,6 +294,12 @@ function SidebarContent({
           </Link>
         </SimpleTooltip>
       </div>
+
+      {headerExtra && !collapsed && (
+        <div className="shrink-0 border-b border-white/[0.06] px-2.5 py-2">
+          {headerExtra}
+        </div>
+      )}
 
       <nav className="min-h-0 flex-1 flex flex-col py-3">
         <div

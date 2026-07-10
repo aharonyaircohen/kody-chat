@@ -96,6 +96,7 @@ export function ChatShell({
           sections={sections}
           pinnedItem={pinnedItem}
           brandLabel={title}
+          headerExtra={<RepoSwitcher />}
         />
 
         {/* Chat rail — LEFT of the page content, right of the nav, matching
@@ -110,12 +111,6 @@ export function ChatShell({
               : "hidden w-[440px] shrink-0 border-r border-border md:flex",
           )}
         >
-          {/* Repo switcher — the chat is repo-scoped (models, secrets,
-              memory), so switching lives right above it. Desktop only;
-              mobile manages repos from the MobileMenu. */}
-          <div className="hidden shrink-0 items-center border-b border-border px-2 py-1.5 md:flex">
-            <RepoSwitcher />
-          </div>
           <KodyChat
             presentation="standalone"
             compactHeader
