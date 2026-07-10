@@ -34,14 +34,14 @@ import {
   shouldEnableSidebarInboxBadgeData,
   shouldEnableSidebarMessagesBadgeData,
   shouldEnableSidebarReportsBadgeData,
-} from "../github-background-polling";
-import { useAuth } from "../auth-context";
-import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
-import { repoScopedHref } from "../routes";
-import { SimpleTooltip } from "./SimpleTooltip";
-import { InboxBadge } from "./InboxBadge";
-import { MessagesBadge } from "./MessagesBadge";
-import { ReportsBadge } from "./ReportsBadge";
+} from "@dashboard/lib/github-background-polling";
+import { useAuth } from "@dashboard/lib/auth-context";
+import { useGitHubIdentity } from "@dashboard/lib/hooks/useGitHubIdentity";
+import { repoScopedHref } from "@dashboard/lib/routes";
+import { SimpleTooltip } from "@dashboard/lib/components/SimpleTooltip";
+import { InboxBadge } from "@dashboard/lib/components/InboxBadge";
+import { MessagesBadge } from "@dashboard/lib/components/MessagesBadge";
+import { ReportsBadge } from "@dashboard/lib/components/ReportsBadge";
 import {
   DASHBOARD_NAV_ITEM,
   ENGINEER_MODE_SECTIONS,
@@ -49,7 +49,7 @@ import {
   isNavItemActive,
   type SettingsNavItem,
   type SettingsNavSection,
-} from "./settings-nav";
+} from "@dashboard/lib/components/settings-nav";
 
 /** Pull just the `text-…` color token out of an item's `tint` (which is a
  *  combined "text-X bg-Y" chip class) so the rail can color the bare icon. */
