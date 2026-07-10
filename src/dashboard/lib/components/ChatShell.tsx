@@ -52,27 +52,32 @@ export function ChatShell({
     >
       <Sidebar sections={sections} pinnedItem={pinnedItem} brandLabel={title} />
 
-      {!isChatHome && (
-        <main className="min-w-0 flex-1 overflow-y-auto">{children}</main>
-      )}
-
+      {/* Chat rail — LEFT of the page content, right of the nav, matching
+          the dashboard's order (nav | chat | page). Always mounted so chat
+          history and streaming survive navigation. */}
       <aside
         aria-label="Kody chat"
         className={cn(
-          "min-h-0 flex-col",
+          "min-h-0 flex-col bg-black/20",
           isChatHome
             ? "flex min-w-0 flex-1"
-            : "hidden w-[26rem] shrink-0 border-s border-border xl:flex",
+            : "hidden w-[440px] shrink-0 border-r border-border md:flex",
         )}
       >
         <KodyChat
           presentation="standalone"
           compactHeader
           hideTerminalMode
-          railFullscreen
+          railFullscreen={isChatHome}
           plugins={chatPlugins}
         />
       </aside>
+
+      {!isChatHome && (
+        <main className="min-w-0 h-full flex-1 overflow-y-auto">
+          {children}
+        </main>
+      )}
     </div>
   );
 }

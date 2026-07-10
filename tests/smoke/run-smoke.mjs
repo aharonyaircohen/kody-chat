@@ -22,6 +22,7 @@ const CHECKS = [
   { path: "/secrets", ok: [200], name: "secrets page renders" },
   { path: "/brands", ok: [200], name: "brands page renders" },
   { path: "/instructions", ok: [200], name: "instructions page renders" },
+  { path: "/api/kody/repos/add", ok: [400, 401, 405], name: "repo connect API exists (no 404)", method: "POST" },
   { path: "/api/kody/memory", ok: [200, 401, 403], name: "memory API responds (no 500)" },
   { path: "/api/kody/context", ok: [200, 401, 403], name: "context API responds (no 500)" },
   { path: "/api/kody/instructions", ok: [200, 401, 403], name: "instructions API responds (no 500)" },
