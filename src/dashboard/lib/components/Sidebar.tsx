@@ -308,7 +308,8 @@ function SidebarContent({
         >
           {pinnedItem && <div className="pb-2">{renderLink(pinnedItem)}</div>}
 
-          <div className={cn("pb-2", !modeToggleVisible && "hidden")}>
+          {modeToggleVisible && (
+          <div className="pb-2">
             {collapsed ? (
               <SimpleTooltip
                 content={
@@ -375,6 +376,7 @@ function SidebarContent({
               </div>
             )}
           </div>
+          )}
 
           {/* Inline search — filters the rail's own items as you type. Collapsed
               mode shows an icon that expands the rail so there's room to type. */}
