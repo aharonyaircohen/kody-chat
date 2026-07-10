@@ -77,13 +77,18 @@ export function ClientChatSurface({
   // "use the chat's default empty state".
   const welcomeText =
     catalog.t("chat.client.welcome") || theme.welcomeText || "";
+  const packDir = catalog.t("chat.client.dir");
+  const dir =
+    packDir === "rtl" || packDir === "ltr"
+      ? packDir
+      : directionForLocale(locale);
 
   return (
     <main
       data-testid="client-chat-surface"
       // Surface-root direction only — per-message bubbles keep their own
       // explicit `dir` (getMessageDirection in chat/surface/MessageList.tsx).
-      dir={directionForLocale(locale)}
+      dir={dir}
       className="flex h-dvh min-h-dvh flex-col bg-background text-foreground"
     >
       <header className="shrink-0 border-b border-border bg-background px-4 py-3">

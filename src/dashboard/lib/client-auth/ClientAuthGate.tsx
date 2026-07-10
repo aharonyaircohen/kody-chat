@@ -41,10 +41,15 @@ export function ClientAuthGate({
     brand.locale ?? "en",
     languageStrings,
   );
+  const packDir = catalog.t("chat.client.dir");
+  const dir =
+    packDir === "rtl" || packDir === "ltr"
+      ? packDir
+      : directionForLocale(brand.locale ?? "en");
   return (
     <main
       data-testid="client-auth-gate"
-      dir={directionForLocale(brand.locale ?? "en")}
+      dir={dir}
       className="flex h-dvh min-h-dvh flex-col bg-background text-foreground"
     >
       <header className="shrink-0 border-b border-border bg-background px-4 py-3">

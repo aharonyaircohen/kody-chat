@@ -35,6 +35,7 @@ export const CLIENT_LANGUAGE_STRING_KEYS = [
   "chat.client.metaTitle",
   "chat.client.metaDescription",
   "chat.client.chatRegionLabel",
+  "chat.client.dir",
   "chat.client.signOut",
   "chat.client.welcome",
   "chat.client.auth.misconfigured",
@@ -56,6 +57,7 @@ export const CLIENT_LANGUAGE_STRING_LABELS: Record<
   "chat.client.metaTitle": "Browser tab title ({brand} available)",
   "chat.client.metaDescription": "Meta description ({brand} available)",
   "chat.client.chatRegionLabel": "Chat region accessibility label",
+  "chat.client.dir": 'Text direction: "rtl" or "ltr" (empty = auto by locale)',
   "chat.client.signOut": "Sign out button",
   "chat.client.welcome": "Welcome message (empty = chat default)",
   "chat.client.auth.misconfigured": "Sign-in not configured notice",
@@ -75,6 +77,7 @@ export const EN_CLIENT_LANGUAGE: ClientLanguage = {
     "chat.client.metaTitle": "{brand} Chat",
     "chat.client.metaDescription": "Chat with {brand}.",
     "chat.client.chatRegionLabel": "Kody chat",
+    "chat.client.dir": "",
     "chat.client.signOut": "Sign out",
     "chat.client.welcome": "",
     "chat.client.auth.misconfigured":
