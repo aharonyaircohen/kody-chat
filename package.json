@@ -49,7 +49,6 @@
     "@ai-sdk/anthropic": "^3.0.77",
     "@ai-sdk/mcp": "^1.0.30",
     "@ai-sdk/openai-compatible": "^2.0.47",
-    "@kody-ade/kody-chat": "file:kody-ade-kody-chat-0.1.0.tgz",
     "@mintplex-labs/piper-tts-web": "^1.0.4",
     "@monaco-editor/react": "^4.7.0",
     "@octokit/plugin-throttling": "^11.0.3",
