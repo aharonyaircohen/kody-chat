@@ -20,6 +20,7 @@ import { KodyChat } from "@dashboard/lib/components/KodyChat";
 // Package-owned (the dashboard deletes its copies) — must stay relative.
 import { Sidebar } from "./Sidebar";
 import { MobileMenu } from "./MobileMenu";
+import { RepoSwitcher } from "./RepoSwitcher";
 import type {
   SettingsNavItem,
   SettingsNavSection,
@@ -109,6 +110,12 @@ export function ChatShell({
               : "hidden w-[440px] shrink-0 border-r border-border md:flex",
           )}
         >
+          {/* Repo switcher — the chat is repo-scoped (models, secrets,
+              memory), so switching lives right above it. Desktop only;
+              mobile manages repos from the MobileMenu. */}
+          <div className="hidden shrink-0 items-center border-b border-border px-2 py-1.5 md:flex">
+            <RepoSwitcher />
+          </div>
           <KodyChat
             presentation="standalone"
             compactHeader
