@@ -21,7 +21,13 @@ function readComponent(name: string): string {
 }
 
 const REPO_SWITCHER = readComponent("RepoSwitcher");
-const MOBILE_MENU = readComponent("MobileMenu");
+const MOBILE_MENU = readFileSync(
+  resolve(
+    __dirname,
+    "../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/MobileMenu.tsx",
+  ),
+  "utf8",
+);
 const ORG_MANAGER = readComponent("OrgManager");
 
 describe("repository removal surfaces", () => {

@@ -27,7 +27,13 @@ describe("repo-scoped navigation surfaces", () => {
   });
 
   it("scopes mobile menu links through the route model", () => {
-    const mobileMenu = source("MobileMenu.tsx");
+    const mobileMenu = readFileSync(
+      join(
+        process.cwd(),
+        "node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/MobileMenu.tsx",
+      ),
+      "utf8",
+    );
     expect(mobileMenu).toContain("repoScopedHref");
     expect(mobileMenu).toContain("scopedHref(item.href)");
   });

@@ -106,7 +106,7 @@ import { useTheme } from "@dashboard/providers/Theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { KodyHeader } from "./KodyHeader";
 import { HeaderOverflowMenu } from "./HeaderOverflowMenu";
-import { MobileMenu } from "./MobileMenu";
+import { MobileMenu } from "@kody-ade/kody-chat/components/MobileMenu";
 import {
   HIDDEN_TASK_LABEL,
   KODY_BACKLOG_LABEL,

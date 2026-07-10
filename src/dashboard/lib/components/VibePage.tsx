@@ -62,7 +62,7 @@ import { VibeDefaultPreviewField } from "./VibeDefaultPreviewField";
 import { PreviewActions } from "./PreviewActions";
 import { CIStatusBadge } from "./CIStatusBadge";
 import { KodyHeader } from "./KodyHeader";
-import { MobileMenu } from "./MobileMenu";
+import { MobileMenu } from "@kody-ade/kody-chat/components/MobileMenu";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { TaskDetail } from "./TaskDetail";
 import { VibeRunButton } from "./VibeRunButton";
