@@ -13,6 +13,7 @@
   ],
   "exports": {
     "./platform": "./src/dashboard/lib/chat/platform/index.ts",
+    "./platform/lazy-panel": "./src/dashboard/lib/chat/platform/lazy-panel.tsx",
     "./platform/*": "./src/dashboard/lib/chat/platform/*.ts",
     "./core/*": "./src/dashboard/lib/chat/core/*.ts",
     "./core/transports/*": "./src/dashboard/lib/chat/core/transports/*.ts",
