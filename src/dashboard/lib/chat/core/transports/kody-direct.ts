@@ -20,12 +20,12 @@ import {
   isPreviewActDirective,
   isRenderedViewDirective,
   isSwitchAgentDirective,
-} from "../../../chat-ui-actions";
+} from "@dashboard/lib/chat-ui-actions";
 import {
   FINAL_ANSWER_TOOL,
   getToolErrorMessage,
   isFinalAnswerOutput,
-} from "../../../chat-output-tools";
+} from "@dashboard/lib/chat-output-tools";
 
 export interface KodyDirectTurnConfig {
   /** `/api/kody/chat/kody`. */

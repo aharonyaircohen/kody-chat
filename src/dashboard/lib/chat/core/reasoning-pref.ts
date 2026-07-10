@@ -13,7 +13,7 @@
  */
 
 import type { ModelReasoning } from "./reasoning-adapter";
-import { readActiveRepoScope } from "../../active-repo";
+import { readActiveRepoScope } from "@dashboard/lib/active-repo";
 
 const REASONING_EFFORT_KEY_BASE = "kody-reasoning-effort";
 

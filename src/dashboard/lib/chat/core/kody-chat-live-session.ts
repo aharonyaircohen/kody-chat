@@ -13,10 +13,10 @@ import {
   getStoredAuth,
   getStoredBrainConfig,
   getStoredBrainSuspension,
-} from "../../api";
-import type { ChatContext } from "../../chat-types";
+} from "@dashboard/lib/api";
+import type { ChatContext } from "@dashboard/lib/chat-types";
 import type { LiveScopeKey } from "./kody-chat-reducer";
-import { readActiveRepoScope } from "../../active-repo";
+import { readActiveRepoScope } from "@dashboard/lib/active-repo";
 import {
   brainChatIdMapSchema,
   liveSessionMapSchema,

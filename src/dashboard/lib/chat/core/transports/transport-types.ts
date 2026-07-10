@@ -16,7 +16,7 @@ import type {
   PreviewActDirective,
   RenderedViewDirective,
   SwitchAgentDirective,
-} from "../../../chat-ui-actions";
+} from "@dashboard/lib/chat-ui-actions";
 
 /**
  * Directives the surface interprets (never executed inside core). Each

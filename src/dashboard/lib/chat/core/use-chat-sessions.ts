@@ -5,13 +5,13 @@
  * @ai-summary Session management hook for Kody global chat - CRUD operations with localStorage persistence
  */
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { createEmptyGlobalStore } from "../../chat-types";
-import { readActiveRepoScope } from "../../active-repo";
+import { createEmptyGlobalStore } from "@dashboard/lib/chat-types";
+import { readActiveRepoScope } from "@dashboard/lib/active-repo";
 import type {
   ChatMessage,
   GlobalChatStore,
   SessionMeta,
-} from "../../chat-types";
+} from "@dashboard/lib/chat-types";
 
 const STORAGE_KEY_BASE = "kody-sessions-v3";
 const LEGACY_UNSCOPED_KEY = "kody-sessions-v3";

@@ -8,7 +8,7 @@
  *   localStorage.
  */
 
-import { AGENTS, type AgentConfig, type AgentId } from "../../agents";
+import { AGENTS, type AgentConfig, type AgentId } from "@dashboard/lib/agents";
 import { resolveReasoning, type ModelReasoning } from "../core/reasoning-adapter";
 
 /** A single selectable row in the chat agent picker. */

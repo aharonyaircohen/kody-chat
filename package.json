@@ -13,7 +13,9 @@
   ],
   "exports": {
     "./platform": "./src/dashboard/lib/chat/platform/index.ts",
+    "./platform/*": "./src/dashboard/lib/chat/platform/*.ts",
     "./core/*": "./src/dashboard/lib/chat/core/*.ts",
+    "./core/transports/*": "./src/dashboard/lib/chat/core/transports/*.ts",
     "./components/KodyChat": "./src/dashboard/lib/components/KodyChat.tsx",
     "./client-brand": "./src/dashboard/lib/client-brand.ts"
   },
