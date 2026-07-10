@@ -10,6 +10,20 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
   },
+  // The shared Sidebar links via repo-scoped hrefs (/repo/<owner>/<name>/x)
+  // exactly like the dashboard — rewrite them to the bare routes.
+  async rewrites() {
+    return [
+      {
+        source: "/repo/:owner/:repo",
+        destination: "/",
+      },
+      {
+        source: "/repo/:owner/:repo/:path*",
+        destination: "/:path*",
+      },
+    ];
+  },
   experimental: {
     // Turbopack's persistent dev cache has grown pathologically large locally.
     turbopackFileSystemCacheForDev: false,

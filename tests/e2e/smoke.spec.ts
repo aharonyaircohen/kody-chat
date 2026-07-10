@@ -40,7 +40,9 @@ test.describe("Route smoke", () => {
     await expect(page.locator('[data-testid="chat-shell"]')).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.locator('[data-testid="shell-sidepanel"]')).toBeVisible();
+    await expect(
+      page.locator('[aria-label="Primary navigation"]'),
+    ).toBeVisible();
     await expect(
       page.locator('[data-testid="kody-chat-root"]').first(),
     ).toBeVisible();
@@ -56,14 +58,19 @@ test.describe("Route smoke", () => {
     await expect(page.getByRole("link", { name: "Secrets" })).toBeVisible();
   });
 
-  test("shell shows version badge and collapse toggle", async ({ page }) => {
+  test("sidebar shows version, theme toggle, and collapse", async ({
+    page,
+  }) => {
     await seedAuth(page);
     await page.goto(`${BASE_URL}/`);
-    await expect(page.locator('[data-testid="shell-version"]')).toBeVisible({
-      timeout: 15_000,
-    });
+    const sidebar = page.locator('[aria-label="Primary navigation"]');
+    await expect(sidebar).toBeVisible({ timeout: 15_000 });
+    await expect(sidebar.getByText(/^v\d+\.\d+/)).toBeVisible();
     await expect(
-      page.locator('[data-testid="shell-collapse-toggle"]'),
+      sidebar.getByRole("button", { name: /Switch to (light|dark) mode/ }),
+    ).toBeVisible();
+    await expect(
+      sidebar.getByRole("button", { name: "Collapse sidebar" }),
     ).toBeVisible();
   });
 
