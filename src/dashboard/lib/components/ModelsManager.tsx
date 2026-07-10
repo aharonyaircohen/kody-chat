@@ -11,7 +11,7 @@
  */
 "use client";
 
-import { RepoScopedLink } from "./RepoScopedLink";
+import { RepoScopedLink } from "@dashboard/lib/components/RepoScopedLink";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -27,7 +27,7 @@ import {
   Star,
   Trash2,
 } from "lucide-react";
-import { PageShell } from "./PageShell";
+import { PageShell } from "@dashboard/lib/components/PageShell";
 import { PerImplementationModelCard } from "./PerImplementationModelCard";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
@@ -41,16 +41,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@dashboard/ui/dialog";
-import { ConfirmDialog } from "./ConfirmDialog";
+import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
 import { AuthGuard } from "../auth-guard";
-import { useAuth, buildAuthHeaders } from "../auth-context";
+import { useAuth, buildAuthHeaders } from "@dashboard/lib/auth-context";
 import {
   PROVIDER_PRESETS,
   PROVIDER_PRESET_IDS,
   type ChatModel,
   type ChatProtocol,
   type ProviderPreset,
-} from "../variables/models";
+} from "@dashboard/lib/variables/models";
 
 export interface ModelsQueryScope {
   owner?: string | null;

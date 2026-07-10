@@ -13,8 +13,8 @@ import { Loader2, Plus, X, Cpu } from "lucide-react";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Button } from "@dashboard/ui/button";
 import { Input } from "@dashboard/ui/input";
-import { useEngineConfig } from "../engine/useEngineConfig";
-import { engineModelSpec, type ChatModel } from "../variables/models";
+import { useEngineConfig } from "@dashboard/lib/engine/useEngineConfig";
+import { engineModelSpec, type ChatModel } from "@dashboard/lib/variables/models";
 
 export function PerImplementationModelCard({ models }: { models: ChatModel[] }) {
   const { config, loading, saving, save } = useEngineConfig();

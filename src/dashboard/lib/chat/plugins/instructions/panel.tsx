@@ -12,7 +12,7 @@
 
 import { AuthGuard } from "../../../auth-guard";
 import { InstructionsManager } from "../../../components/InstructionsManager";
-import type { ChatPanelViewProps } from "@dashboard/lib/chat/platform";
+import type { ChatPanelViewProps } from "../../platform";
 
 export const INSTRUCTIONS_PANEL_TESTID = "chat-panel-instructions";
 

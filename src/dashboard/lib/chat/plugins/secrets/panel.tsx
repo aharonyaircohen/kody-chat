@@ -11,7 +11,7 @@
 "use client";
 
 import { SecretsManager } from "../../../components/SecretsManager";
-import type { ChatPanelViewProps } from "@dashboard/lib/chat/platform";
+import type { ChatPanelViewProps } from "../../platform";
 
 export const SECRETS_PANEL_TESTID = "chat-panel-secrets";
 

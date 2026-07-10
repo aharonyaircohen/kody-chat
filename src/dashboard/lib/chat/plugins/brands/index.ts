@@ -5,7 +5,7 @@
  * @ai-summary Brands page-plugin. Contributes exactly one panel view for the
  *   flipped chat-first shell; the route keeps rendering the same manager.
  */
-import { createLazyPanel, type ChatPlugin } from "@dashboard/lib/chat/platform";
+import { createLazyPanel, type ChatPlugin } from "../../platform";
 
 export const BRANDS_PLUGIN_ID = "brands";
 export const BRANDS_PANEL_ID = "brands";

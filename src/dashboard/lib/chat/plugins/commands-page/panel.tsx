@@ -12,7 +12,7 @@
 
 import { AuthGuard } from "../../../auth-guard";
 import { CommandsManager } from "../../../components/CommandsManager";
-import type { ChatPanelViewProps } from "@dashboard/lib/chat/platform";
+import type { ChatPanelViewProps } from "../../platform";
 
 export const COMMANDS_PAGE_PANEL_TESTID = "chat-panel-commands-page";
 

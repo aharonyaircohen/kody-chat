@@ -22,7 +22,7 @@ import {
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-import { PageShell } from "./PageShell";
+import { PageShell } from "@dashboard/lib/components/PageShell";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import {
@@ -35,9 +35,9 @@ import {
 import { Label } from "@dashboard/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
 import { Textarea } from "@dashboard/ui/textarea";
-import { ConfirmDialog } from "./ConfirmDialog";
+import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
 import { AuthGuard } from "../auth-guard";
-import { useAuth, buildAuthHeaders } from "../auth-context";
+import { useAuth, buildAuthHeaders } from "@dashboard/lib/auth-context";
 
 interface InstructionsResource {
   body: string;

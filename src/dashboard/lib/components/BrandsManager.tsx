@@ -24,22 +24,22 @@ import {
   Sparkles,
   Trash2,
 } from "lucide-react";
-import { buildAuthHeaders, useAuth } from "../auth-context";
-import { ConfirmDialog } from "./ConfirmDialog";
+import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
+import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
 import { Button } from "@dashboard/ui/button";
 import { BrandEditor } from "./BrandEditor";
-import { EmptyState } from "./EmptyState";
-import { MasterDetailShell } from "./MasterDetailShell";
+import { EmptyState } from "@dashboard/lib/components/EmptyState";
+import { MasterDetailShell } from "@dashboard/lib/components/MasterDetailShell";
 import type {
   BrandRow,
   BrandModelOption,
   BrandsQueryScope,
   SavePayload,
 } from "./brands-manager-types";
-import { useMediaQuery } from "../hooks/useMediaQuery";
-import { useAgents } from "../hooks/useAgents";
-import { selectionPath } from "../selection-routing";
-import { cn } from "../utils";
+import { useMediaQuery } from "@dashboard/lib/hooks/useMediaQuery";
+import { useAgents } from "@dashboard/lib/hooks/useAgents";
+import { selectionPath } from "@dashboard/lib/selection-routing";
+import { cn } from "@dashboard/lib/utils";
 
 const brandsQueryKeys = {
   all: ["kody-brands"] as const,

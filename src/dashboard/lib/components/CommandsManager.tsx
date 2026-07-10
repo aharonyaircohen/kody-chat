@@ -11,7 +11,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { RepoScopedLink } from "./RepoScopedLink";
+import { RepoScopedLink } from "@dashboard/lib/components/RepoScopedLink";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -24,8 +24,8 @@ import {
   Trash2,
   FileText,
 } from "lucide-react";
-import { PageShell } from "./PageShell";
-import { ListSearch } from "./ListSearch";
+import { PageShell } from "@dashboard/lib/components/PageShell";
+import { ListSearch } from "@dashboard/lib/components/ListSearch";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
@@ -37,10 +37,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@dashboard/ui/dialog";
-import { ConfirmDialog } from "./ConfirmDialog";
+import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
 import { AuthGuard } from "../auth-guard";
-import { useAuth, buildAuthHeaders } from "../auth-context";
-import { MarkdownEditor } from "./MarkdownEditor";
+import { useAuth, buildAuthHeaders } from "@dashboard/lib/auth-context";
+import { MarkdownEditor } from "@dashboard/lib/components/MarkdownEditor";
 
 interface CommandRow {
   slug: string;

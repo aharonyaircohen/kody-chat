@@ -9,7 +9,7 @@
  *   nothing changes anywhere. Server half intentionally absent (honest
  *   boundary — see the tasks pilot manifest).
  */
-import { createLazyPanel, type ChatPlugin } from "@dashboard/lib/chat/platform";
+import { createLazyPanel, type ChatPlugin } from "../../platform";
 
 export const CONTEXT_PLUGIN_ID = "context";
 export const CONTEXT_PANEL_ID = "context";

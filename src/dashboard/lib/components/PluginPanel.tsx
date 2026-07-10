@@ -8,7 +8,7 @@
 "use client";
 
 import { useMemo } from "react";
-import type { ChatPlugin } from "@dashboard/lib/chat/platform/types";
+import type { ChatPlugin } from "../chat/platform/types";
 
 const EMPTY_HOST: Readonly<Record<string, unknown>> = Object.freeze({});
 

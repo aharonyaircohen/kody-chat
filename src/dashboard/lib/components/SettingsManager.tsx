@@ -12,7 +12,7 @@
  */
 "use client";
 
-import { RepoScopedLink } from "./RepoScopedLink";
+import { RepoScopedLink } from "@dashboard/lib/components/RepoScopedLink";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -32,19 +32,19 @@ import {
 import {
   setChatFirstLayout,
   useChatFirstLayout,
-} from "../hooks/use-chat-first-layout";
+} from "@dashboard/lib/hooks/use-chat-first-layout";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
 import { Label } from "@dashboard/ui/label";
-import { ConfirmDialog } from "./ConfirmDialog";
+import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
 import { DefaultChatCard } from "./DefaultChatCard";
-import { PageShell } from "./PageShell";
+import { PageShell } from "@dashboard/lib/components/PageShell";
 import {
   DEFAULT_KODY_STORE_REF,
   DEFAULT_KODY_STORE_REPO_URL,
   useAuth,
-} from "../auth-context";
+} from "@dashboard/lib/auth-context";
 
 /** Section divider header — groups the cards under a quiet uppercase label. */
 function SectionHeader({

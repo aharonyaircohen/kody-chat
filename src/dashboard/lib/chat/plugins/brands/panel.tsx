@@ -8,7 +8,7 @@
  */
 "use client";
 
-import { BrandsManager } from "@dashboard/lib/components/BrandsManager";
+import { BrandsManager } from "../../../components/BrandsManager";
 
 export const BRANDS_PANEL_TESTID = "chat-panel-brands";
 

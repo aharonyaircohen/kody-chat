@@ -11,7 +11,7 @@
 "use client";
 
 import { SettingsManager } from "../../../components/SettingsManager";
-import type { ChatPanelViewProps } from "@dashboard/lib/chat/platform";
+import type { ChatPanelViewProps } from "../../platform";
 
 export const SETTINGS_PANEL_TESTID = "chat-panel-settings";
 

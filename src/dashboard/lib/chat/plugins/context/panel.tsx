@@ -12,7 +12,7 @@
 
 import { AuthGuard } from "../../../auth-guard";
 import { ContextControl } from "../../../components/ContextControl";
-import type { ChatPanelViewProps } from "@dashboard/lib/chat/platform";
+import type { ChatPanelViewProps } from "../../platform";
 
 export const CONTEXT_PANEL_TESTID = "chat-panel-context";
 

@@ -12,7 +12,7 @@
 
 import { AuthGuard } from "../../../auth-guard";
 import { MemoryManager } from "../../../components/MemoryManager";
-import type { ChatPanelViewProps } from "@dashboard/lib/chat/platform";
+import type { ChatPanelViewProps } from "../../platform";
 
 export const MEMORY_PANEL_TESTID = "chat-panel-memory";
 

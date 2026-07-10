@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { MessageSquareDot } from "lucide-react";
-import { RepoScopedLink } from "./RepoScopedLink";
+import { RepoScopedLink } from "@dashboard/lib/components/RepoScopedLink";
 import { toast } from "sonner";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Label } from "@dashboard/ui/label";
@@ -23,14 +23,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@dashboard/ui/select";
-import { getStoredAuth } from "../api";
-import { useAuth } from "../auth-context";
-import { buildAgentList, type ChatModelEntry } from "@dashboard/lib/chat/platform/agent-entries";
+import { getStoredAuth } from "@dashboard/lib/api";
+import { useAuth } from "@dashboard/lib/auth-context";
+import { buildAgentList, type ChatModelEntry } from "../chat/platform/agent-entries";
 import {
   clearDefaultChatEntry,
   readDefaultChatEntry,
   writeDefaultChatEntry,
-} from "@dashboard/lib/chat/platform/default-entry";
+} from "../chat/platform/default-entry";
 
 /** Sentinel select value for "no explicit default" (Radix forbids ""). */
 const AUTO = "__auto__";

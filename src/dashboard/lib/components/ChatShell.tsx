@@ -13,8 +13,9 @@
 
 import { type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import type { ChatPlugin } from "@dashboard/lib/chat/platform/types";
+import type { ChatPlugin } from "../chat/platform/types";
 import { KodyChat } from "@dashboard/lib/components/KodyChat";
+// Package-owned (the dashboard deletes its copy) — must stay relative.
 import { Sidebar } from "./Sidebar";
 import type { SettingsNavItem, SettingsNavSection } from "@dashboard/lib/components/settings-nav";
 import { cn } from "@dashboard/lib/utils";

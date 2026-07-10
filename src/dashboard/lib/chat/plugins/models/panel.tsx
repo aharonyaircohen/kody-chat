@@ -11,7 +11,7 @@
 "use client";
 
 import { ModelsManager } from "../../../components/ModelsManager";
-import type { ChatPanelViewProps } from "@dashboard/lib/chat/platform";
+import type { ChatPanelViewProps } from "../../platform";
 
 export const MODELS_PANEL_TESTID = "chat-panel-models";
 
