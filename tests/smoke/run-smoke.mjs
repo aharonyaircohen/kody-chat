@@ -17,7 +17,14 @@ const BOOT_TIMEOUT_MS = 120_000;
 
 /** Each check: path, allowed status codes, optional body predicate. */
 const CHECKS = [
-  { path: "/", ok: [200, 307, 308], name: "root page (redirects to default brand)" },
+  { path: "/", ok: [200], name: "operator shell home renders" },
+  { path: "/models", ok: [200], name: "models page renders" },
+  { path: "/secrets", ok: [200], name: "secrets page renders" },
+  { path: "/brands", ok: [200], name: "brands page renders" },
+  { path: "/instructions", ok: [200], name: "instructions page renders" },
+  { path: "/api/kody/memory", ok: [200, 401, 403], name: "memory API responds (no 500)" },
+  { path: "/api/kody/context", ok: [200, 401, 403], name: "context API responds (no 500)" },
+  { path: "/api/kody/instructions", ok: [200, 401, 403], name: "instructions API responds (no 500)" },
   { path: "/client/kody", ok: [200], name: "builtin brand page renders", body: (t) => t.includes("<html") },
   { path: "/client/unknown-brand-xyz", ok: [404], name: "unknown brand 404s cleanly (no 500)" },
   { path: "/api/kody/models", ok: [200, 401, 403], name: "models API responds (no 500)" },

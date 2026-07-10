@@ -18,6 +18,9 @@
     "./core/*": "./src/dashboard/lib/chat/core/*.ts",
     "./core/transports/*": "./src/dashboard/lib/chat/core/transports/*.ts",
     "./components/KodyChat": "./src/dashboard/lib/components/KodyChat.tsx",
+    "./components/ChatShell": "./src/dashboard/lib/components/ChatShell.tsx",
+    "./components/PluginPanel": "./src/dashboard/lib/components/PluginPanel.tsx",
+    "./auth-guard": "./src/dashboard/lib/auth-guard.tsx",
     "./client-brand": "./src/dashboard/lib/client-brand.ts"
   },
   "scripts": {

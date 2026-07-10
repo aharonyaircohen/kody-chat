@@ -12,11 +12,59 @@ import { test, expect } from "@playwright/test";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3344";
 
+async function seedAuth(page: import("@playwright/test").Page): Promise<void> {
+  await page.goto(`${BASE_URL}/`);
+  await page.waitForLoadState("domcontentloaded");
+  await page.evaluate(() => {
+    localStorage.setItem(
+      "kody_auth",
+      JSON.stringify({
+        repoUrl: "https://github.com/test-owner/test-repo",
+        owner: "test-owner",
+        repo: "test-repo",
+        token: "ghp_placeholder",
+        user: { login: "smoke-e2e", avatar_url: "", id: 1 },
+        loggedInAt: Date.now(),
+      }),
+    );
+  });
+}
+
 test.describe("Route smoke", () => {
-  test("/ redirects to the default brand client surface", async ({ page }) => {
+  test("/ mounts the operator shell with sidepanel and chat", async ({
+    page,
+  }) => {
+    await seedAuth(page);
     await page.goto(`${BASE_URL}/`);
     await page.waitForLoadState("domcontentloaded");
-    await expect(page).toHaveURL(/\/client\/kody$/);
+    await expect(page.locator('[data-testid="chat-shell"]')).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.locator('[data-testid="shell-sidepanel"]')).toBeVisible();
+    await expect(
+      page.locator('[data-testid="kody-chat-root"]').first(),
+    ).toBeVisible();
+  });
+
+  test("sidepanel navigates to the models page", async ({ page }) => {
+    await seedAuth(page);
+    await page.goto(`${BASE_URL}/models`);
+    await page.waitForLoadState("domcontentloaded");
+    await expect(page.locator('[data-testid="chat-shell"]')).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByRole("link", { name: "Secrets" })).toBeVisible();
+  });
+
+  test("shell shows version badge and collapse toggle", async ({ page }) => {
+    await seedAuth(page);
+    await page.goto(`${BASE_URL}/`);
+    await expect(page.locator('[data-testid="shell-version"]')).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(
+      page.locator('[data-testid="shell-collapse-toggle"]'),
+    ).toBeVisible();
   });
 
   test("/client/kody mounts the client chat surface", async ({ page }) => {
