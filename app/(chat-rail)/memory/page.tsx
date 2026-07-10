@@ -6,7 +6,7 @@
  *   search, and delete `memory/<id>.md` state-repo files.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { MemoryManager } from "@dashboard/lib/components/MemoryManager";
+import { MemoryManager } from "@kody-ade/kody-chat/components/MemoryManager";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";

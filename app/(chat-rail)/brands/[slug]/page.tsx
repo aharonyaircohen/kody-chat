@@ -5,7 +5,7 @@
  * @ai-summary Selected Brand route. Keeps brand selection addressable at
  *   `/brands/<slug>`.
  */
-import { BrandsManager } from "@dashboard/lib/components/BrandsManager";
+import { BrandsManager } from "@kody-ade/kody-chat/components/BrandsManager";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-dynamic";

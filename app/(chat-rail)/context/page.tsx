@@ -8,7 +8,7 @@
  *   agent knows what the company is and does.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { ContextControl } from "@dashboard/lib/components/ContextControl";
+import { ContextControl } from "@kody-ade/kody-chat/components/ContextControl";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";

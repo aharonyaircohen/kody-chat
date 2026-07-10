@@ -3,12 +3,25 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
-const component = (file: string) =>
-  read(join("src/dashboard/lib/components", file));
+// Panels that moved to @kody-ade/kody-chat are read from the package copy.
+const PACKAGE_COMPONENTS = new Set([
+  "DefaultChatCard.tsx",
+  "SecretsManager.tsx",
+  "CommandsManager.tsx",
+  "ModelsManager.tsx",
+  "SettingsManager.tsx",
+  "MemoryManager.tsx",
+  "ContextControl.tsx",
+  "BrandsManager.tsx",
+  "InstructionsManager.tsx",
+]);
+const componentsRoot = (file: string) =>
+  PACKAGE_COMPONENTS.has(file)
+    ? "node_modules/@kody-ade/kody-chat/src/dashboard/lib/components"
+    : "src/dashboard/lib/components";
+const component = (file: string) => read(join(componentsRoot(file), file));
 const sourceFile = (file: string) =>
-  read(
-    file.startsWith("src/") ? file : join("src/dashboard/lib/components", file),
-  );
+  read(file.startsWith("src/") ? file : join(componentsRoot(file), file));
 
 const directRepoOwnedLinkHref =
   /<Link(?:\s|>)[\s\S]{0,240}href="\/(?:activity|agent-goals|agent-loops|capabilities|commands|config|context|docs|memory|messages|models|notifications|preview|reports|runner|secrets|tasks|variables)(?:\/|")/;

@@ -5,7 +5,7 @@
  * @ai-summary User credentials management entry point. Renders inside
  *   PageWithChat so the assistant is always available.
  */
-import { SettingsManager } from "@dashboard/lib/components/SettingsManager";
+import { SettingsManager } from "@kody-ade/kody-chat/components/SettingsManager";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";

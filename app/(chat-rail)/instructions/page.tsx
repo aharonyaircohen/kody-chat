@@ -7,7 +7,7 @@
  *   turn so users can override tone / length / formatting.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { InstructionsManager } from "@dashboard/lib/components/InstructionsManager";
+import { InstructionsManager } from "@kody-ade/kody-chat/components/InstructionsManager";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";

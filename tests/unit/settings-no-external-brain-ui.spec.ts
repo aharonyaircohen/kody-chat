@@ -3,12 +3,12 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const settingsSource = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/components/SettingsManager.tsx"),
+  resolve(__dirname, "../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/SettingsManager.tsx"),
   "utf8",
 );
 
 const defaultChatSource = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/components/DefaultChatCard.tsx"),
+  resolve(__dirname, "../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/DefaultChatCard.tsx"),
   "utf8",
 );
 

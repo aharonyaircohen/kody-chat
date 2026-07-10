@@ -5,7 +5,7 @@
  * @ai-summary Client brand registry entry point. Manages brand JSON files
  *   stored at `brands/<slug>.json` in the state repo.
  */
-import { BrandsManager } from "@dashboard/lib/components/BrandsManager";
+import { BrandsManager } from "@kody-ade/kody-chat/components/BrandsManager";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-dynamic";

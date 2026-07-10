@@ -83,7 +83,7 @@ import {
   AGENT_LOOPS_PANEL_ID,
 } from "../chat/plugins/agent-loops";
 import { agentsChatPlugin, AGENTS_PANEL_ID } from "../chat/plugins/agents";
-import { brandsChatPlugin, BRANDS_PANEL_ID } from "../chat/plugins/brands";
+import { brandsChatPlugin, BRANDS_PANEL_ID } from "@kody-ade/kody-chat/plugins/brands";
 import {
   capabilitiesChatPlugin,
   CAPABILITIES_PANEL_ID,
@@ -95,38 +95,38 @@ import {
 import {
   commandsPageChatPlugin,
   COMMANDS_PAGE_PANEL_ID,
-} from "../chat/plugins/commands-page";
+} from "@kody-ade/kody-chat/plugins/commands-page";
 import { companyChatPlugin, COMPANY_PANEL_ID } from "../chat/plugins/company";
 import {
   companyIntentsChatPlugin,
   COMPANY_INTENTS_PANEL_ID,
 } from "../chat/plugins/company-intents";
 import { configChatPlugin, CONFIG_PANEL_ID } from "../chat/plugins/config";
-import { contextChatPlugin, CONTEXT_PANEL_ID } from "../chat/plugins/context";
+import { contextChatPlugin, CONTEXT_PANEL_ID } from "@kody-ade/kody-chat/plugins/context";
 import { docsChatPlugin, DOCS_PANEL_ID } from "../chat/plugins/docs";
 import { filesChatPlugin, FILES_PANEL_ID } from "../chat/plugins/files";
 import { inboxChatPlugin, INBOX_PANEL_ID } from "../chat/plugins/inbox";
 import {
   instructionsChatPlugin,
   INSTRUCTIONS_PANEL_ID,
-} from "../chat/plugins/instructions";
-import { memoryChatPlugin, MEMORY_PANEL_ID } from "../chat/plugins/memory";
+} from "@kody-ade/kody-chat/plugins/instructions";
+import { memoryChatPlugin, MEMORY_PANEL_ID } from "@kody-ade/kody-chat/plugins/memory";
 import {
   messagesChatPlugin,
   MESSAGES_PANEL_ID,
 } from "../chat/plugins/messages";
-import { modelsChatPlugin, MODELS_PANEL_ID } from "../chat/plugins/models";
+import { modelsChatPlugin, MODELS_PANEL_ID } from "@kody-ade/kody-chat/plugins/models";
 import {
   notificationsChatPlugin,
   NOTIFICATIONS_PANEL_ID,
 } from "../chat/plugins/notifications";
 import { previewChatPlugin, PREVIEW_PANEL_ID } from "../chat/plugins/preview";
 import { reportsChatPlugin, REPORTS_PANEL_ID } from "../chat/plugins/reports";
-import { secretsChatPlugin, SECRETS_PANEL_ID } from "../chat/plugins/secrets";
+import { secretsChatPlugin, SECRETS_PANEL_ID } from "@kody-ade/kody-chat/plugins/secrets";
 import {
   settingsChatPlugin,
   SETTINGS_PANEL_ID,
-} from "../chat/plugins/settings";
+} from "@kody-ade/kody-chat/plugins/settings";
 import {
   storeCatalogChatPlugin,
   STORE_CATALOG_PANEL_ID,

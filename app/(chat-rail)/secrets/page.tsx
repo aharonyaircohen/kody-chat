@@ -5,7 +5,7 @@
  * @ai-summary Secrets management entry point. Renders inside the shared
  *   PageWithChat shell so the assistant is always available.
  */
-import { SecretsManager } from "@dashboard/lib/components/SecretsManager";
+import { SecretsManager } from "@kody-ade/kody-chat/components/SecretsManager";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";

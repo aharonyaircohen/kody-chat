@@ -5,7 +5,7 @@
  * @ai-summary Chat model management entry point. CRUD UI for the LLM_MODELS
  *   variable. Rendered inside the shared PageWithChat shell.
  */
-import { ModelsManager } from "@dashboard/lib/components/ModelsManager";
+import { ModelsManager } from "@kody-ade/kody-chat/components/ModelsManager";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";

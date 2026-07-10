@@ -8,7 +8,7 @@
  *   chat composer.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { CommandsManager } from "@dashboard/lib/components/CommandsManager";
+import { CommandsManager } from "@kody-ade/kody-chat/components/CommandsManager";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";
