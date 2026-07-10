@@ -26,40 +26,79 @@ import type {
   SettingsNavSection,
 } from "@dashboard/lib/components/settings-nav";
 import { commandsChatPlugin } from "@dashboard/lib/chat/plugins/commands";
-import { terminalChatPlugin } from "@dashboard/lib/chat/plugins/terminal/plugin";
 
 const CHAT_HOME: SettingsNavItem = {
   href: "/",
   label: "Chat",
   icon: MessageSquare,
   exact: true,
+  tint: "text-emerald-300 bg-emerald-500/10",
 };
 
+// Icon tints match the dashboard's palette for the same pages.
 const BUILTIN_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: "Chat setup",
     items: [
-      { href: "/models", label: "Models", icon: Boxes },
-      { href: "/secrets", label: "Secrets", icon: KeyRound },
-      { href: "/settings", label: "Settings", icon: Settings },
-      { href: "/brands", label: "Brands", icon: Palette },
+      {
+        href: "/models",
+        label: "Models",
+        icon: Boxes,
+        tint: "text-emerald-300 bg-emerald-500/10",
+      },
+      {
+        href: "/secrets",
+        label: "Secrets",
+        icon: KeyRound,
+        tint: "text-rose-300 bg-rose-500/10",
+      },
+      {
+        href: "/settings",
+        label: "Settings",
+        icon: Settings,
+        tint: "text-sky-300 bg-sky-500/10",
+      },
+      {
+        href: "/brands",
+        label: "Brands",
+        icon: Palette,
+        tint: "text-cyan-300 bg-cyan-500/10",
+      },
     ],
   },
   {
     title: "Knowledge",
     items: [
-      { href: "/commands", label: "Commands", icon: SlashSquare },
-      { href: "/context", label: "Context", icon: BookOpen },
-      { href: "/memory", label: "Memory", icon: Brain },
-      { href: "/instructions", label: "Instructions", icon: FileText },
+      {
+        href: "/commands",
+        label: "Commands",
+        icon: SlashSquare,
+        tint: "text-violet-300 bg-violet-500/10",
+      },
+      {
+        href: "/context",
+        label: "Context",
+        icon: BookOpen,
+        tint: "text-teal-300 bg-teal-500/10",
+      },
+      {
+        href: "/memory",
+        label: "Memory",
+        icon: Brain,
+        tint: "text-fuchsia-300 bg-fuchsia-500/10",
+      },
+      {
+        href: "/instructions",
+        label: "Instructions",
+        icon: FileText,
+        tint: "text-cyan-300 bg-cyan-500/10",
+      },
     ],
   },
 ];
 
-const CHAT_PLUGINS = [
-  { plugin: commandsChatPlugin },
-  { plugin: terminalChatPlugin },
-];
+// Terminal is a DASHBOARD plugin — kody-chat's operator chat ships without it.
+const CHAT_PLUGINS = [{ plugin: commandsChatPlugin }];
 
 export default function ShellLayout({
   children,

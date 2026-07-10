@@ -68,6 +68,7 @@ export function ChatShell({
         <KodyChat
           presentation="standalone"
           compactHeader
+          hideTerminalMode
           railFullscreen
           plugins={chatPlugins}
         />

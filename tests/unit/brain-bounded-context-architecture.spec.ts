@@ -63,8 +63,6 @@ describe("Brain bounded context architecture", () => {
     expect(source("app/api/kody/brain/image/apply/route.ts")).toContain(
       "applyBrainImage(",
     );
-    expect(source("app/api/kody/terminal/session/route.ts")).toContain(
-      "startTerminalSession(",
-    );
+    // Terminal routes live in the dashboard host, not kody-chat.
   });
 });
