@@ -24,7 +24,6 @@ import {
   Home,
   KeyRound,
   Layers,
-  Languages,
   LayoutGrid,
   MessageSquare,
   MonitorPlay,
@@ -41,6 +40,7 @@ import {
   Workflow,
   type LucideIcon,
 } from "lucide-react";
+import { PACKAGE_ADMIN_PAGES } from "@kody-ade/kody-chat/admin-pages";
 import { repoPathForNavMatching } from "@dashboard/lib/routes";
 
 export interface SettingsNavItem {
@@ -354,13 +354,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         description: "Client chat branding for /client surfaces.",
         tint: "text-cyan-300 bg-cyan-500/10",
       },
-      {
-        href: "/languages",
-        label: "Languages",
-        icon: Languages,
-        description: "Client chat translations for /client surfaces.",
-        tint: "text-amber-300 bg-amber-500/10",
-      },
+      ...PACKAGE_ADMIN_PAGES.map((page) => ({
+        href: page.href,
+        label: page.label,
+        icon: page.icon,
+        description: page.description,
+        tint: page.tint,
+      })),
       {
         href: "/setup",
         label: "Setup",
