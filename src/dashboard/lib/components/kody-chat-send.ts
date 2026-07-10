@@ -32,15 +32,15 @@
 
 import type { MutableRefObject } from "react";
 import { toast } from "sonner";
-import { AGENT_KODY, AGENTS, type AgentId } from "../agents";
+import { AGENT_KODY, AGENTS, type AgentId } from "@dashboard/lib/agents";
 import type { ChatDropdownEntry } from "../chat/platform/agent-entries";
 import { trace, type createChatPluginRegistry } from "../chat/platform";
 import {
   repoBrainConversationKey,
   repoBrainScopeKey,
-} from "../brain/repo-scope";
-import { getStoredAuth } from "../api";
-import type { KodyTask } from "../types";
+} from "@dashboard/lib/brain/repo-scope";
+import { getStoredAuth } from "@dashboard/lib/api";
+import type { KodyTask } from "@dashboard/lib/types";
 import {
   authHeaders,
   stickyBrainChatId,
@@ -77,14 +77,14 @@ import {
   type Attachment,
   type KodyChatProps,
 } from "./kody-chat-types";
-import type { AttachmentRef, ChatContext } from "../chat-types";
+import type { AttachmentRef, ChatContext } from "@dashboard/lib/chat-types";
 import type { useChatSessions } from "../chat/core/use-chat-sessions";
 import type { useLiveRunner } from "./kody-chat-live-runner";
 import { parseReasoning, stripReasoning } from "../chat/core/reasoning";
 import {
   extractFirstStaffMentionCandidate,
   type StaffMentionTrigger,
-} from "../mentions/agent-mentions";
+} from "@dashboard/lib/mentions/agent-mentions";
 import {
   pickVibeRequestIssueNumber,
   vibeLiveTaskContext,

@@ -8,7 +8,7 @@
  */
 
 import { Image as ImageIcon, FileText, FileCode } from "lucide-react";
-import type { ChatBackend } from "../agents";
+import type { ChatBackend } from "@dashboard/lib/agents";
 
 /**
  * Phase label for the Kody Live boot banner. Two timelines because the

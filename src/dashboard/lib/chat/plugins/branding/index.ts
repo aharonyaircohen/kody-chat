@@ -11,7 +11,7 @@
  *   compile-time surface, no zod boundary (plan M5.4; the zod trigger is
  *   consumer-repo-loaded brands, which do not exist yet).
  */
-import type { ClientBrand } from "../../../client-brand";
+import type { ClientBrand } from "@dashboard/lib/client-brand";
 import type { ChatPlugin } from "../../platform";
 
 export const BRANDING_PLUGIN_ID = "branding";

@@ -12,7 +12,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { SessionMeta } from "../../../chat-types";
+import type { SessionMeta } from "@dashboard/lib/chat-types";
 import { authHeaders } from "../../core/kody-chat-live-session";
 import type { ServerProviderMachineRow } from "@dashboard/lib/infrastructure/server-machine-model";
 import {

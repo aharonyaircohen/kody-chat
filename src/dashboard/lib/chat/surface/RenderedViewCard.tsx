@@ -11,7 +11,7 @@
 
 import { useState, type ReactNode } from "react";
 import { Check, MousePointerClick, X } from "lucide-react";
-import { MarkdownPreview } from "../../components/MarkdownPreview";
+import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
 import {
   getRenderedViewUi,
   type RenderedViewAction,

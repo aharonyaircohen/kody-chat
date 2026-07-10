@@ -11,12 +11,12 @@
  *   seq/in-flight/failure keys, input-ack timeout → reconnect, restore
  *   blocks input, reconnect-once notice, bounded fetches.
  */
-import { getStoredBrainTerminalActivityLimit } from "../../../api";
+import { getStoredBrainTerminalActivityLimit } from "@dashboard/lib/api";
 import { authHeaders } from "../../core/kody-chat-live-session";
 import {
   parseTerminalBridgeServerMessage,
   type TerminalBridgeClientMessage,
-} from "../../../terminal/bridge-protocol";
+} from "@dashboard/lib/terminal/bridge-protocol";
 import { brainImageMismatchNotices, type FlySessionWarning } from "./terminal-text";
 import type {
   ChatTerminalConnectionState,

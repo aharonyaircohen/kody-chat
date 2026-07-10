@@ -30,7 +30,7 @@ import {
   SquareTerminal,
 } from "lucide-react";
 
-import { RepoScopedLink } from "../../../components/RepoScopedLink";
+import { RepoScopedLink } from "@dashboard/lib/components/RepoScopedLink";
 import {
   flyMachineTerminalLabel,
   flyTerminalTargetLabel,

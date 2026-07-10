@@ -45,9 +45,9 @@ import {
   decideLivePersistence,
   shouldRehydrateScope,
 } from "../chat/core/rehydration";
-import { getStoredFlyPerf } from "../api";
-import type { AgentId } from "../agents";
-import type { ChatContext } from "../chat-types";
+import { getStoredFlyPerf } from "@dashboard/lib/api";
+import type { AgentId } from "@dashboard/lib/agents";
+import type { ChatContext } from "@dashboard/lib/chat-types";
 import { vibeTurnFields, type VibeLiveTaskContext } from "../chat/plugins/vibe";
 import type { Message } from "./kody-chat-types";
 

@@ -24,11 +24,11 @@ import {
   Target,
   X,
 } from "lucide-react";
-import type { AgentConfig, AgentId } from "../../agents";
+import type { AgentConfig, AgentId } from "@dashboard/lib/agents";
 import type { ChatDropdownEntry } from "../platform/agent-entries";
 import type { ModelReasoning } from "../core/reasoning-adapter";
 import { writeReasoningEffort } from "../core/reasoning-pref";
-import type { KodyTask } from "../../types";
+import type { KodyTask } from "@dashboard/lib/types";
 import { ChatPluginSlot } from "./ChatPluginProvider";
 
 interface HeaderControlsProps {

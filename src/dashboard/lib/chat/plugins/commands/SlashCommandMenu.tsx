@@ -13,7 +13,7 @@
 "use client";
 
 import { useMemo } from "react";
-import { RepoScopedLink } from "../../../components/RepoScopedLink";
+import { RepoScopedLink } from "@dashboard/lib/components/RepoScopedLink";
 import type { SlashCommand } from "./useSlashCommands";
 
 interface Props {

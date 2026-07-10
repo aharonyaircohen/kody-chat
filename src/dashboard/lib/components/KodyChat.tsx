@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { navLabelForPath } from "./settings-nav";
+import { navLabelForPath } from "@dashboard/lib/components/settings-nav";
 import { useLiveRunner } from "./kody-chat-live-runner";
 import { FileText, FileCode } from "lucide-react";
 import {
@@ -12,9 +12,9 @@ import {
   type ChatHostEffect,
 } from "../chat/platform";
 import { ChatSurfaceLayout } from "../chat/surface/ChatSurfaceLayout";
-import { useAuth } from "../auth-context";
+import { useAuth } from "@dashboard/lib/auth-context";
 import { toast } from "sonner";
-import type { KodyTask } from "../types";
+import type { KodyTask } from "@dashboard/lib/types";
 // Terminal HOST wiring (phase 1.6d): registry, checkpoints, payload
 // hand-off, chrome state + the lazy terminal chrome nodes all live in
 // the useTerminalHost hook (kody-chat-terminal-host.tsx). Only the
@@ -36,10 +36,10 @@ import {
   readGoalDirectEffect,
   type GoalDirectEffectPayload,
 } from "../chat/plugins/goals";
-import { useElementPicker } from "../picker/useElementPicker";
-import { formatPageInfo } from "../picker/protocol";
-import { runPreviewAction } from "../picker/run-preview-action";
-import { formatMacrosCatalog, type Macro } from "../macros";
+import { useElementPicker } from "@dashboard/lib/picker/useElementPicker";
+import { formatPageInfo } from "@dashboard/lib/picker/protocol";
+import { runPreviewAction } from "@dashboard/lib/picker/run-preview-action";
+import { formatMacrosCatalog, type Macro } from "@dashboard/lib/macros";
 import {
   authHeaders,
   clearLiveSession,
@@ -53,32 +53,32 @@ import {
   type Attachment,
   type KodyChatProps,
 } from "./kody-chat-types";
-import type { ChatMessage } from "../chat-types";
+import type { ChatMessage } from "@dashboard/lib/chat-types";
 import {
   putAttachment,
   deleteAttachment,
   purgeOrphans,
-} from "../attachment-store";
-import { ConfirmDialog } from "./ConfirmDialog";
+} from "@dashboard/lib/attachment-store";
+import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
 import {
   ChatIssueReportDialog,
   type ChatIssueReportState,
-} from "./ChatIssueReportDialog";
-import { useRemoteStatus } from "../hooks/useRemoteStatus";
-import { useAgents } from "../hooks/useAgents";
+} from "@dashboard/lib/components/ChatIssueReportDialog";
+import { useRemoteStatus } from "@dashboard/lib/hooks/useRemoteStatus";
+import { useAgents } from "@dashboard/lib/hooks/useAgents";
 import { useChatDataSources } from "./kody-chat-data";
 import { useAgentSelection } from "./kody-chat-selection";
 import { useVoiceOrchestration } from "./kody-chat-voice";
 import { PIPER_VOICES } from "@dashboard/lib/voice/voices";
-import { VoiceChatOverlay } from "./VoiceChatOverlay";
+import { VoiceChatOverlay } from "@dashboard/lib/components/VoiceChatOverlay";
 import { useChatSessions } from "../chat/core/use-chat-sessions";
-import { useKodyActionState } from "../hooks/useKodyActionState";
-import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useKodyActionState } from "@dashboard/lib/hooks/useKodyActionState";
+import { useMediaQuery } from "@dashboard/lib/hooks/useMediaQuery";
 import { SessionsPanel } from "../chat/surface/SessionsPanel";
 import { HeaderControls } from "../chat/surface/HeaderControls";
 import { MessageList } from "../chat/surface/MessageList";
 import { Composer } from "../chat/surface/Composer";
-import type { StaffMentionTrigger } from "../mentions/agent-mentions";
+import type { StaffMentionTrigger } from "@dashboard/lib/mentions/agent-mentions";
 import { EmptyState } from "../chat/surface/EmptyState";
 import type { RecentVibeIssue } from "../chat/plugins/vibe";
 import type {

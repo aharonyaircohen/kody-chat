@@ -20,7 +20,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AGENT_KODY, AGENTS, type AgentConfig, type AgentId } from "../agents";
+import { AGENT_KODY, AGENTS, type AgentConfig, type AgentId } from "@dashboard/lib/agents";
 import {
   buildAgentList,
   shouldWaitForModelBackedEntryResolution,

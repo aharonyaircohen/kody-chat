@@ -23,15 +23,15 @@ import {
   type SetStateAction,
 } from "react";
 import { ChevronDown } from "lucide-react";
-import { MarkdownPreview } from "../../components/MarkdownPreview";
-import { MessageActions } from "../../components/MessageActions";
+import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
+import { MessageActions } from "@dashboard/lib/components/MessageActions";
 import { MessageAttachments } from "../../components/MessageAttachments";
-import { TypingIndicator } from "../../components/TypingIndicator";
+import { TypingIndicator } from "@dashboard/lib/components/TypingIndicator";
 import {
   ReasoningPanel,
   ThinkingPanel,
   ToolCallList,
-} from "../../components/ToolCallCard";
+} from "@dashboard/lib/components/ToolCallCard";
 import type { Message, ToolCall } from "../../components/kody-chat-types";
 import { parseAssistantContent } from "../core/tool-call-strip";
 import { softFormatUserMessageForDisplay } from "../core/user-message-format";
@@ -45,7 +45,7 @@ import {
   resolveTextDirection,
   rtlAwareMarkdownClassName,
   textIsolationStyle,
-} from "../../text-direction";
+} from "@dashboard/lib/text-direction";
 
 export function getMessageDirection(text: string) {
   return resolveTextDirection(text);
