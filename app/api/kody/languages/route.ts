@@ -23,11 +23,11 @@ import {
   listLanguages,
   readLanguageFile,
   writeLanguageFile,
-} from "@dashboard/lib/languages";
+} from "../../../../src/dashboard/lib/languages";
 import {
   isValidLanguageCode,
   normalizeClientLanguageCode,
-} from "@dashboard/lib/client-language";
+} from "../../../../src/dashboard/lib/client-language";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export const dynamic = "force-dynamic";

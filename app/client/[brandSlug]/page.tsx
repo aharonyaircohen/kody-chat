@@ -31,7 +31,7 @@ import {
   isEmailAllowed,
 } from "@dashboard/lib/client-auth/allowlist";
 import { resolveConfiguredProviders } from "@dashboard/lib/client-auth/credentials";
-import { ClientAuthGate } from "@dashboard/lib/client-auth/ClientAuthGate";
+import { ClientAuthGate } from "../../../src/dashboard/lib/client-auth/ClientAuthGate";
 
 interface ClientChatPageProps {
   params: Promise<{ brandSlug: string }>;

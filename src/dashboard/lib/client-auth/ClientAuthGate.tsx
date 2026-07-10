@@ -13,7 +13,7 @@ import type { ClientBrand } from "../client-brand";
 import { directionForLocale } from "../chat/platform/i18n";
 import type { ClientAuthProvider } from "./allowlist";
 import { providerLabel } from "./catalog";
-import { signIn, signOut } from "./auth";
+import { signIn, signOut } from "@dashboard/lib/client-auth/auth";
 import { getClientSurfaceCatalog } from "../client-chat-strings";
 
 interface ClientAuthGateProps {

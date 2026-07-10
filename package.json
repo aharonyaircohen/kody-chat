@@ -28,7 +28,10 @@
     "./auth-guard": "./src/dashboard/lib/auth-guard.tsx",
     "./client-brand": "./src/dashboard/lib/client-brand.ts",
     "./client-language": "./src/dashboard/lib/client-language.ts",
-    "./languages": "./src/dashboard/lib/languages/index.ts"
+    "./languages": "./src/dashboard/lib/languages/index.ts",
+    "./admin-pages": "./src/dashboard/lib/admin-pages.ts",
+    "./routes/kody/languages": "./app/api/kody/languages/route.ts",
+    "./routes/kody/languages-detail": "./app/api/kody/languages/[code]/route.ts"
   },
   "scripts": {
     "dev": "next dev --turbopack -p 3344",
