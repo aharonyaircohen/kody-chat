@@ -854,24 +854,6 @@ export async function POST(req: NextRequest) {
   let activeAgentIdentity = chatBundle.agentIdentity;
   let addressedAgentMember: Awaited<ReturnType<typeof readResolvedAgentFile>> =
     null;
-  // Repo-configurable default identity: an agent file named `kody`
-  // (repo `.kody/agents/kody.md`, or the company store) overrides the
-  // built-in identity for un-addressed turns. Editable on /agents like
-  // any agent; absent file = built-in default. Reads go through the
-  // cached agent-file path, so polling budget rules hold.
-  if (!agentSlug && repo && !clientSurface) {
-    try {
-      const identityOverride = await readResolvedAgentFile(
-        "kody",
-        createUserOctokit(repo.token),
-      );
-      if (identityOverride) {
-        activeAgentIdentity = buildAgentChatIdentity(identityOverride);
-      }
-    } catch {
-      // Optional override — any read failure falls back to the built-in.
-    }
-  }
   if (agentSlug) {
     if (!isValidAgentSlug(agentSlug)) {
       clearGitHubContext();
