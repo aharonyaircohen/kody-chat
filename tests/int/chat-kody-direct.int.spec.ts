@@ -220,7 +220,7 @@ describe("POST /api/kody/chat/kody", () => {
       await import("../../src/dashboard/lib/chat-defaults");
     const prompt = (await loadChatDefaults("acme", "repo")).agentIdentity;
     expect(prompt).toMatch(/injected context block/i);
-    expect(prompt).toMatch(/do NOT re-ask for facts the block already states/i);
+    expect(prompt).toMatch(/do not re-ask for facts it already states/i);
     expect(prompt).toContain("## Current task");
     expect(prompt).toContain("## Current capability");
     expect(prompt).toContain("## Current report");
@@ -248,7 +248,7 @@ describe("POST /api/kody/chat/kody", () => {
     const { loadChatDefaults } =
       await import("../../src/dashboard/lib/chat-defaults");
     const prompt = (await loadChatDefaults("acme", "repo")).agentIdentity;
-    expect(prompt).toMatch(/End with direction when useful/i);
+    expect(prompt).toMatch(/one direct next-step question/i);
     expect(prompt).not.toMatch(/This applies to EVERY reply/i);
     for (const banned of [
       "Great question",
@@ -270,7 +270,7 @@ describe("POST /api/kody/chat/kody", () => {
     const { DEFAULT_IDENTITY_MD } =
       await import("../../src/dashboard/lib/chat-defaults/defaults");
 
-    expect(DEFAULT_IDENTITY_MD).toMatch(/Kody reply contract/i);
+    expect(DEFAULT_IDENTITY_MD).toMatch(/Reply contract/i);
     expect(DEFAULT_IDENTITY_MD).toMatch(/Final replies start with one plain/i);
     expect(DEFAULT_IDENTITY_MD).toMatch(/Progress lines are not final answers/i);
     expect(DEFAULT_IDENTITY_MD).not.toMatch(/Emit a status line/i);
@@ -283,7 +283,7 @@ describe("POST /api/kody/chat/kody", () => {
 
     expect(CRITICAL_REMINDERS_MD).toMatch(/Start with the answer/i);
     expect(CRITICAL_REMINDERS_MD).toMatch(/Verify before claiming/i);
-    expect(CRITICAL_REMINDERS_MD).toMatch(/End with direction when useful/i);
+    expect(CRITICAL_REMINDERS_MD).toMatch(/one direct proceed-style question/i);
     expect(CRITICAL_REMINDERS_MD).not.toMatch(/Re-state last thing you read/i);
     expect(CRITICAL_REMINDERS_MD).not.toMatch(/Every reply ends/i);
   });
@@ -319,10 +319,8 @@ describe("POST /api/kody/chat/kody", () => {
     const { loadChatDefaults } =
       await import("../../src/dashboard/lib/chat-defaults");
     const prompt = (await loadChatDefaults("acme", "repo")).agentIdentity;
-    expect(prompt).toMatch(/Create issues, do not start implementation/i);
-    expect(prompt).toMatch(/implement this/i);
-    expect(prompt).toMatch(/requests.*create.*refine.*issue/i);
-    expect(prompt).toMatch(/Do not post.*@kody/i);
+    // kody-chat's simple identity: no dispatch surface at all.
+    expect(prompt).toMatch(/You do NOT edit code, commit, open PRs/i);
     // The 4 read tools the model must know it can call.
     expect(prompt).toContain("github_search_code");
     expect(prompt).toContain("github_get_file");

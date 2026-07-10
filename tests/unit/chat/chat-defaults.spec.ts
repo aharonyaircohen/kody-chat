@@ -60,11 +60,12 @@ describe("chat-defaults bundle", () => {
     // model behavior depends on). The read-tool list is also pinned
     // here so a future refactor that adds a phantom tool name (one
     // that doesn't exist in the chat registry) fails this test.
+    // kody-chat ships the SIMPLE assistant identity (the dashboard keeps
+    // its coding-assistant text in its own copy of this file).
     const phrases = [
       "Your prose must match the tool result",
       "injected context block",
-      "one direct proceed-style question",
-      "Create issues, do not start implementation",
+      "one direct next-step question",
       "github_search_code",
       "github_get_file",
       "github_list_tree",
@@ -72,7 +73,7 @@ describe("chat-defaults bundle", () => {
       "github_commits_for_path",
       "github_get_pull_request",
       "No preambles",
-      "Small factual answers",
+      "Verify before claiming",
     ];
     for (const p of phrases) {
       expect(DEFAULT_IDENTITY_MD).toContain(p);
@@ -336,7 +337,7 @@ describe("composeChatPrompt", () => {
       repo: { owner: "acme", repo: "widget" },
     });
     // AgentIdentity header.
-    expect(prompt).toContain("Kody — in-process dashboard chat agent");
+    expect(prompt).toContain("Kody — a friendly chat assistant");
     // Repo block.
     expect(prompt).toContain("## Connected repository");
     expect(prompt).toContain("acme/widget");
