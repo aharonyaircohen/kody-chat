@@ -36,6 +36,7 @@ export const CHAT_PLUGIN_DIRS = Object.freeze([
   "files",
   "inbox",
   "instructions",
+  "languages",
   "memory",
   "messages",
   "models",

@@ -14,6 +14,7 @@ import { directionForLocale } from "../chat/platform/i18n";
 import type { ClientAuthProvider } from "./allowlist";
 import { providerLabel } from "./catalog";
 import { signIn, signOut } from "./auth";
+import { getClientSurfaceCatalog } from "../client-chat-strings";
 
 interface ClientAuthGateProps {
   brand: ClientBrand;
@@ -24,6 +25,8 @@ interface ClientAuthGateProps {
   deniedEmail?: string;
   /** True when no provider credentials are configured server-side. */
   misconfigured?: boolean;
+  /** Resolved language pack for the brand's locale (languages/<code>.json). */
+  languageStrings?: Record<string, string>;
 }
 
 export function ClientAuthGate({
@@ -32,7 +35,12 @@ export function ClientAuthGate({
   providers = ["google"],
   deniedEmail,
   misconfigured,
+  languageStrings,
 }: ClientAuthGateProps) {
+  const catalog = getClientSurfaceCatalog(
+    brand.locale ?? "en",
+    languageStrings,
+  );
   return (
     <main
       data-testid="client-auth-gate"
@@ -59,19 +67,16 @@ export function ClientAuthGate({
           {misconfigured ? (
             <>
               <p className="text-sm text-muted-foreground">
-                This space requires sign-in, but sign-in isn&apos;t set up
-                yet. Please contact whoever manages this space.
+                {catalog.t("chat.client.auth.misconfigured")}
               </p>
               <p className="mt-3 text-xs text-muted-foreground/70">
-                Admin: add the provider&apos;s client ID on the Variables page
-                (e.g. GOOGLE_CLIENT_ID) and its secret on the Secrets page
-                (e.g. GOOGLE_CLIENT_SECRET) to enable sign-in.
+                {catalog.t("chat.client.auth.adminHint")}
               </p>
             </>
           ) : deniedEmail ? (
             <>
               <p className="text-sm text-muted-foreground">
-                {deniedEmail} does not have access to this space.
+                {catalog.t("chat.client.auth.denied", { email: deniedEmail })}
               </p>
               <form
                 action={async () => {
@@ -79,13 +84,16 @@ export function ClientAuthGate({
                   await signOut({ redirectTo: callbackUrl });
                 }}
               >
-                <GateButton accent={brand.accent} label="Switch account" />
+                <GateButton
+                  accent={brand.accent}
+                  label={catalog.t("chat.client.auth.switchAccount")}
+                />
               </form>
             </>
           ) : (
             <>
               <p className="text-sm text-muted-foreground">
-                Sign in to continue.
+                {catalog.t("chat.client.auth.signIn")}
               </p>
               {providers.map((provider) => (
                 <form
@@ -97,7 +105,9 @@ export function ClientAuthGate({
                 >
                   <GateButton
                     accent={brand.accent}
-                    label={`Continue with ${providerLabel(provider)}`}
+                    label={catalog.t("chat.client.auth.continueWith", {
+                      provider: providerLabel(provider),
+                    })}
                   />
                 </form>
               ))}

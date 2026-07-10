@@ -46,6 +46,7 @@ export function ClientChatSurface({
   surfaceTicket,
   user,
   signOutAction,
+  languageStrings,
 }: {
   brand: ClientBrand;
   surfaceTicket?: string;
@@ -53,6 +54,8 @@ export function ClientChatSurface({
   user?: ClientSurfaceUser;
   /** Server action that ends the session and returns to the brand page. */
   signOutAction?: () => Promise<void>;
+  /** Resolved language pack for the brand's locale (languages/<code>.json). */
+  languageStrings?: Record<string, string>;
 }) {
   // The branding plugin is the single source for what this shell displays:
   // the header reads the SAME theme contribution the registry merges via
@@ -69,7 +72,11 @@ export function ClientChatSurface({
   );
   const theme = brandingPlugin.theme ?? {};
   const locale = theme.locale ?? "en";
-  const catalog = getClientSurfaceCatalog(locale);
+  const catalog = getClientSurfaceCatalog(locale, languageStrings);
+  // Language pack welcome wins over the brand's welcomeText; empty means
+  // "use the chat's default empty state".
+  const welcomeText =
+    catalog.t("chat.client.welcome") || theme.welcomeText || "";
 
   return (
     <main
@@ -120,7 +127,7 @@ export function ClientChatSurface({
                     type="submit"
                     className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
                   >
-                    Sign out
+                    {catalog.t("chat.client.signOut")}
                   </button>
                 </form>
               )}
@@ -134,6 +141,7 @@ export function ClientChatSurface({
         className="flex min-h-0 w-full flex-1 flex-col"
       >
         <KodyChat
+          emptyStateWelcome={welcomeText || undefined}
           presentation="standalone"
           hideTerminalMode
           hideAgentPicker

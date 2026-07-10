@@ -15,6 +15,7 @@ import {
   type ClientBrandResolveContext,
 } from "@dashboard/lib/client-brand";
 import { getClientSurfaceCatalog } from "@dashboard/lib/client-chat-strings";
+import { resolveClientLanguageStrings } from "@dashboard/lib/client-language";
 import {
   CLIENT_BRAND_REPO_COOKIE,
   parseClientBrandRepoCookie,
@@ -91,10 +92,14 @@ export async function generateMetadata({
   params,
 }: ClientChatPageProps): Promise<Metadata> {
   const { brandSlug } = await params;
-  const { brand } = await resolveBrandAndContext(brandSlug);
+  const { brand, context } = await resolveBrandAndContext(brandSlug);
   if (!brand) notFound();
 
-  const catalog = getClientSurfaceCatalog(brand.locale ?? "en");
+  const languageStrings = await resolveClientLanguageStrings(
+    brand.locale ?? "en",
+    context,
+  );
+  const catalog = getClientSurfaceCatalog(brand.locale ?? "en", languageStrings);
 
   return {
     title: catalog.t("chat.client.metaTitle", { brand: brand.name }),
@@ -109,6 +114,11 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
   const { brand, context } = await resolveBrandAndContext(brandSlug);
   if (!brand) notFound();
 
+  const languageStrings = await resolveClientLanguageStrings(
+    brand.locale ?? "en",
+    context,
+  );
+
   let surfaceUser:
     | { name?: string | null; email?: string | null; image?: string | null }
     | undefined;
@@ -120,7 +130,14 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
       context,
     );
     if (!providers.length) {
-      return <ClientAuthGate brand={brand} callbackUrl={callbackUrl} misconfigured />;
+      return (
+        <ClientAuthGate
+          brand={brand}
+          callbackUrl={callbackUrl}
+          misconfigured
+          languageStrings={languageStrings}
+        />
+      );
     }
     const session = await auth();
     const email = session?.user?.email;
@@ -135,6 +152,7 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
           brand={brand}
           callbackUrl={callbackUrl}
           providers={providers}
+          languageStrings={languageStrings}
         />
       );
     }
@@ -144,6 +162,7 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
           brand={brand}
           callbackUrl={callbackUrl}
           deniedEmail={email}
+          languageStrings={languageStrings}
         />
       );
     }
@@ -173,6 +192,7 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
       brand={brand}
       surfaceTicket={ticket}
       user={surfaceUser}
+      languageStrings={languageStrings}
       signOutAction={
         surfaceUser
           ? async () => {
