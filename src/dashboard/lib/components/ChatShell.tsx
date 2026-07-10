@@ -49,6 +49,8 @@ export interface ChatShellProps {
    * every host gets repo management in the sidepanel; pass null to remove.
    */
   sidebarHeaderExtra?: ReactNode;
+  /** Slot at the right of the sidebar brand row (e.g. notifications). */
+  sidebarBrandExtra?: ReactNode;
   /** Plugins registered on the DEFAULT chat mount (ignored when `chat` set). */
   chatPlugins?: Array<{ plugin: ChatPlugin }>;
   /** Custom chat pane. Hosts with their own KodyChat wiring pass it here. */
@@ -71,6 +73,7 @@ export function ChatShell({
   sections,
   pinnedItem,
   sidebarHeaderExtra = <RepoSwitcher variant="rail" />,
+  sidebarBrandExtra,
   chatPlugins,
   chat,
   isChatHome: isChatHomeProp,
@@ -183,6 +186,7 @@ export function ChatShell({
           {...(pinnedItem !== undefined ? { pinnedItem } : {})}
           brandLabel={title}
           headerExtra={sidebarHeaderExtra}
+          brandRowExtra={sidebarBrandExtra}
         />
 
         {/* Chat rail — right of the nav sidebar. A fixed-width side rail by

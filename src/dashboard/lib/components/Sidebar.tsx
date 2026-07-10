@@ -90,6 +90,11 @@ export interface SidebarProps {
    * switcher). Hidden while the rail is collapsed.
    */
   headerExtra?: React.ReactNode;
+  /**
+   * Optional slot at the right side of the brand row itself (e.g. a
+   * notifications bell). Hidden while the rail is collapsed.
+   */
+  brandRowExtra?: React.ReactNode;
 }
 
 export function Sidebar(props: SidebarProps = {}) {
@@ -105,6 +110,7 @@ function SidebarContent({
   pinnedItem = DASHBOARD_NAV_ITEM,
   brandLabel = "Kody",
   headerExtra,
+  brandRowExtra,
 }: SidebarProps) {
   const pathname = usePathname() ?? "/";
   const router = useRouter();
@@ -293,6 +299,9 @@ function SidebarContent({
             )}
           </Link>
         </SimpleTooltip>
+        {brandRowExtra && !collapsed && (
+          <div className="shrink-0">{brandRowExtra}</div>
+        )}
       </div>
 
       {headerExtra && !collapsed && (
