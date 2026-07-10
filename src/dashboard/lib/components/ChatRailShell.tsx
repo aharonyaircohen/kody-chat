@@ -60,7 +60,7 @@ import { routeOwnsAppHeader } from "./header-ownership";
 // must only ever load through KodyChat's React.lazy chunks — a static path
 // here would drag them into the shared sync chunks /client also loads.
 import { terminalChatPlugin } from "../chat/plugins/terminal/plugin";
-import { commandsChatPlugin } from "../chat/plugins/commands";
+import { commandsChatPlugin } from "@kody-ade/kody-chat/plugins/commands";
 import { vibeChatPlugin } from "../chat/plugins/vibe";
 import { goalsChatPlugin } from "../chat/plugins/goals";
 import { tasksChatPlugin, TASKS_PANEL_ID } from "../chat/plugins/tasks";

@@ -82,7 +82,7 @@ import { KodyChat } from "./KodyChat";
 // Leaf manifest import on purpose (Step 7 bundle check) — see
 // chat/plugins/terminal/plugin.ts.
 import { terminalChatPlugin } from "../chat/plugins/terminal/plugin";
-import { commandsChatPlugin } from "../chat/plugins/commands";
+import { commandsChatPlugin } from "@kody-ade/kody-chat/plugins/commands";
 import { vibeChatPlugin } from "../chat/plugins/vibe";
 
 // Planner-dialog plugin composition (Step 6 / M6: the host owns the plugin

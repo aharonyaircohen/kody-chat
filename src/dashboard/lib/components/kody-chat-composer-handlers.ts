@@ -22,7 +22,7 @@ import {
   filterCommands,
   parseSlashTrigger,
   type SlashCommand,
-} from "../chat/plugins/commands";
+} from "@kody-ade/kody-chat/plugins/commands";
 import {
   parseStaffMentionTrigger,
   replaceStaffMentionTrigger,

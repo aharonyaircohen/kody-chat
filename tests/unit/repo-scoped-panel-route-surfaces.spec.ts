@@ -21,7 +21,11 @@ const componentsRoot = (file: string) =>
     : "src/dashboard/lib/components";
 const component = (file: string) => read(join(componentsRoot(file), file));
 const sourceFile = (file: string) =>
-  read(file.startsWith("src/") ? file : join(componentsRoot(file), file));
+  read(
+    file.startsWith("src/") || file.startsWith("node_modules/")
+      ? file
+      : join(componentsRoot(file), file),
+  );
 
 const directRepoOwnedLinkHref =
   /<Link(?:\s|>)[\s\S]{0,240}href="\/(?:activity|agent-goals|agent-loops|capabilities|commands|config|context|docs|memory|messages|models|notifications|preview|reports|runner|secrets|tasks|variables)(?:\/|")/;
@@ -60,7 +64,7 @@ describe("repo-scoped panel route surfaces", () => {
       "SettingsManager.tsx",
       "CompanyIntentsView.tsx",
       "VariablesManager.tsx",
-      "src/dashboard/lib/chat/plugins/commands/SlashCommandMenu.tsx",
+      "node_modules/@kody-ade/kody-chat/src/dashboard/lib/chat/plugins/commands/SlashCommandMenu.tsx",
       "OperatorsWarningBanner.tsx",
       "RunnerManager.tsx",
       "NotificationsManager.tsx",

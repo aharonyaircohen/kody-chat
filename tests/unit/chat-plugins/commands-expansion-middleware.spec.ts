@@ -25,7 +25,7 @@ import {
   commandsChatPlugin,
   readSlashExpansionEffect,
   type SlashCommand,
-} from "@dashboard/lib/chat/plugins/commands";
+} from "@kody-ade/kody-chat/plugins/commands";
 import {
   TERMINAL_INTENT_MIDDLEWARE_ID,
   readTerminalIntentEffect,

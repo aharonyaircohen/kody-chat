@@ -31,7 +31,7 @@ import {
   readSlashExpansionEffect,
   useSlashCommands,
   type SlashExpansionEffectPayload,
-} from "../chat/plugins/commands";
+} from "@kody-ade/kody-chat/plugins/commands";
 import {
   readGoalDirectEffect,
   type GoalDirectEffectPayload,

@@ -93,7 +93,7 @@ import {
 } from "../chat/plugins/vibe";
 import type { TerminalIntentEffectPayload } from "../chat/plugins/terminal/intent-middleware";
 import type { ChatTerminalMode } from "../chat/plugins/terminal/types";
-import type { SlashExpansionEffectPayload } from "../chat/plugins/commands";
+import type { SlashExpansionEffectPayload } from "@kody-ade/kody-chat/plugins/commands";
 import type { GoalDirectEffectPayload } from "../chat/plugins/goals";
 import {
   isDashboardNavigateDirective,

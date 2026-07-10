@@ -25,7 +25,7 @@ import {
   SLASH_EXPANSION_MIDDLEWARE_ID,
   commandsChatPlugin,
   type SlashCommand,
-} from "@dashboard/lib/chat/plugins/commands";
+} from "@kody-ade/kody-chat/plugins/commands";
 import {
   GOALS_DIRECT_EFFECT,
   GOAL_MENTION_MIDDLEWARE_ID,

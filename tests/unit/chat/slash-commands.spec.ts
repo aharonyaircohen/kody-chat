@@ -12,7 +12,7 @@ import {
   parseSlashTrigger,
   expandSlashCommand,
   type SlashCommand,
-} from "@dashboard/lib/chat/plugins/commands";
+} from "@kody-ade/kody-chat/plugins/commands";
 import {
   substitute,
   tokenizeArguments,

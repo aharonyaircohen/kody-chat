@@ -19,7 +19,7 @@ import type { ClientBrand } from "@dashboard/lib/client-brand";
 import { directionForLocale } from "@kody-ade/kody-chat/platform/i18n";
 import type { ChatCapabilityGrant } from "@kody-ade/kody-chat/platform";
 import { createBrandingPlugin } from "@dashboard/lib/chat/plugins/branding";
-import { commandsChatPlugin } from "@dashboard/lib/chat/plugins/commands";
+import { commandsChatPlugin } from "@kody-ade/kody-chat/plugins/commands";
 import { getClientSurfaceCatalog } from "@dashboard/lib/client-chat-strings";
 import { KodyChat } from "./KodyChat";
 
