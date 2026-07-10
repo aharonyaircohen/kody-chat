@@ -69,8 +69,20 @@ export function KodyHeader({
   const { auth } = useAuth();
   const { openMobileChat } = useChatScope();
 
+  // With repo switching and notifications in the sidepanel, the bar only
+  // earns desktop space when a page passes tools; otherwise it is
+  // mobile-only chrome (chat opener + hamburger).
+  const hasDesktopContent = Boolean(
+    filterBar || desktopExtras || trailingExtras || showRefresh,
+  );
+
   return (
-    <div className="flex min-h-16 items-center justify-between border-b border-white/[0.06] bg-black/20 px-5 py-4 md:px-7">
+    <div
+      className={cn(
+        "flex min-h-16 items-center justify-between border-b border-white/[0.06] bg-black/20 px-5 py-4 md:px-7",
+        !hasDesktopContent && "md:hidden",
+      )}
+    >
       {/* Repo switching + notifications live in the sidepanel header now
           (SidebarChrome) — the left group only reserves layout space. */}
       <div className="flex min-w-0 items-center gap-3.5" />

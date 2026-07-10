@@ -35,7 +35,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { KodyChat } from "./KodyChat";
 import { AppHeader } from "./AppHeader";
 import { ChatShell } from "@kody-ade/kody-chat/components/ChatShell";
-import { SidebarChrome } from "./SidebarChrome";
+import { SidebarNotifications } from "./SidebarChrome";
 import { ENGINEER_MODE_SECTIONS } from "./settings-nav";
 import { RepoManager } from "./RepoManager";
 import { CommandPalette } from "./CommandPalette";
@@ -613,7 +613,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
           <ChatShell
             title="Kody"
             sections={ENGINEER_MODE_SECTIONS}
-            sidebarHeaderExtra={<SidebarChrome />}
+            sidebarBrandExtra={<SidebarNotifications />}
             chat={chatPane}
             isChatHome={isChatRoute}
             showMobileHeader={false}
