@@ -21,7 +21,7 @@ import { getClientSurfaceCatalog } from "../../../src/dashboard/lib/client-chat-
 import { resolveClientLanguageStrings } from "../../../src/dashboard/lib/client-language";
 import { type ClientBrandRepoContext } from "@dashboard/lib/client-brand-repo-cookie";
 import { mintClientSurfaceTicket } from "../../../src/dashboard/lib/chat/platform/surface-scope";
-import { resolveVaultGithubToken } from "@dashboard/lib/vault/bootstrap";
+import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
 import { auth, signIn, signOut } from "@dashboard/lib/client-auth/auth";
 import {
   brandAuthProviders,
@@ -69,10 +69,12 @@ function parseClientChatRoute(
 async function withVaultToken(
   context: ClientBrandRepoContext,
 ): Promise<ClientBrandResolveContext> {
-  const token = await resolveVaultGithubToken(context.owner, context.repo);
+  // App installation token first, vault GITHUB_TOKEN fallback — the state
+  // repo may be private, so an unauthenticated vault bootstrap can't read it.
+  const background = await resolveBackgroundToken(context.owner, context.repo);
   return {
     ...context,
-    ...(token ? { token } : {}),
+    ...(background ? { token: background.token } : {}),
   };
 }
 
