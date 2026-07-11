@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "kody-chat",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "dev", "--turbopack"],
+      "port": 3344,
+      "autoPort": true
+    },
+    {
+      "name": "kody-chat-prod",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["next", "start", "-p", "3555"],
+      "port": 3555,
+      "autoPort": false
+    }
+  ]
+}
