@@ -36,6 +36,7 @@ import { Label } from "@dashboard/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
 import { Textarea } from "@dashboard/ui/textarea";
 import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
+import { SystemPromptOverrideCard } from "./SystemPromptOverrideCard";
 import { AuthGuard } from "../auth-guard";
 import { useAuth, buildAuthHeaders } from "@dashboard/lib/auth-context";
 
@@ -398,6 +399,7 @@ function InstructionsManagerInner({ footerSlot }: InstructionsManagerProps) {
           </div>
         )}
 
+        <SystemPromptOverrideCard />
         {footerSlot}
       </div>
 
