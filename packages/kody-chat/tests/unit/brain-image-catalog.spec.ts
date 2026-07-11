@@ -10,7 +10,7 @@ vi.mock("server-only", () => ({}));
 import {
   brainImageCatalogFile,
   upsertBrainCatalogImageFile,
-} from "../../src/dashboard/lib/brain/image-catalog";
+} from "@kody-ade/brain/image-catalog";
 
 describe("Brain image catalog", () => {
   it("builds catalog-only image files without selected or running state", () => {

@@ -11,7 +11,7 @@ vi.mock("@kody-ade/base/auth", () => ({
   getRequestAuth: (...args: unknown[]) => getRequestAuth(...args),
 }));
 
-vi.mock("@dashboard/lib/brain-proxy", () => ({
+vi.mock("@kody-ade/brain/brain-proxy", () => ({
   streamBrainChat: (...args: unknown[]) => streamBrainChat(...args),
 }));
 

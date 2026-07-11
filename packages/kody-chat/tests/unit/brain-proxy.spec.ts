@@ -10,7 +10,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@dashboard/lib/issue-attachments", () => ({
+vi.mock("@kody-ade/brain/issue-attachments", () => ({
   fetchIssueAttachments: vi.fn(async () => []),
 }));
 
@@ -19,8 +19,8 @@ import {
   formatCapabilityContext,
   formatTaskContext,
   streamBrainChat,
-} from "@dashboard/lib/brain-proxy";
-import { createRepoBrainScope } from "@dashboard/lib/brain/repo-scope";
+} from "@kody-ade/brain/brain-proxy";
+import { createRepoBrainScope } from "@kody-ade/brain/repo-scope";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Preamble builders

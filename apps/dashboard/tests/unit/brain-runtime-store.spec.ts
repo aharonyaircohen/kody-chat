@@ -13,7 +13,7 @@ const state = vi.hoisted(() => ({
   writeStateText: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/github-client", () => ({
+vi.mock("@kody-ade/brain/github", () => ({
   getOctokit: state.getOctokit,
   getOwner: state.getOwner,
   getRepo: state.getRepo,
@@ -38,7 +38,7 @@ describe("Brain runtime store", () => {
     state.readStateText.mockResolvedValue(null);
     state.writeStateText.mockResolvedValue({ sha: "new-sha" });
     const { writeBrainRuntimeState } = await import(
-      "@dashboard/lib/brain/runtime-store"
+      "@kody-ade/brain/runtime-store"
     );
 
     await writeBrainRuntimeState("Alice", "token", {
@@ -65,7 +65,7 @@ describe("Brain runtime store", () => {
 
   it("rejects invalid runtime image refs", async () => {
     const { writeBrainRuntimeState } = await import(
-      "@dashboard/lib/brain/runtime-store"
+      "@kody-ade/brain/runtime-store"
     );
 
     await expect(
@@ -80,7 +80,7 @@ describe("Brain runtime store", () => {
 
   it("rejects completed apply state without a recorded running machine", async () => {
     const { writeBrainRuntimeState } = await import(
-      "@dashboard/lib/brain/runtime-store"
+      "@kody-ade/brain/runtime-store"
     );
 
     await expect(

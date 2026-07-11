@@ -14,7 +14,7 @@ const state = vi.hoisted(() => ({
   deleteStateFile: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/github-client", () => ({
+vi.mock("@kody-ade/brain/github", () => ({
   getOctokit: state.getOctokit,
   getOwner: state.getOwner,
   getRepo: state.getRepo,
@@ -55,7 +55,7 @@ describe("Brain image store", () => {
       sha: "sha",
       etag: "etag",
     });
-    const { readBrainImage } = await import("@dashboard/lib/brain/store");
+    const { readBrainImage } = await import("@kody-ade/brain/store");
 
     await expect(readBrainImage("Alice", "token")).resolves.toMatchObject({
       imageRef: "ghcr.io/alice/kody-brain-snapshot:20260625",
@@ -84,7 +84,7 @@ describe("Brain image store", () => {
       }),
       sha: "sha",
     });
-    const { readBrainImage } = await import("@dashboard/lib/brain/store");
+    const { readBrainImage } = await import("@kody-ade/brain/store");
 
     await expect(readBrainImage("Alice", "token")).resolves.toBeNull();
     expect(state.readStateText).toHaveBeenNthCalledWith(
@@ -109,7 +109,7 @@ describe("Brain image store", () => {
       sha: "sha",
       etag: "etag",
     });
-    const { readBrainApp } = await import("@dashboard/lib/brain/store");
+    const { readBrainApp } = await import("@kody-ade/brain/store");
 
     await expect(readBrainApp("Alice", "token")).resolves.toMatchObject({
       appName: "kody-brain-alice",
@@ -126,7 +126,7 @@ describe("Brain image store", () => {
   it("writes the stored Brain app to user-level state", async () => {
     state.readStateText.mockResolvedValue(null);
     state.writeStateText.mockResolvedValue({ sha: "new-sha" });
-    const { writeBrainApp } = await import("@dashboard/lib/brain/store");
+    const { writeBrainApp } = await import("@kody-ade/brain/store");
 
     await writeBrainApp("Alice", "token", {
       version: 1,
@@ -155,7 +155,7 @@ describe("Brain image store", () => {
         content: "{}",
       });
     state.deleteStateFile.mockResolvedValue(undefined);
-    const { clearBrainApp } = await import("@dashboard/lib/brain/store");
+    const { clearBrainApp } = await import("@kody-ade/brain/store");
 
     await clearBrainApp("Alice", "token");
 
@@ -181,7 +181,7 @@ describe("Brain image store", () => {
   it("writes the per-user Brain image record without touching brain.json", async () => {
     state.readStateText.mockResolvedValue(null);
     state.writeStateText.mockResolvedValue({ sha: "new-sha" });
-    const { writeBrainImage } = await import("@dashboard/lib/brain/store");
+    const { writeBrainImage } = await import("@kody-ade/brain/store");
 
     await writeBrainImage("Alice", "token", {
       version: 1,
@@ -209,7 +209,7 @@ describe("Brain image store", () => {
   it("writes catalog-only Brain images without inventing selected or running state", async () => {
     state.readStateText.mockResolvedValue(null);
     state.writeStateText.mockResolvedValue({ sha: "new-sha" });
-    const { writeBrainImage } = await import("@dashboard/lib/brain/store");
+    const { writeBrainImage } = await import("@kody-ade/brain/store");
 
     await writeBrainImage("Alice", "token", {
       version: 1,
@@ -263,7 +263,7 @@ describe("Brain image store", () => {
       })
       .mockResolvedValueOnce({ sha: "sha", content: "{}" });
     state.writeStateText.mockResolvedValue({ sha: "new-sha" });
-    const { selectBrainImage } = await import("@dashboard/lib/brain/store");
+    const { selectBrainImage } = await import("@kody-ade/brain/store");
 
     await expect(
       selectBrainImage(
@@ -326,7 +326,7 @@ describe("Brain image store", () => {
       .mockResolvedValueOnce({ sha: "new-sha", content: "{}" });
     state.writeStateText.mockResolvedValue({ sha: "written-sha" });
     const { readBrainImage, selectBrainImage } = await import(
-      "@dashboard/lib/brain/store"
+      "@kody-ade/brain/store"
     );
 
     await readBrainImage("Alice", "token");
@@ -375,7 +375,7 @@ describe("Brain image store", () => {
       })
       .mockResolvedValueOnce({ sha: "sha", content: "{}" });
     state.writeStateText.mockResolvedValue({ sha: "new-sha" });
-    const { deleteBrainImage } = await import("@dashboard/lib/brain/store");
+    const { deleteBrainImage } = await import("@kody-ade/brain/store");
 
     await expect(
       deleteBrainImage(
@@ -403,7 +403,7 @@ describe("Brain image store", () => {
   it("remembers a forgotten discovered Brain image even when it was not saved locally", async () => {
     state.readStateText.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
     state.writeStateText.mockResolvedValue({ sha: "new-sha" });
-    const { deleteBrainImage } = await import("@dashboard/lib/brain/store");
+    const { deleteBrainImage } = await import("@kody-ade/brain/store");
 
     await expect(
       deleteBrainImage(
@@ -447,7 +447,7 @@ describe("Brain image store", () => {
       .mockResolvedValueOnce({ sha: "sha", content: "{}" });
     state.writeStateText.mockResolvedValue({ sha: "new-sha" });
     const { markBrainImageRunning } =
-      await import("@dashboard/lib/brain/store");
+      await import("@kody-ade/brain/store");
 
     await expect(
       markBrainImageRunning("Alice", "token", {
@@ -499,7 +499,7 @@ describe("Brain image store", () => {
       .mockResolvedValueOnce({ sha: "sha", content: "{}" });
     state.writeStateText.mockResolvedValue({ sha: "new-sha" });
     const { markBrainImageRunning } =
-      await import("@dashboard/lib/brain/store");
+      await import("@kody-ade/brain/store");
 
     await expect(
       markBrainImageRunning("Alice", "token", {
@@ -528,7 +528,7 @@ describe("Brain image store", () => {
   });
 
   it("accepts GHCR image refs", async () => {
-    const { writeBrainImage } = await import("@dashboard/lib/brain/store");
+    const { writeBrainImage } = await import("@kody-ade/brain/store");
 
     state.readStateText.mockResolvedValue(null);
     await expect(
@@ -549,7 +549,7 @@ describe("Brain image store", () => {
   });
 
   it("rejects non-GHCR image refs", async () => {
-    const { writeBrainImage } = await import("@dashboard/lib/brain/store");
+    const { writeBrainImage } = await import("@kody-ade/brain/store");
 
     await expect(
       writeBrainImage("Alice", "token", {
@@ -576,7 +576,7 @@ describe("Brain image store", () => {
     state.readStateText.mockResolvedValueOnce(null);
     state.writeStateText.mockResolvedValue({ sha: "job-sha" });
     const { writeBrainImageSave, clearBrainImageSave } =
-      await import("@dashboard/lib/brain/store");
+      await import("@kody-ade/brain/store");
 
     await writeBrainImageSave("Alice", "token", {
       version: 1,

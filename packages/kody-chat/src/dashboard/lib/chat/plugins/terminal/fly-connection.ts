@@ -16,7 +16,7 @@ import { authHeaders } from "../../core/kody-chat-live-session";
 import {
   parseTerminalBridgeServerMessage,
   type TerminalBridgeClientMessage,
-} from "@dashboard/lib/terminal/bridge-protocol";
+} from "@kody-ade/terminal/bridge-protocol";
 import { brainImageMismatchNotices, type FlySessionWarning } from "./terminal-text";
 import type {
   ChatTerminalConnectionState,

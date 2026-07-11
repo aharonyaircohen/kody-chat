@@ -7,7 +7,7 @@
  *   build the checkpoint GET query, and decide when a checkpoint may load
  *   (never over a live terminal; once per session/target/actor key).
  */
-import type { TerminalCheckpointTransport } from "@dashboard/lib/terminal/checkpoint-types";
+import type { TerminalCheckpointTransport } from "@kody-ade/terminal/checkpoint-types";
 import type { ChatTerminalMode, ChatTerminalTransport } from "./types";
 
 export function checkpointTransportFromChatTransport(

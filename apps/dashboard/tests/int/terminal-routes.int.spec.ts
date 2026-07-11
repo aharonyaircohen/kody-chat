@@ -206,13 +206,13 @@ vi.mock("@kody-ade/fly/plugin/runners/context", () => flyContext);
 vi.mock("@kody-ade/fly/plugin/runners/inventory", () => inventory);
 vi.mock("@kody-ade/fly/plugin/runners/inventory-server", () => inventoryServer);
 vi.mock("@kody-ade/fly/plugin/runners/brain", () => brainFly);
-vi.mock("@dashboard/lib/brain/store", () => brainStore);
-vi.mock("@dashboard/lib/brain/runtime-manager", () => runtimeManager);
-vi.mock("@dashboard/lib/brain/service-resolver", () => brainService);
-vi.mock("@dashboard/lib/brain/image-runtime", () => imageRuntime);
+vi.mock("@kody-ade/brain/store", () => brainStore);
+vi.mock("@kody-ade/brain/runtime-manager", () => runtimeManager);
+vi.mock("@kody-ade/brain/service-resolver", () => brainService);
+vi.mock("@kody-ade/brain/image-runtime", () => imageRuntime);
 vi.mock("@kody-ade/fly/plugin/previews/machines-client", () => flyPreview);
 vi.mock("@kody-ade/fly/plugin/terminal/bridge", () => bridge);
-vi.mock("@dashboard/lib/terminal/terminal-token", () => token);
+vi.mock("@kody-ade/terminal/terminal-token", () => token);
 vi.mock("@dashboard/lib/github-client", () => ({
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
@@ -221,6 +221,7 @@ vi.mock("@kody-ade/base/logger", () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
 }));
 
+import { registerBrainHostHooks } from "@kody-ade/brain/register";
 import { POST as sessionPOST } from "../../app/api/kody/terminal/session/route";
 import { POST as statusPOST } from "../../app/api/kody/terminal/status/route";
 
@@ -319,6 +320,9 @@ function mockSavedBrainInventory(
 
 beforeEach(() => {
   vi.resetAllMocks();
+  // Host wiring normally done in instrumentation.ts — the session route needs
+  // the brain remote-runtime connector registered into @kody-ade/terminal.
+  registerBrainHostHooks();
   auth.requireKodyAuth.mockResolvedValue(null);
   auth.getRequestAuth.mockReturnValue({
     owner: "acme",

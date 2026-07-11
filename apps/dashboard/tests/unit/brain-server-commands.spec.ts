@@ -32,12 +32,12 @@ const brainFly = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock("@dashboard/lib/brain/store", () => store);
+vi.mock("@kody-ade/brain/store", () => store);
 vi.mock("@kody-ade/fly/plugin/runners/brain", () => ({
   ...brainFly,
   brainAppName: (account: string) => `kody-brain-${account}`,
 }));
-vi.mock("@dashboard/lib/brain/service-resolver", () => ({
+vi.mock("@kody-ade/brain/service-resolver", () => ({
   resolveBrainService: vi.fn(async () => ({
     app: "kody-brain-octocat",
     orgSlug: "personal",
@@ -53,7 +53,7 @@ vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn(), error: vi.fn() },
 }));
 
-import { manageBrainServer } from "../../src/dashboard/lib/brain/server-commands";
+import { manageBrainServer } from "@kody-ade/brain/server-commands";
 
 const context: FlyContext = {
   owner: "acme",

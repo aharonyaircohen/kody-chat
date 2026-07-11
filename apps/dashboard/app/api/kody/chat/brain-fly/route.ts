@@ -29,7 +29,7 @@ import { requireKodyAuth } from "@kody-ade/base/auth";
 import {
   BrainCommandError,
   manageBrainServer,
-} from "@dashboard/lib/brain/server-commands";
+} from "@kody-ade/brain/server-commands";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -41,7 +41,7 @@ import {
   type BrainAttachment,
   type BrainCapabilityContext,
   type BrainTaskContext,
-} from "@dashboard/lib/brain-proxy";
+} from "@kody-ade/brain/brain-proxy";
 import {
   waitForServerBrainHealth,
 } from "@kody-ade/fly/infrastructure/server-brain";
@@ -52,7 +52,7 @@ import {
   withDashboardContext,
 } from "@kody-ade/kody-chat/core/page-context";
 import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
-import { createRepoBrainScope } from "@dashboard/lib/brain/repo-scope";
+import { createRepoBrainScope } from "@kody-ade/brain/repo-scope";
 import { readResolvedAgentFile } from "@dashboard/lib/agent-files";
 
 export const runtime = "nodejs";

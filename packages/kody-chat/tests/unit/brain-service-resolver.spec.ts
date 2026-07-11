@@ -27,9 +27,9 @@ const brainFly = vi.hoisted(() => ({
   brainStatus: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/brain/store", () => store);
-vi.mock("@dashboard/lib/brain/runtime-manager", () => runtimeManager);
-vi.mock("@dashboard/lib/brain/target", () => target);
+vi.mock("@kody-ade/brain/store", () => store);
+vi.mock("@kody-ade/brain/runtime-manager", () => runtimeManager);
+vi.mock("@kody-ade/brain/target", () => target);
 vi.mock("@kody-ade/fly/plugin/previews/machines-client", () => flyPreviews);
 vi.mock("@kody-ade/fly/plugin/runners/brain", () => brainFly);
 
@@ -78,7 +78,7 @@ describe("resolveBrainService", () => {
       runningUrl: "https://brain-1.fly.dev",
     });
     const { resolveBrainService } = await import(
-      "@dashboard/lib/brain/service-resolver"
+      "@kody-ade/brain/service-resolver"
     );
 
     const resolved = await resolveBrainService({
@@ -105,7 +105,7 @@ describe("resolveBrainService", () => {
       runningUrl: "https://old-brain.fly.dev",
     });
     const { resolveBrainService } = await import(
-      "@dashboard/lib/brain/service-resolver"
+      "@kody-ade/brain/service-resolver"
     );
 
     const resolved = await resolveBrainService({
@@ -139,7 +139,7 @@ describe("resolveBrainService", () => {
       runningUrl: "https://brain-1.fly.dev",
     });
     const { resolveBrainService } = await import(
-      "@dashboard/lib/brain/service-resolver"
+      "@kody-ade/brain/service-resolver"
     );
 
     const resolved = await resolveBrainService({
@@ -181,7 +181,7 @@ describe("resolveBrainService", () => {
         },
       ]);
     const { resolveBrainService } = await import(
-      "@dashboard/lib/brain/service-resolver"
+      "@kody-ade/brain/service-resolver"
     );
 
     const resolved = await resolveBrainService({
@@ -232,7 +232,7 @@ describe("resolveBrainService", () => {
         },
       ]);
     const { resolveBrainService } = await import(
-      "@dashboard/lib/brain/service-resolver"
+      "@kody-ade/brain/service-resolver"
     );
 
     const resolved = await resolveBrainService({
@@ -281,7 +281,7 @@ describe("resolveBrainService", () => {
         },
       ]);
     const { resolveBrainService } = await import(
-      "@dashboard/lib/brain/service-resolver"
+      "@kody-ade/brain/service-resolver"
     );
 
     const resolved = await resolveBrainService({
@@ -308,7 +308,7 @@ describe("resolveBrainService", () => {
       Object.assign(new Error("unauthorized"), { status: 403 }),
     );
     const { resolveBrainService } = await import(
-      "@dashboard/lib/brain/service-resolver"
+      "@kody-ade/brain/service-resolver"
     );
 
     const resolved = await resolveBrainService({

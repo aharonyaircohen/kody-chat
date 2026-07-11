@@ -94,11 +94,11 @@ const catalog = vi.hoisted(() => ({
   ),
 }));
 
-vi.mock("@dashboard/lib/brain/store", () => store);
-vi.mock("@dashboard/lib/brain/runtime-manager", () => runtimeManager);
-vi.mock("@dashboard/lib/brain/image-runtime", () => runtime);
-vi.mock("@dashboard/lib/brain/image-catalog", () => catalog);
-vi.mock("@dashboard/lib/brain/service-resolver", () => serviceResolver);
+vi.mock("@kody-ade/brain/store", () => store);
+vi.mock("@kody-ade/brain/runtime-manager", () => runtimeManager);
+vi.mock("@kody-ade/brain/image-runtime", () => runtime);
+vi.mock("@kody-ade/brain/image-catalog", () => catalog);
+vi.mock("@kody-ade/brain/service-resolver", () => serviceResolver);
 vi.mock("@kody-ade/fly/plugin/runners/brain", () => ({
   brainAppName: (account: string) => `kody-brain-${account}`,
   provisionBrain: brainFly.provisionBrain,
@@ -107,7 +107,7 @@ vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn() },
 }));
 
-import { applySelectedBrainImage } from "../../src/dashboard/lib/brain/image-apply";
+import { applySelectedBrainImage } from "@kody-ade/brain/image-apply";
 
 describe("applySelectedBrainImage", () => {
   beforeEach(() => {

@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { resolveBrainTarget } from "@dashboard/lib/brain/target";
+import { resolveBrainTarget } from "@kody-ade/brain/target";
 
 describe("resolveBrainTarget", () => {
   it("uses the stored app and stored org together", () => {

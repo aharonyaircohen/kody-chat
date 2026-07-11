@@ -38,7 +38,7 @@ import { trace, type createChatPluginRegistry } from "../chat/platform";
 import {
   repoBrainConversationKey,
   repoBrainScopeKey,
-} from "@dashboard/lib/brain/repo-scope";
+} from "@kody-ade/brain/repo-scope";
 import { getStoredAuth } from "@dashboard/lib/api";
 import type { KodyTask } from "@kody-ade/base/types";
 import {
@@ -103,7 +103,7 @@ import {
   type PreviewActDirective,
 } from "@dashboard/lib/chat-ui-actions";
 import { SHOW_VIEW_TOOL } from "@dashboard/lib/chat-output-tools";
-import { extractKodyTerminalPayload } from "@dashboard/lib/terminal/kody-terminal-directive";
+import { extractKodyTerminalPayload } from "@kody-ade/terminal/kody-terminal-directive";
 
 // ─────────────────────────────────────────────────────────────────────
 // Settle seam (review item 11). Per-backend finish/recover behavior is

@@ -34,14 +34,14 @@ describe("rate limit polling guardrails", () => {
   });
 
   it("uses server-side caches for expensive repeated reads", () => {
-    expect(source("src/dashboard/lib/brain/image-catalog.ts")).toContain(
+    expect(source("../../packages/brain/src/image-catalog.ts")).toContain(
       "discoveredImagesCache.get",
     );
     expect(
       source("node_modules/@kody-ade/fly/src/plugin/runners/inventory-server.ts"),
     ).toContain("listFlyInventoryCached");
     const brainImageManagement = source(
-      "src/dashboard/lib/brain/image-management.ts",
+      "../../packages/brain/src/image-management.ts",
     );
     expect(brainImageManagement.indexOf("getTerminalBridgeExecJob")).toBeLessThan(
       brainImageManagement.indexOf("refresh: true"),

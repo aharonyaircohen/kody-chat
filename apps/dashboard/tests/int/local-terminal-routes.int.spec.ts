@@ -21,7 +21,7 @@ const localTerminal = vi.hoisted(() => ({
 }));
 
 vi.mock("@kody-ade/base/auth", () => auth);
-vi.mock("@dashboard/lib/terminal/local-chat-session", () => localTerminal);
+vi.mock("@kody-ade/terminal/local-chat-session", () => localTerminal);
 
 import { GET as outputGET } from "../../app/api/kody/chat/terminal/output/route";
 import { POST as startPOST } from "../../app/api/kody/chat/terminal/start/route";

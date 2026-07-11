@@ -9,7 +9,7 @@ import {
   buildKodyTerminalPrompt,
   extractKodyTerminalPayload,
   parseKodyTerminalIntent,
-} from "@dashboard/lib/terminal/kody-terminal-directive";
+} from "@kody-ade/terminal/kody-terminal-directive";
 
 describe("parseKodyTerminalIntent", () => {
   it("extracts the user intent from a /terminal chat command", () => {

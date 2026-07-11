@@ -10,11 +10,11 @@ import { describe, expect, it } from "vitest";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROUTE_SOURCE = readFileSync(
-  resolve(__dirname, "../../app/api/kody/terminal/session/route.ts"),
+  resolve(__dirname, "../../../../packages/terminal/src/routes/terminal-session.ts"),
   "utf8",
 );
 const USE_CASE_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/terminal/session-connect.ts"),
+  resolve(__dirname, "../../../../packages/terminal/src/session-connect.ts"),
   "utf8",
 );
 

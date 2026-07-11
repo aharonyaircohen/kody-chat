@@ -14,8 +14,8 @@ const runtimeStore = vi.hoisted(() => ({
   writeBrainRuntimeState: vi.fn(async () => undefined),
 }));
 
-vi.mock("@dashboard/lib/brain/store", () => imageStore);
-vi.mock("@dashboard/lib/brain/runtime-store", () => runtimeStore);
+vi.mock("@kody-ade/brain/store", () => imageStore);
+vi.mock("@kody-ade/brain/runtime-store", () => runtimeStore);
 
 describe("Brain runtime manager", () => {
   beforeEach(() => {
@@ -38,7 +38,7 @@ describe("Brain runtime manager", () => {
       updatedAt: "2026-07-02T09:00:00.000Z",
     });
     const { selectBrainRuntimeImage } = await import(
-      "@dashboard/lib/brain/runtime-manager"
+      "@kody-ade/brain/runtime-manager"
     );
 
     await selectBrainRuntimeImage(
@@ -72,7 +72,7 @@ describe("Brain runtime manager", () => {
       updatedAt: "2026-07-02T09:00:00.000Z",
     });
     const { completeBrainRuntimeApply } = await import(
-      "@dashboard/lib/brain/runtime-manager"
+      "@kody-ade/brain/runtime-manager"
     );
 
     await completeBrainRuntimeApply("octocat", "token", {
@@ -111,7 +111,7 @@ describe("Brain runtime manager", () => {
       images: [],
     });
     const { readBrainRuntimeView } = await import(
-      "@dashboard/lib/brain/runtime-manager"
+      "@kody-ade/brain/runtime-manager"
     );
 
     await expect(readBrainRuntimeView("octocat", "token")).resolves.toMatchObject(

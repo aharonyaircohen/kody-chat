@@ -16,13 +16,13 @@ function readRoute(path: string): string {
 }
 
 const STATEFUL_ROUTES = [
-  "app/api/kody/brain/provision/route.ts",
-  "app/api/kody/brain/login/route.ts",
-  "app/api/kody/brain/status/route.ts",
-  "app/api/kody/brain/destroy/route.ts",
-  "app/api/kody/brain/stored/route.ts",
-  "app/api/kody/brain/suspend/route.ts",
-  "app/api/kody/brain/resume/route.ts",
+  "../../packages/brain/src/routes/provision.ts",
+  "../../packages/brain/src/routes/login.ts",
+  "../../packages/brain/src/routes/status.ts",
+  "../../packages/brain/src/routes/destroy.ts",
+  "../../packages/brain/src/routes/stored.ts",
+  "../../packages/brain/src/routes/suspend.ts",
+  "../../packages/brain/src/routes/resume.ts",
   "app/api/kody/chat/brain-fly/route.ts",
 ];
 
@@ -38,13 +38,13 @@ describe("Brain Fly route GitHub context", () => {
   });
 
   it("uses the resolved Brain service for every machine control route", () => {
-    const commandSource = readRoute("src/dashboard/lib/brain/server-commands.ts");
+    const commandSource = readRoute("../../packages/brain/src/server-commands.ts");
     expect(commandSource).toContain("resolveBrainService(");
     expect(commandSource).toContain("appNameOverride: brain.app");
     for (const routePath of [
-      "app/api/kody/brain/destroy/route.ts",
-      "app/api/kody/brain/suspend/route.ts",
-      "app/api/kody/brain/resume/route.ts",
+      "../../packages/brain/src/routes/destroy.ts",
+      "../../packages/brain/src/routes/suspend.ts",
+      "../../packages/brain/src/routes/resume.ts",
     ]) {
       const source = readRoute(routePath);
       expect(source, routePath).toContain("manageBrainServer(");

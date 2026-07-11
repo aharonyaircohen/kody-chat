@@ -80,7 +80,7 @@ describe("infrastructure provider boundary", () => {
       );
       expect(source, file).not.toContain("@kody-ade/fly/runners/fly");
       expect(source, file).not.toContain("@kody-ade/fly/previews/fly");
-      expect(source, file).not.toContain("@dashboard/lib/terminal/bridge-fly");
+      expect(source, file).not.toContain("@kody-ade/terminal/bridge-fly");
     }
   });
 });

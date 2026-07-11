@@ -5,13 +5,13 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-vi.mock("@dashboard/lib/github-client", () => ({
+vi.mock("@kody-ade/brain/github", () => ({
   fetchIssue: vi.fn(),
   fetchComments: vi.fn(),
 }));
 
-import { fetchIssueAttachments } from "@dashboard/lib/issue-attachments";
-import { fetchIssue, fetchComments } from "@dashboard/lib/github-client";
+import { fetchIssueAttachments } from "@kody-ade/brain/issue-attachments";
+import { fetchIssue, fetchComments } from "@kody-ade/brain/github";
 
 const mockedFetchIssue = vi.mocked(fetchIssue);
 const mockedFetchComments = vi.mocked(fetchComments);

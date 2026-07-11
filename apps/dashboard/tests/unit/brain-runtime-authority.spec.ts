@@ -10,7 +10,7 @@ vi.mock("server-only", () => ({}));
 import {
   brainRuntimeDrift,
   type BrainRuntimeAuthorityView,
-} from "../../src/dashboard/lib/brain/runtime-authority";
+} from "@kody-ade/brain/runtime-authority";
 
 describe("Brain runtime authority", () => {
   it("flags completed apply records that do not include a running machine", () => {

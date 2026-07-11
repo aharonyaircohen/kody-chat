@@ -15,15 +15,10 @@ export async function register(): Promise<void> {
   const { setEventFlushScheduler } = await import("@kody-ade/base/events");
   setEventFlushScheduler(after);
 
-  // @kody-ade/fly host wiring — the Brain feature and dashboard config are
-  // host-owned; the fly package consumes them via injection hooks.
-  const { setBrainServiceResolver } = await import(
-    "@kody-ade/fly/plugin/runners/brain-resolver-hook"
-  );
-  const { resolveBrainService } = await import(
-    "@dashboard/lib/brain/service-resolver"
-  );
-  setBrainServiceResolver(resolveBrainService);
+  // Brain wiring — @kody-ade/brain registers its Fly service resolver and
+  // the terminal remote-runtime connector into the lower layers' hooks.
+  const { registerBrainHostHooks } = await import("@kody-ade/brain/register");
+  registerBrainHostHooks();
 
   const { setTrackedBranchesReader } = await import(
     "@kody-ade/fly/previews/tracked-branches-hook"

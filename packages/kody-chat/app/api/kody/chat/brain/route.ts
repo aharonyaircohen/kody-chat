@@ -24,7 +24,7 @@ import {
   type BrainAttachment,
   type BrainCapabilityContext,
   type BrainTaskContext,
-} from "@dashboard/lib/brain-proxy";
+} from "@kody-ade/brain/brain-proxy";
 import {
   withPageContext,
   withDashboardContext,

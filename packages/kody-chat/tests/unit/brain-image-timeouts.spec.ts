@@ -4,7 +4,7 @@ import {
   BRAIN_IMAGE_JOB_OUTPUT_BYTES,
   brainImageJobTimeoutMs,
   DEFAULT_BRAIN_IMAGE_JOB_TIMEOUT_MS,
-} from "@dashboard/lib/brain/image-timeouts";
+} from "@kody-ade/brain/image-timeouts";
 
 describe("brainImageJobTimeoutMs", () => {
   it("defaults to a full-image friendly timeout", () => {

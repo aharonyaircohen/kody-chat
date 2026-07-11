@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   mintTerminalBridgeToken,
   verifyTerminalBridgeToken,
-} from "@dashboard/lib/terminal/terminal-token";
+} from "@kody-ade/terminal/terminal-token";
 
 const SECRET = "test-master-secret";
 

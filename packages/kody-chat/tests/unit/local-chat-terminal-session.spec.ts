@@ -52,7 +52,7 @@ describe("local chat terminal session registry", () => {
     const firstPty = makePty();
     spawnMock.mockReturnValueOnce(firstPty);
     const { startLocalTerminalSession } =
-      await import("@dashboard/lib/terminal/local-chat-session");
+      await import("@kody-ade/terminal/local-chat-session");
 
     const first = await startLocalTerminalSession({
       owner: "acme",
@@ -78,7 +78,7 @@ describe("local chat terminal session registry", () => {
   it("creates a new local terminal after an explicit stop", async () => {
     spawnMock.mockReturnValueOnce(makePty()).mockReturnValueOnce(makePty());
     const { startLocalTerminalSession, stopLocalTerminalSession } =
-      await import("@dashboard/lib/terminal/local-chat-session");
+      await import("@kody-ade/terminal/local-chat-session");
 
     const first = await startLocalTerminalSession({
       owner: "acme",
@@ -111,7 +111,7 @@ describe("local chat terminal session registry", () => {
     spawnSyncMock.mockReturnValue({ status: 0 });
     try {
       const { startLocalTerminalSession } =
-        await import("@dashboard/lib/terminal/local-chat-session");
+        await import("@kody-ade/terminal/local-chat-session");
 
       const session = await startLocalTerminalSession({
         owner: "acme",
@@ -149,7 +149,7 @@ describe("local chat terminal session registry", () => {
     spawnMock.mockReturnValueOnce(pty);
     try {
       const { startLocalTerminalSession } =
-        await import("@dashboard/lib/terminal/local-chat-session");
+        await import("@kody-ade/terminal/local-chat-session");
 
       await startLocalTerminalSession({
         owner: "acme",
@@ -172,7 +172,7 @@ describe("local chat terminal session registry", () => {
     const source = readFileSync(
       resolve(
         __dirname,
-        "../../src/dashboard/lib/terminal/local-chat-session.ts",
+        "../../../terminal/src/local-chat-session.ts",
       ),
       "utf8",
     );
@@ -187,7 +187,7 @@ describe("local chat terminal session registry", () => {
       throw new Error("Cannot find module './prebuilds/linux-x64//pty.node'");
     });
     const { startLocalTerminalSession } = await import(
-      "@dashboard/lib/terminal/local-chat-session"
+      "@kody-ade/terminal/local-chat-session"
     );
 
     await expect(
@@ -208,7 +208,7 @@ describe("local chat terminal session registry", () => {
   it("reports local terminal unavailable when node-pty spawn returns no process", async () => {
     spawnMock.mockReturnValueOnce(undefined);
     const { LocalTerminalUnavailableError, startLocalTerminalSession } =
-      await import("@dashboard/lib/terminal/local-chat-session");
+      await import("@kody-ade/terminal/local-chat-session");
 
     await expect(
       startLocalTerminalSession({
@@ -229,7 +229,7 @@ describe("local chat terminal session registry", () => {
       },
     );
     const { getLocalTerminalSessionInfoByChatSession } =
-      await import("@dashboard/lib/terminal/local-chat-session");
+      await import("@kody-ade/terminal/local-chat-session");
 
     const session = getLocalTerminalSessionInfoByChatSession("chat-1", {
       owner: "acme",
@@ -248,7 +248,7 @@ describe("local chat terminal session registry", () => {
     const pty = makePty();
     spawnMock.mockReturnValueOnce(pty);
     const { startLocalTerminalSession, writeLocalTerminalInput } =
-      await import("@dashboard/lib/terminal/local-chat-session");
+      await import("@kody-ade/terminal/local-chat-session");
 
     const session = await startLocalTerminalSession({
       owner: "acme",
@@ -270,7 +270,7 @@ describe("local chat terminal session registry", () => {
     const pty = makePty();
     spawnMock.mockReturnValueOnce(pty);
     const { startLocalTerminalSession, writeLocalTerminalInput } =
-      await import("@dashboard/lib/terminal/local-chat-session");
+      await import("@kody-ade/terminal/local-chat-session");
 
     const session = await startLocalTerminalSession({
       owner: "acme",
@@ -292,7 +292,7 @@ describe("local chat terminal session registry", () => {
     const pty = makePty();
     spawnMock.mockReturnValueOnce(pty);
     const { startLocalTerminalSession, waitForLocalTerminalEvents } =
-      await import("@dashboard/lib/terminal/local-chat-session");
+      await import("@kody-ade/terminal/local-chat-session");
 
     const session = await startLocalTerminalSession({
       owner: "acme",

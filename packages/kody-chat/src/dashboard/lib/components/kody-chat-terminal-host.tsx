@@ -68,7 +68,7 @@ import type { ChatTerminalSurfaceHandle } from "../chat/plugins/terminal/ChatTer
 import {
   terminalCheckpointLabel,
   type TerminalCheckpoint,
-} from "@dashboard/lib/terminal/checkpoint-types";
+} from "@kody-ade/terminal/checkpoint-types";
 
 // Render-gated terminal plugin components (Step 7 bundle check): loaded via
 // React.lazy so the xterm surface, Fly connection stack and terminal chrome

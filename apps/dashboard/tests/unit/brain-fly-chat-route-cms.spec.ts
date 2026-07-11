@@ -22,7 +22,7 @@ vi.mock("@kody-ade/fly/plugin/runners/context", () => ({
   resolveFlyContext: (...args: unknown[]) => resolveFlyContext(...args),
 }));
 
-vi.mock("@dashboard/lib/brain/store", () => ({
+vi.mock("@kody-ade/brain/store", () => ({
   readBrainApp: (...args: unknown[]) => readBrainApp(...args),
   readBrainImage: (...args: unknown[]) => readBrainImage(...args),
   writeBrainApp: (...args: unknown[]) => writeBrainApp(...args),
@@ -39,7 +39,7 @@ vi.mock("@kody-ade/fly/plugin/runners/brain", () => ({
   waitForBrainHealth: (...args: unknown[]) => waitForBrainHealth(...args),
 }));
 
-vi.mock("@dashboard/lib/brain-proxy", () => ({
+vi.mock("@kody-ade/brain/brain-proxy", () => ({
   streamBrainChat: (...args: unknown[]) => streamBrainChat(...args),
 }));
 

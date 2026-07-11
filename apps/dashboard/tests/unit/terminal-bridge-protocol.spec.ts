@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseTerminalBridgeServerMessage } from "@dashboard/lib/terminal/bridge-protocol";
+import { parseTerminalBridgeServerMessage } from "@kody-ade/terminal/bridge-protocol";
 
 describe("terminal bridge protocol", () => {
   it("parses typed output messages", () => {

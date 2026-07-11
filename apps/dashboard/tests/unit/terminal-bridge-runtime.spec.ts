@@ -12,7 +12,7 @@ import net from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { TERMINAL_BRIDGE_SCRIPT } from "@kody-ade/fly/plugin/terminal/bridge";
-import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token";
+import { mintTerminalBridgeToken } from "@kody-ade/terminal/terminal-token";
 
 const BRIDGE_SECRET = "runtime-bridge-secret";
 const TEST_TIMEOUT_MS = 20_000;

@@ -22,13 +22,13 @@ function exists(path: string): boolean {
 describe("Brain bounded context architecture", () => {
   it("exposes command/query use cases for the Brain product", () => {
     for (const path of [
-      "src/dashboard/lib/brain/overview.ts",
-      "src/dashboard/lib/brain/server-commands.ts",
-      "src/dashboard/lib/brain/image-save-command.ts",
-      "src/dashboard/lib/brain/image-management.ts",
-      "src/dashboard/lib/brain/image-apply-command.ts",
-      "src/dashboard/lib/brain/terminal-connect.ts",
-      "src/dashboard/lib/terminal/session-connect.ts",
+      "../brain/src/overview.ts",
+      "../brain/src/server-commands.ts",
+      "../brain/src/image-save-command.ts",
+      "../brain/src/image-management.ts",
+      "../brain/src/image-apply-command.ts",
+      "../brain/src/terminal-connect.ts",
+      "../terminal/src/session-connect.ts",
     ]) {
       expect(exists(path), path).toBe(true);
       expect(source(path), path).toContain("@fileType use-case");
@@ -36,31 +36,31 @@ describe("Brain bounded context architecture", () => {
   });
 
   it("keeps Brain API routes as use-case wrappers", () => {
-    expect(source("app/api/kody/brain/status/route.ts")).toContain(
+    expect(source("../brain/src/routes/status.ts")).toContain(
       "readBrainOverview(",
     );
-    expect(source("app/api/kody/brain/provision/route.ts")).toContain(
+    expect(source("../brain/src/routes/provision.ts")).toContain(
       "manageBrainServer(",
     );
-    expect(source("app/api/kody/brain/login/route.ts")).toContain(
+    expect(source("../brain/src/routes/login.ts")).toContain(
       "manageBrainServer(",
     );
     expect(source("app/api/kody/chat/brain-fly/route.ts")).toContain(
       "manageBrainServer(",
     );
-    expect(source("app/api/kody/brain/resume/route.ts")).toContain(
+    expect(source("../brain/src/routes/resume.ts")).toContain(
       "manageBrainServer(",
     );
-    expect(source("app/api/kody/brain/suspend/route.ts")).toContain(
+    expect(source("../brain/src/routes/suspend.ts")).toContain(
       "manageBrainServer(",
     );
-    expect(source("app/api/kody/brain/destroy/route.ts")).toContain(
+    expect(source("../brain/src/routes/destroy.ts")).toContain(
       "manageBrainServer(",
     );
-    expect(source("app/api/kody/brain/suspension/route.ts")).toContain(
+    expect(source("../brain/src/routes/suspension.ts")).toContain(
       "manageBrainServer(",
     );
-    expect(source("app/api/kody/brain/image/apply/route.ts")).toContain(
+    expect(source("../brain/src/routes/image-apply.ts")).toContain(
       "applyBrainImage(",
     );
     // Terminal routes live in the dashboard host, not kody-chat.

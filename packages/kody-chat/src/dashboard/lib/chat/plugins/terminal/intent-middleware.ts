@@ -13,7 +13,7 @@
 import {
   buildKodyTerminalPrompt,
   parseKodyTerminalIntent,
-} from "@dashboard/lib/terminal/kody-terminal-directive";
+} from "@kody-ade/terminal/kody-terminal-directive";
 import type { ChatHostEffect, ChatSendMiddleware } from "../../platform";
 
 export const TERMINAL_INTENT_MIDDLEWARE_ID = "terminal-intent";

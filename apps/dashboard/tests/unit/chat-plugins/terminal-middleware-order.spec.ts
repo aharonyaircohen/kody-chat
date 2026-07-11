@@ -20,7 +20,7 @@ import {
   readTerminalIntentEffect,
   terminalChatPlugin,
 } from "@kody-chat/chat/plugins/terminal";
-import { buildKodyTerminalPrompt } from "@dashboard/lib/terminal/kody-terminal-directive";
+import { buildKodyTerminalPrompt } from "@kody-ade/terminal/kody-terminal-directive";
 
 function fixture200(seen: string[]): ChatPlugin {
   return {

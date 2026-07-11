@@ -4,7 +4,7 @@ import {
   createRepoBrainScope,
   repoBrainConversationKey,
   repoBrainScopeKey,
-} from "@dashboard/lib/brain/repo-scope";
+} from "@kody-ade/brain/repo-scope";
 
 describe("Repo Brain scope", () => {
   it("builds a display slug plus a normalized key", () => {

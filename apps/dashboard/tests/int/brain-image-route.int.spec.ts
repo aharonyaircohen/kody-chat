@@ -46,7 +46,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
   clearGitHubContext: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/brain/service-resolver", () => ({
+vi.mock("@kody-ade/brain/service-resolver", () => ({
   resolveBrainService: vi.fn(async () => ({
     app: "brain-1",
     orgSlug: "guy-koren",
@@ -72,12 +72,12 @@ vi.mock("@kody-ade/fly/plugin/terminal/bridge", () => ({
   })),
 }));
 
-vi.mock("@dashboard/lib/terminal/bridge-exec-client", () => ({
+vi.mock("@kody-ade/terminal/bridge-exec-client", () => ({
   startTerminalBridgeLocalExecJob: mocks.startJob,
   getTerminalBridgeExecJob: mocks.getJob,
 }));
 
-vi.mock("@dashboard/lib/brain/store", () => ({
+vi.mock("@kody-ade/brain/store", () => ({
   deleteBrainImage: mocks.deleteImage,
   readBrainImage: mocks.readImage,
   readBrainImageSave: mocks.readSave,
@@ -87,17 +87,17 @@ vi.mock("@dashboard/lib/brain/store", () => ({
   clearBrainImageSave: mocks.clearSave,
 }));
 
-vi.mock("@dashboard/lib/brain/runtime-manager", () => ({
+vi.mock("@kody-ade/brain/runtime-manager", () => ({
   readBrainRuntimeView: mocks.readRuntimeView,
   selectBrainRuntimeImage: mocks.selectRuntimeImage,
 }));
 
-vi.mock("@dashboard/lib/brain/image-runtime", () => ({
+vi.mock("@kody-ade/brain/image-runtime", () => ({
   brainGhcrAuth: vi.fn(() => ({ token: "ghcr-token", user: "aguyaharonyair" })),
 }));
 
 import { DELETE, GET, PATCH, POST } from "../../app/api/kody/brain/image/route";
-import { resolveBrainService } from "../../src/dashboard/lib/brain/service-resolver";
+import { resolveBrainService } from "@kody-ade/brain/service-resolver";
 import { ensureTerminalBridge } from "../../node_modules/@kody-ade/fly/src/plugin/terminal/bridge";
 
 afterEach(() => {

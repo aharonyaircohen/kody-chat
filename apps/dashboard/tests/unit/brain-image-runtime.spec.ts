@@ -9,7 +9,7 @@ import {
   brainFlyRuntimeImageRef,
   brainGhcrAuth,
   brainImageRestoreCommand,
-} from "@dashboard/lib/brain/image-runtime";
+} from "@kody-ade/brain/image-runtime";
 
 describe("Brain image runtime helpers", () => {
   it("derives the per-app Fly runtime image from the saved GHCR tag", () => {

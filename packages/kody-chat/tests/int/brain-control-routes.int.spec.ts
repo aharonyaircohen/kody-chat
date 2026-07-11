@@ -55,8 +55,8 @@ vi.mock("@kody-ade/fly/plugin/runners/context", () => ({
   })),
 }));
 
-vi.mock("@dashboard/lib/brain/service-resolver", () => brainService);
-vi.mock("@dashboard/lib/brain/store", () => ({
+vi.mock("@kody-ade/brain/service-resolver", () => brainService);
+vi.mock("@kody-ade/brain/store", () => ({
   clearBrainApp: vi.fn(async () => undefined),
 }));
 

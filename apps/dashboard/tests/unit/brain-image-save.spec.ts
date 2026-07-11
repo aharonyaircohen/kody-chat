@@ -10,7 +10,7 @@ import {
   brainImageBuildCommand,
   brainImageSaveProgressFromOutput,
   brainImageTag,
-} from "@dashboard/lib/brain/image-save";
+} from "@kody-ade/brain/image-save";
 
 describe("Brain image save helpers", () => {
   it("builds GHCR image refs for the saved Brain image", () => {

@@ -24,13 +24,13 @@ import {
   terminalCheckpointId,
   terminalCheckpointKey,
   terminalCheckpointsPath,
-} from "@dashboard/lib/terminal/checkpoint-types";
+} from "@kody-ade/terminal/checkpoint-types";
 import {
   deleteTerminalCheckpoint,
   getTerminalCheckpoint,
   readTerminalCheckpoints,
   upsertTerminalCheckpoint,
-} from "@dashboard/lib/terminal/checkpoint-store";
+} from "@kody-ade/terminal/checkpoint-store";
 
 function fakeOctokit() {
   return { marker: "octokit" } as never;

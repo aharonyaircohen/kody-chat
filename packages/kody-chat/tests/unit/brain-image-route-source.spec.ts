@@ -10,15 +10,15 @@ import { describe, expect, it } from "vitest";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROUTE_SOURCE = readFileSync(
-  resolve(__dirname, "../../app/api/kody/brain/image/route.ts"),
+  resolve(__dirname, "../../../brain/src/routes/image.ts"),
   "utf8",
 );
 const IMAGE_SAVE_COMMAND_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/brain/image-save-command.ts"),
+  resolve(__dirname, "../../../brain/src/image-save-command.ts"),
   "utf8",
 );
 const IMAGE_MANAGEMENT_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/brain/image-management.ts"),
+  resolve(__dirname, "../../../brain/src/image-management.ts"),
   "utf8",
 );
 const BRIDGE_SOURCE = readFileSync(
@@ -26,20 +26,20 @@ const BRIDGE_SOURCE = readFileSync(
   "utf8",
 );
 const BRIDGE_EXEC_CLIENT_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/terminal/bridge-exec-client.ts"),
+  resolve(__dirname, "../../../terminal/src/bridge-exec-client.ts"),
   "utf8",
 );
 const PROVISION_SOURCES = [
-  "../../app/api/kody/brain/provision/route.ts",
-  "../../app/api/kody/brain/login/route.ts",
+  "../../../brain/src/routes/provision.ts",
+  "../../../brain/src/routes/login.ts",
   "../../app/api/kody/chat/brain-fly/route.ts",
 ].map((file) => readFileSync(resolve(__dirname, file), "utf8"));
 const APPLY_ROUTE_SOURCE = readFileSync(
-  resolve(__dirname, "../../app/api/kody/brain/image/apply/route.ts"),
+  resolve(__dirname, "../../../brain/src/routes/image-apply.ts"),
   "utf8",
 );
 const APPLY_SERVICE_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/brain/image-apply.ts"),
+  resolve(__dirname, "../../../brain/src/image-apply.ts"),
   "utf8",
 );
 

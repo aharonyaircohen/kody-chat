@@ -44,6 +44,8 @@
     "@kody-ade/kody-chat": "workspace:*",
     "@kody-ade/base": "workspace:*",
     "@kody-ade/fly": "workspace:*",
+    "@kody-ade/terminal": "workspace:*",
+    "@kody-ade/brain": "workspace:*",
     "@mintplex-labs/piper-tts-web": "^1.0.4",
     "@monaco-editor/react": "^4.7.0",
     "@octokit/plugin-throttling": "^11.0.3",

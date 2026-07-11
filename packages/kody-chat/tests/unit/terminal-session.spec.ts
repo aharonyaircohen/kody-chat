@@ -9,7 +9,7 @@ import {
   selectTerminalTarget,
   terminalActivityLimitForTarget,
   terminalBridgeSessionIdForTarget,
-} from "@dashboard/lib/terminal/session";
+} from "@kody-ade/terminal/session";
 import type { FlyInventory } from "@kody-ade/fly/plugin/runners/inventory";
 
 const INVENTORY: FlyInventory = {
