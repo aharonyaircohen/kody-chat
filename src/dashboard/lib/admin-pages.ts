@@ -2,45 +2,37 @@
  * @fileType module
  * @domain chat-platform
  * @pattern admin-page-registry
- * @ai-summary Registry of package-owned admin pages. A host app consumes this
- *   once (sidebar entries, rail panel map, repo-owned route prefixes, nav
- *   aliases) so shipping a new package page needs no per-feature host glue —
- *   only a tarball refresh. Route handlers ship separately via the
- *   `./routes/*` package exports.
+ * @ai-summary Registry of package-owned admin pages WITH their page-plugins.
+ *   CLIENT-ONLY: plugin manifests call createLazyPanel at module scope, so
+ *   importing this from a server module crashes the app — server code must
+ *   use ./admin-pages-meta instead. A host consumes this once (rail plugin
+ *   list + panel map) so shipping a new package page needs no per-feature
+ *   host glue — only a tarball refresh.
  */
-import { Languages, type LucideIcon } from "lucide-react";
 import type { ChatPlugin } from "./chat/platform";
 import {
   languagesChatPlugin,
   LANGUAGES_PANEL_ID,
 } from "./chat/plugins/languages";
+import {
+  PACKAGE_ADMIN_PAGE_META,
+  type PackageAdminPageMeta,
+} from "./admin-pages-meta";
 
-export interface PackageAdminPage {
-  /** Route prefix the host mounts the page under (also the nav href). */
-  href: string;
-  label: string;
-  description: string;
-  icon: LucideIcon;
-  /** Tailwind tint classes for the host sidebar chip. */
-  tint: string;
+export type PackageAdminPage = PackageAdminPageMeta & {
   /** Page-plugin contributing the rail panel. */
   plugin: ChatPlugin;
-  panelId: string;
-  /** Phrases the host's assistant-navigation layer matches on. */
-  aliases: string[];
-  when: string;
-}
+};
 
-export const PACKAGE_ADMIN_PAGES: readonly PackageAdminPage[] = [
-  {
-    href: "/languages",
-    label: "Languages",
-    description: "Client chat translations for /client surfaces.",
-    icon: Languages,
-    tint: "text-amber-300 bg-amber-500/10",
-    plugin: languagesChatPlugin,
-    panelId: LANGUAGES_PANEL_ID,
-    aliases: ["languages", "translations", "locales"],
-    when: "Use when the user asks to manage client chat languages or translations.",
-  },
-];
+const PLUGIN_FOR_PANEL: Record<string, ChatPlugin> = {
+  [LANGUAGES_PANEL_ID]: languagesChatPlugin,
+};
+
+export const PACKAGE_ADMIN_PAGES: readonly PackageAdminPage[] =
+  PACKAGE_ADMIN_PAGE_META.map((meta) => ({
+    ...meta,
+    plugin: PLUGIN_FOR_PANEL[meta.panelId],
+  }));
+
+export { PACKAGE_ADMIN_PAGE_META } from "./admin-pages-meta";
+export type { PackageAdminPageMeta } from "./admin-pages-meta";
