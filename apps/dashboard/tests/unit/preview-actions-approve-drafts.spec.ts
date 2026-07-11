@@ -52,7 +52,7 @@ describe("PreviewActions — 'Also approve drafts' toggle (issue #129)", () => {
 
   it("does not render the toggle in the preview action bar", () => {
     expect(SOURCE, "PreviewActions must not import the checkbox").not.toMatch(
-      /import\s*\{[^}]*\bCheckbox\b[^}]*\}\s*from\s*["']@dashboard\/ui\/checkbox["']/,
+      /import\s*\{[^}]*\bCheckbox\b[^}]*\}\s*from\s*["']@kody-ade\/base\/ui\/checkbox["']/,
     );
     expect(SOURCE, "PreviewActions must not render the checkbox").not.toMatch(
       /<Checkbox\b/,
@@ -72,7 +72,7 @@ describe("PreviewActions — 'Also approve drafts' toggle (issue #129)", () => {
     // A Radix Checkbox is in the UI primitives and is the existing
     // pattern in this codebase (e.g. notification prefs).
     expect(DIALOG_SOURCE, "Checkbox primitive must be imported").toMatch(
-      /import\s*\{[^}]*\bCheckbox\b[^}]*\}\s*from\s*["']@dashboard\/ui\/checkbox["']/,
+      /import\s*\{[^}]*\bCheckbox\b[^}]*\}\s*from\s*["']@kody-ade\/base\/ui\/checkbox["']/,
     );
     expect(DIALOG_SOURCE, "Checkbox must be rendered as a JSX element").toMatch(
       /<Checkbox\b/,

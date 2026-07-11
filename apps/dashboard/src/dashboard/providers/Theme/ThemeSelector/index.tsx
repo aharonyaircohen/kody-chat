@@ -6,7 +6,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@dashboard/ui/select";
+} from "@kody-ade/base/ui/select";
 import React, { useState } from "react";
 
 import type { Theme } from "./types";

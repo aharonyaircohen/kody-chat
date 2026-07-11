@@ -2,13 +2,13 @@
 
 import * as React from "react";
 
-import { Button, type ButtonProps } from "@dashboard/ui/button";
+import { Button, type ButtonProps } from "./button";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@dashboard/ui/tooltip";
+} from "./tooltip";
 import { cn } from "@kody-ade/base/utils/ui";
 
 interface IconButtonProps extends Omit<ButtonProps, "children" | "size"> {

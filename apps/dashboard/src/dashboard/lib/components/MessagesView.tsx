@@ -35,13 +35,13 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@dashboard/ui/sheet";
+} from "@kody-ade/base/ui/sheet";
 import { selectionPath } from "../selection-routing";
 import { useRepoScopedHref } from "../hooks/useRepoScopedHref";
-import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
-import { Button } from "@dashboard/ui/button";
-import { Input } from "@dashboard/ui/input";
-import { Textarea } from "@dashboard/ui/textarea";
+import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
+import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
+import { Textarea } from "@kody-ade/base/ui/textarea";
 import { cn } from "@kody-ade/base/utils/ui";
 import {
   useMessageChannels,

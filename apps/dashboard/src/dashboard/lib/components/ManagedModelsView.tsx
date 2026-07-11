@@ -33,9 +33,9 @@ import {
   Trash2,
 } from "lucide-react";
 
-import { Button } from "@dashboard/ui/button";
-import { Card, CardContent } from "@dashboard/ui/card";
-import { Checkbox } from "@dashboard/ui/checkbox";
+import { Button } from "@kody-ade/base/ui/button";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
+import { Checkbox } from "@kody-ade/base/ui/checkbox";
 import { RepoScopedLink } from "./RepoScopedLink";
 import {
   Dialog,
@@ -43,16 +43,16 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
-import { Label } from "@dashboard/ui/label";
+} from "@kody-ade/base/ui/dialog";
+import { Label } from "@kody-ade/base/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@dashboard/ui/select";
-import { Textarea } from "@dashboard/ui/textarea";
+} from "@kody-ade/base/ui/select";
+import { Textarea } from "@kody-ade/base/ui/textarea";
 
 import {
   useCapabilities,

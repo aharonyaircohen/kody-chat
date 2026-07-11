@@ -38,19 +38,19 @@ import {
 import { PageShell } from "./PageShell";
 import { cn } from "../utils";
 import { selectionPath } from "../selection-routing";
-import { Button } from "@dashboard/ui/button";
-import { Card, CardContent } from "@dashboard/ui/card";
-import { Input } from "@dashboard/ui/input";
-import { Label } from "@dashboard/ui/label";
-import { Textarea } from "@dashboard/ui/textarea";
-import { Checkbox } from "@dashboard/ui/checkbox";
+import { Button } from "@kody-ade/base/ui/button";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
+import { Input } from "@kody-ade/base/ui/input";
+import { Label } from "@kody-ade/base/ui/label";
+import { Textarea } from "@kody-ade/base/ui/textarea";
+import { Checkbox } from "@kody-ade/base/ui/checkbox";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@dashboard/ui/select";
+} from "@kody-ade/base/ui/select";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";

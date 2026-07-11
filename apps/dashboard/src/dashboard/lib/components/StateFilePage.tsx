@@ -12,7 +12,7 @@ import type { EditorProps } from "@monaco-editor/react";
 import { Copy, ExternalLink, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import { buildKodyAuthHeaders } from "@kody-ade/base/auth-headers";
 import { useAuth } from "../auth-context";
 import { ApiError, handleResponse } from "../api";

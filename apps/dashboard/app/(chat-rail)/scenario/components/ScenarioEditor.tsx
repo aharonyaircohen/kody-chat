@@ -7,26 +7,26 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Button } from "@dashboard/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@dashboard/ui/card";
-import { Input } from "@dashboard/ui/input";
-import { Label } from "@dashboard/ui/label";
+import { Button } from "@kody-ade/base/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@kody-ade/base/ui/card";
+import { Input } from "@kody-ade/base/ui/input";
+import { Label } from "@kody-ade/base/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@dashboard/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
-import { Badge } from "@dashboard/ui/badge";
+} from "@kody-ade/base/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@kody-ade/base/ui/tabs";
+import { Badge } from "@kody-ade/base/ui/badge";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
+} from "@kody-ade/base/ui/dialog";
 import { PrototypePanel } from "./PrototypePanel";
 import { DesignSystemPanel } from "./DesignSystemPanel";
 import { ScenarioBuilder } from "./ScenarioBuilder";

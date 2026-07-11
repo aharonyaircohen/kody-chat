@@ -22,7 +22,7 @@
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { ArrowLeft } from "lucide-react";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "../utils";
 
 interface PageHeaderProps {

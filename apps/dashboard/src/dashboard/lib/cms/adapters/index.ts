@@ -13,7 +13,7 @@ import {
   createCmsStorageTransport,
   createGitHubStorageAdapter,
   type CmsStorageTransport,
-} from "@dashboard/lib/storage";
+} from "@kody-ade/base/storage";
 
 import type {
   CmsCollectionConfig,

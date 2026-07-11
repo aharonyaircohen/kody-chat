@@ -7,9 +7,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Input } from "@dashboard/ui/input";
-import { Label } from "@dashboard/ui/label";
-import { Badge } from "@dashboard/ui/badge";
+import { Input } from "@kody-ade/base/ui/input";
+import { Label } from "@kody-ade/base/ui/label";
+import { Badge } from "@kody-ade/base/ui/badge";
 import type { DSComponent } from "@dashboard/lib/scenario-schema-stub";
 import { Search, Check } from "lucide-react";
 

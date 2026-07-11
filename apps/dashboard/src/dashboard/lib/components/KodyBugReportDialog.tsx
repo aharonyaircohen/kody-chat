@@ -9,24 +9,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
-import { Input } from "@dashboard/ui/input";
-import { Label } from "@dashboard/ui/label";
-import { Textarea } from "@dashboard/ui/textarea";
+} from "@kody-ade/base/ui/dialog";
+import { Input } from "@kody-ade/base/ui/input";
+import { Label } from "@kody-ade/base/ui/label";
+import { Textarea } from "@kody-ade/base/ui/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@dashboard/ui/select";
+} from "@kody-ade/base/ui/select";
 import { useMutation } from "@tanstack/react-query";
 import { CheckCircle2, ExternalLink } from "lucide-react";
 import { kodyApi, redirectToLogin, SessionExpiredError } from "../api";

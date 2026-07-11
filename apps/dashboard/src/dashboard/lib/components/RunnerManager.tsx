@@ -29,9 +29,9 @@ import {
   SlidersHorizontal,
   type LucideIcon,
 } from "lucide-react";
-import { Button } from "@dashboard/ui/button";
-import { Card, CardContent } from "@dashboard/ui/card";
-import { Input } from "@dashboard/ui/input";
+import { Button } from "@kody-ade/base/ui/button";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
+import { Input } from "@kody-ade/base/ui/input";
 import { BrainFlyCard, type BrainFlyState } from "./BrainFlyCard";
 import { FlyActivityTab } from "./FlyActivityTab";
 import { FlyMachinesTable } from "./FlyMachinesTable";

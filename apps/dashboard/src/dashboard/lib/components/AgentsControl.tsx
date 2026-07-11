@@ -27,16 +27,16 @@ import {
   Target,
   Trash2,
 } from "lucide-react";
-import { Button } from "@dashboard/ui/button";
-import { Input } from "@dashboard/ui/input";
-import { Label } from "@dashboard/ui/label";
+import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
+import { Label } from "@kody-ade/base/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
+} from "@kody-ade/base/ui/dialog";
 import { AuthGuard } from "../auth-guard";
 import { selectionPath } from "../selection-routing";
 import { useRepoScopedHref } from "../hooks/useRepoScopedHref";

@@ -26,17 +26,17 @@ import {
 } from "lucide-react";
 import { PageShell } from "@dashboard/lib/components/PageShell";
 import { ListSearch } from "@dashboard/lib/components/ListSearch";
-import { Button } from "@dashboard/ui/button";
-import { Card, CardContent } from "@dashboard/ui/card";
-import { Input } from "@dashboard/ui/input";
-import { Label } from "@dashboard/ui/label";
+import { Button } from "@kody-ade/base/ui/button";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
+import { Input } from "@kody-ade/base/ui/input";
+import { Label } from "@kody-ade/base/ui/label";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
+} from "@kody-ade/base/ui/dialog";
 import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
 import { AuthGuard } from "../auth-guard";
 import { useAuth, buildAuthHeaders } from "@dashboard/lib/auth-context";

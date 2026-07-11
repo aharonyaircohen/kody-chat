@@ -7,7 +7,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import {
   GitPullRequest,
   Loader2,

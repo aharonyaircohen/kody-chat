@@ -19,7 +19,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
+} from "@kody-ade/base/ui/dialog";
 import { useAuth, buildAuthHeaders } from "../auth-context";
 import type { InboxEntry } from "../inbox/types";
 import { buildThreadShareLink } from "../inbox/deep-link";

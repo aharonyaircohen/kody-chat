@@ -46,7 +46,7 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "../utils";
 import type { KodyTask } from "../types";
 import type { Goal } from "../api";

@@ -13,14 +13,14 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@dashboard/ui/dropdown-menu";
+} from "@kody-ade/base/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@dashboard/ui/select";
+} from "@kody-ade/base/ui/select";
 import { cn } from "../utils";
 import { PRIORITY_LEVELS, PRIORITY_META } from "../constants";
 import { Filter, ArrowUp, ArrowDown } from "lucide-react";

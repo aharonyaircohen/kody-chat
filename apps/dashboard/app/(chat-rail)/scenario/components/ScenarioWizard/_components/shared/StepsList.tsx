@@ -6,8 +6,8 @@
  */
 "use client";
 
-import { Button } from "@dashboard/ui/button";
-import { Badge } from "@dashboard/ui/badge";
+import { Button } from "@kody-ade/base/ui/button";
+import { Badge } from "@kody-ade/base/ui/badge";
 import type { Scenario } from "@dashboard/lib/scenario-schema-stub";
 
 interface StepsListProps {

@@ -15,8 +15,8 @@
 import { useState } from "react";
 import { RepoScopedLink } from "../components/RepoScopedLink";
 import { Smartphone, BookOpen } from "lucide-react";
-import { Card, CardContent } from "@dashboard/ui/card";
-import { Button } from "@dashboard/ui/button";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
+import { Button } from "@kody-ade/base/ui/button";
 import { usePushSubscription } from "./usePushSubscription";
 import { useAutoEnablePush } from "./useAutoEnablePush";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";

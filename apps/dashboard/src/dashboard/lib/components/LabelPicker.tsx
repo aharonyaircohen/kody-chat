@@ -7,14 +7,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@dashboard/ui/dropdown-menu";
+} from "@kody-ade/base/ui/dropdown-menu";
 
 interface LabelPickerProps {
   issueNumber: number;

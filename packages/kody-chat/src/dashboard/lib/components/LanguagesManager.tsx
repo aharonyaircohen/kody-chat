@@ -24,15 +24,15 @@ import {
 } from "lucide-react";
 import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
 import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
-import { Textarea } from "@dashboard/ui/textarea";
+} from "@kody-ade/base/ui/dialog";
+import { Textarea } from "@kody-ade/base/ui/textarea";
 import { EmptyState } from "@dashboard/lib/components/EmptyState";
 import { MasterDetailShell } from "@dashboard/lib/components/MasterDetailShell";
 import { useMediaQuery } from "@dashboard/lib/hooks/useMediaQuery";

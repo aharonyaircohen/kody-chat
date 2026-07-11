@@ -31,8 +31,8 @@ import {
   Target,
 } from "lucide-react";
 
-import { Card } from "@dashboard/ui/card";
-import { Button } from "@dashboard/ui/button";
+import { Card } from "@kody-ade/base/ui/card";
+import { Button } from "@kody-ade/base/ui/button";
 import { HappeningNow } from "./HappeningNow";
 import { useKodyTasks } from "../hooks";
 import { useReports } from "../hooks/useReports";

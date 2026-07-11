@@ -42,7 +42,7 @@ import {
   ChevronDown,
   ChevronRight,
 } from "lucide-react";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 
 type PreviewTab = "preview" | "changes" | "comments";
 

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-const SOURCE = readFileSync("src/dashboard/ui/dialog.tsx", "utf8");
+const SOURCE = readFileSync("../../packages/base/src/ui/dialog.tsx", "utf8");
 
 describe("DialogContent", () => {
   it("exposes reusable modal size and height variants", () => {

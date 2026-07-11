@@ -29,7 +29,7 @@ import {
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@dashboard/ui/sheet";
+} from "@kody-ade/base/ui/sheet";
 import { cn } from "@kody-ade/base/utils/ui";
 import { SETTINGS_NAV_SECTIONS, isNavItemActive } from "./settings-nav";
 import { InboxBadge } from "./InboxBadge";

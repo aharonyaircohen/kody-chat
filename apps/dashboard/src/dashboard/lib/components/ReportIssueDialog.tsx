@@ -7,14 +7,14 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "@dashboard/ui/dialog";
+} from "@kody-ade/base/ui/dialog";
 import { AlertTriangle, Loader2, Eye, Edit } from "lucide-react";
 import { cn } from "@kody-ade/base/utils/ui";
 import { rtlAwareMarkdownClassName } from "../text-direction";

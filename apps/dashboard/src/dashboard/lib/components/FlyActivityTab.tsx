@@ -18,8 +18,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 
-import { Button } from "@dashboard/ui/button";
-import { Card, CardContent } from "@dashboard/ui/card";
+import { Button } from "@kody-ade/base/ui/button";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
 
 interface FlyActivityTabProps {
   headers: Record<string, string>;

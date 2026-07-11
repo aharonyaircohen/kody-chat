@@ -11,7 +11,7 @@ import type { Octokit } from "@octokit/rest";
 import {
   createGitHubStorageAdapter,
   type GitHubStorageTarget,
-} from "@dashboard/lib/storage";
+} from "@kody-ade/base/storage";
 import { getEngineConfig, type KodyConfig } from "./engine/config";
 import { STATE_BRANCH } from "./state-branch";
 

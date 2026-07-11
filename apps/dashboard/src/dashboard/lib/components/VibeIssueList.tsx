@@ -24,7 +24,7 @@ import {
   ShieldAlert,
   X,
 } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
 import { useGoals } from "../hooks/useGoals";
 import { GOAL_LABEL_PREFIX } from "../goals";
 import { autoDirProps } from "../text-direction";

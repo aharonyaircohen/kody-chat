@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Copy, ExternalLink, Globe, Loader2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import type {
   ServerProviderInventory,
   ServerProviderMachineRow,

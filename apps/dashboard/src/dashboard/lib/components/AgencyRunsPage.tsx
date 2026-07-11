@@ -19,7 +19,7 @@ import {
   XCircle,
 } from "lucide-react";
 
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import { useAgencyRunDetail, useAgencyRuns } from "../hooks/useAgencyRuns";
 import { useRepoScopedHref } from "../hooks/useRepoScopedHref";
 import { DEFAULT_KODY_STORE_REPO_URL, useAuth } from "../auth-context";

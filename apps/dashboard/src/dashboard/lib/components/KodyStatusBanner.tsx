@@ -14,7 +14,7 @@ import { formatElapsed } from "../pipeline-utils";
 import type { KodyTask } from "../types";
 import type { DefaultBranchCI } from "../api";
 import { Loader2 } from "lucide-react";
-import { Badge } from "@dashboard/ui/badge";
+import { Badge } from "@kody-ade/base/ui/badge";
 
 interface KodyStatusBannerProps {
   tasks: KodyTask[];

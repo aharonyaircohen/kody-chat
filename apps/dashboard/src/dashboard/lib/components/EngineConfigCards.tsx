@@ -24,9 +24,9 @@ import {
   ArrowRightLeft,
   Database,
 } from "lucide-react";
-import { Card, CardContent } from "@dashboard/ui/card";
-import { Button } from "@dashboard/ui/button";
-import { Input } from "@dashboard/ui/input";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
+import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
 import { cn } from "../utils";
 import {
   useEngineConfig,

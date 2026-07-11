@@ -12,7 +12,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
+} from "@kody-ade/base/ui/dialog";
 
 interface KeyboardShortcutsDialogProps {
   open: boolean;

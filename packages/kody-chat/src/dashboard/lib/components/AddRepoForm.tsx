@@ -15,9 +15,9 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Lock, Plus } from "lucide-react";
-import { Button } from "@dashboard/ui/button";
-import { Input } from "@dashboard/ui/input";
-import { Label } from "@dashboard/ui/label";
+import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
+import { Label } from "@kody-ade/base/ui/label";
 import { useAuth } from "../auth-context";
 
 const TOKEN_DOC_URL =

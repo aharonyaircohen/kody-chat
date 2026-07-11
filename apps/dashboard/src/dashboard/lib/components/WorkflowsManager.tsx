@@ -25,16 +25,16 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
-import { Input } from "@dashboard/ui/input";
-import { Label } from "@dashboard/ui/label";
+} from "@kody-ade/base/ui/dialog";
+import { Input } from "@kody-ade/base/ui/input";
+import { Label } from "@kody-ade/base/ui/label";
 import { useTrust } from "../cto/useTrust";
 import {
   trustLevelForSubject,

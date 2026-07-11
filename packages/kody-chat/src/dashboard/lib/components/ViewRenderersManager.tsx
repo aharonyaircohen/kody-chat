@@ -24,16 +24,16 @@ import { AuthGuard } from "../auth-guard";
 import { buildAuthHeaders, useAuth } from "../auth-context";
 import { slugifyTitle } from "../slug";
 import { cn } from "../utils";
-import { Button } from "@dashboard/ui/button";
-import { Label } from "@dashboard/ui/label";
-import { Textarea } from "@dashboard/ui/textarea";
+import { Button } from "@kody-ade/base/ui/button";
+import { Label } from "@kody-ade/base/ui/label";
+import { Textarea } from "@kody-ade/base/ui/textarea";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
+} from "@kody-ade/base/ui/dialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";

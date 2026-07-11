@@ -39,26 +39,26 @@ import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
 import { useMediaQuery } from "@dashboard/lib/hooks/useMediaQuery";
 import { cn } from "@dashboard/lib/utils";
-import { Badge } from "@dashboard/ui/badge";
-import { Button } from "@dashboard/ui/button";
-import { Checkbox } from "@dashboard/ui/checkbox";
+import { Badge } from "@kody-ade/base/ui/badge";
+import { Button } from "@kody-ade/base/ui/button";
+import { Checkbox } from "@kody-ade/base/ui/checkbox";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
-import { Input } from "@dashboard/ui/input";
+} from "@kody-ade/base/ui/dialog";
+import { Input } from "@kody-ade/base/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@dashboard/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
-import { Textarea } from "@dashboard/ui/textarea";
+} from "@kody-ade/base/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@kody-ade/base/ui/tabs";
+import { Textarea } from "@kody-ade/base/ui/textarea";
 
 import { ConfirmDialog } from "./ConfirmDialog";
 import { PageHeader } from "./PageShell";

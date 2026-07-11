@@ -26,7 +26,7 @@ import {
   Copy,
   Check,
 } from "lucide-react";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import { PageShell } from "./PageShell";
 import { HealthBanner } from "./HealthBanner";
 import { useAuth } from "../auth-context";

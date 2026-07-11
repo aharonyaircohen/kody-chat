@@ -52,14 +52,14 @@ import { FileDiffViewer } from "./FileDiffViewer";
 import { FileSearch } from "./FileSearch";
 import { UploadZone } from "./UploadZone";
 import { PageShell } from "@dashboard/lib/components/PageShell";
-import { Button } from "@dashboard/ui/button";
-import { Input } from "@dashboard/ui/input";
+import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
+} from "@kody-ade/base/ui/dialog";
 
 type ViewMode = "viewer" | "editor" | "diff" | "search" | "upload";
 type PanelState = "tree" | "split" | "hidden";

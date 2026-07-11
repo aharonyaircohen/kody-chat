@@ -10,8 +10,8 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@dashboard/ui/button";
-import { Input } from "@dashboard/ui/input";
+import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
 import { Loader2, Save } from "lucide-react";
 import { normalizeEnvUrl } from "../preview-environments";
 

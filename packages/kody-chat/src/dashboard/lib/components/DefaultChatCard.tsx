@@ -14,15 +14,15 @@ import { useCallback, useEffect, useState } from "react";
 import { MessageSquareDot } from "lucide-react";
 import { RepoScopedLink } from "@dashboard/lib/components/RepoScopedLink";
 import { toast } from "sonner";
-import { Card, CardContent } from "@dashboard/ui/card";
-import { Label } from "@dashboard/ui/label";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
+import { Label } from "@kody-ade/base/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@dashboard/ui/select";
+} from "@kody-ade/base/ui/select";
 import { getStoredAuth } from "@dashboard/lib/api";
 import { useAuth } from "@dashboard/lib/auth-context";
 import { buildAgentList, type ChatModelEntry } from "../chat/platform/agent-entries";

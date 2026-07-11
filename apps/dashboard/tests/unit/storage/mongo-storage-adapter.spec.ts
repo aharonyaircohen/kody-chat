@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createMongoStorageAdapter } from "@dashboard/lib/storage/mongo";
+import { createMongoStorageAdapter } from "@kody-ade/base/storage/mongo";
 
 describe("Mongo storage adapter", () => {
   it("reads, lists, writes, and deletes text files through one storage contract", async () => {

@@ -22,10 +22,10 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { PageShell } from "@dashboard/lib/components/PageShell";
-import { Button } from "@dashboard/ui/button";
-import { Card, CardContent } from "@dashboard/ui/card";
-import { Label } from "@dashboard/ui/label";
-import { Textarea } from "@dashboard/ui/textarea";
+import { Button } from "@kody-ade/base/ui/button";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
+import { Label } from "@kody-ade/base/ui/label";
+import { Textarea } from "@kody-ade/base/ui/textarea";
 import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
 import { SystemPromptOverrideCard } from "./SystemPromptOverrideCard";
 import { AuthGuard } from "../auth-guard";

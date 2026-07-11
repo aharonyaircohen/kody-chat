@@ -26,15 +26,15 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
-import { Input } from "@dashboard/ui/input";
-import { Textarea } from "@dashboard/ui/textarea";
+} from "@kody-ade/base/ui/dialog";
+import { Input } from "@kody-ade/base/ui/input";
+import { Textarea } from "@kody-ade/base/ui/textarea";
 import { cn } from "@dashboard/lib/utils";
 import { AuthGuard } from "../auth-guard";
 import { selectionPathFromParts } from "../selection-routing";

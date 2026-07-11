@@ -6,7 +6,7 @@
  */
 "use client";
 
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { WizardStep } from "../_types/wizard";
 import { STEPS } from "../_constants/wizard";

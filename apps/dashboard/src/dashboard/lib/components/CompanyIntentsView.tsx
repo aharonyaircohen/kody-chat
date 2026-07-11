@@ -33,24 +33,24 @@ import {
   Target,
 } from "lucide-react";
 
-import { Badge } from "@dashboard/ui/badge";
-import { Button } from "@dashboard/ui/button";
+import { Badge } from "@kody-ade/base/ui/badge";
+import { Button } from "@kody-ade/base/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
-import { Label } from "@dashboard/ui/label";
+} from "@kody-ade/base/ui/dialog";
+import { Label } from "@kody-ade/base/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@dashboard/ui/select";
-import { Textarea } from "@dashboard/ui/textarea";
+} from "@kody-ade/base/ui/select";
+import { Textarea } from "@kody-ade/base/ui/textarea";
 import { cn } from "@kody-ade/base/utils/ui";
 import { selectionPath } from "../selection-routing";
 import { useRepoScopedHref } from "../hooks/useRepoScopedHref";

@@ -27,7 +27,7 @@ import {
   X,
 } from "lucide-react";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
 import { useTheme } from "@dashboard/providers/Theme";
 import { cn } from "@kody-ade/base/utils/ui";
 import {

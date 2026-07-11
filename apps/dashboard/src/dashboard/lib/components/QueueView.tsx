@@ -10,7 +10,7 @@ import { cn } from "../utils";
 import { autoDirProps } from "../text-direction";
 import { MiniPipelineProgress } from "./MiniPipelineProgress";
 import type { KodyTask } from "../types";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import {
   Loader2,
   ListMinus,

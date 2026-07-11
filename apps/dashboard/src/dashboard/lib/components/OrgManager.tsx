@@ -16,9 +16,9 @@ import {
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@dashboard/ui/button";
-import { Input } from "@dashboard/ui/input";
-import { Label } from "@dashboard/ui/label";
+import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
+import { Label } from "@kody-ade/base/ui/label";
 import { PageShell } from "./PageShell";
 import { RepoManager } from "./RepoManager";
 import { useChatScope } from "./ChatRailShell";

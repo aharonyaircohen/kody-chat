@@ -35,21 +35,21 @@ import {
 } from "./FilterBar";
 import { TaskDetail } from "./TaskDetail";
 import { PreviewModal } from "./PreviewModal";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@dashboard/ui/select";
+} from "@kody-ade/base/ui/select";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
   SheetDescription,
-} from "@dashboard/ui/sheet";
+} from "@kody-ade/base/ui/sheet";
 import {
   MessageSquare,
   Bug,
@@ -103,7 +103,7 @@ import { useAuth } from "../auth-context";
 import { repoPathForNavMatching, repoScopedHref } from "../routes";
 import { RepoManager } from "./RepoManager";
 import { useTheme } from "@dashboard/providers/Theme";
-import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
 import { KodyHeader } from "./KodyHeader";
 import { HeaderOverflowMenu } from "./HeaderOverflowMenu";
 import { MobileMenu } from "@kody-ade/kody-chat/components/MobileMenu";

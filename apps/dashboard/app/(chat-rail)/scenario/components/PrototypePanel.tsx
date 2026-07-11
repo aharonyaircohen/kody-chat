@@ -7,10 +7,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button } from "@dashboard/ui/button";
-import { Input } from "@dashboard/ui/input";
-import { Label } from "@dashboard/ui/label";
-import { Badge } from "@dashboard/ui/badge";
+import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
+import { Label } from "@kody-ade/base/ui/label";
+import { Badge } from "@kody-ade/base/ui/badge";
 import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
 import type { PrototypeElement } from "@dashboard/lib/scenario-schema-stub";
 import { Search, Upload, X } from "lucide-react";

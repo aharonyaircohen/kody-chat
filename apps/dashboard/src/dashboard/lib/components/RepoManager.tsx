@@ -13,7 +13,7 @@
 
 import { Github } from "lucide-react";
 import { PageShell } from "./PageShell";
-import { Card, CardContent } from "@dashboard/ui/card";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
 import { AddRepoForm } from "./AddRepoForm";
 import { useAuth } from "../auth-context";
 

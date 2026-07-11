@@ -13,9 +13,9 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Inbox, Loader2, Plus, X, AlertTriangle } from "lucide-react";
-import { Card, CardContent } from "@dashboard/ui/card";
-import { Button } from "@dashboard/ui/button";
-import { Input } from "@dashboard/ui/input";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
+import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
 import { useOperators } from "../operators/useOperators";
 
 export function OperatorsCard() {

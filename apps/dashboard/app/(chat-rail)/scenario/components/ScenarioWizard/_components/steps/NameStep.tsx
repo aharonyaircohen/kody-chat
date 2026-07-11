@@ -6,15 +6,15 @@
  */
 "use client";
 
-import { Input } from "@dashboard/ui/input";
-import { Label } from "@dashboard/ui/label";
+import { Input } from "@kody-ade/base/ui/input";
+import { Label } from "@kody-ade/base/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@dashboard/ui/select";
+} from "@kody-ade/base/ui/select";
 import type { Scenario } from "@dashboard/lib/scenario-schema-stub";
 import { SCENARIO_TYPES } from "../../_constants/wizard";
 

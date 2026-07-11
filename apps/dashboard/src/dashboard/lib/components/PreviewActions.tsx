@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { KodyTask } from "../types";
 import { mapTaskCacheData, type TaskCacheData } from "../tasks/cache";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import { FixRequestDialog } from "./FixRequestDialog";
 import { ReportIssueDialog } from "./ReportIssueDialog";
 import { ConfirmDialog } from "./ConfirmDialog";

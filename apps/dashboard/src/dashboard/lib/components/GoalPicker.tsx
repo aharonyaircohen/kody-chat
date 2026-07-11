@@ -11,7 +11,7 @@
 import { useState } from "react";
 import { Flag } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,7 +19,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@dashboard/ui/dropdown-menu";
+} from "@kody-ade/base/ui/dropdown-menu";
 import { useGoals } from "../hooks/useGoals";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { tasksApi } from "../api";

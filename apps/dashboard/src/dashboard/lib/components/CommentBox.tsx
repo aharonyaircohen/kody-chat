@@ -7,8 +7,8 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@dashboard/ui/button";
-import { Textarea } from "@dashboard/ui/textarea";
+import { Button } from "@kody-ade/base/ui/button";
+import { Textarea } from "@kody-ade/base/ui/textarea";
 
 interface CommentBoxProps {
   issueNumber: number;

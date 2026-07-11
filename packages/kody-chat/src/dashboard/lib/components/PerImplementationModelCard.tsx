@@ -10,9 +10,9 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Plus, X, Cpu } from "lucide-react";
-import { Card, CardContent } from "@dashboard/ui/card";
-import { Button } from "@dashboard/ui/button";
-import { Input } from "@dashboard/ui/input";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
+import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
 import { useEngineConfig } from "@dashboard/lib/engine/useEngineConfig";
 import { engineModelSpec, type ChatModel } from "@dashboard/lib/variables/models";
 

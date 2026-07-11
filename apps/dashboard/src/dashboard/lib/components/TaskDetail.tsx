@@ -40,9 +40,9 @@ import { autoDirProps, rtlAwareMarkdownClassName } from "../text-direction";
 import { KodyPhaseChip, KodyFlowChip } from "./KodyLabelChips";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { WorkflowRunsPopover } from "./WorkflowRunsPopover";
-import { Button } from "@dashboard/ui/button";
-import { Badge } from "@dashboard/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
+import { Button } from "@kody-ade/base/ui/button";
+import { Badge } from "@kody-ade/base/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
 import {
   useTaskActions,
   useTaskDetails,

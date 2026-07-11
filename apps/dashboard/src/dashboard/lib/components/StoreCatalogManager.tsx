@@ -29,14 +29,14 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
+} from "@kody-ade/base/ui/dialog";
 
 import { buildAuthHeaders, useAuth } from "../auth-context";
 import { selectionPath } from "../selection-routing";

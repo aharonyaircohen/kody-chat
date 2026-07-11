@@ -6,7 +6,7 @@
  */
 "use client";
 
-import { Badge } from "@dashboard/ui/badge";
+import { Badge } from "@kody-ade/base/ui/badge";
 import type {
   PrototypeElement,
   DSComponent,

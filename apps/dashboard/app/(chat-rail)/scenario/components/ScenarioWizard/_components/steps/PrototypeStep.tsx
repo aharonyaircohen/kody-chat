@@ -6,7 +6,7 @@
  */
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@dashboard/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@kody-ade/base/ui/card";
 import { PrototypePanel } from "../../../PrototypePanel";
 import { DesignSystemPanel } from "../../../DesignSystemPanel";
 import { SelectedItemsBadge } from "../shared/SelectedItemsBadge";

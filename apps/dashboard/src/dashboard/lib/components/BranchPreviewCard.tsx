@@ -25,9 +25,9 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@dashboard/ui/button";
-import { Card, CardContent } from "@dashboard/ui/card";
-import { Input } from "@dashboard/ui/input";
+import { Button } from "@kody-ade/base/ui/button";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
+import { Input } from "@kody-ade/base/ui/input";
 import { SimpleTooltip } from "./SimpleTooltip";
 
 interface BranchPreviewCardProps {

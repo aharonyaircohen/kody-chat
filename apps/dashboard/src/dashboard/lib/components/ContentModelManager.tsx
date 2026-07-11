@@ -16,19 +16,19 @@ import { toast } from "sonner";
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
 import { cn } from "@dashboard/lib/utils";
-import { Badge } from "@dashboard/ui/badge";
-import { Button } from "@dashboard/ui/button";
-import { Checkbox } from "@dashboard/ui/checkbox";
-import { Input } from "@dashboard/ui/input";
-import { Label } from "@dashboard/ui/label";
+import { Badge } from "@kody-ade/base/ui/badge";
+import { Button } from "@kody-ade/base/ui/button";
+import { Checkbox } from "@kody-ade/base/ui/checkbox";
+import { Input } from "@kody-ade/base/ui/input";
+import { Label } from "@kody-ade/base/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@dashboard/ui/select";
-import { Textarea } from "@dashboard/ui/textarea";
+} from "@kody-ade/base/ui/select";
+import { Textarea } from "@kody-ade/base/ui/textarea";
 
 import { ConfirmDialog } from "./ConfirmDialog";
 import { PageHeader } from "./PageShell";

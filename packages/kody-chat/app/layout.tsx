@@ -12,7 +12,7 @@ import { GeistSans } from "geist/font/sans";
 import { Assistant } from "next/font/google";
 
 import { KodyProviders } from "./KodyProviders";
-import { Toaster } from "@dashboard/ui/toaster";
+import { Toaster } from "@kody-ade/base/ui/toaster";
 import {
   defaultTheme,
   themeLocalStorageKey,

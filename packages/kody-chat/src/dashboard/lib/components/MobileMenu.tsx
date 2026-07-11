@@ -11,14 +11,14 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Github, LogOut, Plus, Trash2 } from "lucide-react";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@dashboard/ui/sheet";
+} from "@kody-ade/base/ui/sheet";
 
 import { useAuth, type KodyRepoEntry } from "@dashboard/lib/auth-context";
 import { useGitHubIdentity } from "@dashboard/lib/hooks/useGitHubIdentity";

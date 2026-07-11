@@ -26,8 +26,8 @@ import {
   Target,
 } from "lucide-react";
 import { PageShell } from "./PageShell";
-import { Button } from "@dashboard/ui/button";
-import { Card, CardContent } from "@dashboard/ui/card";
+import { Button } from "@kody-ade/base/ui/button";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
 import { AuthGuard } from "../auth-guard";
 import { useAuth } from "../auth-context";
 import { kodyApi } from "../api";

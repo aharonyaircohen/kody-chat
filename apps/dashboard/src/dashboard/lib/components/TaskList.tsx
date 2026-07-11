@@ -38,22 +38,22 @@ import { CIStatusBadge } from "./CIStatusBadge";
 import { UIVerifyBadge } from "./UIVerifyBadge";
 import { ConfirmDialog } from "./ConfirmDialog";
 import type { KodyTask, ColumnId } from "../types";
-import { Button } from "@dashboard/ui/button";
-import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
+import { Button } from "@kody-ade/base/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@dashboard/ui/dropdown-menu";
+} from "@kody-ade/base/ui/dropdown-menu";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@dashboard/ui/select";
+} from "@kody-ade/base/ui/select";
 import {
   GitPullRequest,
   Play,

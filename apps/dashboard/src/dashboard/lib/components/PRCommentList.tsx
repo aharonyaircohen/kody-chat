@@ -10,7 +10,7 @@ import { useState, useEffect } from "react";
 import type { PRComment } from "../types";
 import { prsApi } from "../api";
 import { MarkdownViewer } from "./MarkdownViewer";
-import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
 import { Loader2, MessageSquare } from "lucide-react";
 import { formatRelativeTime } from "../utils";
 import { autoDirProps } from "../text-direction";

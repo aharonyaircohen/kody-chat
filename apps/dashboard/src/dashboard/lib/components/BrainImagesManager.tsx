@@ -20,8 +20,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@dashboard/ui/button";
-import { Card, CardContent } from "@dashboard/ui/card";
+import { Button } from "@kody-ade/base/ui/button";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
 import { buildAuthHeaders, useAuth } from "../auth-context";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { PageShell } from "./PageShell";

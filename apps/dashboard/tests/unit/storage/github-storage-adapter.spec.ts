@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createGitHubStorageAdapter,
   createGitHubStorageFetchClient,
-} from "@dashboard/lib/storage/github";
+} from "@kody-ade/base/storage/github";
 
 describe("GitHub storage adapter", () => {
   it("reads, lists, writes, and deletes text files through one storage contract", async () => {

@@ -24,7 +24,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import { AuthGuard } from "../auth-guard";
 import { useAuth } from "../auth-context";
 import { cn } from "../utils";

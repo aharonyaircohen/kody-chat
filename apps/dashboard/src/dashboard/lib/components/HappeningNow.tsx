@@ -15,7 +15,7 @@
 import Link from "next/link";
 import { CircleDot, Clock, ExternalLink, Loader2 } from "lucide-react";
 
-import { Card } from "@dashboard/ui/card";
+import { Card } from "@kody-ade/base/ui/card";
 import { COLUMN_DEFS } from "../constants";
 import { useNow } from "../hooks/useNow";
 import { useAuth } from "../auth-context";

@@ -13,8 +13,8 @@
 import Link from "next/link";
 import { Loader2, X } from "lucide-react";
 
-import { Card } from "@dashboard/ui/card";
-import { Button } from "@dashboard/ui/button";
+import { Card } from "@kody-ade/base/ui/card";
+import { Button } from "@kody-ade/base/ui/button";
 import {
   useTriageStrip,
   type TriageItem,

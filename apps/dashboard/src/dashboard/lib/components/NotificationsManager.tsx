@@ -12,25 +12,25 @@ import { RepoScopedLink } from "./RepoScopedLink";
 import { useState } from "react";
 import { Bell, BookOpen, Pencil, Plus, Send, Trash2 } from "lucide-react";
 import { PageShell } from "./PageShell";
-import { Button } from "@dashboard/ui/button";
-import { Card, CardContent } from "@dashboard/ui/card";
-import { Input } from "@dashboard/ui/input";
-import { Label } from "@dashboard/ui/label";
-import { Textarea } from "@dashboard/ui/textarea";
+import { Button } from "@kody-ade/base/ui/button";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
+import { Input } from "@kody-ade/base/ui/input";
+import { Label } from "@kody-ade/base/ui/label";
+import { Textarea } from "@kody-ade/base/ui/textarea";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
+} from "@kody-ade/base/ui/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@dashboard/ui/select";
+} from "@kody-ade/base/ui/select";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { AuthGuard } from "../auth-guard";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";

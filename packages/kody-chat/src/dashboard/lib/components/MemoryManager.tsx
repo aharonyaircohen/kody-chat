@@ -20,9 +20,9 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import { Button } from "@dashboard/ui/button";
-import { Input } from "@dashboard/ui/input";
-import { Label } from "@dashboard/ui/label";
+import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
+import { Label } from "@kody-ade/base/ui/label";
 import { slugifyTitle } from "@dashboard/lib/slug";
 import {
   Dialog,
@@ -30,7 +30,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
+} from "@kody-ade/base/ui/dialog";
 import { AuthGuard } from "../auth-guard";
 import { useGitHubIdentity } from "@dashboard/lib/hooks/useGitHubIdentity";
 import { useMediaQuery } from "@dashboard/lib/hooks/useMediaQuery";

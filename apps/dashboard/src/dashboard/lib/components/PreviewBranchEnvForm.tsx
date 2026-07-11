@@ -9,8 +9,8 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@dashboard/ui/button";
-import { Input } from "@dashboard/ui/input";
+import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
 import { GitBranch, Loader2, Save } from "lucide-react";
 
 import { normalizeBranchName, normalizeRepoRef } from "../preview-environments";

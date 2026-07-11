@@ -24,9 +24,9 @@ import {
   MessageSquarePlus,
   Send,
 } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
-import { Button } from "@dashboard/ui/button";
-import { Textarea } from "@dashboard/ui/textarea";
+import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
+import { Button } from "@kody-ade/base/ui/button";
+import { Textarea } from "@kody-ade/base/ui/textarea";
 import { cn } from "@kody-ade/base/utils/ui";
 import { formatRelativeTime } from "../utils";
 import {

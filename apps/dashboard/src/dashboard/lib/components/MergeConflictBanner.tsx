@@ -9,7 +9,7 @@
 import { useState } from "react";
 import { AlertTriangle, GitMerge, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import { usePRCIStatus } from "../hooks/usePRCIStatus";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { prsApi } from "../api";

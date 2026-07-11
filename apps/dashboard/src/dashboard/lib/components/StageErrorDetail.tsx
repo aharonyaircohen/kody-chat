@@ -9,8 +9,8 @@
 import { useState, useEffect } from "react";
 import { usePersistedState } from "../hooks/usePersistedState";
 import type { CheckRunResult } from "../types";
-import { Button } from "@dashboard/ui/button";
-import { Badge } from "@dashboard/ui/badge";
+import { Button } from "@kody-ade/base/ui/button";
+import { Badge } from "@kody-ade/base/ui/badge";
 import { ExternalLink, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
 import { useAuth, buildAuthHeaders } from "../auth-context";
 

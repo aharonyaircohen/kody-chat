@@ -28,8 +28,8 @@ import {
   Undo2,
   Workflow,
 } from "lucide-react";
-import { Button } from "@dashboard/ui/button";
-import { Textarea } from "@dashboard/ui/textarea";
+import { Button } from "@kody-ade/base/ui/button";
+import { Textarea } from "@kody-ade/base/ui/textarea";
 import { cn } from "@kody-ade/base/utils/ui";
 import { EMOJI_LIST } from "../constants";
 import { autoDirProps, rtlAwareMarkdownClassName } from "../text-direction";

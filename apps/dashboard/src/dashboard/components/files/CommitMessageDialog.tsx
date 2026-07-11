@@ -13,9 +13,9 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
-import { Button } from "@dashboard/ui/button";
-import { Textarea } from "@dashboard/ui/textarea";
+} from "@kody-ade/base/ui/dialog";
+import { Button } from "@kody-ade/base/ui/button";
+import { Textarea } from "@kody-ade/base/ui/textarea";
 import { cn } from "@dashboard/lib/utils";
 
 interface CommitMessageDialogProps {

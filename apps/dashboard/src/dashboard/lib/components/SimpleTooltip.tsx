@@ -12,7 +12,7 @@ import {
   TooltipTrigger,
   TooltipContent,
   TooltipProvider,
-} from "@dashboard/ui/tooltip";
+} from "@kody-ade/base/ui/tooltip";
 
 interface SimpleTooltipProps {
   content: React.ReactNode;

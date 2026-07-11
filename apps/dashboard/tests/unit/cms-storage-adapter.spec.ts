@@ -5,7 +5,7 @@ import type {
   CmsCollectionConfig,
   CmsRuntimeConfig,
 } from "@dashboard/lib/cms/types";
-import type { CmsStorageTransport } from "@dashboard/lib/storage";
+import type { CmsStorageTransport } from "@kody-ade/base/storage";
 
 describe("storage CMS adapter", () => {
   it("runs CMS CRUD through the storage transport only", async () => {

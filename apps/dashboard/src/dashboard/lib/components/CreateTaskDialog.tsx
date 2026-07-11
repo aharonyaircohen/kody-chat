@@ -9,25 +9,25 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import Image from "next/image";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
-import { Input } from "@dashboard/ui/input";
-import { Label } from "@dashboard/ui/label";
+} from "@kody-ade/base/ui/dialog";
+import { Input } from "@kody-ade/base/ui/input";
+import { Label } from "@kody-ade/base/ui/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@dashboard/ui/select";
-import { Textarea } from "@dashboard/ui/textarea";
-import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
+} from "@kody-ade/base/ui/select";
+import { Textarea } from "@kody-ade/base/ui/textarea";
+import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
 import { useCreateTask, useKodyBoards, useCollaborators } from "../hooks";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import {

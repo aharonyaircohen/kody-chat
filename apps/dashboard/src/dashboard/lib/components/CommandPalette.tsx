@@ -28,7 +28,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogTitle,
-} from "@dashboard/ui/dialog";
+} from "@kody-ade/base/ui/dialog";
 import { useTheme } from "@dashboard/providers/Theme";
 import { cn } from "@kody-ade/base/utils/ui";
 import { useAuth } from "../auth-context";

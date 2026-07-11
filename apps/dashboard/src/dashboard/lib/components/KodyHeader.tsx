@@ -18,7 +18,7 @@ import { type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Menu, MessageSquare, RefreshCw } from "lucide-react";
 
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "../utils";
 import { useAuth } from "../auth-context";
 import { useChatScope } from "./ChatRailShell";

@@ -13,9 +13,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ExternalLink, Loader2, XCircle } from "lucide-react";
 
-import { Button } from "@dashboard/ui/button";
-import { Input } from "@dashboard/ui/input";
-import { Label } from "@dashboard/ui/label";
+import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
+import { Label } from "@kody-ade/base/ui/label";
 import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
 import type { WizardDefinition, WizardStep } from "@dashboard/lib/wizards/types";
 import { PageShell } from "./PageShell";

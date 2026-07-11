@@ -28,7 +28,7 @@ import {
 import {
   createGitHubStorageAdapter,
   createGitHubStorageFetchClient,
-} from "../storage";
+} from "@kody-ade/base/storage";
 
 const GITHUB_API = "https://api.github.com";
 const CACHE_TTL_MS = 10 * 60 * 1000;

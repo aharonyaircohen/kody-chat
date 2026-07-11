@@ -6,9 +6,9 @@
  */
 "use client";
 
-import { Button } from "@dashboard/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@dashboard/ui/card";
-import { Badge } from "@dashboard/ui/badge";
+import { Button } from "@kody-ade/base/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@kody-ade/base/ui/card";
+import { Badge } from "@kody-ade/base/ui/badge";
 import { Save, Github, Download } from "lucide-react";
 import type {
   Scenario,

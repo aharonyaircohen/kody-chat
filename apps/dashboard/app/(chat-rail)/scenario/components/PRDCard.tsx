@@ -7,9 +7,9 @@
 "use client";
 
 import type { Scenario } from "@dashboard/lib/scenario-schema-stub";
-import { Badge } from "@dashboard/ui/badge";
-import { Button } from "@dashboard/ui/button";
-import { Label } from "@dashboard/ui/label";
+import { Badge } from "@kody-ade/base/ui/badge";
+import { Button } from "@kody-ade/base/ui/button";
+import { Label } from "@kody-ade/base/ui/label";
 import { Copy, Check } from "lucide-react";
 import { useState } from "react";
 

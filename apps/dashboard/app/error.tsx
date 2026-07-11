@@ -7,7 +7,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import { AlertTriangle } from "lucide-react";
 
 export default function KodyError({

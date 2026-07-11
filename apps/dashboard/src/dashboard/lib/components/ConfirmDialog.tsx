@@ -12,8 +12,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "@dashboard/ui/dialog";
-import { Button } from "@dashboard/ui/button";
+} from "@kody-ade/base/ui/dialog";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "../utils";
 
 interface ConfirmDialogProps {

@@ -11,14 +11,14 @@
 
 import { LifeBuoy, MoreHorizontal, RefreshCw } from "lucide-react";
 
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@dashboard/ui/dropdown-menu";
+} from "@kody-ade/base/ui/dropdown-menu";
 import { cn } from "../utils";
 import { SimpleTooltip } from "./SimpleTooltip";
 

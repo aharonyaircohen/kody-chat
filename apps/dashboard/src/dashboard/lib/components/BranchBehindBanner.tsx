@@ -13,7 +13,7 @@
 import { useState } from "react";
 import { GitPullRequestArrow, RefreshCw, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import { usePRCIStatus } from "../hooks/usePRCIStatus";
 import { usePRBehind } from "../hooks/usePRBehind";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";

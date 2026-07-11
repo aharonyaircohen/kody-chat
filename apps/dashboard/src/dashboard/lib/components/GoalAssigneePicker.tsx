@@ -13,14 +13,14 @@
 
 import { useMemo, useState } from "react";
 import { Loader2, Plus, User, X } from "lucide-react";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@dashboard/ui/dropdown-menu";
-import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
+} from "@kody-ade/base/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
 import { useCollaborators } from "../hooks";
 
 export interface GoalAssigneePickerProps {

@@ -34,11 +34,11 @@ import {
   Trash2,
 } from "lucide-react";
 
-import { Button } from "@dashboard/ui/button";
-import { Card, CardContent } from "@dashboard/ui/card";
-import { Checkbox } from "@dashboard/ui/checkbox";
-import { Input } from "@dashboard/ui/input";
-import { Label } from "@dashboard/ui/label";
+import { Button } from "@kody-ade/base/ui/button";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
+import { Checkbox } from "@kody-ade/base/ui/checkbox";
+import { Input } from "@kody-ade/base/ui/input";
+import { Label } from "@kody-ade/base/ui/label";
 import { BranchPreviewCard } from "./BranchPreviewCard";
 import { SimpleTooltip } from "./SimpleTooltip";
 

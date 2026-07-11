@@ -8,7 +8,7 @@
 
 import { Component, type ReactNode, type ErrorInfo } from "react";
 import { AlertTriangle } from "lucide-react";
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 
 interface ErrorBoundaryProps {
   children: ReactNode;

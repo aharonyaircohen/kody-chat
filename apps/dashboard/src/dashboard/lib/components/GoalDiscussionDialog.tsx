@@ -16,7 +16,7 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
+} from "@kody-ade/base/ui/dialog";
 import type { Goal } from "../api";
 import { GoalDiscussion } from "./GoalDiscussion";
 

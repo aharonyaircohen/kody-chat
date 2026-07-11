@@ -2,7 +2,7 @@
 
 import { Loader2, ShieldAlert, ShieldCheck, Zap } from "lucide-react";
 
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import type { TrustLevel } from "../cto/trust-state";
 import { cn } from "../utils";
 

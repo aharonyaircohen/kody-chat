@@ -30,8 +30,8 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@dashboard/ui/button";
-import { Input } from "@dashboard/ui/input";
+import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
 import { PageShell } from "./PageShell";
 import { OperatorsWarningBanner } from "./OperatorsWarningBanner";
 import { InboxThreadDialog, resolvableThread } from "./InboxThreadDialog";

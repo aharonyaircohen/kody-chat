@@ -13,7 +13,7 @@ import { Assistant } from "next/font/google";
 
 import { KodyProviders } from "./KodyProviders";
 import { ChatRailShell } from "@dashboard/lib/components/ChatRailShell";
-import { Toaster } from "@dashboard/ui/toaster";
+import { Toaster } from "@kody-ade/base/ui/toaster";
 import {
   defaultTheme,
   themeLocalStorageKey,

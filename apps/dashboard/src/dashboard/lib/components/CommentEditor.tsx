@@ -9,8 +9,8 @@
 import { useState, useEffect, useRef } from "react";
 import { MessageSquarePlus } from "lucide-react";
 import Image from "next/image";
-import { Button } from "@dashboard/ui/button";
-import { Textarea } from "@dashboard/ui/textarea";
+import { Button } from "@kody-ade/base/ui/button";
+import { Textarea } from "@kody-ade/base/ui/textarea";
 import { cn } from "@kody-ade/base/utils/ui";
 import { usePostComment } from "../hooks";
 import { useCommentAttachments } from "../hooks/useCommentAttachments";

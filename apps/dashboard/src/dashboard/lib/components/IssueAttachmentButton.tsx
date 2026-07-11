@@ -11,7 +11,7 @@ import { useRef, useState } from "react";
 import { Loader2, Paperclip } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button, type ButtonProps } from "@dashboard/ui/button";
+import { Button, type ButtonProps } from "@kody-ade/base/ui/button";
 import { uploadCommentAttachmentFile } from "../hooks/useCommentAttachments";
 import { usePostComment } from "../hooks";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";

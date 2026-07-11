@@ -10,7 +10,7 @@
 
 import { Loader2, Paperclip, X } from "lucide-react";
 
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "@kody-ade/base/utils/ui";
 import type { useCommentAttachments } from "../hooks/useCommentAttachments";
 

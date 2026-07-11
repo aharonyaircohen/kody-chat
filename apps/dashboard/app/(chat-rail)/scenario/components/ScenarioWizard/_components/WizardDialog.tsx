@@ -6,14 +6,14 @@
  */
 "use client";
 
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@dashboard/ui/dialog";
+} from "@kody-ade/base/ui/dialog";
 import { PRDCardContent } from "./shared/PRDCardContent";
 import type {
   Scenario,

@@ -7,15 +7,15 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button } from "@dashboard/ui/button";
-import { Checkbox } from "@dashboard/ui/checkbox";
+import { Button } from "@kody-ade/base/ui/button";
+import { Checkbox } from "@kody-ade/base/ui/checkbox";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogDescription,
-} from "@dashboard/ui/dialog";
+} from "@kody-ade/base/ui/dialog";
 import {
   GitPullRequest,
   Loader2,

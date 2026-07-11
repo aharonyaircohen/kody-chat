@@ -37,10 +37,10 @@ import {
   RefreshCw,
 } from "lucide-react";
 
-import { Checkbox } from "@dashboard/ui/checkbox";
+import { Checkbox } from "@kody-ade/base/ui/checkbox";
 
-import { Button } from "@dashboard/ui/button";
-import { Card, CardContent } from "@dashboard/ui/card";
+import { Button } from "@kody-ade/base/ui/button";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { SimpleTooltip } from "./SimpleTooltip";
 import {

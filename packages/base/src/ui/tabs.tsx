@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { cn } from "@dashboard/lib/utils";
+import { cn } from "@kody-ade/base/utils/ui";
 
 export interface TabsProps {
   defaultValue?: string;

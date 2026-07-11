@@ -10,7 +10,7 @@
 
 import { ExternalLink, FileText, RefreshCw } from "lucide-react";
 
-import { Button } from "@dashboard/ui/button";
+import { Button } from "@kody-ade/base/ui/button";
 import { AuthGuard } from "../auth-guard";
 import { useChangelog } from "../hooks/useChangelog";
 import { PageHeader } from "./PageShell";

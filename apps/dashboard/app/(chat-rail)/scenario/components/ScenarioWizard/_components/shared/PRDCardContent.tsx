@@ -6,8 +6,8 @@
  */
 "use client";
 
-import { Card, CardContent } from "@dashboard/ui/card";
-import { Badge } from "@dashboard/ui/badge";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
+import { Badge } from "@kody-ade/base/ui/badge";
 import type {
   Scenario,
   DSComponent,
