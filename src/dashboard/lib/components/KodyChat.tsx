@@ -1617,7 +1617,6 @@ export function KodyChat({
             void sendText(content, []);
           }}
           activeLoading={activeLoading}
-          agentName={currentAgent.name}
           activeSessionId={sessionHook.activeSession?.id}
           toolCalls={toolCalls}
           usedViewIds={usedViewIds}

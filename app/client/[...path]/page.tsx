@@ -4,6 +4,12 @@
  * @pattern client-chat-route
  * @ai-summary Brand-scoped client chat route. It renders a standalone shell
  *   around the real KodyChat and stays outside the dashboard chat rail.
+ *   Two URL shapes:
+ *     /client/<brandSlug>                 — legacy; repo context comes from
+ *       the dashboard cookie or the configured default repo.
+ *     /client/<owner>/<repo>/<brandSlug>  — self-contained; the link itself
+ *       names the repo the brand lives in, so any visitor on any device
+ *       resolves the right context (kody-state stays repo-agnostic).
  */
 import type { Metadata } from "next";
 import { cookies } from "next/headers";
@@ -34,7 +40,46 @@ import { resolveConfiguredProviders } from "@dashboard/lib/client-auth/credentia
 import { ClientAuthGate } from "../../../src/dashboard/lib/client-auth/ClientAuthGate";
 
 interface ClientChatPageProps {
-  params: Promise<{ brandSlug: string }>;
+  params: Promise<{ path: string[] }>;
+}
+
+/** Parsed URL shape: brand slug plus (for 3-segment links) the repo. */
+interface ClientChatRoute {
+  brandSlug: string;
+  /** Explicit repo context from the URL; null for legacy 1-segment links. */
+  urlContext: ClientBrandRepoContext | null;
+  /** The path the surface should return to after auth round-trips. */
+  callbackUrl: string;
+}
+
+const OWNER_REPO_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
+
+function parseClientChatRoute(
+  path: string[] | undefined,
+): ClientChatRoute | null {
+  if (!Array.isArray(path)) return null;
+  const segments = path.map((segment) => decodeURIComponent(segment).trim());
+  if (segments.some((segment) => !segment)) return null;
+
+  if (segments.length === 1) {
+    return {
+      brandSlug: segments[0],
+      urlContext: null,
+      callbackUrl: `/client/${encodeURIComponent(segments[0])}`,
+    };
+  }
+  if (segments.length === 3) {
+    const [owner, repo, brandSlug] = segments;
+    if (!OWNER_REPO_PATTERN.test(owner) || !OWNER_REPO_PATTERN.test(repo)) {
+      return null;
+    }
+    return {
+      brandSlug,
+      urlContext: { owner, repo },
+      callbackUrl: `/client/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${encodeURIComponent(brandSlug)}`,
+    };
+  }
+  return null;
 }
 
 async function withVaultToken(
@@ -48,16 +93,23 @@ async function withVaultToken(
 }
 
 /**
- * Resolve the brand plus the repo context it was found under. Client
- * visitors don't carry the dashboard's brand-repo cookie (and since the
- * cookie started tracking the last-visited repo it may point at a repo
- * with no brands at all), so fall back to the configured default repo
- * whenever the cookie context is absent or doesn't know the brand.
+ * Resolve the brand plus the repo context it was found under. A repo named
+ * in the URL wins outright. Legacy links fall back to the dashboard cookie,
+ * then the configured default repo (client visitors don't carry the
+ * dashboard's brand-repo cookie, and since the cookie started tracking the
+ * last-visited repo it may point at a repo with no brands at all).
  */
-async function resolveBrandAndContext(brandSlug: string): Promise<{
+async function resolveBrandAndContext(route: ClientChatRoute): Promise<{
   brand: Awaited<ReturnType<typeof resolveClientBrand>>;
   context: ClientBrandResolveContext | null;
 }> {
+  const { brandSlug, urlContext } = route;
+
+  if (urlContext) {
+    const context = await withVaultToken(urlContext);
+    return { brand: await resolveClientBrand(brandSlug, context), context };
+  }
+
   const cookieStore = await cookies();
   const cookieContext = parseClientBrandRepoCookie(
     cookieStore.get(CLIENT_BRAND_REPO_COOKIE)?.value,
@@ -92,8 +144,10 @@ async function resolveBrandAndContext(brandSlug: string): Promise<{
 export async function generateMetadata({
   params,
 }: ClientChatPageProps): Promise<Metadata> {
-  const { brandSlug } = await params;
-  const { brand, context } = await resolveBrandAndContext(brandSlug);
+  const { path } = await params;
+  const route = parseClientChatRoute(path);
+  if (!route) notFound();
+  const { brand, context } = await resolveBrandAndContext(route);
   if (!brand) notFound();
 
   const languageStrings = await resolveClientLanguageStrings(
@@ -111,8 +165,10 @@ export async function generateMetadata({
 }
 
 export default async function ClientChatPage({ params }: ClientChatPageProps) {
-  const { brandSlug } = await params;
-  const { brand, context } = await resolveBrandAndContext(brandSlug);
+  const { path } = await params;
+  const route = parseClientChatRoute(path);
+  if (!route) notFound();
+  const { brand, context } = await resolveBrandAndContext(route);
   if (!brand) notFound();
 
   const languageStrings = await resolveClientLanguageStrings(
@@ -124,8 +180,8 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
     | { name?: string | null; email?: string | null; image?: string | null }
     | undefined;
 
+  const callbackUrl = route.callbackUrl;
   if (brand.auth?.required) {
-    const callbackUrl = `/client/${brand.slug}`;
     const providers = await resolveConfiguredProviders(
       brandAuthProviders(brand.auth),
       context,
@@ -187,7 +243,6 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
     }
   }
 
-  const callbackUrl = `/client/${brand.slug}`;
   return (
     <ClientChatSurface
       brand={brand}

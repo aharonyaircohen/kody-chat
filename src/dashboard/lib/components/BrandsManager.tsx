@@ -151,8 +151,12 @@ async function listBrandLanguagesApi(
     }));
 }
 
-function brandSurfacePath(slug: string): string {
-  return `/client/${slug}`;
+function brandSurfacePath(slug: string, owner?: string, repo?: string): string {
+  // Repo-qualified links are self-contained: any visitor resolves the brand's
+  // repo from the URL, no dashboard cookie or server default required.
+  return owner && repo
+    ? `/client/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/${slug}`
+    : `/client/${slug}`;
 }
 
 function sourceLabel(source: BrandRow["source"]): string {
@@ -339,6 +343,11 @@ export function BrandsManager({
           selectedBrand ? (
             <BrandDetail
               brand={selectedBrand}
+              surfacePath={brandSurfacePath(
+                selectedBrand.slug,
+                auth?.owner,
+                auth?.repo,
+              )}
               onBack={() => selectBrand(null)}
               onEdit={() => setEditing({ brand: selectedBrand, isNew: false })}
               onDelete={() => setDeleting(selectedBrand)}
@@ -381,6 +390,11 @@ export function BrandsManager({
               <li key={brand.slug}>
                 <BrandListRow
                   brand={brand}
+                  surfacePath={brandSurfacePath(
+                    brand.slug,
+                    auth?.owner,
+                    auth?.repo,
+                  )}
                   isActive={selectedSlug === brand.slug}
                   onSelect={() => selectBrand(brand.slug)}
                   onDelete={() => setDeleting(brand)}
@@ -426,11 +440,13 @@ export function BrandsManager({
 
 function BrandListRow({
   brand,
+  surfacePath,
   isActive,
   onSelect,
   onDelete,
 }: {
   brand: BrandRow;
+  surfacePath: string;
   isActive: boolean;
   onSelect: () => void;
   onDelete: () => void;
@@ -461,7 +477,7 @@ function BrandListRow({
           </span>
         </div>
         <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
-          {brandSurfacePath(brand.slug)}
+          {surfacePath}
         </p>
         <p className="mt-1 truncate text-xs text-white/50">
           {brand.accent} · {brand.locale ?? "en"} ·{" "}
@@ -488,11 +504,13 @@ function BrandListRow({
 
 function BrandDetail({
   brand,
+  surfacePath,
   onBack,
   onEdit,
   onDelete,
 }: {
   brand: BrandRow;
+  surfacePath: string;
   onBack: () => void;
   onEdit: () => void;
   onDelete: () => void;
@@ -537,7 +555,7 @@ function BrandDetail({
             <div className="flex shrink-0 items-center gap-2">
               <Button asChild variant="outline" size="sm">
                 <Link
-                  href={brandSurfacePath(brand.slug)}
+                  href={surfacePath}
                   aria-label={`Open ${brand.name} client surface`}
                 >
                   <ExternalLink className="h-4 w-4" />
@@ -564,10 +582,7 @@ function BrandDetail({
       <div className="mx-auto max-w-4xl space-y-4 p-4 md:p-8">
         <BrandDetailSection title="Client surface" icon={<Globe2 />}>
           <div className="grid gap-3 md:grid-cols-2">
-            <DetailField
-              label="Public URL"
-              value={brandSurfacePath(brand.slug)}
-            />
+            <DetailField label="Public URL" value={surfacePath} />
             <DetailField label="Slug" value={brand.slug} />
           </div>
         </BrandDetailSection>

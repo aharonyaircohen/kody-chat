@@ -64,8 +64,6 @@ interface MessageListProps {
   onResend: (content: string) => void;
   /** True while a turn is in flight (streaming or awaiting first byte). */
   activeLoading: boolean;
-  /** Display name for the typing indicator label. */
-  agentName: string;
   /** Active session id — scopes the thinking/reasoning persist keys. */
   activeSessionId: string | undefined;
   /** Streaming tool calls not yet folded into a message. */
@@ -100,7 +98,6 @@ export function MessageList({
   setMessages,
   onResend,
   activeLoading,
-  agentName,
   activeSessionId,
   toolCalls,
   usedViewIds,
@@ -181,6 +178,12 @@ export function MessageList({
                 : null;
             const visibleText = parsedAssistant?.answer || msg.content;
             const messageDirection = getMessageDirection(visibleText);
+            // Bubbles carrying a rendered view span the full row so the
+            // view isn't cramped by the text-sized bubble width cap.
+            const hasRenderedView =
+              msg.role === "assistant" &&
+              !!msg.view &&
+              isRenderedViewDirective(msg.view);
 
             return (
               <div
@@ -191,7 +194,11 @@ export function MessageList({
                 <div
                   dir={messageDirection}
                   style={messageTextDirectionStyle}
-                  className={`max-w-[92%] sm:max-w-[85%] min-w-0 break-words rounded-lg px-3 py-2 text-[17px] leading-relaxed ${
+                  className={`${
+                    hasRenderedView
+                      ? "w-full max-w-full"
+                      : "max-w-[92%] sm:max-w-[85%]"
+                  } min-w-0 break-words rounded-lg px-3 py-2 text-[17px] leading-relaxed ${
                     msg.role === "user"
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted"
@@ -316,7 +323,7 @@ export function MessageList({
                           reasoning-only / tool-call phase where content is
                           just <think> blocks. */}
                             {isActive && showTypingAfterGrace && !hasAnswer && (
-                              <TypingIndicator label={agentName} />
+                              <TypingIndicator />
                             )}
                           </>
                         );
@@ -364,7 +371,7 @@ export function MessageList({
           messages[messages.length - 1]?.role === "user" && (
             <div className="flex justify-start">
               <div className="max-w-[92%] sm:max-w-[85%] rounded-lg px-3 py-2 bg-muted">
-                <TypingIndicator label={agentName} />
+                <TypingIndicator />
               </div>
             </div>
           )}
