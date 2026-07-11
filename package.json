@@ -1,8 +1,8 @@
 {
   "name": "@kody-ade/kody-chat",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "license": "MIT",
-  "description": "Kody Chat \u2014 multi-tenant branded client chat product and embeddable chat platform",
+  "description": "Kody Chat — multi-tenant branded client chat product and embeddable chat platform",
   "repository": {
     "type": "git",
     "url": "https://github.com/aharonyaircohen/kody-chat.git"
