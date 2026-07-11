@@ -9,7 +9,7 @@
  *   resolves the right context (kody-state stays repo-agnostic).
  */
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 // Package-owned (hosts deleted their copies) — must stay relative.
 import { ClientChatSurface } from "../../../src/dashboard/lib/components/ClientChatSurface";
@@ -22,7 +22,7 @@ import { resolveClientLanguageStrings } from "../../../src/dashboard/lib/client-
 import { type ClientBrandRepoContext } from "@dashboard/lib/client-brand-repo-cookie";
 import { mintClientSurfaceTicket } from "../../../src/dashboard/lib/chat/platform/surface-scope";
 import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
-import { auth, signIn, signOut } from "@dashboard/lib/client-auth/auth";
+import { auth, signOut } from "@dashboard/lib/client-auth/auth";
 import {
   brandAuthProviders,
   isEmailAllowed,
@@ -147,8 +147,11 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
     if (!email) {
       if (providers.length === 1) {
         // Single method → straight to the provider, no interstitial click.
-        await signIn(providers[0], { redirectTo: callbackUrl });
-        return null;
+        // Kick off via the start route (not signIn() here) so the NextAuth
+        // config sees a request that names the brand's repo.
+        redirect(
+          `/api/client-auth/start?provider=${encodeURIComponent(providers[0])}&redirectTo=${encodeURIComponent(callbackUrl)}`,
+        );
       }
       return (
         <ClientAuthGate
