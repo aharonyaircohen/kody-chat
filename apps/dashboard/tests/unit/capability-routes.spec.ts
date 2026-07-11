@@ -31,12 +31,12 @@ vi.mock("@kody-ade/base/auth", () => ({
   getRequestAuth: h.getRequestAuth,
 }));
 
-vi.mock("@dashboard/lib/github-client", () => ({
+vi.mock("@kody-ade/agency/github", () => ({
   setGitHubContext: h.setGitHubContext,
   clearGitHubContext: h.clearGitHubContext,
 }));
 
-vi.mock("@dashboard/lib/capabilities", () => ({
+vi.mock("@kody-ade/agency/capabilities", () => ({
   listCapabilityFiles: h.listCapabilityFiles,
   readCapabilityFile: h.readCapabilityFile,
   readResolvedCapabilityFile: h.readResolvedCapabilityFile,
@@ -55,7 +55,7 @@ vi.mock("@dashboard/lib/company-store/installed-capabilities", () => ({
   resolveInstalledCapabilitySlugs: h.resolveInstalledCapabilitySlugs,
 }));
 
-vi.mock("@dashboard/lib/activity/audit", () => ({
+vi.mock("@kody-ade/base/activity/audit", () => ({
   recordAudit: h.recordAudit,
 }));
 

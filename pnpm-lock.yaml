@@ -28,6 +28,9 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@19.2.7)
+      '@kody-ade/agency':
+        specifier: workspace:*
+        version: link:../../packages/agency
       '@kody-ade/base':
         specifier: workspace:*
         version: link:../../packages/base
@@ -267,6 +270,31 @@ importers:
         specifier: 4.0.16
         version: 4.0.16(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)
 
+  packages/agency:
+    dependencies:
+      '@kody-ade/base':
+        specifier: workspace:*
+        version: link:../base
+      '@octokit/rest':
+        specifier: ^22.0.1
+        version: 22.0.1
+      react:
+        specifier: 19.2.7
+        version: 19.2.7
+      zod:
+        specifier: ^4.3.5
+        version: 4.4.3
+    devDependencies:
+      '@types/react':
+        specifier: ^19.2.17
+        version: 19.2.17
+      next:
+        specifier: 16.2.9
+        version: 16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/base:
     dependencies:
       '@octokit/plugin-throttling':
@@ -413,6 +441,9 @@ importers:
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.47
         version: 2.0.59(zod@4.4.3)
+      '@kody-ade/agency':
+        specifier: workspace:*
+        version: link:../agency
       '@kody-ade/base':
         specifier: workspace:*
         version: link:../base

@@ -38,7 +38,10 @@
     "./storage": "./src/storage/index.ts",
     "./storage/*": "./src/storage/*.ts",
     "./thread-link": "./src/thread-link.ts",
-    "./manifest-store": "./src/manifest-store.ts"
+    "./manifest-store": "./src/manifest-store.ts",
+    "./company-store/assets": "./src/company-store/assets.ts",
+    "./ticked/*": "./src/ticked/*.ts",
+    "./control-issue": "./src/control-issue.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

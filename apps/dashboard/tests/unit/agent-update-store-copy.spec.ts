@@ -27,12 +27,12 @@ vi.mock("@kody-ade/base/auth", () => ({
   getUserOctokit: h.getUserOctokit,
 }));
 
-vi.mock("@dashboard/lib/github-client", () => ({
+vi.mock("@kody-ade/agency/github", () => ({
   setGitHubContext: h.setGitHubContext,
   clearGitHubContext: h.clearGitHubContext,
 }));
 
-vi.mock("@dashboard/lib/agent-files", () => ({
+vi.mock("@kody-ade/agency/agent-files", () => ({
   readAgentFile: h.readAgentFile,
   readResolvedAgentFile: h.readResolvedAgentFile,
   writeAgentFile: h.writeAgentFile,
@@ -40,7 +40,7 @@ vi.mock("@dashboard/lib/agent-files", () => ({
   isValidSlug: (slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug),
 }));
 
-vi.mock("@dashboard/lib/activity/audit", () => ({
+vi.mock("@kody-ade/base/activity/audit", () => ({
   recordAudit: h.recordAudit,
 }));
 

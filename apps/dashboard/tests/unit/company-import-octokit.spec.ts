@@ -70,6 +70,12 @@ vi.mock("@kody-ade/workspace/github", () => ({
   invalidateCommandsCache: vi.fn(),
   fetchCompanyActivity: vi.fn(async () => []),
 }));
+vi.mock("@kody-ade/base/github/core", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  getOctokit: vi.fn(() => badOctokit),
+  getOwner: vi.fn(() => "acme"),
+  getRepo: vi.fn(() => "widgets"),
+}));
 
 import { applyCompanyBundle } from "@dashboard/lib/company/import";
 import { COMPANY_BUNDLE_VERSION } from "@dashboard/lib/company/types";

@@ -46,14 +46,14 @@ describe("rate limit polling guardrails", () => {
     expect(brainImageManagement.indexOf("getTerminalBridgeExecJob")).toBeLessThan(
       brainImageManagement.indexOf("refresh: true"),
     );
-    expect(source("src/dashboard/lib/agency-runs.ts")).toContain(
+    expect(source("../../packages/agency/src/agency-runs.ts")).toContain(
       "WORKFLOW_OVERLAY_TTL_MS = 60_000",
     );
     expect(source("src/dashboard/lib/managed-goals-files.ts")).toContain(
       "managedGoalFilesCache.get",
     );
     expect(
-      source("src/dashboard/lib/managed-goal-run-logs.ts"),
+      source("../../packages/agency/src/managed-goal-run-logs.ts"),
     ).toContain("runLogsCache.get");
     expect(
       source("src/dashboard/lib/company-intents-read-cache.ts"),

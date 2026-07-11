@@ -27,12 +27,12 @@ vi.mock("@kody-ade/base/auth", () => ({
   getRequestAuth: h.getRequestAuth,
 }));
 
-vi.mock("@dashboard/lib/github-client", () => ({
+vi.mock("@kody-ade/agency/github", () => ({
   setGitHubContext: h.setGitHubContext,
   clearGitHubContext: h.clearGitHubContext,
 }));
 
-vi.mock("@dashboard/lib/agent-files", () => ({
+vi.mock("@kody-ade/agency/agent-files", () => ({
   listResolvedAgentFiles: h.listResolvedAgentFiles,
   readAgentFile: h.readAgentFile,
   writeAgentFile: h.writeAgentFile,
@@ -43,7 +43,7 @@ vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: h.getEngineConfig,
 }));
 
-vi.mock("@dashboard/lib/activity/audit", () => ({
+vi.mock("@kody-ade/base/activity/audit", () => ({
   recordAudit: h.recordAudit,
 }));
 

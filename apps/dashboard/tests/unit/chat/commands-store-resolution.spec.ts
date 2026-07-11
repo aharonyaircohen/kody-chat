@@ -21,7 +21,7 @@ vi.mock("@kody-ade/workspace/github", () => ({
   ),
 }));
 
-vi.mock("@kody-ade/kody-chat/company-store/assets", async (importOriginal) => {
+vi.mock("@kody-ade/base/company-store/assets", async (importOriginal) => {
   const actual =
     await importOriginal<
       typeof import("@dashboard/lib/company-store/assets")

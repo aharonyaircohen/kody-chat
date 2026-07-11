@@ -1,0 +1,32 @@
+{
+  "name": "@kody-ade/agency",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Kody agency layer — agents/goals/capabilities/agency-runs/cto-trust domain stores and API route handlers. Depends only on @kody-ade/base; consumed as TS source by both hosts.",
+  "exports": {
+    "./capabilities": "./src/capabilities/index.ts",
+    "./capabilities/*": "./src/capabilities/*.ts",
+    "./cto/*": "./src/cto/*.ts",
+    "./routes/*": "./src/routes/*.ts",
+    "./github": "./src/github.ts",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@kody-ade/base": "workspace:*",
+    "@octokit/rest": "^22.0.1",
+    "zod": "^4.3.5"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "@types/react": "^19.2.17",
+    "next": "16.2.9"
+  },
+  "peerDependencies": {
+    "react": "19.2.7",
+    "next": "16.2.9"
+  }
+}

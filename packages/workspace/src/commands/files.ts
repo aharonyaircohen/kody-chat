@@ -38,7 +38,7 @@ import {
   companyStoreUpdatedAt,
   listCompanyStoreMarkdownAssetSlugs,
   readCompanyStoreText,
-} from "@kody-ade/kody-chat/company-store/assets";
+} from "@kody-ade/base/company-store/assets";
 
 export interface CommandFile {
   /** Filename without `.md` — stable identity, becomes `/<slug>` in chat. */

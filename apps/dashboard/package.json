@@ -41,11 +41,13 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@kody-ade/kody-chat": "workspace:*",
+    "@kody-ade/agency": "workspace:*",
     "@kody-ade/base": "workspace:*",
-    "@kody-ade/fly": "workspace:*",
-    "@kody-ade/terminal": "workspace:*",
     "@kody-ade/brain": "workspace:*",
+    "@kody-ade/fly": "workspace:*",
+    "@kody-ade/kody-chat": "workspace:*",
+    "@kody-ade/terminal": "workspace:*",
+    "@kody-ade/workspace": "workspace:*",
     "@mintplex-labs/piper-tts-web": "^1.0.4",
     "@monaco-editor/react": "^4.7.0",
     "@octokit/plugin-throttling": "^11.0.3",
@@ -88,8 +90,7 @@
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
     "web-push": "^3.6.7",
-    "zod": "^4.3.5",
-    "@kody-ade/workspace": "workspace:*"
+    "zod": "^4.3.5"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
