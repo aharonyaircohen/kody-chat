@@ -21,12 +21,5 @@ import InstructionsPage from "@kody-ade/kody-chat/pages/instructions";
 import { SystemPromptOverrideCard } from "@dashboard/lib/components/SystemPromptOverrideCard";
 
 export default function InstructionsWithSystemPrompt() {
-  return (
-    <>
-      <InstructionsPage />
-      <div className="mx-auto w-full max-w-4xl px-4 pb-8">
-        <SystemPromptOverrideCard />
-      </div>
-    </>
-  );
+  return <InstructionsPage footerSlot={<SystemPromptOverrideCard />} />;
 }
