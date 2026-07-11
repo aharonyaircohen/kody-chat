@@ -5,13 +5,18 @@
  * @ai-summary Canonical Instructions page — hosts serve it as a one-line
  *   re-export (see pages-coverage specs in each host).
  */
+import type { ReactNode } from "react";
 import { AuthGuard } from "../auth-guard";
 import { InstructionsManager } from "../components/InstructionsManager";
 
-export default function InstructionsPage() {
+export default function InstructionsPage({
+  footerSlot,
+}: {
+  footerSlot?: ReactNode;
+} = {}) {
   return (
     <AuthGuard>
-      <InstructionsManager />
+      <InstructionsManager footerSlot={footerSlot} />
     </AuthGuard>
   );
 }

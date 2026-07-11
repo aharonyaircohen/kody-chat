@@ -9,7 +9,7 @@
  */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -173,15 +173,25 @@ function formatRelative(iso: string): string {
   }
 }
 
-export function InstructionsManager() {
+export interface InstructionsManagerProps {
+  /**
+   * Optional host-provided section rendered inside the page's scroll area,
+   * below the instructions editor (e.g. the dashboard's base system prompt
+   * override card). Content outside PageShell is invisible — the shell owns
+   * the page scroll — so hosts must inject through this slot.
+   */
+  footerSlot?: ReactNode;
+}
+
+export function InstructionsManager({ footerSlot }: InstructionsManagerProps) {
   return (
     <AuthGuard>
-      <InstructionsManagerInner />
+      <InstructionsManagerInner footerSlot={footerSlot} />
     </AuthGuard>
   );
 }
 
-function InstructionsManagerInner() {
+function InstructionsManagerInner({ footerSlot }: InstructionsManagerProps) {
   const { auth } = useAuth();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -387,6 +397,8 @@ function InstructionsManagerInner() {
             </div>
           </div>
         )}
+
+        {footerSlot}
       </div>
 
       <ConfirmDialog
