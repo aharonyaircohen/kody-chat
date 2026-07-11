@@ -306,6 +306,13 @@ export interface KodyTask {
 
 // ============ Sort Types ============
 
+export type ViewMode =
+  | "running"
+  | "backlog"
+  | "history"
+  | "unassigned"
+  | "queue";
+
 export type SortField =
   | "updatedAt"
   | "createdAt"

@@ -15,15 +15,10 @@ import {
 } from "react";
 import { cn } from "../utils";
 import { Search, X } from "lucide-react";
-import type { SortField, SortDirection } from "../types";
+import type { SortField, SortDirection, ViewMode } from "../types";
 import { FilterDropdown } from "./FilterDropdown";
 
-export type ViewMode =
-  | "running"
-  | "backlog"
-  | "history"
-  | "unassigned"
-  | "queue";
+export type { ViewMode } from "../types";
 
 export interface FilterBarProps {
   viewMode: ViewMode;
