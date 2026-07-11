@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { BranchService } from "@dashboard/lib/branches/application/branch-service";
-import { LockTakenError } from "@dashboard/lib/branches/errors";
-import type { Lease, LockPort } from "@dashboard/lib/branches/domain/lock-port";
+import { BranchService } from "@kody-ade/base/branches/application/branch-service";
+import { LockTakenError } from "@kody-ade/base/branches/errors";
+import type { Lease, LockPort } from "@kody-ade/base/branches/domain/lock-port";
 import type {
   BranchRepo,
   CompareStatus,
@@ -9,7 +9,7 @@ import type {
   IssueSummary,
   MergeResult,
   OpenPR,
-} from "@dashboard/lib/branches/infra/github-branch-repo";
+} from "@kody-ade/base/branches/infra/github-branch-repo";
 
 /** Trivial pass-through repo — these tests are about the lock, not branch logic. */
 class StubRepo implements BranchRepo {

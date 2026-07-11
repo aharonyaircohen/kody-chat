@@ -2276,7 +2276,7 @@ export const activityApi = {
   },
   /** Kody run timelines loaded from GitHub Actions artifacts. */
   runLogs: async (): Promise<
-    import("./activity/run-logs").KodyRunLogsSnapshot
+    import("@kody-ade/base/activity/run-logs").KodyRunLogsSnapshot
   > => {
     const res = await fetch(`${API_BASE}/activity/run-logs`, {
       headers: buildHeaders(),
@@ -2296,7 +2296,7 @@ export const activityApi = {
   },
   /** Company activity — engine-authored, attributed actions (capability runs). */
   autonomous: async (): Promise<{
-    records: import("./activity/company").CompanyActivityRecord[];
+    records: import("@kody-ade/base/activity/company").CompanyActivityRecord[];
     total: number;
     computedAt?: string;
   }> => {

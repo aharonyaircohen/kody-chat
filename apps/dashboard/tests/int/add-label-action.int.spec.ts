@@ -29,7 +29,7 @@ vi.mock("@dashboard/lib/activity/audit", () => ({
   recordAudit: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/branches", () => ({
+vi.mock("@kody-ade/base/branches", () => ({
   isProtectedBranch: vi.fn(() => false),
 }));
 

@@ -36,7 +36,7 @@ const auth = vi.hoisted(() => ({
 
 vi.mock("@kody-ade/base/auth", () => auth);
 
-vi.mock("@dashboard/lib/branches", () => ({
+vi.mock("@kody-ade/base/branches", () => ({
   isProtectedBranch: (b: string) => b === "dev" || b === "main",
 }));
 

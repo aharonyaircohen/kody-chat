@@ -51,7 +51,7 @@ import {
   buildEntries,
   dispatchCapabilityFailures,
 } from "@dashboard/lib/push/capability-failure-dispatch";
-import type { CompanyActivityRecord } from "@dashboard/lib/activity/company";
+import type { CompanyActivityRecord } from "@kody-ade/base/activity/company";
 
 function rec(over: Partial<CompanyActivityRecord> = {}): CompanyActivityRecord {
   return {

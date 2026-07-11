@@ -43,7 +43,7 @@ import { recordAudit } from "@dashboard/lib/activity/audit";
 import { HIDDEN_TASK_LABEL } from "@kody-ade/base/constants";
 import { GOAL_LABEL_PREFIX } from "@dashboard/lib/goals";
 import { getOwner, getRepo } from "@dashboard/lib/github-client";
-import { isProtectedBranch } from "@dashboard/lib/branches";
+import { isProtectedBranch } from "@kody-ade/base/branches";
 import { matchWorkflowRunsForTask } from "@dashboard/lib/workflow-matching";
 import { withActor, postWithFallback } from "@dashboard/lib/kody-command";
 import { startKodyTask } from "@dashboard/lib/tasks/start-task";

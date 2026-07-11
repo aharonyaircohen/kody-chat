@@ -33,7 +33,7 @@ import { readOperators } from "@kody-ade/base/engine/config";
 import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import { appendInboxFeed } from "../inbox/feed-server";
 import type { InboxFeedEntry } from "../inbox/feed";
-import type { CompanyActivityRecord } from "../activity/company";
+import type { CompanyActivityRecord } from "@kody-ade/base/activity/company";
 import { logger } from "@kody-ade/base/logger";
 
 const ACTIVITY_PATH_RE = /^([^/]+)\/activity\/[^/]+\.jsonl$/;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseAgencyBoundaryEvalsFromText } from "../../src/dashboard/lib/activity/run-logs";
+import { parseAgencyBoundaryEvalsFromText } from "@kody-ade/base/activity/run-logs";
 
 describe("run log agency boundary parsing", () => {
   it("extracts agency boundary eval markers from GitHub log text", () => {

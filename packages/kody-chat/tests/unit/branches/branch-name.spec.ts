@@ -3,7 +3,7 @@ import {
   buildBranchName,
   parseIssueFromBranch,
   slugifyTitle,
-} from "@dashboard/lib/branches/domain/branch-name";
+} from "@kody-ade/base/branches/domain/branch-name";
 
 describe("slugifyTitle", () => {
   it("lowercases and replaces spaces with dashes", () => {

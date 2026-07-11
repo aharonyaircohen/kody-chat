@@ -5,7 +5,7 @@ import {
   extractZipEntryText,
   parseKodyRunEventsJsonl,
   parseKodyRunLogZip,
-} from "@dashboard/lib/activity/run-logs";
+} from "@kody-ade/base/activity/run-logs";
 
 function makeStoredZipEntries(
   entries: Array<{ path: string; content: string }>,

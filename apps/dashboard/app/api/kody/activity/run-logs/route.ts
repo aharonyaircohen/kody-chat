@@ -16,7 +16,7 @@ import {
   fetchWorkflowRuns,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
-import { buildRunLogsSnapshot } from "@dashboard/lib/activity/run-logs";
+import { buildRunLogsSnapshot } from "@kody-ade/base/activity/run-logs";
 
 function parseLimit(req: NextRequest): number {
   const raw = Number(req.nextUrl.searchParams.get("limit") ?? 10);

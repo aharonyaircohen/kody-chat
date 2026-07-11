@@ -43,7 +43,7 @@ import type {
   AgencyBoundaryFinding,
   KodyRunLogsRun,
   KodyRunTimelineItem,
-} from "../activity/run-logs";
+} from "@kody-ade/base/activity/run-logs";
 import type {
   FeedEvent,
   FeedSession,

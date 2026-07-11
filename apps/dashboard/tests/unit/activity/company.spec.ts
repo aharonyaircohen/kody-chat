@@ -6,7 +6,7 @@ import {
   latestActivityByCapability,
   parseActivityJsonl,
   sortActivityNewestFirst,
-} from "@dashboard/lib/activity/company";
+} from "@kody-ade/base/activity/company";
 
 describe("parseActivityJsonl", () => {
   it("parses well-formed records and skips blank/malformed lines", () => {

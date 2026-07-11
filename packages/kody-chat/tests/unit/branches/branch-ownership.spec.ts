@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isKodyMarkerCommit,
   isKodyOwnedBranch,
-} from "@dashboard/lib/branches/domain/branch-ownership";
+} from "@kody-ade/base/branches/domain/branch-ownership";
 
 describe("isKodyMarkerCommit", () => {
   it("matches the exact canonical marker for the issue", () => {

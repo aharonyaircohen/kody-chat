@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { BranchService } from "@dashboard/lib/branches/application/branch-service";
-import { ForeignBranchError } from "@dashboard/lib/branches/errors";
-import type { OpenPR } from "@dashboard/lib/branches/infra/github-branch-repo";
+import { BranchService } from "@kody-ade/base/branches/application/branch-service";
+import { ForeignBranchError } from "@kody-ade/base/branches/errors";
+import type { OpenPR } from "@kody-ade/base/branches/infra/github-branch-repo";
 import { FakeBranchRepo } from "../../helpers/fake-branch-repo";
 
 describe("BranchService.getOrCreate", () => {

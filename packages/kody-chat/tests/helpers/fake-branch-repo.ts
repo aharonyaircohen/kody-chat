@@ -8,7 +8,7 @@
  * runs it as a test — it's a fixture imported by the branch + vibe specs.
  */
 
-import type { Lease, LockPort } from "@dashboard/lib/branches/domain/lock-port";
+import type { Lease, LockPort } from "@kody-ade/base/branches/domain/lock-port";
 import type {
   BranchRepo,
   CompareStatus,
@@ -16,7 +16,7 @@ import type {
   IssueSummary,
   MergeResult,
   OpenPR,
-} from "@dashboard/lib/branches/infra/github-branch-repo";
+} from "@kody-ade/base/branches/infra/github-branch-repo";
 
 export class FakeBranchRepo implements BranchRepo {
   defaultBranch = "main";

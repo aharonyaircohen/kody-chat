@@ -24,7 +24,7 @@ import {
   invalidateIssueCache,
   invalidateTaskCache,
 } from "@dashboard/lib/github-client";
-import { isProtectedBranch } from "@dashboard/lib/branches";
+import { isProtectedBranch } from "@kody-ade/base/branches";
 
 // Release-flow markers (dev → main is the publish PR). These are NOT the
 // same as the protected-from-deletion list — keep separate from

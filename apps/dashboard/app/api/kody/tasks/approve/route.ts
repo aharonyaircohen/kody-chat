@@ -33,7 +33,7 @@ import {
   getOwner,
   getRepo,
 } from "@dashboard/lib/github-client";
-import { isProtectedBranch } from "@dashboard/lib/branches";
+import { isProtectedBranch } from "@kody-ade/base/branches";
 import { attemptSquashMerge } from "@dashboard/lib/kody/squash-merge";
 
 const ApproveRequestSchema = z.object({

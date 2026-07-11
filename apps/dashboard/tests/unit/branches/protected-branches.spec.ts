@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isProtectedBranch,
   PROTECTED_BRANCHES,
-} from "@dashboard/lib/branches/domain/protected-branches";
+} from "@kody-ade/base/branches/domain/protected-branches";
 
 describe("isProtectedBranch", () => {
   it("returns true for main, master, dev (the canonical set)", () => {
