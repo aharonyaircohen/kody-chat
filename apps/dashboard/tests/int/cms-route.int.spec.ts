@@ -4,8 +4,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import {
   CmsConfigError,
   invalidateCmsConfigCache,
-} from "@dashboard/lib/cms/config";
-import type { CmsConfigState } from "@dashboard/lib/cms/types";
+} from "@kody-ade/cms/config";
+import type { CmsConfigState } from "@kody-ade/cms/types";
 
 const auth = vi.hoisted(() => ({
   requireKodyAuth: vi.fn(async () => null),
@@ -104,9 +104,9 @@ const vault = vi.hoisted(() => ({
 
 vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@dashboard/lib/github-client", () => github);
-vi.mock("@dashboard/lib/cms/service", () => service);
+vi.mock("@kody-ade/cms/service", () => service);
 vi.mock("@kody-ade/base/state-repo", () => stateRepo);
-vi.mock("@dashboard/lib/cms/schema/mongodb", () => mongoSchema);
+vi.mock("@kody-ade/cms/schema/mongodb", () => mongoSchema);
 vi.mock("@kody-ade/base/vault/get-secret", () => vault);
 
 import {

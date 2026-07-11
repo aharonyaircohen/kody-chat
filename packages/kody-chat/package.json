@@ -64,6 +64,7 @@
     "@kody-ade/agency": "workspace:*",
     "@kody-ade/base": "workspace:*",
     "@kody-ade/brain": "workspace:*",
+    "@kody-ade/cms": "workspace:*",
     "@kody-ade/fly": "workspace:*",
     "@kody-ade/terminal": "workspace:*",
     "@kody-ade/workspace": "workspace:*",

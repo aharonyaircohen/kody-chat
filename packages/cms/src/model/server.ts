@@ -6,12 +6,12 @@ import {
   CmsConfigError,
   normalizeCmsCollectionSlug,
   normalizeCmsConfig,
-} from "@dashboard/lib/cms/config";
-import { CmsRuntimeError } from "@dashboard/lib/cms/service";
+} from "../config";
+import { CmsRuntimeError } from "../service";
 import type {
   CmsCollectionConfig,
   CmsFieldConfig,
-} from "@dashboard/lib/cms/types";
+} from "../types";
 import { readStateText } from "@kody-ade/base/state-repo";
 
 import {

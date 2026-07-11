@@ -33,7 +33,7 @@ const nextConfig = {
   // `/ROOT/...` location that doesn't exist at runtime, so the logging worker
   // exits and every route that logs an error crashes with a 500. Leaving them
   // external means the worker loads from the real node_modules path.
-  transpilePackages: ["@kody-ade/base", "@kody-ade/workspace", "@kody-ade/fly", "@kody-ade/agency"],
+  transpilePackages: ["@kody-ade/base", "@kody-ade/workspace", "@kody-ade/fly", "@kody-ade/agency", "@kody-ade/cms"],
   serverExternalPackages: ["pino", "thread-stream", "pino-pretty", "node-pty"],
   // Dev runs on Turbopack, which (unlike Next's webpack) does not auto-stub
   // Node-only builtins for the browser bundle. `@mintplex-labs/piper-tts-web`

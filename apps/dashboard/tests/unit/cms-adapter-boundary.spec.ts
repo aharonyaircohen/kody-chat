@@ -10,14 +10,14 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import type { CmsAdapterContext } from "@dashboard/lib/cms/adapters";
-import type { CmsRuntimeConfig } from "@dashboard/lib/cms/types";
+import type { CmsAdapterContext } from "@kody-ade/cms/adapters";
+import type { CmsRuntimeConfig } from "@kody-ade/cms/types";
 
 describe("CMS adapter boundary", () => {
   it("keeps Dashboard runtime adapters generic", () => {
     const adapterRoot = path.join(
       process.cwd(),
-      "src/dashboard/lib/cms/adapters",
+      "node_modules/@kody-ade/cms/src/adapters",
     );
     const files = listFiles(adapterRoot)
       .map((file) => path.relative(adapterRoot, file))
@@ -36,11 +36,11 @@ describe("CMS adapter boundary", () => {
 
   it("anchors remote adapter package dependencies outside adapter code", () => {
     const bridgeSource = readFileSync(
-      path.join(process.cwd(), "src/dashboard/lib/cms/adapters/index.ts"),
+      path.join(process.cwd(), "node_modules/@kody-ade/cms/src/adapters/index.ts"),
       "utf8",
     );
     const depsSource = readFileSync(
-      path.join(process.cwd(), "src/dashboard/lib/cms/runtime-deps.ts"),
+      path.join(process.cwd(), "node_modules/@kody-ade/cms/src/runtime-deps.ts"),
       "utf8",
     );
 
@@ -92,7 +92,7 @@ describe("CMS adapter boundary", () => {
     const previousRoot = process.env.KODY_CMS_ADAPTERS_ROOT;
     process.env.KODY_CMS_ADAPTERS_ROOT = root;
     try {
-      const { getCmsAdapter } = await import("@dashboard/lib/cms/adapters");
+      const { getCmsAdapter } = await import("@kody-ade/cms/adapters");
       const adapter = getCmsAdapter("example");
 
       expect(adapter).not.toBeNull();
@@ -168,7 +168,7 @@ describe("CMS adapter boundary", () => {
     delete process.env.KODY_CMS_ADAPTERS_ROOT;
     delete process.env.KODY_STORE_ROOT;
     try {
-      const { getCmsAdapter } = await import("@dashboard/lib/cms/adapters");
+      const { getCmsAdapter } = await import("@kody-ade/cms/adapters");
       const adapter = getCmsAdapter(adapterName);
 
       await expect(

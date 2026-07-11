@@ -4,11 +4,11 @@ import {
   getCmsDocumentValidationIssues,
   getCmsFieldValidationIssue,
   isBlankCmsValue,
-} from "@dashboard/lib/cms/validation";
+} from "@kody-ade/cms/validation";
 import type {
   CmsCollectionConfig,
   CmsFieldConfig,
-} from "@dashboard/lib/cms/types";
+} from "@kody-ade/cms/types";
 
 describe("CMS field validation", () => {
   it("treats optional blank values as valid and required blank values as invalid", () => {

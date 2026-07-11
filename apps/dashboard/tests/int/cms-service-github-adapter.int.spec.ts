@@ -30,7 +30,7 @@ const vault = vi.hoisted(() => ({
 }));
 
 vi.mock("@kody-ade/base/state-repo", () => stateRepo);
-vi.mock("@dashboard/lib/cms/roles", () => roles);
+vi.mock("@kody-ade/cms/roles", () => roles);
 vi.mock("@kody-ade/base/vault/get-secret", () => vault);
 
 import {
@@ -39,8 +39,8 @@ import {
   getCmsDocument,
   listCmsDocuments,
   updateCmsDocument,
-} from "@dashboard/lib/cms/service";
-import { invalidateCmsConfigCache } from "@dashboard/lib/cms/config";
+} from "@kody-ade/cms/service";
+import { invalidateCmsConfigCache } from "@kody-ade/cms/config";
 
 describe("CMS service GitHub adapter integration", () => {
   let octokit: FakeOctokit;

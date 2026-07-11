@@ -105,7 +105,7 @@ import {
   cmsDocumentPath,
 } from "./cms/paths";
 import { selectionPath } from "../selection-routing";
-import { generateCmsMcpTools } from "@dashboard/lib/cms/mcp";
+import { generateCmsMcpTools } from "@kody-ade/cms/mcp";
 import type {
   CmsCollectionConfig,
   CmsAdapterSettings,
@@ -121,7 +121,7 @@ import type {
   CmsSearchQuery,
   CmsSortEntry,
   CmsViewFieldConfig,
-} from "../cms/types";
+} from "@kody-ade/cms/types";
 
 const DEFAULT_PAGE_SIZE = 25;
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100] as const;

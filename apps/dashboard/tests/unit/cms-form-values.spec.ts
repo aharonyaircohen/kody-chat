@@ -4,7 +4,7 @@ import {
   buildCmsFormPayload,
   buildCmsFormValues,
 } from "@dashboard/lib/components/cms/form-values";
-import type { CmsFieldConfig } from "@dashboard/lib/cms/types";
+import type { CmsFieldConfig } from "@kody-ade/cms/types";
 
 describe("CMS form values", () => {
   it("omits blank optional fields on create", () => {

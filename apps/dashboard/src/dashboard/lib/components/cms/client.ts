@@ -7,7 +7,7 @@ import type {
   CmsPermissionsConfig,
   CmsSearchQuery,
   CmsSortEntry,
-} from "../../cms/types";
+} from "@kody-ade/cms/types";
 
 interface CmsIndexResponse {
   cms?: CmsConfigState;

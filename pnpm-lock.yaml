@@ -37,6 +37,9 @@ importers:
       '@kody-ade/brain':
         specifier: workspace:*
         version: link:../../packages/brain
+      '@kody-ade/cms':
+        specifier: workspace:*
+        version: link:../../packages/cms
       '@kody-ade/fly':
         specifier: workspace:*
         version: link:../../packages/fly
@@ -402,6 +405,37 @@ importers:
         specifier: ^4.0.16
         version: 4.0.16(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)
 
+  packages/cms:
+    dependencies:
+      '@kody-ade/base':
+        specifier: workspace:*
+        version: link:../base
+      '@octokit/rest':
+        specifier: ^22.0.1
+        version: 22.0.1
+      ai:
+        specifier: ^6.0.97
+        version: 6.0.224(zod@4.4.3)
+      mongodb:
+        specifier: ^7.3.0
+        version: 7.5.0
+      react:
+        specifier: 19.2.7
+        version: 19.2.7
+      zod:
+        specifier: ^4.3.5
+        version: 4.4.3
+    devDependencies:
+      '@types/react':
+        specifier: ^19.2.17
+        version: 19.2.17
+      next:
+        specifier: 16.2.9
+        version: 16.2.9(@babel/core@7.29.7)(@opentelemetry/api@1.9.1)(@playwright/test@1.61.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
   packages/fly:
     dependencies:
       '@kody-ade/base':
@@ -450,6 +484,9 @@ importers:
       '@kody-ade/brain':
         specifier: workspace:*
         version: link:../brain
+      '@kody-ade/cms':
+        specifier: workspace:*
+        version: link:../cms
       '@kody-ade/fly':
         specifier: workspace:*
         version: link:../fly

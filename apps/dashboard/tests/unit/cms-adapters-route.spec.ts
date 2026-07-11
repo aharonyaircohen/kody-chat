@@ -23,11 +23,11 @@ const adapterCatalog = vi.hoisted(() => ({
 }));
 
 vi.mock("@kody-ade/base/auth", () => auth);
-vi.mock("@dashboard/lib/github-client", () => githubClient);
+vi.mock("@kody-ade/cms/github", () => githubClient);
 vi.mock("@kody-ade/base/logger", () => ({
   logger: { error: vi.fn() },
 }));
-vi.mock("@dashboard/lib/cms/adapter-catalog", () => adapterCatalog);
+vi.mock("@kody-ade/cms/adapter-catalog", () => adapterCatalog);
 
 import { GET } from "../../app/api/kody/cms/adapters/route";
 

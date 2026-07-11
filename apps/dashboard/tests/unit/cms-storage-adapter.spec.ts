@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { getCmsAdapter, type CmsAdapterContext } from "@dashboard/lib/cms/adapters";
+import { getCmsAdapter, type CmsAdapterContext } from "@kody-ade/cms/adapters";
 import type {
   CmsCollectionConfig,
   CmsRuntimeConfig,
-} from "@dashboard/lib/cms/types";
+} from "@kody-ade/cms/types";
 import type { CmsStorageTransport } from "@kody-ade/base/storage";
 
 describe("storage CMS adapter", () => {

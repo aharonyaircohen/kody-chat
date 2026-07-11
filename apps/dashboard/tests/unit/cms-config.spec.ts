@@ -13,7 +13,7 @@ import {
   normalizeCmsConfig,
   normalizeSearchQuery,
   normalizeSortQuery,
-} from "@dashboard/lib/cms/config";
+} from "@kody-ade/cms/config";
 import { readStateText } from "@kody-ade/base/state-repo";
 
 describe("CMS config contract", () => {

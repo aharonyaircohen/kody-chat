@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { generateCmsMcpTools, resolveCmsMcpTool } from "@dashboard/lib/cms/mcp";
-import type { CmsPublicConfig } from "@dashboard/lib/cms/types";
+import { generateCmsMcpTools, resolveCmsMcpTool } from "@kody-ade/cms/mcp";
+import type { CmsPublicConfig } from "@kody-ade/cms/types";
 
 const cms: CmsPublicConfig = {
   configured: true,

@@ -11,8 +11,8 @@ import type {
   CmsFieldType,
   CmsSortEntry,
   CmsViewFieldConfig,
-} from "@dashboard/lib/cms/types";
-import { normalizeCmsCollectionSlug } from "@dashboard/lib/cms/config";
+} from "../types";
+import { normalizeCmsCollectionSlug } from "../config";
 import type { StateRepoWriteFile } from "@kody-ade/base/state-repo";
 
 const SYSTEM_FIELDS = new Set(["_id", "__v", "createdAt", "updatedAt"]);

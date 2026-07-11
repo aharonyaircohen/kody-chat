@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { describe, expect, it, vi } from "vitest";
 
-import type { CmsConfigState } from "@dashboard/lib/cms/types";
+import type { CmsConfigState } from "@kody-ade/cms/types";
 
 const roles = vi.hoisted(() => ({
   getCmsActorRole: vi.fn(async () => "admin"),
@@ -72,8 +72,8 @@ const service = vi.hoisted(() => ({
   deleteCmsDocument: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/cms/roles", () => roles);
-vi.mock("@dashboard/lib/cms/service", () => service);
+vi.mock("@kody-ade/cms/roles", () => roles);
+vi.mock("@kody-ade/cms/service", () => service);
 
 import { createCmsTools } from "../../app/api/kody/chat/tools/cms-tools";
 

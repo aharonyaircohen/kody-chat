@@ -50,12 +50,12 @@ import {
   type CmsModelFieldDraft,
   type CmsModelResourceDraft,
   type CmsModelValidationIssue,
-} from "../cms/model/draft";
+} from "@kody-ade/cms/model/draft";
 import type {
   CmsCollectionConfig,
   CmsFieldConfig,
   CmsViewFieldConfig,
-} from "../cms/types";
+} from "@kody-ade/cms/types";
 
 const EMPTY_HEADERS: Record<string, string> = {};
 const NEW_RESOURCE_KEY = "__new_resource__";

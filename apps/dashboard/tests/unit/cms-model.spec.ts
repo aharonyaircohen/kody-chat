@@ -4,12 +4,12 @@ import {
   cmsCollectionFromModelDraft,
   cmsModelResourceDraftFromCollection,
   validateCmsModelDraft,
-} from "@dashboard/lib/cms/model/draft";
+} from "@kody-ade/cms/model/draft";
 import {
   sanitizeCmsModelCollectionPayload,
   sortCmsCollectionEntries,
-} from "@dashboard/lib/cms/model/server";
-import type { CmsCollectionConfig } from "@dashboard/lib/cms/types";
+} from "@kody-ade/cms/model/server";
+import type { CmsCollectionConfig } from "@kody-ade/cms/types";
 
 const chapters: CmsCollectionConfig = {
   name: "chapters",

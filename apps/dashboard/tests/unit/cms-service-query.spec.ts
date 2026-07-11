@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { describe, expect, it } from "vitest";
 
-import { parseCmsListQuery } from "@dashboard/lib/cms/service";
+import { parseCmsListQuery } from "@kody-ade/cms/service";
 
 describe("CMS service list query parsing", () => {
   it("parses relation id lookups from repeated and comma-separated ids", () => {

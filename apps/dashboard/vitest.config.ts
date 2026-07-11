@@ -17,7 +17,7 @@ export default defineConfig({
         // instead of treating it as a prebuilt external. Its @dashboard
         // imports then resolve via the aliases below, back into this repo
         // (single module instance for shared libs).
-        inline: [/@kody-ade\/kody-chat/, /@kody-ade\/base/, /@kody-ade\/workspace/, /@kody-ade\/fly/],
+        inline: [/@kody-ade\/kody-chat/, /@kody-ade\/base/, /@kody-ade\/workspace/, /@kody-ade\/fly/, /@kody-ade\/cms/],
       },
     },
     coverage: {

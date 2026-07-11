@@ -1,8 +1,8 @@
 import {
   assertCmsFieldValue,
   isBlankCmsValue,
-} from "@dashboard/lib/cms/validation";
-import type { CmsDocument, CmsFieldConfig } from "@dashboard/lib/cms/types";
+} from "@kody-ade/cms/validation";
+import type { CmsDocument, CmsFieldConfig } from "@kody-ade/cms/types";
 
 export type CmsFormValue = string | boolean | string[];
 export type CmsFormValues = Record<string, CmsFormValue>;

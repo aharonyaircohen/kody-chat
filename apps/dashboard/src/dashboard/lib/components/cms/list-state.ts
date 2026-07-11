@@ -1,4 +1,4 @@
-import type { CmsFilterOperator, CmsSortEntry } from "@dashboard/lib/cms/types";
+import type { CmsFilterOperator, CmsSortEntry } from "@kody-ade/cms/types";
 
 export interface CmsListFilterValue {
   operator: CmsFilterOperator;

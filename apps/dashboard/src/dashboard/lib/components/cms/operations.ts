@@ -2,12 +2,12 @@ import type {
   CmsCollectionConfig,
   CmsPermissionsConfig,
   CmsRole,
-} from "../../cms/types";
+} from "@kody-ade/cms/types";
 import {
   canWriteOperation,
   rolesForWriteOperation,
   type CmsWriteOperation,
-} from "../../cms/permissions";
+} from "@kody-ade/cms/permissions";
 
 export { canWriteOperation };
 export type { CmsWriteOperation };

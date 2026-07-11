@@ -8,12 +8,12 @@ const companyStore = vi.hoisted(() => ({
 }));
 
 vi.mock("server-only", () => ({}));
-vi.mock("@dashboard/lib/company-store/assets", () => companyStore);
+vi.mock("@kody-ade/base/company-store/assets", () => companyStore);
 
 import {
   defaultCmsAdapterSettings,
   listStoreCmsAdapters,
-} from "@dashboard/lib/cms/adapter-catalog";
+} from "@kody-ade/cms/adapter-catalog";
 
 describe("CMS adapter defaults", () => {
   it("has no backend-specific settings for the storage adapter", () => {

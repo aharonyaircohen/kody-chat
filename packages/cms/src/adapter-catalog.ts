@@ -5,7 +5,7 @@ import type { Octokit } from "@octokit/rest";
 import {
   buildCompanyStoreBlobUrl,
   listCompanyStoreDirectorySafe,
-} from "../company-store/assets";
+} from "@kody-ade/base/company-store/assets";
 
 export interface CmsAdapterCatalogItem {
   name: string;
