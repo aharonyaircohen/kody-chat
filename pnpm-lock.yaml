@@ -27,8 +27,8 @@ importers:
         specifier: ^3.2.2
         version: 3.2.2(react@19.2.7)
       '@kody-ade/kody-chat':
-        specifier: 0.1.2
-        version: 0.1.2(@babel/core@7.29.0)(@octokit/core@7.0.6)(@opentelemetry/api@1.9.0)(@playwright/test@1.59.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(monaco-editor@0.55.1)(onnxruntime-web@1.26.0)(tailwindcss@4.2.2)
+        specifier: 0.1.4
+        version: 0.1.4(@babel/core@7.29.0)(@octokit/core@7.0.6)(@opentelemetry/api@1.9.0)(@playwright/test@1.59.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(monaco-editor@0.55.1)(onnxruntime-web@1.26.0)(tailwindcss@4.2.2)
       '@mintplex-labs/piper-tts-web':
         specifier: ^1.0.4
         version: 1.0.4(onnxruntime-web@1.26.0)
@@ -992,8 +992,8 @@ packages:
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
 
-  '@kody-ade/kody-chat@0.1.2':
-    resolution: {integrity: sha512-V/iKosAIlTfLNbp/xnIk7N5LsxVAdef6X2oq5f7wIwUPg+dgMNZWs6dOIFOmO6j0QGZkScH+gZy8g3AMstEOVw==}
+  '@kody-ade/kody-chat@0.1.4':
+    resolution: {integrity: sha512-IPJ3dHpAecxUwlz4rZTmYdPp8r2l529hNnxuTlT5aPw0G2cNtst857Yx5s+x1IbJvE0/QFko65CWLuVsfRUG9A==}
 
   '@mermaid-js/parser@1.1.1':
     resolution: {integrity: sha512-VuHdsYMK1bT6X2JbcAaWAhugTRvRBRyuZgd+c22swUeI9g/ntaxF7CY7dYarhZovofCbUNO0G7JesfmNtjYOCw==}
@@ -6210,7 +6210,7 @@ snapshots:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
 
-  '@kody-ade/kody-chat@0.1.2(@babel/core@7.29.0)(@octokit/core@7.0.6)(@opentelemetry/api@1.9.0)(@playwright/test@1.59.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(monaco-editor@0.55.1)(onnxruntime-web@1.26.0)(tailwindcss@4.2.2)':
+  '@kody-ade/kody-chat@0.1.4(@babel/core@7.29.0)(@octokit/core@7.0.6)(@opentelemetry/api@1.9.0)(@playwright/test@1.59.1)(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(monaco-editor@0.55.1)(onnxruntime-web@1.26.0)(tailwindcss@4.2.2)':
     dependencies:
       '@ai-sdk/anthropic': 3.0.77(zod@4.3.6)
       '@ai-sdk/mcp': 1.0.30(zod@4.3.6)

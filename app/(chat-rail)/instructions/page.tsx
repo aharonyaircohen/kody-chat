@@ -17,9 +17,4 @@ export const dynamic = "force-static";
 export const revalidate = false;
 export const fetchCache = "force-cache";
 
-import InstructionsPage from "@kody-ade/kody-chat/pages/instructions";
-import { SystemPromptOverrideCard } from "@dashboard/lib/components/SystemPromptOverrideCard";
-
-export default function InstructionsWithSystemPrompt() {
-  return <InstructionsPage footerSlot={<SystemPromptOverrideCard />} />;
-}
+export { default } from "@kody-ade/kody-chat/pages/instructions";
