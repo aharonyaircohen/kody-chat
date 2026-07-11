@@ -11,7 +11,7 @@ import {
   BUILTIN_CLIENT_BRANDS,
   getBuiltinClientBrand,
   type ClientBrand,
-} from "@kody-ade/kody-chat/client-brand";
+} from "@kody-ade/base/client-brand";
 import {
   findBrandFileFromList,
   isBrandDeleted,

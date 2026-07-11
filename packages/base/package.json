@@ -41,7 +41,11 @@
     "./manifest-store": "./src/manifest-store.ts",
     "./company-store/assets": "./src/company-store/assets.ts",
     "./ticked/*": "./src/ticked/*.ts",
-    "./control-issue": "./src/control-issue.ts"
+    "./control-issue": "./src/control-issue.ts",
+    "./client-auth/*": "./src/client-auth/*.ts",
+    "./client-brand": "./src/client-brand.ts",
+    "./kody-system-prompt": "./src/kody-system-prompt.ts",
+    "./agents-data": "./src/agents-data.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

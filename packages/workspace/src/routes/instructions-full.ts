@@ -17,8 +17,8 @@ import {
   setGitHubContext,
   clearGitHubContext,
 } from "../github";
-import { AGENT_KODY } from "@kody-ade/kody-chat/agents";
-import { buildSystemPrompt } from "@kody-ade/kody-chat/kody-system-prompt";
+import { AGENT_KODY_SYSTEM_PROMPT } from "@kody-ade/base/agents-data";
+import { buildSystemPrompt } from "@kody-ade/base/kody-system-prompt";
 import { loadMemoryIndexForPrompt } from "../memory/files";
 import { loadInstructionsForPrompt } from "../instructions/files";
 
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
   const repo = getRequestAuth(req);
   if (!repo) {
     return NextResponse.json(
-      { prompt: AGENT_KODY.systemPrompt },
+      { prompt: AGENT_KODY_SYSTEM_PROMPT },
       { status: 200, headers: NO_STORE_HEADERS },
     );
   }
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
       loadInstructionsForPrompt().catch(() => null),
     ]);
     const prompt = buildSystemPrompt(
-      AGENT_KODY.systemPrompt,
+      AGENT_KODY_SYSTEM_PROMPT,
       { owner: repo.owner, repo: repo.repo },
       undefined,
       {

@@ -26,8 +26,8 @@ import {
   normalizeClientBrandLocale,
   normalizeClientBrandSlug,
   type ClientBrand,
-} from "@kody-ade/kody-chat/client-brand";
-import { normalizeClientBrandAuth } from "@kody-ade/kody-chat/client-auth/allowlist";
+} from "@kody-ade/base/client-brand";
+import { normalizeClientBrandAuth } from "@kody-ade/base/client-auth/allowlist";
 import { slugifyTitle } from "@kody-ade/base/slug";
 
 export interface BrandFile extends ClientBrand {

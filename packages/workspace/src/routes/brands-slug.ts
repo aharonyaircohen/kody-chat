@@ -31,7 +31,7 @@ import {
   getBuiltinClientBrand,
   normalizeClientBrandLocale,
   normalizeClientBrandSlug,
-} from "@kody-ade/kody-chat/client-brand";
+} from "@kody-ade/base/client-brand";
 import { recordAudit } from "@kody-ade/base/activity/audit";
 
 const updateBrandSchema = z.object({

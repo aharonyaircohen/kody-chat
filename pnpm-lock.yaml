@@ -744,9 +744,6 @@ importers:
       '@kody-ade/base':
         specifier: workspace:*
         version: link:../base
-      '@kody-ade/kody-chat':
-        specifier: workspace:*
-        version: link:../kody-chat
       '@octokit/rest':
         specifier: ^22.0.1
         version: 22.0.1

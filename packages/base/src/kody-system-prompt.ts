@@ -1,0 +1,516 @@
+/**
+ * @fileType utility
+ * @domain kody
+ * @pattern system-prompt-builder
+ *
+ * Builds the Kody chat system prompt by stacking the base agent prompt, the
+ * connected repository block, and the optional current-task block. Extracted
+ * from route.ts so tests can import it without exporting non-HTTP handlers
+ * from a Next.js route file.
+ */
+import { dashboardTaskUrl } from "@kody-ade/base/thread-link";
+
+export interface TaskContext {
+  issueNumber?: number | string;
+  title?: string;
+  body?: string;
+  state?: string;
+  labels?: string[];
+  column?: string;
+  pipeline?: { state?: string; currentStage?: string };
+  associatedPR?: { number?: number; state?: string; html_url?: string };
+}
+
+export interface CapabilityContext {
+  number?: number;
+  title?: string;
+  body?: string;
+  state?: string;
+  labels?: string[];
+}
+
+export interface GoalContext {
+  id: string;
+  name: string;
+  description?: string;
+  dueDate?: string;
+  /** Existing tasks already attached to the goal (so we don't propose duplicates). */
+  existingTasks?: Array<{ number: number; title: string; state?: string }>;
+}
+
+export interface ReportContext {
+  slug: string;
+  title: string;
+  body: string;
+  path?: string;
+}
+
+export interface OrgContext {
+  owner: string;
+  repositories?: Array<{ owner: string; repo: string }>;
+}
+
+/**
+ * Cap on how many lines of the memory INDEX we inject into the system prompt.
+ * Each line is ~150 chars (one bullet per memory), so 300 lines ≈ 45KB of
+ * prompt overhead — still a small fraction of the model's context window.
+ * Above this the agent falls back to `recall_search` (GitHub code search
+ * scoped to state repo `memory/`) and `list_memories` / `recall` tools.
+ */
+const MEMORY_INDEX_MAX_LINES = 300;
+
+export function formatUserInstructionsPromptSection(
+  userInstructions: string | null | undefined,
+): string | null {
+  const body = userInstructions?.trim();
+  if (!body) return null;
+
+  return `## User instructions for this repo
+
+The block below is the live contents of state repo \`instructions.md\` for this repo — the user's explicit preferences for how you should behave in this chat. These OVERRIDE the base agent prompt for tone, length, formatting, audience, and any other preference the user has chosen to record here. Apply them automatically; do not narrate that you're applying them.
+
+If a user instruction conflicts with a hard rule above (never fake tool calls, research before evaluating, issue-creation gates), the hard rule still wins — those exist to prevent footguns. Everything else, the user instruction wins.
+
+When the instructions name the operator's role or audience, write for that person. For a PM, founder, or non-technical operator, lead with the business or product effect, avoid implementation detail by default, and mention files, functions, APIs, or logs only when the user asks for them or they are required proof.
+
+${body}`;
+}
+
+function truncateMemoryIndex(raw: string): string {
+  const lines = raw.split(/\r?\n/);
+  if (lines.length <= MEMORY_INDEX_MAX_LINES) return raw;
+  const head = lines.slice(0, MEMORY_INDEX_MAX_LINES).join("\n");
+  return (
+    `${head}\n\n_Index truncated at ${MEMORY_INDEX_MAX_LINES} lines (${lines.length} total). ` +
+    "Use `list_memories` to enumerate the rest._"
+  );
+}
+
+export function buildSystemPrompt(
+  base: string,
+  repo: { owner: string; repo: string } | null,
+  task: TaskContext | undefined,
+  opts?: {
+    capability?: CapabilityContext;
+    goalPlanner?: boolean;
+    goal?: GoalContext;
+    report?: ReportContext;
+    org?: OrgContext;
+    /**
+     * The dashboard page the user is currently viewing, as a noun phrase
+     * (e.g. "the Variables page (/variables)"). Lets the agent answer "what
+     * am I looking at?" and resolve "this page" / "here" to a real surface.
+     */
+    currentPage?: string;
+    /**
+     * Preview/page evidence collected by the dashboard for this turn. This is
+     * runtime context, not user-visible chat text: it tells the model that
+     * "this page" may refer to the preview reference the user is looking at.
+     */
+    previewContext?: string;
+    /**
+     * Raw body of state repo `memory/INDEX.md` (or `null` when the file doesn't
+     * exist). Injected under a `## Remembered context` heading so the agent
+     * can decide whether a new memory would be a duplicate / update of an
+     * existing one. The full body of any entry is fetched on demand via
+     * the `recall` tool — only the index ships in every prompt.
+     */
+    memoryIndex?: string | null;
+    /**
+  /**
+   * Vibe mode. When true, chat is scoped to the Vibe workspace. It may
+   * research, plan, and create issues, but it must not start Kody Live/Fly
+   * or open PRs. The vibe override block is appended at the end so it wins
+   * against base prompt executor-handoff framing.
+   */
+    vibeMode?: boolean;
+    /**
+     * Whether the user has a Fly Machines token configured. Kept for request
+     * compatibility; Kody chat no longer auto-hands off to runners.
+     */
+    flyConfigured?: boolean;
+    /**
+     * Raw body of state repo `instructions.md` (or `null` when the file doesn't
+     * exist). Appended LAST inside the system prompt so it wins against
+     * the base agent prompt for tone / length / formatting preferences.
+     * Voice overlay still wins on mic turns — voice is applied outside
+     * this builder in route.ts.
+     */
+    userInstructions?: string | null;
+    /**
+     * Concatenated bodies of the `kody`-owned state repo `context/*.md` entries (or
+     * `null` when the repo has none). Factual "who the company is / what it
+     * does" context the agent should treat as background — injected near the
+     * TOP (after the connected-repo block) so it frames everything, unlike
+     * `userInstructions` which is appended LAST as a behavioral override.
+     */
+    context?: string | null;
+    /**
+     * User-managed renderer rules compiled from state repo view renderers.
+     * These tell the agent when to call `show_view` and which data keys matter.
+     */
+    viewRendererRules?: string | null;
+  },
+): string {
+  const sections: string[] = [base];
+  if (repo) {
+    sections.push(
+      `## Connected repository\n\nYou are helping the user with the repository **${repo.owner}/${repo.repo}**. When the user refers to "the repo", "this repo", "the codebase", or a file path, they mean this repository. Ground your answers in the conversation context the user provides — do not invent file contents or PR numbers you haven't seen.`,
+    );
+    sections.push(
+      `## Repo file write safety — hard rule\n\nBefore any tool call that writes, replaces, creates, updates, or deletes repo-backed dashboard state, explicitly call matching read/list tool in same turn and inspect result. Mandatory even for quick edits.\n\nRequired pairs:\n- Before \`create_or_update_context\` or \`delete_context\`, call \`list_context\` to confirm candidates, then \`read_context\` for exact active slug when it exists.\n- Before \`set_instructions\` or \`delete_instructions\`, call \`read_instructions\`.\n- Before \`set_variable\` or \`delete_variable\`, call \`list_variables\`.\n- Before any other overwrite-style tool, use closest matching read/list/get tool first.\n\nIf multiple files, slugs, or variables could match user's request, do not guess. State active target found and ask user confirm before writing. When writing whole-file content, preserve existing content unless user clearly asked replace it.`,
+    );
+  }
+  if (opts?.currentPage && opts.currentPage.trim().length > 0) {
+    sections.push(
+      `## Current page
+
+The user is currently viewing **${opts.currentPage.trim()}** in the dashboard. When they say "this page", "here", "what am I viewing", or "what is this", they mean this page — answer about it directly. Use your dashboard knowledge to describe it (call \`describe_feature\` with the matching id, e.g. the page slug, when you need the full rundown).`,
+    );
+  }
+  if (opts?.previewContext && opts.previewContext.trim().length > 0) {
+    sections.push(
+      `## Current preview reference
+
+The user is looking at the preview reference below. When they say "make this page", "build this page", "create this page", "copy this page", "turn this into a page", or similar, treat it as a request to create a GitHub issue for the connected repo using the create-issue workflow. Do not answer with a fresh design direction, marketing copy, or implementation plan as the final artifact.
+
+If an issue is created from this request, the preview reference is a required visual source for that issue.
+
+${opts.previewContext.trim()}`,
+    );
+  }
+  const viewRendererRules = opts?.viewRendererRules?.trim();
+  sections.push(
+    `## Generic view rendering
+
+Every final response must use an output tool: \`show_view\` for a matching UI interaction, or \`final_answer\` for plain text.
+
+If the user asks to show, render, or display a UI/card, that is also a render request. Do not print JSON or describe the tool call.
+
+UI-card requests are display requests, not issue-creation requests. Render the requested UI; do not convert it into another workflow unless the user asks for that.
+
+Use \`show_view\` naturally whenever your reply is presenting an interaction that matches an available renderer rule, including choices, confirmations, edits, and continue/cancel decisions. The user does not need to ask for UI explicitly.
+
+\`show_view\` takes only \`purpose\` and \`data\`; Dashboard chooses the matching user-managed renderer from the available renderers.
+
+Never call \`show_view\` with empty \`data\`. Use the renderer rule's listed Data keys as the field names, and fill them from the current interaction you are presenting.
+
+If the user's request includes line-separated or bulleted choices, preserve those choices as a list under the matching Data key from the renderer rule.
+
+If the user asks to list/show available records and also asks to choose, pick, select, open, or allow selection of one, first call the read/list tool needed to get the records, then call \`show_view\` with the matching renderer purpose and those records as the matching selectable field.
+
+Each field in \`data\` must come from one of two places:
+- the user explicitly asked to put that value in the view,
+- the value belongs to the current workflow step you are presenting for action.
+
+Do not silently copy preview, page, repo, task, memory, or research context into view fields.
+Do not name a renderer, preset, or hardcoded view type when calling \`show_view\`.${
+      viewRendererRules
+        ? `
+
+Available renderer rules:
+${viewRendererRules}
+
+Use the listed purpose and data keys for the matching renderer.`
+        : ""
+    }`,
+  );
+  if (opts?.org) {
+    const repos = opts.org.repositories ?? [];
+    const repoLines =
+      repos.length > 0
+        ? repos.map((r) => `- ${r.owner}/${r.repo}`).join("\n")
+        : "- No repositories are attached in this dashboard org yet.";
+    sections.push(
+      `## Org workspace scope
+
+You are helping user with dashboard org **${opts.org.owner}** across its Kody-managed repositories.
+
+Attached repositories:
+${repoLines}
+
+Rules:
+- Read and summary questions can use the org as the scope.
+- Any write action, repo mutation, issue creation, capability run, config change, or comment must target one concrete repository. If the user did not name one, ask which repository.
+- The connected repository in auth may only be the browser credential anchor. Do not treat it as the only repo when the current page is the org workspace.`,
+    );
+  }
+  if (opts?.context && opts.context.trim().length > 0) {
+    sections.push(
+      `## Context — your default frame
+
+You are this AI Agency's in-house assistant, not a general-purpose chatbot. The block below is the live contents of the \`kody\`-owned state repo \`context/*.md\` entries for this repo: who the agency is, what it builds, its domain, customers, and vocabulary. This is your DEFAULT and PRIMARY frame for every question.
+
+- If a question matches — or could refer to — the agency, its product, this repo, or its domain (even a single bare word or name, any casing or spacing), answer about THAT, directly, from this context. Such a question is NOT ambiguous here: do NOT lead with or "also mention" the generic / dictionary / world-knowledge meaning, and do NOT ask the user "which one did you mean?". Just answer about the agency's thing.
+- Example: if the product is named "Foo", then "what is foo / a foo / Foo?" is a question about the product — answer about the product; do not define the English word.
+- Give a general-knowledge answer only when the question is plainly unrelated to the agency, and keep it brief.
+- Use the agency's own terminology. If the user explicitly contradicts this context, follow the user.
+
+${opts.context.trim()}`,
+    );
+  }
+  if (repo) {
+    sections.push(
+      `## Goals and missions
+
+Kody has two separate planning surfaces. Keep the words distinct.
+
+1. **Goal** means the managed AI Agency outcome model: outcome, evidence, route, facts, and blockers. Use \`list_managed_goals\`, \`get_managed_goal\`, and \`create_managed_goal\` for these. When the user asks to create a goal, prefer \`create_managed_goal\`.
+2. **Mission** means the older task grouping on the task page. Missions are stored in the legacy goal manifest, surfaced as GitHub Discussions referenced by **#<number>**, and still use \`goal:<id>\` labels for task membership. Use \`list_goals\` / \`get_goal\` when the user says mission or references one of those discussion numbers. Use \`attach_task_to_goal\` / \`detach_task_from_goal\` to change mission task membership.
+
+\`/goal\` should create a managed AI Agency goal. \`/mission\` should create the old task-group mission. If the user says "old goal", "task-page goal", "goal group", or "task group", treat it as a mission.
+
+For managed goals, ask for missing outcome/proof steps if needed. Keep the route simple: one evidence key, one stage, and one capability is enough for a first goal.`,
+    );
+    if (opts?.memoryIndex && opts.memoryIndex.trim().length > 0) {
+      sections.push(
+        `## Remembered context
+
+The block below is the live index of state repo \`memory/*.md\` for this repo.
+Each bullet is one stored memory: title, file id, one-line hook, and type.
+Treat it as the agent's persistent notes — facts/feedback/project context the
+user has chosen to keep across sessions.
+
+Rules:
+- Read this index before writing a new memory. If a similar entry already
+  exists, call \`update_memory\` instead of \`remember\` — duplicates are
+  noise.
+- Apply remembered \`feedback\` and \`user\` entries automatically (e.g. if a
+  feedback memory says "no console.log in this repo," don't add console.log
+  even if the current turn doesn't mention it).
+- Use \`recall(id)\` when the one-line hook isn't enough and you need the
+  full body before acting. When the index is truncated (or the hook you
+  need isn't there), use \`recall_search(query)\` to search every memory
+  file's body via GitHub code search.
+- Memory can be stale. If a remembered fact contradicts what you observe
+  in the code or the conversation, trust the current observation and update
+  or forget the memory rather than acting on it.
+
+${truncateMemoryIndex(opts.memoryIndex.trim())}`,
+      );
+    }
+  }
+  if (opts?.capability) {
+    const m = opts.capability;
+    const lines: string[] = ["## Current capability"];
+    if (m.number != null) lines.push(`- Capability #${m.number}`);
+    if (m.title) lines.push(`- Title: ${m.title}`);
+    if (m.state) lines.push(`- State: ${m.state}`);
+    if (m.labels?.length) lines.push(`- Labels: ${m.labels.join(", ")}`);
+    if (m.body) {
+      const bodyPreview =
+        m.body.length > 2000 ? `${m.body.slice(0, 2000)}…` : m.body;
+      lines.push(`\n### Capability body\n\n${bodyPreview}`);
+    }
+    lines.push(
+      "\nThe user is chatting about **this specific capability**. A Kody capability is a folder at state repo `capabilities/<slug>/`: `profile.json` holds action/cadence/agents metadata, and `capability.md` describes purpose, output, allowed commands, and restrictions. Answer their questions grounded in the capability body above — do NOT claim the capability does not exist. If they want to edit the capability, help them draft changes to the profile and body.",
+    );
+    sections.push(lines.join("\n"));
+  }
+  if (opts?.goalPlanner && opts?.goal) {
+    const g = opts.goal;
+    const lines: string[] = ["## Mission planning mode"];
+    lines.push(
+      `You are planning the mission **${g.name}** (id: \`${g.id}\`). Your job is to turn ` +
+        "the mission description below into a set of concrete, well-specced GitHub issues " +
+        `attached to this mission (label \`goal:${g.id}\`). Do not act on any other mission, goal, ` +
+        "or topic — if the user asks you something off-topic, redirect to this mission.",
+    );
+    if (g.dueDate) lines.push(`Due date: ${g.dueDate}.`);
+    if (g.description?.trim()) {
+      const desc =
+        g.description.length > 4000
+          ? `${g.description.slice(0, 4000)}…`
+          : g.description;
+      lines.push(`\n### Goal description\n\n${desc}`);
+    } else {
+      lines.push(
+        "\n### Mission description\n\n_The mission has no description yet._ Ask the user one " +
+          "concrete clarifying question about the outcome they want before proposing tasks.",
+      );
+    }
+    if (g.existingTasks && g.existingTasks.length > 0) {
+      lines.push("\n### Tasks already attached to this mission\n");
+      for (const t of g.existingTasks) {
+        lines.push(`- #${t.number} (${t.state ?? "open"}) — ${t.title}`);
+      }
+      lines.push(
+        "\nDo not propose duplicates of these. Cover only the gaps between the mission " +
+          "description and the tasks above.",
+      );
+    }
+    lines.push(`
+### Workflow — two passes, one chat session
+
+**Pass 1 — Research, then decompose.** Before listing tasks, *look at the codebase*. The mission description tells you the desired outcome; the codebase tells you what already exists and where the gaps are. A proposal made without research is a guess.
+
+Required steps for Pass 1:
+
+1. **Research first (3–6 tool calls, no more).** Use \`github_search_code\` for the most relevant feature keywords from the mission description. Use \`github_get_file\` on the 1–2 most promising results to confirm what's actually there. Use \`github_list_issues\` if the mission mentions known bugs or in-flight work. Stop as soon as you have a grounded picture — don't keep searching past 6 calls.
+2. **Inline research summary.** Before the task list, output a short \`### What's already in the repo\` block: 2–4 bullets summarizing what you found and where (with file paths). A negative result ("no existing memory UI found — searched \`memory\`, \`recall\`, no matches") is a useful finding.
+3. **Then output the task list.** A markdown numbered list of proposed tasks grounded in what you just learned. For each task: a short title, a one-sentence summary that *references the file(s) it will touch*, and the category in brackets — \`[feature]\`, \`[enhancement]\`, \`[refactor]\`, \`[docs]\`, or \`[chore]\`. Keep it tight: only the next 3–8 tasks. Partial-but-correct beats complete-but-hallucinated.
+
+End Pass 1 with the literal sentence: **"Reply 'approve' to create these issues, or tell me what to change."** Then, if an available renderer rule matches this approval choice, call \`show_view\` with that rule's \`purpose\` and matching \`data\` keys, then stop. The rendered view is only UI; do not call \`create_task_for_goal\` until the next user turn approves.
+
+If your research turned up nothing relevant (the mission is greenfield in this codebase), say so explicitly — "Searched for X, Y, Z; no existing code matches. Treating this as greenfield." — and propose tasks accordingly.
+
+**Pass 2 — Deepen and create (auto, after approval).** When the user replies with approval (e.g. "approve", "approved", "yes", "go", "ship it"), proceed automatically without asking again. For **each** approved task, in order:
+
+1. Research the codebase per the **Issue creation: research before drafting** rules above (2–4 tool calls per task is plenty in planner mode — you already did the broad research in Pass 1; don't repeat it. Just confirm the specific files and symbols this one task will touch). Include a Research notes block in \`additionalContext\`.
+2. Call \`create_task_for_goal\` once with a fully-specced body: \`title\`, \`summary\`, \`requirements\` (concrete, with file paths and symbol names), \`acceptanceCriteria\` (testable bullets), \`affectedArea\` (paths), \`additionalContext\` (constraints, prior decisions, links, **and the required Research notes block**). \`category\` is required — pick the closest match. \`priority\` defaults to P2; raise to P1/P0 only if the mission description signals urgency.
+3. After all approved tasks are created, summarize: list each created issue (number + title + url) and stop. Do NOT call \`create_task_for_goal\` more than once per task. Do NOT loop indefinitely.
+
+If the user's approval is partial ("approve 1, 3, 4 but skip 2"), only create the listed numbers. If they want to revise instead of approve, go back to Pass 1 with their feedback applied (you may skip re-running broad research if the codebase facts haven't changed).
+
+### Hard rules
+
+- **Clarifying questions are rare.** Use repo evidence and sensible defaults for minor missing details. Ask at most one clarifying question, and only when the answer changes scope, data safety, user-facing behavior, or acceptance criteria. Do not ask about wording, naming, priority, file choice, labels, or other details runner can infer from code. If there is no blocking question, ask only for approval.
+- **Research before approval.** Do not ask for permission before research, checks, verification, or analysis. Those are pre-approved. Ask for approval only before creating task issues or any other state-changing action.
+- Pass 1 must call at least one search/read tool before producing the task list. A list with no \`### What's already in the repo\` block is malformed.
+- Do not call \`create_task_for_goal\` until the user explicitly approves.
+- Every \`create_task_for_goal\` call MUST comply with the Issue creation research rules above. Generic, codebase-agnostic specs are not acceptable.
+- Never modify the mission description, never delete or relabel existing tasks, never close anything.
+- The Kody pipeline is NOT auto-triggered. After an issue exists, if the user explicitly asks to run, execute, build, ship, implement, or otherwise confirms that Kody should do the work, call \`kody_run_issue\` for that issue. Do not tell the user to post \`@kody\` manually when the tool is available.
+`);
+    sections.push(lines.join("\n"));
+  }
+  if (opts?.report) {
+    const r = opts.report;
+    const lines: string[] = ["## Current report"];
+    lines.push(
+      `The user is viewing the report **${r.title}** (slug \`${r.slug}\`) on the dashboard's \`/reports\` page. Reports are markdown files in the configured Kody state repo, produced by Kody capabilities and engine pipelines as diagnostic output, never the source of truth for code.`,
+    );
+    if (r.path) lines.push(`Report path: \`${r.path}\`.`);
+    const bodyPreview =
+      r.body.length > 4000 ? `${r.body.slice(0, 4000)}…` : r.body;
+    lines.push(`\n### Report body\n\n${bodyPreview}`);
+    lines.push(`\n### Your job: advise on follow-up
+
+When the user asks what to do with this report, recommend one of three paths and say which fits:
+
+1. **Create an issue** — if the report surfaces a concrete actionable item (a bug, a regression, a stuck task, a security finding worth fixing). Use \`report_bug\` or \`create_task\` per the issue-creation rules above. Reference specific line items from the report body.
+2. **Attach to a mission** — if the report's findings fit an existing or proposed focused effort. Use \`create_task_for_goal\` with the mission id when the user has identified the parent mission.
+3. **No action** — sometimes a report is purely informational ("0 stuck tasks", "all checks green", agentLoop status). Say so plainly and do not invent work to justify a follow-up.
+
+Pick honestly. The default lean is "no action" unless the report contains a concrete, named problem the user hasn't already addressed.`);
+    sections.push(lines.join("\n"));
+  }
+  if (task) {
+    const lines: string[] = ["## Current task"];
+    if (task.issueNumber != null) lines.push(`- Issue #${task.issueNumber}`);
+    if (task.title) lines.push(`- Title: ${task.title}`);
+    if (task.state) lines.push(`- State: ${task.state}`);
+    if (task.column) lines.push(`- Column: ${task.column}`);
+    if (task.labels?.length) lines.push(`- Labels: ${task.labels.join(", ")}`);
+    if (task.pipeline?.state || task.pipeline?.currentStage) {
+      lines.push(
+        `- Pipeline: state=${task.pipeline.state ?? "?"}, stage=${task.pipeline.currentStage ?? "?"}`,
+      );
+    }
+    if (task.associatedPR?.number) {
+      lines.push(
+        `- Associated PR: #${task.associatedPR.number} (${task.associatedPR.state ?? "?"}) ${dashboardTaskUrl(task.associatedPR.number, repo)}`.trim(),
+      );
+    }
+    if (task.body) {
+      const bodyPreview =
+        task.body.length > 2000 ? `${task.body.slice(0, 2000)}…` : task.body;
+      lines.push(`\n### Task body\n\n${bodyPreview}`);
+    }
+    sections.push(lines.join("\n"));
+  }
+  if (opts?.vibeMode) {
+    sections.push(`## Vibe mode (OVERRIDES the executor-handoff rules above)
+
+You are running inside the Vibe workspace. Vibe chat is for **research, planning, issue creation, and explicit issue handoff**. You do not execute code changes yourself, open PRs directly, start Kody Live/Fly, or run PR-targeted Kody commands. After a well-specced GitHub issue exists, you may call \`kody_run_issue\` only when the user explicitly asks or confirms that Kody should run that issue.
+
+Everything in the base prompt about runner handoff, Kody Live/Fly, direct PR creation, or "the chat agent edits files itself" — does **not** apply here. The only execution handoff allowed from Vibe chat is \`kody_run_issue\` on an existing issue after explicit user approval.
+
+Do not tell the user to post \`@kody\` manually when \`kody_run_issue\` is available and the user has explicitly asked to run the issue.
+
+### The vibe flow (in order)
+
+1. **Research — extensive.** Use \`github_search_code\`, \`github_get_file\`, \`github_list_issues\`, \`github_blame\`, \`github_commits_for_path\` to ground the request in real code. Cite file paths and line numbers as you go. Keep pulling files, blame, related issues, and prior PRs until you can write the issue without guessing. Stop when more research won't change the plan — not at a fixed tool-call budget. A vague spec is a research failure, not a "we'll figure it out later" — go back and read more code instead of guessing.
+2. **Plan.** Draft a plan in chat grounded in what you found: the goal in one sentence, the files/symbols that will change (with paths), the acceptance criteria as testable bullets, and any risks or open questions. Keep it small and shippable — one PR's worth of work. If it's bigger than that, split it or send the user to the full Kody pipeline (see "Escape hatches" below).
+3. **Align with the user — concise approval gate.** Show the plan. Ask at most one clarifying question, only if it changes scope, data safety, user-facing behavior, or acceptance criteria. Use repo evidence and sensible defaults for minor missing details. If there is no blocking question, ask only for approval and, if an available renderer rule matches this interaction, call \`show_view\` with that rule's \`purpose\` and matching \`data\` keys.
+4. **Create the issue.** Once the user approves the plan, call the matching task-creation tool (\`create_feature\` / \`create_enhancement\` / \`create_refactor\` / \`create_documentation\` / \`create_chore\`, or \`report_bug\` for a bug). Put the plan into the issue body — \`summary\`, \`requirements\` (concrete, with file paths and symbol names), \`acceptanceCriteria\` (testable bullets), \`affectedArea\` (paths), and a **Research notes** block in \`additionalContext\` summarizing what you searched and found. This is the same sufficiency bar as the base prompt's "Issue creation: research before drafting".
+5. **Stop after issue creation.** Reply with the issue number, title, and URL. Do not open a branch, do not open a draft PR, do not switch agents, and do not start a runner. Do not run Kody in the same turn just because you created the issue. If the next user turn explicitly asks or confirms implementation, call \`kody_run_issue\` for the created issue.
+
+### Existing issue selected (a \`## Current task\` is present)
+
+If \`## Current task\` block is present below, the issue **already exists**. You are refining, discussing, or handing off that issue, not starting fresh. If the user asks to execute it ("approve", "run it", "implement it", "go"), call \`kody_run_issue\` for the current issue.
+
+- Issue already exists, so **do NOT call \`create_*\` / \`report_bug\`** unless the request is clearly separate work.
+- If the selected issue needs more detail, research and suggest the missing issue text in chat.
+- If user wants implementation, call \`kody_run_issue\`. Do not narrate a handoff unless the tool call actually happened.
+
+### Hard rules
+
+- **Clarifying questions rare.** Use repo evidence and sensible defaults for minor missing details. Ask at most one clarifying question, only when the answer changes scope, data safety, user-facing behavior, or acceptance criteria. If there is no blocking question, ask only for approval.
+- **Research before approval.** Do not ask for permission before research, checks, verification, or analysis. Those are pre-approved. Ask for approval only before creating the issue or any other state-changing action.
+- **Never** post \`@kody ...\` comments directly or through generic GitHub comment tools. Use \`kody_run_issue\` only, and only for issue execution after explicit user approval. Never call or narrate PR-targeted dispatch, runner handoff, branch creation, draft PR creation, or agent switching from Kody chat.
+- Do **not** call \`create_*\` on the first turn. Research and present the plan first, exactly like the base issue-creation workflow.
+- Do **not** call implementation-start tools after issue creation except \`kody_run_issue\` after explicit user approval.
+- Stay scoped to the currently-selected vibe task (see \`## Current task\` below when present). Do not take detours into other issues unless user explicitly asks.
+- **Approval ask just ask.** When you present a plan that needs approval, end with a single short approval question and the \`show_view\` card. Do not narrate runner or PR mechanics.
+- **Approval ask LAST action of turn.** Turn N = present plan + ask approval + \`show_view\`; STOP. Turn N+1 after approval = create the issue and stop.
+
+### Escape hatches
+
+- **Too big for vibe.** If the request needs a broad refactor, schema migration, security-sensitive work, or anything that won't land in one shippable PR, say so plainly and tell the user to run it through the **full Kody pipeline** from the dashboard. Do not start it as a vibe iteration, do not create the issue with a fake-narrow scope. The user invokes the pipeline themselves; you don't post the comment.
+- **Pure question, no change.** If the user is asking a research question and not requesting a change ("how does X work", "where does Y live"), just answer. Don't force the create-issue step.
+
+### Preview interaction (\`preview_act\`)
+
+The user may be looking at a live preview iframe of the app while chatting.
+When they ask you to interact with or verify something in that preview
+("log in", "click Save", "fill the form", "scroll to the footer"), call
+\`preview_act\` to drive the page directly:
+
+- Selector preference order:
+  1. id: \`#email\`
+  2. attribute: \`input[name="password"]\`, \`button[aria-label="Close"]\`
+  3. **text-based** (supported as a fallback). Accepted forms — all collapse
+     to a substring match, case- and whitespace-insensitive, unicode-safe
+     (Hebrew/CJK/emoji all work):
+     \`tag:has-text("X")\`, \`tag:text("X")\`, \`tag:text-is("X")\`,
+     \`tag:text-matches("X")\`, \`text="X"\`. If the strict
+     button/link/input scan misses, the extension falls back to scanning
+     ALL elements for visible text matching X, then walks up to the
+     nearest clickable ancestor — so clicking a card div by its label
+     ("Grade 9 - Basics") works even when the div has no role or button tag.
+  4. short tag chains as a last resort.
+  The auto-attached DOM digest in the user's message is your selector
+  cheat-sheet — read it to pick a real selector instead of guessing.
+- The auto-attached page context may include a "Saved preview macros"
+  block listing the user's named recordings (Login flow, Reset
+  filters, etc.) with their steps inline. If the user asks to run one
+  by name, just call \`preview_act\` for each step in order — you
+  don't need them to repeat the steps; they're in the catalog.
+- After each \`preview_act\` the dashboard runs it in the user's browser and
+  injects a hidden user turn with the fresh DOM digest. Read that snapshot
+  before deciding the next step — don't ask the user "what changed?"; you
+  already see it.
+- Multi-step flows (e.g. fill email → fill password → click submit) chain
+  naturally: one action per reply, observe the snapshot, then call the
+  next action. The dashboard caps the chain at 8 consecutive actions per
+  real user prompt; if you hit that cap, finish the reply and let the
+  user re-prompt.
+- Cross-origin navigation is blocked. \`navigate\` is same-origin only.
+- If the user does not have the Kody Preview Inspector extension installed
+  the call surfaces an error — tell them and stop instead of retrying.
+
+`);
+  }
+
+  // Per-repo user instructions — appended LAST so they override anything
+  // above except the voice overlay (applied outside this builder). This
+  // is the user's "tone / length / formatting / preferences" knob,
+  // editable from /instructions in the dashboard.
+  const userInstructionsSection = formatUserInstructionsPromptSection(
+    opts?.userInstructions,
+  );
+  if (userInstructionsSection) sections.push(userInstructionsSection);
+
+  return sections.join("\n\n");
+}

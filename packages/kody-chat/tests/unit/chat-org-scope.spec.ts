@@ -31,7 +31,7 @@ const USE_CHAT_SESSIONS_SOURCE = readFileSync(
   "utf8",
 );
 const SYSTEM_PROMPT_SOURCE = readFileSync(
-  resolve(__dirname, "../../app/api/kody/chat/kody/system-prompt.ts"),
+  resolve(__dirname, "../../../base/src/kody-system-prompt.ts"),
   "utf8",
 );
 

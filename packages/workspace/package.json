@@ -28,7 +28,6 @@
   },
   "dependencies": {
     "@kody-ade/base": "workspace:*",
-    "@kody-ade/kody-chat": "workspace:*",
     "@octokit/rest": "^22.0.1",
     "ai": "^6.0.97",
     "zod": "^4.3.5"

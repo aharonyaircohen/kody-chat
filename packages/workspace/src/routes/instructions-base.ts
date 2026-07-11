@@ -3,14 +3,14 @@
  * @domain kody
  * @pattern instructions-base-api
  * @ai-summary Returns the read-only base system prompt for the in-process
- *   Kody agent (`AGENT_KODY.systemPrompt`). Surfaced behind the "View base
+ *   Kody agent (`AGENT_KODY_SYSTEM_PROMPT`). Surfaced behind the "View base
  *   prompt" button on /instructions so users can see what their overlay
  *   is layered on top of. Auth-gated but does not need a repo context —
  *   the base prompt is identical across repos.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { requireKodyAuth } from "@kody-ade/base/auth";
-import { AGENT_KODY } from "@kody-ade/kody-chat/agents";
+import { AGENT_KODY_SYSTEM_PROMPT } from "@kody-ade/base/agents-data";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
   return NextResponse.json(
-    { prompt: AGENT_KODY.systemPrompt },
+    { prompt: AGENT_KODY_SYSTEM_PROMPT },
     { headers: NO_STORE_HEADERS },
   );
 }

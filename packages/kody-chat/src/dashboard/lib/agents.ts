@@ -6,6 +6,7 @@
  */
 
 import { Brain, Zap, type LucideIcon } from "lucide-react";
+import { AGENT_KODY_SYSTEM_PROMPT } from "@kody-ade/base/agents-data";
 
 // ===========================================
 // AGENT CONFIG
@@ -187,8 +188,7 @@ export const AGENT_KODY: AgentConfig = {
   // + tool allowlist are data, not source. The string below is a placeholder
   // for any code path that still reads `agent.systemPrompt` directly — the
   // kody-direct route composes the real prompt via `composeBasePrompt(bundle)`.
-  systemPrompt:
-    "Kody — in-process dashboard chat agent. See chat-defaults bundle for the live prompt.",
+  systemPrompt: AGENT_KODY_SYSTEM_PROMPT,
 };
 
 // ===========================================
