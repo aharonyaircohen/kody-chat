@@ -15,7 +15,7 @@ vi.mock("@dashboard/lib/brain-proxy", () => ({
   streamBrainChat: (...args: unknown[]) => streamBrainChat(...args),
 }));
 
-vi.mock("@dashboard/lib/context/files", () => ({
+vi.mock("@kody-ade/workspace/context/files", () => ({
   loadContextForPrompt: (...args: unknown[]) => loadContextForPrompt(...args),
 }));
 

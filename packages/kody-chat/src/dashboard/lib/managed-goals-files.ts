@@ -25,7 +25,7 @@ import {
   parseTodoFileContent,
   serializeTodoFileContent,
   type TodoFileContent,
-} from "./todos/files";
+} from "@kody-ade/workspace/todos/files";
 import {
   isManagedGoalTodo,
   managedGoalStateToTodoContent,

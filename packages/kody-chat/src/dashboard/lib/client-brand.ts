@@ -112,7 +112,7 @@ export async function resolveClientBrand(
   const normalized = normalizeClientBrandSlug(slug);
   let clearContext: (() => void) | null = null;
   try {
-    const { findBrandFileFromList, isBrandDeleted } = await import("./brands");
+    const { findBrandFileFromList, isBrandDeleted } = await import("@kody-ade/workspace/brands");
     if (context?.owner && context.repo) {
       const { clearGitHubContext, setGitHubContext } = await import(
         "./github-client"

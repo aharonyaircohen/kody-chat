@@ -13,7 +13,7 @@ import {
   type ManagedGoalRouteStep,
   type ManagedGoalState,
 } from "./managed-goals";
-import type { TodoFileContent, TodoItemFile } from "./todos/files";
+import type { TodoFileContent, TodoItemFile } from "@kody-ade/workspace/todos/files";
 
 export function isManagedGoalTodo(todo: TodoFileContent): boolean {
   const frontmatter = todo.frontmatter ?? {};

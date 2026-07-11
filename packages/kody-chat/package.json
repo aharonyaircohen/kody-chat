@@ -2,7 +2,7 @@
   "name": "@kody-ade/kody-chat",
   "version": "0.1.4",
   "license": "MIT",
-  "description": "Kody Chat — multi-tenant branded client chat product and embeddable chat platform",
+  "description": "Kody Chat \u2014 multi-tenant branded client chat product and embeddable chat platform",
   "repository": {
     "type": "git",
     "url": "https://github.com/aharonyaircohen/kody-chat.git"
@@ -32,7 +32,11 @@
     "./admin-pages": "./src/dashboard/lib/admin-pages.ts",
     "./routes/client-auth-start": "./app/api/client-auth/start/route.ts",
     "./routes/kody/languages": "./app/api/kody/languages/route.ts",
-    "./routes/kody/languages-detail": "./app/api/kody/languages/[code]/route.ts"
+    "./routes/kody/languages-detail": "./app/api/kody/languages/[code]/route.ts",
+    "./agents": "./src/dashboard/lib/agents.ts",
+    "./client-auth/*": "./src/dashboard/lib/client-auth/*.ts",
+    "./company-store/*": "./src/dashboard/lib/company-store/*.ts",
+    "./kody-system-prompt": "./app/api/kody/chat/kody/system-prompt.ts"
   },
   "scripts": {
     "dev": "next dev --turbopack -p 3344",
@@ -99,7 +103,8 @@
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
     "web-push": "^3.6.7",
-    "zod": "^4.3.5"
+    "zod": "^4.3.5",
+    "@kody-ade/workspace": "workspace:*"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

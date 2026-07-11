@@ -3,7 +3,7 @@
   "version": "0.1.1591",
   "private": true,
   "license": "MIT",
-  "description": "Kody Dashboard — Operations dashboard for the Kody CI/CD pipeline",
+  "description": "Kody Dashboard \u2014 Operations dashboard for the Kody CI/CD pipeline",
   "scripts": {
     "dev": "next dev --turbopack -p 3333",
     "dev:webpack": "next dev --webpack -p 3333",
@@ -85,7 +85,8 @@
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
     "web-push": "^3.6.7",
-    "zod": "^4.3.5"
+    "zod": "^4.3.5",
+    "@kody-ade/workspace": "workspace:*"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",

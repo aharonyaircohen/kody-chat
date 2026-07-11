@@ -15,12 +15,12 @@
 
 import type { Octokit } from "@octokit/rest";
 import { readAgentFile, writeAgentFile } from "../agent-files";
-import { readCommandFile, writeCommandFile } from "../commands/files";
-import { readContextFile, writeContextFile } from "../context/files";
+import { readCommandFile, writeCommandFile } from "@kody-ade/workspace/commands/files";
+import { readContextFile, writeContextFile } from "@kody-ade/workspace/context/files";
 import {
   readInstructionsFile,
   writeInstructionsFile,
-} from "../instructions/files";
+} from "@kody-ade/workspace/instructions/files";
 import {
   readCapabilityFolderFiles,
   writeCapabilityFolderFiles,

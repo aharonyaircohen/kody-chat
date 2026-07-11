@@ -8,7 +8,7 @@ const h = vi.hoisted(() => ({
   clearGitHubContext: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/brands", () => ({
+vi.mock("@kody-ade/workspace/brands", () => ({
   findBrandFileFromList: h.findBrandFileFromList,
   isBrandDeleted: h.isBrandDeleted,
   readBrandFile: h.readBrandFile,

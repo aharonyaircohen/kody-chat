@@ -72,7 +72,7 @@ import { useAgents } from "@dashboard/lib/hooks/useAgents";
 import { useGitHubIdentity } from "@dashboard/lib/hooks/useGitHubIdentity";
 import { useMediaQuery } from "@dashboard/lib/hooks/useMediaQuery";
 import type { ContextEntry } from "@dashboard/lib/api";
-import { KODY_CHAT_AGENT, QA_AGENT, ALL_AGENT } from "@dashboard/lib/context/frontmatter";
+import { KODY_CHAT_AGENT, QA_AGENT, ALL_AGENT } from "@kody-ade/workspace/context/frontmatter";
 import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
 import { ListSearch } from "@dashboard/lib/components/ListSearch";
 import { MarkdownEditor } from "@dashboard/lib/components/MarkdownEditor";

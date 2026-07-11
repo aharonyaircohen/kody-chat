@@ -38,7 +38,7 @@ import {
   writeManagedGoalFile,
 } from "../../src/dashboard/lib/managed-goals-files";
 import type { ManagedGoalState } from "../../src/dashboard/lib/managed-goals";
-import { parseTodoFileContent } from "../../src/dashboard/lib/todos/files";
+import { parseTodoFileContent } from "@kody-ade/workspace/todos/files";
 
 const baseState: ManagedGoalState = {
   version: 1,

@@ -50,16 +50,16 @@ vi.mock("@dashboard/lib/chat-defaults", async (importOriginal) => {
     })),
   };
 });
-vi.mock("@dashboard/lib/memory-files", () => ({
+vi.mock("@kody-ade/workspace/memory/files", () => ({
   invalidateMemoryIndexPromptCache: vi.fn(),
   loadMemoryIndexForPrompt: h.loadMemoryIndexForPrompt,
   readMemoryFile: vi.fn(),
   writeMemoryFile: vi.fn(),
 }));
-vi.mock("@dashboard/lib/instructions/files", () => ({
+vi.mock("@kody-ade/workspace/instructions/files", () => ({
   loadInstructionsForPrompt: h.loadInstructionsForPrompt,
 }));
-vi.mock("@dashboard/lib/context/files", () => ({
+vi.mock("@kody-ade/workspace/context/files", () => ({
   loadContextForPrompt: h.loadContextForPrompt,
 }));
 vi.mock("@dashboard/lib/view-renderers/renderers", () => ({

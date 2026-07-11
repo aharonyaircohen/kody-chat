@@ -51,7 +51,7 @@ import {
   withPageContext,
   withDashboardContext,
 } from "@kody-ade/kody-chat/core/page-context";
-import { loadContextForPrompt } from "@dashboard/lib/context/files";
+import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
 import { createRepoBrainScope } from "@dashboard/lib/brain/repo-scope";
 import { readResolvedAgentFile } from "@dashboard/lib/agent-files";
 

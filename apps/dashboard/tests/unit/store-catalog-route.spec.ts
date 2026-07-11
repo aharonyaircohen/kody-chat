@@ -66,7 +66,7 @@ vi.mock("@dashboard/lib/agent-files", () => ({
   listStoreAgentFiles: agents.listStoreAgentFiles,
 }));
 
-vi.mock("@dashboard/lib/commands/files", () => ({
+vi.mock("@kody-ade/workspace/commands/files", () => ({
   listStoreCommandFiles: commands.listStoreCommandFiles,
 }));
 

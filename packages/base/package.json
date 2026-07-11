@@ -36,7 +36,9 @@
     "./events/*": "./src/events/*.ts",
     "./events/sinks/*": "./src/events/sinks/*.ts",
     "./storage": "./src/storage/index.ts",
-    "./storage/*": "./src/storage/*.ts"
+    "./storage/*": "./src/storage/*.ts",
+    "./thread-link": "./src/thread-link.ts",
+    "./manifest-store": "./src/manifest-store.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -10,7 +10,7 @@ const octokit = {
   },
 };
 
-vi.mock("@dashboard/lib/github-client", () => ({
+vi.mock("@kody-ade/workspace/github", () => ({
   getOctokit: vi.fn(() => octokit),
   getOwner: vi.fn(() => "owner"),
   getRepo: vi.fn(() => "repo"),
@@ -21,7 +21,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
   ),
 }));
 
-vi.mock("@dashboard/lib/company-store/assets", async (importOriginal) => {
+vi.mock("@kody-ade/kody-chat/company-store/assets", async (importOriginal) => {
   const actual =
     await importOriginal<
       typeof import("@dashboard/lib/company-store/assets")
@@ -66,7 +66,7 @@ vi.mock("@dashboard/lib/company-store/assets", async (importOriginal) => {
   };
 });
 
-import { listCommands, readResolvedCommandFile } from "@dashboard/lib/commands";
+import { listCommands, readResolvedCommandFile } from "@kody-ade/workspace/commands";
 
 function repoCommandContent(body: string): string {
   return Buffer.from(

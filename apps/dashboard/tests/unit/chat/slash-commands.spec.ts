@@ -16,8 +16,8 @@ import {
 import {
   substitute,
   tokenizeArguments,
-} from "@dashboard/lib/commands/substitute";
-import { BUILTIN_COMMANDS } from "@dashboard/lib/commands/builtins";
+} from "@kody-ade/workspace/commands/substitute";
+import { BUILTIN_COMMANDS } from "@kody-ade/workspace/commands/builtins";
 
 const COMMANDS: SlashCommand[] = [
   {

@@ -29,7 +29,7 @@ import {
   withPageContext,
   withDashboardContext,
 } from "@dashboard/lib/chat/core/page-context";
-import { loadContextForPrompt } from "@dashboard/lib/context/files";
+import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
 import { requestOrigin } from "@kody-ade/base/request-origin";
 
 export const runtime = "nodejs";

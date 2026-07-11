@@ -62,17 +62,17 @@ vi.mock("@dashboard/lib/agent-files", () => ({
   readAgentFile: h.readAgentFile,
   writeAgentFile: h.writeAgentFile,
 }));
-vi.mock("@dashboard/lib/commands/files", () => ({
+vi.mock("@kody-ade/workspace/commands/files", () => ({
   listRepoCommandFiles: h.listRepoCommandFiles,
   readCommandFile: h.readCommandFile,
   writeCommandFile: h.writeCommandFile,
 }));
-vi.mock("@dashboard/lib/context/files", () => ({
+vi.mock("@kody-ade/workspace/context/files", () => ({
   listContextFiles: h.listContextFiles,
   readContextFile: h.readContextFile,
   writeContextFile: h.writeContextFile,
 }));
-vi.mock("@dashboard/lib/instructions/files", () => ({
+vi.mock("@kody-ade/workspace/instructions/files", () => ({
   readInstructionsFile: h.readInstructionsFile,
   writeInstructionsFile: h.writeInstructionsFile,
 }));

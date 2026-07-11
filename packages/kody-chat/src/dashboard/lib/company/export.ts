@@ -12,9 +12,9 @@
 
 import { getOctokit, getOwner, getRepo } from "../github-client";
 import { listAgentFiles } from "../agent-files";
-import { listRepoCommandFiles } from "../commands/files";
-import { listContextFiles } from "../context/files";
-import { readInstructionsFile } from "../instructions/files";
+import { listRepoCommandFiles } from "@kody-ade/workspace/commands/files";
+import { listContextFiles } from "@kody-ade/workspace/context/files";
+import { readInstructionsFile } from "@kody-ade/workspace/instructions/files";
 import {
   listCapabilityFiles,
   readCapabilityFolderFiles,
@@ -32,8 +32,8 @@ import {
   type CompanyContextEntry,
 } from "./types";
 import type { TickFile } from "../ticked/files";
-import type { CommandFile } from "../commands/files";
-import type { ContextFile } from "../context/files";
+import type { CommandFile } from "@kody-ade/workspace/commands/files";
+import type { ContextFile } from "@kody-ade/workspace/context/files";
 
 function toAgentEntry(file: TickFile): CompanyAgentEntry {
   return {

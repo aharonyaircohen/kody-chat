@@ -9,11 +9,13 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-vi.mock("@dashboard/lib/github-client", () => ({
+vi.mock("@kody-ade/base/github/issues", () => ({
   fetchIssues: vi.fn(),
   fetchIssue: vi.fn(),
   createIssue: vi.fn(),
   updateIssue: vi.fn(),
+}));
+vi.mock("@kody-ade/base/github/core", () => ({
   invalidateIssueCache: vi.fn(),
   getOwner: vi.fn(() => "acme"),
   getRepo: vi.fn(() => "widgets"),
@@ -24,7 +26,7 @@ import {
   fetchIssue,
   createIssue,
   updateIssue,
-} from "@dashboard/lib/github-client";
+} from "@kody-ade/base/github/issues";
 import {
   appendInboxFeed,
   readInboxFeed,

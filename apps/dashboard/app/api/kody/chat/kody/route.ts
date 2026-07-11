@@ -132,14 +132,14 @@ import {
   loadMemoryIndexForPrompt,
   readMemoryFile,
   writeMemoryFile,
-} from "@dashboard/lib/memory-files";
+} from "@kody-ade/workspace/memory/files";
 import {
   loadViewRendererContextForPrompt,
   type ViewRendererDefinition,
 } from "@dashboard/lib/view-renderers/renderers";
 import { repairShowViewToolCall } from "@dashboard/lib/view-renderers/chat-contract";
-import { loadInstructionsForPrompt } from "@dashboard/lib/instructions/files";
-import { loadContextForPrompt } from "@dashboard/lib/context/files";
+import { loadInstructionsForPrompt } from "@kody-ade/workspace/instructions/files";
+import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
 import { buildExplicitMemoryDraft } from "./explicit-memory";
 import {
   isValidSlug as isValidAgentSlug,

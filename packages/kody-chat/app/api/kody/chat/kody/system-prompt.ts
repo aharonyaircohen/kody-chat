@@ -8,7 +8,7 @@
  * from route.ts so tests can import it without exporting non-HTTP handlers
  * from a Next.js route file.
  */
-import { dashboardTaskUrl } from "@dashboard/lib/thread-link";
+import { dashboardTaskUrl } from "@kody-ade/base/thread-link";
 
 export interface TaskContext {
   issueNumber?: number | string;

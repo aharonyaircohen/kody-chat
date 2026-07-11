@@ -51,7 +51,7 @@ import {
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import type { Agent } from "../api";
-import { KODY_CHAT_AGENT } from "../context/frontmatter";
+import { KODY_CHAT_AGENT } from "@kody-ade/workspace/context/frontmatter";
 import { AGENT_TEMPLATE } from "../agent-template";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { ListSearch } from "./ListSearch";

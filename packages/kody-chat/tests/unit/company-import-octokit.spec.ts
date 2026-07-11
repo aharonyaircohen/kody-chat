@@ -61,6 +61,15 @@ vi.mock("@dashboard/lib/github-client", () => ({
   invalidateCommandsCache: vi.fn(),
   fetchCompanyActivity: vi.fn(async () => []),
 }));
+vi.mock("@kody-ade/workspace/github", () => ({
+  getOctokit: vi.fn(() => badOctokit),
+  getOwner: vi.fn(() => "acme"),
+  getRepo: vi.fn(() => "widgets"),
+  invalidateCapabilitiesCache: vi.fn(),
+  invalidateStaffCache: vi.fn(),
+  invalidateCommandsCache: vi.fn(),
+  fetchCompanyActivity: vi.fn(async () => []),
+}));
 
 import { applyCompanyBundle } from "@dashboard/lib/company/import";
 import { COMPANY_BUNDLE_VERSION } from "@dashboard/lib/company/types";

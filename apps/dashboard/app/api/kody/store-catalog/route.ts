@@ -17,7 +17,7 @@ import {
 } from "@dashboard/lib/github-client";
 import { listStoreCapabilityFiles } from "@dashboard/lib/capabilities";
 import { listStoreAgentFiles } from "@dashboard/lib/agent-files";
-import { listStoreCommandFiles } from "@dashboard/lib/commands/files";
+import { listStoreCommandFiles } from "@kody-ade/workspace/commands/files";
 import { listCompanyStoreGoalTemplateFiles } from "@dashboard/lib/managed-goals-files";
 import {
   managedGoalModel,
