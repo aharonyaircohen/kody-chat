@@ -13,6 +13,7 @@ describe("kody-chat executive management activation", () => {
     expect(config.github).toEqual({
       owner: "aharonyaircohen",
       repo: "kody-chat",
+      operators: ["aguyaharonyair"],
     });
     expect(config.state).toMatchObject({
       repo: "https://github.com/aharonyaircohen/kody-state",

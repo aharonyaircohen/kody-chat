@@ -10,7 +10,8 @@
   },
   "github": {
     "owner": "aharonyaircohen",
-    "repo": "kody-chat"
+    "repo": "kody-chat",
+    "operators": ["aguyaharonyair"]
   },
   "agent": {
     "model": "minimax/MiniMax-M3"
