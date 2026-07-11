@@ -54,7 +54,7 @@ import {
 import { previewChatContextBlock } from "@kody-ade/kody-chat/core/preview-context";
 import { tasksApi, getStoredAuth } from "../api";
 import { RateLimitError, NoTokenError, SessionExpiredError } from "../api";
-import type { KodyTask } from "../types";
+import type { KodyTask } from "@kody-ade/base/types";
 import { mapTaskCacheData, type TaskCacheData } from "../tasks/cache";
 
 import { VibeIssueList } from "./VibeIssueList";

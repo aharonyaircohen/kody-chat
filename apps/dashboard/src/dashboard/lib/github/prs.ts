@@ -6,8 +6,8 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Octokit } from "@octokit/rest";
-import { BRANCH_PREFIXES, CACHE_TTL } from "../constants";
-import type { GitHubPR, PRComment, FileChange } from "../types";
+import { BRANCH_PREFIXES, CACHE_TTL } from "@kody-ade/base/constants";
+import type { GitHubPR, PRComment, FileChange } from "@kody-ade/base/types";
 import {
   getCached,
   getStale,
@@ -16,9 +16,9 @@ import {
   getOwner,
   getRepo,
   invalidatePRCache,
-} from "./core";
+} from "@kody-ade/base/github/core";
 import { findBranchByIssueNumber } from "./branches";
-import { fetchIssue } from "./issues";
+import { fetchIssue } from "@kody-ade/base/github/issues";
 // ============ Bulk PR Fetch ============
 
 type CIStatus = "pending" | "success" | "failure" | "running";

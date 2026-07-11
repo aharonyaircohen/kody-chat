@@ -15,7 +15,7 @@ import {
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   setGitHubContext,
   clearGitHubContext,
@@ -27,7 +27,7 @@ import {
   isValidSlug,
 } from "@dashboard/lib/context/files";
 import { KODY_CHAT_AGENT } from "@dashboard/lib/context/frontmatter";
-import { normalizeSlug } from "@dashboard/lib/slug";
+import { normalizeSlug } from "@kody-ade/base/slug";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

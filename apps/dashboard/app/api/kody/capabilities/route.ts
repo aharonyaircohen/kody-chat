@@ -13,7 +13,7 @@ import {
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   setGitHubContext,
   clearGitHubContext,
@@ -25,7 +25,7 @@ import {
   isValidSlug,
   PERMISSION_MODES,
 } from "@dashboard/lib/capabilities";
-import { getEngineConfig } from "@dashboard/lib/engine/config";
+import { getEngineConfig } from "@kody-ade/base/engine/config";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import { resolveInstalledCapabilitySlugs } from "@dashboard/lib/company-store/installed-capabilities";
 

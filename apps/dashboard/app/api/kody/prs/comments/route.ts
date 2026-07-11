@@ -13,7 +13,7 @@ import {
   getUserOctokit,
   verifyActorLogin,
   getRequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   fetchPRComments,
   postComment,

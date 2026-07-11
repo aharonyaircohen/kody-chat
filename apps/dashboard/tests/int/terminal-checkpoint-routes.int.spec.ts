@@ -25,7 +25,7 @@ const checkpointStore = vi.hoisted(() => ({
   upsertTerminalCheckpoint: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/auth", () => auth);
+vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@dashboard/lib/terminal/checkpoint-store", () => checkpointStore);
 vi.mock("@dashboard/lib/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },

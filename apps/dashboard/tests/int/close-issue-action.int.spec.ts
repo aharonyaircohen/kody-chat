@@ -12,7 +12,7 @@ const postComment = vi.fn(async () => undefined);
 const invalidateTaskCache = vi.fn();
 const invalidateBoardCache = vi.fn();
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(async () => ({ ok: true })),
   verifyActorLogin: vi.fn(async () => ({ identity: { login: "tester" } })),
   getUserOctokit: vi.fn(async () => null),

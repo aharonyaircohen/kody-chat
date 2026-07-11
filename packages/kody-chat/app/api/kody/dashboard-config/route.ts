@@ -14,8 +14,8 @@ import {
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
-import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
+} from "@kody-ade/base/auth";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import {
   invalidateDashboardConfigCache,
   readDashboardConfig,
@@ -27,7 +27,7 @@ import { logger } from "@kody-ade/base/logger";
 import {
   resolveStateRepo,
   stateRepoPath,
-} from "@dashboard/lib/state-repo";
+} from "@kody-ade/base/state-repo";
 import {
   repoViewIdFromPath,
   type PreviewEnvironment,

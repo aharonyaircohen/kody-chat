@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createIssueWithBestEffortMetadata } from "@dashboard/lib/github-issue-create";
+import { createIssueWithBestEffortMetadata } from "@kody-ade/base/github-issue-create";
 
 function makeOctokit(overrides?: {
   addLabels?: () => Promise<unknown>;

@@ -6,7 +6,7 @@
  *   force the show_view tool instead of letting the model answer in prose.
  */
 
-import { slugifyTitle } from "@dashboard/lib/slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 
 export interface ExplicitViewRequest {
   purpose: string;

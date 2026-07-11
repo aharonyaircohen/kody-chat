@@ -14,9 +14,9 @@ import {
   requireKodyAuth,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
-import { readVault } from "@dashboard/lib/vault/store";
-import { readVariables } from "@dashboard/lib/variables/store";
+} from "@kody-ade/base/auth";
+import { readVault } from "@kody-ade/base/vault/store";
+import { readVariables } from "@kody-ade/base/variables/store";
 import {
   PROVIDER_CATALOG,
   credentialNames,

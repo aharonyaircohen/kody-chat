@@ -8,7 +8,7 @@
  *   `goal:<slug>`.
  */
 
-import { slugifyTitle } from "./slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 
 export const GOALS_MANIFEST_LABEL = "kody:goals-manifest";
 export const GOAL_LABEL_PREFIX = "goal:";

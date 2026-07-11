@@ -34,7 +34,7 @@ import {
 import nock from "nock";
 import { NextRequest } from "next/server";
 import { POST as startPOST } from "../../app/api/kody/chat/interactive/start/route";
-import { STATE_BRANCH } from "@dashboard/lib/state-branch";
+import { STATE_BRANCH } from "@kody-ade/base/state-branch";
 
 const GITHUB_API = "https://api.github.com";
 const REAL_FETCH = globalThis.fetch;

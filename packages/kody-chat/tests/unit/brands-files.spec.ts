@@ -18,7 +18,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
   invalidateBrandsCache: h.invalidateBrandsCache,
 }));
 
-vi.mock("@dashboard/lib/state-repo", () => ({
+vi.mock("@kody-ade/base/state-repo", () => ({
   listStateDirectory: h.listStateDirectory,
   readStateText: h.readStateText,
   writeStateText: h.writeStateText,

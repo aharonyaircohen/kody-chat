@@ -2,8 +2,8 @@ import "server-only";
 
 import type { Octokit } from "@octokit/rest";
 
-import { slugifyTitle } from "@dashboard/lib/slug";
-import { readStateText } from "@dashboard/lib/state-repo";
+import { slugifyTitle } from "@kody-ade/base/slug";
+import { readStateText } from "@kody-ade/base/state-repo";
 import type {
   CmsCollectionConfig,
   CmsContentOperation,

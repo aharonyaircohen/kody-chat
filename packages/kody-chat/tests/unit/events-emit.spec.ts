@@ -17,11 +17,11 @@ vi.mock("next/server", () => ({
     throw new Error("no request scope");
   },
 }));
-vi.mock("@dashboard/lib/state-repo", () => ({
+vi.mock("@kody-ade/base/state-repo", () => ({
   readStateText: vi.fn(),
   writeStateText: vi.fn(),
 }));
-vi.mock("@dashboard/lib/auth/background-token", () => ({
+vi.mock("@kody-ade/base/auth/background-token", () => ({
   resolveBackgroundToken: vi.fn().mockResolvedValue(null),
 }));
 vi.mock("@dashboard/lib/github-client", () => ({

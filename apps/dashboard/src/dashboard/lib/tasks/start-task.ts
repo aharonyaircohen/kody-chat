@@ -7,7 +7,7 @@
  */
 import "server-only";
 import type { Octokit } from "@octokit/rest";
-import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import {
   addLabels,
   createUserOctokit,
@@ -19,7 +19,7 @@ import {
   getStoreRepoUrl,
   invalidateTaskCache,
 } from "@dashboard/lib/github-client";
-import { KODY_BACKLOG_LABEL } from "@dashboard/lib/constants";
+import { KODY_BACKLOG_LABEL } from "@kody-ade/base/constants";
 import { buildKodyWorkflowDispatchInputs } from "@dashboard/lib/kody-workflow-dispatch";
 
 export interface StartTaskResult {

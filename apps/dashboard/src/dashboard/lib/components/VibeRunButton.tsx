@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { Loader2, Play } from "lucide-react";
 
 import { vibeApi } from "../api";
-import type { KodyTask } from "../types";
+import type { KodyTask } from "@kody-ade/base/types";
 
 interface VibeRunButtonProps {
   issueNumber: number;

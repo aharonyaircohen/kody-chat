@@ -15,7 +15,7 @@ import {
   requireKodyAuth,
   verifyActorLogin,
   getRequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import { sendNotification } from "@dashboard/lib/notifications/channels/send";
 
 const channelSchema = z.discriminatedUnion("type", [

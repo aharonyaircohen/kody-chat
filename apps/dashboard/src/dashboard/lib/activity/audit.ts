@@ -15,7 +15,7 @@
  *   budget, not the shared polling token.
  */
 import { after, type NextRequest } from "next/server";
-import { getRequestAuth, resolveActorFromToken } from "@dashboard/lib/auth";
+import { getRequestAuth, resolveActorFromToken } from "@kody-ade/base/auth";
 import {
   createUserOctokit,
   setGitHubContext,

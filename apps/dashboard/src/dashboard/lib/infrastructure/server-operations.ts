@@ -11,7 +11,7 @@ import type { Octokit } from "@octokit/rest";
 
 import { getServerProvider } from "@dashboard/lib/infrastructure/installed";
 import type { ServerContextBase } from "@dashboard/lib/infrastructure/contracts";
-import type { EngineRuntimeModelConfig } from "@dashboard/lib/variables/models";
+import type { EngineRuntimeModelConfig } from "@kody-ade/base/variables/models";
 import type { KodyRunRequest } from "@dashboard/lib/runners/run-request";
 import type {
   ServerProviderFeature as ProviderFeature,

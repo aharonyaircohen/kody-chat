@@ -7,13 +7,13 @@
  */
 import { describe, expect, it } from "vitest";
 import { deriveTaskColumn } from "@dashboard/lib/tasks/derive-column";
-import type { KodyTaskState } from "@dashboard/lib/kody-state";
+import type { KodyTaskState } from "@kody-ade/base/kody-state";
 import type {
   GitHubIssue,
   GitHubPR,
   KodyPipelineStatus,
   WorkflowRun,
-} from "@dashboard/lib/types";
+} from "@kody-ade/base/types";
 
 function issue(over: Partial<GitHubIssue> = {}): GitHubIssue {
   return {

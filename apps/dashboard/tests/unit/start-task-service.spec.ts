@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => {
 
 vi.spyOn(console, "warn").mockImplementation(() => {});
 
-vi.mock("@dashboard/lib/auth/background-token", () => ({
+vi.mock("@kody-ade/base/auth/background-token", () => ({
   resolveBackgroundToken: (
     ...args: Parameters<typeof mocks.resolveBackgroundToken>
   ) => mocks.resolveBackgroundToken(...args),

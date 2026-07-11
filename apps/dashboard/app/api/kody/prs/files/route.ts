@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { handleKodyApiError } from "@dashboard/lib/github-error-handler";
 import { prFilesQuerySchema } from "@dashboard/lib/schemas";
 import { parseQueryParams } from "@dashboard/lib/api-responses";
-import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 import {
   fetchPRFileChanges,
   setGitHubContext,

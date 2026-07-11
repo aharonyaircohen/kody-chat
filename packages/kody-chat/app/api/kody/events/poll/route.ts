@@ -24,7 +24,7 @@ import {
   requireKodyAuth,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import { readEventsFile } from "@dashboard/lib/chat-events-reader";
 import { logger } from "@kody-ade/base/logger";
 

@@ -20,7 +20,7 @@ const h = vi.hoisted(() => ({
   setGitHubContext: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(async () => null),
   verifyActorLogin: vi.fn(async () => ({ identity: { login: "tester" } })),
   getUserOctokit: h.getUserOctokit,
@@ -46,7 +46,7 @@ vi.mock("@dashboard/lib/managed-goals-files", () => ({
   listCompanyStoreGoalTemplateFiles: h.listCompanyStoreGoalTemplateFiles,
 }));
 
-vi.mock("@dashboard/lib/engine/config", () => ({
+vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: h.getEngineConfig,
   writeConfigPatch: h.writeConfigPatch,
 }));

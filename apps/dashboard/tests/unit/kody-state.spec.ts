@@ -5,7 +5,7 @@ import {
   parseKodyStateComment,
   findKodyStateInComments,
   type KodyTaskState,
-} from "@dashboard/lib/kody-state";
+} from "@kody-ade/base/kody-state";
 
 const minimalState: KodyTaskState = {
   schemaVersion: 1,

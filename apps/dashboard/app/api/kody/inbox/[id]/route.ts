@@ -12,7 +12,7 @@ import {
   requireKodyAuth,
   getRequestAuth,
   getUserOctokit,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import { deleteEntry, markEntryRead } from "@dashboard/lib/inbox/gist-store";
 
 const patchSchema = z.object({

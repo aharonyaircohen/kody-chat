@@ -14,7 +14,7 @@ import {
   getUserOctokit,
   requireKodyAuth,
   verifyActorLogin,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   listCompanyStoreAssetSlugs,
   listCompanyStoreMarkdownAssetSlugs,
@@ -28,7 +28,7 @@ import {
   writeConfigPatch,
   type ActiveGoalConfigEntry,
   type ConfigPatch,
-} from "@dashboard/lib/engine/config";
+} from "@kody-ade/base/engine/config";
 import { readResolvedCapabilityFile } from "@dashboard/lib/capabilities";
 import { listCompanyStoreGoalTemplateFiles } from "@dashboard/lib/managed-goals-files";
 import {

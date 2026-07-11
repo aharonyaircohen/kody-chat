@@ -28,7 +28,7 @@ import type {
   AgencyRunStatus,
   AgencyRunSummary,
 } from "../agency-runs";
-import type { RepoRef } from "../routes";
+import type { RepoRef } from "@kody-ade/base/routes";
 import { cn } from "../utils";
 import { PageShell } from "./PageShell";
 

@@ -12,7 +12,7 @@
  */
 
 import { createUserOctokit } from "@dashboard/lib/github-client";
-import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
+import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
 import type { Octokit } from "@octokit/rest";
 
 export interface EventLogEntry {

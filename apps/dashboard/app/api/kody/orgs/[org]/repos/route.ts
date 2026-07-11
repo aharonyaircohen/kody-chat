@@ -8,8 +8,8 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
-import { getPublicBaseUrl } from "@dashboard/lib/auth/oauth-url";
+import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
+import { getPublicBaseUrl } from "@kody-ade/base/auth/oauth-url";
 import { logger } from "@kody-ade/base/logger";
 import { ensureWebhook } from "@dashboard/lib/webhooks/register";
 

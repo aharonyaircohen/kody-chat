@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { NextRequest } from "next/server";
-import { STATE_BRANCH } from "@dashboard/lib/state-branch";
+import { STATE_BRANCH } from "@kody-ade/base/state-branch";
 
 const h = vi.hoisted(() => ({
   runScheduledKodyOnRunner: vi.fn(async () => ({
@@ -19,7 +19,7 @@ const h = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(async () => null),
   verifyActorLogin: vi.fn(async () => ({
     identity: { login: "tester" },
@@ -32,7 +32,7 @@ vi.mock("@dashboard/lib/auth", () => ({
   })),
 }));
 
-vi.mock("@dashboard/lib/engine/config", () => ({
+vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: vi.fn().mockResolvedValue({
     config: {
       defaultImplementation: "run",
@@ -63,7 +63,7 @@ vi.mock("@dashboard/lib/runners/kody-runner", () => ({
 }));
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const auth = await import("@dashboard/lib/auth");
+const auth = await import("@kody-ade/base/auth");
 const { getUserOctokit } = auth as any;
 
 import { POST } from "../../app/api/kody/goals/[id]/manage/route";

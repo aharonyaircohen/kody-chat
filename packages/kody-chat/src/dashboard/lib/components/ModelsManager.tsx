@@ -50,7 +50,7 @@ import {
   type ChatModel,
   type ChatProtocol,
   type ProviderPreset,
-} from "@dashboard/lib/variables/models";
+} from "@kody-ade/base/variables/models";
 
 export interface ModelsQueryScope {
   owner?: string | null;

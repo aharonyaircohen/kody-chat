@@ -15,7 +15,7 @@
  *   Every branch-deletion site must funnel through `isProtectedBranch`
  *   before calling `octokit.git.deleteRef`.
  */
-import { DEV_BRANCH, PROD_BRANCH } from "@dashboard/lib/constants";
+import { DEV_BRANCH, PROD_BRANCH } from "@kody-ade/base/constants";
 
 export const PROTECTED_BRANCHES: ReadonlySet<string> = new Set([
   PROD_BRANCH, // 'main'

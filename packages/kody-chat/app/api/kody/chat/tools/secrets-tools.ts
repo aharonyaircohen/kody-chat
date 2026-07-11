@@ -17,8 +17,8 @@ import {
   invalidateVaultCache,
   listSecretMetadata,
   type VaultDocument,
-} from "@dashboard/lib/vault/store";
-import { isVaultConfigured } from "@dashboard/lib/vault/crypto";
+} from "@kody-ade/base/vault/store";
+import { isVaultConfigured } from "@kody-ade/base/vault/crypto";
 
 interface Ctx {
   octokit: Octokit;

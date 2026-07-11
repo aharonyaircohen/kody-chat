@@ -10,7 +10,7 @@ import {
   generatePlaywrightTest,
 } from "@dashboard/lib/scenario-stub";
 import type { Scenario } from "@dashboard/lib/scenario-schema-stub";
-import { requireKodyAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth } from "@kody-ade/base/auth";
 
 export async function POST(request: NextRequest) {
   const authError = await requireKodyAuth(request);

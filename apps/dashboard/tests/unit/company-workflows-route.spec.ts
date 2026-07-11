@@ -39,7 +39,7 @@ const managedGoalFiles = vi.hoisted(() => ({
   listManagedGoalFiles: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: auth.requireKodyAuth,
   getRequestAuth: auth.getRequestAuth,
   getUserOctokit: auth.getUserOctokit,
@@ -51,7 +51,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
   clearGitHubContext: githubClient.clearGitHubContext,
 }));
 
-vi.mock("@dashboard/lib/engine/config", () => ({
+vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: engineConfig.getEngineConfig,
   writeConfigPatch: engineConfig.writeConfigPatch,
 }));

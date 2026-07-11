@@ -30,7 +30,7 @@ import type {
 } from "./workflow-definitions";
 import type { ScheduleEvery } from "./ticked/frontmatter";
 import { buildKodyAuthHeaders } from "@kody-ade/base/auth-headers";
-import { readActiveRepo, readStoredKodyAuth } from "./active-repo";
+import { readActiveRepo, readStoredKodyAuth } from "@kody-ade/base/active-repo";
 
 const API_BASE = "/api/kody";
 

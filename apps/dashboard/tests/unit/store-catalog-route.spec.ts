@@ -47,7 +47,7 @@ function storeUrl(slug: string): string {
   return `https://github.com/acme/store/tree/main/.kody/capabilities/${slug}`;
 }
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: auth.requireKodyAuth,
   getRequestAuth: auth.getRequestAuth,
   getUserOctokit: auth.getUserOctokit,
@@ -84,7 +84,7 @@ vi.mock("@dashboard/lib/workflow-definition-files", () => ({
     workflows.listCompanyStoreWorkflowDefinitionFiles,
 }));
 
-vi.mock("@dashboard/lib/engine/config", () => ({
+vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: engineConfig.getEngineConfig,
 }));
 

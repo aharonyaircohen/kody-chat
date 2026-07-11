@@ -17,12 +17,12 @@ import {
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   getEngineConfig,
   writeConfigPatch,
   VALID_ASSOCIATIONS,
-} from "@dashboard/lib/engine/config";
+} from "@kody-ade/base/engine/config";
 import { logger } from "@kody-ade/base/logger";
 
 export async function GET(req: NextRequest) {

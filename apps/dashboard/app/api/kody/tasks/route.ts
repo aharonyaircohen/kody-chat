@@ -12,7 +12,7 @@ import {
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 
 import {
   fetchIssues,
@@ -34,13 +34,13 @@ import {
 import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
 import { buildPreviewUrlByPrNumber } from "@dashboard/lib/tasks/preview-urls";
 import { mintPreviewTicket } from "@dashboard/lib/preview-token";
-import type { KodyTaskState } from "@dashboard/lib/kody-state";
+import type { KodyTaskState } from "@kody-ade/base/kody-state";
 import type {
   KodyTask,
   ColumnId,
   WorkflowRun,
   KodyPipelineStatus,
-} from "@dashboard/lib/types";
+} from "@kody-ade/base/types";
 import { matchWorkflowRunToTask } from "@dashboard/lib/workflow-matching";
 import { deriveTaskColumn } from "@dashboard/lib/tasks/derive-column";
 import {
@@ -53,7 +53,7 @@ import {
   parseKodyFlow,
   TASK_ID_REGEX,
   TASK_LIST_EXCLUDED_LABELS,
-} from "@dashboard/lib/constants";
+} from "@kody-ade/base/constants";
 
 /**
  * Extract a real kody task ID from an issue title's leading `[…]`.

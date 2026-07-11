@@ -20,9 +20,9 @@
 
 import { Octokit } from "@octokit/rest";
 
-import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import { logger } from "@kody-ade/base/logger";
-import { readVault } from "@dashboard/lib/vault/store";
+import { readVault } from "@kody-ade/base/vault/store";
 
 /**
  * Empty fallback. Returned only when the vault is genuinely unreadable

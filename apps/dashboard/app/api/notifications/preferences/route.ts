@@ -10,12 +10,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
 import { z } from "zod";
-import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import { resolveVaultGithubToken } from "@dashboard/lib/vault/bootstrap";
+import { resolveVaultGithubToken } from "@kody-ade/base/vault/bootstrap";
 import {
   readNotificationPrefs,
   writeNotificationPrefs,

@@ -14,9 +14,9 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-vi.mock("@dashboard/lib/engine/config", async (importOriginal) => {
+vi.mock("@kody-ade/base/engine/config", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("@dashboard/lib/engine/config")>();
+    await importOriginal<typeof import("@kody-ade/base/engine/config")>();
   return {
     ...actual,
     getEngineConfig: vi.fn(async () => ({
@@ -26,7 +26,7 @@ vi.mock("@dashboard/lib/engine/config", async (importOriginal) => {
   };
 });
 
-vi.mock("@dashboard/lib/variables/load-chat-models", () => ({
+vi.mock("@kody-ade/base/variables/load-chat-models", () => ({
   loadChatModels: vi.fn(async () => []),
 }));
 

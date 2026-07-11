@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   getPreview: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: mocks.requireKodyAuth,
   getRequestAuth: mocks.getRequestAuth,
   getUserOctokit: mocks.getUserOctokit,

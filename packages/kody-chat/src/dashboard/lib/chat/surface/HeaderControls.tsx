@@ -28,7 +28,7 @@ import type { AgentConfig, AgentId } from "@dashboard/lib/agents";
 import type { ChatDropdownEntry } from "../platform/agent-entries";
 import type { ModelReasoning } from "../core/reasoning-adapter";
 import { writeReasoningEffort } from "../core/reasoning-pref";
-import type { KodyTask } from "@dashboard/lib/types";
+import type { KodyTask } from "@kody-ade/base/types";
 import { ChatPluginSlot } from "./ChatPluginProvider";
 
 interface HeaderControlsProps {

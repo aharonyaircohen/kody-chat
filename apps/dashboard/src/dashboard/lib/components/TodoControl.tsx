@@ -75,7 +75,7 @@ import { Input } from "@kody-ade/base/ui/input";
 import { Label } from "@kody-ade/base/ui/label";
 import { AuthGuard } from "../auth-guard";
 import type { TodoEntry, TodoItem } from "../api";
-import type { GitHubCollaborator } from "../types";
+import type { GitHubCollaborator } from "@kody-ade/base/types";
 import { useCollaborators } from "../hooks";
 import {
   useCreateTodo,

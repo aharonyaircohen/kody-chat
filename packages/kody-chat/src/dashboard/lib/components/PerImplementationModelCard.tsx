@@ -14,7 +14,7 @@ import { Card, CardContent } from "@kody-ade/base/ui/card";
 import { Button } from "@kody-ade/base/ui/button";
 import { Input } from "@kody-ade/base/ui/input";
 import { useEngineConfig } from "@dashboard/lib/engine/useEngineConfig";
-import { engineModelSpec, type ChatModel } from "@dashboard/lib/variables/models";
+import { engineModelSpec, type ChatModel } from "@kody-ade/base/variables/models";
 
 export function PerImplementationModelCard({ models }: { models: ChatModel[] }) {
   const { config, loading, saving, save } = useEngineConfig();

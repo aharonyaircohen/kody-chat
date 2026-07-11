@@ -27,13 +27,13 @@ const githubClient = vi.hoisted(() => ({
   setGitHubContext: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: auth.requireKodyAuth,
   getRequestAuth: auth.getRequestAuth,
   getUserOctokit: auth.getUserOctokit,
 }));
 
-vi.mock("@dashboard/lib/state-repo", () => ({
+vi.mock("@kody-ade/base/state-repo", () => ({
   normalizeStatePath: stateRepo.normalizeStatePath,
   readStateText: stateRepo.readStateText,
 }));

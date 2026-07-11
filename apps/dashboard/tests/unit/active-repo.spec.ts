@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveActiveRepo } from "@dashboard/lib/active-repo";
+import { resolveActiveRepo } from "@kody-ade/base/active-repo";
 
 const entry = (
   owner: string,

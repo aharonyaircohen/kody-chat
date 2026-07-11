@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@dashboard/lib/github-client", () => mocks.githubClient);
-vi.mock("@dashboard/lib/state-repo", () => mocks.stateRepo);
+vi.mock("@kody-ade/base/state-repo", () => mocks.stateRepo);
 
 import {
   parseTodoFileContent,

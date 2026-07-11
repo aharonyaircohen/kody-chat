@@ -1,4 +1,4 @@
-import { slugifyTitle } from "./slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 
 export type MarkdownCalloutKind =
   | "note"

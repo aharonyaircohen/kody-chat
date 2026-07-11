@@ -10,8 +10,8 @@ import {
   SPEC_STAGES,
   IMPL_STAGES,
   AUTOFIX_STAGE,
-} from "./constants";
-import type { KodyPipelineStatus, KodyTask, StageStatus } from "./types";
+} from "@kody-ade/base/constants";
+import type { KodyPipelineStatus, KodyTask, StageStatus } from "@kody-ade/base/types";
 
 // ══════════════════════════════════════════════════════
 // PHASE GROUPING — color pipeline stages by phase group

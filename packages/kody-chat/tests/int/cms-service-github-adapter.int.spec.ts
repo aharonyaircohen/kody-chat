@@ -29,9 +29,9 @@ const vault = vi.hoisted(() => ({
   getSecret: vi.fn(async () => null),
 }));
 
-vi.mock("@dashboard/lib/state-repo", () => stateRepo);
+vi.mock("@kody-ade/base/state-repo", () => stateRepo);
 vi.mock("@dashboard/lib/cms/roles", () => roles);
-vi.mock("@dashboard/lib/vault/get-secret", () => vault);
+vi.mock("@kody-ade/base/vault/get-secret", () => vault);
 
 import {
   createCmsDocument,

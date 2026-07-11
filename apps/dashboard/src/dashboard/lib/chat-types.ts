@@ -176,7 +176,7 @@ export type ChatContext =
       org: string;
       repositories?: Array<{ owner: string; repo: string }>;
     }
-  | { kind: "task"; task: import("./types").KodyTask }
+  | { kind: "task"; task: import("@kody-ade/base/types").KodyTask }
   | {
       /**
        * Chat scoped to an existing capability (or agent — an agent

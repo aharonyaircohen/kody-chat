@@ -11,7 +11,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { AGENTS, type AgentConfig } from "@dashboard/lib/agents";
-import { slugifyTitle } from "@dashboard/lib/slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 import {
   HOME_NAV_ITEM,
   PRIMARY_NAV_ITEMS,

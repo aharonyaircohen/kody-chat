@@ -21,7 +21,7 @@ import {
 import { sendNotification } from "./notifications/channels/send";
 import { buildSourceEvent, type SourcePr } from "./notifications/source-event";
 import { readNotificationsManifestFresh } from "./notifications-server";
-import { resolveBackgroundToken } from "./auth/background-token";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import { logger } from "@kody-ade/base/logger";
 
 interface DispatchContext {

@@ -22,7 +22,7 @@ const adapterCatalog = vi.hoisted(() => ({
   listStoreCmsAdapters: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/auth", () => auth);
+vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@dashboard/lib/github-client", () => githubClient);
 vi.mock("@dashboard/lib/logger", () => ({
   logger: { error: vi.fn() },

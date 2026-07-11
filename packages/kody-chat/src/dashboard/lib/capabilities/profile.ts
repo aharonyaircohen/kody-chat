@@ -15,7 +15,7 @@
  *   so the dashboard can reject a broken profile before committing.
  */
 
-import { slugifyTitle } from "@dashboard/lib/slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 
 /** Where the capability's result lands. `pr` opens a pull request (the
  * `pr-branch` lifecycle); `comment` posts the agent's answer as a comment

@@ -21,7 +21,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getRequestAuth, requireKodyAuth } from "@dashboard/lib/auth";
+import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
 import { serverProviderHostname } from "@dashboard/lib/infrastructure/server-machines";
 import { previewAppName } from "@dashboard/lib/previews/preview-key";
 import {

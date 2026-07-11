@@ -26,7 +26,7 @@ import {
   createManifestStore,
   ManifestBodyTooLargeError,
 } from "@dashboard/lib/manifest-store";
-import { INTERNAL_ISSUE_LABEL } from "@dashboard/lib/constants";
+import { INTERNAL_ISSUE_LABEL } from "@kody-ade/base/constants";
 import {
   fetchIssues,
   fetchIssue,

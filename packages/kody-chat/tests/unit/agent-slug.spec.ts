@@ -3,7 +3,7 @@ import {
   normalizeAgentSlug,
   slugifyAgentTitle,
 } from "../../src/dashboard/lib/agent-slug";
-import { normalizeSlug, slugifyTitle } from "../../src/dashboard/lib/slug";
+import { normalizeSlug, slugifyTitle } from "@kody-ade/base/slug";
 
 describe("agent slug normalization", () => {
   it("normalizes normal titles into valid slugs", () => {

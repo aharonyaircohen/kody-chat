@@ -13,15 +13,15 @@ import {
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   invalidateVaultCache,
   listSecretMetadata,
   readVault,
   writeVault,
   type VaultDocument,
-} from "@dashboard/lib/vault/store";
-import { isVaultConfigured } from "@dashboard/lib/vault/crypto";
+} from "@kody-ade/base/vault/store";
+import { isVaultConfigured } from "@kody-ade/base/vault/crypto";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import { logger } from "@kody-ade/base/logger";
 

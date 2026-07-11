@@ -9,7 +9,7 @@ import {
   repoSwitchRedirectPath,
   resolveRepoRouteAuthSync,
   routes,
-} from "@dashboard/lib/routes";
+} from "@kody-ade/base/routes";
 
 const repo = { owner: "A-Guy-educ", repo: "A-Guy-Web" };
 

@@ -19,7 +19,7 @@ import {
 import { Input } from "@kody-ade/base/ui/input";
 import { Label } from "@kody-ade/base/ui/label";
 import { Textarea } from "@kody-ade/base/ui/textarea";
-import { slugifyTitle } from "@dashboard/lib/slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 import {
   CLIENT_AUTH_PROVIDERS,
   type ClientAuthProvider,

@@ -9,7 +9,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import type { KodyTask } from "../types";
+import type { KodyTask } from "@kody-ade/base/types";
 import type { NotificationType } from "../notifications/types";
 import { NOTIFICATION_META } from "../notifications/types";
 import type { UseNotificationStoreReturn } from "../notifications/useNotificationStore";

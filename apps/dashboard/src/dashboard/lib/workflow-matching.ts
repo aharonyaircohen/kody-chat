@@ -5,7 +5,7 @@
  * @ai-summary Shared workflow run matching — prefers active (in_progress/queued) runs over stale completed ones
  */
 
-import type { WorkflowRun } from "./types";
+import type { WorkflowRun } from "@kody-ade/base/types";
 
 /**
  * Match the best workflow run for a given task.

@@ -25,7 +25,7 @@ const { privateKey: PEM } = generateKeyPairSync("rsa", {
 });
 
 const h = vi.hoisted(() => ({ resolveVaultGithubToken: vi.fn() }));
-vi.mock("@dashboard/lib/vault/bootstrap", () => ({
+vi.mock("@kody-ade/base/vault/bootstrap", () => ({
   resolveVaultGithubToken: h.resolveVaultGithubToken,
 }));
 vi.mock("@dashboard/lib/logger", () => ({
@@ -58,7 +58,7 @@ describe("app-token", () => {
     vi.stubEnv("GITHUB_APP_ID", "");
     vi.stubEnv("GITHUB_APP_PRIVATE_KEY", "");
     const { getInstallationToken, isAppConfigured } =
-      await import("@dashboard/lib/auth/app-token");
+      await import("@kody-ade/base/auth/app-token");
     expect(isAppConfigured()).toBe(false);
     expect(await getInstallationToken(OWNER, REPO)).toBeNull();
   });
@@ -76,7 +76,7 @@ describe("app-token", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { getInstallationToken } =
-      await import("@dashboard/lib/auth/app-token");
+      await import("@kody-ade/base/auth/app-token");
     const first = await getInstallationToken(OWNER, REPO);
     expect(first).toBe("ghs_installationtoken");
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -96,7 +96,7 @@ describe("app-token", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { getInstallationToken } =
-      await import("@dashboard/lib/auth/app-token");
+      await import("@kody-ade/base/auth/app-token");
     expect(await getInstallationToken(OWNER, REPO)).toBeNull();
     expect(fetchMock).toHaveBeenCalledTimes(1); // never reaches token mint
   });
@@ -111,7 +111,7 @@ describe("app-token", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { getInstallationToken } =
-      await import("@dashboard/lib/auth/app-token");
+      await import("@kody-ade/base/auth/app-token");
     expect(await getInstallationToken(OWNER, REPO)).toBe("ghs_b64");
   });
 });
@@ -135,7 +135,7 @@ describe("background-token policy", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     const { resolveBackgroundToken } =
-      await import("@dashboard/lib/auth/background-token");
+      await import("@kody-ade/base/auth/background-token");
     const bg = await resolveBackgroundToken(OWNER, REPO);
     expect(bg).toEqual({ token: "ghs_app", source: "app" });
     expect(h.resolveVaultGithubToken).not.toHaveBeenCalled();
@@ -147,7 +147,7 @@ describe("background-token policy", () => {
     h.resolveVaultGithubToken.mockResolvedValue("vault_tok");
 
     const { resolveBackgroundToken } =
-      await import("@dashboard/lib/auth/background-token");
+      await import("@kody-ade/base/auth/background-token");
     const bg = await resolveBackgroundToken(OWNER, REPO);
     expect(bg).toEqual({ token: "vault_tok", source: "vault" });
   });
@@ -158,7 +158,7 @@ describe("background-token policy", () => {
     h.resolveVaultGithubToken.mockResolvedValue(null);
 
     const { resolveBackgroundToken } =
-      await import("@dashboard/lib/auth/background-token");
+      await import("@kody-ade/base/auth/background-token");
     expect(await resolveBackgroundToken(OWNER, REPO)).toBeNull();
   });
 });

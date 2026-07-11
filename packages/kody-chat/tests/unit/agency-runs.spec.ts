@@ -4,7 +4,7 @@ const stateRepo = vi.hoisted(() => ({
   readStateText: vi.fn(),
 }));
 
-vi.mock("../../src/dashboard/lib/state-repo", () => stateRepo);
+vi.mock("@kody-ade/base/state-repo", () => stateRepo);
 
 import {
   listAgencyRuns,

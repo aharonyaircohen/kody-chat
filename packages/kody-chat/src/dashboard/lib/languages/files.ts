@@ -16,7 +16,7 @@ import {
   listStateDirectory,
   readStateText,
   writeStateText,
-} from "@dashboard/lib/state-repo";
+} from "@kody-ade/base/state-repo";
 import {
   isValidLanguageCode,
   normalizeClientLanguageCode,

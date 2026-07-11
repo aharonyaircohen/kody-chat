@@ -29,14 +29,14 @@ const engineConfig = vi.hoisted(() => ({
   ] as const,
 }));
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: auth.requireKodyAuth,
   getRequestAuth: auth.getRequestAuth,
   getUserOctokit: auth.getUserOctokit,
   verifyActorLogin: auth.verifyActorLogin,
 }));
 
-vi.mock("@dashboard/lib/engine/config", () => ({
+vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: engineConfig.getEngineConfig,
   writeConfigPatch: engineConfig.writeConfigPatch,
   VALID_ASSOCIATIONS: engineConfig.VALID_ASSOCIATIONS,

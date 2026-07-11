@@ -15,7 +15,7 @@ import type {
   PreviewEnvironment,
   PreviewEnvironmentFolder,
 } from "@dashboard/lib/preview-environments";
-import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
+import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
 
 export const DASHBOARD_CONFIG_PATH = "dashboard.json";
 

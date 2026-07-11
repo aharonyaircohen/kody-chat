@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth } from "@kody-ade/base/auth";
 import { execFile } from "child_process";
 import { promisify } from "util";
 import * as fs from "fs/promises";

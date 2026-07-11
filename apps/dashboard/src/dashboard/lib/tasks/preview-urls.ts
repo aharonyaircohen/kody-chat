@@ -7,7 +7,7 @@
 
 import type { ServerProviderConfig } from "@dashboard/lib/infrastructure/server-machines";
 import { getPreview } from "@dashboard/lib/previews/preview-lifecycle";
-import type { GitHubPR } from "@dashboard/lib/types";
+import type { GitHubPR } from "@kody-ade/base/types";
 
 type PreviewPr = Pick<GitHubPR, "number" | "head">;
 

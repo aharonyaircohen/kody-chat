@@ -20,7 +20,7 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
+import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
 
 const SESSION_DIR = "sessions";
 const DEFAULT_BRANCH = "main";

@@ -9,7 +9,7 @@
 import crypto from "node:crypto";
 
 import { logger } from "@kody-ade/base/logger";
-import { slugifyTitle } from "@dashboard/lib/slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 import type { FlyPreviewConfig } from "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client";
 import { allocateIpsIfMissing } from "@dashboard/lib/infrastructure/plugins/fly/runners/brain";
 import { TERMINAL_BRIDGE_RUNTIME_HELPERS_SCRIPT } from "@dashboard/lib/terminal/bridge-runtime";

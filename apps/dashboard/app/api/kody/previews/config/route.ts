@@ -21,12 +21,12 @@ import {
   getUserOctokit,
   requireKodyAuth,
   verifyActorLogin,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   getEngineConfig,
   resolveFlyPreviews,
   writeConfigPatch,
-} from "@dashboard/lib/engine/config";
+} from "@kody-ade/base/engine/config";
 import { logger } from "@kody-ade/base/logger";
 
 export const runtime = "nodejs";

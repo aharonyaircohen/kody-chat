@@ -10,7 +10,7 @@
 
 import { Octokit } from "@octokit/rest";
 import { writeGitHubFileWithRetry } from "@kody-ade/base/github-contents-write";
-import { resolveBackgroundToken } from "../auth/background-token";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 
 export const CHANGELOG_PATH = "CHANGELOG.md";
 

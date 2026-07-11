@@ -19,8 +19,8 @@ import {
   listStateDirectory,
   readStateText,
   writeStateText,
-} from "@dashboard/lib/state-repo";
-import { slugifyTitle } from "@dashboard/lib/slug";
+} from "@kody-ade/base/state-repo";
+import { slugifyTitle } from "@kody-ade/base/slug";
 import {
   RendererActionDefaultSchema,
   VIEW_RENDERER_SLUG_RE,

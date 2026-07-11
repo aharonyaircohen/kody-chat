@@ -10,7 +10,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { KodyTask, FileChange } from "../types";
+import type { KodyTask, FileChange } from "@kody-ade/base/types";
 import { prsApi } from "../api";
 import { PreviewActions } from "./PreviewActions";
 import { PRCommentList } from "./PRCommentList";

@@ -17,7 +17,7 @@ import {
   requireKodyAuth,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 
 export const runtime = "nodejs";
 

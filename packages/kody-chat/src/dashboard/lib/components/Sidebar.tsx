@@ -37,7 +37,7 @@ import {
 } from "@dashboard/lib/github-background-polling";
 import { useAuth } from "@dashboard/lib/auth-context";
 import { useGitHubIdentity } from "@dashboard/lib/hooks/useGitHubIdentity";
-import { repoScopedHref } from "@dashboard/lib/routes";
+import { repoScopedHref } from "@kody-ade/base/routes";
 import { SimpleTooltip } from "@dashboard/lib/components/SimpleTooltip";
 import { InboxBadge } from "@dashboard/lib/components/InboxBadge";
 import { MessagesBadge } from "@dashboard/lib/components/MessagesBadge";

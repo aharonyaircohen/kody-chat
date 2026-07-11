@@ -23,7 +23,7 @@ import {
   requireKodyAuth,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import { rejectSurfaceScopedRequest } from "@dashboard/lib/chat/platform/surface-scope";
 import { emitSystemEvent } from "@dashboard/lib/events";
 import { logger } from "@kody-ade/base/logger";
@@ -35,7 +35,7 @@ import {
 } from "@dashboard/lib/vibe/primer";
 import { applyPageContextToLastUser } from "@dashboard/lib/chat/core/page-context";
 import { recordDispatchFailure } from "@dashboard/lib/health/dispatch-failures";
-import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
+import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
 
 export const runtime = "nodejs";
 

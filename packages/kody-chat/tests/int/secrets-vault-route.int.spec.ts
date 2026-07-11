@@ -29,19 +29,19 @@ const loggerStub = vi.hoisted(() => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock("@dashboard/lib/auth", () => auth);
-vi.mock("@dashboard/lib/vault/crypto", async (importOriginal) => {
+vi.mock("@kody-ade/base/auth", () => auth);
+vi.mock("@kody-ade/base/vault/crypto", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("@dashboard/lib/vault/crypto")>();
+    await importOriginal<typeof import("@kody-ade/base/vault/crypto")>();
   return {
     ...actual,
     isVaultConfigured: cfg.isVaultConfigured,
   };
 });
 vi.mock("@dashboard/lib/logger", () => loggerStub);
-vi.mock("@dashboard/lib/vault/store", async (importActual) => {
+vi.mock("@kody-ade/base/vault/store", async (importActual) => {
   const actual =
-    await importActual<typeof import("@dashboard/lib/vault/store")>();
+    await importActual<typeof import("@kody-ade/base/vault/store")>();
   return {
     ...actual,
     readVault: store.readVault,
@@ -50,7 +50,7 @@ vi.mock("@dashboard/lib/vault/store", async (importActual) => {
 });
 
 import { POST } from "../../app/api/kody/secrets/vault/route";
-import { deriveKeyCheck } from "../../src/dashboard/lib/vault/crypto";
+import { deriveKeyCheck } from "@kody-ade/base/vault/crypto";
 
 function makeReq(body: unknown) {
   return new NextRequest("https://dash.test/api/kody/secrets/vault", {

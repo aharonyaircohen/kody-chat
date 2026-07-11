@@ -22,7 +22,7 @@ const terminalSessions = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock("@dashboard/lib/auth", () => auth);
+vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@dashboard/lib/terminal/local-chat-session", () => terminalSessions);
 
 import { GET } from "../../app/api/kody/chat/terminal/status/route";

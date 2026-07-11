@@ -14,7 +14,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireKodyAuth, getUserOctokit } from "@dashboard/lib/auth";
+import { requireKodyAuth, getUserOctokit } from "@kody-ade/base/auth";
 
 const bodySchema = z.object({
   /** `owner/repo`, `owner/repo/path/to/skill`, or a github.com URL. */

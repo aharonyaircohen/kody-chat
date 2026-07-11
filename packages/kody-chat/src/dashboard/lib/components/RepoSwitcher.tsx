@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { cn } from "@dashboard/lib/utils";
 import { useAuth, type KodyRepoEntry } from "@dashboard/lib/auth-context";
-import { repoSwitchRedirectPath } from "@dashboard/lib/routes";
+import { repoSwitchRedirectPath } from "@kody-ade/base/routes";
 import { AddRepoForm } from "@dashboard/lib/components/AddRepoForm";
 import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
 

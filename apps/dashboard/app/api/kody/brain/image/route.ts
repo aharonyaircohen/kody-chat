@@ -8,7 +8,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireKodyAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth } from "@kody-ade/base/auth";
 import { startBrainImageSave } from "@dashboard/lib/brain/image-save-command";
 import {
   BrainImageManagementError,

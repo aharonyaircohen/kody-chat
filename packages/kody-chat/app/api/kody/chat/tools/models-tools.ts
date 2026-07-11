@@ -16,12 +16,12 @@ import {
   writeVariables,
   invalidateVariablesCache,
   type VariablesDocument,
-} from "@dashboard/lib/variables/store";
+} from "@kody-ade/base/variables/store";
 import {
   ChatModelsSchema,
   VAR_LLM_MODELS,
   type ChatModel,
-} from "@dashboard/lib/variables/models";
+} from "@kody-ade/base/variables/models";
 
 interface Ctx {
   octokit: Octokit;

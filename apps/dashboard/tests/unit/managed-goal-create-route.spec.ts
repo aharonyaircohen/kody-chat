@@ -18,7 +18,7 @@ const h = vi.hoisted(() => ({
   setGitHubContext: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(async () => null),
   verifyActorLogin: vi.fn(async () => ({
     identity: { login: "tester" },
@@ -44,7 +44,7 @@ vi.mock("@dashboard/lib/managed-goals-files", () => ({
   readManagedGoalFile: h.readManagedGoalFile,
   writeManagedGoalFile: h.writeManagedGoalFile,
 }));
-vi.mock("@dashboard/lib/engine/config", () => ({
+vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: h.getEngineConfig,
 }));
 vi.mock("@dashboard/lib/runners/kody-runner", () => ({

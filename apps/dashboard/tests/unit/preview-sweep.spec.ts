@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@dashboard/lib/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
-vi.mock("@dashboard/lib/auth/background-token", () => ({
+vi.mock("@kody-ade/base/auth/background-token", () => ({
   resolveBackgroundToken: mocks.resolveBackgroundToken,
 }));
 vi.mock("@dashboard/lib/previews/config", () => ({

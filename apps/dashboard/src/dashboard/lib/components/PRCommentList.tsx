@@ -7,7 +7,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import type { PRComment } from "../types";
+import type { PRComment } from "@kody-ade/base/types";
 import { prsApi } from "../api";
 import { MarkdownViewer } from "./MarkdownViewer";
 import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";

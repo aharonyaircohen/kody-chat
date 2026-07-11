@@ -14,12 +14,12 @@ import {
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   listVariables,
   readVariables,
   updateVariables,
-} from "@dashboard/lib/variables/store";
+} from "@kody-ade/base/variables/store";
 import { logger } from "@kody-ade/base/logger";
 
 export const dynamic = "force-dynamic";

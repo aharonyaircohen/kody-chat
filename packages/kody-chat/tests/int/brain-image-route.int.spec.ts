@@ -20,7 +20,7 @@ const mocks = vi.hoisted(() => ({
   writeSave: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(async () => null),
 }));
 

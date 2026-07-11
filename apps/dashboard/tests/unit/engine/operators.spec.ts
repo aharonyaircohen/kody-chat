@@ -13,7 +13,7 @@ import {
   normalizeOperators,
   writeOperators,
   readOperators,
-} from "@dashboard/lib/engine/config";
+} from "@kody-ade/base/engine/config";
 
 function octokitWithConfig(config: unknown) {
   const writes: Array<Record<string, unknown>> = [];

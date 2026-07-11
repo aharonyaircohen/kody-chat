@@ -16,7 +16,7 @@ import {
 } from "@dashboard/lib/api";
 import type { ChatContext } from "@dashboard/lib/chat-types";
 import type { LiveScopeKey } from "./kody-chat-reducer";
-import { readActiveRepoScope } from "@dashboard/lib/active-repo";
+import { readActiveRepoScope } from "@kody-ade/base/active-repo";
 import {
   brainChatIdMapSchema,
   liveSessionMapSchema,

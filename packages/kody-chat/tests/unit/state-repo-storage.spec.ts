@@ -12,7 +12,7 @@ const engineConfig = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock("@dashboard/lib/engine/config", () => engineConfig);
+vi.mock("@kody-ade/base/engine/config", () => engineConfig);
 
 import {
   deleteStateDirectory,
@@ -20,7 +20,7 @@ import {
   readStateText,
   writeStateFiles,
   writeStateText,
-} from "@dashboard/lib/state-repo";
+} from "@kody-ade/base/state-repo";
 
 describe("state repo storage boundary", () => {
   let octokit: FakeOctokit;

@@ -14,7 +14,7 @@ import {
   getUserOctokit,
   requireKodyAuth,
   verifyActorLogin,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import {
   clearGitHubContext,
@@ -25,7 +25,7 @@ import {
   companyIntentPath,
   isCompanyIntentId,
 } from "@dashboard/lib/company-intents";
-import { readStateText } from "@dashboard/lib/state-repo";
+import { readStateText } from "@kody-ade/base/state-repo";
 
 const runSchema = z.object({
   actorLogin: z.string().trim().optional(),

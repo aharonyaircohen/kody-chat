@@ -26,7 +26,7 @@ import {
   resolveStateRepo,
   stateRepoPath,
   writeStateText,
-} from "../state-repo";
+} from "@kody-ade/base/state-repo";
 import {
   joinFrontmatter,
   splitFrontmatter,

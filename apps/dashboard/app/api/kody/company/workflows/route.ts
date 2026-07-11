@@ -15,12 +15,12 @@ import {
   getUserOctokit,
   requireKodyAuth,
   verifyActorLogin,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
-import { getEngineConfig, type KodyConfig } from "@dashboard/lib/engine/config";
+import { getEngineConfig, type KodyConfig } from "@kody-ade/base/engine/config";
 import {
   collapseManagedGoalRecordsForList,
   type ManagedGoalRecord,

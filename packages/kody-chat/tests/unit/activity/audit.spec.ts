@@ -26,7 +26,7 @@ vi.mock("next/server", () => ({
     h.afterFns.push(fn);
   },
 }));
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   getRequestAuth: h.getRequestAuth,
   resolveActorFromToken: h.resolveActor,
 }));

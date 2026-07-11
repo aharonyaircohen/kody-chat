@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createUserOctokit } from "@dashboard/lib/github-client";
 import { resolveUnifiedActor, type UnifiedActor } from "@dashboard/lib/auth/unified-actor";
-import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import {
   getUserState,
   setUserState,

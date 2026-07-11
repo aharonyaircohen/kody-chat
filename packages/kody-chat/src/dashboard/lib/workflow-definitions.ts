@@ -6,7 +6,7 @@
  *   under `<statePath>/workflows/<id>/workflow.json`.
  */
 
-import { slugifyTitle } from "./slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 
 export interface WorkflowDefinition {
   version: 1;

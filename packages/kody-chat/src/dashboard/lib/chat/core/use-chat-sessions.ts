@@ -6,7 +6,7 @@
  */
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { createEmptyGlobalStore } from "@dashboard/lib/chat-types";
-import { readActiveRepoScope } from "@dashboard/lib/active-repo";
+import { readActiveRepoScope } from "@kody-ade/base/active-repo";
 import type {
   ChatMessage,
   GlobalChatStore,

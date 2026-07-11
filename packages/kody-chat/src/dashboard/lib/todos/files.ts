@@ -14,8 +14,8 @@ import {
   resolveStateRepo,
   stateRepoPath,
   writeStateText,
-} from "../state-repo";
-import { slugifyTitle } from "../slug";
+} from "@kody-ade/base/state-repo";
+import { slugifyTitle } from "@kody-ade/base/slug";
 
 const TODOS_DIR = "todos";
 const TODO_JSON_VERSION = 1;

@@ -11,8 +11,8 @@ import {
   getRequestAuth,
   getUserOctokit,
   requireKodyAuth,
-} from "@dashboard/lib/auth";
-import { normalizeStatePath, readStateText } from "@dashboard/lib/state-repo";
+} from "@kody-ade/base/auth";
+import { normalizeStatePath, readStateText } from "@kody-ade/base/state-repo";
 import {
   clearGitHubContext,
   setGitHubContext,

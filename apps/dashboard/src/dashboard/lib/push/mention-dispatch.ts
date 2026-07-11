@@ -14,7 +14,7 @@
  */
 import "server-only";
 import { setGitHubContext, clearGitHubContext } from "../github-client";
-import { resolveBackgroundToken } from "../auth/background-token";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import { readPushManifest } from "../push-server";
 import type { PushSubscriptionRecord } from "../push";
 import { PUSH_MANIFEST_ISSUE_TITLE } from "../push";

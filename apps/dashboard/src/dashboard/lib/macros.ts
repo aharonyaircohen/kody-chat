@@ -13,7 +13,7 @@
 
 import type { RecordedStep } from "./picker/protocol";
 import type { PreviewAction } from "./picker/protocol";
-import { slugifyTitle } from "./slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 
 export interface Macro {
   /** Stable id for React keys + selection state. */

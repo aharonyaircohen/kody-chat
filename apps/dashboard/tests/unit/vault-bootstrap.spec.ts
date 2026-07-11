@@ -1,8 +1,8 @@
 import { randomBytes } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { encrypt } from "@dashboard/lib/vault/crypto";
-import { resolveVaultGithubToken } from "@dashboard/lib/vault/bootstrap";
+import { encrypt } from "@kody-ade/base/vault/crypto";
+import { resolveVaultGithubToken } from "@kody-ade/base/vault/bootstrap";
 
 const KEY = randomBytes(32).toString("hex");
 let savedKey: string | undefined;

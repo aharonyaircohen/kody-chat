@@ -6,10 +6,10 @@
  * src/dashboard/lib/github/{core,branches,status,issues,workflows,prs,discussions}.
  * Importers keep using "@dashboard/lib/github-client" unchanged.
  */
-export * from "./github/core";
+export * from "@kody-ade/base/github/core";
 export * from "./github/branches";
 export * from "./github/status";
-export * from "./github/issues";
-export * from "./github/workflows";
+export * from "@kody-ade/base/github/issues";
+export * from "@kody-ade/base/github/workflows";
 export * from "./github/prs";
-export * from "./github/discussions";
+export * from "@kody-ade/base/github/discussions";

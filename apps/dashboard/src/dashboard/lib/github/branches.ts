@@ -10,9 +10,9 @@ import {
   BRANCH_PREFIXES,
   BRANCH_CACHE_TTL,
   TASK_ID_REGEX,
-} from "../constants";
+} from "@kody-ade/base/constants";
 import { isProtectedBranch } from "../branches";
-import type { TaskDocument } from "../types";
+import type { TaskDocument } from "@kody-ade/base/types";
 import {
   getCached,
   setCache,
@@ -21,7 +21,7 @@ import {
   getRepo,
   invalidateBranchCache,
   invalidateTaskCache,
-} from "./core";
+} from "@kody-ade/base/github/core";
 // ============ Branch Discovery ============
 
 /**

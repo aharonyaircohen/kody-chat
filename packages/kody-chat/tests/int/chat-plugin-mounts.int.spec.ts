@@ -23,9 +23,9 @@ import { beforeAll, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { z } from "zod";
 
-vi.mock("@dashboard/lib/engine/config", async (importOriginal) => {
+vi.mock("@kody-ade/base/engine/config", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("@dashboard/lib/engine/config")>();
+    await importOriginal<typeof import("@kody-ade/base/engine/config")>();
   return {
     ...actual,
     getEngineConfig: vi.fn(async () => ({
@@ -35,7 +35,7 @@ vi.mock("@dashboard/lib/engine/config", async (importOriginal) => {
   };
 });
 
-vi.mock("@dashboard/lib/variables/load-chat-models", () => ({
+vi.mock("@kody-ade/base/variables/load-chat-models", () => ({
   loadChatModels: vi.fn(async () => []),
 }));
 
@@ -59,8 +59,8 @@ vi.mock("../../app/api/kody/chat/resolve-model", () => ({
 // Actor verification normally resolves the token via GitHub — keep the test
 // hermetic. The rest of @dashboard/lib/auth (requireKodyAuth, getRequestAuth)
 // stays real so header auth + repo context go through the actual code.
-vi.mock("@dashboard/lib/auth", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@dashboard/lib/auth")>();
+vi.mock("@kody-ade/base/auth", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@kody-ade/base/auth")>();
   return {
     ...actual,
     verifyActorLogin: vi.fn(async () => ({

@@ -7,7 +7,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
-import type { KodyTask, SortField } from "../types";
+import type { KodyTask, SortField } from "@kody-ade/base/types";
 import { filterTasksByView, getViewModeCounts, sortTasks } from "../utils";
 import { cn } from "../utils";
 import { TaskList } from "./TaskList";
@@ -100,7 +100,7 @@ import { toast } from "sonner";
 import { ErrorBoundary } from "./ErrorBoundary";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useAuth } from "../auth-context";
-import { repoPathForNavMatching, repoScopedHref } from "../routes";
+import { repoPathForNavMatching, repoScopedHref } from "@kody-ade/base/routes";
 import { RepoManager } from "./RepoManager";
 import { useTheme } from "@dashboard/providers/Theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
@@ -112,7 +112,7 @@ import {
   KODY_BACKLOG_LABEL,
   PRIORITY_LEVELS,
   PRIORITY_META,
-} from "../constants";
+} from "@kody-ade/base/constants";
 import {
   filterVisibleTasks,
   markTaskHiddenInList,

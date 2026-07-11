@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createIssueWithBestEffortMetadata = vi.hoisted(() => vi.fn());
 
-vi.mock("@dashboard/lib/github-issue-create", () => ({
+vi.mock("@kody-ade/base/github-issue-create", () => ({
   createIssueWithBestEffortMetadata: (...args: unknown[]) =>
     createIssueWithBestEffortMetadata(...args),
 }));

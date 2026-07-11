@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createUserOctokit } from "@dashboard/lib/github-client";
 import { resolveUnifiedActor } from "@dashboard/lib/auth/unified-actor";
-import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import { getUserStateNamespaces } from "@dashboard/lib/user-state";
 
 export const runtime = "nodejs";

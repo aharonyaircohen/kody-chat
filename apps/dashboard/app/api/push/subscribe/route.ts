@@ -20,7 +20,7 @@ import {
   requireKodyAuth,
   getRequestAuth,
   getUserOctokit,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   setGitHubContext,
   clearGitHubContext,

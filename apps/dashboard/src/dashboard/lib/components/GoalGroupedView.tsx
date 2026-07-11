@@ -48,7 +48,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "../utils";
-import type { KodyTask } from "../types";
+import type { KodyTask } from "@kody-ade/base/types";
 import type { Goal } from "../api";
 import { GOAL_LABEL_PREFIX } from "../goals";
 import { goalPalette } from "../goal-palette";

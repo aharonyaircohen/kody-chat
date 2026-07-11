@@ -12,7 +12,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 import {
   getOctokit,
   setGitHubContext,

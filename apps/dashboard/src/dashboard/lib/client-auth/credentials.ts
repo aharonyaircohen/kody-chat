@@ -16,7 +16,7 @@ import {
 import {
   resolvePublicStateVariable,
   resolveVaultGithubToken,
-} from "../vault/bootstrap";
+} from "@kody-ade/base/vault/bootstrap";
 import { type ClientBrandRepoContext } from "../client-brand-repo-cookie";
 
 /** Repo scope for credential reads; `token` (when the caller already

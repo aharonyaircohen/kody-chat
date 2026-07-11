@@ -8,21 +8,21 @@ const getEngineConfig = vi.fn();
 const loadChatModels = vi.fn();
 const readVault = vi.fn();
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   getRequestAuth: (...args: unknown[]) => getRequestAuth(...args),
   getUserOctokit: (...args: unknown[]) => getUserOctokit(...args),
   resolveActorFromToken: (...args: unknown[]) => resolveActorFromToken(...args),
 }));
 
-vi.mock("@dashboard/lib/engine/config", () => ({
+vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: (...args: unknown[]) => getEngineConfig(...args),
 }));
 
-vi.mock("@dashboard/lib/variables/load-chat-models", () => ({
+vi.mock("@kody-ade/base/variables/load-chat-models", () => ({
   loadChatModels: (...args: unknown[]) => loadChatModels(...args),
 }));
 
-vi.mock("@dashboard/lib/vault/store", () => ({
+vi.mock("@kody-ade/base/vault/store", () => ({
   readVault: (...args: unknown[]) => readVault(...args),
 }));
 

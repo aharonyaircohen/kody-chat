@@ -17,7 +17,7 @@ import {
 import {
   PACKAGE_ADMIN_PAGE_META,
   type PackageAdminPageMeta,
-} from "./admin-pages-meta";
+} from "@kody-ade/base/admin-pages-meta";
 
 export type PackageAdminPage = PackageAdminPageMeta & {
   /** Page-plugin contributing the rail panel. */
@@ -34,5 +34,5 @@ export const PACKAGE_ADMIN_PAGES: readonly PackageAdminPage[] =
     plugin: PLUGIN_FOR_PANEL[meta.panelId],
   }));
 
-export { PACKAGE_ADMIN_PAGE_META } from "./admin-pages-meta";
-export type { PackageAdminPageMeta } from "./admin-pages-meta";
+export { PACKAGE_ADMIN_PAGE_META } from "@kody-ade/base/admin-pages-meta";
+export type { PackageAdminPageMeta } from "@kody-ade/base/admin-pages-meta";

@@ -15,7 +15,7 @@ import type { Octokit } from "@octokit/rest";
 import { createUserOctokit } from "../github-client";
 import { readEventsFile } from "../chat-events-reader";
 import type { EventLogEntry } from "../kody-store/event-log";
-import { listStateDirectory } from "../state-repo";
+import { listStateDirectory } from "@kody-ade/base/state-repo";
 
 const BRANCH = process.env.KODY_STORE_BRANCH ?? "main";
 const EVENTS_DIR = "events";

@@ -31,7 +31,7 @@ vi.mock("ai", () => ({
   createUIMessageStreamResponse: createUIMessageStreamResponseMock,
 }));
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(async () => null),
   getRequestAuth: vi.fn(() => ({
     token: "ghp_test",

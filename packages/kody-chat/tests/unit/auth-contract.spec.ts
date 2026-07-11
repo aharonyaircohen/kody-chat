@@ -5,7 +5,7 @@ const github = vi.hoisted(() => ({
   createUserOctokit: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/github-client", () => ({
+vi.mock("@kody-ade/base/github/core", () => ({
   createUserOctokit: github.createUserOctokit,
 }));
 
@@ -27,7 +27,7 @@ function authHeaders(login = "alice") {
 
 async function loadAuth() {
   vi.resetModules();
-  return import("@dashboard/lib/auth");
+  return import("@kody-ade/base/auth");
 }
 
 beforeEach(() => {

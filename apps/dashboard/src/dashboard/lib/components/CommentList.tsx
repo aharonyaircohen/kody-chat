@@ -8,7 +8,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { formatRelativeTime } from "../utils";
-import type { GitHubComment } from "../types";
+import type { GitHubComment } from "@kody-ade/base/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
 import { cn } from "@kody-ade/base/utils/ui";
 import { Button } from "@kody-ade/base/ui/button";

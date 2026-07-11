@@ -14,9 +14,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateText } from "ai";
 import { z } from "zod";
-import { requireKodyAuth, getUserOctokit } from "@dashboard/lib/auth";
+import { requireKodyAuth, getUserOctokit } from "@kody-ade/base/auth";
 import { stripReasoning } from "@kody-ade/kody-chat/core/reasoning";
-import { slugifyTitle } from "@dashboard/lib/slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 import { resolveChatModel } from "../../chat/resolve-model";
 
 export const runtime = "nodejs";

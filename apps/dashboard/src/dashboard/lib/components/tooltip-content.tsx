@@ -5,7 +5,7 @@
  * @ai-summary Pre-built tooltip content blocks for common dashboard elements
  */
 import React from "react";
-import type { ColumnId } from "../types";
+import type { ColumnId } from "@kody-ade/base/types";
 
 const statusExplanations: Record<
   ColumnId,

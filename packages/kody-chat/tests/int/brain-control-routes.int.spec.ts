@@ -36,7 +36,7 @@ const brainService = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(async () => null),
 }));
 

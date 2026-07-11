@@ -19,7 +19,7 @@ import {
   ExternalLink,
   RotateCcw,
 } from "lucide-react";
-import type { KodyHistoryEntry, KodyStatus } from "@dashboard/lib/kody-state";
+import type { KodyHistoryEntry, KodyStatus } from "@kody-ade/base/kody-state";
 import { formatRelativeTime } from "@dashboard/lib/utils";
 
 function StatusIcon({ status }: { status?: KodyStatus }) {

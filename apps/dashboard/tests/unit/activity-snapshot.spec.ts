@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { buildActivitySnapshot } from "@dashboard/lib/activity/snapshot";
-import type { WorkflowRun } from "@dashboard/lib/types";
+import type { WorkflowRun } from "@kody-ade/base/types";
 
 const NOW = Date.parse("2026-05-17T12:00:00Z");
 

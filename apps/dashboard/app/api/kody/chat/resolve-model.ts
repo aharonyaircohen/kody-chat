@@ -14,19 +14,19 @@ import { NextRequest, NextResponse } from "next/server";
 import type { LanguageModel } from "ai";
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { getRequestAuth, getUserOctokit } from "@dashboard/lib/auth";
-import { getEngineConfig } from "@dashboard/lib/engine/config";
-import { getSecret } from "@dashboard/lib/vault/get-secret";
+import { getRequestAuth, getUserOctokit } from "@kody-ade/base/auth";
+import { getEngineConfig } from "@kody-ade/base/engine/config";
+import { getSecret } from "@kody-ade/base/vault/get-secret";
 import { normalizeOpenAICompatibleRequestBody } from "@kody-ade/kody-chat/core/openai-compatible-request";
 import { supportsVision } from "@kody-ade/kody-chat/core/vision-support";
-import { loadChatModels } from "@dashboard/lib/variables/load-chat-models";
+import { loadChatModels } from "@kody-ade/base/variables/load-chat-models";
 import {
   PROVIDER_PRESETS,
   pickModelById,
   pickDefaultModel,
   type ChatModel,
   type ProviderPreset,
-} from "@dashboard/lib/variables/models";
+} from "@kody-ade/base/variables/models";
 
 export type ResolvedChatModel = {
   model: LanguageModel;

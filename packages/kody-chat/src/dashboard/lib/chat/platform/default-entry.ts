@@ -13,7 +13,7 @@
  * default for everyone.
  */
 
-import { readActiveRepoScope } from "@dashboard/lib/active-repo";
+import { readActiveRepoScope } from "@kody-ade/base/active-repo";
 
 const DEFAULT_CHAT_ENTRY_KEY_BASE = "kody-default-chat-entry";
 

@@ -19,18 +19,18 @@ import {
   getRequestAuth,
   getUserOctokit,
   resolveActorFromToken,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import { logger } from "@kody-ade/base/logger";
-import { getEngineConfig } from "@dashboard/lib/engine/config";
+import { getEngineConfig } from "@kody-ade/base/engine/config";
 import type { FlyPreviewConfig } from "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client";
-import { readVault } from "@dashboard/lib/vault/store";
-import { loadChatModels } from "@dashboard/lib/variables/load-chat-models";
+import { readVault } from "@kody-ade/base/vault/store";
+import { loadChatModels } from "@kody-ade/base/variables/load-chat-models";
 import {
   engineModelSpec,
   engineRuntimeModelConfig,
   pickEngineDefaultModel,
   type EngineRuntimeModelConfig,
-} from "@dashboard/lib/variables/models";
+} from "@kody-ade/base/variables/models";
 import type { PerfTier } from "./fly";
 
 /**

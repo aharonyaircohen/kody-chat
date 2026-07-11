@@ -4,7 +4,7 @@ import {
   getRequestAuth,
   getUserOctokit,
   requireKodyAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -25,7 +25,7 @@ import {
 } from "@dashboard/lib/cms/model/server";
 import { getCmsActorRole } from "@dashboard/lib/cms/roles";
 import { CmsRuntimeError } from "@dashboard/lib/cms/service";
-import { deleteStateFile, writeStateFiles } from "@dashboard/lib/state-repo";
+import { deleteStateFile, writeStateFiles } from "@kody-ade/base/state-repo";
 import { logger } from "@kody-ade/base/logger";
 
 export const runtime = "nodejs";

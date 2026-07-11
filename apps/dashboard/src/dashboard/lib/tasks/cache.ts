@@ -4,7 +4,7 @@
  * @pattern task-cache
  * @ai-summary Shape-safe helpers for React Query task cache entries.
  */
-import type { KodyTask, TasksResponse } from "../types";
+import type { KodyTask, TasksResponse } from "@kody-ade/base/types";
 
 export type TaskCacheData = KodyTask[] | TasksResponse | null | undefined;
 

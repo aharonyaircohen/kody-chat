@@ -5,7 +5,7 @@
  * @ai-summary Types and normalizers for CTO agency-architect intents stored in state repo.
  */
 
-import { slugifyTitle } from "./slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 
 export type CompanyIntentStatus = "active" | "paused" | "archived";
 export type CompanyIntentPosture =

@@ -51,7 +51,7 @@ import type {
   FeedOrigin,
 } from "../activity/feed";
 import { ACTIVITY_CATEGORY_LABELS } from "../activity/categorize";
-import { repoScopedHref } from "../routes";
+import { repoScopedHref } from "@kody-ade/base/routes";
 
 type RunFilter = "all" | "active" | "failed";
 type ActivityTab = "log" | "auto" | "runs" | "runLogs" | "feed";

@@ -1,4 +1,4 @@
-import type { FileChange, PRComment, ActionResponse } from "../types";
+import type { FileChange, PRComment, ActionResponse } from "@kody-ade/base/types";
 import {
   API_BASE,
   buildHeaders,

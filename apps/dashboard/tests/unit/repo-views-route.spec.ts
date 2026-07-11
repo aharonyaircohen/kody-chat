@@ -22,13 +22,13 @@ const stateRepo = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: auth.requireKodyAuth,
   getRequestAuth: auth.getRequestAuth,
   getUserOctokit: auth.getUserOctokit,
 }));
 
-vi.mock("@dashboard/lib/state-repo", () => ({
+vi.mock("@kody-ade/base/state-repo", () => ({
   deleteStateDirectory: stateRepo.deleteStateDirectory,
   resolveStateRepo: stateRepo.resolveStateRepo,
   stateRepoPath: stateRepo.stateRepoPath,

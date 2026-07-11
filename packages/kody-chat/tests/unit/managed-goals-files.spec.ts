@@ -27,7 +27,7 @@ const companyStore = vi.hoisted(() => ({
   ),
 }));
 
-vi.mock("../../src/dashboard/lib/state-repo", () => stateRepo);
+vi.mock("@kody-ade/base/state-repo", () => stateRepo);
 vi.mock("../../src/dashboard/lib/company-store/assets", () => companyStore);
 
 import {

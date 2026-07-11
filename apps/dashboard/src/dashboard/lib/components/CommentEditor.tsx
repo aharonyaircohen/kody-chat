@@ -17,7 +17,7 @@ import { useCommentAttachments } from "../hooks/useCommentAttachments";
 import { AttachmentBar } from "./AttachmentBar";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { MarkdownPreview } from "./MarkdownPreview";
-import { EMOJI_LIST, getGitHubIssueUrl } from "../constants";
+import { EMOJI_LIST, getGitHubIssueUrl } from "@kody-ade/base/constants";
 import {
   Bold,
   Italic,

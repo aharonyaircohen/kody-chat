@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getRequestAuth, requireKodyAuth } from "@dashboard/lib/auth";
+import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
 import { stopLocalTerminalSession } from "@dashboard/lib/terminal/local-chat-session";
 
 export const runtime = "nodejs";

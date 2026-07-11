@@ -11,7 +11,7 @@
 
 import { useState, useEffect, type ReactNode } from "react";
 import { formatElapsed } from "../pipeline-utils";
-import type { KodyTask } from "../types";
+import type { KodyTask } from "@kody-ade/base/types";
 import type { DefaultBranchCI } from "../api";
 import { Loader2 } from "lucide-react";
 import { Badge } from "@kody-ade/base/ui/badge";

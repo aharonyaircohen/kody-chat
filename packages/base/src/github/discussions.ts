@@ -6,7 +6,7 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Octokit } from "@octokit/rest";
-import { slugifyTitle } from "@dashboard/lib/slug";
+import { slugifyTitle } from "../slug";
 import {
   getCached,
   getStale,

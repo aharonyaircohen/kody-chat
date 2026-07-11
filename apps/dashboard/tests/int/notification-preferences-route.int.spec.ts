@@ -24,7 +24,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
   clearGitHubContext: gh.clearGitHubContext,
 }));
 
-vi.mock("@dashboard/lib/vault/bootstrap", () => ({
+vi.mock("@kody-ade/base/vault/bootstrap", () => ({
   resolveVaultGithubToken: vault.resolveVaultGithubToken,
 }));
 

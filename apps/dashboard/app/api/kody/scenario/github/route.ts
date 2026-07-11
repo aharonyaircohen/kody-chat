@@ -9,8 +9,8 @@ import {
   getRequestAuth,
   getUserOctokit,
   requireKodyAuth,
-} from "@dashboard/lib/auth";
-import { createIssueWithBestEffortMetadata } from "@dashboard/lib/github-issue-create";
+} from "@kody-ade/base/auth";
+import { createIssueWithBestEffortMetadata } from "@kody-ade/base/github-issue-create";
 
 function buildScenarioIssueBody(input: {
   category: string;

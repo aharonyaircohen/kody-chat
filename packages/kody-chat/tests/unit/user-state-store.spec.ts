@@ -11,7 +11,7 @@ const h = vi.hoisted(() => ({
   writeStateText: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/state-repo", () => ({
+vi.mock("@kody-ade/base/state-repo", () => ({
   readStateText: h.readStateText,
   writeStateText: h.writeStateText,
 }));

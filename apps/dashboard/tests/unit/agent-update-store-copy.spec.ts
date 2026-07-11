@@ -20,7 +20,7 @@ const h = vi.hoisted(() => ({
   recordAudit: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(),
   getRequestAuth: vi.fn(),
   verifyActorLogin: h.verifyActorLogin,

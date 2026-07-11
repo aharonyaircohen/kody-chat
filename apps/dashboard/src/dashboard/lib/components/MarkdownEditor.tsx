@@ -31,7 +31,7 @@ import {
 import { Button } from "@kody-ade/base/ui/button";
 import { Textarea } from "@kody-ade/base/ui/textarea";
 import { cn } from "@kody-ade/base/utils/ui";
-import { EMOJI_LIST } from "../constants";
+import { EMOJI_LIST } from "@kody-ade/base/constants";
 import { autoDirProps, rtlAwareMarkdownClassName } from "../text-direction";
 import { MarkdownPreview } from "./MarkdownPreview";
 

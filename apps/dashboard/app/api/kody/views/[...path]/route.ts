@@ -6,11 +6,11 @@
  * under `views/<view-id>/...`.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestAuth } from "@dashboard/lib/auth";
-import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
+import { getRequestAuth } from "@kody-ade/base/auth";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import { createUserOctokit } from "@dashboard/lib/github-client";
 import { logger } from "@kody-ade/base/logger";
-import { resolveStateRepo, stateRepoPath } from "@dashboard/lib/state-repo";
+import { resolveStateRepo, stateRepoPath } from "@kody-ade/base/state-repo";
 import { verifyRepoViewToken } from "@dashboard/lib/view-token";
 
 export const runtime = "nodejs";

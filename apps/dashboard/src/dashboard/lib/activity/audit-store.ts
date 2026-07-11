@@ -17,7 +17,7 @@
  */
 import type { Octokit } from "@octokit/rest";
 import { createManifestStore } from "../manifest-store";
-import { AUDIT_LOG_LABEL, AUDIT_LOG_ISSUE_TITLE } from "../constants";
+import { AUDIT_LOG_LABEL, AUDIT_LOG_ISSUE_TITLE } from "@kody-ade/base/constants";
 import type { AuditEvent } from "./action-log";
 
 /** Keep the manifest body well under GitHub's 65,536-char issue-body limit. */

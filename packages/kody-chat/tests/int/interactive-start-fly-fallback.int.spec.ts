@@ -28,7 +28,7 @@ import {
 } from "vitest";
 import nock from "nock";
 import { NextRequest } from "next/server";
-import { STATE_BRANCH } from "@dashboard/lib/state-branch";
+import { STATE_BRANCH } from "@kody-ade/base/state-branch";
 
 // ── Mock collaborators ───────────────────────────────────────────────────────
 const checkGitHubActionsHealth = vi.fn();

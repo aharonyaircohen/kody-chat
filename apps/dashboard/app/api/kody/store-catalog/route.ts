@@ -10,7 +10,7 @@ import {
   requireKodyAuth,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   setGitHubContext,
   clearGitHubContext,
@@ -28,7 +28,7 @@ import { listCompanyStoreWorkflowDefinitionFiles } from "@dashboard/lib/workflow
 import {
   getEngineConfig,
   type ActiveGoalConfigEntry,
-} from "@dashboard/lib/engine/config";
+} from "@kody-ade/base/engine/config";
 import { BUILTIN_FEATURES } from "@dashboard/lib/features/catalog";
 
 export const dynamic = "force-dynamic";

@@ -41,7 +41,7 @@ import {
   Workflow,
   type LucideIcon,
 } from "lucide-react";
-import { repoPathForNavMatching } from "@dashboard/lib/routes";
+import { repoPathForNavMatching } from "@kody-ade/base/routes";
 
 export interface SettingsNavItem {
   href: string;

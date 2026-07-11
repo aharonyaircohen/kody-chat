@@ -16,7 +16,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth } from "@kody-ade/base/auth";
 
 export const runtime = "nodejs";
 

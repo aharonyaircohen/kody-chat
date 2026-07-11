@@ -16,7 +16,7 @@ import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import webpush from "web-push";
-import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 import {
   setGitHubContext,
   clearGitHubContext,

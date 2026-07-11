@@ -23,7 +23,7 @@ import {
 import { useAuth, buildAuthHeaders } from "../auth-context";
 import type { InboxEntry } from "../inbox/types";
 import { buildThreadShareLink } from "../inbox/deep-link";
-import type { GitHubComment } from "../types";
+import type { GitHubComment } from "@kody-ade/base/types";
 import { CommentList } from "./CommentList";
 import { MarkdownViewer } from "./MarkdownViewer";
 

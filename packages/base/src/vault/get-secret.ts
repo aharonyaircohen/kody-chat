@@ -15,8 +15,8 @@
  */
 
 import type { NextRequest } from "next/server";
-import { getRequestAuth } from "@dashboard/lib/auth";
-import { createUserOctokit } from "@dashboard/lib/github-client";
+import { getRequestAuth } from "../auth";
+import { createUserOctokit } from "../github/core";
 import { logger } from "@kody-ade/base/logger";
 import { readVault } from "./store";
 import { isVaultConfigured } from "./crypto";

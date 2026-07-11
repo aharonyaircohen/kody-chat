@@ -20,7 +20,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
   getRepo: state.getRepo,
 }));
 
-vi.mock("@dashboard/lib/state-repo", () => ({
+vi.mock("@kody-ade/base/state-repo", () => ({
   deleteStateFile: state.deleteStateFile,
   readStateText: state.readStateText,
   writeStateText: state.writeStateText,

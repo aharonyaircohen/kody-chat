@@ -6,7 +6,7 @@
  *   Brand-owned display data plus optional chat defaults enforced by the
  *   client surface host.
  */
-import { slugifyTitle } from "./slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 import type { ClientBrandAuth } from "./client-auth/allowlist";
 
 export interface ClientBrand {

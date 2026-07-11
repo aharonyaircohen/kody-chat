@@ -16,7 +16,7 @@ import {
   resolveStateRepo,
   stateRepoPath,
   type StateRepoTarget,
-} from "../state-repo";
+} from "@kody-ade/base/state-repo";
 import {
   appendContract,
   composeProfile,

@@ -9,7 +9,7 @@
  *   issue↔PR linkage works even if the PR body loses its `Closes #N` line.
  */
 
-import { slugifyTitle as slugifySharedTitle } from "@dashboard/lib/slug";
+import { slugifyTitle as slugifySharedTitle } from "@kody-ade/base/slug";
 
 const MAX_SLUG_LENGTH = 40;
 

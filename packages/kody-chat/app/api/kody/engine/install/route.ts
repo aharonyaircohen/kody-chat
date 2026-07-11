@@ -16,8 +16,8 @@
  * workflow already matches the latest template.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestAuth } from "@dashboard/lib/auth";
-import { getPublicBaseUrl } from "@dashboard/lib/auth/oauth-url";
+import { getRequestAuth } from "@kody-ade/base/auth";
+import { getPublicBaseUrl } from "@kody-ade/base/auth/oauth-url";
 import { createUserOctokit } from "@dashboard/lib/github-client";
 import { installEngine } from "@dashboard/lib/engine/install";
 

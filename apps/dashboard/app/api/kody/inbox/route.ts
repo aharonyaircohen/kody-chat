@@ -17,7 +17,7 @@ import {
   requireKodyAuth,
   getRequestAuth,
   getUserOctokit,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import { appendInboxEntries, readInbox } from "@dashboard/lib/inbox/gist-store";
 import type { InboxEntry, InboxSource } from "@dashboard/lib/inbox/types";
 

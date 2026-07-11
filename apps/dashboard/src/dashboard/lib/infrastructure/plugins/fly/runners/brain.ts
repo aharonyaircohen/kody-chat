@@ -31,8 +31,8 @@
 import { createHash, randomBytes } from "node:crypto";
 
 import { logger } from "@kody-ade/base/logger";
-import { slugifyTitle } from "@dashboard/lib/slug";
-import type { EngineRuntimeModelConfig } from "@dashboard/lib/variables/models";
+import { slugifyTitle } from "@kody-ade/base/slug";
+import type { EngineRuntimeModelConfig } from "@kody-ade/base/variables/models";
 
 const FLY_API_BASE = "https://api.machines.dev/v1";
 

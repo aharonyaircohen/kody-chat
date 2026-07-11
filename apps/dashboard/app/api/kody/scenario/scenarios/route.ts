@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import { requireKodyAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth } from "@kody-ade/base/auth";
 import {
   parseSafeFileStem,
   parseScenarioCategory,

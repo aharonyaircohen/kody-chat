@@ -7,7 +7,7 @@
  */
 import type { Octokit } from "@octokit/rest";
 
-import { listStateDirectory, readStateText } from "./state-repo";
+import { listStateDirectory, readStateText } from "@kody-ade/base/state-repo";
 import { createServerTtlCache } from "./server-ttl-cache";
 
 const GOAL_RUNS_DIR = "logs/goals";

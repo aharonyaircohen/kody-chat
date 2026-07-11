@@ -1,4 +1,4 @@
-import { PACKAGE_ADMIN_PAGE_META } from "@kody-ade/kody-chat/admin-pages-meta";
+import { PACKAGE_ADMIN_PAGE_META } from "./admin-pages-meta";
 
 export interface RepoRef {
   owner: string;

@@ -12,7 +12,7 @@ import {
   parseReportSuggestedActions,
   type ReportSuggestedAction,
 } from "./report-suggested-actions";
-import { listStateDirectory, readStateText } from "./state-repo";
+import { listStateDirectory, readStateText } from "@kody-ade/base/state-repo";
 
 export interface ReportFile {
   /** Report family slug — stable identity. */

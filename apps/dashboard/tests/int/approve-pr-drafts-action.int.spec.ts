@@ -31,7 +31,7 @@ const findAssociatedPRByIssueNumber = vi.fn();
 const addLabels = vi.fn(async () => undefined);
 const postWithFallback = vi.fn(async () => undefined);
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(async () => ({ ok: true })),
   verifyActorLogin: vi.fn(async () => ({ identity: { login: "tester" } })),
   getUserOctokit: vi.fn(async () => null),
@@ -113,7 +113,7 @@ describe("approve-pr task action — 'Also approve drafts' toggle (issue #129)",
       isDraft: true,
     });
     // Wire the userOctokit (the route picks it via getUserOctokit).
-    const auth = await import("@dashboard/lib/auth");
+    const auth = await import("@kody-ade/base/auth");
     vi.mocked(auth.getUserOctokit).mockResolvedValue(userOctokit());
 
     const res = await POST(
@@ -160,7 +160,7 @@ describe("approve-pr task action — 'Also approve drafts' toggle (issue #129)",
       number: 7,
       isDraft: true,
     });
-    const auth = await import("@dashboard/lib/auth");
+    const auth = await import("@kody-ade/base/auth");
     vi.mocked(auth.getUserOctokit).mockResolvedValue(userOctokit());
 
     const res = await POST(
@@ -180,7 +180,7 @@ describe("approve-pr task action — 'Also approve drafts' toggle (issue #129)",
       number: 7,
       isDraft: false,
     });
-    const auth = await import("@dashboard/lib/auth");
+    const auth = await import("@kody-ade/base/auth");
     vi.mocked(auth.getUserOctokit).mockResolvedValue(userOctokit());
 
     const res = await POST(

@@ -6,7 +6,7 @@
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 
 import {
   fetchIssue,
@@ -20,9 +20,9 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { parseAllComments } from "@dashboard/lib/task-parser";
-import { findKodyStateInComments } from "@dashboard/lib/kody-state";
+import { findKodyStateInComments } from "@kody-ade/base/kody-state";
 import { matchWorkflowRunToTask } from "@dashboard/lib/workflow-matching";
-import { parseKodyPhase, parseKodyFlow } from "@dashboard/lib/constants";
+import { parseKodyPhase, parseKodyFlow } from "@kody-ade/base/constants";
 import type {
   KodyTask,
   GitHubIssue,
@@ -30,7 +30,7 @@ import type {
   ParsedComment,
   WorkflowRun,
   ColumnId,
-} from "@dashboard/lib/types";
+} from "@kody-ade/base/types";
 
 /**
  * Derive column from issue state + parsed comments + workflow run + PR.

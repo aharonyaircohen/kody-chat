@@ -13,7 +13,7 @@ import {
   getUserOctokit,
   requireKodyAuth,
   verifyActorLogin,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   clearGitHubContext,
   createIssue,
@@ -23,7 +23,7 @@ import {
   KODY_BUG_AREAS,
   KODY_BUG_SEVERITIES,
   KODY_REPORT_TARGET,
-} from "@dashboard/lib/constants";
+} from "@kody-ade/base/constants";
 import { logger } from "@kody-ade/base/logger";
 
 const diagnosticsSchema = z

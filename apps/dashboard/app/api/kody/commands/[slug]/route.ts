@@ -15,7 +15,7 @@ import {
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   setGitHubContext,
   clearGitHubContext,
@@ -31,7 +31,7 @@ import { recordAudit } from "@dashboard/lib/activity/audit";
 import {
   getEngineConfig,
   writeConfigPatch,
-} from "@dashboard/lib/engine/config";
+} from "@kody-ade/base/engine/config";
 
 async function readActiveCommands(
   req: NextRequest,

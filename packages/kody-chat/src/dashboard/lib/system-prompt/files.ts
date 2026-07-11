@@ -17,7 +17,7 @@ import {
   resolveStateRepo,
   stateRepoPath,
   writeStateText,
-} from "../state-repo";
+} from "@kody-ade/base/state-repo";
 
 const SYSTEM_PROMPT_PATH = "system-prompt.md";
 

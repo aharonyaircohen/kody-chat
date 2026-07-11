@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   parseStateRepoSlug,
   resolveStateRepoConfig,
-} from "@dashboard/lib/state-repo";
+} from "@kody-ade/base/state-repo";
 
 describe("state repo config", () => {
   it("parses canonical full GitHub repository URLs", () => {

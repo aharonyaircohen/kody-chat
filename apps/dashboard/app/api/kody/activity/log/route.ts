@@ -13,7 +13,7 @@
  *   no repo context (or GitHub is unreachable), so the tab never hard-fails.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 import {
   setGitHubContext,
   clearGitHubContext,

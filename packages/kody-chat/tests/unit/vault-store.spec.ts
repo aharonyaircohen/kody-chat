@@ -11,7 +11,7 @@ const stateRepo = vi.hoisted(() => ({
   writeStateText: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/state-repo", () => ({
+vi.mock("@kody-ade/base/state-repo", () => ({
   readStateText: stateRepo.readStateText,
   writeStateText: stateRepo.writeStateText,
 }));
@@ -20,7 +20,7 @@ vi.mock("@dashboard/lib/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 
-import { decrypt, deriveKeyCheck, encrypt } from "@dashboard/lib/vault/crypto";
+import { decrypt, deriveKeyCheck, encrypt } from "@kody-ade/base/vault/crypto";
 import {
   invalidateVaultCache,
   listSecretMetadata,
@@ -28,7 +28,7 @@ import {
   VAULT_PATH,
   writeVault,
   type VaultDocument,
-} from "@dashboard/lib/vault/store";
+} from "@kody-ade/base/vault/store";
 
 const KEY = randomBytes(32).toString("hex");
 let savedKey: string | undefined;

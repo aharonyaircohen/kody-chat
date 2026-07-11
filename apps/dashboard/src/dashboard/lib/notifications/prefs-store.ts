@@ -14,7 +14,7 @@
  */
 import "server-only";
 import { getOwner, getRepo, getOctokit } from "../github-client";
-import { readStateText, writeStateText } from "../state-repo";
+import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
 
 /** TTL for notification prefs cache. Low-churn data — 5 min is fine. */
 const PREFS_CACHE_TTL_MS = 5 * 60 * 1000;

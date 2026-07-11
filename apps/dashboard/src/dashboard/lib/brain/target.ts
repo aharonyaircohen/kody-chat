@@ -8,7 +8,7 @@
  */
 
 import { type BrainAppFile } from "@dashboard/lib/brain/store";
-import { slugifyTitle } from "@dashboard/lib/slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 
 export type BrainTargetSource = "override" | "stored" | "default";
 

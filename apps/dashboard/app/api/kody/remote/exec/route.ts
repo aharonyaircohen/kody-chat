@@ -9,7 +9,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { verifyActorLogin } from "@dashboard/lib/auth";
+import { verifyActorLogin } from "@kody-ade/base/auth";
 import { getRemoteConfig } from "@dashboard/lib/remote-config";
 import { logger } from "@kody-ade/base/logger";
 

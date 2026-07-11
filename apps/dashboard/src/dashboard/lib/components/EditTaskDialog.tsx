@@ -43,7 +43,7 @@ import {
 } from "lucide-react";
 import { cn } from "../utils";
 import { autoDirProps, rtlAwareMarkdownClassName } from "../text-direction";
-import type { KodyTask } from "../types";
+import type { KodyTask } from "@kody-ade/base/types";
 import { MarkdownPreview } from "./MarkdownPreview";
 
 interface EditTaskDialogProps {

@@ -13,7 +13,7 @@ import {
   requireKodyAuth,
   getRequestAuth,
   getUserOctokit,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import { markByUrl } from "@dashboard/lib/inbox/gist-store";
 
 const schema = z.object({ url: z.string().url().max(1024) });

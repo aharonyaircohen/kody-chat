@@ -14,7 +14,7 @@ import {
   getUserOctokit,
   requireKodyAuth,
   verifyActorLogin,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -48,7 +48,7 @@ import {
   listStateDirectory,
   readStateText,
   writeStateText,
-} from "@dashboard/lib/state-repo";
+} from "@kody-ade/base/state-repo";
 
 const intentStatusSchema = z.enum(["active", "paused", "archived"]);
 const intentPostureSchema = z.enum([

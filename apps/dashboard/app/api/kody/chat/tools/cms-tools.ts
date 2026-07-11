@@ -29,8 +29,8 @@ import type {
   CmsSortEntry,
 } from "@dashboard/lib/cms/types";
 import { getCmsDocumentValidationIssues } from "@dashboard/lib/cms/validation";
-import { STATE_BRANCH } from "@dashboard/lib/state-branch";
-import { resolveStateRepo } from "@dashboard/lib/state-repo";
+import { STATE_BRANCH } from "@kody-ade/base/state-branch";
+import { resolveStateRepo } from "@kody-ade/base/state-repo";
 
 interface Ctx {
   req: NextRequest;

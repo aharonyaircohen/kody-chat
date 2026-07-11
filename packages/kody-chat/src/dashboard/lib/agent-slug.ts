@@ -5,7 +5,7 @@
  * @ai-summary Shared slug normalization for state-repo agent files.
  */
 
-import { normalizeSlug, slugifyTitle } from "./slug";
+import { normalizeSlug, slugifyTitle } from "@kody-ade/base/slug";
 
 export function slugifyAgentTitle(title: string): string {
   return slugifyTitle(title);

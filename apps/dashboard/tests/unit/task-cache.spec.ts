@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { KodyTask, TasksResponse } from "@dashboard/lib/types";
+import type { KodyTask, TasksResponse } from "@kody-ade/base/types";
 import {
   findCachedTask,
   getCachedTasks,

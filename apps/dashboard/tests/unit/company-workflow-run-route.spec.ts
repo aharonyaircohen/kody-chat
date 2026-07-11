@@ -41,7 +41,7 @@ const runner = vi.hoisted(() => ({
   })),
 }));
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: auth.requireKodyAuth,
   getRequestAuth: auth.getRequestAuth,
   getUserOctokit: auth.getUserOctokit,
@@ -56,7 +56,7 @@ vi.mock("@dashboard/lib/activity/audit", () => ({
   recordAudit: audit.recordAudit,
 }));
 
-vi.mock("@dashboard/lib/engine/config", () => ({
+vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: engineConfig.getEngineConfig,
 }));
 

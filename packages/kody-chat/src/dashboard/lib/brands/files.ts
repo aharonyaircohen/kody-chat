@@ -21,14 +21,14 @@ import {
   listStateDirectory,
   readStateText,
   writeStateText,
-} from "../state-repo";
+} from "@kody-ade/base/state-repo";
 import {
   normalizeClientBrandLocale,
   normalizeClientBrandSlug,
   type ClientBrand,
 } from "../client-brand";
 import { normalizeClientBrandAuth } from "../client-auth/allowlist";
-import { slugifyTitle } from "../slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 
 export interface BrandFile extends ClientBrand {
   source: "repo";

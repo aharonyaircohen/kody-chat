@@ -6,7 +6,7 @@
  * per goal at `<statePath>/todos/<id>.json`.
  */
 
-import { slugifyTitle } from "./slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 
 export type ManagedGoalStateValue = "inactive" | "active" | "paused" | "done";
 export type ManagedGoalSchedule = "manual" | "15m" | "1h" | "1d" | "7d" | "30d";

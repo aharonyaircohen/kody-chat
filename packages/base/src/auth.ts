@@ -13,7 +13,7 @@
  * them via the three custom headers above.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { createUserOctokit } from "@dashboard/lib/github-client";
+import { createUserOctokit } from "./github/core";
 import { logger } from "@kody-ade/base/logger";
 import type { Octokit } from "@octokit/rest";
 import { KODY_AUTH_HEADERS } from "@kody-ade/base/auth-headers";

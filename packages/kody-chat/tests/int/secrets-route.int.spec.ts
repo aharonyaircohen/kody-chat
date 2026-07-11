@@ -33,16 +33,16 @@ const store = vi.hoisted(() => ({
 const cfg = vi.hoisted(() => ({ isVaultConfigured: vi.fn(() => true) }));
 const act = vi.hoisted(() => ({ recordAudit: vi.fn() }));
 
-vi.mock("@dashboard/lib/auth", () => auth);
-vi.mock("@dashboard/lib/vault/crypto", () => cfg);
+vi.mock("@kody-ade/base/auth", () => auth);
+vi.mock("@kody-ade/base/vault/crypto", () => cfg);
 vi.mock("@dashboard/lib/activity/audit", () => act);
 vi.mock("@dashboard/lib/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 // Partial mock: keep the real value-stripping `listSecretMetadata`.
-vi.mock("@dashboard/lib/vault/store", async (importActual) => {
+vi.mock("@kody-ade/base/vault/store", async (importActual) => {
   const actual =
-    await importActual<typeof import("@dashboard/lib/vault/store")>();
+    await importActual<typeof import("@kody-ade/base/vault/store")>();
   return {
     ...actual,
     readVault: store.readVault,

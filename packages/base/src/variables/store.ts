@@ -9,7 +9,7 @@
 import type { Octokit } from "@octokit/rest";
 
 import { logger } from "@kody-ade/base/logger";
-import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
+import { readStateText, writeStateText } from "../state-repo";
 
 export const VARIABLES_PATH = "variables.json";
 

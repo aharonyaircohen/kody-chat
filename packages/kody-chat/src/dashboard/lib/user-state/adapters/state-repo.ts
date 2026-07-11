@@ -9,7 +9,7 @@
  *   re-merge fresh data and retry).
  */
 import "server-only";
-import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
+import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
 import { userFileKey } from "../user-key";
 import type {
   UserStateAdapter,

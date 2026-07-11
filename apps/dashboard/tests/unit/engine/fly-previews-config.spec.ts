@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_FLY_PREVIEWS,
   resolveFlyPreviews,
-} from "@dashboard/lib/engine/config";
+} from "@kody-ade/base/engine/config";
 
 describe("Fly preview config", () => {
   it("defaults to a suspend-eligible preview size", () => {

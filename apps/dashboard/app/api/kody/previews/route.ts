@@ -32,7 +32,7 @@ import {
   getRequestAuth,
   getUserOctokit,
   requireKodyAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import { logger } from "@kody-ade/base/logger";
 import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
 import { createPreview } from "@dashboard/lib/previews/preview-lifecycle";

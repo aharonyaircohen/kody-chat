@@ -9,7 +9,7 @@
  *   have its own list without sharing across repos.
  */
 
-import { slugifyTitle } from "./slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 
 export interface PreviewView {
   /** Stable id for React keys + selection state. */

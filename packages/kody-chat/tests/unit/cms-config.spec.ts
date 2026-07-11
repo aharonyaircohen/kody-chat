@@ -4,7 +4,7 @@ const stateRepo = vi.hoisted(() => ({
   readStateText: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/state-repo", () => stateRepo);
+vi.mock("@kody-ade/base/state-repo", () => stateRepo);
 
 import {
   getCollection,
@@ -14,7 +14,7 @@ import {
   normalizeSearchQuery,
   normalizeSortQuery,
 } from "@dashboard/lib/cms/config";
-import { readStateText } from "@dashboard/lib/state-repo";
+import { readStateText } from "@kody-ade/base/state-repo";
 
 describe("CMS config contract", () => {
   const mockReadStateText = vi.mocked(readStateText);

@@ -16,7 +16,7 @@ import {
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   setGitHubContext,
   clearGitHubContext,
@@ -39,7 +39,7 @@ import {
   getEngineConfig,
   writeConfigPatch,
   type ActiveGoalConfigEntry,
-} from "@dashboard/lib/engine/config";
+} from "@kody-ade/base/engine/config";
 
 function activeGoalSlug(entry: ActiveGoalConfigEntry): string {
   return typeof entry === "string" ? entry : entry.template;

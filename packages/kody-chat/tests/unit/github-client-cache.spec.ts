@@ -67,7 +67,7 @@ import {
   fetchWorkflowRuns,
   fetchKodyRunLogArtifact,
 } from "@dashboard/lib/github-client";
-import type { WorkflowRun } from "@dashboard/lib/types";
+import type { WorkflowRun } from "@kody-ade/base/types";
 
 // Minimal shapes matching what the mappers in github-client read.
 function issuePayload(number: number, overrides: Record<string, unknown> = {}) {

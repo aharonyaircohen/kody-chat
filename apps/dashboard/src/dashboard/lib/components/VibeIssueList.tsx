@@ -11,7 +11,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { KodyTask } from "../types";
+import type { KodyTask } from "@kody-ade/base/types";
 import { cn, formatRelativeTime } from "../utils";
 import { CIStatusBadge } from "./CIStatusBadge";
 import { MiniPipelineProgress } from "./MiniPipelineProgress";
@@ -28,7 +28,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
 import { useGoals } from "../hooks/useGoals";
 import { GOAL_LABEL_PREFIX } from "../goals";
 import { autoDirProps } from "../text-direction";
-import type { ColumnId } from "../constants";
+import type { ColumnId } from "@kody-ade/base/constants";
 
 // Per-column row-background tint. Subtle by default (~4% alpha) so titles
 // stay readable; deepens on hover and selection to keep affordances visible.

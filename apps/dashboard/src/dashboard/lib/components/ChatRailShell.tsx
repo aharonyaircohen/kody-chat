@@ -53,7 +53,7 @@ import {
   repoPathForNavMatching,
   repoScopedHref,
   resolveRepoRouteAuthSync,
-} from "../routes";
+} from "@kody-ade/base/routes";
 import { routeOwnsAppHeader } from "./header-ownership";
 // Leaf manifest import on purpose (Step 7 bundle check): the terminal
 // barrel statically reaches ChatTerminalSurface/TerminalControls, which

@@ -14,13 +14,13 @@ import {
   requireKodyAuth,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
-import { readVault } from "@dashboard/lib/vault/store";
+} from "@kody-ade/base/auth";
+import { readVault } from "@kody-ade/base/vault/store";
 import {
   deriveKeyCheck,
   isVaultConfigured,
   verifyKey,
-} from "@dashboard/lib/vault/crypto";
+} from "@kody-ade/base/vault/crypto";
 import { logger } from "@kody-ade/base/logger";
 
 const UnlockSchema = z.object({

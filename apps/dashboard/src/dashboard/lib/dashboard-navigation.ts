@@ -1,5 +1,5 @@
 import { ALL_NAV_ITEMS, type SettingsNavItem } from "./components/settings-nav";
-import { PACKAGE_ADMIN_PAGE_META } from "@kody-ade/kody-chat/admin-pages-meta";
+import { PACKAGE_ADMIN_PAGE_META } from "@kody-ade/base/admin-pages-meta";
 
 export const DASHBOARD_TASK_ROUTE_ID = "task" as const;
 

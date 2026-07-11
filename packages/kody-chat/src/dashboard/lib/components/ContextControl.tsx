@@ -78,7 +78,7 @@ import { ListSearch } from "@dashboard/lib/components/ListSearch";
 import { MarkdownEditor } from "@dashboard/lib/components/MarkdownEditor";
 import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
 import { PageHeader } from "@dashboard/lib/components/PageShell";
-import { slugifyTitle } from "@dashboard/lib/slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 
 type StaffOption = { slug: string; label: string; hint: string };
 

@@ -12,7 +12,7 @@
  */
 import "server-only";
 import type { NextRequest } from "next/server";
-import { getRequestAuth } from "@dashboard/lib/auth";
+import { getRequestAuth } from "@kody-ade/base/auth";
 import { auth as clientAuth } from "@dashboard/lib/client-auth/auth";
 import {
   CLIENT_BRAND_REPO_COOKIE,

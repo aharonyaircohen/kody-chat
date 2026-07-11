@@ -11,14 +11,14 @@ import {
   getRequestAuth,
   getUserOctokit,
   requireKodyAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import { logger } from "@kody-ade/base/logger";
 import {
   deleteStateDirectory,
   stateRepoPath,
   writeStateBase64Files,
-} from "@dashboard/lib/state-repo";
-import { slugifyTitle } from "@dashboard/lib/slug";
+} from "@kody-ade/base/state-repo";
+import { slugifyTitle } from "@kody-ade/base/slug";
 
 export const runtime = "nodejs";
 

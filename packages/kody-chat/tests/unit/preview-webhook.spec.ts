@@ -27,10 +27,10 @@ vi.mock("@octokit/rest", () => ({
 vi.mock("@dashboard/lib/previews/config", () => ({
   resolvePreviewConfigForRepo: mocks.resolvePreviewConfigForRepo,
 }));
-vi.mock("@dashboard/lib/auth/background-token", () => ({
+vi.mock("@kody-ade/base/auth/background-token", () => ({
   resolveBackgroundToken: mocks.resolveBackgroundToken,
 }));
-vi.mock("@dashboard/lib/vault/bootstrap", () => ({
+vi.mock("@kody-ade/base/vault/bootstrap", () => ({
   resolveVaultGithubToken: mocks.resolveVaultGithubToken,
 }));
 vi.mock("@dashboard/lib/previews/base-rebuild", () => ({

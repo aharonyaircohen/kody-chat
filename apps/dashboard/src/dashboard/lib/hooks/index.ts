@@ -16,10 +16,10 @@ import {
   ApiError,
   getStoredAuth,
 } from "../api";
-import type { KodyTask } from "../types";
-import type { TasksResponse } from "../types";
+import type { KodyTask } from "@kody-ade/base/types";
+import type { TasksResponse } from "@kody-ade/base/types";
 import type { ViewMode } from "../components/FilterBar";
-import { POLLING_INTERVALS } from "../constants";
+import { POLLING_INTERVALS } from "@kody-ade/base/constants";
 import { matchWorkflowRunsForTask } from "../workflow-matching";
 
 export type TasksApiViewMode = ViewMode | "all" | "intake";

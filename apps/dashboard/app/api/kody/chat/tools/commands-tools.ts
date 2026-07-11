@@ -22,7 +22,7 @@ import {
 import {
   getEngineConfig,
   writeConfigPatch,
-} from "@dashboard/lib/engine/config";
+} from "@kody-ade/base/engine/config";
 import { dashboardCommandUrl } from "@dashboard/lib/thread-link";
 
 interface Ctx {

@@ -12,7 +12,7 @@
  *   This is read-only debug visibility for the /instructions page.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 import {
   setGitHubContext,
   clearGitHubContext,

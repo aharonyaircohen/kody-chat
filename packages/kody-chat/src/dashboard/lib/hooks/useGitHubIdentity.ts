@@ -12,7 +12,7 @@
 
 import { useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { readActiveRepo } from "../active-repo";
+import { readActiveRepo } from "@kody-ade/base/active-repo";
 
 export interface GitHubIdentity {
   login: string;

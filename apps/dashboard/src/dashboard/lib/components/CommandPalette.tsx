@@ -33,7 +33,7 @@ import { useTheme } from "@dashboard/providers/Theme";
 import { cn } from "@kody-ade/base/utils/ui";
 import { useAuth } from "../auth-context";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
-import { repoPathForNavMatching, repoScopedHref } from "../routes";
+import { repoPathForNavMatching, repoScopedHref } from "@kody-ade/base/routes";
 import {
   HOME_NAV_ITEM,
   PRIMARY_NAV_ITEMS,

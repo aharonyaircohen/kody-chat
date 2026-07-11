@@ -4,12 +4,12 @@ const mocks = vi.hoisted(() => ({
   getEngineConfig: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/engine/config", () => ({
+vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: mocks.getEngineConfig,
 }));
 
-import { STATE_BRANCH } from "@dashboard/lib/state-branch";
-import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
+import { STATE_BRANCH } from "@kody-ade/base/state-branch";
+import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
 
 type ReadOctokit = Parameters<typeof readStateText>[0];
 type WriteOctokit = Parameters<typeof writeStateText>[0]["octokit"];

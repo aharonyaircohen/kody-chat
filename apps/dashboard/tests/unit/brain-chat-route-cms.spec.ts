@@ -6,7 +6,7 @@ const getRequestAuth = vi.fn();
 const streamBrainChat = vi.fn();
 const loadContextForPrompt = vi.fn();
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: (...args: unknown[]) => requireKodyAuth(...args),
   getRequestAuth: (...args: unknown[]) => getRequestAuth(...args),
 }));

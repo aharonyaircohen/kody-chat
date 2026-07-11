@@ -18,11 +18,11 @@ import {
   requireKodyAuth,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import { createUserOctokit } from "@dashboard/lib/github-client";
 import { subscribe } from "@dashboard/lib/chat-event-bus";
 import { logger } from "@kody-ade/base/logger";
-import { readStateText } from "@dashboard/lib/state-repo";
+import { readStateText } from "@kody-ade/base/state-repo";
 
 // ─── Rate-limit tuning ─────────────────────────────────────────────────────────
 // 15s base poll (was 3s) — pushes are the real freshness path; this is fallback.

@@ -9,6 +9,22 @@
     "./auth-headers": "./src/auth-headers.ts",
     "./github-contents-write": "./src/github-contents-write.ts",
     "./utils/ui": "./src/utils/ui.ts",
+    "./constants": "./src/constants.ts",
+    "./types": "./src/types.ts",
+    "./kody-state": "./src/kody-state.ts",
+    "./state-branch": "./src/state-branch.ts",
+    "./state-repo": "./src/state-repo.ts",
+    "./active-repo": "./src/active-repo.ts",
+    "./routes": "./src/routes.ts",
+    "./slug": "./src/slug.ts",
+    "./admin-pages-meta": "./src/admin-pages-meta.ts",
+    "./github-issue-create": "./src/github-issue-create.ts",
+    "./engine/config": "./src/engine/config.ts",
+    "./github/*": "./src/github/*.ts",
+    "./auth": "./src/auth.ts",
+    "./auth/*": "./src/auth/*.ts",
+    "./vault/*": "./src/vault/*.ts",
+    "./variables/*": "./src/variables/*.ts",
     "./ui/*": "./src/ui/*.tsx",
     "./storage": "./src/storage/index.ts",
     "./storage/*": "./src/storage/*.ts"
@@ -19,7 +35,9 @@
     "test:unit": "vitest run"
   },
   "dependencies": {
+    "@octokit/plugin-throttling": "^11.0.3",
     "@octokit/rest": "^22.0.1",
+    "zod": "^4.3.5",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-avatar": "^1.1.11",
     "@radix-ui/react-checkbox": "^1.0.4",
@@ -39,9 +57,11 @@
   "devDependencies": {
     "typescript": "5.9.3",
     "vitest": "^4.0.16",
-    "@types/react": "^19.2.17"
+    "@types/react": "^19.2.17",
+    "next": "16.2.9"
   },
   "peerDependencies": {
-    "react": "19.2.7"
+    "react": "19.2.7",
+    "next": "16.2.9"
   }
 }

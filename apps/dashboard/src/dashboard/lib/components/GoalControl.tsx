@@ -56,7 +56,7 @@ import {
 } from "@kody-ade/base/ui/dialog";
 import { AuthGuard } from "../auth-guard";
 import { useAuth } from "../auth-context";
-import { repoScopedHref } from "../routes";
+import { repoScopedHref } from "@kody-ade/base/routes";
 import { cn } from "../utils";
 import { autoDirProps } from "../text-direction";
 import {
@@ -70,7 +70,7 @@ import { useKodyTasks } from "../hooks";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useMediaQuery } from "../hooks/useMediaQuery";
 import { tasksApi, type Goal } from "../api";
-import type { KodyTask } from "../types";
+import type { KodyTask } from "@kody-ade/base/types";
 import { GOAL_LABEL_PREFIX } from "../goals";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { MarkdownEditor } from "./MarkdownEditor";

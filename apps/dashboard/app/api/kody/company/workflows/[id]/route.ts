@@ -15,7 +15,7 @@ import {
   getUserOctokit,
   requireKodyAuth,
   verifyActorLogin,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -24,7 +24,7 @@ import {
   getEngineConfig,
   writeConfigPatch,
   type ConfigPatch,
-} from "@dashboard/lib/engine/config";
+} from "@kody-ade/base/engine/config";
 import {
   isWorkflowDefinitionId,
   mergeWorkflowDefinition,

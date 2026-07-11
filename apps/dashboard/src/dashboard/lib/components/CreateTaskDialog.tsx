@@ -47,7 +47,7 @@ import {
   PRIORITY_LEVELS,
   PRIORITY_META,
   type PriorityLevel,
-} from "../constants";
+} from "@kody-ade/base/constants";
 
 interface CreateTaskDialogProps {
   open: boolean;

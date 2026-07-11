@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type { MemoryType } from "@dashboard/lib/memory-files";
-import { slugifyTitle } from "@dashboard/lib/slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 
 export interface ExplicitMemoryDraft {
   id: string;

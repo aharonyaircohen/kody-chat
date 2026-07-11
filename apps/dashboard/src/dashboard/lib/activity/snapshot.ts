@@ -7,7 +7,7 @@
  *   the cached fetchWorkflowRuns and hands the array here. Pure so it's
  *   unit-testable and reusable.
  */
-import type { WorkflowRun } from "../types";
+import type { WorkflowRun } from "@kody-ade/base/types";
 import { categorizeRun } from "./categorize";
 import {
   type ActivityRun,

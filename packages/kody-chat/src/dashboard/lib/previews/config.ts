@@ -25,14 +25,14 @@
 
 import { Octokit } from "@octokit/rest";
 
-import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import {
   getEngineConfig,
   resolveFlyPreviews,
   type ResolvedFlyPreviews,
-} from "@dashboard/lib/engine/config";
+} from "@kody-ade/base/engine/config";
 import { logger } from "@kody-ade/base/logger";
-import { readVault } from "@dashboard/lib/vault/store";
+import { readVault } from "@kody-ade/base/vault/store";
 
 import type { ServerProviderConfig } from "@dashboard/lib/infrastructure/server-machines";
 

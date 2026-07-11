@@ -8,7 +8,7 @@
 import { throttling } from "@octokit/plugin-throttling";
 import { Octokit } from "@octokit/rest";
 import { writeGitHubFileWithRetry } from "@kody-ade/base/github-contents-write";
-import { slugifyTitle } from "@dashboard/lib/slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 import {
   GITHUB_OWNER,
   GITHUB_REPO,
@@ -18,9 +18,9 @@ import {
   BRANCH_CACHE_TTL,
   TASK_ID_REGEX,
   ALL_STAGES,
-} from "./constants";
+} from "@kody-ade/base/constants";
 import { isProtectedBranch } from "./branches";
-import { createIssueWithBestEffortMetadata } from "./github-issue-create";
+import { createIssueWithBestEffortMetadata } from "@kody-ade/base/github-issue-create";
 import {
   parseActivityJsonl,
   sortActivityNewestFirst,
@@ -32,7 +32,7 @@ import {
   resolveStateRepo,
   stateRepoPath,
   writeStateBase64,
-} from "./state-repo";
+} from "@kody-ade/base/state-repo";
 import { parseKodyRunLogZip, type KodyRunLogsRun } from "./activity/run-logs";
 import type {
   KodyPipelineStatus,
@@ -1528,9 +1528,9 @@ export async function fetchComments(
  */
 export async function fetchKodyState(
   issueNumber: number,
-): Promise<import("./kody-state").KodyTaskState | null> {
+): Promise<import("@kody-ade/base/kody-state").KodyTaskState | null> {
   try {
-    const { findKodyStateInComments } = await import("./kody-state");
+    const { findKodyStateInComments } = await import("@kody-ade/base/kody-state");
     const comments = await fetchComments(issueNumber);
     return findKodyStateInComments(comments);
   } catch (err) {

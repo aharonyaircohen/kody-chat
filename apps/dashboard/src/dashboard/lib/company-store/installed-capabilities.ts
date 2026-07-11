@@ -7,7 +7,7 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import type { ActiveGoalConfigEntry } from "../engine/config";
+import type { ActiveGoalConfigEntry } from "@kody-ade/base/engine/config";
 import { listCompanyStoreGoalTemplateFiles } from "../managed-goals-files";
 import type { ManagedGoalState } from "../managed-goals";
 import { listCompanyStoreWorkflowDefinitionFiles } from "../workflow-definition-files";

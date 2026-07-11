@@ -14,7 +14,7 @@
  */
 
 import type { ChatMessage } from "./chat-types";
-import { readActiveRepoScope } from "./active-repo";
+import { readActiveRepoScope } from "@kody-ade/base/active-repo";
 
 const KEY_PREFIX = "kody-agent-chat-";
 

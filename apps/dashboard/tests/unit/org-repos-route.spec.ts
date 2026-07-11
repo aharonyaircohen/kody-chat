@@ -14,12 +14,12 @@ const webhook = vi.hoisted(() => ({
   ensureWebhook: vi.fn(async () => ({ ok: true, created: true, hookId: 123 })),
 }));
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: auth.requireKodyAuth,
   getRequestAuth: auth.getRequestAuth,
 }));
 
-vi.mock("@dashboard/lib/auth/oauth-url", () => ({
+vi.mock("@kody-ade/base/auth/oauth-url", () => ({
   getPublicBaseUrl: vi.fn(() => "https://dash.test"),
 }));
 

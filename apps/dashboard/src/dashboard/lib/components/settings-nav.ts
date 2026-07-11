@@ -40,8 +40,8 @@ import {
   Workflow,
   type LucideIcon,
 } from "lucide-react";
-import { PACKAGE_ADMIN_PAGE_META } from "@kody-ade/kody-chat/admin-pages-meta";
-import { repoPathForNavMatching } from "@dashboard/lib/routes";
+import { PACKAGE_ADMIN_PAGE_META } from "@kody-ade/base/admin-pages-meta";
+import { repoPathForNavMatching } from "@kody-ade/base/routes";
 
 export interface SettingsNavItem {
   href: string;

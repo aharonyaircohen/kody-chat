@@ -9,7 +9,7 @@ import {
   HIDDEN_TASK_LABEL,
   INTERNAL_ISSUE_LABELS,
   TASK_LIST_EXCLUDED_LABELS,
-} from "@dashboard/lib/constants";
+} from "@kody-ade/base/constants";
 
 const task = (
   issueNumber: number,

@@ -16,13 +16,13 @@ import Link from "next/link";
 import { CircleDot, Clock, ExternalLink, Loader2 } from "lucide-react";
 
 import { Card } from "@kody-ade/base/ui/card";
-import { COLUMN_DEFS } from "../constants";
+import { COLUMN_DEFS } from "@kody-ade/base/constants";
 import { useNow } from "../hooks/useNow";
 import { useAuth } from "../auth-context";
-import { repoScopedHref } from "../routes";
+import { repoScopedHref } from "@kody-ade/base/routes";
 import { cn } from "../utils";
 import { autoDirProps } from "../text-direction";
-import type { ColumnId, KodyTask } from "../types";
+import type { ColumnId, KodyTask } from "@kody-ade/base/types";
 
 // In-flight = not a terminal/parked lane. These are the tasks "in motion".
 const IN_FLIGHT_COLUMNS: readonly ColumnId[] = [

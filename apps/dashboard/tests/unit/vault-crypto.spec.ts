@@ -15,7 +15,7 @@ import {
   encrypt,
   decrypt,
   isVaultConfigured,
-} from "@dashboard/lib/vault/crypto";
+} from "@kody-ade/base/vault/crypto";
 
 const HEX_KEY = randomBytes(32).toString("hex"); // 64 hex chars
 const B64_KEY = randomBytes(32).toString("base64"); // 44 base64 chars

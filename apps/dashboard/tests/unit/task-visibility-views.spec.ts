@@ -6,7 +6,7 @@ import {
   isDashboardUnassignedIssue,
 } from "@dashboard/lib/tasks/visibility";
 import { filterTasksByView, getViewModeCounts } from "@dashboard/lib/utils";
-import type { KodyTask } from "@dashboard/lib/types";
+import type { KodyTask } from "@kody-ade/base/types";
 
 function task(overrides: Partial<KodyTask>): KodyTask {
   return {

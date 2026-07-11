@@ -7,7 +7,7 @@
  */
 import type { Octokit } from "@octokit/rest";
 
-import { readStateText } from "./state-repo";
+import { readStateText } from "@kody-ade/base/state-repo";
 import { createServerTtlCache } from "./server-ttl-cache";
 
 export type AgencyRunKind = "goal" | "loop" | "workflow";

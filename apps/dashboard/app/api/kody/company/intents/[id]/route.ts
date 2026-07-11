@@ -14,7 +14,7 @@ import {
   getUserOctokit,
   requireKodyAuth,
   verifyActorLogin,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -36,7 +36,7 @@ import {
   type CompanyIntentRecord,
 } from "@dashboard/lib/company-intents";
 import { clearCompanyIntentRecordsCache } from "@dashboard/lib/company-intents-read-cache";
-import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
+import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
 
 const intentStatusSchema = z.enum(["active", "paused", "archived"]);
 const intentPostureSchema = z.enum([

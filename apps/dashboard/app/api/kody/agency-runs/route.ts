@@ -11,7 +11,7 @@ import {
   getRequestAuth,
   getUserOctokit,
   requireKodyAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import { listAgencyRuns } from "@dashboard/lib/agency-runs";
 import {
   clearGitHubContext,

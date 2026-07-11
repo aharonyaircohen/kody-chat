@@ -51,14 +51,14 @@ const stateRepo = vi.hoisted(() => ({
   ),
 }));
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: auth.requireKodyAuth,
   getRequestAuth: auth.getRequestAuth,
   getUserOctokit: auth.getUserOctokit,
   verifyActorLogin: auth.verifyActorLogin,
 }));
 
-vi.mock("@dashboard/lib/auth/background-token", () => ({
+vi.mock("@kody-ade/base/auth/background-token", () => ({
   resolveBackgroundToken: backgroundToken.resolveBackgroundToken,
 }));
 
@@ -72,7 +72,7 @@ vi.mock("@dashboard/lib/dashboard-config/store", () => ({
   writeDashboardConfig: store.writeDashboardConfig,
 }));
 
-vi.mock("@dashboard/lib/state-repo", () => ({
+vi.mock("@kody-ade/base/state-repo", () => ({
   resolveStateRepo: stateRepo.resolveStateRepo,
   stateRepoPath: stateRepo.stateRepoPath,
 }));

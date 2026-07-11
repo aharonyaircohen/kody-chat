@@ -12,7 +12,7 @@ import {
   getUserOctokit,
   requireKodyAuth,
   verifyActorLogin,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import {
   isValidViewRendererSlug,

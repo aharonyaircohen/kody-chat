@@ -8,8 +8,8 @@
 
 import { cn, formatDuration } from "../utils";
 import { usePersistedState } from "../hooks/usePersistedState";
-import type { KodyPipelineStatus, StageStatus } from "../types";
-import { SPEC_STAGES, IMPL_STAGES } from "../constants";
+import type { KodyPipelineStatus, StageStatus } from "@kody-ade/base/types";
+import { SPEC_STAGES, IMPL_STAGES } from "@kody-ade/base/constants";
 import { StageErrorDetail } from "./StageErrorDetail";
 import { Check, Circle, Loader2, X, Pause } from "lucide-react";
 import { stageLabels, getStageTooltip } from "../pipeline-utils";

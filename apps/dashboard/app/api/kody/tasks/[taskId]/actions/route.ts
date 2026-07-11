@@ -13,7 +13,7 @@ import {
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 
 import {
   postComment,
@@ -40,7 +40,7 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { recordAudit } from "@dashboard/lib/activity/audit";
-import { HIDDEN_TASK_LABEL } from "@dashboard/lib/constants";
+import { HIDDEN_TASK_LABEL } from "@kody-ade/base/constants";
 import { GOAL_LABEL_PREFIX } from "@dashboard/lib/goals";
 import { getOwner, getRepo } from "@dashboard/lib/github-client";
 import { isProtectedBranch } from "@dashboard/lib/branches";

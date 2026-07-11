@@ -21,7 +21,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   getEngineConfig,
   writeConfigPatch,
-} from "@dashboard/lib/engine/config";
+} from "@kody-ade/base/engine/config";
 
 function encodeConfig(config: unknown): string {
   return Buffer.from(JSON.stringify(config), "utf-8").toString("base64");

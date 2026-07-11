@@ -27,16 +27,16 @@ import sodium from "libsodium-wrappers";
 import { logger } from "@kody-ade/base/logger";
 import { writeGitHubFileWithRetry } from "@kody-ade/base/github-contents-write";
 import { ensureWebhook } from "@dashboard/lib/webhooks/register";
-import { readVault } from "@dashboard/lib/vault/store";
-import { readVariables } from "@dashboard/lib/variables/store";
+import { readVault } from "@kody-ade/base/vault/store";
+import { readVariables } from "@kody-ade/base/variables/store";
 import {
   ChatModelsSchema,
   pickEngineDefaultModel,
   engineModelSpec,
   VAR_LLM_MODELS,
   type ChatModel,
-} from "@dashboard/lib/variables/models";
-import { writeEngineModel } from "./config";
+} from "@kody-ade/base/variables/models";
+import { writeEngineModel } from "@kody-ade/base/engine/config";
 
 export const KODY_TOKEN_SECRET = "KODY_TOKEN";
 

@@ -18,19 +18,19 @@ const { mGetRequestAuth, mCreateUserOctokit, mReadVault, mIsVaultConfigured } =
     mIsVaultConfigured: vi.fn(),
   }));
 
-vi.mock("@dashboard/lib/auth", () => ({ getRequestAuth: mGetRequestAuth }));
+vi.mock("@kody-ade/base/auth", () => ({ getRequestAuth: mGetRequestAuth }));
 vi.mock("@dashboard/lib/github-client", () => ({
   createUserOctokit: mCreateUserOctokit,
 }));
-vi.mock("@dashboard/lib/vault/store", () => ({ readVault: mReadVault }));
-vi.mock("@dashboard/lib/vault/crypto", () => ({
+vi.mock("@kody-ade/base/vault/store", () => ({ readVault: mReadVault }));
+vi.mock("@kody-ade/base/vault/crypto", () => ({
   isVaultConfigured: mIsVaultConfigured,
 }));
 vi.mock("@dashboard/lib/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 
-import { getSecret } from "@dashboard/lib/vault/get-secret";
+import { getSecret } from "@kody-ade/base/vault/get-secret";
 
 // The resolver only reads getRequestAuth(req), so a bare object suffices.
 const req = {} as never;

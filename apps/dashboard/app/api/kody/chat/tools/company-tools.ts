@@ -14,7 +14,7 @@ import type { Octokit } from "@octokit/rest";
 import { buildCompanyBundle } from "@dashboard/lib/company/export";
 import { applyCompanyBundle } from "@dashboard/lib/company/import";
 import { companyBundleSchema } from "@dashboard/lib/company/types";
-import { readOperators, writeOperators } from "@dashboard/lib/engine/config";
+import { readOperators, writeOperators } from "@kody-ade/base/engine/config";
 
 interface Ctx {
   octokit: Octokit;

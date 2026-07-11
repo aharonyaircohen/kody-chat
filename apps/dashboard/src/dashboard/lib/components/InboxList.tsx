@@ -50,7 +50,7 @@ import { NOTIFICATION_META } from "../notifications/types";
 import { syncMutedTypes } from "../notifications/sync-prefs";
 import type { ServerNotificationType } from "../notifications/prefs-store";
 import type { InboxEntry, InboxSource } from "../inbox/types";
-import { repoScopedHref } from "../routes";
+import { repoScopedHref } from "@kody-ade/base/routes";
 import {
   INBOX_THREAD_PARAM,
   buildSyntheticInboxEntry,

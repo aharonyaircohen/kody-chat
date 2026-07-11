@@ -7,7 +7,7 @@
  */
 
 import { buildKodyAuthHeaders } from "@kody-ade/base/auth-headers";
-import { readActiveRepo, readStoredKodyAuth } from "../active-repo";
+import { readActiveRepo, readStoredKodyAuth } from "@kody-ade/base/active-repo";
 
 export const API_BASE = "/api/kody";
 

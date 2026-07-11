@@ -30,17 +30,17 @@ vi.mock("@dashboard/lib/github-client", () => ({
   createUserOctokit: githubClient.createUserOctokit,
 }));
 
-vi.mock("@dashboard/lib/auth/background-token", () => ({
+vi.mock("@kody-ade/base/auth/background-token", () => ({
   resolveBackgroundToken: backgroundToken.resolveBackgroundToken,
 }));
 
-vi.mock("@dashboard/lib/state-repo", () => ({
+vi.mock("@kody-ade/base/state-repo", () => ({
   resolveStateRepo: stateRepo.resolveStateRepo,
   stateRepoPath: stateRepo.stateRepoPath,
 }));
 
 import { GET } from "../../app/api/kody/views/[...path]/route";
-import { STATE_BRANCH } from "@dashboard/lib/state-branch";
+import { STATE_BRANCH } from "@kody-ade/base/state-branch";
 import { mintRepoViewToken } from "@dashboard/lib/view-token";
 
 const ORIGINAL_MASTER_KEY = process.env.KODY_MASTER_KEY;

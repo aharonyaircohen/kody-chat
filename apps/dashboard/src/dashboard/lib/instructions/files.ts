@@ -23,7 +23,7 @@ import {
   resolveStateRepo,
   stateRepoPath,
   writeStateText,
-} from "../state-repo";
+} from "@kody-ade/base/state-repo";
 
 const INSTRUCTIONS_PATH = "instructions.md";
 

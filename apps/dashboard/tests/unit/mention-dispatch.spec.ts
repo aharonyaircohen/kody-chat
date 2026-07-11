@@ -102,7 +102,7 @@ vi.mock("@dashboard/lib/push", () => ({
 vi.mock("@dashboard/lib/control-issue", () => ({
   CONTROL_TITLE: "kody:control",
 }));
-vi.mock("@dashboard/lib/vault/bootstrap", () => ({
+vi.mock("@kody-ade/base/vault/bootstrap", () => ({
   resolveVaultGithubToken: vi.fn().mockResolvedValue("bot-token"),
 }));
 

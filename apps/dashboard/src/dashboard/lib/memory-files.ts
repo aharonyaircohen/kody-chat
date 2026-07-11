@@ -31,8 +31,8 @@ import {
   resolveStateRepo,
   stateRepoPath,
   writeStateText,
-} from "./state-repo";
-import { slugifyTitle } from "./slug";
+} from "@kody-ade/base/state-repo";
+import { slugifyTitle } from "@kody-ade/base/slug";
 
 export type MemoryType = "user" | "feedback" | "project" | "reference";
 

@@ -52,12 +52,12 @@ import { RepoManager } from "./RepoManager";
 import { RepoScopedLink } from "./RepoScopedLink";
 import { cn } from "../utils";
 import { autoDirProps } from "../text-direction";
-import type { ColumnId, KodyTask } from "../types";
+import type { ColumnId, KodyTask } from "@kody-ade/base/types";
 import type { HealthLevel } from "../health/types";
 import type { DefaultBranchCI, Report } from "../api";
 import { getStoredAuth } from "../api";
 import type { ActionLogEntry } from "../activity/action-log";
-import { repoScopedHref } from "../routes";
+import { repoScopedHref } from "@kody-ade/base/routes";
 
 // ── helpers ───────────────────────────────────────────────────────────────
 

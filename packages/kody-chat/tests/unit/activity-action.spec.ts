@@ -10,7 +10,7 @@ import {
   actionFromLabels,
   mapRunActions,
 } from "@dashboard/lib/activity/action";
-import type { GitHubIssue, WorkflowRun } from "@dashboard/lib/types";
+import type { GitHubIssue, WorkflowRun } from "@kody-ade/base/types";
 
 function issue(over: Partial<GitHubIssue>): GitHubIssue {
   return {

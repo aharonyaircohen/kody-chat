@@ -31,7 +31,7 @@ const h = vi.hoisted(() => ({
 vi.mock("../../app/api/kody/chat/resolve-model", () => ({
   resolveChatModel: h.resolveChatModel,
 }));
-vi.mock("@dashboard/lib/vault/bootstrap", () => ({
+vi.mock("@kody-ade/base/vault/bootstrap", () => ({
   resolveVaultGithubToken: h.resolveVaultGithubToken,
 }));
 vi.mock("@dashboard/lib/client-brand", () => ({
@@ -69,7 +69,7 @@ vi.mock("@dashboard/lib/agent-files", () => ({
   isValidSlug: (slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug),
   readResolvedAgentFile: h.readResolvedAgentFile,
 }));
-vi.mock("@dashboard/lib/engine/config", () => ({
+vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: h.getEngineConfig,
   readOperators: vi.fn(async () => ({ operators: [] })),
   writeOperators: vi.fn(),

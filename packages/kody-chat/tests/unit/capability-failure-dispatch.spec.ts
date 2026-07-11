@@ -33,10 +33,10 @@ vi.mock("@dashboard/lib/github-client", () => ({
   createUserOctokit: h.createUserOctokit,
   fetchCompanyActivity: h.fetchCompanyActivity,
 }));
-vi.mock("@dashboard/lib/engine/config", () => ({
+vi.mock("@kody-ade/base/engine/config", () => ({
   readOperators: h.readOperators,
 }));
-vi.mock("@dashboard/lib/vault/bootstrap", () => ({
+vi.mock("@kody-ade/base/vault/bootstrap", () => ({
   resolveVaultGithubToken: h.resolveVaultGithubToken,
 }));
 vi.mock("@dashboard/lib/inbox/feed-server", () => ({

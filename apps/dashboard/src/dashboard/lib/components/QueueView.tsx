@@ -9,7 +9,7 @@
 import { cn } from "../utils";
 import { autoDirProps } from "../text-direction";
 import { MiniPipelineProgress } from "./MiniPipelineProgress";
-import type { KodyTask } from "../types";
+import type { KodyTask } from "@kody-ade/base/types";
 import { Button } from "@kody-ade/base/ui/button";
 import {
   Loader2,

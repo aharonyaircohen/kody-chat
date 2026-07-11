@@ -6,7 +6,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
   getRepo: vi.fn(() => "widgets"),
 }));
 
-vi.mock("@dashboard/lib/engine/config", () => ({
+vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: vi.fn().mockResolvedValue({
     config: {
       implementations: { default: "run" },

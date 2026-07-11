@@ -8,7 +8,7 @@
 
 import { useState, useEffect } from "react";
 import { usePersistedState } from "../hooks/usePersistedState";
-import type { CheckRunResult } from "../types";
+import type { CheckRunResult } from "@kody-ade/base/types";
 import { Button } from "@kody-ade/base/ui/button";
 import { Badge } from "@kody-ade/base/ui/badge";
 import { ExternalLink, ChevronDown, ChevronRight, Loader2 } from "lucide-react";

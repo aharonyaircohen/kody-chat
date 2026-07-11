@@ -21,7 +21,7 @@ import {
   requireKodyAuth,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import { logger } from "@kody-ade/base/logger";
 import { appendUserTurn } from "@dashboard/lib/interactive-session";
 import {

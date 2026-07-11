@@ -22,7 +22,7 @@ import {
 
 import { useAuth, type KodyRepoEntry } from "@dashboard/lib/auth-context";
 import { useGitHubIdentity } from "@dashboard/lib/hooks/useGitHubIdentity";
-import { repoScopedHref } from "@dashboard/lib/routes";
+import { repoScopedHref } from "@kody-ade/base/routes";
 import { cn } from "@dashboard/lib/utils";
 import { AddRepoForm } from "@dashboard/lib/components/AddRepoForm";
 import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";

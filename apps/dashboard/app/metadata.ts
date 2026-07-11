@@ -6,7 +6,7 @@
  */
 import type { Metadata } from "next";
 import { fetchIssue } from "@dashboard/lib/github-client";
-import { GITHUB_OWNER, GITHUB_REPO } from "@dashboard/lib/constants";
+import { GITHUB_OWNER, GITHUB_REPO } from "@kody-ade/base/constants";
 
 const SITE_NAME = "Kody Operations Dashboard";
 const BASE_URL =

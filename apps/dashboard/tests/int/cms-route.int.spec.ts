@@ -102,12 +102,12 @@ const vault = vi.hoisted(() => ({
   getSecret: vi.fn(async () => "mongodb://localhost/a-guy-dev"),
 }));
 
-vi.mock("@dashboard/lib/auth", () => auth);
+vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@dashboard/lib/github-client", () => github);
 vi.mock("@dashboard/lib/cms/service", () => service);
-vi.mock("@dashboard/lib/state-repo", () => stateRepo);
+vi.mock("@kody-ade/base/state-repo", () => stateRepo);
 vi.mock("@dashboard/lib/cms/schema/mongodb", () => mongoSchema);
-vi.mock("@dashboard/lib/vault/get-secret", () => vault);
+vi.mock("@kody-ade/base/vault/get-secret", () => vault);
 
 import {
   GET as collectionGET,

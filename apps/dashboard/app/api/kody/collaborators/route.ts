@@ -5,7 +5,7 @@
  * @ai-summary API route to fetch repository collaborators for assignee picker
  */
 import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 
 import {
   fetchCollaborators,

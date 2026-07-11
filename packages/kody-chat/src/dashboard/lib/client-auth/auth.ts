@@ -14,7 +14,7 @@ import type { Provider } from "next-auth/providers";
 import { parseClientBrandRepoCookie, CLIENT_BRAND_REPO_COOKIE } from "../client-brand-repo-cookie";
 import type { ClientBrandRepoContext } from "../client-brand-repo-cookie";
 import { defaultClientBrandRepoContext } from "../client-brand-default-repo";
-import { resolveBackgroundToken } from "../auth/background-token";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import { PROVIDER_CATALOG, isSupportedProviderId } from "./catalog";
 import { resolveProviderCredentials } from "./credentials";
 import { deriveClientAuthSecret } from "./secret";

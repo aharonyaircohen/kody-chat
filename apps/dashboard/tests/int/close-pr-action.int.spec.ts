@@ -22,7 +22,7 @@ const findAssociatedPRByIssueNumber = vi.fn();
 const findTaskBranch = vi.fn();
 const isProtectedBranch = vi.fn();
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(async () => ({ ok: true })),
   verifyActorLogin: vi.fn(async () => ({ identity: { login: "tester" } })),
   getUserOctokit: vi.fn(async () => null),

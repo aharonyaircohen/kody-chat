@@ -35,7 +35,7 @@ import {
   getOwner,
   getRepo,
 } from "./github-client";
-import { INTERNAL_ISSUE_LABEL } from "./constants";
+import { INTERNAL_ISSUE_LABEL } from "@kody-ade/base/constants";
 
 /**
  * GitHub rejects issue bodies over 65,536 chars with a 422; a rejected PATCH

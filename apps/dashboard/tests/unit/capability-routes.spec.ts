@@ -24,7 +24,7 @@ const h = vi.hoisted(() => ({
   recordAudit: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: h.requireKodyAuth,
   verifyActorLogin: h.verifyActorLogin,
   getUserOctokit: h.getUserOctokit,
@@ -46,7 +46,7 @@ vi.mock("@dashboard/lib/capabilities", () => ({
   PERMISSION_MODES: ["default", "acceptEdits", "plan", "bypassPermissions"],
 }));
 
-vi.mock("@dashboard/lib/engine/config", () => ({
+vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: h.getEngineConfig,
   writeConfigPatch: h.writeConfigPatch,
 }));

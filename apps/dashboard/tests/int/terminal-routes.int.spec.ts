@@ -200,7 +200,7 @@ const imageRuntime = vi.hoisted(() => ({
   ),
 }));
 
-vi.mock("@dashboard/lib/auth", () => auth);
+vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@dashboard/lib/previews/config", () => previews);
 vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/context", () => flyContext);
 vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/inventory", () => inventory);

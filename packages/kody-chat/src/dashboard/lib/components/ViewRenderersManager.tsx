@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { AuthGuard } from "../auth-guard";
 import { buildAuthHeaders, useAuth } from "../auth-context";
-import { slugifyTitle } from "../slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 import { cn } from "../utils";
 import { Button } from "@kody-ade/base/ui/button";
 import { Label } from "@kody-ade/base/ui/label";

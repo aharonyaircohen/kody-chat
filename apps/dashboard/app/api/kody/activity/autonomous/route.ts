@@ -9,7 +9,7 @@
  *   it's polling-safe (TTL + in-flight dedup + stale fallback).
  */
 import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 import {
   setGitHubContext,
   clearGitHubContext,

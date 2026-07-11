@@ -10,14 +10,14 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { handleKodyApiError } from "@dashboard/lib/github-error-handler";
-import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 import {
   fetchLabels,
   fetchMilestones,
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import type { Board } from "@dashboard/lib/types";
+import type { Board } from "@kody-ade/base/types";
 
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);

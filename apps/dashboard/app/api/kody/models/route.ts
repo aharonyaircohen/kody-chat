@@ -19,23 +19,23 @@ import {
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   invalidateVariablesCache,
   readVariables,
   writeVariables,
   type VariablesDocument,
-} from "@dashboard/lib/variables/store";
+} from "@kody-ade/base/variables/store";
 import {
   ChatModelsSchema,
   VAR_LLM_MODELS,
   pickEngineDefaultModel,
   engineModelSpec,
-} from "@dashboard/lib/variables/models";
+} from "@kody-ade/base/variables/models";
 import {
   getEngineConfig,
   writeEngineModel,
-} from "@dashboard/lib/engine/config";
+} from "@kody-ade/base/engine/config";
 import { logger } from "@kody-ade/base/logger";
 
 export const dynamic = "force-dynamic";

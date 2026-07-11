@@ -14,7 +14,7 @@ import {
 import { ChatSurfaceLayout } from "../chat/surface/ChatSurfaceLayout";
 import { useAuth } from "@dashboard/lib/auth-context";
 import { toast } from "sonner";
-import type { KodyTask } from "@dashboard/lib/types";
+import type { KodyTask } from "@kody-ade/base/types";
 // Terminal HOST wiring (phase 1.6d): registry, checkpoints, payload
 // hand-off, chrome state + the lazy terminal chrome nodes all live in
 // the useTerminalHost hook (kody-chat-terminal-host.tsx). Only the
@@ -87,7 +87,7 @@ import type {
   RenderedViewDirective,
   PreviewActDirective,
 } from "@dashboard/lib/chat-ui-actions";
-import { repoScopedHref } from "@dashboard/lib/routes";
+import { repoScopedHref } from "@kody-ade/base/routes";
 
 function reportValue(value: unknown, max = 1_000): string | null {
   if (value === null || value === undefined || value === "") return null;

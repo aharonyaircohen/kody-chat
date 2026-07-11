@@ -7,7 +7,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getRequestAuth, requireKodyAuth } from "@dashboard/lib/auth";
+import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
 import { mintRepoViewToken } from "@dashboard/lib/view-token";
 
 export const runtime = "nodejs";

@@ -9,7 +9,7 @@ import type {
   CommentType,
   StageProgress,
   StageState,
-} from "./types";
+} from "@kody-ade/base/types";
 
 // ============ Regex Patterns ============
 

@@ -5,7 +5,7 @@ import {
   getRequestAuth,
   getUserOctokit,
   requireKodyAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -26,8 +26,8 @@ import {
   readStateText,
   writeStateFiles,
   type StateRepoWriteFile,
-} from "@dashboard/lib/state-repo";
-import { getSecret } from "@dashboard/lib/vault/get-secret";
+} from "@kody-ade/base/state-repo";
+import { getSecret } from "@kody-ade/base/vault/get-secret";
 import { getCmsActorRole } from "@dashboard/lib/cms/roles";
 
 export const runtime = "nodejs";

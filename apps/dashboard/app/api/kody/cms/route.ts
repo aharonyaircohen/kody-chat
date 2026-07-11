@@ -4,7 +4,7 @@ import {
   getRequestAuth,
   getUserOctokit,
   requireKodyAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   clearGitHubContext,
   setGitHubContext,
@@ -30,7 +30,7 @@ import {
   readStateText,
   writeStateFiles,
   writeStateText,
-} from "@dashboard/lib/state-repo";
+} from "@kody-ade/base/state-repo";
 import { getCmsActorRole } from "@dashboard/lib/cms/roles";
 import type {
   CmsAdapterSettings,

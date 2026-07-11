@@ -29,7 +29,7 @@ import {
   clearGitHubContext,
   getOctokit,
 } from "../github-client";
-import { resolveBackgroundToken } from "../auth/background-token";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import { readPushManifest } from "../push-server";
 import { deliverPush, ensureVapid } from "../notifications/channels/push-core";
 import { logger } from "@kody-ade/base/logger";

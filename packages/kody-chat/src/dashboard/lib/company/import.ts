@@ -34,7 +34,7 @@ import {
   getEngineConfig,
   writeConfigPatch,
   type ConfigPatch,
-} from "../engine/config";
+} from "@kody-ade/base/engine/config";
 import type { TickFile } from "../ticked/files";
 import type { TickWriteOptions } from "../ticked/files";
 import type {

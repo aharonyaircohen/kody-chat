@@ -11,7 +11,7 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import { INTERNAL_ISSUE_LABEL } from "./constants";
+import { INTERNAL_ISSUE_LABEL } from "@kody-ade/base/constants";
 
 const CONTROL_LABEL = "kody:control";
 export const CONTROL_TITLE = "Kody control";

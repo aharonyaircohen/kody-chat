@@ -9,7 +9,7 @@
  *   the provider, and confirm the matching key exists in the vault or env. We
  *   do NOT make a live model call (that would cost tokens on every poll).
  */
-import { PROVIDER_PRESETS, type ProviderPreset } from "../variables/models";
+import { PROVIDER_PRESETS, type ProviderPreset } from "@kody-ade/base/variables/models";
 import type { HealthSignal } from "./types";
 
 /**

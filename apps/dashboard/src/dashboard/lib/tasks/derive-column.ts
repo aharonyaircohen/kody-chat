@@ -16,14 +16,14 @@
  * tests/unit/derive-column.spec.ts for the regression case.
  */
 
-import type { KodyTaskState } from "../kody-state";
+import type { KodyTaskState } from "@kody-ade/base/kody-state";
 import type {
   ColumnId,
   GitHubIssue,
   GitHubPR,
   KodyPipelineStatus,
   WorkflowRun,
-} from "../types";
+} from "@kody-ade/base/types";
 
 export interface DeriveColumnInput {
   issue: GitHubIssue;

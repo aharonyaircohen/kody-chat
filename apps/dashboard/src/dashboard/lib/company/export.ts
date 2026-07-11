@@ -20,7 +20,7 @@ import {
   readCapabilityFolderFiles,
 } from "../capabilities";
 import { listManagedGoalFiles } from "../managed-goals-files";
-import { getEngineConfig } from "../engine/config";
+import { getEngineConfig } from "@kody-ade/base/engine/config";
 import {
   COMPANY_BUNDLE_VERSION,
   type CompanyBundle,

@@ -52,15 +52,15 @@ import {
   getRequestAuth,
   verifyActorLogin,
   type RequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import { buildKodyAuthHeaders } from "@kody-ade/base/auth-headers";
 import {
   createUserOctokit,
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import { getSecret } from "@dashboard/lib/vault/get-secret";
-import { resolveVaultGithubToken } from "@dashboard/lib/vault/bootstrap";
+import { getSecret } from "@kody-ade/base/vault/get-secret";
+import { resolveVaultGithubToken } from "@kody-ade/base/vault/bootstrap";
 import {
   resolveClientBrand,
   type ClientBrand,

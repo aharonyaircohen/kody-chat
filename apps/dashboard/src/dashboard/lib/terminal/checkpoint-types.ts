@@ -7,7 +7,7 @@
  * is hidden UI state for one terminal identity, not a user-managed snapshot.
  */
 
-import { slugifyTitle } from "../slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 
 export const TERMINAL_CHECKPOINT_OUTPUT_LIMIT = 16_000;
 export const TERMINAL_CHECKPOINT_LIMIT = 40;

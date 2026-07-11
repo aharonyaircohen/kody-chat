@@ -11,7 +11,7 @@ import type { Octokit } from "@octokit/rest";
 import { z } from "zod";
 
 import { logger } from "@kody-ade/base/logger";
-import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
+import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
 import {
   limitTerminalCheckpointOutput,
   TERMINAL_CHECKPOINT_LIMIT,

@@ -17,7 +17,7 @@ import {
   getGitHubPrUrl,
   parsePriorityLabel,
   PRIORITY_META,
-} from "../constants";
+} from "@kody-ade/base/constants";
 import { kodyApi } from "../api";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import {
@@ -37,7 +37,7 @@ import { KodyPhaseChip, KodyFlowChip } from "./KodyLabelChips";
 import { CIStatusBadge } from "./CIStatusBadge";
 import { UIVerifyBadge } from "./UIVerifyBadge";
 import { ConfirmDialog } from "./ConfirmDialog";
-import type { KodyTask, ColumnId } from "../types";
+import type { KodyTask, ColumnId } from "@kody-ade/base/types";
 import { Button } from "@kody-ade/base/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
 import {

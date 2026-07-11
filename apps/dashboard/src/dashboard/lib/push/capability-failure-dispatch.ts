@@ -29,8 +29,8 @@ import {
   createUserOctokit,
   fetchCompanyActivity,
 } from "../github-client";
-import { readOperators } from "../engine/config";
-import { resolveBackgroundToken } from "../auth/background-token";
+import { readOperators } from "@kody-ade/base/engine/config";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import { appendInboxFeed } from "../inbox/feed-server";
 import type { InboxFeedEntry } from "../inbox/feed";
 import type { CompanyActivityRecord } from "../activity/company";

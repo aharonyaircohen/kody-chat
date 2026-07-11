@@ -41,7 +41,7 @@ import {
   type ServerBrainPerfTier,
   type ProvisionServerBrainResult,
 } from "@dashboard/lib/infrastructure/server-brain";
-import type { EngineRuntimeModelConfig } from "@dashboard/lib/variables/models";
+import type { EngineRuntimeModelConfig } from "@kody-ade/base/variables/models";
 
 export interface ApplyBrainImageInput {
   owner: string;

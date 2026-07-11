@@ -12,13 +12,13 @@ import {
   getRequestAuth,
   getUserOctokit,
   requireKodyAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
-import { getEngineConfig } from "@dashboard/lib/engine/config";
+import { getEngineConfig } from "@kody-ade/base/engine/config";
 import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
 import {
   workflowRunRequest,

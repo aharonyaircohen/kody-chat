@@ -15,7 +15,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { getRequestAuth, requireKodyAuth } from "@dashboard/lib/auth";
+import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
 import { logger } from "@kody-ade/base/logger";
 import { sweepExpiredPreviews } from "@dashboard/lib/previews/sweep";
 

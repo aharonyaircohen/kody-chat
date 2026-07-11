@@ -16,9 +16,9 @@
 
 import type { Octokit } from "@octokit/rest";
 import { getOctokit, getOwner, getRepo } from "./github-client";
-import { readStateText, writeStateText } from "./state-repo";
+import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
 import type { Macro } from "./macros";
-import { slugifyTitle } from "./slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 
 export const MACROS_PATH = "macros.json";
 

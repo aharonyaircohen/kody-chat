@@ -26,7 +26,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@kody-ade/base/utils/ui";
-import type { KodyPhase, KodyFlow } from "../constants";
+import type { KodyPhase, KodyFlow } from "@kody-ade/base/constants";
 
 interface PhaseMeta {
   label: string;

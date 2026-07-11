@@ -15,16 +15,16 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { handleKodyApiError } from "@dashboard/lib/github-error-handler";
-import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 import {
   fetchWorkflowRuns,
   getOctokit,
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import { getEngineConfig } from "@dashboard/lib/engine/config";
-import { isVaultConfigured } from "@dashboard/lib/vault/crypto";
-import { getSecret } from "@dashboard/lib/vault/get-secret";
+import { getEngineConfig } from "@kody-ade/base/engine/config";
+import { isVaultConfigured } from "@kody-ade/base/vault/crypto";
+import { getSecret } from "@kody-ade/base/vault/get-secret";
 import { buildHealthReport } from "@dashboard/lib/health/report";
 import { keyNameForModelSpec } from "@dashboard/lib/health/model-health";
 import type { RunLite } from "@dashboard/lib/health/runs-health";

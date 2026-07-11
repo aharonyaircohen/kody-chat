@@ -13,7 +13,7 @@ import type {
   CmsViewFieldConfig,
 } from "@dashboard/lib/cms/types";
 import { normalizeCmsCollectionSlug } from "@dashboard/lib/cms/config";
-import type { StateRepoWriteFile } from "@dashboard/lib/state-repo";
+import type { StateRepoWriteFile } from "@kody-ade/base/state-repo";
 
 const SYSTEM_FIELDS = new Set(["_id", "__v", "createdAt", "updatedAt"]);
 const SENSITIVE_RE =

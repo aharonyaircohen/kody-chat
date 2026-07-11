@@ -21,7 +21,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getPublicBaseUrl } from "@dashboard/lib/auth/oauth-url";
+import { getPublicBaseUrl } from "@kody-ade/base/auth/oauth-url";
 import { ensureWebhook } from "@dashboard/lib/webhooks/register";
 import { logger } from "@kody-ade/base/logger";
 

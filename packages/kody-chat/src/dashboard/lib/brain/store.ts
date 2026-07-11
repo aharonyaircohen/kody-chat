@@ -22,7 +22,7 @@
 import "server-only";
 
 import { getOctokit, getOwner, getRepo } from "../github-client";
-import { deleteStateFile, readStateText, writeStateText } from "../state-repo";
+import { deleteStateFile, readStateText, writeStateText } from "@kody-ade/base/state-repo";
 
 /** TTL for brain app cache. Low-churn data — 5 min matches the prefs store. */
 const BRAIN_CACHE_TTL_MS = 5 * 60 * 1000;

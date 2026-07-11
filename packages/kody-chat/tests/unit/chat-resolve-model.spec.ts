@@ -2,10 +2,10 @@ import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { getRequestAuth, getUserOctokit } from "@dashboard/lib/auth";
-import { getEngineConfig } from "@dashboard/lib/engine/config";
-import { getSecret } from "@dashboard/lib/vault/get-secret";
-import { loadChatModels } from "@dashboard/lib/variables/load-chat-models";
+import { getRequestAuth, getUserOctokit } from "@kody-ade/base/auth";
+import { getEngineConfig } from "@kody-ade/base/engine/config";
+import { getSecret } from "@kody-ade/base/vault/get-secret";
+import { loadChatModels } from "@kody-ade/base/variables/load-chat-models";
 import { resolveChatModel } from "../../app/api/kody/chat/resolve-model";
 
 vi.mock("@ai-sdk/anthropic", () => ({
@@ -18,20 +18,20 @@ vi.mock("@ai-sdk/openai-compatible", () => ({
   ),
 }));
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   getRequestAuth: vi.fn(),
   getUserOctokit: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/engine/config", () => ({
+vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/vault/get-secret", () => ({
+vi.mock("@kody-ade/base/vault/get-secret", () => ({
   getSecret: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/variables/load-chat-models", () => ({
+vi.mock("@kody-ade/base/variables/load-chat-models", () => ({
   loadChatModels: vi.fn(),
 }));
 

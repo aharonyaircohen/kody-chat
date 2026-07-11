@@ -12,7 +12,7 @@ import type {
   CmsCollectionConfig,
   CmsFieldConfig,
 } from "@dashboard/lib/cms/types";
-import { readStateText } from "@dashboard/lib/state-repo";
+import { readStateText } from "@kody-ade/base/state-repo";
 
 import {
   cmsModelOptionsFromText,

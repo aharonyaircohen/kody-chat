@@ -30,7 +30,7 @@ import {
   useMemo,
 } from "react";
 import { usePathname } from "next/navigation";
-import { resolveActiveRepo } from "./active-repo";
+import { resolveActiveRepo } from "@kody-ade/base/active-repo";
 import { repoBasePath } from "./routes";
 import {
   DEFAULT_KODY_STORE_REF,

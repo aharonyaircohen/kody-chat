@@ -9,19 +9,19 @@
  *   main polling cheap.
  */
 import { NextRequest, NextResponse } from "next/server";
-import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 import {
   fetchIssues,
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import type { KodyTask } from "@dashboard/lib/types";
+import type { KodyTask } from "@kody-ade/base/types";
 import { GOAL_LABEL_PREFIX } from "@dashboard/lib/goals";
 import {
   parseKodyPhase,
   parseKodyFlow,
   TASK_ID_REGEX,
-} from "@dashboard/lib/constants";
+} from "@kody-ade/base/constants";
 
 function extractTaskId(title: string): string {
   const m = title.match(/^\[([^\]]+)\]/);

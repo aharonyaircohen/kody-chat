@@ -21,7 +21,7 @@ import { getClientSurfaceCatalog } from "../../../src/dashboard/lib/client-chat-
 import { resolveClientLanguageStrings } from "../../../src/dashboard/lib/client-language";
 import { type ClientBrandRepoContext } from "@dashboard/lib/client-brand-repo-cookie";
 import { mintClientSurfaceTicket } from "../../../src/dashboard/lib/chat/platform/surface-scope";
-import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import { auth, signOut } from "@dashboard/lib/client-auth/auth";
 import {
   brandAuthProviders,

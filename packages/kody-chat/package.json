@@ -30,7 +30,6 @@
     "./client-language": "./src/dashboard/lib/client-language.ts",
     "./languages": "./src/dashboard/lib/languages/index.ts",
     "./admin-pages": "./src/dashboard/lib/admin-pages.ts",
-    "./admin-pages-meta": "./src/dashboard/lib/admin-pages-meta.ts",
     "./routes/client-auth-start": "./app/api/client-auth/start/route.ts",
     "./routes/kody/languages": "./app/api/kody/languages/route.ts",
     "./routes/kody/languages-detail": "./app/api/kody/languages/[code]/route.ts"

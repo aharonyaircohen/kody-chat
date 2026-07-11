@@ -24,7 +24,7 @@ import {
   deleteStateFile,
   readStateText,
   writeStateText,
-} from "@dashboard/lib/state-repo";
+} from "@kody-ade/base/state-repo";
 import type { Lease, LockPort } from "../domain/lock-port";
 
 interface OctokitCtx {

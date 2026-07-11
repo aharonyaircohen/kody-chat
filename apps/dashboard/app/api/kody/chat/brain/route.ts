@@ -17,7 +17,7 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestAuth, requireKodyAuth } from "@dashboard/lib/auth";
+import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
 import { rejectSurfaceScopedRequest } from "@kody-ade/kody-chat/platform/surface-scope";
 import {
   streamBrainChat,

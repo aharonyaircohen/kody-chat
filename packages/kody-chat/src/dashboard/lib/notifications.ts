@@ -17,7 +17,7 @@
  *   wired) — out of scope for v1.
  */
 
-import { slugifyTitle } from "./slug";
+import { slugifyTitle } from "@kody-ade/base/slug";
 
 export const NOTIFICATIONS_MANIFEST_LABEL = "kody:notifications-manifest";
 export const MANIFEST_START = "<!-- kody-notifications-start -->";

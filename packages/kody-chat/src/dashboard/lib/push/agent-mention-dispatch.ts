@@ -23,7 +23,7 @@ import { listAgentFiles } from "../agent-files";
 import { dispatchAgentAsk, type WorkerAskReply } from "../control-issue";
 import { extractStaffMentions } from "../mentions/agent-mentions";
 import { buildSourceEvent } from "../notifications/source-event";
-import { resolveBackgroundToken } from "../auth/background-token";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import { logger } from "@kody-ade/base/logger";
 
 interface StaffDispatchEvent {

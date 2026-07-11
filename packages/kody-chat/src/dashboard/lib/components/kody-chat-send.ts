@@ -40,7 +40,7 @@ import {
   repoBrainScopeKey,
 } from "@dashboard/lib/brain/repo-scope";
 import { getStoredAuth } from "@dashboard/lib/api";
-import type { KodyTask } from "@dashboard/lib/types";
+import type { KodyTask } from "@kody-ade/base/types";
 import {
   authHeaders,
   stickyBrainChatId,

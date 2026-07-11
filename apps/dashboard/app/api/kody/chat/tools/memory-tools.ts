@@ -31,7 +31,7 @@ import {
   writeMemoryFile,
   type MemoryType,
 } from "@dashboard/lib/memory-files";
-import { resolveStateRepo, stateRepoPath } from "@dashboard/lib/state-repo";
+import { resolveStateRepo, stateRepoPath } from "@kody-ade/base/state-repo";
 import { dashboardMemoryUrl } from "@dashboard/lib/thread-link";
 
 interface Ctx {

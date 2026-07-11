@@ -27,7 +27,7 @@ import {
   getUserOctokit,
   getRequestAuth,
   verifyActorLogin,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import { isValidSlug, readResolvedAgentFile } from "@dashboard/lib/agent-files";
 import {
   findOrCreateControlIssue,

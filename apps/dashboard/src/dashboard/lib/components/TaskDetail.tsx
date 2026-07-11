@@ -12,14 +12,14 @@ import {
   HIDDEN_TASK_LABEL,
   getGitHubIssueUrl,
   getGitHubPrUrl,
-} from "../constants";
+} from "@kody-ade/base/constants";
 import type {
   KodyTask,
   GitHubComment,
   ColumnId,
   KodyPipelineStatus,
-} from "../types";
-import { ALL_STAGES } from "../constants";
+} from "@kody-ade/base/types";
+import { ALL_STAGES } from "@kody-ade/base/constants";
 import {
   calculatePipelineProgress,
   stageLabels,
@@ -82,7 +82,7 @@ import {
   History,
 } from "lucide-react";
 import { useAuth } from "../auth-context";
-import { repoScopedHref } from "../routes";
+import { repoScopedHref } from "@kody-ade/base/routes";
 
 /** Map a task-detail pathname to its active tab (URL is the source of truth). */
 function tabFromPath(path: string): "description" | "comments" | "runs" {

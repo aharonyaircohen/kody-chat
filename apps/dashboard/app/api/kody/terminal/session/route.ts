@@ -10,7 +10,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { requireKodyAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth } from "@kody-ade/base/auth";
 import { logger } from "@kody-ade/base/logger";
 import { resolveServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
 import {

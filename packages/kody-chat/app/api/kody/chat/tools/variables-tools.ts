@@ -14,7 +14,7 @@ import {
   readVariables,
   updateVariables,
   listVariables,
-} from "@dashboard/lib/variables/store";
+} from "@kody-ade/base/variables/store";
 
 interface Ctx {
   octokit: Octokit;

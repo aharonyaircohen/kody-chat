@@ -36,7 +36,7 @@ import {
   KODY_BUG_SEVERITIES,
   type KodyBugArea,
   type KodyBugSeverity,
-} from "../constants";
+} from "@kody-ade/base/constants";
 
 interface KodyBugReportDialogProps {
   open: boolean;

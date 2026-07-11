@@ -38,7 +38,7 @@ const mocks = vi.hoisted(() => ({
 vi.spyOn(console, "error").mockImplementation(() => {});
 vi.spyOn(console, "warn").mockImplementation(() => {});
 
-vi.mock("@dashboard/lib/auth", () => ({
+vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(async () => ({ ok: true })),
   verifyActorLogin: vi.fn(async () => ({ identity: { login: "tester" } })),
   getUserOctokit: vi.fn(async () => null),

@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { pollInstruction } from "@dashboard/lib/kody-store/action-state";
-import { getRequestAuth } from "@dashboard/lib/auth";
+import { getRequestAuth } from "@kody-ade/base/auth";
 
 export const runtime = "nodejs";
 

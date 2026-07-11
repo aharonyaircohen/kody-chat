@@ -29,10 +29,10 @@
 
 import { Octokit } from "@octokit/rest";
 
-import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import { readDashboardConfig } from "@dashboard/lib/dashboard-config/store";
 import { logger } from "@kody-ade/base/logger";
-import { resolveVaultGithubToken } from "@dashboard/lib/vault/bootstrap";
+import { resolveVaultGithubToken } from "@kody-ade/base/vault/bootstrap";
 import { rebuildBaseImage } from "./base-rebuild";
 import { resolvePreviewConfigForRepo } from "./config";
 import { createPreview, destroyPreview } from "./preview-lifecycle";

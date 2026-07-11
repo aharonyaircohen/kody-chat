@@ -23,8 +23,8 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { GITHUB_OWNER, GITHUB_REPO } from "@dashboard/lib/constants";
-import { getPublicBaseUrl } from "@dashboard/lib/auth/oauth-url";
+import { GITHUB_OWNER, GITHUB_REPO } from "@kody-ade/base/constants";
+import { getPublicBaseUrl } from "@kody-ade/base/auth/oauth-url";
 import { ensureWebhook } from "@dashboard/lib/webhooks/register";
 import { logger } from "@kody-ade/base/logger";
 

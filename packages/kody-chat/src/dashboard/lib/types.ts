@@ -263,9 +263,9 @@ export interface KodyTask {
   labels: string[];
   column: ColumnId;
   /** Active kody:* lifecycle phase, derived from labels. Mutex. */
-  kodyPhase: import("./constants").KodyPhase | null;
+  kodyPhase: import("@kody-ade/base/constants").KodyPhase | null;
   /** Flow type from kody-flow:*, derived from labels. Persistent. */
-  kodyFlow: import("./constants").KodyFlow | null;
+  kodyFlow: import("@kody-ade/base/constants").KodyFlow | null;
   createdAt: string;
   updatedAt: string;
   pipeline?: KodyPipelineStatus;
@@ -280,7 +280,7 @@ export interface KodyTask {
    *
    * Schema mirrors kody-engine's TaskState (see src/dashboard/lib/kody-state.ts).
    */
-  kodyState?: import("./kody-state").KodyTaskState;
+  kodyState?: import("@kody-ade/base/kody-state").KodyTaskState;
   /**
    * One-line failure reason extracted from kodyState.core.lastOutcome.payload.reason
    * when the task is in column='failed'. Surfaced inline on the task card so the

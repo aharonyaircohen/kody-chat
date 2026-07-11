@@ -7,7 +7,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { KodyTask } from "../types";
+import type { KodyTask } from "@kody-ade/base/types";
 import { mapTaskCacheData, type TaskCacheData } from "../tasks/cache";
 import { Button } from "@kody-ade/base/ui/button";
 import { FixRequestDialog } from "./FixRequestDialog";

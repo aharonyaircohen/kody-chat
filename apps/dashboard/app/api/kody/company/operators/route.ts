@@ -16,8 +16,8 @@ import {
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
-import { readOperators, writeOperators } from "@dashboard/lib/engine/config";
+} from "@kody-ade/base/auth";
+import { readOperators, writeOperators } from "@kody-ade/base/engine/config";
 import { logger } from "@kody-ade/base/logger";
 
 export async function GET(req: NextRequest) {

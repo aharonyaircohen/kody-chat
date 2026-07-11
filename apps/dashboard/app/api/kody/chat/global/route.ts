@@ -35,7 +35,7 @@ import {
   requireKodyAuth,
   getRequestAuth,
   getUserOctokit,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   getOctokit,
   setGitHubContext,
@@ -44,7 +44,7 @@ import {
   getRepo,
 } from "@dashboard/lib/github-client";
 import { logger } from "@kody-ade/base/logger";
-import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
+import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

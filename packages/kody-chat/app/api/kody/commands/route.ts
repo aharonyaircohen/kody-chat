@@ -14,7 +14,7 @@ import {
   verifyActorLogin,
   getUserOctokit,
   getRequestAuth,
-} from "@dashboard/lib/auth";
+} from "@kody-ade/base/auth";
 import {
   setGitHubContext,
   clearGitHubContext,
@@ -26,7 +26,7 @@ import {
   isValidSlug,
 } from "@dashboard/lib/commands";
 import { recordAudit } from "@dashboard/lib/activity/audit";
-import { getEngineConfig } from "@dashboard/lib/engine/config";
+import { getEngineConfig } from "@kody-ade/base/engine/config";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

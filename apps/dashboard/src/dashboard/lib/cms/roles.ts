@@ -3,7 +3,7 @@ import "server-only";
 import type { NextRequest } from "next/server";
 import type { Octokit } from "@octokit/rest";
 
-import { getRequestAuth, resolveActorFromToken } from "@dashboard/lib/auth";
+import { getRequestAuth, resolveActorFromToken } from "@kody-ade/base/auth";
 import type { CmsRole } from "./types";
 
 export async function getCmsActorRole(

@@ -6,7 +6,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 import {
   findTaskBranch,
   findBranchByIssueNumber,
@@ -15,7 +15,7 @@ import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import { TASK_ID_REGEX } from "@dashboard/lib/constants";
+import { TASK_ID_REGEX } from "@kody-ade/base/constants";
 
 export async function GET(
   req: NextRequest,

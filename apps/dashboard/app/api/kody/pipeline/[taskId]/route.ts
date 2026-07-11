@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { handleKodyApiError } from "@dashboard/lib/github-error-handler";
 import { pipelineParamsSchema } from "@dashboard/lib/schemas";
 import { apiValidationError } from "@dashboard/lib/api-responses";
-import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 import {
   findTaskBranch,
   findBranchByIssueNumber,

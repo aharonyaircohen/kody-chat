@@ -13,7 +13,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireKodyAuth } from "@dashboard/lib/auth";
+import { requireKodyAuth } from "@kody-ade/base/auth";
 import { manageBrainServer } from "@dashboard/lib/brain/server-commands";
 import {
   clearGitHubContext,

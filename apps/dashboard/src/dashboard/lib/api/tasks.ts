@@ -3,7 +3,7 @@ import type {
   TaskDocument,
   TasksResponse,
   ActionResponse,
-} from "../types";
+} from "@kody-ade/base/types";
 import { API_BASE, buildHeaders, handleResponse } from "./client";
 
 // ============ Tasks API ============

@@ -102,7 +102,7 @@ const service = vi.hoisted(() => ({
   },
 }));
 
-vi.mock("@dashboard/lib/auth", () => auth);
+vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@dashboard/lib/github-client", () => github);
 vi.mock("@dashboard/lib/cms/service", () => service);
 

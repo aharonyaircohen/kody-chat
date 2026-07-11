@@ -8,8 +8,8 @@
 
 import { useState, useEffect } from "react";
 import { cn } from "../../utils";
-import type { KodyTask, ColumnId } from "../../types";
-import { ALL_STAGES } from "../../constants";
+import type { KodyTask, ColumnId } from "@kody-ade/base/types";
+import { ALL_STAGES } from "@kody-ade/base/constants";
 import {
   derivePipelineDisplayState,
   formatElapsed,

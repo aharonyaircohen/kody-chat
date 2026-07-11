@@ -3,9 +3,9 @@ import "server-only";
 import type { NextRequest } from "next/server";
 import type { Octokit } from "@octokit/rest";
 
-import { getRequestAuth } from "@dashboard/lib/auth";
-import { getSecret } from "@dashboard/lib/vault/get-secret";
-import { resolveStateRepo } from "@dashboard/lib/state-repo";
+import { getRequestAuth } from "@kody-ade/base/auth";
+import { getSecret } from "@kody-ade/base/vault/get-secret";
+import { resolveStateRepo } from "@kody-ade/base/state-repo";
 import {
   assertReadOperationAllowed,
   assertWriteOperationAllowed,

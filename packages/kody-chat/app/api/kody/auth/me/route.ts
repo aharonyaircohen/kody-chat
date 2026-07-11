@@ -8,7 +8,7 @@
  * Returns the current GitHub identity from request headers (localStorage auth).
  */
 import { NextRequest, NextResponse } from "next/server";
-import { getRequestAuth } from "@dashboard/lib/auth";
+import { getRequestAuth } from "@kody-ade/base/auth";
 import { createUserOctokit } from "@dashboard/lib/github-client";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {

@@ -10,7 +10,7 @@
  * same DOM out. The host decides which scope branch applies by passing
  * the mode flags + scope objects it already derives.
  */
-import type { KodyTask } from "@dashboard/lib/types";
+import type { KodyTask } from "@kody-ade/base/types";
 import { VIBE_TASK_EMPTY_STATE_HINT } from "../plugins/vibe";
 
 interface EmptyStateProps {

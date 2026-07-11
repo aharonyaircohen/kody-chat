@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { cn, formatRelativeTime } from "../utils";
 import { useWorkflowRuns } from "../hooks";
-import type { WorkflowRun } from "../types";
+import type { WorkflowRun } from "@kody-ade/base/types";
 
 // ── Status icon helpers ──────────────────────────────────────────────────────
 

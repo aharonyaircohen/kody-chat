@@ -91,7 +91,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
   getRepo: h.getRepo,
   getOctokit: h.getOctokit,
 }));
-vi.mock("@dashboard/lib/engine/config", () => ({
+vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: h.getEngineConfig,
   writeConfigPatch: h.writeConfigPatch,
 }));
