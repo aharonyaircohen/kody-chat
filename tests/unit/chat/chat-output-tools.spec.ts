@@ -33,7 +33,9 @@ describe("chat output tools", () => {
     ).toEqual([FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL, "fetch_url", "list_reports"]);
   });
 
-  it("allows renderer output after an interactive final answer is rejected", () => {
+  it("keeps final_answer callable after an interactive final answer is rejected", () => {
+    // The show_view nudge is one-shot: the model may retry final_answer
+    // instead of being forced to fabricate a placeholder view.
     expect(
       selectChatOutputActiveTools({
         toolNames: [FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL, "list_reports"],
@@ -41,7 +43,7 @@ describe("chat output tools", () => {
         allowPreRenderTools: false,
         finalAnswerNeedsView: true,
       }),
-    ).toEqual([SHOW_VIEW_TOOL]);
+    ).toEqual([FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL]);
   });
 
   it("allows read tools before renderer output for explicit selection turns", () => {

@@ -244,7 +244,11 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
           .describe("The final user-visible answer."),
       }),
       execute: async ({ content }) => {
+        // Nudge toward show_view at most once per turn: if the model
+        // insists on plain text after the first rejection, accept it —
+        // a wrongly-forced card (e.g. on a greeting) is worse than prose.
         if (
+          interactiveFinalAnswerText === null &&
           shouldRequireViewOutputForAssistantText({
             assistantText: content,
             definitions: ctx.viewRendererDefinitions ?? [],
