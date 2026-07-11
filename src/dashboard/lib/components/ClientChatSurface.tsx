@@ -146,7 +146,11 @@ export function ClientChatSurface({
         className="flex min-h-0 w-full flex-1 flex-col"
       >
         <KodyChat
-          emptyStateWelcome={welcomeText || undefined}
+          emptyStateWelcome={
+            // No pack string and no brand welcomeText -> plain assistant
+            // greeting (never the dashboard's coding welcome).
+            welcomeText || <p className="font-medium">Hi! How can I help?</p>
+          }
           presentation="standalone"
           hideTerminalMode
           hideAgentPicker
