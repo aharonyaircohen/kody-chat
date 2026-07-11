@@ -39,6 +39,7 @@ import {
   DialogTitle,
 } from "@dashboard/ui/dialog";
 import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
+import { VercelBypassCard } from "./VercelBypassCard";
 import { AuthGuard } from "../auth-guard";
 import { useAuth, buildAuthHeaders } from "@dashboard/lib/auth-context";
 
@@ -491,6 +492,8 @@ function SecretsManagerInner() {
           before rotating.
         </p>
       </div>
+
+      <VercelBypassCard />
 
       {editing && (
         <SecretEditor

@@ -12,27 +12,16 @@
  */
 "use client";
 
-import { RepoScopedLink } from "@dashboard/lib/components/RepoScopedLink";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
   AlertTriangle,
-  Bot,
-  Columns2,
-  Cpu,
   KeyRound,
-  Link2,
   LogOut,
   MessageSquare,
-  Rocket,
-  ShieldCheck,
   Store,
   type LucideIcon,
 } from "lucide-react";
-import {
-  setChatFirstLayout,
-  useChatFirstLayout,
-} from "@dashboard/lib/hooks/use-chat-first-layout";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
 import { Input } from "@dashboard/ui/input";
@@ -64,67 +53,21 @@ function SectionHeader({
   );
 }
 
-/**
- * Per-user "chat-first layout" toggle (phase 2 step 2). Desktop-only flip:
- * chat becomes the main column and the routed page renders in a side
- * panel. Default OFF — the classic rail layout stays until parity.
- */
-function ChatFirstLayoutCard() {
-  const enabled = useChatFirstLayout();
-  return (
-    <Card className="border-white/[0.08] bg-white/[0.03]">
-      <CardContent className="p-4 flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <Columns2 className="w-4 h-4 text-violet-400" />
-            <h2 className="text-sm font-semibold">Chat-first layout (beta)</h2>
-          </div>
-          <p className="text-xs text-white/50 mt-1">
-            Chat becomes the main column; pages open in a collapsible side
-            panel. Desktop only — mobile keeps the current layout.
-          </p>
-        </div>
-        <Button
-          size="sm"
-          variant={enabled ? "default" : "outline"}
-          role="switch"
-          aria-checked={enabled}
-          aria-label="Chat-first layout (beta)"
-          onClick={() => {
-            setChatFirstLayout(!enabled);
-            toast.success(
-              !enabled ? "Chat-first layout enabled" : "Chat-first layout off",
-            );
-          }}
-        >
-          {enabled ? "On" : "Off"}
-        </Button>
-      </CardContent>
-    </Card>
-  );
-}
-
 export function SettingsManager() {
   const { auth, logout, updateIntegrations } = useAuth();
 
-  // ─── Vercel bypass secret ───────────────────────────────────────────────
-  const [vercelSecret, setVercelSecret] = useState("");
   const [storeRepoUrl, setStoreRepo] = useState(DEFAULT_KODY_STORE_REPO_URL);
   const [storeRef, setStoreRef] = useState(DEFAULT_KODY_STORE_REF);
 
   const [confirmLogout, setConfirmLogout] = useState(false);
-  const [confirmClearVercel, setConfirmClearVercel] = useState(false);
   const [confirmStoreRef, setConfirmStoreRef] = useState(false);
 
   // Seed form state once auth loads (or repo switches).
   useEffect(() => {
-    setVercelSecret(auth?.vercelBypassSecret ?? "");
     setStoreRepo(auth?.storeRepoUrl ?? DEFAULT_KODY_STORE_REPO_URL);
     setStoreRef(auth?.storeRef ?? DEFAULT_KODY_STORE_REF);
-  }, [auth?.vercelBypassSecret, auth?.storeRepoUrl, auth?.storeRef]);
+  }, [auth?.storeRepoUrl, auth?.storeRef]);
 
-  const vercelHasChanges =
-    vercelSecret.trim() !== (auth?.vercelBypassSecret ?? "");
   const currentStoreRepoUrl = auth?.storeRepoUrl ?? DEFAULT_KODY_STORE_REPO_URL;
   const currentStoreRef = auth?.storeRef ?? DEFAULT_KODY_STORE_REF;
   const normalizedStoreRepoUrl =
@@ -140,23 +83,6 @@ export function SettingsManager() {
   const storeTargetIsDefault =
     normalizedStoreRepoUrl === DEFAULT_KODY_STORE_REPO_URL &&
     normalizedStoreRef === DEFAULT_KODY_STORE_REF;
-
-  function saveVercel() {
-    const secret = vercelSecret.trim();
-    if (!secret) {
-      toast.error("Bypass secret cannot be empty — use Clear to remove it");
-      return;
-    }
-    updateIntegrations({ vercelBypassSecret: secret });
-    toast.success("Vercel bypass secret saved");
-  }
-
-  function clearVercel() {
-    updateIntegrations({ vercelBypassSecret: null });
-    setVercelSecret("");
-    setConfirmClearVercel(false);
-    toast.success("Vercel bypass secret cleared");
-  }
 
   function saveStoreTarget() {
     if (!storeRepoUrlIsValid) {
@@ -185,8 +111,8 @@ export function SettingsManager() {
       subtitle={auth?.user?.login ? `@${auth.user.login}` : undefined}
     >
       <div className="space-y-6">
-        {/* ═══ Company store ═════════════════════════════════════════════ */}
-        <section className="space-y-3">
+        {/* ═══ Company store (hidden) ════════════════════════════════════ */}
+        <section className="space-y-3 hidden">
           <SectionHeader icon={Store} label="Company store" />
           <Card className="border-white/[0.08] bg-white/[0.03]">
             <CardContent className="p-4 space-y-4">
@@ -279,100 +205,6 @@ export function SettingsManager() {
 
           {/* Default chat (which assistant loads on open) */}
           <DefaultChatCard />
-
-          {/* Chat-first layout flip (per-user, desktop-only, default off) */}
-          <ChatFirstLayoutCard />
-
-          {/* Vercel preview bypass */}
-          <Card className="border-white/[0.08] bg-white/[0.03]">
-            <CardContent className="p-4 space-y-4">
-              <div className="flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <h2 className="text-sm font-semibold">Vercel preview bypass</h2>
-              </div>
-              <p className="text-xs text-white/50 -mt-2">
-                Vercel &quot;Protection Bypass for Automation&quot; secret. Lets
-                the dashboard embed protected preview deployments in the iframe.
-              </p>
-              <div className="space-y-2">
-                <Label
-                  htmlFor="vercel-secret"
-                  className="text-xs text-white/70"
-                >
-                  Secret
-                </Label>
-                <Input
-                  id="vercel-secret"
-                  type="password"
-                  placeholder="••••••••"
-                  value={vercelSecret}
-                  onChange={(e) => setVercelSecret(e.target.value)}
-                  className="bg-black/30 border-white/10 font-mono"
-                />
-              </div>
-              <div className="flex items-center gap-2 pt-1">
-                <Button
-                  size="sm"
-                  onClick={saveVercel}
-                  disabled={!vercelHasChanges}
-                >
-                  Save
-                </Button>
-                {auth?.vercelBypassSecret && (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setConfirmClearVercel(true)}
-                    className="text-rose-300 hover:text-rose-200"
-                  >
-                    Clear
-                  </Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* ═══ Quick links ══════════════════════════════════════════════ */}
-        <section className="space-y-3">
-          <SectionHeader icon={Link2} label="Quick links" />
-          <Card className="border-white/[0.08] bg-white/[0.02]">
-            <CardContent className="p-4">
-              <div className="grid grid-cols-2 gap-2">
-                {/* Fly Runner is a dashboard-host page — no /runner here. */}
-                <Button
-                  asChild
-                  variant="outline"
-                  className="justify-start gap-2 bg-white/[0.02] border-white/10 hover:bg-white/[0.06]"
-                >
-                  <RepoScopedLink href="/models">
-                    <Cpu className="w-4 h-4" />
-                    Chat models
-                  </RepoScopedLink>
-                </Button>
-                <Button
-                  asChild
-                  variant="outline"
-                  className="justify-start gap-2 bg-white/[0.02] border-white/10 hover:bg-white/[0.06]"
-                >
-                  <RepoScopedLink href="/commands">
-                    <Bot className="w-4 h-4" />
-                    Slash commands
-                  </RepoScopedLink>
-                </Button>
-                <Button
-                  asChild
-                  variant="outline"
-                  className="justify-start gap-2 bg-white/[0.02] border-white/10 hover:bg-white/[0.06]"
-                >
-                  <RepoScopedLink href="/secrets">
-                    <KeyRound className="w-4 h-4" />
-                    Secrets vault
-                  </RepoScopedLink>
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
         </section>
 
         {/* ═══ Account ══════════════════════════════════════════════════ */}
@@ -408,15 +240,6 @@ export function SettingsManager() {
         confirmLabel="Sign out"
         variant="destructive"
         onConfirm={() => logout()}
-      />
-      <ConfirmDialog
-        open={confirmClearVercel}
-        onClose={() => setConfirmClearVercel(false)}
-        title="Clear Vercel bypass?"
-        description="Removes the saved Vercel preview bypass secret from this browser."
-        confirmLabel="Clear"
-        variant="destructive"
-        onConfirm={clearVercel}
       />
       <ConfirmDialog
         open={confirmStoreRef}

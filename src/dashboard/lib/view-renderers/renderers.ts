@@ -22,6 +22,10 @@ import {
 } from "@dashboard/lib/state-repo";
 import { slugifyTitle } from "@dashboard/lib/slug";
 import {
+  BUILTIN_VIEW_RENDERER_DEFINITIONS,
+  getBuiltinViewRendererDefinition,
+} from "./builtin";
+import {
   RendererActionDefaultSchema,
   VIEW_RENDERER_SLUG_RE,
   parseViewRendererDefinition,
@@ -43,9 +47,15 @@ export {
 
 export interface ViewRendererDefinitionFile {
   definition: ViewRendererDefinition;
-  source: "repo";
+  source: "repo" | "builtin";
   sha: string;
   htmlUrl: string;
+}
+
+function builtinDefinitionFile(
+  definition: ViewRendererDefinition,
+): ViewRendererDefinitionFile {
+  return { definition, source: "builtin", sha: "", htmlUrl: "" };
 }
 
 export interface ViewRendererPromptContext {
@@ -809,7 +819,11 @@ export async function readViewRendererDefinitionFile({
 }): Promise<ViewRendererDefinitionFile | null> {
   if (!isValidViewRendererSlug(slug)) return null;
   const file = await readStateText(octokit, owner, repo, filePathForSlug(slug));
-  if (!file) return null;
+  if (!file) {
+    // No repo override — fall back to the packaged built-in, if any.
+    const builtin = getBuiltinViewRendererDefinition(slug);
+    return builtin ? builtinDefinitionFile(builtin) : null;
+  }
   return {
     definition: parseViewRendererDefinition(file.content),
     source: "repo",
@@ -857,7 +871,7 @@ export async function resolveBestViewRendererDefinition({
   const files =
     octokit && owner && repo
       ? await listViewRendererDefinitionFiles({ octokit, owner, repo })
-      : [];
+      : BUILTIN_VIEW_RENDERER_DEFINITIONS.map(builtinDefinitionFile);
   const definitions = files.map((file) => file.definition);
   const matched = matchViewRendererDefinition(
     definitions,
@@ -934,9 +948,17 @@ export async function listViewRendererDefinitionFiles({
         }).catch(() => null),
       ),
   );
-  return files.filter((file): file is ViewRendererDefinitionFile =>
-    Boolean(file),
+  const repoFiles = files.filter(
+    (file): file is ViewRendererDefinitionFile =>
+      Boolean(file) && file?.source === "repo",
   );
+  // Built-ins fill the gaps; a repo file with the same slug overrides its
+  // built-in.
+  const repoSlugs = new Set(repoFiles.map((file) => file.definition.slug));
+  const builtins = BUILTIN_VIEW_RENDERER_DEFINITIONS.filter(
+    (definition) => !repoSlugs.has(definition.slug),
+  ).map(builtinDefinitionFile);
+  return [...repoFiles, ...builtins];
 }
 
 export async function writeViewRendererDefinitionFile({

@@ -22,6 +22,8 @@ const ROUTE_FOR: Record<string, string> = {
   memory: "app/(shell)/memory/page.tsx",
   "memory-detail": "app/(shell)/memory/[id]/page.tsx",
   instructions: "app/(shell)/instructions/page.tsx",
+  "view-renderers": "app/(shell)/views/renderers/page.tsx",
+  "view-renderer-detail": "app/(shell)/views/renderers/[slug]/page.tsx",
 };
 
 const PAGES_DIR = join(process.cwd(), "src/dashboard/lib/pages");
