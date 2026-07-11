@@ -3,9 +3,9 @@
  * @domain instructions
  * @pattern instructions-manager
  * @ai-summary Editor for state repo `instructions.md` — the per-repo user
- *   instructions appended to every kody-direct chat turn. Single
- *   textarea + a "View base prompt" button that opens a read-only
- *   dialog showing the base agent prompt the overlay sits on top of.
+ *   instructions appended to every kody-direct chat turn — plus the base
+ *   system prompt override card (state repo `system-prompt.md`) rendered
+ *   below it.
  */
 "use client";
 
@@ -13,7 +13,6 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
-  Eye,
   ExternalLink,
   Loader2,
   RotateCcw,
@@ -25,15 +24,7 @@ import Link from "next/link";
 import { PageShell } from "@dashboard/lib/components/PageShell";
 import { Button } from "@dashboard/ui/button";
 import { Card, CardContent } from "@dashboard/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@dashboard/ui/dialog";
 import { Label } from "@dashboard/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@dashboard/ui/tabs";
 import { Textarea } from "@dashboard/ui/textarea";
 import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
 import { SystemPromptOverrideCard } from "./SystemPromptOverrideCard";
@@ -79,8 +70,6 @@ export const instructionsQueryKeys = {
     ] as const,
 };
 
-type PromptView = "base" | "full";
-
 async function fetchInstructions(
   headers: Record<string, string>,
 ): Promise<InstructionsResource | null> {
@@ -97,25 +86,6 @@ async function fetchInstructions(
     throw new Error(json.message || json.error || `HTTP ${res.status}`);
   }
   return json.instructions ?? null;
-}
-
-async function fetchPrompt(
-  headers: Record<string, string>,
-  variant: PromptView,
-): Promise<string> {
-  const res = await fetch(`/api/kody/instructions/${variant}`, {
-    headers,
-    cache: "no-store",
-  });
-  const json = (await res.json().catch(() => ({}))) as {
-    prompt?: string;
-    error?: string;
-    message?: string;
-  };
-  if (!res.ok) {
-    throw new Error(json.message || json.error || `HTTP ${res.status}`);
-  }
-  return json.prompt ?? "";
 }
 
 async function saveInstructions(
@@ -213,22 +183,6 @@ function InstructionsManagerInner({ footerSlot }: InstructionsManagerProps) {
 
   const [draft, setDraft] = useState<string>("");
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [promptDialog, setPromptDialog] = useState<PromptView | null>(null);
-  const dialogOpen = promptDialog !== null;
-
-  const basePromptQuery = useQuery<string>({
-    queryKey: instructionsQueryKeys.basePrompt(queryScope),
-    queryFn: () => fetchPrompt(headers, "base"),
-    enabled: dialogOpen && !!auth,
-    staleTime: 5 * 60_000,
-  });
-
-  const fullPromptQuery = useQuery<string>({
-    queryKey: instructionsQueryKeys.fullPrompt(queryScope),
-    queryFn: () => fetchPrompt(headers, "full"),
-    enabled: dialogOpen && !!auth,
-    staleTime: 60_000,
-  });
 
   useEffect(() => {
     if (data) setDraft(data.body);
@@ -347,24 +301,6 @@ function InstructionsManagerInner({ footerSlot }: InstructionsManagerProps) {
 
         {!isLoading && !error && (
           <div className="space-y-3">
-            <div className="rounded-md border border-white/[0.08] bg-white/[0.03] p-3">
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs font-medium text-white/70">Active file</p>
-                <code className="font-mono text-[11px] text-cyan-200">
-                  instructions.md
-                </code>
-              </div>
-              <div className="mt-3 space-y-1.5">
-                <p className="text-xs font-medium text-white/70">
-                  Current saved content
-                </p>
-                <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded border border-white/[0.06] bg-black/30 p-3 font-mono text-xs leading-relaxed text-white/65">
-                  {data?.body?.trim()
-                    ? data.body
-                    : "No instructions file exists yet."}
-                </pre>
-              </div>
-            </div>
             <Label
               htmlFor="instructions-body"
               className="text-sm text-white/70"
@@ -378,24 +314,13 @@ function InstructionsManagerInner({ footerSlot }: InstructionsManagerProps) {
               placeholder="e.g. Default to one-sentence answers. Always cite file paths when referencing code. Prefer Tailwind over inline styles."
               className="min-h-[320px] font-mono text-sm"
             />
-            <div className="flex items-center justify-between gap-3 pt-1">
-              <p className="text-[11px] text-white/30">
-                {data?.updatedAt
-                  ? `Last saved ${formatRelative(data.updatedAt)}.`
-                  : "Not saved yet."}{" "}
-                Hard rules in the base agent prompt (never fake tool calls,
-                research before evaluating) still win over your instructions.
-              </p>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="gap-1 shrink-0 text-white/60 hover:text-white/90"
-                onClick={() => setPromptDialog("base")}
-              >
-                <Eye className="w-3.5 h-3.5" />
-                View system prompt
-              </Button>
-            </div>
+            <p className="pt-1 text-[11px] text-white/30">
+              {data?.updatedAt
+                ? `Last saved ${formatRelative(data.updatedAt)}.`
+                : "Not saved yet."}{" "}
+              Hard rules in the base agent prompt (never fake tool calls,
+              research before evaluating) still win over your instructions.
+            </p>
           </div>
         )}
 
@@ -416,89 +341,7 @@ function InstructionsManagerInner({ footerSlot }: InstructionsManagerProps) {
         onClose={() => setConfirmDelete(false)}
       />
 
-      <Dialog
-        open={dialogOpen}
-        onOpenChange={(open) =>
-          setPromptDialog(open ? (promptDialog ?? "base") : null)
-        }
-      >
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Eye className="w-4 h-4" />
-              System prompt
-            </DialogTitle>
-            <DialogDescription>
-              Read-only. <strong>Base</strong> is the static agent prompt your
-              instructions are layered on top of. <strong>Full</strong> is what
-              actually gets sent to the model on a neutral turn — base + repo
-              block + memory index + your instructions (no task / capability /
-              vibe / voice overlay; those only exist mid-chat).
-            </DialogDescription>
-          </DialogHeader>
-          <Tabs
-            value={promptDialog ?? "base"}
-            onValueChange={(v) => setPromptDialog(v as PromptView)}
-            className="mt-2"
-          >
-            <TabsList>
-              <TabsTrigger value="base">Base</TabsTrigger>
-              <TabsTrigger value="full">Full assembled</TabsTrigger>
-            </TabsList>
-            <TabsContent value="base" className="mt-3">
-              <PromptPane
-                isLoading={basePromptQuery.isLoading}
-                error={basePromptQuery.error}
-                data={basePromptQuery.data}
-                fallbackError="Failed to load base prompt"
-              />
-            </TabsContent>
-            <TabsContent value="full" className="mt-3">
-              <PromptPane
-                isLoading={fullPromptQuery.isLoading}
-                error={fullPromptQuery.error}
-                data={fullPromptQuery.data}
-                fallbackError="Failed to load full prompt"
-              />
-            </TabsContent>
-          </Tabs>
-        </DialogContent>
-      </Dialog>
     </PageShell>
   );
 }
 
-interface PromptPaneProps {
-  isLoading: boolean;
-  error: unknown;
-  data: string | undefined;
-  fallbackError: string;
-}
-
-function PromptPane({
-  isLoading,
-  error,
-  data,
-  fallbackError,
-}: PromptPaneProps) {
-  if (isLoading) {
-    return (
-      <p className="text-sm text-white/50 flex items-center gap-2">
-        <Loader2 className="w-4 h-4 animate-spin" /> Loading…
-      </p>
-    );
-  }
-  if (error) {
-    return (
-      <p className="text-sm text-rose-300">
-        {error instanceof Error ? error.message : fallbackError}
-      </p>
-    );
-  }
-  if (!data) return null;
-  return (
-    <pre className="text-xs text-white/80 bg-black/30 border border-white/10 rounded p-3 max-h-[60vh] overflow-auto whitespace-pre-wrap font-mono">
-      {data}
-    </pre>
-  );
-}

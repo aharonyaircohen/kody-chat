@@ -20,6 +20,7 @@ import { Label } from "@dashboard/ui/label";
 import { Textarea } from "@dashboard/ui/textarea";
 import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
 import { useAuth, buildAuthHeaders } from "@dashboard/lib/auth-context";
+import { ENGINE_DEFAULT_SYSTEM_PROMPT } from "../system-prompt/engine-default";
 
 interface SystemPromptResource {
   body: string;
@@ -84,11 +85,15 @@ export function SystemPromptOverrideCard() {
 
   const [draft, setDraft] = useState("");
   const [confirmClear, setConfirmClear] = useState(false);
+  // No saved override → start from the engine's real default prompt so the
+  // user edits the actual text instead of a blank box.
+  const baseline = file?.body ?? ENGINE_DEFAULT_SYSTEM_PROMPT;
   useEffect(() => {
-    setDraft(file?.body ?? "");
-  }, [file?.sha, file?.body]);
+    setDraft(baseline);
+     
+  }, [file?.sha, baseline]);
 
-  const dirty = draft !== (file?.body ?? "");
+  const dirty = draft !== baseline;
 
   const mutation = useMutation({
     mutationFn: (body: string) => saveSystemPrompt(headers, body, file?.sha),
@@ -113,11 +118,12 @@ export function SystemPromptOverrideCard() {
             Base system prompt override (engine chat)
           </Label>
           <p className="text-sm text-muted-foreground">
-            When this is non-empty, the engine chat (kody-live) uses it{" "}
-            <strong>instead of</strong> its built-in base prompt — including
-            the built-in tool-usage and grounding rules, so replace those too
-            or the agent may misbehave. Leave empty to use the built-in
-            prompt. Instructions above are still layered on top either way.
+            The base prompt engine chat (kody-live) runs with. Shown below is{" "}
+            {file
+              ? "your saved override — the engine uses it instead of its built-in prompt."
+              : "the engine's built-in default — edit and save to override it."}{" "}
+            &quot;Remove override&quot; returns to the built-in. Instructions above are
+            layered on top either way.
           </p>
         </div>
         {isLoading ? (
@@ -150,7 +156,7 @@ export function SystemPromptOverrideCard() {
             size="sm"
             variant="ghost"
             disabled={!dirty || mutation.isPending}
-            onClick={() => setDraft(file?.body ?? "")}
+            onClick={() => setDraft(baseline)}
           >
             <RotateCcw className="mr-1 h-4 w-4" /> Revert
           </Button>
