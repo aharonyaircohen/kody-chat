@@ -23,7 +23,7 @@ const TASK_DETAIL_PATH = resolve(
 );
 const GITHUB_CLIENT_PATH = resolve(
   __dirname,
-  "../../src/dashboard/lib/github-client.ts",
+  "../../src/dashboard/lib/github/issues.ts",
 );
 
 const readSource = (path: string) =>
