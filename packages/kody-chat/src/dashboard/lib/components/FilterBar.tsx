@@ -15,7 +15,7 @@ import {
 } from "react";
 import { cn } from "../utils";
 import { Search, X } from "lucide-react";
-import type { SortField, SortDirection } from "../types";
+import type { SortField, SortDirection } from "@kody-ade/base/types";
 import { FilterDropdown } from "./FilterDropdown";
 
 export type ViewMode =

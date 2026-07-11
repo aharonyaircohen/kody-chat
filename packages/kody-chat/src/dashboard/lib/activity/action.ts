@@ -15,7 +15,7 @@
  *   bucket. The ui-verify dedup keys off the same labels — kept in
  *   lockstep (see ui-verify/labels.ts, pipeline-utils.ts).
  */
-import type { GitHubIssue, WorkflowRun } from "../types";
+import type { GitHubIssue, WorkflowRun } from "@kody-ade/base/types";
 
 export type ActivityAction =
   | "fix"

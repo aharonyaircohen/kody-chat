@@ -24,7 +24,7 @@ import {
 import { cn } from "../utils";
 import { PRIORITY_LEVELS, PRIORITY_META } from "@kody-ade/base/constants";
 import { Filter, ArrowUp, ArrowDown } from "lucide-react";
-import type { SortField, SortDirection } from "../types";
+import type { SortField, SortDirection } from "@kody-ade/base/types";
 
 export const DATE_FILTERS = [
   { label: "All time", value: "all", days: undefined },

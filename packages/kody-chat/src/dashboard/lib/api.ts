@@ -17,7 +17,7 @@ import type {
   ActionResponse,
   PRComment,
   WorkflowRun,
-} from "./types";
+} from "@kody-ade/base/types";
 import type {
   CompanyIntentInput,
   CompanyIntentRecord,

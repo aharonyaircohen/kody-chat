@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useAuth } from "../auth-context";
-import { repoScopedHref } from "../routes";
+import { repoScopedHref } from "@kody-ade/base/routes";
 
 export function useRepoScopedHref() {
   const { auth } = useAuth();

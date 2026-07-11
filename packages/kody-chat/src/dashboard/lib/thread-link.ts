@@ -23,7 +23,7 @@
  */
 import "server-only";
 
-import { routes, type RepoRef } from "./routes";
+import { routes, type RepoRef } from "@kody-ade/base/routes";
 
 // Matches a GitHub issue/PR html_url. Covers:
 //   https://github.com/owner/repo/issues/123

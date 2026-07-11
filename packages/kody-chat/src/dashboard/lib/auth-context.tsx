@@ -31,7 +31,7 @@ import {
 } from "react";
 import { usePathname } from "next/navigation";
 import { resolveActiveRepo } from "@kody-ade/base/active-repo";
-import { repoBasePath } from "./routes";
+import { repoBasePath } from "@kody-ade/base/routes";
 import {
   DEFAULT_KODY_STORE_REF,
   DEFAULT_KODY_STORE_REPO_URL,

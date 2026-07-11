@@ -45,7 +45,7 @@ export function formatRelativeTime(date: string | Date): string {
 
 // ============ View Mode Filtering ============
 
-import type { KodyTask, SortField, SortDirection } from "./types";
+import type { KodyTask, SortField, SortDirection } from "@kody-ade/base/types";
 import type { ViewMode } from "./components/FilterBar";
 import { COLUMN_DEFS, getTaskPriority, PRIORITY_RANK } from "@kody-ade/base/constants";
 
