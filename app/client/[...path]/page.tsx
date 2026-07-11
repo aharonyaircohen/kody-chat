@@ -29,6 +29,7 @@ import {
 } from "@dashboard/lib/client-auth/allowlist";
 import { resolveConfiguredProviders } from "@dashboard/lib/client-auth/credentials";
 import { ClientAuthGate } from "../../../src/dashboard/lib/client-auth/ClientAuthGate";
+import { PageViewTracker } from "@dashboard/lib/events/PageViewTracker";
 
 interface ClientChatPageProps {
   params: Promise<{ path: string[] }>;
@@ -193,7 +194,9 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
   }
 
   return (
-    <ClientChatSurface
+    <>
+      <PageViewTracker />
+      <ClientChatSurface
       brand={brand}
       surfaceTicket={ticket}
       user={surfaceUser}
@@ -206,6 +209,7 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
             }
           : undefined
       }
-    />
+      />
+    </>
   );
 }

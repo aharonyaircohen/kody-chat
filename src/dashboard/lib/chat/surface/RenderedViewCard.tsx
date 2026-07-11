@@ -9,8 +9,9 @@
  */
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Check, MousePointerClick, X } from "lucide-react";
+import { trackSystemEvent } from "@dashboard/lib/events/client";
 import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
 import {
   getRenderedViewUi,
@@ -32,6 +33,16 @@ export function RenderedViewCard({
   const [formValues, setFormValues] = useState<
     Record<string, Array<{ value: string; label: string }>>
   >({});
+  useEffect(() => {
+    trackSystemEvent("ui.view.shown", { renderer: view.rendererSlug });
+  }, [view.rendererSlug]);
+  const trackAction = (action: RenderedViewAction) => {
+    trackSystemEvent("ui.action.clicked", {
+      viewId: view.rendererSlug,
+      actionId: action.id,
+    });
+    onAction(action);
+  };
   const toggleFormValue = (name: string, value: string, label: string) => {
     setFormValues((current) => {
       const values = current[name] ?? [];
@@ -53,6 +64,10 @@ export function RenderedViewCard({
             )
             .join(", ")
         : "none";
+    trackSystemEvent("ui.form.submitted", {
+      viewId: view.rendererSlug,
+      fields: Object.keys(formValues),
+    });
     onAction({
       id: "submit",
       label,
@@ -79,7 +94,7 @@ export function RenderedViewCard({
           key={key}
           type="button"
           disabled={disabled}
-          onClick={() => onAction(node.action)}
+          onClick={() => trackAction(node.action)}
           className={`flex w-full items-center justify-between gap-3 rounded-md border px-3 py-2 text-start text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${tone}`}
         >
           <span className="min-w-0 truncate font-medium">{node.label}</span>
@@ -92,7 +107,7 @@ export function RenderedViewCard({
         key={key}
         type="button"
         disabled={disabled}
-        onClick={() => onAction(node.action)}
+        onClick={() => trackAction(node.action)}
         className={`inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${tone}`}
       >
         <Icon className="h-3.5 w-3.5" />

@@ -25,6 +25,7 @@ import {
   getRequestAuth,
 } from "@dashboard/lib/auth";
 import { rejectSurfaceScopedRequest } from "@dashboard/lib/chat/platform/surface-scope";
+import { emitSystemEvent } from "@dashboard/lib/events";
 import { logger } from "@dashboard/lib/logger";
 import { mintSessionToken } from "@dashboard/lib/chat-token";
 import { maybeAppendPluginToolsToken } from "@dashboard/lib/chat/platform/plugin-tools-config";
@@ -133,6 +134,19 @@ export async function POST(req: NextRequest) {
   const { owner, repo } = getEngineRepo(req);
   const workflowId = getChatWorkflowId();
   const sessionPath = `sessions/${taskId}.jsonl`;
+  const headerAuthForEvents = getRequestAuth(req);
+  emitSystemEvent(
+    "chat.message.sent",
+    { sessionId: taskId, transport: "engine" },
+    {
+      userId: headerAuthForEvents?.userLogin
+        ? `operator:${headerAuthForEvents.userLogin.toLowerCase()}`
+        : null,
+      sessionId: taskId,
+      brand: { owner, repo },
+      source: "server",
+    },
+  );
 
   // Serialize messages as JSONL
   const jsonlContent =

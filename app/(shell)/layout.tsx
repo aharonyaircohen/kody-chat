@@ -22,6 +22,7 @@ import {
   SlashSquare,
 } from "lucide-react";
 import { AuthGuard } from "@dashboard/lib/auth-guard";
+import { PageViewTracker } from "@dashboard/lib/events/PageViewTracker";
 import { ChatShell } from "@dashboard/lib/components/ChatShell";
 import type {
   SettingsNavItem,
@@ -121,6 +122,7 @@ export default function ShellLayout({
 }) {
   return (
     <AuthGuard>
+      <PageViewTracker />
       <ChatShell
         sections={BUILTIN_SECTIONS}
         pinnedItem={CHAT_HOME}

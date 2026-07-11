@@ -124,6 +124,8 @@ import { createNotificationTools } from "../tools/notifications-tools";
 import { createCompanyTools } from "../tools/company-tools";
 import { createInboxTools } from "../tools/inbox-tools";
 import { createCmsTools } from "../tools/cms-tools";
+import { createUserStateTools } from "../tools/user-state-tools";
+import { emitSystemEvent } from "@dashboard/lib/events";
 import { applyReasoning } from "@dashboard/lib/chat/core/reasoning-adapter";
 import { createAgentAdminTools } from "../tools/agent-admin-tools";
 import { createMacroTools } from "../tools/macros-tools";
@@ -672,6 +674,18 @@ export async function POST(req: NextRequest) {
     : inlineImagePartsForTextModel(messages);
   const repo = getRequestAuth(repoScopedReq);
   const goalPlannerActive = body.goalPlanner === true && !!body.goal;
+  const eventUserId = verifiedActorLogin
+    ? `operator:${verifiedActorLogin.toLowerCase()}`
+    : null;
+  emitSystemEvent(
+    "chat.message.sent",
+    { transport: "direct" },
+    {
+      userId: eventUserId,
+      brand: repo ? { owner: repo.owner, repo: repo.repo } : null,
+      source: "server",
+    },
+  );
 
   // Memory index injection requires the github-client module-level context
   // (the cached loader uses `getOctokit()` / `getOwner()` / `getRepo()`).
@@ -1062,6 +1076,14 @@ export async function POST(req: NextRequest) {
         owner: repo.owner,
         repo: repo.repo,
       })),
+      ...(eventUserId
+        ? await createUserStateTools({
+            octokit,
+            owner: repo.owner,
+            repo: repo.repo,
+            userId: eventUserId,
+          })
+        : {}),
     };
   }
   const baseTools: Record<string, unknown> = {
@@ -1476,6 +1498,27 @@ This turn includes an image from the user. For questions about what is visible i
             usage: event.usage,
           },
           "kody-direct: finish",
+        );
+        emitSystemEvent(
+          "chat.response.completed",
+          {
+            model: modelId,
+            durationMs: Date.now() - reqStartedAt,
+            ...(event.usage?.inputTokens != null
+              ? { inputTokens: event.usage.inputTokens }
+              : {}),
+            ...(event.usage?.outputTokens != null
+              ? { outputTokens: event.usage.outputTokens }
+              : {}),
+            ...(event.finishReason
+              ? { finishReason: event.finishReason }
+              : {}),
+          },
+          {
+            userId: eventUserId,
+            brand: repo ? { owner: repo.owner, repo: repo.repo } : null,
+            source: "server",
+          },
         );
       },
     });
