@@ -41,7 +41,7 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@kody-ade/kody-chat": "0.1.4",
+    "@kody-ade/kody-chat": "workspace:*",
     "@mintplex-labs/piper-tts-web": "^1.0.4",
     "@monaco-editor/react": "^4.7.0",
     "@octokit/plugin-throttling": "^11.0.3",
