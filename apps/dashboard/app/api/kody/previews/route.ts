@@ -33,7 +33,7 @@ import {
   getUserOctokit,
   requireKodyAuth,
 } from "@dashboard/lib/auth";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
 import { createPreview } from "@dashboard/lib/previews/preview-lifecycle";
 

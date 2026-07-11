@@ -30,7 +30,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { slugifyTitle } from "@dashboard/lib/slug";
 import type { EngineRuntimeModelConfig } from "@dashboard/lib/variables/models";
 

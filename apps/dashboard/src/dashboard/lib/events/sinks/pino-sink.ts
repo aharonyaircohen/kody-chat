@@ -6,7 +6,7 @@
  *   local dev and log aggregation can observe the event stream.
  */
 import "server-only";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import type { SystemEventSink } from "../types";
 
 export const pinoSink: SystemEventSink = {

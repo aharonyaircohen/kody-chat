@@ -35,7 +35,7 @@ import {
 } from "@dashboard/lib/brain/runtime-manager";
 import type { BrainRuntimeStateFile } from "@dashboard/lib/brain/runtime-store";
 import { resolveBrainTarget } from "@dashboard/lib/brain/target";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import {
   provisionServerBrain,
   type ServerBrainPerfTier,

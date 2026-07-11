@@ -7,7 +7,7 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import { usePersistedState } from "../hooks/usePersistedState";
 export { parseReasoning, stripReasoning } from "../chat/core/reasoning";
 

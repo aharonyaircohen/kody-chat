@@ -7,7 +7,7 @@
  */
 import { useCallback, useRef } from "react";
 import { Mic, MicOff } from "lucide-react";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 
 const LONG_PRESS_MS = 500;
 

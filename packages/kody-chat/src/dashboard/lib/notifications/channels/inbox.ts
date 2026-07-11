@@ -25,7 +25,7 @@ import { readTrust } from "../../cto/trust-store";
 import { latestTrustDecisions } from "../../cto/trust-state";
 import { applyCtoBackpressure } from "../../cto/backpressure";
 import { dashboardChannelUrl } from "../../thread-link";
-import { logger } from "../../logger";
+import { logger } from "@kody-ade/base/logger";
 import { classifyNotificationType } from "../notification-types";
 import type { SourceEvent } from "../source-event";
 

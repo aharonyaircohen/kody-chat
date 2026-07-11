@@ -8,7 +8,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Loader2, Pencil, Pin, PinOff, Plus, Trash2, X } from "lucide-react";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import { ConfirmDialog } from "./ConfirmDialog";
 import type { SessionMeta } from "../chat-types";
 

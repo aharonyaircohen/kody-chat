@@ -11,7 +11,7 @@ import "server-only";
 
 import { createHash } from "node:crypto";
 
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { createServerTtlCache } from "@dashboard/lib/server-ttl-cache";
 import { brainGhcrImageRef } from "./image-save";
 import type { BrainImageFile, BrainSavedImage } from "./store";

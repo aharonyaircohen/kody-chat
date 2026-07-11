@@ -16,7 +16,7 @@ import {
   readVariables,
   updateVariables,
 } from "@dashboard/lib/variables/store";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 
 interface RouteContext {
   params: Promise<{ name: string }>;

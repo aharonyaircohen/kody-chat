@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   updateGitHubFileWithRetry,
   writeGitHubFileWithRetry,
-} from "@dashboard/lib/github-contents-write";
+} from "../src/github-contents-write";
 
 function encode(content: string): string {
   return Buffer.from(content, "utf-8").toString("base64");

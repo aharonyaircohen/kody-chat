@@ -1,6 +1,6 @@
 import type { NextRequest } from "next/server";
 
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import {
   claimOrRunServer,
   resolveServerContext,

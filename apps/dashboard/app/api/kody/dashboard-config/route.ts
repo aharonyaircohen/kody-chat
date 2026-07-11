@@ -23,7 +23,7 @@ import {
   type DashboardConfig,
 } from "@dashboard/lib/dashboard-config/store";
 import { createUserOctokit } from "@dashboard/lib/github-client";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import {
   resolveStateRepo,
   stateRepoPath,

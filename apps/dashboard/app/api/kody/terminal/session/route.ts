@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { resolveServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
 import {
   startTerminalSession,

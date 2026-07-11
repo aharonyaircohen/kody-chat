@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { formatRelativeTime } from "../utils";
 import type { GitHubComment } from "../types";
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import { Button } from "@dashboard/ui/button";
 import { Wrench, Loader2, CheckCircle } from "lucide-react";
 import { toast } from "sonner";

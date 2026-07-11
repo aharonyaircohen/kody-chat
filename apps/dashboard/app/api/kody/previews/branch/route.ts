@@ -30,7 +30,7 @@ import {
   readDashboardConfig,
   setBranchPreview,
 } from "@dashboard/lib/dashboard-config/store";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
 import {
   createPreview,

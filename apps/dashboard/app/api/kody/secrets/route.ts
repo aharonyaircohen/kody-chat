@@ -23,7 +23,7 @@ import {
 } from "@dashboard/lib/vault/store";
 import { isVaultConfigured } from "@dashboard/lib/vault/crypto";
 import { recordAudit } from "@dashboard/lib/activity/audit";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

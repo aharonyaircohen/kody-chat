@@ -19,7 +19,7 @@ import webpush, {
 import { setGitHubContext, clearGitHubContext } from "../../github-client";
 import { mutatePushManifest } from "../../push-server";
 import type { PushSubscriptionRecord } from "../../push";
-import { logger } from "../../logger";
+import { logger } from "@kody-ade/base/logger";
 import { deriveVapidKeys } from "../../push/vapid-keys";
 
 /** Body shape the service worker expects in `event.data.json()`. */

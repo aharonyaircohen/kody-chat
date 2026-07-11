@@ -30,7 +30,7 @@
  */
 
 import { fetchIssue, postComment } from "../github-client";
-import { logger } from "../logger";
+import { logger } from "@kody-ade/base/logger";
 import { UI_VERIFY_GUARD_LABELS } from "./labels";
 
 const DISPATCH_COMMAND = "@kody ui-review";

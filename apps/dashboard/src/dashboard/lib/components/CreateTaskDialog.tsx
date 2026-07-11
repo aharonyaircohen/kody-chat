@@ -42,7 +42,7 @@ import {
   ChevronUp,
   Info,
 } from "lucide-react";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import {
   PRIORITY_LEVELS,
   PRIORITY_META,

@@ -32,7 +32,7 @@ import {
 import { resolveBackgroundToken } from "../auth/background-token";
 import { readPushManifest } from "../push-server";
 import { deliverPush, ensureVapid } from "../notifications/channels/push-core";
-import { logger } from "../logger";
+import { logger } from "@kody-ade/base/logger";
 
 const REPORT_SLUG = "([a-z0-9][a-z0-9_-]{0,63})";
 const REPORT_RUN = "([A-Za-z0-9][A-Za-z0-9_.-]{0,127})";

@@ -18,7 +18,7 @@ import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import type { FlyPreviewConfig } from "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client";
 import {
   resolveFlyContext,

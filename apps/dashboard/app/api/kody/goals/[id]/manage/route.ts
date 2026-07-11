@@ -23,7 +23,7 @@ import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
 import {
   goalRunRequest,

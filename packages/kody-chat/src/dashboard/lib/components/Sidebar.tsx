@@ -29,7 +29,7 @@ import {
 
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { useTheme } from "@dashboard/providers/Theme";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import {
   shouldEnableSidebarInboxBadgeData,
   shouldEnableSidebarMessagesBadgeData,

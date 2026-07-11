@@ -17,7 +17,7 @@ import {
 } from "@dashboard/lib/auth";
 import { readVault } from "@dashboard/lib/vault/store";
 import { isVaultConfigured } from "@dashboard/lib/vault/crypto";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 
 interface RouteContext {
   params: Promise<{ name: string }>;

@@ -36,7 +36,7 @@ import {
   DEFAULT_KODY_STORE_REF,
   DEFAULT_KODY_STORE_REPO_URL,
   buildKodyAuthHeaders,
-} from "./auth-headers";
+} from "@kody-ade/base/auth-headers";
 import {
   CLIENT_BRAND_REPO_COOKIE,
   serializeClientBrandRepoCookie,

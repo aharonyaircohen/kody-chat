@@ -10,7 +10,7 @@
  */
 import { tool } from "ai";
 import { z } from "zod";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 
 const MAX_TEXT = 30_000;
 const FETCH_TIMEOUT_MS = 30_000; // Jina's JS-render path is slower than raw HTTP

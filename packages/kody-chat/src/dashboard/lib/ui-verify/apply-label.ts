@@ -38,7 +38,7 @@
  */
 
 import { addLabels, ensureLabel } from "../github-client";
-import { logger } from "../logger";
+import { logger } from "@kody-ade/base/logger";
 import { UI_VERIFIED, UI_FAILED, UI_VERIFY_LABEL_META } from "./labels";
 import { parseVerdict, verdictToLabel } from "./verdict";
 

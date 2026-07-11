@@ -20,7 +20,7 @@ import type { NotificationChannel } from "../../notifications";
 import type { SendContext } from "./index";
 import { setGitHubContext, clearGitHubContext } from "../../github-client";
 import { readPushManifest } from "../../push-server";
-import { logger } from "../../logger";
+import { logger } from "@kody-ade/base/logger";
 import { deliverPush, ensureVapid, type PushPayload } from "./push-core";
 
 type Channel = Extract<NotificationChannel, { type: "web-push" }>;

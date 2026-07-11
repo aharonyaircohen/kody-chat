@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 
 interface SectionHeaderProps extends Omit<
   React.HTMLAttributes<HTMLDivElement>,

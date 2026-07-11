@@ -19,7 +19,7 @@ import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import {
   listCompanyStoreGoalTemplateFiles,
   readManagedGoalFile,

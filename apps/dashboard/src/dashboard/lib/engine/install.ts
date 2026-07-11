@@ -24,8 +24,8 @@
  */
 import type { Octokit } from "@octokit/rest";
 import sodium from "libsodium-wrappers";
-import { logger } from "@dashboard/lib/logger";
-import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
+import { logger } from "@kody-ade/base/logger";
+import { writeGitHubFileWithRetry } from "@kody-ade/base/github-contents-write";
 import { ensureWebhook } from "@dashboard/lib/webhooks/register";
 import { readVault } from "@dashboard/lib/vault/store";
 import { readVariables } from "@dashboard/lib/variables/store";

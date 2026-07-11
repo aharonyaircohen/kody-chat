@@ -18,7 +18,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { requireKodyAuth, verifyActorLogin } from "@dashboard/lib/auth";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import {
   destroyApp,
   destroyMachine,

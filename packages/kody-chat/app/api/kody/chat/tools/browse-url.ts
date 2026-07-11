@@ -7,7 +7,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { chromium, type Browser, type Page } from "playwright-core";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 
 // ===========================================
 // CONSTANTS

@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireKodyAuth, getRequestAuth } from "@dashboard/lib/auth";
 import { getPublicBaseUrl } from "@dashboard/lib/auth/oauth-url";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { ensureWebhook } from "@dashboard/lib/webhooks/register";
 
 export const runtime = "nodejs";

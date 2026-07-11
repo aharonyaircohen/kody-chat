@@ -1,7 +1,7 @@
 import * as React from "react";
 
 import { Label } from "@dashboard/ui/label";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 
 interface FormFieldProps extends React.HTMLAttributes<HTMLDivElement> {
   label?: React.ReactNode;

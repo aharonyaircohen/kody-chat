@@ -42,7 +42,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { Button } from "@dashboard/ui/button";
 import { Input } from "@dashboard/ui/input";
 import { Textarea } from "@dashboard/ui/textarea";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import {
   useMessageChannels,
   useChannelThread,

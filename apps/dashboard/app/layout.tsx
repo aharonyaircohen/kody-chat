@@ -6,7 +6,7 @@
  */
 import React from "react";
 import type { Metadata } from "next";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import { GeistMono } from "geist/font/mono";
 import { GeistSans } from "geist/font/sans";
 import { Assistant } from "next/font/google";

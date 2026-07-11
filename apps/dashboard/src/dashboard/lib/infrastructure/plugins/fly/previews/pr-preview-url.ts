@@ -18,7 +18,7 @@
 
 import type { Octokit } from "@octokit/rest";
 
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
 import { getPreview } from "@dashboard/lib/previews/preview-lifecycle";
 

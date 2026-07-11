@@ -29,7 +29,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import {
   invalidateIssueCache,
   invalidatePRCache,

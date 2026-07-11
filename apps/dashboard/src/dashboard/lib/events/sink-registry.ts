@@ -8,7 +8,7 @@
  *   analytics, workflows — plug in here without touching emitters.
  */
 import "server-only";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import type {
   SystemEventEnvelope,
   SystemEventSink,

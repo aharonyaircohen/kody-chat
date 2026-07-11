@@ -1,0 +1,28 @@
+{
+  "name": "@kody-ade/base",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Kody base platform layer — GitHub access, auth, vault, storage, logging, UI kit. Framework-light, consumed as TS source.",
+  "exports": {
+    "./logger": "./src/logger.ts",
+    "./auth-headers": "./src/auth-headers.ts",
+    "./github-contents-write": "./src/github-contents-write.ts",
+    "./utils/ui": "./src/utils/ui.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run"
+  },
+  "dependencies": {
+    "@octokit/rest": "^22.0.1",
+    "clsx": "^2.1.1",
+    "pino": "^10.1.0",
+    "tailwind-merge": "^3.4.0"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3",
+    "vitest": "^4.0.16"
+  }
+}

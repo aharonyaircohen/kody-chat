@@ -28,6 +28,9 @@ importers:
       '@dnd-kit/utilities':
         specifier: ^3.2.2
         version: 3.2.2(react@19.2.7)
+      '@kody-ade/base':
+        specifier: workspace:*
+        version: link:../../packages/base
       '@kody-ade/kody-chat':
         specifier: workspace:*
         version: link:../../packages/kody-chat
@@ -252,6 +255,28 @@ importers:
         specifier: 4.0.16
         version: 4.0.16(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)
 
+  packages/base:
+    dependencies:
+      '@octokit/rest':
+        specifier: ^22.0.1
+        version: 22.0.1
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      pino:
+        specifier: ^10.1.0
+        version: 10.3.1
+      tailwind-merge:
+        specifier: ^3.4.0
+        version: 3.6.0
+    devDependencies:
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.16
+        version: 4.0.16(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)
+
   packages/kody-chat:
     dependencies:
       '@ai-sdk/anthropic':
@@ -263,6 +288,9 @@ importers:
       '@ai-sdk/openai-compatible':
         specifier: ^2.0.47
         version: 2.0.59(zod@4.4.3)
+      '@kody-ade/base':
+        specifier: workspace:*
+        version: link:../base
       '@mintplex-labs/piper-tts-web':
         specifier: ^1.0.4
         version: 1.0.4(onnxruntime-web@1.27.0)

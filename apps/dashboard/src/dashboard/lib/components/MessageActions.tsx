@@ -8,7 +8,7 @@
 
 import { useState } from "react";
 import { Check, Copy, Pencil, RotateCw, Trash2 } from "lucide-react";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 interface MessageActionsProps {

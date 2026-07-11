@@ -36,7 +36,7 @@ import {
   getRequestAuth,
 } from "@dashboard/lib/auth";
 import { readEventsFile } from "@dashboard/lib/chat-events-reader";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

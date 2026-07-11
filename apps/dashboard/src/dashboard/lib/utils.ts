@@ -6,7 +6,7 @@
  */
 
 // Re-export cn from infra/utils/ui (uses tailwind-merge for proper class merging)
-export { cn } from "@dashboard/lib/utils/ui";
+export { cn } from "@kody-ade/base/utils/ui";
 import {
   VERCEL_PROTECTION_BYPASS_PARAM,
   VERCEL_SET_BYPASS_COOKIE_PARAM,

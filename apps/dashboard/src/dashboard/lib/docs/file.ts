@@ -7,7 +7,7 @@
  */
 
 import { Octokit } from "@octokit/rest";
-import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
+import { writeGitHubFileWithRetry } from "@kody-ade/base/github-contents-write";
 
 export const DOCS_FOLDER = "docs";
 export const README_PATH = "README.md";

@@ -23,7 +23,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getPublicBaseUrl } from "@dashboard/lib/auth/oauth-url";
 import { ensureWebhook } from "@dashboard/lib/webhooks/register";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

@@ -1,5 +1,5 @@
 import { getDeploymentProvider } from "@dashboard/lib/infrastructure/installed";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
 import type { Octokit } from "@octokit/rest";
 

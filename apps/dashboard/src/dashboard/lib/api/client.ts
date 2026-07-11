@@ -6,7 +6,7 @@
  * headers, error types, and response handling. No feature imports.
  */
 
-import { buildKodyAuthHeaders } from "../auth-headers";
+import { buildKodyAuthHeaders } from "@kody-ade/base/auth-headers";
 import { readActiveRepo, readStoredKodyAuth } from "../active-repo";
 
 export const API_BASE = "/api/kody";

@@ -21,7 +21,7 @@ import {
 } from "@dashboard/lib/auth";
 import { createUserOctokit } from "@dashboard/lib/github-client";
 import { subscribe } from "@dashboard/lib/chat-event-bus";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { readStateText } from "@dashboard/lib/state-repo";
 
 // ─── Rate-limit tuning ─────────────────────────────────────────────────────────

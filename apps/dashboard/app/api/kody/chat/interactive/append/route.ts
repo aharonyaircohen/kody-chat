@@ -22,7 +22,7 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@dashboard/lib/auth";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { appendUserTurn } from "@dashboard/lib/interactive-session";
 import {
   applyVibePrimerToContent,

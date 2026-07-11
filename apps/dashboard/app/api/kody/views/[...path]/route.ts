@@ -9,7 +9,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getRequestAuth } from "@dashboard/lib/auth";
 import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
 import { createUserOctokit } from "@dashboard/lib/github-client";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { resolveStateRepo, stateRepoPath } from "@dashboard/lib/state-repo";
 import { verifyRepoViewToken } from "@dashboard/lib/view-token";
 

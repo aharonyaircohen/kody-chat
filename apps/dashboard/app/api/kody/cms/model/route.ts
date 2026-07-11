@@ -26,7 +26,7 @@ import {
 import { getCmsActorRole } from "@dashboard/lib/cms/roles";
 import { CmsRuntimeError } from "@dashboard/lib/cms/service";
 import { deleteStateFile, writeStateFiles } from "@dashboard/lib/state-repo";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

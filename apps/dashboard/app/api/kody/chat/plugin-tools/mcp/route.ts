@@ -21,7 +21,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import {
   verifyPluginToolsBearer,
   type PluginToolsScope,

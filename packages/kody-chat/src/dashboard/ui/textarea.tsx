@@ -1,4 +1,4 @@
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import * as React from "react";
 
 const Textarea: React.FC<

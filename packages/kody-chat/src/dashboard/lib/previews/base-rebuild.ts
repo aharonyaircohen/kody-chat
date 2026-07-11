@@ -29,7 +29,7 @@
  * just overwrites the GHCR `:latest` tag idempotently.
  */
 
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { spawnPreviewBuilder } from "@dashboard/lib/previews/builder-client";
 import { type ServerProviderConfig } from "@dashboard/lib/infrastructure/server-machines";
 import { basePreviewAppName } from "@dashboard/lib/previews/preview-key";

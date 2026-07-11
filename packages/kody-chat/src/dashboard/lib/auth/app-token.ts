@@ -17,7 +17,7 @@
 import "server-only";
 import { createSign } from "node:crypto";
 import { Octokit } from "@octokit/rest";
-import { logger } from "../logger";
+import { logger } from "@kody-ade/base/logger";
 
 const GITHUB_API = "https://api.github.com";
 // Refresh a few minutes before the 60-min GitHub expiry so an in-flight

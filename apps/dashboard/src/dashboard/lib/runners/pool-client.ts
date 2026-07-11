@@ -15,7 +15,7 @@
  * { ok: false }, and the caller falls back to the existing create-fresh
  * `spawnRunner`. The pool is an accelerator, not a hard dependency.
  */
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { derivePoolApiKey } from "@dashboard/lib/runners/pool-keys";
 import type { KodyRunRequest } from "./run-request";
 

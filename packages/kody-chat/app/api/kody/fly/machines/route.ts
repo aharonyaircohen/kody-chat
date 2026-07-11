@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@dashboard/lib/auth";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import {
   appendSavedBrainMachineToInventory,
   emptyServerProviderInventory,

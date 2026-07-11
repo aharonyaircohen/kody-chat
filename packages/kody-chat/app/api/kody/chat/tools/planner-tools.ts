@@ -16,7 +16,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { PRIORITY_LEVELS, type PriorityLevel } from "@dashboard/lib/constants";
 import { createIssueWithBestEffortMetadata } from "@dashboard/lib/github-issue-create";
 import { dashboardTaskUrl } from "@dashboard/lib/thread-link";

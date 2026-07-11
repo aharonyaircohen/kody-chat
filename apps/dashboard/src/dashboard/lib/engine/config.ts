@@ -6,7 +6,7 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import { updateGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
+import { updateGitHubFileWithRetry } from "@kody-ade/base/github-contents-write";
 
 export const KODY_CONFIG_PATH = "kody.config.json";
 

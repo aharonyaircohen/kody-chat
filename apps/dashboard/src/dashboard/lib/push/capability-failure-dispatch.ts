@@ -34,7 +34,7 @@ import { resolveBackgroundToken } from "../auth/background-token";
 import { appendInboxFeed } from "../inbox/feed-server";
 import type { InboxFeedEntry } from "../inbox/feed";
 import type { CompanyActivityRecord } from "../activity/company";
-import { logger } from "../logger";
+import { logger } from "@kody-ade/base/logger";
 
 const ACTIVITY_PATH_RE = /^([^/]+)\/activity\/[^/]+\.jsonl$/;
 /** Only surface failures recorded recently. The triggering push commits the

@@ -8,7 +8,7 @@
 
 import { useEffect, useRef } from "react";
 import { ArrowLeft, Volume2, VolumeX, Monitor, Bell, Play } from "lucide-react";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import type { UseNotificationStoreReturn } from "./useNotificationStore";
 import { NOTIFICATION_META, type NotificationType } from "./types";
 import { playNotificationSound } from "./sounds";

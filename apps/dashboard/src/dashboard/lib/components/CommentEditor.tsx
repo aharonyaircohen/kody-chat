@@ -11,7 +11,7 @@ import { MessageSquarePlus } from "lucide-react";
 import Image from "next/image";
 import { Button } from "@dashboard/ui/button";
 import { Textarea } from "@dashboard/ui/textarea";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import { usePostComment } from "../hooks";
 import { useCommentAttachments } from "../hooks/useCommentAttachments";
 import { AttachmentBar } from "./AttachmentBar";

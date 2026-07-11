@@ -11,7 +11,7 @@
 import { Loader2, Paperclip, X } from "lucide-react";
 
 import { Button } from "@dashboard/ui/button";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import type { useCommentAttachments } from "../hooks/useCommentAttachments";
 
 type AttachmentsApi = ReturnType<typeof useCommentAttachments>;

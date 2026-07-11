@@ -13,7 +13,7 @@ import { Copy, ExternalLink, FileText, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@dashboard/ui/button";
-import { buildKodyAuthHeaders } from "../auth-headers";
+import { buildKodyAuthHeaders } from "@kody-ade/base/auth-headers";
 import { useAuth } from "../auth-context";
 import { ApiError, handleResponse } from "../api";
 import { monacoLanguage } from "../repo-files-lang";

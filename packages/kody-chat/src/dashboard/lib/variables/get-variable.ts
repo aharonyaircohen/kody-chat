@@ -11,7 +11,7 @@
 import type { NextRequest } from "next/server";
 import { getRequestAuth } from "@dashboard/lib/auth";
 import { createUserOctokit } from "@dashboard/lib/github-client";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { readVariables } from "./store";
 
 interface GetVariableOptions {

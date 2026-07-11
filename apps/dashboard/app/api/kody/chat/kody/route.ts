@@ -53,7 +53,7 @@ import {
   verifyActorLogin,
   type RequestAuth,
 } from "@dashboard/lib/auth";
-import { buildKodyAuthHeaders } from "@dashboard/lib/auth-headers";
+import { buildKodyAuthHeaders } from "@kody-ade/base/auth-headers";
 import {
   createUserOctokit,
   setGitHubContext,

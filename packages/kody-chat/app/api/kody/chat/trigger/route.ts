@@ -26,7 +26,7 @@ import {
 } from "@dashboard/lib/auth";
 import { rejectSurfaceScopedRequest } from "@dashboard/lib/chat/platform/surface-scope";
 import { emitSystemEvent } from "@dashboard/lib/events";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { mintSessionToken } from "@dashboard/lib/chat-token";
 import { maybeAppendPluginToolsToken } from "@dashboard/lib/chat/platform/plugin-tools-config";
 import {

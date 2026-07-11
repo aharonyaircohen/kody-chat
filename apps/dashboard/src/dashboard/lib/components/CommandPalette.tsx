@@ -30,7 +30,7 @@ import {
   DialogTitle,
 } from "@dashboard/ui/dialog";
 import { useTheme } from "@dashboard/providers/Theme";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import { useAuth } from "../auth-context";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { repoPathForNavMatching, repoScopedHref } from "../routes";

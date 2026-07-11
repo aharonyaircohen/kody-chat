@@ -26,7 +26,7 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@dashboard/lib/auth";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import {
   buildMetaLine,
   writeSessionMeta,

@@ -10,7 +10,7 @@
 "use client";
 
 import type { Octokit } from "@octokit/rest";
-import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
+import { writeGitHubFileWithRetry } from "@kody-ade/base/github-contents-write";
 
 // ─── Binary encoding helpers (byte-safe, UTF-8) ──────────────────────────────
 

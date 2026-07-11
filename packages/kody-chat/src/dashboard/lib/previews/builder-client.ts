@@ -24,7 +24,7 @@
 
 import { createHash } from "node:crypto";
 
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { derivePreviewKey } from "@dashboard/lib/preview-token";
 
 const FLY_MACHINES_BASE = "https://api.machines.dev/v1";

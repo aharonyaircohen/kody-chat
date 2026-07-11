@@ -17,7 +17,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { invalidateIssueCache } from "@dashboard/lib/github-client";
 import { readGoalsManifestFresh } from "@dashboard/lib/goals-server";
 import { GOAL_LABEL_PREFIX, type Goal } from "@dashboard/lib/goals";

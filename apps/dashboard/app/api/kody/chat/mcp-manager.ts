@@ -10,7 +10,7 @@
 
 import { createMCPClient, type MCPClient } from "@ai-sdk/mcp";
 import type { ToolSet } from "ai";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import {
   getEnabledMCPs,
   type MCPConfig,

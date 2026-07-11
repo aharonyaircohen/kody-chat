@@ -33,7 +33,7 @@ import {
   getClientIp,
 } from "@dashboard/lib/webhooks/github-ip";
 import { verifySessionToken } from "@dashboard/lib/chat-token";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

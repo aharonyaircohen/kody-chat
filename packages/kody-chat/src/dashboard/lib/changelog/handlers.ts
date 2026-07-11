@@ -8,7 +8,7 @@
  *   to retry the delivery.
  */
 
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import {
   appendUnreleasedEntry,
   promoteUnreleased,

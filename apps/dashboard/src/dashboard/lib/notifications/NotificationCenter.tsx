@@ -8,7 +8,7 @@
 
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Bell, Check, CheckCheck, Trash2, Settings, X } from "lucide-react";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import type { UseNotificationStoreReturn } from "./useNotificationStore";
 import { NOTIFICATION_META } from "./types";
 import type { NotificationType } from "./types";

@@ -9,7 +9,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@dashboard/ui/tooltip";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 
 interface IconButtonProps extends Omit<ButtonProps, "children" | "size"> {
   icon: React.ReactNode;

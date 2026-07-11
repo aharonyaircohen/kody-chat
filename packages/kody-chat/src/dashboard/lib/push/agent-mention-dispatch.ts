@@ -24,7 +24,7 @@ import { dispatchAgentAsk, type WorkerAskReply } from "../control-issue";
 import { extractStaffMentions } from "../mentions/agent-mentions";
 import { buildSourceEvent } from "../notifications/source-event";
 import { resolveBackgroundToken } from "../auth/background-token";
-import { logger } from "../logger";
+import { logger } from "@kody-ade/base/logger";
 
 interface StaffDispatchEvent {
   repoFullName: string;

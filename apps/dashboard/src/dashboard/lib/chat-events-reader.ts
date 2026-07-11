@@ -16,7 +16,7 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import { logger } from "./logger";
+import { logger } from "@kody-ade/base/logger";
 import { readStateText } from "./state-repo";
 
 interface CachedEvents {

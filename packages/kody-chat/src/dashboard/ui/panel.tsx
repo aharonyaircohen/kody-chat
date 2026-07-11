@@ -1,6 +1,6 @@
 import * as React from "react";
 
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 
 const Panel: React.FC<
   { ref?: React.Ref<HTMLDivElement> } & React.HTMLAttributes<HTMLDivElement>

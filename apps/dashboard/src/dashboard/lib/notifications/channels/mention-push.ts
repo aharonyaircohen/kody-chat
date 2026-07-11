@@ -10,7 +10,7 @@
  */
 import "server-only";
 import type { PushSubscriptionRecord } from "../../push";
-import { logger } from "../../logger";
+import { logger } from "@kody-ade/base/logger";
 import { dashboardThreadUrl, dashboardChannelUrl } from "../../thread-link";
 import { deliverPush, ensureVapid } from "./push-core";
 import type { SourceEvent } from "../source-event";

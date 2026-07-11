@@ -16,7 +16,7 @@
  * Reference: https://docs.machines.dev/swagger/index.html
  */
 
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import type { KodyRunRequest } from "@dashboard/lib/runners/run-request";
 
 const FLY_API_BASE = "https://api.machines.dev/v1";

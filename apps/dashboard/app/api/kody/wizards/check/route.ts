@@ -22,7 +22,7 @@ import {
   credentialNames,
 } from "@dashboard/lib/client-auth/catalog";
 import { CLIENT_SIGNIN_CHECK_ID } from "@dashboard/lib/wizards/client-signin";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;

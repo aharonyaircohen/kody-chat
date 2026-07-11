@@ -18,7 +18,7 @@ import { resolveBackgroundToken } from "../auth/background-token";
 import { readPushManifest } from "../push-server";
 import type { PushSubscriptionRecord } from "../push";
 import { PUSH_MANIFEST_ISSUE_TITLE } from "../push";
-import { logger } from "../logger";
+import { logger } from "@kody-ade/base/logger";
 import {
   buildSourceEvent,
   type SourceEvent,

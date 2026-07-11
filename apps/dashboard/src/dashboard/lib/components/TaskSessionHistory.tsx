@@ -6,7 +6,7 @@
  */
 "use client";
 
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import { usePersistedSet } from "../hooks/usePersistedState";
 import type { ChatSession } from "../chat-types";
 

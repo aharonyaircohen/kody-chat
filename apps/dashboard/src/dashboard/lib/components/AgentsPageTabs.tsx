@@ -17,7 +17,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { Button } from "@dashboard/ui/button";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import { AgentsControl } from "./AgentsControl";
 import { SimpleTooltip } from "./SimpleTooltip";
 

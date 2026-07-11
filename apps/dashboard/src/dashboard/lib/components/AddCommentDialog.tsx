@@ -16,7 +16,7 @@ import {
   DialogDescription,
 } from "@dashboard/ui/dialog";
 import { MessageSquare, Loader2, Eye, Edit } from "lucide-react";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import { useCommentAttachments } from "../hooks/useCommentAttachments";
 import { AttachmentBar } from "./AttachmentBar";
 import { rtlAwareMarkdownClassName } from "../text-direction";

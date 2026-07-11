@@ -13,7 +13,7 @@
 import {
   buildKodyAuthHeaders,
   type KodyAuthHeaderContext,
-} from "@dashboard/lib/auth-headers";
+} from "@kody-ade/base/auth-headers";
 import {
   SYSTEM_EVENT_CATALOG,
   isSystemEventName,

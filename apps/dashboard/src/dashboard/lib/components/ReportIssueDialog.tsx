@@ -16,7 +16,7 @@ import {
   DialogDescription,
 } from "@dashboard/ui/dialog";
 import { AlertTriangle, Loader2, Eye, Edit } from "lucide-react";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import { rtlAwareMarkdownClassName } from "../text-direction";
 import { MarkdownPreview } from "./MarkdownPreview";
 

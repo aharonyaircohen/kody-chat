@@ -11,7 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { verifyActorLogin } from "@dashboard/lib/auth";
 import { getRemoteConfig } from "@dashboard/lib/remote-config";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 
 export const runtime = "nodejs";
 

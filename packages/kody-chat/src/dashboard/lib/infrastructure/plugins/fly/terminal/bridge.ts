@@ -8,7 +8,7 @@
  */
 import crypto from "node:crypto";
 
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { slugifyTitle } from "@dashboard/lib/slug";
 import type { FlyPreviewConfig } from "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client";
 import { allocateIpsIfMissing } from "@dashboard/lib/infrastructure/plugins/fly/runners/brain";

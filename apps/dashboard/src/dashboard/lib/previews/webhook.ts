@@ -31,7 +31,7 @@ import { Octokit } from "@octokit/rest";
 
 import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
 import { readDashboardConfig } from "@dashboard/lib/dashboard-config/store";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { resolveVaultGithubToken } from "@dashboard/lib/vault/bootstrap";
 import { rebuildBaseImage } from "./base-rebuild";
 import { resolvePreviewConfigForRepo } from "./config";

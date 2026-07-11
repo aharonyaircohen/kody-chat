@@ -51,7 +51,7 @@ import {
   SelectValue,
 } from "@dashboard/ui/select";
 import { Textarea } from "@dashboard/ui/textarea";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import { selectionPath } from "../selection-routing";
 import { useRepoScopedHref } from "../hooks/useRepoScopedHref";
 import {

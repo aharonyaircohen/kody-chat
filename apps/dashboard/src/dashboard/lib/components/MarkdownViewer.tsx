@@ -8,7 +8,7 @@
 
 import { Copy, Check } from "lucide-react";
 import { useState } from "react";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import { autoDirProps, rtlAwareMarkdownClassName } from "../text-direction";
 import { MarkdownPreview } from "./MarkdownPreview";
 

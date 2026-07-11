@@ -20,7 +20,7 @@
  *   3. Calling streamBrainChat() and returning the Response.
  */
 
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { fetchIssueAttachments } from "@dashboard/lib/issue-attachments";
 import { dashboardTaskUrl } from "@dashboard/lib/thread-link";
 import type { RepoBrainScope } from "@dashboard/lib/brain/repo-scope";

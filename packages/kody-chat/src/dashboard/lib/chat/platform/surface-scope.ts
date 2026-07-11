@@ -29,7 +29,7 @@ import "server-only";
 import crypto from "crypto";
 import { NextResponse } from "next/server";
 
-import { KODY_AUTH_HEADERS } from "@dashboard/lib/auth-headers";
+import { KODY_AUTH_HEADERS } from "@kody-ade/base/auth-headers";
 
 /** Header the client surface will send its ticket in at launch. */
 export const SURFACE_TICKET_HEADER = "x-kody-surface-ticket";

@@ -27,7 +27,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@dashboard/ui/avatar";
 import { Button } from "@dashboard/ui/button";
 import { Textarea } from "@dashboard/ui/textarea";
-import { cn } from "@dashboard/lib/utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import { formatRelativeTime } from "../utils";
 import {
   useGoalDiscussion,

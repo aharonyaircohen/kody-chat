@@ -12,7 +12,7 @@ import "server-only";
 import type { Octokit } from "@octokit/rest";
 import { resolveBackgroundToken } from "@dashboard/lib/auth/background-token";
 import { createUserOctokit } from "@dashboard/lib/github-client";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
 import type { SystemEventEnvelope, SystemEventSink } from "../types";
 

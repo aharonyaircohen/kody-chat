@@ -24,7 +24,7 @@ import {
   KODY_BUG_SEVERITIES,
   KODY_REPORT_TARGET,
 } from "@dashboard/lib/constants";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 
 const diagnosticsSchema = z
   .object({

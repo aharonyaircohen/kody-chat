@@ -8,7 +8,7 @@
 
 import type { Octokit } from "@octokit/rest";
 
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { readStateText, writeStateText } from "@dashboard/lib/state-repo";
 
 export const VARIABLES_PATH = "variables.json";

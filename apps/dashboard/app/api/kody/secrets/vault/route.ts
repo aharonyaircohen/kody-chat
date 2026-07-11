@@ -21,7 +21,7 @@ import {
   isVaultConfigured,
   verifyKey,
 } from "@dashboard/lib/vault/crypto";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 
 const UnlockSchema = z.object({
   key: z.string().min(1),

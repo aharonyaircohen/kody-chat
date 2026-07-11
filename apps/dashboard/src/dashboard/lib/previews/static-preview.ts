@@ -30,7 +30,7 @@
  * `ServerProviderConfig` (resolved from that repo's vault `FLY_API_TOKEN`).
  */
 
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import {
   allocateSharedIps,
   createApp,

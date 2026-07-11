@@ -14,7 +14,7 @@
  * The CIDR list is cached in-memory for 24h. Refreshed on miss/stale.
  */
 
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 
 const META_URL = "https://api.github.com/meta";
 const TTL_MS = 24 * 60 * 60 * 1000;

@@ -35,7 +35,7 @@ import {
   invalidateDiscussionCache,
 } from "@dashboard/lib/github-client";
 import { getClientIp, isFromGitHub } from "@dashboard/lib/webhooks/github-ip";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { dispatchNotifications } from "@dashboard/lib/notifications-dispatch";
 import { dispatchMentionPushes } from "@dashboard/lib/push/mention-dispatch";
 import { dispatchAgentMentions } from "@dashboard/lib/push/agent-mention-dispatch";

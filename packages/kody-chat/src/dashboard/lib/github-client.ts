@@ -7,7 +7,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { throttling } from "@octokit/plugin-throttling";
 import { Octokit } from "@octokit/rest";
-import { writeGitHubFileWithRetry } from "@dashboard/lib/github-contents-write";
+import { writeGitHubFileWithRetry } from "@kody-ade/base/github-contents-write";
 import { slugifyTitle } from "@dashboard/lib/slug";
 import {
   GITHUB_OWNER,

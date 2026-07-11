@@ -11,7 +11,7 @@
 import "server-only";
 import type { Octokit } from "@octokit/rest";
 import { z } from "zod";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { readStateText } from "@dashboard/lib/state-repo";
 import { CORE_USER_STATE_NAMESPACES } from "./namespaces/core";
 import {

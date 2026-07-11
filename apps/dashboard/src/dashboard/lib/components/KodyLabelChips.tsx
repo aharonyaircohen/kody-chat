@@ -25,7 +25,7 @@ import {
   Workflow,
   type LucideIcon,
 } from "lucide-react";
-import { cn } from "../utils/ui";
+import { cn } from "@kody-ade/base/utils/ui";
 import type { KodyPhase, KodyFlow } from "../constants";
 
 interface PhaseMeta {

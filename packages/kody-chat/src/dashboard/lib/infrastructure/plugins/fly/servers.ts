@@ -8,7 +8,7 @@
 
 import type { ServerProvider } from "@dashboard/lib/infrastructure/contracts";
 import type { InfrastructureServerOperations } from "@dashboard/lib/infrastructure/server-operations";
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 import { spawnRunner, type SpawnRunnerInput } from "./runners/fly";
 import {
   flyConfigFromContext,

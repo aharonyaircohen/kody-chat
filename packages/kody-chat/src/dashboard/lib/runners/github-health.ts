@@ -10,7 +10,7 @@
  *   status result is cached 30s (shared across requests) so we don't hammer
  *   the status endpoint on every dispatch.
  */
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 
 const STATUS_URL = "https://www.githubstatus.com/api/v2/components.json";
 const STATUS_CACHE_TTL_MS = 30_000;

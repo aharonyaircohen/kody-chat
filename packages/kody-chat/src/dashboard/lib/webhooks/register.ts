@@ -17,7 +17,7 @@
  *   the OAuth start route — dashboard auth is header-based PAT now.
  */
 
-import { logger } from "@dashboard/lib/logger";
+import { logger } from "@kody-ade/base/logger";
 
 export const DEFAULT_WEBHOOK_EVENTS = [
   "issues",
