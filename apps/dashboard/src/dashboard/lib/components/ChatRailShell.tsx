@@ -1,0 +1,669 @@
+/**
+ * @fileType component
+ * @domain layout
+ * @pattern chat-rail-shell
+ * @ai-summary Root-level chrome that hosts the dashboard's KodyChat. Pages
+ *   render as `{children}` and push their chat context up via
+ *   `useChatScope()`. KodyChat mounts TWICE: a persistent desktop instance
+ *   (full pane on /chat, side rail elsewhere — hidden, not unmounted, so
+ *   scroll position, streaming state, and message history persist across
+ *   navigation) plus a second instance in the mobile sheet while it is
+ *   open on non-chat routes. Anything host-fed (composerInjection,
+ *   attachmentInjection, previewContext) reaches BOTH instances.
+ *
+ *   The rail is hidden while `useAuth().loading` is true or when no
+ *   credentials are stored, since the chat itself needs a PAT to function.
+ *   In that state the dashboard's AuthGuard renders the RepoManager
+ *   empty-state in place of the page. On mobile the desktop aside is
+ *   replaced by a panel that opens below the top header (no backdrop), so
+ *   the header's hamburger stays reachable; it's opened from the header's
+ *   chat button.
+ */
+"use client";
+
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { KodyChat } from "@kody-ade/kody-chat/components/KodyChat";
+import { AppHeader } from "./AppHeader";
+import { ChatShell } from "@kody-ade/kody-chat/components/ChatShell";
+import { SidebarNotifications } from "./SidebarChrome";
+import { ENGINEER_MODE_SECTIONS } from "./settings-nav";
+import { RepoManager } from "./RepoManager";
+import { CommandPalette } from "./CommandPalette";
+import { SettingsDrawerProvider } from "./SettingsDrawer";
+import { NotificationsProvider } from "../notifications/NotificationsProvider";
+import { useAuth } from "../auth-context";
+import { shouldPollChatGoalsForRoute } from "../github-background-polling";
+import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
+import { useChatFirstLayout } from "../hooks/use-chat-first-layout";
+import { trace } from "@kody-ade/kody-chat/platform";
+import { useGoals } from "../hooks/useGoals";
+import type { ChatContext } from "../chat-types";
+import {
+  legacyRepoRedirectPath,
+  repoPathForNavMatching,
+  repoScopedHref,
+  resolveRepoRouteAuthSync,
+} from "../routes";
+import { routeOwnsAppHeader } from "./header-ownership";
+// Leaf manifest import on purpose (Step 7 bundle check): the terminal
+// barrel statically reaches ChatTerminalSurface/TerminalControls, which
+// must only ever load through KodyChat's React.lazy chunks — a static path
+// here would drag them into the shared sync chunks /client also loads.
+import { terminalChatPlugin } from "@kody-chat/chat/plugins/terminal/plugin";
+import { commandsChatPlugin } from "@kody-ade/kody-chat/plugins/commands";
+import { vibeChatPlugin } from "@kody-ade/kody-chat/plugins/vibe";
+import { goalsChatPlugin } from "@kody-ade/kody-chat/plugins/goals";
+import { tasksChatPlugin, TASKS_PANEL_ID } from "../chat/plugins/tasks";
+// Phase 2 step 4 — remaining admin pages migrated to page-plugins via the
+// tasks-pilot recipe (panels-only manifests; routes unchanged, so the
+// chat-first toggle OFF stays byte-identical).
+import {
+  activityChatPlugin,
+  ACTIVITY_PANEL_ID,
+} from "../chat/plugins/activity";
+import {
+  agencyRunsChatPlugin,
+  AGENCY_RUNS_PANEL_ID,
+} from "../chat/plugins/agency-runs";
+import {
+  agentGoalsChatPlugin,
+  AGENT_GOALS_PANEL_ID,
+} from "../chat/plugins/agent-goals";
+import {
+  agentLoopsChatPlugin,
+  AGENT_LOOPS_PANEL_ID,
+} from "../chat/plugins/agent-loops";
+import { agentsChatPlugin, AGENTS_PANEL_ID } from "../chat/plugins/agents";
+import { brandsChatPlugin, BRANDS_PANEL_ID } from "@kody-ade/kody-chat/plugins/brands";
+import { PACKAGE_ADMIN_PAGES } from "@kody-ade/kody-chat/admin-pages";
+import {
+  capabilitiesChatPlugin,
+  CAPABILITIES_PANEL_ID,
+} from "../chat/plugins/capabilities";
+import {
+  changelogChatPlugin,
+  CHANGELOG_PANEL_ID,
+} from "../chat/plugins/changelog";
+import {
+  commandsPageChatPlugin,
+  COMMANDS_PAGE_PANEL_ID,
+} from "@kody-ade/kody-chat/plugins/commands-page";
+import { companyChatPlugin, COMPANY_PANEL_ID } from "../chat/plugins/company";
+import {
+  companyIntentsChatPlugin,
+  COMPANY_INTENTS_PANEL_ID,
+} from "../chat/plugins/company-intents";
+import { configChatPlugin, CONFIG_PANEL_ID } from "../chat/plugins/config";
+import { contextChatPlugin, CONTEXT_PANEL_ID } from "@kody-ade/kody-chat/plugins/context";
+import { docsChatPlugin, DOCS_PANEL_ID } from "../chat/plugins/docs";
+import { filesChatPlugin, FILES_PANEL_ID } from "../chat/plugins/files";
+import { inboxChatPlugin, INBOX_PANEL_ID } from "../chat/plugins/inbox";
+import {
+  instructionsChatPlugin,
+  INSTRUCTIONS_PANEL_ID,
+} from "@kody-ade/kody-chat/plugins/instructions";
+import { memoryChatPlugin, MEMORY_PANEL_ID } from "@kody-ade/kody-chat/plugins/memory";
+import {
+  messagesChatPlugin,
+  MESSAGES_PANEL_ID,
+} from "../chat/plugins/messages";
+import { modelsChatPlugin, MODELS_PANEL_ID } from "@kody-ade/kody-chat/plugins/models";
+import {
+  notificationsChatPlugin,
+  NOTIFICATIONS_PANEL_ID,
+} from "../chat/plugins/notifications";
+import { previewChatPlugin, PREVIEW_PANEL_ID } from "../chat/plugins/preview";
+import { reportsChatPlugin, REPORTS_PANEL_ID } from "../chat/plugins/reports";
+import { secretsChatPlugin, SECRETS_PANEL_ID } from "@kody-ade/kody-chat/plugins/secrets";
+import {
+  settingsChatPlugin,
+  SETTINGS_PANEL_ID,
+} from "@kody-ade/kody-chat/plugins/settings";
+import {
+  storeCatalogChatPlugin,
+  STORE_CATALOG_PANEL_ID,
+} from "../chat/plugins/store-catalog";
+import { todosChatPlugin, TODOS_PANEL_ID } from "../chat/plugins/todos";
+import {
+  variablesChatPlugin,
+  VARIABLES_PANEL_ID,
+} from "../chat/plugins/variables";
+import {
+  workflowsChatPlugin,
+  WORKFLOWS_PANEL_ID,
+} from "../chat/plugins/workflows";
+
+// Admin plugin composition (Step 6 / M6: the HOST owns the plugin list, so
+// each surface bundles only what it imports). Both KodyChat mounts (desktop
+// rail + mobile sheet) register the same set under the default FULL_GRANT.
+// Order matches the pre-Step-6 built-in registration order: terminal,
+// commands, vibe, goals (goals last — both mounts always pass
+// `onDirectToGoal`, so the pre-move conditional was always true here).
+const ADMIN_CHAT_PLUGINS = [
+  { plugin: terminalChatPlugin },
+  { plugin: commandsChatPlugin },
+  { plugin: vibeChatPlugin },
+  { plugin: goalsChatPlugin },
+  // Tasks page-plugin (phase 2 step 3 pilot) — contributes the "tasks"
+  // panel view the flipped layout renders in place of the raw /tasks route
+  // children. Inert with the chat-first toggle off.
+  { plugin: tasksChatPlugin },
+  // Phase 2 step 4 page-plugins — panels only, inert with the toggle off.
+  { plugin: activityChatPlugin },
+  { plugin: agencyRunsChatPlugin },
+  { plugin: agentGoalsChatPlugin },
+  { plugin: agentLoopsChatPlugin },
+  { plugin: agentsChatPlugin },
+  { plugin: brandsChatPlugin },
+  ...PACKAGE_ADMIN_PAGES.map((page) => ({ plugin: page.plugin })),
+  { plugin: capabilitiesChatPlugin },
+  { plugin: changelogChatPlugin },
+  { plugin: commandsPageChatPlugin },
+  { plugin: companyChatPlugin },
+  { plugin: companyIntentsChatPlugin },
+  { plugin: configChatPlugin },
+  { plugin: contextChatPlugin },
+  { plugin: docsChatPlugin },
+  { plugin: filesChatPlugin },
+  { plugin: inboxChatPlugin },
+  { plugin: instructionsChatPlugin },
+  { plugin: memoryChatPlugin },
+  { plugin: messagesChatPlugin },
+  { plugin: modelsChatPlugin },
+  { plugin: notificationsChatPlugin },
+  { plugin: previewChatPlugin },
+  { plugin: reportsChatPlugin },
+  { plugin: secretsChatPlugin },
+  { plugin: settingsChatPlugin },
+  { plugin: storeCatalogChatPlugin },
+  { plugin: todosChatPlugin },
+  { plugin: variablesChatPlugin },
+  { plugin: workflowsChatPlugin },
+];
+
+// ─── Route → plugin panel mapping (phase 2 step 3 pilot) ───────────────
+// Host-side map for now (deliberately simple): in the flipped layout, when
+// the current repo-relative route has an entry here AND a registered admin
+// plugin contributes a panel with that id, the shell renders the PLUGIN's
+// panel view instead of the raw route children. Only /tasks pilots the
+// mechanism this step — every other route keeps route-content rendering.
+// With the chat-first toggle OFF this map is never consulted.
+const ROUTE_PANEL_IDS: Readonly<Record<string, string>> = {
+  "/tasks": TASKS_PANEL_ID,
+  // Phase 2 step 4 — every migrated admin page routes to its plugin panel.
+  "/activity": ACTIVITY_PANEL_ID,
+  "/agency-runs": AGENCY_RUNS_PANEL_ID,
+  "/agent-goals": AGENT_GOALS_PANEL_ID,
+  "/agent-loops": AGENT_LOOPS_PANEL_ID,
+  "/agents": AGENTS_PANEL_ID,
+  "/brands": BRANDS_PANEL_ID,
+  ...Object.fromEntries(
+    PACKAGE_ADMIN_PAGES.map((page) => [page.href, page.panelId]),
+  ),
+  "/capabilities": CAPABILITIES_PANEL_ID,
+  "/changelog": CHANGELOG_PANEL_ID,
+  "/commands": COMMANDS_PAGE_PANEL_ID,
+  "/company": COMPANY_PANEL_ID,
+  "/company-intents": COMPANY_INTENTS_PANEL_ID,
+  "/config": CONFIG_PANEL_ID,
+  "/context": CONTEXT_PANEL_ID,
+  "/docs": DOCS_PANEL_ID,
+  "/files": FILES_PANEL_ID,
+  "/inbox": INBOX_PANEL_ID,
+  "/instructions": INSTRUCTIONS_PANEL_ID,
+  "/memory": MEMORY_PANEL_ID,
+  "/messages": MESSAGES_PANEL_ID,
+  "/models": MODELS_PANEL_ID,
+  "/notifications": NOTIFICATIONS_PANEL_ID,
+  "/preview": PREVIEW_PANEL_ID,
+  "/reports": REPORTS_PANEL_ID,
+  "/secrets": SECRETS_PANEL_ID,
+  "/settings": SETTINGS_PANEL_ID,
+  "/store-catalog": STORE_CATALOG_PANEL_ID,
+  "/todos": TODOS_PANEL_ID,
+  "/variables": VARIABLES_PANEL_ID,
+  "/workflows": WORKFLOWS_PANEL_ID,
+};
+
+// Stable host-context snapshot for route panels (no per-render identity
+// churn). Step 3 panels take no host context yet.
+const EMPTY_PANEL_HOST: Readonly<Record<string, unknown>> = Object.freeze({});
+
+function findAdminPanel(panelId: string | undefined) {
+  if (!panelId) return null;
+  for (const { plugin } of ADMIN_CHAT_PLUGINS) {
+    const match = plugin.panels?.find((panel) => panel.id === panelId);
+    if (match) return match;
+  }
+  return null;
+}
+
+interface ChatRailApi {
+  scope: ChatContext | null;
+  setScope: (next: ChatContext | null) => void;
+  /** Programmatically open the mobile chat sheet (e.g. from an error state). */
+  openMobileChat: () => void;
+  /**
+   * Register a listener that fires when a chat tool creates a new issue
+   * (`create_*`, `report_bug`). The chat will have already migrated the
+   * running conversation to that issue's chat store by the time this
+   * fires — the host typically just navigates (e.g. updates the URL's
+   * `?issue=N` param on the Vibe page) so the user lands on the new
+   * issue and sees the transferred history.
+   *
+   * Pass `null` to unregister (e.g. on unmount).
+   */
+  setOnIssueCreated: (cb: ((issueNumber: number) => void) | null) => void;
+  /**
+   * Attach a context chip to the chat composer (e.g. an element picked from
+   * the Vibe preview). The chat shows `label` as a removable pill and appends
+   * `context` to the next outgoing message. `id` makes it idempotent. Pass
+   * `null` to clear. Mirrors how PreviewModal passes `composerInjection`
+   * directly — Vibe routes it through here because its chat is the rail.
+   */
+  setComposerInjection: (
+    injection: { id: string; label: string; context: string } | null,
+  ) => void;
+  /**
+   * Attach an image to the chat composer (e.g. a Vibe-preview screenshot).
+   * Mirrors `setComposerInjection` but for the attachment list. Pass `null`
+   * to clear.
+   */
+  setAttachmentInjection: (
+    injection: {
+      id: string;
+      name: string;
+      dataUrl: string;
+      mimeType: string;
+    } | null,
+  ) => void;
+  /**
+   * Ambient context for the active preview workspace selection. The chat
+   * appends this invisibly on send; pages clear it on unmount.
+   */
+  setPreviewContext: (context: string | null) => void;
+  /** Page-level escape hatch for views that render their own top header. */
+  setPageOwnsHeader: (ownsHeader: boolean) => void;
+}
+
+const ChatRailContext = createContext<ChatRailApi | null>(null);
+
+/**
+ * Read & control the persistent chat. Returns a no-op API when called
+ * outside the rail (e.g. before auth loads or while the RepoManager
+ * empty-state is shown) so callers don't need to special-case it.
+ */
+export function useChatScope(): ChatRailApi {
+  return useContext(ChatRailContext) ?? NOOP_API;
+}
+
+const NOOP_API: ChatRailApi = {
+  scope: null,
+  setScope: () => {},
+  openMobileChat: () => {},
+  setOnIssueCreated: () => {},
+  setComposerInjection: () => {},
+  setAttachmentInjection: () => {},
+  setPreviewContext: () => {},
+  setPageOwnsHeader: () => {},
+};
+
+// Routes that must NOT render the dashboard rail. Client chat owns its own
+// full-page shell and must not inherit admin dashboard chrome.
+const PUBLIC_ROUTE_PREFIXES: readonly string[] = ["/client"];
+
+function isPublicRoute(pathname: string | null): boolean {
+  if (!pathname) return false;
+  return PUBLIC_ROUTE_PREFIXES.some(
+    (p) => pathname === p || pathname.startsWith(`${p}/`),
+  );
+}
+
+export function ChatRailShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  const publicRoute = isPublicRoute(pathname);
+  const { auth, loading } = useAuth();
+  const { githubUser } = useGitHubIdentity();
+  const [scope, setScope] = useState<ChatContext | null>(null);
+  // Mobile "chat open" — persisted per-device (same as the desktop expand
+  // state) so opening chat survives a reload / navigation, not just the
+  // in-memory session.
+  const [mobileOpen, setMobileOpen] = useState(false);
+  useEffect(() => {
+    setMobileOpen(localStorage.getItem("kody:mobile-chat-open") === "1");
+  }, []);
+  const setMobileOpenPersist = useCallback((next: boolean) => {
+    setMobileOpen(next);
+    try {
+      localStorage.setItem("kody:mobile-chat-open", next ? "1" : "0");
+    } catch {
+      // localStorage unavailable (private mode) — non-fatal.
+    }
+  }, []);
+
+  // Goals power the "direct chat to a goal by id" flow: a user types the
+  // goal's `#<discussionNumber>` (or `goal:<n>`) in the composer and the
+  // chat re-scopes to that goal's planner. The rail owns this (not the
+  // dashboard page) so it works from any route — chat is always mounted
+  // here. We pass the live goals straight down; the parser resolves the
+  // number/slug to a canonical id.
+  const shouldPollChatGoals =
+    !publicRoute && shouldPollChatGoalsForRoute(pathname);
+  const { data: goalsData } = useGoals({ enabled: shouldPollChatGoals });
+  const goals = useMemo(() => goalsData ?? [], [goalsData]);
+  const directToGoal = useCallback(
+    (goalId: string) => {
+      const goal = goals.find((g) => g.id === goalId);
+      if (!goal) return;
+      const sessionId =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `planner-${Date.now()}`;
+      setScope({
+        kind: "goal-planner",
+        goal,
+        sessionId,
+        onExit: () => setScope(null),
+      });
+    },
+    [goals],
+  );
+
+  // Rail width + drag-to-resize moved into the shared ChatShell.
+  // "Expanded chat" is the /chat route — a real page, not a cross-page
+  // overlay. The expand button navigates to /chat; restore returns to the
+  // page you expanded from (so browsing away from /chat just shows that
+  // page — chat never hovers over it). Remembered in a ref for the session.
+  const router = useRouter();
+
+  useEffect(() => {
+    if (publicRoute) return;
+    if (loading || !auth || !pathname) return;
+    const target = legacyRepoRedirectPath(auth, pathname);
+    if (!target) return;
+    router.replace(`${target}${window.location.search}${window.location.hash}`);
+  }, [auth, loading, pathname, publicRoute, router]);
+
+  // The auth context derives the active repo from the URL, so the only
+  // sync state left to handle is "missing" — a /repo/<owner>/<repo> URL we
+  // have no credentials for ("switch" can no longer occur).
+  const repoRouteAuthSync = publicRoute
+    ? ({ status: "none" } as const)
+    : resolveRepoRouteAuthSync(pathname ?? "/", auth);
+
+  const preExpandRouteRef = useRef("/tasks");
+  const currentRepoPath = repoPathForNavMatching(pathname ?? "/");
+
+  // ─── Chat-first layout flip (phase 2 step 2, per-user, default ON) ───
+  // Desktop only: the routed page can render through the plugin panel host
+  // while the visible rail/page geometry stays identical to the classic
+  // layout. The route stays the source of truth (deep links + back button
+  // work unchanged). Mobile keeps the existing behavior (page + chat sheet).
+  const chatFirst = useChatFirstLayout();
+  const flipActive = chatFirst && !publicRoute && !!auth;
+  useEffect(() => {
+    if (!flipActive || currentRepoPath === "/chat") return;
+    trace({ kind: "panel:open", detail: currentRepoPath });
+  }, [flipActive, currentRepoPath]);
+  const scopedHref = useCallback(
+    (href: string) => (auth ? repoScopedHref(auth, href) : href),
+    [auth],
+  );
+  const toggleExpandedChat = useCallback(() => {
+    if (currentRepoPath === "/chat") {
+      router.push(preExpandRouteRef.current || scopedHref("/tasks"));
+    } else {
+      preExpandRouteRef.current = pathname || scopedHref("/tasks");
+      router.push(scopedHref("/chat"));
+    }
+  }, [currentRepoPath, pathname, router, scopedHref]);
+
+  // Escape always exits the full /chat view, even if the chat header is
+  // hidden by a layout glitch (e.g. session sidebar overflowing on a narrow
+  // window). Without this the user is stuck and has to reach for the
+  // browser back button.
+  useEffect(() => {
+    if (currentRepoPath !== "/chat") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        router.push(preExpandRouteRef.current || scopedHref("/tasks"));
+      }
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [currentRepoPath, router, scopedHref]);
+
+  // Hydration guard: SSR has no localStorage so `auth` is always null on
+  // the server. Without this flag the first client render would diverge
+  // from the server HTML and React would bail out with hydration error
+  // #418. We force the first client paint to match the server (no rail),
+  // then flip on a layout effect so the rail appears immediately.
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => setHydrated(true), []);
+
+  const openMobileChat = useCallback(() => {
+    if (!auth) {
+      setMobileOpenPersist(false);
+      return;
+    }
+    setMobileOpenPersist(true);
+  }, [auth, setMobileOpenPersist]);
+
+  useEffect(() => {
+    if (!loading && !auth && mobileOpen) setMobileOpenPersist(false);
+  }, [auth, loading, mobileOpen, setMobileOpenPersist]);
+
+  // Ref, not state, so registering/unregistering doesn't re-render the
+  // entire app tree under the rail. The KodyChat instance reads the
+  // current value through a stable proxy callback wired below.
+  const onIssueCreatedRef = useRef<((issueNumber: number) => void) | null>(
+    null,
+  );
+  const setOnIssueCreated = useCallback(
+    (cb: ((issueNumber: number) => void) | null) => {
+      onIssueCreatedRef.current = cb;
+    },
+    [],
+  );
+  // Stable wrapper passed to KodyChat — dispatches to whatever callback
+  // the host has currently registered. Stable identity keeps useCallback
+  // / useEffect deps inside KodyChat from churning.
+  const dispatchIssueCreated = useCallback((issueNumber: number) => {
+    onIssueCreatedRef.current?.(issueNumber);
+  }, []);
+
+  // Composer context chip (picked Vibe-preview element) — held as state so
+  // both KodyChat instances below re-render with the new chip.
+  const [composerInjection, setComposerInjection] = useState<{
+    id: string;
+    label: string;
+    context: string;
+  } | null>(null);
+  const [attachmentInjection, setAttachmentInjection] = useState<{
+    id: string;
+    name: string;
+    dataUrl: string;
+    mimeType: string;
+  } | null>(null);
+  const [previewContext, setPreviewContext] = useState<string | null>(null);
+  const [pageHeaderOwnedByChild, setPageOwnsHeader] = useState(false);
+
+  const api = useMemo<ChatRailApi>(
+    () => ({
+      scope,
+      setScope,
+      openMobileChat,
+      setOnIssueCreated,
+      setComposerInjection,
+      setAttachmentInjection,
+      setPreviewContext,
+      setPageOwnsHeader,
+    }),
+    [scope, openMobileChat, setOnIssueCreated],
+  );
+
+  // Keep the rail visible even when the user has no credentials yet —
+  // the dashboard renders the RepoManager empty-state in its task pane
+  // and we want the chrome (header + chat aside) to stay intact so the
+  // user sees the full app shell from the first paint. The chat itself
+  // is swapped for a "connect a repo" placeholder below when `auth`
+  // is null, since `<KodyChat />` needs a PAT to be useful.
+  const showRail = hydrated && !loading && !publicRoute;
+
+  if (!showRail) {
+    return (
+      <ChatRailContext.Provider value={api}>
+        <NotificationsProvider>
+          <SettingsDrawerProvider>
+            <CommandPalette />
+            {children}
+          </SettingsDrawerProvider>
+        </NotificationsProvider>
+      </ChatRailContext.Provider>
+    );
+  }
+
+  // The desktop KodyChat stays mounted (hidden, not unmounted) so
+  // history/streaming survive navigation. It renders two ways:
+  //   • /chat  → full-width main pane (the primary assistant view)
+  //   • else   → fixed-width side rail beside the page (tasks, vibe,
+  //              settings…); on mobile non-chat it hides and a SECOND
+  //              KodyChat instance mounts in the sheet opened from the
+  //              header's chat button (see the fixed panel below).
+  // Kody Live remains the default agent (only it can edit code); the model
+  // dropdown still lets the user pick any configured LLM for chat-only turns.
+  const isChatRoute = currentRepoPath === "/chat";
+  const isVibeRoute =
+    currentRepoPath === "/vibe" || currentRepoPath.startsWith("/vibe/");
+  const isOrgRoute =
+    pathname === "/org" || (pathname?.startsWith("/org/") ?? false);
+  const repoRouteBlocksPage = repoRouteAuthSync.status === "missing";
+  // Routes whose page renders its OWN in-pane header (KodyDashboard on the
+  // tasks list, new-task / report-bug modals, and issue detail at /<number>;
+  // plus Vibe). The shared AppHeader must NOT render on these or two headers
+  // stack. KodyDashboard mounts on all of: /tasks, /new, /bug,
+  // /report-kody-bug, and /<issueNumber>(/…) — see app/. Note /bug and /new
+  // are also reached mid-session via KodyDashboard's history.pushState when a
+  // modal opens, so they must be listed even though no route file navigates
+  // here directly.
+  const pageOwnsHeader =
+    !!auth &&
+    !repoRouteBlocksPage &&
+    (routeOwnsAppHeader(currentRepoPath) || pageHeaderOwnedByChild);
+  const lockedAgentId = isOrgRoute ? "kody" : undefined;
+  // Flipped layout only: if a registered plugin owns a panel for this
+  // route, its view replaces the raw route children (step 3 pilot —
+  // currently just /tasks). Auth-sync blocking states below still win.
+  const routePanel = flipActive
+    ? findAdminPanel(ROUTE_PANEL_IDS[currentRepoPath])
+    : null;
+  const RoutePanelRender = routePanel?.render;
+  const pageContent =
+    repoRouteAuthSync.status === "missing" ? (
+      <RepoManager />
+    ) : RoutePanelRender ? (
+      <RoutePanelRender host={EMPTY_PANEL_HOST} />
+    ) : (
+      children
+    );
+
+  const chatPane = auth ? (
+    <KodyChat
+      context={scope}
+      actorLogin={githubUser?.login}
+      lockedAgentId={lockedAgentId}
+      vibeMode={isVibeRoute}
+      onIssueCreated={dispatchIssueCreated}
+      knownGoals={goals}
+      onDirectToGoal={directToGoal}
+      composerInjection={composerInjection}
+      attachmentInjection={attachmentInjection}
+      previewContext={previewContext}
+      plugins={ADMIN_CHAT_PLUGINS}
+      // Expand = navigate to the /chat page; restore = back to the previous
+      // page. On /chat the button reads as "restore" (railFullscreen).
+      onToggleFullscreen={toggleExpandedChat}
+      railFullscreen={isChatRoute}
+    />
+  ) : (
+    <div className="flex-1 flex items-center justify-center p-6">
+      <p className="text-body-sm text-muted-foreground text-center leading-relaxed">
+        Connect a repository to start chatting with Kody.
+      </p>
+    </div>
+  );
+
+  return (
+    <ChatRailContext.Provider value={api}>
+      <NotificationsProvider>
+        <SettingsDrawerProvider>
+          <CommandPalette />
+          {/* The shared shell owns the layout (nav | chat | page) — this
+              wrapper only supplies the dashboard-specific chat pane, header,
+              and page content. Shell chrome (repo switcher in the sidepanel,
+              rail resize) is inherited from @kody-ade/kody-chat. */}
+          {/* Explicit sections: the Engineer list is the superset (Vibe and
+              Preview included), so the old Vibe/Engineer toggle is gone. */}
+          <ChatShell
+            title="Kody"
+            sections={ENGINEER_MODE_SECTIONS}
+            sidebarBrandExtra={<SidebarNotifications />}
+            chat={chatPane}
+            isChatHome={isChatRoute}
+            showMobileHeader={false}
+            contentTestId={flipActive ? "chat-first-panel" : undefined}
+          >
+            {!pageOwnsHeader && <AppHeader />}
+            <div className="flex-1 min-h-0 flex flex-col">{pageContent}</div>
+          </ChatShell>
+
+          {/* Mobile chat — opens as a panel BELOW the top header (no backdrop)
+          so the header stays visible and its hamburger (nav + filters) is
+          still reachable while chatting. The rail is desktop-only; on mobile
+          chat is opened from the header's chat button. Not shown on /chat
+          (chat is the full view) or /messages (its own chat surface). */}
+          {mobileOpen &&
+            auth &&
+            !isChatRoute &&
+            !currentRepoPath.startsWith("/messages") && (
+              <div className="fixed inset-x-0 bottom-0 top-16 z-30 flex flex-col border-t border-border bg-background md:hidden">
+                {auth ? (
+                  <KodyChat
+                    context={scope}
+                    actorLogin={githubUser?.login}
+                    onClose={() => setMobileOpenPersist(false)}
+                    lockedAgentId={lockedAgentId}
+                    vibeMode={isVibeRoute}
+                    onIssueCreated={dispatchIssueCreated}
+                    knownGoals={goals}
+                    onDirectToGoal={directToGoal}
+                    composerInjection={composerInjection}
+                    attachmentInjection={attachmentInjection}
+                    previewContext={previewContext}
+                    plugins={ADMIN_CHAT_PLUGINS}
+                  />
+                ) : (
+                  <div className="flex-1 flex items-center justify-center p-6">
+                    <p className="text-sm text-muted-foreground text-center leading-relaxed">
+                      Connect a repository to start chatting with Kody.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+        </SettingsDrawerProvider>
+      </NotificationsProvider>
+    </ChatRailContext.Provider>
+  );
+}
