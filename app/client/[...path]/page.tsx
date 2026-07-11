@@ -4,15 +4,11 @@
  * @pattern client-chat-route
  * @ai-summary Brand-scoped client chat route. It renders a standalone shell
  *   around the real KodyChat and stays outside the dashboard chat rail.
- *   Two URL shapes:
- *     /client/<brandSlug>                 — legacy; repo context comes from
- *       the dashboard cookie or the configured default repo.
- *     /client/<owner>/<repo>/<brandSlug>  — self-contained; the link itself
- *       names the repo the brand lives in, so any visitor on any device
- *       resolves the right context (kody-state stays repo-agnostic).
+ *   URL shape: /client/<owner>/<repo>/<brandSlug> — self-contained; the link
+ *   itself names the repo the brand lives in, so any visitor on any device
+ *   resolves the right context (kody-state stays repo-agnostic).
  */
 import type { Metadata } from "next";
-import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 
 // Package-owned (hosts deleted their copies) — must stay relative.
@@ -23,14 +19,9 @@ import {
 } from "@dashboard/lib/client-brand";
 import { getClientSurfaceCatalog } from "../../../src/dashboard/lib/client-chat-strings";
 import { resolveClientLanguageStrings } from "../../../src/dashboard/lib/client-language";
-import {
-  CLIENT_BRAND_REPO_COOKIE,
-  parseClientBrandRepoCookie,
-  type ClientBrandRepoContext,
-} from "@dashboard/lib/client-brand-repo-cookie";
+import { type ClientBrandRepoContext } from "@dashboard/lib/client-brand-repo-cookie";
 import { mintClientSurfaceTicket } from "../../../src/dashboard/lib/chat/platform/surface-scope";
 import { resolveVaultGithubToken } from "@dashboard/lib/vault/bootstrap";
-import { defaultClientBrandRepoContext } from "@dashboard/lib/client-brand-default-repo";
 import { auth, signIn, signOut } from "@dashboard/lib/client-auth/auth";
 import {
   brandAuthProviders,
@@ -43,11 +34,11 @@ interface ClientChatPageProps {
   params: Promise<{ path: string[] }>;
 }
 
-/** Parsed URL shape: brand slug plus (for 3-segment links) the repo. */
+/** Parsed URL shape: brand slug plus the repo it lives in. */
 interface ClientChatRoute {
   brandSlug: string;
-  /** Explicit repo context from the URL; null for legacy 1-segment links. */
-  urlContext: ClientBrandRepoContext | null;
+  /** Repo context from the URL. */
+  urlContext: ClientBrandRepoContext;
   /** The path the surface should return to after auth round-trips. */
   callbackUrl: string;
 }
@@ -61,13 +52,6 @@ function parseClientChatRoute(
   const segments = path.map((segment) => decodeURIComponent(segment).trim());
   if (segments.some((segment) => !segment)) return null;
 
-  if (segments.length === 1) {
-    return {
-      brandSlug: segments[0],
-      urlContext: null,
-      callbackUrl: `/client/${encodeURIComponent(segments[0])}`,
-    };
-  }
   if (segments.length === 3) {
     const [owner, repo, brandSlug] = segments;
     if (!OWNER_REPO_PATTERN.test(owner) || !OWNER_REPO_PATTERN.test(repo)) {
@@ -92,53 +76,13 @@ async function withVaultToken(
   };
 }
 
-/**
- * Resolve the brand plus the repo context it was found under. A repo named
- * in the URL wins outright. Legacy links fall back to the dashboard cookie,
- * then the configured default repo (client visitors don't carry the
- * dashboard's brand-repo cookie, and since the cookie started tracking the
- * last-visited repo it may point at a repo with no brands at all).
- */
+/** Resolve the brand from the repo named in the URL. */
 async function resolveBrandAndContext(route: ClientChatRoute): Promise<{
   brand: Awaited<ReturnType<typeof resolveClientBrand>>;
-  context: ClientBrandResolveContext | null;
+  context: ClientBrandResolveContext;
 }> {
-  const { brandSlug, urlContext } = route;
-
-  if (urlContext) {
-    const context = await withVaultToken(urlContext);
-    return { brand: await resolveClientBrand(brandSlug, context), context };
-  }
-
-  const cookieStore = await cookies();
-  const cookieContext = parseClientBrandRepoCookie(
-    cookieStore.get(CLIENT_BRAND_REPO_COOKIE)?.value,
-  );
-
-  if (cookieContext) {
-    const context = await withVaultToken(cookieContext);
-    const brand = await resolveClientBrand(brandSlug, context);
-    // Repo brands carry their auth block; a builtin/default fallback does
-    // not, so a brand without one may live in the default repo instead.
-    if (brand?.auth) return { brand, context };
-  }
-
-  const defaultContext = defaultClientBrandRepoContext();
-  if (
-    defaultContext &&
-    (defaultContext.owner !== cookieContext?.owner ||
-      defaultContext.repo !== cookieContext?.repo)
-  ) {
-    const context = await withVaultToken(defaultContext);
-    const brand = await resolveClientBrand(brandSlug, context);
-    if (brand) return { brand, context };
-  }
-
-  if (cookieContext) {
-    const context = await withVaultToken(cookieContext);
-    return { brand: await resolveClientBrand(brandSlug, context), context };
-  }
-  return { brand: await resolveClientBrand(brandSlug, null), context: null };
+  const context = await withVaultToken(route.urlContext);
+  return { brand: await resolveClientBrand(route.brandSlug, context), context };
 }
 
 export async function generateMetadata({
