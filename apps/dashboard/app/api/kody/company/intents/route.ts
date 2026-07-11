@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern company-intents-api
- * @ai-summary Lists and creates CTO agency-architect intents in configured Kody state repo.
+ * @ai-summary Lists and creates company intents in the configured Kody state repo.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -21,11 +21,6 @@ import {
 } from "@dashboard/lib/github-client";
 import { logger } from "@kody-ade/base/logger";
 import {
-  listCompanyStoreGoalTemplateFiles,
-  readManagedGoalFile,
-} from "@dashboard/lib/managed-goals-files";
-import { readResolvedCapabilityFile } from "@dashboard/lib/capabilities";
-import {
   buildCompanyIntent,
   companyIntentDecisionsPath,
   companyIntentPath,
@@ -35,9 +30,7 @@ import {
   RELEASE_CADENCES,
   slugifyCompanyIntentId,
   sortCompanyIntentRecords,
-  type CompanyIntent,
   type CompanyIntentInput,
-  type CompanyIntentManagerHealth,
   type CompanyIntentRecord,
 } from "@dashboard/lib/company-intents";
 import {
@@ -116,11 +109,6 @@ const intentPayloadSchema = z.object({
       capabilities: stringListSchema,
     })
     .default({ goals: [], loops: [], capabilities: [] }),
-  manager: z
-    .object({
-      reviewEvery: z.enum(["1d", "1w"]).default("1d"),
-    })
-    .default({ reviewEvery: "1d" }),
   actorLogin: z.string().trim().optional(),
 });
 
@@ -169,44 +157,6 @@ function normalizeIntentInput(
       loops: data.portfolio.loops.filter(isCompanyIntentId),
       capabilities: data.portfolio.capabilities.filter(isCompanyIntentId),
     },
-    manager: data.manager,
-  };
-}
-
-async function managerHealth(
-  octokit: Awaited<ReturnType<typeof getUserOctokit>>,
-  intent: CompanyIntent,
-  owner: string,
-  repo: string,
-): Promise<CompanyIntentManagerHealth | undefined> {
-  if (!octokit) return undefined;
-  const [loop, capability] = await Promise.all([
-    readManagedGoalFile(intent.manager.loop, octokit, owner, repo).catch(
-      () => null,
-    ),
-    readResolvedCapabilityFile(intent.manager.capability, octokit).catch(
-      () => null,
-    ),
-  ]);
-  const storeLoop = loop
-    ? null
-    : (await listCompanyStoreGoalTemplateFiles(octokit).catch(() => [])).find(
-        (goal) => goal.id === intent.manager.loop,
-      );
-  return {
-    loop: {
-      id: intent.manager.loop,
-      exists: Boolean(loop || storeLoop),
-      state: loop?.state.state ?? storeLoop?.state.state,
-      updatedAt:
-        typeof loop?.state.updatedAt === "string"
-          ? loop.state.updatedAt
-          : undefined,
-    },
-    capability: {
-      id: intent.manager.capability,
-      exists: Boolean(capability),
-    },
   };
 }
 
@@ -246,7 +196,6 @@ async function readIntentRecord({
     decisions: decisionsFile
       ? parseCompanyIntentDecisionLog(decisionsFile.content)
       : [],
-    managerHealth: await managerHealth(octokit, intent, owner, repo),
   };
 }
 

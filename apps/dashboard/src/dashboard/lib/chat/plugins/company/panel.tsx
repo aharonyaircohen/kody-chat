@@ -11,7 +11,7 @@
 "use client";
 
 import { AuthGuard } from "../../../auth-guard";
-import { AgencyArchitect } from "../../../components/AgencyArchitect";
+import { AgencySetup } from "../../../components/AgencyArchitect";
 import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
 
 export const COMPANY_PANEL_TESTID = "chat-panel-company";
@@ -20,7 +20,7 @@ export function CompanyPanelView(_props: ChatPanelViewProps) {
   return (
     <div className="contents" data-testid={COMPANY_PANEL_TESTID}>
       <AuthGuard>
-        <AgencyArchitect />
+        <AgencySetup />
       </AuthGuard>
     </div>
   );

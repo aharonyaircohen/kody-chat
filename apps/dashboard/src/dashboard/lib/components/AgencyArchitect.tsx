@@ -1,7 +1,7 @@
 /**
  * @fileType component
  * @domain kody
- * @pattern agency-architect
+ * @pattern agency-setup
  * @ai-summary Import/export an AI Agency setup — the portable operating
  *   manual of an org (agents, capabilities, context, commands, managed goals,
  *   instructions, and config). Export downloads a JSON
@@ -38,10 +38,10 @@ import type {
 } from "../company/types";
 import { cn } from "../utils";
 
-export function AgencyArchitect() {
+export function AgencySetup() {
   return (
     <AuthGuard>
-      <AgencyArchitectInner />
+      <AgencySetupInner />
     </AuthGuard>
   );
 }
@@ -52,7 +52,7 @@ function countLine(label: string, c: CompanyImportResult["agent"]): string {
   }`;
 }
 
-function AgencyArchitectInner() {
+function AgencySetupInner() {
   const { auth } = useAuth();
   const actorLogin = auth?.user.login;
   const fileInput = useRef<HTMLInputElement>(null);

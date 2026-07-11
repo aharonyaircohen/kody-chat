@@ -2,7 +2,7 @@
  * @fileType component
  * @domain kody
  * @pattern company-intents
- * @ai-summary Operator view for CTO agency-architect intents.
+ * @ai-summary Operator view for company intents managed by active executive loops.
  */
 "use client";
 
@@ -100,7 +100,6 @@ type IntentFormState = {
   goals: string;
   loops: string;
   capabilities: string;
-  reviewEvery: "1d" | "1w";
 };
 
 type IntentFormSetter = Dispatch<SetStateAction<IntentFormState>>;
@@ -182,7 +181,6 @@ export function CompanyIntentsView({
         intent.description ?? "",
         intent.status,
         intent.posture,
-        intent.manager.agent,
         ...intent.scope.repos,
         ...intent.scope.areas,
       ]
@@ -234,7 +232,7 @@ export function CompanyIntentsView({
   ).length;
   const warningCount = intents.reduce(
     (sum, record) =>
-      sum + companyIntentWarnings(record.intent, record.managerHealth).length,
+      sum + companyIntentWarnings(record.intent).length,
     0,
   );
 
@@ -524,7 +522,7 @@ function IntentListItem({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const warnings = companyIntentWarnings(record.intent, record.managerHealth);
+  const warnings = companyIntentWarnings(record.intent);
   const tone = intentStatusTone(record.intent.status);
   const behavior = behaviorFromPosture(record.intent.posture);
   return (
@@ -588,8 +586,8 @@ function IntentDetail({
   onRun: () => void;
   onLifecycle: (status: CompanyIntentStatus) => void;
 }) {
-  const { intent, decisions, managerHealth } = record;
-  const warnings = companyIntentWarnings(intent, managerHealth);
+  const { intent, decisions } = record;
+  const warnings = companyIntentWarnings(intent);
   const behavior = behaviorFromPosture(intent.posture);
   const advancedCount = warnings.length + decisions.length;
   return (
@@ -726,10 +724,7 @@ function IntentDetail({
         <section className="grid gap-3 sm:grid-cols-3">
           <PlainFact label="Behavior" value={behaviorLabel(behavior)} />
           <PlainFact label="Status" value={intent.status} />
-          <PlainFact
-            label="Last reviewed"
-            value={formatDate(intent.manager.lastReviewedAt)}
-          />
+          <PlainFact label="Management decisions" value={String(decisions.length)} />
         </section>
 
         <section className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4">
@@ -782,13 +777,6 @@ function IntentDetail({
 
             <div className="grid gap-6 xl:grid-cols-2">
               <Block
-                title="Agency Architect"
-                subtitle="Background reviewer wiring"
-                icon={Compass}
-              >
-                <ManagerHealth intent={intent} record={record} />
-              </Block>
-              <Block
                 title="Scope"
                 subtitle="Stored targeting and linked work"
                 icon={Target}
@@ -803,7 +791,7 @@ function IntentDetail({
 
             <Block
               title="Principles"
-              subtitle="Stored rules used by Agency Architect"
+              subtitle="Stored rules used by executive management"
               icon={Compass}
               count={intent.principles.length}
             >
@@ -821,7 +809,7 @@ function IntentDetail({
 
             <Block
               title="Decision Log"
-              subtitle="Recent Agency Architect decisions"
+              subtitle="Recent executive management decisions"
               icon={CalendarClock}
               count={decisions.length}
             >
@@ -851,7 +839,7 @@ function intentWorkSummary(intent: CompanyIntent): string {
   const goalCount = intent.portfolio.goals.length;
   const loopCount = intent.portfolio.loops.length;
   if (goalCount === 0 && loopCount === 0) {
-    return "No linked work yet. Agency Architect can review this intent and decide whether it needs anything.";
+    return "No linked work yet. Executive management can review this intent and decide whether it needs anything.";
   }
 
   const parts: string[] = [];
@@ -864,42 +852,6 @@ function intentWorkSummary(intent: CompanyIntent): string {
     );
   }
   return `Linked to ${parts.join(" and ")}.`;
-}
-
-function ManagerHealth({
-  intent,
-  record,
-}: {
-  intent: CompanyIntent;
-  record: CompanyIntentRecord;
-}) {
-  const health = record.managerHealth;
-  return (
-    <dl className="space-y-2 text-body-xs text-muted-foreground">
-      <Meta label="Agent" value={intent.manager.agent} />
-      <Meta label="Review" value={intent.manager.reviewEvery} />
-      <Meta
-        label="Loop"
-        value={
-          health?.loop.exists
-            ? `${health.loop.id} (${health.loop.state ?? "ready"})`
-            : `${intent.manager.loop} missing`
-        }
-      />
-      <Meta
-        label="Capability"
-        value={
-          health?.capability.exists
-            ? `${health.capability.id} ready`
-            : `${intent.manager.capability} missing`
-        }
-      />
-      <Meta
-        label="Last review"
-        value={formatDate(intent.manager.lastReviewedAt)}
-      />
-    </dl>
-  );
 }
 
 function PolicyGrid({ intent }: { intent: CompanyIntent }) {
@@ -1201,9 +1153,8 @@ function emptyForm(): IntentFormState {
     maxDailyActions: "5",
     requiresHumanFor: "",
     goals: "",
-    loops: "agency-architect-loop",
-    capabilities: "agency-architect",
-    reviewEvery: "1d",
+    loops: "",
+    capabilities: "",
   };
 }
 
@@ -1258,7 +1209,6 @@ function recordToForm(record: CompanyIntentRecord): IntentFormState {
     goals: intent.portfolio.goals.join("\n"),
     loops: intent.portfolio.loops.join("\n"),
     capabilities: intent.portfolio.capabilities.join("\n"),
-    reviewEvery: intent.manager.reviewEvery,
   };
 }
 
@@ -1294,9 +1244,6 @@ function formToInput(form: IntentFormState): CompanyIntentInput {
       goals: parseLines(form.goals).filter(isCompanyIntentId),
       loops: parseLines(form.loops).filter(isCompanyIntentId),
       capabilities: parseLines(form.capabilities).filter(isCompanyIntentId),
-    },
-    manager: {
-      reviewEvery: form.reviewEvery,
     },
   };
 }

@@ -2,7 +2,7 @@
  * @fileType utility
  * @domain kody
  * @pattern company-intents
- * @ai-summary Types and normalizers for CTO agency-architect intents stored in state repo.
+ * @ai-summary Types and normalizers for company intents stored in state repo.
  */
 
 import { slugifyTitle } from "@kody-ade/base/slug";
@@ -50,20 +50,13 @@ export interface CompanyIntent {
     loops: string[];
     capabilities: string[];
   };
-  manager: {
-    agent: "cto";
-    loop: "agency-architect-loop";
-    capability: "agency-architect";
-    reviewEvery: "1d" | "1w";
-    lastReviewedAt?: string;
-  };
   createdAt: string;
   updatedAt: string;
 }
 
 export interface CompanyIntentDecisionLog {
   at: string;
-  agent: "cto";
+  agent: string;
   intentId?: string;
   action: string;
   reason: string;
@@ -72,25 +65,11 @@ export interface CompanyIntentDecisionLog {
   resources?: string[];
 }
 
-export interface CompanyIntentManagerHealth {
-  loop: {
-    id: string;
-    exists: boolean;
-    state?: string;
-    updatedAt?: string;
-  };
-  capability: {
-    id: string;
-    exists: boolean;
-  };
-}
-
 export interface CompanyIntentRecord {
   id: string;
   path: string;
   intent: CompanyIntent;
   decisions: CompanyIntentDecisionLog[];
-  managerHealth?: CompanyIntentManagerHealth;
 }
 
 export interface CompanyIntentInput {
@@ -107,7 +86,6 @@ export interface CompanyIntentInput {
   metrics: string[];
   policy: CompanyIntent["policy"];
   portfolio: CompanyIntent["portfolio"];
-  manager: Pick<CompanyIntent["manager"], "reviewEvery">;
   status?: CompanyIntentStatus;
 }
 
@@ -155,12 +133,6 @@ export function buildCompanyIntent(
     metrics: input.metrics,
     policy: input.policy,
     portfolio: input.portfolio,
-    manager: {
-      agent: "cto",
-      loop: "agency-architect-loop",
-      capability: "agency-architect",
-      reviewEvery: input.manager.reviewEvery,
-    },
     createdAt: now,
     updatedAt: now,
   });
@@ -202,7 +174,6 @@ export function normalizeCompanyIntent(
       automation: normalizeAutomationPolicy(policy?.automation),
     },
     portfolio: normalizePortfolio(input.portfolio),
-    manager: normalizeManager(input.manager),
     createdAt,
     updatedAt,
   };
@@ -235,20 +206,11 @@ export function sortCompanyIntentRecords(
   );
 }
 
-export function companyIntentWarnings(
-  intent: CompanyIntent,
-  managerHealth?: CompanyIntentManagerHealth,
-): string[] {
+export function companyIntentWarnings(intent: CompanyIntent): string[] {
   const warnings: string[] = [];
   if (intent.metrics.length === 0) warnings.push("No metrics set");
   if (intent.scope.repos.length === 0 && intent.scope.areas.length === 0) {
     warnings.push("No scope set");
-  }
-  if (managerHealth && !managerHealth.loop.exists) {
-    warnings.push("Manager loop missing");
-  }
-  if (managerHealth && !managerHealth.capability.exists) {
-    warnings.push("Manager capability missing");
   }
   return warnings;
 }
@@ -305,18 +267,6 @@ function normalizeAutomationPolicy(
   };
 }
 
-function normalizeManager(value: unknown): CompanyIntent["manager"] {
-  const input = recordField(value);
-  const lastReviewedAt = stringField(input?.lastReviewedAt);
-  return {
-    agent: "cto",
-    loop: "agency-architect-loop",
-    capability: "agency-architect",
-    reviewEvery: enumField(input?.reviewEvery, ["1d", "1w"]) ?? "1d",
-    ...(lastReviewedAt ? { lastReviewedAt } : {}),
-  };
-}
-
 function normalizeDecisionLog(value: unknown): CompanyIntentDecisionLog | null {
   const input = recordField(value);
   if (!input) return null;
@@ -329,7 +279,7 @@ function normalizeDecisionLog(value: unknown): CompanyIntentDecisionLog | null {
 
   return {
     at,
-    agent: "cto",
+    agent: stringField(input.agent) || "unknown",
     ...(stringField(input.intentId)
       ? { intentId: stringField(input.intentId) }
       : {}),

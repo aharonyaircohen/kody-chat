@@ -62,7 +62,7 @@ describe("company intents", () => {
     expect(intent.description).toBe(
       "Use this to prove Agency Architect understands deeper operator context.",
     );
-    expect(intent.manager.agent).toBe("cto");
+    expect(intent).not.toHaveProperty("manager");
     expect(intent.policy.release?.qaDepth).toBe("strict");
     expect(intent.policy.automation.maxConcurrentGoals).toBe(1);
   });
@@ -157,16 +157,11 @@ describe("company intents", () => {
           loops: ["agency-architect-loop"],
           capabilities: ["agency-architect"],
         },
-        manager: { reviewEvery: "1d" },
       },
       "2026-06-24T00:00:00.000Z",
     );
 
-    expect(intent.manager).toMatchObject({
-      agent: "cto",
-      loop: "agency-architect-loop",
-      capability: "agency-architect",
-    });
+    expect(intent).not.toHaveProperty("manager");
     expect(intent.createdAt).toBe("2026-06-24T00:00:00.000Z");
     expect(intent.description).toBe(
       "Prefer boring release flow with evidence before action.",
@@ -182,16 +177,9 @@ describe("company intents", () => {
       manager: { agent: "cto" },
     });
 
-    expect(
-      companyIntentWarnings(intent, {
-        loop: { id: "agency-architect-loop", exists: false },
-        capability: { id: "agency-architect", exists: false },
-      }),
-    ).toEqual([
+    expect(companyIntentWarnings(intent)).toEqual([
       "No metrics set",
       "No scope set",
-      "Manager loop missing",
-      "Manager capability missing",
     ]);
   });
 
@@ -231,6 +219,7 @@ describe("company intents", () => {
     expect(view).not.toContain("Portfolio seeds");
     expect(listRoute).toContain("export async function POST");
     expect(detailRoute).toContain("export async function PATCH");
-    expect(runRoute).toContain('action: "agency-architect"');
+    expect(runRoute).toContain('action: "agency-portfolio-management"');
+    expect(runRoute).not.toContain('action: "agency-architect"');
   });
 });

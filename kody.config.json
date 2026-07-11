@@ -1,0 +1,47 @@
+{
+  "$schema": "https://raw.githubusercontent.com/aharonyaircohen/kody-engine/main/kody.config.schema.json",
+  "quality": {
+    "typecheck": "pnpm typecheck",
+    "lint": "pnpm lint",
+    "testUnit": "pnpm test:unit"
+  },
+  "git": {
+    "defaultBranch": "main"
+  },
+  "github": {
+    "owner": "aharonyaircohen",
+    "repo": "kody-chat"
+  },
+  "agent": {
+    "model": "minimax/MiniMax-M3"
+  },
+  "jobs": {
+    "stateBackend": "contents-api"
+  },
+  "company": {
+    "activeAgents": ["ceo", "cto", "coo"],
+    "activeCapabilities": [
+      "company-portfolio-management",
+      "agency-portfolio-management",
+      "agency-operations-management",
+      "ai-agency-health-matrix",
+      "ceo-performance-review"
+    ],
+    "activeGoals": [
+      { "template": "company-growth-loop", "every": "15m" },
+      { "template": "agency-evolution-loop", "every": "15m" },
+      { "template": "agency-operations-loop", "every": "15m" },
+      { "template": "ai-agency-health", "every": "15m" }
+    ]
+  },
+  "access": {
+    "allowedAssociations": ["OWNER", "MEMBER", "COLLABORATOR"]
+  },
+  "defaultExecutable": "classify",
+  "defaultPrExecutable": "fix",
+  "state": {
+    "repo": "https://github.com/aharonyaircohen/kody-state",
+    "path": "kody-chat",
+    "branch": "main"
+  }
+}
