@@ -8,18 +8,30 @@ import { existsSync, readFileSync } from "fs";
 import { describe, expect, it } from "vitest";
 
 describe("view renderers management page", () => {
-  it("has a routed Dashboard page, API, and nav entry", () => {
-    expect(existsSync("app/(chat-rail)/views/renderers/page.tsx")).toBe(true);
-    expect(existsSync("app/(chat-rail)/views/renderers/[slug]/page.tsx")).toBe(
-      true,
+  it("serves the canonical package pages, API, and nav entry", () => {
+    const listPage = readFileSync(
+      "app/(chat-rail)/views/renderers/page.tsx",
+      "utf8",
     );
+    expect(listPage).toContain("@kody-ade/kody-chat/pages/view-renderers");
+
+    const detailPage = readFileSync(
+      "app/(chat-rail)/views/renderers/[slug]/page.tsx",
+      "utf8",
+    );
+    expect(detailPage).toContain(
+      "@kody-ade/kody-chat/pages/view-renderer-detail",
+    );
+
     expect(existsSync("app/api/kody/view-renderers/route.ts")).toBe(true);
     expect(existsSync("app/api/kody/view-renderers/[slug]/route.ts")).toBe(
       true,
     );
+
+    // Canonical implementation lives in the package, not this host.
     expect(
       existsSync("src/dashboard/lib/components/ViewRenderersManager.tsx"),
-    ).toBe(true);
+    ).toBe(false);
 
     const nav = readFileSync(
       "src/dashboard/lib/components/settings-nav.ts",
@@ -27,30 +39,5 @@ describe("view renderers management page", () => {
     );
     expect(nav).toContain('href: "/views/renderers"');
     expect(nav).toContain('label: "View Renderers"');
-
-    const manager = readFileSync(
-      "src/dashboard/lib/components/ViewRenderersManager.tsx",
-      "utf8",
-    );
-    expect(manager).toContain("<MasterDetailShell");
-    expect(manager).toContain("function RendererPreviewDetail");
-    expect(manager).toContain("function buildRendererPreviewData");
-    expect(manager).toContain("Renderer JSON");
-    expect(manager).toContain("purpose:");
-    expect(manager).toContain("rule:");
-    expect(manager).toContain("defaults:");
-    expect(manager).toContain(">Rule<");
-    expect(manager).toContain(">Defaults<");
-    expect(manager).toContain("Example title");
-    expect(manager).toContain("Example supporting text.");
-    expect(manager).toContain("No actions configured.");
-    expect(manager).toContain(
-      "router.push(`/views/renderers/${encodeURIComponent(renderer.slug)}`)",
-    );
-    expect(manager).toContain("New renderer");
-    expect(manager).toContain("Edit renderer");
-    expect(manager).toContain(">Preview<");
-    expect(manager).toContain("<Dialog open={open}");
-    expect(manager).not.toContain("function RendererItem");
   });
 });
