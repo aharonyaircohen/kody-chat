@@ -15,7 +15,7 @@ import { GET } from "../../app/api/kody/previews/ticket/route";
 import {
   verifyBranchPreviewTicket,
   verifyPreviewTicket,
-} from "@dashboard/lib/preview-token";
+} from "@kody-ade/fly/preview-token";
 
 describe("GET /api/kody/previews/ticket", () => {
   beforeEach(() => {

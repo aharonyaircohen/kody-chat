@@ -19,8 +19,8 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@kody-ade/base/logger";
-import type { ServerBrainPerfTier } from "@dashboard/lib/infrastructure/server-brain";
-import { resolveServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
+import type { ServerBrainPerfTier } from "@kody-ade/fly/infrastructure/server-brain";
+import { resolveServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
 import { requestOrigin } from "@kody-ade/base/request-origin";
 
 export const runtime = "nodejs";

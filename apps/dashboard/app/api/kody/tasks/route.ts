@@ -31,9 +31,9 @@ import {
   getOwner,
   getRepo,
 } from "@dashboard/lib/github-client";
-import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
+import { resolvePreviewConfigForOctokit } from "@kody-ade/fly/previews/config";
 import { buildPreviewUrlByPrNumber } from "@dashboard/lib/tasks/preview-urls";
-import { mintPreviewTicket } from "@dashboard/lib/preview-token";
+import { mintPreviewTicket } from "@kody-ade/fly/preview-token";
 import type { KodyTaskState } from "@kody-ade/base/kody-state";
 import type {
   KodyTask,

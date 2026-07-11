@@ -40,8 +40,8 @@ immediately with the deterministic URL. Status checks (`GET
 
 | Component            | Lives in                               | Lifetime               |
 | -------------------- | -------------------------------------- | ---------------------- |
-| Lifecycle / webhooks | `src/dashboard/lib/previews/`          | Dashboard runtime      |
-| Builder image        | `builder/`                             | One-shot per PR        |
+| Lifecycle / webhooks | `packages/fly/src/previews/` (monorepo) | Dashboard runtime      |
+| Builder image        | `packages/fly/builder/`                | One-shot per PR        |
 | Per-PR preview app   | Fly (auto-created)                     | Until PR closed        |
 | Per-repo base image  | GHCR (optional)                        | Until manually rebuilt |
 | Org remote builder   | `fly-builder-<org>` (Fly auto-created) | Always-on              |
@@ -263,7 +263,7 @@ iframe like any other. Removing that environment also destroys its Fly app.
 | ---------------------------------------------- | ------------------------------------------------------------------------ |
 | `POST /api/kody/previews/static`               | Multipart upload (field `file`) → boots a preview, returns `{ id, url }` |
 | `DELETE /api/kody/previews/static`             | `{ id }` — destroy the Fly app (idempotent)                              |
-| `src/dashboard/lib/previews/static-preview.ts` | Builder-less create path                                                 |
+| `packages/fly/src/previews/static-preview.ts` | Builder-less create path                                                 |
 | `/preview` switcher "Upload file"              | UI entry point (PreviewEnvSwitcher)                                      |
 
 Image/web-root/port overridable via `KODY_PREVIEW_STATIC_IMAGE`,
@@ -282,7 +282,7 @@ Image/web-root/port overridable via `KODY_PREVIEW_STATIC_IMAGE`,
 ## Code map
 
 ```
-src/dashboard/lib/previews/
+packages/fly/src/previews/
   preview-lifecycle.ts   createPreview / destroyPreview / getPreview
   builder-client.ts      Spawns the one-shot builder Fly Machine
   fly-previews.ts        Fly Machines REST + GraphQL client
@@ -290,7 +290,7 @@ src/dashboard/lib/previews/
   webhook.ts             PR open/sync/closed handlers
   preview-key.ts         Deterministic app naming
 
-builder/
+packages/fly/builder/
   Dockerfile                       Alpine + node + flyctl + skopeo
   src/builder.ts                   One-shot CLI orchestrator
   src/fly-api.ts                   Minimal Fly REST + GraphQL client

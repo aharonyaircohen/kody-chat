@@ -4,7 +4,7 @@
  * @domain brain
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { FlyContext } from "@dashboard/lib/infrastructure/plugins/fly/runners/context";
+import type { FlyContext } from "@kody-ade/fly/plugin/runners/context";
 
 const store = vi.hoisted(() => ({
   clearBrainApp: vi.fn(async () => undefined),
@@ -33,7 +33,7 @@ const brainFly = vi.hoisted(() => ({
 }));
 
 vi.mock("@dashboard/lib/brain/store", () => store);
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/brain", () => ({
+vi.mock("@kody-ade/fly/plugin/runners/brain", () => ({
   ...brainFly,
   brainAppName: (account: string) => `kody-brain-${account}`,
 }));

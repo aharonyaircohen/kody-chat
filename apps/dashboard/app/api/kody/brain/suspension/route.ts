@@ -22,7 +22,7 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@kody-ade/base/logger";
-import { resolveServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
+import { resolveServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
 
 export const runtime = "nodejs";
 

@@ -59,6 +59,7 @@
   },
   "dependencies": {
     "@kody-ade/base": "workspace:*",
+    "@kody-ade/fly": "workspace:*",
     "@ai-sdk/anthropic": "^3.0.77",
     "@ai-sdk/mcp": "^1.0.30",
     "@ai-sdk/openai-compatible": "^2.0.47",

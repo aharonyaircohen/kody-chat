@@ -45,7 +45,7 @@ import {
   resolvePreviewFolders,
   type PreviewEnvironment,
   type PreviewEnvironmentFolder,
-} from "../preview-environments";
+} from "@kody-ade/fly/preview-environments";
 import {
   BRANCH_PREVIEW_POLL_MS,
   branchPreviewNeedsPoll,

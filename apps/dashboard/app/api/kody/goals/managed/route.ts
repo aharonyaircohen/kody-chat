@@ -21,8 +21,8 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@kody-ade/base/logger";
-import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
-import { scheduledFanoutRunRequest } from "@dashboard/lib/runners/run-request";
+import { runScheduledKodyOnRunner } from "@kody-ade/fly/runners/kody-runner";
+import { scheduledFanoutRunRequest } from "@kody-ade/fly/runners/run-request";
 import {
   buildManagedGoalState,
   collapseManagedGoalRecordsForList,

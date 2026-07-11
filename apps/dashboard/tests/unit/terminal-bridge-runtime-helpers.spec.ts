@@ -10,7 +10,7 @@ import {
   restoreCompleteMessage,
   restoreStartMessage,
   stripTerminalMouseInput,
-} from "@dashboard/lib/terminal/bridge-runtime";
+} from "@kody-ade/fly/plugin/terminal/bridge-runtime";
 
 describe("terminal bridge runtime helpers", () => {
   it("normalizes terminal sizes to bounded integers", () => {

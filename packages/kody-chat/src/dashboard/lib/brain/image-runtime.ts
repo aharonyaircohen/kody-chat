@@ -14,7 +14,7 @@ import {
   BRAIN_IMAGE_JOB_OUTPUT_BYTES,
   brainImageJobTimeoutMs,
 } from "@dashboard/lib/brain/image-timeouts";
-import { ensureServerProviderTerminalBridge } from "@dashboard/lib/infrastructure/server-terminal";
+import { ensureServerProviderTerminalBridge } from "@kody-ade/fly/infrastructure/server-terminal";
 import { runTerminalBridgeLocalExec } from "@dashboard/lib/terminal/bridge-exec-client";
 import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token";
 

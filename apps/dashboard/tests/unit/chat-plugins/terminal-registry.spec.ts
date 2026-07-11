@@ -32,7 +32,7 @@ import {
   upsertMountedChatTerminal,
 } from "@kody-chat/chat/plugins/terminal/registry-state";
 import type { MountedChatTerminal } from "@kody-chat/chat/plugins/terminal/types";
-import type { FlyMachineRow } from "@dashboard/lib/infrastructure/plugins/fly/runners/machine-model";
+import type { FlyMachineRow } from "@kody-ade/fly/plugin/runners/machine-model";
 
 function terminal(
   id: string,

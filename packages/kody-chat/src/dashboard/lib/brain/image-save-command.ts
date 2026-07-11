@@ -10,10 +10,10 @@ import "server-only";
 import {
   startTerminalBridgeLocalExecJob,
 } from "@dashboard/lib/terminal/bridge-exec-client";
-import { ensureServerProviderTerminalBridge } from "@dashboard/lib/infrastructure/server-terminal";
+import { ensureServerProviderTerminalBridge } from "@kody-ade/fly/infrastructure/server-terminal";
 import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token";
-import { defaultServerBrainImage, waitForServerBrainHealth } from "@dashboard/lib/infrastructure/server-brain";
-import type { ServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
+import { defaultServerBrainImage, waitForServerBrainHealth } from "@kody-ade/fly/infrastructure/server-brain";
+import type { ServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
 
 import {
   brainGhcrImageRef,

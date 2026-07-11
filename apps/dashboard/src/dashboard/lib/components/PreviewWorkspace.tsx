@@ -40,7 +40,7 @@ import {
   STATIC_PREVIEW_TTL_MS,
   type PreviewEnvironment,
   type PreviewEnvironmentFolder,
-} from "../preview-environments";
+} from "@kody-ade/fly/preview-environments";
 import {
   BRANCH_PREVIEW_POLL_MS,
   branchPreviewNeedsPoll,
@@ -53,7 +53,7 @@ import {
   tokenizeRepoViewUrl,
   uploadRepoView,
 } from "../previews/repo-view-client";
-import { createUploadContext } from "../previews/upload-context";
+import { createUploadContext } from "@kody-ade/fly/previews/upload-context";
 import {
   fetchDashboardConfig,
   saveDashboardConfig,

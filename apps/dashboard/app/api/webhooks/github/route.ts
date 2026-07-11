@@ -51,7 +51,7 @@ import {
   handlePrClosed as handlePreviewPrClosed,
   handlePrOpenedOrSynced as handlePreviewPrOpenedOrSynced,
   handleTrackedBranchPush as handlePreviewTrackedBranchPush,
-} from "@dashboard/lib/previews/webhook";
+} from "@kody-ade/fly/previews/webhook";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

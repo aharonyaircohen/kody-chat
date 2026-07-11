@@ -13,7 +13,7 @@ import { useState } from "react";
 import { Button } from "@kody-ade/base/ui/button";
 import { Input } from "@kody-ade/base/ui/input";
 import { Loader2, Save } from "lucide-react";
-import { normalizeEnvUrl } from "../preview-environments";
+import { normalizeEnvUrl } from "@kody-ade/fly/preview-environments";
 
 interface PreviewEnvFormProps {
   initialLabel?: string;

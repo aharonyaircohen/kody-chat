@@ -36,11 +36,11 @@ const resolveServerContext = vi.fn();
 const isServerProviderAvailable = vi.fn();
 const claimOrRunServer = vi.fn();
 
-vi.mock("@dashboard/lib/runners/github-health", () => ({
+vi.mock("@kody-ade/fly/runners/github-health", () => ({
   checkGitHubActionsHealth: (...a: unknown[]) => checkGitHubActionsHealth(...a),
   DEFAULT_QUEUE_THRESHOLD: 10,
 }));
-vi.mock("@dashboard/lib/runners/server-run", () => ({
+vi.mock("@kody-ade/fly/runners/server-run", () => ({
   resolveServerContext: (...a: unknown[]) => resolveServerContext(...a),
   isServerProviderAvailable: (...a: unknown[]) =>
     isServerProviderAvailable(...a),

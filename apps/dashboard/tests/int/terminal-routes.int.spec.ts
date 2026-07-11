@@ -201,17 +201,17 @@ const imageRuntime = vi.hoisted(() => ({
 }));
 
 vi.mock("@kody-ade/base/auth", () => auth);
-vi.mock("@dashboard/lib/previews/config", () => previews);
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/context", () => flyContext);
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/inventory", () => inventory);
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/inventory-server", () => inventoryServer);
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/brain", () => brainFly);
+vi.mock("@kody-ade/fly/previews/config", () => previews);
+vi.mock("@kody-ade/fly/plugin/runners/context", () => flyContext);
+vi.mock("@kody-ade/fly/plugin/runners/inventory", () => inventory);
+vi.mock("@kody-ade/fly/plugin/runners/inventory-server", () => inventoryServer);
+vi.mock("@kody-ade/fly/plugin/runners/brain", () => brainFly);
 vi.mock("@dashboard/lib/brain/store", () => brainStore);
 vi.mock("@dashboard/lib/brain/runtime-manager", () => runtimeManager);
 vi.mock("@dashboard/lib/brain/service-resolver", () => brainService);
 vi.mock("@dashboard/lib/brain/image-runtime", () => imageRuntime);
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/previews/machines-client", () => flyPreview);
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/terminal/bridge", () => bridge);
+vi.mock("@kody-ade/fly/plugin/previews/machines-client", () => flyPreview);
+vi.mock("@kody-ade/fly/plugin/terminal/bridge", () => bridge);
 vi.mock("@dashboard/lib/terminal/terminal-token", () => token);
 vi.mock("@dashboard/lib/github-client", () => ({
   setGitHubContext: vi.fn(),

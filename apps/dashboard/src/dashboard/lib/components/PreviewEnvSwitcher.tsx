@@ -39,7 +39,7 @@ import {
   updatePreviewFolder,
   type PreviewEnvironment,
   type PreviewEnvironmentFolder,
-} from "../preview-environments";
+} from "@kody-ade/fly/preview-environments";
 import { PreviewBranchEnvForm } from "./PreviewBranchEnvForm";
 import { PreviewEnvForm } from "./PreviewEnvForm";
 import { PreviewFileUploadButton } from "./PreviewFileUploadButton";

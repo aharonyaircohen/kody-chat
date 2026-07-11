@@ -60,7 +60,7 @@ vi.mock("@dashboard/lib/changelog/handlers", () => ({
   handlePrMerged: side.handlePrMerged,
   handleReleasePublished: side.handleReleasePublished,
 }));
-vi.mock("@dashboard/lib/previews/webhook", () => ({
+vi.mock("@kody-ade/fly/previews/webhook", () => ({
   handleDefaultBranchPush: side.handlePreviewDefaultBranchPush,
   handlePrClosed: side.handlePreviewPrClosed,
   handlePrOpenedOrSynced: side.handlePreviewPrOpenedOrSynced,

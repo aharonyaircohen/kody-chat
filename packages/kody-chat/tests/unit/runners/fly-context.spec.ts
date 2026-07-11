@@ -34,7 +34,7 @@ vi.mock("@kody-ade/base/logger", () => ({
   },
 }));
 
-import { resolveFlyContext } from "@dashboard/lib/infrastructure/plugins/fly/runners/context";
+import { resolveFlyContext } from "@kody-ade/fly/plugin/runners/context";
 
 function req(): NextRequest {
   return {

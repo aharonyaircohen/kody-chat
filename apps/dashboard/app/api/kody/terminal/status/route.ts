@@ -14,8 +14,8 @@ import { requireKodyAuth } from "@kody-ade/base/auth";
 import {
   serverProviderConfigFromContext,
   resolveServerProviderContext,
-} from "@dashboard/lib/infrastructure/server-context";
-import { findServerProviderTerminalBridge } from "@dashboard/lib/infrastructure/server-terminal";
+} from "@kody-ade/fly/infrastructure/server-context";
+import { findServerProviderTerminalBridge } from "@kody-ade/fly/infrastructure/server-terminal";
 import {
   loadTerminalInventoryAuthority,
   terminalBridgeConfigCandidates,

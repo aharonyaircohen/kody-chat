@@ -5,8 +5,8 @@
  * @ai-summary Resolves task preview URLs without fabricating Fly hosts before previews exist.
  */
 
-import type { ServerProviderConfig } from "@dashboard/lib/infrastructure/server-machines";
-import { getPreview } from "@dashboard/lib/previews/preview-lifecycle";
+import type { ServerProviderConfig } from "@kody-ade/fly/infrastructure/server-machines";
+import { getPreview } from "@kody-ade/fly/previews/preview-lifecycle";
 import type { GitHubPR } from "@kody-ade/base/types";
 
 type PreviewPr = Pick<GitHubPR, "number" | "head">;

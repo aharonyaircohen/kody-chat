@@ -24,7 +24,7 @@ vi.mock("@octokit/rest", () => ({
     };
   }),
 }));
-vi.mock("@dashboard/lib/previews/config", () => ({
+vi.mock("@kody-ade/fly/previews/config", () => ({
   resolvePreviewConfigForRepo: mocks.resolvePreviewConfigForRepo,
 }));
 vi.mock("@kody-ade/base/auth/background-token", () => ({
@@ -33,37 +33,45 @@ vi.mock("@kody-ade/base/auth/background-token", () => ({
 vi.mock("@kody-ade/base/vault/bootstrap", () => ({
   resolveVaultGithubToken: mocks.resolveVaultGithubToken,
 }));
-vi.mock("@dashboard/lib/previews/base-rebuild", () => ({
+vi.mock("@kody-ade/fly/previews/base-rebuild", () => ({
   rebuildBaseImage: mocks.rebuildBaseImage,
 }));
-vi.mock("@dashboard/lib/previews/preview-router", () => ({
+vi.mock("@kody-ade/fly/previews/preview-router", () => ({
   routePreviewBuild: mocks.routePreviewBuild,
 }));
-vi.mock("@dashboard/lib/previews/preview-lifecycle", () => ({
+vi.mock("@kody-ade/fly/previews/preview-lifecycle", () => ({
   createPreview: mocks.createPreview,
   destroyPreview: vi.fn(),
 }));
-vi.mock("@dashboard/lib/previews/sweep", () => ({
+vi.mock("@kody-ade/fly/previews/sweep", () => ({
   sweepExpiredPreviews: mocks.sweepExpiredPreviews,
 }));
-vi.mock("@dashboard/lib/dashboard-config/store", () => ({
-  readDashboardConfig: mocks.readDashboardConfig,
-}));
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/inventory", () => ({
+// Tracked-branch list is host-injected into @kody-ade/fly (see
+// tracked-branches-hook); the test wires the mock reader below.
+vi.mock("@kody-ade/fly/plugin/runners/inventory", () => ({
   listFlyInventory: vi.fn(),
 }));
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/activity-store", () => ({
+vi.mock("@kody-ade/fly/plugin/runners/activity-store", () => ({
   readActivityFile: vi.fn(),
   recordSnapshot: vi.fn(),
   snapshotDue: vi.fn(() => false),
   snapshotFromInventory: vi.fn(),
 }));
 
+import { setTrackedBranchesReader } from "@kody-ade/fly/previews/tracked-branches-hook";
+
+setTrackedBranchesReader(async (octokit, owner, repo) => {
+  const { doc } = await mocks.readDashboardConfig(octokit, owner, repo, {
+    force: true,
+  });
+  return (doc.branchPreviews ?? []) as string[];
+});
+
 import {
   handleDefaultBranchPush,
   handlePrOpenedOrSynced,
   handleTrackedBranchPush,
-} from "@dashboard/lib/previews/webhook";
+} from "@kody-ade/fly/previews/webhook";
 
 describe("preview webhook maintenance", () => {
   beforeEach(() => {

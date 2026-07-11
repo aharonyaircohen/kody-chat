@@ -13,7 +13,7 @@ import { Button } from "@kody-ade/base/ui/button";
 import { Input } from "@kody-ade/base/ui/input";
 import { GitBranch, Loader2, Save } from "lucide-react";
 
-import { normalizeBranchName, normalizeRepoRef } from "../preview-environments";
+import { normalizeBranchName, normalizeRepoRef } from "@kody-ade/fly/preview-environments";
 
 interface PreviewBranchEnvFormProps {
   repoFullName: string;

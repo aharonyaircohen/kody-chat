@@ -10,7 +10,7 @@ import type {
   ServerProviderFeature,
   ServerProviderInventory,
   ServerProviderMachineRow,
-} from "@dashboard/lib/infrastructure/server-machines";
+} from "@kody-ade/fly/infrastructure/server-machines";
 
 export type TerminalTargetError =
   | "machine_not_found"

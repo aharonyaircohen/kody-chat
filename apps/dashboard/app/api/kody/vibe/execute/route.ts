@@ -22,11 +22,11 @@ import { logger } from "@kody-ade/base/logger";
 import {
   claimOrRunServer,
   resolveServerContext,
-} from "@dashboard/lib/runners/server-run";
+} from "@kody-ade/fly/runners/server-run";
 import {
   issueRunRequest,
   withStoreTarget,
-} from "@dashboard/lib/runners/run-request";
+} from "@kody-ade/fly/runners/run-request";
 
 export const runtime = "nodejs";
 

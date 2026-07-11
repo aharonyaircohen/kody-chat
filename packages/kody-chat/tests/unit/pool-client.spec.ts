@@ -4,9 +4,9 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { claimFromPool } from "@dashboard/lib/runners/pool-client";
-import { _resetPoolKeyCacheForTests } from "@dashboard/lib/runners/pool-keys";
-import { issueRunRequest } from "@dashboard/lib/runners/run-request";
+import { claimFromPool } from "@kody-ade/fly/runners/pool-client";
+import { _resetPoolKeyCacheForTests } from "@kody-ade/fly/runners/pool-keys";
+import { issueRunRequest } from "@kody-ade/fly/runners/run-request";
 
 const JOB = {
   jobId: "vibe-issue-7-1",

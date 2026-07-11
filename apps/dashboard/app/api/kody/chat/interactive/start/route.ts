@@ -38,14 +38,14 @@ import {
 import {
   chatRunRequest,
   withStoreTarget,
-} from "@dashboard/lib/runners/run-request";
-import { checkGitHubActionsHealth } from "@dashboard/lib/runners/github-health";
-import { dispatchRun } from "@dashboard/lib/runners/runner-dispatch";
+} from "@kody-ade/fly/runners/run-request";
+import { checkGitHubActionsHealth } from "@kody-ade/fly/runners/github-health";
+import { dispatchRun } from "@kody-ade/fly/runners/runner-dispatch";
 import {
   claimOrRunServer,
   isServerProviderAvailable,
   resolveServerContext,
-} from "@dashboard/lib/runners/server-run";
+} from "@kody-ade/fly/runners/server-run";
 
 export const runtime = "nodejs";
 

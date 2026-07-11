@@ -14,7 +14,7 @@ import { logger } from "@kody-ade/base/logger";
 import type {
   PreviewEnvironment,
   PreviewEnvironmentFolder,
-} from "@dashboard/lib/preview-environments";
+} from "@kody-ade/fly/preview-environments";
 import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
 
 export const DASHBOARD_CONFIG_PATH = "dashboard.json";

@@ -43,6 +43,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@kody-ade/kody-chat": "workspace:*",
     "@kody-ade/base": "workspace:*",
+    "@kody-ade/fly": "workspace:*",
     "@mintplex-labs/piper-tts-web": "^1.0.4",
     "@monaco-editor/react": "^4.7.0",
     "@octokit/plugin-throttling": "^11.0.3",

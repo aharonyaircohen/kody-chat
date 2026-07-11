@@ -56,7 +56,7 @@ const nextConfig = {
   // host libs via the `@dashboard` alias — the resolveAlias entries below make
   // those resolve to THIS repo's src/dashboard so there is exactly one module
   // instance (github-client context, active-repo state, React contexts).
-  transpilePackages: ["@kody-ade/kody-chat", "@kody-ade/base", "@kody-ade/workspace"],
+  transpilePackages: ["@kody-ade/kody-chat", "@kody-ade/base", "@kody-ade/workspace", "@kody-ade/fly"],
   // Dev runs on Turbopack, which (unlike Next's webpack) does not auto-stub
   // Node-only builtins for the browser bundle. `@mintplex-labs/piper-tts-web`
   // (lazy-loaded by the voice TTS hook) statically references `require("fs")`

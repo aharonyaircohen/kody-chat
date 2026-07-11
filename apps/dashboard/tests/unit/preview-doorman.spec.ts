@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
-const doormanPath = resolve(repoRoot, "builder/doorman/doorman.ts");
+const doormanPath = resolve(repoRoot, "node_modules/@kody-ade/fly/builder/doorman/doorman.ts");
 const verifyKeyHex = "a".repeat(64);
 
 const children: ChildProcessWithoutNullStreams[] = [];
@@ -242,17 +242,17 @@ describe("preview doorman", () => {
 describe("preview builder doorman wiring", () => {
   it("ships and injects doorman before building custom preview Dockerfiles", () => {
     const dockerfile = readFileSync(
-      resolve(repoRoot, "builder/Dockerfile"),
+      resolve(repoRoot, "node_modules/@kody-ade/fly/builder/Dockerfile"),
       "utf8",
     );
     const builder = readFileSync(
-      resolve(repoRoot, "builder/src/builder.ts"),
+      resolve(repoRoot, "node_modules/@kody-ade/fly/builder/src/builder.ts"),
       "utf8",
     );
     const deployments = readFileSync(
       resolve(
         repoRoot,
-        "src/dashboard/lib/infrastructure/plugins/fly/deployments.ts",
+        "node_modules/@kody-ade/fly/src/plugin/deployments.ts",
       ),
       "utf8",
     );

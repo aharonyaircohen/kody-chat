@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { previewChatContextBlock } from "@kody-ade/kody-chat/core/preview-context";
-import type { PreviewEnvironment } from "@dashboard/lib/preview-environments";
+import type { PreviewEnvironment } from "@kody-ade/fly/preview-environments";
 
 describe("previewChatContextBlock", () => {
   it("returns null when there is no active preview", () => {

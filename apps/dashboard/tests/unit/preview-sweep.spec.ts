@@ -17,11 +17,11 @@ vi.mock("@kody-ade/base/logger", () => ({
 vi.mock("@kody-ade/base/auth/background-token", () => ({
   resolveBackgroundToken: mocks.resolveBackgroundToken,
 }));
-vi.mock("@dashboard/lib/previews/config", () => ({
+vi.mock("@kody-ade/fly/previews/config", () => ({
   resolveFlyPreviewsForRepo: mocks.resolveFlyPreviewsForRepo,
   resolvePreviewConfigForRepo: mocks.resolvePreviewConfigForRepo,
 }));
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/previews/machines-client", () => ({
+vi.mock("@kody-ade/fly/plugin/previews/machines-client", () => ({
   listAppsByPrefix: mocks.listAppsByPrefix,
   listMachines: mocks.listMachines,
   destroyApp: mocks.destroyApp,
@@ -29,8 +29,8 @@ vi.mock("@dashboard/lib/infrastructure/plugins/fly/previews/machines-client", ()
   sleepPreviewMachine: mocks.sleepPreviewMachine,
 }));
 
-import { sweepExpiredPreviews } from "@dashboard/lib/previews/sweep";
-import { repoPreviewPrefix } from "@dashboard/lib/previews/preview-key";
+import { sweepExpiredPreviews } from "@kody-ade/fly/previews/sweep";
+import { repoPreviewPrefix } from "@kody-ade/fly/previews/preview-key";
 
 const CFG = {
   token: "fly-token",

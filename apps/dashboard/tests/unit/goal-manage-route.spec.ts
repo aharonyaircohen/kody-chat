@@ -58,7 +58,7 @@ vi.mock("@kody-ade/base/logger", () => ({
   },
 }));
 
-vi.mock("@dashboard/lib/runners/kody-runner", () => ({
+vi.mock("@kody-ade/fly/runners/kody-runner", () => ({
   runScheduledKodyOnRunner: h.runScheduledKodyOnRunner,
 }));
 

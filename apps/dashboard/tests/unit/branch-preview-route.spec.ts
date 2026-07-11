@@ -19,10 +19,10 @@ vi.mock("@dashboard/lib/dashboard-config/store", () => ({
   readDashboardConfig: mocks.readDashboardConfig,
   setBranchPreview: vi.fn(),
 }));
-vi.mock("@dashboard/lib/previews/config", () => ({
+vi.mock("@kody-ade/fly/previews/config", () => ({
   resolvePreviewConfigForOctokit: mocks.resolvePreviewConfigForOctokit,
 }));
-vi.mock("@dashboard/lib/previews/preview-lifecycle", () => ({
+vi.mock("@kody-ade/fly/previews/preview-lifecycle", () => ({
   createPreview: vi.fn(),
   destroyPreview: vi.fn(),
   getPreview: mocks.getPreview,
@@ -32,7 +32,7 @@ vi.mock("@kody-ade/base/logger", () => ({
 }));
 
 import { GET } from "../../app/api/kody/previews/branch/route";
-import { verifyBranchPreviewTicket } from "@dashboard/lib/preview-token";
+import { verifyBranchPreviewTicket } from "@kody-ade/fly/preview-token";
 
 describe("GET /api/kody/previews/branch", () => {
   beforeEach(() => {

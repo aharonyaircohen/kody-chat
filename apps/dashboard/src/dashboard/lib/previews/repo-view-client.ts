@@ -8,7 +8,7 @@
 "use client";
 
 import { getStoredAuth, NoTokenError } from "../api";
-import { repoViewIdFromPath } from "../preview-environments";
+import { repoViewIdFromPath } from "@kody-ade/fly/preview-environments";
 
 export interface UploadedRepoView {
   id: string;

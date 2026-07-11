@@ -47,7 +47,7 @@ vi.mock("@dashboard/lib/managed-goals-files", () => ({
 vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: h.getEngineConfig,
 }));
-vi.mock("@dashboard/lib/runners/kody-runner", () => ({
+vi.mock("@kody-ade/fly/runners/kody-runner", () => ({
   runScheduledKodyOnRunner: h.runScheduledKodyOnRunner,
 }));
 

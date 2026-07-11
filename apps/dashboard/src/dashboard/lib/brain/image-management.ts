@@ -8,12 +8,12 @@
  */
 import "server-only";
 
-import type { ServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
+import type { ServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
 import {
   getTerminalBridgeExecJob,
   type TerminalBridgeExecJob,
 } from "@dashboard/lib/terminal/bridge-exec-client";
-import { ensureServerProviderTerminalBridge } from "@dashboard/lib/infrastructure/server-terminal";
+import { ensureServerProviderTerminalBridge } from "@kody-ade/fly/infrastructure/server-terminal";
 import { mintTerminalBridgeToken } from "@dashboard/lib/terminal/terminal-token";
 
 import {

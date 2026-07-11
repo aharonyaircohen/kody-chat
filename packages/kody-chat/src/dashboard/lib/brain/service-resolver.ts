@@ -11,15 +11,15 @@ import "server-only";
 import { readBrainRuntimeView } from "@dashboard/lib/brain/runtime-manager";
 import { readBrainApp, type BrainAppFile } from "@dashboard/lib/brain/store";
 import { resolveBrainTarget } from "@dashboard/lib/brain/target";
-import { listServerProviderMachines } from "@dashboard/lib/infrastructure/server-machines";
+import { listServerProviderMachines } from "@kody-ade/fly/infrastructure/server-machines";
 import {
   serverBrainStatus,
   type ServerBrainStatusResult,
-} from "@dashboard/lib/infrastructure/server-brain";
+} from "@kody-ade/fly/infrastructure/server-brain";
 import {
   rowsForServerProviderApp,
   type ServerProviderMachineRow,
-} from "@dashboard/lib/infrastructure/server-machines";
+} from "@kody-ade/fly/infrastructure/server-machines";
 
 export type BrainServiceReason =
   | "not_provisioned"

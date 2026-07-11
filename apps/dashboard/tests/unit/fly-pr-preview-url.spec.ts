@@ -8,10 +8,10 @@ const lifecycle = vi.hoisted(() => ({
   getPreview: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/previews/config", () => config);
-vi.mock("@dashboard/lib/previews/preview-lifecycle", () => lifecycle);
+vi.mock("@kody-ade/fly/previews/config", () => config);
+vi.mock("@kody-ade/fly/previews/preview-lifecycle", () => lifecycle);
 
-import { flyPrPreviewUrl } from "@dashboard/lib/infrastructure/plugins/fly/previews/pr-preview-url";
+import { flyPrPreviewUrl } from "@kody-ade/fly/plugin/previews/pr-preview-url";
 
 describe("flyPrPreviewUrl", () => {
   beforeEach(() => {

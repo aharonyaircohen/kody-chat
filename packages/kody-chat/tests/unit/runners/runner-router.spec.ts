@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { chooseRunner } from "@dashboard/lib/runners/runner-router";
-import type { GitHubActionsHealth } from "@dashboard/lib/runners/github-health";
+import { chooseRunner } from "@kody-ade/fly/runners/runner-router";
+import type { GitHubActionsHealth } from "@kody-ade/fly/runners/github-health";
 
 function health(over: Partial<GitHubActionsHealth>): GitHubActionsHealth {
   return {

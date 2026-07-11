@@ -17,13 +17,13 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@kody-ade/base/logger";
-import { startServerProviderMachine } from "@dashboard/lib/infrastructure/server-machines";
+import { startServerProviderMachine } from "@kody-ade/fly/infrastructure/server-machines";
 import {
   serverProviderConfigFromContext,
   type ServerProviderContext,
-} from "@dashboard/lib/infrastructure/server-context";
+} from "@kody-ade/fly/infrastructure/server-context";
 
-import { ensureServerProviderTerminalBridge, type ServerProviderTerminalBridgeInfo } from "@dashboard/lib/infrastructure/server-terminal";
+import { ensureServerProviderTerminalBridge, type ServerProviderTerminalBridgeInfo } from "@kody-ade/fly/infrastructure/server-terminal";
 import {
   loadTerminalInventoryAuthority,
   terminalBridgeConfigCandidates,

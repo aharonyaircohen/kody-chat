@@ -4,7 +4,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const BUILDER_SOURCE = readFileSync(
-  resolve(__dirname, "../../builder/src/builder.ts"),
+  resolve(__dirname, "../../node_modules/@kody-ade/fly/builder/src/builder.ts"),
   "utf8",
 );
 

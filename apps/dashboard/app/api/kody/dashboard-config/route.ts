@@ -31,7 +31,7 @@ import {
 import {
   repoViewIdFromPath,
   type PreviewEnvironment,
-} from "@dashboard/lib/preview-environments";
+} from "@kody-ade/fly/preview-environments";
 
 const PreviewUrlSchema = z
   .string()

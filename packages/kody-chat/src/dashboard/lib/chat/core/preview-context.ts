@@ -11,7 +11,7 @@
 import {
   isFlyBranchEnvironment,
   type PreviewEnvironment,
-} from "@dashboard/lib/preview-environments";
+} from "@kody-ade/fly/preview-environments";
 
 function oneLine(input: string | undefined, max = 240): string | null {
   const cleaned = input?.trim().replace(/\s+/g, " ");

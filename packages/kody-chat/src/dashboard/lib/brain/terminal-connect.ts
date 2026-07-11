@@ -7,7 +7,7 @@
  * Image selection drift is a Brain warning, not a terminal blocker.
  */
 
-import type { ServerProviderInventory } from "@dashboard/lib/infrastructure/server-machines";
+import type { ServerProviderInventory } from "@kody-ade/fly/infrastructure/server-machines";
 import {
   resolveBrainTerminalTargetInput,
   type TerminalTargetInput,

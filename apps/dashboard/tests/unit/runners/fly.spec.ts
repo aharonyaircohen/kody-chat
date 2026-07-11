@@ -9,11 +9,11 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { spawnRunner } from "@dashboard/lib/infrastructure/plugins/fly/runners/fly";
+import { spawnRunner } from "@kody-ade/fly/plugin/runners/fly";
 import {
   chatRunRequest,
   goalRunRequest,
-} from "@dashboard/lib/runners/run-request";
+} from "@kody-ade/fly/runners/run-request";
 
 const BASE_INPUT = {
   repo: "acme/widgets",

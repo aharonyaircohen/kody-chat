@@ -9,7 +9,7 @@ import {
   flyMachineTerminalLabel,
   flyTerminalTargetLabel,
   type FlyMachineRow,
-} from "@dashboard/lib/infrastructure/plugins/fly/runners/machine-model";
+} from "@kody-ade/fly/plugin/runners/machine-model";
 
 describe("fly machine terminal labels", () => {
   it("uses one stable terminal name for Brain regardless of app label", () => {

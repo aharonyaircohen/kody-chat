@@ -28,11 +28,11 @@ import { mintSessionToken } from "@dashboard/lib/chat-token";
 import {
   chatRunRequest,
   withStoreTarget,
-} from "@dashboard/lib/runners/run-request";
+} from "@kody-ade/fly/runners/run-request";
 import {
   claimOrRunServer,
   resolveServerContext,
-} from "@dashboard/lib/runners/server-run";
+} from "@kody-ade/fly/runners/server-run";
 
 export const runtime = "nodejs";
 

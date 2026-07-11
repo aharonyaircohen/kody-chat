@@ -12,20 +12,20 @@ import "server-only";
 
 import type { NextRequest } from "next/server";
 
-import type { ServerProviderConfig } from "@dashboard/lib/infrastructure/server-machines";
+import type { ServerProviderConfig } from "@kody-ade/fly/infrastructure/server-machines";
 import {
   listServerProviderInventory,
   ServerProviderInventory,
   ServerProviderMachineRow,
-} from "@dashboard/lib/infrastructure/server-machines";
+} from "@kody-ade/fly/infrastructure/server-machines";
 import {
   applySavedBrainMachineToInventory,
   emptyServerProviderInventory,
   refreshServerProviderInventoryCounts,
   resolveSavedBrainServiceForRequest,
   type SavedBrainServiceForRequest,
-} from "@dashboard/lib/infrastructure/server-brain";
-import type { ServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
+} from "@kody-ade/fly/infrastructure/server-brain";
+import type { ServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
 
 export interface TerminalInventoryRequestTarget {
   brainRequested?: boolean;

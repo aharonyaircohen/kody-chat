@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   _resetPoolKeyCacheForTests,
   derivePoolApiKey,
-} from "@dashboard/lib/runners/pool-keys";
+} from "@kody-ade/fly/runners/pool-keys";
 
 const ORIGINAL = process.env.KODY_MASTER_KEY;
 

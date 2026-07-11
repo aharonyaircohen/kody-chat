@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getPreviewBuilderStatus } from "@dashboard/lib/previews/builder-client";
+import { getPreviewBuilderStatus } from "@kody-ade/fly/previews/builder-client";
 
 describe("getPreviewBuilderStatus", () => {
   afterEach(() => {

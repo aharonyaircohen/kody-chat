@@ -24,11 +24,11 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { logger } from "@kody-ade/base/logger";
-import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
+import { runScheduledKodyOnRunner } from "@kody-ade/fly/runners/kody-runner";
 import {
   goalRunRequest,
   withStoreTarget,
-} from "@dashboard/lib/runners/run-request";
+} from "@kody-ade/fly/runners/run-request";
 import {
   goalStatePath,
   makeInitialSimpleGoalState,

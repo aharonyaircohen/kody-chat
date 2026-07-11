@@ -38,7 +38,7 @@ describe("rate limit polling guardrails", () => {
       "discoveredImagesCache.get",
     );
     expect(
-      source("src/dashboard/lib/infrastructure/plugins/fly/runners/inventory-server.ts"),
+      source("node_modules/@kody-ade/fly/src/plugin/runners/inventory-server.ts"),
     ).toContain("listFlyInventoryCached");
     const brainImageManagement = source(
       "src/dashboard/lib/brain/image-management.ts",

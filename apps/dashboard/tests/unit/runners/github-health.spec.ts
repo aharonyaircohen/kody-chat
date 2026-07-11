@@ -4,7 +4,7 @@ import {
   probeActionsStatus,
   _resetActionsHealthCacheForTests,
   DEFAULT_QUEUE_THRESHOLD,
-} from "@dashboard/lib/runners/github-health";
+} from "@kody-ade/fly/runners/github-health";
 
 function statusResponse(components: Array<{ name: string; status: string }>) {
   return {

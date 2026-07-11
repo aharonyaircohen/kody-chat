@@ -19,7 +19,7 @@ import {
 import type {
   PreviewEnvironment,
   PreviewEnvironmentFolder,
-} from "../preview-environments";
+} from "@kody-ade/fly/preview-environments";
 
 export interface DashboardConfigDoc {
   version: 1;

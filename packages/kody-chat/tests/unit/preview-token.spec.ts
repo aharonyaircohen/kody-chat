@@ -1,6 +1,6 @@
 /**
  * Unit tests for the preview session token
- * (src/dashboard/lib/preview-token.ts) that gate access to per-PR Fly preview
+ * (node_modules/@kody-ade/fly/src/preview-token.ts) that gate access to per-PR Fly preview
  * machines. The doorman in each preview machine verifies these tickets — a
  * forgery or a constant-time-compare regression here would expose previews to
  * any holder of a fly.dev URL, so the verify path is security-load-bearing.
@@ -16,7 +16,7 @@ import {
   mintPreviewTicket,
   verifyBranchPreviewTicket,
   verifyPreviewTicket,
-} from "@dashboard/lib/preview-token";
+} from "@kody-ade/fly/preview-token";
 
 let savedKey: string | undefined;
 

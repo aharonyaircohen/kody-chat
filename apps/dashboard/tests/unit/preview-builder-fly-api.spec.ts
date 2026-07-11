@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createPreviewMachine } from "../../builder/src/fly-api";
+import { createPreviewMachine } from "../../node_modules/@kody-ade/fly/builder/src/fly-api";
 
 interface CapturedRequest {
   config: {

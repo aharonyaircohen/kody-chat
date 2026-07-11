@@ -12,19 +12,19 @@ const builder = vi.hoisted(() => ({
   getPreviewBuilderStatus: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/previews/machines-client", () => fly);
-vi.mock("@dashboard/lib/previews/builder-client", () => builder);
-vi.mock("@dashboard/lib/previews/vault-build-context", () => ({
+vi.mock("@kody-ade/fly/plugin/previews/machines-client", () => fly);
+vi.mock("@kody-ade/fly/previews/builder-client", () => builder);
+vi.mock("@kody-ade/fly/previews/vault-build-context", () => ({
   loadVaultContextForBuild: vi.fn(),
 }));
-vi.mock("@dashboard/lib/previews/config", () => ({
+vi.mock("@kody-ade/fly/previews/config", () => ({
   resolveFlyPreviewsForRepo: vi.fn(),
 }));
 
 import {
   getPreview,
   wakePreview,
-} from "@dashboard/lib/previews/preview-lifecycle";
+} from "@kody-ade/fly/previews/preview-lifecycle";
 
 const cfg = {
   token: "fly-token",

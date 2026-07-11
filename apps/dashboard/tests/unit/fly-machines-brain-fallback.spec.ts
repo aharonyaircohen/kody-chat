@@ -10,11 +10,11 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROUTE_SOURCE = readFileSync(
-  resolve(__dirname, "../../app/api/kody/fly/machines/route.ts"),
+  resolve(__dirname, "../../node_modules/@kody-ade/fly/src/routes/fly-machines.ts"),
   "utf8",
 );
 const HELPER_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/infrastructure/plugins/fly/runners/inventory-server.ts"),
+  resolve(__dirname, "../../node_modules/@kody-ade/fly/src/plugin/runners/inventory-server.ts"),
   "utf8",
 );
 

@@ -306,10 +306,10 @@ repo's vault. **Never** read it from `process.env` or a global config.
 
 - Signed ticket minting: [src/dashboard/lib/preview-token.ts](src/dashboard/lib/preview-token.ts)
 - Ticket API: [app/api/kody/previews/ticket/route.ts](app/api/kody/previews/ticket/route.ts)
-- Doorman proxy: [builder/doorman/doorman.ts](builder/doorman/doorman.ts)
+- Doorman proxy: [packages/fly/builder/doorman/doorman.ts](../../packages/fly/builder/doorman/doorman.ts)
 - Lifecycle: [src/dashboard/lib/previews/preview-lifecycle.ts](src/dashboard/lib/previews/preview-lifecycle.ts)
-- Builder spawn: [src/dashboard/lib/previews/builder-client.ts](src/dashboard/lib/previews/builder-client.ts)
-- One-shot builder image: [builder/](builder/)
+- Builder spawn: [packages/fly/src/previews/builder-client.ts](../../packages/fly/src/previews/builder-client.ts)
+- One-shot builder image: [packages/fly/builder/](../../packages/fly/builder/)
 - Full docs: [docs/previews.md](docs/previews.md)
 
 On the **GitHub Actions** build path, the per-PR `docker build` can run

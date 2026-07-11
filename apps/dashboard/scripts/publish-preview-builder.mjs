@@ -10,7 +10,13 @@ export const BUILDER_APP =
 const FLY_MACHINES_BASE =
   process.env.FLY_MACHINES_API_BASE ?? "https://api.machines.dev/v1";
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
-const builderRoot = join(repoRoot, "builder");
+const builderRoot = join(
+  repoRoot,
+  "node_modules",
+  "@kody-ade",
+  "fly",
+  "builder",
+);
 
 export function builderMachineTargetApp(machine) {
   const value = machine?.config?.env?.APP_NAME;

@@ -29,15 +29,15 @@ import { afterAll, describe, expect, it } from "vitest";
 import {
   destroyApp,
   type FlyPreviewConfig,
-} from "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client";
+} from "@kody-ade/fly/plugin/previews/machines-client";
 import {
   previewAppName,
   type PreviewKey,
-} from "@dashboard/lib/previews/preview-key";
+} from "@kody-ade/fly/previews/preview-key";
 import {
   createPreview,
   destroyPreview,
-} from "@dashboard/lib/previews/preview-lifecycle";
+} from "@kody-ade/fly/previews/preview-lifecycle";
 
 const FLY_TOKEN = process.env.FLY_API_TOKEN;
 const MASTER_KEY = process.env.KODY_MASTER_KEY;

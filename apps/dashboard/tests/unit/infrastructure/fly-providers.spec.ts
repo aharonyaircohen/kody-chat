@@ -21,28 +21,28 @@ const builder = vi.hoisted(() => ({
   spawnPreviewBuilder: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/fly", () => runner);
-vi.mock("@dashboard/lib/runners/pool-client", () => pool);
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/previews/machines-client", () => flyPreview);
-vi.mock("@dashboard/lib/previews/builder-client", () => builder);
-vi.mock("@dashboard/lib/previews/vault-build-context", () => ({
+vi.mock("@kody-ade/fly/plugin/runners/fly", () => runner);
+vi.mock("@kody-ade/fly/runners/pool-client", () => pool);
+vi.mock("@kody-ade/fly/plugin/previews/machines-client", () => flyPreview);
+vi.mock("@kody-ade/fly/previews/builder-client", () => builder);
+vi.mock("@kody-ade/fly/previews/vault-build-context", () => ({
   loadVaultContextForBuild: vi.fn(),
 }));
-vi.mock("@dashboard/lib/previews/config", () => ({
+vi.mock("@kody-ade/fly/previews/config", () => ({
   resolveFlyPreviewsForRepo: vi.fn(),
 }));
 
 import {
   flyInfrastructurePlugin,
   flyInfrastructureSelection,
-} from "@dashboard/lib/infrastructure/plugins/fly";
-import { flyDeploymentProvider } from "@dashboard/lib/infrastructure/plugins/fly/deployments";
-import { flyServerProvider } from "@dashboard/lib/infrastructure/plugins/fly/servers";
+} from "@kody-ade/fly/plugin";
+import { flyDeploymentProvider } from "@kody-ade/fly/plugin/deployments";
+import { flyServerProvider } from "@kody-ade/fly/plugin/servers";
 import {
   createInfrastructureRegistry,
 } from "@kody-ade/base/infrastructure/registry";
-import type { FlyContext } from "@dashboard/lib/infrastructure/plugins/fly/runners/context";
-import { chatRunRequest } from "@dashboard/lib/runners/run-request";
+import type { FlyContext } from "@kody-ade/fly/plugin/runners/context";
+import { chatRunRequest } from "@kody-ade/fly/runners/run-request";
 
 function flyContext(overrides: Partial<FlyContext> = {}): FlyContext {
   return {

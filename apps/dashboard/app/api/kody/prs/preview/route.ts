@@ -24,8 +24,8 @@ import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import { serverProviderPrPreviewUrl } from "@dashboard/lib/infrastructure/server-preview-url";
-import { mintPreviewTicket } from "@dashboard/lib/preview-token";
+import { serverProviderPrPreviewUrl } from "@kody-ade/fly/infrastructure/server-preview-url";
+import { mintPreviewTicket } from "@kody-ade/fly/preview-token";
 
 // Git SHAs are 40 hex chars; accept 7-40 to tolerate abbreviated refs.
 const querySchema = z.object({

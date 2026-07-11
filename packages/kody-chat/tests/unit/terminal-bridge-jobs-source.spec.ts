@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/infrastructure/plugins/fly/terminal/bridge.ts"),
+  resolve(__dirname, "../../node_modules/@kody-ade/fly/src/plugin/terminal/bridge.ts"),
   "utf8",
 );
 

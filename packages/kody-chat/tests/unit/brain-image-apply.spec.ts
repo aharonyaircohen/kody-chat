@@ -99,7 +99,7 @@ vi.mock("@dashboard/lib/brain/runtime-manager", () => runtimeManager);
 vi.mock("@dashboard/lib/brain/image-runtime", () => runtime);
 vi.mock("@dashboard/lib/brain/image-catalog", () => catalog);
 vi.mock("@dashboard/lib/brain/service-resolver", () => serviceResolver);
-vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/brain", () => ({
+vi.mock("@kody-ade/fly/plugin/runners/brain", () => ({
   brainAppName: (account: string) => `kody-brain-${account}`,
   provisionBrain: brainFly.provisionBrain,
 }));

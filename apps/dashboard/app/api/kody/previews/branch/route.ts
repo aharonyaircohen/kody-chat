@@ -31,13 +31,13 @@ import {
   setBranchPreview,
 } from "@dashboard/lib/dashboard-config/store";
 import { logger } from "@kody-ade/base/logger";
-import { resolvePreviewConfigForOctokit } from "@dashboard/lib/previews/config";
+import { resolvePreviewConfigForOctokit } from "@kody-ade/fly/previews/config";
 import {
   createPreview,
   destroyPreview,
   getPreview,
-} from "@dashboard/lib/previews/preview-lifecycle";
-import { mintBranchPreviewTicket } from "@dashboard/lib/preview-token";
+} from "@kody-ade/fly/previews/preview-lifecycle";
+import { mintBranchPreviewTicket } from "@kody-ade/fly/preview-token";
 
 export const runtime = "nodejs";
 

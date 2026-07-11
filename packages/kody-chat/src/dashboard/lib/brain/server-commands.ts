@@ -17,8 +17,8 @@ import {
   updateServerBrainSuspension,
   type ServerBrainPerfTier,
   type ProvisionServerBrainResult,
-} from "@dashboard/lib/infrastructure/server-brain";
-import type { ServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
+} from "@kody-ade/fly/infrastructure/server-brain";
+import type { ServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
 
 import { resolveBrainService } from "./service-resolver";
 import { clearBrainApp, readBrainApp, writeBrainApp } from "./store";

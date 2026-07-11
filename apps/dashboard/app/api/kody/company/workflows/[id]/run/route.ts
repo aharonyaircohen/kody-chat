@@ -19,11 +19,11 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { getEngineConfig } from "@kody-ade/base/engine/config";
-import { runScheduledKodyOnRunner } from "@dashboard/lib/runners/kody-runner";
+import { runScheduledKodyOnRunner } from "@kody-ade/fly/runners/kody-runner";
 import {
   workflowRunRequest,
   withStoreTarget,
-} from "@dashboard/lib/runners/run-request";
+} from "@kody-ade/fly/runners/run-request";
 import { isWorkflowDefinitionId } from "@dashboard/lib/workflow-definitions";
 import {
   readCompanyStoreCapabilityWorkflowDefinitionFile,

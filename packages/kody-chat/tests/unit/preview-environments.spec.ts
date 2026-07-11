@@ -20,7 +20,7 @@ import {
   STATIC_PREVIEW_TTL_MS,
   type PreviewEnvironment,
   updatePreviewFolder,
-} from "@dashboard/lib/preview-environments";
+} from "@kody-ade/fly/preview-environments";
 
 const NOW = 1_700_000_000_000;
 const DAY = 24 * 60 * 60 * 1000;

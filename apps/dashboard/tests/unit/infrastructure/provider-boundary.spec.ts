@@ -13,7 +13,7 @@ function listSourceFiles(dir: string): string[] {
   return readdirSync(abs).flatMap((entry) => {
     const child = resolve(abs, entry);
     const rel = relative(repoRoot, child);
-    if (rel.startsWith("src/dashboard/lib/infrastructure/plugins/fly")) {
+    if (rel.startsWith("node_modules/@kody-ade/fly/src/plugin")) {
       return [];
     }
     if (statSync(child).isDirectory()) return listSourceFiles(rel);
@@ -36,11 +36,11 @@ describe("infrastructure provider boundary", () => {
       "app/api/kody/chat/interactive/start/route.ts",
       "app/api/kody/chat/interactive/start-fly/route.ts",
       "app/api/kody/vibe/execute/route.ts",
-      "src/dashboard/lib/runners/kody-runner.ts",
-      "src/dashboard/lib/runners/runner-dispatch.ts",
-      "src/dashboard/lib/runners/runner-router.ts",
-      "src/dashboard/lib/runners/server-run.ts",
-      "src/dashboard/lib/previews/preview-lifecycle.ts",
+      "node_modules/@kody-ade/fly/src/runners/kody-runner.ts",
+      "node_modules/@kody-ade/fly/src/runners/runner-dispatch.ts",
+      "node_modules/@kody-ade/fly/src/runners/runner-router.ts",
+      "node_modules/@kody-ade/fly/src/runners/server-run.ts",
+      "node_modules/@kody-ade/fly/src/previews/preview-lifecycle.ts",
     ];
 
     for (const file of migratedCallers) {
@@ -53,22 +53,22 @@ describe("infrastructure provider boundary", () => {
       expect(source).not.toContain("flyAvailable");
       expect(source).not.toContain("runFly");
       expect(source).not.toContain("flyResult");
-      expect(source).not.toContain("@dashboard/lib/infrastructure/plugins/fly");
-      expect(source).not.toContain("@dashboard/lib/infrastructure/providers/fly");
+      expect(source).not.toContain("@kody-ade/fly/plugin");
+      expect(source).not.toContain("@kody-ade/fly/infrastructure/providers/fly");
     }
   });
 
   it("keeps Fly provider code inside the plugin directory", () => {
-    const installed = readRepoFile("src/dashboard/lib/infrastructure/installed.ts");
+    const installed = readRepoFile("node_modules/@kody-ade/fly/src/infrastructure/installed.ts");
 
-    expect(installed).toContain("@dashboard/lib/infrastructure/plugins/fly");
+    expect(installed).toContain('from "../plugin"');
     expect(() =>
-      readRepoFile("src/dashboard/lib/infrastructure/providers/fly/compute.ts"),
+      readRepoFile("node_modules/@kody-ade/fly/src/infrastructure/providers/fly/compute.ts"),
     ).toThrow();
   });
 
   it("keeps app and core code from importing Fly plugin modules directly", () => {
-    const allowed = new Set(["src/dashboard/lib/infrastructure/installed.ts"]);
+    const allowed = new Set(["node_modules/@kody-ade/fly/src/infrastructure/installed.ts"]);
     const files = [...listSourceFiles("app"), ...listSourceFiles("src")].filter(
       (file) => !allowed.has(file),
     );
@@ -76,10 +76,10 @@ describe("infrastructure provider boundary", () => {
     for (const file of files) {
       const source = readRepoFile(file);
       expect(source, file).not.toContain(
-        "@dashboard/lib/infrastructure/plugins/fly",
+        "@kody-ade/fly/plugin",
       );
-      expect(source, file).not.toContain("@dashboard/lib/runners/fly");
-      expect(source, file).not.toContain("@dashboard/lib/previews/fly");
+      expect(source, file).not.toContain("@kody-ade/fly/runners/fly");
+      expect(source, file).not.toContain("@kody-ade/fly/previews/fly");
       expect(source, file).not.toContain("@dashboard/lib/terminal/bridge-fly");
     }
   });

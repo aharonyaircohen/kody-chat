@@ -17,7 +17,7 @@ import { NextRequest } from "next/server";
 const resolveServerContext = vi.fn();
 const claimOrRunServer = vi.fn();
 
-vi.mock("@dashboard/lib/runners/server-run", () => ({
+vi.mock("@kody-ade/fly/runners/server-run", () => ({
   resolveServerContext: (...args: unknown[]) => resolveServerContext(...args),
   claimOrRunServer: (...args: unknown[]) => claimOrRunServer(...args),
 }));

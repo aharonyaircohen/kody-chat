@@ -7,7 +7,7 @@
  */
 import "server-only";
 
-import type { ServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
+import type { ServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
 
 import {
   applySelectedBrainImage,

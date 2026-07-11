@@ -12,7 +12,7 @@ import { z } from "zod";
 
 import { requireKodyAuth } from "@kody-ade/base/auth";
 import { logger } from "@kody-ade/base/logger";
-import { resolveServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
+import { resolveServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
 import {
   startTerminalSession,
   TerminalSessionError,

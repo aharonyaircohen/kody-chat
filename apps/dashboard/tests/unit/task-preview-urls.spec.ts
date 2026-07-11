@@ -1,13 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { FlyPreviewConfig } from "@dashboard/lib/infrastructure/plugins/fly/previews/machines-client";
+import type { FlyPreviewConfig } from "@kody-ade/fly/plugin/previews/machines-client";
 import type { GitHubPR } from "@kody-ade/base/types";
 
 const lifecycle = vi.hoisted(() => ({
   getPreview: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/previews/preview-lifecycle", () => lifecycle);
+vi.mock("@kody-ade/fly/previews/preview-lifecycle", () => lifecycle);
 
 import { buildPreviewUrlByPrNumber } from "@dashboard/lib/tasks/preview-urls";
 
