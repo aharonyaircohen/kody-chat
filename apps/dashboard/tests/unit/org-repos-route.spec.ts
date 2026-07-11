@@ -27,7 +27,7 @@ vi.mock("@dashboard/lib/webhooks/register", () => ({
   ensureWebhook: webhook.ensureWebhook,
 }));
 
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 

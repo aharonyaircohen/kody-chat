@@ -39,7 +39,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
 vi.mock("@dashboard/lib/push-server", () => ({
   mutatePushManifest: h.mutatePushManifest,
 }));
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 vi.mock("@dashboard/lib/push/vapid-keys", () => ({

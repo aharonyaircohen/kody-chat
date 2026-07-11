@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { SessionMeta } from "@dashboard/lib/chat-types";
 import { authHeaders } from "../../core/kody-chat-live-session";
-import type { ServerProviderMachineRow } from "@dashboard/lib/infrastructure/server-machine-model";
+import type { ServerProviderMachineRow } from "@kody-ade/base/infrastructure/server-machine-model";
 import {
   FLY_MACHINES_REFRESH_EVENT,
   LOCAL_TERMINAL_TRANSPORT,

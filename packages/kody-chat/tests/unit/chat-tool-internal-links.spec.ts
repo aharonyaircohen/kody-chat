@@ -7,7 +7,7 @@ vi.mock("@kody-ade/base/github-issue-create", () => ({
     createIssueWithBestEffortMetadata(...args),
 }));
 
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: {
     info: vi.fn(),
     warn: vi.fn(),

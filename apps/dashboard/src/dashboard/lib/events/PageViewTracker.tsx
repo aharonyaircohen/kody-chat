@@ -10,7 +10,7 @@
 
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
-import { startBrowserSession, trackSystemEvent } from "./client";
+import { startBrowserSession, trackSystemEvent } from "@kody-ade/base/events/client";
 
 export function PageViewTracker(): null {
   const pathname = usePathname();

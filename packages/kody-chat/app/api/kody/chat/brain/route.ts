@@ -30,7 +30,7 @@ import {
   withDashboardContext,
 } from "@dashboard/lib/chat/core/page-context";
 import { loadContextForPrompt } from "@dashboard/lib/context/files";
-import { requestOrigin } from "@dashboard/lib/request-origin";
+import { requestOrigin } from "@kody-ade/base/request-origin";
 
 export const runtime = "nodejs";
 // Hold the proxy open up to Vercel's ceiling; the proxy itself closes ~30s

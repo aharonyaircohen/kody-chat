@@ -9,7 +9,7 @@
  *   `state.entity.written` on every successful write.
  */
 import "server-only";
-import { emitSystemEvent, type SystemEventSource } from "@dashboard/lib/events";
+import { emitSystemEvent, type SystemEventSource } from "@kody-ade/base/events";
 import { getUserStateAdapter } from "./adapters";
 import { getUserStateNamespace } from "./config";
 import {

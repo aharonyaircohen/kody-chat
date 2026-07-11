@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { createReleaseTools } from "../../app/api/kody/chat/tools/release-tools";
 
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 

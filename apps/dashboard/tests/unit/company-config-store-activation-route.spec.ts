@@ -42,7 +42,7 @@ vi.mock("@kody-ade/base/engine/config", () => ({
   VALID_ASSOCIATIONS: engineConfig.VALID_ASSOCIATIONS,
 }));
 
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 

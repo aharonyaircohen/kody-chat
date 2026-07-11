@@ -49,7 +49,7 @@ vi.mock("@dashboard/lib/brain/service-resolver", () => ({
     machineId: "machine-1",
   })),
 }));
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn(), error: vi.fn() },
 }));
 

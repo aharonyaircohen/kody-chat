@@ -9,7 +9,7 @@ vi.mock("@kody-ade/base/github/core", () => ({
   createUserOctokit: github.createUserOctokit,
 }));
 
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 

@@ -5,7 +5,7 @@ import type {
   ServerContextBase,
   InfrastructureProviderSelection,
   ServerProvider,
-} from "@dashboard/lib/infrastructure/contracts";
+} from "@kody-ade/base/infrastructure/contracts";
 
 describe("infrastructure contracts", () => {
   it("model Kody infrastructure as servers, deployments, and browsers", () => {

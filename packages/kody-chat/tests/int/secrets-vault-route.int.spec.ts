@@ -38,7 +38,7 @@ vi.mock("@kody-ade/base/vault/crypto", async (importOriginal) => {
     isVaultConfigured: cfg.isVaultConfigured,
   };
 });
-vi.mock("@dashboard/lib/logger", () => loggerStub);
+vi.mock("@kody-ade/base/logger", () => loggerStub);
 vi.mock("@kody-ade/base/vault/store", async (importActual) => {
   const actual =
     await importActual<typeof import("@kody-ade/base/vault/store")>();

@@ -11,7 +11,7 @@
 import "server-only";
 import type { Octokit } from "@octokit/rest";
 import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
-import { createUserOctokit } from "@dashboard/lib/github-client";
+import { createUserOctokit } from "@kody-ade/base/github/core";
 import { logger } from "@kody-ade/base/logger";
 import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
 import type { SystemEventEnvelope, SystemEventSink } from "../types";

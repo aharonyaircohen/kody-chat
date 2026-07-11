@@ -12,7 +12,7 @@ import { tool, type ToolSet } from "ai";
 import type { Octokit } from "@octokit/rest";
 import { z } from "zod";
 
-import { emitSystemEvent } from "@dashboard/lib/events";
+import { emitSystemEvent } from "@kody-ade/base/events";
 import {
   getUserState,
   getUserStateNamespaces,

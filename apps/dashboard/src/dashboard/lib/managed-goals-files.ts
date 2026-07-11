@@ -14,7 +14,7 @@ import {
   readStateText,
   writeStateText,
 } from "@kody-ade/base/state-repo";
-import { createServerTtlCache } from "./server-ttl-cache";
+import { createServerTtlCache } from "@kody-ade/base/server-ttl-cache";
 import {
   companyStoreAssetPath,
   getCompanyStoreTarget,

@@ -8,7 +8,7 @@
 import type { Octokit } from "@octokit/rest";
 
 import { readStateText } from "@kody-ade/base/state-repo";
-import { createServerTtlCache } from "./server-ttl-cache";
+import { createServerTtlCache } from "@kody-ade/base/server-ttl-cache";
 
 export type AgencyRunKind = "goal" | "loop" | "workflow";
 export type AgencyRunOrigin = "manual" | "scheduled" | "event" | "local";

@@ -125,7 +125,7 @@ import { createCompanyTools } from "../tools/company-tools";
 import { createInboxTools } from "../tools/inbox-tools";
 import { createCmsTools } from "../tools/cms-tools";
 import { createUserStateTools } from "../tools/user-state-tools";
-import { emitSystemEvent } from "@dashboard/lib/events";
+import { emitSystemEvent } from "@kody-ade/base/events";
 import { applyReasoning } from "@dashboard/lib/chat/core/reasoning-adapter";
 import { createAgentAdminTools } from "../tools/agent-admin-tools";
 import { createMacroTools } from "../tools/macros-tools";

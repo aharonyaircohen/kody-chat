@@ -217,7 +217,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
 }));
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: { info: vi.fn(), error: vi.fn(), warn: vi.fn() },
 }));
 

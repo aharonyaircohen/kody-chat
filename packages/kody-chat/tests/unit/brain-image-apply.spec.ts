@@ -103,7 +103,7 @@ vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/brain", () => ({
   brainAppName: (account: string) => `kody-brain-${account}`,
   provisionBrain: brainFly.provisionBrain,
 }));
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn() },
 }));
 

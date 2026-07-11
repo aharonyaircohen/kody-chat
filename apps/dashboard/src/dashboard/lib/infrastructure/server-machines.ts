@@ -9,13 +9,13 @@ export {
   isFlyTerminalCapable,
   isServerProviderMachineRunning,
   serverProviderFeatureLabel,
-} from "./server-machine-model";
+} from "@kody-ade/base/infrastructure/server-machine-model";
 export type {
   ServerProviderFeature,
   ServerProviderInventory,
   ServerProviderMachineInfo,
   ServerProviderMachineRow,
-} from "./server-machine-model";
+} from "@kody-ade/base/infrastructure/server-machine-model";
 import type {
   ProviderCreateMachineInput,
   ProviderRuntimeConfig,
@@ -24,7 +24,7 @@ import type {
   ServerProviderFeature,
   ServerProviderInventory,
   ServerProviderMachineInfo,
-} from "./server-machine-model";
+} from "@kody-ade/base/infrastructure/server-machine-model";
 
 export type ServerProviderConfig = ProviderRuntimeConfig;
 export type CreateServerProviderMachineInput = ProviderCreateMachineInput;

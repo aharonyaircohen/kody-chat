@@ -18,7 +18,7 @@ import {
   CLIENT_BRAND_REPO_COOKIE,
   parseClientBrandRepoCookie,
 } from "@dashboard/lib/client-brand-repo-cookie";
-import type { SystemEventBrand } from "@dashboard/lib/events/types";
+import type { SystemEventBrand } from "@kody-ade/base/events/types";
 
 export type UnifiedActorKind = "operator" | "client";
 

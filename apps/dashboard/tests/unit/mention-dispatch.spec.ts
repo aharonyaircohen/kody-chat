@@ -86,7 +86,7 @@ vi.mock("@dashboard/lib/cto/backpressure", () => ({
     withheld: [],
   }),
 }));
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 vi.mock("@dashboard/lib/thread-link", () => ({

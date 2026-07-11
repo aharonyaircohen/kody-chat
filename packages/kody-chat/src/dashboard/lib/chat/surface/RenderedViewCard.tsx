@@ -11,7 +11,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Check, MousePointerClick, X } from "lucide-react";
-import { trackSystemEvent } from "@dashboard/lib/events/client";
+import { trackSystemEvent } from "@kody-ade/base/events/client";
 import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
 import {
   getRenderedViewUi,

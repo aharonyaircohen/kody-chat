@@ -5,7 +5,12 @@
  * @ai-summary Server barrel for the system-event backbone. Client code
  *   imports from `./client` / `./catalog` directly.
  */
-export { emitSystemEvent, type EmitContext } from "./emit";
+export {
+  emitSystemEvent,
+  setEventFlushScheduler,
+  type EmitContext,
+  type EventFlushScheduler,
+} from "./emit";
 export {
   SYSTEM_EVENT_CATALOG,
   SYSTEM_EVENT_NAMES,

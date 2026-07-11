@@ -58,7 +58,7 @@ const githubContext = vi.hoisted(() => ({
 vi.mock("@dashboard/lib/infrastructure/plugins/fly/runners/context", () => flyContext);
 vi.mock("@dashboard/lib/brain/service-resolver", () => brainResolver);
 vi.mock("@dashboard/lib/github-client", () => githubContext);
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn() },
 }));
 

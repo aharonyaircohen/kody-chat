@@ -16,7 +16,7 @@ import type {
   InfrastructureProviderId,
   ServerContextBase,
   ServerProvider,
-} from "@dashboard/lib/infrastructure/contracts";
+} from "./contracts";
 
 type ProvidersById<TProvider extends InfrastructureProviderBase> = Partial<
   Record<InfrastructureProviderId, TProvider>

@@ -27,7 +27,7 @@ vi.mock("@dashboard/lib/previews/preview-lifecycle", () => ({
   destroyPreview: vi.fn(),
   getPreview: mocks.getPreview,
 }));
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn() },
 }));
 

@@ -77,7 +77,7 @@ vi.mock("@kody-ade/base/state-repo", () => ({
   stateRepoPath: stateRepo.stateRepoPath,
 }));
 
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 

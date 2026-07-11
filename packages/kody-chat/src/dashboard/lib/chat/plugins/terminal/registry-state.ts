@@ -12,7 +12,7 @@
 import {
   isFlyTerminalCapable,
   type ServerProviderMachineRow,
-} from "@dashboard/lib/infrastructure/server-machine-model";
+} from "@kody-ade/base/infrastructure/server-machine-model";
 import { readActiveRepoScope } from "@kody-ade/base/active-repo";
 import type {
   ChatTerminalConnectionState,

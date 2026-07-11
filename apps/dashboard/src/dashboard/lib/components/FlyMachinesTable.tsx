@@ -29,14 +29,14 @@ import { Card, CardContent } from "@kody-ade/base/ui/card";
 import {
   batchSuspendRunning,
   countRunningInGroup,
-} from "@dashboard/lib/infrastructure/server-machine-model";
+} from "@kody-ade/base/infrastructure/server-machine-model";
 import {
   FLY_FEATURE_TITLE,
   isServerProviderMachineRunning,
   type ServerProviderFeature,
   type ServerProviderInventory,
   type ServerProviderMachineRow,
-} from "@dashboard/lib/infrastructure/server-machine-model";
+} from "@kody-ade/base/infrastructure/server-machine-model";
 import { ConfirmDialog } from "./ConfirmDialog";
 
 interface FlyMachinesTableProps {

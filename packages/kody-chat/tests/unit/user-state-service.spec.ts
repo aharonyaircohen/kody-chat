@@ -17,8 +17,8 @@ vi.mock("@kody-ade/base/state-repo", () => ({
   readStateText: h.readStateText,
   writeStateText: h.writeStateText,
 }));
-vi.mock("@dashboard/lib/logger", () => ({ logger: h.logger }));
-vi.mock("@dashboard/lib/events", () => ({
+vi.mock("@kody-ade/base/logger", () => ({ logger: h.logger }));
+vi.mock("@kody-ade/base/events", () => ({
   emitSystemEvent: h.emitSystemEvent,
 }));
 

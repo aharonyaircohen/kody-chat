@@ -17,7 +17,7 @@ import {
 } from "@dashboard/lib/github-client";
 import { logger } from "@kody-ade/base/logger";
 import { resolveServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
-import { requestOrigin } from "@dashboard/lib/request-origin";
+import { requestOrigin } from "@kody-ade/base/request-origin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

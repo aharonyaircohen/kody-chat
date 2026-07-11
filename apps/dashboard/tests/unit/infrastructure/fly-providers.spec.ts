@@ -40,7 +40,7 @@ import { flyDeploymentProvider } from "@dashboard/lib/infrastructure/plugins/fly
 import { flyServerProvider } from "@dashboard/lib/infrastructure/plugins/fly/servers";
 import {
   createInfrastructureRegistry,
-} from "@dashboard/lib/infrastructure/registry";
+} from "@kody-ade/base/infrastructure/registry";
 import type { FlyContext } from "@dashboard/lib/infrastructure/plugins/fly/runners/context";
 import { chatRunRequest } from "@dashboard/lib/runners/run-request";
 

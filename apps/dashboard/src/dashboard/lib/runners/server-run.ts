@@ -8,7 +8,7 @@
 
 import type { NextRequest } from "next/server";
 import { getServerProvider } from "@dashboard/lib/infrastructure/installed";
-import type { ServerContextBase } from "@dashboard/lib/infrastructure/contracts";
+import type { ServerContextBase } from "@kody-ade/base/infrastructure/contracts";
 import type { KodyRunRequest } from "./run-request";
 
 export interface ClaimOrRunServerOptions {

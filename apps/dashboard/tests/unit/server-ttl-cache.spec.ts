@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createServerTtlCache } from "../../src/dashboard/lib/server-ttl-cache";
+import { createServerTtlCache } from "@kody-ade/base/server-ttl-cache";
 
 describe("server ttl cache", () => {
   it("deduplicates concurrent loads for the same key", async () => {

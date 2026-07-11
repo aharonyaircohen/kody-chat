@@ -9,7 +9,7 @@ import {
   SYSTEM_EVENT_CATALOG,
   SYSTEM_EVENT_NAMES,
   isSystemEventName,
-} from "@dashboard/lib/events/catalog";
+} from "@kody-ade/base/events/catalog";
 
 const FIXTURES: Record<string, Record<string, unknown>> = {
   "session.started": { sessionId: "s-1" },

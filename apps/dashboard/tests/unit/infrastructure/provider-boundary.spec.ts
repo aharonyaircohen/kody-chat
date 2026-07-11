@@ -23,7 +23,9 @@ function listSourceFiles(dir: string): string[] {
 
 describe("infrastructure provider boundary", () => {
   it("keeps the generic registry free of vendor plugin imports", () => {
-    const registry = readRepoFile("src/dashboard/lib/infrastructure/registry.ts");
+    const registry = readRepoFile(
+      "../../packages/base/src/infrastructure/registry.ts",
+    );
 
     expect(registry).not.toContain("/plugins/fly");
     expect(registry).not.toContain("flyInfrastructure");

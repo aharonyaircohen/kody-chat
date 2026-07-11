@@ -24,7 +24,7 @@ const adapterCatalog = vi.hoisted(() => ({
 
 vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@dashboard/lib/github-client", () => githubClient);
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: { error: vi.fn() },
 }));
 vi.mock("@dashboard/lib/cms/adapter-catalog", () => adapterCatalog);

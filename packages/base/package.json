@@ -26,6 +26,12 @@
     "./vault/*": "./src/vault/*.ts",
     "./variables/*": "./src/variables/*.ts",
     "./ui/*": "./src/ui/*.tsx",
+    "./server-ttl-cache": "./src/server-ttl-cache.ts",
+    "./request-origin": "./src/request-origin.ts",
+    "./infrastructure/*": "./src/infrastructure/*.ts",
+    "./events": "./src/events/index.ts",
+    "./events/*": "./src/events/*.ts",
+    "./events/sinks/*": "./src/events/sinks/*.ts",
     "./storage": "./src/storage/index.ts",
     "./storage/*": "./src/storage/*.ts"
   },

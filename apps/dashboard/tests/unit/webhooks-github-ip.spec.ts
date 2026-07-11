@@ -12,7 +12,7 @@
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 

@@ -50,7 +50,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
   clearGitHubContext: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: {
     info: vi.fn(),
     warn: vi.fn(),

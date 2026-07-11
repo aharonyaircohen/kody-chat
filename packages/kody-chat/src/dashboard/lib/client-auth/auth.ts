@@ -149,7 +149,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth(async (req) => {
     providers,
     events: {
       async signIn({ user, account }) {
-        const { emitSystemEvent } = await import("@dashboard/lib/events");
+        const { emitSystemEvent } = await import("@kody-ade/base/events");
         emitSystemEvent(
           "auth.signed_in",
           {
@@ -166,7 +166,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth(async (req) => {
         );
       },
       async signOut() {
-        const { emitSystemEvent } = await import("@dashboard/lib/events");
+        const { emitSystemEvent } = await import("@kody-ade/base/events");
         emitSystemEvent(
           "auth.signed_out",
           { kind: "client" },

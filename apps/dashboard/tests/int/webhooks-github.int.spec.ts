@@ -41,7 +41,7 @@ const side = vi.hoisted(() => ({
 
 vi.mock("@dashboard/lib/github-client", () => gh);
 vi.mock("@dashboard/lib/webhooks/github-ip", () => ipv);
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 vi.mock("@dashboard/lib/notifications-dispatch", () => ({

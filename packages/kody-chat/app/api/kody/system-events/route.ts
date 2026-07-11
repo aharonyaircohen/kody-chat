@@ -10,8 +10,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { resolveUnifiedActor } from "@dashboard/lib/auth/unified-actor";
-import { emitSystemEvent, isSystemEventName } from "@dashboard/lib/events";
-import type { SystemEventPayload, SystemEventName } from "@dashboard/lib/events";
+import { emitSystemEvent, isSystemEventName } from "@kody-ade/base/events";
+import type { SystemEventPayload, SystemEventName } from "@kody-ade/base/events";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

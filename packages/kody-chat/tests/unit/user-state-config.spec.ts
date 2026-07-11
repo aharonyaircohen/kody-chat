@@ -15,7 +15,7 @@ vi.mock("@kody-ade/base/state-repo", () => ({
   readStateText: h.readStateText,
   writeStateText: vi.fn(),
 }));
-vi.mock("@dashboard/lib/logger", () => ({ logger: h.logger }));
+vi.mock("@kody-ade/base/logger", () => ({ logger: h.logger }));
 
 import {
   getUserStateNamespaces,

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { requestOrigin } from "@dashboard/lib/request-origin";
+import { requestOrigin } from "@kody-ade/base/request-origin";
 
 describe("requestOrigin", () => {
   it("prefers a valid Origin header", () => {

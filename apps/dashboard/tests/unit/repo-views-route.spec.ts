@@ -35,7 +35,7 @@ vi.mock("@kody-ade/base/state-repo", () => ({
   writeStateBase64Files: stateRepo.writeStateBase64Files,
 }));
 
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
 }));
 

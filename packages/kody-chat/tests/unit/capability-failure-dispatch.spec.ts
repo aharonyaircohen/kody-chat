@@ -42,7 +42,7 @@ vi.mock("@kody-ade/base/vault/bootstrap", () => ({
 vi.mock("@dashboard/lib/inbox/feed-server", () => ({
   appendInboxFeed: h.appendInboxFeed,
 }));
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
 }));
 

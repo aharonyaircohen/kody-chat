@@ -35,7 +35,7 @@ import {
   flyMachineTerminalLabel,
   flyTerminalTargetLabel,
   type ServerProviderMachineRow,
-} from "@dashboard/lib/infrastructure/server-machine-model";
+} from "@kody-ade/base/infrastructure/server-machine-model";
 import {
   terminalFlyMachineKey,
   terminalMachineIdShort,

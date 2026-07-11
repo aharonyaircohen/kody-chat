@@ -8,7 +8,7 @@
 import type { Octokit } from "@octokit/rest";
 
 import { listStateDirectory, readStateText } from "@kody-ade/base/state-repo";
-import { createServerTtlCache } from "./server-ttl-cache";
+import { createServerTtlCache } from "@kody-ade/base/server-ttl-cache";
 
 const GOAL_RUNS_DIR = "logs/goals";
 const DEFAULT_LIMIT = 8;

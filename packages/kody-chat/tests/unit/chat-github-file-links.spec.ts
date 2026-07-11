@@ -5,7 +5,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
   invalidatePRCache: vi.fn(),
 }));
 
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 

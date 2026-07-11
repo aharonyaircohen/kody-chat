@@ -46,7 +46,7 @@ import {
   waitForServerBrainHealth,
 } from "@dashboard/lib/infrastructure/server-brain";
 import { resolveServerProviderContext } from "@dashboard/lib/infrastructure/server-context";
-import { requestOrigin } from "@dashboard/lib/request-origin";
+import { requestOrigin } from "@kody-ade/base/request-origin";
 import {
   withPageContext,
   withDashboardContext,

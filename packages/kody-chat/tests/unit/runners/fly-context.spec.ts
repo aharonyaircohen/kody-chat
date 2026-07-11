@@ -26,7 +26,7 @@ vi.mock("@kody-ade/base/vault/store", () => ({
   readVault: (...args: unknown[]) => readVault(...args),
 }));
 
-vi.mock("@dashboard/lib/logger", () => ({
+vi.mock("@kody-ade/base/logger", () => ({
   logger: {
     warn: vi.fn(),
     error: vi.fn(),

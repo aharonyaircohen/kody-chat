@@ -7,7 +7,7 @@
  */
 
 import type { CompanyIntentRecord } from "./company-intents";
-import { createServerTtlCache } from "./server-ttl-cache";
+import { createServerTtlCache } from "@kody-ade/base/server-ttl-cache";
 
 const COMPANY_INTENTS_LIST_TTL_MS = 120_000;
 const companyIntentRecordsCache = createServerTtlCache<CompanyIntentRecord[]>({

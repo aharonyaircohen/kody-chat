@@ -10,7 +10,7 @@ import type { NextRequest } from "next/server";
 import type { Octokit } from "@octokit/rest";
 
 import { getServerProvider } from "@dashboard/lib/infrastructure/installed";
-import type { ServerContextBase } from "@dashboard/lib/infrastructure/contracts";
+import type { ServerContextBase } from "@kody-ade/base/infrastructure/contracts";
 import type { EngineRuntimeModelConfig } from "@kody-ade/base/variables/models";
 import type { KodyRunRequest } from "@dashboard/lib/runners/run-request";
 import type {
@@ -18,7 +18,7 @@ import type {
   ServerProviderInventory as ProviderInventory,
   ServerProviderMachineInfo as ProviderMachineInfo,
   ServerProviderMachineRow as ProviderMachineRow,
-} from "./server-machine-model";
+} from "@kody-ade/base/infrastructure/server-machine-model";
 
 export type ProviderPerfTier = "low" | "medium" | "high";
 export type {

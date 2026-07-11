@@ -29,7 +29,7 @@ import {
   type FlyInventory,
 } from "@dashboard/lib/infrastructure/plugins/fly/runners/inventory";
 import { isFlyMachineRunning } from "@dashboard/lib/infrastructure/plugins/fly/runners/machine-model";
-import { createServerTtlCache } from "@dashboard/lib/server-ttl-cache";
+import { createServerTtlCache } from "@kody-ade/base/server-ttl-cache";
 
 const FLY_INVENTORY_TTL_MS = 15_000;
 const flyInventoryCache = createServerTtlCache<FlyInventory>({

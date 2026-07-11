@@ -5,11 +5,12 @@
  * @ai-summary `emitSystemEvent(name, payload, ctx)` — the single emit path
  *   for the system-event backbone. Validates the payload against the
  *   hardcoded catalog (invalid → warn + drop, never throw), wraps it in the
- *   standard envelope, and fans out to registered sinks inside Next's
- *   `after()` so emitting never blocks or fails the observed action.
+ *   standard envelope, and fans out to registered sinks via the injected
+ *   flush scheduler (the app installs Next's `after()` at startup via
+ *   `setEventFlushScheduler`) so emitting never blocks or fails the
+ *   observed action.
  */
 import "server-only";
-import { after } from "next/server";
 import type { Octokit } from "@octokit/rest";
 import { logger } from "@kody-ade/base/logger";
 import {
@@ -33,6 +34,29 @@ export interface EmitContext {
   source: SystemEventSource;
   /** Brand-authenticated octokit for the durable sink, when available. */
   octokit?: Octokit | null;
+}
+
+/**
+ * Schedules the sink fan-out task. Framework-free default runs the task on
+ * the microtask queue; a Next.js host should install `after()` from
+ * "next/server" once at startup via `setEventFlushScheduler(after)` so
+ * dispatch happens after the response is sent.
+ */
+export type EventFlushScheduler = (task: () => void | Promise<void>) => void;
+
+const defaultScheduler: EventFlushScheduler = (task) => {
+  queueMicrotask(() => {
+    void Promise.resolve()
+      .then(task)
+      .catch(() => {});
+  });
+};
+
+let flushScheduler: EventFlushScheduler = defaultScheduler;
+
+/** Install a host-specific flush scheduler (e.g. Next's `after`). */
+export function setEventFlushScheduler(fn: EventFlushScheduler): void {
+  flushScheduler = fn;
 }
 
 let defaultSinksRegistered = false;
@@ -89,10 +113,10 @@ export function emitSystemEvent<N extends SystemEventName>(
     dispatchToSinks([envelope], { octokit: ctx.octokit ?? null });
 
   try {
-    after(work);
+    flushScheduler(work);
   } catch {
-    // `after()` unavailable (outside a request scope) — dispatch directly so
-    // nothing is silently dropped.
+    // Scheduler unavailable (e.g. Next's `after()` outside a request scope)
+    // — dispatch directly so nothing is silently dropped.
     void work().catch(() => {});
   }
 }
