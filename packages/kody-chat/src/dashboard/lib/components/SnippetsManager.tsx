@@ -11,6 +11,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -42,7 +43,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@kody-ade/base/ui/select";
-import { Textarea } from "@kody-ade/base/ui/textarea";
+
+const MonacoEditor = dynamic(
+  () => import("@monaco-editor/react").then((mod) => mod.Editor),
+  { ssr: false, loading: () => null },
+);
 import { slugifyTitle } from "@kody-ade/base/slug";
 import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -265,7 +270,7 @@ export function SnippetsManager() {
       )}
 
       <Dialog open={!!editor} onOpenChange={(open) => !open && setEditor(null)}>
-        <DialogContent className="max-w-lg">
+        <DialogContent modalSize="wide">
           <DialogHeader>
             <DialogTitle>
               {editor?.isNew ? "New snippet" : "Edit snippet"}
@@ -316,16 +321,26 @@ export function SnippetsManager() {
                 </div>
               </div>
               <div className="space-y-1">
-                <Label htmlFor="snippet-html">Snippet (HTML / script)</Label>
-                <Textarea
-                  id="snippet-html"
-                  rows={6}
-                  value={editor.html}
-                  placeholder='<script src="https://..."></script>'
-                  onChange={(e) =>
-                    setEditor({ ...editor, html: e.target.value })
-                  }
-                />
+                <Label>Snippet (HTML / script)</Label>
+                <div className="overflow-hidden rounded-md border border-border">
+                  <MonacoEditor
+                    height="280px"
+                    language="html"
+                    value={editor.html}
+                    theme="vs-dark"
+                    options={{
+                      minimap: { enabled: false },
+                      lineNumbers: "on",
+                      scrollBeyondLastLine: false,
+                      fontSize: 13,
+                      wordWrap: "on",
+                      automaticLayout: true,
+                    }}
+                    onChange={(value) =>
+                      setEditor({ ...editor, html: value ?? "" })
+                    }
+                  />
+                </div>
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="ghost" onClick={() => setEditor(null)}>
