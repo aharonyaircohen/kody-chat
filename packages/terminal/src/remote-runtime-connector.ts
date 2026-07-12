@@ -45,12 +45,18 @@ export type RemoteRuntimeConnector = (
   input: RemoteRuntimeConnectInput,
 ) => Promise<RemoteRuntimeConnectDecision>;
 
-let connector: RemoteRuntimeConnector | null = null;
+// Next bundles this TS-source package separately into each server entry
+// (instrumentation vs. route handlers), so a plain module-level variable
+// registered at startup is invisible to other bundles. globalThis is the
+// one registry every bundle in the process shares.
+const CONNECTOR_KEY = Symbol.for("kody.terminal.remoteRuntimeConnector");
+
+type ConnectorGlobal = { [CONNECTOR_KEY]?: RemoteRuntimeConnector | null };
 
 export function setRemoteRuntimeConnector(fn: RemoteRuntimeConnector): void {
-  connector = fn;
+  (globalThis as ConnectorGlobal)[CONNECTOR_KEY] = fn;
 }
 
 export function getRemoteRuntimeConnector(): RemoteRuntimeConnector | null {
-  return connector;
+  return (globalThis as ConnectorGlobal)[CONNECTOR_KEY] ?? null;
 }

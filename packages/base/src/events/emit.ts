@@ -52,11 +52,20 @@ const defaultScheduler: EventFlushScheduler = (task) => {
   });
 };
 
-let flushScheduler: EventFlushScheduler = defaultScheduler;
+// globalThis-backed: Next bundles this TS-source package separately per
+// server entry (instrumentation vs. routes), so a module-level variable
+// set at startup is invisible to other bundles.
+const SCHEDULER_KEY = Symbol.for("kody.events.flushScheduler");
+
+type SchedulerGlobal = { [SCHEDULER_KEY]?: EventFlushScheduler };
 
 /** Install a host-specific flush scheduler (e.g. Next's `after`). */
 export function setEventFlushScheduler(fn: EventFlushScheduler): void {
-  flushScheduler = fn;
+  (globalThis as SchedulerGlobal)[SCHEDULER_KEY] = fn;
+}
+
+function getFlushScheduler(): EventFlushScheduler {
+  return (globalThis as SchedulerGlobal)[SCHEDULER_KEY] ?? defaultScheduler;
 }
 
 let defaultSinksRegistered = false;
@@ -113,7 +122,7 @@ export function emitSystemEvent<N extends SystemEventName>(
     dispatchToSinks([envelope], { octokit: ctx.octokit ?? null });
 
   try {
-    flushScheduler(work);
+    getFlushScheduler()(work);
   } catch {
     // Scheduler unavailable (e.g. Next's `after()` outside a request scope)
     // — dispatch directly so nothing is silently dropped.

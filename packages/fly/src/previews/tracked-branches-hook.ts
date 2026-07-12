@@ -19,12 +19,17 @@ export type TrackedBranchesReader = (
   repo: string,
 ) => Promise<string[]>;
 
-let reader: TrackedBranchesReader | null = null;
+// globalThis-backed: Next bundles this TS-source package separately per
+// server entry (instrumentation vs. routes), so a module-level variable
+// set at startup is invisible to other bundles.
+const READER_KEY = Symbol.for("kody.fly.trackedBranchesReader");
+
+type ReaderGlobal = { [READER_KEY]?: TrackedBranchesReader | null };
 
 export function setTrackedBranchesReader(fn: TrackedBranchesReader): void {
-  reader = fn;
+  (globalThis as ReaderGlobal)[READER_KEY] = fn;
 }
 
 export function getTrackedBranchesReader(): TrackedBranchesReader | null {
-  return reader;
+  return (globalThis as ReaderGlobal)[READER_KEY] ?? null;
 }

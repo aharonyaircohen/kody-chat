@@ -43,12 +43,17 @@ export type BrainServiceResolver = (
   input: ResolveBrainServiceInput,
 ) => Promise<ResolvedBrainService>;
 
-let resolver: BrainServiceResolver | null = null;
+// globalThis-backed: Next bundles this TS-source package separately per
+// server entry (instrumentation vs. routes), so a module-level variable
+// set at startup is invisible to other bundles.
+const RESOLVER_KEY = Symbol.for("kody.fly.brainServiceResolver");
+
+type ResolverGlobal = { [RESOLVER_KEY]?: BrainServiceResolver | null };
 
 export function setBrainServiceResolver(fn: BrainServiceResolver): void {
-  resolver = fn;
+  (globalThis as ResolverGlobal)[RESOLVER_KEY] = fn;
 }
 
 export function getBrainServiceResolver(): BrainServiceResolver | null {
-  return resolver;
+  return (globalThis as ResolverGlobal)[RESOLVER_KEY] ?? null;
 }
