@@ -74,8 +74,9 @@ export function createPositionTools(ctx: Ctx): ToolSet {
         "Save the current user's position (a number) for a key. Call this " +
         "when the user completes a step so their progress persists and " +
         "resumes next session.",
+      // Coerce the number — models sometimes pass it as a string ("3").
       inputSchema: z
-        .object({ key: keyInput, position: z.number().int().min(0) })
+        .object({ key: keyInput, position: z.coerce.number().int().min(0) })
         .strict(),
       execute: async ({ key, position }) => {
         await setUserState(
