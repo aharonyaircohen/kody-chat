@@ -60,6 +60,40 @@ describe("resolveBrainTarget", () => {
     ).toMatchObject({ app: "other-brain", orgSlug: "personal" });
   });
 
+  it("ignores a stored record naming another login's default brain", () => {
+    expect(
+      resolveBrainTarget({
+        account: "aguyaharonyair",
+        contextOrgSlug: "personal",
+        stored: {
+          version: 1,
+          appName: "kody-brain-aharonyaircohen",
+          orgSlug: "aharon-yair-cohen",
+          createdAt: "2026-07-12T02:27:30.962Z",
+        },
+      }),
+    ).toEqual({
+      app: "kody-brain-aguyaharonyair",
+      orgSlug: "personal",
+      source: "default",
+    });
+  });
+
+  it("still trusts a stored custom app name", () => {
+    expect(
+      resolveBrainTarget({
+        account: "alice",
+        contextOrgSlug: "personal",
+        stored: {
+          version: 1,
+          appName: "brain-1",
+          orgSlug: "guy-koren",
+          createdAt: "2026-06-29T20:57:37.213Z",
+        },
+      }),
+    ).toMatchObject({ app: "brain-1", orgSlug: "guy-koren", source: "stored" });
+  });
+
   it("falls back to the derived app in the context org", () => {
     expect(
       resolveBrainTarget({

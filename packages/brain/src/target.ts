@@ -43,7 +43,16 @@ export function resolveBrainTarget(input: {
     };
   }
 
-  if (input.stored) {
+  // Two logins share the repo's Fly account and state repo, so a stored
+  // record seeded from another login's app (e.g. after a token swap) would
+  // silently route this login's image/provision ops to that other brain
+  // while the terminal resolves the live default — the split-brain bug.
+  // Distrust a stored record shaped like a DIFFERENT login's default brain;
+  // custom app names (explicit overrides) stay trusted.
+  const looksLikeForeignDefault =
+    input.stored?.appName.startsWith("kody-brain-") === true &&
+    input.stored.appName !== defaultBrainAppName(input.account);
+  if (input.stored && !looksLikeForeignDefault) {
     return {
       app: input.stored.appName,
       orgSlug: input.stored.orgSlug,
