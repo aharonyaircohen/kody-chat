@@ -4,16 +4,36 @@
     {
       "name": "kody-chat",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["next", "dev", "--turbopack"],
+      "runtimeArgs": [
+        "next",
+        "dev",
+        "--turbopack"
+      ],
       "port": 3344,
       "autoPort": true
     },
     {
       "name": "kody-chat-prod",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["next", "start", "-p", "3555"],
+      "runtimeArgs": [
+        "next",
+        "start",
+        "-p",
+        "3555"
+      ],
       "port": 3555,
       "autoPort": false
+    },
+    {
+      "name": "kody-dash",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "kody-dashboard",
+        "dev"
+      ],
+      "port": 3333,
+      "autoPort": true
     }
   ]
 }

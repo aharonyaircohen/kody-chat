@@ -12,6 +12,7 @@ import { ThemeProvider } from "@dashboard/providers/Theme";
 import { AuthProvider } from "@dashboard/lib/auth-context";
 import { ServiceWorkerRegister } from "@dashboard/lib/push/ServiceWorkerRegister";
 import { InboxWatcher } from "@dashboard/lib/inbox/useInboxWatcher";
+import { PageViewTracker } from "@dashboard/lib/events/PageViewTracker";
 
 function makeQueryClient() {
   return new QueryClient({
@@ -44,6 +45,7 @@ export function KodyProviders({ children }: { children: React.ReactNode }) {
         <AuthProvider>
           <ServiceWorkerRegister />
           <InboxWatcher />
+          <PageViewTracker />
           {children}
         </AuthProvider>
       </ThemeProvider>
