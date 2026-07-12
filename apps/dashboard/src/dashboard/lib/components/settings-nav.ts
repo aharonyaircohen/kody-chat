@@ -195,6 +195,20 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-emerald-300 bg-emerald-500/10",
       },
       {
+        href: "/snippets",
+        label: "Snippets",
+        icon: Code,
+        description: "Scripts and HTML injected into brand pages.",
+        tint: "text-violet-300 bg-violet-500/10",
+      },
+      {
+        href: "/triggers",
+        label: "Triggers",
+        icon: Zap,
+        description: "Rules that react to system events and save user data.",
+        tint: "text-yellow-300 bg-yellow-500/10",
+      },
+      {
         href: "/content/settings",
         label: "Settings",
         icon: Settings2,
@@ -392,20 +406,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         icon: LayoutGrid,
         description: "Renderer JSON for structured chat UI.",
         tint: "text-cyan-300 bg-cyan-500/10",
-      },
-      {
-        href: "/snippets",
-        label: "Snippets",
-        icon: Code,
-        description: "Scripts and HTML injected into brand pages.",
-        tint: "text-violet-300 bg-violet-500/10",
-      },
-      {
-        href: "/triggers",
-        label: "Triggers",
-        icon: Zap,
-        description: "Rules that react to system events and save user data.",
-        tint: "text-yellow-300 bg-yellow-500/10",
       },
       {
         href: "/instructions",
