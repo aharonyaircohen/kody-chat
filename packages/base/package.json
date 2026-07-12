@@ -48,7 +48,10 @@
     "./agents-data": "./src/agents-data.ts",
     "./events/PageViewTracker": "./src/events/PageViewTracker.tsx",
     "./triggers": "./src/triggers/index.ts",
-    "./triggers/*": "./src/triggers/*.ts"
+    "./triggers/*": "./src/triggers/*.ts",
+    "./lessons": "./src/lessons/index.ts",
+    "./lessons/*": "./src/lessons/*.ts",
+    "./ui/sortable-list": "./src/ui/sortable-list.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
@@ -73,7 +76,10 @@
     "lucide-react": "^0.562.0",
     "pino": "^10.1.0",
     "sonner": "^2.0.7",
-    "tailwind-merge": "^3.4.0"
+    "tailwind-merge": "^3.4.0",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2"
   },
   "devDependencies": {
     "typescript": "5.9.3",

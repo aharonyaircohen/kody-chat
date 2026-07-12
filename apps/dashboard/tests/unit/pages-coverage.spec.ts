@@ -26,6 +26,7 @@ const ROUTE_FOR: Record<string, string> = {
   "view-renderers": "app/(chat-rail)/views/renderers/page.tsx",
   "view-renderer-detail": "app/(chat-rail)/views/renderers/[slug]/page.tsx",
   snippets: "app/(chat-rail)/snippets/page.tsx",
+  lessons: "app/(chat-rail)/lessons/page.tsx",
   triggers: "app/(chat-rail)/triggers/page.tsx",
 };
 

@@ -21,6 +21,7 @@ import {
   Database,
   FileText,
   FolderOpen,
+  GraduationCap,
   History,
   Home,
   KeyRound,
@@ -192,6 +193,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         label: "Models",
         icon: Layers,
         description: "Define content collections and fields.",
+        tint: "text-emerald-300 bg-emerald-500/10",
+      },
+      {
+        href: "/lessons",
+        label: "Lessons",
+        icon: GraduationCap,
+        description: "Ordered teaching steps that guide the chat model.",
         tint: "text-emerald-300 bg-emerald-500/10",
       },
       {

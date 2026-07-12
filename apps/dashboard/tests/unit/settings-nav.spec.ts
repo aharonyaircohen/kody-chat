@@ -81,6 +81,7 @@ describe("settings navigation", () => {
     expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "Content")).toEqual([
       "/content/entries",
       "/content/models",
+      "/lessons",
       "/snippets",
       "/triggers",
       "/content/settings",

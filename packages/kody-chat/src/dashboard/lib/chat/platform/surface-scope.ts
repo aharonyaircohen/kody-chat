@@ -51,6 +51,12 @@ export const CLIENT_SURFACE_TOOL_ALLOWLIST: readonly string[] = [
   "fetch_url",
   "list_dashboard_features",
   "describe_feature",
+  // Lessons: branded students run lessons through these (per-student
+  // position lives in their own user-state progress).
+  "lesson_list",
+  "lesson_start",
+  "lesson_current",
+  "lesson_advance",
 ];
 
 function getSecret(): string {

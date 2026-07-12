@@ -25,6 +25,7 @@ const ROUTE_FOR: Record<string, string> = {
   "view-renderers": "app/(shell)/views/renderers/page.tsx",
   "view-renderer-detail": "app/(shell)/views/renderers/[slug]/page.tsx",
   snippets: "app/(shell)/snippets/page.tsx",
+  lessons: "app/(shell)/lessons/page.tsx",
   triggers: "app/(shell)/triggers/page.tsx",
 };
 
