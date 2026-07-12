@@ -30,6 +30,10 @@ import {
 import { resolveConfiguredProviders } from "@dashboard/lib/client-auth/credentials";
 import { ClientAuthGate } from "../../../src/dashboard/lib/client-auth/ClientAuthGate";
 import { PageViewTracker } from "@dashboard/lib/events/PageViewTracker";
+import { createUserOctokit } from "@kody-ade/base/github/core";
+import { BrandSnippets } from "@dashboard/lib/snippets/BrandSnippets";
+import { getSnippets } from "@dashboard/lib/snippets/store";
+import type { SnippetConfig } from "@dashboard/lib/snippets/types";
 
 interface ClientChatPageProps {
   params: Promise<{ path: string[] }>;
@@ -193,8 +197,25 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
     }
   }
 
+  // Brand snippets (analytics tags, widgets, ...) — server-rendered so
+  // body-start snippets execute before the app hydrates. Best-effort: a
+  // failed read never blocks the page.
+  let snippets: readonly SnippetConfig[] = [];
+  if (context?.token) {
+    try {
+      snippets = await getSnippets(
+        createUserOctokit(context.token),
+        context.owner,
+        context.repo,
+      );
+    } catch {
+      snippets = [];
+    }
+  }
+
   return (
     <>
+      <BrandSnippets snippets={snippets} placement="body-start" />
       <PageViewTracker />
       <ClientChatSurface
       brand={brand}
@@ -210,6 +231,7 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
           : undefined
       }
       />
+      <BrandSnippets snippets={snippets} placement="body-end" />
     </>
   );
 }

@@ -41,7 +41,9 @@
     "./routes/kody/triggers-detail": "./app/api/kody/triggers/[id]/route.ts",
     "./routes/kody/user-state": "./app/api/kody/user-state/route.ts",
     "./routes/kody/user-state-detail": "./app/api/kody/user-state/[namespace]/route.ts",
-    "./routes/kody/system-events": "./app/api/kody/system-events/route.ts"
+    "./routes/kody/system-events": "./app/api/kody/system-events/route.ts",
+    "./routes/kody/snippets": "./app/api/kody/snippets/route.ts",
+    "./routes/kody/snippets-detail": "./app/api/kody/snippets/[id]/route.ts"
   },
   "scripts": {
     "dev": "next dev --turbopack -p 3344",

@@ -15,6 +15,7 @@ import {
   Building2,
   Wand2,
   CheckCircle2,
+  Code,
   Compass,
   Cpu,
   Database,
@@ -391,6 +392,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         icon: LayoutGrid,
         description: "Renderer JSON for structured chat UI.",
         tint: "text-cyan-300 bg-cyan-500/10",
+      },
+      {
+        href: "/snippets",
+        label: "Snippets",
+        icon: Code,
+        description: "Scripts and HTML injected into brand pages.",
+        tint: "text-violet-300 bg-violet-500/10",
       },
       {
         href: "/triggers",
