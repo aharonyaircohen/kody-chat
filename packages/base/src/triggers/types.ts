@@ -31,10 +31,11 @@ export const triggerActionSchema = z
     /** Target user-state namespace (entity). */
     namespace: z.string().trim().min(1),
     /**
-     * "merge" (default) overwrites each mapped key with the latest value;
-     * "append" keeps a growing list per key (event history).
+     * "append" (default) keeps a growing list per key (event history);
+     * "merge" overwrites each mapped key with the latest value. Advanced
+     * config only — the UI doesn't expose it.
      */
-    mode: z.enum(["merge", "append"]).default("merge"),
+    mode: z.enum(["merge", "append"]).default("append"),
     /**
      * Target key → source. `payload.<path>` copies from the event payload;
      * `literal:<value>` stores a fixed string; `event.name` /
