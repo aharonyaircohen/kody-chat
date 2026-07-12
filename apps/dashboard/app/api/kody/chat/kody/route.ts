@@ -1090,6 +1090,7 @@ export async function POST(req: NextRequest) {
         : {}),
       ...(eventUserId
         ? await createGuideTools({
+            req,
             octokit,
             owner: repo.owner,
             repo: repo.repo,

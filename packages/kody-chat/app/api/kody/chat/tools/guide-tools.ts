@@ -3,24 +3,30 @@
  * @domain guides
  * @pattern chat-tools
  * @ai-summary Chat tools that let the model run a guide: list guides, start
- *   one, read ONLY the current step, and advance. The learner's position
- *   lives in the user-state `progress` namespace, so it is per-student. The
- *   model never sees future steps — it gets one step at a time and can only
- *   move the pointer forward one step, so it cannot skip ahead or drift off
- *   the curriculum.
+ *   one, read ONLY the current step, and advance. Steps are read fresh from
+ *   the brand's CMS collection each turn (no duplicate data); the student's
+ *   position lives in the user-state `progress` namespace as the current
+ *   step's id, so it is per-student and survives CMS reorders. The model
+ *   never sees future steps — one step at a time, pointer moves forward one
+ *   at a time — so it cannot skip ahead or drift off the guide.
  */
 import { tool, type ToolSet } from "ai";
+import type { NextRequest } from "next/server";
 import type { Octokit } from "@octokit/rest";
 import { z } from "zod";
 
 import {
   getGuide,
   listGuides,
-  positionAt,
+  currentByPointer,
   answerCompletesStep,
-  nextPointer,
+  nextPointerId,
   guidePointerKey,
+  type GuideConfig,
+  type GuideStep,
 } from "@kody-ade/base/guides";
+import { listCmsDocuments } from "@kody-ade/cms/service";
+import type { CmsDocument } from "@kody-ade/cms/types";
 import {
   getUserState,
   setUserState,
@@ -28,6 +34,7 @@ import {
 } from "@dashboard/lib/user-state";
 
 interface Ctx {
+  req: NextRequest;
   octokit: Octokit;
   owner: string;
   repo: string;
@@ -46,23 +53,66 @@ function serviceContext(ctx: Ctx): UserStateServiceContext {
   };
 }
 
-async function readPointer(ctx: Ctx, slug: string): Promise<number> {
+async function readPointer(ctx: Ctx, slug: string): Promise<string> {
   const doc = await getUserState(serviceContext(ctx), "progress");
   const value = doc?.data[guidePointerKey(slug)];
-  return typeof value === "number" ? value : 0;
+  return typeof value === "string" ? value : "";
 }
 
 async function writePointer(
   ctx: Ctx,
   slug: string,
-  pointer: number,
+  pointerId: string,
 ): Promise<void> {
   await setUserState(
     serviceContext(ctx),
     "progress",
-    { [guidePointerKey(slug)]: pointer },
+    { [guidePointerKey(slug)]: pointerId },
     { source: "system" },
   );
+}
+
+function fieldString(doc: CmsDocument, field: string | undefined): string {
+  if (!field) return "";
+  const value = doc[field];
+  return typeof value === "string" ? value : value == null ? "" : String(value);
+}
+
+/** Read the guide's steps fresh from its CMS collection, mapped by field. */
+async function resolveSteps(
+  ctx: Ctx,
+  guide: GuideConfig,
+): Promise<GuideStep[]> {
+  const { source } = guide;
+  const result = await listCmsDocuments(
+    ctx.req,
+    ctx.octokit,
+    ctx.owner,
+    ctx.repo,
+    source.collection,
+    { sort: [{ field: source.orderField, direction: "asc" }], limit: 100 },
+  );
+  return result.docs.map((doc, index) => {
+    const id =
+      fieldString(doc, source.idField) ||
+      fieldString(doc, "_id") ||
+      fieldString(doc, "id") ||
+      `step-${index}`;
+    const advanceRaw = source.advanceField
+      ? fieldString(doc, source.advanceField)
+      : "";
+    const advance = advanceRaw === "keyword" ? "keyword" : source.defaultAdvance;
+    const keyword = source.keywordField
+      ? fieldString(doc, source.keywordField) || undefined
+      : undefined;
+    return {
+      id,
+      title: fieldString(doc, source.titleField) || `Step ${index + 1}`,
+      instruction: fieldString(doc, source.instructionField),
+      advance,
+      keyword,
+    };
+  });
 }
 
 export async function createGuideTools(ctx: Ctx): Promise<ToolSet> {
@@ -71,18 +121,31 @@ export async function createGuideTools(ctx: Ctx): Promise<ToolSet> {
   if (enabled.length === 0) return {};
   const slugs = enabled.map((guide) => guide.slug) as [string, ...string[]];
 
+  async function loadSteps(slug: string) {
+    const found = await getGuide(ctx.octokit, ctx.owner, ctx.repo, slug);
+    if (!found) return null;
+    try {
+      return { guide: found.guide, steps: await resolveSteps(ctx, found.guide) };
+    } catch (error) {
+      return {
+        guide: found.guide,
+        steps: [] as GuideStep[],
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
   return {
     guide_list: tool({
       description:
-        "List the guides available to teach the current student. Returns " +
-        "each guide's slug, title, description and step count.",
+        "List the guides available to the current student (slug, title, " +
+        "description).",
       inputSchema: z.object({}).strict(),
       execute: async () => ({
         guides: enabled.map((guide) => ({
           slug: guide.slug,
           title: guide.title,
           description: guide.description,
-          steps: guide.steps.length,
         })),
       }),
     }),
@@ -94,16 +157,19 @@ export async function createGuideTools(ctx: Ctx): Promise<ToolSet> {
         "afterwards to teach.",
       inputSchema: z.object({ slug: z.enum(slugs) }).strict(),
       execute: async ({ slug }) => {
-        const found = await getGuide(ctx.octokit, ctx.owner, ctx.repo, slug);
-        if (!found) return { error: `Unknown guide "${slug}"` };
-        await writePointer(ctx, slug, 0);
-        const pos = positionAt(found.guide, 0);
+        const loaded = await loadSteps(slug);
+        if (!loaded) return { error: `Unknown guide "${slug}"` };
+        if (loaded.steps.length === 0) {
+          return { error: "This guide's step collection is empty." };
+        }
+        const first = loaded.steps[0];
+        await writePointer(ctx, slug, first.id);
         return {
           started: true,
-          title: found.guide.title,
-          step: pos.step,
+          title: loaded.guide.title,
+          step: first,
           stepNumber: 1,
-          totalSteps: pos.total,
+          totalSteps: loaded.steps.length,
         };
       },
     }),
@@ -115,13 +181,11 @@ export async function createGuideTools(ctx: Ctx): Promise<ToolSet> {
         "later steps.",
       inputSchema: z.object({ slug: z.enum(slugs) }).strict(),
       execute: async ({ slug }) => {
-        const found = await getGuide(ctx.octokit, ctx.owner, ctx.repo, slug);
-        if (!found) return { error: `Unknown guide "${slug}"` };
+        const loaded = await loadSteps(slug);
+        if (!loaded) return { error: `Unknown guide "${slug}"` };
         const pointer = await readPointer(ctx, slug);
-        const pos = positionAt(found.guide, pointer);
-        if (pos.finished) {
-          return { finished: true, totalSteps: pos.total };
-        }
+        const pos = currentByPointer(loaded.steps, pointer);
+        if (pos.finished) return { finished: true, totalSteps: pos.total };
         return {
           step: pos.step,
           stepNumber: pos.index + 1,
@@ -137,16 +201,13 @@ export async function createGuideTools(ctx: Ctx): Promise<ToolSet> {
         "for keyword-gated steps the move only happens if the answer " +
         "matches. Returns the next step or that the guide is finished.",
       inputSchema: z
-        .object({
-          slug: z.enum(slugs),
-          answer: z.string().default(""),
-        })
+        .object({ slug: z.enum(slugs), answer: z.string().default("") })
         .strict(),
       execute: async ({ slug, answer }) => {
-        const found = await getGuide(ctx.octokit, ctx.owner, ctx.repo, slug);
-        if (!found) return { error: `Unknown guide "${slug}"` };
+        const loaded = await loadSteps(slug);
+        if (!loaded) return { error: `Unknown guide "${slug}"` };
         const pointer = await readPointer(ctx, slug);
-        const pos = positionAt(found.guide, pointer);
+        const pos = currentByPointer(loaded.steps, pointer);
         if (pos.finished || !pos.step) {
           return { finished: true, totalSteps: pos.total };
         }
@@ -159,9 +220,9 @@ export async function createGuideTools(ctx: Ctx): Promise<ToolSet> {
             totalSteps: pos.total,
           };
         }
-        const next = nextPointer(found.guide, pointer);
-        await writePointer(ctx, slug, next);
-        const nextPos = positionAt(found.guide, next);
+        const nextId = nextPointerId(loaded.steps, pointer);
+        await writePointer(ctx, slug, nextId);
+        const nextPos = currentByPointer(loaded.steps, nextId);
         if (nextPos.finished) {
           return { advanced: true, finished: true, totalSteps: nextPos.total };
         }

@@ -1,61 +1,59 @@
 /**
  * Unit tests for the pure guide engine (@kody-ade/base/guides/engine):
- * position clamping, keyword gating, and pointer advance.
+ * id-pointer position, keyword gating, and next-pointer.
  */
 import { describe, it, expect } from "vitest";
 import {
-  positionAt,
+  currentByPointer,
   answerCompletesStep,
-  nextPointer,
+  nextPointerId,
 } from "@kody-ade/base/guides/engine";
-import type { GuideConfig } from "@kody-ade/base/guides/types";
+import { GUIDE_FINISHED, type GuideStep } from "@kody-ade/base/guides/types";
 
-const guide: GuideConfig = {
-  slug: "intro",
-  title: "Intro",
-  description: "",
-  enabled: true,
-  steps: [
-    { id: "a", title: "One", instruction: "teach one", advance: "model" },
-    {
-      id: "b",
-      title: "Two",
-      instruction: "ask two",
-      advance: "keyword",
-      keyword: "yes",
-    },
-  ],
-};
+const steps: GuideStep[] = [
+  { id: "a", title: "One", instruction: "teach one", advance: "model" },
+  {
+    id: "b",
+    title: "Two",
+    instruction: "ask two",
+    advance: "keyword",
+    keyword: "yes",
+  },
+];
 
-describe("positionAt", () => {
-  it("returns the current step and clamps negatives", () => {
-    expect(positionAt(guide, 0).step?.id).toBe("a");
-    expect(positionAt(guide, -5).index).toBe(0);
-    expect(positionAt(guide, 1).step?.id).toBe("b");
+describe("currentByPointer", () => {
+  it("empty pointer starts at the first step", () => {
+    expect(currentByPointer(steps, "").step?.id).toBe("a");
+    expect(currentByPointer(steps, undefined).index).toBe(0);
   });
-
-  it("reports finished past the last step", () => {
-    const pos = positionAt(guide, 2);
+  it("resolves the current step by id", () => {
+    expect(currentByPointer(steps, "b").step?.id).toBe("b");
+    expect(currentByPointer(steps, "b").index).toBe(1);
+  });
+  it("an unknown (deleted) step id falls back to the first, drift-safe", () => {
+    expect(currentByPointer(steps, "gone").step?.id).toBe("a");
+  });
+  it("the finished sentinel reports finished", () => {
+    const pos = currentByPointer(steps, GUIDE_FINISHED);
     expect(pos.finished).toBe(true);
     expect(pos.step).toBeNull();
-    expect(pos.total).toBe(2);
   });
 });
 
 describe("answerCompletesStep", () => {
   it("model steps always complete", () => {
-    expect(answerCompletesStep(guide.steps[0], "")).toBe(true);
+    expect(answerCompletesStep(steps[0], "")).toBe(true);
   });
   it("keyword steps require the keyword (case-insensitive)", () => {
-    expect(answerCompletesStep(guide.steps[1], "I say YES please")).toBe(true);
-    expect(answerCompletesStep(guide.steps[1], "no")).toBe(false);
+    expect(answerCompletesStep(steps[1], "I say YES")).toBe(true);
+    expect(answerCompletesStep(steps[1], "no")).toBe(false);
   });
 });
 
-describe("nextPointer", () => {
-  it("moves forward one and never past the end", () => {
-    expect(nextPointer(guide, 0)).toBe(1);
-    expect(nextPointer(guide, 1)).toBe(2);
-    expect(nextPointer(guide, 2)).toBe(2);
+describe("nextPointerId", () => {
+  it("returns the next step id, then the finished sentinel", () => {
+    expect(nextPointerId(steps, "a")).toBe("b");
+    expect(nextPointerId(steps, "b")).toBe(GUIDE_FINISHED);
+    expect(nextPointerId(steps, "")).toBe("b");
   });
 });

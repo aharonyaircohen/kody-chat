@@ -13,16 +13,18 @@ export {
   _resetGuidesCache,
 } from "./store";
 export {
-  positionAt,
+  currentByPointer,
   answerCompletesStep,
-  nextPointer,
+  nextPointerId,
   type GuidePosition,
 } from "./engine";
 export {
   guideConfigSchema,
-  guideStepSchema,
+  guideSourceSchema,
   guidePointerKey,
   GUIDE_ADVANCE_MODES,
+  GUIDE_FINISHED,
   type GuideConfig,
+  type GuideSource,
   type GuideStep,
 } from "./types";

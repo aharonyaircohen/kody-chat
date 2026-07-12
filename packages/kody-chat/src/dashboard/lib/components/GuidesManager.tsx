@@ -2,10 +2,12 @@
  * @fileType component
  * @domain guides
  * @pattern guides-manager
- * @ai-summary CRUD UI for guides — ordered teaching steps that guide the
- *   chat model. Follows the standard admin-page structure (PageShell + card
- *   rows + Power toggle + ui-kit dialog editor) and reuses the shared
- *   SortableList for drag-to-reorder steps.
+ * @ai-summary CRUD UI for guides — a thin progression layer over a CMS
+ *   collection. The operator picks the collection whose documents are the
+ *   ordered steps and maps the step fields; step content itself is edited in
+ *   the CMS content UI, not here (no duplicate data). Follows the standard
+ *   admin-page structure (PageShell + card rows + Power toggle + ui-kit
+ *   dialog editor).
  */
 "use client";
 
@@ -14,14 +16,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   CircleDot,
-  Route,
-  GripVertical,
   Loader2,
   Pencil,
   Plus,
   Power,
   PowerOff,
   RefreshCw,
+  Route,
   Trash2,
 } from "lucide-react";
 import { Button } from "@kody-ade/base/ui/button";
@@ -35,20 +36,28 @@ import {
 } from "@kody-ade/base/ui/dialog";
 import { Input } from "@kody-ade/base/ui/input";
 import { Label } from "@kody-ade/base/ui/label";
-import { Textarea } from "@kody-ade/base/ui/textarea";
-import { SortableList } from "@kody-ade/base/ui/sortable-list";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@kody-ade/base/ui/select";
 import { slugifyTitle } from "@kody-ade/base/slug";
 import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import { PageShell } from "./PageShell";
 
-interface GuideStep {
-  id: string;
-  title: string;
-  instruction: string;
-  advance: "model" | "keyword";
-  keyword?: string;
+interface GuideSource {
+  collection: string;
+  orderField: string;
+  idField: string;
+  titleField: string;
+  instructionField: string;
+  advanceField?: string;
+  keywordField?: string;
+  defaultAdvance: "model" | "keyword";
 }
 
 interface GuideRow {
@@ -56,7 +65,7 @@ interface GuideRow {
   title: string;
   description: string;
   enabled: boolean;
-  steps: GuideStep[];
+  source: GuideSource;
 }
 
 async function fetchJson<T>(
@@ -79,14 +88,21 @@ interface EditorState extends GuideRow {
   isNew: boolean;
 }
 
-let stepCounter = 0;
-function newStep(): GuideStep {
-  stepCounter += 1;
+function emptyGuide(): EditorState {
   return {
-    id: `step-${Date.now().toString(36)}-${stepCounter}`,
+    slug: "",
     title: "",
-    instruction: "",
-    advance: "model",
+    description: "",
+    enabled: true,
+    source: {
+      collection: "",
+      orderField: "order",
+      idField: "id",
+      titleField: "title",
+      instructionField: "instruction",
+      defaultAdvance: "model",
+    },
+    isNew: true,
   };
 }
 
@@ -114,8 +130,9 @@ export function GuidesManager() {
   const invalidate = () => queryClient.invalidateQueries({ queryKey });
 
   const saveMutation = useMutation({
-    mutationFn: (state: EditorState) =>
-      fetchJson("/api/kody/guides", headers, {
+    mutationFn: (state: EditorState) => {
+      const src = state.source;
+      return fetchJson("/api/kody/guides", headers, {
         method: "POST",
         body: JSON.stringify({
           guide: {
@@ -123,18 +140,24 @@ export function GuidesManager() {
             title: state.title.trim(),
             description: state.description.trim(),
             enabled: state.enabled,
-            steps: state.steps.map((step) => ({
-              id: step.id,
-              title: step.title.trim(),
-              instruction: step.instruction.trim(),
-              advance: step.advance,
-              ...(step.advance === "keyword" && step.keyword
-                ? { keyword: step.keyword.trim() }
+            source: {
+              collection: src.collection.trim(),
+              orderField: src.orderField.trim() || "order",
+              idField: src.idField.trim() || "id",
+              titleField: src.titleField.trim() || "title",
+              instructionField: src.instructionField.trim() || "instruction",
+              defaultAdvance: src.defaultAdvance,
+              ...(src.advanceField?.trim()
+                ? { advanceField: src.advanceField.trim() }
                 : {}),
-            })),
+              ...(src.keywordField?.trim()
+                ? { keywordField: src.keywordField.trim() }
+                : {}),
+            },
           },
         }),
-      }),
+      });
+    },
     onSuccess: () => {
       toast.success("Guide saved");
       setEditor(null);
@@ -173,15 +196,10 @@ export function GuidesManager() {
 
   const guides = guidesQuery.data ?? [];
 
-  const updateStep = (id: string, patch: Partial<GuideStep>) =>
+  const setSource = (patch: Partial<GuideSource>) =>
     setEditor((current) =>
       current
-        ? {
-            ...current,
-            steps: current.steps.map((step) =>
-              step.id === id ? { ...step, ...patch } : step,
-            ),
-          }
+        ? { ...current, source: { ...current.source, ...patch } }
         : current,
     );
 
@@ -189,7 +207,7 @@ export function GuidesManager() {
     <PageShell
       title="Guides"
       icon={Route}
-      subtitle="Ordered steps that guide the chat, one step at a time."
+      subtitle="Ordered steps that guide the chat, one step at a time. Steps come from a content collection."
       actions={
         <>
           <Button
@@ -205,16 +223,7 @@ export function GuidesManager() {
           <Button
             size="sm"
             disabled={!auth}
-            onClick={() =>
-              setEditor({
-                slug: "",
-                title: "",
-                description: "",
-                enabled: true,
-                steps: [newStep()],
-                isNew: true,
-              })
-            }
+            onClick={() => setEditor(emptyGuide())}
           >
             <Plus className="mr-1.5 h-4 w-4" /> New guide
           </Button>
@@ -229,7 +238,7 @@ export function GuidesManager() {
         <EmptyState
           icon={<Route />}
           title="No guides yet"
-          hint="Build an ordered set of steps; the chat follows them one at a time."
+          hint="Point a guide at a content collection; the chat follows its documents as ordered steps."
         />
       ) : (
         <div className="space-y-2">
@@ -245,7 +254,7 @@ export function GuidesManager() {
                   <div className="min-w-0">
                     <div className="font-medium">{guide.title}</div>
                     <div className="truncate text-sm text-muted-foreground">
-                      {guide.steps.length} steps
+                      steps from <code>{guide.source.collection}</code>
                       {guide.description ? ` · ${guide.description}` : ""}
                     </div>
                   </div>
@@ -288,24 +297,25 @@ export function GuidesManager() {
       )}
 
       <Dialog open={!!editor} onOpenChange={(open) => !open && setEditor(null)}>
-        <DialogContent modalSize="wide" modalHeight="viewport">
+        <DialogContent modalSize="wide">
           <DialogHeader>
             <DialogTitle>
               {editor?.isNew ? "New guide" : "Edit guide"}
             </DialogTitle>
             <DialogDescription>
-              Drag to reorder steps; the model teaches them in order.
+              Steps are the documents of a content collection; edit their
+              text in Content. Here you bind the collection and its fields.
             </DialogDescription>
           </DialogHeader>
           {editor ? (
-            <div className="space-y-4 overflow-y-auto">
+            <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label htmlFor="guide-title">Title</Label>
                   <Input
                     id="guide-title"
                     value={editor.title}
-                    placeholder="Intro to fractions"
+                    placeholder="Onboarding"
                     onChange={(e) =>
                       setEditor({ ...editor, title: e.target.value })
                     }
@@ -323,105 +333,100 @@ export function GuidesManager() {
                 </div>
               </div>
 
-              <div className="flex items-center justify-between">
-                <Label>Steps</Label>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() =>
-                    setEditor({
-                      ...editor,
-                      steps: [...editor.steps, newStep()],
-                    })
-                  }
-                >
-                  <Plus className="mr-1 h-4 w-4" /> Add step
-                </Button>
+              <div className="space-y-1">
+                <Label htmlFor="guide-collection">Steps collection</Label>
+                <Input
+                  id="guide-collection"
+                  value={editor.source.collection}
+                  placeholder="lessons"
+                  onChange={(e) => setSource({ collection: e.target.value })}
+                />
               </div>
 
-              <SortableList
-                items={editor.steps}
-                getId={(step) => step.id}
-                onReorder={(steps) => setEditor({ ...editor, steps })}
-                renderItem={(step, handle) => (
-                  <div className="rounded-md border border-border p-3">
-                    <div className="mb-2 flex items-center gap-2">
-                      <button
-                        type="button"
-                        className="cursor-grab touch-none text-muted-foreground"
-                        {...handle.attributes}
-                        {...handle.listeners}
-                        aria-label="Drag step"
-                      >
-                        <GripVertical className="h-4 w-4" />
-                      </button>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Order field</Label>
+                  <Input
+                    value={editor.source.orderField}
+                    onChange={(e) => setSource({ orderField: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Id field</Label>
+                  <Input
+                    value={editor.source.idField}
+                    onChange={(e) => setSource({ idField: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Title field</Label>
+                  <Input
+                    value={editor.source.titleField}
+                    onChange={(e) => setSource({ titleField: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label>Instruction field</Label>
+                  <Input
+                    value={editor.source.instructionField}
+                    onChange={(e) =>
+                      setSource({ instructionField: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+
+              <details className="rounded-md border border-border px-3 py-2">
+                <summary className="cursor-pointer text-sm text-muted-foreground">
+                  Advanced (how steps advance)
+                </summary>
+                <div className="mt-3 space-y-3">
+                  <div className="space-y-1">
+                    <Label>Default advance</Label>
+                    <Select
+                      value={editor.source.defaultAdvance}
+                      onValueChange={(value) =>
+                        setSource({
+                          defaultAdvance: value as "model" | "keyword",
+                        })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="model">
+                          model decides when ready
+                        </SelectItem>
+                        <SelectItem value="keyword">
+                          answer must contain a keyword
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <Label>Advance field (optional)</Label>
                       <Input
-                        value={step.title}
-                        placeholder="Step title"
+                        value={editor.source.advanceField ?? ""}
+                        placeholder="per-step override"
                         onChange={(e) =>
-                          updateStep(step.id, { title: e.target.value })
+                          setSource({ advanceField: e.target.value })
                         }
                       />
-                      {editor.steps.length > 1 ? (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() =>
-                            setEditor({
-                              ...editor,
-                              steps: editor.steps.filter(
-                                (s) => s.id !== step.id,
-                              ),
-                            })
-                          }
-                        >
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      ) : null}
                     </div>
-                    <Textarea
-                      rows={2}
-                      value={step.instruction}
-                      placeholder="What the model should teach / ask on this step"
-                      onChange={(e) =>
-                        updateStep(step.id, { instruction: e.target.value })
-                      }
-                    />
-                    <div className="mt-2 flex items-center gap-2 text-sm">
-                      <label className="flex items-center gap-1">
-                        <input
-                          type="radio"
-                          checked={step.advance === "model"}
-                          onChange={() =>
-                            updateStep(step.id, { advance: "model" })
-                          }
-                        />
-                        model decides
-                      </label>
-                      <label className="flex items-center gap-1">
-                        <input
-                          type="radio"
-                          checked={step.advance === "keyword"}
-                          onChange={() =>
-                            updateStep(step.id, { advance: "keyword" })
-                          }
-                        />
-                        keyword
-                      </label>
-                      {step.advance === "keyword" ? (
-                        <Input
-                          className="h-8 w-40"
-                          value={step.keyword ?? ""}
-                          placeholder="answer must contain…"
-                          onChange={(e) =>
-                            updateStep(step.id, { keyword: e.target.value })
-                          }
-                        />
-                      ) : null}
+                    <div className="space-y-1">
+                      <Label>Keyword field (optional)</Label>
+                      <Input
+                        value={editor.source.keywordField ?? ""}
+                        onChange={(e) =>
+                          setSource({ keywordField: e.target.value })
+                        }
+                      />
                     </div>
                   </div>
-                )}
-              />
+                </div>
+              </details>
 
               <div className="flex justify-end gap-2">
                 <Button variant="ghost" onClick={() => setEditor(null)}>
@@ -432,9 +437,7 @@ export function GuidesManager() {
                   disabled={
                     saveMutation.isPending ||
                     !editor.title.trim() ||
-                    editor.steps.some(
-                      (step) => !step.title.trim() || !step.instruction.trim(),
-                    )
+                    !editor.source.collection.trim()
                   }
                 >
                   {saveMutation.isPending ? (
@@ -452,7 +455,7 @@ export function GuidesManager() {
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         title="Delete guide?"
-        description={`"${deleteTarget?.title}" will be removed.`}
+        description={`"${deleteTarget?.title}" will be removed. Its steps stay in the content collection.`}
         confirmLabel="Delete"
         variant="destructive"
         onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.slug)}

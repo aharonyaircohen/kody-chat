@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
   recordAudit(req, {
     action: "guide.save",
     resource: guide.slug,
-    detail: `${guide.steps.length} steps`,
+    detail: `steps from ${guide.source.collection}`,
   });
   return NextResponse.json({ guide }, { headers: NO_STORE_HEADERS });
 }

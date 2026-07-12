@@ -37,7 +37,14 @@ const GUIDE: GuideConfig = {
   title: "Intro",
   description: "",
   enabled: true,
-  steps: [{ id: "a", title: "One", instruction: "teach", advance: "model" }],
+  source: {
+    collection: "lessons",
+    orderField: "order",
+    idField: "id",
+    titleField: "title",
+    instructionField: "instruction",
+    defaultAdvance: "model",
+  },
 };
 
 beforeEach(() => {
