@@ -70,6 +70,7 @@ async function runTriggersForEvent(
         sessionId: event.sessionId,
         namespace: trigger.action.namespace,
         data,
+        mode: trigger.action.mode,
       });
     } catch (err) {
       logger.warn(

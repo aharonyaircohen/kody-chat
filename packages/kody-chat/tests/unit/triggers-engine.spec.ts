@@ -39,6 +39,7 @@ function trigger(overrides: Partial<TriggerConfig> = {}): TriggerConfig {
     action: {
       type: "save-user-state",
       namespace: "selections",
+      mode: "merge" as const,
       map: { formView: "payload.viewId" },
     },
     ...overrides,
@@ -93,6 +94,7 @@ describe("resolveActionData", () => {
         action: {
           type: "save-user-state",
           namespace: "selections",
+          mode: "merge" as const,
           map: {
             view: "payload.viewId",
             what: "event.name",
@@ -121,7 +123,12 @@ describe("resolveActionData", () => {
     });
     const data = resolveActionData(
       trigger({
-        action: { type: "save-user-state", namespace: "selections", map: {} },
+        action: {
+          type: "save-user-state",
+          namespace: "selections",
+          mode: "merge" as const,
+          map: {},
+        },
       }),
       event,
     );

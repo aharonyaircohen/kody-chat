@@ -62,6 +62,7 @@ interface TriggerRow {
   action: {
     type: "save-user-state";
     namespace: string;
+    mode?: "merge" | "append";
     map: Record<string, string>;
   };
 }
@@ -104,6 +105,7 @@ interface EditorState {
   namespace: string;
   conditionsJson: string;
   mapJson: string;
+  append: boolean;
   isNew: boolean;
 }
 
@@ -116,6 +118,7 @@ function editorFromTrigger(trigger: TriggerRow): EditorState {
     namespace: trigger.action.namespace,
     conditionsJson: JSON.stringify(trigger.conditions, null, 2),
     mapJson: JSON.stringify(trigger.action.map, null, 2),
+    append: trigger.action.mode === "append",
     isNew: false,
   };
 }
@@ -129,6 +132,7 @@ function emptyEditor(defaultNamespace: string): EditorState {
     namespace: defaultNamespace,
     conditionsJson: "[]",
     mapJson: "{}",
+    append: false,
     isNew: true,
   };
 }
@@ -189,6 +193,7 @@ export function TriggersManager() {
             action: {
               type: "save-user-state",
               namespace: state.namespace,
+              mode: state.append ? "append" : "merge",
               map,
             },
           },
@@ -400,6 +405,16 @@ export function TriggersManager() {
               <p className="text-xs text-muted-foreground">
                 By default the whole event payload is saved to the entity.
               </p>
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={editor.append}
+                  onCheckedChange={(checked) =>
+                    setEditor({ ...editor, append: checked === true })
+                  }
+                />
+                Keep history (append each event to a list instead of
+                overwriting)
+              </label>
               <details className="rounded-md border border-border px-3 py-2">
                 <summary className="cursor-pointer text-sm text-muted-foreground">
                   Advanced (conditions and data mapping)

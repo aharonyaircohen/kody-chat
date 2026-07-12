@@ -22,22 +22,8 @@ export async function register(): Promise<void> {
 
   // Triggers wiring — the base trigger sink saves matched event data through
   // the kody-chat user-state service (schema validation + entity events).
-  const { setTriggerStateWriter } = await import("@kody-ade/base/triggers");
-  const { setUserState } = await import("@kody-chat/user-state");
-  setTriggerStateWriter(async (write) => {
-    await setUserState(
-      {
-        octokit: write.octokit,
-        owner: write.owner,
-        repo: write.repo,
-        userId: write.userId,
-        sessionId: write.sessionId,
-      },
-      write.namespace,
-      write.data,
-      { source: "system" },
-    );
-  });
+  const { ensureTriggerStateWriter } = await import("@kody-chat/user-state");
+  ensureTriggerStateWriter();
 
   const { setTrackedBranchesReader } = await import(
     "@kody-ade/fly/previews/tracked-branches-hook"
