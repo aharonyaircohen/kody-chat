@@ -25,6 +25,9 @@ import {
   getRequestAuth,
 } from "@kody-ade/base/auth";
 import { rejectSurfaceScopedRequest } from "@kody-ade/kody-chat/platform/surface-scope";
+import { emitSystemEvent } from "@kody-ade/base/events";
+import { createUserOctokit } from "@kody-ade/base/github/core";
+import { ensureTriggerStateWriter } from "@kody-chat/user-state";
 import { logger } from "@kody-ade/base/logger";
 import { mintSessionToken } from "@dashboard/lib/chat-token";
 import { maybeAppendPluginToolsToken } from "@kody-ade/kody-chat/platform/plugin-tools-config";
@@ -133,6 +136,24 @@ export async function POST(req: NextRequest) {
   const { owner, repo } = getEngineRepo(req);
   const workflowId = getChatWorkflowId();
   const sessionPath = `sessions/${taskId}.jsonl`;
+
+  ensureTriggerStateWriter();
+  const headerAuthForEvents = getRequestAuth(req);
+  emitSystemEvent(
+    "chat.message.sent",
+    { sessionId: taskId, transport: "engine" },
+    {
+      userId: headerAuthForEvents?.userLogin
+        ? `operator:${headerAuthForEvents.userLogin.toLowerCase()}`
+        : null,
+      sessionId: taskId,
+      brand: { owner, repo },
+      source: "server",
+      octokit: headerAuthForEvents
+        ? createUserOctokit(headerAuthForEvents.token)
+        : null,
+    },
+  );
 
   // Serialize messages as JSONL
   const jsonlContent =

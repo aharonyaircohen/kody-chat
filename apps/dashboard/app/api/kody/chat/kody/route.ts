@@ -60,6 +60,8 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { getSecret } from "@kody-ade/base/vault/get-secret";
+import { emitSystemEvent } from "@kody-ade/base/events";
+import { ensureTriggerStateWriter } from "@kody-chat/user-state";
 import { resolveVaultGithubToken } from "@kody-ade/base/vault/bootstrap";
 import {
   resolveClientBrand,
@@ -672,6 +674,20 @@ export async function POST(req: NextRequest) {
     : inlineImagePartsForTextModel(messages);
   const repo = getRequestAuth(repoScopedReq);
   const goalPlannerActive = body.goalPlanner === true && !!body.goal;
+  ensureTriggerStateWriter();
+  const eventUserId = verifiedActorLogin
+    ? `operator:${verifiedActorLogin.toLowerCase()}`
+    : null;
+  emitSystemEvent(
+    "chat.message.sent",
+    { transport: "direct" },
+    {
+      userId: eventUserId,
+      brand: repo ? { owner: repo.owner, repo: repo.repo } : null,
+      source: "server",
+      octokit: repo ? createUserOctokit(repo.token) : null,
+    },
+  );
 
   // Memory index injection requires the github-client module-level context
   // (the cached loader uses `getOctokit()` / `getOwner()` / `getRepo()`).
