@@ -15,6 +15,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import {
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Github,
@@ -46,6 +47,7 @@ import {
   DASHBOARD_NAV_ITEM,
   ENGINEER_MODE_SECTIONS,
   VIBE_MODE_SECTIONS,
+  activeCollapsibleNavSectionTitle,
   isNavItemActive,
   type SettingsNavItem,
   type SettingsNavSection,
@@ -53,7 +55,7 @@ import {
 
 /** Pull just the `text-…` color token out of an item's `tint` (which is a
  *  combined "text-X bg-Y" chip class) so the rail can color the bare icon. */
-function iconTintClass(item: SettingsNavItem): string | undefined {
+function iconTintClass(item: { tint?: string }): string | undefined {
   return item.tint?.split(" ").find((c) => c.startsWith("text-"));
 }
 
@@ -130,6 +132,16 @@ function SidebarContent({
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>(() =>
     defaultModeForPathname(pathname),
   );
+  const baseSections =
+    hostSections ??
+    (sidebarMode === "vibe" ? VIBE_MODE_SECTIONS : ENGINEER_MODE_SECTIONS);
+  const activeCollapsibleSectionTitle = useMemo(
+    () => activeCollapsibleNavSectionTitle(baseSections, pathname, search),
+    [baseSections, pathname, search],
+  );
+  const [expandedSectionTitle, setExpandedSectionTitle] = useState<
+    string | null
+  >(() => activeCollapsibleNavSectionTitle(baseSections, pathname, search));
 
   useEffect(() => {
     try {
@@ -177,16 +189,17 @@ function SidebarContent({
     setQuery("");
   }, [sidebarMode]);
 
+  useEffect(() => {
+    setExpandedSectionTitle(activeCollapsibleSectionTitle);
+  }, [activeCollapsibleSectionTitle]);
+
   // Inline filter — narrows the rail's own sections by label/description as
   // the user types. Empty sections drop out so a query collapses the list to
   // just its matches.
   const filteredSections = useMemo(() => {
-    const base =
-      hostSections ??
-      (sidebarMode === "vibe" ? VIBE_MODE_SECTIONS : ENGINEER_MODE_SECTIONS);
     const q = query.trim().toLowerCase();
-    if (!q) return base;
-    return base
+    if (!q) return baseSections;
+    return baseSections
       .map((section) => ({
         ...section,
         items: section.items.filter((item) =>
@@ -194,7 +207,7 @@ function SidebarContent({
         ),
       }))
       .filter((section) => section.items.length > 0);
-  }, [query, sidebarMode, hostSections]);
+  }, [baseSections, query]);
 
   // Host-provided sections replace the dashboard's mode system entirely.
   const modeToggleVisible = !hostSections;
@@ -214,7 +227,7 @@ function SidebarContent({
 
   const width = collapsed ? "w-[72px]" : "w-[248px]";
 
-  const renderLink = (item: NavItem) => {
+  const renderLink = (item: NavItem, nested = false) => {
     const Icon = item.icon;
     const active = isNavItemActive(pathname, search, item);
     const link = (
@@ -225,6 +238,7 @@ function SidebarContent({
         className={cn(
           "relative flex items-center gap-3.5 rounded-md text-body-sm transition-colors",
           "h-10 px-3.5",
+          nested && "px-3",
           collapsed && "justify-center px-0",
           active
             ? "bg-accent text-foreground"
@@ -318,73 +332,73 @@ function SidebarContent({
           {pinnedItem && <div className="pb-2">{renderLink(pinnedItem)}</div>}
 
           {modeToggleVisible && (
-          <div className="pb-2">
-            {collapsed ? (
-              <SimpleTooltip
-                content={
-                  sidebarMode === "vibe"
-                    ? "Switch to Engineer"
-                    : "Switch to Vibe"
-                }
-                side="right"
-              >
-                <button
-                  type="button"
-                  onClick={() =>
-                    selectSidebarMode(
-                      sidebarMode === "vibe" ? "engineer" : "vibe",
-                    )
-                  }
-                  aria-label={
+            <div className="pb-2">
+              {collapsed ? (
+                <SimpleTooltip
+                  content={
                     sidebarMode === "vibe"
                       ? "Switch to Engineer"
                       : "Switch to Vibe"
                   }
-                  className="flex h-10 w-full items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                  side="right"
                 >
-                  {sidebarMode === "vibe" ? (
-                    <Wrench className="h-5 w-5 shrink-0" />
-                  ) : (
-                    <Sparkles className="h-5 w-5 shrink-0" />
-                  )}
-                </button>
-              </SimpleTooltip>
-            ) : (
-              <div
-                className="grid grid-cols-2 gap-1 rounded-md border border-white/[0.08] bg-black/20 p-1"
-                aria-label="Sidebar mode"
-              >
-                <button
-                  type="button"
-                  onClick={() => selectSidebarMode("vibe")}
-                  aria-pressed={sidebarMode === "vibe"}
-                  className={cn(
-                    "flex h-9 items-center justify-center gap-2 rounded text-body-xs font-medium transition-colors",
-                    sidebarMode === "vibe"
-                      ? "bg-accent text-foreground"
-                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                  )}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      selectSidebarMode(
+                        sidebarMode === "vibe" ? "engineer" : "vibe",
+                      )
+                    }
+                    aria-label={
+                      sidebarMode === "vibe"
+                        ? "Switch to Engineer"
+                        : "Switch to Vibe"
+                    }
+                    className="flex h-10 w-full items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                  >
+                    {sidebarMode === "vibe" ? (
+                      <Wrench className="h-5 w-5 shrink-0" />
+                    ) : (
+                      <Sparkles className="h-5 w-5 shrink-0" />
+                    )}
+                  </button>
+                </SimpleTooltip>
+              ) : (
+                <div
+                  className="grid grid-cols-2 gap-1 rounded-md border border-white/[0.08] bg-black/20 p-1"
+                  aria-label="Sidebar mode"
                 >
-                  <Sparkles className="h-4 w-4 shrink-0" />
-                  <span>Vibe</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => selectSidebarMode("engineer")}
-                  aria-pressed={sidebarMode === "engineer"}
-                  className={cn(
-                    "flex h-9 items-center justify-center gap-2 rounded text-body-xs font-medium transition-colors",
-                    sidebarMode === "engineer"
-                      ? "bg-accent text-foreground"
-                      : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                  )}
-                >
-                  <Wrench className="h-4 w-4 shrink-0" />
-                  <span>Engineer</span>
-                </button>
-              </div>
-            )}
-          </div>
+                  <button
+                    type="button"
+                    onClick={() => selectSidebarMode("vibe")}
+                    aria-pressed={sidebarMode === "vibe"}
+                    className={cn(
+                      "flex h-9 items-center justify-center gap-2 rounded text-body-xs font-medium transition-colors",
+                      sidebarMode === "vibe"
+                        ? "bg-accent text-foreground"
+                        : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                    )}
+                  >
+                    <Sparkles className="h-4 w-4 shrink-0" />
+                    <span>Vibe</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => selectSidebarMode("engineer")}
+                    aria-pressed={sidebarMode === "engineer"}
+                    className={cn(
+                      "flex h-9 items-center justify-center gap-2 rounded text-body-xs font-medium transition-colors",
+                      sidebarMode === "engineer"
+                        ? "bg-accent text-foreground"
+                        : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                    )}
+                  >
+                    <Wrench className="h-4 w-4 shrink-0" />
+                    <span>Engineer</span>
+                  </button>
+                </div>
+              )}
+            </div>
           )}
 
           {/* Inline search — filters the rail's own items as you type. Collapsed
@@ -442,22 +456,93 @@ function SidebarContent({
               No matches.
             </p>
           ) : (
-            filteredSections.map((section, i) => (
-              <div key={section.title} className="space-y-1">
-                {!collapsed && (
-                  <p className="px-3.5 pb-1 pt-3.5 text-label font-semibold uppercase tracking-wider text-muted-foreground/80">
-                    {section.title}
-                  </p>
-                )}
-                {collapsed && i > 0 && (
-                  <div
-                    className="my-2 mx-3 border-t border-white/[0.06]"
-                    aria-hidden="true"
-                  />
-                )}
-                {section.items.map((item) => renderLink(item))}
-              </div>
-            ))
+            filteredSections.map((section, i) => {
+              const sectionId = `sidebar-section-${i}`;
+              const Icon = section.icon;
+              const sectionActive =
+                activeCollapsibleSectionTitle === section.title;
+              const showItems =
+                collapsed ||
+                !section.collapsible ||
+                Boolean(query.trim()) ||
+                expandedSectionTitle === section.title;
+
+              return (
+                <div key={section.title} className="space-y-1">
+                  {!collapsed && section.collapsible ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setExpandedSectionTitle((current) =>
+                          current === section.title ? null : section.title,
+                        )
+                      }
+                      aria-controls={sectionId}
+                      aria-expanded={showItems}
+                      className={cn(
+                        "flex h-10 w-full items-center gap-3.5 rounded-md px-3.5 text-body-sm transition-colors",
+                        sectionActive
+                          ? "bg-accent text-foreground"
+                          : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                      )}
+                    >
+                      {Icon && (
+                        <Icon
+                          className={cn(
+                            "h-5 w-5 shrink-0",
+                            iconTintClass(section),
+                          )}
+                        />
+                      )}
+                      <span className="min-w-0 flex-1 truncate text-left">
+                        {section.title}
+                      </span>
+                      <ChevronDown
+                        className={cn(
+                          "h-4 w-4 shrink-0 transition-transform",
+                          !showItems && "-rotate-90",
+                        )}
+                      />
+                    </button>
+                  ) : !collapsed ? (
+                    <p className="px-3.5 pb-1 pt-3.5 text-label font-semibold uppercase tracking-wider text-muted-foreground/80">
+                      {section.title}
+                    </p>
+                  ) : null}
+                  {collapsed && i > 0 && (
+                    <div
+                      className="my-2 mx-3 border-t border-white/[0.06]"
+                      aria-hidden="true"
+                    />
+                  )}
+                  {section.collapsible && !collapsed ? (
+                    <div
+                      id={sectionId}
+                      aria-hidden={!showItems}
+                      inert={!showItems}
+                      className={cn(
+                        "grid transition-[grid-template-rows] duration-150 ease-out",
+                        showItems ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+                      )}
+                    >
+                      <div className="min-h-0 overflow-hidden">
+                        <div className="ml-3 space-y-1 border-l border-white/[0.08] py-1 pl-1">
+                          {section.items.map((item) => renderLink(item, true))}
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    showItems && (
+                      <div id={sectionId} className="space-y-1">
+                        {section.items.map((item) =>
+                          renderLink(item, Boolean(section.collapsible)),
+                        )}
+                      </div>
+                    )
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
       </nav>
