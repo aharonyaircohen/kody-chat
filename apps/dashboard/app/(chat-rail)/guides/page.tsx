@@ -7,12 +7,12 @@
 import { buildKodyMetadata } from "../../metadata";
 
 export const metadata = buildKodyMetadata({
-  title: "Lessons — Kody Operations Dashboard",
+  title: "Guides — Kody Operations Dashboard",
   description: "Ordered teaching steps that guide the chat model.",
-  path: "/lessons",
+  path: "/guides",
 });
 export const dynamic = "force-static";
 export const revalidate = false;
 export const fetchCache = "force-cache";
 
-export { default } from "@kody-ade/kody-chat/pages/lessons";
+export { default } from "@kody-ade/kody-chat/pages/guides";

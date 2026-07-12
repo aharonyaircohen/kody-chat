@@ -3,7 +3,7 @@
  * @domain ui
  * @pattern sortable-list
  * @ai-summary Reusable drag-to-reorder list built on dnd-kit — extracted so
- *   todos, goals, and lesson steps share one implementation instead of each
+ *   todos, goals, and guide steps share one implementation instead of each
  *   re-wiring dnd-kit. Presentation only: it reorders the array you give it
  *   and calls `onReorder` (only when the order actually changed); the caller
  *   owns persistence. Each row's drag handle is passed to `renderItem` so

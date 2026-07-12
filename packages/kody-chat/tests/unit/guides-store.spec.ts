@@ -1,5 +1,5 @@
 /**
- * Unit tests for the lessons store (@kody-ade/base/lessons/store):
+ * Unit tests for the guides store (@kody-ade/base/guides/store):
  * list/get, CAS save, and delete.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -22,17 +22,17 @@ vi.mock("@kody-ade/base/state-repo", () => ({
 vi.mock("@kody-ade/base/logger", () => ({ logger: h.logger }));
 
 import {
-  getLesson,
-  listLessons,
-  saveLesson,
-  deleteLesson,
-  _resetLessonsCache,
-} from "@kody-ade/base/lessons/store";
-import type { LessonConfig } from "@kody-ade/base/lessons/types";
+  getGuide,
+  listGuides,
+  saveGuide,
+  deleteGuide,
+  _resetGuidesCache,
+} from "@kody-ade/base/guides/store";
+import type { GuideConfig } from "@kody-ade/base/guides/types";
 
 const octokit = {} as Octokit;
 
-const LESSON: LessonConfig = {
+const GUIDE: GuideConfig = {
   slug: "intro",
   title: "Intro",
   description: "",
@@ -42,73 +42,73 @@ const LESSON: LessonConfig = {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  _resetLessonsCache();
+  _resetGuidesCache();
 });
 
-describe("listLessons", () => {
-  it("loads each lesson file in the dir and caches", async () => {
+describe("listGuides", () => {
+  it("loads each guide file in the dir and caches", async () => {
     h.listStateDirectory.mockResolvedValue({
       entries: [{ name: "intro.json", type: "file" }],
     });
     h.readStateText.mockResolvedValue({
-      content: JSON.stringify(LESSON),
+      content: JSON.stringify(GUIDE),
       sha: "s1",
       path: "p",
     });
-    const lessons = await listLessons(octokit, "acme", "shop");
-    expect(lessons.map((l) => l.slug)).toEqual(["intro"]);
-    await listLessons(octokit, "acme", "shop");
+    const guides = await listGuides(octokit, "acme", "shop");
+    expect(guides.map((l) => l.slug)).toEqual(["intro"]);
+    await listGuides(octokit, "acme", "shop");
     expect(h.listStateDirectory).toHaveBeenCalledTimes(1);
   });
 
   it("returns [] when the dir does not exist", async () => {
     h.listStateDirectory.mockRejectedValue({ status: 404 });
-    expect(await listLessons(octokit, "acme", "shop")).toEqual([]);
+    expect(await listGuides(octokit, "acme", "shop")).toEqual([]);
   });
 });
 
-describe("getLesson", () => {
+describe("getGuide", () => {
   it("returns null on 404", async () => {
     h.readStateText.mockRejectedValue({ status: 404 });
-    expect(await getLesson(octokit, "acme", "shop", "nope")).toBeNull();
+    expect(await getGuide(octokit, "acme", "shop", "nope")).toBeNull();
   });
 });
 
-describe("saveLesson", () => {
+describe("saveGuide", () => {
   it("writes with the existing sha", async () => {
     h.readStateText.mockResolvedValue({
-      content: JSON.stringify(LESSON),
+      content: JSON.stringify(GUIDE),
       sha: "old",
       path: "p",
     });
     h.writeStateText.mockResolvedValue({ sha: "new", path: "p", htmlUrl: null });
-    await saveLesson(octokit, "acme", "shop", LESSON);
+    await saveGuide(octokit, "acme", "shop", GUIDE);
     expect(h.writeStateText).toHaveBeenCalledWith(
       expect.objectContaining({
         sha: "old",
-        path: "lessons/intro.json",
+        path: "guides/intro.json",
         maxAttempts: 1,
       }),
     );
   });
 });
 
-describe("deleteLesson", () => {
-  it("returns false when the lesson does not exist", async () => {
+describe("deleteGuide", () => {
+  it("returns false when the guide does not exist", async () => {
     h.readStateText.mockRejectedValue({ status: 404 });
-    expect(await deleteLesson(octokit, "acme", "shop", "nope")).toBe(false);
+    expect(await deleteGuide(octokit, "acme", "shop", "nope")).toBe(false);
     expect(h.deleteStateFile).not.toHaveBeenCalled();
   });
 
   it("deletes with the file sha", async () => {
     h.readStateText.mockResolvedValue({
-      content: JSON.stringify(LESSON),
+      content: JSON.stringify(GUIDE),
       sha: "s1",
       path: "p",
     });
-    expect(await deleteLesson(octokit, "acme", "shop", "intro")).toBe(true);
+    expect(await deleteGuide(octokit, "acme", "shop", "intro")).toBe(true);
     expect(h.deleteStateFile).toHaveBeenCalledWith(
-      expect.objectContaining({ path: "lessons/intro.json", sha: "s1" }),
+      expect.objectContaining({ path: "guides/intro.json", sha: "s1" }),
     );
   });
 });

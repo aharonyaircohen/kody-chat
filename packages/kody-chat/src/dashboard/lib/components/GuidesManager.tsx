@@ -1,8 +1,8 @@
 /**
  * @fileType component
- * @domain lessons
- * @pattern lessons-manager
- * @ai-summary CRUD UI for lessons — ordered teaching steps that guide the
+ * @domain guides
+ * @pattern guides-manager
+ * @ai-summary CRUD UI for guides — ordered teaching steps that guide the
  *   chat model. Follows the standard admin-page structure (PageShell + card
  *   rows + Power toggle + ui-kit dialog editor) and reuses the shared
  *   SortableList for drag-to-reorder steps.
@@ -14,7 +14,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   CircleDot,
-  GraduationCap,
+  Route,
   GripVertical,
   Loader2,
   Pencil,
@@ -43,7 +43,7 @@ import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import { PageShell } from "./PageShell";
 
-interface LessonStep {
+interface GuideStep {
   id: string;
   title: string;
   instruction: string;
@@ -51,12 +51,12 @@ interface LessonStep {
   keyword?: string;
 }
 
-interface LessonRow {
+interface GuideRow {
   slug: string;
   title: string;
   description: string;
   enabled: boolean;
-  steps: LessonStep[];
+  steps: GuideStep[];
 }
 
 async function fetchJson<T>(
@@ -75,12 +75,12 @@ async function fetchJson<T>(
   return json;
 }
 
-interface EditorState extends LessonRow {
+interface EditorState extends GuideRow {
   isNew: boolean;
 }
 
 let stepCounter = 0;
-function newStep(): LessonStep {
+function newStep(): GuideStep {
   stepCounter += 1;
   return {
     id: `step-${Date.now().toString(36)}-${stepCounter}`,
@@ -90,35 +90,35 @@ function newStep(): LessonStep {
   };
 }
 
-export function LessonsManager() {
+export function GuidesManager() {
   const { auth } = useAuth();
   const headers = useMemo(
     () => ({ "content-type": "application/json", ...buildAuthHeaders(auth) }),
     [auth],
   );
   const queryClient = useQueryClient();
-  const queryKey = ["kody-lessons", auth?.owner, auth?.repo] as const;
+  const queryKey = ["kody-guides", auth?.owner, auth?.repo] as const;
 
-  const lessonsQuery = useQuery({
+  const guidesQuery = useQuery({
     queryKey,
     enabled: !!auth,
     queryFn: () =>
-      fetchJson<{ lessons: LessonRow[] }>("/api/kody/lessons", headers).then(
-        (json) => json.lessons ?? [],
+      fetchJson<{ guides: GuideRow[] }>("/api/kody/guides", headers).then(
+        (json) => json.guides ?? [],
       ),
   });
 
   const [editor, setEditor] = useState<EditorState | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<LessonRow | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<GuideRow | null>(null);
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey });
 
   const saveMutation = useMutation({
     mutationFn: (state: EditorState) =>
-      fetchJson("/api/kody/lessons", headers, {
+      fetchJson("/api/kody/guides", headers, {
         method: "POST",
         body: JSON.stringify({
-          lesson: {
+          guide: {
             slug: state.isNew ? slugifyTitle(state.title) : state.slug,
             title: state.title.trim(),
             description: state.description.trim(),
@@ -136,7 +136,7 @@ export function LessonsManager() {
         }),
       }),
     onSuccess: () => {
-      toast.success("Lesson saved");
+      toast.success("Guide saved");
       setEditor(null);
       void invalidate();
     },
@@ -144,11 +144,11 @@ export function LessonsManager() {
   });
 
   const toggleMutation = useMutation({
-    mutationFn: (lesson: LessonRow) =>
-      fetchJson("/api/kody/lessons", headers, {
+    mutationFn: (guide: GuideRow) =>
+      fetchJson("/api/kody/guides", headers, {
         method: "POST",
         body: JSON.stringify({
-          lesson: { ...lesson, enabled: !lesson.enabled },
+          guide: { ...guide, enabled: !guide.enabled },
         }),
       }),
     onSuccess: () => void invalidate(),
@@ -157,23 +157,23 @@ export function LessonsManager() {
 
   const deleteMutation = useMutation({
     mutationFn: (slug: string) =>
-      fetch(`/api/kody/lessons/${encodeURIComponent(slug)}`, {
+      fetch(`/api/kody/guides/${encodeURIComponent(slug)}`, {
         method: "DELETE",
         headers,
       }).then((res) => {
         if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`);
       }),
     onSuccess: () => {
-      toast.success("Lesson deleted");
+      toast.success("Guide deleted");
       setDeleteTarget(null);
       void invalidate();
     },
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const lessons = lessonsQuery.data ?? [];
+  const guides = guidesQuery.data ?? [];
 
-  const updateStep = (id: string, patch: Partial<LessonStep>) =>
+  const updateStep = (id: string, patch: Partial<GuideStep>) =>
     setEditor((current) =>
       current
         ? {
@@ -187,19 +187,19 @@ export function LessonsManager() {
 
   return (
     <PageShell
-      title="Lessons"
-      icon={GraduationCap}
-      subtitle="Ordered teaching steps that guide the chat model one step at a time."
+      title="Guides"
+      icon={Route}
+      subtitle="Ordered steps that guide the chat, one step at a time."
       actions={
         <>
           <Button
             variant="ghost"
             size="icon"
             onClick={() => void invalidate()}
-            disabled={lessonsQuery.isFetching}
+            disabled={guidesQuery.isFetching}
           >
             <RefreshCw
-              className={`h-4 w-4 ${lessonsQuery.isFetching ? "animate-spin" : ""}`}
+              className={`h-4 w-4 ${guidesQuery.isFetching ? "animate-spin" : ""}`}
             />
           </Button>
           <Button
@@ -216,37 +216,37 @@ export function LessonsManager() {
               })
             }
           >
-            <Plus className="mr-1.5 h-4 w-4" /> New lesson
+            <Plus className="mr-1.5 h-4 w-4" /> New guide
           </Button>
         </>
       }
     >
-      {lessonsQuery.isLoading ? (
+      {guidesQuery.isLoading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
-      ) : lessons.length === 0 ? (
+      ) : guides.length === 0 ? (
         <EmptyState
-          icon={<GraduationCap />}
-          title="No lessons yet"
-          hint="Build an ordered lesson; the chat model teaches it one step at a time."
+          icon={<Route />}
+          title="No guides yet"
+          hint="Build an ordered set of steps; the chat follows them one at a time."
         />
       ) : (
         <div className="space-y-2">
-          {lessons.map((lesson) => (
-            <Card key={lesson.slug}>
+          {guides.map((guide) => (
+            <Card key={guide.slug}>
               <CardContent className="flex items-center justify-between gap-3 p-4">
                 <div className="flex min-w-0 items-center gap-3">
-                  {lesson.enabled ? (
+                  {guide.enabled ? (
                     <CircleDot className="h-4 w-4 shrink-0 text-emerald-400" />
                   ) : (
                     <PowerOff className="h-4 w-4 shrink-0 text-muted-foreground" />
                   )}
                   <div className="min-w-0">
-                    <div className="font-medium">{lesson.title}</div>
+                    <div className="font-medium">{guide.title}</div>
                     <div className="truncate text-sm text-muted-foreground">
-                      {lesson.steps.length} steps
-                      {lesson.description ? ` · ${lesson.description}` : ""}
+                      {guide.steps.length} steps
+                      {guide.description ? ` · ${guide.description}` : ""}
                     </div>
                   </div>
                 </div>
@@ -254,13 +254,13 @@ export function LessonsManager() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    title={lesson.enabled ? "Disable" : "Enable"}
+                    title={guide.enabled ? "Disable" : "Enable"}
                     disabled={toggleMutation.isPending}
-                    onClick={() => toggleMutation.mutate(lesson)}
+                    onClick={() => toggleMutation.mutate(guide)}
                   >
                     <Power
                       className={`h-4 w-4 ${
-                        lesson.enabled
+                        guide.enabled
                           ? "text-emerald-400"
                           : "text-muted-foreground"
                       }`}
@@ -269,14 +269,14 @@ export function LessonsManager() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => setEditor({ ...lesson, isNew: false })}
+                    onClick={() => setEditor({ ...guide, isNew: false })}
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => setDeleteTarget(lesson)}
+                    onClick={() => setDeleteTarget(guide)}
                   >
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </Button>
@@ -291,7 +291,7 @@ export function LessonsManager() {
         <DialogContent modalSize="wide" modalHeight="viewport">
           <DialogHeader>
             <DialogTitle>
-              {editor?.isNew ? "New lesson" : "Edit lesson"}
+              {editor?.isNew ? "New guide" : "Edit guide"}
             </DialogTitle>
             <DialogDescription>
               Drag to reorder steps; the model teaches them in order.
@@ -301,9 +301,9 @@ export function LessonsManager() {
             <div className="space-y-4 overflow-y-auto">
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label htmlFor="lesson-title">Title</Label>
+                  <Label htmlFor="guide-title">Title</Label>
                   <Input
-                    id="lesson-title"
+                    id="guide-title"
                     value={editor.title}
                     placeholder="Intro to fractions"
                     onChange={(e) =>
@@ -312,9 +312,9 @@ export function LessonsManager() {
                   />
                 </div>
                 <div className="space-y-1">
-                  <Label htmlFor="lesson-desc">Description</Label>
+                  <Label htmlFor="guide-desc">Description</Label>
                   <Input
-                    id="lesson-desc"
+                    id="guide-desc"
                     value={editor.description}
                     onChange={(e) =>
                       setEditor({ ...editor, description: e.target.value })
@@ -451,7 +451,7 @@ export function LessonsManager() {
       <ConfirmDialog
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
-        title="Delete lesson?"
+        title="Delete guide?"
         description={`"${deleteTarget?.title}" will be removed.`}
         confirmLabel="Delete"
         variant="destructive"

@@ -1,8 +1,8 @@
 /**
  * @fileType api-endpoint
- * @domain lessons
+ * @domain guides
  * @pattern state-repo-crud-api
- * @ai-summary Deletes one lesson by slug from `lessons/<slug>.json` in the
+ * @ai-summary Deletes one guide by slug from `guides/<slug>.json` in the
  *   Kody state repo. Admin only; audited.
  */
 import { NextRequest, NextResponse } from "next/server";
@@ -11,7 +11,7 @@ import {
   getUserOctokit,
   requireKodyAuth,
 } from "@kody-ade/base/auth";
-import { deleteLesson } from "@kody-ade/base/lessons";
+import { deleteGuide } from "@kody-ade/base/guides";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export const dynamic = "force-dynamic";
@@ -35,13 +35,13 @@ export async function DELETE(
   }
 
   const { slug } = await context.params;
-  const removed = await deleteLesson(octokit, auth.owner, auth.repo, slug);
+  const removed = await deleteGuide(octokit, auth.owner, auth.repo, slug);
   if (!removed) {
     return NextResponse.json(
       { error: "not_found" },
       { status: 404, headers: NO_STORE_HEADERS },
     );
   }
-  recordAudit(req, { action: "lesson.delete", resource: slug });
+  recordAudit(req, { action: "guide.delete", resource: slug });
   return new NextResponse(null, { status: 204 });
 }

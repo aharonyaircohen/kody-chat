@@ -45,9 +45,9 @@
     "./routes/kody/snippets": "./app/api/kody/snippets/route.ts",
     "./routes/kody/snippets-detail": "./app/api/kody/snippets/[id]/route.ts",
     "./chat-tools/user-state": "./app/api/kody/chat/tools/user-state-tools.ts",
-    "./chat-tools/lessons": "./app/api/kody/chat/tools/lesson-tools.ts",
-    "./routes/kody/lessons": "./app/api/kody/lessons/route.ts",
-    "./routes/kody/lessons-detail": "./app/api/kody/lessons/[slug]/route.ts"
+    "./chat-tools/guides": "./app/api/kody/chat/tools/guide-tools.ts",
+    "./routes/kody/guides": "./app/api/kody/guides/route.ts",
+    "./routes/kody/guides-detail": "./app/api/kody/guides/[slug]/route.ts"
   },
   "scripts": {
     "dev": "next dev --turbopack -p 3344",

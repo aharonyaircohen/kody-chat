@@ -1,8 +1,8 @@
 /**
  * @fileType api-endpoint
- * @domain lessons
+ * @domain guides
  * @pattern state-repo-crud-api
- * @ai-summary Lists and upserts a brand's lessons (`lessons/<slug>.json` in
+ * @ai-summary Lists and upserts a brand's guides (`guides/<slug>.json` in
  *   the state repo). Admin (operator PAT) only; mutations are audited.
  */
 import { NextRequest, NextResponse } from "next/server";
@@ -12,7 +12,7 @@ import {
   getUserOctokit,
   requireKodyAuth,
 } from "@kody-ade/base/auth";
-import { listLessons, saveLesson, lessonConfigSchema } from "@kody-ade/base/lessons";
+import { listGuides, saveGuide, guideConfigSchema } from "@kody-ade/base/guides";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export const dynamic = "force-dynamic";
@@ -20,7 +20,7 @@ export const revalidate = 0;
 
 const NO_STORE_HEADERS = { "Cache-Control": "no-store, max-age=0" };
 
-const saveSchema = z.object({ lesson: lessonConfigSchema });
+const saveSchema = z.object({ guide: guideConfigSchema });
 
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
@@ -33,10 +33,10 @@ export async function GET(req: NextRequest) {
       { status: 401, headers: NO_STORE_HEADERS },
     );
   }
-  const lessons = await listLessons(octokit, auth.owner, auth.repo, {
+  const guides = await listGuides(octokit, auth.owner, auth.repo, {
     cache: false,
   });
-  return NextResponse.json({ lessons }, { headers: NO_STORE_HEADERS });
+  return NextResponse.json({ guides }, { headers: NO_STORE_HEADERS });
 }
 
 export async function POST(req: NextRequest) {
@@ -51,21 +51,21 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let lesson: z.infer<typeof saveSchema>["lesson"];
+  let guide: z.infer<typeof saveSchema>["guide"];
   try {
-    lesson = saveSchema.parse(await req.json()).lesson;
+    guide = saveSchema.parse(await req.json()).guide;
   } catch (error) {
     return NextResponse.json(
-      { error: "invalid_lesson", detail: String(error) },
+      { error: "invalid_guide", detail: String(error) },
       { status: 400, headers: NO_STORE_HEADERS },
     );
   }
 
-  await saveLesson(octokit, auth.owner, auth.repo, lesson);
+  await saveGuide(octokit, auth.owner, auth.repo, guide);
   recordAudit(req, {
-    action: "lesson.save",
-    resource: lesson.slug,
-    detail: `${lesson.steps.length} steps`,
+    action: "guide.save",
+    resource: guide.slug,
+    detail: `${guide.steps.length} steps`,
   });
-  return NextResponse.json({ lesson }, { headers: NO_STORE_HEADERS });
+  return NextResponse.json({ guide }, { headers: NO_STORE_HEADERS });
 }

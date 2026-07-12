@@ -1,33 +1,33 @@
 /**
- * Unit tests for the lesson chat tools
- * (app/api/kody/chat/tools/lesson-tools.ts): the model only ever sees the
+ * Unit tests for the guide chat tools
+ * (app/api/kody/chat/tools/guide-tools.ts): the model only ever sees the
  * current step, and advancing moves the per-student pointer one step.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Octokit } from "@octokit/rest";
 
 const h = vi.hoisted(() => ({
-  listLessons: vi.fn(),
-  getLesson: vi.fn(),
+  listGuides: vi.fn(),
+  getGuide: vi.fn(),
   getUserState: vi.fn(),
   setUserState: vi.fn(),
 }));
 
-vi.mock("@kody-ade/base/lessons", async () => {
+vi.mock("@kody-ade/base/guides", async () => {
   const actual = await vi.importActual<
-    typeof import("@kody-ade/base/lessons")
-  >("@kody-ade/base/lessons");
-  return { ...actual, listLessons: h.listLessons, getLesson: h.getLesson };
+    typeof import("@kody-ade/base/guides")
+  >("@kody-ade/base/guides");
+  return { ...actual, listGuides: h.listGuides, getGuide: h.getGuide };
 });
 vi.mock("@dashboard/lib/user-state", () => ({
   getUserState: h.getUserState,
   setUserState: h.setUserState,
 }));
 
-import { createLessonTools } from "@dashboard/../../app/api/kody/chat/tools/lesson-tools";
-import type { LessonConfig } from "@kody-ade/base/lessons/types";
+import { createGuideTools } from "@dashboard/../../app/api/kody/chat/tools/guide-tools";
+import type { GuideConfig } from "@kody-ade/base/guides/types";
 
-const LESSON: LessonConfig = {
+const GUIDE: GuideConfig = {
   slug: "intro",
   title: "Intro",
   description: "",
@@ -46,22 +46,22 @@ const ctx = {
 };
 
 async function tools() {
-  return createLessonTools(ctx);
+  return createGuideTools(ctx);
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  h.listLessons.mockResolvedValue([LESSON]);
-  h.getLesson.mockResolvedValue({ lesson: LESSON, sha: "s1" });
+  h.listGuides.mockResolvedValue([GUIDE]);
+  h.getGuide.mockResolvedValue({ guide: GUIDE, sha: "s1" });
   h.getUserState.mockResolvedValue({ data: {} });
   h.setUserState.mockResolvedValue({});
 });
 
-describe("lesson tools", () => {
-  it("lesson_current returns only the current step, never later ones", async () => {
-    h.getUserState.mockResolvedValue({ data: { "lesson:intro:step": 0 } });
+describe("guide tools", () => {
+  it("guide_current returns only the current step, never later ones", async () => {
+    h.getUserState.mockResolvedValue({ data: { "guide:intro:step": 0 } });
     const t = await tools();
-    const out = (await t.lesson_current.execute!(
+    const out = (await t.guide_current.execute!(
       { slug: "intro" },
       {} as never,
     )) as { step?: { id: string }; stepNumber: number };
@@ -70,21 +70,21 @@ describe("lesson tools", () => {
     expect(JSON.stringify(out)).not.toContain('"b"');
   });
 
-  it("lesson_start resets the pointer to 0", async () => {
+  it("guide_start resets the pointer to 0", async () => {
     const t = await tools();
-    await t.lesson_start.execute!({ slug: "intro" }, {} as never);
+    await t.guide_start.execute!({ slug: "intro" }, {} as never);
     expect(h.setUserState).toHaveBeenCalledWith(
       expect.anything(),
       "progress",
-      { "lesson:intro:step": 0 },
+      { "guide:intro:step": 0 },
       { source: "system" },
     );
   });
 
-  it("lesson_advance moves the pointer forward one step", async () => {
-    h.getUserState.mockResolvedValue({ data: { "lesson:intro:step": 0 } });
+  it("guide_advance moves the pointer forward one step", async () => {
+    h.getUserState.mockResolvedValue({ data: { "guide:intro:step": 0 } });
     const t = await tools();
-    const out = (await t.lesson_advance.execute!(
+    const out = (await t.guide_advance.execute!(
       { slug: "intro", answer: "ok" },
       {} as never,
     )) as { advanced: boolean; step?: { id: string } };
@@ -93,14 +93,14 @@ describe("lesson tools", () => {
     expect(h.setUserState).toHaveBeenCalledWith(
       expect.anything(),
       "progress",
-      { "lesson:intro:step": 1 },
+      { "guide:intro:step": 1 },
       { source: "system" },
     );
   });
 
   it("keyword steps do not advance without the keyword", async () => {
-    const kw: LessonConfig = {
-      ...LESSON,
+    const kw: GuideConfig = {
+      ...GUIDE,
       steps: [
         {
           id: "a",
@@ -109,14 +109,14 @@ describe("lesson tools", () => {
           advance: "keyword",
           keyword: "yes",
         },
-        LESSON.steps[1],
+        GUIDE.steps[1],
       ],
     };
-    h.listLessons.mockResolvedValue([kw]);
-    h.getLesson.mockResolvedValue({ lesson: kw, sha: "s1" });
-    h.getUserState.mockResolvedValue({ data: { "lesson:intro:step": 0 } });
+    h.listGuides.mockResolvedValue([kw]);
+    h.getGuide.mockResolvedValue({ guide: kw, sha: "s1" });
+    h.getUserState.mockResolvedValue({ data: { "guide:intro:step": 0 } });
     const t = await tools();
-    const out = (await t.lesson_advance.execute!(
+    const out = (await t.guide_advance.execute!(
       { slug: "intro", answer: "no" },
       {} as never,
     )) as { advanced: boolean };
@@ -124,8 +124,8 @@ describe("lesson tools", () => {
     expect(h.setUserState).not.toHaveBeenCalled();
   });
 
-  it("returns no tools when there are no enabled lessons", async () => {
-    h.listLessons.mockResolvedValue([{ ...LESSON, enabled: false }]);
+  it("returns no tools when there are no enabled guides", async () => {
+    h.listGuides.mockResolvedValue([{ ...GUIDE, enabled: false }]);
     expect(Object.keys(await tools())).toEqual([]);
   });
 });
