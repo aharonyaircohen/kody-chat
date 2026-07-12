@@ -113,4 +113,18 @@ describe("resolveActionData", () => {
       fixed: "yes",
     });
   });
+
+  it("saves the whole payload when the map is empty", () => {
+    const event = envelope("ui.form.submitted", {
+      viewId: "intake",
+      fields: ["a"],
+    });
+    const data = resolveActionData(
+      trigger({
+        action: { type: "save-user-state", namespace: "selections", map: {} },
+      }),
+      event,
+    );
+    expect(data).toEqual({ viewId: "intake", fields: ["a"] });
+  });
 });

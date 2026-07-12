@@ -34,13 +34,9 @@ export const triggerActionSchema = z
      * Target key → source. `payload.<path>` copies from the event payload;
      * `literal:<value>` stores a fixed string; `event.name` /
      * `event.occurredAt` / `event.sessionId` copy envelope fields.
+     * An empty map (the default) saves the whole event payload as-is.
      */
-    map: z
-      .record(z.string().min(1), z.string().min(1))
-      .refine(
-        (map) => Object.keys(map).length > 0,
-        "map must have at least one entry",
-      ),
+    map: z.record(z.string().min(1), z.string().min(1)).default({}),
   })
   .strict();
 

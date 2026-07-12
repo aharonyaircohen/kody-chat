@@ -47,6 +47,7 @@ import {
   SelectValue,
 } from "@kody-ade/base/ui/select";
 import { Textarea } from "@kody-ade/base/ui/textarea";
+import { slugifyTitle } from "@kody-ade/base/slug";
 import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
@@ -127,7 +128,7 @@ function emptyEditor(defaultNamespace: string): EditorState {
     event: SYSTEM_EVENT_NAMES[0],
     namespace: defaultNamespace,
     conditionsJson: "[]",
-    mapJson: JSON.stringify({ example: "payload.viewId" }, null, 2),
+    mapJson: "{}",
     isNew: true,
   };
 }
@@ -180,7 +181,7 @@ export function TriggersManager() {
         method: "POST",
         body: JSON.stringify({
           trigger: {
-            id: state.id.trim(),
+            id: state.isNew ? slugifyTitle(state.name) : state.id,
             name: state.name.trim(),
             enabled: state.enabled,
             event: state.event,
@@ -343,30 +344,16 @@ export function TriggersManager() {
           </DialogHeader>
           {editor ? (
             <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1">
-                  <Label htmlFor="trigger-id">Id</Label>
-                  <Input
-                    id="trigger-id"
-                    value={editor.id}
-                    disabled={!editor.isNew}
-                    placeholder="save-quiz-answers"
-                    onChange={(e) =>
-                      setEditor({ ...editor, id: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="trigger-name">Name</Label>
-                  <Input
-                    id="trigger-name"
-                    value={editor.name}
-                    placeholder="Save quiz answers"
-                    onChange={(e) =>
-                      setEditor({ ...editor, name: e.target.value })
-                    }
-                  />
-                </div>
+              <div className="space-y-1">
+                <Label htmlFor="trigger-name">Name</Label>
+                <Input
+                  id="trigger-name"
+                  value={editor.name}
+                  placeholder="Save quiz answers"
+                  onChange={(e) =>
+                    setEditor({ ...editor, name: e.target.value })
+                  }
+                />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
@@ -410,39 +397,55 @@ export function TriggersManager() {
                   </Select>
                 </div>
               </div>
-              <div className="space-y-1">
-                <Label htmlFor="trigger-conditions">Conditions (JSON)</Label>
-                <Textarea
-                  id="trigger-conditions"
-                  rows={3}
-                  value={editor.conditionsJson}
-                  onChange={(e) =>
-                    setEditor({ ...editor, conditionsJson: e.target.value })
-                  }
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="trigger-map">
-                  Data map (JSON: entity key → payload.path / literal:value)
-                </Label>
-                <Textarea
-                  id="trigger-map"
-                  rows={4}
-                  value={editor.mapJson}
-                  onChange={(e) =>
-                    setEditor({ ...editor, mapJson: e.target.value })
-                  }
-                />
-              </div>
-              <label className="flex items-center gap-2 text-sm">
-                <Checkbox
-                  checked={editor.enabled}
-                  onCheckedChange={(checked) =>
-                    setEditor({ ...editor, enabled: checked === true })
-                  }
-                />
-                Enabled
-              </label>
+              <p className="text-xs text-muted-foreground">
+                By default the whole event payload is saved to the entity.
+              </p>
+              <details className="rounded-md border border-border px-3 py-2">
+                <summary className="cursor-pointer text-sm text-muted-foreground">
+                  Advanced (conditions and data mapping)
+                </summary>
+                <div className="mt-3 space-y-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="trigger-conditions">
+                      Conditions (JSON)
+                    </Label>
+                    <Textarea
+                      id="trigger-conditions"
+                      rows={3}
+                      value={editor.conditionsJson}
+                      onChange={(e) =>
+                        setEditor({
+                          ...editor,
+                          conditionsJson: e.target.value,
+                        })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="trigger-map">
+                      Data map (JSON: entity key → payload.path /
+                      literal:value; empty = save whole payload)
+                    </Label>
+                    <Textarea
+                      id="trigger-map"
+                      rows={4}
+                      value={editor.mapJson}
+                      onChange={(e) =>
+                        setEditor({ ...editor, mapJson: e.target.value })
+                      }
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <Checkbox
+                      checked={editor.enabled}
+                      onCheckedChange={(checked) =>
+                        setEditor({ ...editor, enabled: checked === true })
+                      }
+                    />
+                    Enabled
+                  </label>
+                </div>
+              </details>
               <div className="flex justify-end gap-2">
                 <Button variant="ghost" onClick={() => setEditor(null)}>
                   Cancel
@@ -451,7 +454,6 @@ export function TriggersManager() {
                   onClick={() => saveMutation.mutate(editor)}
                   disabled={
                     saveMutation.isPending ||
-                    !editor.id.trim() ||
                     !editor.name.trim() ||
                     !editor.namespace
                   }

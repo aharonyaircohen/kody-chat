@@ -57,11 +57,15 @@ export function triggerMatches(
  * Resolve the action map against the event. Sources: `payload.<path>`,
  * `event.name`, `event.occurredAt`, `event.sessionId`, `literal:<value>`.
  * Unresolvable payload paths are skipped (never write `undefined`).
+ * An empty map saves the whole event payload as-is.
  */
 export function resolveActionData(
   trigger: TriggerConfig,
   event: SystemEventEnvelope,
 ): Record<string, unknown> {
+  if (Object.keys(trigger.action.map).length === 0) {
+    return { ...event.payload };
+  }
   const data: Record<string, unknown> = {};
   for (const [targetKey, source] of Object.entries(trigger.action.map)) {
     let value: unknown;
