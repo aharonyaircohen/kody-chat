@@ -25,6 +25,7 @@ const ROUTE_FOR: Record<string, string> = {
   instructions: "app/(chat-rail)/instructions/page.tsx",
   "view-renderers": "app/(chat-rail)/views/renderers/page.tsx",
   "view-renderer-detail": "app/(chat-rail)/views/renderers/[slug]/page.tsx",
+  triggers: "app/(chat-rail)/triggers/page.tsx",
 };
 
 const PAGES_DIR = join(

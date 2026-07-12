@@ -21,6 +21,7 @@ import {
 import { dispatchToSinks, registerSystemEventSink } from "./sink-registry";
 import { durableLogSink } from "./sinks/log-sink";
 import { pinoSink } from "./sinks/pino-sink";
+import { triggerSink } from "../triggers/sink";
 import type {
   SystemEventBrand,
   SystemEventEnvelope,
@@ -75,6 +76,9 @@ function ensureDefaultSinks(): void {
   defaultSinksRegistered = true;
   registerSystemEventSink(pinoSink);
   registerSystemEventSink(durableLogSink);
+  // Trigger rules react to events; the sink no-ops until the host installs
+  // a state writer via setTriggerStateWriter().
+  registerSystemEventSink(triggerSink);
 }
 
 /** Exported for unit tests — allows re-registering default sinks. */

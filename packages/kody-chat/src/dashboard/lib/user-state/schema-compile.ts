@@ -28,7 +28,14 @@ export const namespaceSpecSchema = z
   .object({
     name: z.string().regex(NAMESPACE_NAME_PATTERN),
     version: z.number().int().min(1).default(1),
-    adapter: z.string().trim().min(1).default("state-repo"),
+    adapter: z
+      .string()
+      .trim()
+      .regex(
+        /^(state-repo|cms:[a-zA-Z][a-zA-Z0-9_-]*)$/,
+        'adapter must be "state-repo" or "cms:<collection>"',
+      )
+      .default("state-repo"),
     merge: z.enum(["replace", "shallow-merge"]).default("shallow-merge"),
     modelWritable: z.boolean().default(false),
     fields: z.array(fieldSpecSchema).min(1).max(100),

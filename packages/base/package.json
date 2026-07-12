@@ -46,7 +46,9 @@
     "./client-brand": "./src/client-brand.ts",
     "./kody-system-prompt": "./src/kody-system-prompt.ts",
     "./agents-data": "./src/agents-data.ts",
-    "./events/PageViewTracker": "./src/events/PageViewTracker.tsx"
+    "./events/PageViewTracker": "./src/events/PageViewTracker.tsx",
+    "./triggers": "./src/triggers/index.ts",
+    "./triggers/*": "./src/triggers/*.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
