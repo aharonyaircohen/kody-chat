@@ -26,12 +26,16 @@
       "agency-portfolio-management",
       "agency-operations-management",
       "ai-agency-health-matrix",
+      "observe-repo-ci",
+      "operate-findings",
       "ceo-performance-review"
     ],
     "activeGoals": [
       { "template": "company-growth-loop", "every": "15m" },
       { "template": "agency-evolution-loop", "every": "15m" },
       { "template": "agency-operations-loop", "every": "15m" },
+      { "template": "agency-observer", "every": "15m" },
+      { "template": "agency-operating-loop", "every": "15m" },
       { "template": "ai-agency-health", "every": "15m" }
     ]
   },

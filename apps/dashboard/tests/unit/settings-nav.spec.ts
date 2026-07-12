@@ -50,6 +50,17 @@ describe("settings navigation", () => {
     expect(navLabelForPath("/ledgers")).toBeNull();
   });
 
+  it("exposes durable Findings and Learning in the AI Agency section", () => {
+    expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "AI Agency")).toContain(
+      "/findings",
+    );
+    expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "AI Agency")).toContain(
+      "/learning",
+    );
+    expect(navLabelForPath("/findings")).toBe("Findings");
+    expect(navLabelForPath("/learning")).toBe("Learning");
+  });
+
   it("exposes Fly config, previews, Brain images, live machines, and history as separate pages", () => {
     expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "Fly")).toEqual([
       "/fly/config",
