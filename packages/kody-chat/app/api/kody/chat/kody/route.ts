@@ -125,7 +125,7 @@ import { createCompanyTools } from "../tools/company-tools";
 import { createInboxTools } from "../tools/inbox-tools";
 import { createCmsTools } from "../tools/cms-tools";
 import { createUserStateTools } from "../tools/user-state-tools";
-import { createGuideTools } from "../tools/guide-tools";
+import { createPositionTools } from "../tools/position-tools";
 import { ensureTriggerStateWriter } from "@dashboard/lib/user-state";
 import { emitSystemEvent } from "@kody-ade/base/events";
 import { applyReasoning } from "@dashboard/lib/chat/core/reasoning-adapter";
@@ -1088,8 +1088,7 @@ export async function POST(req: NextRequest) {
           })
         : {}),
       ...(eventUserId
-        ? await createGuideTools({
-            req,
+        ? createPositionTools({
             octokit,
             owner: repo.owner,
             repo: repo.repo,

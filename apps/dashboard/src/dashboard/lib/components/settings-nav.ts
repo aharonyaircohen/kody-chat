@@ -195,13 +195,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-emerald-300 bg-emerald-500/10",
       },
       {
-        href: "/guides",
-        label: "Guides",
-        icon: Route,
-        description: "Ordered steps that guide the chat, one step at a time.",
-        tint: "text-emerald-300 bg-emerald-500/10",
-      },
-      {
         href: "/snippets",
         label: "Snippets",
         icon: Code,

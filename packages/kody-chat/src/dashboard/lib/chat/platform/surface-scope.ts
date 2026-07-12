@@ -51,12 +51,10 @@ export const CLIENT_SURFACE_TOOL_ALLOWLIST: readonly string[] = [
   "fetch_url",
   "list_dashboard_features",
   "describe_feature",
-  // Guides: branded students run guides through these (per-student
-  // position lives in their own user-state progress).
-  "guide_list",
-  "guide_start",
-  "guide_current",
-  "guide_advance",
+  // Progress: branded students save/resume their position through these
+  // generic per-user position tools.
+  "get_position",
+  "set_position",
 ];
 
 function getSecret(): string {

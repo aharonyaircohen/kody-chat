@@ -168,11 +168,9 @@ describe("client surface tool allowlist", () => {
     expect([...CLIENT_SURFACE_TOOL_ALLOWLIST].sort()).toEqual([
       "describe_feature",
       "fetch_url",
-      "guide_advance",
-      "guide_current",
-      "guide_list",
-      "guide_start",
+      "get_position",
       "list_dashboard_features",
+      "set_position",
     ]);
   });
 });

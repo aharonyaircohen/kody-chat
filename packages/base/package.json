@@ -49,8 +49,6 @@
     "./events/PageViewTracker": "./src/events/PageViewTracker.tsx",
     "./triggers": "./src/triggers/index.ts",
     "./triggers/*": "./src/triggers/*.ts",
-    "./guides": "./src/guides/index.ts",
-    "./guides/*": "./src/guides/*.ts",
     "./ui/sortable-list": "./src/ui/sortable-list.tsx"
   },
   "scripts": {

@@ -7,6 +7,7 @@ import {
   PRIMARY_NAV_TITLE,
   PRIMARY_VIEW_TITLE,
   SETTINGS_NAV_SECTIONS,
+  activeCollapsibleNavSectionTitle,
   navLabelForPath,
   type SettingsNavSection,
 } from "@dashboard/lib/components/settings-nav";
@@ -81,7 +82,6 @@ describe("settings navigation", () => {
     expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "Content")).toEqual([
       "/content/entries",
       "/content/models",
-      "/guides",
       "/snippets",
       "/triggers",
       "/content/settings",
@@ -136,5 +136,65 @@ describe("settings navigation", () => {
     expect(previewItem?.label).toBe("Views");
     expect(previewItem?.exact).toBeUndefined();
     expect(navLabelForPath("/preview/dev-4ojw")).toBe("Views");
+  });
+
+  it("orders the desktop rail around work and collapsible ownership groups", () => {
+    expect(ENGINEER_MODE_SECTIONS.map((section) => section.title)).toEqual([
+      "Work",
+      "Agency",
+      "Workspace",
+      "Content",
+      "Kody",
+      "Client",
+      "System",
+    ]);
+    expect(sectionHrefs(ENGINEER_MODE_SECTIONS, "Work")).toEqual([
+      "/tasks",
+      "/vibe",
+      "/preview",
+      "/todos",
+      "/agency-runs",
+      "/findings",
+      "/learning",
+    ]);
+    expect(sectionHrefs(ENGINEER_MODE_SECTIONS, "Agency")).toEqual([
+      "/agents",
+      "/agent-goals",
+      "/company-intents",
+      "/agent-loops",
+      "/workflows",
+      "/capabilities",
+      "/store-catalog",
+      "/company",
+    ]);
+    expect(
+      ENGINEER_MODE_SECTIONS.filter((section) => section.title !== "Work").every(
+        (section) => section.collapsible,
+      ),
+    ).toBe(true);
+  });
+
+  it("opens only the active collapsible parent for a nested route", () => {
+    expect(
+      activeCollapsibleNavSectionTitle(
+        ENGINEER_MODE_SECTIONS,
+        "/agent-goals",
+        "",
+      ),
+    ).toBe("Agency");
+    expect(
+      activeCollapsibleNavSectionTitle(
+        ENGINEER_MODE_SECTIONS,
+        "/memory",
+        "",
+      ),
+    ).toBe("Kody");
+    expect(
+      activeCollapsibleNavSectionTitle(
+        ENGINEER_MODE_SECTIONS,
+        "/tasks",
+        "",
+      ),
+    ).toBeNull();
   });
 });
