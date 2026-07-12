@@ -22,8 +22,7 @@ export const triggerConditionSchema = z
     path: z.string().trim().min(1).max(200),
     op: z.enum(TRIGGER_CONDITION_OPERATORS),
     value: z.union([z.string(), z.number(), z.boolean()]).optional(),
-  })
-  .strict();
+  });
 
 export const triggerActionSchema = z
   .object({
@@ -31,20 +30,13 @@ export const triggerActionSchema = z
     /** Target user-state namespace (entity). */
     namespace: z.string().trim().min(1),
     /**
-     * "append" (default) keeps a growing list per key (event history);
-     * "merge" overwrites each mapped key with the latest value. Advanced
-     * config only — the UI doesn't expose it.
-     */
-    mode: z.enum(["merge", "append"]).default("append"),
-    /**
      * Target key → source. `payload.<path>` copies from the event payload;
      * `literal:<value>` stores a fixed string; `event.name` /
      * `event.occurredAt` / `event.sessionId` copy envelope fields.
      * An empty map (the default) saves the whole event payload as-is.
      */
     map: z.record(z.string().min(1), z.string().min(1)).default({}),
-  })
-  .strict();
+  });
 
 export const triggerConfigSchema = z
   .object({
@@ -54,15 +46,13 @@ export const triggerConfigSchema = z
     event: z.string().trim().min(1),
     conditions: z.array(triggerConditionSchema).max(10).default([]),
     action: triggerActionSchema,
-  })
-  .strict();
+  });
 
 export const triggersFileSchema = z
   .object({
     version: z.literal(1).default(1),
     triggers: z.array(triggerConfigSchema).max(200).default([]),
-  })
-  .strict();
+  });
 
 export type TriggerCondition = z.infer<typeof triggerConditionSchema>;
 export type TriggerAction = z.infer<typeof triggerActionSchema>;

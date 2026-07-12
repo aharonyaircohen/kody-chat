@@ -62,7 +62,6 @@ interface TriggerRow {
   action: {
     type: "save-user-state";
     namespace: string;
-    mode?: "merge" | "append";
     map: Record<string, string>;
   };
 }
@@ -256,15 +255,7 @@ export function TriggersManager() {
           </Button>
           <Button
             size="sm"
-            onClick={() =>
-              setEditor(
-                emptyEditor(
-                  namespaces.some((ns) => ns.name === "history")
-                    ? "history"
-                    : (namespaces[0]?.name ?? ""),
-                ),
-              )
-            }
+            onClick={() => setEditor(emptyEditor(namespaces[0]?.name ?? ""))}
             disabled={!auth}
           >
             <Plus className="mr-1.5 h-4 w-4" /> New trigger
@@ -407,8 +398,7 @@ export function TriggersManager() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground">
-                Each matching event is added to the entity's history
-                automatically.
+                By default the whole event payload is saved to the entity.
               </p>
               <details className="rounded-md border border-border px-3 py-2">
                 <summary className="cursor-pointer text-sm text-muted-foreground">

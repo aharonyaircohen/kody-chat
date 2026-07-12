@@ -36,7 +36,6 @@ const VALID: TriggerConfig = {
   action: {
     type: "save-user-state",
     namespace: "selections",
-    mode: "merge" as const,
     map: { view: "payload.viewId" },
   },
 };

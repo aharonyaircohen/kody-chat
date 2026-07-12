@@ -24,7 +24,7 @@ import {
 } from "@dashboard/lib/user-state/config";
 
 const octokit = {} as Octokit;
-const CORE_NAMES = ["profile", "progress", "selections", "stats", "history"];
+const CORE_NAMES = ["profile", "progress", "selections", "stats"];
 
 function mockConfig(config: unknown): void {
   h.readStateText.mockResolvedValue({
