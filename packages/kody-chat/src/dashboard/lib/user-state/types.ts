@@ -35,6 +35,12 @@ export interface UserStateDoc {
   readonly userId: string;
   readonly updatedAt: string;
   readonly data: Record<string, unknown>;
+  /**
+   * Storage revision (e.g. git blob sha) of the read this doc came from.
+   * Writes pass it back so a concurrent writer causes a conflict instead
+   * of a silent lost update. Not persisted into the stored document.
+   */
+  readonly revision?: string | null;
 }
 
 /** Context adapters need to reach the brand's storage. */
@@ -60,6 +66,15 @@ export interface UserStateAdapter {
     userId: string,
     namespace: UserStateNamespace,
     doc: UserStateDoc,
+    opts?: {
+      /**
+       * Concurrency token: the `revision` of the get() this write was
+       * merged from — `null` means "the doc must not exist yet". When
+       * present, a concurrent write makes the set fail (409/422) so the
+       * caller re-merges; when undefined the adapter writes best-effort.
+       */
+      expectedRevision?: string | null;
+    },
   ): Promise<void>;
 }
 

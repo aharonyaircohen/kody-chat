@@ -66,13 +66,17 @@ export async function setUserState(
 
   // CAS loop: on a write conflict, re-read, re-merge against the fresh
   // document, and retry — never rewrite a stale merge over concurrent data.
-  const MAX_MERGE_ATTEMPTS = 2;
+  // The write carries the revision of the SAME read the merge came from, so
+  // a concurrent writer surfaces as a conflict instead of a lost update.
+  const MAX_MERGE_ATTEMPTS = 5;
   let doc: UserStateDoc | null = null;
   for (let attempt = 1; attempt <= MAX_MERGE_ATTEMPTS; attempt += 1) {
-    const existing =
-      namespace.merge === "shallow-merge"
-        ? await adapter.get(ctx, ctx.userId, namespace)
-        : null;
+    if (attempt > 1) {
+      // Backoff before re-merging: concurrent writers (bursts of events)
+      // and GitHub read-after-write lag both need a beat to settle.
+      await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+    }
+    const existing = await adapter.get(ctx, ctx.userId, namespace);
     const merged =
       namespace.merge === "shallow-merge"
         ? { ...(existing?.data ?? {}), ...patch }
@@ -97,12 +101,16 @@ export async function setUserState(
       data: parsed.data,
     };
     try {
-      await adapter.set(ctx, ctx.userId, namespace, candidate);
+      await adapter.set(ctx, ctx.userId, namespace, candidate, {
+        // undefined revision (adapter without CAS support) → best-effort.
+        expectedRevision: existing ? existing.revision : null,
+      });
       doc = candidate;
       break;
     } catch (error: unknown) {
       const status = (error as { status?: number })?.status;
-      if (status !== 409 || attempt === MAX_MERGE_ATTEMPTS) throw error;
+      const conflict = status === 409 || status === 422;
+      if (!conflict || attempt === MAX_MERGE_ATTEMPTS) throw error;
     }
   }
   if (!doc) {

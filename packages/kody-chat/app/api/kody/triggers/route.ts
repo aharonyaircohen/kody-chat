@@ -16,7 +16,7 @@ import {
 import { isSystemEventName } from "@kody-ade/base/events";
 import {
   getTriggers,
-  saveTriggers,
+  mutateTriggers,
   triggerConfigSchema,
 } from "@kody-ade/base/triggers";
 import { recordAudit } from "@dashboard/lib/activity/audit";
@@ -76,14 +76,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const existing = await getTriggers(octokit, auth.owner, auth.repo, {
-    cache: false,
-  });
-  const next = [
+  await mutateTriggers(octokit, auth.owner, auth.repo, (existing) => [
     ...existing.filter((candidate) => candidate.id !== trigger.id),
     trigger,
-  ];
-  await saveTriggers(octokit, auth.owner, auth.repo, next);
+  ]);
   recordAudit(req, {
     action: "trigger.save",
     resource: trigger.id,

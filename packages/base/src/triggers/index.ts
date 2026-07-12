@@ -4,7 +4,7 @@
  * @pattern triggers
  * @ai-summary Server barrel for the trigger engine.
  */
-export { getTriggers, saveTriggers, TRIGGERS_CONFIG_PATH, _resetTriggersConfigCache } from "./config";
+export { getTriggers, mutateTriggers, saveTriggers, TRIGGERS_CONFIG_PATH, _resetTriggersConfigCache } from "./config";
 export { triggerMatches, resolveActionData } from "./engine";
 export { triggerSink } from "./sink";
 export {

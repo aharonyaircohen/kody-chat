@@ -11,7 +11,7 @@ import {
   getUserOctokit,
   requireKodyAuth,
 } from "@kody-ade/base/auth";
-import { getTriggers, saveTriggers } from "@kody-ade/base/triggers";
+import { mutateTriggers } from "@kody-ade/base/triggers";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 
 export const dynamic = "force-dynamic";
@@ -35,17 +35,18 @@ export async function DELETE(
   }
 
   const { id } = await context.params;
-  const existing = await getTriggers(octokit, auth.owner, auth.repo, {
-    cache: false,
+  let found = false;
+  await mutateTriggers(octokit, auth.owner, auth.repo, (existing) => {
+    const next = existing.filter((trigger) => trigger.id !== id);
+    found = next.length !== existing.length;
+    return next;
   });
-  const next = existing.filter((trigger) => trigger.id !== id);
-  if (next.length === existing.length) {
+  if (!found) {
     return NextResponse.json(
       { error: "not_found" },
       { status: 404, headers: NO_STORE_HEADERS },
     );
   }
-  await saveTriggers(octokit, auth.owner, auth.repo, next);
   recordAudit(req, { action: "trigger.delete", resource: id });
   return new NextResponse(null, { status: 204 });
 }

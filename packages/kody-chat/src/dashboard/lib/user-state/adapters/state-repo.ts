@@ -67,7 +67,8 @@ export const stateRepoUserStateAdapter: UserStateAdapter = {
           ? { "If-None-Match": cached.etag }
           : undefined,
       });
-      const doc = file ? parseDoc(file.content) : null;
+      const parsed = file ? parseDoc(file.content) : null;
+      const doc = parsed ? { ...parsed, revision: file?.sha ?? null } : null;
       cache.set(key, {
         doc,
         etag: file?.etag,
@@ -88,33 +89,48 @@ export const stateRepoUserStateAdapter: UserStateAdapter = {
     }
   },
 
-  async set(ctx, userId, namespace: UserStateNamespace, doc: UserStateDoc) {
+  async set(ctx, userId, namespace: UserStateNamespace, doc: UserStateDoc, opts) {
     const path = userStateFilePath(namespace.name, userId);
     const key = cacheKey(ctx, path);
     cache.delete(key);
 
-    const content = JSON.stringify(doc, null, 2);
+    // Never persist the concurrency token into the stored document.
+    const { revision: _revision, ...persisted } = doc;
+    const content = JSON.stringify(persisted, null, 2);
     const message = `feat(user-state): update ${namespace.name} state`;
 
+    // CAS: use the revision from the SAME read the caller merged from
+    // (null = create-only). Re-reading the sha here would let a concurrent
+    // write slip between merge and write — a silent lost update.
     let sha: string | undefined;
-    try {
-      const file = await readStateText(ctx.octokit, ctx.owner, ctx.repo, path);
-      sha = file?.sha;
-    } catch {
-      // File may not exist yet.
+    if (opts && "expectedRevision" in opts) {
+      sha = opts.expectedRevision ?? undefined;
+    } else {
+      try {
+        const file = await readStateText(ctx.octokit, ctx.owner, ctx.repo, path);
+        sha = file?.sha;
+      } catch {
+        // File may not exist yet.
+      }
     }
 
-    // No internal 409 retry: retrying with the same content would clobber
-    // the concurrent write this doc was merged without. The service layer
-    // re-reads, re-merges, and retries on conflict instead.
-    await writeStateText({
-      octokit: ctx.octokit,
-      owner: ctx.owner,
-      repo: ctx.repo,
-      path,
-      content,
-      message,
-      sha,
-    });
+    try {
+      await writeStateText({
+        octokit: ctx.octokit,
+        owner: ctx.owner,
+        repo: ctx.repo,
+        path,
+        content,
+        message,
+        sha,
+        maxAttempts: 1,
+      });
+    } catch (error: unknown) {
+      // Conflict (409 sha mismatch / 422 create-on-existing): drop the
+      // cache so the caller's re-merge reads fresh, then let it retry.
+      const status = (error as { status?: number })?.status;
+      if (status === 409 || status === 422) cache.delete(key);
+      throw error;
+    }
   },
 };

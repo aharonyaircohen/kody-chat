@@ -116,4 +116,26 @@ describe("stateRepoUserStateAdapter.set", () => {
     ).rejects.toMatchObject({ status: 409 });
     expect(h.writeStateText).toHaveBeenCalledTimes(1);
   });
+
+  it("writes with the caller's revision without re-reading the sha", async () => {
+    h.writeStateText.mockResolvedValue({ sha: "new", path: "x", htmlUrl: null });
+    await stateRepoUserStateAdapter.set(ctx, USER, selections, doc({ a: "1" }), {
+      expectedRevision: "rev-from-get",
+    });
+    expect(h.readStateText).not.toHaveBeenCalled();
+    expect(h.writeStateText).toHaveBeenCalledWith(
+      expect.objectContaining({ sha: "rev-from-get", maxAttempts: 1 }),
+    );
+  });
+
+  it("create-only write (revision null) passes no sha", async () => {
+    h.writeStateText.mockResolvedValue({ sha: "new", path: "x", htmlUrl: null });
+    await stateRepoUserStateAdapter.set(ctx, USER, selections, doc({ a: "1" }), {
+      expectedRevision: null,
+    });
+    expect(h.readStateText).not.toHaveBeenCalled();
+    expect(h.writeStateText).toHaveBeenCalledWith(
+      expect.objectContaining({ sha: undefined }),
+    );
+  });
 });

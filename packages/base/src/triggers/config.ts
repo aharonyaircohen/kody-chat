@@ -75,37 +75,77 @@ export async function getTriggers(
   return triggers;
 }
 
-/** Overwrite the full triggers file (admin routes read-modify-write). */
+interface TriggersFileRead {
+  triggers: TriggerConfig[];
+  sha: string | undefined;
+}
+
+async function readTriggersFile(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+): Promise<TriggersFileRead> {
+  try {
+    const file = await readStateText(octokit, owner, repo, TRIGGERS_CONFIG_PATH);
+    if (!file) return { triggers: [], sha: undefined };
+    const parsed = triggersFileSchema.parse(JSON.parse(file.content));
+    return { triggers: parsed.triggers, sha: file.sha };
+  } catch (error: unknown) {
+    if ((error as { status?: number })?.status === 404) {
+      return { triggers: [], sha: undefined };
+    }
+    throw error;
+  }
+}
+
+/**
+ * Atomic read-modify-write on the triggers file. The write uses the sha of
+ * the same read the mutation was applied to (single attempt) and re-runs
+ * the whole cycle on conflict — a concurrent save can never silently drop
+ * another writer's trigger.
+ */
+export async function mutateTriggers(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  mutate: (triggers: readonly TriggerConfig[]) => readonly TriggerConfig[],
+): Promise<readonly TriggerConfig[]> {
+  const MAX_ATTEMPTS = 5;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    if (attempt > 1) {
+      await new Promise((resolve) => setTimeout(resolve, 400 * attempt));
+    }
+    const { triggers, sha } = await readTriggersFile(octokit, owner, repo);
+    const next = mutate(triggers);
+    const file: TriggersFile = { version: 1, triggers: [...next] };
+    try {
+      await writeStateText({
+        octokit,
+        owner,
+        repo,
+        path: TRIGGERS_CONFIG_PATH,
+        content: `${JSON.stringify(file, null, 2)}\n`,
+        message: "feat(triggers): update trigger rules",
+        sha,
+        maxAttempts: 1,
+      });
+      cache.delete(cacheKey(owner, repo));
+      return next;
+    } catch (error: unknown) {
+      const status = (error as { status?: number })?.status;
+      const conflict = status === 409 || status === 422;
+      if (!conflict || attempt === MAX_ATTEMPTS) throw error;
+    }
+  }
+  throw new Error("triggers config write retry exhausted");
+}
+
+/** Overwrite the full triggers file. Prefer mutateTriggers for upserts. */
 export async function saveTriggers(
   octokit: Octokit,
   owner: string,
   repo: string,
   triggers: readonly TriggerConfig[],
 ): Promise<void> {
-  const file: TriggersFile = { version: 1, triggers: [...triggers] };
-  const content = JSON.stringify(file, null, 2);
-
-  let sha: string | undefined;
-  try {
-    const existing = await readStateText(
-      octokit,
-      owner,
-      repo,
-      TRIGGERS_CONFIG_PATH,
-    );
-    sha = existing?.sha;
-  } catch {
-    // File may not exist yet.
-  }
-
-  await writeStateText({
-    octokit,
-    owner,
-    repo,
-    path: TRIGGERS_CONFIG_PATH,
-    content: `${content}\n`,
-    message: "feat(triggers): update trigger rules",
-    sha,
-  });
-  cache.delete(cacheKey(owner, repo));
+  await mutateTriggers(octokit, owner, repo, () => triggers);
 }
