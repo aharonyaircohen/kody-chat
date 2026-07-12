@@ -14,29 +14,31 @@ import {
 } from "@kody-ade/base/triggers";
 import { getUserState, setUserState, type UserStateServiceContext } from "./service";
 
-/** Cap per-key history so append-mode triggers can't grow unbounded. */
-const MAX_APPEND_ENTRIES = 100;
+/** Cap per-trigger history so append-mode triggers can't grow unbounded. */
+const MAX_APPEND_ENTRIES = 200;
 
-function appendValue(existing: unknown, value: unknown): unknown[] {
-  const list = Array.isArray(existing)
-    ? existing
-    : existing === undefined || existing === null
-      ? []
-      : [existing];
-  return [...list, value].slice(-MAX_APPEND_ENTRIES);
-}
-
+/**
+ * Append mode stores one complete record per event — the mapped data plus
+ * `event`/`at` bookkeeping — in a list keyed by the trigger id. This keeps
+ * each occurrence intact and queryable instead of smearing values across
+ * parallel per-key arrays.
+ */
 async function resolveData(
   ctx: UserStateServiceContext,
   write: TriggerStateWrite,
 ): Promise<Record<string, unknown>> {
   if (write.mode !== "append") return write.data;
   const current = await getUserState(ctx, write.namespace);
-  const data: Record<string, unknown> = {};
-  for (const [key, value] of Object.entries(write.data)) {
-    data[key] = appendValue(current?.data[key], value);
-  }
-  return data;
+  const existing = current?.data[write.triggerId];
+  const list = Array.isArray(existing) ? existing : [];
+  const record = {
+    ...write.data,
+    event: write.eventName,
+    at: write.occurredAt,
+  };
+  return {
+    [write.triggerId]: [...list, record].slice(-MAX_APPEND_ENTRIES),
+  };
 }
 
 /**

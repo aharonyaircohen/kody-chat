@@ -1,7 +1,7 @@
 /**
  * Unit tests for the trigger→user-state writer
- * (src/dashboard/lib/user-state/trigger-writer.ts): merge vs append modes
- * and the append history cap.
+ * (src/dashboard/lib/user-state/trigger-writer.ts): merge vs append modes,
+ * record shape, and the history cap.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Octokit } from "@octokit/rest";
@@ -27,9 +27,12 @@ function write(overrides: Partial<TriggerStateWrite> = {}): TriggerStateWrite {
     repo: "shop",
     userId: "client:jane@example.com",
     sessionId: null,
-    namespace: "selections",
+    namespace: "history",
     data: { path: "/a" },
-    mode: "merge",
+    mode: "append",
+    triggerId: "save-page-visits",
+    eventName: "page.viewed",
+    occurredAt: "2026-07-12T10:00:00.000Z",
     ...overrides,
   };
 }
@@ -43,7 +46,9 @@ beforeEach(() => {
 
 describe("trigger state writer", () => {
   it("merge mode writes the data as-is", async () => {
-    await getTriggerStateWriter()!(write());
+    await getTriggerStateWriter()!(
+      write({ mode: "merge", namespace: "selections" }),
+    );
     expect(h.setUserState).toHaveBeenCalledWith(
       expect.objectContaining({ userId: "client:jane@example.com" }),
       "selections",
@@ -53,38 +58,48 @@ describe("trigger state writer", () => {
     expect(h.getUserState).not.toHaveBeenCalled();
   });
 
-  it("append mode grows a list per key", async () => {
-    h.getUserState.mockResolvedValue({
-      data: { path: ["/x"] },
-    });
-    await getTriggerStateWriter()!(write({ mode: "append", data: { path: "/y" } }));
+  it("append mode stores one full record per event, keyed by trigger id", async () => {
+    await getTriggerStateWriter()!(write());
     expect(h.setUserState).toHaveBeenCalledWith(
       expect.anything(),
-      "selections",
-      { path: ["/x", "/y"] },
+      "history",
+      {
+        "save-page-visits": [
+          { path: "/a", event: "page.viewed", at: "2026-07-12T10:00:00.000Z" },
+        ],
+      },
       { source: "system" },
     );
   });
 
-  it("append mode wraps an existing scalar into a list", async () => {
-    h.getUserState.mockResolvedValue({ data: { path: "/x" } });
-    await getTriggerStateWriter()!(write({ mode: "append", data: { path: "/y" } }));
-    expect(h.setUserState).toHaveBeenCalledWith(
-      expect.anything(),
-      "selections",
-      { path: ["/x", "/y"] },
-      { source: "system" },
-    );
+  it("append mode grows the trigger's record list", async () => {
+    h.getUserState.mockResolvedValue({
+      data: {
+        "save-page-visits": [{ path: "/x", event: "page.viewed", at: "t0" }],
+      },
+    });
+    await getTriggerStateWriter()!(write({ data: { path: "/y" } }));
+    const saved = h.setUserState.mock.calls[0][2] as {
+      "save-page-visits": unknown[];
+    };
+    expect(saved["save-page-visits"]).toHaveLength(2);
+    expect(saved["save-page-visits"][1]).toMatchObject({ path: "/y" });
   });
 
-  it("append mode caps history at 100 entries", async () => {
+  it("append mode caps history at 200 records", async () => {
     h.getUserState.mockResolvedValue({
-      data: { path: Array.from({ length: 100 }, (_, i) => `/p${i}`) },
+      data: {
+        "save-page-visits": Array.from({ length: 200 }, (_, i) => ({
+          path: `/p${i}`,
+        })),
+      },
     });
-    await getTriggerStateWriter()!(write({ mode: "append", data: { path: "/new" } }));
-    const saved = h.setUserState.mock.calls[0][2] as { path: string[] };
-    expect(saved.path).toHaveLength(100);
-    expect(saved.path.at(-1)).toBe("/new");
-    expect(saved.path[0]).toBe("/p1");
+    await getTriggerStateWriter()!(write({ data: { path: "/new" } }));
+    const saved = h.setUserState.mock.calls[0][2] as {
+      "save-page-visits": Array<{ path: string }>;
+    };
+    expect(saved["save-page-visits"]).toHaveLength(200);
+    expect(saved["save-page-visits"].at(-1)?.path).toBe("/new");
+    expect(saved["save-page-visits"][0].path).toBe("/p1");
   });
 });

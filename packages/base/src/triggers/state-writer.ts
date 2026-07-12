@@ -18,8 +18,13 @@ export interface TriggerStateWrite {
   sessionId: string | null;
   namespace: string;
   data: Record<string, unknown>;
-  /** "merge" overwrites mapped keys; "append" grows a list per key. */
+  /** "merge" overwrites mapped keys; "append" grows an event-record list. */
   mode: "merge" | "append";
+  /** Trigger that fired — append mode keys the history list by this id. */
+  triggerId: string;
+  /** Envelope fields stamped onto appended records. */
+  eventName: string;
+  occurredAt: string;
 }
 
 export type TriggerStateWriter = (write: TriggerStateWrite) => Promise<void>;

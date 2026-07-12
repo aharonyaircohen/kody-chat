@@ -256,7 +256,15 @@ export function TriggersManager() {
           </Button>
           <Button
             size="sm"
-            onClick={() => setEditor(emptyEditor(namespaces[0]?.name ?? ""))}
+            onClick={() =>
+              setEditor(
+                emptyEditor(
+                  namespaces.some((ns) => ns.name === "history")
+                    ? "history"
+                    : (namespaces[0]?.name ?? ""),
+                ),
+              )
+            }
             disabled={!auth}
           >
             <Plus className="mr-1.5 h-4 w-4" /> New trigger

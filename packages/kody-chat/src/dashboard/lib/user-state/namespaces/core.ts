@@ -30,6 +30,15 @@ const selectionsSchema = z.record(
 
 const statsSchema = z.record(z.string().min(1), z.number());
 
+/**
+ * Event history: one list of full event records per key (the trigger id).
+ * Each record is the event's data plus `event` and `at` bookkeeping.
+ */
+const historySchema = z.record(
+  z.string().min(1),
+  z.array(z.record(z.string(), z.unknown())).max(200),
+);
+
 export const CORE_USER_STATE_NAMESPACES: readonly UserStateNamespace[] = [
   {
     name: "profile",
@@ -66,5 +75,14 @@ export const CORE_USER_STATE_NAMESPACES: readonly UserStateNamespace[] = [
     adapter: "state-repo",
     merge: "shallow-merge",
     modelWritable: true,
+  },
+  {
+    name: "history",
+    version: 1,
+    origin: "core",
+    schema: historySchema,
+    adapter: "state-repo",
+    merge: "shallow-merge",
+    modelWritable: false,
   },
 ];

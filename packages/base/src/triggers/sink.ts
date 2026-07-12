@@ -71,6 +71,9 @@ async function runTriggersForEvent(
         namespace: trigger.action.namespace,
         data,
         mode: trigger.action.mode,
+        triggerId: trigger.id,
+        eventName: event.name,
+        occurredAt: event.occurredAt,
       });
     } catch (err) {
       logger.warn(
