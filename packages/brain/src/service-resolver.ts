@@ -171,10 +171,15 @@ export async function resolveBrainService(input: {
       : undefined;
   if (fallback) {
     const fallbackResult = await resolveWithToken(fallback).catch(() => null);
+    // Never prefer a fallback the env token could not actually access —
+    // machineId equality alone is not proof of access (both sides derive
+    // it from the same stored runtime record even on a 403).
     if (
       fallbackResult &&
+      fallbackResult.reason !== "fly_access_denied" &&
       (primary.machine
-        ? sameResolvedBrainMachine(primary, fallbackResult)
+        ? sameResolvedBrainMachine(primary, fallbackResult) &&
+          Boolean(fallbackResult.machine)
         : fallbackResult.machine || fallbackResult.state !== "off")
     ) {
       return fallbackResult;
