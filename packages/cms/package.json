@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "MIT",
-  "description": "Kody CMS layer — collection config, storage adapters (state-repo + MongoDB), service, MCP surface, API route handlers, chat tools. Depends only on @kody-ade/base; consumed as TS source by both hosts.",
+  "description": "Kody CMS layer \u2014 collection config, storage adapters (state-repo + MongoDB), service, MCP surface, API route handlers, chat tools. Depends only on @kody-ade/base; consumed as TS source by both hosts.",
   "exports": {
     "./adapters": "./src/adapters/index.ts",
     "./adapters/*": "./src/adapters/*.ts",
@@ -15,7 +15,9 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:unit": "vitest run"
   },
   "dependencies": {
     "@kody-ade/base": "workspace:*",
@@ -27,7 +29,8 @@
   "devDependencies": {
     "typescript": "5.9.3",
     "@types/react": "^19.2.17",
-    "next": "16.2.9"
+    "next": "16.2.9",
+    "vitest": "^4.0.16"
   },
   "peerDependencies": {
     "react": "19.2.7",
