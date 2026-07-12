@@ -7,7 +7,10 @@ const root = resolve(__dirname, "../..");
 
 function readSidebar(): string {
   return readFileSync(
-    resolve(root, "node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/Sidebar.tsx"),
+    resolve(
+      root,
+      "node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/Sidebar.tsx",
+    ),
     "utf8",
   );
 }
@@ -32,5 +35,18 @@ describe("sidebar scrolling", () => {
     expect(fixedControls).not.toContain("overflow-y-auto");
     expect(scrollList).toContain("overflow-y-auto");
     expect(scrollList).toContain("filteredSections.map");
+  });
+
+  it("renders submenu parents as icon navigation rows", () => {
+    const source = readSidebar();
+
+    expect(source).toContain("const Icon = section.icon");
+    expect(source).toContain("aria-expanded={showItems}");
+    expect(source).toContain("iconTintClass(section)");
+    expect(source).toContain("border-l border-white/[0.08]");
+    expect(source).toContain("transition-[grid-template-rows] duration-150");
+    expect(source).toContain(
+      '"flex h-10 w-full items-center gap-3.5 rounded-md px-3.5 text-body-sm transition-colors"',
+    );
   });
 });

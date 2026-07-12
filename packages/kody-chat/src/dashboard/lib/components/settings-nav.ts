@@ -170,6 +170,12 @@ export interface SettingsNavSection {
   /** Section heading shown above its items. */
   title: string;
   items: readonly SettingsNavItem[];
+  /** Icon shown on a collapsible host-rail group. */
+  icon?: LucideIcon;
+  /** Subtle icon color for a collapsible host-rail group. */
+  tint?: string;
+  /** Collapsed in a host rail until the user opens this group. */
+  collapsible?: boolean;
 }
 
 export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
@@ -575,6 +581,21 @@ export const MOBILE_NAV_SECTIONS: readonly SettingsNavSection[] = [
     (section) => section.title !== PRIMARY_VIEW_TITLE,
   ),
 ];
+
+/** Find the collapsible group that owns the current route. */
+export function activeCollapsibleNavSectionTitle(
+  sections: readonly SettingsNavSection[],
+  pathname: string,
+  search: string,
+): string | null {
+  return (
+    sections.find(
+      (section) =>
+        section.collapsible &&
+        section.items.some((item) => isNavItemActive(pathname, search, item)),
+    )?.title ?? null
+  );
+}
 
 /** Strip a query string off an href so "/reports?x=1" maps to "/reports". */
 function navPath(href: string): string {

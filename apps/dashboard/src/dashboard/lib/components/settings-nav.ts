@@ -174,6 +174,12 @@ export interface SettingsNavSection {
   /** Section heading shown above its items. */
   title: string;
   items: readonly SettingsNavItem[];
+  /** Icon shown on a collapsible desktop-rail group. */
+  icon?: LucideIcon;
+  /** Subtle icon color for a collapsible desktop-rail group. */
+  tint?: string;
+  /** Collapsed in the desktop rail until the user opens this group. */
+  collapsible?: boolean;
 }
 
 export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
@@ -568,12 +574,41 @@ export const VIBE_MODE_SECTIONS: readonly SettingsNavSection[] = [
 
 export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
   {
-    title: PRIMARY_VIEW_TITLE,
-    items: [TASKS_NAV_ITEM, VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
+    title: "Work",
+    icon: LayoutGrid,
+    tint: "text-emerald-300",
+    collapsible: true,
+    items: [
+      TASKS_NAV_ITEM,
+      VIBE_NAV_ITEM,
+      PREVIEW_NAV_ITEM,
+      TODOS_NAV_ITEM,
+      navItemForHref("/agency-runs"),
+      navItemForHref("/findings"),
+      navItemForHref("/learning"),
+    ],
   },
-  settingsSection("AI Agency"),
   {
-    title: PRIMARY_NAV_TITLE,
+    title: "Agency",
+    icon: Users,
+    tint: "text-violet-300",
+    collapsible: true,
+    items: [
+      navItemForHref("/agents"),
+      navItemForHref("/agent-goals"),
+      navItemForHref("/company-intents"),
+      navItemForHref("/agent-loops"),
+      navItemForHref("/workflows"),
+      navItemForHref("/capabilities"),
+      navItemForHref("/store-catalog"),
+      navItemForHref("/company"),
+    ],
+  },
+  {
+    title: "Workspace",
+    icon: Building2,
+    tint: "text-sky-300",
+    collapsible: true,
     items: [
       navItemForHref("/org"),
       navItemForHref("/messages"),
@@ -583,14 +618,52 @@ export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
       navItemForHref("/changelog"),
     ],
   },
-  settingsSection("Content"),
-  settingsSection("Monitoring"),
-  settingsSection("Fly"),
-  settingsSection("Agent Settings"),
-  settingsSection("Engine"),
-  settingsSection("Infrastructure"),
-  settingsSection("Alerts"),
-  { title: "General", items: [navItemForHref("/settings")] },
+  {
+    ...settingsSection("Content"),
+    icon: Database,
+    tint: "text-amber-300",
+    collapsible: true,
+  },
+  {
+    title: "Kody",
+    icon: Bot,
+    tint: "text-fuchsia-300",
+    collapsible: true,
+    items: [
+      navItemForHref("/models"),
+      navItemForHref("/commands"),
+      navItemForHref("/setup"),
+      navItemForHref("/views/renderers"),
+      navItemForHref("/instructions"),
+      navItemForHref("/context"),
+      navItemForHref("/memory"),
+    ],
+  },
+  {
+    title: "Client",
+    icon: Palette,
+    tint: "text-cyan-300",
+    collapsible: true,
+    items: [
+      navItemForHref("/brands"),
+      ...PACKAGE_ADMIN_PAGE_META.map((page) => navItemForHref(page.href)),
+    ],
+  },
+  {
+    title: "System",
+    icon: SlidersHorizontal,
+    tint: "text-slate-300",
+    collapsible: true,
+    items: [
+      navItemForHref("/activity"),
+      ...settingsSection("Fly").items,
+      navItemForHref("/config"),
+      navItemForHref("/secrets"),
+      navItemForHref("/variables"),
+      navItemForHref("/notifications"),
+      navItemForHref("/settings"),
+    ],
+  },
 ];
 
 export const MOBILE_NAV_SECTIONS: readonly SettingsNavSection[] = [
@@ -603,10 +676,35 @@ export const MOBILE_NAV_SECTIONS: readonly SettingsNavSection[] = [
       PREVIEW_NAV_ITEM,
     ],
   },
-  ...ENGINEER_MODE_SECTIONS.filter(
-    (section) => section.title !== PRIMARY_VIEW_TITLE,
-  ),
+  {
+    title: "Work",
+    items: [
+      TODOS_NAV_ITEM,
+      navItemForHref("/agency-runs"),
+      navItemForHref("/findings"),
+      navItemForHref("/learning"),
+    ],
+  },
+  ...ENGINEER_MODE_SECTIONS.filter((section) => section.title !== "Work"),
 ];
+
+/**
+ * The desktop rail keeps one expanded submenu. A routed child reopens its
+ * owning group so deep links, refresh, and browser history retain context.
+ */
+export function activeCollapsibleNavSectionTitle(
+  sections: readonly SettingsNavSection[],
+  pathname: string,
+  search: string,
+): string | null {
+  return (
+    sections.find(
+      (section) =>
+        section.collapsible &&
+        section.items.some((item) => isNavItemActive(pathname, search, item)),
+    )?.title ?? null
+  );
+}
 
 /** Strip a query string off an href so "/reports?x=1" maps to "/reports". */
 function navPath(href: string): string {
