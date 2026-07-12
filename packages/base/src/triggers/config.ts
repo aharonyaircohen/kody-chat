@@ -42,9 +42,11 @@ export async function getTriggers(
   octokit: Octokit,
   owner: string,
   repo: string,
+  options: { cache?: boolean } = {},
 ): Promise<readonly TriggerConfig[]> {
   const key = cacheKey(owner, repo);
-  const cached = cache.get(key);
+  const useCache = options.cache !== false;
+  const cached = useCache ? cache.get(key) : undefined;
   if (cached && cached.expires > Date.now()) return cached.triggers;
 
   let triggers: readonly TriggerConfig[] = [];

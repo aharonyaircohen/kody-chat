@@ -35,7 +35,9 @@ export async function DELETE(
   }
 
   const { id } = await context.params;
-  const existing = await getTriggers(octokit, auth.owner, auth.repo);
+  const existing = await getTriggers(octokit, auth.owner, auth.repo, {
+    cache: false,
+  });
   const next = existing.filter((trigger) => trigger.id !== id);
   if (next.length === existing.length) {
     return NextResponse.json(

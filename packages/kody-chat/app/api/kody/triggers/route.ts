@@ -39,7 +39,12 @@ export async function GET(req: NextRequest) {
       { status: 401, headers: NO_STORE_HEADERS },
     );
   }
-  const triggers = await getTriggers(octokit, auth.owner, auth.repo);
+  // Read fresh: the admin API and the trigger sink run in separate server
+  // bundles with independent module caches, so a cached list here can lag a
+  // write made through the (separately-bundled) POST route.
+  const triggers = await getTriggers(octokit, auth.owner, auth.repo, {
+    cache: false,
+  });
   return NextResponse.json({ triggers }, { headers: NO_STORE_HEADERS });
 }
 
@@ -71,7 +76,9 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const existing = await getTriggers(octokit, auth.owner, auth.repo);
+  const existing = await getTriggers(octokit, auth.owner, auth.repo, {
+    cache: false,
+  });
   const next = [
     ...existing.filter((candidate) => candidate.id !== trigger.id),
     trigger,
