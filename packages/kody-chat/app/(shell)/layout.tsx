@@ -20,7 +20,6 @@ import {
   Palette,
   Settings,
   SlashSquare,
-  Zap,
 } from "lucide-react";
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { PageViewTracker } from "@dashboard/lib/events/PageViewTracker";
@@ -79,12 +78,6 @@ const BUILTIN_SECTIONS: readonly SettingsNavSection[] = [
         label: "View Renderers",
         icon: LayoutGrid,
         tint: "text-cyan-300 bg-cyan-500/10",
-      },
-      {
-        href: "/triggers",
-        label: "Triggers",
-        icon: Zap,
-        tint: "text-yellow-300 bg-yellow-500/10",
       },
     ],
   },

@@ -38,6 +38,7 @@ import {
   Target,
   Users,
   Workflow,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { PACKAGE_ADMIN_PAGE_META } from "@kody-ade/base/admin-pages-meta";
@@ -374,6 +375,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         icon: LayoutGrid,
         description: "Renderer JSON for structured chat UI.",
         tint: "text-cyan-300 bg-cyan-500/10",
+      },
+      {
+        href: "/triggers",
+        label: "Triggers",
+        icon: Zap,
+        description: "Rules that react to system events and save user data.",
+        tint: "text-yellow-300 bg-yellow-500/10",
       },
       {
         href: "/instructions",
