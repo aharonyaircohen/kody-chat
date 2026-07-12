@@ -3,11 +3,11 @@
   "configurations": [
     {
       "name": "kody-chat",
-      "runtimeExecutable": "npx",
+      "runtimeExecutable": "pnpm",
       "runtimeArgs": [
-        "next",
-        "dev",
-        "--turbopack"
+        "--filter",
+        "@kody-ade/kody-chat",
+        "dev"
       ],
       "port": 3344,
       "autoPort": true
