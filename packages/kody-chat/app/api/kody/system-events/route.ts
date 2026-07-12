@@ -9,6 +9,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { createUserOctokit } from "@kody-ade/base/github/core";
 import { resolveUnifiedActor } from "@dashboard/lib/auth/unified-actor";
 import { emitSystemEvent, isSystemEventName } from "@kody-ade/base/events";
 import type { SystemEventPayload, SystemEventName } from "@kody-ade/base/events";
@@ -106,6 +107,10 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         sessionId: event.sessionId ?? null,
         brand: actor.brand,
         source: "client",
+        // Operator requests carry a PAT — hand its octokit to the sinks so
+        // triggers/durable-log work even when no app/vault background token
+        // is configured (the common dev setup).
+        octokit: actor.token ? createUserOctokit(actor.token) : null,
       },
     );
   }
