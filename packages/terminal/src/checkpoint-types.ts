@@ -12,23 +12,17 @@ import { slugifyTitle } from "@kody-ade/base/slug";
 export const TERMINAL_CHECKPOINT_OUTPUT_LIMIT = 16_000;
 export const TERMINAL_CHECKPOINT_LIMIT = 40;
 
-export type TerminalCheckpointTransport =
-  | { type: "local"; label?: string }
-  | { type: "brain"; label?: string }
-  | {
-      type: "fly";
-      app: string;
-      machineId: string;
-      label?: string;
-      feature?: "runner" | "brain";
-    };
+export type LocalTerminalCheckpointTransport = {
+  type: "local";
+  label?: string;
+};
 
-export interface TerminalCheckpointLookup {
-  transport: TerminalCheckpointTransport;
+export interface LocalTerminalCheckpointLookup {
+  transport: LocalTerminalCheckpointTransport;
   chatSessionId: string;
 }
 
-export interface TerminalCheckpoint extends TerminalCheckpointLookup {
+export interface LocalTerminalCheckpoint extends LocalTerminalCheckpointLookup {
   id: string;
   key: string;
   cwd?: string;
@@ -39,12 +33,12 @@ export interface TerminalCheckpoint extends TerminalCheckpointLookup {
   savedBy: string;
 }
 
-export interface TerminalCheckpointsDocument {
+export interface LocalTerminalCheckpointsDocument {
   version: 1;
-  checkpoints: TerminalCheckpoint[];
+  checkpoints: LocalTerminalCheckpoint[];
 }
 
-export interface TerminalCheckpointInput extends TerminalCheckpointLookup {
+export interface LocalTerminalCheckpointInput extends LocalTerminalCheckpointLookup {
   cwd?: string;
   shell?: string;
   output?: string;
@@ -80,14 +74,8 @@ function cleanIdPart(value: string): string {
 }
 
 export function terminalCheckpointKey({
-  transport,
   chatSessionId,
-}: TerminalCheckpointLookup): string {
-  if (transport.type === "fly") {
-    if (transport.feature === "brain") return "brain:user";
-    return `fly:${transport.app}:${transport.machineId}`;
-  }
-  if (transport.type === "brain") return "brain:user";
+}: LocalTerminalCheckpointLookup): string {
   return `local:${chatSessionId}`;
 }
 
@@ -96,12 +84,7 @@ export function terminalCheckpointId(key: string): string {
 }
 
 export function terminalCheckpointLabel(
-  transport: TerminalCheckpointTransport,
+  transport: LocalTerminalCheckpointTransport,
 ): string {
-  if (transport.type === "fly") {
-    if (transport.feature === "brain") return "Brain terminal";
-    return transport.label ?? `${transport.app} ${transport.machineId}`;
-  }
-  if (transport.type === "brain") return transport.label ?? "Brain terminal";
   return transport.label ?? "Local terminal";
 }

@@ -53,6 +53,7 @@ import { TERMINAL_DISPLAY_MODE } from "../chat/plugins/terminal/mode";
 import {
   checkpointTransportFromChatTransport,
   shouldLoadTerminalCheckpoint,
+  shouldPersistTerminalCheckpoint,
   terminalCheckpointLoadKey,
   terminalCheckpointSearchParams,
 } from "../chat/plugins/terminal/checkpoints";
@@ -67,7 +68,7 @@ import type {
 import type { ChatTerminalSurfaceHandle } from "../chat/plugins/terminal/ChatTerminalSurface";
 import {
   terminalCheckpointLabel,
-  type TerminalCheckpoint,
+  type LocalTerminalCheckpoint,
 } from "@kody-ade/terminal/checkpoint-types";
 
 // Render-gated terminal plugin components (Step 7 bundle check): loaded via
@@ -199,7 +200,7 @@ export function useTerminalHost({
   // keeps polling while the user leaves terminal mode).
   const brainImageSave = useBrainImageSave();
   const [pendingTerminalRestore, setPendingTerminalRestore] =
-    useState<TerminalCheckpoint | null>(null);
+    useState<LocalTerminalCheckpoint | null>(null);
   const [pendingKodyTerminalPayload, setPendingKodyTerminalPayload] = useState<
     string | null
   >(null);
@@ -219,17 +220,19 @@ export function useTerminalHost({
     async (transport: ChatTerminalTransport, chatSessionId: string) => {
       const headers = authHeaders();
       if (Object.keys(headers).length === 0) return;
+      const checkpointTransport = checkpointTransportFromChatTransport(transport);
+      if (!checkpointTransport) return;
       try {
         const res = await fetch(
           `/api/kody/chat/terminal/checkpoint${terminalCheckpointSearchParams(
             actorLogin,
-            transport,
+            checkpointTransport,
             chatSessionId,
           )}`,
           { headers },
         );
         const body = (await res.json().catch(() => ({}))) as {
-          checkpoint?: TerminalCheckpoint | null;
+          checkpoint?: LocalTerminalCheckpoint | null;
           message?: string;
           error?: string;
         };
@@ -263,6 +266,7 @@ export function useTerminalHost({
         hasLiveTerminal: activeSessionHasLiveTerminal,
         loadedKey: loadedTerminalCheckpointKeyRef.current,
         nextKey: checkpointKey,
+        transportType: activeTerminalTransport.type,
       })
     ) {
       return;
@@ -290,6 +294,11 @@ export function useTerminalHost({
       terminal: { sessionId: string; transport: ChatTerminalTransport },
       snapshot: ChatTerminalSnapshot,
     ) => {
+      if (!shouldPersistTerminalCheckpoint(terminal.transport.type)) return false;
+      const checkpointTransport = checkpointTransportFromChatTransport(
+        terminal.transport,
+      );
+      if (!checkpointTransport) return false;
       if (!snapshot.output.trim()) return false;
       try {
         const res = await fetch("/api/kody/chat/terminal/checkpoint", {
@@ -297,7 +306,7 @@ export function useTerminalHost({
           headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({
             actorLogin,
-            transport: checkpointTransportFromChatTransport(terminal.transport),
+            transport: checkpointTransport,
             chatSessionId: terminal.sessionId,
             cwd: snapshot.cwd,
             shell: snapshot.shell,
@@ -305,7 +314,7 @@ export function useTerminalHost({
           }),
         });
         const body = (await res.json().catch(() => ({}))) as {
-          checkpoint?: TerminalCheckpoint;
+          checkpoint?: LocalTerminalCheckpoint;
           message?: string;
           error?: string;
         };

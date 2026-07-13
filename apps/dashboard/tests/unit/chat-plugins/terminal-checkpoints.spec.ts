@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   checkpointTransportFromChatTransport,
+  shouldPersistTerminalCheckpoint,
   shouldLoadTerminalCheckpoint,
   terminalCheckpointLoadKey,
   terminalCheckpointSearchParams,
@@ -23,7 +24,7 @@ describe("checkpoint transport shims", () => {
         type: "brain",
         label: "Brain terminal",
       }),
-    ).toEqual({ type: "brain", label: "Brain terminal" });
+    ).toBeNull();
     expect(
       checkpointTransportFromChatTransport({
         type: "fly",
@@ -32,13 +33,7 @@ describe("checkpoint transport shims", () => {
         label: "runner",
         feature: "runner",
       }),
-    ).toEqual({
-      type: "fly",
-      app: "runner-app",
-      machineId: "m-1",
-      label: "runner",
-      feature: "runner",
-    });
+    ).toBeNull();
     expect(checkpointTransportFromChatTransport({ type: "local" })).toEqual({
       type: "local",
       label: undefined,
@@ -48,14 +43,14 @@ describe("checkpoint transport shims", () => {
   it("builds the checkpoint query with session, transport, and actor", () => {
     const query = terminalCheckpointSearchParams(
       "octocat",
-      { type: "brain", label: "Brain terminal" },
+      { type: "local", label: "Local terminal" },
       "chat-1",
     );
     const params = new URLSearchParams(query.slice(1));
     expect(params.get("chatSessionId")).toBe("chat-1");
     expect(JSON.parse(params.get("transport") ?? "{}")).toEqual({
-      type: "brain",
-      label: "Brain terminal",
+      type: "local",
+      label: "Local terminal",
     });
     expect(params.get("actorLogin")).toBe("octocat");
 
@@ -83,8 +78,24 @@ describe("checkpoint load decision", () => {
         hasLiveTerminal: true,
         loadedKey: null,
         nextKey: key,
+        transportType: "local",
       }),
     ).toBe(false);
+  });
+
+  it("starts remote terminals clean instead of replaying stale checkpoints", () => {
+    for (const transportType of ["brain", "fly"] as const) {
+      expect(
+        shouldLoadTerminalCheckpoint({
+          chatMode: "terminal",
+          activeSessionId: "chat-1",
+          hasLiveTerminal: false,
+          loadedKey: null,
+          nextKey: key,
+          transportType,
+        }),
+      ).toBe(false);
+    }
   });
 
   it("loads only in terminal mode with an active session, once per key", () => {
@@ -95,6 +106,7 @@ describe("checkpoint load decision", () => {
         hasLiveTerminal: false,
         loadedKey: null,
         nextKey: key,
+        transportType: "local",
       }),
     ).toBe(true);
     expect(
@@ -104,6 +116,7 @@ describe("checkpoint load decision", () => {
         hasLiveTerminal: false,
         loadedKey: null,
         nextKey: key,
+        transportType: "local",
       }),
     ).toBe(false);
     expect(
@@ -113,6 +126,7 @@ describe("checkpoint load decision", () => {
         hasLiveTerminal: false,
         loadedKey: null,
         nextKey: key,
+        transportType: "local",
       }),
     ).toBe(false);
     // Same key already loaded → no duplicate fetch.
@@ -123,6 +137,7 @@ describe("checkpoint load decision", () => {
         hasLiveTerminal: false,
         loadedKey: key,
         nextKey: key,
+        transportType: "local",
       }),
     ).toBe(false);
     // Target switch produces a new key → a fresh load is allowed.
@@ -139,7 +154,16 @@ describe("checkpoint load decision", () => {
         hasLiveTerminal: false,
         loadedKey: key,
         nextKey: otherKey,
+        transportType: "local",
       }),
     ).toBe(true);
+  });
+});
+
+describe("checkpoint persistence decision", () => {
+  it("persists local snapshots but not remote terminal snapshots", () => {
+    expect(shouldPersistTerminalCheckpoint("local")).toBe(true);
+    expect(shouldPersistTerminalCheckpoint("brain")).toBe(false);
+    expect(shouldPersistTerminalCheckpoint("fly")).toBe(false);
   });
 });

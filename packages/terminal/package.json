@@ -17,6 +17,7 @@
     "@kody-ade/base": "workspace:*",
     "@kody-ade/fly": "workspace:*",
     "@octokit/rest": "^22.0.1",
+    "node-pty": "^1.1.0",
     "zod": "^4.3.5"
   },
   "devDependencies": {

@@ -28,23 +28,10 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const TransportSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("local"),
-    label: z.string().min(1).max(120).optional(),
-  }),
-  z.object({
-    type: z.literal("brain"),
-    label: z.string().min(1).max(120).optional(),
-  }),
-  z.object({
-    type: z.literal("fly"),
-    app: z.string().min(1).max(120),
-    machineId: z.string().min(1).max(120),
-    label: z.string().min(1).max(120).optional(),
-    feature: z.enum(["runner", "brain"]).optional(),
-  }),
-]);
+const TransportSchema = z.object({
+  type: z.literal("local"),
+  label: z.string().min(1).max(120).optional(),
+});
 
 const LookupSchema = z.object({
   actorLogin: z.string().min(1).max(80).optional(),

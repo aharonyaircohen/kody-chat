@@ -39,9 +39,6 @@ const allowSave = truthy("KODY_LIVE_ALLOW_SAVE");
 const allowDestructive = truthy("KODY_LIVE_ALLOW_DESTRUCTIVE");
 const allowProvision = truthy("KODY_LIVE_ALLOW_PROVISION") || allowDestructive;
 const allowApply = truthy("KODY_LIVE_ALLOW_APPLY") || allowDestructive;
-const allowBrainCheckpointMutation = truthy(
-  "KODY_LIVE_ALLOW_CHECKPOINT_MUTATION",
-);
 const markerPath =
   env("KODY_LIVE_MARKER_PATH") ?? "/usr/local/kody-live-restore-marker";
 const marker = `kody-live-${new Date().toISOString()}-${Math.random()
@@ -70,14 +67,6 @@ try {
   });
   await verifyTerminalStatus(brain);
   await verifyDisposableCheckpoint();
-  if (allowBrainCheckpointMutation) {
-    await verifyBrainCheckpointRoundTrip(brain);
-  } else {
-    step(
-      "Brain checkpoint mutation skipped",
-      "set KODY_LIVE_ALLOW_CHECKPOINT_MUTATION=1 to backup, mutate, verify, and restore it",
-    );
-  }
 
   if (!allowSave || !allowDestructive) {
     step(
@@ -266,16 +255,6 @@ async function waitForBrain(predicate, label, timeoutMs) {
     await sleep(5_000);
   }
   throw new Error(`Timed out waiting for ${label}. Last status: ${JSON.stringify(last)}`);
-}
-
-function brainTransport(status) {
-  return {
-    type: "fly",
-    app: status.app,
-    machineId: status.machineId,
-    label: "Brain server",
-    feature: "brain",
-  };
 }
 
 async function brainImageState() {
@@ -619,39 +598,6 @@ async function verifyDisposableCheckpoint() {
   step("Checkpoint verified", "local disposable checkpoint round trip");
 }
 
-async function verifyBrainCheckpointRoundTrip(status) {
-  const transport = brainTransport(status);
-  const previous = await getCheckpoint(transport, chatSessionId);
-  const output = `brain checkpoint ${marker}`;
-  try {
-    await api("PUT", "/api/kody/chat/terminal/checkpoint", {
-      transport,
-      chatSessionId,
-      cwd: "/root",
-      shell: "/bin/sh",
-      output,
-    });
-    await waitForCheckpointOutput(transport, chatSessionId, output, "Brain checkpoint");
-    step("Brain checkpoint verified", "backup, mutate, read");
-  } finally {
-    if (previous) {
-      await api("PUT", "/api/kody/chat/terminal/checkpoint", {
-        transport: previous.transport,
-        chatSessionId: previous.chatSessionId,
-        cwd: previous.cwd,
-        shell: previous.shell,
-        output: previous.output,
-      }).catch((err) => {
-        console.error(`WARN failed to restore previous Brain checkpoint: ${err.message}`);
-      });
-    } else {
-      await deleteCheckpoint(transport, chatSessionId).catch((err) => {
-        console.error(`WARN failed to delete test Brain checkpoint: ${err.message}`);
-      });
-    }
-  }
-}
-
 async function getCheckpoint(transport, sessionId) {
   const params = new URLSearchParams({
     chatSessionId: sessionId,
@@ -792,7 +738,6 @@ Optional:
   KODY_LIVE_ALLOW_APPLY=1
   KODY_LIVE_ALLOW_SAVE=1
   KODY_LIVE_ALLOW_DESTRUCTIVE=1
-  KODY_LIVE_ALLOW_CHECKPOINT_MUTATION=1
   KODY_LIVE_SAVE_TIMEOUT_MS=7200000
 `);
 }

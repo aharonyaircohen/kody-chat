@@ -98,8 +98,6 @@ interface LocalTerminalEventWaiter {
   timeout: ReturnType<typeof setTimeout>;
 }
 
-const NODE_PTY_PACKAGE = "node" + "-pty";
-const NODE_PTY_PACKAGE_JSON = `${NODE_PTY_PACKAGE}/package.json`;
 const LOCAL_TERMINAL_UNAVAILABLE_MESSAGE =
   "Local terminal is unavailable in this runtime because native PTY support could not load.";
 
@@ -193,7 +191,7 @@ function tmuxShellCommand(shell: string): string {
 
 async function loadNodePty(): Promise<NodePtyModule> {
   try {
-    return (await import(NODE_PTY_PACKAGE)) as unknown as NodePtyModule;
+    return require("node-pty") as NodePtyModule;
   } catch (cause) {
     throw new LocalTerminalUnavailableError(cause);
   }
@@ -284,7 +282,7 @@ function ensureNodePtyHelperImplementation(): void {
   if (process.platform !== "darwin" && process.platform !== "linux") return;
 
   try {
-    const pkgPath = require.resolve(NODE_PTY_PACKAGE_JSON);
+    const pkgPath = require.resolve("node-pty/package.json");
     const root = dirname(pkgPath);
     const candidates = [
       join(

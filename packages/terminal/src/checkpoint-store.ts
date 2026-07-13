@@ -19,29 +19,16 @@ import {
   terminalCheckpointId,
   terminalCheckpointKey,
   terminalCheckpointsPath,
-  type TerminalCheckpoint,
-  type TerminalCheckpointInput,
-  type TerminalCheckpointsDocument,
-  type TerminalCheckpointLookup,
+  type LocalTerminalCheckpoint,
+  type LocalTerminalCheckpointInput,
+  type LocalTerminalCheckpointsDocument,
+  type LocalTerminalCheckpointLookup,
 } from "./checkpoint-types";
 
-const TransportSchema = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("local"),
-    label: z.string().min(1).max(120).optional(),
-  }),
-  z.object({
-    type: z.literal("brain"),
-    label: z.string().min(1).max(120).optional(),
-  }),
-  z.object({
-    type: z.literal("fly"),
-    app: z.string().min(1).max(120),
-    machineId: z.string().min(1).max(120),
-    label: z.string().min(1).max(120).optional(),
-    feature: z.enum(["runner", "brain"]).optional(),
-  }),
-]);
+const TransportSchema = z.object({
+  type: z.literal("local"),
+  label: z.string().min(1).max(120).optional(),
+});
 
 const TerminalCheckpointSchema = z.object({
   id: z.string().min(1).max(120),
@@ -61,21 +48,21 @@ const TerminalCheckpointsDocumentSchema = z.object({
   checkpoints: z.array(z.unknown()).max(TERMINAL_CHECKPOINT_LIMIT),
 });
 
-function emptyDoc(): TerminalCheckpointsDocument {
+function emptyDoc(): LocalTerminalCheckpointsDocument {
   return { version: 1, checkpoints: [] };
 }
 
 function sortCheckpoints(
-  checkpoints: TerminalCheckpoint[],
-): TerminalCheckpoint[] {
+  checkpoints: LocalTerminalCheckpoint[],
+): LocalTerminalCheckpoint[] {
   return [...checkpoints].sort((a, b) =>
     b.updatedAt.localeCompare(a.updatedAt),
   );
 }
 
 function normalizeCheckpoints(
-  checkpoints: TerminalCheckpoint[],
-): TerminalCheckpoint[] {
+  checkpoints: LocalTerminalCheckpoint[],
+): LocalTerminalCheckpoint[] {
   const seen = new Set<string>();
   return sortCheckpoints(checkpoints).filter((checkpoint) => {
     if (seen.has(checkpoint.key)) return false;
@@ -89,7 +76,7 @@ function parseDoc(
   owner: string,
   repo: string,
   actorLogin: string,
-): TerminalCheckpointsDocument {
+): LocalTerminalCheckpointsDocument {
   try {
     const parsed = TerminalCheckpointsDocumentSchema.parse(JSON.parse(raw));
     const checkpoints = parsed.checkpoints.flatMap((checkpoint) => {
@@ -114,7 +101,7 @@ export async function readTerminalCheckpoints(
   owner: string,
   repo: string,
   actorLogin: string,
-): Promise<{ doc: TerminalCheckpointsDocument; sha: string | null }> {
+): Promise<{ doc: LocalTerminalCheckpointsDocument; sha: string | null }> {
   const path = terminalCheckpointsPath(actorLogin);
   const file = await readStateText(octokit, owner, repo, path, {
     headers: { "If-None-Match": "" },
@@ -131,10 +118,10 @@ export async function getTerminalCheckpoint(
   owner: string,
   repo: string,
   actorLogin: string,
-  lookup: TerminalCheckpointLookup,
+  lookup: LocalTerminalCheckpointLookup,
 ): Promise<{
-  doc: TerminalCheckpointsDocument;
-  checkpoint: TerminalCheckpoint | null;
+  doc: LocalTerminalCheckpointsDocument;
+  checkpoint: LocalTerminalCheckpoint | null;
   sha: string | null;
 }> {
   const { doc, sha } = await readTerminalCheckpoints(
@@ -157,11 +144,11 @@ export async function upsertTerminalCheckpoint(
   owner: string,
   repo: string,
   actorLogin: string,
-  input: TerminalCheckpointInput,
+  input: LocalTerminalCheckpointInput,
   now = new Date(),
 ): Promise<{
-  doc: TerminalCheckpointsDocument;
-  checkpoint: TerminalCheckpoint;
+  doc: LocalTerminalCheckpointsDocument;
+  checkpoint: LocalTerminalCheckpoint;
   sha: string;
 }> {
   const { doc, sha } = await readTerminalCheckpoints(
@@ -175,7 +162,7 @@ export async function upsertTerminalCheckpoint(
     doc.checkpoints.find((checkpoint) => checkpoint.key === key) ?? null;
   const timestamp = now.toISOString();
   const output = limitTerminalCheckpointOutput(input.output ?? "");
-  const checkpoint: TerminalCheckpoint = {
+  const checkpoint: LocalTerminalCheckpoint = {
     id: existing?.id ?? terminalCheckpointId(key),
     key,
     transport: input.transport,
@@ -201,7 +188,7 @@ export async function upsertTerminalCheckpoint(
     return { doc, checkpoint: existing, sha: sha ?? "" };
   }
 
-  const next: TerminalCheckpointsDocument = {
+  const next: LocalTerminalCheckpointsDocument = {
     version: 1,
     checkpoints: normalizeCheckpoints([
       checkpoint,
@@ -227,10 +214,10 @@ export async function deleteTerminalCheckpoint(
   owner: string,
   repo: string,
   actorLogin: string,
-  lookup: TerminalCheckpointLookup,
+  lookup: LocalTerminalCheckpointLookup,
 ): Promise<{
-  doc: TerminalCheckpointsDocument;
-  deleted: TerminalCheckpoint | null;
+  doc: LocalTerminalCheckpointsDocument;
+  deleted: LocalTerminalCheckpoint | null;
   sha: string | null;
 }> {
   const { doc, sha } = await readTerminalCheckpoints(
@@ -244,7 +231,7 @@ export async function deleteTerminalCheckpoint(
     doc.checkpoints.find((checkpoint) => checkpoint.key === key) ?? null;
   if (!deleted) return { doc, deleted: null, sha };
 
-  const next: TerminalCheckpointsDocument = {
+  const next: LocalTerminalCheckpointsDocument = {
     version: 1,
     checkpoints: doc.checkpoints.filter((checkpoint) => checkpoint.key !== key),
   };

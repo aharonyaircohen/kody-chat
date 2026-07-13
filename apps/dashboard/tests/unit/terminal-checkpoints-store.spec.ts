@@ -64,38 +64,18 @@ describe("terminal checkpoint store", () => {
     );
   });
 
-  it("keys Brain checkpoints once per user, not per Fly machine", () => {
+  it("keys local checkpoints by chat session", () => {
     const first = terminalCheckpointKey({
-      transport: {
-        type: "fly",
-        app: "brain-a",
-        machineId: "machine-a",
-        feature: "brain",
-      },
+      transport: { type: "local" },
       chatSessionId: "chat-1",
     });
     const second = terminalCheckpointKey({
-      transport: {
-        type: "fly",
-        app: "brain-b",
-        machineId: "machine-b",
-        feature: "brain",
-      },
+      transport: { type: "local" },
       chatSessionId: "chat-2",
     });
-    const runner = terminalCheckpointKey({
-      transport: {
-        type: "fly",
-        app: "runner",
-        machineId: "machine-a",
-        feature: "runner",
-      },
-      chatSessionId: "chat-1",
-    });
 
-    expect(first).toBe("brain:user");
-    expect(second).toBe(first);
-    expect(runner).toBe("fly:runner:machine-a");
+    expect(first).toBe("local:chat-1");
+    expect(second).toBe("local:chat-2");
   });
 
   it("upserts one checkpoint per terminal key and caps output", async () => {
@@ -166,7 +146,7 @@ describe("terminal checkpoint store", () => {
   });
 
   it("does not rewrite an unchanged checkpoint", async () => {
-    const transport = { type: "fly" as const, app: "brain", machineId: "m1" };
+    const transport = { type: "local" as const };
     const key = terminalCheckpointKey({
       transport,
       chatSessionId: "chat-1",
@@ -213,7 +193,7 @@ describe("terminal checkpoint store", () => {
 
   it("reads and deletes the checkpoint for the current terminal key", async () => {
     const keepTransport = { type: "local" as const };
-    const dropTransport = { type: "fly" as const, app: "runner", machineId: "m2" };
+    const dropTransport = { type: "local" as const, label: "second" };
     const keepKey = terminalCheckpointKey({
       transport: keepTransport,
       chatSessionId: "chat-1",
@@ -273,7 +253,7 @@ describe("terminal checkpoint store", () => {
     );
   });
 
-  it("ignores legacy sandbox checkpoint records without losing valid entries", async () => {
+  it("ignores legacy remote checkpoint records without losing local entries", async () => {
     const localTransport = { type: "local" as const };
     const localKey = terminalCheckpointKey({
       transport: localTransport,
@@ -296,8 +276,8 @@ describe("terminal checkpoint store", () => {
           },
           {
             id: "legacy",
-            key: "github-actions:sandbox-1",
-            transport: { type: "github-actions", sandboxId: "sandbox-1" },
+            key: "brain:user",
+            transport: { type: "brain" },
             chatSessionId: "chat-2",
             output: "drop",
             createdAt: "2026-06-24T00:00:00.000Z",

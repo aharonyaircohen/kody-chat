@@ -131,12 +131,7 @@ describe("terminal checkpoint routes", () => {
     const res = await PUT(
       putReq({
         actorLogin: "alice",
-        transport: {
-          type: "fly",
-          app: "brain",
-          machineId: "m1",
-          feature: "brain",
-        },
+        transport: localTransport,
         chatSessionId: "chat-1",
         cwd: "/repo",
         shell: "zsh",
@@ -156,9 +151,23 @@ describe("terminal checkpoint routes", () => {
       "alice",
       expect.objectContaining({
         chatSessionId: "chat-1",
-        transport: expect.objectContaining({ feature: "brain" }),
+        transport: localTransport,
       }),
     );
+  });
+
+  it("rejects remote checkpoint transports", async () => {
+    const res = await PUT(
+      putReq({
+        actorLogin: "alice",
+        transport: { type: "brain" },
+        chatSessionId: "chat-1",
+        output: "stale remote snapshot",
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(checkpointStore.upsertTerminalCheckpoint).not.toHaveBeenCalled();
   });
 
   it("rejects invalid checkpoint payloads", async () => {

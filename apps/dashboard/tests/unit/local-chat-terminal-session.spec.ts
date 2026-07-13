@@ -4,8 +4,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const spawnMock = vi.fn();
 const spawnSyncMock = vi.fn();
+const requireMock = Object.assign(
+  vi.fn((id: string) => {
+    if (id === "node-pty") return { spawn: spawnMock };
+    throw new Error(`Unexpected runtime require: ${id}`);
+  }),
+  { resolve: vi.fn(() => "/node_modules/node-pty/package.json") },
+);
 
-vi.mock("node-pty", () => ({ spawn: spawnMock }));
+vi.mock("node:module", () => ({ createRequire: () => requireMock }));
 
 vi.mock("node:child_process", () => ({
   spawnSync: spawnSyncMock,
@@ -42,6 +49,8 @@ describe("local chat terminal session registry", () => {
     vi.resetModules();
     spawnMock.mockReset();
     spawnSyncMock.mockReset();
+    requireMock.mockClear();
+    requireMock.resolve.mockClear();
     spawnSyncMock.mockReturnValue({ status: 1 });
     (
       globalThis as { __kodyLocalTerminalStore?: unknown }
@@ -168,7 +177,7 @@ describe("local chat terminal session registry", () => {
     }
   });
 
-  it("does not statically load node-pty into unrelated server bundles", () => {
+  it("keeps node-pty lazy while exposing literal specifiers to the server compiler", () => {
     const source = readFileSync(
       resolve(
         __dirname,
@@ -178,8 +187,16 @@ describe("local chat terminal session registry", () => {
     );
 
     expect(source).not.toContain('from "node-pty"');
-    expect(source).not.toContain('import("node-pty")');
-    expect(source).not.toContain('require.resolve("node-pty');
+    expect(source).toContain('require("node-pty")');
+    expect(source).toContain('require.resolve("node-pty/package.json")');
+
+    const terminalPackage = JSON.parse(
+      readFileSync(
+        resolve(__dirname, "../../../../packages/terminal/package.json"),
+        "utf8",
+      ),
+    ) as { dependencies?: Record<string, string> };
+    expect(terminalPackage.dependencies?.["node-pty"]).toBe("^1.1.0");
   });
 
   it("reports local terminal unavailable when node-pty native support cannot start", async () => {
