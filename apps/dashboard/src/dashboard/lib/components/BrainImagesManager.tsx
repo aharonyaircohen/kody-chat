@@ -319,6 +319,10 @@ export function BrainImagesManager() {
     () => images.find((image) => image.imageRef === runningImageRef) ?? null,
     [images, runningImageRef],
   );
+  const selectedImage = useMemo(
+    () => images.find((image) => image.imageRef === activeImageRef) ?? null,
+    [activeImageRef, images],
+  );
   const selectedNeedsApply =
     activeImageRef !== null && activeImageRef !== runningImageRef;
   const runningNeedsMachineProof =
@@ -445,15 +449,17 @@ export function BrainImagesManager() {
               </div>
               <div className="min-w-0 rounded-md border border-white/[0.08] bg-black/20 p-3">
                 <div className="text-[11px] font-semibold uppercase text-white/45">
-                  Latest save
+                  Selected Brain image
                 </div>
                 <div className="mt-1 truncate font-mono text-xs text-white">
-                  {images[0] ? imageLabel(images[0].imageRef) : "None"}
+                  {activeImageRef ? imageLabel(activeImageRef) : "None"}
                 </div>
                 <div className="mt-1 text-xs text-white/45">
-                  {images[0]
-                    ? `Saved ${formatDate(images[0].updatedAt)}`
-                    : "No saved images yet"}
+                  {selectedImage
+                    ? activeImageRef === runningImageRef
+                      ? "Currently running"
+                      : `Saved ${formatDate(selectedImage.updatedAt)}`
+                    : "No image selected"}
                 </div>
               </div>
               <div className="min-w-0 rounded-md border border-white/[0.08] bg-black/20 p-3">
@@ -562,13 +568,21 @@ export function BrainImagesManager() {
                       <span className="truncate font-mono text-sm text-white">
                         {imageLabel(image.imageRef)}
                       </span>
+                      {selected && (
+                        <span
+                          className="inline-flex shrink-0 items-center rounded border border-violet-400/20 bg-violet-400/10 px-1.5 py-0.5 text-[11px] font-medium text-violet-200"
+                          aria-label="Selected Brain image"
+                        >
+                          Selected
+                        </span>
+                      )}
                       {running && (
                         <span
-                          className="inline-flex shrink-0 items-center rounded border border-emerald-400/20 bg-emerald-400/10 p-1 text-emerald-300"
-                          title="Active Brain image"
-                          aria-label="Active Brain image"
+                          className="inline-flex shrink-0 items-center gap-1 rounded border border-emerald-400/20 bg-emerald-400/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-300"
+                          aria-label="Running Brain image"
                         >
                           <CheckCircle2 className="h-3 w-3" />
+                          Running
                         </span>
                       )}
                     </div>

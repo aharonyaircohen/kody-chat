@@ -99,29 +99,23 @@ describe("BrainImagesManager", () => {
     expect(SOURCE).not.toContain("disabled={!selected || running || busy}");
   });
 
-  it("does not show a duplicate running badge in each image row", () => {
-    expect(SOURCE).not.toContain("text-emerald-200");
-    expect(SOURCE).not.toContain("Running Brain image</span>");
-  });
-
-  it("shows a compact active marker for the running image row", () => {
-    expect(SOURCE).toContain('title="Active Brain image"');
-    expect(SOURCE).toContain('aria-label="Active Brain image"');
+  it("shows explicit selected and running state on each image row", () => {
+    expect(SOURCE).toContain('aria-label="Selected Brain image"');
+    expect(SOURCE).toContain('aria-label="Running Brain image"');
+    expect(SOURCE).toMatch(/>\s+Selected\s+<\/span>/);
+    expect(SOURCE).toMatch(/>\s+Running\s+<\/span>/);
     expect(SOURCE).toContain("<CheckCircle2");
     expect(SOURCE).toContain("text-emerald-300");
     expect(SOURCE).toContain("bg-emerald-400/10");
-    expect(SOURCE).not.toContain("\n                          Active\n");
   });
 
-  it("shows running Brain image, latest save, and saved image count separately", () => {
+  it("shows selected Brain image, running Brain image, and saved image count separately", () => {
     expect(SOURCE).toContain(
       "Run this image replaces the saved Brain machine image",
     );
     expect(SOURCE).toContain("Running Brain image");
-    expect(SOURCE).toContain("Latest save");
+    expect(SOURCE).toContain("Selected Brain image");
     expect(SOURCE).toContain("Saved images");
-    expect(SOURCE).not.toContain(">Selected<");
-    expect(SOURCE).not.toContain(">Running<");
     expect(SOURCE).toContain("Pending image");
     expect(SOURCE).toContain('Machine {machineState ?? "state unknown"}');
     expect(SOURCE).toContain("machineImageRef");
