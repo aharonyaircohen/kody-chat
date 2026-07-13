@@ -176,6 +176,8 @@ base=${shellQuote(input.baseImageRef)}
 image=${shellQuote(input.imageRef)}
 ghcr_user=${shellQuote(ghcrUser)}
 tmpdir="$(mktemp -d)"
+export DOCKER_CONFIG="$tmpdir/docker"
+install -d -m 0700 "$DOCKER_CONFIG"
 remote_archive="/tmp/kody-brain-rootfs-$tag.tgz"
 remote_script="/tmp/kody-brain-export-$tag.sh"
 keepalive_pid=""
