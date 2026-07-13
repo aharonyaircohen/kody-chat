@@ -8,10 +8,13 @@
 import { describe, it, expect } from "vitest";
 import {
   bootPhaseLabel,
+  compactReportItems,
   composeUserWireContent,
   formatElapsed,
   formatFileSize,
   getFileIcon,
+  reportItem,
+  reportValue,
   shouldCollectPreviewContextForTurn,
 } from "@dashboard/lib/components/kody-chat-helpers";
 
@@ -121,5 +124,28 @@ describe("kody chat preview context shaping", () => {
         hasImageAttachments: true,
       }),
     ).toBe(false);
+  });
+});
+
+describe("chat issue report values", () => {
+  it("normalizes structured values and truncates long text", () => {
+    expect(reportValue(["alpha", "beta"])).toBe("alpha, beta");
+    expect(reportValue({ state: "ready" })).toBe('{"state":"ready"}');
+    expect(reportValue("abcdef", 5)).toBe("ab...");
+    expect(reportItem("Status", "  ready\nnow  ")).toEqual({
+      label: "Status",
+      value: "ready now",
+    });
+  });
+
+  it("drops empty values from report sections", () => {
+    expect(reportValue(" \n ")).toBeNull();
+    expect(reportItem("Status", null)).toBeNull();
+    expect(
+      compactReportItems([
+        reportItem("Status", null),
+        reportItem("Agent", "kody"),
+      ]),
+    ).toEqual([{ label: "Agent", value: "kody" }]);
   });
 });

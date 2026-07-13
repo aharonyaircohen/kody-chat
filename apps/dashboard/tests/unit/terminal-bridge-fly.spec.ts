@@ -92,7 +92,9 @@ async function waitForOutput(
   const started = Date.now();
   while (!getOutput().includes(expected)) {
     if (Date.now() - started > 5_000) {
-      throw new Error(`timed out waiting for ${expected}`);
+      throw new Error(
+        `timed out waiting for ${expected}; output: ${getOutput()}`,
+      );
     }
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
@@ -300,15 +302,16 @@ fd = sys.stdin.fileno()
 attrs = termios.tcgetattr(fd)
 attrs[3] = attrs[3] | termios.ECHO
 termios.tcsetattr(fd, termios.TCSANOW, attrs)
+os.write(sys.stdout.fileno(), b"READY\n")
 data = os.read(fd, 1024)
 os.write(sys.stdout.fileno(), b"REMOTE:" + data)
 `,
     );
 
+    const child = spawn("python3", [relayPath, "python3", childPath], {
+      stdio: ["pipe", "pipe", "pipe"],
+    });
     try {
-      const child = spawn("python3", [relayPath, "python3", childPath], {
-        stdio: ["pipe", "pipe", "pipe"],
-      });
       let stdout = "";
       let stderr = "";
       child.stdout.setEncoding("utf8");
@@ -323,9 +326,9 @@ os.write(sys.stdout.fileno(), b"REMOTE:" + data)
         child.on("close", resolve);
       });
 
-      child.stdin.write("abc\n");
-      await waitForOutput(() => stdout, "REMOTE:abc");
-      child.stdin.end();
+      await waitForOutput(() => `${stdout}\n${stderr}`, "READY");
+      child.stdin.end("abc\n");
+      await waitForOutput(() => `${stdout}\n${stderr}`, "REMOTE:abc");
       const code = await closePromise;
 
       expect(stderr).toBe("");
@@ -334,9 +337,10 @@ os.write(sys.stdout.fileno(), b"REMOTE:" + data)
       expect(stdout).not.toContain("abc\r\nREMOTE:");
       expect(stdout).not.toContain("abc\nREMOTE:");
     } finally {
+      child.kill();
       rmSync(dir, { recursive: true, force: true });
     }
-  });
+  }, 6_000);
 
   it("ships syntactically valid bridge JavaScript", () => {
     const source = ts.createSourceFile(

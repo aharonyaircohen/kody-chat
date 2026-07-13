@@ -31,8 +31,10 @@ import {
   clearScheduledFlyReconnect,
   fetchWithTimeout,
   isRemoteTerminalTransport,
+  isTerminalActionBusy,
   scheduleFlyReconnect,
   shouldReconnectVisibleRemoteTerminal,
+  terminalStatusText,
   transportKey,
   updateFlyConnectionState,
   waitForFlyInputAck,
@@ -46,6 +48,7 @@ import {
 } from "./fly-connection";
 import {
   cleanTerminalText,
+  copyTerminalSelection,
   MAX_CAPTURE_CHARS,
   usefulCapturedOutput,
 } from "./terminal-text";
@@ -751,19 +754,11 @@ export const ChatTerminalSurface = forwardRef<
     terminalRef.current?.focus();
   }, [clearScheduledTerminalSelection]);
 
-  const copySelectedTerminalText = useCallback(async () => {
-    if (!selectedTerminalText.trim()) return;
-    if (!navigator.clipboard) {
-      toast.error("Clipboard is not available");
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(selectedTerminalText);
-      toast.success("Terminal selection copied");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Copy failed");
-    }
-  }, [selectedTerminalText]);
+  const copySelectedTerminalText = useCallback(
+    () =>
+      copyTerminalSelection(selectedTerminalText, navigator.clipboard, toast),
+    [selectedTerminalText],
+  );
 
   const restart = useCallback(() => {
     clearScheduledFlyReconnect(flyDepsRef);
@@ -826,19 +821,14 @@ export const ChatTerminalSurface = forwardRef<
     ],
   );
 
-  const statusText = isRemoteTerminalTransport(transport)
-    ? (error ??
-      `${
-        transport.type === "brain"
-          ? (transport.label ?? "Brain terminal")
-          : (transport.label ?? transport.app)
-      } · ${flyConnectionState}`)
-    : (error ??
-      (session?.alive ? session.cwd : connecting ? "starting" : "closed"));
-  const actionBusy =
-    connecting ||
-    flyConnectionState === "connecting" ||
-    flyConnectionState === "restoring";
+  const statusText = terminalStatusText({
+    transport,
+    error,
+    session,
+    connecting,
+    connectionState: flyConnectionState,
+  });
+  const actionBusy = isTerminalActionBusy(connecting, flyConnectionState);
 
   useEffect(() => {
     onChromeStateChange?.({

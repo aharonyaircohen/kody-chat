@@ -20,15 +20,18 @@ import {
   connectFly,
   fetchWithTimeout,
   inputSignalForConnectionState,
+  isTerminalActionBusy,
   scheduleFlyReconnect,
   shouldReconnectFlySocket,
   shouldReconnectVisibleRemoteTerminal,
   shouldSkipFlyConnect,
+  terminalStatusText,
   updateFlyConnectionState,
   waitForFlyInputAck,
   type FlyConnectionDeps,
 } from "@dashboard/lib/chat/plugins/terminal/fly-connection";
 import {
+  copyTerminalSelection,
   openTerminalWebLink,
   usefulCapturedOutput,
 } from "@dashboard/lib/chat/plugins/terminal/terminal-text";
@@ -183,6 +186,70 @@ describe("remote input gating", () => {
     ).not.toBeNull();
     updateFlyConnectionState(harness.ref, "closed");
     expect(harness.ref.current.pendingFlyInputAckTimerRef.current).toBeNull();
+  });
+});
+
+describe("terminal surface chrome", () => {
+  it("describes local and remote terminal state", () => {
+    expect(
+      terminalStatusText({
+        transport: { type: "local" },
+        error: null,
+        session: { alive: true, cwd: "/repo" },
+        connecting: false,
+        connectionState: "idle",
+      }),
+    ).toBe("/repo");
+    expect(
+      terminalStatusText({
+        transport: { type: "brain", label: "Repo Brain" },
+        error: null,
+        session: null,
+        connecting: false,
+        connectionState: "restoring",
+      }),
+    ).toBe("Repo Brain · restoring");
+  });
+
+  it("prioritizes errors and only marks active transitions busy", () => {
+    expect(
+      terminalStatusText({
+        transport: { type: "local" },
+        error: "terminal failed",
+        session: null,
+        connecting: true,
+        connectionState: "connecting",
+      }),
+    ).toBe("terminal failed");
+    expect(isTerminalActionBusy(false, "connected")).toBe(false);
+    expect(isTerminalActionBusy(false, "restoring")).toBe(true);
+    expect(isTerminalActionBusy(true, "idle")).toBe(true);
+  });
+});
+
+describe("terminal selection clipboard", () => {
+  it("copies selected text and reports success", async () => {
+    const clipboard = { writeText: vi.fn().mockResolvedValue(undefined) };
+    const notify = { success: vi.fn(), error: vi.fn() };
+
+    await copyTerminalSelection("selected", clipboard, notify);
+
+    expect(clipboard.writeText).toHaveBeenCalledWith("selected");
+    expect(notify.success).toHaveBeenCalledWith("Terminal selection copied");
+    expect(notify.error).not.toHaveBeenCalled();
+  });
+
+  it("reports unavailable and rejected clipboard writes", async () => {
+    const notify = { success: vi.fn(), error: vi.fn() };
+    await copyTerminalSelection("selected", undefined, notify);
+    expect(notify.error).toHaveBeenCalledWith("Clipboard is not available");
+
+    const clipboard = {
+      writeText: vi.fn().mockRejectedValue(new Error("permission denied")),
+    };
+    await copyTerminalSelection("selected", clipboard, notify);
+    expect(notify.error).toHaveBeenCalledWith("permission denied");
+    expect(notify.success).not.toHaveBeenCalled();
   });
 });
 
