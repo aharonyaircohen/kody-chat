@@ -107,10 +107,16 @@ function imageManagementResponse(
   drift: BrainRuntimeDrift | null = null,
 ) {
   const images = mergeBrainSavedImages(image, discoveredImages);
+  const machineImageRef = machine?.imageRef;
+  const machineRunningImage = machineImageRef
+    ? images.find((saved) => sameBrainImageTag(saved.imageRef, machineImageRef))
+    : null;
+  const runningImageRef =
+    machineRunningImage?.imageRef ?? runtime?.runningImageRef ?? null;
   return {
     ok: true,
     imageRef: runtime?.desiredImageRef ?? image?.imageRef ?? null,
-    runningImageRef: runtime?.runningImageRef ?? null,
+    runningImageRef,
     runningAt: runtime?.runningAt ?? null,
     runningApp: runtime?.runningApp ?? null,
     runningMachineId: runtime?.runningMachineId ?? null,
@@ -244,7 +250,9 @@ async function recordCompletedBrainImageSave(input: {
   };
 }
 
-export async function readBrainImageManagement(input: { context: ServerProviderContext }) {
+export async function readBrainImageManagement(input: {
+  context: ServerProviderContext;
+}) {
   const { context } = input;
   const image = await readBrainImage(context.account, context.githubToken);
   const discoveredImages = await discoverImages(context);

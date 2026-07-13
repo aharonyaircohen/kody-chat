@@ -179,6 +179,39 @@ describe("GET /api/kody/brain/image", () => {
     ]);
   });
 
+  it("uses the live machine image when the stored running record is missing", async () => {
+    mocks.readRuntimeView.mockResolvedValueOnce({
+      desiredImageRef:
+        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:brain-20260702-101010",
+      runningImageRef: null,
+      source: "runtime",
+    });
+    vi.mocked(resolveBrainService).mockResolvedValueOnce({
+      app: "brain-1",
+      flyToken: "fly-token",
+      orgSlug: "guy-koren",
+      defaultRegion: "fra",
+      state: "running",
+      url: "https://brain-1.fly.dev",
+      machineId: "machine-1",
+      machineImageRef:
+        "registry.fly.io/kody-brain-aguyaharonyair:brain-20260702-101010",
+      stored: null,
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify([]), { status: 200 })),
+    );
+
+    const res = await GET(request("GET"));
+    const body = (await res.json()) as { runningImageRef?: string | null };
+
+    expect(res.status).toBe(200);
+    expect(body.runningImageRef).toBe(
+      "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:brain-20260702-101010",
+    );
+  });
+
   it("does not rediscover forgotten GHCR image tags", async () => {
     mocks.readImage.mockResolvedValue({
       version: 1,
@@ -255,7 +288,12 @@ describe("GET /api/kody/brain/image", () => {
 
     const res = await GET(request("GET"));
     const body = (await res.json()) as {
-      save?: { status?: string; phase?: string; message?: string; error?: string };
+      save?: {
+        status?: string;
+        phase?: string;
+        message?: string;
+        error?: string;
+      };
     };
 
     expect(res.status).toBe(200);
@@ -607,8 +645,7 @@ describe("DELETE /api/kody/brain/image", () => {
       updatedAt: "2026-07-02T10:10:10.000Z",
       images: [
         {
-          imageRef:
-            "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old",
+          imageRef: "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old",
           createdAt: "2026-06-30T00:00:00.000Z",
           updatedAt: "2026-07-02T10:10:10.000Z",
         },
@@ -619,9 +656,7 @@ describe("DELETE /api/kody/brain/image", () => {
       createdAt: "2026-06-30T00:00:00.000Z",
       updatedAt: "2026-07-02T10:10:10.000Z",
       images: [],
-      forgottenImageRefs: [
-        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old",
-      ],
+      forgottenImageRefs: ["ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old"],
     });
     vi.stubGlobal(
       "fetch",
@@ -664,10 +699,8 @@ describe("DELETE /api/kody/brain/image", () => {
 
   it("blocks deletion of the running Brain image", async () => {
     mocks.readRuntimeView.mockResolvedValueOnce({
-      desiredImageRef:
-        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old",
-      runningImageRef:
-        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old",
+      desiredImageRef: "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old",
+      runningImageRef: "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old",
       source: "runtime",
     });
 
@@ -718,8 +751,7 @@ describe("PATCH /api/kody/brain/image", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.readRuntimeView.mockResolvedValue({
-      desiredImageRef:
-        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:selected",
+      desiredImageRef: "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:selected",
       source: "runtime",
     });
     mocks.selectRuntimeImage.mockResolvedValue(undefined);
