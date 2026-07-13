@@ -91,9 +91,16 @@ vi.mock("@dashboard/lib/view-renderers/renderers", () => ({
   })),
 }));
 
-// CMS tool creation awaits GitHub reads on the request path — stub to empty.
+// Optional tool creation awaits GitHub reads on the request path — stub to empty.
+const createCmsToolsMock = vi.hoisted(() => vi.fn(async () => ({})));
+const createUserStateToolsMock = vi.hoisted(() => vi.fn(async () => ({})));
+
 vi.mock("../../app/api/kody/chat/tools/cms-tools", () => ({
-  createCmsTools: vi.fn(async () => ({})),
+  createCmsTools: createCmsToolsMock,
+}));
+
+vi.mock("../../app/api/kody/chat/tools/user-state-tools", () => ({
+  createUserStateTools: createUserStateToolsMock,
 }));
 
 // Capture the `tools` option handed to streamText; return a stub whose UI
@@ -166,6 +173,28 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
     expect(toolNames).not.toContain("fixture_echo");
     expect(toolNames.length).toBeGreaterThan(5);
     baselineToolNames = toolNames;
+  });
+
+  it("continues the chat when optional CMS tools cannot be loaded", async () => {
+    createCmsToolsMock.mockRejectedValueOnce(new Error("CMS config unavailable"));
+
+    const { status, toolNames } = await postAndCaptureToolNames();
+
+    expect(status).toBe(200);
+    expect(toolNames).toContain("fetch_url");
+    expect(toolNames).not.toContain("cms_list_collections");
+  });
+
+  it("continues the chat when optional user-state tools cannot be loaded", async () => {
+    createUserStateToolsMock.mockRejectedValueOnce(
+      new Error("user-state config unavailable"),
+    );
+
+    const { status, toolNames } = await postAndCaptureToolNames();
+
+    expect(status).toBe(200);
+    expect(toolNames).toContain("fetch_url");
+    expect(toolNames).not.toContain("user_state_get");
   });
 
   it("fixture plugin tool is exposed additively and zod-validated with the request server context", async () => {

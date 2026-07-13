@@ -3,8 +3,9 @@
  * @domain kody
  * @pattern report-kody-bug
  * @ai-summary POST a bug report about Kody itself (dashboard/engine) into the
- *   dashboard's OWN public repo — not the consumer's connected repo. Attributed
- *   to the reporter's PAT (works on a public repo without collaborator access).
+ *   owning Kody product's public repo — not the consumer's connected repo.
+ *   Attributed to the reporter's PAT (works on a public repo without
+ *   collaborator access).
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -22,6 +23,7 @@ import {
 import {
   KODY_BUG_AREAS,
   KODY_BUG_SEVERITIES,
+  KODY_CHAT_REPORT_TARGET,
   KODY_REPORT_TARGET,
 } from "@kody-ade/base/constants";
 import { logger } from "@kody-ade/base/logger";
@@ -90,6 +92,7 @@ const reportSchema = z.object({
   reporterLogin: z.string().optional(),
   diagnostics: diagnosticsSchema,
   capturedState: capturedStateSchema,
+  source: z.enum(["kody-dashboard", "kody-chat"]).default("kody-dashboard"),
 });
 
 type ReportInput = z.infer<typeof reportSchema>;
@@ -200,14 +203,14 @@ export async function POST(req: NextRequest) {
 
     const reporterLogin = actorResult.identity.login;
 
-    // Always target the dashboard's OWN repo, regardless of the connected repo.
+    // Select the owning Kody product, never the consumer's connected repo.
     // Keep the reporter's token so the issue is attributed to them.
+    const target =
+      input.source === "kody-chat"
+        ? KODY_CHAT_REPORT_TARGET
+        : KODY_REPORT_TARGET;
     const headerAuth = getRequestAuth(req);
-    setGitHubContext(
-      KODY_REPORT_TARGET.owner,
-      KODY_REPORT_TARGET.repo,
-      headerAuth?.token ?? "",
-    );
+    setGitHubContext(target.owner, target.repo, headerAuth?.token ?? "");
 
     const userOctokit = await getUserOctokit(req);
 
@@ -229,7 +232,12 @@ export async function POST(req: NextRequest) {
     );
 
     logger.info(
-      { issue: issue.number, area: input.area, severity: input.severity },
+      {
+        issue: issue.number,
+        source: input.source,
+        area: input.area,
+        severity: input.severity,
+      },
       "Kody bug report filed",
     );
 

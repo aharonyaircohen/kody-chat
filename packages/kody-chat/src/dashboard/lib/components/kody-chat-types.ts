@@ -189,6 +189,11 @@ export interface KodyChatProps {
    */
   onIssueCreated?: (issueNumber: number) => void;
   /**
+   * Lets a shell place the report action outside the composer while KodyChat
+   * keeps ownership of the current chat diagnostics and report dialog.
+   */
+  onIssueReportReady?: (report: (() => void) | null) => void;
+  /**
    * Goals the user can "direct chat to" by typing the goal's
    * `#<discussionNumber>` (or `goal:<n>`) in the composer. Supplied by
    * ChatRailShell from the live goals list.

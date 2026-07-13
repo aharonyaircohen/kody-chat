@@ -18,6 +18,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Bug,
   Github,
   LogOut,
   Moon,
@@ -97,6 +98,8 @@ export interface SidebarProps {
    * notifications bell). Hidden while the rail is collapsed.
    */
   brandRowExtra?: React.ReactNode;
+  /** Optional footer action, shown beside the app version. */
+  onReportIssue?: () => void;
 }
 
 export function Sidebar(props: SidebarProps = {}) {
@@ -113,6 +116,7 @@ function SidebarContent({
   brandLabel = "Kody",
   headerExtra,
   brandRowExtra,
+  onReportIssue,
 }: SidebarProps) {
   const pathname = usePathname() ?? "/";
   const router = useRouter();
@@ -677,15 +681,30 @@ function SidebarContent({
           </button>
         </SimpleTooltip>
 
-        {APP_VERSION && (
-          <p
+        {(APP_VERSION || onReportIssue) && (
+          <div
             className={cn(
-              "pt-1 text-code-sm font-mono text-muted-foreground/50 select-none",
-              collapsed ? "text-center" : "px-3",
+              "flex items-center gap-2 pt-1",
+              collapsed ? "justify-center px-0" : "justify-between px-3",
             )}
           >
-            v{APP_VERSION}
-          </p>
+            {APP_VERSION && (
+              <p className="text-code-sm font-mono text-muted-foreground/50 select-none">
+                v{APP_VERSION}
+              </p>
+            )}
+            {onReportIssue && (
+              <button
+                type="button"
+                onClick={onReportIssue}
+                title="Report issue to Kody"
+                aria-label="Report issue to Kody"
+                className="inline-flex h-8 w-8 items-center justify-center rounded text-destructive hover:bg-destructive/10 hover:text-destructive"
+              >
+                <Bug className="h-5 w-5" aria-hidden="true" />
+              </button>
+            )}
+          </div>
         )}
       </div>
     </aside>

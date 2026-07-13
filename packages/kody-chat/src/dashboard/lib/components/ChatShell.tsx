@@ -11,7 +11,7 @@
  */
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Menu, Zap } from "lucide-react";
 import type { ChatPlugin } from "../chat/platform/types";
@@ -55,6 +55,8 @@ export interface ChatShellProps {
   chatPlugins?: Array<{ plugin: ChatPlugin }>;
   /** Custom chat pane. Hosts with their own KodyChat wiring pass it here. */
   chat?: ReactNode;
+  /** Opens the report dialog owned by a host-provided chat pane. */
+  onReportIssue?: () => void;
   /**
    * Whether the current route is the full-chat view (chat takes the whole
    * pane, page content hidden). Defaults to pathname === "/".
@@ -76,6 +78,7 @@ export function ChatShell({
   sidebarBrandExtra,
   chatPlugins,
   chat,
+  onReportIssue,
   isChatHome: isChatHomeProp,
   showMobileHeader = true,
   contentTestId,
@@ -83,10 +86,16 @@ export function ChatShell({
 }: ChatShellProps) {
   const pathname = usePathname() ?? "/";
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const reportIssueRef = useRef<(() => void) | null>(null);
+  const setIssueReporter = useCallback((report: (() => void) | null) => {
+    reportIssueRef.current = report;
+  }, []);
   // Repo-scoped paths (/repo/<owner>/<name>/...) rewrite to the bare route;
   // strip the prefix so the chat-home check matches both shapes.
   const bare = pathname.replace(/^\/repo\/[^/]+\/[^/]+/, "") || "/";
   const isChatHome = isChatHomeProp ?? bare === "/";
+  const reportIssueAction = onReportIssue ??
+    (chat ? undefined : () => reportIssueRef.current?.());
 
   // Drag-to-resize width (px) for the chat rail, persisted per device.
   const [railWidth, setRailWidth] = useState(RAIL_DEFAULT);
@@ -142,6 +151,7 @@ export function ChatShell({
       // kody-chat is a plain assistant — hosts that pass their own `chat`
       // (the dashboard) keep their product's welcome.
       emptyStateWelcome={<p className="font-medium">Hi! How can I help?</p>}
+      onIssueReportReady={setIssueReporter}
     />
   );
 
@@ -190,6 +200,7 @@ export function ChatShell({
           brandLabel={title}
           headerExtra={sidebarHeaderExtra}
           brandRowExtra={sidebarBrandExtra}
+          onReportIssue={reportIssueAction}
         />
 
         {/* Chat rail — right of the nav sidebar. A fixed-width side rail by

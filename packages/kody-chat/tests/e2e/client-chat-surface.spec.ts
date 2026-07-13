@@ -120,6 +120,11 @@ test.describe("Client chat surface", () => {
     await expect(chat.locator("textarea").first()).toBeEditable();
     await expect(chat.locator('button[title="Bold"]')).toBeVisible();
     await expect(chat.locator('button[title="Preview"]')).toBeVisible();
+    // The primary action stays in place even before text is entered, so the
+    // composer does not shift and its next action remains discoverable.
+    await expect(
+      chat.getByRole("button", { name: "Send message" }),
+    ).toBeVisible();
     await expect(chat.getByRole("button", { name: /Terminal/i })).toHaveCount(
       0,
     );

@@ -4,15 +4,15 @@
  * @pattern chat-surface
  * @ai-summary Header region of the chat surface — agent/model picker (locked
  * label when the host pins an agent), thinking-level control, remote dev
- * status dot, the icon-only action buttons (new conversation, sessions
- * toggle, fullscreen, collapse, close) and the context bar (task /
- * capability / planner / global session title). Extracted verbatim from
+ * status dot, the icon-only window action buttons (fullscreen, collapse,
+ * close), and the context bar with conversation actions (task / capability /
+ * planner / global session title). Extracted verbatim from
  * KodyChat (Step 3); selection + session state stays with the host, which
  * wires behavior through callbacks.
  */
 "use client";
 
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, ReactNode, SetStateAction } from "react";
 import {
   Brain,
   Globe,
@@ -97,6 +97,8 @@ interface HeaderControlsProps {
   onPlannerExit?: () => void;
   /** Active session title for the global-context row. */
   activeSessionTitle?: string;
+  /** Assistant and thinking controls, built by the host. */
+  chatSettingsControl: ReactNode;
 }
 
 /**
@@ -140,6 +142,7 @@ export function HeaderControls({
   plannerGoal,
   onPlannerExit,
   activeSessionTitle,
+  chatSettingsControl,
 }: HeaderControlsProps) {
   const headerClassName = compact
     ? "border-b bg-gradient-to-r from-muted/80 to-muted/40 px-3 py-1.5 sm:px-4"
@@ -155,10 +158,97 @@ export function HeaderControls({
     (isTaskMode && selectedTask) ||
     (isCapabilityMode && selectedCapability) ||
     (isPlannerMode && plannerGoal);
+  const messageCountBadge =
+    messageCount > 0 ? (
+      <span className="shrink-0 rounded-full bg-primary/10 px-2 py-1 text-body-xs text-primary">
+        {messageCount}
+      </span>
+    ) : null;
+  const conversationActions = (
+    <div className="ml-auto flex shrink-0 items-center gap-1">
+      {!lockedAgentId && !hideAgentPicker && (
+        <button
+          type="button"
+          onClick={onNewConversation}
+          disabled={activeLoading}
+          className={`${quietIconButtonClassName} disabled:cursor-not-allowed disabled:opacity-50`}
+          title="Start a new conversation"
+          aria-label="New conversation"
+        >
+          <Plus className="w-4 h-4" aria-hidden="true" />
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={onToggleSessionSidebar}
+        className={`${mainIconButtonClassName} ${
+          showSessionSidebar
+            ? "bg-primary text-primary-foreground border-primary"
+            : "text-muted-foreground hover:text-foreground hover:bg-background border-transparent hover:border-border"
+        }`}
+        title="Conversations"
+        aria-label="Toggle conversations"
+      >
+        <MessageSquare className="w-4 h-4" aria-hidden="true" />
+      </button>
+      {remoteStatus?.configured && (
+        <span
+          className={`h-2 w-2 rounded-full ${remoteStatus.online ? "bg-green-500" : "bg-red-400"}`}
+          title={
+            remoteStatus.online ? "Remote dev: online" : "Remote dev: offline"
+          }
+          aria-label={
+            remoteStatus.online ? "Remote dev online" : "Remote dev offline"
+          }
+        />
+      )}
+      <ChatPluginSlot slot="header-actions" />
+      {chatSettingsControl}
+      {onToggleFullscreen && (
+        <button
+          type="button"
+          onClick={onToggleFullscreen}
+          aria-label={
+            railFullscreen ? "Restore chat width" : "Expand chat fullscreen"
+          }
+          title={railFullscreen ? "Restore" : "Fullscreen"}
+          className={quietIconButtonClassName}
+        >
+          {railFullscreen ? (
+            <Minimize2 className="h-4 w-4" />
+          ) : (
+            <Maximize2 className="h-4 w-4" />
+          )}
+        </button>
+      )}
+      {onCollapseRail && (
+        <button
+          type="button"
+          onClick={onCollapseRail}
+          aria-label="Collapse chat"
+          title="Collapse"
+          className={quietIconButtonClassName}
+        >
+          <PanelLeftClose className="h-4 w-4" />
+        </button>
+      )}
+      {onClose && (
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close chat"
+          title="Close"
+          className={quietIconButtonClassName}
+        >
+          <X className="h-4 w-4" />
+        </button>
+      )}
+    </div>
+  );
 
   return (
     <div className={headerClassName} data-testid="chat-header-controls">
-      <div className="flex items-center justify-between">
+      <div className="hidden">
         {/* Left: agent picker (locked label when parent forces an agent) */}
         <div className="relative flex items-center gap-2">
           {!hideAgentPicker &&
@@ -213,11 +303,6 @@ export function HeaderControls({
                 </button>
               );
             })()}
-          {messageCount > 0 && (
-            <span className="ms-1 rounded-full bg-primary/10 px-2 py-1 text-body-xs text-primary">
-              {messageCount}
-            </span>
-          )}
           {/* Thinking-level control. Rendered only when the active model
             declares a `reasoning` block (or one is auto-detected from
             the model name). Three cases:
@@ -368,48 +453,11 @@ export function HeaderControls({
           </div>
         )}
 
-        {/* Right: Action buttons (session sidebar, task history) */}
+        {/* Right: Window and host actions. Conversation actions sit with the title below. */}
         <div className="flex items-center gap-1">
           {/* Plugin header-actions slot (Step 4) — empty until a plugin
             contributes; renders nothing (no wrapper) with zero plugins. */}
           <ChatPluginSlot slot="header-actions" />
-          {/* New conversation — wires to useChatSessions.createSession().
-            The unified thread means there's only ONE store across all
-            pages, so a new conversation is the only way to reset. The
-            button is visible everywhere except on locked views (Vibe),
-            where the parent owns the chat lifecycle. Icon-only to
-            match the other header controls (collapse, fullscreen). */}
-          {!lockedAgentId && !hideAgentPicker && (
-            <button
-              type="button"
-              onClick={onNewConversation}
-              disabled={activeLoading}
-              className={`${quietIconButtonClassName} disabled:opacity-50 disabled:cursor-not-allowed`}
-              title="Start a new conversation"
-              aria-label="New conversation"
-            >
-              <Plus className="w-4 h-4" aria-hidden="true" />
-            </button>
-          )}
-
-          {/* Session sidebar toggle — available in any mode now that all
-            threads are unified; the sidebar just lists sessions from
-            the global store. Icon-only to match the other header
-            controls (collapse, fullscreen). */}
-          <button
-            type="button"
-            onClick={onToggleSessionSidebar}
-            className={`${mainIconButtonClassName} ${
-              showSessionSidebar
-                ? "bg-primary text-primary-foreground border-primary"
-                : "text-muted-foreground hover:text-foreground hover:bg-background border-transparent hover:border-border"
-            }`}
-            title="Conversations"
-            aria-label="Toggle conversations"
-          >
-            <MessageSquare className="w-4 h-4" aria-hidden="true" />
-          </button>
-
           {/* Fullscreen / restore (desktop rail only) */}
           {onToggleFullscreen && (
             <button
@@ -459,15 +507,17 @@ export function HeaderControls({
 
       {/* Context bar: task, capability, planner, or global */}
       {showContextBar ? (
-        <div className={compact ? "mt-1" : "mt-1 sm:mt-2"}>
+        <div data-testid="chat-context-bar" className="mt-0">
           {isTaskMode && selectedTask ? (
             <div className="flex items-center gap-2 text-sm">
               <span className="px-1.5 py-0.5 bg-primary text-primary-foreground rounded font-medium">
                 #{selectedTask.issueNumber}
               </span>
-              <span className="truncate text-muted-foreground">
+              <span className="min-w-0 flex-1 truncate text-muted-foreground">
                 {selectedTask.title}
               </span>
+              {messageCountBadge}
+              {conversationActions}
             </div>
           ) : isCapabilityMode && selectedCapability ? (
             <div className="flex items-center gap-2 text-sm">
@@ -475,9 +525,11 @@ export function HeaderControls({
                 <Target className="w-3 h-3" />
                 {selectedCapability.slug}
               </span>
-              <span className="truncate text-muted-foreground">
+              <span className="min-w-0 flex-1 truncate text-muted-foreground">
                 {selectedCapability.title}
               </span>
+              {messageCountBadge}
+              {conversationActions}
             </div>
           ) : isPlannerMode && plannerGoal ? (
             <div className="flex items-center gap-2 text-sm">
@@ -487,6 +539,8 @@ export function HeaderControls({
               <span className="truncate text-muted-foreground flex-1 min-w-0">
                 {plannerGoal.name}
               </span>
+              {messageCountBadge}
+              {conversationActions}
               {onPlannerExit ? (
                 <button
                   type="button"
@@ -505,13 +559,15 @@ export function HeaderControls({
               const hasRealTitle =
                 !!sessionTitle && sessionTitle !== "New conversation";
               return (
-                <div className="text-sm text-muted-foreground flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
                   <Globe className="w-3 h-3 shrink-0" />
-                  <span className="truncate">
+                  <span className="min-w-0 flex-1 truncate">
                     {hasRealTitle
                       ? sessionTitle
                       : "Global chat — not tied to any task"}
                   </span>
+                  {messageCountBadge}
+                  {conversationActions}
                 </div>
               );
             })()

@@ -503,7 +503,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
         ],
       }),
     ).toEqual({
-      activeTools: [SHOW_VIEW_TOOL],
+      activeTools: [FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL],
       toolChoice: "required",
     });
   });

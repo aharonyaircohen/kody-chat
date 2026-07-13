@@ -62,13 +62,7 @@ export function TerminalModeToggle({
   onOpenTerminal: () => void;
 }) {
   return (
-    <div
-      className={`inline-flex items-center rounded-md border p-0.5 ${
-        chatMode === "terminal"
-          ? "justify-self-end border-white/10 bg-white/5"
-          : "bg-background/70"
-      }`}
-    >
+    <div className="inline-flex items-center rounded-md border bg-background/70 p-0.5">
       <button
         type="button"
         onClick={onSelectAiMode}
@@ -155,8 +149,7 @@ export function TerminalTopControls({
             )) && <option value="brain">Brain terminal</option>}
           {activeTransport.type === "fly" &&
             !terminalMachines.some(
-              (machine) =>
-                terminalFlyMachineKey(machine) === activeTargetValue,
+              (machine) => terminalFlyMachineKey(machine) === activeTargetValue,
             ) && (
               <option value={activeTargetValue}>
                 {flyTerminalTargetLabel(activeTransport)} · selected
@@ -235,49 +228,67 @@ export function TerminalBottomControls({
   onRestart,
   onClear,
   actionBusy,
+  layout = "row",
 }: {
   onAddToChat: () => void;
   onRestart: () => void;
   onClear: () => void;
   actionBusy: boolean | undefined;
+  layout?: "row" | "menu";
 }) {
+  const menuLayout = layout === "menu";
+  const actionClassName = menuLayout
+    ? "flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm text-foreground transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+    : "inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50";
+
   return (
     <div
       data-testid="chat-terminal-bottom-status"
-      className="flex min-w-0 shrink items-center gap-2"
+      className={
+        menuLayout
+          ? "grid min-w-0 gap-1"
+          : "flex min-w-0 shrink items-center gap-2"
+      }
     >
-      <div className="flex shrink-0 items-center gap-1">
+      <div
+        className={
+          menuLayout ? "grid gap-1" : "flex shrink-0 items-center gap-1"
+        }
+      >
         <button
           type="button"
           onClick={onAddToChat}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className={actionClassName}
           title="Add terminal output to AI chat"
           aria-label="Add terminal output to AI chat"
         >
-          <ClipboardCopy className="h-4 w-4" />
+          <ClipboardCopy className="h-4 w-4 shrink-0" />
+          {menuLayout && <span>Add to AI chat</span>}
         </button>
         <button
           type="button"
           onClick={onRestart}
           disabled={actionBusy}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          className={actionClassName}
           title="Restart terminal"
           aria-label="Restart terminal"
         >
           {actionBusy ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
+            <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
           ) : (
-            <RotateCcw className="h-4 w-4" />
+            <RotateCcw className="h-4 w-4 shrink-0" />
           )}
+          {menuLayout && <span>Restart terminal</span>}
         </button>
         <button
           type="button"
           onClick={onClear}
-          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          className={actionClassName}
           title="Clear terminal"
           aria-label="Clear terminal"
         >
-          <Eraser className="h-4 w-4" />
+          <Eraser className="h-4 w-4 shrink-0" />
+          {menuLayout && <span>Clear terminal</span>}
         </button>
       </div>
     </div>

@@ -76,6 +76,7 @@ import { useKodyActionState } from "@dashboard/lib/hooks/useKodyActionState";
 import { useMediaQuery } from "@dashboard/lib/hooks/useMediaQuery";
 import { SessionsPanel } from "../chat/surface/SessionsPanel";
 import { HeaderControls } from "../chat/surface/HeaderControls";
+import { ChatSettingsMenu } from "../chat/surface/ChatSettingsMenu";
 import { MessageList } from "../chat/surface/MessageList";
 import { Composer } from "../chat/surface/Composer";
 import type { StaffMentionTrigger } from "@dashboard/lib/mentions/agent-mentions";
@@ -138,6 +139,7 @@ export function KodyChat({
   messageRoleLayout,
   vibeMode,
   onIssueCreated,
+  onIssueReportReady,
   knownGoals,
   onDirectToGoal,
   composerInjection,
@@ -874,6 +876,11 @@ export function KodyChat({
     setShowIssueReport(true);
   }, [captureIssueReportState]);
 
+  useEffect(() => {
+    onIssueReportReady?.(openIssueReport);
+    return () => onIssueReportReady?.(null);
+  }, [onIssueReportReady, openIssueReport]);
+
   // Unified thread: the global session store (useChatSessions) owns the
   // message list. Per-page scope (task / capability / planner / report) flows
   // through the per-turn system-prompt blocks, not separate stores. The
@@ -1604,6 +1611,27 @@ export function KodyChat({
           plannerGoal={plannerGoal}
           onPlannerExit={onPlannerExit}
           activeSessionTitle={sessionHook.activeSession?.title}
+          chatSettingsControl={
+            <ChatSettingsMenu
+              currentEntry={currentEntry}
+              currentAgent={currentAgent}
+              lockedAgentId={lockedAgentId}
+              hideAgentPicker={hideAgentPicker}
+              agentList={agentList}
+              selectedAgentId={selectedAgentId}
+              selectedModelId={selectedModelId}
+              currentReasoning={currentReasoning}
+              effectiveReasoningEffort={effectiveReasoningEffort}
+              setReasoningEffort={setReasoningEffort}
+              placement="below"
+              onSelectEntry={(entry) => {
+                setSelectedAgentId(entry.agentId);
+                setSelectedModelId(entry.modelId);
+                const activeId = sessionHook.activeSession?.id;
+                if (activeId) sessionHook.setSessionAgent(activeId, entry.key);
+              }}
+            />
+          }
         />
       }
       showKodyWaitingBanner={Boolean(isKodyWaiting && actionState)}
@@ -1729,7 +1757,6 @@ export function KodyChat({
           }}
           messageCount={messages.length}
           onClearHistory={() => setShowClearConfirm(true)}
-          onReportIssue={openIssueReport}
           terminalBottomControls={terminalBottomControls}
           chatModeToggle={chatModeToggle}
         />

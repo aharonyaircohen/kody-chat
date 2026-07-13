@@ -349,6 +349,26 @@ describe("sendKodyDirectTurn", () => {
     expect(sink.events).toEqual([]);
   });
 
+  it("uses the route error and trace ID from a JSON HTTP failure", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        new Response(
+          JSON.stringify({ error: "chat setup failed", traceId: "a1b2c3d4" }),
+          {
+            status: 500,
+            headers: { "Content-Type": "application/json" },
+          },
+        ),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await expect(
+      sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit }),
+    ).rejects.toThrow("chat setup failed (trace a1b2c3d4)");
+    expect(sink.events).toEqual([]);
+  });
+
   it("propagates AbortError mid-stream (surface owns stop semantics)", async () => {
     const { restore } = installScriptedFetch([
       () => abortingResponse([chunk({ type: "text-delta", delta: "par" })]),

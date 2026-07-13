@@ -19,7 +19,7 @@ import { MockLanguageModelV3 } from "ai/test";
 
 const h = vi.hoisted(() => ({
   resolveChatModel: vi.fn(),
-  resolveVaultGithubToken: vi.fn(),
+  resolveBackgroundToken: vi.fn(),
   resolveClientBrand: vi.fn(),
   loadMemoryIndexForPrompt: vi.fn(),
   loadInstructionsForPrompt: vi.fn(),
@@ -31,8 +31,8 @@ const h = vi.hoisted(() => ({
 vi.mock("../../app/api/kody/chat/resolve-model", () => ({
   resolveChatModel: h.resolveChatModel,
 }));
-vi.mock("@kody-ade/base/vault/bootstrap", () => ({
-  resolveVaultGithubToken: h.resolveVaultGithubToken,
+vi.mock("@kody-ade/base/auth/background-token", () => ({
+  resolveBackgroundToken: h.resolveBackgroundToken,
 }));
 vi.mock("@dashboard/lib/client-brand", () => ({
   resolveClientBrand: h.resolveClientBrand,
@@ -164,7 +164,10 @@ function mockModel(): MockLanguageModelV3 {
 describe("surface scoping — kody in-process route", () => {
   it("accepts a ticket-only request and restricts the tool set", async () => {
     const model = mockModel();
-    h.resolveVaultGithubToken.mockResolvedValue("ghp_surface");
+    h.resolveBackgroundToken.mockResolvedValue({
+      token: "ghs_installation",
+      source: "app",
+    });
     h.resolveClientBrand.mockResolvedValue({
       slug: "acme",
       name: "Acme",
@@ -183,6 +186,11 @@ describe("surface scoping — kody in-process route", () => {
     expect(res.status).toBe(200);
     // Drain the stream so onFinish/cleanup runs.
     await res.text();
+
+    expect(h.resolveBackgroundToken).toHaveBeenCalledWith(
+      "acme-co",
+      "widgets",
+    );
 
     expect(h.resolveChatModel).toHaveBeenCalledWith(
       expect.any(NextRequest),

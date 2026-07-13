@@ -2426,7 +2426,7 @@ export const messagesApi = {
   },
 };
 
-// ============ Kody bug reports (filed into the dashboard's own repo) ============
+// ============ Kody bug reports ============
 
 export interface KodyBugReportInput {
   title: string;
@@ -2450,6 +2450,7 @@ export interface KodyBugReportInput {
       summary?: string;
     }>;
   };
+  source?: "kody-dashboard" | "kody-chat";
 }
 
 export interface KodyBugReportResult {

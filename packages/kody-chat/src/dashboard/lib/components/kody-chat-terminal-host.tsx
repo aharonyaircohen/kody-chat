@@ -521,6 +521,7 @@ export function useTerminalHost({
           onRestart={() => activeTerminalSurface?.restart()}
           onClear={() => activeTerminalSurface?.clear()}
           actionBusy={activeTerminalChrome?.actionBusy}
+          layout="menu"
         />
       </Suspense>
     ) : null;

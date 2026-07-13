@@ -78,7 +78,10 @@ export async function POST(req: NextRequest) {
     });
     // Models sometimes wrap the title in quotes or add a period despite
     // the instruction — normalize defensively.
-    const cleaned = text
+    // Thinking-capable models may put their scratchpad before the requested
+    // title. Remove it from the generated output as well as the input; the
+    // client must never persist a <think> block as a conversation title.
+    const cleaned = stripReasoning(text)
       .trim()
       .replace(/^["'`]+|["'`]+$/g, "")
       .replace(/[.\s]+$/, "")

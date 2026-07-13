@@ -27,17 +27,17 @@ import type {
   SyntheticEvent,
 } from "react";
 import {
-  Bug,
   Eraser,
   Loader2,
   MousePointerClick,
   Paperclip,
+  Plus,
   Send,
   Square,
   X,
 } from "lucide-react";
 import { MarkdownEditor } from "@dashboard/lib/components/MarkdownEditor";
-import { VoiceButton } from "@dashboard/lib/components/VoiceButton";
+import { VoiceButton } from "../../components/VoiceButton";
 import { SimpleTooltip } from "@dashboard/lib/components/SimpleTooltip";
 import {
   bootPhaseLabel,
@@ -144,7 +144,6 @@ interface ComposerProps {
   /** Transcript length — clear-history renders only when > 0. */
   messageCount: number;
   onClearHistory: () => void;
-  onReportIssue: () => void;
 
   /**
    * Terminal-plugin-bound elements, host-built (Step 5a moves them into
@@ -209,7 +208,6 @@ export function Composer({
   onVoiceLongPressEnd,
   messageCount,
   onClearHistory,
-  onReportIssue,
   terminalBottomControls,
   chatModeToggle,
 }: ComposerProps) {
@@ -266,7 +264,7 @@ export function Composer({
       )}
 
       {/* Input area */}
-      <div className="relative z-10 shrink-0 border-t bg-background px-2.5 py-3 sm:p-4">
+      <div className="relative z-10 shrink-0 border-t bg-background px-2.5 py-2 sm:px-4 sm:py-3">
         <div>
           {/* Kody Live status dot — compact indicator above the composer.
             Color encodes state; hover for full detail + links. Restart
@@ -333,17 +331,63 @@ export function Composer({
               ) : null}
             </div>
           ) : null}
-          {/* Composer input row (issue #131): the textarea and a single
-            trailing send/stop icon button share this row, with the
-            button swapped by state. The action row below (Paperclip,
-            VoiceButton) no longer hosts the send affordance — the
-            hairline separates input from action rows. */}
-          <div
-            className={`flex items-center gap-2 ${
-              chatMode === "terminal" ? "border-b border-border/40 pb-2" : ""
-            }`}
-          >
-            <div className="flex-1 relative">
+          {/* The composer keeps its primary action in one fixed row. The
+            controls use the same height, so the input does not shift as the
+            action changes from Send to Start, Stop, or Cancel. */}
+          <div className="flex items-end gap-2">
+            <details className="relative shrink-0">
+              <summary
+                className="flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground [&::-webkit-details-marker]:hidden"
+                title="More compose options"
+                aria-label="More compose options"
+              >
+                <Plus className="h-5 w-5" aria-hidden="true" />
+              </summary>
+              <div className="absolute bottom-full left-0 z-30 mb-2 grid min-w-44 gap-1 rounded-md border bg-popover p-1 shadow-md">
+                {chatMode === "ai" && (
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      accept="image/*,.txt,.md,.json,.js,.ts,.jsx,.tsx,.html,.css,.scss,.yaml,.yml,.sh"
+                      onChange={onFileSelect}
+                      className="hidden"
+                      disabled={activeLoading}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={activeLoading}
+                      className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent"
+                    >
+                      <Paperclip className="h-4 w-4" /> Attach files
+                    </button>
+                    <VoiceButton
+                      isActive={voiceActive}
+                      isSupported={voiceSupported}
+                      onTap={onVoiceTap}
+                      onLongPressStart={onVoiceLongPressStart}
+                      onLongPressEnd={onVoiceLongPressEnd}
+                      disabled={activeLoading}
+                      label="Voice chat"
+                    />
+                    {messageCount > 0 && !activeLoading && (
+                      <button
+                        type="button"
+                        onClick={onClearHistory}
+                        className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-accent"
+                      >
+                        <Eraser className="h-4 w-4" /> Clear history
+                      </button>
+                    )}
+                  </>
+                )}
+                {chatMode === "terminal" && terminalBottomControls}
+                {chatModeToggle}
+              </div>
+            </details>
+            <div className="relative min-w-0 flex-1">
               {slashCommandMenu}
               {agentMentionsOpen && (
                 <div className="absolute bottom-full start-0 end-0 mb-2 rounded-md border border-white/10 bg-zinc-900/95 backdrop-blur-sm shadow-xl overflow-hidden max-h-64 overflow-y-auto">
@@ -418,11 +462,11 @@ export function Composer({
                     }, 120);
                   }}
                   placeholder={placeholder}
-                  rows={5}
+                  rows={4}
                   disabled={composerDisabled}
                   textareaRef={composerTextareaRef}
-                  textareaClassName="min-h-[104px] max-h-[36vh]"
-                  className="min-w-0"
+                  textareaClassName="max-h-[36vh]"
+                  className="min-w-0 flex-1"
                 />
               ) : (
                 <textarea
@@ -465,7 +509,7 @@ export function Composer({
                       ? "Terminal command input"
                       : undefined
                   }
-                  className={`w-full px-3 py-2 text-base rounded-md border focus:outline-none focus:ring-1 resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed ${
+                  className={`block w-full px-3 py-2 text-base rounded-md border focus:outline-none focus:ring-1 resize-none overflow-hidden disabled:opacity-50 disabled:cursor-not-allowed ${
                     chatMode === "terminal"
                       ? "border-border bg-background text-foreground placeholder:text-muted-foreground focus:ring-ring"
                       : "bg-background focus:ring-primary"
@@ -475,28 +519,15 @@ export function Composer({
                 />
               )}
             </div>
-            {/* Trailing send/stop icon button — single role that swaps by
-              state (issue #131 refinement):
-                * Idle / no in-flight run → paper-plane Send icon
-                * In-flight run (loading or stop/cancel) → Square stop icon
-              Replaces both the old red `bg-destructive` Stop text button
-              in the input row and the inline Send button that used to
-              live in the action row below. The button is hidden when
-              there's no content and the agent isn't Kody-Live, matching
-              the previous "no send affordance when empty" behavior. */}
+            {/* The action stays visible while empty. It is disabled until a
+              normal message or terminal command has content, but Kody Live
+              may use the same fixed control to Start, Stop, or Cancel. */}
             {(() => {
               const isInFlight =
                 chatMode === "ai" &&
                 (activeLoading ||
                   composerAction === "stop" ||
                   composerAction === "cancel");
-              const showTrailingButton =
-                chatMode === "terminal"
-                  ? hasComposerContent
-                  : isInFlight
-                    ? true
-                    : hasComposerContent || isKodyLive;
-              if (!showTrailingButton) return null;
               const title =
                 chatMode === "terminal"
                   ? terminalSendDisabled
@@ -511,10 +542,15 @@ export function Composer({
                     : composerAction === "start"
                       ? "Boot runner"
                       : "Send message";
+              const disabled =
+                Boolean(terminalSendDisabled) ||
+                (!isInFlight &&
+                  composerAction === "send" &&
+                  !hasComposerContent);
               return (
                 <button
                   type="button"
-                  disabled={terminalSendDisabled}
+                  disabled={disabled}
                   onClick={() => {
                     if (chatMode === "terminal") {
                       void onSend();
@@ -531,18 +567,20 @@ export function Composer({
                       void onSend();
                     }
                   }}
-                  className={`p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                    richComposerEnabled ? "mb-1 self-end" : ""
+                  className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                    isInFlight
+                      ? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      : "bg-primary text-primary-foreground hover:bg-primary/90"
                   }`}
                   title={title}
                   aria-label={title}
                 >
                   {isInFlight ? (
-                    <Square className="w-5 h-5" fill="currentColor" />
+                    <Square className="h-4 w-4" fill="currentColor" />
                   ) : terminalSendBusy ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <Send className="w-5 h-5" />
+                    <Send className="h-4 w-4" />
                   )}
                 </button>
               );
@@ -556,9 +594,10 @@ export function Composer({
           {chatMode === "ai" && <div className="border-t border-border/40" />}
         </div>
         <div
+          aria-hidden="true"
           className={`flex min-h-10 items-center gap-2 ${
             chatMode === "terminal" ? "pt-2" : ""
-          }`}
+          } hidden`}
         >
           {/* Plugin composer-leading slot (Step 4) — start of the action
             row; renders nothing (no wrapper) with zero plugins. */}
@@ -616,30 +655,8 @@ export function Composer({
           )}
           {chatMode === "terminal" && terminalBottomControls}
           {chatMode === "terminal" && <div className="flex-1" />}
-          {chatMode === "terminal" && (
-            <button
-              type="button"
-              onClick={onReportIssue}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 transition-colors hover:border-red-300 hover:bg-red-100 hover:text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50"
-              title="Report issue to Kody"
-              aria-label="Report issue to Kody"
-            >
-              <Bug className="h-4 w-4" aria-hidden="true" />
-            </button>
-          )}
           {chatMode === "terminal" && chatModeToggle}
           {chatMode === "ai" && <div className="flex-1" />}
-          {chatMode === "ai" && (
-            <button
-              type="button"
-              onClick={onReportIssue}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 transition-colors hover:border-red-300 hover:bg-red-100 hover:text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50"
-              title="Report issue to Kody"
-              aria-label="Report issue to Kody"
-            >
-              <Bug className="h-4 w-4" aria-hidden="true" />
-            </button>
-          )}
           {chatMode === "ai" && chatModeToggle}
           {/* Plugin composer-actions slot (Step 4) — end of the action
             row; renders nothing (no wrapper) with zero plugins. */}

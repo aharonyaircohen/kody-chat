@@ -92,24 +92,35 @@ vi.mock("@dashboard/lib/view-renderers/renderers", () => ({
 }));
 
 // CMS tool creation awaits GitHub reads on the request path — stub to empty.
+const createCmsToolsMock = vi.hoisted(() => vi.fn(async () => ({})));
+const createUserStateToolsMock = vi.hoisted(() => vi.fn(async () => ({})));
+
 vi.mock("../../app/api/kody/chat/tools/cms-tools", () => ({
-  createCmsTools: vi.fn(async () => ({})),
+  createCmsTools: createCmsToolsMock,
+}));
+
+vi.mock("../../app/api/kody/chat/tools/user-state-tools", () => ({
+  createUserStateTools: createUserStateToolsMock,
 }));
 
 // Capture the `tools` option handed to streamText; return a stub whose UI
 // stream closes immediately so the real createUIMessageStream(Response)
 // wrapping still runs.
 const streamTextCalls: Array<Record<string, unknown>> = [];
+let nextUiMessageChunks: Array<Record<string, unknown>> | null = null;
 vi.mock("ai", async (importOriginal) => {
   const actual = await importOriginal<typeof import("ai")>();
   return {
     ...actual,
     streamText: vi.fn((options: Record<string, unknown>) => {
       streamTextCalls.push(options);
+      const chunks = nextUiMessageChunks;
+      nextUiMessageChunks = null;
       return {
         toUIMessageStream: () =>
           new ReadableStream({
             start(controller) {
+              for (const chunk of chunks ?? []) controller.enqueue(chunk);
               controller.close();
             },
           }),
@@ -139,12 +150,18 @@ async function postAndCaptureToolNames(): Promise<{
   status: number;
   toolNames: string[];
   tools: Record<string, unknown>;
+  response: Response;
 }> {
   const before = streamTextCalls.length;
   const res = await kodyChatPOST(makeRequest());
   const call = streamTextCalls[before];
   const tools = (call?.tools ?? {}) as Record<string, unknown>;
-  return { status: res.status, toolNames: Object.keys(tools).sort(), tools };
+  return {
+    status: res.status,
+    toolNames: Object.keys(tools).sort(),
+    tools,
+    response: res,
+  };
 }
 
 beforeAll(() => {
@@ -166,6 +183,34 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
     expect(toolNames).not.toContain("fixture_echo");
     expect(toolNames.length).toBeGreaterThan(5);
     baselineToolNames = toolNames;
+  });
+
+  it("continues the chat when optional CMS tools cannot be loaded", async () => {
+    createCmsToolsMock.mockRejectedValueOnce(new Error("CMS config unavailable"));
+    nextUiMessageChunks = [
+      { type: "text-start", id: "reply" },
+      { type: "text-delta", id: "reply", delta: "Still responding." },
+      { type: "text-end", id: "reply" },
+    ];
+
+    const { status, toolNames, response } = await postAndCaptureToolNames();
+
+    expect(status).toBe(200);
+    expect(toolNames).toContain("fetch_url");
+    expect(toolNames).not.toContain("cms_list_collections");
+    expect(await response.text()).toContain("Still responding.");
+  });
+
+  it("continues the chat when optional user-state tools cannot be loaded", async () => {
+    createUserStateToolsMock.mockRejectedValueOnce(
+      new Error("user-state config unavailable"),
+    );
+
+    const { status, toolNames } = await postAndCaptureToolNames();
+
+    expect(status).toBe(200);
+    expect(toolNames).toContain("fetch_url");
+    expect(toolNames).not.toContain("user_state_get");
   });
 
   it("fixture plugin tool is exposed additively and zod-validated with the request server context", async () => {

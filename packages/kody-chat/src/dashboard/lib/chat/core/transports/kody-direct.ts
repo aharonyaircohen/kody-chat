@@ -48,6 +48,30 @@ function isKodyDirectTurnConfig(value: unknown): value is KodyDirectTurnConfig {
   );
 }
 
+async function readHttpError(res: Response): Promise<string> {
+  const text = await res.text().catch(() => "");
+  if (!text) return `HTTP ${res.status}`;
+
+  try {
+    const body = JSON.parse(text) as { error?: unknown; message?: unknown; traceId?: unknown };
+    const message =
+      typeof body.error === "string"
+        ? body.error
+        : typeof body.message === "string"
+          ? body.message
+          : null;
+    if (message) {
+      return typeof body.traceId === "string" && body.traceId
+        ? `${message} (trace ${body.traceId})`
+        : message;
+    }
+  } catch {
+    // A proxy may return HTML or plain text; preserve that response below.
+  }
+
+  return text;
+}
+
 /**
  * Run one kody-direct turn: POST the transcript, stream SSE chunks, emit
  * ChatEvents. HTTP failures and AbortErrors THROW (the surface owns its
@@ -69,8 +93,7 @@ export async function sendKodyDirectTurn(
   });
 
   if (!res.ok || !res.body) {
-    const errText = await res.text().catch(() => "");
-    throw new Error(errText || `HTTP ${res.status}`);
+    throw new Error(await readHttpError(res));
   }
 
   // The kody route streams Vercel AI SDK UI messages as SSE

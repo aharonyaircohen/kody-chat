@@ -18,6 +18,8 @@ interface VoiceButtonProps {
   onLongPressStart: () => void;
   onLongPressEnd: () => void;
   disabled?: boolean;
+  className?: string;
+  label?: string;
 }
 
 export function VoiceButton({
@@ -27,6 +29,8 @@ export function VoiceButton({
   onLongPressStart,
   onLongPressEnd,
   disabled = false,
+  className,
+  label,
 }: VoiceButtonProps) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isLongRef = useRef(false);
@@ -74,18 +78,26 @@ export function VoiceButton({
       onPointerLeave={handlePointerLeave}
       disabled={disabled}
       className={cn(
-        "p-2 rounded-md transition-colors select-none",
+        label
+          ? "flex w-full items-center gap-2 rounded px-2 py-1.5 text-sm transition-colors select-none hover:bg-accent"
+          : "p-2 rounded-md transition-colors select-none",
         isActive
-          ? "text-primary bg-primary/10 hover:bg-primary/20"
-          : "text-muted-foreground hover:text-foreground hover:bg-muted",
+          ? label
+            ? "bg-accent"
+            : "text-primary bg-primary/10 hover:bg-primary/20"
+          : label
+            ? ""
+            : "text-muted-foreground hover:text-foreground hover:bg-muted",
         disabled && "opacity-50 cursor-not-allowed",
+        className,
       )}
       title={
         isActive ? "Stop voice chat" : "Voice chat (hold for push-to-talk)"
       }
       aria-label={isActive ? "Stop voice chat" : "Start voice chat"}
     >
-      <Icon className="w-5 h-5" />
+      <Icon className="w-4 h-4" />
+      {label}
     </button>
   );
 }

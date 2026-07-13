@@ -494,6 +494,13 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   const dispatchIssueCreated = useCallback((issueNumber: number) => {
     onIssueCreatedRef.current?.(issueNumber);
   }, []);
+  const reportIssueRef = useRef<(() => void) | null>(null);
+  const setIssueReporter = useCallback((report: (() => void) | null) => {
+    reportIssueRef.current = report;
+  }, []);
+  const openIssueReport = useCallback(() => {
+    reportIssueRef.current?.();
+  }, []);
 
   // Composer context chip (picked Vibe-preview element) — held as state so
   // both KodyChat instances below re-render with the new chip.
@@ -597,6 +604,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
       lockedAgentId={lockedAgentId}
       vibeMode={isVibeRoute}
       onIssueCreated={dispatchIssueCreated}
+      onIssueReportReady={setIssueReporter}
       knownGoals={goals}
       onDirectToGoal={directToGoal}
       composerInjection={composerInjection}
@@ -632,6 +640,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
             sections={ENGINEER_MODE_SECTIONS}
             sidebarBrandExtra={<SidebarNotifications />}
             chat={chatPane}
+            onReportIssue={openIssueReport}
             isChatHome={isChatRoute}
             showMobileHeader={false}
             contentTestId={flipActive ? "chat-first-panel" : undefined}

@@ -101,6 +101,12 @@ export const KODY_REPORT_TARGET = {
   repo: "Kody-Dashboard",
 } as const;
 
+/** Where reports opened from the Kody Chat product are filed. */
+export const KODY_CHAT_REPORT_TARGET = {
+  owner: "aharonyaircohen",
+  repo: "kody-chat",
+} as const;
+
 /** Components a Kody bug can be attributed to (becomes an `area:*` label). */
 export const KODY_BUG_AREAS = [
   "dashboard",

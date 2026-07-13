@@ -2,8 +2,8 @@
  * @fileType component
  * @domain kody
  * @pattern chat-issue-report-dialog
- * @ai-summary One-input issue report flow for Kody chat. Files into the Kody
- *   dashboard repo with browser diagnostics plus chat-local captured state.
+ * @ai-summary One-input issue report flow for Kody chat. Files into the
+ *   kody-chat repo with browser diagnostics plus chat-local captured state.
  */
 "use client";
 
@@ -106,6 +106,7 @@ export function ChatIssueReportDialog({
         reporterLogin: githubUser?.login,
         diagnostics: captureDiagnostics(),
         capturedState: capturedState ?? undefined,
+        source: "kody-chat",
       }),
     onError: (error) => {
       if (error instanceof SessionExpiredError) {
