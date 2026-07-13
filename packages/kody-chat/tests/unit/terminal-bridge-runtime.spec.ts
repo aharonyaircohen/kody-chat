@@ -57,11 +57,17 @@ async function waitForHttpOk(url: string): Promise<void> {
   throw new Error(`bridge did not become healthy: ${lastError}`);
 }
 
-async function startBridge(): Promise<{ port: number; dir: string }> {
+async function startBridge(
+  options: { coldBootFailures?: number } = {},
+): Promise<{ port: number; dir: string }> {
   const port = await freePort();
   const dir = mkdtempSync(join(tmpdir(), "kody-terminal-bridge-"));
   const binDir = join(dir, "bin");
   tempDir = dir;
+  writeFileSync(
+    join(dir, "cold-boot-budget.txt"),
+    String(options.coldBootFailures ?? 0),
+  );
   writeFileSync(join(dir, "bridge.mjs"), TERMINAL_BRIDGE_SCRIPT);
   await import("node:fs/promises").then((fs) => fs.mkdir(binDir));
   writeExecutable(
@@ -69,9 +75,24 @@ async function startBridge(): Promise<{ port: number; dir: string }> {
     `#!/usr/bin/env node
 const { spawn } = require("node:child_process");
 const fs = require("node:fs");
+const path = require("node:path");
+const stateDir = ${JSON.stringify(dir)};
 const relayArgs = process.argv.slice(2);
 const command = relayArgs[0] === "/app/pty-relay.py" ? relayArgs.slice(1) : relayArgs;
 if (command.length === 0) process.exit(2);
+if (command[0] === "tmux" && command[1] === "attach-session") {
+  const budgetFile = path.join(stateDir, "cold-boot-budget.txt");
+  const remaining = Number(fs.readFileSync(budgetFile, "utf8")) || 0;
+  if (remaining > 0) {
+    fs.writeFileSync(budgetFile, String(remaining - 1));
+    const targetIndex = command.indexOf("-t");
+    if (targetIndex !== -1 && command[targetIndex + 1]) {
+      fs.rmSync(path.join(stateDir, "tmux-" + command[targetIndex + 1] + ".json"), { force: true });
+    }
+    process.stdout.write("<!DOCTYPE html><html><title>temporary upstream failure</title></html>\\r\\n");
+    process.exit(1);
+  }
+}
 const child = spawn(command[0], command.slice(1), {
   env: process.env,
   stdio: ["pipe", "pipe", "pipe"],
@@ -177,6 +198,10 @@ if (args[0] === "set-option") {
 }
 if (args[0] === "attach-session") {
   const name = sessionName();
+  if (!fs.existsSync(sessionFile(name))) {
+    process.stderr.write("can't find session: " + name + "\\n");
+    process.exit(1);
+  }
   const state = readState(name);
   state.attachCount += 1;
   writeState(name, state);
@@ -494,6 +519,33 @@ describe("terminal bridge runtime restore", () => {
       ),
     ).toBe(false);
   }
+
+  it(
+    "recovers an HTML cold-boot failure on the original browser socket",
+    async () => {
+      const { port } = await startBridge({ coldBootFailures: 1 });
+      const socket = await openSocket(port, terminalToken());
+
+      await socket.waitFor(
+        (message) =>
+          message.type === "output" &&
+          typeof message.data === "string" &&
+          message.data.includes("Retrying terminal tunnel (2/5)"),
+      );
+      await socket.waitFor((message) => message.type === "ready");
+      expect(
+        socket.messages.some(
+          (message) =>
+            message.type === "output" &&
+            typeof message.data === "string" &&
+            message.data.includes("<!DOCTYPE html>"),
+        ),
+      ).toBe(false);
+      expect(socket.events).not.toContain("close");
+      socket.close(1000, "done");
+    },
+    TEST_TIMEOUT_MS,
+  );
 
   it(
     "reattaches a refreshed websocket to the same live terminal",

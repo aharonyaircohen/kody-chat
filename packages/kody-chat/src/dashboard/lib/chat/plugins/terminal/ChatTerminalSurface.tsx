@@ -32,6 +32,7 @@ import {
   fetchWithTimeout,
   isRemoteTerminalTransport,
   scheduleFlyReconnect,
+  shouldReconnectVisibleRemoteTerminal,
   transportKey,
   updateFlyConnectionState,
   waitForFlyInputAck,
@@ -141,6 +142,7 @@ export const ChatTerminalSurface = forwardRef<
   const flyReconnectTimerRef = useRef<number | null>(null);
   const flyReconnectNoticeRef = useRef(false);
   const flyReconnectAttemptRef = useRef(0);
+  const flyReconnectExhaustedRef = useRef(false);
   const nextFlyInputIdRef = useRef(1);
   const pendingFlyInputAckTimerRef = useRef<number | null>(null);
   const terminalSelectionClearTimerRef = useRef<number | null>(null);
@@ -172,6 +174,7 @@ export const ChatTerminalSurface = forwardRef<
     localStartFailureKeyRef.current = null;
     flyConnectFailureKeyRef.current = null;
     flyReconnectAttemptRef.current = 0;
+    flyReconnectExhaustedRef.current = false;
   }, [chatSessionId, currentTransportKey]);
 
   useEffect(() => {
@@ -294,6 +297,7 @@ export const ChatTerminalSurface = forwardRef<
     flyReconnectTimerRef,
     flyReconnectNoticeRef,
     flyReconnectAttemptRef,
+    flyReconnectExhaustedRef,
     pendingFlyInputAckTimerRef,
     setFlyConnectionState,
     notifyConnectionState,
@@ -545,7 +549,9 @@ export const ChatTerminalSurface = forwardRef<
       }
       if (
         document.visibilityState === "visible" &&
-        flyConnectionStateRef.current !== "connected"
+        shouldReconnectVisibleRemoteTerminal(
+          flyConnectionStateRef.current,
+        )
       ) {
         scheduleFlyTerminalReconnect();
       }

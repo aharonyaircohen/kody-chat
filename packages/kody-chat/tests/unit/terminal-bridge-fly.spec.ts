@@ -138,7 +138,7 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("execJobs");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("startExecJob");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
-      "const MAX_SSH_START_ATTEMPTS = 3;",
+      "const MAX_SSH_START_ATTEMPTS = 5;",
     );
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
       "const READY_PROBE_INTERVAL_MS = 2500;",
@@ -147,9 +147,17 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
       "const SSH_START_RETRY_DELAY_MS = 2000;",
     );
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain("isRetryableFlySshStartupFailure");
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain("tunnel unavailable");
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain("error contacting fly.io api");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      "const MAX_SSH_START_RETRY_DELAY_MS = 10000;",
+    );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("summarizeFlySshStartupFailure");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      "temporary upstream HTML error",
+    );
+    expect(TERMINAL_BRIDGE_SCRIPT).not.toContain(
+      "isRetryableFlySshStartupFailure",
+    );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("session.child = null");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("Retrying terminal tunnel");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
       "const MAX_EXEC_TIMEOUT_MS = 2 * 60 * 60 * 1000;",

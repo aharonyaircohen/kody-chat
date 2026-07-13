@@ -202,8 +202,9 @@ const TOKEN_VERSION = "kody-terminal-v1";
 const SSH_STATUS_INTERVAL_MS = 10000;
 const READY_TIMEOUT_MS = 75000;
 const READY_PROBE_INTERVAL_MS = 2500;
-const MAX_SSH_START_ATTEMPTS = 3;
+const MAX_SSH_START_ATTEMPTS = 5;
 const SSH_START_RETRY_DELAY_MS = 2000;
+const MAX_SSH_START_RETRY_DELAY_MS = 10000;
 const PERSISTENT_SESSION_IDLE_MS = 30 * 60 * 1000;
 const MAX_REPLAY_CHARS = 120000;
 const MAX_EXEC_OUTPUT_BYTES = 96 * 1024 * 1024;
@@ -853,13 +854,20 @@ function normalizeActivityLimitMs(value) {
   return PERSISTENT_SESSION_IDLE_MS;
 }
 
-function isRetryableFlySshStartupFailure(output) {
-  const text = String(output || "").toLowerCase();
-  return (
-    text.includes("tunnel unavailable") ||
-    text.includes("error contacting fly.io api") ||
-    text.includes("context deadline exceeded") ||
-    text.includes("i/o timeout")
+function summarizeFlySshStartupFailure(output) {
+  const text = String(output || "").trim();
+  if (!text) return "Terminal tunnel closed before it was ready.";
+  if (/<!doctype html|<html[\s>]/i.test(text)) {
+    return "Terminal tunnel received a temporary upstream HTML error.";
+  }
+  const lastLine = text.split(/\r?\n/).filter(Boolean).at(-1) || text;
+  return lastLine.slice(0, 500);
+}
+
+function sshStartRetryDelayMs(completedAttempts) {
+  return Math.min(
+    SSH_START_RETRY_DELAY_MS * 2 ** Math.max(0, completedAttempts - 1),
+    MAX_SSH_START_RETRY_DELAY_MS,
   );
 }
 
@@ -1001,6 +1009,20 @@ function createFlyConsoleSession(claims, key) {
 
   function startChild() {
     if (session.child) return;
+    if (tmuxName) {
+      try {
+        ensureTmuxSession(claims, tmuxName, env);
+      } catch (err) {
+        cleanupSession(session);
+        sendToSession(session, {
+          type: "error",
+          message: err instanceof Error ? err.message : String(err),
+        });
+        closeSessionSockets(session, 1011, "terminal session failed");
+        if (key) persistentSessions.delete(key);
+        return;
+      }
+    }
     session.startAttempts += 1;
     session.sawOutput = false;
     const child = spawn("python3", args, {
@@ -1033,9 +1055,10 @@ function createFlyConsoleSession(claims, key) {
       if (session.child !== child) return;
       clearInterval(session.readyProbeTimer);
       session.readyProbeTimer = null;
+      session.child = null;
+      session.resizeControl = null;
       if (session.detaching) {
         session.detaching = false;
-        session.child = null;
         if (
           session.key &&
           session.sockets.size > 0 &&
@@ -1048,17 +1071,16 @@ function createFlyConsoleSession(claims, key) {
       if (
         !session.ready &&
         !session.timedOut &&
-        session.startAttempts < MAX_SSH_START_ATTEMPTS &&
-        isRetryableFlySshStartupFailure(session.pendingOutput)
+        session.startAttempts < MAX_SSH_START_ATTEMPTS
       ) {
-        if (session.pendingOutput) {
-          rememberOutput(session, session.pendingOutput);
-          sendToSession(session, {
-            type: "output",
-            data: session.pendingOutput,
-          });
-          session.pendingOutput = "";
-        }
+        const failureSummary = summarizeFlySshStartupFailure(
+          session.pendingOutput,
+        );
+        session.pendingOutput = "";
+        sendToSession(session, {
+          type: "output",
+          data: failureSummary + "\r\n",
+        });
         sendToSession(session, {
           type: "output",
           data:
@@ -1068,14 +1090,31 @@ function createFlyConsoleSession(claims, key) {
             MAX_SSH_START_ATTEMPTS +
             ")...\r\n",
         });
-        session.retryTimer = setTimeout(startChild, SSH_START_RETRY_DELAY_MS);
+        session.retryTimer = setTimeout(
+          startChild,
+          sshStartRetryDelayMs(session.startAttempts),
+        );
         return;
       }
       cleanupSession(session);
-      if (!session.ready && session.pendingOutput) {
-        rememberOutput(session, session.pendingOutput);
-        sendToSession(session, { type: "output", data: session.pendingOutput });
+      if (!session.ready) {
+        const failureSummary = summarizeFlySshStartupFailure(
+          session.pendingOutput,
+        );
         session.pendingOutput = "";
+        if (!session.timedOut) {
+          sendToSession(session, {
+            type: "error",
+            message:
+              "Terminal did not become ready after " +
+              session.startAttempts +
+              " attempts. " +
+              failureSummary,
+          });
+        }
+        closeSessionSockets(session, 1011, "terminal startup failed");
+        if (key) persistentSessions.delete(key);
+        return;
       }
       sendToSession(session, { type: "exit", code: code ?? 0 });
       closeSessionSockets(session, 1000, "terminal closed");

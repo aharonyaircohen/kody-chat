@@ -22,6 +22,7 @@ import {
   inputSignalForConnectionState,
   scheduleFlyReconnect,
   shouldReconnectFlySocket,
+  shouldReconnectVisibleRemoteTerminal,
   shouldSkipFlyConnect,
   updateFlyConnectionState,
   waitForFlyInputAck,
@@ -74,6 +75,7 @@ function makeDeps(overrides: Partial<FlyConnectionDeps> = {}): DepsHarness {
     flyReconnectTimerRef: { current: null },
     flyReconnectNoticeRef: { current: false },
     flyReconnectAttemptRef: { current: 0 },
+    flyReconnectExhaustedRef: { current: false },
     pendingFlyInputAckTimerRef: { current: null },
     setFlyConnectionState: (state) => void states.push(state),
     notifyConnectionState: () => {},
@@ -258,6 +260,14 @@ describe("stale connect guards", () => {
     ).toBe(false);
   });
 
+  it("does not let focus events restart an active or failed cold boot", () => {
+    expect(shouldReconnectVisibleRemoteTerminal("closed")).toBe(true);
+    expect(shouldReconnectVisibleRemoteTerminal("connecting")).toBe(false);
+    expect(shouldReconnectVisibleRemoteTerminal("restoring")).toBe(false);
+    expect(shouldReconnectVisibleRemoteTerminal("error")).toBe(false);
+    expect(shouldReconnectVisibleRemoteTerminal("connected")).toBe(false);
+  });
+
   it("never reopens a remote terminal while the existing connection is restoring", async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
@@ -354,6 +364,12 @@ describe("stale connect guards", () => {
     expect(harness.errors.at(-1)).toBe(
       "Terminal connection failed after 3 reconnect attempts: WebSocket closed with code 1006",
     );
+    scheduleFlyReconnect(harness.ref, "WebSocket closed with code 1006");
+    expect(
+      harness.errors.filter((message) =>
+        message?.startsWith("Terminal connection failed after"),
+      ),
+    ).toHaveLength(1);
     vi.runAllTimers();
     expect(fetchSpy).toHaveBeenCalledTimes(FLY_RECONNECT_MAX_ATTEMPTS);
   });

@@ -110,6 +110,12 @@ export function shouldReconnectFlySocket(args: {
   );
 }
 
+export function shouldReconnectVisibleRemoteTerminal(
+  state: ChatTerminalConnectionState,
+): boolean {
+  return state === "closed";
+}
+
 /** Whether the activity limit knob applies to this remote transport. */
 export function shouldSendBrainActivityLimit(
   transport: Exclude<ChatTerminalTransport, { type: "local" }>,
@@ -184,6 +190,7 @@ export interface FlyConnectionDeps {
   flyReconnectTimerRef: { current: number | null };
   flyReconnectNoticeRef: { current: boolean };
   flyReconnectAttemptRef: { current: number };
+  flyReconnectExhaustedRef: { current: boolean };
   pendingFlyInputAckTimerRef: { current: number | null };
   setFlyConnectionState: (state: ChatTerminalConnectionState) => void;
   notifyConnectionState: (state: ChatTerminalConnectionState) => void;
@@ -250,6 +257,8 @@ export function scheduleFlyReconnect(
   deps.flySocketRef.current = null;
   clearPendingFlyInputAck(ref);
   if (deps.flyReconnectAttemptRef.current >= FLY_RECONNECT_MAX_ATTEMPTS) {
+    if (deps.flyReconnectExhaustedRef.current) return;
+    deps.flyReconnectExhaustedRef.current = true;
     const message = `Terminal connection failed after ${FLY_RECONNECT_MAX_ATTEMPTS} reconnect attempts: ${reason}`;
     clearScheduledFlyReconnect(ref);
     deps.setError(message);
@@ -323,6 +332,7 @@ export function disconnectFly(ref: FlyDepsRef): void {
   clearScheduledFlyReconnect(ref);
   deps.flyReconnectNoticeRef.current = false;
   deps.flyReconnectAttemptRef.current = 0;
+  deps.flyReconnectExhaustedRef.current = false;
   deps.flyConnectSeqRef.current += 1;
   deps.flyConnectInFlightKeyRef.current = null;
   deps.flySocketRef.current?.close(1000, "terminal transport changed");
@@ -459,11 +469,13 @@ export async function connectFly(
       }
       if (message.type === "restore-complete") {
         live.flyReconnectAttemptRef.current = 0;
+        live.flyReconnectExhaustedRef.current = false;
         updateFlyConnectionState(ref, "connected");
         return;
       }
       if (message.type === "ready") {
         live.flyReconnectAttemptRef.current = 0;
+        live.flyReconnectExhaustedRef.current = false;
         updateFlyConnectionState(ref, "connected");
         return;
       }
