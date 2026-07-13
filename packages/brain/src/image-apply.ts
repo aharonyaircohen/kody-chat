@@ -3,7 +3,7 @@
  * @domain brain
  * @pattern brain-image-apply
  *
- * Applies the selected Brain image to the user's Fly Brain. This is separate
+ * Applies an explicit Brain image to the user's Fly Brain. This is separate
  * from terminal session start so connecting to a terminal never mutates Brain
  * infrastructure.
  */
@@ -31,7 +31,6 @@ import {
   beginBrainRuntimeApply,
   completeBrainRuntimeApply,
   failBrainRuntimeApply,
-  readBrainRuntimeView,
 } from "./runtime-manager";
 import type { BrainRuntimeStateFile } from "./runtime-store";
 import { resolveBrainTarget } from "./target";
@@ -66,18 +65,13 @@ export interface ApplyBrainImageResult {
   runtime: BrainRuntimeStateFile;
 }
 
-export async function applySelectedBrainImage(
+export async function applyBrainImageToRuntime(
   input: ApplyBrainImageInput,
 ): Promise<ApplyBrainImageResult> {
   let image = await readBrainImage(input.account, input.githubToken);
-  const runtimeView = await readBrainRuntimeView(
-    input.account,
-    input.githubToken,
-  );
-  const imageRef =
-    input.imageRef ?? runtimeView.desiredImageRef ?? image?.imageRef;
+  const imageRef = input.imageRef?.trim();
   if (!imageRef) {
-    throw new Error("No Brain image selected");
+    throw new Error("Image ref is required");
   }
   const ghcr = brainGhcrAuth({
     allSecrets: input.allSecrets,

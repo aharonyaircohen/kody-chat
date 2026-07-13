@@ -22,7 +22,10 @@ const IMAGE_MANAGEMENT_SOURCE = readFileSync(
   "utf8",
 );
 const BRIDGE_SOURCE = readFileSync(
-  resolve(__dirname, "../../node_modules/@kody-ade/fly/src/plugin/terminal/bridge.ts"),
+  resolve(
+    __dirname,
+    "../../node_modules/@kody-ade/fly/src/plugin/terminal/bridge.ts",
+  ),
   "utf8",
 );
 const BRIDGE_EXEC_CLIENT_SOURCE = readFileSync(
@@ -49,7 +52,8 @@ describe("Brain image save route", () => {
     expect(ROUTE_SOURCE).toContain("startBrainImageSave");
     expect(ROUTE_SOURCE).toContain("readBrainImageManagement");
     expect(ROUTE_SOURCE).toContain("pollBrainImageSave");
-    expect(ROUTE_SOURCE).toContain("selectBrainImageRef");
+    expect(ROUTE_SOURCE).not.toContain("selectBrainImageRef");
+    expect(ROUTE_SOURCE).not.toContain("export async function PATCH");
     expect(ROUTE_SOURCE).toContain("deleteBrainImageRef");
     expect(ROUTE_SOURCE).not.toContain("forgetBrainImageRef");
     expect(IMAGE_SAVE_COMMAND_SOURCE).toContain(
@@ -109,9 +113,8 @@ describe("Brain image save route", () => {
     expect(APPLY_ROUTE_SOURCE).toContain("imageRef: body.imageRef");
     expect(APPLY_ROUTE_SOURCE).toContain("reset: body.reset === true");
     expect(APPLY_SERVICE_SOURCE).toContain("readBrainImage");
-    expect(APPLY_SERVICE_SOURCE).toContain(
-      "input.imageRef ?? runtimeView.desiredImageRef ?? image?.imageRef",
-    );
+    expect(APPLY_SERVICE_SOURCE).toContain("input.imageRef?.trim()");
+    expect(APPLY_SERVICE_SOURCE).not.toContain("runtimeView.desiredImageRef");
     expect(APPLY_SERVICE_SOURCE).toContain("imageRef,");
     expect(APPLY_SERVICE_SOURCE).toContain(
       "replaceExistingMachine: input.resetExistingMachine === true",

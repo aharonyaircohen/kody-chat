@@ -50,7 +50,7 @@ describe("Brain runtime authority", () => {
     ).toBeNull();
   });
 
-  it("flags selected images that differ from the running image", () => {
+  it("does not treat an apply target as a separate active image", () => {
     expect(
       brainRuntimeDrift(
         {
@@ -58,12 +58,8 @@ describe("Brain runtime authority", () => {
           runningImageRef: "ghcr.io/acme/kody-brain-octocat:old",
           source: "runtime",
         },
-        null,
+        { imageRef: "registry.fly.io/brain-1:old", state: "running" },
       ),
-    ).toMatchObject({
-      code: "selected_image_not_running",
-      desiredImageRef: "ghcr.io/acme/kody-brain-octocat:new",
-      runningImageRef: "ghcr.io/acme/kody-brain-octocat:old",
-    });
+    ).toBeNull();
   });
 });

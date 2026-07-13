@@ -4,8 +4,8 @@
  * @pattern brain-runtime-authority
  *
  * Single read model for Brain runtime truth. UI routes may present this state,
- * but they should not independently decide whether the selected image, running
- * machine, and Fly machine image agree.
+ * but they should not independently decide whether the recorded runtime and
+ * Fly machine image agree.
  */
 import "server-only";
 
@@ -17,7 +17,6 @@ import {
 
 export type BrainRuntimeDriftCode =
   | "completed_apply_missing_running"
-  | "selected_image_not_running"
   | "machine_image_unknown"
   | "machine_image_mismatch";
 
@@ -68,17 +67,8 @@ export function brainRuntimeDrift(
   ) {
     return {
       code: "completed_apply_missing_running",
-      message: "Brain image apply completed, but no running machine is recorded.",
-      desiredImageRef,
-      runningImageRef,
-      machineImageRef: machine?.imageRef ?? null,
-    };
-  }
-
-  if (desiredImageRef && desiredImageRef !== runningImageRef) {
-    return {
-      code: "selected_image_not_running",
-      message: "Selected Brain image is not running.",
+      message:
+        "Brain image apply completed, but no running machine is recorded.",
       desiredImageRef,
       runningImageRef,
       machineImageRef: machine?.imageRef ?? null,
@@ -88,7 +78,8 @@ export function brainRuntimeDrift(
   if (runningImageRef && !machine?.imageRef) {
     return {
       code: "machine_image_unknown",
-      message: "Running Brain image is recorded, but the live machine image is unknown.",
+      message:
+        "Running Brain image is recorded, but the live machine image is unknown.",
       desiredImageRef,
       runningImageRef,
       machineImageRef: null,

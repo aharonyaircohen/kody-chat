@@ -78,24 +78,6 @@ function viewFromRuntime(runtime: BrainRuntimeStateFile): BrainRuntimeView {
   };
 }
 
-export async function selectBrainRuntimeImage(
-  login: string,
-  token: string,
-  imageRef: string,
-): Promise<BrainRuntimeStateFile> {
-  const now = new Date().toISOString();
-  const current = await readBrainRuntimeState(login, token);
-  const next: BrainRuntimeStateFile = {
-    version: 1,
-    desiredImageRef: imageRef,
-    ...(current?.running ? { running: current.running } : {}),
-    ...(current?.operation ? { operation: current.operation } : {}),
-    updatedAt: now,
-  };
-  await writeBrainRuntimeState(login, token, next);
-  return next;
-}
-
 export async function beginBrainRuntimeApply(
   login: string,
   token: string,

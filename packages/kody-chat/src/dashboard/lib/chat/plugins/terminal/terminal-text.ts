@@ -3,8 +3,8 @@
  * @domain chat-plugin-terminal
  * @pattern pure-helpers
  * @ai-summary Pure text/output helpers for the terminal surface: escape
- *   stripping, capture trimming, Brain image labels + mismatch notices,
- *   wheel-delta translation, and the web-link opener. Extracted from
+ *   stripping, capture trimming, wheel-delta translation, and the web-link
+ *   opener. Extracted from
  *   ChatTerminalSurface in Step 5a so their behavior is unit-testable
  *   without React.
  */
@@ -45,44 +45,6 @@ export function usefulCapturedOutput(value: string): string {
   return tail.length > MAX_CAPTURE_CHARS
     ? tail.slice(tail.length - MAX_CAPTURE_CHARS).trimStart()
     : tail;
-}
-
-export function shortBrainImageLabel(imageRef?: string | null): string {
-  if (!imageRef) return "none";
-  const tag = imageRef.split(":").pop();
-  if (tag && tag !== imageRef) return tag;
-  return imageRef.split("/").pop() ?? imageRef;
-}
-
-export interface FlySessionWarning {
-  code?: string;
-  message?: string;
-  desiredImageRef?: string;
-  runningImageRef?: string | null;
-}
-
-/**
- * Non-blocking Brain image mismatch notice (one line per warning, no
- * recovery/apply action — the terminal simply connects to the running
- * Brain). Returns the lines to write into the terminal.
- */
-export function brainImageMismatchNotices(
-  warnings: readonly FlySessionWarning[] | undefined,
-): string[] {
-  const notices: string[] = [];
-  for (const warning of warnings ?? []) {
-    if (
-      warning.code === "selected_image_not_running" &&
-      warning.desiredImageRef
-    ) {
-      const selectedLabel = shortBrainImageLabel(warning.desiredImageRef);
-      const runningLabel = shortBrainImageLabel(warning.runningImageRef);
-      notices.push(
-        `\x1b[33mSelected image differs from running Brain. Selected: ${selectedLabel}; running: ${runningLabel}. Terminal is connecting to the running Brain.\x1b[0m`,
-      );
-    }
-  }
-  return notices;
 }
 
 export function wheelDeltaToTerminalLines(

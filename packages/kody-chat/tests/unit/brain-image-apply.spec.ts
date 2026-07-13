@@ -107,9 +107,9 @@ vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn() },
 }));
 
-import { applySelectedBrainImage } from "@kody-ade/brain/image-apply";
+import { applyBrainImageToRuntime } from "@kody-ade/brain/image-apply";
 
-describe("applySelectedBrainImage", () => {
+describe("applyBrainImageToRuntime", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     store.readBrainApp.mockResolvedValue(null);
@@ -165,8 +165,24 @@ describe("applySelectedBrainImage", () => {
     store.writeBrainImage.mockResolvedValue(undefined);
   });
 
-  it("applies the selected image and records it as running", async () => {
-    const result = await applySelectedBrainImage({
+  it("requires the image to run instead of falling back to a selected image", async () => {
+    await expect(
+      applyBrainImageToRuntime({
+        owner: "acme",
+        repo: "widgets",
+        account: "octocat",
+        githubToken: "gh-token",
+        allSecrets: {},
+        flyToken: "fly-token",
+        flyOrgSlug: "personal",
+        flyDefaultRegion: "fra",
+        dashboardUrl: "https://dash.test",
+      }),
+    ).rejects.toThrow("Image ref is required");
+  });
+
+  it("applies the requested image and records it as running", async () => {
+    const result = await applyBrainImageToRuntime({
       owner: "acme",
       repo: "widgets",
       account: "octocat",
@@ -176,6 +192,7 @@ describe("applySelectedBrainImage", () => {
       flyOrgSlug: "personal",
       flyDefaultRegion: "fra",
       dashboardUrl: "https://dash.test",
+      imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
     });
 
     expect(brainFly.provisionBrain).toHaveBeenCalledWith(
@@ -257,7 +274,7 @@ describe("applySelectedBrainImage", () => {
       images: [],
     });
 
-    const result = await applySelectedBrainImage({
+    const result = await applyBrainImageToRuntime({
       owner: "acme",
       repo: "widgets",
       account: "octocat",
@@ -282,7 +299,7 @@ describe("applySelectedBrainImage", () => {
   });
 
   it("requests machine replacement when restoring the active image", async () => {
-    await applySelectedBrainImage({
+    await applyBrainImageToRuntime({
       owner: "acme",
       repo: "widgets",
       account: "octocat",
@@ -339,7 +356,7 @@ describe("applySelectedBrainImage", () => {
       ],
     });
 
-    await applySelectedBrainImage({
+    await applyBrainImageToRuntime({
       owner: "acme",
       repo: "widgets",
       account: "octocat",
@@ -400,7 +417,7 @@ describe("applySelectedBrainImage", () => {
       machineId: "machine-old",
     });
 
-    await applySelectedBrainImage({
+    await applyBrainImageToRuntime({
       owner: "acme",
       repo: "widgets",
       account: "octocat",
@@ -410,6 +427,7 @@ describe("applySelectedBrainImage", () => {
       flyOrgSlug: "personal",
       flyDefaultRegion: "fra",
       dashboardUrl: "https://dash.test",
+      imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
     });
 
     expect(brainFly.provisionBrain).toHaveBeenCalledWith(
@@ -421,49 +439,11 @@ describe("applySelectedBrainImage", () => {
     );
   });
 
-  it("uses runtime desired image when the catalog has no legacy selected image", async () => {
-    store.readBrainImage.mockResolvedValueOnce({
-      version: 1,
-      createdAt: "2026-07-02T00:00:00.000Z",
-      updatedAt: "2026-07-02T00:00:00.000Z",
-      images: [
-        {
-          imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
-          createdAt: "2026-07-02T00:00:00.000Z",
-          updatedAt: "2026-07-02T00:00:00.000Z",
-        },
-      ],
-    });
-
-    await applySelectedBrainImage({
-      owner: "acme",
-      repo: "widgets",
-      account: "octocat",
-      githubToken: "gh-token",
-      allSecrets: {},
-      flyToken: "fly-token",
-      flyOrgSlug: "personal",
-      flyDefaultRegion: "fra",
-      dashboardUrl: "https://dash.test",
-    });
-
-    expect(runtimeManager.readBrainRuntimeView).toHaveBeenCalledWith(
-      "octocat",
-      "gh-token",
-    );
-    expect(brainFly.provisionBrain).toHaveBeenCalledWith(
-      expect.objectContaining({
-        imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
-      }),
-    );
-    expect(store.selectBrainImage).not.toHaveBeenCalled();
-  });
-
   it("fails the apply operation when the Brain app record cannot be saved", async () => {
     store.writeBrainApp.mockRejectedValueOnce(new Error("state repo down"));
 
     await expect(
-      applySelectedBrainImage({
+      applyBrainImageToRuntime({
         owner: "acme",
         repo: "widgets",
         account: "octocat",
@@ -473,6 +453,7 @@ describe("applySelectedBrainImage", () => {
         flyOrgSlug: "personal",
         flyDefaultRegion: "fra",
         dashboardUrl: "https://dash.test",
+        imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
       }),
     ).rejects.toThrow("state repo down");
 

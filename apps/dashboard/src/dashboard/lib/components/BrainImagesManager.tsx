@@ -54,24 +54,14 @@ interface BrainImageSaveState {
   error?: string;
 }
 
-interface BrainRuntimeDrift {
-  code: string;
-  message: string;
-  desiredImageRef?: string;
-  runningImageRef?: string | null;
-  machineImageRef?: string | null;
-}
-
 interface BrainImagesResponse {
   ok?: boolean;
-  imageRef?: string | null;
   runningImageRef?: string | null;
   runningAt?: string | null;
   runningApp?: string | null;
   runningMachineId?: string | null;
   machineImageRef?: string | null;
   machineState?: string | null;
-  drift?: BrainRuntimeDrift | null;
   images?: BrainSavedImage[];
   save?: BrainImageSaveState | null;
   message?: string;
@@ -173,12 +163,10 @@ export function BrainImagesManager() {
   const { auth } = useAuth();
   const headers = useMemo(() => (auth ? buildAuthHeaders(auth) : null), [auth]);
   const [images, setImages] = useState<BrainSavedImage[]>([]);
-  const [activeImageRef, setActiveImageRef] = useState<string | null>(null);
   const [runningImageRef, setRunningImageRef] = useState<string | null>(null);
   const [runningAt, setRunningAt] = useState<string | null>(null);
   const [machineImageRef, setMachineImageRef] = useState<string | null>(null);
   const [machineState, setMachineState] = useState<string | null>(null);
-  const [drift, setDrift] = useState<BrainRuntimeDrift | null>(null);
   const [save, setSave] = useState<BrainImageSaveState | null>(null);
   const [loading, setLoading] = useState(true);
   const [busyRef, setBusyRef] = useState<string | null>(null);
@@ -189,12 +177,10 @@ export function BrainImagesManager() {
   const loadImages = useCallback(async () => {
     if (!headers) {
       setImages([]);
-      setActiveImageRef(null);
       setRunningImageRef(null);
       setRunningAt(null);
       setMachineImageRef(null);
       setMachineState(null);
-      setDrift(null);
       setSave(null);
       setLoading(false);
       return;
@@ -213,22 +199,18 @@ export function BrainImagesManager() {
         );
       }
       setImages(body.images ?? []);
-      setActiveImageRef(body.imageRef ?? null);
       setRunningImageRef(body.runningImageRef ?? null);
       setRunningAt(body.runningAt ?? null);
       setMachineImageRef(body.machineImageRef ?? null);
       setMachineState(body.machineState ?? null);
-      setDrift(body.drift ?? null);
       setSave(body.save ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load images");
       setImages([]);
-      setActiveImageRef(null);
       setRunningImageRef(null);
       setRunningAt(null);
       setMachineImageRef(null);
       setMachineState(null);
-      setDrift(null);
       setSave(null);
     } finally {
       setLoading(false);
@@ -319,12 +301,6 @@ export function BrainImagesManager() {
     () => images.find((image) => image.imageRef === runningImageRef) ?? null,
     [images, runningImageRef],
   );
-  const selectedImage = useMemo(
-    () => images.find((image) => image.imageRef === activeImageRef) ?? null,
-    [activeImageRef, images],
-  );
-  const selectedNeedsApply =
-    activeImageRef !== null && activeImageRef !== runningImageRef;
   const runningNeedsMachineProof =
     runningImageRef !== null && machineImageRef === null;
 
@@ -403,7 +379,7 @@ export function BrainImagesManager() {
       title="Brain Images"
       icon={Brain}
       iconClassName="text-violet-400"
-      subtitle="Saved Brain runtime images and active restore selection."
+      subtitle="Saved Brain runtime images and the image currently running."
     >
       <div className="space-y-4">
         <Card className="border-white/[0.08] bg-white/[0.03]">
@@ -457,17 +433,15 @@ export function BrainImagesManager() {
               </div>
               <div className="min-w-0 rounded-md border border-white/[0.08] bg-black/20 p-3">
                 <div className="text-[11px] font-semibold uppercase text-white/45">
-                  Selected Brain image
+                  Latest save
                 </div>
                 <div className="mt-1 truncate font-mono text-xs text-white">
-                  {activeImageRef ? imageLabel(activeImageRef) : "None"}
+                  {images[0] ? imageLabel(images[0].imageRef) : "None"}
                 </div>
                 <div className="mt-1 text-xs text-white/45">
-                  {selectedImage
-                    ? activeImageRef === runningImageRef
-                      ? "Currently running"
-                      : `Saved ${formatDate(selectedImage.updatedAt)}`
-                    : "No image selected"}
+                  {images[0]
+                    ? `Saved ${formatDate(images[0].updatedAt)}`
+                    : "No saved images yet"}
                 </div>
               </div>
               <div className="min-w-0 rounded-md border border-white/[0.08] bg-black/20 p-3">
@@ -507,17 +481,7 @@ export function BrainImagesManager() {
                 )}
               </div>
             )}
-            {selectedNeedsApply && (
-              <div className="rounded-md border border-amber-400/25 bg-amber-400/[0.08] px-3 py-2 text-xs text-amber-100">
-                {drift?.code === "completed_apply_missing_running"
-                  ? drift.message
-                  : `Pending image ${imageLabel(
-                      activeImageRef,
-                    )} is not running yet.`}{" "}
-                Click Run this image on that row before opening Brain.
-              </div>
-            )}
-            {!selectedNeedsApply && runningNeedsMachineProof && (
+            {runningNeedsMachineProof && (
               <div className="rounded-md border border-sky-400/20 bg-sky-400/[0.06] px-3 py-2 text-xs text-sky-100">
                 Running image is recorded, but the live Fly machine image could
                 not be verified from this page.
@@ -531,11 +495,6 @@ export function BrainImagesManager() {
             <div className="sr-only">
               <div className="text-sm font-semibold text-white">
                 Brain image state summary
-              </div>
-              <div>
-                {activeImageRef
-                  ? `Pending image ${imageLabel(activeImageRef)}`
-                  : "No pending Brain image"}
               </div>
               <div>
                 {runningImageRef
@@ -564,7 +523,6 @@ export function BrainImagesManager() {
           ) : (
             images.map((image) => {
               const running = image.imageRef === runningImageRef;
-              const selected = image.imageRef === activeImageRef;
               const busy = busyRef === image.imageRef;
               return (
                 <div
@@ -576,14 +534,6 @@ export function BrainImagesManager() {
                       <span className="truncate font-mono text-sm text-white">
                         {imageLabel(image.imageRef)}
                       </span>
-                      {selected && (
-                        <span
-                          className="inline-flex shrink-0 items-center rounded border border-violet-400/20 bg-violet-400/10 px-1.5 py-0.5 text-[11px] font-medium text-violet-200"
-                          aria-label="Selected Brain image"
-                        >
-                          Selected
-                        </span>
-                      )}
                       {running && (
                         <span
                           className="inline-flex shrink-0 items-center gap-1 rounded border border-emerald-400/20 bg-emerald-400/10 px-1.5 py-0.5 text-[11px] font-medium text-emerald-300"
@@ -649,12 +599,12 @@ export function BrainImagesManager() {
                       size="sm"
                       variant="ghost"
                       title={
-                        running || selected
+                        running
                           ? "Run another image before deleting"
                           : "Delete image"
                       }
                       aria-label="Delete image"
-                      disabled={busy || running || selected}
+                      disabled={busy || running}
                       onClick={() => setPendingDeleteRef(image.imageRef)}
                     >
                       {busy ? (

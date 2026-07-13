@@ -4,7 +4,7 @@
  * @pattern brain-image-management
  *
  * Query and command boundary for saved Brain image state. Routes translate HTTP;
- * this layer owns catalog, save polling, selection, and deletion behavior.
+ * this layer owns catalog, save polling, and deletion behavior.
  */
 import "server-only";
 
@@ -27,10 +27,7 @@ import {
 import { brainGhcrAuth } from "./image-runtime";
 import { brainImageSaveProgressFromOutput } from "./image-save";
 import { brainImageJobTimeoutMs } from "./image-timeouts";
-import {
-  readBrainRuntimeView,
-  selectBrainRuntimeImage,
-} from "./runtime-manager";
+import { readBrainRuntimeView } from "./runtime-manager";
 import {
   readBrainRuntimeAuthority,
   type BrainRuntimeDrift,
@@ -227,11 +224,6 @@ async function recordCompletedBrainImageSave(input: {
       },
       now,
     ),
-  );
-  await selectBrainRuntimeImage(
-    input.account,
-    input.githubToken,
-    input.imageRef,
   );
   await clearBrainImageSave(input.account, input.githubToken);
 
@@ -453,44 +445,6 @@ export async function pollBrainImageSave(input: {
     finishedAt: job.finishedAt,
     lastOutput: progress.lastOutput,
   });
-}
-
-export async function selectBrainImageRef(input: {
-  context: ServerProviderContext;
-  imageRef: string;
-}) {
-  const { context, imageRef } = input;
-  let image = await readBrainImage(context.account, context.githubToken);
-  let requestedImage = image?.images.find(
-    (saved) => saved.imageRef === imageRef,
-  );
-  if (!requestedImage) {
-    const images = mergeBrainSavedImages(image, await discoverImages(context));
-    requestedImage = images.find((image) => image.imageRef === imageRef);
-    if (requestedImage) {
-      const now = new Date().toISOString();
-      image = brainImageCatalogFile({
-        previous: image,
-        createdAt: requestedImage.createdAt,
-        updatedAt: now,
-        images,
-      });
-      await writeBrainImage(context.account, context.githubToken, image);
-    }
-  }
-  if (!requestedImage) {
-    throw new BrainImageManagementError(
-      image ? "Brain image is not saved" : "No Brain images saved",
-      400,
-      "brain_image_not_saved",
-    );
-  }
-  await selectBrainRuntimeImage(context.account, context.githubToken, imageRef);
-  const runtime = await readBrainRuntimeView(
-    context.account,
-    context.githubToken,
-  );
-  return imageManagementResponse(image, runtime);
 }
 
 function sameBrainImageTag(a: string | null | undefined, b: string): boolean {

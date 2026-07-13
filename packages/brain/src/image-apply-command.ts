@@ -10,7 +10,7 @@ import "server-only";
 import type { ServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
 
 import {
-  applySelectedBrainImage,
+  applyBrainImageToRuntime,
   type ApplyBrainImageResult,
 } from "./image-apply";
 
@@ -30,7 +30,7 @@ export async function applyBrainImage(
       "Brain image apply needs a Fly Machines token. Add FLY_API_TOKEN to the repo Secrets vault.",
     );
   }
-  return applySelectedBrainImage({
+  return applyBrainImageToRuntime({
     owner: context.owner,
     repo: context.repo,
     account: context.account,

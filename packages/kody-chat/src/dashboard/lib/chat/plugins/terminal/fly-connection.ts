@@ -17,7 +17,6 @@ import {
   parseTerminalBridgeServerMessage,
   type TerminalBridgeClientMessage,
 } from "@kody-ade/terminal/bridge-protocol";
-import { brainImageMismatchNotices, type FlySessionWarning } from "./terminal-text";
 import type {
   ChatTerminalConnectionState,
   ChatTerminalTransport,
@@ -385,14 +384,8 @@ export async function connectFly(
       throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
     }
     ref.current.flyConnectFailureKeyRef.current = null;
-    const session = (await res.json()) as {
-      webSocketUrl: string;
-      warnings?: FlySessionWarning[];
-    };
+    const session = (await res.json()) as { webSocketUrl: string };
     if (!isCurrentFlyConnect()) return;
-    for (const notice of brainImageMismatchNotices(session.warnings)) {
-      terminal.writeln(notice);
-    }
     const ws = new WebSocket(session.webSocketUrl);
     if (!isCurrentFlyConnect()) {
       ws.close(1000, "stale terminal connection");

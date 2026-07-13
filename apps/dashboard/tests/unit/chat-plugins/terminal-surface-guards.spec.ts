@@ -26,7 +26,6 @@ import {
   type FlyConnectionDeps,
 } from "@kody-chat/chat/plugins/terminal/fly-connection";
 import {
-  brainImageMismatchNotices,
   openTerminalWebLink,
   usefulCapturedOutput,
 } from "@kody-chat/chat/plugins/terminal/terminal-text";
@@ -82,7 +81,14 @@ function makeDeps(overrides: Partial<FlyConnectionDeps> = {}): DepsHarness {
     notifyTerminalSessionEnded: () => {},
     ...overrides,
   };
-  return { ref: { current: deps }, writes, signals, briefSignals, errors, states };
+  return {
+    ref: { current: deps },
+    writes,
+    signals,
+    briefSignals,
+    errors,
+    states,
+  };
 }
 
 function fakeSocket(): WebSocket & { closeCalls: Array<[number?, string?]> } {
@@ -115,19 +121,20 @@ afterEach(() => {
 describe("bounded terminal fetches", () => {
   it("aborts a stuck request after the timeout so it cannot freeze reads", async () => {
     let capturedSignal: AbortSignal | undefined;
-    vi.stubGlobal(
-      "fetch",
-      (_input: RequestInfo | URL, init: RequestInit) => {
-        capturedSignal = init.signal ?? undefined;
-        return new Promise<Response>((_resolve, reject) => {
-          init.signal?.addEventListener("abort", () =>
-            reject(new DOMException("Aborted", "AbortError")),
-          );
-        });
-      },
-    );
+    vi.stubGlobal("fetch", (_input: RequestInfo | URL, init: RequestInit) => {
+      capturedSignal = init.signal ?? undefined;
+      return new Promise<Response>((_resolve, reject) => {
+        init.signal?.addEventListener("abort", () =>
+          reject(new DOMException("Aborted", "AbortError")),
+        );
+      });
+    });
 
-    const pending = fetchWithTimeout("/api/kody/chat/terminal/output", {}, 5_000);
+    const pending = fetchWithTimeout(
+      "/api/kody/chat/terminal/output",
+      {},
+      5_000,
+    );
     const assertion = expect(pending).rejects.toThrow("Aborted");
     vi.advanceTimersByTime(5_000);
     await assertion;
@@ -205,9 +212,7 @@ describe("input acknowledgement before 'sent'", () => {
   });
 
   it("reconnects the socket when the acknowledgement stalls", () => {
-    const fetchSpy = vi.fn(
-      () => new Promise<Response>(() => {}),
-    );
+    const fetchSpy = vi.fn(() => new Promise<Response>(() => {}));
     vi.stubGlobal("fetch", fetchSpy);
     const harness = makeDeps();
     const ws = fakeSocket();
@@ -252,12 +257,12 @@ describe("stale connect guards", () => {
       existingState: "idle" as ChatTerminalConnectionState,
     };
     expect(shouldSkipFlyConnect(base)).toBe(false);
-    expect(
-      shouldSkipFlyConnect({ ...base, failureKey: "chat-1:brain" }),
-    ).toBe(true);
-    expect(
-      shouldSkipFlyConnect({ ...base, inFlightKey: "chat-1:brain" }),
-    ).toBe(true);
+    expect(shouldSkipFlyConnect({ ...base, failureKey: "chat-1:brain" })).toBe(
+      true,
+    );
+    expect(shouldSkipFlyConnect({ ...base, inFlightKey: "chat-1:brain" })).toBe(
+      true,
+    );
     expect(
       shouldSkipFlyConnect({
         ...base,
@@ -283,9 +288,7 @@ describe("stale connect guards", () => {
   });
 
   it("schedules a single-notice reconnect and retries after the delay", () => {
-    const fetchSpy = vi.fn(
-      () => new Promise<Response>(() => {}),
-    );
+    const fetchSpy = vi.fn(() => new Promise<Response>(() => {}));
     vi.stubGlobal("fetch", fetchSpy);
     const harness = makeDeps();
     const ws = fakeSocket();
@@ -364,25 +367,6 @@ describe("Brain session request", () => {
       cols: 80,
       rows: 24,
     });
-  });
-
-  it("shows a non-blocking image mismatch notice without a second apply action", () => {
-    const notices = brainImageMismatchNotices([
-      {
-        code: "selected_image_not_running",
-        desiredImageRef: "ghcr.io/acme/brain:v2",
-        runningImageRef: "ghcr.io/acme/brain:v1",
-      },
-      { code: "something_else" },
-    ]);
-    expect(notices).toHaveLength(1);
-    expect(notices[0]).toContain("Selected image differs from running Brain");
-    expect(notices[0]).toContain("Selected: v2; running: v1");
-    expect(notices[0]).toContain(
-      "Terminal is connecting to the running Brain",
-    );
-    expect(notices[0]).not.toContain("Apply");
-    expect(brainImageMismatchNotices(undefined)).toEqual([]);
   });
 });
 

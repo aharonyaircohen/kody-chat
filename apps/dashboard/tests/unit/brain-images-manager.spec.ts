@@ -54,7 +54,7 @@ describe("BrainImagesManager", () => {
     expect(SOURCE).toContain('aria-label="Delete image"');
     expect(SOURCE).toContain("Permanently delete this Brain image?");
     expect(SOURCE).toContain("This permanently removes the GHCR package image");
-    expect(SOURCE).toContain("disabled={busy || running || selected}");
+    expect(SOURCE).toContain("disabled={busy || running}");
     expect(SOURCE).not.toContain("Forget image");
     expect(SOURCE).not.toContain("forgotten");
   });
@@ -109,24 +109,25 @@ describe("BrainImagesManager", () => {
     expect(SOURCE).not.toContain("disabled={!selected || running || busy}");
   });
 
-  it("shows explicit selected and running state on each image row", () => {
-    expect(SOURCE).toContain('aria-label="Selected Brain image"');
+  it("uses running as the only active state on each image row", () => {
     expect(SOURCE).toContain('aria-label="Running Brain image"');
-    expect(SOURCE).toMatch(/>\s+Selected\s+<\/span>/);
     expect(SOURCE).toMatch(/>\s+Running\s+<\/span>/);
     expect(SOURCE).toContain("<CheckCircle2");
     expect(SOURCE).toContain("text-emerald-300");
     expect(SOURCE).toContain("bg-emerald-400/10");
+    expect(SOURCE).not.toContain('aria-label="Selected Brain image"');
+    expect(SOURCE).not.toContain("activeImageRef");
   });
 
-  it("shows selected Brain image, running Brain image, and saved image count separately", () => {
+  it("shows running Brain image, latest save, and saved image count separately", () => {
     expect(SOURCE).toContain(
       "Run this image replaces the saved Brain machine image",
     );
     expect(SOURCE).toContain("Running Brain image");
-    expect(SOURCE).toContain("Selected Brain image");
+    expect(SOURCE).toContain("Latest save");
     expect(SOURCE).toContain("Saved images");
-    expect(SOURCE).toContain("Pending image");
+    expect(SOURCE).not.toContain("Selected Brain image");
+    expect(SOURCE).not.toContain("Pending image");
     expect(SOURCE).toContain('Machine {machineState ?? "state unknown"}');
     expect(SOURCE).toContain("machineImageRef");
     expect(SOURCE).toContain("Saved {formatDate(image.updatedAt)}");

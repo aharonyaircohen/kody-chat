@@ -15,12 +15,8 @@ import {
   deleteBrainImageRef,
   pollBrainImageSave,
   readBrainImageManagement,
-  selectBrainImageRef,
 } from "../image-management";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "../github";
+import { clearGitHubContext, setGitHubContext } from "../github";
 import { logger } from "@kody-ade/base/logger";
 import { resolveServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
 
@@ -179,54 +175,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       { error: "brain_image_save_status_failed", message },
       { status: 502 },
-    );
-  } finally {
-    clearGitHubContext();
-  }
-}
-
-export async function PATCH(req: NextRequest) {
-  const authError = await requireKodyAuth(req);
-  if (authError) return authError;
-
-  const ctx = await resolveServerProviderContext(req);
-  if (!ctx.ok) {
-    return NextResponse.json({ error: ctx.error }, { status: ctx.status });
-  }
-
-  setGitHubContext(
-    ctx.context.owner,
-    ctx.context.repo,
-    ctx.context.githubToken,
-    ctx.context.storeRepoUrl,
-    ctx.context.storeRef,
-  );
-
-  try {
-    const body = (await req.json().catch(() => ({}))) as { imageRef?: string };
-    if (!body.imageRef) {
-      return NextResponse.json(
-        { error: "image_ref_required", message: "Image ref is required." },
-        { status: 400 },
-      );
-    }
-    return NextResponse.json(
-      await selectBrainImageRef({
-        context: ctx.context,
-        imageRef: body.imageRef,
-      }),
-    );
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    if (err instanceof BrainImageManagementError) {
-      return NextResponse.json(
-        { error: err.code, message },
-        { status: err.status },
-      );
-    }
-    return NextResponse.json(
-      { error: "brain_image_select_failed", message },
-      { status: 400 },
     );
   } finally {
     clearGitHubContext();

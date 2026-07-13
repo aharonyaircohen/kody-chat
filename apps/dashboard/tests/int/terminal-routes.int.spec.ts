@@ -150,9 +150,9 @@ const brainStore = vi.hoisted(() => ({
 }));
 
 const runtimeManager = vi.hoisted(() => ({
-  readBrainRuntimeView: vi.fn(
-    async (): Promise<Record<string, unknown>> => ({ source: "empty" }),
-  ),
+  readBrainRuntimeView: vi.fn(async (): Promise<Record<string, unknown>> => ({
+    source: "empty",
+  })),
 }));
 
 const brainService = vi.hoisted(() => ({
@@ -520,7 +520,7 @@ describe("POST /api/kody/terminal/session", () => {
     expect(brainFly.provisionBrain).not.toHaveBeenCalled();
   });
 
-  it("connects with a warning when the selected Brain image has not been applied", async () => {
+  it("connects without treating an old apply target as active", async () => {
     runtimeManager.readBrainRuntimeView.mockResolvedValueOnce({
       desiredImageRef: "ghcr.io/acme/kody-brain-octocat:selected",
       source: "runtime",
@@ -536,15 +536,9 @@ describe("POST /api/kody/terminal/session", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
-      ok: true,
-      warnings: [
-        expect.objectContaining({
-          code: "selected_image_not_running",
-          desiredImageRef: "ghcr.io/acme/kody-brain-octocat:selected",
-        }),
-      ],
-    });
+    const body = await res.json();
+    expect(body).toMatchObject({ ok: true });
+    expect(body).not.toHaveProperty("warnings");
     expect(brainFly.provisionBrain).not.toHaveBeenCalled();
     expect(bridge.ensureTerminalBridge).toHaveBeenCalled();
   });
@@ -582,21 +576,18 @@ describe("POST /api/kody/terminal/session", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    const body = await res.json();
+    expect(body).toMatchObject({
       ok: true,
       app: "kody-brain-octocat",
       machineId: "brain-1",
-      warnings: [
-        expect.objectContaining({
-          code: "selected_image_not_running",
-        }),
-      ],
     });
+    expect(body).not.toHaveProperty("warnings");
     expect(brainFly.provisionBrain).not.toHaveBeenCalled();
     expect(flyPreview.startMachine).not.toHaveBeenCalled();
   });
 
-  it("connects when the selected Brain image is already running", async () => {
+  it("connects when the recorded Brain image is running", async () => {
     runtimeManager.readBrainRuntimeView.mockResolvedValueOnce({
       desiredImageRef: "ghcr.io/acme/kody-brain-octocat:selected",
       runningImageRef: "ghcr.io/acme/kody-brain-octocat:selected",
