@@ -6,6 +6,7 @@ const entry = (
   repo: string,
   token: string,
   isLogin = false,
+  login = owner,
 ) => ({
   repoUrl: `https://github.com/${owner}/${repo}`,
   owner,
@@ -13,19 +14,29 @@ const entry = (
   token,
   addedAt: 0,
   isLogin,
+  user: { login, avatar_url: `https://example.test/${login}.png`, id: 1 },
 });
 
 const auth = {
   owner: "a",
   repo: "one",
   token: "t-one",
-  repos: [entry("a", "one", "t-one", true), entry("b", "two", "t-two")],
+  repos: [
+    entry("a", "one", "t-one", true, "alice"),
+    entry("b", "two", "t-two", false, "bob"),
+  ],
 };
 
 describe("resolveActiveRepo", () => {
   it("URL wins over the stored flat selection", () => {
     const active = resolveActiveRepo(auth, "/repo/b/two/tasks");
-    expect(active).toMatchObject({ owner: "b", repo: "two", token: "t-two", index: 1 });
+    expect(active).toMatchObject({
+      owner: "b",
+      repo: "two",
+      token: "t-two",
+      user: { login: "bob" },
+      index: 1,
+    });
   });
 
   it("matches the URL repo case-insensitively", () => {
@@ -54,7 +65,12 @@ describe("resolveActiveRepo", () => {
       { owner: "solo", repo: "app", token: "t" },
       "/",
     );
-    expect(active).toMatchObject({ owner: "solo", repo: "app", token: "t", index: -1 });
+    expect(active).toMatchObject({
+      owner: "solo",
+      repo: "app",
+      token: "t",
+      index: -1,
+    });
   });
 
   it("returns null when logged out", () => {

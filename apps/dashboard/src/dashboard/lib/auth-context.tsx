@@ -44,6 +44,12 @@ import {
 
 export { DEFAULT_KODY_STORE_REF, DEFAULT_KODY_STORE_REPO_URL };
 
+export interface KodyUser {
+  login: string;
+  avatar_url: string;
+  id: number;
+}
+
 export interface KodyRepoEntry {
   /** Original `https://github.com/owner/repo` URL the user pasted (optional). */
   repoUrl: string;
@@ -55,6 +61,8 @@ export interface KodyRepoEntry {
   addedAt: number;
   /** True for the original login repo (cannot be removed without logout). */
   isLogin: boolean;
+  /** GitHub identity verified from this repository's token. */
+  user?: KodyUser;
 }
 
 export interface KodyAuth {
@@ -63,11 +71,7 @@ export interface KodyAuth {
   owner: string;
   repo: string;
   token: string;
-  user: {
-    login: string;
-    avatar_url: string;
-    id: number;
-  };
+  user: KodyUser;
   loggedInAt: number;
   // ─── Multi-repo state ──────────────────────────────────────────────────
   repos: KodyRepoEntry[];
@@ -172,8 +176,11 @@ function migrateAuth(raw: unknown): KodyAuth | null {
     a.repos.length > 0 &&
     typeof a.currentRepoIndex === "number"
   ) {
-    const idx = Math.min(Math.max(0, a.currentRepoIndex), a.repos.length - 1);
-    const cur = a.repos[idx];
+    const repos = a.repos.map((repo) =>
+      repo.isLogin && !repo.user ? { ...repo, user: a.user } : repo,
+    );
+    const idx = Math.min(Math.max(0, a.currentRepoIndex), repos.length - 1);
+    const cur = repos[idx];
     // Trust repos[idx] as source of truth — repaint flat fields if drifted.
     const brainSuspension =
       a.brainSuspension === "auto" || a.brainSuspension === "never"
@@ -188,6 +195,8 @@ function migrateAuth(raw: unknown): KodyAuth | null {
       owner: cur.owner,
       repo: cur.repo,
       token: cur.token,
+      user: cur.user ?? a.user,
+      repos,
       brainSuspension,
       brainTerminalActivityLimit: undefined,
       storeRepoUrl:
@@ -206,6 +215,7 @@ function migrateAuth(raw: unknown): KodyAuth | null {
     token: a.token,
     addedAt: a.loggedInAt ?? Date.now(),
     isLogin: true,
+    user: a.user,
   };
 
   return {
@@ -242,16 +252,64 @@ function persist(next: KodyAuth): void {
 }
 
 function syncClientBrandRepoCookie(auth: KodyAuth): void {
-  document.cookie = `${CLIENT_BRAND_REPO_COOKIE}=${serializeClientBrandRepoCookie({
-    owner: auth.owner,
-    repo: auth.repo,
-    ...(auth.storeRepoUrl ? { storeRepoUrl: auth.storeRepoUrl } : {}),
-    ...(auth.storeRef ? { storeRef: auth.storeRef } : {}),
-  })}; Path=/; Max-Age=2592000; SameSite=Lax`;
+  document.cookie = `${CLIENT_BRAND_REPO_COOKIE}=${serializeClientBrandRepoCookie(
+    {
+      owner: auth.owner,
+      repo: auth.repo,
+      ...(auth.storeRepoUrl ? { storeRepoUrl: auth.storeRepoUrl } : {}),
+      ...(auth.storeRef ? { storeRef: auth.storeRef } : {}),
+    },
+  )}; Path=/; Max-Age=2592000; SameSite=Lax`;
 }
 
 function clearClientBrandRepoCookie(): void {
   document.cookie = `${CLIENT_BRAND_REPO_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax`;
+}
+
+export async function refreshRepoIdentity(
+  auth: KodyAuth,
+  pathname: string,
+): Promise<KodyAuth> {
+  const active = resolveActiveRepo(auth, pathname);
+  if (!active) return auth;
+  if (active.user) {
+    return active.user.login === auth.user.login
+      ? auth
+      : { ...auth, user: active.user };
+  }
+
+  try {
+    const res = await fetch("/api/kody/auth/me", {
+      headers: buildKodyAuthHeaders(active),
+      cache: "no-store",
+    });
+    const data = (await res.json().catch(() => null)) as {
+      authenticated?: boolean;
+      user?: { login?: string; avatar_url?: string; githubId?: number };
+    } | null;
+    if (
+      !res.ok ||
+      !data?.authenticated ||
+      !data.user?.login ||
+      !data.user.avatar_url ||
+      typeof data.user.githubId !== "number"
+    ) {
+      return auth;
+    }
+
+    const user: KodyUser = {
+      login: data.user.login,
+      avatar_url: data.user.avatar_url,
+      id: data.user.githubId,
+    };
+    const repos = auth.repos.map((repo, index) =>
+      index === active.index ? { ...repo, user } : repo,
+    );
+    return { ...auth, repos, user };
+  } catch {
+    // Keep the existing state. Sensitive writes still reject any mismatch.
+    return auth;
+  }
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -270,7 +328,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       active.index === storedAuth.currentRepoIndex &&
       active.owner === storedAuth.owner &&
       active.repo === storedAuth.repo &&
-      active.token === storedAuth.token
+      active.token === storedAuth.token &&
+      active.user?.login === storedAuth.user.login
     ) {
       return storedAuth;
     }
@@ -281,6 +340,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       owner: active.owner,
       repo: active.repo,
       token: active.token,
+      user: active.user ?? storedAuth.user,
     };
   }, [storedAuth, pathname]);
 
@@ -295,25 +355,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Load auth from localStorage on mount, migrating legacy shape if needed.
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem("kody_auth");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        const migrated = migrateAuth(parsed);
-        if (migrated) {
-          setStoredAuth(migrated);
-          // Persist migration result so subsequent loads skip the legacy branch.
-          persist(migrated);
-        } else {
-          localStorage.removeItem("kody_auth");
+    let cancelled = false;
+    async function loadAuth() {
+      try {
+        const stored = localStorage.getItem("kody_auth");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          const migrated = migrateAuth(parsed);
+          if (migrated) {
+            const refreshed = await refreshRepoIdentity(
+              migrated,
+              window.location.pathname,
+            );
+            if (cancelled) return;
+            // Persist migration result so subsequent loads skip the legacy branch.
+            setStoredAuth(refreshed);
+            persist(refreshed);
+          } else {
+            localStorage.removeItem("kody_auth");
+          }
         }
+      } catch {
+        // Corrupted localStorage — clear it
+        localStorage.removeItem("kody_auth");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    } catch {
-      // Corrupted localStorage — clear it
-      localStorage.removeItem("kody_auth");
-    } finally {
-      setLoading(false);
     }
+    void loadAuth();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const logout = useCallback(() => {
@@ -325,7 +397,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const addRepo = useCallback(
     (
-      entry: Omit<KodyRepoEntry, "addedAt" | "isLogin">,
+      entry: Omit<KodyRepoEntry, "addedAt" | "isLogin" | "user">,
       user?: KodyAuth["user"],
     ) => {
       const owner = entry.owner?.trim() ?? "";
@@ -348,19 +420,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
         return;
       }
+      if (!user) {
+        console.warn("Skipping repository without verified GitHub identity");
+        return;
+      }
       setStoredAuth((prev) => {
         // Bootstrap: empty store, this is the first repo. Requires user info.
         if (!prev) {
-          if (!user) {
-            // Callers MUST pass user for the bootstrap path — bail silently
-            // (the form-level validation should never let this happen).
-            return prev;
-          }
           const now = Date.now();
           const loginEntry: KodyRepoEntry = {
             ...nextEntry,
             addedAt: now,
             isLogin: true,
+            user,
           };
           const next: KodyAuth = {
             repoUrl: loginEntry.repoUrl,
@@ -387,13 +459,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (existingIdx >= 0) {
           nextRepos = prev.repos.map((r, i) =>
             i === existingIdx
-              ? { ...r, token: nextEntry.token, repoUrl: nextEntry.repoUrl }
+              ? {
+                  ...r,
+                  token: nextEntry.token,
+                  repoUrl: nextEntry.repoUrl,
+                  user,
+                }
               : r,
           );
         } else {
           nextRepos = [
             ...prev.repos,
-            { ...nextEntry, addedAt: Date.now(), isLogin: false },
+            { ...nextEntry, user, addedAt: Date.now(), isLogin: false },
           ];
         }
         const next: KodyAuth = { ...prev, repos: nextRepos };
@@ -443,6 +520,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         owner: cur.owner,
         repo: cur.repo,
         token: cur.token,
+        user: cur.user ?? prev.user,
       };
       persist(next);
       // Removing the active repo: its URL is now dead — do a full-page
@@ -470,6 +548,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         owner: cur.owner,
         repo: cur.repo,
         token: cur.token,
+        user: cur.user ?? auth.user,
       };
       // The URL carries the repo from here on — persist only refreshes the
       // repo-less-page fallback and the brand cookie, then a full-page

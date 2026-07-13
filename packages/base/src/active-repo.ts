@@ -22,6 +22,14 @@ export interface ActiveRepo {
   repoUrl: string;
   /** Index of the resolved entry inside `auth.repos`. */
   index: number;
+  /** GitHub identity verified for this repository's token. */
+  user?: RepoUserIdentity;
+}
+
+export interface RepoUserIdentity {
+  login: string;
+  avatar_url: string;
+  id: number;
 }
 
 interface StoredRepoEntryLike {
@@ -30,6 +38,7 @@ interface StoredRepoEntryLike {
   repo?: unknown;
   token?: unknown;
   isLogin?: unknown;
+  user?: unknown;
 }
 
 export interface StoredKodyAuthLike {
@@ -38,6 +47,7 @@ export interface StoredKodyAuthLike {
   token?: unknown;
   repoUrl?: unknown;
   repos?: unknown;
+  user?: unknown;
 }
 
 function isNonEmptyString(value: unknown): value is string {
@@ -46,7 +56,11 @@ function isNonEmptyString(value: unknown): value is string {
 
 function isCompleteEntry(
   entry: StoredRepoEntryLike | null | undefined,
-): entry is StoredRepoEntryLike & { owner: string; repo: string; token: string } {
+): entry is StoredRepoEntryLike & {
+  owner: string;
+  repo: string;
+  token: string;
+} {
   return (
     !!entry &&
     isNonEmptyString(entry.owner) &&
@@ -60,6 +74,19 @@ function refEquals(a: RepoRef, b: RepoRef): boolean {
     a.owner.toLowerCase() === b.owner.toLowerCase() &&
     a.repo.toLowerCase() === b.repo.toLowerCase()
   );
+}
+
+function readUser(value: unknown): RepoUserIdentity | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const user = value as Record<string, unknown>;
+  if (
+    !isNonEmptyString(user.login) ||
+    !isNonEmptyString(user.avatar_url) ||
+    typeof user.id !== "number"
+  ) {
+    return undefined;
+  }
+  return { login: user.login, avatar_url: user.avatar_url, id: user.id };
 }
 
 /**
@@ -87,6 +114,7 @@ export function resolveActiveRepo(
         ? entry.repoUrl
         : `https://github.com/${entry.owner}/${entry.repo}`,
       index,
+      user: readUser(entry.user),
     };
   };
 
@@ -129,6 +157,7 @@ export function resolveActiveRepo(
         ? auth.repoUrl
         : `https://github.com/${auth.owner}/${auth.repo}`,
       index: -1,
+      user: readUser(auth.user),
     };
   }
 
