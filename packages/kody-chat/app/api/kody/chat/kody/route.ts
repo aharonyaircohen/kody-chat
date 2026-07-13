@@ -60,7 +60,7 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { getSecret } from "@kody-ade/base/vault/get-secret";
-import { resolveVaultGithubToken } from "@kody-ade/base/vault/bootstrap";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import {
   resolveClientBrand,
   type ClientBrand,
@@ -149,6 +149,7 @@ import {
   isValidSlug as isValidAgentSlug,
   readResolvedAgentFile,
 } from "@dashboard/lib/agent-files";
+import { readResolvedCapabilityFile } from "@kody-ade/agency/capabilities";
 import {
   appendAgentChatSpeakerOverride,
   buildAgentChatIdentity,
@@ -506,6 +507,27 @@ export async function POST(req: NextRequest) {
   const traceId = randomBytes(4).toString("hex");
   const reqStartedAt = Date.now();
 
+  try {
+    return await handleKodyDirectPost(req, traceId, reqStartedAt);
+  } catch (err) {
+    clearGitHubContext();
+    traceError(
+      { traceId, err: formatProviderError(err), ...extractProviderErrorMeta(err) },
+      "kody-direct: request setup failed",
+    );
+    return NextResponse.json(
+      { error: "Chat setup failed", traceId },
+      { status: 500 },
+    );
+  }
+}
+
+async function handleKodyDirectPost(
+  req: NextRequest,
+  traceId: string,
+  reqStartedAt: number,
+) {
+
   // Surface scoping (phase 2 step 6). Admin PAT headers → full scope,
   // byte-identical to before. A valid surface ticket without a PAT →
   // restricted client scope (agent forced, tools filtered below). Neither →
@@ -603,11 +625,11 @@ export async function POST(req: NextRequest) {
   let repoScopedReq = req;
   let surfaceBrand: ClientBrand | null = null;
   if (surfaceScope.kind === "client") {
-    const token = await resolveVaultGithubToken(
+    const background = await resolveBackgroundToken(
       surfaceScope.owner,
       surfaceScope.repo,
     );
-    if (!token) {
+    if (!background) {
       return NextResponse.json(
         {
           error: "client_surface_not_configured",
@@ -618,7 +640,7 @@ export async function POST(req: NextRequest) {
       );
     }
     const auth: RequestAuth = {
-      token,
+      token: background.token,
       owner: surfaceScope.owner,
       repo: surfaceScope.repo,
     };
@@ -900,6 +922,29 @@ export async function POST(req: NextRequest) {
     addressedAgentMember = agentMember;
   }
 
+  // Capabilities attached to the agent: load each one's prompt (folded into
+  // the agent identity so the model follows it) and its tool names (unioned
+  // into the tool allowlist below so the capability's tools survive the
+  // bundle filter). Best-effort — a missing capability is skipped.
+  let capabilityToolNames: string[] = [];
+  if (repo && addressedAgentMember?.capabilities?.length) {
+    const octokit = createUserOctokit(repo.token);
+    const caps = (
+      await Promise.all(
+        addressedAgentMember.capabilities.map((slug) =>
+          readResolvedCapabilityFile(slug, octokit).catch(() => null),
+        ),
+      )
+    ).filter((cap): cap is NonNullable<typeof cap> => cap !== null);
+    const capPrompts = caps
+      .map((cap) => cap.prompt?.trim())
+      .filter((p): p is string => !!p);
+    if (capPrompts.length > 0) {
+      activeAgentIdentity = `${activeAgentIdentity}\n\n${capPrompts.join("\n\n")}`;
+    }
+    capabilityToolNames = caps.flatMap((cap) => cap.tools ?? []);
+  }
+
   // Build the per-request tool set FIRST. The tool list feeds into the
   // system prompt as a `## Tool index` block (item 1 of the accuracy
   // improvements) — the model picks the right tool from the descriptions,
@@ -1071,22 +1116,51 @@ export async function POST(req: NextRequest) {
   };
   if (repo && !clientSurface) {
     const octokit = createUserOctokit(repo.token);
+    // Optional tool families discover configuration from GitHub before the
+    // model starts. A transient read failure or one malformed optional
+    // config must not prevent the core chat from answering.
+    const loadOptionalTools = async (
+      toolFamily: string,
+      load: () => Promise<Record<string, unknown>>,
+    ): Promise<Record<string, unknown>> => {
+      try {
+        return await load();
+      } catch (err) {
+        traceWarn(
+          {
+            traceId,
+            toolFamily,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          "kody-direct: optional tools unavailable (continuing without them)",
+        );
+        return {};
+      }
+    };
+    const [cmsTools, userStateTools] = await Promise.all([
+      loadOptionalTools("cms", () =>
+        createCmsTools({
+          req,
+          octokit,
+          owner: repo.owner,
+          repo: repo.repo,
+        }),
+      ),
+      eventUserId
+        ? loadOptionalTools("user-state", () =>
+            createUserStateTools({
+              octokit,
+              owner: repo.owner,
+              repo: repo.repo,
+              userId: eventUserId,
+            }),
+          )
+        : Promise.resolve({}),
+    ]);
     extraTools = {
       ...extraTools,
-      ...(await createCmsTools({
-        req,
-        octokit,
-        owner: repo.owner,
-        repo: repo.repo,
-      })),
-      ...(eventUserId
-        ? await createUserStateTools({
-            octokit,
-            owner: repo.owner,
-            repo: repo.repo,
-            userId: eventUserId,
-          })
-        : {}),
+      ...cmsTools,
+      ...userStateTools,
       ...(eventUserId
         ? createPositionTools({
             octokit,
@@ -1111,9 +1185,14 @@ export async function POST(req: NextRequest) {
   );
   // Bundle allowlist controls domain tools. Core output tools are preserved
   // below because they are the chat protocol, not repo capability surface.
+  // Tools declared by the agent's attached capabilities are unioned in so a
+  // capability's tools survive the bundle filter (no effect when the bundle
+  // list is empty — that already allows all).
   const bundleFilteredTools = filterToolsByAllowlist(
     mergedTools,
-    chatBundle.capability.tools,
+    chatBundle.capability.tools.length > 0
+      ? [...chatBundle.capability.tools, ...capabilityToolNames]
+      : chatBundle.capability.tools,
   );
   // Client-surface scope hard-caps the result at the conservative surface
   // subset (read-only feature discovery + fetch_url). Applied AFTER the

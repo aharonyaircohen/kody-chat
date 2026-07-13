@@ -28,8 +28,10 @@ import {
   Trash2,
 } from "lucide-react";
 import { Button } from "@kody-ade/base/ui/button";
+import { Checkbox } from "@kody-ade/base/ui/checkbox";
 import { Input } from "@kody-ade/base/ui/input";
 import { Label } from "@kody-ade/base/ui/label";
+import { kodyApi } from "@dashboard/lib/api";
 import {
   Dialog,
   DialogContent,
@@ -700,6 +702,73 @@ function CreateAgentDialog({
   );
 }
 
+/** Checklist of the repo's capabilities; toggles which are attached. */
+function CapabilitiesChecklist({
+  selected,
+  onToggle,
+}: {
+  selected: string[];
+  onToggle: (slug: string, on: boolean) => void;
+}) {
+  const [options, setOptions] = useState<
+    { slug: string; describe?: string }[]
+  >([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    kodyApi.capabilities
+      .list()
+      .then((caps) => {
+        if (active) setOptions(caps.map((c) => ({ slug: c.slug, describe: c.describe })));
+      })
+      .catch(() => {})
+      .finally(() => active && setLoaded(true));
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  return (
+    <div className="space-y-1.5">
+      <Label>Capabilities</Label>
+      <p className="text-xs text-muted-foreground">
+        Attach capabilities — their instructions and tools load into this
+        agent&apos;s chat.
+      </p>
+      <div className="mt-1 max-h-40 space-y-1 overflow-y-auto rounded-md border border-border p-2">
+        {!loaded ? (
+          <div className="text-sm text-muted-foreground">Loading…</div>
+        ) : options.length === 0 ? (
+          <div className="text-sm text-muted-foreground">
+            No capabilities defined yet.
+          </div>
+        ) : (
+          options.map((cap) => (
+            <label
+              key={cap.slug}
+              className="flex items-start gap-2 rounded px-1 py-1 text-sm"
+            >
+              <Checkbox
+                checked={selected.includes(cap.slug)}
+                onCheckedChange={(on) => onToggle(cap.slug, on === true)}
+              />
+              <span className="min-w-0">
+                <span className="font-medium">{cap.slug}</span>
+                {cap.describe ? (
+                  <span className="ml-2 text-muted-foreground">
+                    {cap.describe}
+                  </span>
+                ) : null}
+              </span>
+            </label>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 function EditStaffDialog({
   member,
   onClose,
@@ -718,18 +787,30 @@ function EditStaffDialog({
 
   const [title, setTitle] = useState(member.title);
   const [body, setBody] = useState(member.body || "");
+  const [capabilities, setCapabilities] = useState<string[]>(
+    member.capabilities ?? [],
+  );
 
   useEffect(() => {
     setTitle(member.title);
     setBody(member.body || "");
+    setCapabilities(member.capabilities ?? []);
   }, [member]);
+
+  const toggleCapability = (slug: string, on: boolean) =>
+    setCapabilities((current) =>
+      on ? [...new Set([...current, slug])] : current.filter((s) => s !== slug),
+    );
+
+  const sameCapabilities = (a: string[], b: string[]) =>
+    a.length === b.length && [...a].sort().join() === [...b].sort().join();
 
   const handleSubmit = () => {
     if (!title.trim() || updateMutation.isPending || createMutation.isPending)
       return;
     if (isFileless) {
       createMutation.mutate(
-        { slug: member.slug, title: title.trim(), body },
+        { slug: member.slug, title: title.trim(), body, capabilities },
         { onSuccess: () => onSaved() },
       );
       return;
@@ -737,9 +818,13 @@ function EditStaffDialog({
     const patch: {
       title?: string;
       body?: string;
+      capabilities?: string[];
     } = {};
     if (title !== member.title) patch.title = title.trim();
     if (body !== member.body) patch.body = body;
+    if (!sameCapabilities(capabilities, member.capabilities ?? [])) {
+      patch.capabilities = capabilities;
+    }
     if (Object.keys(patch).length === 0) {
       onSaved();
       return;
@@ -772,6 +857,10 @@ function EditStaffDialog({
             <Label>Body</Label>
             <MarkdownEditor value={body} onChange={setBody} rows={14} />
           </div>
+          <CapabilitiesChecklist
+            selected={capabilities}
+            onToggle={toggleCapability}
+          />
         </div>
 
         <div className="flex justify-end gap-2 mt-4">

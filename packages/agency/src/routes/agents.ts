@@ -101,6 +101,7 @@ const createAgentSchema = z.object({
   ),
   title: z.string().min(1),
   body: z.string().default(""),
+  capabilities: z.array(z.string()).max(50).optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -124,6 +125,7 @@ export async function POST(req: NextRequest) {
       slug: requestedSlug,
       title,
       body,
+      capabilities,
       actorLogin,
     } = createAgentSchema.parse(payload);
 
@@ -170,6 +172,7 @@ export async function POST(req: NextRequest) {
       slug,
       title,
       body,
+      ...(capabilities ? { capabilities } : {}),
     });
 
     recordAudit(req, {

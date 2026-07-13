@@ -45,6 +45,8 @@ export interface TickFile {
   source?: "local" | "store";
   /** Store-linked assets are visible and runnable, but not editable locally. */
   readOnly?: boolean;
+  /** Capability slugs attached via frontmatter (agent files). */
+  capabilities?: string[];
 }
 
 export interface TickWriteOptions {
@@ -56,6 +58,8 @@ export interface TickWriteOptions {
   sha?: string;
   /** Commit message override. */
   message?: string;
+  /** Capability slugs to persist in frontmatter (agent files). */
+  capabilities?: string[];
 }
 
 /** Config that distinguishes one ticked-file kind (e.g. capabilities) from another. */
@@ -162,7 +166,11 @@ async function fetchStateLastCommitDate(
   }
 }
 
-function buildFileContent(title: string, body: string): string {
+function buildFileContent(
+  title: string,
+  body: string,
+  frontmatter: TickFrontmatter = {},
+): string {
   // Strip any leading H1 the caller's body already carries so we never
   // double the title — `# ${title}` is the single canonical heading.
   const trimmedBody = stripLeadingH1(body.replace(/^\s+/, ""));
@@ -170,7 +178,7 @@ function buildFileContent(title: string, body: string): string {
     trimmedBody.length > 0
       ? `# ${title.trim()}\n\n${trimmedBody}${trimmedBody.endsWith("\n") ? "" : "\n"}`
       : `# ${title.trim()}\n`;
-  return joinFrontmatter({}, titled);
+  return joinFrontmatter(frontmatter, titled);
 }
 
 /**
@@ -213,7 +221,7 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
           );
           if (!file) return null;
           const raw = file.content;
-          const { title, body } = parseTickedMarkdown(raw, slug);
+          const { title, body, frontmatter } = parseTickedMarkdown(raw, slug);
           const updatedAt =
             (await fetchStateLastCommitDate(octokit, filePath)) ??
             new Date().toISOString();
@@ -224,6 +232,9 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
             sha: file.sha,
             updatedAt,
             htmlUrl: file.htmlUrl ?? "",
+            ...(frontmatter.capabilities
+              ? { capabilities: frontmatter.capabilities }
+              : {}),
           } satisfies TickFile;
         } catch {
           return null;
@@ -265,7 +276,7 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
       );
       if (!file) return null;
       const raw = file.content;
-      const { title, body } = parseTickedMarkdown(raw, slug);
+      const { title, body, frontmatter } = parseTickedMarkdown(raw, slug);
       const updatedAt =
         (await fetchStateLastCommitDate(octokit, filePath)) ??
         new Date().toISOString();
@@ -276,6 +287,9 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
         sha: file.sha,
         updatedAt,
         htmlUrl: file.htmlUrl ?? "",
+        ...(frontmatter.capabilities
+          ? { capabilities: frontmatter.capabilities }
+          : {}),
       };
     } catch (error: unknown) {
       if ((error as { status?: number })?.status === 404) return null;
@@ -294,7 +308,13 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
       );
     }
     const filePath = `${stateDirPath(dir)}/${opts.slug}.md`;
-    const content = buildFileContent(opts.title, opts.body);
+    const content = buildFileContent(
+      opts.title,
+      opts.body,
+      opts.capabilities && opts.capabilities.length > 0
+        ? { capabilities: opts.capabilities }
+        : {},
+    );
     const message =
       opts.message ??
       `${opts.sha ? "chore" : "feat"}(${commitScope}): ${opts.sha ? "update" : "add"} ${opts.slug}`;

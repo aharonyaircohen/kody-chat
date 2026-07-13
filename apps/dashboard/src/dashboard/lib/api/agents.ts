@@ -7,6 +7,8 @@ export interface Agent {
   slug: string;
   title: string;
   body: string;
+  /** Capability slugs attached to this agent (loaded into its chat). */
+  capabilities?: string[];
   /** Last commit timestamp affecting this file (ISO8601). */
   updatedAt: string;
   /** Convenience link to the file on github.com. */
@@ -39,6 +41,7 @@ export const staffApi = {
     slug?: string;
     title: string;
     body: string;
+    capabilities?: string[];
     actorLogin?: string;
   }): Promise<Agent> => {
     const res = await fetch(`${API_BASE}/agents`, {
@@ -55,6 +58,7 @@ export const staffApi = {
     data: {
       title?: string;
       body?: string;
+      capabilities?: string[];
       actorLogin?: string;
     },
   ): Promise<Agent> => {
