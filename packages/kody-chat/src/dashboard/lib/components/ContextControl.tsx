@@ -860,7 +860,7 @@ function CreateEntryDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Body</Label>
+            <Label>Content</Label>
             <MarkdownEditor value={body} onChange={setBody} rows={10} />
             {bodyError ? (
               <p className="text-xs text-rose-300">{bodyError}</p>
@@ -929,28 +929,12 @@ function EditEntryDialog({
         <DialogHeader>
           <DialogTitle>Edit entry `{entry.slug}`</DialogTitle>
           <DialogDescription>
-            Update the entry body or owning agent. Saving commits the file to
+            Update the content or owning agent. Saving commits the file to
             the default branch.
           </DialogDescription>
         </DialogHeader>
 
         <div className="mt-2 flex min-h-0 min-w-0 flex-col gap-4 overflow-visible">
-          <div className="rounded-md border border-white/[0.08] bg-white/[0.03] p-3">
-            <div className="flex items-center justify-between gap-3 text-xs">
-              <span className="font-medium text-white/70">Active file</span>
-              <code className="font-mono text-teal-200">
-                {`context/${entry.slug}.md`}
-              </code>
-            </div>
-            <div className="mt-3 space-y-1.5">
-              <p className="text-xs font-medium text-white/70">
-                Current saved content
-              </p>
-              <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded border border-white/[0.06] bg-black/30 p-3 font-mono text-xs leading-relaxed text-white/65">
-                {entry.body}
-              </pre>
-            </div>
-          </div>
           <div className="space-y-1.5 max-w-[280px]">
             <Label>Agent</Label>
             <StaffSelect
@@ -960,7 +944,7 @@ function EditEntryDialog({
             />
           </div>
           <div className="space-y-1.5">
-            <Label>Body</Label>
+            <Label>Content</Label>
             <MarkdownEditor value={body} onChange={setBody} rows={10} />
             {bodyError ? (
               <p className="text-xs text-rose-300">{bodyError}</p>

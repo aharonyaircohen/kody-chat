@@ -26,4 +26,35 @@ describe("ContextControl entry dialogs", () => {
       expect(dialog).not.toContain('className="max-w-2xl"');
     }
   });
+
+  it("does not repeat an Active file section in create or edit", () => {
+    const createDialog = SOURCE.slice(
+      SOURCE.indexOf("function CreateEntryDialog"),
+      SOURCE.indexOf("function EditEntryDialog"),
+    );
+    const editDialog = SOURCE.slice(
+      SOURCE.indexOf("function EditEntryDialog"),
+      SOURCE.indexOf("function EmptyState"),
+    );
+
+    expect(createDialog).not.toContain("Active file");
+    expect(editDialog).not.toContain("Active file");
+  });
+
+  it("uses one clear Content field without a saved-content preview", () => {
+    const createDialog = SOURCE.slice(
+      SOURCE.indexOf("function CreateEntryDialog"),
+      SOURCE.indexOf("function EditEntryDialog"),
+    );
+    const editDialog = SOURCE.slice(
+      SOURCE.indexOf("function EditEntryDialog"),
+      SOURCE.indexOf("function EmptyState"),
+    );
+
+    for (const dialog of [createDialog, editDialog]) {
+      expect(dialog).toContain("<Label>Content</Label>");
+      expect(dialog).not.toContain("<Label>Body</Label>");
+    }
+    expect(editDialog).not.toContain("Current saved content");
+  });
 });
