@@ -58,6 +58,36 @@ export function transportKey(transport: ChatTerminalTransport): string {
   return "local";
 }
 
+export function terminalStatusText(args: {
+  transport: ChatTerminalTransport;
+  error: string | null;
+  session: { alive: boolean; cwd: string } | null;
+  connecting: boolean;
+  connectionState: ChatTerminalConnectionState;
+}): string {
+  if (args.error) return args.error;
+  if (isRemoteTerminalTransport(args.transport)) {
+    const label =
+      args.transport.type === "brain"
+        ? (args.transport.label ?? "Brain terminal")
+        : (args.transport.label ?? args.transport.app);
+    return `${label} · ${args.connectionState}`;
+  }
+  if (args.session?.alive) return args.session.cwd;
+  return args.connecting ? "starting" : "closed";
+}
+
+export function isTerminalActionBusy(
+  connecting: boolean,
+  connectionState: ChatTerminalConnectionState,
+): boolean {
+  return (
+    connecting ||
+    connectionState === "connecting" ||
+    connectionState === "restoring"
+  );
+}
+
 /** Input signal shown for each remote connection state (restore blocks input). */
 export function inputSignalForConnectionState(
   state: ChatTerminalConnectionState,
