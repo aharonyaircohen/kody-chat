@@ -31,6 +31,7 @@ export const LOCAL_OUTPUT_READ_TIMEOUT_MS = 5_000;
 export const TERMINAL_START_TIMEOUT_MS = 20_000;
 export const FLY_CONNECT_TIMEOUT_MS = 75_000;
 export const FLY_RECONNECT_DELAY_MS = 750;
+export const FLY_RECONNECT_MAX_ATTEMPTS = 3;
 
 export function fetchWithTimeout(
   input: RequestInfo | URL,
@@ -94,6 +95,18 @@ export function shouldSkipFlyConnect(args: {
     (args.existingState === "connecting" ||
       args.existingState === "restoring" ||
       args.existingState === "connected")
+  );
+}
+
+/** Keep SSH startup retries in the bridge; only recover an established socket. */
+export function shouldReconnectFlySocket(args: {
+  state: ChatTerminalConnectionState;
+  reconnectAttempt: number;
+}): boolean {
+  if (args.state === "connected") return true;
+  return (
+    args.reconnectAttempt > 0 &&
+    (args.state === "connecting" || args.state === "restoring")
   );
 }
 
@@ -170,6 +183,7 @@ export interface FlyConnectionDeps {
   flyConnectFailureKeyRef: { current: string | null };
   flyReconnectTimerRef: { current: number | null };
   flyReconnectNoticeRef: { current: boolean };
+  flyReconnectAttemptRef: { current: number };
   pendingFlyInputAckTimerRef: { current: number | null };
   setFlyConnectionState: (state: ChatTerminalConnectionState) => void;
   notifyConnectionState: (state: ChatTerminalConnectionState) => void;
@@ -230,9 +244,25 @@ export function scheduleFlyReconnect(
   ) {
     return;
   }
+  if (deps.flyReconnectTimerRef.current !== null) return;
+
   const ws = deps.flySocketRef.current;
   deps.flySocketRef.current = null;
   clearPendingFlyInputAck(ref);
+  if (deps.flyReconnectAttemptRef.current >= FLY_RECONNECT_MAX_ATTEMPTS) {
+    const message = `Terminal connection failed after ${FLY_RECONNECT_MAX_ATTEMPTS} reconnect attempts: ${reason}`;
+    clearScheduledFlyReconnect(ref);
+    deps.setError(message);
+    updateFlyConnectionState(ref, "error");
+    deps.terminalRef.current?.writeln(`\r\n\x1b[31m${message}\x1b[0m`);
+    try {
+      ws?.close(4001, reason);
+    } catch {}
+    return;
+  }
+
+  const attempt = deps.flyReconnectAttemptRef.current + 1;
+  deps.flyReconnectAttemptRef.current = attempt;
   deps.setError(null);
   updateFlyConnectionState(ref, "connecting");
   deps.setInputSignal({ tone: "blocked", label: "Reconnecting terminal" });
@@ -244,11 +274,14 @@ export function scheduleFlyReconnect(
     ws?.close(4001, reason);
   } catch {}
   clearScheduledFlyReconnect(ref);
-  deps.flyReconnectTimerRef.current = window.setTimeout(() => {
-    ref.current.flyReconnectTimerRef.current = null;
-    ref.current.flyReconnectNoticeRef.current = false;
-    void connectFly(ref, { force: true, resetSession: false });
-  }, FLY_RECONNECT_DELAY_MS);
+  deps.flyReconnectTimerRef.current = window.setTimeout(
+    () => {
+      ref.current.flyReconnectTimerRef.current = null;
+      ref.current.flyReconnectNoticeRef.current = false;
+      void connectFly(ref, { force: true, resetSession: false });
+    },
+    FLY_RECONNECT_DELAY_MS * 2 ** (attempt - 1),
+  );
 }
 
 export function waitForFlyInputAck(ref: FlyDepsRef, inputId: number): number {
@@ -260,11 +293,7 @@ export function waitForFlyInputAck(ref: FlyDepsRef, inputId: number): number {
     current.pendingFlyInputAckTimerRef.current = null;
     current.setError("Terminal input stalled; reconnecting.");
     current.setInputSignal({ tone: "blocked", label: "Input blocked" });
-    const ws = current.flySocketRef.current;
-    current.flySocketRef.current = null;
-    updateFlyConnectionState(ref, "connecting");
-    ws?.close(4000, "terminal input acknowledgement timed out");
-    void connectFly(ref, { force: true, resetSession: false });
+    scheduleFlyReconnect(ref, "terminal input acknowledgement timed out");
   }, TERMINAL_INPUT_TIMEOUT_MS);
   return inputId;
 }
@@ -293,6 +322,7 @@ export function disconnectFly(ref: FlyDepsRef): void {
   }
   clearScheduledFlyReconnect(ref);
   deps.flyReconnectNoticeRef.current = false;
+  deps.flyReconnectAttemptRef.current = 0;
   deps.flyConnectSeqRef.current += 1;
   deps.flyConnectInFlightKeyRef.current = null;
   deps.flySocketRef.current?.close(1000, "terminal transport changed");
@@ -428,10 +458,12 @@ export async function connectFly(
         return;
       }
       if (message.type === "restore-complete") {
+        live.flyReconnectAttemptRef.current = 0;
         updateFlyConnectionState(ref, "connected");
         return;
       }
       if (message.type === "ready") {
+        live.flyReconnectAttemptRef.current = 0;
         updateFlyConnectionState(ref, "connected");
         return;
       }
@@ -459,24 +491,33 @@ export async function connectFly(
         );
       }
     };
-    ws.onerror = () => {
-      const live = ref.current;
-      if (live.flySocketRef.current !== ws || !isCurrentFlyConnect()) return;
-      scheduleFlyReconnect(ref);
-    };
     ws.onclose = (event) => {
       const live = ref.current;
       if (live.flySocketRef.current !== ws || !isCurrentFlyConnect()) return;
       live.flySocketRef.current = null;
       live.notifyTerminalSessionEnded();
-      if (
-        event.code === 1000 ||
-        live.flyConnectionStateRef.current === "error"
-      ) {
+      const state = live.flyConnectionStateRef.current;
+      if (state === "error") return;
+      if (event.code === 1000) {
         updateFlyConnectionState(ref, "closed");
         return;
       }
-      scheduleFlyReconnect(ref);
+      const reason = event.reason.trim()
+        ? event.reason
+        : `Terminal WebSocket closed with code ${event.code}`;
+      if (
+        !shouldReconnectFlySocket({
+          state,
+          reconnectAttempt: live.flyReconnectAttemptRef.current,
+        })
+      ) {
+        const message = `Terminal connection ended before it became ready: ${reason}`;
+        live.setError(message);
+        updateFlyConnectionState(ref, "error");
+        live.terminalRef.current?.writeln(`\r\n\x1b[31m${message}\x1b[0m`);
+        return;
+      }
+      scheduleFlyReconnect(ref, reason);
     };
   } catch (err) {
     if (!isCurrentFlyConnect()) return;
@@ -486,6 +527,9 @@ export async function connectFly(
     ref.current.setError(message);
     updateFlyConnectionState(ref, "error");
     terminal.writeln(`\x1b[31m${message}\x1b[0m`);
+    if (ref.current.flyReconnectAttemptRef.current > 0) {
+      scheduleFlyReconnect(ref, message);
+    }
   } finally {
     if (
       ref.current.flyConnectSeqRef.current === seq &&

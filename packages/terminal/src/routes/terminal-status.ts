@@ -148,14 +148,10 @@ export async function POST(req: NextRequest) {
   }
 
   let bridge = null;
-  let bridgeCfg = targetCfg;
   for (const candidate of terminalBridgeConfigCandidates(targetCfg)) {
     try {
       bridge = await findServerProviderTerminalBridge(candidate);
-      if (bridge) {
-        bridgeCfg = candidate;
-        break;
-      }
+      if (bridge) break;
     } catch (err) {
       if (!isFlyBridgeAuthError(err)) throw err;
     }
@@ -171,7 +167,7 @@ export async function POST(req: NextRequest) {
     owner: ctx.context.owner,
     repo: ctx.context.repo,
     app: targetApp,
-    orgSlug: bridgeCfg.orgSlug,
+    orgSlug: targetCfg.orgSlug,
     machineId: targetMachineId,
     chatSessionId: terminalBridgeSessionIdForTarget({
       owner: ctx.context.owner,
@@ -181,7 +177,7 @@ export async function POST(req: NextRequest) {
       feature: brainRequested ? "brain" : (parsed.data.feature ?? "runner"),
       requestedChatSessionId: parsed.data.chatSessionId,
     }),
-    flyToken: bridgeCfg.token,
+    flyToken: targetCfg.token,
     ttlSeconds: 30,
     secret: bridge.secret,
   });

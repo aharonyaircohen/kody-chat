@@ -926,7 +926,7 @@ describe("POST /api/kody/terminal/session", () => {
     );
   });
 
-  it("uses an env Fly token for bridge provisioning and terminal access when the Brain token cannot manage apps", async () => {
+  it("uses an env Fly token for bridge provisioning while preserving the Brain token for terminal access", async () => {
     vi.stubEnv("FLY_API_TOKEN", "bridge-fly-token");
     mockSavedBrainInventory(
       "local-2",
@@ -963,7 +963,10 @@ describe("POST /api/kody/terminal/session", () => {
       expect.objectContaining({ token: "bridge-fly-token" }),
     );
     expect(token.mintTerminalBridgeToken).toHaveBeenCalledWith(
-      expect.objectContaining({ flyToken: "bridge-fly-token" }),
+      expect.objectContaining({
+        orgSlug: "guy-koren",
+        flyToken: "brain-fly-token",
+      }),
     );
   });
 
@@ -1295,7 +1298,7 @@ describe("POST /api/kody/terminal/status", () => {
     );
   });
 
-  it("uses an env Fly token for bridge status lookup and terminal claims when the Brain token cannot manage apps", async () => {
+  it("uses an env Fly token for bridge status lookup while preserving the Brain token in terminal claims", async () => {
     vi.stubEnv("FLY_API_TOKEN", "bridge-fly-token");
     mockSavedBrainInventory(
       "local-2",
@@ -1342,7 +1345,10 @@ describe("POST /api/kody/terminal/status", () => {
       expect.objectContaining({ token: "bridge-fly-token" }),
     );
     expect(token.mintTerminalBridgeToken).toHaveBeenCalledWith(
-      expect.objectContaining({ flyToken: "bridge-fly-token" }),
+      expect.objectContaining({
+        orgSlug: "guy-koren",
+        flyToken: "brain-fly-token",
+      }),
     );
   });
 

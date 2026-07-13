@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   FLY_RECONNECT_DELAY_MS,
+  FLY_RECONNECT_MAX_ATTEMPTS,
   TERMINAL_INPUT_TIMEOUT_MS,
   acknowledgeFlyInput,
   buildFlySessionRequest,
@@ -20,6 +21,7 @@ import {
   fetchWithTimeout,
   inputSignalForConnectionState,
   scheduleFlyReconnect,
+  shouldReconnectFlySocket,
   shouldSkipFlyConnect,
   updateFlyConnectionState,
   waitForFlyInputAck,
@@ -71,6 +73,7 @@ function makeDeps(overrides: Partial<FlyConnectionDeps> = {}): DepsHarness {
     flyConnectFailureKeyRef: { current: null },
     flyReconnectTimerRef: { current: null },
     flyReconnectNoticeRef: { current: false },
+    flyReconnectAttemptRef: { current: 0 },
     pendingFlyInputAckTimerRef: { current: null },
     setFlyConnectionState: (state) => void states.push(state),
     notifyConnectionState: () => {},
@@ -221,12 +224,14 @@ describe("input acknowledgement before 'sent'", () => {
     waitForFlyInputAck(harness.ref, 9);
     vi.advanceTimersByTime(TERMINAL_INPUT_TIMEOUT_MS);
 
-    // The stall error surfaces first; the reconnect attempt then clears it.
+    // The stall is routed through the one browser WebSocket retry owner.
     expect(harness.errors).toContain("Terminal input stalled; reconnecting.");
     expect(ws.closeCalls).toEqual([
-      [4000, "terminal input acknowledgement timed out"],
+      [4001, "terminal input acknowledgement timed out"],
     ]);
-    // The forced reconnect actually fired a new session request.
+    expect(fetchSpy).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(FLY_RECONNECT_DELAY_MS);
+    // The bounded reconnect actually fired a new session request.
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/kody/terminal/session",
       expect.objectContaining({ method: "POST" }),
@@ -235,6 +240,24 @@ describe("input acknowledgement before 'sent'", () => {
 });
 
 describe("stale connect guards", () => {
+  it("lets the bridge own startup retries and the browser own established socket recovery", () => {
+    expect(
+      shouldReconnectFlySocket({ state: "connecting", reconnectAttempt: 0 }),
+    ).toBe(false);
+    expect(
+      shouldReconnectFlySocket({ state: "restoring", reconnectAttempt: 0 }),
+    ).toBe(false);
+    expect(
+      shouldReconnectFlySocket({ state: "connected", reconnectAttempt: 0 }),
+    ).toBe(true);
+    expect(
+      shouldReconnectFlySocket({ state: "connecting", reconnectAttempt: 1 }),
+    ).toBe(true);
+    expect(
+      shouldReconnectFlySocket({ state: "error", reconnectAttempt: 1 }),
+    ).toBe(false);
+  });
+
   it("never reopens a remote terminal while the existing connection is restoring", async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal("fetch", fetchSpy);
@@ -313,6 +336,26 @@ describe("stale connect guards", () => {
       "/api/kody/terminal/session",
       expect.objectContaining({ method: "POST" }),
     );
+  });
+
+  it("stops reconnecting after the bounded attempts and preserves the final reason", () => {
+    const fetchSpy = vi.fn(() => new Promise<Response>(() => {}));
+    vi.stubGlobal("fetch", fetchSpy);
+    const harness = makeDeps();
+
+    for (let attempt = 0; attempt < FLY_RECONNECT_MAX_ATTEMPTS; attempt += 1) {
+      scheduleFlyReconnect(harness.ref, "WebSocket closed with code 1006");
+      vi.advanceTimersByTime(FLY_RECONNECT_DELAY_MS * 2 ** attempt);
+    }
+
+    expect(fetchSpy).toHaveBeenCalledTimes(FLY_RECONNECT_MAX_ATTEMPTS);
+    scheduleFlyReconnect(harness.ref, "WebSocket closed with code 1006");
+    expect(harness.states.at(-1)).toBe("error");
+    expect(harness.errors.at(-1)).toBe(
+      "Terminal connection failed after 3 reconnect attempts: WebSocket closed with code 1006",
+    );
+    vi.runAllTimers();
+    expect(fetchSpy).toHaveBeenCalledTimes(FLY_RECONNECT_MAX_ATTEMPTS);
   });
 });
 

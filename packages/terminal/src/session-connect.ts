@@ -104,15 +104,12 @@ function isFlyMachineAlreadyStartingError(err: unknown): boolean {
 
 async function ensureServerProviderTerminalBridgeForTarget(
   cfg: ReturnType<typeof terminalFlyConfigForMachine>,
-): Promise<{ bridge: ServerProviderTerminalBridgeInfo; terminalCfg: typeof cfg }> {
+): Promise<ServerProviderTerminalBridgeInfo> {
   let lastErr: unknown;
   const candidates = terminalBridgeConfigCandidates(cfg);
   for (const candidate of candidates) {
     try {
-      return {
-        bridge: await ensureServerProviderTerminalBridge(candidate),
-        terminalCfg: candidate,
-      };
+      return await ensureServerProviderTerminalBridge(candidate);
     } catch (err) {
       lastErr = err;
       if (!isFlyBridgeAuthError(err)) throw err;
@@ -268,8 +265,7 @@ export async function startTerminalSession(input: {
     selected.machine,
     savedBrain,
   );
-  const { bridge, terminalCfg } =
-    await ensureServerProviderTerminalBridgeForTarget(selectedCfg);
+  const bridge = await ensureServerProviderTerminalBridgeForTarget(selectedCfg);
   const activityLimitMs = terminalActivityLimitForTarget(
     selected.machine.feature,
     data.activityLimitMs,
@@ -287,12 +283,12 @@ export async function startTerminalSession(input: {
     owner: context.owner,
     repo: context.repo,
     app: selected.machine.app,
-    orgSlug: terminalCfg.orgSlug,
+    orgSlug: selectedCfg.orgSlug,
     machineId: selected.machine.machineId,
     chatSessionId: bridgeSessionId,
     resetSession: data.resetSession,
     ...(activityLimitMs !== undefined ? { activityLimitMs } : {}),
-    flyToken: terminalCfg.token,
+    flyToken: selectedCfg.token,
     cols: data.cols,
     rows: data.rows,
     now,

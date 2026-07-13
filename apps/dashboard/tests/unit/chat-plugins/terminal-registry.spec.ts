@@ -25,6 +25,7 @@ import {
   pruneSessionKeyedRecord,
   pruneTerminalRegistryToSessions,
   reconcileMountedChatTerminalsWithInventory,
+  remoteTerminalConnectionStateFromStatus,
   remoteTerminalStatusRequest,
   resolveTerminalTargetSelection,
   savePersistedTerminalRegistry,
@@ -322,6 +323,37 @@ describe("chat terminal registry refresh persistence", () => {
       feature: "runner",
       chatSessionId: "chat-1",
     });
+  });
+
+  it("reports connected only when the bridge session is ready and attached", () => {
+    expect(
+      remoteTerminalConnectionStateFromStatus({
+        alive: true,
+        ready: true,
+        socketCount: 1,
+      }),
+    ).toBe("connected");
+    expect(
+      remoteTerminalConnectionStateFromStatus({
+        alive: true,
+        ready: false,
+        socketCount: 1,
+      }),
+    ).toBe("connecting");
+    expect(
+      remoteTerminalConnectionStateFromStatus({
+        alive: true,
+        ready: true,
+        socketCount: 0,
+      }),
+    ).toBe("connecting");
+    expect(
+      remoteTerminalConnectionStateFromStatus({
+        alive: false,
+        ready: true,
+        socketCount: 1,
+      }),
+    ).toBe("closed");
   });
 
   it("reconciles Brain terminal targets after image apply", () => {

@@ -31,6 +31,7 @@ import {
   pruneSessionKeyedRecord,
   reconcileMountedChatTerminalsWithInventory,
   remoteTerminalStatusRequest,
+  remoteTerminalConnectionStateFromStatus,
   resolveTerminalTargetSelection,
   savePersistedTerminalRegistry,
   terminalRegistryStorageKey,
@@ -454,11 +455,11 @@ export function useChatTerminalRegistry({
             if (!res.ok) return;
             const body = (await res.json().catch(() => ({}))) as {
               alive?: boolean;
+              ready?: boolean;
+              socketCount?: number;
             };
             if (cancelled) return;
-            const state: ChatTerminalConnectionState = body.alive
-              ? "connected"
-              : "closed";
+            const state = remoteTerminalConnectionStateFromStatus(body);
             setConnectionStateByInstanceId((prev) =>
               prev[terminal.id] === state
                 ? prev

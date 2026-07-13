@@ -251,6 +251,17 @@ export function canUseChatTerminalFlyMachine(machine: ServerProviderMachineRow):
   return isFlyTerminalCapable(machine.feature);
 }
 
+export function remoteTerminalConnectionStateFromStatus(status: {
+  alive?: boolean;
+  ready?: boolean;
+  socketCount?: number;
+}): ChatTerminalConnectionState {
+  if (!status.alive) return "closed";
+  return status.ready && (status.socketCount ?? 0) > 0
+    ? "connected"
+    : "connecting";
+}
+
 export function terminalFlyMachineKey(machine: {
   app: string;
   machineId: string;

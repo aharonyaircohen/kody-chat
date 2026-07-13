@@ -140,6 +140,7 @@ export const ChatTerminalSurface = forwardRef<
   const flyConnectFailureKeyRef = useRef<string | null>(null);
   const flyReconnectTimerRef = useRef<number | null>(null);
   const flyReconnectNoticeRef = useRef(false);
+  const flyReconnectAttemptRef = useRef(0);
   const nextFlyInputIdRef = useRef(1);
   const pendingFlyInputAckTimerRef = useRef<number | null>(null);
   const terminalSelectionClearTimerRef = useRef<number | null>(null);
@@ -170,6 +171,7 @@ export const ChatTerminalSurface = forwardRef<
   useEffect(() => {
     localStartFailureKeyRef.current = null;
     flyConnectFailureKeyRef.current = null;
+    flyReconnectAttemptRef.current = 0;
   }, [chatSessionId, currentTransportKey]);
 
   useEffect(() => {
@@ -291,6 +293,7 @@ export const ChatTerminalSurface = forwardRef<
     flyConnectFailureKeyRef,
     flyReconnectTimerRef,
     flyReconnectNoticeRef,
+    flyReconnectAttemptRef,
     pendingFlyInputAckTimerRef,
     setFlyConnectionState,
     notifyConnectionState,
