@@ -77,6 +77,7 @@ export async function GET(
 const updateAgentSchema = z.object({
   title: z.string().min(1).optional(),
   body: z.string().optional(),
+  capabilities: z.array(z.string()).max(50).optional(),
   actorLogin: z.string().optional(),
 });
 
@@ -112,7 +113,8 @@ export async function PATCH(
     }
 
     const payload = await req.json();
-    const { title, body, actorLogin } = updateAgentSchema.parse(payload);
+    const { title, body, capabilities, actorLogin } =
+      updateAgentSchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
@@ -135,6 +137,8 @@ export async function PATCH(
       title: title ?? existing.title,
       body: body ?? existing.body,
       sha: existing.sha,
+      // Preserve existing capabilities unless the caller sends a new list.
+      capabilities: capabilities ?? existing.capabilities,
     });
 
     recordAudit(req, {

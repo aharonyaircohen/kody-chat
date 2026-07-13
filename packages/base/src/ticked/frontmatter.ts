@@ -52,6 +52,12 @@ export interface TickFrontmatter {
   disabled?: boolean;
   /** Slug of an agent identity under `agents/<agent>.md` in the state repo. */
   agent?: string;
+  /**
+   * Capability slugs attached to this record (agent files). Each named
+   * capability's prompt + tools are loaded into the chat when this agent
+   * runs. Stored as an inline list: `capabilities: [a, b]`.
+   */
+  capabilities?: string[];
 }
 
 const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
@@ -177,6 +183,9 @@ function parseFlatYaml(text: string): TickFrontmatter {
       else if (lower === "false") out.disabled = false;
     } else if (key === "agent" && value.length > 0) {
       out.agent = value;
+    } else if (key === "capabilities") {
+      const list = parseInlineList(value);
+      if (list.length > 0) out.capabilities = list;
     }
     // Unknown keys silently dropped on read — they round-trip via the
     // raw body if callers preserve it. We don't surface them on the
@@ -192,7 +201,19 @@ function serializeFlatYaml(frontmatter: TickFrontmatter): string[] {
   // Only emit `disabled: true` — the default (enabled) leaves the line
   // out so an unchanged ticked file stays byte-identical.
   if (frontmatter.disabled === true) lines.push(`disabled: true`);
+  if (frontmatter.capabilities && frontmatter.capabilities.length > 0) {
+    lines.push(`capabilities: [${frontmatter.capabilities.join(", ")}]`);
+  }
   return lines;
+}
+
+/** Parse an inline YAML list `[a, b, c]` (or a bare comma list) of slugs. */
+function parseInlineList(value: string): string[] {
+  const inner = value.replace(/^\[/, "").replace(/\]$/, "");
+  return inner
+    .split(",")
+    .map((entry) => stripQuotes(entry.trim()))
+    .filter((entry) => /^[a-z0-9][a-z0-9_-]*$/.test(entry));
 }
 
 function stripQuotes(value: string): string {
