@@ -129,7 +129,7 @@ export function TerminalTopControls({
   return (
     <div
       data-testid="chat-terminal-toolbar"
-      className="flex w-full min-w-0 items-center gap-2"
+      className="flex w-full min-w-0 flex-wrap items-center gap-2"
     >
       <div
         data-testid="chat-terminal-target-row"
@@ -199,11 +199,6 @@ export function TerminalTopControls({
             <Save className="h-4 w-4" />
           )}
         </button>
-        {brainImageBusy && (
-          <span className="hidden max-w-40 truncate text-[11px] text-amber-100/80 lg:inline">
-            {brainImageSaveLabel}
-          </span>
-        )}
         <button
           type="button"
           onClick={onRefreshMachines}
@@ -219,6 +214,17 @@ export function TerminalTopControls({
           )}
         </button>
       </div>
+      {brainImageBusy && (
+        <div
+          data-testid="brain-image-save-status"
+          role="status"
+          aria-live="polite"
+          className="flex min-w-0 basis-full items-center gap-2 border-t border-border pt-1.5 text-body-xs text-amber-700 dark:text-amber-300"
+        >
+          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+          <span className="min-w-0 truncate">{brainImageSaveLabel}</span>
+        </div>
+      )}
     </div>
   );
 }

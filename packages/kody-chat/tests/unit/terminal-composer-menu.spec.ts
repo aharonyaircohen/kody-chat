@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   TerminalBottomControls,
   TerminalModeToggle,
+  TerminalTopControls,
 } from "../../src/dashboard/lib/chat/plugins/terminal/TerminalControls";
 
 const CONTROLS_SOURCE = readFileSync(
@@ -25,6 +26,53 @@ const HOST_SOURCE = readFileSync(
 );
 
 describe("terminal controls in the composer menu", () => {
+  it("shows Brain save progress on its own line below the terminal header", () => {
+    const markup = renderToStaticMarkup(
+      createElement(TerminalTopControls, {
+        activeTargetValue: "brain",
+        onSelectTarget: () => undefined,
+        activeTransport: { type: "brain" },
+        terminalMachines: [],
+        flyInventoryError: null,
+        flyInventoryLoading: false,
+        onRefreshMachines: () => undefined,
+        brainImageBusy: true,
+        brainImageSaveLabel: "Pushing the Brain image to GHCR",
+        onSaveBrainImage: () => undefined,
+      }),
+    );
+
+    const headerIndex = markup.indexOf(
+      'data-testid="chat-terminal-actions-row"',
+    );
+    const statusIndex = markup.indexOf('data-testid="brain-image-save-status"');
+    expect(headerIndex).toBeGreaterThan(-1);
+    expect(statusIndex).toBeGreaterThan(headerIndex);
+    expect(markup).toContain('role="status"');
+    expect(markup).toContain('aria-live="polite"');
+    expect(markup).toContain("basis-full");
+    expect(markup).not.toContain("hidden max-w-40");
+  });
+
+  it("does not reserve an empty status line when Brain is not saving", () => {
+    const markup = renderToStaticMarkup(
+      createElement(TerminalTopControls, {
+        activeTargetValue: "brain",
+        onSelectTarget: () => undefined,
+        activeTransport: { type: "brain" },
+        terminalMachines: [],
+        flyInventoryError: null,
+        flyInventoryLoading: false,
+        onRefreshMachines: () => undefined,
+        brainImageBusy: false,
+        brainImageSaveLabel: "Save Brain image",
+        onSaveBrainImage: () => undefined,
+      }),
+    );
+
+    expect(markup).not.toContain('data-testid="brain-image-save-status"');
+  });
+
   it("keeps terminal actions in the same full-width menu-row layout", () => {
     expect(HOST_SOURCE).toContain('layout="menu"');
     expect(CONTROLS_SOURCE).toContain('layout?: "row" | "menu"');
