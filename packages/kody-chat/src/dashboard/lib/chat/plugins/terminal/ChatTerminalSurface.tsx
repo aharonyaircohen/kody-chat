@@ -49,7 +49,10 @@ import {
   MAX_CAPTURE_CHARS,
   usefulCapturedOutput,
 } from "./terminal-text";
-import { mountChatTerminal } from "./xterm-setup";
+import {
+  mountChatTerminal,
+  resetTerminalUiForRestart,
+} from "./xterm-setup";
 import type {
   ChatTerminalChromeState,
   ChatTerminalConnectionState,
@@ -765,6 +768,12 @@ export const ChatTerminalSurface = forwardRef<
   const restart = useCallback(() => {
     clearScheduledFlyReconnect(flyDepsRef);
     flyReconnectNoticeRef.current = false;
+    outputCaptureRef.current = "";
+    clearScheduledTerminalSelection();
+    setSelectedTerminalText("");
+    if (terminalRef.current) {
+      resetTerminalUiForRestart(terminalRef.current);
+    }
     setInputSignal({ tone: "blocked", label: "Waiting for terminal" });
     if (isRemoteTerminalTransport(transportRef.current)) {
       void connectFlyTerminal({ force: true, resetSession: true });
@@ -772,7 +781,7 @@ export const ChatTerminalSurface = forwardRef<
     }
     localStartFailureKeyRef.current = null;
     void stop().then(() => start());
-  }, [connectFlyTerminal, start, stop]);
+  }, [clearScheduledTerminalSelection, connectFlyTerminal, start, stop]);
 
   useImperativeHandle(
     ref,

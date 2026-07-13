@@ -27,6 +27,15 @@ export interface MountedXterm {
   disposables: Array<{ dispose: () => void }>;
 }
 
+type RestartableXterm = Pick<XTerm, "reset" | "clear" | "focus">;
+
+/** Reset browser-owned terminal state before starting a fresh PTY session. */
+export function resetTerminalUiForRestart(terminal: RestartableXterm): void {
+  terminal.reset();
+  terminal.clear();
+  terminal.focus();
+}
+
 /**
  * Load and mount xterm into `host`. Returns null when `isDisposed()` flips
  * before the lazy imports resolve (the caller unmounted mid-load).

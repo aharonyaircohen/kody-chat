@@ -32,6 +32,7 @@ import {
   openTerminalWebLink,
   usefulCapturedOutput,
 } from "@dashboard/lib/chat/plugins/terminal/terminal-text";
+import { resetTerminalUiForRestart } from "@dashboard/lib/chat/plugins/terminal/xterm-setup";
 import type {
   ChatTerminalConnectionState,
   TerminalInputSignal,
@@ -182,6 +183,19 @@ describe("remote input gating", () => {
     ).not.toBeNull();
     updateFlyConnectionState(harness.ref, "closed");
     expect(harness.ref.current.pendingFlyInputAckTimerRef.current).toBeNull();
+  });
+});
+
+describe("terminal restart UI", () => {
+  it("resets terminal modes and clears the old screen before reconnecting", () => {
+    const calls: string[] = [];
+    resetTerminalUiForRestart({
+      reset: () => void calls.push("reset"),
+      clear: () => void calls.push("clear"),
+      focus: () => void calls.push("focus"),
+    });
+
+    expect(calls).toEqual(["reset", "clear", "focus"]);
   });
 });
 
