@@ -26,8 +26,10 @@
       "agency-portfolio-management",
       "agency-operations-management",
       "ai-agency-health-matrix",
+      "repo-source-health",
       "observe-repo-ci",
       "operate-findings",
+      "dev-ci-health",
       "ceo-performance-review"
     ],
     "activeGoals": [
