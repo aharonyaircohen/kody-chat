@@ -333,6 +333,14 @@ export function BrainImagesManager() {
   }, [loadImages]);
 
   useEffect(() => {
+    const refreshOnFocus = () => {
+      if (document.visibilityState === "visible") void loadImages();
+    };
+    window.addEventListener("focus", refreshOnFocus);
+    return () => window.removeEventListener("focus", refreshOnFocus);
+  }, [loadImages]);
+
+  useEffect(() => {
     if (save?.status !== "running") return;
     const interval = window.setInterval(() => void pollSave(save.jobId), 5000);
     return () => window.clearInterval(interval);

@@ -26,6 +26,16 @@ describe("BrainImagesManager", () => {
     );
   });
 
+  it("reloads authoritative state when the page returns to the foreground", () => {
+    expect(SOURCE).toContain(
+      'window.addEventListener("focus", refreshOnFocus)',
+    );
+    expect(SOURCE).toContain(
+      'window.removeEventListener("focus", refreshOnFocus)',
+    );
+    expect(SOURCE).toContain('document.visibilityState === "visible"');
+  });
+
   it("requires confirmation before permanently deleting an image", () => {
     expect(SOURCE).toContain(
       'import { ConfirmDialog } from "./ConfirmDialog";',
