@@ -350,7 +350,7 @@ describe("Brain image store", () => {
     );
   });
 
-  it("forgets a saved Brain image from dashboard metadata", async () => {
+  it("removes a deleted Brain image from dashboard metadata", async () => {
     state.readStateText
       .mockResolvedValueOnce({
         content: JSON.stringify({
@@ -390,17 +390,14 @@ describe("Brain image store", () => {
           imageRef: "ghcr.io/alice/kody-brain-snapshot:new",
         }),
       ],
-      forgottenImageRefs: ["ghcr.io/alice/kody-brain-snapshot:old"],
     });
     const content = JSON.parse(
       (state.writeStateText.mock.calls[0]?.[0] as { content: string }).content,
     ) as { forgottenImageRefs?: string[] };
-    expect(content.forgottenImageRefs).toEqual([
-      "ghcr.io/alice/kody-brain-snapshot:old",
-    ]);
+    expect(content.forgottenImageRefs).toBeUndefined();
   });
 
-  it("remembers a forgotten discovered Brain image even when it was not saved locally", async () => {
+  it("does not create metadata when a deleted image was only discovered remotely", async () => {
     state.readStateText.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
     state.writeStateText.mockResolvedValue({ sha: "new-sha" });
     const { deleteBrainImage } = await import("@kody-ade/brain/store");
@@ -411,19 +408,8 @@ describe("Brain image store", () => {
         "token",
         "ghcr.io/alice/kody-brain-snapshot:discovered",
       ),
-    ).resolves.toMatchObject({
-      images: [],
-      forgottenImageRefs: ["ghcr.io/alice/kody-brain-snapshot:discovered"],
-    });
-
-    const content = JSON.parse(
-      (state.writeStateText.mock.calls[0]?.[0] as { content: string }).content,
-    ) as { imageRef?: string; images?: unknown[]; forgottenImageRefs?: string[] };
-    expect(content.imageRef).toBeUndefined();
-    expect(content.images).toEqual([]);
-    expect(content.forgottenImageRefs).toEqual([
-      "ghcr.io/alice/kody-brain-snapshot:discovered",
-    ]);
+    ).resolves.toBeNull();
+    expect(state.writeStateText).not.toHaveBeenCalled();
   });
 
   it("marks a selected Brain image as running after apply succeeds", async () => {

@@ -22,24 +22,31 @@ describe("BrainImagesManager", () => {
     expect(SOURCE).toContain("await loadImages();");
     expect(SOURCE).toContain('toast.success("Brain image applied");');
     expect(SOURCE).toContain(
-      'await loadImages();\n      toast.success("Brain image forgotten");',
+      'await loadImages();\n      toast.success("Brain image deleted");',
     );
   });
 
-  it("requires confirmation before forgetting an image", () => {
+  it("requires confirmation before permanently deleting an image", () => {
     expect(SOURCE).toContain(
       'import { ConfirmDialog } from "./ConfirmDialog";',
     );
-    expect(SOURCE).toContain("const [pendingForgetRef, setPendingForgetRef]");
+    expect(SOURCE).toContain("const [pendingDeleteRef, setPendingDeleteRef]");
     expect(SOURCE).toContain(
-      "onClick={() => setPendingForgetRef(image.imageRef)}",
+      "onClick={() => setPendingDeleteRef(image.imageRef)}",
     );
     expect(SOURCE).toContain("<ConfirmDialog");
-    expect(SOURCE).toContain('confirmLabel="Forget"');
+    expect(SOURCE).toContain('confirmLabel="Delete image"');
     expect(SOURCE).toContain('variant="destructive"');
     expect(SOURCE).toContain(
-      "if (pendingForgetRef) void forgetImage(pendingForgetRef);",
+      "if (pendingDeleteRef) void deleteImage(pendingDeleteRef);",
     );
+    expect(SOURCE).toContain(': "Delete image"');
+    expect(SOURCE).toContain('aria-label="Delete image"');
+    expect(SOURCE).toContain("Permanently delete this Brain image?");
+    expect(SOURCE).toContain("This permanently removes the GHCR package image");
+    expect(SOURCE).toContain("disabled={busy || running || selected}");
+    expect(SOURCE).not.toContain("Forget image");
+    expect(SOURCE).not.toContain("forgotten");
   });
 
   it("requires confirmation before running or rerunning a Brain image", () => {

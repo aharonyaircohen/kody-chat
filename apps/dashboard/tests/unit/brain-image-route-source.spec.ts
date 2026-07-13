@@ -50,7 +50,8 @@ describe("Brain image save route", () => {
     expect(ROUTE_SOURCE).toContain("readBrainImageManagement");
     expect(ROUTE_SOURCE).toContain("pollBrainImageSave");
     expect(ROUTE_SOURCE).toContain("selectBrainImageRef");
-    expect(ROUTE_SOURCE).toContain("forgetBrainImageRef");
+    expect(ROUTE_SOURCE).toContain("deleteBrainImageRef");
+    expect(ROUTE_SOURCE).not.toContain("forgetBrainImageRef");
     expect(IMAGE_SAVE_COMMAND_SOURCE).toContain(
       "ensureServerProviderTerminalBridge",
     );

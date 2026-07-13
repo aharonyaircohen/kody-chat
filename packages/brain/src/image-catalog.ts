@@ -17,6 +17,7 @@ import { brainGhcrImageRef } from "./image-save";
 import type { BrainImageFile, BrainSavedImage } from "./store";
 
 interface GitHubPackageVersion {
+  id?: unknown;
   created_at?: unknown;
   updated_at?: unknown;
   metadata?: {
@@ -24,6 +25,17 @@ interface GitHubPackageVersion {
       tags?: unknown;
     };
   };
+}
+
+export class BrainPackageImageError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number,
+    public readonly code: string,
+  ) {
+    super(message);
+    this.name = "BrainPackageImageError";
+  }
 }
 
 const IMAGE_TAG_RE = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/;
@@ -62,6 +74,38 @@ function packageVersionUrl(input: {
   const owner = encodeURIComponent(input.owner);
   const packageName = encodeURIComponent(input.packageName);
   return `https://api.github.com/${input.ownerKind}/${owner}/packages/container/${packageName}/versions?per_page=100&page=${input.page}`;
+}
+
+function packageVersionDeleteUrl(input: {
+  ownerKind: "orgs" | "users";
+  owner: string;
+  packageName: string;
+  versionId: number;
+}): string {
+  return `${packageVersionUrl({
+    ownerKind: input.ownerKind,
+    owner: input.owner,
+    packageName: input.packageName,
+    page: 1,
+  }).replace(/\?per_page=100&page=1$/, "")}/${input.versionId}`;
+}
+
+function packageHeaders(token: string): Record<string, string> {
+  return {
+    Accept: "application/vnd.github+json",
+    Authorization: `Bearer ${token}`,
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+}
+
+function packageVersionTags(version: GitHubPackageVersion): string[] {
+  const tags = version.metadata?.container?.tags;
+  return Array.isArray(tags)
+    ? tags.filter(
+        (tag): tag is string =>
+          typeof tag === "string" && IMAGE_TAG_RE.test(tag),
+      )
+    : [];
 }
 
 function sortBrainSavedImages(images: BrainSavedImage[]): BrainSavedImage[] {
@@ -186,11 +230,7 @@ async function fetchBrainPackageImages(input: {
           page,
         }),
         {
-          headers: {
-            Accept: "application/vnd.github+json",
-            Authorization: `Bearer ${input.githubToken}`,
-            "X-GitHub-Api-Version": "2022-11-28",
-          },
+          headers: packageHeaders(input.githubToken),
         },
       );
       if (res.status === 404 && page === 1) {
@@ -211,6 +251,109 @@ async function fetchBrainPackageImages(input: {
     }
   }
   return [];
+}
+
+export async function deleteBrainPackageImage(input: {
+  owner: string;
+  repo: string;
+  account: string;
+  githubToken: string;
+  imageRef: string;
+}): Promise<{ deletedImageRefs: string[]; alreadyMissing: boolean }> {
+  const { baseRef, packageName } = brainImagePackage(input);
+  const prefix = `${baseRef}:`;
+  const tag = input.imageRef.startsWith(prefix)
+    ? input.imageRef.slice(prefix.length)
+    : "";
+  if (!IMAGE_TAG_RE.test(tag)) {
+    throw new BrainPackageImageError(
+      "Brain image does not belong to this user's Brain package.",
+      400,
+      "brain_image_ref_not_owned",
+    );
+  }
+
+  for (const ownerKind of ["orgs", "users"] as const) {
+    let page = 1;
+    while (page <= 10) {
+      const listUrl = packageVersionUrl({
+        ownerKind,
+        owner: input.owner,
+        packageName,
+        page,
+      });
+      const listRes = await fetch(listUrl, {
+        headers: packageHeaders(input.githubToken),
+      });
+      if (listRes.status === 404 && page === 1) break;
+      if (!listRes.ok) {
+        throw new BrainPackageImageError(
+          `GitHub package versions lookup failed (${listRes.status}).`,
+          listRes.status,
+          listRes.status === 403
+            ? "brain_image_package_delete_forbidden"
+            : "brain_image_package_lookup_failed",
+        );
+      }
+      const pageVersions = (await listRes.json()) as unknown;
+      if (!Array.isArray(pageVersions)) {
+        throw new BrainPackageImageError(
+          "GitHub returned an invalid package version list.",
+          502,
+          "brain_image_package_lookup_failed",
+        );
+      }
+      for (const rawVersion of pageVersions) {
+        const version = rawVersion as GitHubPackageVersion;
+        const tags = packageVersionTags(version);
+        if (!tags.includes(tag)) continue;
+        if (
+          typeof version.id !== "number" ||
+          !Number.isSafeInteger(version.id) ||
+          version.id <= 0
+        ) {
+          throw new BrainPackageImageError(
+            "GitHub package version is missing its identifier.",
+            502,
+            "brain_image_package_lookup_failed",
+          );
+        }
+        const deleteRes = await fetch(
+          packageVersionDeleteUrl({
+            ownerKind,
+            owner: input.owner,
+            packageName,
+            versionId: version.id,
+          }),
+          {
+            method: "DELETE",
+            headers: packageHeaders(input.githubToken),
+          },
+        );
+        if (!deleteRes.ok) {
+          throw new BrainPackageImageError(
+            deleteRes.status === 403
+              ? "GitHub denied package deletion. The token needs package admin and delete permission."
+              : `GitHub package deletion failed (${deleteRes.status}).`,
+            deleteRes.status,
+            deleteRes.status === 403
+              ? "brain_image_package_delete_forbidden"
+              : "brain_image_package_delete_failed",
+          );
+        }
+        clearBrainPackageImageDiscoveryCache();
+        return {
+          deletedImageRefs: tags.map((savedTag) => `${baseRef}:${savedTag}`),
+          alreadyMissing: false,
+        };
+      }
+      if (pageVersions.length < 100) break;
+      page += 1;
+    }
+  }
+
+  clearBrainPackageImageDiscoveryCache();
+  return { deletedImageRefs: [input.imageRef], alreadyMissing: true };
 }
 
 export async function discoverBrainPackageImages(

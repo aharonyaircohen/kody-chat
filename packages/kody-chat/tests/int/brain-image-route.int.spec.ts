@@ -78,7 +78,7 @@ vi.mock("@kody-ade/terminal/bridge-exec-client", () => ({
 }));
 
 vi.mock("@kody-ade/brain/store", () => ({
-  deleteBrainImage: mocks.deleteImage,
+  deleteBrainImages: mocks.deleteImage,
   readBrainImage: mocks.readImage,
   readBrainImageSave: mocks.readSave,
   selectBrainImage: mocks.selectImage,
@@ -601,6 +601,19 @@ describe("DELETE /api/kody/brain/image", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.readRuntimeView.mockResolvedValue({ source: "empty" });
+    mocks.readImage.mockResolvedValue({
+      version: 1,
+      createdAt: "2026-06-30T00:00:00.000Z",
+      updatedAt: "2026-07-02T10:10:10.000Z",
+      images: [
+        {
+          imageRef:
+            "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old",
+          createdAt: "2026-06-30T00:00:00.000Z",
+          updatedAt: "2026-07-02T10:10:10.000Z",
+        },
+      ],
+    });
     mocks.deleteImage.mockResolvedValue({
       version: 1,
       createdAt: "2026-06-30T00:00:00.000Z",
@@ -610,9 +623,26 @@ describe("DELETE /api/kody/brain/image", () => {
         "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old",
       ],
     });
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify([
+              {
+                id: 73,
+                metadata: { container: { tags: ["old"] } },
+              },
+            ]),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(new Response(null, { status: 204 })),
+    );
   });
 
-  it("forgets the requested Brain image for the current user", async () => {
+  it("deletes the requested GHCR image before removing its Brain state", async () => {
     const res = await DELETE(
       request(
         "DELETE",
@@ -624,8 +654,63 @@ describe("DELETE /api/kody/brain/image", () => {
     expect(mocks.deleteImage).toHaveBeenCalledWith(
       "aguyaharonyair",
       "gh-token",
-      "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old",
+      ["ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old"],
     );
+    expect(fetch).toHaveBeenLastCalledWith(
+      "https://api.github.com/orgs/A-Guy-educ/packages/container/kody-brain-aguyaharonyair/versions/73",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+
+  it("blocks deletion of the running Brain image", async () => {
+    mocks.readRuntimeView.mockResolvedValueOnce({
+      desiredImageRef:
+        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old",
+      runningImageRef:
+        "ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old",
+      source: "runtime",
+    });
+
+    const res = await DELETE(
+      request(
+        "DELETE",
+        "https://dash.test/api/kody/brain/image?imageRef=ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old",
+      ),
+    );
+
+    expect(res.status).toBe(409);
+    expect(mocks.deleteImage).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("keeps Brain state when GHCR denies deletion", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify([
+              {
+                id: 73,
+                metadata: { container: { tags: ["old"] } },
+              },
+            ]),
+            { status: 200 },
+          ),
+        )
+        .mockResolvedValueOnce(new Response(null, { status: 403 })),
+    );
+
+    const res = await DELETE(
+      request(
+        "DELETE",
+        "https://dash.test/api/kody/brain/image?imageRef=ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old",
+      ),
+    );
+
+    expect(res.status).toBe(403);
+    expect(mocks.deleteImage).not.toHaveBeenCalled();
   });
 });
 

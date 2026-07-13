@@ -183,7 +183,7 @@ export function BrainImagesManager() {
   const [loading, setLoading] = useState(true);
   const [busyRef, setBusyRef] = useState<string | null>(null);
   const [pendingApplyRef, setPendingApplyRef] = useState<string | null>(null);
-  const [pendingForgetRef, setPendingForgetRef] = useState<string | null>(null);
+  const [pendingDeleteRef, setPendingDeleteRef] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const loadImages = useCallback(async () => {
@@ -311,9 +311,9 @@ export function BrainImagesManager() {
   );
   const pendingApplyIsRunning =
     pendingApplyRef !== null && pendingApplyRef === runningImageRef;
-  const pendingForgetImage = useMemo(
-    () => images.find((image) => image.imageRef === pendingForgetRef) ?? null,
-    [images, pendingForgetRef],
+  const pendingDeleteImage = useMemo(
+    () => images.find((image) => image.imageRef === pendingDeleteRef) ?? null,
+    [images, pendingDeleteRef],
   );
   const runningImage = useMemo(
     () => images.find((image) => image.imageRef === runningImageRef) ?? null,
@@ -363,7 +363,7 @@ export function BrainImagesManager() {
     setPendingApplyRef(imageRef);
   }
 
-  async function forgetImage(imageRef: string) {
+  async function deleteImage(imageRef: string) {
     if (!headers) return;
     setBusyRef(imageRef);
     try {
@@ -374,13 +374,13 @@ export function BrainImagesManager() {
       const body = (await res.json().catch(() => ({}))) as BrainImagesResponse;
       if (!res.ok) {
         throw new Error(
-          body.message ?? body.error ?? `Forget failed (${res.status})`,
+          body.message ?? body.error ?? `Delete failed (${res.status})`,
         );
       }
       await loadImages();
-      toast.success("Brain image forgotten");
+      toast.success("Brain image deleted");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Forget failed");
+      toast.error(err instanceof Error ? err.message : "Delete failed");
     } finally {
       setBusyRef(null);
     }
@@ -550,6 +550,7 @@ export function BrainImagesManager() {
           ) : (
             images.map((image) => {
               const running = image.imageRef === runningImageRef;
+              const selected = image.imageRef === activeImageRef;
               const busy = busyRef === image.imageRef;
               return (
                 <div
@@ -625,10 +626,14 @@ export function BrainImagesManager() {
                       type="button"
                       size="sm"
                       variant="ghost"
-                      title="Forget image"
-                      aria-label="Forget image"
-                      disabled={busy}
-                      onClick={() => setPendingForgetRef(image.imageRef)}
+                      title={
+                        running || selected
+                          ? "Run another image before deleting"
+                          : "Delete image"
+                      }
+                      aria-label="Delete image"
+                      disabled={busy || running || selected}
+                      onClick={() => setPendingDeleteRef(image.imageRef)}
                     >
                       {busy ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -669,21 +674,21 @@ export function BrainImagesManager() {
         onClose={() => setPendingApplyRef(null)}
       />
       <ConfirmDialog
-        open={pendingForgetRef !== null}
-        title="Forget Brain image?"
+        open={pendingDeleteRef !== null}
+        title="Permanently delete this Brain image?"
         description={
-          pendingForgetImage
-            ? `Remove ${imageLabel(
-                pendingForgetImage.imageRef,
-              )} from this list. This does not delete the GHCR package image.`
-            : "Remove this Brain image from this list. This does not delete the GHCR package image."
+          pendingDeleteImage
+            ? `This permanently removes the GHCR package image ${imageLabel(
+                pendingDeleteImage.imageRef,
+              )} and cannot be undone from Kody.`
+            : "This permanently removes the GHCR package image and cannot be undone from Kody."
         }
-        confirmLabel="Forget"
+        confirmLabel="Delete image"
         variant="destructive"
         onConfirm={() => {
-          if (pendingForgetRef) void forgetImage(pendingForgetRef);
+          if (pendingDeleteRef) void deleteImage(pendingDeleteRef);
         }}
-        onClose={() => setPendingForgetRef(null)}
+        onClose={() => setPendingDeleteRef(null)}
       />
     </PageShell>
   );

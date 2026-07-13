@@ -17,7 +17,9 @@ import { ensureServerProviderTerminalBridge } from "@kody-ade/fly/infrastructure
 import { mintTerminalBridgeToken } from "@kody-ade/terminal/terminal-token";
 
 import {
+  BrainPackageImageError,
   brainImageCatalogFile,
+  deleteBrainPackageImage,
   discoverBrainPackageImages,
   mergeBrainSavedImages,
   upsertBrainCatalogImageFile,
@@ -36,7 +38,7 @@ import {
 import { resolveBrainService } from "./service-resolver";
 import {
   clearBrainImageSave,
-  deleteBrainImage,
+  deleteBrainImages,
   readBrainImage,
   readBrainImageSave,
   writeBrainImage,
@@ -483,19 +485,76 @@ export async function selectBrainImageRef(input: {
   return imageManagementResponse(image, runtime);
 }
 
-export async function forgetBrainImageRef(input: {
+function sameBrainImageTag(a: string | null | undefined, b: string): boolean {
+  if (!a) return false;
+  const tag = (value: string) => value.split("@")[0]?.split(":").at(-1);
+  return tag(a) === tag(b);
+}
+
+export async function deleteBrainImageRef(input: {
   context: ServerProviderContext;
   imageRef: string;
 }) {
   const { context, imageRef } = input;
-  const image = await deleteBrainImage(
+  const authority = await readBrainRuntimeAuthority({
+    flyToken: context.flyToken,
+    account: context.account,
+    githubToken: context.githubToken,
+    orgSlug: context.flyOrgSlug,
+    defaultRegion: context.flyDefaultRegion,
+    allowServiceFailure: true,
+  });
+  const activeRefs = [
+    authority.runtime.desiredImageRef,
+    authority.runtime.runningImageRef,
+    authority.runtime.operation?.imageRef,
+    authority.service?.machineImageRef,
+  ];
+  if (activeRefs.some((activeRef) => sameBrainImageTag(activeRef, imageRef))) {
+    throw new BrainImageManagementError(
+      "Run another Brain image before deleting this one.",
+      409,
+      "brain_image_in_use",
+    );
+  }
+  const image = await readBrainImage(context.account, context.githubToken);
+  const savedLocally = mergeBrainSavedImages(image, []).some(
+    (saved) => saved.imageRef === imageRef,
+  );
+  if (!savedLocally) {
+    const discoveredImages = await discoverImages(context, { refresh: true });
+    if (!discoveredImages.some((saved) => saved.imageRef === imageRef)) {
+      throw new BrainImageManagementError(
+        "Brain image was not found.",
+        404,
+        "brain_image_not_found",
+      );
+    }
+  }
+  const ghcr = brainGhcrAuth({
+    allSecrets: context.allSecrets,
+    githubToken: context.githubToken,
+    account: context.account,
+  });
+  let deletedImageRefs: string[];
+  try {
+    ({ deletedImageRefs } = await deleteBrainPackageImage({
+      owner: context.owner,
+      repo: context.repo,
+      account: context.account,
+      githubToken: ghcr.token,
+      imageRef,
+    }));
+  } catch (err) {
+    if (err instanceof BrainPackageImageError) {
+      throw new BrainImageManagementError(err.message, err.status, err.code);
+    }
+    throw err;
+  }
+  const updated = await deleteBrainImages(
     context.account,
     context.githubToken,
-    imageRef,
+    deletedImageRefs,
   );
-  const runtime = await readBrainRuntimeView(
-    context.account,
-    context.githubToken,
-  );
-  return imageManagementResponse(image, runtime);
+  return imageManagementResponse(updated, authority.runtime);
 }

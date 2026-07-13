@@ -709,48 +709,49 @@ export async function deleteBrainImage(
   token: string,
   imageRef: string,
 ): Promise<BrainImageFile | null> {
-  if (!isValidBrainImageRef(imageRef)) {
+  return deleteBrainImages(login, token, [imageRef]);
+}
+
+export async function deleteBrainImages(
+  login: string,
+  token: string,
+  imageRefs: string[],
+): Promise<BrainImageFile | null> {
+  const refs = [...new Set(imageRefs)];
+  if (refs.length === 0 || refs.some((ref) => !isValidBrainImageRef(ref))) {
     throw new Error("Invalid Brain image ref");
   }
   const current = await readBrainImage(login, token);
+  if (!current) return null;
   const now = new Date().toISOString();
-  if (!current) {
-    const updated: BrainImageFile = {
-      version: 1,
-      createdAt: now,
-      updatedAt: now,
-      images: [],
-      forgottenImageRefs: [imageRef],
-    };
-    await writeBrainImage(login, token, updated);
-    return updated;
-  }
+  const deleted = new Set(refs);
   const remaining = current.images.filter(
-    (image) => image.imageRef !== imageRef,
+    (image) => !deleted.has(image.imageRef),
   );
-  const forgottenImageRefs = [
-    ...(current.forgottenImageRefs ?? []).filter((ref) => ref !== imageRef),
-    imageRef,
-  ];
   const nextImageRef =
-    current.imageRef === imageRef ? remaining[0]?.imageRef : current.imageRef;
+    current.imageRef && deleted.has(current.imageRef)
+      ? remaining[0]?.imageRef
+      : current.imageRef;
+  const forgottenImageRefs = current.forgottenImageRefs?.filter(
+    (ref) => !deleted.has(ref),
+  );
   const updated: BrainImageFile = {
     version: 1,
     ...(nextImageRef ? { imageRef: nextImageRef } : {}),
     createdAt: current.createdAt,
     updatedAt: now,
     images: remaining,
-    forgottenImageRefs,
-    ...(current.runningImageRef && current.runningImageRef !== imageRef
+    ...(forgottenImageRefs?.length ? { forgottenImageRefs } : {}),
+    ...(current.runningImageRef && !deleted.has(current.runningImageRef)
       ? { runningImageRef: current.runningImageRef }
       : {}),
-    ...(current.runningImageRef && current.runningImageRef !== imageRef
+    ...(current.runningImageRef && !deleted.has(current.runningImageRef)
       ? { runningAt: current.runningAt }
       : {}),
-    ...(current.runningImageRef && current.runningImageRef !== imageRef
+    ...(current.runningImageRef && !deleted.has(current.runningImageRef)
       ? { runningApp: current.runningApp }
       : {}),
-    ...(current.runningImageRef && current.runningImageRef !== imageRef
+    ...(current.runningImageRef && !deleted.has(current.runningImageRef)
       ? { runningMachineId: current.runningMachineId }
       : {}),
   };

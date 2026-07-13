@@ -12,7 +12,7 @@ import { requireKodyAuth } from "@kody-ade/base/auth";
 import { startBrainImageSave } from "../image-save-command";
 import {
   BrainImageManagementError,
-  forgetBrainImageRef,
+  deleteBrainImageRef,
   pollBrainImageSave,
   readBrainImageManagement,
   selectBrainImageRef,
@@ -260,16 +260,22 @@ export async function DELETE(req: NextRequest) {
 
   try {
     return NextResponse.json(
-      await forgetBrainImageRef({
+      await deleteBrainImageRef({
         context: ctx.context,
         imageRef,
       }),
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    if (err instanceof BrainImageManagementError) {
+      return NextResponse.json(
+        { error: err.code, message },
+        { status: err.status },
+      );
+    }
     return NextResponse.json(
       { error: "brain_image_delete_failed", message },
-      { status: 400 },
+      { status: 502 },
     );
   } finally {
     clearGitHubContext();
