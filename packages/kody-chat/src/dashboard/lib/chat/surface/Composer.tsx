@@ -343,7 +343,7 @@ export function Composer({
               >
                 <Plus className="h-5 w-5" aria-hidden="true" />
               </summary>
-              <div className="absolute bottom-full left-0 z-30 mb-2 grid min-w-44 gap-1 rounded-md border bg-popover p-1 shadow-md">
+              <div className="absolute bottom-full start-0 z-30 mb-2 grid min-w-44 gap-1 rounded-md border bg-popover p-1 shadow-md">
                 {chatMode === "ai" && (
                   <>
                     <input

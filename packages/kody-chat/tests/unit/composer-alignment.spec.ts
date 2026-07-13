@@ -18,4 +18,13 @@ describe("composer alignment", () => {
     expect(SOURCE).toContain("rows={4}");
     expect(SOURCE).not.toContain('textareaClassName="min-h-10');
   });
+
+  it("anchors the compose menu to the logical start edge for RTL", () => {
+    expect(SOURCE).toContain(
+      'className="absolute bottom-full start-0 z-30 mb-2 grid',
+    );
+    expect(SOURCE).not.toContain(
+      'className="absolute bottom-full left-0 z-30 mb-2 grid',
+    );
+  });
 });
