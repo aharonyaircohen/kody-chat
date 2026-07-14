@@ -308,10 +308,10 @@ describe("POST /api/kody/chat/kody", () => {
     expect(prompt).not.toContain("targetAgent");
   });
 
-  it("base kody prompt disambiguates dispatch from 'implement this' and enumerates the full read-tool catalog", async () => {
-    // Regression: model sometimes called kody_run_issue in response to
-    // "implement X" (a request for change, not a dispatch ask). Tool
-    // policy now spells out the disambiguation. Also: the agentIdentity's
+  it("base kody prompt executes explicitly approved selected issues and enumerates the full read-tool catalog", async () => {
+    // With no current task, implementation language starts the issue workflow.
+    // With a selected current task, explicit execution language must dispatch
+    // that issue immediately without another approval round. Also: the agentIdentity's
     // read-tools list must match the chat registry's actual tool names —
     // phantom tools in the prompt cause the model to call non-existent
     // tools and hallucinate the result. Prompt lives in the chat-defaults
@@ -319,10 +319,11 @@ describe("POST /api/kody/chat/kody", () => {
     const { loadChatDefaults } =
       await import("../../src/dashboard/lib/chat-defaults");
     const prompt = (await loadChatDefaults("acme", "repo")).agentIdentity;
-    expect(prompt).toMatch(/Create issues, do not start implementation/i);
-    expect(prompt).toMatch(/implement this/i);
-    expect(prompt).toMatch(/requests.*create.*refine.*issue/i);
-    expect(prompt).toMatch(/Do not post.*@kody/i);
+    expect(prompt).toMatch(/When no `## Current task` is present/i);
+    expect(prompt).toMatch(/create or refine an issue/i);
+    expect(prompt).toMatch(/When a `## Current task` is present/i);
+    expect(prompt).toMatch(/call `kody_run_issue` in that turn/i);
+    expect(prompt).toMatch(/Do not ask for another approval/i);
     // The 4 read tools the model must know it can call.
     expect(prompt).toContain("github_search_code");
     expect(prompt).toContain("github_get_file");
