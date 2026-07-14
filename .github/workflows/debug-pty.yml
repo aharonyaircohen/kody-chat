@@ -27,16 +27,18 @@ jobs:
           """
           open("/tmp/child.py", "w").write("\n".join(l.strip() for l in child.splitlines()))
           PY
-      - name: Repro with stdin closing after write
+          pip install --quiet py-spy
+      - name: Run relay in background and dump stacks
         run: |
           set -x
-          printf 'abc\n' | timeout 15 python3 /tmp/relay.py python3 /tmp/child.py > /tmp/out.txt 2>/tmp/err.txt || echo "TIMEOUT_OR_ERR=$?"
+          ( printf 'abc\n'; sleep 60 ) | python3 /tmp/relay.py python3 /tmp/child.py > /tmp/out.txt 2>/tmp/err.txt &
+          sleep 5
+          ps -ef | grep -E "relay|child" | grep -v grep
+          for pid in $(pgrep -f "relay.py|child.py"); do
+            echo "===== py-spy dump pid $pid ====="
+            sudo $(which py-spy) dump --pid "$pid" --nonblocking || sudo $(which py-spy) dump --pid "$pid" || true
+          done
           echo "--- stdout ---"; cat -A /tmp/out.txt
           echo "--- stderr ---"; cat /tmp/err.txt
-      - name: Repro with stdin held open
-        if: always()
-        run: |
-          set -x
-          ( printf 'abc\n'; sleep 10 ) | timeout 15 python3 /tmp/relay.py python3 /tmp/child.py > /tmp/out2.txt 2>/tmp/err2.txt || echo "TIMEOUT_OR_ERR=$?"
-          echo "--- stdout ---"; cat -A /tmp/out2.txt
-          echo "--- stderr ---"; cat /tmp/err2.txt
+          sudo pkill -9 -f relay.py || true
+          sudo pkill -9 -f child.py || true
