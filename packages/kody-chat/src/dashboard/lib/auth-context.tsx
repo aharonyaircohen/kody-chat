@@ -30,7 +30,7 @@ import {
   useMemo,
 } from "react";
 import { usePathname } from "next/navigation";
-import { resolveActiveRepo } from "@kody-ade/base/active-repo";
+import { resolveActiveRepo, type ActiveRepo } from "@kody-ade/base/active-repo";
 import { repoBasePath } from "@kody-ade/base/routes";
 import {
   DEFAULT_KODY_STORE_REF,
@@ -103,6 +103,19 @@ export interface KodyAuth {
   storeRepoUrl?: string;
   /** Shared Kody store ref used for company-level capabilities/implementations. */
   storeRef?: string;
+}
+
+export function activeRepoSelectionMatchesAuth(
+  active: ActiveRepo,
+  auth: KodyAuth,
+): boolean {
+  return (
+    active.index === auth.currentRepoIndex &&
+    active.owner === auth.owner &&
+    active.repo === auth.repo &&
+    active.token === auth.token &&
+    (active.user?.login ?? auth.user.login) === auth.user.login
+  );
 }
 
 export type FlyPerfTier = NonNullable<KodyAuth["flyPerf"]>;
@@ -324,13 +337,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!storedAuth) return null;
     const active = resolveActiveRepo(storedAuth, pathname);
     if (!active) return storedAuth;
-    if (
-      active.index === storedAuth.currentRepoIndex &&
-      active.owner === storedAuth.owner &&
-      active.repo === storedAuth.repo &&
-      active.token === storedAuth.token &&
-      active.user?.login === storedAuth.user.login
-    ) {
+    if (activeRepoSelectionMatchesAuth(active, storedAuth)) {
       return storedAuth;
     }
     return {

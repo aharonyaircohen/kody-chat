@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  activeRepoSelectionMatchesAuth,
   refreshRepoIdentity,
   type KodyAuth,
 } from "../../src/dashboard/lib/auth-context";
@@ -41,6 +42,23 @@ function twoAccountAuth(): KodyAuth {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("repository GitHub identity", () => {
+  it("treats a matching repo without a copied user as stable", () => {
+    const auth = twoAccountAuth();
+
+    expect(
+      activeRepoSelectionMatchesAuth(
+        {
+          owner: auth.owner,
+          repo: auth.repo,
+          repoUrl: auth.repoUrl,
+          token: auth.token,
+          index: auth.currentRepoIndex,
+        },
+        auth,
+      ),
+    ).toBe(true);
+  });
+
   it("verifies and stores the account that owns an existing repo token", async () => {
     const fetchMock = vi.fn(
       async () =>
