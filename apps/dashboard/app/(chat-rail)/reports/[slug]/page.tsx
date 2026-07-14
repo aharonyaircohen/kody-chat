@@ -21,10 +21,17 @@ export default async function SelectedReportPage({
   searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ run?: string | string[] }>;
+  searchParams: Promise<{ run?: string | string[]; type?: string | string[] }>;
 }) {
   const { slug } = await params;
   const query = await searchParams;
   const selectedRunId = Array.isArray(query.run) ? query.run[0] : query.run;
-  return <ReportsView selectedSlug={slug} selectedRunId={selectedRunId} />;
+  const type = Array.isArray(query.type) ? query.type[0] : query.type;
+  return (
+    <ReportsView
+      selectedSlug={slug}
+      selectedRunId={selectedRunId}
+      reportType={type}
+    />
+  );
 }

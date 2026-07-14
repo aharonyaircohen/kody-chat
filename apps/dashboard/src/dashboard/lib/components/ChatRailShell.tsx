@@ -76,14 +76,6 @@ import {
   AGENCY_RUNS_PANEL_ID,
 } from "../chat/plugins/agency-runs";
 import {
-  findingsChatPlugin,
-  FINDINGS_PANEL_ID,
-} from "../chat/plugins/findings";
-import {
-  learningChatPlugin,
-  LEARNING_PANEL_ID,
-} from "../chat/plugins/learning";
-import {
   agentGoalsChatPlugin,
   AGENT_GOALS_PANEL_ID,
 } from "../chat/plugins/agent-goals";
@@ -169,8 +161,6 @@ const ADMIN_CHAT_PLUGINS = [
   // Phase 2 step 4 page-plugins — panels only, inert with the toggle off.
   { plugin: activityChatPlugin },
   { plugin: agencyRunsChatPlugin },
-  { plugin: findingsChatPlugin },
-  { plugin: learningChatPlugin },
   { plugin: agentGoalsChatPlugin },
   { plugin: agentLoopsChatPlugin },
   { plugin: agentsChatPlugin },
@@ -213,8 +203,8 @@ const ROUTE_PANEL_IDS: Readonly<Record<string, string>> = {
   // Phase 2 step 4 — every migrated admin page routes to its plugin panel.
   "/activity": ACTIVITY_PANEL_ID,
   "/agency-runs": AGENCY_RUNS_PANEL_ID,
-  "/findings": FINDINGS_PANEL_ID,
-  "/learning": LEARNING_PANEL_ID,
+  "/findings": REPORTS_PANEL_ID,
+  "/learning": REPORTS_PANEL_ID,
   "/agent-goals": AGENT_GOALS_PANEL_ID,
   "/agent-loops": AGENT_LOOPS_PANEL_ID,
   "/agents": AGENTS_PANEL_ID,

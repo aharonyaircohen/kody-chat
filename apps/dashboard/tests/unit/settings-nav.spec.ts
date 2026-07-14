@@ -44,15 +44,15 @@ describe("settings navigation", () => {
     expect(navLabelForPath("/ledgers")).toBeNull();
   });
 
-  it("exposes durable Findings and Learning in the AI Agency section", () => {
-    expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "AI Agency")).toContain(
+  it("keeps findings and learning inside Reports instead of separate navigation", () => {
+    expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "AI Agency")).not.toContain(
       "/findings",
     );
-    expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "AI Agency")).toContain(
+    expect(sectionHrefs(SETTINGS_NAV_SECTIONS, "AI Agency")).not.toContain(
       "/learning",
     );
-    expect(navLabelForPath("/findings")).toBe("Findings");
-    expect(navLabelForPath("/learning")).toBe("Learning");
+    expect(navLabelForPath("/findings")).toBeNull();
+    expect(navLabelForPath("/learning")).toBeNull();
   });
 
   it("exposes Fly config, previews, Brain images, live machines, and history as separate pages", () => {
@@ -93,8 +93,6 @@ describe("settings navigation", () => {
       "/preview",
       "/todos",
       "/agency-runs",
-      "/findings",
-      "/learning",
     ]);
   });
 
@@ -129,8 +127,6 @@ describe("settings navigation", () => {
       "/preview",
       "/todos",
       "/agency-runs",
-      "/findings",
-      "/learning",
     ]);
     expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Agency")).toEqual([
       "/agents",

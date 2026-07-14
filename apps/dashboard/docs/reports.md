@@ -20,6 +20,11 @@ Every report is a markdown file with frontmatter:
 ```yaml
 ---
 generatedAt: "2026-06-08T12:00:00Z"
+reportType: finding
+reportTypeVersion: 1
+producer:
+  model: agency-observer
+  capability: qa-sweep
 capabilitySlug: qa-sweep
 reviewStatus: action-needed
 reviewArea: ci
@@ -48,7 +53,17 @@ The report body explains the finding and supporting evidence.
 Required keys:
 
 - `generatedAt`: ISO date-time for when the report was produced.
-- `findings`: at least one finding with `id`, `severity`, and `title`.
+
+Typed reports additionally use:
+
+- `reportType`: an extensible lowercase slug such as `finding`, `learning`, or
+  a custom future type. Unknown types use the generic report renderer.
+- `reportTypeVersion`: a positive schema version for that type.
+- `producer.model`: the Goal, Loop, or Workflow that owns the report.
+- `producer.capability`: the Capability whose result supplied the evidence.
+
+Legacy reports without `reportType` remain `general` reports. Legacy and
+`finding` reports may continue to expose structured `findings` entries.
 
 Optional routing keys:
 
@@ -94,10 +109,11 @@ its implementation owns what operations it can perform.
 
 This keeps the loop simple:
 
-1. Capability runs.
-2. The capability either acts or writes a timestamped report run.
-3. Operator reads the report.
-4. Operator uses a suggested action, creates a task/goal, dispatches a job, or
+1. A Loop or Goal runs its Workflow.
+2. A Capability returns its result and evidence.
+3. The Workflow asks the engine to publish a timestamped typed report run.
+4. Operator reads the report or selects a type filter.
+5. Operator uses a suggested action, creates a task/goal, dispatches a job, or
    does nothing.
 
 ## Validation

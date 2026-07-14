@@ -13,6 +13,12 @@ import {
   type ReportSuggestedAction,
 } from "./report-suggested-actions";
 import { listStateDirectory, readStateText } from "@kody-ade/base/state-repo";
+import { normalizeReportType } from "./report-types";
+
+export interface ReportProducer {
+  model: string | null;
+  capability: string | null;
+}
 
 export interface ReportFile {
   /** Report family slug — stable identity. */
@@ -35,6 +41,10 @@ export interface ReportFile {
   size: number;
   /** Producer capability metadata from report frontmatter. */
   capabilitySlug: string | null;
+  /** Extensible report type used by Reports filters and optional renderers. */
+  reportType: string;
+  reportTypeVersion: number;
+  producer: ReportProducer;
   /** Review routing status, from report frontmatter. */
   reviewStatus: string | null;
   /** Review routing area, from report frontmatter. */
@@ -86,6 +96,30 @@ function topLevelValue(frontmatter: string | null, key: string): string | null {
   if (!match) return null;
   const value = unquote(match[1] ?? "");
   return value.length > 0 ? value : null;
+}
+
+function nestedValue(
+  frontmatter: string | null,
+  objectKey: string,
+  key: string,
+): string | null {
+  if (!frontmatter) return null;
+  const lines = frontmatter.split(/\r?\n/);
+  const start = lines.findIndex((line) =>
+    new RegExp(`^${objectKey}:\\s*$`).test(line),
+  );
+  if (start < 0) return null;
+  for (const line of lines.slice(start + 1)) {
+    if (/^\S/.test(line)) break;
+    const match = line.match(new RegExp(`^\\s{2}${key}:\\s*(.*)$`));
+    if (match) return unquote(match[1] ?? "") || null;
+  }
+  return null;
+}
+
+function positiveInteger(value: string | null): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 }
 
 function countFindings(frontmatter: string | null): number {
@@ -151,6 +185,14 @@ function parseReportMarkdown(raw: string, slug: string) {
     capabilitySlug:
       topLevelValue(frontmatter, "capabilitySlug") ??
       topLevelValue(frontmatter, "capabilitySlug"),
+    reportType: normalizeReportType(topLevelValue(frontmatter, "reportType")),
+    reportTypeVersion: positiveInteger(
+      topLevelValue(frontmatter, "reportTypeVersion"),
+    ),
+    producer: {
+      model: nestedValue(frontmatter, "producer", "model"),
+      capability: nestedValue(frontmatter, "producer", "capability"),
+    },
     reviewStatus: topLevelValue(frontmatter, "reviewStatus"),
     reviewArea: topLevelValue(frontmatter, "reviewArea"),
     findingCount: countFindings(frontmatter),
@@ -197,6 +239,9 @@ async function readReportAtPath({
     htmlUrl: file.htmlUrl ?? "",
     size: file.size ?? size,
     capabilitySlug: parsed.capabilitySlug,
+    reportType: parsed.reportType,
+    reportTypeVersion: parsed.reportTypeVersion,
+    producer: parsed.producer,
     reviewStatus: parsed.reviewStatus,
     reviewArea: parsed.reviewArea,
     findingCount: parsed.findingCount,

@@ -33,6 +33,12 @@ import { useReportsUnread } from "../hooks/useReportsUnread";
 import { selectionPath } from "../selection-routing";
 import { kodyApi, type Report } from "../api";
 import type { ReportSuggestedAction } from "../report-suggested-actions";
+import {
+  availableReportTypes,
+  filterReportsByType,
+  normalizeReportType,
+  reportTypeLabel,
+} from "../report-types";
 import { CreateTaskDialog } from "./CreateTaskDialog";
 import { CreateGoalDialog } from "./GoalControl";
 import { useChatScope } from "./ChatRailShell";
@@ -46,12 +52,14 @@ interface ReportsViewProps {
   embedded?: boolean;
   selectedSlug?: string | null;
   selectedRunId?: string | null;
+  reportType?: string | null;
 }
 
 export function ReportsView({
   embedded = false,
   selectedSlug = null,
   selectedRunId = null,
+  reportType = null,
 }: ReportsViewProps = {}) {
   return (
     <AuthGuard>
@@ -59,6 +67,7 @@ export function ReportsView({
         embedded={embedded}
         selectedSlug={selectedSlug}
         selectedRunId={selectedRunId}
+        reportType={reportType}
       />
     </AuthGuard>
   );
@@ -68,6 +77,7 @@ export function ReportsViewInner({
   embedded = false,
   selectedSlug = null,
   selectedRunId = null,
+  reportType = null,
 }: ReportsViewProps = {}) {
   const router = useRouter();
   const { auth } = useAuth();
@@ -90,10 +100,13 @@ export function ReportsViewInner({
   } | null>(null);
   const [runningActionKey, setRunningActionKey] = useState<string | null>(null);
 
+  const selectedReportType = reportType ? normalizeReportType(reportType) : null;
+  const reportTypes = useMemo(() => availableReportTypes(reports), [reports]);
   const filtered = useMemo(() => {
+    const typedReports = filterReportsByType(reports, selectedReportType);
     const q = search.trim().toLowerCase();
-    if (!q) return reports;
-    return reports.filter(
+    if (!q) return typedReports;
+    return typedReports.filter(
       (r) =>
         r.slug.toLowerCase().includes(q) ||
         r.title.toLowerCase().includes(q) ||
@@ -105,7 +118,7 @@ export function ReportsViewInner({
             .includes(q),
         ),
     );
-  }, [reports, search]);
+  }, [reports, search, selectedReportType]);
 
   const selected = useMemo(
     () => reports.find((r) => r.slug === selectedSlug) ?? null,
@@ -139,9 +152,12 @@ export function ReportsViewInner({
     slug: string | null,
     runId: string | null = null,
   ) => {
-    if (!slug) return "/reports";
+    const params = new URLSearchParams();
+    if (selectedReportType) params.set("type", selectedReportType);
+    if (runId) params.set("run", runId);
+    if (!slug) return params.size > 0 ? `/reports?${params}` : "/reports";
     const path = selectionPath("/reports", slug);
-    return runId ? `${path}?run=${encodeURIComponent(runId)}` : path;
+    return params.size > 0 ? `${path}?${params}` : path;
   };
 
   const selectReport = (slug: string | null) => {
@@ -156,6 +172,10 @@ export function ReportsViewInner({
         runId === selected.runId ? null : runId,
       ),
     );
+  };
+
+  const selectReportType = (type: string | null) => {
+    router.push(type ? `/reports?type=${encodeURIComponent(type)}` : "/reports");
   };
 
   // Mark a report as read the moment it's opened in the detail pane —
@@ -291,6 +311,30 @@ export function ReportsViewInner({
               )}
               aria-label="Search reports"
             />
+            <div
+              className="mt-3 flex gap-2 overflow-x-auto"
+              aria-label="Report type filters"
+            >
+              <Button
+                type="button"
+                size="sm"
+                variant={selectedReportType === null ? "secondary" : "ghost"}
+                onClick={() => selectReportType(null)}
+              >
+                All
+              </Button>
+              {reportTypes.map((type) => (
+                <Button
+                  key={type}
+                  type="button"
+                  size="sm"
+                  variant={selectedReportType === type ? "secondary" : "ghost"}
+                  onClick={() => selectReportType(type)}
+                >
+                  {reportTypeLabel(type)}
+                </Button>
+              ))}
+            </div>
           </div>
 
           <div className="flex-1 min-h-0 overflow-y-auto">
@@ -460,6 +504,9 @@ function ReportRow({
           )}
         >
           {report.title}
+        </span>
+        <span className="rounded border border-white/10 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-white/45">
+          {reportTypeLabel(report.reportType)}
         </span>
         {unread ? (
           <span

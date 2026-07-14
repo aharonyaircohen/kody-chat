@@ -33,10 +33,8 @@ import { configChatPlugin } from "@dashboard/lib/chat/plugins/config";
 import { contextChatPlugin } from "@kody-ade/kody-chat/plugins/context";
 import { docsChatPlugin } from "@dashboard/lib/chat/plugins/docs";
 import { filesChatPlugin } from "@dashboard/lib/chat/plugins/files";
-import { findingsChatPlugin } from "@dashboard/lib/chat/plugins/findings";
 import { inboxChatPlugin } from "@dashboard/lib/chat/plugins/inbox";
 import { instructionsChatPlugin } from "@kody-ade/kody-chat/plugins/instructions";
-import { learningChatPlugin } from "@dashboard/lib/chat/plugins/learning";
 import { memoryChatPlugin } from "@kody-ade/kody-chat/plugins/memory";
 import { messagesChatPlugin } from "@dashboard/lib/chat/plugins/messages";
 import { modelsChatPlugin } from "@kody-ade/kody-chat/plugins/models";
@@ -80,14 +78,12 @@ const PAGE_PLUGINS: readonly PagePluginCase[] = [
   { slug: "context", title: "Context", plugin: contextChatPlugin },
   { slug: "docs", title: "Docs", plugin: docsChatPlugin },
   { slug: "files", title: "Files", plugin: filesChatPlugin },
-  { slug: "findings", title: "Findings", plugin: findingsChatPlugin },
   { slug: "inbox", title: "Inbox", plugin: inboxChatPlugin },
   {
     slug: "instructions",
     title: "Instructions",
     plugin: instructionsChatPlugin,
   },
-  { slug: "learning", title: "Learning", plugin: learningChatPlugin },
   { slug: "memory", title: "Memory", plugin: memoryChatPlugin },
   { slug: "messages", title: "Messages", plugin: messagesChatPlugin },
   { slug: "models", title: "Chat Models", plugin: modelsChatPlugin },

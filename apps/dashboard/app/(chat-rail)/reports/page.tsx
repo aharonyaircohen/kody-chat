@@ -7,6 +7,12 @@
  */
 import { ReportsView } from "@dashboard/lib/components/ReportsView";
 
-export default function ReportsPage() {
-  return <ReportsView />;
+export default async function ReportsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string | string[] }>;
+}) {
+  const query = await searchParams;
+  const type = Array.isArray(query.type) ? query.type[0] : query.type;
+  return <ReportsView reportType={type} />;
 }

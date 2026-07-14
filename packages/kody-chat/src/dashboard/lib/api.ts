@@ -1537,6 +1537,12 @@ export interface Report {
   /** Size in bytes. */
   size: number;
   capabilitySlug: string | null;
+  reportType: string;
+  reportTypeVersion: number;
+  producer: {
+    model: string | null;
+    capability: string | null;
+  };
   reviewStatus: string | null;
   reviewArea: string | null;
   findingCount: number;

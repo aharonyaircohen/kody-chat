@@ -1,4 +1,4 @@
-import { AgencyStatePage } from "@dashboard/lib/components/AgencyStatePage";
+import { redirect } from "next/navigation";
 import { buildKodyMetadata } from "../../metadata";
 
 export const metadata = buildKodyMetadata({
@@ -8,5 +8,5 @@ export const metadata = buildKodyMetadata({
 });
 
 export default function LearningRoute() {
-  return <AgencyStatePage view="learnings" />;
+  redirect("/reports?type=learning");
 }

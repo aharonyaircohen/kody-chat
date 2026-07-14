@@ -63,6 +63,73 @@ describe("validate-reports", () => {
     expect(runValidator(root)).toContain("Validated 1 report file(s).");
   });
 
+  it("accepts extensible report types without forcing finding fields", () => {
+    const { root, reports } = makeReportsDir();
+    writeFileSync(join(reports, "_schema.yaml"), "type: object\n");
+    writeFileSync(
+      join(reports, "learning.md"),
+      [
+        "---",
+        'generatedAt: "2026-07-14T12:00:00Z"',
+        "reportType: learning",
+        "reportTypeVersion: 1",
+        "producer:",
+        "  model: agency-operating-loop",
+        "  capability: operate-findings",
+        "---",
+        "# CI recovery learned",
+        "",
+        "The verified change is now durable.",
+      ].join("\n"),
+    );
+
+    expect(runValidator(root)).toContain("Validated 1 report file(s).");
+  });
+
+  it("accepts typed finding reports without legacy findings frontmatter", () => {
+    const { root, reports } = makeReportsDir();
+    writeFileSync(join(reports, "_schema.yaml"), "type: object\n");
+    writeFileSync(
+      join(reports, "finding.md"),
+      [
+        "---",
+        'generatedAt: "2026-07-14T12:00:00Z"',
+        "reportType: finding",
+        "reportTypeVersion: 1",
+        "producer:",
+        "  model: agency-observer",
+        "  capability: observe-repo-ci",
+        "---",
+        "# Default branch CI is failing",
+        "",
+        "## Report data",
+        "```json",
+        '{"finding":{"id":"finding-repo-ci-main"}}',
+        "```",
+      ].join("\n"),
+    );
+
+    expect(runValidator(root)).toContain("Validated 1 report file(s).");
+  });
+
+  it("rejects unsafe custom report type slugs", () => {
+    const { root, reports } = makeReportsDir();
+    writeFileSync(join(reports, "_schema.yaml"), "type: object\n");
+    writeFileSync(
+      join(reports, "bad-type.md"),
+      [
+        "---",
+        'generatedAt: "2026-07-14T12:00:00Z"',
+        "reportType: Finding Report",
+        "reportTypeVersion: 1",
+        "---",
+        "# Bad type",
+      ].join("\n"),
+    );
+
+    expect(() => runValidator(root)).toThrow(/reportType must be a slug/);
+  });
+
   it("rejects unknown review status values", () => {
     const { root, reports } = makeReportsDir();
     writeFileSync(join(reports, "_schema.yaml"), "type: object\n");

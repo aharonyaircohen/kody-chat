@@ -4,7 +4,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const REQUIRED_REPORT_KEYS = ["generatedAt", "findings"];
+const REQUIRED_REPORT_KEYS = ["generatedAt"];
 const REQUIRED_FINDING_KEYS = ["id", "severity", "title"];
 const ALLOWED_SEVERITIES = new Set(["high", "medium", "low"]);
 const ALLOWED_REVIEW_STATUSES = new Set([
@@ -94,6 +94,15 @@ export function validateReportText(file, text) {
     }
   }
 
+  const reportType = topLevelValue(frontmatter, "reportType");
+  if (reportType !== null && !/^[a-z0-9][a-z0-9_-]{0,79}$/.test(reportType)) {
+    errors.push("reportType must be a slug");
+  }
+  const reportTypeVersion = topLevelValue(frontmatter, "reportTypeVersion");
+  if (reportTypeVersion !== null && !parsePositiveInteger(reportTypeVersion)) {
+    errors.push("reportTypeVersion must be a positive integer");
+  }
+
   const generatedAt = topLevelValue(frontmatter, "generatedAt");
   if (generatedAt && Number.isNaN(Date.parse(generatedAt))) {
     errors.push("generatedAt is not a valid date-time");
@@ -122,7 +131,7 @@ export function validateReportText(file, text) {
   }
 
   const findings = parseFindings(frontmatter);
-  if (findings.length === 0) {
+  if (reportType === null && findings.length === 0) {
     errors.push("findings must contain at least one item");
   }
 
