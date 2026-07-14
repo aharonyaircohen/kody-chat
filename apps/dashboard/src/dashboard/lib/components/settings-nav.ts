@@ -545,34 +545,7 @@ function settingsSection(title: string): SettingsNavSection {
   return section;
 }
 
-export const VIBE_MODE_SECTIONS: readonly SettingsNavSection[] = [
-  {
-    title: PRIMARY_VIEW_TITLE,
-    items: [VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
-  },
-  {
-    title: PRIMARY_NAV_TITLE,
-    items: [
-      navItemForHref("/org"),
-      navItemForHref("/messages"),
-      navItemForHref("/reports"),
-      navItemForHref("/docs"),
-      navItemForHref("/changelog"),
-    ],
-  },
-  {
-    title: "AI Agency",
-    items: [
-      TODOS_NAV_ITEM,
-      navItemForHref("/agency-runs"),
-      navItemForHref("/agent-goals"),
-      navItemForHref("/agent-loops"),
-    ],
-  },
-  settingsSection("Content"),
-];
-
-export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
+export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: "Work",
     icon: LayoutGrid,
@@ -664,28 +637,6 @@ export const ENGINEER_MODE_SECTIONS: readonly SettingsNavSection[] = [
       navItemForHref("/settings"),
     ],
   },
-];
-
-export const MOBILE_NAV_SECTIONS: readonly SettingsNavSection[] = [
-  {
-    title: PRIMARY_VIEW_TITLE,
-    items: [
-      DASHBOARD_NAV_ITEM,
-      TASKS_NAV_ITEM,
-      VIBE_NAV_ITEM,
-      PREVIEW_NAV_ITEM,
-    ],
-  },
-  {
-    title: "Work",
-    items: [
-      TODOS_NAV_ITEM,
-      navItemForHref("/agency-runs"),
-      navItemForHref("/findings"),
-      navItemForHref("/learning"),
-    ],
-  },
-  ...ENGINEER_MODE_SECTIONS.filter((section) => section.title !== "Work"),
 ];
 
 /**

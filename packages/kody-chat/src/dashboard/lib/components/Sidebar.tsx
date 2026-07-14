@@ -23,9 +23,7 @@ import {
   LogOut,
   Moon,
   Search,
-  Sparkles,
   Sun,
-  Wrench,
   X,
 } from "lucide-react";
 
@@ -46,8 +44,7 @@ import { MessagesBadge } from "@dashboard/lib/components/MessagesBadge";
 import { ReportsBadge } from "@dashboard/lib/components/ReportsBadge";
 import {
   DASHBOARD_NAV_ITEM,
-  ENGINEER_MODE_SECTIONS,
-  VIBE_MODE_SECTIONS,
+  SIDEBAR_NAV_SECTIONS,
   activeCollapsibleNavSectionTitle,
   isNavItemActive,
   type SettingsNavItem,
@@ -63,19 +60,8 @@ function iconTintClass(item: { tint?: string }): string | undefined {
 const APP_VERSION = process.env.NEXT_PUBLIC_APP_VERSION;
 
 type NavItem = SettingsNavItem;
-type SidebarMode = "vibe" | "engineer";
 
 const COLLAPSED_KEY = "kody.sidebar.collapsed";
-const MODE_KEY = "kody.sidebar.mode";
-
-function isSidebarMode(value: string | null): value is SidebarMode {
-  return value === "vibe" || value === "engineer";
-}
-
-function defaultModeForPathname(pathname: string): SidebarMode {
-  if (pathname === "/vibe" || pathname.startsWith("/vibe/")) return "vibe";
-  return "engineer";
-}
 
 export interface SidebarProps {
   /** Selects the persistent desktop rail or the mobile sheet presentation. */
@@ -83,9 +69,8 @@ export interface SidebarProps {
   /** Called after a navigation action, allowing a mobile sheet to close. */
   onNavigate?: () => void;
   /**
-   * Nav sections. When provided, the host owns the list (the Vibe/Engineer
-   * mode toggle is hidden and search covers the given sections). Without it
-   * the dashboard's mode-based sections render — byte-identical behavior.
+   * Nav sections. When provided, the host owns the list. Without it the
+   * dashboard's complete navigation renders.
    */
   sections?: readonly SettingsNavSection[];
   /** Pinned item above the section list. Defaults to the Dashboard item. */
@@ -149,12 +134,7 @@ function SidebarContent({
   const [collapsed, setCollapsed] = useState<boolean>(false);
   const [hydrated, setHydrated] = useState<boolean>(false);
   const [query, setQuery] = useState<string>("");
-  const [sidebarMode, setSidebarMode] = useState<SidebarMode>(() =>
-    defaultModeForPathname(pathname),
-  );
-  const baseSections =
-    hostSections ??
-    (sidebarMode === "vibe" ? VIBE_MODE_SECTIONS : ENGINEER_MODE_SECTIONS);
+  const baseSections = hostSections ?? SIDEBAR_NAV_SECTIONS;
   const activeCollapsibleSectionTitle = useMemo(
     () => activeCollapsibleNavSectionTitle(baseSections, pathname, search),
     [baseSections, pathname, search],
@@ -171,10 +151,6 @@ function SidebarContent({
     try {
       if (window.localStorage.getItem(COLLAPSED_KEY) === "1") {
         setCollapsed(true);
-      }
-      const storedMode = window.localStorage.getItem(MODE_KEY);
-      if (isSidebarMode(storedMode)) {
-        setSidebarMode(storedMode);
       }
     } catch {
       // localStorage unavailable (private mode, etc.) — fall back to defaults
@@ -194,25 +170,8 @@ function SidebarContent({
     });
   };
 
-  const selectSidebarMode = (next: SidebarMode) => {
-    if (next === sidebarMode) return;
-    setSidebarMode(next);
-    setQuery("");
-    try {
-      window.localStorage.setItem(MODE_KEY, next);
-    } catch {
-      // ignore — UI still updates
-    }
-    router.push(scopedHref(next === "vibe" ? "/vibe" : "/tasks"));
-    onNavigate?.();
-  };
-
   const scopedHref = (href: string) =>
     auth ? repoScopedHref(auth, href) : href;
-
-  useEffect(() => {
-    setQuery("");
-  }, [sidebarMode]);
 
   useEffect(() => {
     setExpandedSectionTitle(activeCollapsibleSectionTitle);
@@ -233,10 +192,6 @@ function SidebarContent({
       }))
       .filter((section) => section.items.length > 0);
   }, [baseSections, query]);
-
-  // Host-provided sections replace the dashboard's mode system entirely.
-  const modeToggleVisible = !hostSections;
-  const searchVisible = Boolean(hostSections) || sidebarMode === "engineer";
 
   const firstMatch = filteredSections[0]?.items[0];
 
@@ -362,116 +317,44 @@ function SidebarContent({
         >
           {pinnedItem && <div className="pb-2">{renderLink(pinnedItem)}</div>}
 
-          {modeToggleVisible && (
-            <div className="pb-2">
-              {isCollapsed ? (
-                <SimpleTooltip
-                  content={
-                    sidebarMode === "vibe"
-                      ? "Switch to Engineer"
-                      : "Switch to Vibe"
-                  }
-                  side="right"
-                >
-                  <button
-                    type="button"
-                    onClick={() =>
-                      selectSidebarMode(
-                        sidebarMode === "vibe" ? "engineer" : "vibe",
-                      )
-                    }
-                    aria-label={
-                      sidebarMode === "vibe"
-                        ? "Switch to Engineer"
-                        : "Switch to Vibe"
-                    }
-                    className="flex h-10 w-full items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
-                  >
-                    {sidebarMode === "vibe" ? (
-                      <Wrench className="h-5 w-5 shrink-0" />
-                    ) : (
-                      <Sparkles className="h-5 w-5 shrink-0" />
-                    )}
-                  </button>
-                </SimpleTooltip>
-              ) : (
-                <div
-                  className="grid grid-cols-2 gap-1 rounded-md border border-white/[0.08] bg-black/20 p-1"
-                  aria-label="Sidebar mode"
-                >
-                  <button
-                    type="button"
-                    onClick={() => selectSidebarMode("vibe")}
-                    aria-pressed={sidebarMode === "vibe"}
-                    className={cn(
-                      "flex h-9 items-center justify-center gap-2 rounded text-body-xs font-medium transition-colors",
-                      sidebarMode === "vibe"
-                        ? "bg-accent text-foreground"
-                        : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                    )}
-                  >
-                    <Sparkles className="h-4 w-4 shrink-0" />
-                    <span>Vibe</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => selectSidebarMode("engineer")}
-                    aria-pressed={sidebarMode === "engineer"}
-                    className={cn(
-                      "flex h-9 items-center justify-center gap-2 rounded text-body-xs font-medium transition-colors",
-                      sidebarMode === "engineer"
-                        ? "bg-accent text-foreground"
-                        : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                    )}
-                  >
-                    <Wrench className="h-4 w-4 shrink-0" />
-                    <span>Engineer</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
           {/* Inline search — filters the rail's own items as you type. Collapsed
               mode shows an icon that expands the rail so there's room to type. */}
-          {searchVisible && (
-            <div className="pb-1">
-              {isCollapsed ? (
-                <SimpleTooltip content="Search" side="right">
+          <div className="pb-1">
+            {isCollapsed ? (
+              <SimpleTooltip content="Search" side="right">
+                <button
+                  type="button"
+                  onClick={toggleCollapsed}
+                  aria-label="Search"
+                  className="flex h-10 w-full items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                >
+                  <Search className="h-5 w-5 shrink-0" />
+                </button>
+              </SimpleTooltip>
+            ) : (
+              <div className="flex h-10 w-full items-center gap-2.5 rounded-md border border-white/[0.08] bg-black/20 px-3.5 text-body-sm transition-colors focus-within:border-white/[0.18]">
+                <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
+                <input
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={onSearchKeyDown}
+                  placeholder="Search…"
+                  aria-label="Search navigation"
+                  className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
+                />
+                {query && (
                   <button
                     type="button"
-                    onClick={toggleCollapsed}
-                    aria-label="Search"
-                    className="flex h-10 w-full items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+                    onClick={() => setQuery("")}
+                    aria-label="Clear search"
+                    className="text-muted-foreground hover:text-foreground"
                   >
-                    <Search className="h-5 w-5 shrink-0" />
+                    <X className="h-4 w-4 shrink-0" />
                   </button>
-                </SimpleTooltip>
-              ) : (
-                <div className="flex h-10 w-full items-center gap-2.5 rounded-md border border-white/[0.08] bg-black/20 px-3.5 text-body-sm transition-colors focus-within:border-white/[0.18]">
-                  <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
-                  <input
-                    value={query}
-                    onChange={(e) => setQuery(e.target.value)}
-                    onKeyDown={onSearchKeyDown}
-                    placeholder="Search…"
-                    aria-label="Search navigation"
-                    className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
-                  />
-                  {query && (
-                    <button
-                      type="button"
-                      onClick={() => setQuery("")}
-                      aria-label="Clear search"
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="h-4 w-4 shrink-0" />
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
+          </div>
         </div>
 
         {navigationExtra && (

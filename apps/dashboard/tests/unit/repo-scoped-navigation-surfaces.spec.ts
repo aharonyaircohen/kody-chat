@@ -9,7 +9,7 @@ const source = (file: string) =>
   );
 
 describe("repo-scoped navigation surfaces", () => {
-  it("scopes desktop sidebar links and mode jumps through the route model", () => {
+  it("scopes desktop sidebar links through the route model", () => {
     // Sidebar ships from @kody-ade/kody-chat — dash consumes, never forks.
     const sidebar = readFileSync(
       join(
@@ -21,9 +21,6 @@ describe("repo-scoped navigation surfaces", () => {
     expect(sidebar).toContain("repoScopedHref");
     expect(sidebar).toContain("scopedHref(item.href)");
     expect(sidebar).toContain('scopedHref("/")');
-    expect(sidebar).toContain(
-      'scopedHref(next === "vibe" ? "/vibe" : "/tasks")',
-    );
   });
 
   it("scopes mobile menu links through the shared sidebar", () => {

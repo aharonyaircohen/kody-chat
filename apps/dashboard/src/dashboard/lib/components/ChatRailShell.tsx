@@ -36,7 +36,7 @@ import { KodyChat } from "@kody-ade/kody-chat/components/KodyChat";
 import { AppHeader } from "./AppHeader";
 import { ChatShell } from "@kody-ade/kody-chat/components/ChatShell";
 import { SidebarNotifications } from "./SidebarChrome";
-import { ENGINEER_MODE_SECTIONS } from "./settings-nav";
+import { SIDEBAR_NAV_SECTIONS } from "./settings-nav";
 import { RepoManager } from "./RepoManager";
 import { CommandPalette } from "./CommandPalette";
 import { SettingsDrawerProvider } from "./SettingsDrawer";
@@ -637,7 +637,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
               Preview included), so the old Vibe/Engineer toggle is gone. */}
           <ChatShell
             title="Kody"
-            sections={ENGINEER_MODE_SECTIONS}
+            sections={SIDEBAR_NAV_SECTIONS}
             sidebarBrandExtra={<SidebarNotifications />}
             chat={chatPane}
             onReportIssue={openIssueReport}

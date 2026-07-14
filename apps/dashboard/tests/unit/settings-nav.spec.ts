@@ -1,11 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  ENGINEER_MODE_SECTIONS,
-  MOBILE_NAV_SECTIONS,
+  SIDEBAR_NAV_SECTIONS,
   PRIMARY_NAV_ITEMS,
-  PRIMARY_NAV_TITLE,
-  PRIMARY_VIEW_TITLE,
   SETTINGS_NAV_SECTIONS,
   activeCollapsibleNavSectionTitle,
   navLabelForPath,
@@ -30,10 +27,6 @@ function sectionHrefs(
       .find((section) => section.title === title)
       ?.items.map((item) => item.href) ?? []
   );
-}
-
-function allHrefs(sections: readonly SettingsNavSection[]): string[] {
-  return sections.flatMap((section) => section.items.map((item) => item.href));
 }
 
 describe("settings navigation", () => {
@@ -91,26 +84,10 @@ describe("settings navigation", () => {
     expect(navLabelForPath("/content/settings")).toBe("Settings");
   });
 
-  it("keeps every desktop engineer side-panel route reachable on mobile", () => {
-    const mobileHrefs = new Set(allHrefs(MOBILE_NAV_SECTIONS));
-
-    for (const href of allHrefs(ENGINEER_MODE_SECTIONS)) {
-      expect(mobileHrefs.has(href), `${href} missing from mobile nav`).toBe(
-        true,
-      );
-    }
-  });
-
-  it("uses the same workspace list in desktop engineer and mobile side panels", () => {
-    expect(sectionHrefs(MOBILE_NAV_SECTIONS, PRIMARY_NAV_TITLE)).toEqual(
-      sectionHrefs(ENGINEER_MODE_SECTIONS, PRIMARY_NAV_TITLE),
-    );
-  });
-
   it("keeps Dashboard as the only attention-style home entry", () => {
     expect(navLabelForPath("/")).toBe("Dashboard");
     expect(navLabelForPath("/attention")).toBeNull();
-    expect(sectionHrefs(ENGINEER_MODE_SECTIONS, "Work")).toEqual([
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Work")).toEqual([
       "/tasks",
       "/vibe",
       "/preview",
@@ -119,19 +96,13 @@ describe("settings navigation", () => {
       "/findings",
       "/learning",
     ]);
-    expect(sectionHrefs(MOBILE_NAV_SECTIONS, PRIMARY_VIEW_TITLE)).toEqual([
-      "/",
-      "/tasks",
-      "/vibe",
-      "/preview",
-    ]);
   });
 
   it("keeps Views active for selected saved preview routes", () => {
     const previewHref = "/preview";
-    const previewItem = sectionHrefs(ENGINEER_MODE_SECTIONS, "Work")
+    const previewItem = sectionHrefs(SIDEBAR_NAV_SECTIONS, "Work")
       .map((href) =>
-        ENGINEER_MODE_SECTIONS.flatMap((section) => section.items).find(
+        SIDEBAR_NAV_SECTIONS.flatMap((section) => section.items).find(
           (item) => item.href === href,
         ),
       )
@@ -143,7 +114,7 @@ describe("settings navigation", () => {
   });
 
   it("orders the desktop rail around work and collapsible ownership groups", () => {
-    expect(ENGINEER_MODE_SECTIONS.map((section) => section.title)).toEqual([
+    expect(SIDEBAR_NAV_SECTIONS.map((section) => section.title)).toEqual([
       "Work",
       "Agency",
       "Workspace",
@@ -152,7 +123,7 @@ describe("settings navigation", () => {
       "Client",
       "System",
     ]);
-    expect(sectionHrefs(ENGINEER_MODE_SECTIONS, "Work")).toEqual([
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Work")).toEqual([
       "/tasks",
       "/vibe",
       "/preview",
@@ -161,7 +132,7 @@ describe("settings navigation", () => {
       "/findings",
       "/learning",
     ]);
-    expect(sectionHrefs(ENGINEER_MODE_SECTIONS, "Agency")).toEqual([
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Agency")).toEqual([
       "/agents",
       "/agent-goals",
       "/company-intents",
@@ -171,26 +142,26 @@ describe("settings navigation", () => {
       "/store-catalog",
       "/company",
     ]);
-    expect(ENGINEER_MODE_SECTIONS.every((section) => section.collapsible)).toBe(
+    expect(SIDEBAR_NAV_SECTIONS.every((section) => section.collapsible)).toBe(
       true,
     );
-    expect(ENGINEER_MODE_SECTIONS.every((section) => section.icon)).toBe(true);
-    expect(ENGINEER_MODE_SECTIONS.every((section) => section.tint)).toBe(true);
+    expect(SIDEBAR_NAV_SECTIONS.every((section) => section.icon)).toBe(true);
+    expect(SIDEBAR_NAV_SECTIONS.every((section) => section.tint)).toBe(true);
   });
 
   it("opens only the active collapsible parent for a nested route", () => {
     expect(
       activeCollapsibleNavSectionTitle(
-        ENGINEER_MODE_SECTIONS,
+        SIDEBAR_NAV_SECTIONS,
         "/agent-goals",
         "",
       ),
     ).toBe("Agency");
     expect(
-      activeCollapsibleNavSectionTitle(ENGINEER_MODE_SECTIONS, "/memory", ""),
+      activeCollapsibleNavSectionTitle(SIDEBAR_NAV_SECTIONS, "/memory", ""),
     ).toBe("Kody");
     expect(
-      activeCollapsibleNavSectionTitle(ENGINEER_MODE_SECTIONS, "/tasks", ""),
+      activeCollapsibleNavSectionTitle(SIDEBAR_NAV_SECTIONS, "/tasks", ""),
     ).toBe("Work");
   });
 });

@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  ENGINEER_MODE_SECTIONS,
-  MOBILE_NAV_SECTIONS,
+  SIDEBAR_NAV_SECTIONS,
   PRIMARY_NAV_ITEMS,
-  PRIMARY_NAV_TITLE,
   PRIMARY_VIEW_TITLE,
   SETTINGS_NAV_SECTIONS,
   navLabelForPath,
@@ -29,10 +27,6 @@ function sectionHrefs(
       .find((section) => section.title === title)
       ?.items.map((item) => item.href) ?? []
   );
-}
-
-function allHrefs(sections: readonly SettingsNavSection[]): string[] {
-  return sections.flatMap((section) => section.items.map((item) => item.href));
 }
 
 describe("settings navigation", () => {
@@ -77,32 +71,10 @@ describe("settings navigation", () => {
     expect(navLabelForPath("/content/settings")).toBe("Settings");
   });
 
-  it("keeps every desktop engineer side-panel route reachable on mobile", () => {
-    const mobileHrefs = new Set(allHrefs(MOBILE_NAV_SECTIONS));
-
-    for (const href of allHrefs(ENGINEER_MODE_SECTIONS)) {
-      expect(mobileHrefs.has(href), `${href} missing from mobile nav`).toBe(
-        true,
-      );
-    }
-  });
-
-  it("uses the same workspace list in desktop engineer and mobile side panels", () => {
-    expect(sectionHrefs(MOBILE_NAV_SECTIONS, PRIMARY_NAV_TITLE)).toEqual(
-      sectionHrefs(ENGINEER_MODE_SECTIONS, PRIMARY_NAV_TITLE),
-    );
-  });
-
   it("keeps Dashboard as the only attention-style home entry", () => {
     expect(navLabelForPath("/")).toBe("Dashboard");
     expect(navLabelForPath("/attention")).toBeNull();
-    expect(sectionHrefs(ENGINEER_MODE_SECTIONS, PRIMARY_VIEW_TITLE)).toEqual([
-      "/tasks",
-      "/vibe",
-      "/preview",
-    ]);
-    expect(sectionHrefs(MOBILE_NAV_SECTIONS, PRIMARY_VIEW_TITLE)).toEqual([
-      "/",
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, PRIMARY_VIEW_TITLE)).toEqual([
       "/tasks",
       "/vibe",
       "/preview",
@@ -111,9 +83,9 @@ describe("settings navigation", () => {
 
   it("keeps Views active for selected saved preview routes", () => {
     const previewHref = "/preview";
-    const previewItem = sectionHrefs(ENGINEER_MODE_SECTIONS, PRIMARY_VIEW_TITLE)
+    const previewItem = sectionHrefs(SIDEBAR_NAV_SECTIONS, PRIMARY_VIEW_TITLE)
       .map((href) =>
-        ENGINEER_MODE_SECTIONS.flatMap((section) => section.items).find(
+        SIDEBAR_NAV_SECTIONS.flatMap((section) => section.items).find(
           (item) => item.href === href,
         ),
       )
