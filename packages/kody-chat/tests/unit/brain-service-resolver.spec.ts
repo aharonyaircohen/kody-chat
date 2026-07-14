@@ -77,9 +77,8 @@ describe("resolveBrainService", () => {
       runningOrgSlug: "personal",
       runningUrl: "https://brain-1.fly.dev",
     });
-    const { resolveBrainService } = await import(
-      "@kody-ade/brain/service-resolver"
-    );
+    const { resolveBrainService } =
+      await import("@kody-ade/brain/service-resolver");
 
     const resolved = await resolveBrainService({
       flyToken: "fly-token",
@@ -104,9 +103,8 @@ describe("resolveBrainService", () => {
       runningOrgSlug: "old-org",
       runningUrl: "https://old-brain.fly.dev",
     });
-    const { resolveBrainService } = await import(
-      "@kody-ade/brain/service-resolver"
-    );
+    const { resolveBrainService } =
+      await import("@kody-ade/brain/service-resolver");
 
     const resolved = await resolveBrainService({
       flyToken: "fly-token",
@@ -130,7 +128,64 @@ describe("resolveBrainService", () => {
     expect(resolved.app).toBe("brain-1");
   });
 
-  it("does not silently fall back when the runtime machine is missing", async () => {
+  it("uses the verified running Brain when the stored app is rejected as foreign", async () => {
+    store.readBrainApp.mockResolvedValueOnce({
+      appName: "kody-brain-aharonyaircohen",
+      orgSlug: "aharon-yair-cohen",
+    });
+    target.resolveBrainTarget.mockReturnValueOnce({
+      app: "kody-brain-aguyaharonyair",
+      orgSlug: "personal",
+      source: "default",
+    });
+    runtimeManager.readBrainRuntimeView.mockResolvedValueOnce({
+      source: "runtime",
+      runningApp: "kody-brain-aharonyaircohen",
+      runningMachineId: "m-runtime",
+      runningOrgSlug: "aharon-yair-cohen",
+      runningUrl: "https://kody-brain-aharonyaircohen.fly.dev",
+    });
+    brainFly.brainStatus.mockResolvedValueOnce({
+      app: "kody-brain-aharonyaircohen",
+      state: "running",
+      url: "https://kody-brain-aharonyaircohen.fly.dev",
+      machineId: "m-runtime",
+      org: "aharon-yair-cohen",
+    });
+    flyPreviews.listMachines.mockResolvedValueOnce([
+      {
+        id: "m-runtime",
+        state: "started",
+        region: "fra",
+        createdAt: "2026-07-14T09:00:00.000Z",
+      },
+    ]);
+    const { resolveBrainService } =
+      await import("@kody-ade/brain/service-resolver");
+
+    const resolved = await resolveBrainService({
+      flyToken: "fly-token",
+      account: "aguyaharonyair",
+      githubToken: "github-token",
+      orgSlug: "personal",
+      defaultRegion: "fra",
+    });
+
+    expect(brainFly.brainStatus).toHaveBeenCalledWith(
+      expect.objectContaining({
+        appNameOverride: "kody-brain-aharonyaircohen",
+        machineIdOverride: "m-runtime",
+        orgSlug: "aharon-yair-cohen",
+      }),
+    );
+    expect(resolved).toMatchObject({
+      app: "kody-brain-aharonyaircohen",
+      state: "running",
+      machineId: "m-runtime",
+    });
+  });
+
+  it("recovers from a stale runtime id when one Brain machine is running", async () => {
     runtimeManager.readBrainRuntimeView.mockResolvedValueOnce({
       source: "runtime",
       runningApp: "brain-1",
@@ -138,9 +193,8 @@ describe("resolveBrainService", () => {
       runningOrgSlug: "personal",
       runningUrl: "https://brain-1.fly.dev",
     });
-    const { resolveBrainService } = await import(
-      "@kody-ade/brain/service-resolver"
-    );
+    const { resolveBrainService } =
+      await import("@kody-ade/brain/service-resolver");
 
     const resolved = await resolveBrainService({
       flyToken: "fly-token",
@@ -150,9 +204,10 @@ describe("resolveBrainService", () => {
       defaultRegion: "fra",
     });
 
-    expect(resolved.machine).toBeUndefined();
-    expect(resolved.machineId).toBe("m-missing");
-    expect(resolved.reason).toBe("runtime_machine_not_found");
+    expect(resolved.machine?.machineId).toBe("m-old");
+    expect(resolved.machineId).toBe("m-old");
+    expect(resolved.state).toBe("running");
+    expect(resolved.reason).toBeUndefined();
   });
 
   it("does not use the environment Fly token when the stored Brain is hidden", async () => {
@@ -180,9 +235,8 @@ describe("resolveBrainService", () => {
           createdAt: "2026-07-02T10:00:00.000Z",
         },
       ]);
-    const { resolveBrainService } = await import(
-      "@kody-ade/brain/service-resolver"
-    );
+    const { resolveBrainService } =
+      await import("@kody-ade/brain/service-resolver");
 
     const resolved = await resolveBrainService({
       flyToken: "vault-token",
@@ -235,9 +289,8 @@ describe("resolveBrainService", () => {
           createdAt: "2026-07-02T10:00:00.000Z",
         },
       ]);
-    const { resolveBrainService } = await import(
-      "@kody-ade/brain/service-resolver"
-    );
+    const { resolveBrainService } =
+      await import("@kody-ade/brain/service-resolver");
 
     const resolved = await resolveBrainService({
       flyToken: "vault-token",
@@ -288,9 +341,8 @@ describe("resolveBrainService", () => {
           createdAt: "2026-07-02T10:00:00.000Z",
         },
       ]);
-    const { resolveBrainService } = await import(
-      "@kody-ade/brain/service-resolver"
-    );
+    const { resolveBrainService } =
+      await import("@kody-ade/brain/service-resolver");
 
     const resolved = await resolveBrainService({
       flyToken: "vault-token",
@@ -320,9 +372,8 @@ describe("resolveBrainService", () => {
     flyPreviews.listMachines.mockRejectedValueOnce(
       Object.assign(new Error("unauthorized"), { status: 403 }),
     );
-    const { resolveBrainService } = await import(
-      "@kody-ade/brain/service-resolver"
-    );
+    const { resolveBrainService } =
+      await import("@kody-ade/brain/service-resolver");
 
     const resolved = await resolveBrainService({
       flyToken: "vault-token",

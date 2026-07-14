@@ -17,6 +17,7 @@ import {
   type ServerBrainStatusResult,
 } from "@kody-ade/fly/infrastructure/server-brain";
 import {
+  isServerProviderMachineRunning,
   rowsForServerProviderApp,
   type ServerProviderMachineRow,
 } from "@kody-ade/fly/infrastructure/server-machines";
@@ -74,7 +75,11 @@ export async function resolveBrainService(input: {
     stored,
     appNameOverride: input.appNameOverride,
   });
-  const app = input.appNameOverride ?? target.app;
+  const recordedRunningApp =
+    !input.appNameOverride && target.source === "default"
+      ? runtime?.runningApp
+      : undefined;
+  const app = input.appNameOverride ?? recordedRunningApp ?? target.app;
   const orgSlug =
     runtime?.runningApp === app && runtime.runningOrgSlug
       ? runtime.runningOrgSlug
@@ -104,26 +109,43 @@ export async function resolveBrainService(input: {
         orgSlug,
         defaultRegion: input.defaultRegion,
       });
-      machine = rowsForServerProviderApp(app, machines, Date.now(), {
+      const rows = rowsForServerProviderApp(app, machines, Date.now(), {
         feature: "brain",
         label: app,
         orgSlug,
-      }).find((row) =>
+      });
+      machine = rows.find((row) =>
         targetMachineId ? row.machineId === targetMachineId : true,
       );
+      if (!machine && targetMachineId) {
+        const runningMachines = rows.filter((row) =>
+          isServerProviderMachineRunning(row.state),
+        );
+        if (runningMachines.length === 1) {
+          machine = runningMachines[0];
+        }
+      }
     } catch (err) {
       machineLookupFailed = true;
       machineAccessDenied = machineAccessDenied || flyAccessDenied(err);
     }
 
-    const reason: BrainServiceReason | undefined =
-      machineAccessDenied
-        ? "fly_access_denied"
-        : targetMachineId && !machine && !machineLookupFailed
+    const resolvedState = machine
+      ? isServerProviderMachineRunning(machine.state)
+        ? "running"
+        : machine.state === "suspended"
+          ? "suspended"
+          : machine.state === "stopped"
+            ? "stopped"
+            : status.state
+      : status.state;
+    const reason: BrainServiceReason | undefined = machineAccessDenied
+      ? "fly_access_denied"
+      : targetMachineId && !machine && !machineLookupFailed
         ? "runtime_machine_not_found"
-        : machineLookupFailed && status.state !== "off"
+        : machineLookupFailed && resolvedState !== "off"
           ? "machine_lookup_failed"
-          : status.state !== "off"
+          : resolvedState !== "off"
             ? undefined
             : stored
               ? status.url
@@ -137,7 +159,7 @@ export async function resolveBrainService(input: {
       defaultRegion: input.defaultRegion,
       flyToken,
       stored,
-      state: status.state,
+      state: resolvedState,
       url: status.url,
       machineId: machine?.machineId ?? targetMachineId ?? status.machineId,
       machineImageRef: machine?.imageRef ?? status.machineImageRef,

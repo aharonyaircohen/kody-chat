@@ -21,21 +21,49 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
-import { requireKodyAuth } from "@kody-ade/base/auth";
+import { requireKodyAuth, verifyActorLogin } from "@kody-ade/base/auth";
 import { manageBrainServer } from "../server-commands";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "../github";
+import { clearGitHubContext, setGitHubContext } from "../github";
 import { logger } from "@kody-ade/base/logger";
 import { resolveServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
 
 export const runtime = "nodejs";
 
+const DestroyBrainBody = z.object({
+  appName: z
+    .string()
+    .min(1)
+    .max(120)
+    .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/)
+    .optional(),
+  actorLogin: z.string().optional(),
+});
+
 export async function POST(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
+
+  let body: unknown = {};
+  const rawBody = await req.text();
+  if (rawBody.trim()) {
+    try {
+      body = JSON.parse(rawBody) as unknown;
+    } catch {
+      return NextResponse.json({ error: "invalid_json" }, { status: 400 });
+    }
+  }
+  const parsed = DestroyBrainBody.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "validation_error", details: parsed.error.format() },
+      { status: 400 },
+    );
+  }
+
+  const verify = await verifyActorLogin(req, parsed.data.actorLogin);
+  if ("status" in verify) return verify;
 
   const ctx = await resolveServerProviderContext(req);
   if (!ctx.ok) {
@@ -61,7 +89,13 @@ export async function POST(req: NextRequest) {
 
   try {
     return NextResponse.json(
-      await manageBrainServer({ command: "destroy", context: ctx.context }),
+      await manageBrainServer({
+        command: "destroy",
+        context: ctx.context,
+        ...(parsed.data.appName
+          ? { appNameOverride: parsed.data.appName }
+          : {}),
+      }),
     );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

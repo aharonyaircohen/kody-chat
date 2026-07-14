@@ -8,7 +8,8 @@
  * / builder), with inline Suspend / Resume / Destroy. Config lives in the
  * settings cards below — this table is "what's running right now, act on it".
  *
- * Reads GET /api/kody/fly/machines; acts via POST /api/kody/fly/machines/action.
+ * Reads GET /api/kody/fly/machines. Machine actions use the generic Fly route;
+ * Brain deletion uses the Brain lifecycle route so its whole app is removed.
  */
 "use client";
 
@@ -54,8 +55,8 @@ const FEATURE_ORDER: ServerProviderFeature[] = [
   "other",
 ];
 // Preview apps are throwaway per-PR envs — "Destroy" should remove the whole
-// app (URL + IPs), not just one machine. Long-lived service apps keep the app
-// and only destroy the machine.
+// app (URL + IPs), not just one machine. Brain is also a whole-app lifecycle,
+// handled by its dedicated route. Other long-lived services keep the app.
 function destroysWholeApp(feature: ServerProviderFeature): boolean {
   return feature === "preview" || feature === "preview-base";
 }
@@ -109,8 +110,11 @@ export function FlyMachinesTable({
   const [loading, setLoading] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<ServerProviderMachineRow | null>(null);
-  const [busyFeature, setBusyFeature] = useState<ServerProviderFeature | null>(null);
-  const [confirmFeature, setConfirmFeature] = useState<ServerProviderFeature | null>(null);
+  const [busyFeature, setBusyFeature] = useState<ServerProviderFeature | null>(
+    null,
+  );
+  const [confirmFeature, setConfirmFeature] =
+    useState<ServerProviderFeature | null>(null);
 
   const refresh = useCallback(async () => {
     if (!hasAuth || !flyTokenConfigured) {
@@ -142,15 +146,22 @@ export function FlyMachinesTable({
   ) {
     setBusyId(row.machineId);
     try {
-      const res = await fetch("/api/kody/fly/machines/action", {
-        method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          app: row.app,
-          machineId: row.machineId,
-          action,
-        }),
-      });
+      const res =
+        row.feature === "brain" && action === "destroy"
+          ? await fetch("/api/kody/brain/destroy", {
+              method: "POST",
+              headers: { ...headers, "Content-Type": "application/json" },
+              body: JSON.stringify({ appName: row.app }),
+            })
+          : await fetch("/api/kody/fly/machines/action", {
+              method: "POST",
+              headers: { ...headers, "Content-Type": "application/json" },
+              body: JSON.stringify({
+                app: row.app,
+                machineId: row.machineId,
+                action,
+              }),
+            });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         toast.error(body.error ?? `Action failed (HTTP ${res.status})`);
@@ -161,7 +172,9 @@ export function FlyMachinesTable({
           ? "Suspended"
           : action === "start"
             ? "Resumed"
-            : "Destroyed",
+            : row.feature === "brain"
+              ? "Brain turned off"
+              : "Destroyed",
       );
       await refresh();
     } catch (err) {
@@ -373,16 +386,20 @@ export function FlyMachinesTable({
       <ConfirmDialog
         open={confirm !== null}
         title={
-          confirm && destroysWholeApp(confirm.feature)
-            ? `Destroy preview ${confirm.label}?`
-            : `Destroy ${confirm?.label ?? "machine"}?`
+          confirm?.feature === "brain"
+            ? `Turn off Brain ${confirm.label}?`
+            : confirm && destroysWholeApp(confirm.feature)
+              ? `Destroy preview ${confirm.label}?`
+              : `Destroy ${confirm?.label ?? "machine"}?`
         }
         description={
-          confirm && destroysWholeApp(confirm.feature)
-            ? "Tears down the whole preview app (URL + IPs). It rebuilds on the next PR sync."
-            : "Destroys this machine. Long-lived apps re-provision on next use."
+          confirm?.feature === "brain"
+            ? "Turns off this Brain app completely: all machines and its Fly URL are removed. Its stored Kody record is also cleared when this is the active Brain."
+            : confirm && destroysWholeApp(confirm.feature)
+              ? "Tears down the whole preview app (URL + IPs). It rebuilds on the next PR sync."
+              : "Destroys this machine. Long-lived apps re-provision on next use."
         }
-        confirmLabel="Destroy"
+        confirmLabel={confirm?.feature === "brain" ? "Turn off" : "Destroy"}
         variant="destructive"
         onConfirm={() =>
           confirm &&

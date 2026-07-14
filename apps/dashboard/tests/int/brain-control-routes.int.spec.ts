@@ -19,8 +19,8 @@ const brainFly = vi.hoisted(() => ({
 }));
 
 const brainService = vi.hoisted(() => ({
-  resolveBrainService: vi.fn(async () => ({
-    app: "brain-1",
+  resolveBrainService: vi.fn(async (input: { appNameOverride?: string }) => ({
+    app: input.appNameOverride ?? "brain-1",
     orgSlug: "guy-koren",
     defaultRegion: "fra",
     flyToken: "fallback-fly-token",
@@ -36,12 +36,19 @@ const brainService = vi.hoisted(() => ({
   })),
 }));
 
+const brainStore = vi.hoisted(() => ({
+  clearBrainApp: vi.fn(async () => undefined),
+}));
+
 const runtimeManager = vi.hoisted(() => ({
   clearBrainRuntimeDeployment: vi.fn(async () => undefined),
 }));
 
 vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(async () => null),
+  verifyActorLogin: vi.fn(async () => ({
+    identity: { login: "octocat", avatar_url: "", githubId: 1 },
+  })),
 }));
 
 vi.mock("@kody-ade/fly/plugin/runners/context", () => ({
@@ -61,9 +68,7 @@ vi.mock("@kody-ade/fly/plugin/runners/context", () => ({
 
 vi.mock("@kody-ade/brain/service-resolver", () => brainService);
 vi.mock("@kody-ade/brain/runtime-manager", () => runtimeManager);
-vi.mock("@kody-ade/brain/store", () => ({
-  clearBrainApp: vi.fn(async () => undefined),
-}));
+vi.mock("@kody-ade/brain/store", () => brainStore);
 
 vi.mock("@kody-ade/fly/plugin/runners/brain", () => brainFly);
 
@@ -105,6 +110,56 @@ describe("Brain control routes", () => {
       "octocat",
       "ghp_test",
     );
+  });
+
+  it("destroys the selected Brain app without clearing a different stored Brain", async () => {
+    const res = await destroyPOST(
+      new NextRequest("https://dash.test/api/kody/brain/destroy", {
+        method: "POST",
+        body: JSON.stringify({ appName: "brain-extra" }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(brainService.resolveBrainService).toHaveBeenCalledWith(
+      expect.objectContaining({ appNameOverride: "brain-extra" }),
+    );
+    expect(brainFly.destroyBrain).toHaveBeenCalledWith(
+      expect.objectContaining({ appNameOverride: "brain-extra" }),
+    );
+    expect(runtimeManager.clearBrainRuntimeDeployment).not.toHaveBeenCalled();
+    expect(brainStore.clearBrainApp).not.toHaveBeenCalled();
+  });
+
+  it("clears the stored state when the selected app is the active Brain", async () => {
+    const res = await destroyPOST(
+      new NextRequest("https://dash.test/api/kody/brain/destroy", {
+        method: "POST",
+        body: JSON.stringify({ appName: "brain-1" }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(runtimeManager.clearBrainRuntimeDeployment).toHaveBeenCalledWith(
+      "octocat",
+      "ghp_test",
+    );
+    expect(brainStore.clearBrainApp).toHaveBeenCalledWith(
+      "octocat",
+      "ghp_test",
+    );
+  });
+
+  it("rejects an invalid selected Brain app name", async () => {
+    const res = await destroyPOST(
+      new NextRequest("https://dash.test/api/kody/brain/destroy", {
+        method: "POST",
+        body: JSON.stringify({ appName: "../wrong app" }),
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect(brainFly.destroyBrain).not.toHaveBeenCalled();
   });
 
   it("resumes the stored Brain app in the stored org", async () => {
