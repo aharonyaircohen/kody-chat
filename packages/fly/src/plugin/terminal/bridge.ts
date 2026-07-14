@@ -122,9 +122,15 @@ if pid == 0:
 slave_control_fd = slave
 stdin_fd = sys.stdin.fileno()
 stdout_fd = sys.stdout.fileno()
-control_fd = 3
+# An external launcher may pass an extra control channel on FD 3 (resize
+# messages, etc.). When the relay is invoked directly (e.g. from a test
+# harness via spawn()), os.openpty() allocates FD 3 for the master end,
+# colliding with this probe — guard against that so we don't try to drain
+# the PTY twice and deadlock waiting for data that will never arrive.
+control_fd = 3 if 3 != master else None
 try:
-    os.fstat(control_fd)
+    if control_fd is not None:
+        os.fstat(control_fd)
 except OSError:
     control_fd = None
 stdin_open = True

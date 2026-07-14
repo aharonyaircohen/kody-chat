@@ -210,10 +210,42 @@ interface DefaultBranchCIGraphQL {
  * that GitHub's UI sometimes intentionally ignores in the rollup). Neither
  * matched the visible status, so the banner reported failure when the commit
  * was actually green.
+ *
+ * Self-run exclusion: when `options.excludeRunId` is set (or `GITHUB_RUN_ID` is
+ * set in the environment), a PENDING/EXPECTED rollup that is driven entirely by
+ * the observer's own in-progress run is re-classified against the latest
+ * completed workflow run on the branch. This keeps the `observe-repo-ci`
+ * capability from observing itself as "unknown" while the management workflow
+ * is still running. Genuine non-self in-progress runs still surface as pending;
+ * a genuine non-self failure still surfaces as failure.
  */
-export async function fetchDefaultBranchCI(): Promise<DefaultBranchCI> {
+export async function fetchDefaultBranchCI(
+  options?: { excludeRunId?: number },
+): Promise<DefaultBranchCI> {
   const branch = await getDefaultBranch();
-  const cacheKey = `workflows:main-ci:${getOwner()}:${getRepo()}:${branch}`;
+
+  // Resolve which run ID (if any) to exclude from the CI rollup. Default to
+  // GITHUB_RUN_ID so callers running inside the kody workflow don't have to
+  // pass anything — but allow explicit override for tests and for the dashboard
+  // API (which is invoked from contexts that aren't inside a workflow run).
+  const envRunId = process.env.GITHUB_RUN_ID
+    ? Number(process.env.GITHUB_RUN_ID)
+    : undefined;
+  const excludeRunId =
+    options?.excludeRunId !== undefined
+      ? options.excludeRunId
+      : Number.isFinite(envRunId)
+        ? envRunId
+        : undefined;
+
+  // Include excludeRunId in the cache key so concurrent observers with
+  // different self-run IDs don't poison each other's policy decision. When
+  // excludeRunId is undefined (the dashboard API path), the suffix collapses
+  // to ":none" so all dashboard callers share one entry.
+  const excludeSegment = excludeRunId !== undefined
+    ? `:ex-${excludeRunId}`
+    : ":none";
+  const cacheKey = `workflows:main-ci:${getOwner()}:${getRepo()}:${branch}${excludeSegment}`;
   const cached = getCached<DefaultBranchCI>(cacheKey);
   if (cached) return cached;
 
@@ -308,6 +340,22 @@ export async function fetchDefaultBranchCI(): Promise<DefaultBranchCI> {
       state = "unknown";
   }
 
+  // Self-run exclusion: when the rollup is PENDING/EXPECTED and we know our own
+  // run ID, check whether the only in-progress run on the branch is the
+  // self-run. If so, re-classify against the latest completed run so the
+  // observer doesn't report "unknown" while its own management workflow is
+  // still running. Genuine non-self in-progress runs still produce pending.
+  if (
+    excludeRunId !== undefined &&
+    Number.isFinite(excludeRunId) &&
+    state === "pending"
+  ) {
+    const policyState = await resolveSelfRunExclusion(branch, excludeRunId);
+    if (policyState !== null) {
+      state = policyState;
+    }
+  }
+
   const failingRuns: DefaultBranchCI["failingRuns"] = [];
   let mostRecent:
     | {
@@ -397,6 +445,107 @@ export async function fetchDefaultBranchCI(): Promise<DefaultBranchCI> {
 
   setCache(cacheKey, DEFAULT_BRANCH_CI_TTL, result);
   return result;
+}
+
+/**
+ * Apply the self-run exclusion policy when the CI rollup is PENDING/EXPECTED.
+ *
+ * The graphQL rollup treats every check on the latest commit as evidence. When
+ * the observer's own management workflow is running on main, its in-progress
+ * check pushes the rollup to PENDING — even if every *relevant* CI run
+ * completed green. This helper classifies the latest relevant CI evidence on
+ * the default branch while excluding `excludeRunId`:
+ *
+ *   - If another non-self run is in-progress/queued → return null
+ *     (keep PENDING — a genuine CI run is still pending).
+ *   - If `excludeRunId` is in-progress/queued and no other run is →
+ *     classify against the most recent COMPLETED non-self run.
+ *   - If `excludeRunId` is itself completed (rare; e.g. re-entry after
+ *     self-classification) → null (no policy adjustment needed).
+ *
+ * Returns null when the rollup state should stay unchanged. On transport
+ * failure, returns null rather than fabricating a success — the rollup-derived
+ * PENDING is the safer fallback than poisoning the cache with a bogus "success"
+ * after a network blip.
+ */
+async function resolveSelfRunExclusion(
+  branch: string,
+  excludeRunId: number,
+): Promise<DefaultBranchCI["state"] | null> {
+  const octokit = getOctokit();
+  let runs: Array<{
+    id: number;
+    status?: string | null;
+    conclusion?: string | null;
+  }>;
+  try {
+    // listWorkflowRunsForRepo (not listWorkflowRuns — that requires a specific
+    // workflow_id). We want runs from every workflow on the branch so we can
+    // detect when a non-self workflow is still in-flight.
+    const response = await octokit.actions.listWorkflowRunsForRepo({
+      owner: getOwner(),
+      repo: getRepo(),
+      branch,
+      per_page: 30,
+    });
+    runs = (response.data.workflow_runs ?? []) as Array<{
+      id: number;
+      status?: string | null;
+      conclusion?: string | null;
+    }>;
+  } catch {
+    // Don't overwrite a known-good PENDING with a fabricated success on a
+    // transport blip. Let the caller keep the rollup-derived PENDING.
+    return null;
+  }
+
+  const isInFlight = (r: {
+    status?: string | null;
+  }): boolean => r.status === "in_progress" || r.status === "queued";
+
+  const selfInFlight = runs.find(
+    (r) => r.id === excludeRunId && isInFlight(r),
+  );
+  const otherInFlight = runs.some(
+    (r) => r.id !== excludeRunId && isInFlight(r),
+  );
+
+  if (otherInFlight) {
+    // Genuine non-self CI run is still pending — keep PENDING.
+    return null;
+  }
+  if (!selfInFlight) {
+    // Self-run isn't driving the PENDING (e.g. it's already completed, or the
+    // rollup's PENDING came from another check on the latest commit). Keep
+    // the rollup-derived state.
+    return null;
+  }
+
+  // Only the self-run is in-flight. Classify against the most recent
+  // COMPLETED non-self run on the branch.
+  const latestCompleted = runs.find(
+    (r) => r.id !== excludeRunId && r.status === "completed",
+  );
+  if (!latestCompleted) {
+    // No completed runs at all to anchor on. Treat as unknown rather than
+    // fabricating success — the next observation tick will retry with the
+    // self-run completed.
+    return "unknown";
+  }
+  switch (latestCompleted.conclusion) {
+    case "success":
+      return "success";
+    case "failure":
+    case "timed_out":
+    case "action_required":
+    case "startup_failure":
+    case "cancelled":
+      return "failure";
+    default:
+      // skipped / neutral / stale — not green; report unknown so the
+      // operator isn't told main is healthy.
+      return "unknown";
+  }
 }
 
 /**
