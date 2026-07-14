@@ -30,6 +30,7 @@ export * from "./api/bugs";
 export * from "./api/company";
 export * from "./api/jobs";
 export * from "./api/company-intents";
+export * from "./api/operations";
 
 import { tasksApi, taskDocsApi } from "./api/tasks";
 import { prsApi } from "./api/prs";
@@ -54,6 +55,7 @@ import { kodyBugsApi } from "./api/bugs";
 import { companyApi } from "./api/company";
 import { jobsApi } from "./api/jobs";
 import { companyIntentsApi } from "./api/company-intents";
+import { operationsApi } from "./api/operations";
 
 // ============ Combined API ============
 
@@ -75,6 +77,7 @@ export const kodyApi = {
   memory: memoryApi,
   company: companyApi,
   companyIntents: companyIntentsApi,
+  operations: operationsApi,
   reports: reportsApi,
   goals: goalsApi,
   messages: messagesApi,

@@ -13,6 +13,8 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
+    "test": "vitest run",
+    "test:unit": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -21,9 +23,11 @@
     "zod": "^4.3.5"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "4.0.16",
     "typescript": "5.9.3",
     "@types/react": "^19.2.17",
-    "next": "16.2.9"
+    "next": "16.2.9",
+    "vitest": "4.0.16"
   },
   "peerDependencies": {
     "react": "19.2.7",
