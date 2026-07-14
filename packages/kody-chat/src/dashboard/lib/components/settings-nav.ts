@@ -283,19 +283,26 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
       },
 
       {
+        href: "/company-intents",
+        label: "Intents",
+        icon: Compass,
+        description:
+          "Company outcomes, priorities, principles, measures, and hard rules.",
+        tint: "text-cyan-300 bg-cyan-500/10",
+      },
+      {
+        href: "/operations",
+        label: "Operations",
+        icon: Building2,
+        description: "Responsibility boundaries that own Goals and Loops.",
+        tint: "text-indigo-300 bg-indigo-500/10",
+      },
+      {
         href: "/agent-goals",
         label: "Goals",
         icon: Target,
         description: "Finite outcomes driven by missing evidence.",
         tint: "text-sky-300 bg-sky-500/10",
-      },
-      {
-        href: "/company-intents",
-        label: "Intents",
-        icon: Compass,
-        description:
-          "CTO guidance for AI Agency goals, loops, and capabilities.",
-        tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
         href: "/agent-loops",

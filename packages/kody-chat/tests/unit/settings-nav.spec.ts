@@ -81,6 +81,17 @@ describe("settings navigation", () => {
     ]);
   });
 
+  it("shows the agency scaling path in model order", () => {
+    const hrefs = sectionHrefs(SETTINGS_NAV_SECTIONS, "AI Agency");
+    expect(hrefs.indexOf("/company-intents")).toBeLessThan(
+      hrefs.indexOf("/operations"),
+    );
+    expect(hrefs.indexOf("/operations")).toBeLessThan(
+      hrefs.indexOf("/agent-goals"),
+    );
+    expect(navLabelForPath("/operations")).toBe("Operations");
+  });
+
   it("keeps Views active for selected saved preview routes", () => {
     const previewHref = "/preview";
     const previewItem = sectionHrefs(SIDEBAR_NAV_SECTIONS, PRIMARY_VIEW_TITLE)
