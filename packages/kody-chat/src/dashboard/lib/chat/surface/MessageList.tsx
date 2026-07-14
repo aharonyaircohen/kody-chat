@@ -22,7 +22,7 @@ import {
   type ReactNode,
   type SetStateAction,
 } from "react";
-import { ChevronDown } from "lucide-react";
+import { Check, ChevronDown, Loader2 } from "lucide-react";
 import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
 import { MessageActions } from "@dashboard/lib/components/MessageActions";
 import { MessageAttachments } from "../../components/MessageAttachments";
@@ -46,6 +46,7 @@ import {
   rtlAwareMarkdownClassName,
   textIsolationStyle,
 } from "@dashboard/lib/text-direction";
+import type { CompactionStatus } from "../../components/kody-chat-compaction";
 
 export function getMessageDirection(text: string) {
   return resolveTextDirection(text);
@@ -64,6 +65,8 @@ interface MessageListProps {
   onResend: (content: string) => void;
   /** True while a turn is in flight (streaming or awaiting first byte). */
   activeLoading: boolean;
+  /** Temporary, non-transcript status for automatic model-memory compaction. */
+  compactionStatus: CompactionStatus;
   /** Active session id — scopes the thinking/reasoning persist keys. */
   activeSessionId: string | undefined;
   /** Streaming tool calls not yet folded into a message. */
@@ -98,6 +101,7 @@ export function MessageList({
   setMessages,
   onResend,
   activeLoading,
+  compactionStatus,
   activeSessionId,
   toolCalls,
   usedViewIds,
@@ -128,7 +132,7 @@ export function MessageList({
 
   useEffect(() => {
     if (isAtBottom) scrollToBottom();
-  }, [messages, activeLoading, isAtBottom, scrollToBottom]);
+  }, [messages, activeLoading, compactionStatus, isAtBottom, scrollToBottom]);
 
   // 800ms grace period for the typing indicator (issue #330). The agentIdentity
   // tells the model to emit a short status line (≤8 words) as the very first
@@ -390,6 +394,26 @@ export function MessageList({
                 description: tc.description,
               }))}
             />
+          </div>
+        )}
+
+        {chatMode === "ai" && compactionStatus && (
+          <div
+            role="status"
+            aria-live="polite"
+            data-testid="conversation-compaction-status"
+            className="flex justify-center"
+          >
+            <div className="flex items-center gap-2 rounded-full border bg-background/90 px-3 py-1.5 text-sm text-muted-foreground shadow-sm">
+              {compactionStatus === "compacting" ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+              ) : (
+                <Check className="h-3.5 w-3.5" aria-hidden />
+              )}
+              {compactionStatus === "compacting"
+                ? "Compacting conversation…"
+                : "Conversation compacted"}
+            </div>
           </div>
         )}
 

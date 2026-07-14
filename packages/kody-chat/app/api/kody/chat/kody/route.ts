@@ -512,7 +512,11 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     clearGitHubContext();
     traceError(
-      { traceId, err: formatProviderError(err), ...extractProviderErrorMeta(err) },
+      {
+        traceId,
+        err: formatProviderError(err),
+        ...extractProviderErrorMeta(err),
+      },
       "kody-direct: request setup failed",
     );
     return NextResponse.json(
@@ -527,7 +531,6 @@ async function handleKodyDirectPost(
   traceId: string,
   reqStartedAt: number,
 ) {
-
   // Surface scoping (phase 2 step 6). Admin PAT headers → full scope,
   // byte-identical to before. A valid surface ticket without a PAT →
   // restricted client scope (agent forced, tools filtered below). Neither →
@@ -546,6 +549,8 @@ async function handleKodyDirectPost(
 
   let body: {
     messages?: IncomingMessage[];
+    /** Derived memory from older visible messages after automatic compaction. */
+    conversationSummary?: string;
     model?: string;
     task?: TaskContext;
     /** GitHub login of the requester — gates remote_* tools. Optional. */
@@ -621,6 +626,15 @@ async function handleKodyDirectPost(
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
+  if (
+    typeof body.conversationSummary === "string" &&
+    body.conversationSummary.length > 20_000
+  ) {
+    return NextResponse.json(
+      { error: "conversationSummary too large" },
+      { status: 400 },
+    );
+  }
 
   let repoScopedReq = req;
   let surfaceBrand: ClientBrand | null = null;
@@ -658,7 +672,9 @@ async function handleKodyDirectPost(
       { status: 400 },
     );
   }
-  const messages = trimToRecent(allMessages);
+  const messages = body.conversationSummary
+    ? allMessages
+    : trimToRecent(allMessages);
   const latestUserText = getLatestUserText(messages);
   const explicitViewRequest = parseExplicitViewRequest(latestUserText);
   const trimmedCount = allMessages.length - messages.length;
@@ -1356,8 +1372,12 @@ async function handleKodyDirectPost(
   // overlay remains the final modality-specific override.
   const userInstructionsSection =
     formatUserInstructionsPromptSection(userInstructions);
+  const conversationSummarySection = body.conversationSummary?.trim()
+    ? `## Earlier conversation memory\n\n${body.conversationSummary.trim()}`
+    : null;
   const promptWithReminders = [
     assembledPrompt,
+    conversationSummarySection,
     voiceMode ? null : CRITICAL_REMINDERS_MD,
     userInstructionsSection,
   ]
@@ -1600,9 +1620,7 @@ This turn includes an image from the user. For questions about what is visible i
             ...(event.usage?.outputTokens != null
               ? { outputTokens: event.usage.outputTokens }
               : {}),
-            ...(event.finishReason
-              ? { finishReason: event.finishReason }
-              : {}),
+            ...(event.finishReason ? { finishReason: event.finishReason } : {}),
           },
           {
             userId: eventUserId,

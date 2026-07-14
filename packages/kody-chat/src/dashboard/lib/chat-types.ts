@@ -6,6 +6,7 @@
  */
 
 import type { ChatViewDirective } from "./chat-ui-actions";
+import type { ConversationCheckpoint } from "./chat/core/conversation-compaction";
 
 /**
  * Reference to an attachment blob stored in IndexedDB.
@@ -123,6 +124,8 @@ export interface SessionMeta {
    * user picks an agent in that session, the field is populated.
    */
   agentKey?: string;
+  /** Derived model memory for long conversations; never replaces the transcript. */
+  contextCheckpoint?: ConversationCheckpoint;
   /** Ephemeral UI status derived from the stored messages */
   status?: "idle" | "running";
 }

@@ -12,6 +12,7 @@ import type {
   GlobalChatStore,
   SessionMeta,
 } from "@dashboard/lib/chat-types";
+import type { ConversationCheckpoint } from "./conversation-compaction";
 
 const STORAGE_KEY_BASE = "kody-sessions-v3";
 const LEGACY_UNSCOPED_KEY = "kody-sessions-v3";
@@ -281,6 +282,11 @@ export interface UseChatSessionsResult {
    * for that conversation.
    */
   setSessionAgent: (sessionId: string, agentKey: string) => void;
+  /** Save derived compact memory for a session without changing its transcript. */
+  setSessionCheckpoint: (
+    sessionId: string,
+    checkpoint: ConversationCheckpoint,
+  ) => void;
 }
 
 /**
@@ -535,6 +541,27 @@ export function useChatSessions(
     [storageKey],
   );
 
+  const setSessionCheckpoint = useCallback(
+    (sessionId: string, checkpoint: ConversationCheckpoint) => {
+      setStore((prev) => {
+        if (!prev || !prev.sessions.some((s) => s.id === sessionId)) {
+          return prev;
+        }
+        const newStore: GlobalChatStore = {
+          ...prev,
+          sessions: prev.sessions.map((session) =>
+            session.id === sessionId
+              ? { ...session, contextCheckpoint: checkpoint }
+              : session,
+          ),
+        };
+        saveStore(newStore, storageKey);
+        return newStore;
+      });
+    },
+    [storageKey],
+  );
+
   // Clear messages in active session
   const clearActiveSession = useCallback(() => {
     if (!activeSession) return;
@@ -562,8 +589,7 @@ export function useChatSessions(
   const setMessages = useCallback(
     (
       newMessagesOrUpdater:
-        | ChatMessage[]
-        | ((prev: ChatMessage[]) => ChatMessage[]),
+        ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[]),
     ) => {
       setStore((prev) => {
         if (!prev) return prev;
@@ -627,8 +653,7 @@ export function useChatSessions(
     (
       sessionId: string,
       newMessagesOrUpdater:
-        | ChatMessage[]
-        | ((prev: ChatMessage[]) => ChatMessage[]),
+        ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[]),
     ) => {
       setStore((prev) => {
         if (!prev) return prev;
@@ -699,5 +724,6 @@ export function useChatSessions(
     pinSession,
     clearActiveSession,
     setSessionAgent,
+    setSessionCheckpoint,
   };
 }

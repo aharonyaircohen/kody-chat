@@ -105,6 +105,11 @@ import {
 } from "@dashboard/lib/chat-ui-actions";
 import { SHOW_VIEW_TOOL } from "@dashboard/lib/chat-output-tools";
 import { extractKodyTerminalPayload } from "@kody-ade/terminal/kody-terminal-directive";
+import { prependConversationSummary } from "../chat/core/conversation-compaction";
+import {
+  compactConversationForTurn,
+  type CompactionStatus,
+} from "./kody-chat-compaction";
 
 // ─────────────────────────────────────────────────────────────────────
 // Settle seam (review item 11). Per-backend finish/recover behavior is
@@ -113,18 +118,14 @@ import { extractKodyTerminalPayload } from "@kody-ade/terminal/kody-terminal-dir
 // ─────────────────────────────────────────────────────────────────────
 
 export type SettleBackend =
-  | "brain"
-  | "kody-direct"
-  | "kody-live"
-  | "kody-engine";
+  "brain" | "kody-direct" | "kody-live" | "kody-engine";
 
 /** Maximum silence between Kody Direct transport events. */
 export const KODY_DIRECT_INACTIVITY_MS = 120_000;
 
 /** Classified turn failure: Stop-button abort vs a real error. */
 export type TurnFailure =
-  | { kind: "abort"; message: string }
-  | { kind: "error"; message: string };
+  { kind: "abort"; message: string } | { kind: "error"; message: string };
 
 /** How the in-flight assistant bubble resolves. */
 export type SettleMessageOp = "pop-last" | "unmark-loading" | "error-bubble";
@@ -362,15 +363,13 @@ export interface SendTextDeps {
   selectedTask: KodyTask | null;
   capabilitySlug: string | null;
   selectedCapability:
-    | Extract<ChatContext, { kind: "capability" }>["capability"]
-    | null;
+    Extract<ChatContext, { kind: "capability" }>["capability"] | null;
   selectedOrg: Extract<ChatContext, { kind: "org" }> | null;
   selectedReport: Extract<ChatContext, { kind: "report" }>["report"] | null;
   isPlannerMode: boolean;
   plannerGoal: Extract<ChatContext, { kind: "goal-planner" }>["goal"] | null;
   plannerExistingTasks:
-    | Extract<ChatContext, { kind: "goal-planner" }>["existingTasks"]
-    | undefined;
+    Extract<ChatContext, { kind: "goal-planner" }>["existingTasks"] | undefined;
   onPlannerTasksCreated: (() => void) | undefined;
   onIssueCreated: KodyChatProps["onIssueCreated"];
   onRenderedViewInvalidate?: never;
@@ -389,6 +388,7 @@ export interface SendTextDeps {
   setToolCalls: (toolCalls: ToolCall[]) => void;
   setSelectedAgentId: (id: AgentId) => void;
   setVoiceOverlayOpen: (open: boolean) => void;
+  setCompactionStatus: (status: CompactionStatus) => void;
   // Refs (read at send time)
   currentPageRef: MutableRefObject<string | null>;
   collectPreviewContextRef: MutableRefObject<() => Promise<string | null>>;
@@ -401,6 +401,7 @@ export interface SendTextDeps {
   interactiveStateRef: LiveRunner["interactiveStateRef"];
   interactiveSessionIdRef: LiveRunner["interactiveSessionIdRef"];
   startInteractiveSession: LiveRunner["startInteractiveSession"];
+  restartInteractiveSession: LiveRunner["restartInteractiveSession"];
   dispatchLive: LiveRunner["dispatchLive"];
   connectSSE: LiveRunner["connectSSE"];
   // Directive appliers
@@ -483,6 +484,7 @@ async function runSendTextInner(
     setToolCalls,
     setSelectedAgentId,
     setVoiceOverlayOpen,
+    setCompactionStatus,
     currentPageRef,
     collectPreviewContextRef,
     recentVibeIssueRef,
@@ -493,6 +495,7 @@ async function runSendTextInner(
     interactiveStateRef,
     interactiveSessionIdRef,
     startInteractiveSession,
+    restartInteractiveSession,
     dispatchLive,
     connectSSE,
     runPreviewActionFromDirective,
@@ -606,6 +609,22 @@ async function runSendTextInner(
       timestamp: m.timestamp ?? timestamp,
     }));
 
+  const previousCheckpoint =
+    sessionHook.activeSession?.id === uiSessionId
+      ? sessionHook.activeSession.contextCheckpoint
+      : undefined;
+  const compaction = await compactConversationForTurn({
+    messages: priorMessages,
+    checkpoint: previousCheckpoint,
+    nextUserContent: wireContent,
+    model: selectedModelId,
+    headers: deps.kodyDirectHeaders ?? authHeaders(),
+    onStatus: setCompactionStatus,
+    onCheckpoint: (checkpoint) =>
+      sessionHook.setSessionCheckpoint(uiSessionId, checkpoint),
+  });
+  const conversationContext = compaction.context;
+
   setMessages((prev) => [
     ...prev,
     {
@@ -696,7 +715,7 @@ async function runSendTextInner(
     // with owner/repo makes a repo switch start a fresh Brain chat that
     // clones the correct repo, keeping dashboard selection and Brain in sync.
     const repoScope = repoBrainScopeKey(getStoredAuth());
-    const brainLogicalKey = selectedTask
+    const brainLogicalKeyBase = selectedTask
       ? repoBrainConversationKey(repoScope, {
           type: "task",
           id: selectedTask.id,
@@ -710,6 +729,11 @@ async function runSendTextInner(
             type: "global",
             sessionId: brainSessionId,
           });
+    // A compacted UI conversation gets a fresh Brain chat id. The user stays
+    // in the same visible session; only Brain's hidden runtime context rotates.
+    const brainLogicalKey = conversationContext.checkpoint
+      ? `${brainLogicalKeyBase}/compact-${conversationContext.checkpoint.revision}`
+      : brainLogicalKeyBase;
     // First turn = no chatId pinned yet for this conversation. Must be
     // read *before* stickyBrainChatId (which pins). Used to send the
     // dashboard Context block once — Brain is stateful and keeps it.
@@ -718,6 +742,10 @@ async function runSendTextInner(
       brainLogicalKey,
       `${userKey}--${brainLogicalKey}`,
     );
+    const brainWireContent =
+      brainFirstTurn && conversationContext.summary
+        ? prependConversationSummary(conversationContext.summary, wireContent)
+        : wireContent;
 
     // When chatting about a specific task, pass a compact context blob so
     // Brain answers in the context of that issue. Brain's route injects it
@@ -768,7 +796,7 @@ async function runSendTextInner(
       chatId: brainChatId,
       initialBody: {
         chatId: brainChatId,
-        message: wireContent,
+        message: brainWireContent,
         // Brain has no ambient-context slot either; the route
         // prefixes this onto the forwarded user message.
         ...(currentPageRef.current
@@ -816,7 +844,7 @@ async function runSendTextInner(
       await brainTransport.send(
         {
           sessionId: uiSessionId,
-          text: wireContent,
+          text: brainWireContent,
           agentId: effectiveAgentId,
           ...(effectiveReasoningEffort
             ? { reasoningEffort: effectiveReasoningEffort }
@@ -937,7 +965,10 @@ async function runSendTextInner(
         : wireContent;
 
     const kodyMessages = [
-      ...priorMessages.map((m) => ({ role: m.role, content: m.content })),
+      ...conversationContext.recentMessages.map((m) => ({
+        role: m.role,
+        content: m.content,
+      })),
       { role: "user" as const, content: userTurnContent },
     ];
 
@@ -965,11 +996,12 @@ async function runSendTextInner(
         endpoint: "/api/kody/chat/kody",
         body: {
           messages: kodyMessages,
+          ...(conversationContext.summary
+            ? { conversationSummary: conversationContext.summary }
+            : {}),
           task: kodyTaskContext,
           agentId:
-            directAgentSlug || deps.lockedAgentSlug
-              ? "kody"
-              : effectiveAgentId,
+            directAgentSlug || deps.lockedAgentSlug ? "kody" : effectiveAgentId,
           ...(directAgentSlug || deps.lockedAgentSlug
             ? { agentSlug: directAgentSlug ?? deps.lockedAgentSlug }
             : {}),
@@ -1049,9 +1081,7 @@ async function runSendTextInner(
           sessionId: uiSessionId,
           text: wireContent,
           agentId:
-            directAgentSlug || deps.lockedAgentSlug
-              ? "kody"
-              : effectiveAgentId,
+            directAgentSlug || deps.lockedAgentSlug ? "kody" : effectiveAgentId,
           ...(selectedModelId ? { modelId: selectedModelId } : {}),
           ...(effectiveReasoningEffort
             ? { reasoningEffort: effectiveReasoningEffort }
@@ -1233,6 +1263,12 @@ async function runSendTextInner(
     effectiveAgentId === "kody-live" ||
     effectiveAgentId === "kody-live-fly"
   ) {
+    const startsFreshLiveContext =
+      compaction.didCompact || !interactiveSessionIdRef.current;
+    const liveWireContent =
+      startsFreshLiveContext && conversationContext.summary
+        ? prependConversationSummary(conversationContext.summary, wireContent)
+        : wireContent;
     const liveUserContent =
       currentAttachments.length > 0
         ? currentAttachments
@@ -1242,8 +1278,8 @@ async function runSendTextInner(
                 return `[Image: ${a.name} (${sizeStr})]\n${a.data}`;
               return `[File: ${a.name} (${a.mimeType}, ${sizeStr})]\n${a.data}`;
             })
-            .join("\n\n") + (wireContent ? `\n\n${wireContent}` : "")
-        : wireContent;
+            .join("\n\n") + (liveWireContent ? `\n\n${liveWireContent}` : "")
+        : liveWireContent;
 
     const liveTaskContext = vibeLiveTaskContext(
       vibeMode,
@@ -1257,17 +1293,21 @@ async function runSendTextInner(
     // session and idle-exited (handoff "ran" but nothing happened, chat
     // stuck on a spinner). When start carries the turn, skip the append.
     let firstTurnPersistedByStart = false;
-    if (
+    const liveStartOptions = {
+      initialContent: liveUserContent,
+      initialTimestamp: timestamp,
+      taskContext: liveTaskContext,
+      uiSessionId,
+    };
+    if (compaction.didCompact && interactiveSessionIdRef.current) {
+      await restartInteractiveSession(liveStartOptions);
+      firstTurnPersistedByStart = true;
+    } else if (
       (interactiveStateRef.current === "idle" ||
         interactiveStateRef.current === "ended") &&
       !interactiveSessionIdRef.current
     ) {
-      await startInteractiveSession({
-        initialContent: liveUserContent,
-        initialTimestamp: timestamp,
-        taskContext: liveTaskContext,
-        uiSessionId,
-      });
+      await startInteractiveSession(liveStartOptions);
       firstTurnPersistedByStart = true;
     }
     const liveSessionId = interactiveSessionIdRef.current;

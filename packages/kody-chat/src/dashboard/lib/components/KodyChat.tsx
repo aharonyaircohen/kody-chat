@@ -45,6 +45,7 @@ import {
   clearLiveSession,
 } from "../chat/core/kody-chat-live-session";
 import { runSendText, runSendMessage, type SendTextFn } from "./kody-chat-send";
+import { useCompactionStatus } from "./kody-chat-compaction";
 import {
   chatToMessage,
   messageToChat,
@@ -711,6 +712,9 @@ export function KodyChat({
     [sessionHook],
   );
   const activeLoading = messages.some((m) => m.isLoading);
+  const { compactionStatus, setCompactionStatus } = useCompactionStatus(
+    sessionHook.activeSession?.id,
+  );
 
   // Kody Live runner lifecycle — reducer orchestration, event poll, SSE,
   // localStorage persistence + scope rehydration, and the zombie watchdog
@@ -1088,6 +1092,7 @@ export function KodyChat({
           setToolCalls,
           setSelectedAgentId,
           setVoiceOverlayOpen,
+          setCompactionStatus,
           currentPageRef,
           collectPreviewContextRef,
           recentVibeIssueRef,
@@ -1098,6 +1103,7 @@ export function KodyChat({
           interactiveStateRef,
           interactiveSessionIdRef,
           startInteractiveSession,
+          restartInteractiveSession,
           dispatchLive,
           connectSSE,
           runPreviewActionFromDirective,
@@ -1644,6 +1650,7 @@ export function KodyChat({
             void sendText(content, []);
           }}
           activeLoading={activeLoading}
+          compactionStatus={compactionStatus}
           activeSessionId={sessionHook.activeSession?.id}
           toolCalls={toolCalls}
           usedViewIds={usedViewIds}

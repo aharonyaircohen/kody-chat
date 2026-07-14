@@ -105,15 +105,17 @@ export interface UseLiveRunnerResult {
     uiSessionId?: string | null,
   ) => void;
   stopInteractivePoll: () => void;
-  startInteractiveSession: (opts?: {
-    initialContent?: string;
-    initialTimestamp?: string;
-    taskContext?: VibeLiveTaskContext;
-    uiSessionId?: string | null;
-  }) => Promise<void>;
+  startInteractiveSession: (opts?: LiveSessionStartOptions) => Promise<void>;
   endInteractiveSession: () => void;
-  restartInteractiveSession: () => Promise<void>;
+  restartInteractiveSession: (opts?: LiveSessionStartOptions) => Promise<void>;
   rehydrateForScope: (scopeKey: LiveScopeKey) => void;
+}
+
+export interface LiveSessionStartOptions {
+  initialContent?: string;
+  initialTimestamp?: string;
+  taskContext?: VibeLiveTaskContext;
+  uiSessionId?: string | null;
 }
 
 /**
@@ -852,12 +854,7 @@ export function useLiveRunner({
   // for an interactive session. Chat input stays disabled until the runner
   // emits chat.ready (handled in connectSSE).
   const startInteractiveSession = useCallback(
-    async (opts?: {
-      initialContent?: string;
-      initialTimestamp?: string;
-      taskContext?: VibeLiveTaskContext;
-      uiSessionId?: string | null;
-    }) => {
+    async (opts?: LiveSessionStartOptions) => {
       const cur = liveStateRef.current.phase;
       if (cur === "booting" || cur === "ready" || cur === "awaiting") return;
 
@@ -981,16 +978,19 @@ export function useLiveRunner({
   // Force a clean restart of the live session — used by the "Runner stuck —
   // restart?" affordance. Tears down poll + SSE, resets the reducer, then
   // kicks off a fresh /start.
-  const restartInteractiveSession = useCallback(async () => {
-    stopInteractivePoll();
-    eventSourceRef.current?.close();
-    eventSourceRef.current = null;
-    dispatchLive({ type: "FORCE_RESET" });
-    // Defer to next tick so the reducer's persistence effect can clear the
-    // stale localStorage record before /start writes a new one.
-    await Promise.resolve();
-    await startInteractiveSession();
-  }, [stopInteractivePoll, dispatchLive, startInteractiveSession]);
+  const restartInteractiveSession = useCallback(
+    async (opts?: LiveSessionStartOptions) => {
+      stopInteractivePoll();
+      eventSourceRef.current?.close();
+      eventSourceRef.current = null;
+      dispatchLive({ type: "FORCE_RESET" });
+      // Defer to next tick so the reducer's persistence effect can clear the
+      // stale localStorage record before /start writes a new one.
+      await Promise.resolve();
+      await startInteractiveSession(opts);
+    },
+    [stopInteractivePoll, dispatchLive, startInteractiveSession],
+  );
 
   // ── Scope tracking ───────────────────────────────────────────────────
   // Each chat scope (Vibe issue vs global) has its own live session. When
