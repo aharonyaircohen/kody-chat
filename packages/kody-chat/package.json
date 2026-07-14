@@ -132,7 +132,7 @@
     "@types/web-push": "^3.6.4",
     "@typescript-eslint/eslint-plugin": "^8.57.2",
     "@typescript-eslint/parser": "^8.57.2",
-    "@vitest/coverage-v8": "^4.0.16",
+    "@vitest/coverage-v8": "4.0.16",
     "autoprefixer": "^10.4.19",
     "dotenv": "^17.4.2",
     "eslint": "^9.16.0",

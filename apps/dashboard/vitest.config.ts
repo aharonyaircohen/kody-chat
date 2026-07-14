@@ -22,6 +22,8 @@ export default defineConfig({
     },
     coverage: {
       reporter: ["text", "json", "html"],
+      // Ratchet: set just below current coverage so it can only go up.
+      thresholds: { lines: 50, statements: 48, branches: 40, functions: 43 },
     },
   },
   resolve: {

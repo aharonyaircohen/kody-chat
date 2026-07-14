@@ -13,6 +13,8 @@ export default defineConfig({
     exclude: ["node_modules/**", "tests/e2e/**"],
     coverage: {
       reporter: ["text", "json", "html"],
+      // Ratchet: set just below current coverage so it can only go up.
+      thresholds: { lines: 58, statements: 56, branches: 48, functions: 54 },
     },
   },
   resolve: {

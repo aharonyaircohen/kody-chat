@@ -29,8 +29,39 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
-      - name: Unit tests
-        run: pnpm -r test:unit
+      - name: Tests with coverage thresholds (dashboard)
+        run: pnpm --filter kody-dashboard exec vitest run tests/unit tests/int --coverage
 
-      - name: Integration tests
-        run: pnpm -r --if-present test:int
+      - name: Tests with coverage thresholds (kody-chat)
+        run: pnpm --filter @kody-ade/kody-chat exec vitest run tests/unit tests/int --coverage
+
+      - name: Tests with coverage thresholds (brain)
+        run: pnpm --filter @kody-ade/brain exec vitest run --coverage
+
+      - name: Remaining package tests
+        run: pnpm -r --filter '!kody-dashboard' --filter '!@kody-ade/kody-chat' --filter '!@kody-ade/brain' --if-present test
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm --filter kody-dashboard exec playwright install --with-deps chromium
+
+      - name: E2E gate (dashboard)
+        env:
+          KODY_MASTER_KEY: ${{ secrets.KODY_MASTER_KEY || 'ci-only-0000000000000000000000000000000000000000000000000000000000000000' }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: pnpm --filter kody-dashboard test:e2e:gate

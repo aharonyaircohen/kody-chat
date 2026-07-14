@@ -8,6 +8,11 @@ export default defineConfig({
     passWithNoTests: true,
     include: ["tests/**/*.spec.ts"],
     exclude: ["node_modules/**"],
+    coverage: {
+      reporter: ["text", "json", "html"],
+      // Ratchet: set just below current coverage so it can only go up.
+      thresholds: { lines: 25, statements: 25, branches: 7, functions: 30 },
+    },
   },
   resolve: {
     alias: {
