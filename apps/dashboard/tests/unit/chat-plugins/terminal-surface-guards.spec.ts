@@ -187,15 +187,17 @@ describe("remote input gating", () => {
 });
 
 describe("terminal restart UI", () => {
-  it("resets terminal modes and clears the old screen before reconnecting", () => {
+  it("leaves alternate-screen modes without deleting scrollback", () => {
     const calls: string[] = [];
     resetTerminalUiForRestart({
-      reset: () => void calls.push("reset"),
-      clear: () => void calls.push("clear"),
+      write: (data) => void calls.push(data),
       focus: () => void calls.push("focus"),
     });
 
-    expect(calls).toEqual(["reset", "clear", "focus"]);
+    expect(calls).toEqual([
+      "\u001b[?1049l\u001b[?2004l\u001b[?1000l\u001b[?1002l\u001b[?1003l\u001b[?1006l\u001b[0m\r\n",
+      "focus",
+    ]);
   });
 });
 
@@ -294,14 +296,15 @@ describe("stale connect guards", () => {
   });
 
   it("stops reconnecting when the repo has no running Brain target", async () => {
-    const fetchSpy = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          error: "machine_not_found",
-          message: "Machine not found.",
-        }),
-        { status: 404, headers: { "Content-Type": "application/json" } },
-      ),
+    const fetchSpy = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: "machine_not_found",
+            message: "Machine not found.",
+          }),
+          { status: 404, headers: { "Content-Type": "application/json" } },
+        ),
     );
     vi.stubGlobal("fetch", fetchSpy);
     const harness = makeDeps();

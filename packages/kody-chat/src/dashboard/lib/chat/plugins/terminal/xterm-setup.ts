@@ -4,14 +4,14 @@
  * @pattern xterm-bootstrap
  * @ai-summary xterm bootstrap for the chat terminal surface: lazy-loads
  *   @xterm modules, builds the terminal with the Kody theme, wires the
- *   fit/web-links addons, the custom wheel scroller, and the data/
- *   selection/resize listeners. Extracted from ChatTerminalSurface in
+ *   fit/web-links addons and the data/selection/resize listeners. Extracted
+ *   from ChatTerminalSurface in
  *   Step 5a (800-line rule); behavior unchanged.
  */
 import type { FitAddon as XTermFitAddon } from "@xterm/addon-fit";
 import type { Terminal as XTerm } from "@xterm/xterm";
 
-import { openTerminalWebLink, wheelDeltaToTerminalLines } from "./terminal-text";
+import { openTerminalWebLink } from "./terminal-text";
 
 export interface TerminalMountHandlers {
   onData: (data: string) => void;
@@ -27,12 +27,19 @@ export interface MountedXterm {
   disposables: Array<{ dispose: () => void }>;
 }
 
-type RestartableXterm = Pick<XTerm, "reset" | "clear" | "focus">;
+type RestartableXterm = Pick<XTerm, "focus"> & {
+  write(data: string): void;
+};
 
-/** Reset browser-owned terminal state before starting a fresh PTY session. */
+// Leave the alternate screen and disable input modes commonly enabled by
+// full-screen programs. Unlike Terminal.reset()/clear(), this preserves the
+// normal buffer so users can still scroll through output after a restart.
+const RESTART_MODE_RESET =
+  "\u001b[?1049l\u001b[?2004l\u001b[?1000l\u001b[?1002l\u001b[?1003l\u001b[?1006l\u001b[0m\r\n";
+
+/** Restore interactive terminal modes before starting a fresh PTY session. */
 export function resetTerminalUiForRestart(terminal: RestartableXterm): void {
-  terminal.reset();
-  terminal.clear();
+  terminal.write(RESTART_MODE_RESET);
   terminal.focus();
 }
 
@@ -82,15 +89,6 @@ export async function mountChatTerminal(
   terminal.loadAddon(webLinksAddon);
   terminal.open(host);
   fitAddon.fit();
-
-  terminal.attachCustomWheelEventHandler((event) => {
-    const lines = wheelDeltaToTerminalLines(event, terminal.rows);
-    if (lines === 0) return true;
-    event.preventDefault();
-    event.stopPropagation();
-    terminal.scrollLines(event.deltaY > 0 ? lines : -lines);
-    return false;
-  });
 
   const disposables: Array<{ dispose: () => void }> = [];
   disposables.push(terminal.onData(handlers.onData));

@@ -10,6 +10,7 @@ const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
 const TEST_REPO =
   process.env.E2E_GITHUB_REPO ??
   "https://github.com/aharonyaircohen/Kody-Dashboard";
+const TEST_TERMINAL_TARGET = process.env.E2E_TERMINAL_TARGET ?? "local";
 
 const IGNORED = [
   "Extension context invalidated",
@@ -66,13 +67,21 @@ async function openTerminal(page: Page): Promise<void> {
   const composer = page.locator("textarea:not(.xterm-helper-textarea)");
   await expect(composer).toBeVisible({ timeout: 15_000 });
 
-  const terminalButton = page.getByRole("button", { name: /Terminal/ });
-  await expect(terminalButton).toHaveCount(1);
-  await terminalButton.first().click();
+  await page.locator('summary[aria-label="More compose options"]').click();
+  const terminalButton = page.getByRole("button", { name: /^Terminal / });
+  await expect(terminalButton).toBeVisible();
+  await terminalButton.click();
 
-  await expect(page.getByLabel("Terminal target")).toBeVisible({
+  const target = page.getByLabel("Terminal target");
+  await expect(target).toBeVisible({
     timeout: 10_000,
   });
+  if (TEST_TERMINAL_TARGET !== "local") {
+    await target.selectOption(TEST_TERMINAL_TARGET);
+    await expect(page.getByTitle("Send command")).toBeVisible({
+      timeout: 30_000,
+    });
+  }
 }
 
 async function visibleTerminalText(page: Page): Promise<string> {
@@ -82,8 +91,8 @@ async function visibleTerminalText(page: Page): Promise<string> {
         const element = terminal as HTMLElement;
         return Boolean(
           element.offsetWidth ||
-            element.offsetHeight ||
-            element.getClientRects().length,
+          element.offsetHeight ||
+          element.getClientRects().length,
         );
       })
       .map((terminal) =>
@@ -146,9 +155,16 @@ test.describe("KodyChat terminal mode smoke", () => {
       { length: 90 },
       (_, index) => `KODY_SCROLL_${index + 1}`,
     );
-    const composer = page.locator("textarea:not(.xterm-helper-textarea)");
-    await composer.fill(`printf '%s\\n' ${scrollMarkers.join(" ")}`);
-    await composer.press("Enter");
+    const command = `printf '%s\\n' ${scrollMarkers.join(" ")}`;
+    if (TEST_TERMINAL_TARGET === "local") {
+      await terminal.click();
+      await page.keyboard.type(command);
+      await page.keyboard.press("Enter");
+    } else {
+      const composer = page.locator("textarea:not(.xterm-helper-textarea)");
+      await composer.fill(command);
+      await page.getByTitle("Send command").click();
+    }
 
     await expect
       .poll(() => visibleTerminalText(page), {
@@ -167,6 +183,6 @@ test.describe("KodyChat terminal mode smoke", () => {
         timeout: 10_000,
         intervals: [250, 500],
       })
-      .toContain("KODY_SCROLL_40");
+      .toContain("KODY_SCROLL_70");
   });
 });

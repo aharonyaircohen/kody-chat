@@ -119,7 +119,7 @@ describe("settings navigation", () => {
       "Agency",
       "Workspace",
       "Content",
-      "Kody",
+      "Chat",
       "Client",
       "System",
     ]);
@@ -159,7 +159,7 @@ describe("settings navigation", () => {
     ).toBe("Agency");
     expect(
       activeCollapsibleNavSectionTitle(SIDEBAR_NAV_SECTIONS, "/memory", ""),
-    ).toBe("Kody");
+    ).toBe("Chat");
     expect(
       activeCollapsibleNavSectionTitle(SIDEBAR_NAV_SECTIONS, "/tasks", ""),
     ).toBe("Work");

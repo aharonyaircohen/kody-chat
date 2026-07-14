@@ -770,6 +770,23 @@ function brainAutostop(input: { suspendOnIdle?: boolean }): BrainAutostop {
   return input.suspendOnIdle === false ? false : "suspend";
 }
 
+/**
+ * Infrastructure operations that replace a Brain machine must preserve its
+ * current suspension policy unless the caller explicitly changes it. New
+ * machines still use the default auto-suspend policy.
+ */
+function preserveBrainSuspensionPolicy(
+  input: ProvisionBrainInput,
+  existing: FlyMachine | null,
+): ProvisionBrainInput {
+  if (input.suspendOnIdle !== undefined) return input;
+  const service = existing?.config?.services?.find(
+    (candidate) => candidate.autostop !== undefined,
+  );
+  if (!service) return input;
+  return { ...input, suspendOnIdle: service.autostop !== false };
+}
+
 function isBrainMachineRunning(machine: FlyMachine): boolean {
   return (
     machine.state === "started" ||
@@ -1041,7 +1058,7 @@ export async function provisionBrain(
   const image = input.resolveRuntimeImageRef
     ? await input.resolveRuntimeImageRef({ app, imageRef: requestedImage })
     : requestedImage;
-  const machineInput =
+  const requestedMachineInput =
     image === requestedImage ? input : { ...input, imageRef: image };
   const prepareRuntimeImage = () =>
     input.prepareRuntimeImage?.({
@@ -1053,6 +1070,10 @@ export async function provisionBrain(
   const existing = await findExistingMachine(input.flyToken, app, {
     imageRef: image,
   });
+  const machineInput = preserveBrainSuspensionPolicy(
+    requestedMachineInput,
+    existing,
+  );
   if (existing) {
     const existingImage = existing.config?.image ?? "";
     if (input.replaceExistingMachine === true) {

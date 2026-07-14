@@ -47,20 +47,6 @@ export function usefulCapturedOutput(value: string): string {
     : tail;
 }
 
-export function wheelDeltaToTerminalLines(
-  event: WheelEvent,
-  viewportRows: number,
-): number {
-  if (event.deltaY === 0) return 0;
-  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) {
-    return Math.max(1, viewportRows - 1);
-  }
-  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) {
-    return Math.max(1, Math.ceil(Math.abs(event.deltaY)));
-  }
-  return Math.max(1, Math.ceil(Math.abs(event.deltaY) / 24));
-}
-
 /**
  * Web links clicked inside the terminal open in a fresh, opener-less tab
  * (the terminal surface owns link handling — never the raw anchor).

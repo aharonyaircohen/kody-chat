@@ -598,7 +598,7 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
     collapsible: true,
   },
   {
-    title: "Kody",
+    title: "Chat",
     icon: Bot,
     tint: "text-fuchsia-300",
     collapsible: true,

@@ -349,6 +349,14 @@ describe("provisionBrain", () => {
         config: {
           image: `${runtimeImage}@sha256:current`,
           env: { BRAIN_API_KEY: "preexisting-key" },
+          services: [
+            {
+              internal_port: 8080,
+              autostop: false,
+              autostart: true,
+              min_machines_running: 0,
+            },
+          ],
         },
       },
     ];
@@ -408,6 +416,18 @@ describe("provisionBrain", () => {
       sourceImageRef: "ghcr.io/acme/kody-brain-alice:20260707t121923z",
       runtimeImageRef: runtimeImage,
     });
+    const create = calls.find(
+      (call) =>
+        call.method === "POST" &&
+        call.url.endsWith("/apps/kody-brain-alice/machines"),
+    )!;
+    expect(
+      (
+        create.body as {
+          config: { services: Array<{ autostop: false | "suspend" }> };
+        }
+      ).config.services[0]!.autostop,
+    ).toBe(false);
     expect(
       calls.some(
         (c) => c.method === "DELETE" && c.url.includes("/machines/m-existing"),
