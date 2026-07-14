@@ -90,11 +90,14 @@ function installFetchStub(
 async function waitForOutput(
   getOutput: () => string,
   expected: string,
+  getStderr?: () => string,
 ): Promise<void> {
   const started = Date.now();
   while (!getOutput().includes(expected)) {
-    if (Date.now() - started > 25_000) {
-      throw new Error(`timed out waiting for ${expected}`);
+    if (Date.now() - started > 20_000) {
+      throw new Error(
+        `timed out waiting for ${expected}; stdout=${JSON.stringify(getOutput())} stderr=${JSON.stringify(getStderr?.() ?? "")}`,
+      );
     }
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
@@ -356,7 +359,11 @@ os.write(sys.stdout.fileno(), b"REMOTE:" + data)
       });
 
       child.stdin.write("abc\n");
-      await waitForOutput(() => stdout, "REMOTE:abc");
+      await waitForOutput(
+        () => stdout,
+        "REMOTE:abc",
+        () => stderr,
+      );
       child.stdin.end();
       const code = await closePromise;
 
