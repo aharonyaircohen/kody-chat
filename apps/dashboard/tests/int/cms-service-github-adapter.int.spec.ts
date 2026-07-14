@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import {
   existsSync,
   lstatSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -416,6 +417,75 @@ describe("CMS service GitHub adapter integration", () => {
     }
   });
 
+  it("resolves remote Store adapter dependencies when cwd node_modules lacks mongodb", async () => {
+    const req = request("incomplete-node-modules");
+    const previousCwd = process.cwd();
+    const tempCwd = mkdtempSync(path.join(tmpdir(), "kody-cms-cwd-"));
+    mkdirSync(path.join(tempCwd, "node_modules"));
+
+    octokit.seedText(
+      "aharonyaircohen",
+      "kody-company-store",
+      "incomplete-node-modules",
+      "cms/adapters/mongodb/index.mjs",
+      [
+        'import { ObjectId } from "mongodb"',
+        "export function createCmsAdapter() {",
+        "  return {",
+        "    async list() {",
+        "      return {",
+        "        docs: [{ _id: new ObjectId('64f1a5f6f2a80f3a3a3a3a3a').toString(), title: 'IncompleteNodeModules' }],",
+        "        total: 1,",
+        "        limit: 50,",
+        "        offset: 0,",
+        "      }",
+        "    },",
+        "  }",
+        "}",
+      ].join("\n"),
+    );
+    octokit.seedText(
+      "aharonyaircohen",
+      "kody-company-store",
+      "incomplete-node-modules",
+      "cms/contract/index.mjs",
+      readStoreFile("cms/contract/index.mjs"),
+    );
+    mockStateFiles(cmsStateFilesForAdapter("mongodb", "Mongo CMS"));
+
+    try {
+      process.chdir(tempCwd);
+      await expect(
+        listCmsDocuments(
+          req,
+          octokit as never,
+          "A-Guy-educ",
+          "A-Guy-Web",
+          "lessons",
+          {},
+        ),
+      ).resolves.toMatchObject({
+        docs: [
+          {
+            _id: "64f1a5f6f2a80f3a3a3a3a3a",
+            title: "IncompleteNodeModules",
+          },
+        ],
+        total: 1,
+      });
+      expect(
+        hasMaterializedRuntimePackage(
+          "mongodb",
+          "IncompleteNodeModules",
+          "mongodb",
+        ),
+      ).toBe(true);
+    } finally {
+      process.chdir(previousCwd);
+      rmSync(tempCwd, { recursive: true, force: true });
+    }
+  });
+
   it("wraps unexpected remote Store adapter failures as CMS runtime errors", async () => {
     const req = request();
 
@@ -611,6 +681,32 @@ function hasMaterializedNodeModulesLink(adapterName: string): boolean {
     if (existsSync(nodeModules) && lstatSync(nodeModules).isSymbolicLink()) {
       return true;
     }
+  }
+
+  return false;
+}
+
+function hasMaterializedRuntimePackage(
+  adapterName: string,
+  sourceMarker: string,
+  packageName: string,
+): boolean {
+  const root = path.join(tmpdir(), "kody-cms-store-adapters");
+  if (!existsSync(root)) return false;
+
+  for (const hash of readdirSync(root)) {
+    const materializedRoot = path.join(root, hash);
+    const adapterFile = path.join(
+      materializedRoot,
+      "cms/adapters",
+      adapterName,
+      "index.mjs",
+    );
+    if (!existsSync(adapterFile)) continue;
+    if (!readFileSync(adapterFile, "utf8").includes(sourceMarker)) continue;
+    return existsSync(
+      path.join(materializedRoot, "node_modules", packageName),
+    );
   }
 
   return false;

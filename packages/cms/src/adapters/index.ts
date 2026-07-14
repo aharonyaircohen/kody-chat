@@ -3,7 +3,7 @@ import "../runtime-deps";
 
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdir, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -313,22 +313,40 @@ async function linkRuntimeNodeModules(root: string): Promise<void> {
   if (!existsSync(runtimeNodeModules)) return;
 
   const linkPath = path.join(root, "node_modules");
-  if (existsSync(linkPath)) return;
+  if (hasRuntimePackage(linkPath)) return;
+
+  try {
+    const existing = await lstat(linkPath);
+    await rm(linkPath, {
+      recursive: !existing.isSymbolicLink(),
+      force: true,
+    });
+  } catch (error) {
+    if ((error as { code?: string })?.code !== "ENOENT") throw error;
+  }
 
   try {
     await symlink(runtimeNodeModules, linkPath, "dir");
   } catch (error) {
-    if ((error as { code?: string })?.code === "EEXIST") return;
+    if (
+      (error as { code?: string })?.code === "EEXIST" &&
+      hasRuntimePackage(linkPath)
+    ) {
+      return;
+    }
     throw error;
   }
 }
 
 function resolveRuntimeNodeModules(): string {
-  const cwdNodeModules = path.resolve(process.cwd(), "node_modules");
-  if (existsSync(cwdNodeModules)) return cwdNodeModules;
-
   const packageNodeModules = findPackageNodeModules("mongodb/package.json");
-  return packageNodeModules ?? cwdNodeModules;
+  if (packageNodeModules) return packageNodeModules;
+
+  return path.resolve(process.cwd(), "node_modules");
+}
+
+function hasRuntimePackage(nodeModulesPath: string): boolean {
+  return existsSync(path.join(nodeModulesPath, "mongodb", "package.json"));
 }
 
 function findPackageNodeModules(packagePath: string): string | null {
