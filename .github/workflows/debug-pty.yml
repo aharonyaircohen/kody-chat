@@ -1,0 +1,42 @@
+name: debug-pty
+
+on: workflow_dispatch
+
+jobs:
+  repro:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract relay and child scripts
+        run: |
+          python3 - <<'PY'
+          import re
+          src = open("packages/fly/src/plugin/terminal/bridge.ts").read()
+          m = re.search(r"TERMINAL_BRIDGE_PTY_RELAY_SCRIPT = String\.raw`(.*?)`;", src, re.S)
+          open("/tmp/relay.py", "w").write(m.group(1))
+          child = """import os
+          import sys
+          import termios
+          fd = sys.stdin.fileno()
+          attrs = termios.tcgetattr(fd)
+          attrs[3] = attrs[3] | termios.ECHO
+          termios.tcsetattr(fd, termios.TCSANOW, attrs)
+          data = os.read(fd, 1024)
+          os.write(sys.stdout.fileno(), b"REMOTE:" + data)
+          """
+          open("/tmp/child.py", "w").write("\n".join(l.strip() for l in child.splitlines()))
+          PY
+      - name: Repro with stdin closing after write
+        run: |
+          set -x
+          printf 'abc\n' | timeout 15 python3 /tmp/relay.py python3 /tmp/child.py > /tmp/out.txt 2>/tmp/err.txt || echo "TIMEOUT_OR_ERR=$?"
+          echo "--- stdout ---"; cat -A /tmp/out.txt
+          echo "--- stderr ---"; cat /tmp/err.txt
+      - name: Repro with stdin held open
+        if: always()
+        run: |
+          set -x
+          ( printf 'abc\n'; sleep 10 ) | timeout 15 python3 /tmp/relay.py python3 /tmp/child.py > /tmp/out2.txt 2>/tmp/err2.txt || echo "TIMEOUT_OR_ERR=$?"
+          echo "--- stdout ---"; cat -A /tmp/out2.txt
+          echo "--- stderr ---"; cat /tmp/err2.txt
