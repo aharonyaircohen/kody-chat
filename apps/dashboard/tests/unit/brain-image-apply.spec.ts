@@ -59,6 +59,7 @@ const runtime = vi.hoisted(() => ({
 
 const brainFly = vi.hoisted(() => ({
   provisionBrain: vi.fn(),
+  waitForBrainHealth: vi.fn(async () => undefined),
 }));
 
 const serviceResolver = vi.hoisted(() => ({
@@ -102,6 +103,7 @@ vi.mock("@kody-ade/brain/service-resolver", () => serviceResolver);
 vi.mock("@kody-ade/fly/plugin/runners/brain", () => ({
   brainAppName: (account: string) => `kody-brain-${account}`,
   provisionBrain: brainFly.provisionBrain,
+  waitForBrainHealth: brainFly.waitForBrainHealth,
 }));
 vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn() },
@@ -239,8 +241,46 @@ describe("applyBrainImageToRuntime", () => {
         orgSlug: "personal",
       }),
     );
+    expect(brainFly.waitForBrainHealth).toHaveBeenCalledWith(
+      "https://kody-brain-octocat.fly.dev",
+      120_000,
+    );
+    expect(
+      brainFly.waitForBrainHealth.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      runtimeManager.completeBrainRuntimeApply.mock.invocationCallOrder[0]!,
+    );
     expect(result.runtime.running?.imageRef).toBe(
       "ghcr.io/acme/kody-brain-octocat:selected",
+    );
+  });
+
+  it("does not record the image as running when Brain never becomes healthy", async () => {
+    brainFly.waitForBrainHealth.mockRejectedValueOnce(
+      new Error("Brain did not become healthy"),
+    );
+
+    await expect(
+      applyBrainImageToRuntime({
+        owner: "acme",
+        repo: "widgets",
+        account: "octocat",
+        githubToken: "gh-token",
+        allSecrets: {},
+        flyToken: "fly-token",
+        flyOrgSlug: "personal",
+        flyDefaultRegion: "fra",
+        dashboardUrl: "https://dash.test",
+        imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
+      }),
+    ).rejects.toThrow("Brain did not become healthy");
+
+    expect(runtimeManager.completeBrainRuntimeApply).not.toHaveBeenCalled();
+    expect(runtimeManager.failBrainRuntimeApply).toHaveBeenCalledWith(
+      "octocat",
+      "gh-token",
+      "ghcr.io/acme/kody-brain-octocat:selected",
+      "Brain did not become healthy",
     );
   });
 

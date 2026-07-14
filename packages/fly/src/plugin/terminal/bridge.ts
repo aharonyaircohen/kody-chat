@@ -950,7 +950,6 @@ function createFlyConsoleSession(claims, key) {
     key,
     tmuxSessionName: tmuxName,
     readyMarker,
-    sawOutput: false,
     ready: Boolean(tmuxName && !tmuxState?.created),
     timedOut: false,
     detaching: false,
@@ -968,13 +967,14 @@ function createFlyConsoleSession(claims, key) {
     restartChild: null,
   };
   const statusTimer = setInterval(() => {
-    if (!session.sawOutput) {
+    if (!session.ready) {
       sendToSession(session, {
         type: "output",
         data: "Still opening real terminal...\r\n",
       });
     }
   }, SSH_STATUS_INTERVAL_MS);
+  if (session.ready) clearInterval(statusTimer);
   const readyTimer = setTimeout(() => {
     if (session.ready) return;
     if (session.pendingOutput) {
@@ -1012,14 +1012,13 @@ function createFlyConsoleSession(claims, key) {
 
   function handleOutput(chunk) {
     const text = chunk.toString("utf8");
-    session.sawOutput = true;
     session.lastTouched = Date.now();
-    clearInterval(statusTimer);
     if (!session.ready) {
       session.pendingOutput += text;
       const proof = findReadyProof(session.pendingOutput);
       if (!proof) return;
       session.ready = true;
+      clearInterval(statusTimer);
       clearInterval(session.readyProbeTimer);
       session.readyProbeTimer = null;
       clearTimeout(readyTimer);
@@ -1056,7 +1055,6 @@ function createFlyConsoleSession(claims, key) {
       }
     }
     session.startAttempts += 1;
-    session.sawOutput = false;
     const child = spawn("python3", args, {
       env: { ...env, KODY_PTY_CONTROL_FD: "3" },
       stdio: ["pipe", "pipe", "pipe", "pipe"],

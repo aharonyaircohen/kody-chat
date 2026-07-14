@@ -37,6 +37,7 @@ import { resolveBrainTarget } from "./target";
 import { logger } from "@kody-ade/base/logger";
 import {
   provisionServerBrain,
+  waitForServerBrainHealth,
   type ServerBrainPerfTier,
   type ProvisionServerBrainResult,
 } from "@kody-ade/fly/infrastructure/server-brain";
@@ -171,6 +172,8 @@ export async function applyBrainImageToRuntime(
       orgSlug: brain.org,
       createdAt: new Date().toISOString(),
     });
+
+    await waitForServerBrainHealth(brain.url, 120_000);
 
     const runtime = await completeBrainRuntimeApply(
       input.account,
