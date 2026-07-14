@@ -122,11 +122,15 @@ if pid == 0:
 slave_control_fd = slave
 stdin_fd = sys.stdin.fileno()
 stdout_fd = sys.stdout.fileno()
-control_fd = 3
-try:
-    os.fstat(control_fd)
-except OSError:
-    control_fd = None
+# Only treat fd 3 as a control channel when the parent says it passed one;
+# an unrelated inherited fd 3 would otherwise block the relay forever.
+control_fd = None
+if os.environ.get("KODY_PTY_CONTROL_FD") == "3":
+    control_fd = 3
+    try:
+        os.fstat(control_fd)
+    except OSError:
+        control_fd = None
 stdin_open = True
 control_open = control_fd is not None
 control_buffer = b""
@@ -1054,7 +1058,7 @@ function createFlyConsoleSession(claims, key) {
     session.startAttempts += 1;
     session.sawOutput = false;
     const child = spawn("python3", args, {
-      env,
+      env: { ...env, KODY_PTY_CONTROL_FD: "3" },
       stdio: ["pipe", "pipe", "pipe", "pipe"],
     });
     session.child = child;
