@@ -93,29 +93,37 @@ test.describe("Admin Kody chat regression", () => {
     const chat = page.locator('[aria-label="Kody chat"]').first();
     await expect(chat).toBeVisible({ timeout: 15_000 });
 
-    const picker = chat.locator('button[aria-haspopup="listbox"]').first();
+    // The assistant/model picker moved into the "Chat settings" menu
+    // (ChatSettingsMenu.tsx) — a <details> whose summary carries the
+    // current entry name in its title.
+    const picker = chat.getByLabel("Chat settings").first();
     await expect(picker).toBeVisible({ timeout: 15_000 });
     await picker.click();
 
-    const listbox = page.getByRole("listbox").filter({
-      has: page.getByRole("option", { name: /GPT X|Claude Y|Kody Live/i }),
-    });
-    await expect(listbox).toBeVisible();
+    const menu = chat
+      .locator('details:has(summary[aria-label="Chat settings"])')
+      .first();
+    await expect(menu.getByText("Assistant")).toBeVisible();
     await expect(
-      listbox.getByRole("option", { name: /Kody Live/i }),
+      menu.getByRole("button", { name: /Kody Live/i }),
     ).toBeVisible();
-    await expect(listbox.getByRole("option", { name: /GPT X/i })).toBeVisible();
-    await expect(
-      listbox.getByRole("option", { name: /Claude Y/i }),
-    ).toBeVisible();
-    await listbox.getByRole("option", { name: /GPT X/i }).click();
+    await expect(menu.getByRole("button", { name: /GPT X/i })).toBeVisible();
+    await expect(menu.getByRole("button", { name: /Claude Y/i })).toBeVisible();
+    await menu.getByRole("button", { name: /GPT X/i }).click();
 
+    // GPT X declares reasoning with default Medium — the Thinking section
+    // inside Chat settings surfaces the effort options.
+    await expect(picker).toHaveAttribute("title", /GPT X/);
+    await expect(menu.getByText("Thinking")).toBeVisible();
     await expect(
-      chat.locator('button[title^="Thinking level"]').first(),
-    ).toHaveAttribute("title", /Medium/);
+      menu.getByRole("button", { name: "Medium", exact: true }),
+    ).toBeVisible();
     await expect(
       chat.getByRole("button", { name: "Toggle conversations" }),
     ).toBeVisible();
+
+    // The AI/Terminal mode toggle now lives in the "+" compose menu.
+    await chat.getByLabel("More compose options").click();
     await expect(chat.getByRole("button", { name: /Terminal/i })).toBeVisible();
   });
 
@@ -263,6 +271,9 @@ test.describe("Admin Kody chat regression", () => {
     const chat = page.locator('[aria-label="Kody chat"]').first();
     await expect(chat).toBeVisible({ timeout: 15_000 });
 
+    // The toggle moved into the "+" compose options menu — open it first.
+    await chat.getByLabel("More compose options").click();
+
     const aiButton = chat.getByRole("button", { name: "AI chat", exact: true });
     await expect(aiButton).toBeVisible({ timeout: 15_000 });
     await expect(aiButton).toHaveAttribute("aria-pressed", "true");
@@ -317,7 +328,11 @@ test.describe("Admin Kody chat regression", () => {
     const chat = page.locator('[aria-label="Kody chat"]').first();
     await expect(chat).toBeVisible({ timeout: 15_000 });
 
-    await expect(chat.locator('button[title="Attach files"]')).toBeVisible({
+    // Both affordances moved into the "+" compose options menu.
+    await chat.getByLabel("More compose options").click();
+    await expect(
+      chat.getByRole("button", { name: "Attach files" }),
+    ).toBeVisible({
       timeout: 15_000,
     });
     // VoiceButton is gated on agent.supportsVoice (true for the in-process
@@ -451,8 +466,12 @@ test.describe("Admin Kody chat regression", () => {
     await page.goto(`${BASE_URL}/chat`);
     const chat = page.locator('[data-testid="kody-chat-root"]').first();
     await expect(chat).toBeVisible({ timeout: 15_000 });
-    // Composer chrome is up (the slots' neighbors rendered)…
-    await expect(chat.getByTitle("Attach files")).toBeVisible();
+    // Composer chrome is up (the slots' neighbors rendered)… Attach files
+    // lives inside the "+" compose options menu now.
+    await chat.getByLabel("More compose options").click();
+    await expect(
+      chat.getByRole("button", { name: "Attach files" }),
+    ).toBeVisible();
     // …and no plugin slot wrapper exists.
     await expect(page.locator('[data-testid="chat-plugin-slot"]')).toHaveCount(
       0,

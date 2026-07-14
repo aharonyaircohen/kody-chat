@@ -98,7 +98,10 @@ test.describe("Route smoke", () => {
     await expect(
       page.getByRole("searchbox", { name: "Search brands" }),
     ).toBeVisible();
-    await expect(page.getByText("/client/acme").first()).toBeVisible();
+    // Client surfaces are repo-scoped now: /client/<owner>/<repo>/<slug>.
+    await expect(
+      page.getByText("/client/test-owner/test-repo/acme").first(),
+    ).toBeVisible();
     await expect(
       page.getByRole("link", { name: "Open Acme client surface" }),
     ).toBeVisible();

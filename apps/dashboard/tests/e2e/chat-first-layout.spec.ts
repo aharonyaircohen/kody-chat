@@ -131,7 +131,9 @@ test.describe("Chat-first layout (beta toggle)", () => {
     await expect(panel).toBeVisible({ timeout: 15_000 });
 
     await page.goto(`${BASE_URL}/settings`);
-    await expect(panel.getByText("Chat-first layout (beta)")).toBeVisible({
+    // The chat-first toggle card is gone from Settings (sidebar mode toggle
+    // removed) — the page heading proves the raw route rendered in the panel.
+    await expect(panel.getByRole("heading", { name: "Settings" })).toBeVisible({
       timeout: 15_000,
     });
     // Non-mapped routes keep raw route-content rendering — the tasks

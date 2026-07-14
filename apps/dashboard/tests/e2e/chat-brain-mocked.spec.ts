@@ -90,25 +90,26 @@ test.describe("Brain chat backend (mocked SSE)", () => {
     const chat = page.locator('[aria-label="Kody chat"]').first();
     await expect(chat).toBeVisible({ timeout: 15_000 });
 
-    const picker = chat.locator('button[aria-haspopup="listbox"]').first();
+    // The picker moved into the "Chat settings" menu (ChatSettingsMenu.tsx);
+    // the summary's title carries the current entry name.
+    const picker = chat.getByLabel("Chat settings").first();
     await expect(picker).toBeVisible({ timeout: 15_000 });
     // The seeded default entry key "brain" resolves to AGENT_BRAIN.
-    await expect(picker).toContainText(/Kody Brain/i);
+    await expect(picker).toHaveAttribute("title", /Kody Brain/i);
 
     await picker.click();
-    const listbox = page.getByRole("listbox").filter({
-      has: page.getByRole("option", { name: /Kody Brain/i }),
-    });
-    await expect(listbox).toBeVisible();
+    const menu = chat
+      .locator('details:has(summary[aria-label="Chat settings"])')
+      .first();
+    await expect(menu.getByText("Assistant")).toBeVisible();
     await expect(
-      listbox.getByRole("option", { name: /Kody Brain/i }),
+      menu.getByRole("button", { name: /Kody Brain/i }),
     ).toBeVisible();
     // Live is still offered alongside Brain (single-slot rules only merge
     // Brain↔Brain-Fly and Live↔Live-Fly, never Brain into Live).
     await expect(
-      listbox.getByRole("option", { name: /Kody Live/i }),
+      menu.getByRole("button", { name: /Kody Live/i }),
     ).toBeVisible();
-    await page.keyboard.press("Escape");
   });
 
   test("send streams brain SSE snapshots and renders the assistant reply", async ({
