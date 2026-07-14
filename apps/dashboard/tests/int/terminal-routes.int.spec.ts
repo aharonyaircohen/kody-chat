@@ -1080,6 +1080,43 @@ describe("POST /api/kody/terminal/session", () => {
     });
     expect(postStartPolls).toBeGreaterThan(10);
   });
+
+  it("waits for an image replacement already booting without starting it again", async () => {
+    vi.useFakeTimers();
+    let resolveCount = 0;
+    inventory.listFlyInventory.mockImplementation(async () => ({
+      running: 0,
+      total: 0,
+      machines: [],
+    }));
+    inventoryServer.resolveSavedBrainServiceForRequest.mockImplementation(
+      async () =>
+        savedBrainResolution(
+          "local-2",
+          "brain-replacement",
+          "guy-koren",
+          resolveCount++ < 4 ? "created" : "started",
+        ) as never,
+    );
+
+    const pending = sessionPOST(
+      makeSessionReq({
+        target: "brain",
+        chatSessionId: "chat-after-image-switch",
+      }),
+    );
+    await vi.advanceTimersByTimeAsync(10_000);
+    const res = await pending;
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      ok: true,
+      app: "local-2",
+      machineId: "brain-replacement",
+    });
+    expect(flyPreview.startMachine).not.toHaveBeenCalled();
+    expect(resolveCount).toBeGreaterThan(4);
+  });
 });
 
 describe("POST /api/kody/terminal/status", () => {

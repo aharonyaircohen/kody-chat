@@ -17,7 +17,10 @@ import {
   type ServerProviderContext,
 } from "@kody-ade/fly/infrastructure/server-context";
 
-import { ensureServerProviderTerminalBridge, type ServerProviderTerminalBridgeInfo } from "@kody-ade/fly/infrastructure/server-terminal";
+import {
+  ensureServerProviderTerminalBridge,
+  type ServerProviderTerminalBridgeInfo,
+} from "@kody-ade/fly/infrastructure/server-terminal";
 import {
   loadTerminalInventoryAuthority,
   terminalBridgeConfigCandidates,
@@ -32,6 +35,7 @@ import {
   isTerminalFeatureAllowed,
   isTerminalMachineLive,
   isTerminalMachineStartable,
+  isTerminalMachineTransitioning,
   resolveTerminalTargetMachine,
   selectTerminalTarget,
   terminalBridgeSessionIdForTarget,
@@ -213,23 +217,35 @@ export async function startTerminalSession(input: {
     throw targetError("machine_not_terminal_capable");
   }
   if (!isTerminalMachineLive(requested.state)) {
-    if (!isTerminalMachineStartable(requested.state)) {
+    const startable = isTerminalMachineStartable(requested.state);
+    if (!startable && !isTerminalMachineTransitioning(requested.state)) {
       throw targetError("machine_not_running");
     }
-    logger.info(
-      { app: requested.app, machineId: requested.machineId },
-      "terminal: waking machine",
-    );
-    const requestedCfg = terminalFlyConfigForMachine(
-      cfg,
-      requested,
-      savedBrain,
-    );
-    await startServerProviderMachineForTarget(
-      requested.app,
-      requested.machineId,
-      requestedCfg,
-    );
+    if (startable) {
+      logger.info(
+        { app: requested.app, machineId: requested.machineId },
+        "terminal: waking machine",
+      );
+      const requestedCfg = terminalFlyConfigForMachine(
+        cfg,
+        requested,
+        savedBrain,
+      );
+      await startServerProviderMachineForTarget(
+        requested.app,
+        requested.machineId,
+        requestedCfg,
+      );
+    } else {
+      logger.info(
+        {
+          app: requested.app,
+          machineId: requested.machineId,
+          state: requested.state,
+        },
+        "terminal: waiting for machine transition",
+      );
+    }
     const selectedInput = {
       app: requested.app,
       machineId: requested.machineId,

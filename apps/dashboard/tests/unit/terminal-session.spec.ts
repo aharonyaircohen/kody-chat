@@ -5,6 +5,7 @@ import {
   findTerminalTargetMachine,
   isTerminalFeatureAllowed,
   isTerminalMachineStartable,
+  isTerminalMachineTransitioning,
   resolveTerminalTargetMachine,
   selectTerminalTarget,
   terminalActivityLimitForTarget,
@@ -145,6 +146,15 @@ describe("terminal session policy", () => {
         machineId: "brain-2",
       }),
     ).toMatchObject({ state: "suspended", feature: "brain" });
+  });
+
+  it("identifies replacement Brain machines as waitable, not startable", () => {
+    expect(isTerminalMachineTransitioning("created")).toBe(true);
+    expect(isTerminalMachineTransitioning("starting")).toBe(true);
+    expect(isTerminalMachineTransitioning("replacing")).toBe(true);
+    expect(isTerminalMachineTransitioning("pending")).toBe(true);
+    expect(isTerminalMachineTransitioning("stopped")).toBe(false);
+    expect(isTerminalMachineStartable("created")).toBe(false);
   });
 
   it("builds the bridge websocket URL without leaking another query shape", () => {

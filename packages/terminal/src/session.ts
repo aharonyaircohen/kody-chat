@@ -13,9 +13,7 @@ import type {
 } from "@kody-ade/fly/infrastructure/server-machines";
 
 export type TerminalTargetError =
-  | "machine_not_found"
-  | "machine_not_terminal_capable"
-  | "machine_not_running";
+  "machine_not_found" | "machine_not_terminal_capable" | "machine_not_running";
 
 export interface TerminalTargetInput {
   app: string;
@@ -36,8 +34,17 @@ export interface TerminalTargetFailure {
 const TERMINAL_FEATURES = new Set<ServerProviderFeature>(["brain"]);
 const LIVE_STATES = new Set(["started", "running"]);
 const STARTABLE_STATES = new Set(["suspended", "stopped"]);
+const TRANSITIONING_STATES = new Set([
+  "created",
+  "pending",
+  "starting",
+  "replacing",
+  "restarting",
+]);
 
-export function isTerminalFeatureAllowed(feature: ServerProviderFeature): boolean {
+export function isTerminalFeatureAllowed(
+  feature: ServerProviderFeature,
+): boolean {
   return TERMINAL_FEATURES.has(feature);
 }
 
@@ -49,14 +56,17 @@ export function isTerminalMachineStartable(state: string): boolean {
   return STARTABLE_STATES.has(state);
 }
 
+export function isTerminalMachineTransitioning(state: string): boolean {
+  return TRANSITIONING_STATES.has(state);
+}
+
 export function upsertTerminalTargetMachine(
   inventory: ServerProviderInventory,
   machine: ServerProviderMachineRow,
   orgSlug: string,
 ): void {
   inventory.machines = inventory.machines.filter(
-    (item) =>
-      item.app !== machine.app || item.machineId !== machine.machineId,
+    (item) => item.app !== machine.app || item.machineId !== machine.machineId,
   );
   inventory.machines.push({ ...machine, orgSlug: machine.orgSlug ?? orgSlug });
   inventory.total = inventory.machines.length;
@@ -98,7 +108,11 @@ export function resolveTerminalTargetMachine(
 
 export function resolveBrainTerminalTargetInput(
   inventory: ServerProviderInventory,
-  input?: { app?: string; machineId?: string; feature?: ServerProviderFeature } | null,
+  input?: {
+    app?: string;
+    machineId?: string;
+    feature?: ServerProviderFeature;
+  } | null,
 ): { app: string; machineId: string; feature: "brain" } | null {
   if (input?.app && input.machineId) {
     const target = resolveTerminalTargetMachine(inventory, {
