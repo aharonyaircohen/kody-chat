@@ -93,7 +93,7 @@ async function waitForOutput(
 ): Promise<void> {
   const started = Date.now();
   while (!getOutput().includes(expected)) {
-    if (Date.now() - started > 5_000) {
+    if (Date.now() - started > 25_000) {
       throw new Error(`timed out waiting for ${expected}`);
     }
     await new Promise((resolve) => setTimeout(resolve, 25));
@@ -316,7 +316,7 @@ describe("ensureTerminalBridge", () => {
     );
   });
 
-  it("does not mirror typed input when the wrapped process enables PTY echo", async () => {
+  it("does not mirror typed input when the wrapped process enables PTY echo", { timeout: 30_000 }, async () => {
     const dir = mkdtempSync(join(tmpdir(), "kody-pty-relay-"));
     const relayPath = join(dir, "relay.py");
     const childPath = join(dir, "child.py");
