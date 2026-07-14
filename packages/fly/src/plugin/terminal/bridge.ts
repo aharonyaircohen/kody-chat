@@ -192,12 +192,25 @@ while True:
                 except ProcessLookupError:
                     pass
 
-try:
-    os.close(master)
-except OSError:
-    pass
+# The child may exit before its final output has been read from the PTY.
+# Close our slave end so the master drains to EOF, then flush what remains.
 try:
     os.close(slave_control_fd)
+except OSError:
+    pass
+while True:
+    readable, _, _ = select.select([master], [], [], 0.25)
+    if master not in readable:
+        break
+    try:
+        data = os.read(master, 65536)
+    except OSError:
+        break
+    if not data:
+        break
+    os.write(stdout_fd, data)
+try:
+    os.close(master)
 except OSError:
     pass
 if control_fd is not None:
