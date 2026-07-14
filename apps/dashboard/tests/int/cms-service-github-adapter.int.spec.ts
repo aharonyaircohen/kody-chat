@@ -354,6 +354,55 @@ describe("CMS service GitHub adapter integration", () => {
     expect(hasMaterializedNodeModulesLink("mongodb")).toBe(true);
   });
 
+  it("injects MongoDB into remote Store adapters without runtime package resolution", async () => {
+    const req = request("injected-mongodb");
+
+    octokit.seedText(
+      "aharonyaircohen",
+      "kody-company-store",
+      "injected-mongodb",
+      "cms/adapters/mongodb/index.mjs",
+      [
+        "export function createCmsAdapter(options) {",
+        "  if (typeof options.MongoClient !== 'function') throw new Error('MongoClient was not injected')",
+        "  if (typeof options.ObjectId !== 'function') throw new Error('ObjectId was not injected')",
+        "  return {",
+        "    async list() {",
+        "      return {",
+        "        docs: [{ _id: new options.ObjectId('64f1a5f6f2a80f3a3a3a3a3a').toString(), title: 'Injected' }],",
+        "        total: 1,",
+        "        limit: 50,",
+        "        offset: 0,",
+        "      }",
+        "    },",
+        "  }",
+        "}",
+      ].join("\n"),
+    );
+    octokit.seedText(
+      "aharonyaircohen",
+      "kody-company-store",
+      "injected-mongodb",
+      "cms/contract/index.mjs",
+      readStoreFile("cms/contract/index.mjs"),
+    );
+    mockStateFiles(cmsStateFilesForAdapter("mongodb", "Mongo CMS"));
+
+    await expect(
+      listCmsDocuments(
+        req,
+        octokit as never,
+        "A-Guy-educ",
+        "A-Guy-Web",
+        "lessons",
+        {},
+      ),
+    ).resolves.toMatchObject({
+      docs: [{ _id: "64f1a5f6f2a80f3a3a3a3a3a", title: "Injected" }],
+      total: 1,
+    });
+  });
+
   it("resolves remote Store adapter dependencies when cwd has no node_modules", async () => {
     const req = request("no-node-modules");
     const previousCwd = process.cwd();

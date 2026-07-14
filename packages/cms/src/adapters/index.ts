@@ -1,5 +1,5 @@
 import "server-only";
-import "../runtime-deps";
+import { getStoreAdapterRuntime } from "../runtime-deps";
 
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -162,6 +162,7 @@ async function withStoreAdapter<T>(
         getStateRepository: context.getStateRepository,
         context,
         transport: createSharedStorageTransport(context),
+        ...getStoreAdapterRuntime(name),
       }),
     );
   } catch (error) {

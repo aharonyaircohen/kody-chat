@@ -34,7 +34,7 @@ describe("CMS adapter boundary", () => {
     expect(source).not.toMatch(/["']\.\/mongodb["']/);
   });
 
-  it("anchors remote adapter package dependencies outside adapter code", () => {
+  it("injects remote adapter package dependencies from host code", () => {
     const bridgeSource = readFileSync(
       path.join(process.cwd(), "node_modules/@kody-ade/cms/src/adapters/index.ts"),
       "utf8",
@@ -44,8 +44,13 @@ describe("CMS adapter boundary", () => {
       "utf8",
     );
 
-    expect(bridgeSource).toMatch(/import\s+["']\.\.\/runtime-deps["']/);
-    expect(depsSource).toMatch(/import\s+["']mongodb["']/);
+    expect(bridgeSource).toMatch(
+      /import\s+\{\s*getStoreAdapterRuntime\s*\}\s+from\s+["']\.\.\/runtime-deps["']/,
+    );
+    expect(bridgeSource).toMatch(/\.\.\.getStoreAdapterRuntime\(name\)/);
+    expect(depsSource).toMatch(
+      /import\s+\{\s*MongoClient,\s*ObjectId\s*\}\s+from\s+["']mongodb["']/,
+    );
   });
 
   it("loads a Store-owned adapter through the generic bridge", async () => {
