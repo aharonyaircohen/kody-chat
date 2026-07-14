@@ -63,5 +63,7 @@ jobs:
       - name: E2E gate (dashboard)
         env:
           KODY_MASTER_KEY: ${{ secrets.KODY_MASTER_KEY || 'ci-only-0000000000000000000000000000000000000000000000000000000000000000' }}
-          GITHUB_TOKEN: ${{ secrets.KODY_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          E2E_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          E2E_GITHUB_REPO: ${{ github.repository }}
         run: pnpm --filter kody-dashboard test:e2e:gate
