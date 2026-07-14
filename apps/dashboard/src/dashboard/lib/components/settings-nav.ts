@@ -557,8 +557,9 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
     collapsible: true,
     items: [
       navItemForHref("/agents"),
-      navItemForHref("/agent-goals"),
       navItemForHref("/company-intents"),
+      navItemForHref("/operations"),
+      navItemForHref("/agent-goals"),
       navItemForHref("/agent-loops"),
       navItemForHref("/workflows"),
       navItemForHref("/capabilities"),

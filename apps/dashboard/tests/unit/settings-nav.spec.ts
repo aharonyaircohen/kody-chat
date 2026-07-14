@@ -111,6 +111,17 @@ describe("settings navigation", () => {
     expect(navLabelForPath("/preview/dev-4ojw")).toBe("Views");
   });
 
+  it("shows Intent, Operation, and owned work in scaling order", () => {
+    const agency = sectionHrefs(SIDEBAR_NAV_SECTIONS, "Agency");
+    expect(agency.indexOf("/company-intents")).toBeLessThan(
+      agency.indexOf("/operations"),
+    );
+    expect(agency.indexOf("/operations")).toBeLessThan(
+      agency.indexOf("/agent-goals"),
+    );
+    expect(navLabelForPath("/operations")).toBe("Operations");
+  });
+
   it("orders the desktop rail around work and collapsible ownership groups", () => {
     expect(SIDEBAR_NAV_SECTIONS.map((section) => section.title)).toEqual([
       "Work",
@@ -130,8 +141,9 @@ describe("settings navigation", () => {
     ]);
     expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Agency")).toEqual([
       "/agents",
-      "/agent-goals",
       "/company-intents",
+      "/operations",
+      "/agent-goals",
       "/agent-loops",
       "/workflows",
       "/capabilities",
