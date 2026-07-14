@@ -335,6 +335,9 @@ function SidebarContent({
               <div className="flex h-10 w-full items-center gap-2.5 rounded-md border border-white/[0.08] bg-black/20 px-3.5 text-body-sm transition-colors focus-within:border-white/[0.18]">
                 <Search className="h-5 w-5 shrink-0 text-muted-foreground" />
                 <input
+                  type="search"
+                  name="kody-navigation-search"
+                  autoComplete="off"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={onSearchKeyDown}
