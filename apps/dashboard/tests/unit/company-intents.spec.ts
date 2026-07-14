@@ -218,6 +218,11 @@ describe("company intents", () => {
     expect(view).not.toContain("Applies to");
     expect(view).not.toContain("Portfolio seeds");
     expect(listRoute).toContain("export async function POST");
+    expect(listRoute).toContain("const record: CompanyIntentRecord = {");
+    expect(listRoute).toContain("path: companyIntentPath(intent.id)");
+    expect(listRoute).not.toContain(
+      "const record = await readIntentRecord({",
+    );
     expect(detailRoute).toContain("export async function PATCH");
     expect(runRoute).toContain('action: "agency-portfolio-management"');
     expect(runRoute).not.toContain('action: "agency-architect"');

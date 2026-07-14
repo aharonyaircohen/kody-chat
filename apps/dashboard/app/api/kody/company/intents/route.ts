@@ -326,12 +326,16 @@ export async function POST(req: NextRequest) {
     });
     clearCompanyIntentRecordsCache(headerAuth.owner, headerAuth.repo);
 
-    const record = await readIntentRecord({
-      octokit,
-      owner: headerAuth.owner,
-      repo: headerAuth.repo,
+    // GitHub's contents API can briefly return 404 for a file immediately
+    // after creating it. The write already succeeded, so return the exact
+    // record we persisted instead of performing an eventually-consistent
+    // read that can turn a successful create into `{ intent: null }`.
+    const record: CompanyIntentRecord = {
       id: intent.id,
-    });
+      path: companyIntentPath(intent.id),
+      intent,
+      decisions: [],
+    };
 
     return NextResponse.json({ intent: record }, { status: 201 });
   } catch (err) {
