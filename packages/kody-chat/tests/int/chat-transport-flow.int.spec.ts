@@ -11,12 +11,21 @@
  */
 
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { sendKodyDirectTurn } from "@dashboard/lib/chat/core/transports/kody-direct";
+import {
+  kodyDirectTransport,
+  sendKodyDirectTurn,
+} from "@dashboard/lib/chat/core/transports/kody-direct";
 import { sendBrainTurn } from "@dashboard/lib/chat/core/transports/brain";
+import { runChatTurn } from "@dashboard/lib/chat/core/transports/turn-coordinator";
 import {
   createTransportTurnHandler,
   type TransportTurnHandler,
 } from "@dashboard/lib/components/kody-chat-transport-events";
+import {
+  applySettleDecision,
+  classifyTurnFailure,
+  settleDecision,
+} from "@dashboard/lib/components/kody-chat-send";
 import type { Message } from "@dashboard/lib/components/kody-chat-types";
 
 /** In-memory stand-in for KodyChat's session-scoped message store. */
@@ -80,9 +89,61 @@ let restoreFetch: (() => void) | null = null;
 afterEach(() => {
   restoreFetch?.();
   restoreFetch = null;
+  vi.useRealTimers();
 });
 
 describe("kody-direct send→stream→persist", () => {
+  it("turns a silent stream into a visible retryable error instead of an endless spinner", async () => {
+    vi.useFakeTimers();
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(
+      async (_input: string | URL | Request, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            "abort",
+            () => reject(init.signal?.reason),
+            { once: true },
+          );
+        }),
+    ) as typeof fetch;
+    restoreFetch = () => {
+      globalThis.fetch = originalFetch;
+    };
+
+    const { store, setMessages } = messageStore(seedTurn("hello?"));
+    const { handler, loading } = makeHandler(setMessages);
+    const turn = runChatTurn({
+      transport: kodyDirectTransport,
+      input: {
+        sessionId: "session-1",
+        text: "hello?",
+        agentId: "kody",
+        context: {
+          endpoint: "/api/kody/chat/kody",
+          body: { messages: [{ role: "user", content: "hello?" }] },
+        },
+      },
+      context: { authHeaders: {}, emit: handler.handleEvent },
+      inactivityMs: 5_000,
+    }).catch((error) => {
+      applySettleDecision(
+        settleDecision("kody-direct", classifyTurnFailure(error)),
+        { setMessages, setLoading: (value) => (loading.value = value) },
+      );
+    });
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    await turn;
+
+    expect(loading.value).toBe(false);
+    expect(store.messages[1]).toMatchObject({
+      role: "assistant",
+      isLoading: false,
+      isError: true,
+      content: "Error: Reply stalled after 5 seconds without activity. Please retry.",
+    });
+  });
+
   it("streams reasoning + text + a tool call into the final assistant message", async () => {
     const d = (p: Record<string, unknown>) => `data: ${JSON.stringify(p)}\n\n`;
     restoreFetch = installFetch([

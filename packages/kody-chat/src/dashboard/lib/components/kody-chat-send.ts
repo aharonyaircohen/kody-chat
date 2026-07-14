@@ -60,6 +60,7 @@ import {
   kodyLiveTransport,
   type KodyLiveTurnConfig,
 } from "../chat/core/transports/kody-live";
+import { runChatTurn } from "../chat/core/transports/turn-coordinator";
 import {
   createTransportTurnHandler,
   type TransportTurnState,
@@ -116,6 +117,9 @@ export type SettleBackend =
   | "kody-direct"
   | "kody-live"
   | "kody-engine";
+
+/** Maximum silence between Kody Direct transport events. */
+export const KODY_DIRECT_INACTIVITY_MS = 120_000;
 
 /** Classified turn failure: Stop-button abort vs a real error. */
 export type TurnFailure =
@@ -1039,8 +1043,9 @@ async function runSendTextInner(
             : {}),
         },
       } satisfies KodyDirectTurnConfig;
-      await kodyDirectTransport.send(
-        {
+      await runChatTurn({
+        transport: kodyDirectTransport,
+        input: {
           sessionId: uiSessionId,
           text: wireContent,
           agentId:
@@ -1053,12 +1058,13 @@ async function runSendTextInner(
             : {}),
           context: kodyTurnConfig,
         },
-        {
+        context: {
           authHeaders: deps.kodyDirectHeaders ?? authHeaders(),
           signal: kodyAbort.signal,
           emit: kodyTurn.handleEvent,
         },
-      );
+        inactivityMs: KODY_DIRECT_INACTIVITY_MS,
+      });
 
       // Per-turn results accumulated by the event handler. Pending UI
       // directives are applied AFTER the stream settles (below) so the

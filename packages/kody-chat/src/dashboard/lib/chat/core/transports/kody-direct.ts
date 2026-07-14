@@ -10,7 +10,8 @@
  *   detection (switch_agent / dashboard_navigate / preview_act /
  *   render_view) — emitting them as ChatEvents. The surface owns bubbles,
  *   the abort controller, and the post-stream directive application
- *   (including preview_act chaining into a synthetic follow-up turn).
+ *   (including preview_act chaining into a synthetic follow-up turn). A clean
+ *   EOF emits `done`; the shared coordinator owns terminal lifecycle state.
  */
 
 import { parseKodyDirectChunk, type KodyDirectChunk } from "./envelope";
@@ -271,6 +272,7 @@ export async function sendKodyDirectTurn(
       }
     }
   }
+  ctx.emit({ type: "done" });
 }
 
 /**
