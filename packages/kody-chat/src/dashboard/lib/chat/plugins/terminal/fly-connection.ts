@@ -33,6 +33,38 @@ export const FLY_CONNECT_TIMEOUT_MS = 75_000;
 export const FLY_RECONNECT_DELAY_MS = 750;
 export const FLY_RECONNECT_MAX_ATTEMPTS = 3;
 
+const NON_RETRYABLE_SESSION_ERRORS = new Set([
+  "fly_access_denied",
+  "fly_token_missing",
+  "machine_not_found",
+  "machine_not_terminal_capable",
+]);
+
+class RemoteTerminalSessionError extends Error {
+  constructor(
+    message: string,
+    public readonly retryable: boolean,
+  ) {
+    super(message);
+  }
+}
+
+function terminalSessionError(args: {
+  code?: string;
+  message?: string;
+  status: number;
+  transport: Exclude<ChatTerminalTransport, { type: "local" }>;
+}): RemoteTerminalSessionError {
+  const { code, message, status, transport } = args;
+  const noBrainTarget = transport.type === "brain" && code === "machine_not_found";
+  return new RemoteTerminalSessionError(
+    noBrainTarget
+      ? "No running Brain is selected for this repository. Run a Brain image, then connect again."
+      : (message ?? code ?? `HTTP ${status}`),
+    !code || !NON_RETRYABLE_SESSION_ERRORS.has(code),
+  );
+}
+
 export function fetchWithTimeout(
   input: RequestInfo | URL,
   init: RequestInit,
@@ -421,7 +453,12 @@ export async function connectFly(
         message?: string;
         error?: string;
       };
-      throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
+      throw terminalSessionError({
+        code: body.error,
+        message: body.message,
+        status: res.status,
+        transport: current,
+      });
     }
     ref.current.flyConnectFailureKeyRef.current = null;
     const session = (await res.json()) as { webSocketUrl: string };
@@ -539,7 +576,9 @@ export async function connectFly(
     ref.current.setError(message);
     updateFlyConnectionState(ref, "error");
     terminal.writeln(`\x1b[31m${message}\x1b[0m`);
-    if (ref.current.flyReconnectAttemptRef.current > 0) {
+    const retryable =
+      !(err instanceof RemoteTerminalSessionError) || err.retryable;
+    if (retryable && ref.current.flyReconnectAttemptRef.current > 0) {
       scheduleFlyReconnect(ref, message);
     }
   } finally {

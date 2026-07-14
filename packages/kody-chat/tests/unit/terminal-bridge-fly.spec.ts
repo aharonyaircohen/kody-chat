@@ -10,8 +10,10 @@ import {
   findTerminalBridge,
   TERMINAL_BRIDGE_SCRIPT,
   TERMINAL_BRIDGE_PTY_RELAY_SCRIPT,
+  TERMINAL_BRIDGE_START_SCRIPT,
   TERMINAL_BRIDGE_BASE_IMAGE,
   TERMINAL_BRIDGE_VERSION,
+  terminalBridgeVersionFor,
   terminalBridgeAppName,
 } from "@kody-ade/fly/plugin/terminal/bridge";
 import type { FlyPreviewConfig } from "@kody-ade/fly/plugin/previews/machines-client";
@@ -107,6 +109,36 @@ describe("terminalBridgeAppName", () => {
     const app = terminalBridgeAppName(CFG);
     expect(app).toMatch(/^kody-terminal-personal-[a-f0-9]{12}$/);
     expect(terminalBridgeAppName(CFG)).toBe(app);
+  });
+});
+
+describe("terminal bridge deployment identity", () => {
+  it("changes whenever any shipped bridge program changes", () => {
+    const programs = {
+      startScript: TERMINAL_BRIDGE_START_SCRIPT,
+      bridgeScript: TERMINAL_BRIDGE_SCRIPT,
+      ptyRelayScript: TERMINAL_BRIDGE_PTY_RELAY_SCRIPT,
+    };
+
+    expect(TERMINAL_BRIDGE_VERSION).toBe(terminalBridgeVersionFor(programs));
+    expect(
+      terminalBridgeVersionFor({
+        ...programs,
+        bridgeScript: `${programs.bridgeScript}\n// changed`,
+      }),
+    ).not.toBe(TERMINAL_BRIDGE_VERSION);
+    expect(
+      terminalBridgeVersionFor({
+        ...programs,
+        ptyRelayScript: `${programs.ptyRelayScript}\n# changed`,
+      }),
+    ).not.toBe(TERMINAL_BRIDGE_VERSION);
+    expect(
+      terminalBridgeVersionFor({
+        ...programs,
+        startScript: `${programs.startScript}\n# changed`,
+      }),
+    ).not.toBe(TERMINAL_BRIDGE_VERSION);
   });
 });
 

@@ -6,6 +6,13 @@ const SOURCE = readFileSync(
   resolve(__dirname, "../../src/dashboard/lib/chat/surface/Composer.tsx"),
   "utf8",
 );
+const HOST_SOURCE = readFileSync(
+  resolve(
+    __dirname,
+    "../../src/dashboard/lib/components/kody-chat-terminal-host.tsx",
+  ),
+  "utf8",
+);
 
 describe("composer alignment", () => {
   it("bottom-aligns the primary controls beside a growing input", () => {
@@ -26,5 +33,10 @@ describe("composer alignment", () => {
     expect(SOURCE).not.toContain(
       'className="absolute bottom-full left-0 z-30 mb-2 grid',
     );
+  });
+
+  it("does not duplicate terminal status beneath the composer input", () => {
+    expect(SOURCE).not.toContain("terminalProblemMessage");
+    expect(HOST_SOURCE).not.toContain("terminalProblemMessage");
   });
 });

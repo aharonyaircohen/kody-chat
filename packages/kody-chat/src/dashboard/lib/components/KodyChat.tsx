@@ -623,7 +623,6 @@ export function KodyChat({
     terminalSendBusy,
     terminalSendDisabled,
     terminalInputLabel,
-    terminalProblemMessage,
     chatModeToggle,
     terminalBottomControls,
     terminalSurfaces,
@@ -1722,7 +1721,6 @@ export function KodyChat({
           onStop={handleStop}
           onEndLiveSession={endInteractiveSession}
           onStartLiveSession={startInteractiveSession}
-          terminalProblemMessage={terminalProblemMessage}
           fileInputRef={fileInputRef}
           onFileSelect={handleFileSelect}
           voiceActive={voiceOverlayOpen}

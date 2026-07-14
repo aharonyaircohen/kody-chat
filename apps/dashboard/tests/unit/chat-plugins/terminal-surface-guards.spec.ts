@@ -293,6 +293,30 @@ describe("stale connect guards", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it("stops reconnecting when the repo has no running Brain target", async () => {
+    const fetchSpy = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          error: "machine_not_found",
+          message: "Machine not found.",
+        }),
+        { status: 404, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchSpy);
+    const harness = makeDeps();
+    harness.ref.current.flyReconnectAttemptRef.current = 1;
+
+    await connectFly(harness.ref, { force: true });
+
+    expect(harness.states.at(-1)).toBe("error");
+    expect(harness.errors.at(-1)).toBe(
+      "No running Brain is selected for this repository. Run a Brain image, then connect again.",
+    );
+    vi.runAllTimers();
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
   it("skips repeat attempts for failed or in-flight keys until forced", () => {
     const base = {
       force: false,

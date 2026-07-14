@@ -20,11 +20,26 @@ const BRIDGE_HEALTH_TIMEOUT_MS = 90_000;
 const BRIDGE_HEALTH_INTERVAL_MS = 2_000;
 const BRIDGE_CREATE_ATTEMPTS = 3;
 
-export const TERMINAL_BRIDGE_VERSION = "2026-07-08.2";
 export const TERMINAL_BRIDGE_BASE_IMAGE =
   process.env.KODY_TERMINAL_BRIDGE_BASE_IMAGE ?? "node:22-bookworm";
 
-const START_SCRIPT = String.raw`#!/bin/sh
+export function terminalBridgeVersionFor(input: {
+  startScript: string;
+  bridgeScript: string;
+  ptyRelayScript: string;
+}): string {
+  return crypto
+    .createHash("sha256")
+    .update(input.startScript)
+    .update("\0")
+    .update(input.bridgeScript)
+    .update("\0")
+    .update(input.ptyRelayScript)
+    .digest("hex")
+    .slice(0, 16);
+}
+
+export const TERMINAL_BRIDGE_START_SCRIPT = String.raw`#!/bin/sh
 set -eu
 
 need_apt=0
@@ -1450,6 +1465,12 @@ server.listen(port, "0.0.0.0", () => {
 });
 `;
 
+export const TERMINAL_BRIDGE_VERSION = terminalBridgeVersionFor({
+  startScript: TERMINAL_BRIDGE_START_SCRIPT,
+  bridgeScript: TERMINAL_BRIDGE_SCRIPT,
+  ptyRelayScript: TERMINAL_BRIDGE_PTY_RELAY_SCRIPT,
+});
+
 interface FlyFetchOpts {
   method?: "GET" | "POST" | "DELETE";
   token: string;
@@ -1660,7 +1681,9 @@ async function createBridgeMachine(
       files: [
         {
           guest_path: "/app/start.sh",
-          raw_value: Buffer.from(START_SCRIPT).toString("base64"),
+          raw_value: Buffer.from(TERMINAL_BRIDGE_START_SCRIPT).toString(
+            "base64",
+          ),
         },
         {
           guest_path: "/app/bridge.mjs",

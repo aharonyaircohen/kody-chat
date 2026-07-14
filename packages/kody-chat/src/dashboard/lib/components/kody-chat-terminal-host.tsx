@@ -127,7 +127,6 @@ export interface TerminalHost {
   terminalSendBusy: boolean | undefined;
   terminalSendDisabled: boolean | undefined;
   terminalInputLabel: string | undefined;
-  terminalProblemMessage: string | null | undefined;
   chatModeToggle: ReactNode;
   terminalTopControls: ReactNode;
   terminalBottomControls: ReactNode;
@@ -505,14 +504,6 @@ export function useTerminalHost({
   const terminalSendDisabled =
     chatMode === "terminal" &&
     (terminalInputTone === "blocked" || terminalSendBusy);
-  const terminalProblemMessage =
-    chatMode === "terminal" &&
-    terminalInputTone === "blocked" &&
-    /stalled|error|failed|websocket|reconnecting/i.test(
-      activeTerminalChrome?.statusText ?? "",
-    )
-      ? activeTerminalChrome?.statusText
-      : null;
   const terminalBottomControls =
     chatMode === "terminal" ? (
       <Suspense fallback={null}>
@@ -582,7 +573,6 @@ export function useTerminalHost({
     terminalSendBusy,
     terminalSendDisabled,
     terminalInputLabel: activeTerminalChrome?.inputLabel,
-    terminalProblemMessage,
     chatModeToggle,
     terminalTopControls,
     terminalBottomControls,

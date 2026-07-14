@@ -6,9 +6,9 @@
  * injected context chips (picked preview elements — the ChatRailApi
  * `composerInjection` contract renders here), the Kody Live status dot, the
  * input row (slash-command menu, agent-mention popover, rich MarkdownEditor
- * or plain autosize textarea, trailing send/stop icon button), the terminal
- * problem line and the action row (attach, voice, clear history, report
- * issue). Extracted verbatim from KodyChat (Step 3); all state (input text,
+ * or plain autosize textarea, trailing send/stop icon button), and the action
+ * row (attach, voice, clear history, report issue). Extracted verbatim from
+ * KodyChat (Step 3); all state (input text,
  * slash menu, attachments, chips, voice) and every handler stay with the
  * host, wired through props. The terminal-plugin-bound elements
  * (`chatModeToggle`, `terminalBottomControls`) are host-built ReactNode slots
@@ -127,9 +127,6 @@ interface ComposerProps {
   onEndLiveSession: () => void;
   onStartLiveSession: () => Promise<unknown>;
 
-  /** Problem-only terminal status line under the input row. */
-  terminalProblemMessage: string | null | undefined;
-
   /** Hidden file input + Paperclip trigger. */
   fileInputRef: RefObject<HTMLInputElement | null>;
   onFileSelect: (e: ChangeEvent<HTMLInputElement>) => void;
@@ -156,7 +153,7 @@ interface ComposerProps {
 /**
  * Renders the chat composer: attachment + context-chip rows, then the input
  * area (live status dot, input row with slash/mention overlays and the
- * trailing send/stop button, terminal problem line, hairline, action row).
+ * trailing send/stop button, hairline, action row).
  * Presentation-only — every state mutation flows through host callbacks.
  */
 export function Composer({
@@ -198,7 +195,6 @@ export function Composer({
   onStop,
   onEndLiveSession,
   onStartLiveSession,
-  terminalProblemMessage,
   fileInputRef,
   onFileSelect,
   voiceActive,
@@ -586,11 +582,6 @@ export function Composer({
               );
             })()}
           </div>
-          {terminalProblemMessage && (
-            <div className="mt-1 text-[11px] text-amber-600" role="status">
-              {terminalProblemMessage}
-            </div>
-          )}
           {chatMode === "ai" && <div className="border-t border-border/40" />}
         </div>
         <div
