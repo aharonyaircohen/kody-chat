@@ -50,6 +50,7 @@ const REPO_OWNED_LEGACY_PREFIXES = [
   "/messages",
   "/models",
   "/notifications",
+  "/operations",
   "/preview",
   "/reports",
   "/runner",

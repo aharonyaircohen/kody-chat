@@ -67,6 +67,9 @@ describe("repo-scoped route contract", () => {
     expect(repoScopedHref(repo, "/reports?run=latest#summary")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/reports?run=latest#summary",
     );
+    expect(repoScopedHref(repo, "/operations")).toBe(
+      "/repo/A-Guy-educ/A-Guy-Web/operations",
+    );
     expect(repoScopedHref(repo, "/org")).toBe("/org");
     expect(repoScopedHref(repo, "/settings")).toBe("/settings");
     expect(repoScopedHref(repo, "/repo/A-Guy-educ/A-Guy-Web/tasks")).toBe(
