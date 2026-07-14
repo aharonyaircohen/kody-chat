@@ -45,7 +45,10 @@ import {
   clearLiveSession,
 } from "../chat/core/kody-chat-live-session";
 import { runSendText, runSendMessage, type SendTextFn } from "./kody-chat-send";
-import { useCompactionStatus } from "./kody-chat-compaction";
+import {
+  compactConversationForTurn,
+  useCompactionStatus,
+} from "./kody-chat-compaction";
 import {
   chatToMessage,
   messageToChat,
@@ -1423,6 +1426,37 @@ export function KodyChat({
   // the same interactive session model, so they share this UI state.
   const isKodyLive =
     selectedAgentId === "kody-live" || selectedAgentId === "kody-live-fly";
+  const checkpointThrough =
+    sessionHook.activeSession?.contextCheckpoint?.throughMessageCount ?? 0;
+  const canCompactConversation =
+    messages.length - checkpointThrough > 2 && !activeLoading;
+  const compactConversationNow = useCallback(async () => {
+    const activeSession = sessionHook.activeSession;
+    if (!activeSession || activeLoading) return;
+
+    const result = await compactConversationForTurn({
+      messages: messages.map(({ role, content }) => ({ role, content })),
+      checkpoint: activeSession.contextCheckpoint,
+      nextUserContent: "",
+      force: true,
+      recentTokens: 0,
+      model: selectedModelId,
+      headers: kodyDirectHeaders ?? authHeaders(),
+      onStatus: setCompactionStatus,
+      onCheckpoint: (checkpoint) =>
+        sessionHook.setSessionCheckpoint(activeSession.id, checkpoint),
+    });
+    if (result.didCompact && isKodyLive) endInteractiveSession();
+  }, [
+    activeLoading,
+    endInteractiveSession,
+    isKodyLive,
+    kodyDirectHeaders,
+    messages,
+    selectedModelId,
+    sessionHook,
+    setCompactionStatus,
+  ]);
   const standalonePresentation = presentation === "standalone";
 
   // The composer's primary button switches role for Kody Live agents based
@@ -1761,6 +1795,9 @@ export function KodyChat({
             /* let conversation handle it */
           }}
           messageCount={messages.length}
+          canCompactConversation={canCompactConversation}
+          compactionBusy={compactionStatus === "compacting"}
+          onCompactConversation={compactConversationNow}
           onClearHistory={() => setShowClearConfirm(true)}
           terminalBottomControls={terminalBottomControls}
           chatModeToggle={chatModeToggle}

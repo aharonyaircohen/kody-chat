@@ -145,3 +145,61 @@ test("compacts model context while keeping the visible conversation", async ({
     )
     .toBe("The earlier working context.");
 });
+
+test("manually compacts from the composer menu", async ({ page }, testInfo) => {
+  await page.route("**/api/kody/models", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        models: [{ id: "test/model", label: "Kody Test", enabled: true }],
+      }),
+    }),
+  );
+  let compactCalls = 0;
+  await page.route("**/api/kody/chat/compact", async (route) => {
+    compactCalls += 1;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ summary: "Manual composer memory." }),
+    });
+  });
+
+  await seedLongConversation(page);
+  await page.goto(BASE_URL);
+  await page.waitForLoadState("domcontentloaded");
+
+  const chat = page.locator('[aria-label="Kody chat"]');
+  await expect(chat.locator("textarea").first()).toBeEditable({
+    timeout: 15_000,
+  });
+  await selectKodyAgent(page);
+  await chat.getByLabel("More compose options").click();
+  const compactButton = chat.getByRole("button", {
+    name: "Compact conversation",
+  });
+  await expect(compactButton).toBeEnabled();
+  await page.screenshot({
+    path: testInfo.outputPath("composer-compact-menu.png"),
+    fullPage: false,
+  });
+  await compactButton.click();
+
+  const status = page.getByTestId("conversation-compaction-status");
+  await expect(status).toContainText("Compacting conversation");
+  await expect.poll(() => compactCalls).toBe(1);
+  await expect(status).toContainText("Conversation compacted", {
+    timeout: 10_000,
+  });
+  await expect(page.getByText(/OLD_VISIBLE_MARKER/).first()).toBeAttached();
+  await expect
+    .poll(() =>
+      page.evaluate((storageKey) => {
+        const store = JSON.parse(localStorage.getItem(storageKey) ?? "{}");
+        return store.sessions?.[0]?.contextCheckpoint?.summary ?? null;
+      }, STORAGE_KEY),
+    )
+    .toBe("Manual composer memory.");
+});

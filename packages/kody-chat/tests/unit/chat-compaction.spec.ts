@@ -30,6 +30,25 @@ describe("conversation compaction", () => {
     expect(plan).toBeNull();
   });
 
+  it("forces a manual compaction while retaining the latest two messages", () => {
+    const messages = [
+      message("first decision"),
+      message("first answer", "assistant"),
+      message("latest question"),
+      message("latest answer", "assistant"),
+    ];
+
+    const plan = planConversationCompaction({
+      messages,
+      nextUserContent: "",
+      force: true,
+      recentTokens: 0,
+    });
+
+    expect(plan?.messagesToSummarize).toEqual(messages.slice(0, 2));
+    expect(plan?.recentMessages).toEqual(messages.slice(2));
+  });
+
   it("compacts older messages while retaining the recent tail", () => {
     const messages = Array.from({ length: 8 }, (_, index) =>
       message(`${index}:${"x".repeat(80)}`, index % 2 ? "assistant" : "user"),

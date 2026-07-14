@@ -29,6 +29,7 @@ interface CompactConversationForTurnArgs {
   messages: CompactableMessage[];
   checkpoint?: ConversationCheckpoint | null;
   nextUserContent: string;
+  force?: boolean;
   model?: string | null;
   headers?: Record<string, string>;
   triggerTokens?: number;
@@ -52,6 +53,7 @@ export async function compactConversationForTurn(
     messages: args.messages,
     checkpoint: currentContext.checkpoint,
     nextUserContent: args.nextUserContent,
+    force: args.force,
     triggerTokens: args.triggerTokens,
     recentTokens: args.recentTokens,
   });

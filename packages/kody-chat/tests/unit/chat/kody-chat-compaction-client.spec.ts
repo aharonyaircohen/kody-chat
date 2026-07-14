@@ -65,4 +65,28 @@ describe("compactConversationForTurn", () => {
       null,
     ]);
   });
+
+  it("allows the composer action to force compaction below the auto threshold", async () => {
+    const onCheckpoint = vi.fn();
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ summary: "Manual compact memory." }), {
+          status: 200,
+        }),
+    );
+
+    const result = await compactConversationForTurn({
+      messages: messages.slice(0, 4),
+      nextUserContent: "",
+      force: true,
+      recentTokens: 0,
+      fetchImpl,
+      onStatus: vi.fn(),
+      onCheckpoint,
+    });
+
+    expect(result.didCompact).toBe(true);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    expect(onCheckpoint).toHaveBeenCalledOnce();
+  });
 });

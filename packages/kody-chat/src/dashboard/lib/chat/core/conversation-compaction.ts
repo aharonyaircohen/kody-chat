@@ -98,6 +98,7 @@ export function planConversationCompaction(args: {
   messages: readonly CompactableMessage[];
   checkpoint?: ConversationCheckpoint | null;
   nextUserContent: string;
+  force?: boolean;
   triggerTokens?: number;
   recentTokens?: number;
 }): ConversationCompactionPlan | null {
@@ -109,7 +110,7 @@ export function planConversationCompaction(args: {
     (context.summary ? Math.ceil(context.summary.length / 4) + 4 : 0) +
     Math.ceil(args.nextUserContent.length / 4) +
     4;
-  if (renderedTokens < triggerTokens) return null;
+  if (!args.force && renderedTokens < triggerTokens) return null;
 
   let retainedTokens = 0;
   let retainFromIndex = args.messages.length;

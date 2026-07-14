@@ -28,11 +28,17 @@ describe("composer alignment", () => {
 
   it("anchors the compose menu to the logical start edge for RTL", () => {
     expect(SOURCE).toContain(
-      'className="absolute bottom-full start-0 z-30 mb-2 grid',
+      'className="absolute bottom-full start-0 z-30 mb-2 grid min-w-52',
     );
     expect(SOURCE).not.toContain(
       'className="absolute bottom-full left-0 z-30 mb-2 grid',
     );
+  });
+
+  it("places manual conversation compaction in the compose menu", () => {
+    expect(SOURCE).toContain("Compact conversation");
+    expect(SOURCE).toContain("onCompactConversation");
+    expect(SOURCE).toContain("canCompactConversation");
   });
 
   it("does not duplicate terminal status beneath the composer input", () => {

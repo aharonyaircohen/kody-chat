@@ -28,6 +28,7 @@ import type {
 } from "react";
 import {
   Eraser,
+  ListCollapse,
   Loader2,
   MousePointerClick,
   Paperclip,
@@ -140,6 +141,9 @@ interface ComposerProps {
 
   /** Transcript length — clear-history renders only when > 0. */
   messageCount: number;
+  canCompactConversation: boolean;
+  compactionBusy: boolean;
+  onCompactConversation: () => Promise<void>;
   onClearHistory: () => void;
 
   /**
@@ -203,6 +207,9 @@ export function Composer({
   onVoiceLongPressStart,
   onVoiceLongPressEnd,
   messageCount,
+  canCompactConversation,
+  compactionBusy,
+  onCompactConversation,
   onClearHistory,
   terminalBottomControls,
   chatModeToggle,
@@ -339,7 +346,7 @@ export function Composer({
               >
                 <Plus className="h-5 w-5" aria-hidden="true" />
               </summary>
-              <div className="absolute bottom-full start-0 z-30 mb-2 grid min-w-44 gap-1 rounded-md border bg-popover p-1 shadow-md">
+              <div className="absolute bottom-full start-0 z-30 mb-2 grid min-w-52 gap-1 rounded-md border bg-popover p-1 shadow-md">
                 {chatMode === "ai" && (
                   <>
                     <input
@@ -368,6 +375,24 @@ export function Composer({
                       disabled={activeLoading}
                       label="Voice chat"
                     />
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.currentTarget
+                          .closest("details")
+                          ?.removeAttribute("open");
+                        void onCompactConversation();
+                      }}
+                      disabled={!canCompactConversation || compactionBusy}
+                      className="flex w-full items-center gap-2 whitespace-nowrap rounded px-2 py-1.5 text-start text-sm hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {compactionBusy ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <ListCollapse className="h-4 w-4" />
+                      )}
+                      {compactionBusy ? "Compacting…" : "Compact conversation"}
+                    </button>
                     {messageCount > 0 && !activeLoading && (
                       <button
                         type="button"
