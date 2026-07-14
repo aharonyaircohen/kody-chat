@@ -176,6 +176,20 @@ describe("parseAssistantContent", () => {
     expect(answer).toBe("Yes, it can leak.");
   });
 
+  it("removes copied reasoning when the answer collapses streamed whitespace", () => {
+    const reasoning = [
+      "The user is asking why the response is long.",
+      "I need to inspect the direct chat stream.",
+    ].join("\n\n");
+    const copiedWithCollapsedWhitespace = reasoning.replace(/\s+/g, " ");
+    const parsed = parseAssistantContent(
+      `<think>${reasoning}</think>\n\n${copiedWithCollapsedWhitespace}\n\nFinal answer: The stream duplicated the thinking.`,
+    );
+
+    expect(parsed.reasoning).toBe(reasoning);
+    expect(parsed.answer).toBe("The stream duplicated the thinking.");
+  });
+
   it("removes an untagged reasoning preamble before a final answer", () => {
     const { answer } = parseAssistantContent(
       "Analysis: The user asked for verification. I should answer from the code.\n\nFinal answer: It is verified.",

@@ -720,4 +720,48 @@ test.describe("Kody chat renderer output", () => {
       page.getByText(/invoke|github_list_tree|minimax|<path>/i),
     ).toHaveCount(0);
   });
+
+  test("direct Kody shows copied reasoning only in the collapsed section", async ({
+    page,
+  }) => {
+    const reasoning = [
+      "The user is asking why the response is long.",
+      "I need to inspect the direct chat stream.",
+    ].join("\n\n");
+    const copiedWithCollapsedWhitespace = reasoning.replace(/\s+/g, " ");
+
+    await page.unroute("**/api/kody/chat/kody");
+    await page.route("**/api/kody/chat/kody", async (route: Route) => {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+        body: sseBody([
+          { type: "reasoning-delta", delta: reasoning },
+          {
+            type: "text-delta",
+            delta: `${copiedWithCollapsedWhitespace}\n\nFinal answer: The stream duplicated the thinking.`,
+          },
+        ]),
+      });
+    });
+
+    await openChat(page);
+    await sendChatMessage(page, "why is the answer duplicated?");
+
+    await expect(
+      page.getByText("The stream duplicated the thinking."),
+    ).toBeVisible();
+    await expect(page.getByText(copiedWithCollapsedWhitespace)).toHaveCount(0);
+
+    await page.getByRole("button", { name: /thought/i }).click();
+    await expect(
+      page.getByText("The user is asking why the response is long."),
+    ).toBeVisible();
+    await expect(
+      page.getByText("I need to inspect the direct chat stream."),
+    ).toBeVisible();
+  });
 });

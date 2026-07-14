@@ -174,6 +174,33 @@ function looksLikeLeakedReasoning(text: string): boolean {
   );
 }
 
+function equivalentWhitespacePrefixLength(
+  text: string,
+  expectedPrefix: string,
+): number | null {
+  let textIndex = 0;
+  let prefixIndex = 0;
+
+  while (prefixIndex < expectedPrefix.length) {
+    const prefixChar = expectedPrefix[prefixIndex];
+    const textChar = text[textIndex];
+    if (textChar === undefined) return null;
+
+    if (/\s/.test(prefixChar)) {
+      if (!/\s/.test(textChar)) return null;
+      while (/\s/.test(expectedPrefix[prefixIndex] ?? "")) prefixIndex += 1;
+      while (/\s/.test(text[textIndex] ?? "")) textIndex += 1;
+      continue;
+    }
+
+    if (textChar !== prefixChar) return null;
+    prefixIndex += 1;
+    textIndex += 1;
+  }
+
+  return textIndex;
+}
+
 function stripDuplicatedReasoningPrefix(
   answer: string,
   reasoning: string,
@@ -183,12 +210,16 @@ function stripDuplicatedReasoningPrefix(
 
   const leadingWhitespace = answer.match(/^\s*/)?.[0] ?? "";
   const rest = answer.slice(leadingWhitespace.length);
-  if (!rest.startsWith(trimmedReasoning)) {
+  const duplicateLength = equivalentWhitespacePrefixLength(
+    rest,
+    trimmedReasoning,
+  );
+  if (duplicateLength === null) {
     return { text: answer, stripped: false };
   }
 
   return {
-    text: rest.slice(trimmedReasoning.length).trim(),
+    text: rest.slice(duplicateLength).trim(),
     stripped: true,
   };
 }
