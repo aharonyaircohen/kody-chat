@@ -58,8 +58,6 @@ import {
   RefreshCw,
   AlertCircle,
   X as XIcon,
-  Sun,
-  Moon,
   Github,
   Layers,
   FileText,
@@ -102,7 +100,6 @@ import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useAuth } from "../auth-context";
 import { repoPathForNavMatching, repoScopedHref } from "@kody-ade/base/routes";
 import { RepoManager } from "./RepoManager";
-import { useTheme } from "@dashboard/providers/Theme";
 import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
 import { KodyHeader } from "./KodyHeader";
 import { HeaderOverflowMenu } from "./HeaderOverflowMenu";
@@ -495,9 +492,6 @@ export function KodyDashboard({
     },
     [storedAuth],
   );
-
-  // Theme toggle
-  const { theme, setTheme } = useTheme();
 
   // Fetch collaborators for assignee picker
   const { data: collaborators = [] } = useQuery({
@@ -2050,20 +2044,6 @@ export function KodyDashboard({
                       )}
                     />
                     Refresh
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start gap-2 h-11"
-                    onClick={() =>
-                      setTheme(theme === "dark" ? "light" : "dark")
-                    }
-                  >
-                    {theme === "dark" ? (
-                      <Sun className="w-4 h-4 text-muted-foreground" />
-                    ) : (
-                      <Moon className="w-4 h-4 text-muted-foreground" />
-                    )}
-                    {theme === "dark" ? "Light mode" : "Dark mode"}
                   </Button>
                   <Button
                     variant="ghost"

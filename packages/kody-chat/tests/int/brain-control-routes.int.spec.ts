@@ -36,6 +36,10 @@ const brainService = vi.hoisted(() => ({
   })),
 }));
 
+const runtimeManager = vi.hoisted(() => ({
+  clearBrainRuntimeDeployment: vi.fn(async () => undefined),
+}));
+
 vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(async () => null),
 }));
@@ -56,6 +60,7 @@ vi.mock("@kody-ade/fly/plugin/runners/context", () => ({
 }));
 
 vi.mock("@kody-ade/brain/service-resolver", () => brainService);
+vi.mock("@kody-ade/brain/runtime-manager", () => runtimeManager);
 vi.mock("@kody-ade/brain/store", () => ({
   clearBrainApp: vi.fn(async () => undefined),
 }));
@@ -95,6 +100,10 @@ describe("Brain control routes", () => {
         appNameOverride: "brain-1",
         orgSlug: "guy-koren",
       }),
+    );
+    expect(runtimeManager.clearBrainRuntimeDeployment).toHaveBeenCalledWith(
+      "octocat",
+      "ghp_test",
     );
   });
 

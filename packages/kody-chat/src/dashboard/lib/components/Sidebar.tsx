@@ -78,6 +78,10 @@ function defaultModeForPathname(pathname: string): SidebarMode {
 }
 
 export interface SidebarProps {
+  /** Selects the persistent desktop rail or the mobile sheet presentation. */
+  presentation?: "desktop" | "mobile";
+  /** Called after a navigation action, allowing a mobile sheet to close. */
+  onNavigate?: () => void;
   /**
    * Nav sections. When provided, the host owns the list (the Vibe/Engineer
    * mode toggle is hidden and search covers the given sections). Without it
@@ -98,6 +102,12 @@ export interface SidebarProps {
    * notifications bell). Hidden while the rail is collapsed.
    */
   brandRowExtra?: React.ReactNode;
+  /** Optional action rendered above the scrollable navigation list. */
+  navigationExtra?: React.ReactNode;
+  /** Optional host controls rendered between navigation and the footer. */
+  extras?: React.ReactNode;
+  /** Optional host CTA rendered at the bottom of the sidebar. */
+  bottomCta?: React.ReactNode;
   /** Optional footer action, shown beside the app version. */
   onReportIssue?: () => void;
 }
@@ -111,13 +121,19 @@ export function Sidebar(props: SidebarProps = {}) {
 }
 
 function SidebarContent({
+  presentation = "desktop",
+  onNavigate,
   sections: hostSections,
   pinnedItem = DASHBOARD_NAV_ITEM,
   brandLabel = "Kody",
   headerExtra,
   brandRowExtra,
+  navigationExtra,
+  extras,
+  bottomCta,
   onReportIssue,
 }: SidebarProps) {
+  const mobile = presentation === "mobile";
   const pathname = usePathname() ?? "/";
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -148,6 +164,10 @@ function SidebarContent({
   >(() => activeCollapsibleNavSectionTitle(baseSections, pathname, search));
 
   useEffect(() => {
+    if (mobile) {
+      setHydrated(true);
+      return;
+    }
     try {
       if (window.localStorage.getItem(COLLAPSED_KEY) === "1") {
         setCollapsed(true);
@@ -160,7 +180,7 @@ function SidebarContent({
       // localStorage unavailable (private mode, etc.) — fall back to defaults
     }
     setHydrated(true);
-  }, []);
+  }, [mobile]);
 
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
@@ -184,6 +204,7 @@ function SidebarContent({
       // ignore — UI still updates
     }
     router.push(scopedHref(next === "vibe" ? "/vibe" : "/tasks"));
+    onNavigate?.();
   };
 
   const scopedHref = (href: string) =>
@@ -226,10 +247,12 @@ function SidebarContent({
       e.preventDefault();
       router.push(scopedHref(firstMatch.href));
       setQuery("");
+      onNavigate?.();
     }
   };
 
-  const width = collapsed ? "w-[72px]" : "w-[248px]";
+  const isCollapsed = mobile ? false : collapsed;
+  const width = isCollapsed ? "w-[72px]" : "w-[248px]";
 
   const renderLink = (item: NavItem, nested = false) => {
     const Icon = item.icon;
@@ -237,41 +260,42 @@ function SidebarContent({
     const link = (
       <Link
         href={scopedHref(item.href)}
+        onClick={onNavigate}
         aria-current={active ? "page" : undefined}
         aria-label={item.label}
         className={cn(
           "relative flex items-center gap-3.5 rounded-md text-body-sm transition-colors",
           "h-10 px-3.5",
           nested && "px-3",
-          collapsed && "justify-center px-0",
+          isCollapsed && "justify-center px-0",
           active
             ? "bg-accent text-foreground"
             : "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
         )}
       >
         <Icon className={cn("h-5 w-5 shrink-0", iconTintClass(item))} />
-        {!collapsed && <span className="truncate">{item.label}</span>}
+        {!isCollapsed && <span className="truncate">{item.label}</span>}
         {item.href === "/inbox" && (
           <InboxBadge
             enabled={enableInboxBadgeData}
-            className={cn(collapsed ? "absolute top-1 right-1" : "ml-auto")}
+            className={cn(isCollapsed ? "absolute top-1 right-1" : "ml-auto")}
           />
         )}
         {item.href === "/messages" && (
           <MessagesBadge
             enabled={enableMessagesBadgeData}
-            className={cn(collapsed ? "absolute top-1 right-1" : "ml-auto")}
+            className={cn(isCollapsed ? "absolute top-1 right-1" : "ml-auto")}
           />
         )}
         {item.href === "/reports" && (
           <ReportsBadge
             enabled={enableReportsBadgeData}
-            className={cn(collapsed ? "absolute top-1 right-1" : "ml-auto")}
+            className={cn(isCollapsed ? "absolute top-1 right-1" : "ml-auto")}
           />
         )}
       </Link>
     );
-    return collapsed ? (
+    return isCollapsed ? (
       <SimpleTooltip key={item.href} content={item.label} side="right">
         {link}
       </SimpleTooltip>
@@ -283,9 +307,11 @@ function SidebarContent({
   return (
     <aside
       className={cn(
-        "hidden md:flex flex-col shrink-0 border-r border-white/[0.06] bg-black/30",
+        mobile
+          ? "flex w-full flex-col bg-black/30"
+          : "hidden md:flex flex-col shrink-0 border-r border-white/[0.06] bg-black/30",
         "h-full min-h-0 overflow-hidden z-30 transition-[width] duration-150 ease-out",
-        width,
+        !mobile && width,
       )}
       aria-label="Primary navigation"
       data-hydrated={hydrated ? "true" : "false"}
@@ -293,7 +319,7 @@ function SidebarContent({
       <div
         className={cn(
           "flex h-16 items-center border-b border-white/[0.06] px-3.5",
-          collapsed ? "justify-center" : "justify-between",
+          isCollapsed ? "justify-center" : "justify-between",
         )}
       >
         <SimpleTooltip
@@ -302,6 +328,7 @@ function SidebarContent({
         >
           <Link
             href={scopedHref("/")}
+            onClick={onNavigate}
             className="flex items-center gap-2 text-foreground hover:text-foreground/80"
             aria-label={
               APP_VERSION ? `Kody home (v${APP_VERSION})` : "Kody home"
@@ -310,19 +337,19 @@ function SidebarContent({
             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-600 text-body-sm font-semibold text-white">
               K
             </div>
-            {!collapsed && (
+            {!isCollapsed && (
               <span className="truncate text-body-sm font-semibold tracking-tight">
                 {brandLabel}
               </span>
             )}
           </Link>
         </SimpleTooltip>
-        {brandRowExtra && !collapsed && (
+        {brandRowExtra && !isCollapsed && (
           <div className="shrink-0">{brandRowExtra}</div>
         )}
       </div>
 
-      {headerExtra && !collapsed && (
+      {headerExtra && !isCollapsed && (
         <div className="shrink-0 border-b border-white/[0.06] px-2.5 py-2">
           {headerExtra}
         </div>
@@ -337,7 +364,7 @@ function SidebarContent({
 
           {modeToggleVisible && (
             <div className="pb-2">
-              {collapsed ? (
+              {isCollapsed ? (
                 <SimpleTooltip
                   content={
                     sidebarMode === "vibe"
@@ -409,7 +436,7 @@ function SidebarContent({
               mode shows an icon that expands the rail so there's room to type. */}
           {searchVisible && (
             <div className="pb-1">
-              {collapsed ? (
+              {isCollapsed ? (
                 <SimpleTooltip content="Search" side="right">
                   <button
                     type="button"
@@ -447,6 +474,10 @@ function SidebarContent({
           )}
         </div>
 
+        {navigationExtra && (
+          <div className="shrink-0 px-2.5 pb-2">{navigationExtra}</div>
+        )}
+
         <div
           data-sidebar-scroll-list="true"
           className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2.5 pb-4"
@@ -466,14 +497,14 @@ function SidebarContent({
               const sectionActive =
                 activeCollapsibleSectionTitle === section.title;
               const showItems =
-                collapsed ||
+                isCollapsed ||
                 !section.collapsible ||
                 Boolean(query.trim()) ||
                 expandedSectionTitle === section.title;
 
               return (
                 <div key={section.title} className="space-y-1">
-                  {!collapsed && section.collapsible ? (
+                  {!isCollapsed && section.collapsible ? (
                     <button
                       type="button"
                       onClick={() =>
@@ -508,18 +539,18 @@ function SidebarContent({
                         )}
                       />
                     </button>
-                  ) : !collapsed ? (
+                  ) : !isCollapsed ? (
                     <p className="px-3.5 pb-1 pt-3.5 text-label font-semibold uppercase tracking-wider text-muted-foreground/80">
                       {section.title}
                     </p>
                   ) : null}
-                  {collapsed && i > 0 && (
+                  {isCollapsed && i > 0 && (
                     <div
                       className="my-2 mx-3 border-t border-white/[0.06]"
                       aria-hidden="true"
                     />
                   )}
-                  {section.collapsible && !collapsed ? (
+                  {section.collapsible && !isCollapsed ? (
                     <div
                       id={sectionId}
                       aria-hidden={!showItems}
@@ -551,6 +582,8 @@ function SidebarContent({
         </div>
       </nav>
 
+      {extras}
+
       <div className="space-y-1 border-t border-white/[0.06] p-2.5">
         {/* GitHub identity — click to reveal connected repo + sign out.
             Persistent app chrome, moved here from the page header. */}
@@ -573,7 +606,7 @@ function SidebarContent({
                 className={cn(
                   "flex h-10 w-full items-center gap-3.5 rounded-md px-3.5 text-body-sm transition-colors",
                   "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-                  collapsed && "justify-center px-0",
+                  isCollapsed && "justify-center px-0",
                 )}
               >
                 {githubUser ? (
@@ -589,7 +622,7 @@ function SidebarContent({
                 ) : (
                   <Github className="h-5 w-5 shrink-0" />
                 )}
-                {!collapsed && (
+                {!isCollapsed && (
                   <span className="truncate flex-1 text-left">
                     {githubUser ? `@${githubUser.login}` : "Connected"}
                   </span>
@@ -642,7 +675,7 @@ function SidebarContent({
             className={cn(
               "flex h-10 w-full items-center gap-3.5 rounded-md px-3.5 text-body-sm",
               "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-              collapsed && "justify-center px-0",
+              isCollapsed && "justify-center px-0",
             )}
           >
             {theme === "dark" ? (
@@ -650,7 +683,7 @@ function SidebarContent({
             ) : (
               <Moon className="h-5 w-5 shrink-0" />
             )}
-            {!collapsed && (
+            {!isCollapsed && (
               <span className="truncate">
                 {theme === "dark" ? "Light mode" : "Dark mode"}
               </span>
@@ -658,34 +691,38 @@ function SidebarContent({
           </button>
         </SimpleTooltip>
 
-        <SimpleTooltip
-          content={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          side="right"
-        >
-          <button
-            type="button"
-            onClick={toggleCollapsed}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            className={cn(
-              "flex h-10 w-full items-center gap-3.5 rounded-md px-3.5 text-body-sm",
-              "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
-              collapsed && "justify-center px-0",
-            )}
+        {!mobile && (
+          <SimpleTooltip
+            content={isCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            side="right"
           >
-            {collapsed ? (
-              <ChevronRight className="h-5 w-5 shrink-0" />
-            ) : (
-              <ChevronLeft className="h-5 w-5 shrink-0" />
-            )}
-            {!collapsed && <span className="truncate">Collapse</span>}
-          </button>
-        </SimpleTooltip>
+            <button
+              type="button"
+              onClick={toggleCollapsed}
+              aria-label={
+                isCollapsed ? "Expand sidebar" : "Collapse sidebar"
+              }
+              className={cn(
+                "flex h-10 w-full items-center gap-3.5 rounded-md px-3.5 text-body-sm",
+                "text-muted-foreground hover:bg-accent/50 hover:text-foreground",
+                isCollapsed && "justify-center px-0",
+              )}
+            >
+              {isCollapsed ? (
+                <ChevronRight className="h-5 w-5 shrink-0" />
+              ) : (
+                <ChevronLeft className="h-5 w-5 shrink-0" />
+              )}
+              {!isCollapsed && <span className="truncate">Collapse</span>}
+            </button>
+          </SimpleTooltip>
+        )}
 
         {(APP_VERSION || onReportIssue) && (
           <div
             className={cn(
               "flex items-center gap-2 pt-1",
-              collapsed ? "justify-center px-0" : "justify-between px-3",
+              isCollapsed ? "justify-center px-0" : "justify-between px-3",
             )}
           >
             {APP_VERSION && (
@@ -707,6 +744,12 @@ function SidebarContent({
           </div>
         )}
       </div>
+
+      {bottomCta && (
+        <div className="shrink-0 border-t border-white/[0.08] bg-black/40 px-3 py-3">
+          {bottomCta}
+        </div>
+      )}
     </aside>
   );
 }

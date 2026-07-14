@@ -23,7 +23,7 @@ describe("sidebar issue report action", () => {
     expect(sidebarSource).toContain("text-destructive");
     expect(sidebarSource).toContain('Bug className="h-5 w-5"');
     expect(sidebarSource).toContain(
-      'collapsed ? "justify-center px-0" : "justify-between px-3"',
+      'isCollapsed ? "justify-center px-0" : "justify-between px-3"',
     );
     expect(sidebarSource).not.toContain(">\n                Report issue\n");
     expect(sidebarSource.indexOf("{APP_VERSION && (")).toBeLessThan(

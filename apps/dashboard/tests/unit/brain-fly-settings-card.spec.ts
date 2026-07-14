@@ -55,4 +55,14 @@ describe("Brain on Fly settings card", () => {
       "Update\n                  the repo Fly token",
     );
   });
+
+  it("refreshes live Brain state while the config card stays open", () => {
+    expect(BRAIN_CARD_SOURCE).toContain("BRAIN_STATUS_REFRESH_MS");
+    expect(BRAIN_CARD_SOURCE).toContain(
+      'window.addEventListener("focus", refreshWhenVisible)',
+    );
+    expect(BRAIN_CARD_SOURCE).toContain(
+      "window.setTimeout(poll, BRAIN_STATUS_REFRESH_MS)",
+    );
+  });
 });

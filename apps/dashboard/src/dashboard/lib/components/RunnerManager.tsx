@@ -41,8 +41,11 @@ import { PageShell } from "./PageShell";
 import { SimpleTooltip } from "./SimpleTooltip";
 import { VaultLockedBanner } from "./VaultLockedBanner";
 import { buildAuthHeaders, useAuth, type FlyPerfTier } from "../auth-context";
+import {
+  useFlyTokenStatus,
+  type FlyTokenStatus,
+} from "../hooks/useFlyTokenStatus";
 
-const FLY_VAULT_KEY = "FLY_API_TOKEN";
 const POOL_MIN_VAULT_KEY = "POOL_MIN";
 const POOL_MIN_DEFAULT = 2;
 const POOL_MIN_MAX = 10;
@@ -151,43 +154,13 @@ function GroupHeader({
   );
 }
 
-function useFlyTokenConfigured(headers: Record<string, string>): boolean {
-  const [flyTokenConfigured, setFlyTokenConfigured] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function probeFlyToken() {
-      if (Object.keys(headers).length === 0) {
-        if (!cancelled) setFlyTokenConfigured(false);
-        return;
-      }
-      try {
-        const res = await fetch(`/api/kody/secrets/${FLY_VAULT_KEY}/value`, {
-          headers,
-        });
-        if (!res.ok) {
-          if (!cancelled) setFlyTokenConfigured(false);
-          return;
-        }
-        const body = (await res.json()) as { value?: string };
-        if (!cancelled) setFlyTokenConfigured(Boolean(body.value));
-      } catch {
-        if (!cancelled) setFlyTokenConfigured(false);
-      }
-    }
-
-    void probeFlyToken();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [headers]);
-
-  return flyTokenConfigured;
-}
-
-function FlyTokenCard({ flyTokenConfigured }: { flyTokenConfigured: boolean }) {
+function FlyTokenCard({ status }: { status: FlyTokenStatus }) {
+  const { configured, source } = status;
+  const statusLabel = status.loading
+    ? "Checking"
+    : source === "repo-vault"
+      ? "Repo token"
+      : "Not configured";
   return (
     <Card className="border-white/[0.08] bg-white/[0.03]">
       <CardContent className="p-4 space-y-2">
@@ -198,7 +171,7 @@ function FlyTokenCard({ flyTokenConfigured }: { flyTokenConfigured: boolean }) {
             side="right"
             content={
               <>
-                Required for everything below. Set{" "}
+                Fly features require this repo's own token. Set{" "}
                 <span className="font-mono">FLY_API_TOKEN</span> on the{" "}
                 <RepoScopedLink
                   href="/secrets"
@@ -206,8 +179,7 @@ function FlyTokenCard({ flyTokenConfigured }: { flyTokenConfigured: boolean }) {
                 >
                   Secrets
                 </RepoScopedLink>{" "}
-                page. Without it, every Fly feature falls back to GitHub
-                Actions.
+                page to give this repo its own Fly account boundary.
               </>
             }
           >
@@ -215,10 +187,10 @@ function FlyTokenCard({ flyTokenConfigured }: { flyTokenConfigured: boolean }) {
           </SimpleTooltip>
           <span
             className={`ml-auto text-[11px] ${
-              flyTokenConfigured ? "text-emerald-300" : "text-amber-300"
+              configured ? "text-emerald-300" : "text-amber-300"
             }`}
           >
-            {flyTokenConfigured ? "configured" : "not set"}
+            {statusLabel}
           </span>
         </div>
       </CardContent>
@@ -227,10 +199,10 @@ function FlyTokenCard({ flyTokenConfigured }: { flyTokenConfigured: boolean }) {
 }
 
 function RunnerConfigView({
-  flyTokenConfigured,
+  flyTokenStatus,
   headers,
 }: {
-  flyTokenConfigured: boolean;
+  flyTokenStatus: FlyTokenStatus;
   headers: Record<string, string>;
 }) {
   const { auth, updateIntegrations } = useAuth();
@@ -316,9 +288,9 @@ function RunnerConfigView({
 
   return (
     <div className="space-y-6">
-      <FlyTokenCard flyTokenConfigured={flyTokenConfigured} />
+      <FlyTokenCard status={flyTokenStatus} />
 
-      {flyTokenConfigured && (
+      {flyTokenStatus.configured && (
         <>
           <section className="space-y-3">
             <GroupHeader
@@ -426,7 +398,7 @@ function RunnerConfigView({
             />
             <BrainFlyCard
               headers={headers}
-              flyTokenConfigured={flyTokenConfigured}
+              flyTokenConfigured={flyTokenStatus.configured}
               onStatusChange={setBrainState}
             />
           </section>
@@ -479,7 +451,8 @@ export function RunnerManager({ view = "config" }: RunnerManagerProps) {
   const headers = useMemo<Record<string, string>>(() => {
     return auth ? buildAuthHeaders(auth) : EMPTY_HEADERS;
   }, [auth]);
-  const flyTokenConfigured = useFlyTokenConfigured(headers);
+  const flyTokenStatus = useFlyTokenStatus(headers);
+  const flyTokenConfigured = flyTokenStatus.configured;
   const copy = FLY_VIEW_COPY[view];
 
   return (
@@ -493,10 +466,7 @@ export function RunnerManager({ view = "config" }: RunnerManagerProps) {
         <VaultLockedBanner feature="Fly runners and previews stay off until the vault can be read." />
 
         {view === "config" && (
-          <RunnerConfigView
-            headers={headers}
-            flyTokenConfigured={flyTokenConfigured}
-          />
+          <RunnerConfigView headers={headers} flyTokenStatus={flyTokenStatus} />
         )}
 
         {view === "previews" && (

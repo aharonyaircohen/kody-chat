@@ -54,6 +54,7 @@ function flyContext(overrides: Partial<FlyContext> = {}): FlyContext {
     githubToken: "ghp_x",
     octokit: {} as FlyContext["octokit"],
     allSecrets: { MODEL_KEY: "secret" },
+    providerTokenSource: "repo-vault",
     flyToken: "fly-token",
     flyOrgSlug: "personal",
     flyDefaultRegion: "fra",

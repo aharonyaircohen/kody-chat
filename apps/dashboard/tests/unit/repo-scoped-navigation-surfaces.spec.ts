@@ -26,7 +26,7 @@ describe("repo-scoped navigation surfaces", () => {
     );
   });
 
-  it("scopes mobile menu links through the route model", () => {
+  it("scopes mobile menu links through the shared sidebar", () => {
     const mobileMenu = readFileSync(
       join(
         process.cwd(),
@@ -34,8 +34,8 @@ describe("repo-scoped navigation surfaces", () => {
       ),
       "utf8",
     );
-    expect(mobileMenu).toContain("repoScopedHref");
-    expect(mobileMenu).toContain("scopedHref(item.href)");
+    expect(mobileMenu).toContain('import { Sidebar } from "./Sidebar"');
+    expect(mobileMenu).toContain('<Sidebar presentation="mobile"');
   });
 
   it("scopes command palette navigation through the route model", () => {

@@ -50,10 +50,13 @@ describe("repository removal surfaces", () => {
     );
   });
 
-  it("exposes current repository removal in the mobile menu", () => {
-    expect(MOBILE_MENU).toMatch(/Remove current repo/);
-    expect(MOBILE_MENU).toMatch(/setConfirmRemove\(\{/);
-    expect(MOBILE_MENU).toMatch(/removeRepo\(confirmRemove\.index\)/);
+  it("reuses the repository switcher for mobile repository removal", () => {
+    expect(MOBILE_MENU).toContain('import { RepoSwitcher } from "./RepoSwitcher"');
+    expect(MOBILE_MENU).toContain(
+      'headerExtra = <RepoSwitcher variant="rail" />',
+    );
+    expect(REPO_SWITCHER).toMatch(/setConfirmRemove\(\{ index, entry \}\)/);
+    expect(REPO_SWITCHER).toMatch(/removeRepo\(index\)/);
   });
 
   it("exposes repository removal on the org page attached repository rows", () => {

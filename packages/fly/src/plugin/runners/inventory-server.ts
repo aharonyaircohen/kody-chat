@@ -51,12 +51,6 @@ export function refreshFlyInventoryCounts(
   };
 }
 
-function envFlyTokenFallback(primaryToken: string): string | undefined {
-  const token =
-    process.env.FLY_API_TOKEN?.trim() || process.env.FLY_IO_TOKEN?.trim();
-  return token && token !== primaryToken ? token : undefined;
-}
-
 function tokenKey(token: string): string {
   return createHash("sha256").update(token).digest("hex").slice(0, 16);
 }
@@ -135,17 +129,8 @@ export async function resolveSavedBrainServiceForRequest(
         orgSlug: resolvedContext.flyOrgSlug,
         defaultRegion: resolvedContext.flyDefaultRegion,
       });
-    let flyToken = initialFlyToken;
-    let brain = await resolveBrain(flyToken);
-    const fallbackToken = envFlyTokenFallback(initialFlyToken);
-    if (brain.stored && !brain.machine && fallbackToken) {
-      const fallbackBrain = await resolveBrain(fallbackToken);
-      if (fallbackBrain.machine) {
-        brain = fallbackBrain;
-        flyToken = fallbackToken;
-      }
-    }
-    return { brain, context: resolvedContext, flyToken };
+    const brain = await resolveBrain(initialFlyToken);
+    return { brain, context: resolvedContext, flyToken: initialFlyToken };
   } catch (err) {
     logger.warn(
       { err, owner: resolvedContext.owner },

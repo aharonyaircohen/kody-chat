@@ -23,6 +23,15 @@ vi.mock("@kody-ade/base/auth", () => ({
 }));
 
 vi.mock("@kody-ade/fly/plugin/runners/context", () => ({
+  flyConfigFromContext: vi.fn((context) =>
+    context.flyToken
+      ? {
+          token: context.flyToken,
+          orgSlug: context.flyOrgSlug,
+          defaultRegion: context.flyDefaultRegion,
+        }
+      : null,
+  ),
   resolveFlyContext: vi.fn(async () => ({
     ok: true,
     context: {
@@ -94,6 +103,7 @@ vi.mock("@kody-ade/brain/image-runtime", () => ({
 
 import { DELETE, GET, POST } from "../../app/api/kody/brain/image/route";
 import { resolveBrainService } from "@kody-ade/brain/service-resolver";
+import { resolveFlyContext } from "@kody-ade/fly/plugin/runners/context";
 import { ensureTerminalBridge } from "../../node_modules/@kody-ade/fly/src/plugin/terminal/bridge";
 
 afterEach(() => {
@@ -110,6 +120,24 @@ function request(
     method,
     body: method === "POST" ? JSON.stringify(body) : undefined,
   });
+}
+
+function mockRepoWithoutFlyToken() {
+  vi.mocked(resolveFlyContext).mockResolvedValueOnce({
+    ok: true,
+    context: {
+      owner: "A-Guy-educ",
+      repo: "A-Guy-Web",
+      account: "aguyaharonyair",
+      githubToken: "gh-token",
+      flyToken: undefined,
+      flyOrgSlug: "personal",
+      flyDefaultRegion: "fra",
+      providerTokenSource: null,
+      allSecrets: {},
+      engineModel: undefined,
+    },
+  } as never);
 }
 
 describe("GET /api/kody/brain/image", () => {
@@ -136,6 +164,20 @@ describe("GET /api/kody/brain/image", () => {
         },
       ],
     });
+  });
+
+  it("does not expose Brain images when the repo has no Fly token", async () => {
+    mockRepoWithoutFlyToken();
+    vi.stubGlobal("fetch", vi.fn());
+
+    const res = await GET(request("GET"));
+
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toMatchObject({
+      error: "fly_token_missing",
+    });
+    expect(mocks.readImage).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it("includes historical Brain image tags from the GHCR package", async () => {
@@ -664,6 +706,24 @@ describe("DELETE /api/kody/brain/image", () => {
     );
   });
 
+  it("does not delete Brain images when the repo has no Fly token", async () => {
+    mockRepoWithoutFlyToken();
+
+    const res = await DELETE(
+      request(
+        "DELETE",
+        "https://dash.test/api/kody/brain/image?imageRef=ghcr.io/a-guy-educ/kody-brain-aguyaharonyair:old",
+      ),
+    );
+
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toMatchObject({
+      error: "fly_token_missing",
+    });
+    expect(mocks.deleteImage).not.toHaveBeenCalled();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it("deletes the requested GHCR image before removing its Brain state", async () => {
     const res = await DELETE(
       request(
@@ -749,6 +809,18 @@ describe("POST /api/kody/brain/image", () => {
       stderr: "",
       error: null,
     });
+  });
+
+  it("does not start a Brain image save when the repo has no Fly token", async () => {
+    mockRepoWithoutFlyToken();
+
+    const res = await POST(request());
+
+    expect(res.status).toBe(503);
+    await expect(res.json()).resolves.toMatchObject({
+      error: "fly_token_missing",
+    });
+    expect(mocks.startJob).not.toHaveBeenCalled();
   });
 
   it("starts a save job against the resolved Brain org, not stale client input", async () => {

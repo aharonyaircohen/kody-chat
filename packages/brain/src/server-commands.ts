@@ -21,6 +21,7 @@ import {
 import type { ServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
 
 import { resolveBrainService } from "./service-resolver";
+import { clearBrainRuntimeDeployment } from "./runtime-manager";
 import { clearBrainApp, readBrainApp, writeBrainApp } from "./store";
 import { resolveBrainTarget } from "./target";
 
@@ -167,6 +168,10 @@ export async function manageBrainServer(input: ManageBrainServerInput) {
       defaultRegion: context.flyDefaultRegion,
       appNameOverride: brain.app,
     });
+    await clearBrainRuntimeDeployment(
+      context.account,
+      context.githubToken,
+    );
     await clearBrainApp(context.account, context.githubToken);
     return { ok: true };
   }

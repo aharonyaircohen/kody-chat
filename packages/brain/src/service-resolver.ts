@@ -45,24 +45,6 @@ export interface ServerBrainServiceResolution {
 
 export type BrainServiceResolution = ServerBrainServiceResolution;
 
-function envFlyTokenFallback(primaryToken: string): string | undefined {
-  const token =
-    process.env.FLY_API_TOKEN?.trim() || process.env.FLY_IO_TOKEN?.trim();
-  return token && token !== primaryToken ? token : undefined;
-}
-
-function sameResolvedBrainMachine(
-  a: ServerBrainServiceResolution,
-  b: ServerBrainServiceResolution,
-): boolean {
-  return Boolean(
-    a.app === b.app &&
-      a.machineId &&
-      b.machineId &&
-      a.machineId === b.machineId,
-  );
-}
-
 function flyAccessDenied(error: unknown): boolean {
   const status = (error as { status?: number })?.status;
   if (status === 401 || status === 403) return true;
@@ -164,26 +146,5 @@ export async function resolveBrainService(input: {
     };
   };
 
-  const primary = await resolveWithToken(input.flyToken);
-  const fallback =
-    stored || runtime?.runningApp
-      ? envFlyTokenFallback(input.flyToken)
-      : undefined;
-  if (fallback) {
-    const fallbackResult = await resolveWithToken(fallback).catch(() => null);
-    // Never prefer a fallback the env token could not actually access —
-    // machineId equality alone is not proof of access (both sides derive
-    // it from the same stored runtime record even on a 403).
-    if (
-      fallbackResult &&
-      fallbackResult.reason !== "fly_access_denied" &&
-      (primary.machine
-        ? sameResolvedBrainMachine(primary, fallbackResult) &&
-          Boolean(fallbackResult.machine)
-        : fallbackResult.machine || fallbackResult.state !== "off")
-    ) {
-      return fallbackResult;
-    }
-  }
-  return primary;
+  return resolveWithToken(input.flyToken);
 }

@@ -85,10 +85,11 @@ describe("resolveFlyContext", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.context.flyToken).toBe("fly_vault");
+    expect(result.context.providerTokenSource).toBe("repo-vault");
     expect(result.context.allSecrets).toEqual({ MINIMAX_API_KEY: "mini" });
   });
 
-  it("falls back to server env when the vault has no Fly token", async () => {
+  it("does not use the server Fly token when the repo vault has none", async () => {
     vi.stubEnv("FLY_API_TOKEN", "fly_server");
     readVault.mockResolvedValue(vault({ GEMINI_API_KEY: "gemini" }));
 
@@ -96,8 +97,20 @@ describe("resolveFlyContext", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.context.flyToken).toBe("fly_server");
+    expect(result.context.flyToken).toBeUndefined();
+    expect(result.context.providerTokenSource).toBeNull();
     expect(result.context.allSecrets).toEqual({ GEMINI_API_KEY: "gemini" });
+  });
+
+  it("reports that no repo Fly token is configured", async () => {
+    readVault.mockResolvedValue(vault({ GEMINI_API_KEY: "gemini" }));
+
+    const result = await resolveFlyContext(req());
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.context.flyToken).toBeUndefined();
+    expect(result.context.providerTokenSource).toBeNull();
   });
 
   it("prefers the dashboard model registry for Brain model runtime config", async () => {

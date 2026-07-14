@@ -155,7 +155,7 @@ describe("resolveBrainService", () => {
     expect(resolved.reason).toBe("runtime_machine_not_found");
   });
 
-  it("uses the environment Fly token when the stored Brain is only visible there", async () => {
+  it("does not use the environment Fly token when the stored Brain is hidden", async () => {
     process.env.FLY_API_TOKEN = "fallback-token";
     brainFly.brainStatus
       .mockResolvedValueOnce({
@@ -192,12 +192,16 @@ describe("resolveBrainService", () => {
       defaultRegion: "fra",
     });
 
-    expect(resolved.flyToken).toBe("fallback-token");
-    expect(resolved.machineId).toBe("m-fallback");
+    expect(resolved.flyToken).toBe("vault-token");
+    expect(resolved.machine).toBeUndefined();
+    expect(brainFly.brainStatus).toHaveBeenCalledTimes(1);
+    expect(flyPreviews.listMachines).toHaveBeenCalledTimes(1);
+    brainFly.brainStatus.mockReset();
+    flyPreviews.listMachines.mockReset();
     delete process.env.FLY_API_TOKEN;
   });
 
-  it("prefers the environment Fly token when it resolves the same Brain machine", async () => {
+  it("does not prefer the environment Fly token for the same Brain machine", async () => {
     process.env.FLY_API_TOKEN = "fallback-token";
     brainFly.brainStatus
       .mockResolvedValueOnce({
@@ -243,12 +247,16 @@ describe("resolveBrainService", () => {
       defaultRegion: "fra",
     });
 
-    expect(resolved.flyToken).toBe("fallback-token");
+    expect(resolved.flyToken).toBe("vault-token");
     expect(resolved.machineId).toBe("m-old");
+    expect(brainFly.brainStatus).toHaveBeenCalledTimes(1);
+    expect(flyPreviews.listMachines).toHaveBeenCalledTimes(1);
+    brainFly.brainStatus.mockReset();
+    flyPreviews.listMachines.mockReset();
     delete process.env.FLY_API_TOKEN;
   });
 
-  it("uses the environment Fly token for runtime-only Brain records", async () => {
+  it("does not use the environment Fly token for runtime-only Brain records", async () => {
     process.env.FLY_API_TOKEN = "fallback-token";
     store.readBrainApp.mockResolvedValueOnce(null);
     runtimeManager.readBrainRuntimeView.mockResolvedValueOnce({
@@ -292,8 +300,13 @@ describe("resolveBrainService", () => {
       defaultRegion: "fra",
     });
 
-    expect(resolved.flyToken).toBe("fallback-token");
+    expect(resolved.flyToken).toBe("vault-token");
     expect(resolved.machineId).toBe("m-runtime");
+    expect(resolved.machine).toBeUndefined();
+    expect(brainFly.brainStatus).toHaveBeenCalledTimes(1);
+    expect(flyPreviews.listMachines).toHaveBeenCalledTimes(1);
+    brainFly.brainStatus.mockReset();
+    flyPreviews.listMachines.mockReset();
     delete process.env.FLY_API_TOKEN;
   });
 

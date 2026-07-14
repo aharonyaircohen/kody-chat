@@ -187,6 +187,7 @@ export function ChatShell({
             open={mobileNavOpen}
             onOpenChange={setMobileNavOpen}
             sections={mobileSections}
+            headerExtra={sidebarHeaderExtra}
           />
         </>
       )}

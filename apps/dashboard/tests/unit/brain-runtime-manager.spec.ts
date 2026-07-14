@@ -11,7 +11,9 @@ const imageStore = vi.hoisted(() => ({
 
 const runtimeStore = vi.hoisted(() => ({
   readBrainRuntimeState: vi.fn(),
-  writeBrainRuntimeState: vi.fn(async () => undefined),
+  writeBrainRuntimeState: vi.fn(
+    async (_login: string, _token: string, _file: unknown) => undefined,
+  ),
 }));
 
 vi.mock("@kody-ade/brain/store", () => imageStore);
@@ -62,6 +64,44 @@ describe("Brain runtime manager", () => {
         operation: expect.objectContaining({ status: "completed" }),
       }),
     );
+  });
+
+  it("clears deployment metadata while preserving the desired image", async () => {
+    runtimeStore.readBrainRuntimeState.mockResolvedValueOnce({
+      version: 1,
+      desiredImageRef: "ghcr.io/acme/kody-brain-octocat:selected",
+      running: {
+        imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
+        app: "brain-1",
+        machineId: "machine-1",
+        orgSlug: "personal",
+        appliedAt: "2026-07-02T10:00:00.000Z",
+      },
+      operation: {
+        id: "op-1",
+        type: "apply-image",
+        status: "completed",
+        imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
+        startedAt: "2026-07-02T09:00:00.000Z",
+        updatedAt: "2026-07-02T10:00:00.000Z",
+      },
+      updatedAt: "2026-07-02T10:00:00.000Z",
+    });
+    const { clearBrainRuntimeDeployment } =
+      await import("@kody-ade/brain/runtime-manager");
+
+    await clearBrainRuntimeDeployment("octocat", "token");
+
+    expect(runtimeStore.writeBrainRuntimeState).toHaveBeenCalledWith(
+      "octocat",
+      "token",
+      expect.objectContaining({
+        desiredImageRef: "ghcr.io/acme/kody-brain-octocat:selected",
+      }),
+    );
+    const written = runtimeStore.writeBrainRuntimeState.mock.calls[0]?.[2];
+    expect(written).not.toHaveProperty("running");
+    expect(written).not.toHaveProperty("operation");
   });
 
   it("falls back to legacy image running metadata for migration only", async () => {

@@ -23,8 +23,10 @@ import { toast } from "sonner";
 import { Button } from "@kody-ade/base/ui/button";
 import { Card, CardContent } from "@kody-ade/base/ui/card";
 import { buildAuthHeaders, useAuth } from "../auth-context";
+import { useFlyTokenStatus } from "../hooks/useFlyTokenStatus";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { PageShell } from "./PageShell";
+import { RepoScopedLink } from "./RepoScopedLink";
 
 interface BrainSavedImage {
   imageRef: string;
@@ -162,6 +164,7 @@ function liveSignalLabel(heartbeatAt?: string): string | null {
 export function BrainImagesManager() {
   const { auth } = useAuth();
   const headers = useMemo(() => (auth ? buildAuthHeaders(auth) : null), [auth]);
+  const flyTokenStatus = useFlyTokenStatus(headers);
   const [images, setImages] = useState<BrainSavedImage[]>([]);
   const [runningImageRef, setRunningImageRef] = useState<string | null>(null);
   const [runningAt, setRunningAt] = useState<string | null>(null);
@@ -175,7 +178,7 @@ export function BrainImagesManager() {
   const [error, setError] = useState<string | null>(null);
 
   const loadImages = useCallback(async () => {
-    if (!headers) {
+    if (!headers || !flyTokenStatus.configured) {
       setImages([]);
       setRunningImageRef(null);
       setRunningAt(null);
@@ -215,7 +218,7 @@ export function BrainImagesManager() {
     } finally {
       setLoading(false);
     }
-  }, [headers]);
+  }, [flyTokenStatus.configured, headers]);
 
   const pollSave = useCallback(
     async (jobId: string) => {
@@ -372,6 +375,53 @@ export function BrainImagesManager() {
     } finally {
       setBusyRef(null);
     }
+  }
+
+  if (flyTokenStatus.loading) {
+    return (
+      <PageShell
+        title="Brain Images"
+        icon={Brain}
+        iconClassName="text-violet-400"
+        subtitle="Saved Brain runtime images and the image currently running."
+      >
+        <Card className="border-white/[0.08] bg-white/[0.03]">
+          <CardContent className="flex items-center gap-2 p-4 text-sm text-white/60">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Checking Fly access...
+          </CardContent>
+        </Card>
+      </PageShell>
+    );
+  }
+
+  if (!flyTokenStatus.configured) {
+    return (
+      <PageShell
+        title="Brain Images"
+        icon={Brain}
+        iconClassName="text-violet-400"
+        subtitle="Saved Brain runtime images and the image currently running."
+      >
+        <Card className="border-amber-400/20 bg-amber-400/[0.06]">
+          <CardContent className="space-y-2 p-4">
+            <div className="text-sm font-semibold text-amber-100">
+              Fly token required
+            </div>
+            <p className="text-sm text-amber-100/70">
+              Add this repo&apos;s FLY_API_TOKEN on the{" "}
+              <RepoScopedLink
+                href="/secrets"
+                className="font-medium text-amber-100 underline underline-offset-2"
+              >
+                Secrets page
+              </RepoScopedLink>{" "}
+              before viewing or managing Brain images.
+            </p>
+          </CardContent>
+        </Card>
+      </PageShell>
+    );
   }
 
   return (

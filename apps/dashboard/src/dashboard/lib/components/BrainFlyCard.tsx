@@ -60,6 +60,7 @@ const BRAIN_SIZE_LABELS: Record<FlyPerfTier, { label: string; hint: string }> =
     high: { label: "Fast", hint: "performance 2× / 4 GB — costs more" },
   };
 const BRAIN_SUSPENSION_DEFAULT: BrainSuspensionMode = "auto";
+const BRAIN_STATUS_REFRESH_MS = 15_000;
 const BRAIN_SUSPENSION_OPTIONS: Array<{
   value: BrainSuspensionMode;
   label: string;
@@ -279,7 +280,40 @@ export function BrainFlyCard({
   }, [headers, flyTokenConfigured]);
 
   useEffect(() => {
-    void refresh();
+    let cancelled = false;
+    let refreshInFlight = false;
+    let timer: number | null = null;
+
+    async function refreshWhenVisible() {
+      if (
+        cancelled ||
+        refreshInFlight ||
+        document.visibilityState !== "visible"
+      ) {
+        return;
+      }
+      refreshInFlight = true;
+      try {
+        await refresh();
+      } finally {
+        refreshInFlight = false;
+      }
+    }
+
+    async function poll() {
+      await refreshWhenVisible();
+      if (!cancelled) {
+        timer = window.setTimeout(poll, BRAIN_STATUS_REFRESH_MS);
+      }
+    }
+
+    void poll();
+    window.addEventListener("focus", refreshWhenVisible);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("focus", refreshWhenVisible);
+      if (timer !== null) window.clearTimeout(timer);
+    };
   }, [refresh]);
 
   // Load the per-repo chat-picker flag. Silent on failure — defaults to

@@ -66,17 +66,7 @@ export function terminalFlyConfigForMachine(
 export function terminalBridgeConfigCandidates(
   targetCfg: ServerProviderConfig,
 ): ServerProviderConfig[] {
-  const seen = new Set([targetCfg.token]);
-  const candidates = [targetCfg];
-  for (const token of [
-    process.env.FLY_API_TOKEN?.trim(),
-    process.env.FLY_IO_TOKEN?.trim(),
-  ]) {
-    if (!token || seen.has(token)) continue;
-    seen.add(token);
-    candidates.push({ ...targetCfg, token });
-  }
-  return candidates;
+  return [targetCfg];
 }
 
 function savedBrainTargetsRequest(

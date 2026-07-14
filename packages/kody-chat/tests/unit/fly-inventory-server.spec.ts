@@ -153,7 +153,7 @@ describe("appendSavedBrainMachineToInventory", () => {
     expect(inventory.machines).toEqual([]);
   });
 
-  it("uses an env token only to recover the saved Brain row", async () => {
+  it("does not use an env token to recover the saved Brain row", async () => {
     vi.stubEnv("FLY_API_TOKEN", "env-fly-token");
     brainResolver.resolveBrainService
       .mockResolvedValueOnce({
@@ -208,27 +208,20 @@ describe("appendSavedBrainMachineToInventory", () => {
 
     await expect(
       appendSavedBrainMachineToInventory({} as never, inventory),
-    ).resolves.toBe(true);
+    ).resolves.toBe(false);
 
     expect(brainResolver.resolveBrainService).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({ flyToken: "fly-token" }),
     );
-    expect(brainResolver.resolveBrainService).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({ flyToken: "env-fly-token" }),
-    );
+    expect(brainResolver.resolveBrainService).toHaveBeenCalledTimes(1);
     expect(inventory.machines).toEqual([
       expect.objectContaining({ app: "kody-runner", feature: "runner" }),
-      expect.objectContaining({
-        app: "custom-brain",
-        feature: "brain",
-        machineId: "brain-1",
-      }),
     ]);
+    brainResolver.resolveBrainService.mockReset();
   });
 
-  it("returns the token that resolved the saved Brain machine", async () => {
+  it("returns only the repo-token resolution when an env token exists", async () => {
     vi.stubEnv("FLY_API_TOKEN", "env-fly-token");
     brainResolver.resolveBrainService
       .mockResolvedValueOnce({
@@ -268,11 +261,12 @@ describe("appendSavedBrainMachineToInventory", () => {
 
     await expect(resolveSavedBrainServiceForRequest({} as never)).resolves
       .toMatchObject({
-        flyToken: "env-fly-token",
+        flyToken: "fly-token",
         brain: {
           app: "custom-brain",
-          machineId: "brain-1",
+          state: "off",
         },
       });
+    expect(brainResolver.resolveBrainService).toHaveBeenCalledTimes(1);
   });
 });

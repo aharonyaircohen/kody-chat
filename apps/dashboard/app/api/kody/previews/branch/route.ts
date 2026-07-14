@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
       {
         error: "fly_token_missing",
         message:
-          "FLY_API_TOKEN not in this repo's secrets vault and no FLY_API_TOKEN env fallback.",
+          "FLY_API_TOKEN not in this repo's secrets vault.",
       },
       { status: 503 },
     );

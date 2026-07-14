@@ -123,7 +123,7 @@ const mcpServerSchema = z.object({
 
 const createCapabilitySchema = z
   .object({
-    slug: z.string().min(1).max(64),
+    slug: z.string().min(1).max(64).optional(),
     describe: z.string().default(""),
     instructions: z.string().min(1, "instructions are required").optional(),
     prompt: z.string().min(1).optional(),
@@ -141,6 +141,35 @@ const createCapabilitySchema = z
     message: "instructions are required",
     path: ["instructions"],
   });
+
+/** Slugify the first plain words of the instructions into a valid slug. */
+function slugifyInstructions(instructions: string): string {
+  return instructions
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .split("-")
+    .slice(0, 5)
+    .join("-")
+    .slice(0, 48)
+    .replace(/-+$/g, "");
+}
+
+/**
+ * Derive a valid, unused capability slug from the instructions. Appends a
+ * numeric suffix when the base is taken. Returns null if nothing slug-able.
+ */
+async function deriveFreeSlug(instructions: string): Promise<string | null> {
+  const base = slugifyInstructions(instructions);
+  if (!base || !isValidSlug(base)) return null;
+  if (!(await readCapabilityFile(base))) return base;
+  for (let i = 2; i <= 99; i++) {
+    const candidate = `${base}-${i}`.slice(0, 64);
+    if (!(await readCapabilityFile(candidate))) return candidate;
+  }
+  return null;
+}
 
 export async function POST(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
@@ -160,26 +189,44 @@ export async function POST(req: NextRequest) {
     const input = createCapabilitySchema.parse(await req.json());
     const instructions = input.instructions ?? input.prompt ?? "";
 
-    if (!isValidSlug(input.slug)) {
-      return NextResponse.json(
-        {
-          error: "invalid_slug",
-          message:
-            "Capability name must be lowercase letters, digits, dashes, or underscores.",
-        },
-        { status: 400 },
-      );
-    }
-
-    const existing = await readCapabilityFile(input.slug);
-    if (existing) {
-      return NextResponse.json(
-        {
-          error: "slug_taken",
-          message: `Capability "${input.slug}" already exists.`,
-        },
-        { status: 409 },
-      );
+    // Slug is optional: when omitted, derive it from the instructions so a
+    // caller can create a capability from instructions alone. A supplied slug
+    // is still validated and must be free.
+    let slug: string;
+    if (input.slug) {
+      if (!isValidSlug(input.slug)) {
+        return NextResponse.json(
+          {
+            error: "invalid_slug",
+            message:
+              "Capability name must be lowercase letters, digits, dashes, or underscores.",
+          },
+          { status: 400 },
+        );
+      }
+      if (await readCapabilityFile(input.slug)) {
+        return NextResponse.json(
+          {
+            error: "slug_taken",
+            message: `Capability "${input.slug}" already exists.`,
+          },
+          { status: 409 },
+        );
+      }
+      slug = input.slug;
+    } else {
+      const derived = await deriveFreeSlug(instructions);
+      if (!derived) {
+        return NextResponse.json(
+          {
+            error: "invalid_slug",
+            message:
+              "Could not derive a name from the instructions — provide a slug or start the instructions with a few plain words.",
+          },
+          { status: 400 },
+        );
+      }
+      slug = derived;
     }
 
     const actorResult = await verifyActorLogin(req, input.actorLogin);
@@ -200,7 +247,7 @@ export async function POST(req: NextRequest) {
     const capability = await writeCapabilityFile({
       octokit: userOctokit,
       fields: {
-        slug: input.slug,
+        slug,
         describe: input.describe,
         prompt: instructions,
         model: input.model,
@@ -218,8 +265,8 @@ export async function POST(req: NextRequest) {
 
     recordAudit(req, {
       action: "capability.create",
-      resource: input.slug,
-      detail: `created capability ${input.slug}`,
+      resource: slug,
+      detail: `created capability ${slug}`,
     });
 
     return NextResponse.json({ capability });

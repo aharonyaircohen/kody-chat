@@ -155,31 +155,14 @@ describe("resolveBrainService", () => {
     expect(resolved.reason).toBe("runtime_machine_not_found");
   });
 
-  it("uses the environment Fly token when the stored Brain is only visible there", async () => {
+  it("does not use an environment Fly token to expand repo access", async () => {
     process.env.FLY_API_TOKEN = "fallback-token";
-    brainFly.brainStatus
-      .mockResolvedValueOnce({
-        app: "brain-1",
-        state: "off",
-        org: "personal",
-      })
-      .mockResolvedValueOnce({
-        app: "brain-1",
-        state: "running",
-        url: "https://brain-1.fly.dev",
-        machineId: "m-fallback",
-        org: "personal",
-      });
-    flyPreviews.listMachines
-      .mockRejectedValueOnce(new Error("not visible"))
-      .mockResolvedValueOnce([
-        {
-          id: "m-fallback",
-          state: "started",
-          region: "fra",
-          createdAt: "2026-07-02T10:00:00.000Z",
-        },
-      ]);
+    brainFly.brainStatus.mockResolvedValueOnce({
+      app: "brain-1",
+      state: "off",
+      org: "personal",
+    });
+    flyPreviews.listMachines.mockRejectedValueOnce(new Error("not visible"));
     const { resolveBrainService } = await import(
       "@kody-ade/brain/service-resolver"
     );
@@ -192,109 +175,14 @@ describe("resolveBrainService", () => {
       defaultRegion: "fra",
     });
 
-    expect(resolved.flyToken).toBe("fallback-token");
-    expect(resolved.machineId).toBe("m-fallback");
-    delete process.env.FLY_API_TOKEN;
-  });
-
-  it("prefers the environment Fly token when it resolves the same Brain machine", async () => {
-    process.env.FLY_API_TOKEN = "fallback-token";
-    brainFly.brainStatus
-      .mockResolvedValueOnce({
-        app: "brain-1",
-        state: "running",
-        url: "https://brain-1.fly.dev",
-        machineId: "m-old",
-        org: "personal",
-      })
-      .mockResolvedValueOnce({
-        app: "brain-1",
-        state: "running",
-        url: "https://brain-1.fly.dev",
-        machineId: "m-old",
-        org: "personal",
-      });
-    flyPreviews.listMachines
-      .mockResolvedValueOnce([
-        {
-          id: "m-old",
-          state: "started",
-          region: "fra",
-          createdAt: "2026-07-02T10:00:00.000Z",
-        },
-      ])
-      .mockResolvedValueOnce([
-        {
-          id: "m-old",
-          state: "started",
-          region: "fra",
-          createdAt: "2026-07-02T10:00:00.000Z",
-        },
-      ]);
-    const { resolveBrainService } = await import(
-      "@kody-ade/brain/service-resolver"
+    expect(resolved.flyToken).toBe("vault-token");
+    expect(resolved.machine).toBeUndefined();
+    expect(brainFly.brainStatus).toHaveBeenCalledTimes(1);
+    expect(flyPreviews.listMachines).toHaveBeenCalledTimes(1);
+    expect(flyPreviews.listMachines).toHaveBeenCalledWith(
+      "brain-1",
+      expect.objectContaining({ token: "vault-token" }),
     );
-
-    const resolved = await resolveBrainService({
-      flyToken: "vault-token",
-      account: "octocat",
-      githubToken: "github-token",
-      orgSlug: "personal",
-      defaultRegion: "fra",
-    });
-
-    expect(resolved.flyToken).toBe("fallback-token");
-    expect(resolved.machineId).toBe("m-old");
-    delete process.env.FLY_API_TOKEN;
-  });
-
-  it("uses the environment Fly token for runtime-only Brain records", async () => {
-    process.env.FLY_API_TOKEN = "fallback-token";
-    store.readBrainApp.mockResolvedValueOnce(null);
-    runtimeManager.readBrainRuntimeView.mockResolvedValueOnce({
-      source: "runtime",
-      runningApp: "brain-1",
-      runningMachineId: "m-runtime",
-      runningOrgSlug: "personal",
-    });
-    brainFly.brainStatus
-      .mockResolvedValueOnce({
-        app: "brain-1",
-        state: "off",
-        org: "personal",
-      })
-      .mockResolvedValueOnce({
-        app: "brain-1",
-        state: "running",
-        url: "https://brain-1.fly.dev",
-        machineId: "m-runtime",
-        org: "personal",
-      });
-    flyPreviews.listMachines
-      .mockRejectedValueOnce(new Error("not visible"))
-      .mockResolvedValueOnce([
-        {
-          id: "m-runtime",
-          state: "started",
-          region: "fra",
-          createdAt: "2026-07-02T10:00:00.000Z",
-        },
-      ]);
-    const { resolveBrainService } = await import(
-      "@kody-ade/brain/service-resolver"
-    );
-
-    const resolved = await resolveBrainService({
-      flyToken: "vault-token",
-      account: "octocat",
-      githubToken: "github-token",
-      orgSlug: "personal",
-      defaultRegion: "fra",
-    });
-
-    expect(resolved.flyToken).toBe("fallback-token");
-    expect(resolved.machineId).toBe("m-runtime");
-    delete process.env.FLY_API_TOKEN;
   });
 
   it("keeps Fly authorization failures separate from missing apps", async () => {
