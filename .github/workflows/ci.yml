@@ -66,4 +66,5 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           E2E_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           E2E_GITHUB_REPO: ${{ github.repository }}
+          KODY_BOT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm --filter kody-dashboard test:e2e:gate
