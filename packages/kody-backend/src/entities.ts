@@ -215,6 +215,8 @@ export const ENTITIES: EntityDef[] = [
       "variables.json",
       "runs",
       "terminal",
+      "operations",
+      "chat",
     ],
     map: (path, text, tenantId, now) => {
       if (path === "dashboard.json") {
@@ -257,6 +259,21 @@ export const ENTITIES: EntityDef[] = [
         path === "runs/index.json"
       ) {
         const kind = path === "runs/index.json" ? "runs-index" : path.replace(".json", "")
+        return [
+          { table: "repoDocs", doc: { tenantId, kind, doc: JSON.parse(text), updatedAt: now } },
+        ]
+      }
+      m = path.match(/^operations\/([^/]+)\/operation\.json$/)
+      if (m) {
+        return [
+          {
+            table: "repoDocs",
+            doc: { tenantId, kind: `operation:${m[1]}`, doc: JSON.parse(text), updatedAt: now },
+          },
+        ]
+      }
+      if (path === "chat/global.json" || path === "chat/last-written.json") {
+        const kind = path === "chat/global.json" ? "chat-global" : "chat-global-gate"
         return [
           { table: "repoDocs", doc: { tenantId, kind, doc: JSON.parse(text), updatedAt: now } },
         ]

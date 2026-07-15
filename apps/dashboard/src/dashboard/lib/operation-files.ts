@@ -2,7 +2,11 @@
  * @fileType utility
  * @domain agency-operations
  * @pattern operation-files
- * @ai-summary Reads and writes Operation contracts in the configured state repo.
+ * @ai-summary Reads and writes Operation contracts in the Convex backend
+ *   (repoDocs, kind `operation:<id>`, doc = the Operation JSON). Follows the
+ *   context-docs approach: one repoDocs kind per operation, listed via
+ *   repoDocs.listByPrefix. Exported signatures are unchanged from the
+ *   state-repo era; octokit params are unused and `sha` is always "".
  */
 
 import type { Octokit } from "@octokit/rest";
@@ -14,16 +18,17 @@ import {
   type Operation,
   type OperationCatalog,
 } from "@kody-ade/agency/operations";
-import {
-  deleteStateFile,
-  listStateDirectory,
-  readStateText,
-  writeStateText,
-} from "@kody-ade/base/state-repo";
 import { logger } from "@kody-ade/base/logger";
-import { normalizeCompanyIntent } from "./company-intents";
+import {
+  backendApi,
+  getConvexClient,
+  tenantIdFor,
+} from "./backend/convex-backend";
+import { listCompanyIntentRecords } from "./company-intents-store";
 import { listManagedGoalFiles } from "./managed-goals-files";
 import { managedGoalModel } from "./managed-goals";
+
+const OPERATION_KIND_PREFIX = "operation:";
 
 export interface StoredOperationRecord {
   id: string;
@@ -32,114 +37,97 @@ export interface StoredOperationRecord {
   operation: Operation;
 }
 
-async function listDirectorySafe(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  path: string,
-) {
+interface OperationDocRecord {
+  kind: string;
+  doc: unknown;
+}
+
+function operationKind(id: string): string {
+  return `${OPERATION_KIND_PREFIX}${id}`;
+}
+
+function recordFromDoc(record: OperationDocRecord): StoredOperationRecord | null {
+  const id = record.kind.slice(OPERATION_KIND_PREFIX.length);
+  if (!isOperationId(id)) return null;
+  const path = operationPath(id);
   try {
-    return (await listStateDirectory(octokit, owner, repo, path)).entries;
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) return [];
-    throw error;
+    return { id, path, sha: "", operation: parseOperation(path, record.doc) };
+  } catch (error) {
+    logger.warn(
+      { error, operationId: id },
+      "operations: skipped malformed Operation",
+    );
+    return null;
   }
 }
 
 export async function readOperationFile(
-  octokit: Octokit,
+  _octokit: Octokit,
   owner: string,
   repo: string,
   id: string,
 ): Promise<StoredOperationRecord | null> {
   if (!isOperationId(id)) return null;
-  const file = await readStateText(octokit, owner, repo, operationPath(id));
-  if (!file) return null;
-  return {
-    id,
-    path: file.path,
-    sha: file.sha,
-    operation: parseOperation(file.path, JSON.parse(file.content)),
-  };
+  const record = (await getConvexClient().query(backendApi.repoDocs.get, {
+    tenantId: tenantIdFor(owner, repo),
+    kind: operationKind(id),
+  })) as OperationDocRecord | null;
+  if (!record) return null;
+  return recordFromDoc(record);
 }
 
 export async function listOperationFiles(
-  octokit: Octokit,
+  _octokit: Octokit,
   owner: string,
   repo: string,
 ): Promise<StoredOperationRecord[]> {
-  const entries = await listDirectorySafe(octokit, owner, repo, "operations");
-  const records = await Promise.all(
-    entries
-      .filter(
-        (entry) =>
-          entry.type === "dir" &&
-          typeof entry.name === "string" &&
-          isOperationId(entry.name),
-      )
-      .map(async (entry) => {
-        try {
-          return await readOperationFile(octokit, owner, repo, entry.name);
-        } catch (error) {
-          logger.warn(
-            { error, operationId: entry.name },
-            "operations: skipped malformed Operation",
-          );
-          return null;
-        }
-      }),
-  );
+  const records = (await getConvexClient().query(
+    backendApi.repoDocs.listByPrefix,
+    {
+      tenantId: tenantIdFor(owner, repo),
+      prefix: OPERATION_KIND_PREFIX,
+    },
+  )) as OperationDocRecord[];
   return records
+    .map(recordFromDoc)
     .filter((record): record is StoredOperationRecord => record !== null)
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 
 export async function writeOperationFile({
-  octokit,
   owner,
   repo,
   operation,
-  sha,
-  message = `chore(operations): save ${operation.id}`,
 }: {
-  octokit: Octokit;
+  octokit?: Octokit;
   owner: string;
   repo: string;
   operation: Operation;
   sha?: string;
   message?: string;
 }): Promise<void> {
-  await writeStateText({
-    octokit,
-    owner,
-    repo,
-    path: operationPath(operation.id),
-    content: `${JSON.stringify(operation, null, 2)}\n`,
-    message,
-    ...(sha ? { sha } : {}),
+  await getConvexClient().mutation(backendApi.repoDocs.save, {
+    tenantId: tenantIdFor(owner, repo),
+    kind: operationKind(operation.id),
+    doc: operation,
+    updatedAt: new Date().toISOString(),
   });
 }
 
 export async function deleteOperationFile({
-  octokit,
   owner,
   repo,
   id,
-  sha,
 }: {
-  octokit: Octokit;
+  octokit?: Octokit;
   owner: string;
   repo: string;
   id: string;
-  sha: string;
+  sha?: string;
 }): Promise<void> {
-  await deleteStateFile({
-    octokit,
-    owner,
-    repo,
-    path: operationPath(id),
-    sha,
-    message: `chore(operations): delete ${id}`,
+  await getConvexClient().mutation(backendApi.repoDocs.remove, {
+    tenantId: tenantIdFor(owner, repo),
+    kind: operationKind(id),
   });
 }
 
@@ -148,41 +136,13 @@ export async function loadOperationCatalog(
   owner: string,
   repo: string,
 ): Promise<OperationCatalog> {
-  const intentEntries = await listDirectorySafe(
-    octokit,
-    owner,
-    repo,
-    "intents",
-  );
-  const intents = (
-    await Promise.all(
-      intentEntries
-        .filter(
-          (entry) =>
-            entry.type === "dir" &&
-            typeof entry.name === "string" &&
-            isOperationId(entry.name),
-        )
-        .map(async (entry) => {
-          try {
-            const file = await readStateText(
-              octokit,
-              owner,
-              repo,
-              `intents/${entry.name}/intent.json`,
-            );
-            if (!file) return null;
-            const intent = normalizeCompanyIntent(
-              file.path,
-              JSON.parse(file.content),
-            );
-            return intent.status === "active" ? intent.id : null;
-          } catch {
-            return null;
-          }
-        }),
+  const intentRecords = await listCompanyIntentRecords(owner, repo);
+  const intents = intentRecords
+    .filter(
+      (record) =>
+        record.intent.status === "active" && isOperationId(record.id),
     )
-  ).filter((id): id is string => id !== null);
+    .map((record) => record.id);
 
   const goals: string[] = [];
   const loops: string[] = [];

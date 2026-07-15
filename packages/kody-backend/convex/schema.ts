@@ -51,7 +51,11 @@ export default defineSchema({
     sessionId: v.string(),
     seq: v.number(),
     event: v.any(),
-  }).index("by_session", ["tenantId", "sessionId", "seq"]),
+  })
+    .index("by_session", ["tenantId", "sessionId", "seq"])
+    // Tenant-wide newest-first scans (Activity feed's recent-session list) —
+    // the implicit _creationTime suffix orders events by arrival.
+    .index("by_tenant", ["tenantId"]),
 
   intents: defineTable({
     tenantId: v.string(),

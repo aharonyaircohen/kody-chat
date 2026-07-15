@@ -15,6 +15,21 @@ export const forDate = query({
   },
 })
 
+// Newest entries first across dates — the by_stream index (tenantId, stream,
+// date, seq) descends by date then seq, so `take(limit)` is the most recent
+// `limit` lines without scanning older days.
+export const recent = query({
+  args: { tenantId: v.string(), stream: streamValidator, limit: v.number() },
+  handler: async (ctx, { tenantId, stream, limit }) => {
+    const capped = Math.max(1, Math.min(limit, 1000))
+    return await ctx.db
+      .query("dailyLogs")
+      .withIndex("by_stream", (q) => q.eq("tenantId", tenantId).eq("stream", stream))
+      .order("desc")
+      .take(capped)
+  },
+})
+
 export const append = mutation({
   args: {
     tenantId: v.string(),

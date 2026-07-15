@@ -2,30 +2,31 @@
  * @fileType utility
  * @domain kody
  * @pattern instructions-files
- * @ai-summary Read/write the per-repo user instructions document
- *   stored at `instructions.md` in the configured Kody state repo. This is a single free-form
- *   markdown file (no frontmatter) appended to every kody-direct
- *   chat turn under "## User instructions for this repo" — the
- *   user's place to put tone, length, formatting, or behavioral
- *   preferences that override the base agent prompt. Voice overlay
- *   still wins over this block (applied after buildSystemPrompt
- *   in route.ts) so TTS output shape stays correct on the mic.
+ * @ai-summary Read/write the per-repo user instructions document stored in
+ *   the Convex backend (repoDocs, kind "instructions", doc `{ body }`).
+ *   This is a single free-form markdown doc (no frontmatter) appended to
+ *   every kody-direct chat turn under "## User instructions for this repo" —
+ *   the user's place to put tone, length, formatting, or behavioral
+ *   preferences that override the base agent prompt. Voice overlay still
+ *   wins over this block (applied after buildSystemPrompt in route.ts) so
+ *   TTS output shape stays correct on the mic. Exported signatures are
+ *   unchanged from the state-repo era; octokit params are unused and `sha`
+ *   is always "".
  *
- *   Cache mirrors the memory-index pattern: 60s in-process per
- *   repo, invalidated by the PUT/DELETE routes.
+ *   Cache mirrors the memory-index pattern: 60s in-process per repo,
+ *   invalidated by the PUT/DELETE routes.
  */
 
 import type { Octokit } from "@octokit/rest";
-import { getOctokit, getOwner, getRepo } from "../github";
+import { getOwner, getRepo } from "../github";
 import {
-  deleteStateFile,
-  readStateText,
-  resolveStateRepo,
-  stateRepoPath,
-  writeStateText,
-} from "@kody-ade/base/state-repo";
+  backendApi,
+  getConvexClient,
+  tenantIdFor,
+} from "@kody-ade/base/backend/convex";
 
 const INSTRUCTIONS_PATH = "instructions.md";
+const INSTRUCTIONS_KIND = "instructions";
 
 export interface InstructionsFile {
   body: string;
@@ -34,52 +35,29 @@ export interface InstructionsFile {
   htmlUrl: string;
 }
 
-async function fetchLastCommitDate(octokit: Octokit): Promise<string> {
-  try {
-    const target = await resolveStateRepo(octokit, getOwner(), getRepo());
-    const { data } = await octokit.repos.listCommits({
-      owner: target.owner,
-      repo: target.repo,
-      path: stateRepoPath(target, INSTRUCTIONS_PATH),
-      per_page: 1,
-    });
-    return (
-      data[0]?.commit.committer?.date ??
-      data[0]?.commit.author?.date ??
-      new Date().toISOString()
-    );
-  } catch {
-    return new Date().toISOString();
-  }
+interface InstructionsDocRecord {
+  doc: { body?: unknown };
+  updatedAt: string;
 }
 
 export async function readInstructionsFile(
-  octokitOverride?: Octokit,
+  _octokitOverride?: Octokit,
 ): Promise<InstructionsFile | null> {
-  const octokit = octokitOverride ?? getOctokit();
-  try {
-    const file = await readStateText(
-      octokit,
-      getOwner(),
-      getRepo(),
-      INSTRUCTIONS_PATH,
-    );
-    if (!file) return null;
-    const updatedAt = await fetchLastCommitDate(octokit);
-    return {
-      body: file.content,
-      sha: file.sha,
-      updatedAt,
-      htmlUrl: file.htmlUrl ?? "",
-    };
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) return null;
-    throw error;
-  }
+  const record = (await getConvexClient().query(backendApi.repoDocs.get, {
+    tenantId: tenantIdFor(getOwner(), getRepo()),
+    kind: INSTRUCTIONS_KIND,
+  })) as InstructionsDocRecord | null;
+  if (!record || typeof record.doc?.body !== "string") return null;
+  return {
+    body: record.doc.body,
+    sha: "",
+    updatedAt: record.updatedAt,
+    htmlUrl: "",
+  };
 }
 
 interface WriteOptions {
-  octokit: Octokit;
+  octokit?: Octokit;
   body: string;
   sha?: string;
   message?: string;
@@ -89,42 +67,21 @@ export async function writeInstructionsFile(
   opts: WriteOptions,
 ): Promise<InstructionsFile> {
   const body = opts.body.endsWith("\n") ? opts.body : `${opts.body}\n`;
-  const message =
-    opts.message ??
-    `${opts.sha ? "chore" : "feat"}(instructions): ${opts.sha ? "update" : "add"} chat instructions`;
-
-  await writeStateText({
-    octokit: opts.octokit,
-    owner: getOwner(),
-    repo: getRepo(),
-    path: INSTRUCTIONS_PATH,
-    message,
-    content: body,
-    sha: opts.sha,
+  const updatedAt = new Date().toISOString();
+  await getConvexClient().mutation(backendApi.repoDocs.save, {
+    tenantId: tenantIdFor(getOwner(), getRepo()),
+    kind: INSTRUCTIONS_KIND,
+    doc: { body },
+    updatedAt,
   });
-
   invalidateInstructionsPromptCache();
-  // Confirm with the same octokit that wrote — not the per-request global,
-  // which a concurrent request may have cleared (→ 401 "Bad credentials").
-  const refreshed = await readInstructionsFile(opts.octokit);
-  if (!refreshed) {
-    throw new Error(
-      "writeInstructionsFile: file was written but could not be re-read",
-    );
-  }
-  return refreshed;
+  return { body, sha: "", updatedAt, htmlUrl: "" };
 }
 
-export async function deleteInstructionsFile(octokit: Octokit): Promise<void> {
-  const existing = await readInstructionsFile();
-  if (!existing) return;
-  await deleteStateFile({
-    octokit,
-    owner: getOwner(),
-    repo: getRepo(),
-    path: INSTRUCTIONS_PATH,
-    message: "chore(instructions): remove chat instructions",
-    sha: existing.sha,
+export async function deleteInstructionsFile(_octokit?: Octokit): Promise<void> {
+  await getConvexClient().mutation(backendApi.repoDocs.remove, {
+    tenantId: tenantIdFor(getOwner(), getRepo()),
+    kind: INSTRUCTIONS_KIND,
   });
   invalidateInstructionsPromptCache();
 }
@@ -143,7 +100,7 @@ function cacheKey(): string {
 /**
  * Load the user instructions for the current request's repo with a 60-second
  * in-process cache (same TTL as the memory-index loader). Returns `null` when
- * the file is absent or empty — callers should treat that as "no overlay".
+ * the doc is absent or empty — callers should treat that as "no overlay".
  */
 export async function loadInstructionsForPrompt(): Promise<string | null> {
   const key = cacheKey();

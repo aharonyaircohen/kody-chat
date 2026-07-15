@@ -14,6 +14,31 @@ export const append = mutation({
   },
 })
 
+// Most recently active session ids for a tenant, newest first — the Activity
+// feed merges the last few sessions' events into one list. Scans the newest
+// `scan` events via the by_tenant index (implicit _creationTime ordering)
+// and dedupes their session ids.
+export const recentSessions = query({
+  args: { tenantId: v.string(), limit: v.number() },
+  handler: async (ctx, { tenantId, limit }) => {
+    const cappedLimit = Math.max(1, Math.min(limit, 50))
+    const scan = Math.min(cappedLimit * 100, 2000)
+    const recent = await ctx.db
+      .query("chatEvents")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .order("desc")
+      .take(scan)
+    const sessions: string[] = []
+    for (const doc of recent) {
+      if (!sessions.includes(doc.sessionId)) {
+        sessions.push(doc.sessionId)
+        if (sessions.length >= cappedLimit) break
+      }
+    }
+    return sessions
+  },
+})
+
 // Reactive tail of a session's event stream — the UI subscribes with the last
 // seq it has and receives new events as they land.
 export const since = query({

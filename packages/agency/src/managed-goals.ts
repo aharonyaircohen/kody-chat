@@ -349,6 +349,19 @@ function managedGoalInstanceSummary(
   };
 }
 
+/**
+ * Scheduled-goal instances are named `<base>-YYYY-MM-DD` (optionally
+ * `-N` deduped) by the engine (kody2 `chooseTargetInstanceId`, QA's
+ * `buildGoalId`). Some writers stamp `sourceTemplate`; others (the QA
+ * postflight) do not — so the list view also groups by this naming
+ * convention. Returns the base id, or "" when the id isn't instance-shaped.
+ */
+const INSTANCE_ID_PATTERN = /^(.+)-\d{4}-\d{2}-\d{2}(?:-\d+)?$/;
+
+export function managedGoalInstanceBaseId(goalId: string): string {
+  return INSTANCE_ID_PATTERN.exec(goalId)?.[1] ?? "";
+}
+
 export function collapseManagedGoalRecordsForList(
   goals: ManagedGoalRecord[],
 ): ManagedGoalRecord[] {
@@ -356,11 +369,30 @@ export function collapseManagedGoalRecordsForList(
   const directGoals: ManagedGoalRecord[] = [];
   const directGoalById = new Map<string, ManagedGoalRecord>();
 
+  // Instance-shaped ids without a sourceTemplate (e.g. `qa-smoke-2026-07-15`)
+  // group under their naming base — but only when the base is corroborated:
+  // it exists as its own goal, or at least one sibling shares it. A lone
+  // user-named goal that merely ends in a date stays a direct row.
+  const idSet = new Set(goals.map((goal) => goal.id));
+  const baseCounts = new Map<string, number>();
+  for (const goal of goals) {
+    if (typeof goal.state.sourceTemplate === "string") continue;
+    const base = managedGoalInstanceBaseId(goal.id);
+    if (base) baseCounts.set(base, (baseCounts.get(base) ?? 0) + 1);
+  }
+  const impliedTemplate = (goal: ManagedGoalRecord): string => {
+    if (goal.state.kind === "template") return "";
+    const base = managedGoalInstanceBaseId(goal.id);
+    if (!base) return "";
+    if (idSet.has(base) || (baseCounts.get(base) ?? 0) > 1) return base;
+    return "";
+  };
+
   for (const goal of goals) {
     const sourceTemplate =
       typeof goal.state.sourceTemplate === "string"
         ? goal.state.sourceTemplate.trim()
-        : "";
+        : impliedTemplate(goal);
     if (
       !sourceTemplate ||
       sourceTemplate === goal.id ||

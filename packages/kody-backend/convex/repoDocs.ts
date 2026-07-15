@@ -14,6 +14,20 @@ export const get = query({
   },
 })
 
+// Every doc whose kind starts with `prefix` (e.g. "context:", "operation:").
+// The by_kind index is range-scanned, so this never reads other kinds.
+export const listByPrefix = query({
+  args: { tenantId: v.string(), prefix: v.string() },
+  handler: async (ctx, { tenantId, prefix }) => {
+    return await ctx.db
+      .query("repoDocs")
+      .withIndex("by_kind", (q) =>
+        q.eq("tenantId", tenantId).gte("kind", prefix).lt("kind", `${prefix}￿`),
+      )
+      .collect()
+  },
+})
+
 export const save = mutation({
   args: { tenantId: v.string(), kind: v.string(), doc: v.any(), updatedAt: v.string() },
   handler: async (ctx, args) => {

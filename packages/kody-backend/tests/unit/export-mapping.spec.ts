@@ -218,6 +218,28 @@ describe("mapStateFile — extended state kinds", () => {
     )
   })
 
+  it("maps operations to per-operation repoDocs kinds", () => {
+    const rows = mapStateFile(
+      "operations/release/operation.json",
+      JSON.stringify({ id: "release" }),
+      REPO,
+      NOW,
+    )
+    expect(rows?.[0]).toMatchObject({
+      table: "repoDocs",
+      doc: { tenantId: REPO, kind: "operation:release", doc: { id: "release" } },
+    })
+    expect(mapStateFile("operations/release/notes.md", "x", REPO, NOW)).toBeNull()
+  })
+
+  it("maps the global chat snapshot and its write gate", () => {
+    expect(mapStateFile("chat/global.json", "{}", REPO, NOW)?.[0].doc.kind).toBe("chat-global")
+    expect(mapStateFile("chat/last-written.json", "{}", REPO, NOW)?.[0].doc.kind).toBe(
+      "chat-global-gate",
+    )
+    expect(mapStateFile("chat/other.json", "{}", REPO, NOW)).toBeNull()
+  })
+
   it("still skips secrets and goal run logs deliberately", () => {
     expect(mapStateFile("secrets.enc", "x", REPO, NOW)).toBeNull()
     expect(mapStateFile("logs/goals/g1/runs/r1.jsonl", "{}", REPO, NOW)).toBeNull()

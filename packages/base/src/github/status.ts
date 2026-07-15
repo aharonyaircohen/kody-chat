@@ -19,6 +19,11 @@ import {
 import { parseKodyRunLogZip, type KodyRunLogsRun } from "../activity/run-logs";
 import type { KodyPipelineStatus, WorkflowRun } from "@kody-ade/base/types";
 import { getCached, getStale, setCache, getOctokit, getOwner, getRepo } from "@kody-ade/base/github/core";
+import {
+  backendApi,
+  getConvexClient,
+  tenantIdFor,
+} from "@kody-ade/base/backend/convex";
 // ============ Status JSON Access ============
 
 /**
@@ -478,85 +483,54 @@ async function artifactResponseToBuffer(data: unknown): Promise<Buffer> {
 }
 
 /**
- * Read the engine-authored Company Activity log — recent
- * `activity/<date>.jsonl` files committed by `appendCompanyActivity`.
- * Lists the dir, reads the newest few day-files, parses + merges newest-first.
- * Each file is ETag/304-cached (rate-limit rule #2). Returns [] when the dir
- * doesn't exist yet (no engine ticks recorded).
+ * Read the engine-authored Company Activity log from the Convex backend
+ * (dailyLogs, stream "activity" — one row per former `activity/<date>.jsonl`
+ * line). Newest-first, in-process cached (same TTL bucket as the old
+ * ETag-cached GitHub reads) with a stale fallback on backend errors.
+ * Returns [] when nothing is recorded yet. `dayFiles` is kept for signature
+ * compatibility; on Convex the read is a single newest-first query.
  */
-const ACTIVITY_DIR = "activity";
 const ACTIVITY_DAY_FILES = 3;
 
 export async function fetchCompanyActivity(
   limit = 100,
-  dayFiles = ACTIVITY_DAY_FILES,
+  _dayFiles = ACTIVITY_DAY_FILES,
 ): Promise<CompanyActivityRecord[]> {
-  const octokit = getOctokit();
   const owner = getOwner();
   const repo = getRepo();
 
-  // List the activity dir (ETag-cached). 404 = nothing recorded yet.
-  const listKey = `activity-dir:${owner}:${repo}`;
-  const listStale = getStale<string[]>(listKey);
-  let files: string[] = listStale?.data ?? [];
+  const key = `activity-recent:${owner}:${repo}:${limit}`;
+  const stale = getStale<CompanyActivityRecord[]>(key);
+  const fresh = getCached<CompanyActivityRecord[]>(key);
+  if (fresh) return fresh;
+
   try {
-    const { entries, etag } = await listStateDirectory(
-      octokit,
-      owner,
-      repo,
-      ACTIVITY_DIR,
-      {
-        headers: listStale?.etag
-          ? { "If-None-Match": listStale.etag }
-          : undefined,
-      },
-    );
-    files = entries
-      .filter((e) => e.type === "file" && e.name.endsWith(".jsonl"))
-      .map((e) => e.name);
-    setCache(listKey, CACHE_TTL.tasks, files, { etag });
-  } catch (error: unknown) {
-    const status = (error as { status?: number })?.status;
-    if (status === 304 && listStale) {
-      setCache(listKey, CACHE_TTL.tasks, listStale.data, {
-        etag: listStale.etag,
-      });
-      files = listStale.data;
-    } else if (status === 404) {
-      return [];
-    } else if (!listStale) {
-      return [];
+    const rows = (await getConvexClient().query(backendApi.dailyLogs.recent, {
+      tenantId: tenantIdFor(owner, repo),
+      stream: "activity",
+      limit,
+    })) as Array<{ entry: unknown }>;
+    const records = rows
+      .map((row) => coerceActivityRecord(row.entry))
+      .filter((rec): rec is CompanyActivityRecord => rec !== null);
+    const sorted = sortActivityNewestFirst(records).slice(0, limit);
+    setCache(key, CACHE_TTL.tasks, sorted);
+    return sorted;
+  } catch {
+    if (stale) {
+      setCache(key, CACHE_TTL.tasks, stale.data);
+      return stale.data;
     }
+    return [];
   }
+}
 
-  // Newest day-files first (filenames are YYYY-MM-DD.jsonl → lexicographic).
-  const recent = [...files].sort().reverse().slice(0, dayFiles);
-
-  const perFile = await Promise.all(
-    recent.map(async (name) => {
-      const path = `${ACTIVITY_DIR}/${name}`;
-      const key = `activity-file:${owner}:${repo}:${name}`;
-      const stale = getStale<CompanyActivityRecord[]>(key);
-      try {
-        const file = await readStateText(octokit, owner, repo, path, {
-          headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
-        });
-        if (file) {
-          const recs = parseActivityJsonl(file.content);
-          setCache(key, CACHE_TTL.tasks, recs, { etag: file.etag });
-          return recs;
-        }
-      } catch (error: unknown) {
-        const status = (error as { status?: number })?.status;
-        if (status === 304 && stale) {
-          setCache(key, CACHE_TTL.tasks, stale.data, { etag: stale.etag });
-          return stale.data;
-        }
-        if (stale) return stale.data;
-      }
-      return [];
-    }),
-  );
-
-  return sortActivityNewestFirst(perFile.flat()).slice(0, limit);
+/** One dailyLogs `entry` → CompanyActivityRecord (reuses the JSONL coercion). */
+function coerceActivityRecord(entry: unknown): CompanyActivityRecord | null {
+  try {
+    const parsed = parseActivityJsonl(JSON.stringify(entry));
+    return parsed[0] ?? null;
+  } catch {
+    return null;
+  }
 }

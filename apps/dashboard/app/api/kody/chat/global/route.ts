@@ -4,23 +4,22 @@
  * @pattern chat-global-persistence
  *
  * GET  /api/kody/chat/global?sessionId=...
- *   Read `chat/global.json` from the configured Kody state repo as a
- *   fallback when localStorage is empty (e.g. fresh device, cleared cache).
- *   Returns `{ messages: ChatMessage[] }` or `{ messages: [] }` when no
- *   persisted conversation exists.
+ *   Read the persisted global conversation from the Convex backend
+ *   (repoDocs kind "chat-global") as a fallback when localStorage is empty
+ *   (e.g. fresh device, cleared cache). Returns `{ messages: ChatMessage[] }`
+ *   or `{ messages: [] }` when no persisted conversation exists.
  *
  * POST /api/kody/chat/global
  *   Body: { sessionId, messages }
- *   Writes the active global session's messages to
- *   `chat/global.json` in the configured Kody state repo. Gated to ONCE per
- *   24h per sessionId so the dashboard can ship a "save snapshot"
- *   ping after every turn without flooding the repo with commits.
- *   Skipped when:
+ *   Writes the active global session's messages to repoDocs kind
+ *   "chat-global". Gated to ONCE per 24h per sessionId so the dashboard can
+ *   ship a "save snapshot" ping after every turn without flooding the
+ *   backend with writes. Skipped when:
  *     - the sessionId is missing
  *     - the messages array is empty
  *     - the count + last-message fingerprint matches the last write
  *     - a write already landed within the last 24h for this sessionId
- *   The gate is tracked in `chat/last-written.json` (a tiny
+ *   The gate is tracked in repoDocs kind "chat-global-gate" (a tiny
  *   `{ [sessionId]: isoTimestamp }` map).
  *
  * The unified chat thread (issue #66) lives primarily in
@@ -31,26 +30,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 import {
-  requireKodyAuth,
-  getRequestAuth,
-  getUserOctokit,
-} from "@kody-ade/base/auth";
-import {
-  getOctokit,
   setGitHubContext,
   clearGitHubContext,
   getOwner,
   getRepo,
 } from "@dashboard/lib/github-client";
 import { logger } from "@kody-ade/base/logger";
-import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
+import {
+  backendApi,
+  getConvexClient,
+  tenantIdFor,
+} from "@dashboard/lib/backend/convex-backend";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const GLOBAL_FILE = "chat/global.json";
-const GATE_FILE = "chat/last-written.json";
+const GLOBAL_KIND = "chat-global";
+const GATE_KIND = "chat-global-gate";
 const GATE_WINDOW_MS = 24 * 60 * 60 * 1000; // 24h
 
 const postSchema = z.object({
@@ -79,13 +77,21 @@ interface PersistedGlobalChat {
   }>;
 }
 
-async function readFileSha(
-  octokit: ReturnType<typeof getOctokit>,
-  path: string,
-): Promise<{ sha: string; content: string | null } | null> {
-  const file = await readStateText(octokit, getOwner(), getRepo(), path);
-  if (!file) return null;
-  return { sha: file.sha, content: file.content };
+async function readDoc<T>(kind: string): Promise<T | null> {
+  const record = (await getConvexClient().query(backendApi.repoDocs.get, {
+    tenantId: tenantIdFor(getOwner(), getRepo()),
+    kind,
+  })) as { doc: T } | null;
+  return record?.doc ?? null;
+}
+
+async function saveDoc(kind: string, doc: unknown): Promise<void> {
+  await getConvexClient().mutation(backendApi.repoDocs.save, {
+    tenantId: tenantIdFor(getOwner(), getRepo()),
+    kind,
+    doc,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 /**
@@ -131,23 +137,16 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const octokit = getOctokit();
-    const file = await readFileSha(octokit, GLOBAL_FILE);
-    if (!file?.content) {
+    const parsed = await readDoc<PersistedGlobalChat>(GLOBAL_KIND);
+    if (!parsed || !Array.isArray(parsed.messages)) {
       return NextResponse.json({ messages: [] });
     }
 
-    try {
-      const parsed = JSON.parse(file.content) as PersistedGlobalChat;
-      return NextResponse.json({
-        messages: parsed.messages ?? [],
-        sessionId: parsed.sessionId,
-        updatedAt: parsed.updatedAt,
-      });
-    } catch (err) {
-      logger.warn({ err }, "[chat-global] persisted file is not valid JSON");
-      return NextResponse.json({ messages: [] });
-    }
+    return NextResponse.json({
+      messages: parsed.messages ?? [],
+      sessionId: parsed.sessionId,
+      updatedAt: parsed.updatedAt,
+    });
   } catch (err) {
     logger.error({ err }, "[chat-global] GET failed");
     return NextResponse.json(
@@ -189,42 +188,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, skipped: "empty" });
     }
 
-    const readOctokit = getOctokit();
-    const userOctokit = await getUserOctokit(req);
-    const writeOctokit = userOctokit ?? readOctokit;
-
     const now = Date.now();
 
-    // 24h gate — read the gate file, decide if we can write.
-    const gateFile = await readFileSha(readOctokit, GATE_FILE);
-    let gate: LastWrittenMap = {};
-    if (gateFile?.content) {
-      try {
-        gate = JSON.parse(gateFile.content);
-      } catch {
-        gate = {};
-      }
-    }
+    // 24h gate — read the gate doc, decide if we can write.
+    const gate: LastWrittenMap = (await readDoc<LastWrittenMap>(GATE_KIND)) ?? {};
     if (withinGate(gate[sessionId], now)) {
       return NextResponse.json({ success: true, skipped: "gated-24h" });
     }
 
-    // Read existing global.json for content-identity skip + sha.
-    const globalFile = await readFileSha(readOctokit, GLOBAL_FILE);
-
+    // Read the existing snapshot for the content-identity skip.
+    const existing = await readDoc<PersistedGlobalChat>(GLOBAL_KIND);
     const fingerprintNew = fingerprint(messages);
-    if (globalFile?.content) {
-      try {
-        const existing = JSON.parse(globalFile.content) as PersistedGlobalChat;
-        if (
-          existing.sessionId === sessionId &&
-          fingerprint(existing.messages) === fingerprintNew
-        ) {
-          return NextResponse.json({ success: true, skipped: "unchanged" });
-        }
-      } catch {
-        /* fall through and rewrite */
-      }
+    if (
+      existing &&
+      existing.sessionId === sessionId &&
+      Array.isArray(existing.messages) &&
+      fingerprint(existing.messages) === fingerprintNew
+    ) {
+      return NextResponse.json({ success: true, skipped: "unchanged" });
     }
 
     const payload: PersistedGlobalChat = {
@@ -237,31 +218,12 @@ export async function POST(req: NextRequest) {
         timestamp: m.timestamp ?? new Date(now).toISOString(),
       })),
     };
-    const content = JSON.stringify(payload, null, 2);
-
-    await writeStateText({
-      octokit: writeOctokit,
-      owner: getOwner(),
-      repo: getRepo(),
-      path: GLOBAL_FILE,
-      message: `kody: persist global chat (${sessionId.slice(0, 12)}, ${messages.length} msg)`,
-      content,
-      sha: globalFile?.sha,
-      maxAttempts: 1,
-    });
+    await saveDoc(GLOBAL_KIND, payload);
 
     // Bump the gate.
-    gate[sessionId] = new Date(now).toISOString();
-    const gateContent = JSON.stringify(gate, null, 2);
-    await writeStateText({
-      octokit: writeOctokit,
-      owner: getOwner(),
-      repo: getRepo(),
-      path: GATE_FILE,
-      message: `kody: bump global-chat write gate (${sessionId.slice(0, 12)})`,
-      content: gateContent,
-      sha: gateFile?.sha,
-      maxAttempts: 1,
+    await saveDoc(GATE_KIND, {
+      ...gate,
+      [sessionId]: new Date(now).toISOString(),
     });
 
     return NextResponse.json({ success: true, written: messages.length });
