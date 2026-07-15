@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
+import { workflowDefinitionValidator } from "./validators"
 
 export const list = query({
   args: { tenantId: v.string() },
@@ -25,7 +26,7 @@ export const save = mutation({
   args: {
     tenantId: v.string(),
     workflowId: v.string(),
-    definition: v.any(),
+    definition: workflowDefinitionValidator,
     source: v.union(v.literal("local"), v.literal("store")),
     updatedAt: v.string(),
   },

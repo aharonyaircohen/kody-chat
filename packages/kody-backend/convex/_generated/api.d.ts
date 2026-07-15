@@ -24,6 +24,7 @@ import type * as notificationPrefs from "../notificationPrefs.js";
 import type * as repoDocs from "../repoDocs.js";
 import type * as reports from "../reports.js";
 import type * as userState from "../userState.js";
+import type * as validators from "../validators.js";
 import type * as viewRenderers from "../viewRenderers.js";
 import type * as workflowRuns from "../workflowRuns.js";
 import type * as workflows from "../workflows.js";
@@ -51,6 +52,7 @@ declare const fullApi: ApiFromModules<{
   repoDocs: typeof repoDocs;
   reports: typeof reports;
   userState: typeof userState;
+  validators: typeof validators;
   viewRenderers: typeof viewRenderers;
   workflowRuns: typeof workflowRuns;
   workflows: typeof workflows;

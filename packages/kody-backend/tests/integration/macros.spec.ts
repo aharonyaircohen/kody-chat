@@ -22,3 +22,16 @@ describe("macros", () => {
     expect(macros[0].macro.name).toBe("Renamed")
   })
 })
+
+describe("macros schema enforcement", () => {
+  it("rejects a macro without a name", async () => {
+    const t = setup()
+    await expect(
+      t.mutation(api.macros.save, {
+        tenantId: TENANT,
+        macroId: "bad",
+        macro: { id: "bad" },
+      }),
+    ).rejects.toThrow()
+  })
+})

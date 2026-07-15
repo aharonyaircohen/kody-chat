@@ -11,8 +11,8 @@ describe("importExport", () => {
     const result = await t.mutation(api.importExport.importChunk, {
       table: "workflows",
       docs: [
-        { tenantId: REPO, workflowId: "w1", definition: {}, source: "local", updatedAt: NOW },
-        { tenantId: REPO, workflowId: "w2", definition: {}, source: "local", updatedAt: NOW },
+        { tenantId: REPO, workflowId: "w1", definition: { version: 1, name: "W" }, source: "local", updatedAt: NOW },
+        { tenantId: REPO, workflowId: "w2", definition: { version: 1, name: "W" }, source: "local", updatedAt: NOW },
       ],
     })
     expect(result.inserted).toBe(2)

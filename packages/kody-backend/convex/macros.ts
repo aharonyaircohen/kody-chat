@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
+import { macroValidator } from "./validators"
 
 export const list = query({
   args: { tenantId: v.string() },
@@ -12,7 +13,7 @@ export const list = query({
 })
 
 export const save = mutation({
-  args: { tenantId: v.string(), macroId: v.string(), macro: v.any() },
+  args: { tenantId: v.string(), macroId: v.string(), macro: macroValidator },
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("macros")

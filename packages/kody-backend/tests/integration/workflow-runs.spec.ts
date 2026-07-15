@@ -26,7 +26,7 @@ describe("workflowRuns", () => {
       tenantId: TENANT,
       workflowId: "other",
       runId: "r9",
-      state: { status: "running" },
+      state: { status: "running", completedStepIds: [] },
       updatedAt: NOW,
     })
 
@@ -53,5 +53,20 @@ describe("workflowRuns", () => {
       runId: "r1",
     })
     expect(run?.state.completedStepIds).toEqual(["a"])
+  })
+})
+
+describe("workflowRuns schema enforcement", () => {
+  it("rejects an invalid run status", async () => {
+    const t = setup()
+    await expect(
+      t.mutation(api.workflowRuns.save, {
+        tenantId: TENANT,
+        workflowId: "deploy",
+        runId: "bad",
+        state: { status: "exploded", completedStepIds: [] },
+        updatedAt: NOW,
+      }),
+    ).rejects.toThrow()
   })
 })

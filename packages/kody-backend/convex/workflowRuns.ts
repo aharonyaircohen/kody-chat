@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
+import { workflowRunStateValidator } from "./validators"
 
 export const list = query({
   args: { tenantId: v.string(), workflowId: v.string() },
@@ -28,7 +29,7 @@ export const save = mutation({
     tenantId: v.string(),
     workflowId: v.string(),
     runId: v.string(),
-    state: v.any(),
+    state: workflowRunStateValidator,
     updatedAt: v.string(),
   },
   handler: async (ctx, args) => {

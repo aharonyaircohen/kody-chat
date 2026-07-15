@@ -1,5 +1,10 @@
 import { defineSchema, defineTable } from "convex/server"
 import { v } from "convex/values"
+import {
+  macroValidator,
+  workflowDefinitionValidator,
+  workflowRunStateValidator,
+} from "./validators"
 
 // Every table is partitioned by `tenantId` ("owner/name" of the connected consumer
 // tenantId) — the same scope the GitHub state repo serves today. Per-user rows add
@@ -9,7 +14,7 @@ export default defineSchema({
   workflows: defineTable({
     tenantId: v.string(),
     workflowId: v.string(),
-    definition: v.any(), // WorkflowDefinition (version 1)
+    definition: workflowDefinitionValidator,
     source: v.union(v.literal("local"), v.literal("store")),
     updatedAt: v.string(),
   }).index("by_tenant", ["tenantId", "workflowId"]),
@@ -18,7 +23,7 @@ export default defineSchema({
     tenantId: v.string(),
     workflowId: v.string(),
     runId: v.string(),
-    state: v.any(), // WorkflowRunState
+    state: workflowRunStateValidator,
     updatedAt: v.string(),
   })
     .index("by_run", ["tenantId", "workflowId", "runId"])
@@ -96,7 +101,7 @@ export default defineSchema({
   macros: defineTable({
     tenantId: v.string(),
     macroId: v.string(),
-    macro: v.any(), // {id, name, createdAt, steps}
+    macro: macroValidator,
   }).index("by_tenant", ["tenantId", "macroId"]),
 
   // Singleton per-tenant documents: dashboard.json, system-prompt.md, kody

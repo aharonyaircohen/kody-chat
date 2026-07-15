@@ -54,7 +54,7 @@ describe("workflows", () => {
     await t.mutation(api.workflows.save, {
       tenantId: TENANT,
       workflowId: "deploy",
-      definition: { version: 1 },
+      definition: { version: 1, name: "Deploy" },
       source: "store",
       updatedAt: NOW,
     })
@@ -62,12 +62,34 @@ describe("workflows", () => {
     expect(got?.source).toBe("store")
   })
 
+  it("rejects definitions that violate the schema", async () => {
+    const t = setup()
+    await expect(
+      t.mutation(api.workflows.save, {
+        tenantId: TENANT,
+        workflowId: "bad",
+        definition: { version: 1 },
+        source: "local",
+        updatedAt: NOW,
+      }),
+    ).rejects.toThrow()
+    await expect(
+      t.mutation(api.workflows.save, {
+        tenantId: TENANT,
+        workflowId: "bad",
+        definition: { version: 1, name: "X", unknownField: true },
+        source: "local",
+        updatedAt: NOW,
+      }),
+    ).rejects.toThrow()
+  })
+
   it("removes a definition idempotently", async () => {
     const t = setup()
     await t.mutation(api.workflows.save, {
       tenantId: TENANT,
       workflowId: "deploy",
-      definition: {},
+      definition: { version: 1, name: "Deploy" },
       source: "local",
       updatedAt: NOW,
     })
