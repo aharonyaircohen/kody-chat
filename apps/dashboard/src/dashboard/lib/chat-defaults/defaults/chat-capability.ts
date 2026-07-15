@@ -154,6 +154,7 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     "create-issue",
     "create-capability",
     "create-agent",
+    "create-workflow",
     "vibe",
     "memory",
   ],

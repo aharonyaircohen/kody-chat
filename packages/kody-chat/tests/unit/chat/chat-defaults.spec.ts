@@ -252,11 +252,12 @@ describe("chat-defaults bundle", () => {
     ).toContain("explicit memory command");
   });
 
-  it("exposes 8 skills — diagnose-pr, report-advise, goal-planner, create-issue, create-capability, create-agent, vibe, memory", () => {
+  it("exposes 9 skills — including create-workflow", () => {
     expect(Object.keys(DEFAULT_SKILLS).sort()).toEqual([
       "create-agent",
       "create-capability",
       "create-issue",
+      "create-workflow",
       "diagnose-pr",
       "goal-planner",
       "memory",
