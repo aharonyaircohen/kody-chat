@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
+import { companyIntentValidator, intentDecisionValidator } from "./validators"
 
 export const list = query({
   args: { tenantId: v.string() },
@@ -12,7 +13,7 @@ export const list = query({
 })
 
 export const save = mutation({
-  args: { tenantId: v.string(), intentId: v.string(), intent: v.any(), updatedAt: v.string() },
+  args: { tenantId: v.string(), intentId: v.string(), intent: companyIntentValidator, updatedAt: v.string() },
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("intents")
@@ -38,7 +39,7 @@ export const listDecisions = query({
 })
 
 export const appendDecision = mutation({
-  args: { tenantId: v.string(), intentId: v.string(), decision: v.any() },
+  args: { tenantId: v.string(), intentId: v.string(), decision: intentDecisionValidator },
   handler: async (ctx, { tenantId, intentId, decision }) => {
     const last = await ctx.db
       .query("intentDecisions")

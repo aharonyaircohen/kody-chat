@@ -1,5 +1,6 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
+import { inboxEntryValidator } from "./validators"
 
 export const list = query({
   args: { tenantId: v.string(), login: v.string() },
@@ -17,7 +18,7 @@ export const upsert = mutation({
     tenantId: v.string(),
     login: v.string(),
     entryId: v.string(),
-    entry: v.any(),
+    entry: inboxEntryValidator,
     sentAt: v.string(),
     readAt: v.optional(v.string()),
   },

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest"
 import { api } from "../../convex/_generated/api"
+import { NOW, validDecision, validIntent } from "../fixtures"
 import { setup } from "./helpers"
 
 const TENANT = "acme/app"
-const NOW = "2026-07-15T00:00:00.000Z"
 
 describe("intents", () => {
   it("saves and upserts intents", async () => {
@@ -11,13 +11,13 @@ describe("intents", () => {
     await t.mutation(api.intents.save, {
       tenantId: TENANT,
       intentId: "i1",
-      intent: { status: "draft" },
+      intent: validIntent({ status: "paused" }),
       updatedAt: NOW,
     })
     await t.mutation(api.intents.save, {
       tenantId: TENANT,
       intentId: "i1",
-      intent: { status: "active" },
+      intent: validIntent({ status: "active" }),
       updatedAt: NOW,
     })
     const intents = await t.query(api.intents.list, { tenantId: TENANT })
@@ -30,17 +30,17 @@ describe("intents", () => {
     await t.mutation(api.intents.appendDecision, {
       tenantId: TENANT,
       intentId: "i1",
-      decision: { d: "first" },
+      decision: validDecision({ reason: "first" }),
     })
     await t.mutation(api.intents.appendDecision, {
       tenantId: TENANT,
       intentId: "i1",
-      decision: { d: "second" },
+      decision: validDecision({ reason: "second" }),
     })
     await t.mutation(api.intents.appendDecision, {
       tenantId: TENANT,
       intentId: "other",
-      decision: { d: "elsewhere" },
+      decision: validDecision({ reason: "elsewhere" }),
     })
 
     const decisions = await t.query(api.intents.listDecisions, {
@@ -48,6 +48,32 @@ describe("intents", () => {
       intentId: "i1",
     })
     expect(decisions.map((d) => d.seq)).toEqual([0, 1])
-    expect(decisions.map((d) => d.decision.d)).toEqual(["first", "second"])
+    expect(decisions.map((d) => d.decision.reason)).toEqual(["first", "second"])
+  })
+})
+
+describe("intents schema enforcement", () => {
+  it("rejects an intent with an invalid status", async () => {
+    const t = setup()
+    await expect(
+      t.mutation(api.intents.save, {
+        tenantId: TENANT,
+        intentId: "bad",
+        intent: validIntent({ status: "draft" }),
+        updatedAt: NOW,
+      }),
+    ).rejects.toThrow()
+  })
+
+  it("rejects a decision missing its reason", async () => {
+    const t = setup()
+    const { reason: _reason, ...decision } = validDecision()
+    await expect(
+      t.mutation(api.intents.appendDecision, {
+        tenantId: TENANT,
+        intentId: "i1",
+        decision,
+      }),
+    ).rejects.toThrow()
   })
 })

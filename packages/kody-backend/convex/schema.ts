@@ -1,6 +1,9 @@
 import { defineSchema, defineTable } from "convex/server"
 import { v } from "convex/values"
 import {
+  companyIntentValidator,
+  inboxEntryValidator,
+  intentDecisionValidator,
   macroValidator,
   workflowDefinitionValidator,
   workflowRunStateValidator,
@@ -53,7 +56,7 @@ export default defineSchema({
   intents: defineTable({
     tenantId: v.string(),
     intentId: v.string(),
-    intent: v.any(), // CompanyIntent
+    intent: companyIntentValidator,
     updatedAt: v.string(),
   }).index("by_tenant", ["tenantId", "intentId"]),
 
@@ -61,7 +64,7 @@ export default defineSchema({
     tenantId: v.string(),
     intentId: v.string(),
     seq: v.number(),
-    decision: v.any(),
+    decision: intentDecisionValidator,
   }).index("by_intent", ["tenantId", "intentId", "seq"]),
 
   goals: defineTable({
@@ -132,7 +135,7 @@ export default defineSchema({
     tenantId: v.string(),
     login: v.string(),
     entryId: v.string(),
-    entry: v.any(), // InboxEntry
+    entry: inboxEntryValidator,
     readAt: v.optional(v.string()),
     sentAt: v.string(),
   })
