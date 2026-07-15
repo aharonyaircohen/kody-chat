@@ -83,7 +83,17 @@ export type ChatEvent =
   | { type: "directive"; directive: ChatDirective }
   | { type: "status"; status: ChatTransportStatus; detail?: string }
   | { type: "error"; message: string; recoverable: boolean; code?: string }
-  | { type: "done"; finishReason?: string };
+  | {
+      type: "done";
+      finishReason?: string;
+      /**
+       * True when the transport fully settled the turn (brain): the event
+       * handler may unmark loading bubbles. Absent/false (kody-direct)
+       * leaves the in-flight bubble loading so the surface's post-send
+       * settle (tool-error / empty-turn fallbacks) can still find it.
+       */
+      settled?: boolean;
+    };
 
 export interface ChatAttachmentRef {
   name: string;

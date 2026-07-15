@@ -85,7 +85,7 @@ describe("sendBrainTurn", () => {
         input: { q: "x" },
         status: "success",
       },
-      { type: "done" },
+      { type: "done", settled: true },
     ]);
   });
 
@@ -148,7 +148,7 @@ describe("sendBrainTurn", () => {
       resumeSince: 6,
       resumeText: "part",
     });
-    expect(sink.events.at(-1)).toEqual({ type: "done" });
+    expect(sink.events.at(-1)).toEqual({ type: "done", settled: true });
   });
 
   it("retries transient cold-start statuses by resending the message", async () => {
@@ -167,7 +167,7 @@ describe("sendBrainTurn", () => {
     expect(calls).toHaveLength(2);
     // Message was NOT delivered on the 503 — the retry resends it.
     expect(calls[1].body).toEqual(CONFIG.initialBody);
-    expect(sink.events).toEqual([{ type: "done" }]);
+    expect(sink.events).toEqual([{ type: "done", settled: true }]);
   });
 
   it("throws the route error on non-retryable HTTP failures", async () => {
@@ -305,6 +305,6 @@ describe("brainTransport (ChatTransport wrapper)", () => {
     );
 
     expect(calls[0].url).toBe(CONFIG.endpoint);
-    expect(sink.events).toEqual([{ type: "done" }]);
+    expect(sink.events).toEqual([{ type: "done", settled: true }]);
   });
 });

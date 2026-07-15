@@ -352,12 +352,17 @@ export function createTransportTurnHandler(
         return;
       }
       case "done": {
-        // Terminal stream event: clear the typing indicator only. The
-        // message-level isLoading flags must survive until the surface
-        // settles after send() resolves — finalizeKodyDirectTurn and
-        // applyBrainFinish locate the in-flight bubble by that flag
-        // (empty-turn and tool-error fallbacks depend on it).
+        // Terminal stream event: always clear the typing indicator. Only a
+        // SETTLED done (brain) may also unmark loading bubbles — kody-direct
+        // emits an unsettled done because finalizeKodyDirectTurn locates the
+        // in-flight bubble by its isLoading flag (the tool-error and
+        // empty-turn fallbacks depend on it surviving until send() resolves).
         hooks.setLoading(false);
+        if (event.settled) {
+          setMessages((prev) =>
+            prev.map((m) => (m.isLoading ? { ...m, isLoading: false } : m)),
+          );
+        }
         return;
       }
       case "status":

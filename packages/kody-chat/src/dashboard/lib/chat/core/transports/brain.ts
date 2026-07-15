@@ -196,7 +196,7 @@ export async function sendBrainTurn(
         });
       } else if (parsed.type === "chat.done") {
         turn.outcome = "done";
-        ctx.emit({ type: "done" });
+        ctx.emit({ type: "done", settled: true });
       } else if (parsed.type === "chat.error") {
         turn.outcome = "error";
         ctx.emit({
