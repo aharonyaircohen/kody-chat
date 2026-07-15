@@ -6,6 +6,7 @@
   "description": "Kody Convex backend \u2014 schema, functions, and import/export tooling. Deployable independently; the dashboard connects via CONVEX_URL when migration happens.",
   "exports": {
     "./client": "./src/client.ts",
+    "./export-mapping": "./src/export-mapping.ts",
     "./api": "./convex/_generated/api.js"
   },
   "scripts": {

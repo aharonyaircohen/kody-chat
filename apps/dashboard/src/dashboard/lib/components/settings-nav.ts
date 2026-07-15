@@ -460,6 +460,14 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         description: "Non-secret config shared across runs.",
         tint: "text-indigo-300 bg-indigo-500/10",
       },
+      {
+        href: "/backend",
+        label: "Backend",
+        icon: Database,
+        description:
+          "Export state data as a JSON dump and import it into the Convex backend.",
+        tint: "text-emerald-300 bg-emerald-500/10",
+      },
     ],
   },
   {
@@ -623,6 +631,7 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
       navItemForHref("/config"),
       navItemForHref("/secrets"),
       navItemForHref("/variables"),
+      navItemForHref("/backend"),
       navItemForHref("/notifications"),
       navItemForHref("/settings"),
     ],
