@@ -352,14 +352,12 @@ export function createTransportTurnHandler(
         return;
       }
       case "done": {
-        // Brain terminal event: clear the typing state. (kody-direct's
-        // settle runs in the surface after send() resolves — its adapter
-        // does not emit `done`, so the empty-turn fallback can still find
-        // the loading bubble.)
+        // Terminal stream event: clear the typing indicator only. The
+        // message-level isLoading flags must survive until the surface
+        // settles after send() resolves — finalizeKodyDirectTurn and
+        // applyBrainFinish locate the in-flight bubble by that flag
+        // (empty-turn and tool-error fallbacks depend on it).
         hooks.setLoading(false);
-        setMessages((prev) =>
-          prev.map((m) => (m.isLoading ? { ...m, isLoading: false } : m)),
-        );
         return;
       }
       case "status":
