@@ -77,10 +77,8 @@ async function readHttpError(res: Response): Promise<string> {
  * Run one kody-direct turn: POST the transcript, stream SSE chunks, emit
  * ChatEvents. HTTP failures and AbortErrors THROW (the surface owns its
  * historical catch semantics). Stream-level `error` chunks are emitted as
- * RECOVERABLE error events (they append to the visible text). The adapter
- * deliberately emits no `done` — the surface settles the bubble after
- * send() resolves, and its empty-turn fallback needs the loading flag
- * intact to find the bubble.
+ * RECOVERABLE error events (they append to the visible text). A clean stream
+ * emits `done` so the shared turn coordinator can settle the turn explicitly.
  */
 export async function sendKodyDirectTurn(
   config: KodyDirectTurnConfig,

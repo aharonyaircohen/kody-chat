@@ -68,8 +68,8 @@ describe("sendKodyDirectTurn", () => {
       { type: "reasoning", text: "thinking " },
       { type: "token", text: "Hello " },
       { type: "token", text: "world" },
+      { type: "done" },
     ]);
-    // Deliberately no `done` — the surface settles after send() resolves.
   });
 
   it("emits a running tool chip with its indexed description, then the success result", async () => {
@@ -118,6 +118,7 @@ describe("sendKodyDirectTurn", () => {
         toolName: "fetch_url",
         output: { ok: true },
       },
+      { type: "done" },
     ]);
   });
 
@@ -147,6 +148,7 @@ describe("sendKodyDirectTurn", () => {
     expect(sink.events).toEqual([
       { type: "token", text: "draft..." },
       { type: "text-replace", text: "Final." },
+      { type: "done" },
     ]);
   });
 
@@ -188,6 +190,7 @@ describe("sendKodyDirectTurn", () => {
         isError: true,
         errorText: "renderer exploded",
       },
+      { type: "done" },
     ]);
   });
 
@@ -209,6 +212,7 @@ describe("sendKodyDirectTurn", () => {
 
     expect(sink.events).toEqual([
       { type: "tool-result", id: "c9", isError: true, errorText: "timed out" },
+      { type: "done" },
     ]);
   });
 
@@ -259,6 +263,7 @@ describe("sendKodyDirectTurn", () => {
         toolName: "switch_agent",
         output: switchAgent,
       },
+      { type: "done" },
     ]);
   });
 
@@ -333,6 +338,7 @@ describe("sendKodyDirectTurn", () => {
     expect(sink.events).toEqual([
       { type: "token", text: "partial" },
       { type: "error", message: "model overloaded", recoverable: true },
+      { type: "done" },
     ]);
   });
 
