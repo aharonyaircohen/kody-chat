@@ -229,8 +229,8 @@ describe("POST /api/kody/company/backend/import", () => {
       imported: { workflows: 1, goals: 250 },
     });
 
-    // clearRepo + 1 workflows chunk + 2 goals chunks (250 docs, size 200)
-    expect(convex.mutation).toHaveBeenCalledTimes(4);
+    // clearRepo + 1 workflows chunk + 5 goals chunks (250 docs, size 50)
+    expect(convex.mutation).toHaveBeenCalledTimes(7);
     expect(convex.mutation.mock.calls[0][1]).toEqual({
       tenantId: "acme/widgets",
     });
@@ -238,7 +238,7 @@ describe("POST /api/kody/company/backend/import", () => {
       .slice(1)
       .filter((call) => (call[1] as { table: string }).table === "goals")
       .map((call) => (call[1] as { docs: unknown[] }).docs.length);
-    expect(goalChunks).toEqual([200, 50]);
+    expect(goalChunks).toEqual([50, 50, 50, 50, 50]);
   });
 
   it("skips clearRepo when clearFirst is not set", async () => {

@@ -13,7 +13,25 @@ import { anyApi } from "convex/server";
 
 import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
 
-const CHUNK_SIZE = 200;
+const CHUNK_SIZE = 50;
+const MAX_RETRIES = 5;
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Retries a Convex write when the deployment throttles (TooManyWrites). */
+async function withWriteRetry<T>(run: () => Promise<T>): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await run();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!message.includes("TooManyWrites") || attempt >= MAX_RETRIES) {
+        throw error;
+      }
+      await sleep(1000 * 2 ** attempt);
+    }
+  }
+}
 
 const importBodySchema = z.object({
   version: z.literal(1),
@@ -68,16 +86,22 @@ export async function POST(req: NextRequest) {
     const client = new ConvexHttpClient(convexUrl);
 
     if (clearFirst) {
-      await client.mutation(anyApi.importExport.clearRepo, { tenantId });
+      await withWriteRetry(() =>
+        client.mutation(anyApi.importExport.clearRepo, { tenantId }),
+      );
     }
 
     const counts: Array<[string, number]> = [];
     for (const [table, docs] of Object.entries(tables)) {
       for (const batch of chunk(docs, CHUNK_SIZE)) {
-        await client.mutation(anyApi.importExport.importChunk, {
-          table,
-          docs: batch,
-        });
+        await withWriteRetry(() =>
+          client.mutation(anyApi.importExport.importChunk, {
+            table,
+            docs: batch,
+          }),
+        );
+        // Pace writes to stay under the free tier's per-second write budget.
+        await sleep(250);
       }
       counts.push([table, docs.length]);
     }

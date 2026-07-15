@@ -334,10 +334,17 @@ export const ENTITIES: EntityDef[] = [
     map: (path, text, tenantId, now) => {
       const m = path.match(/^tasks\/((?:issues\/|prs\/)?[^/]+)\/([^/]+)\.json$/)
       if (!m) return null
+      // Some agents write plain text into task .json files — keep it as body.
+      let doc: unknown
+      try {
+        doc = JSON.parse(text)
+      } catch {
+        doc = { body: text }
+      }
       return [
         {
           table: "taskState",
-          doc: { tenantId, taskKey: m[1], kind: m[2], doc: JSON.parse(text), updatedAt: now },
+          doc: { tenantId, taskKey: m[1], kind: m[2], doc, updatedAt: now },
         },
       ]
     },

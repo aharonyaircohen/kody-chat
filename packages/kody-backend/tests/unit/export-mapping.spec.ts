@@ -223,3 +223,10 @@ describe("mapStateFile — extended state kinds", () => {
     expect(mapStateFile("logs/goals/g1/runs/r1.jsonl", "{}", REPO, NOW)).toBeNull()
   })
 })
+
+describe("mapStateFile — malformed task files", () => {
+  it("wraps non-JSON task file content as a body doc instead of failing", () => {
+    const rows = mapStateFile("tasks/1095/task.json", "Fixed the bug. Summary:", REPO, NOW)
+    expect(rows?.[0].doc.doc).toEqual({ body: "Fixed the bug. Summary:" })
+  })
+})
