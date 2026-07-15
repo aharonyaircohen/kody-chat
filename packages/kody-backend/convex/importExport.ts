@@ -1,41 +1,16 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
 import type { TableNames } from "./_generated/dataModel"
+import { IMPORTABLE_TABLES } from "../src/entities"
 
 // DB-agnostic migration surface. The export format is plain JSON:
 // { table: string, docs: object[] } chunks — produced by scripts/export-github.ts
 // and consumed here, so the same dump can seed any future backend.
 
-const TABLES = [
-  "workflows",
-  "workflowRuns",
-  "chatSessions",
-  "chatTurns",
-  "chatEvents",
-  "intents",
-  "intentDecisions",
-  "goals",
-  "reports",
-  "agents",
-  "viewRenderers",
-  "macros",
-  "repoDocs",
-  "userState",
-  "notificationPrefs",
-  "inboxEntries",
-  "channelsSeen",
-  "agencyRecords",
-  "taskState",
-  "capabilityState",
-  "dailyLogs",
-  "actionStates",
-  "eventLog",
-] as const
+const TABLES = IMPORTABLE_TABLES
 
-type ImportableTable = (typeof TABLES)[number]
-
-function assertTable(table: string): asserts table is ImportableTable {
-  if (!(TABLES as readonly string[]).includes(table)) {
+function assertTable(table: string): asserts table is TableNames {
+  if (!TABLES.includes(table)) {
     throw new Error(`Unknown table for import: ${table}`)
   }
 }

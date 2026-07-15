@@ -11,3 +11,12 @@ Convex agent skills for common tasks can be installed by running
 `npx convex ai-files install`.
 
 <!-- convex-ai-end -->
+
+## Entity registry rule (load-bearing)
+
+All data entities are defined ONCE in `src/entities.ts` (table + state
+paths + file mapper). The import allowlist, export walker, and GitHub
+mapping derive from it. To add a new entity: add the table to
+`convex/schema.ts` AND a registry entry — the drift test
+(`tests/unit/entity-registry.spec.ts`) fails if either side is missing.
+Never hand-extend table lists or path lists anywhere else.

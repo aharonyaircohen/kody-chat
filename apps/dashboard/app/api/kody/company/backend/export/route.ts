@@ -22,36 +22,13 @@ import {
   listStateDirectory,
   readStateText,
 } from "@kody-ade/base/state-repo";
-import { mapStateFile } from "@kody-ade/backend/export-mapping";
+import { mapStateFile, STATE_ROOTS } from "@kody-ade/backend/export-mapping";
 import type { Octokit } from "@octokit/rest";
 
-/** Top-level state-repo directories that the export mapping understands. */
-const STATE_DIRS = [
-  "workflows",
-  "sessions",
-  "events",
-  "intents",
-  "todos",
-  "reports",
-  "agents",
-  "views",
-  "context",
-  "notifications",
-  "user-state",
-  "agency",
-  "tasks",
-  "capabilities",
-  "activity",
-] as const;
-
-/** Root-level state-repo files that the export mapping understands. */
-const STATE_ROOT_FILES = [
-  "macros.json",
-  "dashboard.json",
-  "system-prompt.md",
-  "instructions.md",
-  "cto.md",
-] as const;
+// Derived from the entity registry (packages/kody-backend/src/entities.ts) —
+// the single source of truth. Roots containing a dot are files, others dirs.
+const STATE_DIRS = STATE_ROOTS.filter((root) => !root.includes("."));
+const STATE_ROOT_FILES = STATE_ROOTS.filter((root) => root.includes("."));
 
 export interface BackendExportDump {
   version: 1;
