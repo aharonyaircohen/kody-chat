@@ -84,6 +84,15 @@ export const companyIntentValidator = v.object({
     v.literal("balanced"),
   ),
   scope: v.object({ repos: v.array(v.string()), areas: v.array(v.string()) }),
+  // Written by agency agents; not yet in the dashboard's CompanyIntent type.
+  manager: v.optional(
+    v.object({
+      agent: v.string(),
+      capability: v.string(),
+      loop: v.string(),
+      reviewEvery: v.string(),
+    }),
+  ),
   principles: v.array(v.string()),
   metrics: v.array(v.string()),
   policy: v.object({
