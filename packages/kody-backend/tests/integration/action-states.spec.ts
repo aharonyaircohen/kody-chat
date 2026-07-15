@@ -26,3 +26,21 @@ describe("actionStates", () => {
     expect(await t.query(api.actionStates.get, { runId: "nope" })).toBeNull()
   })
 })
+
+describe("actionStates list/remove", () => {
+  it("lists all saved states", async () => {
+    const t = setup()
+    await t.mutation(api.actionStates.save, { runId: "a", state: { s: 1 }, updatedAt: NOW })
+    await t.mutation(api.actionStates.save, { runId: "b", state: { s: 2 }, updatedAt: NOW })
+    const all = await t.query(api.actionStates.list, {})
+    expect(all.map((d: { runId: string }) => d.runId).sort()).toEqual(["a", "b"])
+  })
+
+  it("removes a state and reports missing runs", async () => {
+    const t = setup()
+    await t.mutation(api.actionStates.save, { runId: "a", state: { s: 1 }, updatedAt: NOW })
+    expect(await t.mutation(api.actionStates.remove, { runId: "a" })).toBe(true)
+    expect(await t.mutation(api.actionStates.remove, { runId: "a" })).toBe(false)
+    expect(await t.query(api.actionStates.get, { runId: "a" })).toBeNull()
+  })
+})

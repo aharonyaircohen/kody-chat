@@ -20,6 +20,7 @@ import type {
   UpdateWorkflowDefinitionInput,
   WorkflowDefinitionRecord,
 } from "../workflow-definitions";
+import { useWorkflowRunStateLive } from "./useConvexLive";
 
 export const workflowDefinitionQueryKeys = {
   list: ["kody-workflow-definitions"] as const,
@@ -174,10 +175,15 @@ export function useRunWorkflowDefinition() {
 }
 
 export function useWorkflowRunState(id: string, runId?: string) {
-  return useQuery({
+  // Reactive Convex subscription (undefined when NEXT_PUBLIC_CONVEX_URL is
+  // unset or while the first snapshot loads) — when live, it replaces the
+  // 3s HTTP poll entirely.
+  const live = useWorkflowRunStateLive(id.length > 0 ? id : undefined, runId);
+
+  const polled = useQuery({
     queryKey: workflowDefinitionQueryKeys.run(id, runId),
     queryFn: () => kodyApi.workflowDefinitions.latestRun(id, runId),
-    enabled: !!getStoredAuth() && id.length > 0,
+    enabled: !!getStoredAuth() && id.length > 0 && live === undefined,
     refetchInterval: (query) =>
       (runId && !query.state.data) ||
       query.state.data?.state.status === "running"
@@ -185,4 +191,9 @@ export function useWorkflowRunState(id: string, runId?: string) {
         : false,
     staleTime: 2_000,
   });
+
+  if (live !== undefined) {
+    return { ...polled, data: live, isLoading: false } as typeof polled;
+  }
+  return polled;
 }

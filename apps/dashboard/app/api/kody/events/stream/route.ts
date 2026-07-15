@@ -6,7 +6,8 @@
  * GET /api/kody/events/stream?taskId=xxx
  *
  * Server-Sent Events endpoint for real-time chat streaming.
- * Polls the session event file (`events/{sessionId}.jsonl`) via GitHub API.
+ * Polls the session event stream from the Convex chatEvents table
+ * (written by /api/kody/events/ingest).
  *
  * Events are streamed in SSE format: `data: {json}\n\n`
  *
@@ -19,16 +20,15 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import { createUserOctokit } from "@dashboard/lib/github-client";
 import { subscribe } from "@dashboard/lib/chat-event-bus";
 import { logger } from "@kody-ade/base/logger";
-import { readStateText } from "@kody-ade/base/state-repo";
+import { readChatEvents } from "@dashboard/lib/chat-events-store";
 
-// ─── Rate-limit tuning ─────────────────────────────────────────────────────────
-// 15s base poll (was 3s) — pushes are the real freshness path; this is fallback.
+// ─── Poll tuning ───────────────────────────────────────────────────────────────
+// 15s base poll — pushes are the real freshness path; this is fallback.
 const POLL_INTERVAL_MS = 15_000;
-// 120s grace after any push (was 5s) — while engine is delivering inline events,
-// the GitHub poll stays dormant.
+// 120s grace after any push — while engine is delivering inline events,
+// the fallback poll stays dormant.
 const PUSH_GRACE_MS = 120_000;
 // Reconnect dedup: a flapping client cannot force a fresh poll faster than this.
 const MIN_POLL_GAP_MS = 10_000;
@@ -79,14 +79,11 @@ interface ChatEventEntry {
 // connection so a fresh SSE always replays from line 0 (see line ~210).
 const lastReadIndex = new Map<string, number>();
 
-// ETag cache so unchanged GitHub reads return 304 (does not count against rate limit)
-const etagCache = new Map<string, { etag: string; lines: string[] }>();
-
-// Last GitHub poll timestamp per sessionId — survives SSE reconnects so a
+// Last Convex poll timestamp per sessionId — survives SSE reconnects so a
 // flapping client can't reset the polling cadence to zero.
 const lastPolledAt = new Map<string, number>();
 
-// ─── GitHub file helpers ────────────────────────────────────────────────────────
+// ─── Defaults (owner/repo resolution kept for the auth contract) ───────────────
 
 function getDefaultOwner(): string {
   return process.env.GITHUB_OWNER ?? "aharonyaircohen";
@@ -96,41 +93,15 @@ function getDefaultRepo(): string {
   return process.env.GITHUB_REPO ?? "Kody-Dashboard";
 }
 
-function getDefaultBranch(): string {
-  return process.env.KODY_STORE_BRANCH ?? "main";
-}
-
-function sessionEventFilePath(sessionId: string): string {
-  return `events/${sessionId}.jsonl`;
-}
-
+/** Convex-backed event read, shaped as JSONL lines for the poll loop below. */
 async function readEventFile(
-  octokit: Awaited<ReturnType<typeof createUserOctokit>>,
-  owner: string,
-  repo: string,
-  _branch: string,
   sessionId: string,
 ): Promise<{ lines: string[]; exists: boolean }> {
-  const path = sessionEventFilePath(sessionId);
-  const cached = etagCache.get(sessionId);
-  try {
-    const file = await readStateText(octokit, owner, repo, path, {
-      headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
-    });
-    if (file) {
-      const lines = file.content.trim().split("\n").filter(Boolean);
-      if (file.etag) etagCache.set(sessionId, { etag: file.etag, lines });
-      return { lines, exists: true };
-    }
-  } catch (err: unknown) {
-    const e = err as { status?: number };
-    // 304 Not Modified — file is unchanged, reuse cached lines (this response
-    // does NOT count against the GitHub rate limit).
-    if (e.status === 304 && cached)
-      return { lines: cached.lines, exists: true };
-    if (e.status !== 404) throw err;
-  }
-  return { lines: [], exists: false };
+  const { events } = await readChatEvents(sessionId);
+  return {
+    lines: events.map((event) => JSON.stringify(event)),
+    exists: events.length > 0,
+  };
 }
 
 // ─── Handler ───────────────────────────────────────────────────────────────────
@@ -156,7 +127,6 @@ export async function GET(rawReq: NextRequest) {
   const headerAuth = getRequestAuth(req);
   const owner = headerAuth?.owner ?? getDefaultOwner();
   const repo = headerAuth?.repo ?? getDefaultRepo();
-  const branch = getDefaultBranch();
 
   const octokit = await getUserOctokit(req);
   if (!octokit) {
@@ -191,18 +161,17 @@ export async function GET(rawReq: NextRequest) {
   let unsubscribe: (() => void) | null = null;
   const seenEventIds = new Set<string>();
   // Timestamp of last in-memory push delivery. While this is recent, the poll
-  // is suppressed entirely — no GitHub call at all.
+  // is suppressed entirely — no Convex read at all.
   let lastPushAt = 0;
 
-  // Reset the per-session read watermark + etag cache so this connection
-  // sees the full events file from the start. Without this, a previous
-  // connection (other tab, devtools probe, …) that already consumed all
-  // existing lines would have left lastReadIndex == lines.length, and
-  // this connection would see an empty newLines slice forever — visible
-  // bug: dashboard banner stuck at "Almost ready" while chat.ready is
-  // already on git. lastPolledAt is intentionally kept (rate-limit guard).
+  // Reset the per-session read watermark so this connection sees the full
+  // event stream from the start. Without this, a previous connection (other
+  // tab, devtools probe, …) that already consumed all existing lines would
+  // have left lastReadIndex == lines.length, and this connection would see
+  // an empty newLines slice forever — visible bug: dashboard banner stuck at
+  // "Almost ready" while chat.ready has already landed. lastPolledAt is
+  // intentionally kept (poll-cadence guard).
   lastReadIndex.delete(sessionId);
-  etagCache.delete(sessionId);
 
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -213,8 +182,8 @@ export async function GET(rawReq: NextRequest) {
       unsubscribe?.();
       // Note: we intentionally do NOT clear lastPolledAt here — it must
       // survive reconnects to prevent flapping clients from resetting cadence.
-      // lastReadIndex / etagCache are kept for the same reason: a quick
-      // reconnect should resume from where we left off, not refetch.
+      // lastReadIndex is kept for the same reason: a quick reconnect should
+      // resume from where we left off, not refetch.
     },
   });
 
@@ -389,7 +358,7 @@ export async function GET(rawReq: NextRequest) {
       return;
     }
 
-    // Skip GitHub entirely while the in-memory push channel is live. The poll
+    // Skip Convex entirely while the in-memory push channel is live. The poll
     // is a fallback for cross-instance SSE; when push is delivering, it's pure
     // waste. 120s grace covers an entire engine reply burst.
     if (Date.now() - lastPushAt < PUSH_GRACE_MS) {
@@ -401,7 +370,7 @@ export async function GET(rawReq: NextRequest) {
     }
 
     // Reconnect-storm guard: if another SSE connection for this sessionId
-    // polled GitHub recently, skip. Survives client reconnects via module map.
+    // polled Convex recently, skip. Survives client reconnects via module map.
     const last = lastPolledAt.get(sessionId) ?? 0;
     if (Date.now() - last < MIN_POLL_GAP_MS) {
       logger.info(
@@ -414,13 +383,7 @@ export async function GET(rawReq: NextRequest) {
 
     let lines: string[];
     try {
-      const result = await readEventFile(
-        octokit,
-        owner,
-        repo,
-        branch,
-        sessionId,
-      );
+      const result = await readEventFile(sessionId);
       lines = result.lines;
       logger.info(
         {

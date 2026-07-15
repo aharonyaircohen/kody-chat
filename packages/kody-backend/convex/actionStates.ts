@@ -28,3 +28,23 @@ export const save = mutation({
     return await ctx.db.insert("actionStates", args)
   },
 })
+
+export const list = query({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.db.query("actionStates").collect()
+  },
+})
+
+export const remove = mutation({
+  args: { runId: v.string() },
+  handler: async (ctx, { runId }) => {
+    const existing = await ctx.db
+      .query("actionStates")
+      .withIndex("by_run", (q) => q.eq("runId", runId))
+      .unique()
+    if (!existing) return false
+    await ctx.db.delete(existing._id)
+    return true
+  },
+})

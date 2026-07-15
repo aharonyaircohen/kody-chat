@@ -21,6 +21,12 @@
 
 import type { Octokit } from "@octokit/rest";
 import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
+import { logger } from "@kody-ade/base/logger";
+import {
+  backendApi,
+  getConvexClient,
+  tenantIdFor,
+} from "./backend/convex-backend";
 
 const SESSION_DIR = "sessions";
 const DEFAULT_BRANCH = "main";
@@ -118,6 +124,7 @@ export async function writeSessionMeta(
         ...(sha ? { sha } : {}),
         maxAttempts: 1,
       });
+      await recordSessionStart(owner, repo, sessionId, meta, initialTurn);
       return;
     } catch (err: unknown) {
       const e = err as { status?: number };
@@ -173,6 +180,7 @@ export async function appendUserTurn(
         sha: existing.sha,
         maxAttempts: 1,
       });
+      await recordTurn(owner, repo, sessionId, turn);
       return { turnCount: countTurnLines(newContent) };
     } catch (err: unknown) {
       const e = err as { status?: number };
@@ -184,6 +192,98 @@ export async function appendUserTurn(
       throw err;
     }
   }
+}
+
+/**
+ * Read a session's transcript from the Convex record
+ * (chatSessions.get → { session, turns }). Returns null when the session
+ * was never recorded (pre-migration sessions live only in the state repo).
+ */
+export async function readSessionTranscript(
+  owner: string,
+  repo: string,
+  sessionId: string,
+): Promise<{ meta: SessionMeta; turns: ChatTurn[] } | null> {
+  const result = (await getConvexClient().query(backendApi.chatSessions.get, {
+    tenantId: tenantIdFor(owner, repo),
+    sessionId,
+  })) as {
+    session: { meta: SessionMeta };
+    turns: Array<{ seq: number; turn: ChatTurn }>;
+  } | null;
+  if (!result) return null;
+  return {
+    meta: result.session.meta,
+    turns: [...result.turns]
+      .sort((a, b) => a.seq - b.seq)
+      .map((doc) => doc.turn),
+  };
+}
+
+// ─── Convex transcript record ──────────────────────────────────────────────
+// Convex is the durable transcript record; the state-repo JSONL write above
+// stays because the engine runner git-pulls sessions/<id>.jsonl for its
+// inbox loop (kody2/src/chat/inbox.ts). Mirror failures are logged, not
+// thrown — a Convex hiccup must not take down chat.
+
+async function recordSessionStart(
+  owner: string,
+  repo: string,
+  sessionId: string,
+  meta: SessionMeta,
+  initialTurn?: ChatTurn,
+): Promise<void> {
+  try {
+    const client = getConvexClient();
+    const tenantId = tenantIdFor(owner, repo);
+    await client.mutation(backendApi.chatSessions.upsert, {
+      tenantId,
+      sessionId,
+      meta,
+      updatedAt: new Date().toISOString(),
+    });
+    if (initialTurn) {
+      await client.mutation(backendApi.chatTurns.append, {
+        tenantId,
+        sessionId,
+        turn: normalizeTurn(initialTurn),
+      });
+    }
+  } catch (err) {
+    logger.error(
+      { err, sessionId },
+      "interactive-session: convex session start record failed",
+    );
+  }
+}
+
+async function recordTurn(
+  owner: string,
+  repo: string,
+  sessionId: string,
+  turn: ChatTurn,
+): Promise<void> {
+  try {
+    await getConvexClient().mutation(backendApi.chatTurns.append, {
+      tenantId: tenantIdFor(owner, repo),
+      sessionId,
+      turn: normalizeTurn(turn),
+    });
+  } catch (err) {
+    logger.error(
+      { err, sessionId },
+      "interactive-session: convex turn record failed",
+    );
+  }
+}
+
+function normalizeTurn(turn: ChatTurn): ChatTurn {
+  return {
+    role: turn.role,
+    content: turn.content,
+    timestamp: turn.timestamp,
+    toolCalls: turn.toolCalls ?? [],
+  };
 }
 
 // ─── internals ─────────────────────────────────────────────────────────────
