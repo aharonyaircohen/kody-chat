@@ -3,10 +3,10 @@
  *
  * Usage:
  *   CONVEX_URL=https://….convex.cloud pnpm --filter @kody-ade/backend import:convex \
- *     [--dir ./dump] [--clear-repo owner/name]
+ *     [--dir ./dump] [--clear-tenantId owner/name]
  *
- * Chunks each table's docs through importExport:importChunk. Pass --clear-repo
- * to wipe that repo's rows first (safe re-runs on a test deployment).
+ * Chunks each table's docs through importExport:importChunk. Pass --clear-tenantId
+ * to wipe that tenantId's rows first (safe re-runs on a test deployment).
  */
 import { readdir, readFile } from "node:fs/promises"
 import { join } from "node:path"
@@ -25,13 +25,13 @@ function argValue(flag: string): string | undefined {
 }
 
 const dir = argValue("--dir") ?? "./dump"
-const clearRepo = argValue("--clear-repo")
+const clearRepo = argValue("--clear-tenantId")
 const CHUNK_SIZE = 200
 
 const client = new ConvexHttpClient(url)
 
 if (clearRepo) {
-  const result = await client.mutation(anyApi.importExport.clearRepo, { repo: clearRepo })
+  const result = await client.mutation(anyApi.importExport.clearRepo, { tenantId: clearRepo })
   console.log(`cleared ${result.deleted} rows for ${clearRepo}`)
 }
 

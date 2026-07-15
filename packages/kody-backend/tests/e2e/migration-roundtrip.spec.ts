@@ -3,7 +3,7 @@ import { ConvexHttpClient } from "convex/browser"
 import { anyApi } from "convex/server"
 import { mapStateFile } from "../../src/export-mapping.ts"
 
-// E2E layer: the full migration path — state-repo files → export mapping →
+// E2E layer: the full migration path — state-tenantId files → export mapping →
 // chunked import → domain reads → export → cleanup — against a real
 // deployment. Skipped unless CONVEX_URL is set.
 // Run: CONVEX_URL=… pnpm vitest --project e2e
@@ -11,7 +11,7 @@ const url = process.env.CONVEX_URL
 
 const NOW = "2026-07-15T00:00:00.000Z"
 
-// Simulated GitHub state-repo contents.
+// Simulated GitHub state-tenantId contents.
 const STATE_FILES: Array<[path: string, text: string]> = [
   ["workflows/deploy/workflow.json", JSON.stringify({ version: 1, name: "Deploy", updatedAt: NOW })],
   ["workflows/deploy/runs/r1.json", JSON.stringify({ status: "done", completedStepIds: ["a"] })],
@@ -32,13 +32,13 @@ const STATE_FILES: Array<[path: string, text: string]> = [
 
 describe.skipIf(!url)("migration round-trip", () => {
   const client = url ? new ConvexHttpClient(url) : null!
-  const repo = `e2e-test/${Date.now()}`
+  const tenantId = `e2e-test/${Date.now()}`
 
   it("export-maps, imports, reads back through domain queries, and cleans up", async () => {
     // 1. Map files to dump rows (what export-github.ts produces).
     const byTable: Record<string, Array<Record<string, unknown>>> = {}
     for (const [path, text] of STATE_FILES) {
-      const rows = mapStateFile(path, text, repo, NOW)
+      const rows = mapStateFile(path, text, tenantId, NOW)
       expect(rows, `no mapping for ${path}`).not.toBeNull()
       for (const { table, doc } of rows!) {
         byTable[table] = [...(byTable[table] ?? []), doc]
@@ -52,22 +52,22 @@ describe.skipIf(!url)("migration round-trip", () => {
     }
 
     // 3. Read back through the domain API.
-    const workflow = await client.query(anyApi.workflows.get, { repo, workflowId: "deploy" })
+    const workflow = await client.query(anyApi.workflows.get, { tenantId, workflowId: "deploy" })
     expect(workflow?.definition?.name).toBe("Deploy")
     const run = await client.query(anyApi.workflows.getRun, {
-      repo,
+      tenantId,
       workflowId: "deploy",
       runId: "r1",
     })
     expect(run?.state?.status).toBe("done")
-    const session = await client.query(anyApi.chat.getSession, { repo, sessionId: "s1" })
+    const session = await client.query(anyApi.chat.getSession, { tenantId, sessionId: "s1" })
     expect(session?.turns).toHaveLength(1)
-    const goals = await client.query(anyApi.company.listGoals, { repo })
+    const goals = await client.query(anyApi.company.listGoals, { tenantId })
     expect(goals).toHaveLength(1)
-    const config = await client.query(anyApi.repoStore.getDoc, { repo, kind: "dashboard-config" })
+    const config = await client.query(anyApi.repoStore.getDoc, { tenantId, kind: "dashboard-config" })
     expect(config?.doc?.version).toBe(1)
     const profile = await client.query(anyApi.users.getUserState, {
-      repo,
+      tenantId,
       namespace: "profile",
       userKey: "u1",
     })
@@ -76,12 +76,12 @@ describe.skipIf(!url)("migration round-trip", () => {
     // 4. Export matches what went in.
     const exported = await client.query(anyApi.importExport.exportTable, {
       table: "workflows",
-      repo,
+      tenantId,
     })
     expect(exported).toEqual(byTable.workflows)
 
     // 5. Cleanup.
-    const cleared = await client.mutation(anyApi.importExport.clearRepo, { repo })
+    const cleared = await client.mutation(anyApi.importExport.clearRepo, { tenantId })
     expect(cleared.deleted).toBeGreaterThan(0)
   })
 })

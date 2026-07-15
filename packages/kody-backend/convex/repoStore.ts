@@ -1,25 +1,25 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
 
-// Per-repo config surface: singleton docs (dashboard config, system prompt,
+// Per-tenantId config surface: singleton docs (dashboard config, system prompt,
 // context docs), reports, macros, view renderers.
 
 export const getDoc = query({
-  args: { repo: v.string(), kind: v.string() },
-  handler: async (ctx, { repo, kind }) => {
+  args: { tenantId: v.string(), kind: v.string() },
+  handler: async (ctx, { tenantId, kind }) => {
     return await ctx.db
       .query("repoDocs")
-      .withIndex("by_kind", (q) => q.eq("repo", repo).eq("kind", kind))
+      .withIndex("by_kind", (q) => q.eq("tenantId", tenantId).eq("kind", kind))
       .unique()
   },
 })
 
 export const saveDoc = mutation({
-  args: { repo: v.string(), kind: v.string(), doc: v.any(), updatedAt: v.string() },
+  args: { tenantId: v.string(), kind: v.string(), doc: v.any(), updatedAt: v.string() },
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("repoDocs")
-      .withIndex("by_kind", (q) => q.eq("repo", args.repo).eq("kind", args.kind))
+      .withIndex("by_kind", (q) => q.eq("tenantId", args.tenantId).eq("kind", args.kind))
       .unique()
     if (existing) {
       await ctx.db.patch(existing._id, { doc: args.doc, updatedAt: args.updatedAt })
@@ -30,18 +30,18 @@ export const saveDoc = mutation({
 })
 
 export const listReports = query({
-  args: { repo: v.string() },
-  handler: async (ctx, { repo }) => {
+  args: { tenantId: v.string() },
+  handler: async (ctx, { tenantId }) => {
     return await ctx.db
       .query("reports")
-      .withIndex("by_repo", (q) => q.eq("repo", repo))
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
       .collect()
   },
 })
 
 export const saveReport = mutation({
   args: {
-    repo: v.string(),
+    tenantId: v.string(),
     slug: v.string(),
     runId: v.optional(v.string()),
     title: v.optional(v.string()),
@@ -53,7 +53,7 @@ export const saveReport = mutation({
     const existing = await ctx.db
       .query("reports")
       .withIndex("by_slug", (q) =>
-        q.eq("repo", args.repo).eq("slug", args.slug).eq("runId", args.runId),
+        q.eq("tenantId", args.tenantId).eq("slug", args.slug).eq("runId", args.runId),
       )
       .unique()
     if (existing) {
@@ -70,21 +70,21 @@ export const saveReport = mutation({
 })
 
 export const listMacros = query({
-  args: { repo: v.string() },
-  handler: async (ctx, { repo }) => {
+  args: { tenantId: v.string() },
+  handler: async (ctx, { tenantId }) => {
     return await ctx.db
       .query("macros")
-      .withIndex("by_repo", (q) => q.eq("repo", repo))
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
       .collect()
   },
 })
 
 export const saveMacro = mutation({
-  args: { repo: v.string(), macroId: v.string(), macro: v.any() },
+  args: { tenantId: v.string(), macroId: v.string(), macro: v.any() },
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("macros")
-      .withIndex("by_repo", (q) => q.eq("repo", args.repo).eq("macroId", args.macroId))
+      .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId).eq("macroId", args.macroId))
       .unique()
     if (existing) {
       await ctx.db.patch(existing._id, { macro: args.macro })
@@ -95,21 +95,21 @@ export const saveMacro = mutation({
 })
 
 export const listRenderers = query({
-  args: { repo: v.string() },
-  handler: async (ctx, { repo }) => {
+  args: { tenantId: v.string() },
+  handler: async (ctx, { tenantId }) => {
     return await ctx.db
       .query("viewRenderers")
-      .withIndex("by_repo", (q) => q.eq("repo", repo))
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
       .collect()
   },
 })
 
 export const saveRenderer = mutation({
-  args: { repo: v.string(), slug: v.string(), definition: v.any(), updatedAt: v.string() },
+  args: { tenantId: v.string(), slug: v.string(), definition: v.any(), updatedAt: v.string() },
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("viewRenderers")
-      .withIndex("by_repo", (q) => q.eq("repo", args.repo).eq("slug", args.slug))
+      .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId).eq("slug", args.slug))
       .unique()
     if (existing) {
       await ctx.db.patch(existing._id, {

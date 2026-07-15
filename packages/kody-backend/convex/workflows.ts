@@ -2,28 +2,28 @@ import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
 
 export const list = query({
-  args: { repo: v.string() },
-  handler: async (ctx, { repo }) => {
+  args: { tenantId: v.string() },
+  handler: async (ctx, { tenantId }) => {
     return await ctx.db
       .query("workflows")
-      .withIndex("by_repo", (q) => q.eq("repo", repo))
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
       .collect()
   },
 })
 
 export const get = query({
-  args: { repo: v.string(), workflowId: v.string() },
-  handler: async (ctx, { repo, workflowId }) => {
+  args: { tenantId: v.string(), workflowId: v.string() },
+  handler: async (ctx, { tenantId, workflowId }) => {
     return await ctx.db
       .query("workflows")
-      .withIndex("by_repo", (q) => q.eq("repo", repo).eq("workflowId", workflowId))
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId).eq("workflowId", workflowId))
       .unique()
   },
 })
 
 export const save = mutation({
   args: {
-    repo: v.string(),
+    tenantId: v.string(),
     workflowId: v.string(),
     definition: v.any(),
     source: v.union(v.literal("local"), v.literal("store")),
@@ -32,7 +32,7 @@ export const save = mutation({
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("workflows")
-      .withIndex("by_repo", (q) => q.eq("repo", args.repo).eq("workflowId", args.workflowId))
+      .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId).eq("workflowId", args.workflowId))
       .unique()
     if (existing) {
       await ctx.db.patch(existing._id, {
@@ -47,33 +47,33 @@ export const save = mutation({
 })
 
 export const remove = mutation({
-  args: { repo: v.string(), workflowId: v.string() },
-  handler: async (ctx, { repo, workflowId }) => {
+  args: { tenantId: v.string(), workflowId: v.string() },
+  handler: async (ctx, { tenantId, workflowId }) => {
     const existing = await ctx.db
       .query("workflows")
-      .withIndex("by_repo", (q) => q.eq("repo", repo).eq("workflowId", workflowId))
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId).eq("workflowId", workflowId))
       .unique()
     if (existing) await ctx.db.delete(existing._id)
   },
 })
 
 export const listRuns = query({
-  args: { repo: v.string(), workflowId: v.string() },
-  handler: async (ctx, { repo, workflowId }) => {
+  args: { tenantId: v.string(), workflowId: v.string() },
+  handler: async (ctx, { tenantId, workflowId }) => {
     return await ctx.db
       .query("workflowRuns")
-      .withIndex("by_workflow", (q) => q.eq("repo", repo).eq("workflowId", workflowId))
+      .withIndex("by_workflow", (q) => q.eq("tenantId", tenantId).eq("workflowId", workflowId))
       .collect()
   },
 })
 
 export const getRun = query({
-  args: { repo: v.string(), workflowId: v.string(), runId: v.string() },
-  handler: async (ctx, { repo, workflowId, runId }) => {
+  args: { tenantId: v.string(), workflowId: v.string(), runId: v.string() },
+  handler: async (ctx, { tenantId, workflowId, runId }) => {
     return await ctx.db
       .query("workflowRuns")
       .withIndex("by_run", (q) =>
-        q.eq("repo", repo).eq("workflowId", workflowId).eq("runId", runId),
+        q.eq("tenantId", tenantId).eq("workflowId", workflowId).eq("runId", runId),
       )
       .unique()
   },
@@ -81,7 +81,7 @@ export const getRun = query({
 
 export const saveRun = mutation({
   args: {
-    repo: v.string(),
+    tenantId: v.string(),
     workflowId: v.string(),
     runId: v.string(),
     state: v.any(),
@@ -91,7 +91,7 @@ export const saveRun = mutation({
     const existing = await ctx.db
       .query("workflowRuns")
       .withIndex("by_run", (q) =>
-        q.eq("repo", args.repo).eq("workflowId", args.workflowId).eq("runId", args.runId),
+        q.eq("tenantId", args.tenantId).eq("workflowId", args.workflowId).eq("runId", args.runId),
       )
       .unique()
     if (existing) {

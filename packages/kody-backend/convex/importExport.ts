@@ -47,16 +47,16 @@ export const importChunk = mutation({
   },
 })
 
-// Wipes a repo's rows before a re-import (dry runs on a test deployment).
+// Wipes a tenant's rows before a re-import (dry runs on a test deployment).
 export const clearRepo = mutation({
-  args: { repo: v.string() },
-  handler: async (ctx, { repo }) => {
+  args: { tenantId: v.string() },
+  handler: async (ctx, { tenantId }) => {
     let deleted = 0
     for (const table of TABLES) {
       if (table === "actionStates" || table === "eventLog") continue // global tables
       const docs = await ctx.db
         .query(table as TableNames)
-        .filter((q) => q.eq(q.field("repo"), repo))
+        .filter((q) => q.eq(q.field("tenantId"), tenantId))
         .collect()
       for (const doc of docs) {
         await ctx.db.delete(doc._id)
@@ -68,12 +68,12 @@ export const clearRepo = mutation({
 })
 
 export const exportTable = query({
-  args: { table: v.string(), repo: v.optional(v.string()) },
-  handler: async (ctx, { table, repo }) => {
+  args: { table: v.string(), tenantId: v.optional(v.string()) },
+  handler: async (ctx, { table, tenantId }) => {
     assertTable(table)
     let q = ctx.db.query(table as TableNames)
-    const docs = repo
-      ? await q.filter((f) => f.eq(f.field("repo"), repo)).collect()
+    const docs = tenantId
+      ? await q.filter((f) => f.eq(f.field("tenantId"), tenantId)).collect()
       : await q.collect()
     return docs.map(({ _id, _creationTime, ...rest }) => rest)
   },

@@ -2,7 +2,7 @@
  * Exports the GitHub state repo into a DB-agnostic JSON dump.
  *
  * Usage:
- *   GITHUB_TOKEN=… STATE_REPO=owner/state-repo REPO=owner/consumer-repo \
+ *   GITHUB_TOKEN=… STATE_REPO=owner/state-repo REPO=owner/consumer-tenantId \
  *     pnpm --filter @kody-ade/backend export:github [--branch main] [--out ./dump]
  *
  * Output: <out>/<table>.json files, each `{ table, docs: [...] }` — the format
@@ -15,11 +15,11 @@ import { mapStateFile } from "../src/export-mapping.ts"
 
 const token = process.env.GITHUB_TOKEN
 const stateRepo = process.env.STATE_REPO
-const repo = process.env.REPO
+const tenantId = process.env.REPO
 const branch = argValue("--branch") ?? "main"
 const outDir = argValue("--out") ?? "./dump"
 
-if (!token || !stateRepo || !repo) {
+if (!token || !stateRepo || !tenantId) {
   console.error("Required env: GITHUB_TOKEN, STATE_REPO (owner/name), REPO (owner/name)")
   process.exit(1)
 }
@@ -61,7 +61,7 @@ const entries = await listTree()
 console.log(`state repo ${stateRepo}@${branch}: ${entries.length} files`)
 for (const entry of entries) {
   try {
-    const rows = mapStateFile(entry.path, await readFileText(entry.path), repo, now)
+    const rows = mapStateFile(entry.path, await readFileText(entry.path), tenantId, now)
     if (!rows) {
       console.warn(`skipped (no mapping): ${entry.path}`)
       continue

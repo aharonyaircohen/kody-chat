@@ -31,7 +31,7 @@ describe("mapStateFile", () => {
       {
         table: "workflows",
         doc: {
-          repo: REPO,
+          tenantId: REPO,
           workflowId: "deploy",
           definition: { version: 1, name: "Deploy", updatedAt: "2026-01-01T00:00:00Z" },
           source: "local",
@@ -78,7 +78,7 @@ describe("mapStateFile", () => {
   it("handles an empty session file with a default meta", () => {
     const rows = mapStateFile("sessions/s2.jsonl", "", REPO, NOW)
     expect(rows).toEqual([
-      { table: "chatSessions", doc: { repo: REPO, sessionId: "s2", meta: {}, updatedAt: NOW } },
+      { table: "chatSessions", doc: { tenantId: REPO, sessionId: "s2", meta: {}, updatedAt: NOW } },
     ])
   })
 
@@ -86,8 +86,8 @@ describe("mapStateFile", () => {
     const text = ['{"e":1}', '{"e":2}'].join("\n")
     const rows = mapStateFile("events/s1.jsonl", text, REPO, NOW)
     expect(rows).toEqual([
-      { table: "chatEvents", doc: { repo: REPO, sessionId: "s1", seq: 0, event: { e: 1 } } },
-      { table: "chatEvents", doc: { repo: REPO, sessionId: "s1", seq: 1, event: { e: 2 } } },
+      { table: "chatEvents", doc: { tenantId: REPO, sessionId: "s1", seq: 0, event: { e: 1 } } },
+      { table: "chatEvents", doc: { tenantId: REPO, sessionId: "s1", seq: 1, event: { e: 2 } } },
     ])
   })
 

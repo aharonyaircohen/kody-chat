@@ -11,12 +11,12 @@ describe("importExport", () => {
     const result = await t.mutation(api.importExport.importChunk, {
       table: "workflows",
       docs: [
-        { repo: REPO, workflowId: "w1", definition: {}, source: "local", updatedAt: NOW },
-        { repo: REPO, workflowId: "w2", definition: {}, source: "local", updatedAt: NOW },
+        { tenantId: REPO, workflowId: "w1", definition: {}, source: "local", updatedAt: NOW },
+        { tenantId: REPO, workflowId: "w2", definition: {}, source: "local", updatedAt: NOW },
       ],
     })
     expect(result.inserted).toBe(2)
-    expect(await t.query(api.workflows.list, { repo: REPO })).toHaveLength(2)
+    expect(await t.query(api.workflows.list, { tenantId: REPO })).toHaveLength(2)
   })
 
   it("rejects unknown tables", async () => {
@@ -29,11 +29,11 @@ describe("importExport", () => {
   it("round-trips: import → export returns the same docs without system fields", async () => {
     const t = setup()
     const docs = [
-      { repo: REPO, goalId: "g1", state: { state: "open" }, updatedAt: NOW },
-      { repo: REPO, goalId: "g2", state: { state: "done" }, updatedAt: NOW },
+      { tenantId: REPO, goalId: "g1", state: { state: "open" }, updatedAt: NOW },
+      { tenantId: REPO, goalId: "g2", state: { state: "done" }, updatedAt: NOW },
     ]
     await t.mutation(api.importExport.importChunk, { table: "goals", docs })
-    const exported = await t.query(api.importExport.exportTable, { table: "goals", repo: REPO })
+    const exported = await t.query(api.importExport.exportTable, { table: "goals", tenantId: REPO })
     expect(exported).toEqual(docs)
     for (const doc of exported) {
       expect(doc).not.toHaveProperty("_id")
@@ -41,26 +41,26 @@ describe("importExport", () => {
     }
   })
 
-  it("exportTable filters by repo when given", async () => {
+  it("exportTable filters by tenantId when given", async () => {
     const t = setup()
     await t.mutation(api.importExport.importChunk, {
       table: "goals",
       docs: [
-        { repo: REPO, goalId: "g1", state: {}, updatedAt: NOW },
-        { repo: "other/repo", goalId: "g2", state: {}, updatedAt: NOW },
+        { tenantId: REPO, goalId: "g1", state: {}, updatedAt: NOW },
+        { tenantId: "other/tenantId", goalId: "g2", state: {}, updatedAt: NOW },
       ],
     })
-    expect(await t.query(api.importExport.exportTable, { table: "goals", repo: REPO })).toHaveLength(1)
+    expect(await t.query(api.importExport.exportTable, { table: "goals", tenantId: REPO })).toHaveLength(1)
     expect(await t.query(api.importExport.exportTable, { table: "goals" })).toHaveLength(2)
   })
 
-  it("clearRepo wipes only that repo's rows and keeps global tables", async () => {
+  it("clearRepo wipes only that tenantId's rows and keeps global tables", async () => {
     const t = setup()
     await t.mutation(api.importExport.importChunk, {
       table: "goals",
       docs: [
-        { repo: REPO, goalId: "g1", state: {}, updatedAt: NOW },
-        { repo: "other/repo", goalId: "g2", state: {}, updatedAt: NOW },
+        { tenantId: REPO, goalId: "g1", state: {}, updatedAt: NOW },
+        { tenantId: "other/tenantId", goalId: "g2", state: {}, updatedAt: NOW },
       ],
     })
     await t.mutation(api.engine.appendEvent, {
@@ -71,7 +71,7 @@ describe("importExport", () => {
       emittedAt: NOW,
     })
 
-    const result = await t.mutation(api.importExport.clearRepo, { repo: REPO })
+    const result = await t.mutation(api.importExport.clearRepo, { tenantId: REPO })
     expect(result.deleted).toBe(1)
     expect(await t.query(api.importExport.exportTable, { table: "goals" })).toHaveLength(1)
     expect(await t.query(api.engine.recentEvents, {})).toHaveLength(1)
@@ -79,14 +79,14 @@ describe("importExport", () => {
 
   it("supports a clear → re-import cycle (migration dry-run shape)", async () => {
     const t = setup()
-    const docs = [{ repo: REPO, goalId: "g1", state: { v: 1 }, updatedAt: NOW }]
+    const docs = [{ tenantId: REPO, goalId: "g1", state: { v: 1 }, updatedAt: NOW }]
     await t.mutation(api.importExport.importChunk, { table: "goals", docs })
-    await t.mutation(api.importExport.clearRepo, { repo: REPO })
+    await t.mutation(api.importExport.clearRepo, { tenantId: REPO })
     await t.mutation(api.importExport.importChunk, {
       table: "goals",
       docs: [{ ...docs[0], state: { v: 2 } }],
     })
-    const exported = await t.query(api.importExport.exportTable, { table: "goals", repo: REPO })
+    const exported = await t.query(api.importExport.exportTable, { table: "goals", tenantId: REPO })
     expect(exported).toHaveLength(1)
     expect((exported[0] as { state: { v: number } }).state.v).toBe(2)
   })

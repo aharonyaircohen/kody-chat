@@ -5,12 +5,12 @@ import { v } from "convex/values"
 // channels-seen (today: state-repo files + private gists).
 
 export const getUserState = query({
-  args: { repo: v.string(), namespace: v.string(), userKey: v.string() },
-  handler: async (ctx, { repo, namespace, userKey }) => {
+  args: { tenantId: v.string(), namespace: v.string(), userKey: v.string() },
+  handler: async (ctx, { tenantId, namespace, userKey }) => {
     return await ctx.db
       .query("userState")
       .withIndex("by_user", (q) =>
-        q.eq("repo", repo).eq("namespace", namespace).eq("userKey", userKey),
+        q.eq("tenantId", tenantId).eq("namespace", namespace).eq("userKey", userKey),
       )
       .unique()
   },
@@ -18,7 +18,7 @@ export const getUserState = query({
 
 export const saveUserState = mutation({
   args: {
-    repo: v.string(),
+    tenantId: v.string(),
     namespace: v.string(),
     userKey: v.string(),
     data: v.any(),
@@ -28,7 +28,7 @@ export const saveUserState = mutation({
     const existing = await ctx.db
       .query("userState")
       .withIndex("by_user", (q) =>
-        q.eq("repo", args.repo).eq("namespace", args.namespace).eq("userKey", args.userKey),
+        q.eq("tenantId", args.tenantId).eq("namespace", args.namespace).eq("userKey", args.userKey),
       )
       .unique()
     if (existing) {
@@ -40,21 +40,21 @@ export const saveUserState = mutation({
 })
 
 export const getNotificationPrefs = query({
-  args: { repo: v.string(), login: v.string() },
-  handler: async (ctx, { repo, login }) => {
+  args: { tenantId: v.string(), login: v.string() },
+  handler: async (ctx, { tenantId, login }) => {
     return await ctx.db
       .query("notificationPrefs")
-      .withIndex("by_login", (q) => q.eq("repo", repo).eq("login", login))
+      .withIndex("by_login", (q) => q.eq("tenantId", tenantId).eq("login", login))
       .unique()
   },
 })
 
 export const saveNotificationPrefs = mutation({
-  args: { repo: v.string(), login: v.string(), prefs: v.any(), updatedAt: v.string() },
+  args: { tenantId: v.string(), login: v.string(), prefs: v.any(), updatedAt: v.string() },
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("notificationPrefs")
-      .withIndex("by_login", (q) => q.eq("repo", args.repo).eq("login", args.login))
+      .withIndex("by_login", (q) => q.eq("tenantId", args.tenantId).eq("login", args.login))
       .unique()
     if (existing) {
       await ctx.db.patch(existing._id, { prefs: args.prefs, updatedAt: args.updatedAt })
@@ -65,11 +65,11 @@ export const saveNotificationPrefs = mutation({
 })
 
 export const listInbox = query({
-  args: { repo: v.string(), login: v.string() },
-  handler: async (ctx, { repo, login }) => {
+  args: { tenantId: v.string(), login: v.string() },
+  handler: async (ctx, { tenantId, login }) => {
     return await ctx.db
       .query("inboxEntries")
-      .withIndex("by_login", (q) => q.eq("repo", repo).eq("login", login))
+      .withIndex("by_login", (q) => q.eq("tenantId", tenantId).eq("login", login))
       .order("desc")
       .collect()
   },
@@ -77,7 +77,7 @@ export const listInbox = query({
 
 export const upsertInboxEntry = mutation({
   args: {
-    repo: v.string(),
+    tenantId: v.string(),
     login: v.string(),
     entryId: v.string(),
     entry: v.any(),
@@ -88,7 +88,7 @@ export const upsertInboxEntry = mutation({
     const existing = await ctx.db
       .query("inboxEntries")
       .withIndex("by_entry", (q) =>
-        q.eq("repo", args.repo).eq("login", args.login).eq("entryId", args.entryId),
+        q.eq("tenantId", args.tenantId).eq("login", args.login).eq("entryId", args.entryId),
       )
       .unique()
     if (existing) {
@@ -104,21 +104,21 @@ export const upsertInboxEntry = mutation({
 })
 
 export const getChannelsSeen = query({
-  args: { repo: v.string(), login: v.string() },
-  handler: async (ctx, { repo, login }) => {
+  args: { tenantId: v.string(), login: v.string() },
+  handler: async (ctx, { tenantId, login }) => {
     return await ctx.db
       .query("channelsSeen")
-      .withIndex("by_login", (q) => q.eq("repo", repo).eq("login", login))
+      .withIndex("by_login", (q) => q.eq("tenantId", tenantId).eq("login", login))
       .unique()
   },
 })
 
 export const saveChannelsSeen = mutation({
-  args: { repo: v.string(), login: v.string(), manifest: v.any(), updatedAt: v.string() },
+  args: { tenantId: v.string(), login: v.string(), manifest: v.any(), updatedAt: v.string() },
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("channelsSeen")
-      .withIndex("by_login", (q) => q.eq("repo", args.repo).eq("login", args.login))
+      .withIndex("by_login", (q) => q.eq("tenantId", args.tenantId).eq("login", args.login))
       .unique()
     if (existing) {
       await ctx.db.patch(existing._id, { manifest: args.manifest, updatedAt: args.updatedAt })

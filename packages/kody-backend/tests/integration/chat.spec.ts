@@ -6,22 +6,22 @@ const REPO = "acme/app"
 const NOW = "2026-07-15T00:00:00.000Z"
 
 describe("chat", () => {
-  it("upserts sessions and lists them per repo", async () => {
+  it("upserts sessions and lists them per tenantId", async () => {
     const t = setup()
     await t.mutation(api.chat.upsertSession, {
-      repo: REPO,
+      tenantId: REPO,
       sessionId: "s1",
       meta: { title: "First" },
       updatedAt: NOW,
     })
     await t.mutation(api.chat.upsertSession, {
-      repo: REPO,
+      tenantId: REPO,
       sessionId: "s1",
       meta: { title: "Renamed" },
       updatedAt: NOW,
     })
 
-    const sessions = await t.query(api.chat.listSessions, { repo: REPO })
+    const sessions = await t.query(api.chat.listSessions, { tenantId: REPO })
     expect(sessions).toHaveLength(1)
     expect(sessions[0].meta.title).toBe("Renamed")
   })
@@ -29,43 +29,43 @@ describe("chat", () => {
   it("appends turns with increasing seq and returns them with the session", async () => {
     const t = setup()
     await t.mutation(api.chat.upsertSession, {
-      repo: REPO,
+      tenantId: REPO,
       sessionId: "s1",
       meta: {},
       updatedAt: NOW,
     })
     await t.mutation(api.chat.appendTurn, {
-      repo: REPO,
+      tenantId: REPO,
       sessionId: "s1",
       turn: { role: "user", content: "hi" },
     })
     await t.mutation(api.chat.appendTurn, {
-      repo: REPO,
+      tenantId: REPO,
       sessionId: "s1",
       turn: { role: "assistant", content: "hello" },
     })
 
-    const result = await t.query(api.chat.getSession, { repo: REPO, sessionId: "s1" })
+    const result = await t.query(api.chat.getSession, { tenantId: REPO, sessionId: "s1" })
     expect(result?.turns.map((x) => x.seq)).toEqual([0, 1])
     expect(result?.turns[1].turn.content).toBe("hello")
   })
 
   it("returns null for a missing session", async () => {
     const t = setup()
-    expect(await t.query(api.chat.getSession, { repo: REPO, sessionId: "nope" })).toBeNull()
+    expect(await t.query(api.chat.getSession, { tenantId: REPO, sessionId: "nope" })).toBeNull()
   })
 
   it("streams events after a given seq", async () => {
     const t = setup()
     for (const n of [1, 2, 3]) {
       await t.mutation(api.chat.appendEvent, {
-        repo: REPO,
+        tenantId: REPO,
         sessionId: "s1",
         event: { n },
       })
     }
     const tail = await t.query(api.chat.eventsSince, {
-      repo: REPO,
+      tenantId: REPO,
       sessionId: "s1",
       afterSeq: 0,
     })
@@ -74,9 +74,9 @@ describe("chat", () => {
 
   it("keeps event seqs independent per session", async () => {
     const t = setup()
-    await t.mutation(api.chat.appendEvent, { repo: REPO, sessionId: "a", event: {} })
-    await t.mutation(api.chat.appendEvent, { repo: REPO, sessionId: "b", event: {} })
-    const a = await t.query(api.chat.eventsSince, { repo: REPO, sessionId: "a", afterSeq: -1 })
+    await t.mutation(api.chat.appendEvent, { tenantId: REPO, sessionId: "a", event: {} })
+    await t.mutation(api.chat.appendEvent, { tenantId: REPO, sessionId: "b", event: {} })
+    const a = await t.query(api.chat.eventsSince, { tenantId: REPO, sessionId: "a", afterSeq: -1 })
     expect(a).toHaveLength(1)
     expect(a[0].seq).toBe(0)
   })
