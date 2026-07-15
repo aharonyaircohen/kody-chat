@@ -172,5 +172,63 @@ export function mapStateFile(
       },
     ]
   }
+  if ((m = path.match(/^agency\/(observations|findings|learnings)\/([^/]+)\.json$/))) {
+    const kind = m[1].replace(/s$/, "") as "observation" | "finding" | "learning"
+    return [
+      {
+        table: "agencyRecords",
+        doc: { tenantId, kind, recordId: m[2], doc: JSON.parse(text), updatedAt: now },
+      },
+    ]
+  }
+  if ((m = path.match(/^tasks\/((?:issues\/|prs\/)?[^/]+)\/([^/]+)\.json$/))) {
+    return [
+      {
+        table: "taskState",
+        doc: { tenantId, taskKey: m[1], kind: m[2], doc: JSON.parse(text), updatedAt: now },
+      },
+    ]
+  }
+  if ((m = path.match(/^capabilities\/([^/]+)\/state\.json$/))) {
+    return [
+      {
+        table: "capabilityState",
+        doc: { tenantId, slug: m[1], state: JSON.parse(text), updatedAt: now },
+      },
+    ]
+  }
+  if ((m = path.match(/^activity\/(\d{4}-\d{2}-\d{2})\.jsonl$/))) {
+    const date = m[1]
+    return parseJsonl(text).map((entry, seq) => ({
+      table: "dailyLogs",
+      doc: { tenantId, stream: "activity", date, seq, entry },
+    }))
+  }
+  if ((m = path.match(/^events\/log\/(\d{4}-\d{2}-\d{2})\.jsonl$/))) {
+    const date = m[1]
+    return parseJsonl(text).map((entry, seq) => ({
+      table: "dailyLogs",
+      doc: { tenantId, stream: "events", date, seq, entry },
+    }))
+  }
+  if (
+    path === "portfolio.json" ||
+    path === "agency-portfolio.json" ||
+    path === "variables.json" ||
+    path === "runs/index.json"
+  ) {
+    const kind = path === "runs/index.json" ? "runs-index" : path.replace(".json", "")
+    return [
+      { table: "repoDocs", doc: { tenantId, kind, doc: JSON.parse(text), updatedAt: now } },
+    ]
+  }
+  if ((m = path.match(/^terminal\/checkpoints\/([^/]+)\.json$/))) {
+    return [
+      {
+        table: "repoDocs",
+        doc: { tenantId, kind: `terminal-checkpoint:${m[1]}`, doc: JSON.parse(text), updatedAt: now },
+      },
+    ]
+  }
   return null
 }

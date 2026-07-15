@@ -1,0 +1,427 @@
+{
+  "table": "taskState",
+  "docs": [
+    {
+      "tenantId": "dryrun/kody-chat",
+      "taskKey": "2",
+      "kind": "context",
+      "doc": {
+        "taskId": "2",
+        "taskType": "issue",
+        "target": "2",
+        "outcome": "success",
+        "exitCode": 0,
+        "reason": "Made fetchDefaultBranchCI accept excludeRunId (auto-detected from GITHUB_RUN_ID) and consult listWorkflowRunsForRepo when the rollup is PENDING with only the self-run in flight, classifying based on the latest completed non-self run. Genuine non-self pending is preserved, no anchor returns unknown, transport errors fall back to the rollup. Cache key now includes excludeRunId so concurrent observers don't pollute each other.",
+        "prUrl": "https://github.com/aharonyaircohen/kody-chat/pull/3",
+        "runUrl": null,
+        "filesTouched": [
+          "packages/base/src/github/workflows.ts",
+          "packages/base/tests/default-branch-ci.spec.ts",
+          "packages/fly/src/plugin/terminal/bridge.ts"
+        ],
+        "sessionLog": null,
+        "startedAt": "2026-07-12T22:08:29.341Z",
+        "finishedAt": "2026-07-12T23:20:20.000Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "taskKey": "2",
+      "kind": "followups",
+      "doc": [
+        {
+          "title": "Reconcile existing finding once a healthy observation lands",
+          "body": "findings/finding-repo-ci-main.json currently sits open with severity=high even though CI has been green for prior main runs. After PR #3 merges and a scheduled observer run records one healthy observation against an in_progress finding, confirm the reconciliation flow advances the finding (or hands it to verification). The agency-observer test 'creates one finding, updates it, and hands recovery to verification' covers the logic but has not been exercised against the live main branch yet.",
+          "rationale": "The reconciliation flow depends on prior observation IDs being present. The first healthy observation after this fix should naturally advance the open finding through to in_progress/closed; if it doesn't, there is a separate bug somewhere else (reconcileFinding or the live finding file).",
+          "priority": "medium"
+        },
+        {
+          "title": "Verify the relay FD-collision fix in production",
+          "body": "The terminal-bridge PTY relay fix in packages/fly/src/plugin/terminal/bridge.ts is exercised only by the test harness path. In production, an external launcher passes FD 3 as a real control channel, so the new guard (control_fd = None when it would alias master) is a no-op there. Confirm during the next terminal-bridge session that resize messages still flow through the control channel — the runtime test 'forwards browser resize messages to the PTY relay' covers it locally but a live smoke is worth doing once.",
+          "rationale": "Production launcher wiring is not covered by unit tests. The guard is defensive — it skips the control channel only when it would alias master, which never happens in production — but the integration still needs confirmation.",
+          "priority": "low"
+        }
+      ],
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "taskKey": "2",
+      "kind": "memory-recs",
+      "doc": [],
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "taskKey": "5",
+      "kind": "context",
+      "doc": {
+        "taskId": "5",
+        "taskType": "issue",
+        "target": "5",
+        "outcome": "success",
+        "exitCode": 0,
+        "reason": "Fixed the source-health lint overflows and PTY relay regression; all configured quality gates pass.",
+        "prUrl": null,
+        "runUrl": null,
+        "filesTouched": [
+          "apps/dashboard/tests/unit/terminal-bridge-fly.spec.ts",
+          "packages/fly/src/plugin/terminal/bridge.ts",
+          "packages/kody-chat/src/dashboard/lib/chat/plugins/terminal/ChatTerminalSurface.tsx",
+          "packages/kody-chat/src/dashboard/lib/chat/plugins/terminal/fly-connection.ts",
+          "packages/kody-chat/src/dashboard/lib/chat/plugins/terminal/terminal-text.ts",
+          "packages/kody-chat/src/dashboard/lib/components/KodyChat.tsx",
+          "packages/kody-chat/src/dashboard/lib/components/kody-chat-helpers.tsx",
+          "packages/kody-chat/tests/unit/chat-plugins/terminal-surface-guards.spec.ts",
+          "packages/kody-chat/tests/unit/chat/kody-chat-helpers.spec.ts",
+          "packages/kody-chat/tests/unit/terminal-bridge-fly.spec.ts"
+        ],
+        "sessionLog": "sessions/676cf0c4-d833-4c8a-828a-af82898422d3.jsonl",
+        "startedAt": "2026-07-13T19:05:01Z",
+        "finishedAt": "2026-07-13T19:41:26Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "taskKey": "5",
+      "kind": "followups",
+      "doc": [],
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "taskKey": "5",
+      "kind": "memory-recs",
+      "doc": [],
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "taskKey": "issues/2",
+      "kind": "state",
+      "doc": {
+        "schemaVersion": 1,
+        "core": {
+          "phase": "reviewing",
+          "status": "succeeded",
+          "currentImplementation": null,
+          "lastOutcome": {
+            "type": "RUN_COMPLETED",
+            "payload": {
+              "commitMessage": "fix(observe-repo-ci): exclude only the self run by GITHUB_RUN_ID"
+            },
+            "timestamp": "2026-07-12T22:23:40.230Z"
+          },
+          "attempts": {
+            "run": 2
+          },
+          "ranAsAgent": null,
+          "prUrl": "https://github.com/aharonyaircohen/kody-chat/pull/3"
+        },
+        "implementations": {
+          "run": {
+            "lastAction": {
+              "type": "RUN_COMPLETED",
+              "payload": {
+                "commitMessage": "fix(observe-repo-ci): exclude only the self run by GITHUB_RUN_ID"
+              },
+              "timestamp": "2026-07-12T22:23:40.230Z"
+            }
+          }
+        },
+        "artifacts": {},
+        "jobs": {
+          "instant:run:2": {
+            "id": "instant:run:2",
+            "implementation": "run",
+            "capability": "run",
+            "agent": "kody",
+            "flavor": "instant",
+            "target": 2,
+            "status": "succeeded",
+            "createdAt": "2026-07-12T18:19:05.653Z",
+            "updatedAt": "2026-07-12T22:23:40.230Z",
+            "completedAt": "2026-07-12T22:23:40.230Z",
+            "prUrl": "https://github.com/aharonyaircohen/kody-chat/pull/3",
+            "agentRuns": [
+              {
+                "id": "gh-29202289764-1-1",
+                "timestamp": "2026-07-12T18:19:05.653Z",
+                "action": "RUN_FAILED",
+                "status": "failed",
+                "note": "verify failed: test\n\n--- test (exit 1, 35.4s) ---\n-logs-agency-boundary.spec.ts (1 test) 4ms\npackages/kody-chat test:uni"
+              },
+              {
+                "id": "gh-29210928945-1-1",
+                "timestamp": "2026-07-12T22:23:40.230Z",
+                "action": "RUN_COMPLETED",
+                "status": "succeeded",
+                "note": "fix(observe-repo-ci): exclude only the self run by GITHUB_RUN_ID",
+                "prUrl": "https://github.com/aharonyaircohen/kody-chat/pull/3"
+              }
+            ]
+          }
+        },
+        "history": [
+          {
+            "timestamp": "2026-07-12T18:19:05.653Z",
+            "implementation": "run",
+            "action": "RUN_FAILED",
+            "note": "verify failed: test\n\n--- test (exit 1, 35.4s) ---\n-logs-agency-boundary.spec.ts (1 test) 4ms\npackages/kody-chat test:uni",
+            "jobId": "gh-29202289764-1-1",
+            "flavor": "instant",
+            "status": "failed"
+          },
+          {
+            "timestamp": "2026-07-12T22:23:40.230Z",
+            "implementation": "run",
+            "action": "RUN_COMPLETED",
+            "note": "fix(observe-repo-ci): exclude only the self run by GITHUB_RUN_ID",
+            "status": "succeeded",
+            "jobId": "gh-29210928945-1-1",
+            "flavor": "instant"
+          }
+        ]
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "taskKey": "issues/5",
+      "kind": "state",
+      "doc": {
+        "schemaVersion": 1,
+        "core": {
+          "phase": "reviewing",
+          "status": "succeeded",
+          "currentImplementation": null,
+          "lastOutcome": {
+            "type": "RUN_COMPLETED",
+            "payload": {
+              "commitMessage": ""
+            },
+            "timestamp": "2026-07-13T19:42:56.533Z"
+          },
+          "attempts": {
+            "run": 1
+          },
+          "ranAsAgent": null,
+          "prUrl": "https://github.com/aharonyaircohen/kody-chat/pull/6"
+        },
+        "implementations": {
+          "run": {
+            "lastAction": {
+              "type": "RUN_COMPLETED",
+              "payload": {
+                "commitMessage": ""
+              },
+              "timestamp": "2026-07-13T19:42:56.533Z"
+            }
+          }
+        },
+        "artifacts": {},
+        "jobs": {
+          "instant:run:5": {
+            "id": "instant:run:5",
+            "implementation": "run",
+            "capability": "run",
+            "agent": "kody",
+            "flavor": "instant",
+            "target": 5,
+            "status": "succeeded",
+            "createdAt": "2026-07-13T19:42:56.533Z",
+            "updatedAt": "2026-07-13T19:42:56.533Z",
+            "completedAt": "2026-07-13T19:42:56.533Z",
+            "prUrl": "https://github.com/aharonyaircohen/kody-chat/pull/6",
+            "agentRuns": [
+              {
+                "id": "gh-29276974867-1-1",
+                "timestamp": "2026-07-13T19:42:56.533Z",
+                "action": "RUN_COMPLETED",
+                "status": "succeeded",
+                "prUrl": "https://github.com/aharonyaircohen/kody-chat/pull/6"
+              }
+            ]
+          }
+        },
+        "history": [
+          {
+            "timestamp": "2026-07-13T19:42:56.533Z",
+            "implementation": "run",
+            "action": "RUN_COMPLETED",
+            "note": "",
+            "status": "succeeded",
+            "jobId": "gh-29276974867-1-1",
+            "flavor": "instant"
+          }
+        ]
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "taskKey": "prs/3",
+      "kind": "state",
+      "doc": {
+        "schemaVersion": 1,
+        "core": {
+          "phase": "reviewing",
+          "status": "succeeded",
+          "currentImplementation": null,
+          "lastOutcome": {
+            "type": "RUN_COMPLETED",
+            "payload": {
+              "commitMessage": "fix(observe-repo-ci): exclude only the self run by GITHUB_RUN_ID"
+            },
+            "timestamp": "2026-07-12T22:23:40.230Z"
+          },
+          "attempts": {
+            "run": 2
+          },
+          "ranAsAgent": null,
+          "prUrl": "https://github.com/aharonyaircohen/kody-chat/pull/3"
+        },
+        "implementations": {
+          "run": {
+            "lastAction": {
+              "type": "RUN_COMPLETED",
+              "payload": {
+                "commitMessage": "fix(observe-repo-ci): exclude only the self run by GITHUB_RUN_ID"
+              },
+              "timestamp": "2026-07-12T22:23:40.230Z"
+            }
+          }
+        },
+        "artifacts": {},
+        "jobs": {
+          "instant:run:2": {
+            "id": "instant:run:2",
+            "implementation": "run",
+            "capability": "run",
+            "agent": "kody",
+            "flavor": "instant",
+            "target": 2,
+            "status": "succeeded",
+            "createdAt": "2026-07-12T18:19:05.653Z",
+            "updatedAt": "2026-07-12T22:23:40.230Z",
+            "completedAt": "2026-07-12T22:23:40.230Z",
+            "prUrl": "https://github.com/aharonyaircohen/kody-chat/pull/3",
+            "agentRuns": [
+              {
+                "id": "gh-29202289764-1-1",
+                "timestamp": "2026-07-12T18:19:05.653Z",
+                "action": "RUN_FAILED",
+                "status": "failed",
+                "note": "verify failed: test\n\n--- test (exit 1, 35.4s) ---\n-logs-agency-boundary.spec.ts (1 test) 4ms\npackages/kody-chat test:uni"
+              },
+              {
+                "id": "gh-29210928945-1-1",
+                "timestamp": "2026-07-12T22:23:40.230Z",
+                "action": "RUN_COMPLETED",
+                "status": "succeeded",
+                "note": "fix(observe-repo-ci): exclude only the self run by GITHUB_RUN_ID",
+                "prUrl": "https://github.com/aharonyaircohen/kody-chat/pull/3"
+              }
+            ]
+          }
+        },
+        "history": [
+          {
+            "timestamp": "2026-07-12T18:19:05.653Z",
+            "implementation": "run",
+            "action": "RUN_FAILED",
+            "note": "verify failed: test\n\n--- test (exit 1, 35.4s) ---\n-logs-agency-boundary.spec.ts (1 test) 4ms\npackages/kody-chat test:uni",
+            "jobId": "gh-29202289764-1-1",
+            "flavor": "instant",
+            "status": "failed"
+          },
+          {
+            "timestamp": "2026-07-12T22:23:40.230Z",
+            "implementation": "run",
+            "action": "RUN_COMPLETED",
+            "note": "fix(observe-repo-ci): exclude only the self run by GITHUB_RUN_ID",
+            "status": "succeeded",
+            "jobId": "gh-29210928945-1-1",
+            "flavor": "instant"
+          }
+        ]
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "taskKey": "prs/6",
+      "kind": "state",
+      "doc": {
+        "schemaVersion": 1,
+        "core": {
+          "phase": "reviewing",
+          "status": "succeeded",
+          "currentImplementation": null,
+          "lastOutcome": {
+            "type": "RUN_COMPLETED",
+            "payload": {
+              "commitMessage": ""
+            },
+            "timestamp": "2026-07-13T19:42:56.533Z"
+          },
+          "attempts": {
+            "run": 1
+          },
+          "ranAsAgent": null,
+          "prUrl": "https://github.com/aharonyaircohen/kody-chat/pull/6"
+        },
+        "implementations": {
+          "run": {
+            "lastAction": {
+              "type": "RUN_COMPLETED",
+              "payload": {
+                "commitMessage": ""
+              },
+              "timestamp": "2026-07-13T19:42:56.533Z"
+            }
+          }
+        },
+        "artifacts": {},
+        "jobs": {
+          "instant:run:5": {
+            "id": "instant:run:5",
+            "implementation": "run",
+            "capability": "run",
+            "agent": "kody",
+            "flavor": "instant",
+            "target": 5,
+            "status": "succeeded",
+            "createdAt": "2026-07-13T19:42:56.533Z",
+            "updatedAt": "2026-07-13T19:42:56.533Z",
+            "completedAt": "2026-07-13T19:42:56.533Z",
+            "prUrl": "https://github.com/aharonyaircohen/kody-chat/pull/6",
+            "agentRuns": [
+              {
+                "id": "gh-29276974867-1-1",
+                "timestamp": "2026-07-13T19:42:56.533Z",
+                "action": "RUN_COMPLETED",
+                "status": "succeeded",
+                "prUrl": "https://github.com/aharonyaircohen/kody-chat/pull/6"
+              }
+            ]
+          }
+        },
+        "history": [
+          {
+            "timestamp": "2026-07-13T19:42:56.533Z",
+            "implementation": "run",
+            "action": "RUN_COMPLETED",
+            "note": "",
+            "status": "succeeded",
+            "jobId": "gh-29276974867-1-1",
+            "flavor": "instant"
+          }
+        ]
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    }
+  ]
+}

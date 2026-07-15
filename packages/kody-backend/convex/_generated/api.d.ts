@@ -9,11 +9,14 @@
  */
 
 import type * as actionStates from "../actionStates.js";
+import type * as agencyRecords from "../agencyRecords.js";
 import type * as agents from "../agents.js";
+import type * as capabilityState from "../capabilityState.js";
 import type * as channelsSeen from "../channelsSeen.js";
 import type * as chatEvents from "../chatEvents.js";
 import type * as chatSessions from "../chatSessions.js";
 import type * as chatTurns from "../chatTurns.js";
+import type * as dailyLogs from "../dailyLogs.js";
 import type * as eventLog from "../eventLog.js";
 import type * as goals from "../goals.js";
 import type * as importExport from "../importExport.js";
@@ -23,6 +26,7 @@ import type * as macros from "../macros.js";
 import type * as notificationPrefs from "../notificationPrefs.js";
 import type * as repoDocs from "../repoDocs.js";
 import type * as reports from "../reports.js";
+import type * as taskState from "../taskState.js";
 import type * as userState from "../userState.js";
 import type * as validators from "../validators.js";
 import type * as viewRenderers from "../viewRenderers.js";
@@ -37,11 +41,14 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   actionStates: typeof actionStates;
+  agencyRecords: typeof agencyRecords;
   agents: typeof agents;
+  capabilityState: typeof capabilityState;
   channelsSeen: typeof channelsSeen;
   chatEvents: typeof chatEvents;
   chatSessions: typeof chatSessions;
   chatTurns: typeof chatTurns;
+  dailyLogs: typeof dailyLogs;
   eventLog: typeof eventLog;
   goals: typeof goals;
   importExport: typeof importExport;
@@ -51,6 +58,7 @@ declare const fullApi: ApiFromModules<{
   notificationPrefs: typeof notificationPrefs;
   repoDocs: typeof repoDocs;
   reports: typeof reports;
+  taskState: typeof taskState;
   userState: typeof userState;
   validators: typeof validators;
   viewRenderers: typeof viewRenderers;

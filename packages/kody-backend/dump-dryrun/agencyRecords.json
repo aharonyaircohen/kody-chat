@@ -1,0 +1,908 @@
+{
+  "table": "agencyRecords",
+  "docs": [
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "finding",
+      "recordId": "finding-repo-ci-main",
+      "doc": {
+        "version": 1,
+        "id": "finding-repo-ci-main",
+        "observerId": "agency-observer",
+        "subject": "repo-ci:main",
+        "title": "Default branch CI is failing",
+        "expectation": "Default branch CI is green",
+        "actual": "Default branch CI is failing",
+        "severity": "high",
+        "status": "resolved",
+        "phase": "closed",
+        "observationIds": [
+          "obs-ci-main-20260712t150806013z",
+          "obs-ci-main-20260712t161743984z",
+          "obs-ci-main-20260712t174033627z",
+          "obs-ci-main-20260712t174230673z",
+          "obs-ci-main-20260712t183444462z",
+          "obs-ci-main-20260712t195755469z",
+          "obs-ci-main-20260712t195935971z",
+          "obs-ci-main-20260712t205951582z",
+          "obs-ci-main-20260712t220251232z",
+          "obs-ci-main-20260712t230420757z",
+          "obs-ci-main-20260713t001729917z",
+          "obs-ci-main-20260713t002012842z",
+          "obs-ci-main-20260713t040706350z",
+          "obs-ci-main-20260713t104758188z",
+          "obs-ci-main-20260713t105010391z",
+          "obs-ci-main-20260713t131450675z",
+          "obs-ci-main-20260713t160230242z",
+          "obs-ci-main-20260713t180554325z",
+          "obs-ci-main-20260713t185617616z",
+          "obs-ci-main-20260713t185928768z"
+        ],
+        "createdAt": "2026-07-12T15:08:06.013Z",
+        "updatedAt": "2026-07-13T23:20:41.359Z",
+        "decision": {
+          "action": "dev-ci-health",
+          "reason": "Default branch CI is red (Kody Source Health failing); dev-ci-health watches default branch CI and reuses/opens a repair issue",
+          "decidedAt": "2026-07-13T19:01:58.219Z"
+        },
+        "deliveryRunId": "29276873318",
+        "learningIds": [
+          "learning-finding-repo-ci-main-20260713232041359"
+        ],
+        "resolvedAt": "2026-07-13T23:20:41.359Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "learning",
+      "recordId": "learning-finding-repo-ci-main-20260713232041359",
+      "doc": {
+        "version": 1,
+        "id": "learning-finding-repo-ci-main-20260713232041359",
+        "findingId": "finding-repo-ci-main",
+        "observationId": "obs-ci-main-20260713t185928768z",
+        "changedModel": "minimax/MiniMax-M3",
+        "summary": "Default branch CI returned to green; check-runs API shows 11 consecutive successful runs on head SHA 090f3ebd after the transient failure at 18:54:45Z; delivery run 29276873318 succeeded; subsequent scheduled runs 29280020535, 29284740910, 29289038797 all succeeded; stale commit-status entry from 18:54:45 was superseded by later successful runs on the same commit",
+        "evidence": [
+          "obs-ci-main-20260712t150806013z",
+          "obs-ci-main-20260712t161743984z",
+          "obs-ci-main-20260712t174033627z",
+          "obs-ci-main-20260712t174230673z",
+          "obs-ci-main-20260712t183444462z",
+          "obs-ci-main-20260712t195755469z",
+          "obs-ci-main-20260712t195935971z",
+          "obs-ci-main-20260712t205951582z",
+          "obs-ci-main-20260712t220251232z",
+          "obs-ci-main-20260712t230420757z",
+          "obs-ci-main-20260713t001729917z",
+          "obs-ci-main-20260713t002012842z",
+          "obs-ci-main-20260713t040706350z",
+          "obs-ci-main-20260713t104758188z",
+          "obs-ci-main-20260713t105010391z",
+          "obs-ci-main-20260713t131450675z",
+          "obs-ci-main-20260713t160230242z",
+          "obs-ci-main-20260713t180554325z",
+          "obs-ci-main-20260713t185617616z",
+          "obs-ci-main-20260713t185928768z"
+        ],
+        "learnedAt": "2026-07-13T23:20:41.359Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260712t150806013z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260712t150806013z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unknown",
+        "summary": "Default branch CI state is unknown",
+        "evidence": [
+          {
+            "kind": "ci-status",
+            "label": "Default branch CI state is unknown",
+            "status": "unknown"
+          }
+        ],
+        "observedAt": "2026-07-12T15:08:06.013Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260712t161743984z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260712t161743984z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unknown",
+        "summary": "Default branch CI state is unknown",
+        "evidence": [
+          {
+            "kind": "ci-status",
+            "label": "Default branch CI state is unknown",
+            "status": "unknown"
+          }
+        ],
+        "observedAt": "2026-07-12T16:17:43.984Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260712t174033627z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260712t174033627z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unknown",
+        "summary": "Default branch CI state is unknown",
+        "evidence": [
+          {
+            "kind": "ci-status",
+            "label": "Default branch CI state is unknown",
+            "status": "unknown"
+          }
+        ],
+        "observedAt": "2026-07-12T17:40:33.627Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260712t174230673z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260712t174230673z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unknown",
+        "summary": "Default branch CI state is unknown",
+        "evidence": [
+          {
+            "kind": "ci-status",
+            "label": "Default branch CI state is unknown",
+            "status": "unknown"
+          }
+        ],
+        "observedAt": "2026-07-12T17:42:30.673Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260712t183444462z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260712t183444462z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unknown",
+        "summary": "Default branch CI state is unknown",
+        "evidence": [
+          {
+            "kind": "ci-status",
+            "label": "Default branch CI state is unknown",
+            "status": "unknown"
+          }
+        ],
+        "observedAt": "2026-07-12T18:34:44.462Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260712t195755469z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260712t195755469z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unknown",
+        "summary": "Default branch CI state is unknown",
+        "evidence": [
+          {
+            "kind": "ci-status",
+            "label": "Default branch CI state is unknown",
+            "status": "unknown"
+          }
+        ],
+        "observedAt": "2026-07-12T19:57:55.469Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260712t195935971z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260712t195935971z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unknown",
+        "summary": "Default branch CI state is unknown",
+        "evidence": [
+          {
+            "kind": "ci-status",
+            "label": "Default branch CI state is unknown",
+            "status": "unknown"
+          }
+        ],
+        "observedAt": "2026-07-12T19:59:35.971Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260712t205951582z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260712t205951582z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unknown",
+        "summary": "Default branch CI state is unknown",
+        "evidence": [
+          {
+            "kind": "ci-status",
+            "label": "Default branch CI state is unknown",
+            "status": "unknown"
+          }
+        ],
+        "observedAt": "2026-07-12T20:59:51.582Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260712t220251232z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260712t220251232z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unknown",
+        "summary": "Default branch CI state is unknown",
+        "evidence": [
+          {
+            "kind": "ci-status",
+            "label": "Default branch CI state is unknown",
+            "status": "unknown"
+          }
+        ],
+        "observedAt": "2026-07-12T22:02:51.232Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260712t230420757z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260712t230420757z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unknown",
+        "summary": "Default branch CI state is unknown",
+        "evidence": [
+          {
+            "kind": "ci-status",
+            "label": "Default branch CI state is unknown",
+            "status": "unknown"
+          }
+        ],
+        "observedAt": "2026-07-12T23:04:20.757Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260713t001729917z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260713t001729917z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unknown",
+        "summary": "Default branch CI state is unknown",
+        "evidence": [
+          {
+            "kind": "ci-status",
+            "label": "Default branch CI state is unknown",
+            "status": "unknown"
+          }
+        ],
+        "observedAt": "2026-07-13T00:17:29.917Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260713t002012842z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260713t002012842z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unknown",
+        "summary": "Default branch CI state is unknown",
+        "evidence": [
+          {
+            "kind": "ci-status",
+            "label": "Default branch CI state is unknown",
+            "status": "unknown"
+          }
+        ],
+        "observedAt": "2026-07-13T00:20:12.842Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260713t040706350z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260713t040706350z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unknown",
+        "summary": "Default branch CI state is unknown",
+        "evidence": [
+          {
+            "kind": "ci-status",
+            "label": "Default branch CI state is unknown",
+            "status": "unknown"
+          }
+        ],
+        "observedAt": "2026-07-13T04:07:06.350Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260713t104758188z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260713t104758188z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unknown",
+        "summary": "Default branch CI state is unknown",
+        "evidence": [
+          {
+            "kind": "ci-status",
+            "label": "Default branch CI state is unknown",
+            "status": "unknown"
+          }
+        ],
+        "observedAt": "2026-07-13T10:47:58.188Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260713t105010391z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260713t105010391z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unknown",
+        "summary": "Default branch CI state is unknown",
+        "evidence": [
+          {
+            "kind": "ci-status",
+            "label": "Default branch CI state is unknown",
+            "status": "unknown"
+          }
+        ],
+        "observedAt": "2026-07-13T10:50:10.391Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260713t131450675z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260713t131450675z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unknown",
+        "summary": "Default branch CI state is unknown",
+        "evidence": [
+          {
+            "kind": "ci-status",
+            "label": "Default branch CI state is unknown",
+            "status": "unknown"
+          }
+        ],
+        "observedAt": "2026-07-13T13:14:50.675Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260713t160230242z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260713t160230242z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unknown",
+        "summary": "Default branch CI state is unknown",
+        "evidence": [
+          {
+            "kind": "ci-status",
+            "label": "Default branch CI state is unknown",
+            "status": "unknown"
+          }
+        ],
+        "observedAt": "2026-07-13T16:02:30.242Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260713t180554325z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260713t180554325z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unknown",
+        "summary": "Default branch CI state is unknown",
+        "evidence": [
+          {
+            "kind": "ci-status",
+            "label": "Default branch CI state is unknown",
+            "status": "unknown"
+          }
+        ],
+        "observedAt": "2026-07-13T18:05:54.325Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260713t185617616z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260713t185617616z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unhealthy",
+        "summary": "Default branch CI is failing",
+        "evidence": [
+          {
+            "kind": "commit-status",
+            "label": "Kody Source Health",
+            "status": "failure",
+            "url": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29276175556",
+            "value": "090f3ebd64f6fc630d463c2cf28050f165cee73c"
+          }
+        ],
+        "observedAt": "2026-07-13T18:56:17.616Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260713t185928768z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260713t185928768z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unhealthy",
+        "summary": "Default branch CI is failing",
+        "evidence": [
+          {
+            "kind": "commit-status",
+            "label": "Kody Source Health",
+            "status": "failure",
+            "url": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29276175556",
+            "value": "090f3ebd64f6fc630d463c2cf28050f165cee73c"
+          }
+        ],
+        "observedAt": "2026-07-13T18:59:28.768Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260714t132618086z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260714t132618086z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unhealthy",
+        "summary": "Default branch CI is failing",
+        "evidence": [
+          {
+            "kind": "commit-status",
+            "label": "Kody Source Health",
+            "status": "failure",
+            "url": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29336209417",
+            "value": "2774e57cc0d9fc075452e9c970faa8f3239ae88a"
+          }
+        ],
+        "observedAt": "2026-07-14T13:26:18.086Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260714t170419170z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260714t170419170z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unhealthy",
+        "summary": "Default branch CI is failing",
+        "evidence": [
+          {
+            "kind": "commit-status",
+            "label": "Kody Source Health",
+            "status": "failure",
+            "url": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29351770761",
+            "value": "66710e0d1e59ea270882879955bed08779308962"
+          }
+        ],
+        "observedAt": "2026-07-14T17:04:19.170Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260714t172307323z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260714t172307323z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unhealthy",
+        "summary": "Default branch CI is failing",
+        "evidence": [
+          {
+            "kind": "commit-status",
+            "label": "Kody Source Health",
+            "status": "failure",
+            "url": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29351770761",
+            "value": "66710e0d1e59ea270882879955bed08779308962"
+          }
+        ],
+        "observedAt": "2026-07-14T17:23:07.323Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260714t184825344z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260714t184825344z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unhealthy",
+        "summary": "Default branch CI is failing",
+        "evidence": [
+          {
+            "kind": "commit-status",
+            "label": "Kody Source Health",
+            "status": "failure",
+            "url": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29358845088",
+            "value": "56489df402aa15a901694298249360b3596c3f34"
+          }
+        ],
+        "observedAt": "2026-07-14T18:48:25.344Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260714t200822489z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260714t200822489z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unhealthy",
+        "summary": "Default branch CI is failing",
+        "evidence": [
+          {
+            "kind": "commit-status",
+            "label": "Kody Source Health",
+            "status": "failure",
+            "url": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29363795593",
+            "value": "95d3de0438f44edfdd3a73303a87487a66fa4c07"
+          }
+        ],
+        "observedAt": "2026-07-14T20:08:22.489Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260714t211433284z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260714t211433284z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unhealthy",
+        "summary": "Default branch CI is failing",
+        "evidence": [
+          {
+            "kind": "commit-status",
+            "label": "Kody Source Health",
+            "status": "failure",
+            "url": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29368416199",
+            "value": "0ff319f6683361bc990cafd02d13dcd52a2c6179"
+          }
+        ],
+        "observedAt": "2026-07-14T21:14:33.284Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260714t221814577z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260714t221814577z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unhealthy",
+        "summary": "Default branch CI is failing",
+        "evidence": [
+          {
+            "kind": "commit-status",
+            "label": "Kody Source Health",
+            "status": "failure",
+            "url": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29368416199",
+            "value": "0ff319f6683361bc990cafd02d13dcd52a2c6179"
+          }
+        ],
+        "observedAt": "2026-07-14T22:18:14.577Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260714t231751603z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260714t231751603z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unhealthy",
+        "summary": "Default branch CI is failing",
+        "evidence": [
+          {
+            "kind": "commit-status",
+            "label": "Kody Source Health",
+            "status": "failure",
+            "url": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29368416199",
+            "value": "0ff319f6683361bc990cafd02d13dcd52a2c6179"
+          }
+        ],
+        "observedAt": "2026-07-14T23:17:51.603Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260715t001705654z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260715t001705654z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unhealthy",
+        "summary": "Default branch CI is failing",
+        "evidence": [
+          {
+            "kind": "commit-status",
+            "label": "Kody Source Health",
+            "status": "failure",
+            "url": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29368416199",
+            "value": "0ff319f6683361bc990cafd02d13dcd52a2c6179"
+          }
+        ],
+        "observedAt": "2026-07-15T00:17:05.654Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260715t034223623z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260715t034223623z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unhealthy",
+        "summary": "Default branch CI is failing",
+        "evidence": [
+          {
+            "kind": "commit-status",
+            "label": "Kody Source Health",
+            "status": "failure",
+            "url": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29368416199",
+            "value": "0ff319f6683361bc990cafd02d13dcd52a2c6179"
+          }
+        ],
+        "observedAt": "2026-07-15T03:42:23.623Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260715t062755317z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260715t062755317z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unhealthy",
+        "summary": "Default branch CI is failing",
+        "evidence": [
+          {
+            "kind": "commit-status",
+            "label": "Kody Source Health",
+            "status": "failure",
+            "url": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29368416199",
+            "value": "0ff319f6683361bc990cafd02d13dcd52a2c6179"
+          }
+        ],
+        "observedAt": "2026-07-15T06:27:55.317Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260715t083837514z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260715t083837514z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unhealthy",
+        "summary": "Default branch CI is failing",
+        "evidence": [
+          {
+            "kind": "commit-status",
+            "label": "Kody Source Health",
+            "status": "failure",
+            "url": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29368416199",
+            "value": "0ff319f6683361bc990cafd02d13dcd52a2c6179"
+          }
+        ],
+        "observedAt": "2026-07-15T08:38:37.514Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260715t103436069z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260715t103436069z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unhealthy",
+        "summary": "Default branch CI is failing",
+        "evidence": [
+          {
+            "kind": "commit-status",
+            "label": "Kody Source Health",
+            "status": "failure",
+            "url": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29368416199",
+            "value": "0ff319f6683361bc990cafd02d13dcd52a2c6179"
+          }
+        ],
+        "observedAt": "2026-07-15T10:34:36.069Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "kind": "observation",
+      "recordId": "obs-ci-main-20260715t120913274z",
+      "doc": {
+        "version": 1,
+        "id": "obs-ci-main-20260715t120913274z",
+        "observerId": "agency-observer",
+        "capability": "observe-repo-ci",
+        "subject": "repo-ci:main",
+        "status": "unhealthy",
+        "summary": "Default branch CI is failing",
+        "evidence": [
+          {
+            "kind": "commit-status",
+            "label": "Kody Source Health",
+            "status": "failure",
+            "url": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29368416199",
+            "value": "0ff319f6683361bc990cafd02d13dcd52a2c6179"
+          }
+        ],
+        "observedAt": "2026-07-15T12:09:13.274Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    }
+  ]
+}

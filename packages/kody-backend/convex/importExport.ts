@@ -24,6 +24,10 @@ const TABLES = [
   "notificationPrefs",
   "inboxEntries",
   "channelsSeen",
+  "agencyRecords",
+  "taskState",
+  "capabilityState",
+  "dailyLogs",
   "actionStates",
   "eventLog",
 ] as const

@@ -164,3 +164,62 @@ describe("mapStateFile", () => {
     expect(mapStateFile("README.md", "x", REPO, NOW)).toBeNull()
   })
 })
+
+describe("mapStateFile — extended state kinds", () => {
+  it("maps agency observations, findings, learnings", () => {
+    expect(mapStateFile("agency/observations/obs-1.json", "{}", REPO, NOW)?.[0]).toMatchObject({
+      table: "agencyRecords",
+      doc: { kind: "observation", recordId: "obs-1" },
+    })
+    expect(mapStateFile("agency/findings/f1.json", "{}", REPO, NOW)?.[0].doc.kind).toBe("finding")
+    expect(mapStateFile("agency/learnings/l1.json", "{}", REPO, NOW)?.[0].doc.kind).toBe("learning")
+  })
+
+  it("maps task state including issues/prs subkeys", () => {
+    expect(mapStateFile("tasks/2/context.json", "{}", REPO, NOW)?.[0]).toMatchObject({
+      table: "taskState",
+      doc: { taskKey: "2", kind: "context" },
+    })
+    expect(mapStateFile("tasks/issues/2/state.json", "{}", REPO, NOW)?.[0].doc.taskKey).toBe(
+      "issues/2",
+    )
+    expect(mapStateFile("tasks/prs/3/state.json", "{}", REPO, NOW)?.[0].doc.taskKey).toBe("prs/3")
+  })
+
+  it("maps capability state", () => {
+    expect(mapStateFile("capabilities/dev-ci/state.json", "{}", REPO, NOW)?.[0]).toMatchObject({
+      table: "capabilityState",
+      doc: { slug: "dev-ci" },
+    })
+  })
+
+  it("maps daily activity and event logs line by line", () => {
+    const rows = mapStateFile("activity/2026-07-12.jsonl", '{"a":1}\n{"a":2}', REPO, NOW)
+    expect(rows).toHaveLength(2)
+    expect(rows?.[1].doc).toMatchObject({ stream: "activity", date: "2026-07-12", seq: 1 })
+    expect(mapStateFile("events/log/2026-07-13.jsonl", '{"e":1}', REPO, NOW)?.[0].doc.stream).toBe(
+      "events",
+    )
+  })
+
+  it("keeps per-session event streams separate from daily event logs", () => {
+    expect(mapStateFile("events/s1.jsonl", '{"e":1}', REPO, NOW)?.[0].table).toBe("chatEvents")
+  })
+
+  it("maps singleton files to repoDocs kinds", () => {
+    expect(mapStateFile("portfolio.json", "{}", REPO, NOW)?.[0].doc.kind).toBe("portfolio")
+    expect(mapStateFile("agency-portfolio.json", "{}", REPO, NOW)?.[0].doc.kind).toBe(
+      "agency-portfolio",
+    )
+    expect(mapStateFile("variables.json", "{}", REPO, NOW)?.[0].doc.kind).toBe("variables")
+    expect(mapStateFile("runs/index.json", "{}", REPO, NOW)?.[0].doc.kind).toBe("runs-index")
+    expect(mapStateFile("terminal/checkpoints/octocat.json", "{}", REPO, NOW)?.[0].doc.kind).toBe(
+      "terminal-checkpoint:octocat",
+    )
+  })
+
+  it("still skips secrets and goal run logs deliberately", () => {
+    expect(mapStateFile("secrets.enc", "x", REPO, NOW)).toBeNull()
+    expect(mapStateFile("logs/goals/g1/runs/r1.jsonl", "{}", REPO, NOW)).toBeNull()
+  })
+})

@@ -1,0 +1,424 @@
+{
+  "table": "goals",
+  "docs": [
+    {
+      "tenantId": "dryrun/kody-chat",
+      "goalId": "agency-evolution-loop-b1981987",
+      "state": {
+        "version": 1,
+        "blockers": [],
+        "capabilities": [
+          "agency-portfolio-management"
+        ],
+        "description": "The agency has the smallest effective set of intent-backed goals, loops, capabilities, workflows, and agents.",
+        "destination": {
+          "outcome": "The agency has the smallest effective set of intent-backed goals, loops, capabilities, workflows, and agents.",
+          "evidence": []
+        },
+        "facts": {
+          "agency-portfolio-management": false
+        },
+        "kind": "instance",
+        "route": [],
+        "schedule": "1d",
+        "scheduleMode": "agentLoop",
+        "sourceTemplate": "agency-evolution-loop",
+        "stage": "watching",
+        "template": "agency-evolution-loop",
+        "templateId": "agency-evolution-loop",
+        "title": "agency-evolution-loop-b1981987",
+        "type": "agentLoop",
+        "id": "agency-evolution-loop-b1981987",
+        "managed": true,
+        "managedModel": "agentLoop",
+        "evidence": [
+          "agency-portfolio-management"
+        ],
+        "items": [
+          {
+            "id": "agency-portfolio-management",
+            "title": "agency-portfolio-management",
+            "body": "",
+            "assignee": null,
+            "completed": false,
+            "createdAt": "2026-07-11T16:56:47.559349Z",
+            "completedAt": null,
+            "meta": {
+              "evidence": "agency-portfolio-management"
+            }
+          }
+        ],
+        "evidenceState": {},
+        "scheduleState": {
+          "mode": "agentLoop",
+          "lastGoalTickAt": "2026-07-15T12:05:19.587Z",
+          "lastDecision": {
+            "kind": "dispatch",
+            "capability": "agency-portfolio-management",
+            "implementation": "agency-portfolio-management",
+            "reason": "ready for loop tick",
+            "at": "2026-07-15T12:05:19.587Z"
+          },
+          "capabilities": {
+            "agency-portfolio-management": {
+              "slug": "agency-portfolio-management",
+              "title": "Agency Portfolio Management",
+              "state": "due",
+              "reason": "ready for loop tick",
+              "lastFiredAt": "2026-07-15T12:05:19.587Z"
+            }
+          }
+        },
+        "state": "active",
+        "createdAt": "2026-07-11T16:56:47.559349Z",
+        "updatedAt": "2026-07-15T12:05:19Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "goalId": "agency-observer-b1982076",
+      "state": {
+        "version": 1,
+        "blockers": [],
+        "capabilities": [],
+        "description": "The agency has current evidence and distinct problems are recorded as Findings.",
+        "destination": {
+          "outcome": "The agency has current evidence and distinct problems are recorded as Findings.",
+          "evidence": []
+        },
+        "facts": {
+          "observe-repo-ci": false
+        },
+        "kind": "instance",
+        "route": [],
+        "schedule": "15m",
+        "scheduleMode": "agentLoop",
+        "sourceTemplate": "agency-observer",
+        "stage": "observing",
+        "template": "agency-observer",
+        "templateId": "agency-observer",
+        "title": "agency-observer-b1982076",
+        "type": "agentLoop",
+        "id": "agency-observer-b1982076",
+        "managed": true,
+        "managedModel": "agentLoop",
+        "evidence": [],
+        "items": [],
+        "evidenceState": {},
+        "scheduleState": {
+          "mode": "agentLoop",
+          "lastGoalTickAt": "2026-07-15T12:09:00.042Z",
+          "lastDecision": {
+            "kind": "dispatch",
+            "targetType": "workflow",
+            "targetId": "agency-observer",
+            "workflow": "agency-observer",
+            "reason": "ready target loop tick",
+            "at": "2026-07-15T12:09:00.042Z"
+          },
+          "capabilities": {}
+        },
+        "loopTarget": {
+          "type": "workflow",
+          "id": "agency-observer"
+        },
+        "state": "active",
+        "createdAt": "2026-07-12T15:07:50.696222Z",
+        "updatedAt": "2026-07-15T12:09:00Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "goalId": "agency-operating-loop-b1982076",
+      "state": {
+        "version": 1,
+        "blockers": [],
+        "capabilities": [],
+        "description": "Open Findings are processed through a visible phase and verified changes create Learning records.",
+        "destination": {
+          "outcome": "Open Findings are processed through a visible phase and verified changes create Learning records.",
+          "evidence": []
+        },
+        "facts": {
+          "operate-findings": false
+        },
+        "kind": "instance",
+        "route": [],
+        "schedule": "15m",
+        "scheduleMode": "agentLoop",
+        "sourceTemplate": "agency-operating-loop",
+        "stage": "deciding",
+        "template": "agency-operating-loop",
+        "templateId": "agency-operating-loop",
+        "title": "agency-operating-loop-b1982076",
+        "type": "agentLoop",
+        "id": "agency-operating-loop-b1982076",
+        "managed": true,
+        "managedModel": "agentLoop",
+        "evidence": [
+          "operate-findings"
+        ],
+        "items": [
+          {
+            "id": "operate-findings",
+            "title": "operate-findings",
+            "body": "",
+            "assignee": null,
+            "completed": false,
+            "createdAt": "2026-07-12T15:07:50.696222Z",
+            "completedAt": null,
+            "meta": {
+              "evidence": "operate-findings"
+            }
+          }
+        ],
+        "evidenceState": {},
+        "scheduleState": {
+          "mode": "agentLoop",
+          "lastGoalTickAt": "2026-07-15T12:09:22.041Z",
+          "lastDecision": {
+            "kind": "dispatch",
+            "targetType": "workflow",
+            "targetId": "agency-operating-loop",
+            "workflow": "agency-operating-loop",
+            "reason": "ready target loop tick",
+            "at": "2026-07-15T12:09:22.041Z"
+          },
+          "capabilities": {}
+        },
+        "loopTarget": {
+          "type": "workflow",
+          "id": "agency-operating-loop"
+        },
+        "state": "active",
+        "createdAt": "2026-07-12T15:07:50.696222Z",
+        "updatedAt": "2026-07-15T12:09:22Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "goalId": "agency-operations-loop-b1981987",
+      "state": {
+        "version": 1,
+        "blockers": [],
+        "capabilities": [
+          "agency-operations-management"
+        ],
+        "description": "Approved agency work runs reliably, unhealthy work is contained, and operational evidence stays current.",
+        "destination": {
+          "outcome": "Approved agency work runs reliably, unhealthy work is contained, and operational evidence stays current.",
+          "evidence": []
+        },
+        "facts": {
+          "agency-operations-management": false
+        },
+        "kind": "instance",
+        "route": [],
+        "schedule": "1h",
+        "scheduleMode": "agentLoop",
+        "sourceTemplate": "agency-operations-loop",
+        "stage": "watching",
+        "template": "agency-operations-loop",
+        "templateId": "agency-operations-loop",
+        "title": "agency-operations-loop-b1981987",
+        "type": "agentLoop",
+        "id": "agency-operations-loop-b1981987",
+        "managed": true,
+        "managedModel": "agentLoop",
+        "evidence": [
+          "agency-operations-management"
+        ],
+        "items": [
+          {
+            "id": "agency-operations-management",
+            "title": "agency-operations-management",
+            "body": "",
+            "assignee": null,
+            "completed": false,
+            "createdAt": "2026-07-11T16:56:47.559349Z",
+            "completedAt": null,
+            "meta": {
+              "evidence": "agency-operations-management"
+            }
+          }
+        ],
+        "evidenceState": {},
+        "scheduleState": {
+          "mode": "agentLoop",
+          "lastGoalTickAt": "2026-07-15T12:10:41.785Z",
+          "lastDecision": {
+            "kind": "dispatch",
+            "capability": "agency-operations-management",
+            "implementation": "agency-operations-management",
+            "reason": "ready for loop tick",
+            "at": "2026-07-15T12:10:41.785Z"
+          },
+          "capabilities": {
+            "agency-operations-management": {
+              "slug": "agency-operations-management",
+              "title": "Agency Operations Management",
+              "state": "due",
+              "reason": "ready for loop tick",
+              "lastFiredAt": "2026-07-15T12:10:41.785Z"
+            }
+          }
+        },
+        "state": "active",
+        "createdAt": "2026-07-11T16:56:47.559349Z",
+        "updatedAt": "2026-07-15T12:10:41Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "goalId": "ai-agency-health-b1981987",
+      "state": {
+        "version": 1,
+        "blockers": [],
+        "capabilities": [
+          "ai-agency-health-matrix"
+        ],
+        "description": "The current repo's AI Agency is checked regularly and broken wiring is visible before work runs.",
+        "destination": {
+          "outcome": "The current repo's AI Agency is checked regularly and broken wiring is visible before work runs.",
+          "evidence": []
+        },
+        "facts": {
+          "ai-agency-health-matrix": false
+        },
+        "kind": "instance",
+        "route": [],
+        "schedule": "15m",
+        "scheduleMode": "agentLoop",
+        "sourceTemplate": "ai-agency-health",
+        "stage": "watching",
+        "template": "ai-agency-health",
+        "templateId": "ai-agency-health",
+        "title": "ai-agency-health-b1981987",
+        "type": "monitor",
+        "id": "ai-agency-health-b1981987",
+        "managed": true,
+        "managedModel": "agentLoop",
+        "evidence": [
+          "ai-agency-health-matrix"
+        ],
+        "items": [
+          {
+            "id": "ai-agency-health-matrix",
+            "title": "ai-agency-health-matrix",
+            "body": "",
+            "assignee": null,
+            "completed": false,
+            "createdAt": "2026-07-11T16:56:47.559349Z",
+            "completedAt": null,
+            "meta": {
+              "evidence": "ai-agency-health-matrix"
+            }
+          }
+        ],
+        "evidenceState": {},
+        "scheduleState": {
+          "mode": "agentLoop",
+          "lastGoalTickAt": "2026-07-15T12:12:12.490Z",
+          "lastDecision": {
+            "kind": "dispatch",
+            "capability": "ai-agency-health-matrix",
+            "implementation": "ai-agency-health-matrix",
+            "reason": "ready for loop tick",
+            "at": "2026-07-15T12:12:12.490Z"
+          },
+          "capabilities": {
+            "ai-agency-health-matrix": {
+              "slug": "ai-agency-health-matrix",
+              "title": "AI Agency Health Matrix",
+              "state": "due",
+              "reason": "ready for loop tick",
+              "lastFiredAt": "2026-07-15T12:12:12.490Z"
+            }
+          }
+        },
+        "state": "active",
+        "createdAt": "2026-07-11T16:56:47.559349Z",
+        "updatedAt": "2026-07-15T12:12:12Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "goalId": "company-growth-loop-b1981987",
+      "state": {
+        "version": 1,
+        "blockers": [],
+        "capabilities": [
+          "company-portfolio-management"
+        ],
+        "description": "The company portfolio stays focused on the highest-value intent-backed growth priorities.",
+        "destination": {
+          "outcome": "The company portfolio stays focused on the highest-value intent-backed growth priorities.",
+          "evidence": []
+        },
+        "facts": {
+          "company-portfolio-management": false
+        },
+        "kind": "instance",
+        "route": [],
+        "schedule": "1w",
+        "scheduleMode": "agentLoop",
+        "sourceTemplate": "company-growth-loop",
+        "stage": "watching",
+        "template": "company-growth-loop",
+        "templateId": "company-growth-loop",
+        "title": "company-growth-loop-b1981987",
+        "type": "agentLoop",
+        "id": "company-growth-loop-b1981987",
+        "managed": true,
+        "managedModel": "agentLoop",
+        "evidence": [
+          "company-portfolio-management"
+        ],
+        "items": [
+          {
+            "id": "company-portfolio-management",
+            "title": "company-portfolio-management",
+            "body": "",
+            "assignee": null,
+            "completed": false,
+            "createdAt": "2026-07-11T16:56:47.559349Z",
+            "completedAt": null,
+            "meta": {
+              "evidence": "company-portfolio-management"
+            }
+          }
+        ],
+        "evidenceState": {},
+        "scheduleState": {
+          "mode": "agentLoop",
+          "lastGoalTickAt": "2026-07-15T12:12:25.148Z",
+          "lastDecision": {
+            "kind": "dispatch",
+            "capability": "company-portfolio-management",
+            "implementation": "company-portfolio-management",
+            "reason": "ready for loop tick",
+            "at": "2026-07-15T12:12:25.148Z"
+          },
+          "capabilities": {
+            "company-portfolio-management": {
+              "slug": "company-portfolio-management",
+              "title": "Company Portfolio Management",
+              "state": "due",
+              "reason": "ready for loop tick",
+              "lastFiredAt": "2026-07-15T12:12:25.148Z"
+            }
+          }
+        },
+        "state": "active",
+        "createdAt": "2026-07-11T16:56:47.559349Z",
+        "updatedAt": "2026-07-15T12:12:25Z"
+      },
+      "updatedAt": "2026-07-15T14:04:54.517Z"
+    }
+  ]
+}

@@ -149,6 +149,38 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_login", ["tenantId", "login"]),
 
+  agencyRecords: defineTable({
+    tenantId: v.string(),
+    kind: v.union(v.literal("observation"), v.literal("finding"), v.literal("learning")),
+    recordId: v.string(),
+    doc: v.any(),
+    updatedAt: v.string(),
+  }).index("by_tenant", ["tenantId", "kind", "recordId"]),
+
+  taskState: defineTable({
+    tenantId: v.string(),
+    taskKey: v.string(), // "2", "issues/2", "prs/3"
+    kind: v.string(), // "context" | "state" | …
+    doc: v.any(),
+    updatedAt: v.string(),
+  }).index("by_task", ["tenantId", "taskKey", "kind"]),
+
+  capabilityState: defineTable({
+    tenantId: v.string(),
+    slug: v.string(),
+    state: v.any(),
+    updatedAt: v.string(),
+  }).index("by_tenant", ["tenantId", "slug"]),
+
+  // Daily append-only streams (activity/<date>.jsonl, events/log/<date>.jsonl).
+  dailyLogs: defineTable({
+    tenantId: v.string(),
+    stream: v.union(v.literal("activity"), v.literal("events")),
+    date: v.string(), // YYYY-MM-DD
+    seq: v.number(),
+    entry: v.any(),
+  }).index("by_stream", ["tenantId", "stream", "date", "seq"]),
+
   // Global (cross-repo) Kody engine store — replaces the Kody-Dashboard repo
   // action-state.json / event-log.jsonl.
   actionStates: defineTable({

@@ -1,0 +1,1011 @@
+{
+  "table": "dailyLogs",
+  "docs": [
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-12",
+      "seq": 0,
+      "entry": {
+        "ts": "2026-07-12T15:09:00.575Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 33119,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29197541674"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-12",
+      "seq": 1,
+      "entry": {
+        "ts": "2026-07-12T16:19:27.427Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 73809,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29199731695"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-12",
+      "seq": 2,
+      "entry": {
+        "ts": "2026-07-12T17:41:37.072Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 28084,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29202075352"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-12",
+      "seq": 3,
+      "entry": {
+        "ts": "2026-07-12T18:36:17.744Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 62132,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29204004190"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-12",
+      "seq": 4,
+      "entry": {
+        "ts": "2026-07-12T19:58:29.918Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 18403,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29206665429"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-12",
+      "seq": 5,
+      "entry": {
+        "ts": "2026-07-12T21:01:30.809Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 71354,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29208686471"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-12",
+      "seq": 6,
+      "entry": {
+        "ts": "2026-07-12T22:04:10.493Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "failed",
+        "outcomeKind": "model_error",
+        "reason": "Claude Code returned an error result: Reached maximum number of turns (10)",
+        "durationMs": 56076,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29210637459"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-12",
+      "seq": 7,
+      "entry": {
+        "ts": "2026-07-12T23:05:43.077Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 62820,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29212614166"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-13",
+      "seq": 0,
+      "entry": {
+        "ts": "2026-07-13T00:19:01.450Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 38052,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29214826981"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-13",
+      "seq": 1,
+      "entry": {
+        "ts": "2026-07-13T04:08:35.675Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 55672,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29223011979"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-13",
+      "seq": 2,
+      "entry": {
+        "ts": "2026-07-13T10:49:22.045Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "failed",
+        "outcomeKind": "model_error",
+        "reason": "Claude Code returned an error result: Reached maximum number of turns (10)",
+        "durationMs": 49857,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29243730552"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-13",
+      "seq": 3,
+      "entry": {
+        "ts": "2026-07-13T13:15:44.310Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 34540,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29252586964"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-13",
+      "seq": 4,
+      "entry": {
+        "ts": "2026-07-13T16:04:55.366Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 121399,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29264476407"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-13",
+      "seq": 5,
+      "entry": {
+        "ts": "2026-07-13T18:08:11.543Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "failed",
+        "outcomeKind": "model_error",
+        "reason": "Claude Code returned an error result: Reached maximum number of turns (10)",
+        "durationMs": 77459,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29272852187"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-13",
+      "seq": 6,
+      "entry": {
+        "ts": "2026-07-13T19:02:08.430Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "manual",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 26236,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29276718907"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-13",
+      "seq": 7,
+      "entry": {
+        "ts": "2026-07-13T19:03:41.881Z",
+        "action": "Ran capability: dev-ci-health",
+        "capability": "dev-ci-health",
+        "capabilityTitle": null,
+        "agent": "cto",
+        "agentTitle": null,
+        "trigger": "manual",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 17886,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29276873318"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-13",
+      "seq": 8,
+      "entry": {
+        "ts": "2026-07-13T19:57:13.402Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 33025,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29280020535"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-13",
+      "seq": 9,
+      "entry": {
+        "ts": "2026-07-13T21:05:30.501Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "failed",
+        "outcomeKind": "model_error",
+        "reason": "Claude Code returned an error result: Reached maximum number of turns (10)",
+        "durationMs": 24986,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29284740910"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-13",
+      "seq": 10,
+      "entry": {
+        "ts": "2026-07-13T22:15:58.230Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 97869,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29289038797"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-13",
+      "seq": 11,
+      "entry": {
+        "ts": "2026-07-13T23:19:02.567Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "failed",
+        "outcomeKind": "model_error",
+        "reason": "Claude Code returned an error result: Reached maximum number of turns (10)",
+        "durationMs": 51747,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29292467597"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-14",
+      "seq": 0,
+      "entry": {
+        "ts": "2026-07-14T00:58:14.890Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 10507,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29297166697"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-14",
+      "seq": 1,
+      "entry": {
+        "ts": "2026-07-14T04:16:19.862Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 25668,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29305144271"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-14",
+      "seq": 2,
+      "entry": {
+        "ts": "2026-07-14T06:34:15.305Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 10596,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29311335460"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-14",
+      "seq": 3,
+      "entry": {
+        "ts": "2026-07-14T08:57:49.247Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 158969,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29318712741"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-14",
+      "seq": 4,
+      "entry": {
+        "ts": "2026-07-14T10:31:41.177Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 10860,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29325312269"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-14",
+      "seq": 5,
+      "entry": {
+        "ts": "2026-07-14T12:17:40.599Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 17613,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29330686404"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-14",
+      "seq": 6,
+      "entry": {
+        "ts": "2026-07-14T13:47:27.570Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "manual",
+        "outcome": "failed",
+        "outcomeKind": "model_error",
+        "reason": "Claude Code returned an error result: Reached maximum number of turns (10)",
+        "durationMs": 79700,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29337772844"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-14",
+      "seq": 7,
+      "entry": {
+        "ts": "2026-07-14T14:42:23.671Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "manual",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 80752,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29341832568"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-14",
+      "seq": 8,
+      "entry": {
+        "ts": "2026-07-14T17:04:59.081Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "manual",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 17985,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29351770761"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-14",
+      "seq": 9,
+      "entry": {
+        "ts": "2026-07-14T17:18:37.560Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "manual",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 30301,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29353058938"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-14",
+      "seq": 10,
+      "entry": {
+        "ts": "2026-07-14T17:20:20.450Z",
+        "action": "Ran capability: dev-ci-health",
+        "capability": "dev-ci-health",
+        "capabilityTitle": null,
+        "agent": "cto",
+        "agentTitle": null,
+        "trigger": "manual",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 21986,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29353215395"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-14",
+      "seq": 11,
+      "entry": {
+        "ts": "2026-07-14T17:24:13.053Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 45426,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29353286676"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-14",
+      "seq": 12,
+      "entry": {
+        "ts": "2026-07-14T18:49:21.346Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 32201,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29358845088"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-14",
+      "seq": 13,
+      "entry": {
+        "ts": "2026-07-14T18:50:49.492Z",
+        "action": "Ran capability: dev-ci-health",
+        "capability": "dev-ci-health",
+        "capabilityTitle": null,
+        "agent": "cto",
+        "agentTitle": null,
+        "trigger": "manual",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 20676,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29359386086"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-14",
+      "seq": 14,
+      "entry": {
+        "ts": "2026-07-14T20:10:23.960Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 101673,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29363795593"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-14",
+      "seq": 15,
+      "entry": {
+        "ts": "2026-07-14T21:15:45.777Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 52729,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29368416199"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-14",
+      "seq": 16,
+      "entry": {
+        "ts": "2026-07-14T22:19:06.250Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 33503,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29372290544"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-14",
+      "seq": 17,
+      "entry": {
+        "ts": "2026-07-14T23:19:20.711Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 69892,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29375512337"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-14",
+      "seq": 18,
+      "entry": {
+        "ts": "2026-07-14T23:20:40.387Z",
+        "action": "Ran capability: dev-ci-health",
+        "capability": "dev-ci-health",
+        "capabilityTitle": null,
+        "agent": "cto",
+        "agentTitle": null,
+        "trigger": "manual",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 17308,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29375768557"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-15",
+      "seq": 0,
+      "entry": {
+        "ts": "2026-07-15T00:18:18.234Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 42267,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29378224829"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-15",
+      "seq": 1,
+      "entry": {
+        "ts": "2026-07-15T03:50:27.658Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "failed",
+        "outcomeKind": "model_error",
+        "reason": "Claude Code returned an error result: Reached maximum number of turns (10)",
+        "durationMs": 448476,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29386966804"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-15",
+      "seq": 2,
+      "entry": {
+        "ts": "2026-07-15T06:30:00.507Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 90606,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29392931635"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-15",
+      "seq": 3,
+      "entry": {
+        "ts": "2026-07-15T06:32:34.486Z",
+        "action": "Ran capability: dev-ci-health",
+        "capability": "dev-ci-health",
+        "capabilityTitle": null,
+        "agent": "cto",
+        "agentTitle": null,
+        "trigger": "manual",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 25323,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29394372244"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-15",
+      "seq": 4,
+      "entry": {
+        "ts": "2026-07-15T08:39:52.411Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 45735,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29401094649"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-15",
+      "seq": 5,
+      "entry": {
+        "ts": "2026-07-15T10:37:04.498Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 129434,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29408294205"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-15",
+      "seq": 6,
+      "entry": {
+        "ts": "2026-07-15T10:38:43.497Z",
+        "action": "Ran capability: dev-ci-health",
+        "capability": "dev-ci-health",
+        "capabilityTitle": null,
+        "agent": "cto",
+        "agentTitle": null,
+        "trigger": "manual",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 31871,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29408739050"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "activity",
+      "date": "2026-07-15",
+      "seq": 7,
+      "entry": {
+        "ts": "2026-07-15T12:10:34.739Z",
+        "action": "Ran capability: operate-findings",
+        "capability": "operate-findings",
+        "capabilityTitle": null,
+        "agent": "coo",
+        "agentTitle": null,
+        "trigger": "schedule",
+        "outcome": "completed",
+        "outcomeKind": "ok",
+        "reason": null,
+        "durationMs": 54365,
+        "runUrl": "https://github.com/aharonyaircohen/kody-chat/actions/runs/29413845200"
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "events",
+      "date": "2026-07-13",
+      "seq": 0,
+      "entry": {
+        "id": "1783965099346-tryxcyfl",
+        "name": "chat.message.sent",
+        "version": 1,
+        "occurredAt": "2026-07-13T17:51:39.346Z",
+        "userId": "operator:aharonyaircohen",
+        "sessionId": null,
+        "brand": {
+          "owner": "aharonyaircohen",
+          "repo": "kody-chat"
+        },
+        "source": "server",
+        "payload": {
+          "transport": "direct"
+        }
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "events",
+      "date": "2026-07-14",
+      "seq": 0,
+      "entry": {
+        "id": "1784028302686-ljeulr36",
+        "name": "session.started",
+        "version": 1,
+        "occurredAt": "2026-07-14T11:25:02.686Z",
+        "userId": "operator:aharonyaircohen",
+        "sessionId": null,
+        "brand": {
+          "owner": "aharonyaircohen",
+          "repo": "kody-chat"
+        },
+        "source": "client",
+        "payload": {
+          "sessionId": "bs-1784028300676-9gor76"
+        }
+      }
+    },
+    {
+      "tenantId": "dryrun/kody-chat",
+      "stream": "events",
+      "date": "2026-07-14",
+      "seq": 1,
+      "entry": {
+        "id": "1784033030920-7iqgvtse",
+        "name": "chat.message.sent",
+        "version": 1,
+        "occurredAt": "2026-07-14T12:43:50.920Z",
+        "userId": "operator:aharonyaircohen",
+        "sessionId": null,
+        "brand": {
+          "owner": "aharonyaircohen",
+          "repo": "kody-chat"
+        },
+        "source": "server",
+        "payload": {
+          "transport": "direct"
+        }
+      }
+    }
+  ]
+}

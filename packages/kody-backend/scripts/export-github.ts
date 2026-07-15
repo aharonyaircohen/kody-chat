@@ -17,6 +17,7 @@ const token = process.env.GITHUB_TOKEN
 const stateRepo = process.env.STATE_REPO
 const tenantId = process.env.REPO
 const branch = argValue("--branch") ?? "main"
+const prefix = process.env.STATE_PATH ? process.env.STATE_PATH.replace(/\/$/, "") + "/" : ""
 const outDir = argValue("--out") ?? "./dump"
 
 if (!token || !stateRepo || !tenantId) {
@@ -60,8 +61,9 @@ const now = new Date().toISOString()
 const entries = await listTree()
 console.log(`state repo ${stateRepo}@${branch}: ${entries.length} files`)
 for (const entry of entries) {
+  if (prefix && !entry.path.startsWith(prefix)) continue
   try {
-    const rows = mapStateFile(entry.path, await readFileText(entry.path), tenantId, now)
+    const rows = mapStateFile(entry.path.slice(prefix.length), await readFileText(entry.path), tenantId, now)
     if (!rows) {
       console.warn(`skipped (no mapping): ${entry.path}`)
       continue
