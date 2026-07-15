@@ -262,20 +262,27 @@ describe("POST /api/kody/company/backend/import", () => {
 
   it("gives up after exhausting retries on persistent throttling", async () => {
     vi.stubEnv("CONVEX_URL", "https://demo.convex.cloud");
+    vi.useFakeTimers();
     convex.mutation.mockRejectedValue(
       new Error('{"code":"TooManyWrites","message":"Too many writes per second."}'),
     );
 
-    const res = await IMPORT(
-      req("/api/kody/company/backend/import", "POST", {
-        ...dump,
-        tables: { workflows: dump.tables.workflows },
-      }),
-    );
-    expect(res.status).toBe(500);
-    expect((await res.json()).message).toContain("TooManyWrites");
-    // initial attempt + MAX_RETRIES (5)
-    expect(convex.mutation).toHaveBeenCalledTimes(6);
+    try {
+      const pending = IMPORT(
+        req("/api/kody/company/backend/import", "POST", {
+          ...dump,
+          tables: { workflows: dump.tables.workflows },
+        }),
+      );
+      await vi.runAllTimersAsync();
+      const res = await pending;
+      expect(res.status).toBe(500);
+      expect((await res.json()).message).toContain("TooManyWrites");
+      // initial attempt + MAX_RETRIES (5)
+      expect(convex.mutation).toHaveBeenCalledTimes(6);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("does not retry non-throttle errors", async () => {
