@@ -2,24 +2,24 @@
  * @fileType utility
  * @domain kody
  * @pattern system-prompt-files
- * @ai-summary Read/write the per-repo base system prompt override stored at
- *   `system-prompt.md` in the configured Kody state repo. When present and
- *   non-empty, the engine (kody-live chat) uses it INSTEAD of its built-in
- *   CHAT_SYSTEM_PROMPT — unlike `instructions.md`, which is layered on top.
- *   Empty/absent file → built-in prompt. Mirrors instructions/files.ts.
+ * @ai-summary Read/write the per-repo base system prompt override stored in
+ *   the Convex backend (repoDocs, kind "system-prompt", doc `{ body }`).
+ *   When present and non-empty, the engine (kody-live chat) uses it INSTEAD
+ *   of its built-in CHAT_SYSTEM_PROMPT — unlike `instructions.md`, which is
+ *   layered on top. Empty/absent doc → built-in prompt. Exported signatures
+ *   are unchanged from the state-repo era; octokit params are unused.
  */
 
 import type { Octokit } from "@octokit/rest";
-import { getOctokit, getOwner, getRepo } from "../github-client";
+import { getOwner, getRepo } from "../github-client";
 import {
-  deleteStateFile,
-  readStateText,
-  resolveStateRepo,
-  stateRepoPath,
-  writeStateText,
-} from "@kody-ade/base/state-repo";
+  backendApi,
+  getConvexClient,
+  tenantIdFor,
+} from "../backend/convex-backend";
 
 const SYSTEM_PROMPT_PATH = "system-prompt.md";
+const SYSTEM_PROMPT_KIND = "system-prompt";
 
 export interface SystemPromptFile {
   body: string;
@@ -28,52 +28,29 @@ export interface SystemPromptFile {
   htmlUrl: string;
 }
 
-async function fetchLastCommitDate(octokit: Octokit): Promise<string> {
-  try {
-    const target = await resolveStateRepo(octokit, getOwner(), getRepo());
-    const { data } = await octokit.repos.listCommits({
-      owner: target.owner,
-      repo: target.repo,
-      path: stateRepoPath(target, SYSTEM_PROMPT_PATH),
-      per_page: 1,
-    });
-    return (
-      data[0]?.commit.committer?.date ??
-      data[0]?.commit.author?.date ??
-      new Date().toISOString()
-    );
-  } catch {
-    return new Date().toISOString();
-  }
+interface SystemPromptDoc {
+  doc: { body?: unknown };
+  updatedAt: string;
 }
 
 export async function readSystemPromptFile(
-  octokitOverride?: Octokit,
+  _octokitOverride?: Octokit,
 ): Promise<SystemPromptFile | null> {
-  const octokit = octokitOverride ?? getOctokit();
-  try {
-    const file = await readStateText(
-      octokit,
-      getOwner(),
-      getRepo(),
-      SYSTEM_PROMPT_PATH,
-    );
-    if (!file) return null;
-    const updatedAt = await fetchLastCommitDate(octokit);
-    return {
-      body: file.content,
-      sha: file.sha,
-      updatedAt,
-      htmlUrl: file.htmlUrl ?? "",
-    };
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) return null;
-    throw error;
-  }
+  const record = (await getConvexClient().query(backendApi.repoDocs.get, {
+    tenantId: tenantIdFor(getOwner(), getRepo()),
+    kind: SYSTEM_PROMPT_KIND,
+  })) as SystemPromptDoc | null;
+  if (!record || typeof record.doc?.body !== "string") return null;
+  return {
+    body: record.doc.body,
+    sha: "",
+    updatedAt: record.updatedAt,
+    htmlUrl: "",
+  };
 }
 
 interface WriteOptions {
-  octokit: Octokit;
+  octokit?: Octokit;
   body: string;
   sha?: string;
   message?: string;
@@ -83,41 +60,22 @@ export async function writeSystemPromptFile(
   opts: WriteOptions,
 ): Promise<SystemPromptFile> {
   const body = opts.body.endsWith("\n") ? opts.body : `${opts.body}\n`;
-  const message =
-    opts.message ??
-    `${opts.sha ? "chore" : "feat"}(system-prompt): ${opts.sha ? "update" : "add"} base prompt override`;
-
-  await writeStateText({
-    octokit: opts.octokit,
-    owner: getOwner(),
-    repo: getRepo(),
-    path: SYSTEM_PROMPT_PATH,
-    message,
-    content: body,
-    sha: opts.sha,
+  const updatedAt = new Date().toISOString();
+  await getConvexClient().mutation(backendApi.repoDocs.save, {
+    tenantId: tenantIdFor(getOwner(), getRepo()),
+    kind: SYSTEM_PROMPT_KIND,
+    doc: { body },
+    updatedAt,
   });
-
-  // Confirm with the same octokit that wrote — not the per-request global,
-  // which a concurrent request may have cleared (→ 401 "Bad credentials").
-  const refreshed = await readSystemPromptFile(opts.octokit);
-  if (!refreshed) {
-    throw new Error(
-      "writeSystemPromptFile: file was written but could not be re-read",
-    );
-  }
-  return refreshed;
+  return { body, sha: "", updatedAt, htmlUrl: "" };
 }
 
-export async function deleteSystemPromptFile(octokit: Octokit): Promise<void> {
-  const existing = await readSystemPromptFile();
-  if (!existing) return;
-  await deleteStateFile({
-    octokit,
-    owner: getOwner(),
-    repo: getRepo(),
-    path: SYSTEM_PROMPT_PATH,
-    message: "chore(system-prompt): remove base prompt override",
-    sha: existing.sha,
+export async function deleteSystemPromptFile(
+  _octokit?: Octokit,
+): Promise<void> {
+  await getConvexClient().mutation(backendApi.repoDocs.remove, {
+    tenantId: tenantIdFor(getOwner(), getRepo()),
+    kind: SYSTEM_PROMPT_KIND,
   });
 }
 

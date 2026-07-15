@@ -15,9 +15,14 @@ import type {
   PreviewEnvironment,
   PreviewEnvironmentFolder,
 } from "@kody-ade/fly/preview-environments";
-import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
+import {
+  backendApi,
+  getConvexClient,
+  tenantIdFor,
+} from "../backend/convex-backend";
 
 export const DASHBOARD_CONFIG_PATH = "dashboard.json";
+const DASHBOARD_CONFIG_KIND = "dashboard-config";
 
 export interface DashboardConfig {
   version: 1;
@@ -71,33 +76,28 @@ function emptyDoc(): DashboardConfig {
 }
 
 async function fetchRaw(
-  octokit: Octokit,
+  _octokit: Octokit,
   owner: string,
   repo: string,
 ): Promise<{ doc: DashboardConfig; sha: string | null }> {
-  const file = await readStateText(
-    octokit,
-    owner,
-    repo,
-    DASHBOARD_CONFIG_PATH,
-    {
-      headers: { "If-None-Match": "" },
-    },
-  );
-  if (!file) {
+  const record = (await getConvexClient().query(backendApi.repoDocs.get, {
+    tenantId: tenantIdFor(owner, repo),
+    kind: DASHBOARD_CONFIG_KIND,
+  })) as { doc: unknown } | null;
+  if (!record) {
     return { doc: emptyDoc(), sha: null };
   }
 
-  const parsed = JSON.parse(file.content) as DashboardConfig;
+  const parsed = record.doc as DashboardConfig;
   if (parsed.version !== 1) {
     logger.warn(
       { owner, repo, version: parsed.version },
       "dashboard-config: unexpected version",
     );
-    return { doc: emptyDoc(), sha: file.sha ?? null };
+    return { doc: emptyDoc(), sha: null };
   }
 
-  return { doc: parsed, sha: file.sha ?? null };
+  return { doc: parsed, sha: null };
 }
 
 export async function readDashboardConfig(
@@ -135,36 +135,25 @@ export async function readDashboardConfig(
 }
 
 export async function writeDashboardConfig(
-  octokit: Octokit,
+  _octokit: Octokit,
   owner: string,
   repo: string,
   doc: DashboardConfig,
-  currentSha: string | null,
-  commitMessage = "chore(dashboard): update dashboard config",
+  _currentSha: string | null,
+  _commitMessage = "chore(dashboard): update dashboard config",
 ): Promise<{ sha: string }> {
-  const res = await writeStateText({
-    octokit,
-    owner,
-    repo,
-    path: DASHBOARD_CONFIG_PATH,
-    content: JSON.stringify(doc, null, 2),
-    message: commitMessage,
-    sha: currentSha ?? undefined,
+  await getConvexClient().mutation(backendApi.repoDocs.save, {
+    tenantId: tenantIdFor(owner, repo),
+    kind: DASHBOARD_CONFIG_KIND,
+    doc,
+    updatedAt: new Date().toISOString(),
   });
-  const newSha = res.sha ?? null;
   CACHE.set(cacheKey(owner, repo), {
     doc,
-    sha: newSha,
+    sha: null,
     expiresAt: Date.now() + TTL_MS,
   });
-  if (!newSha) {
-    logger.warn(
-      { owner, repo },
-      "dashboard-config: GitHub returned no sha after write",
-    );
-    return { sha: "" };
-  }
-  return { sha: newSha };
+  return { sha: "" };
 }
 
 export function invalidateDashboardConfigCache(

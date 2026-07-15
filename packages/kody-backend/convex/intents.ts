@@ -12,6 +12,16 @@ export const list = query({
   },
 })
 
+export const get = query({
+  args: { tenantId: v.string(), intentId: v.string() },
+  handler: async (ctx, { tenantId, intentId }) => {
+    return await ctx.db
+      .query("intents")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId).eq("intentId", intentId))
+      .unique()
+  },
+})
+
 export const save = mutation({
   args: { tenantId: v.string(), intentId: v.string(), intent: companyIntentValidator, updatedAt: v.string() },
   handler: async (ctx, args) => {

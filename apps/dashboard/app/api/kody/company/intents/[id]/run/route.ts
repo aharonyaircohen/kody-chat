@@ -21,11 +21,8 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { buildKodyWorkflowDispatchInputs } from "@dashboard/lib/kody-workflow-dispatch";
-import {
-  companyIntentPath,
-  isCompanyIntentId,
-} from "@dashboard/lib/company-intents";
-import { readStateText } from "@kody-ade/base/state-repo";
+import { isCompanyIntentId } from "@dashboard/lib/company-intents";
+import { readCompanyIntentRecord } from "@dashboard/lib/company-intents-store";
 
 const runSchema = z.object({
   actorLogin: z.string().trim().optional(),
@@ -71,11 +68,10 @@ export async function POST(
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     }
 
-    const existing = await readStateText(
-      octokit,
+    const existing = await readCompanyIntentRecord(
       headerAuth.owner,
       headerAuth.repo,
-      companyIntentPath(id),
+      id,
     );
     if (!existing) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });

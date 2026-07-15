@@ -20,17 +20,17 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import {
-  companyIntentDecisionsPath,
   companyIntentPath,
   isCompanyIntentId,
   normalizeCompanyIntent,
-  parseCompanyIntentDecisionLog,
   RELEASE_CADENCES,
   type CompanyIntent,
-  type CompanyIntentRecord,
 } from "@dashboard/lib/company-intents";
 import { clearCompanyIntentRecordsCache } from "@dashboard/lib/company-intents-read-cache";
-import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
+import {
+  readCompanyIntentRecord,
+  saveCompanyIntent,
+} from "@dashboard/lib/company-intents-store";
 
 const intentStatusSchema = z.enum(["active", "paused", "archived"]);
 const intentPostureSchema = z.enum([
@@ -142,34 +142,6 @@ function mergeIntent(
   });
 }
 
-async function readRecord(
-  octokit: NonNullable<Awaited<ReturnType<typeof getUserOctokit>>>,
-  owner: string,
-  repo: string,
-  id: string,
-): Promise<{ record: CompanyIntentRecord; sha: string } | null> {
-  const file = await readStateText(octokit, owner, repo, companyIntentPath(id));
-  if (!file) return null;
-  const decisions = await readStateText(
-    octokit,
-    owner,
-    repo,
-    companyIntentDecisionsPath(id),
-  );
-  const intent = normalizeCompanyIntent(file.path, JSON.parse(file.content));
-  return {
-    sha: file.sha,
-    record: {
-      id,
-      path: file.path,
-      intent,
-      decisions: decisions
-        ? parseCompanyIntentDecisionLog(decisions.content)
-        : [],
-    },
-  };
-}
-
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -206,8 +178,7 @@ export async function PATCH(
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     }
 
-    const existing = await readRecord(
-      octokit,
+    const existing = await readCompanyIntentRecord(
       headerAuth.owner,
       headerAuth.repo,
       id,
@@ -216,26 +187,17 @@ export async function PATCH(
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
-    const intent = mergeIntent(existing.record.intent, parsed.data);
-    await writeStateText({
-      octokit,
-      owner: headerAuth.owner,
-      repo: headerAuth.repo,
-      path: companyIntentPath(id),
-      content: `${JSON.stringify(intent, null, 2)}\n`,
-      sha: existing.sha,
-      message: `chore(intents): update ${id}`,
-    });
+    const intent = mergeIntent(existing.intent, parsed.data);
+    await saveCompanyIntent(headerAuth.owner, headerAuth.repo, intent);
     clearCompanyIntentRecordsCache(headerAuth.owner, headerAuth.repo);
 
-    const updated = await readRecord(
-      octokit,
+    const updated = await readCompanyIntentRecord(
       headerAuth.owner,
       headerAuth.repo,
       id,
     );
 
-    return NextResponse.json({ intent: updated?.record ?? null });
+    return NextResponse.json({ intent: updated ?? null });
   } catch (err) {
     return mapGithubError(err, "failed_to_update_company_intent");
   } finally {

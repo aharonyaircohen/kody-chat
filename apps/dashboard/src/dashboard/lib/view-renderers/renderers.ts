@@ -1,9 +1,9 @@
 /**
  * @fileType util
  * @domain view-renderers
- * @pattern state-repo-config
- * @ai-summary User-managed renderer definitions stored under
- *   `views/renderers/<slug>.json` in the Kody state repo.
+ * @pattern convex-config
+ * @ai-summary User-managed renderer definitions stored in the Convex
+ *   backend (viewRenderers.{list,save,remove}, tenant-scoped by owner/repo).
  */
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
@@ -15,11 +15,10 @@ import {
   type RenderedViewUiNode,
 } from "@dashboard/lib/chat-ui-actions";
 import {
-  deleteStateFile,
-  listStateDirectory,
-  readStateText,
-  writeStateText,
-} from "@kody-ade/base/state-repo";
+  backendApi,
+  getConvexClient,
+  tenantIdFor,
+} from "../backend/convex-backend";
 import { slugifyTitle } from "@kody-ade/base/slug";
 import {
   RendererActionDefaultSchema,
@@ -51,10 +50,6 @@ export interface ViewRendererDefinitionFile {
 export interface ViewRendererPromptContext {
   rules: string | null;
   definitions: ViewRendererDefinition[];
-}
-
-function filePathForSlug(slug: string): string {
-  return `${VIEW_RENDERERS_DIR}/${slug}.json`;
 }
 
 export function buildRenderedViewDirective({
@@ -796,26 +791,36 @@ export function matchViewRendererDefinition(
   return matches[0]?.definition ?? null;
 }
 
+interface ViewRendererDoc {
+  slug: string;
+  definition: unknown;
+}
+
+function fileFromDoc(doc: ViewRendererDoc): ViewRendererDefinitionFile {
+  return {
+    definition: parseViewRendererDefinition(JSON.stringify(doc.definition)),
+    source: "repo",
+    sha: "",
+    htmlUrl: "",
+  };
+}
+
 export async function readViewRendererDefinitionFile({
-  octokit,
   owner,
   repo,
   slug,
 }: {
-  octokit: Octokit;
+  octokit?: Octokit;
   owner: string;
   repo: string;
   slug: string;
 }): Promise<ViewRendererDefinitionFile | null> {
   if (!isValidViewRendererSlug(slug)) return null;
-  const file = await readStateText(octokit, owner, repo, filePathForSlug(slug));
-  if (!file) return null;
-  return {
-    definition: parseViewRendererDefinition(file.content),
-    source: "repo",
-    sha: file.sha,
-    htmlUrl: file.htmlUrl ?? "",
-  };
+  const docs = (await getConvexClient().query(backendApi.viewRenderers.list, {
+    tenantId: tenantIdFor(owner, repo),
+  })) as ViewRendererDoc[];
+  const doc = docs.find((d) => d.slug === slug);
+  return doc ? fileFromDoc(doc) : null;
 }
 
 export async function resolveViewRendererDefinition({
@@ -908,91 +913,71 @@ export async function loadViewRendererContextForPrompt({
 }
 
 export async function listViewRendererDefinitionFiles({
-  octokit,
   owner,
   repo,
 }: {
-  octokit: Octokit;
+  octokit?: Octokit;
   owner: string;
   repo: string;
 }): Promise<ViewRendererDefinitionFile[]> {
-  const { entries } = await listStateDirectory(
-    octokit,
-    owner,
-    repo,
-    VIEW_RENDERERS_DIR,
-  );
-  const files = await Promise.all(
-    entries
-      .filter((entry) => entry.type === "file" && entry.name.endsWith(".json"))
-      .map((entry) =>
-        readViewRendererDefinitionFile({
-          octokit,
-          owner,
-          repo,
-          slug: entry.name.slice(0, -".json".length),
-        }).catch(() => null),
-      ),
-  );
-  return files.filter((file): file is ViewRendererDefinitionFile =>
-    Boolean(file),
-  );
+  const docs = (await getConvexClient().query(backendApi.viewRenderers.list, {
+    tenantId: tenantIdFor(owner, repo),
+  })) as ViewRendererDoc[];
+  return docs
+    .map((doc) => {
+      try {
+        return fileFromDoc(doc);
+      } catch {
+        return null;
+      }
+    })
+    .filter((file): file is ViewRendererDefinitionFile => Boolean(file));
 }
 
 export async function writeViewRendererDefinitionFile({
-  octokit,
   owner,
   repo,
   definition,
-  sha,
-  message,
 }: {
-  octokit: Octokit;
+  octokit?: Octokit;
   owner: string;
   repo: string;
   definition: ViewRendererDefinition;
   sha?: string;
   message: string;
 }): Promise<ViewRendererDefinitionFile> {
-  const content = serializeViewRendererDefinition(definition);
-  const written = await writeStateText({
-    octokit,
-    owner,
-    repo,
-    path: filePathForSlug(definition.slug),
-    content,
-    message,
-    ...(sha ? { sha } : {}),
+  // Round-trip through the serializer so only schema-valid data persists.
+  const validated = JSON.parse(
+    serializeViewRendererDefinition(definition),
+  ) as ViewRendererDefinition;
+  await getConvexClient().mutation(backendApi.viewRenderers.save, {
+    tenantId: tenantIdFor(owner, repo),
+    slug: definition.slug,
+    definition: validated,
+    updatedAt: new Date().toISOString(),
   });
   return {
-    definition,
+    definition: validated,
     source: "repo",
-    sha: written.sha ?? "",
-    htmlUrl: written.htmlUrl ?? "",
+    sha: "",
+    htmlUrl: "",
   };
 }
 
 export async function deleteViewRendererDefinitionFile({
-  octokit,
   owner,
   repo,
   slug,
-  sha,
-  message,
 }: {
-  octokit: Octokit;
+  octokit?: Octokit;
   owner: string;
   repo: string;
   slug: string;
-  sha: string;
+  sha?: string;
   message: string;
 }): Promise<void> {
-  await deleteStateFile({
-    octokit,
-    owner,
-    repo,
-    path: filePathForSlug(slug),
-    sha,
-    message,
+  await getConvexClient().mutation(backendApi.viewRenderers.remove, {
+    tenantId: tenantIdFor(owner, repo),
+    slug,
   });
 }

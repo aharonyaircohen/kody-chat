@@ -26,3 +26,14 @@ export const save = mutation({
     return await ctx.db.insert("macros", args)
   },
 })
+
+export const remove = mutation({
+  args: { tenantId: v.string(), macroId: v.string() },
+  handler: async (ctx, { tenantId, macroId }) => {
+    const existing = await ctx.db
+      .query("macros")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId).eq("macroId", macroId))
+      .unique()
+    if (existing) await ctx.db.delete(existing._id)
+  },
+})

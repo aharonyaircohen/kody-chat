@@ -617,6 +617,9 @@ importers:
       clsx:
         specifier: ^2.1.1
         version: 2.1.1
+      convex:
+        specifier: ^1.17.0
+        version: 1.42.2(react@19.2.7)
       dompurify:
         specifier: ^3.4.11
         version: 3.4.12

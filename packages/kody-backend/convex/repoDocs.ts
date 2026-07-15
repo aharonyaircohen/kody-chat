@@ -28,3 +28,14 @@ export const save = mutation({
     return await ctx.db.insert("repoDocs", args)
   },
 })
+
+export const remove = mutation({
+  args: { tenantId: v.string(), kind: v.string() },
+  handler: async (ctx, { tenantId, kind }) => {
+    const existing = await ctx.db
+      .query("repoDocs")
+      .withIndex("by_kind", (q) => q.eq("tenantId", tenantId).eq("kind", kind))
+      .unique()
+    if (existing) await ctx.db.delete(existing._id)
+  },
+})

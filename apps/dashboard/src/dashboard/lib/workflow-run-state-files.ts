@@ -1,5 +1,18 @@
+/**
+ * @fileType utility
+ * @domain kody
+ * @pattern workflow-run-state-files
+ * @ai-summary Read workflow run state from the Convex backend
+ *   (workflowRuns.{get,list}, tenant-scoped by owner/repo). Function
+ *   signatures kept from the state-repo era so routes don't change; the
+ *   octokit parameter is unused and retained for compatibility.
+ */
 import type { Octokit } from "@octokit/rest";
-import { listStateDirectory, readStateText } from "@kody-ade/base/state-repo";
+import {
+  backendApi,
+  getConvexClient,
+  tenantIdFor,
+} from "./backend/convex-backend";
 import {
   normalizeWorkflowRunState,
   type WorkflowRunStateRecord,
@@ -7,64 +20,56 @@ import {
 
 const SAFE_ID = /^[a-z0-9][a-z0-9_-]{0,79}$/;
 
-function workflowRunPath(workflowId: string, runId: string): string {
-  if (!SAFE_ID.test(workflowId) || !SAFE_ID.test(runId)) {
+function assertIds(workflowId: string, runId?: string): void {
+  if (
+    !SAFE_ID.test(workflowId) ||
+    (runId !== undefined && !SAFE_ID.test(runId))
+  ) {
     throw new Error("Invalid workflow or run id");
   }
-  return `workflows/${workflowId}/runs/${runId}.json`;
+}
+
+interface WorkflowRunDoc {
+  runId: string;
+  state: unknown;
 }
 
 export async function readWorkflowRunStateFile(
-  octokit: Octokit,
+  _octokit: Octokit,
   owner: string,
   repo: string,
   workflowId: string,
   runId: string,
 ): Promise<WorkflowRunStateRecord | null> {
-  const file = await readStateText(
-    octokit,
-    owner,
-    repo,
-    workflowRunPath(workflowId, runId),
-    { headers: { "If-None-Match": "" } },
-  );
-  if (!file) return null;
-  try {
-    const state = normalizeWorkflowRunState(JSON.parse(file.content));
-    return state ? { workflowId, runId, state } : null;
-  } catch {
-    return null;
-  }
+  assertIds(workflowId, runId);
+  const doc = (await getConvexClient().query(backendApi.workflowRuns.get, {
+    tenantId: tenantIdFor(owner, repo),
+    workflowId,
+    runId,
+  })) as WorkflowRunDoc | null;
+  if (!doc) return null;
+  const state = normalizeWorkflowRunState(doc.state);
+  return state ? { workflowId, runId, state } : null;
 }
 
 export async function readLatestWorkflowRunStateFile(
-  octokit: Octokit,
+  _octokit: Octokit,
   owner: string,
   repo: string,
   workflowId: string,
 ): Promise<WorkflowRunStateRecord | null> {
-  let entries;
-  try {
-    ({ entries } = await listStateDirectory(
-      octokit,
-      owner,
-      repo,
-      `workflows/${workflowId}/runs`,
-      { headers: { "If-None-Match": "" } },
-    ));
-  } catch (error) {
-    if ((error as { status?: number }).status === 404) return null;
-    throw error;
-  }
-  const runId = entries
-    .filter(
-      (entry) =>
-        entry.type === "file" && /^run-[a-z0-9]+\.json$/.test(entry.name),
-    )
-    .map((entry) => entry.name.slice(0, -5))
+  assertIds(workflowId);
+  const docs = (await getConvexClient().query(backendApi.workflowRuns.list, {
+    tenantId: tenantIdFor(owner, repo),
+    workflowId,
+  })) as WorkflowRunDoc[];
+  const latest = docs
+    .filter((doc) => /^run-[a-z0-9]+$/.test(doc.runId))
+    .map((doc) => doc.runId)
     .sort()
     .at(-1);
-  return runId
-    ? readWorkflowRunStateFile(octokit, owner, repo, workflowId, runId)
-    : null;
+  if (!latest) return null;
+  const doc = docs.find((d) => d.runId === latest);
+  const state = doc ? normalizeWorkflowRunState(doc.state) : null;
+  return state ? { workflowId, runId: latest, state } : null;
 }

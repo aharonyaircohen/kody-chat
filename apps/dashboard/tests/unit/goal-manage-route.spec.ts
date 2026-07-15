@@ -4,11 +4,23 @@
  * @testFramework vitest
  * @domain goals
  *
- * Tests the current state-repo write path used by managed goals.
+ * Tests the Convex-backed managed goal write path.
  */
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-import { STATE_BRANCH } from "@kody-ade/base/state-branch";
+import { getFunctionName } from "convex/server";
+
+const convex = vi.hoisted(() => ({
+  query: vi.fn(),
+  mutation: vi.fn(),
+}));
+
+vi.mock("convex/browser", () => ({
+  ConvexHttpClient: class {
+    query = convex.query;
+    mutation = convex.mutation;
+  },
+}));
 
 const h = vi.hoisted(() => ({
   runScheduledKodyOnRunner: vi.fn(async () => ({
@@ -64,12 +76,18 @@ vi.mock("@kody-ade/fly/runners/kody-runner", () => ({
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const auth = await import("@kody-ade/base/auth");
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const { getUserOctokit } = auth as any;
 
+import { _resetConvexClient } from "@dashboard/lib/backend/convex-backend";
 import { POST } from "../../app/api/kody/goals/[id]/manage/route";
 
-afterEach(() => {
+beforeEach(() => {
   vi.clearAllMocks();
+  _resetConvexClient();
+  process.env.CONVEX_URL = "https://example.convex.cloud";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  vi.mocked(getUserOctokit).mockResolvedValue({} as any);
 });
 
 // ---------------------------------------------------------------------------
@@ -91,80 +109,45 @@ function makeParams(id: string) {
   return { params: Promise.resolve({ id }) };
 }
 
-function managedGoalTodoContent(overrides: Record<string, unknown> = {}) {
-  return `${JSON.stringify(
-    {
-      version: 1,
-      title: "capability-migration",
-      description: "Migrate capability state.",
-      createdAt: "2026-01-01T00:00:00.000Z",
-      managed: true,
-      managedModel: "agentGoal",
-      state: "active",
-      type: "improve",
-      evidence: [],
-      capabilities: [],
-      route: [],
-      facts: {},
-      blockers: [],
-      items: [],
-      ...overrides,
-    },
-    null,
-    2,
-  )}\n`;
+function managedGoalTodoState(overrides: Record<string, unknown> = {}) {
+  return {
+    version: 1,
+    title: "capability-migration",
+    description: "Migrate capability state.",
+    createdAt: "2026-01-01T00:00:00.000Z",
+    managed: true,
+    managedModel: "agentGoal",
+    state: "active",
+    type: "improve",
+    evidence: [],
+    capabilities: [],
+    route: [],
+    facts: {},
+    blockers: [],
+    items: [],
+    ...overrides,
+  };
 }
 
 // ---------------------------------------------------------------------------
 
 describe("POST /api/kody/goals/[id]/manage", () => {
-  it("writes managed state to the configured Kody state repo", async () => {
-    const createRefCalls: unknown[] = [];
-    const getRefCalls: unknown[] = [];
-    let capturedWriteBranch: string | undefined;
-    let capturedWritePath: string | undefined;
-
-    const mockOctokit = {
-      rest: {
-        repos: {
-          get: vi.fn().mockResolvedValue({ data: { default_branch: "main" } }),
-          getContent: vi.fn().mockRejectedValue({ status: 404 }),
-          createOrUpdateFileContents: vi
-            .fn()
-            .mockImplementation((opts: unknown) => {
-              capturedWriteBranch = (opts as { branch?: string }).branch;
-              capturedWritePath = (opts as { path?: string }).path;
-              return Promise.resolve({ status: 200 });
-            }),
-        },
-        git: {
-          getRef: vi.fn().mockImplementation((opts: unknown) => {
-            getRefCalls.push(opts);
-            return Promise.resolve({
-              data: { object: { sha: "main-sha-abc" } },
-            });
-          }),
-          createRef: vi.fn().mockImplementation((opts: unknown) => {
-            createRefCalls.push(opts);
-            return Promise.resolve({ status: 201 });
-          }),
-        },
-        actions: {},
-      },
-    };
-
-    (mockOctokit as any).repos = mockOctokit.rest.repos;
-    (mockOctokit as any).git = mockOctokit.rest.git;
-    vi.mocked(getUserOctokit).mockResolvedValue(mockOctokit as any);
+  it("writes managed state to the Convex backend", async () => {
+    convex.query.mockResolvedValue(null);
+    convex.mutation.mockResolvedValue("id-1");
 
     const req = makeManageRequest("capability-migration", true);
     const res = await POST(req, makeParams("capability-migration"));
 
     expect(res.status).toBe(200);
-    expect(getRefCalls).toHaveLength(1);
-    expect(createRefCalls).toHaveLength(0);
-    expect(capturedWriteBranch).toBe(STATE_BRANCH);
-    expect(capturedWritePath).toBe("test-repo/todos/capability-migration.json");
+    const saveCall = convex.mutation.mock.calls.find(
+      ([ref]) => getFunctionName(ref) === "goals:save",
+    );
+    expect(saveCall).toBeDefined();
+    expect(saveCall![1]).toMatchObject({
+      tenantId: "test-owner/test-repo",
+      goalId: "capability-migration",
+    });
 
     // The dispatch must pass the goal as the explicit target, not as an issue.
     expect(h.runScheduledKodyOnRunner).toHaveBeenCalledWith(
@@ -178,50 +161,15 @@ describe("POST /api/kody/goals/[id]/manage", () => {
     );
   });
 
-  it("updates existing managed state without a branch override", async () => {
-    const createRefCalls: unknown[] = [];
-    let capturedWriteBranch: string | undefined;
-
-    const mockOctokit = {
-      rest: {
-        repos: {
-          get: vi.fn().mockResolvedValue({ data: { default_branch: "main" } }),
-          getContent: vi.fn().mockResolvedValue({
-            data: {
-              type: "file",
-              sha: "existing-sha",
-              content: Buffer.from(
-                managedGoalTodoContent({
-                  startedAt: "2026-01-01T00:00:00.000Z",
-                  updatedAt: "2026-01-01T00:00:00.000Z",
-                }),
-              ).toString("base64"),
-              encoding: "base64",
-            },
-          }),
-          createOrUpdateFileContents: vi
-            .fn()
-            .mockImplementation((opts: unknown) => {
-              capturedWriteBranch = (opts as { branch?: string }).branch;
-              return Promise.resolve({ status: 200 });
-            }),
-        },
-        git: {
-          getRef: vi
-            .fn()
-            .mockResolvedValue({ data: { object: { sha: "existing-sha" } } }),
-          createRef: vi.fn().mockImplementation((opts: unknown) => {
-            createRefCalls.push(opts);
-            return Promise.resolve({ status: 201 });
-          }),
-        },
-        actions: {},
-      },
-    };
-
-    (mockOctokit as any).repos = mockOctokit.rest.repos;
-    (mockOctokit as any).git = mockOctokit.rest.git;
-    vi.mocked(getUserOctokit).mockResolvedValue(mockOctokit as any);
+  it("updates existing managed state", async () => {
+    convex.query.mockResolvedValue({
+      goalId: "capability-migration",
+      state: managedGoalTodoState({
+        startedAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      }),
+    });
+    convex.mutation.mockResolvedValue("id-1");
 
     const req = makeManageRequest("capability-migration", false);
     const res = await POST(req, makeParams("capability-migration"));
@@ -229,28 +177,14 @@ describe("POST /api/kody/goals/[id]/manage", () => {
     expect(res.status).toBe(200);
     const json = await res.json();
     expect(json.state?.managed).toBe(false);
-    expect(createRefCalls).toHaveLength(0);
-    expect(capturedWriteBranch).toBe(STATE_BRANCH);
+    const saveCall = convex.mutation.mock.calls.find(
+      ([ref]) => getFunctionName(ref) === "goals:save",
+    );
+    expect(saveCall).toBeDefined();
   });
 
   it("returns 409 when trying to unmanage a goal that has no prior state", async () => {
-    const mockOctokit = {
-      rest: {
-        repos: {
-          get: vi.fn().mockResolvedValue({ data: { default_branch: "main" } }),
-          getContent: vi.fn().mockRejectedValue({ status: 404 }),
-          createOrUpdateFileContents: vi.fn(),
-        },
-        git: {
-          getRef: vi.fn().mockRejectedValue({ status: 404 }),
-          createRef: vi.fn(),
-        },
-      },
-    };
-
-    (mockOctokit as any).repos = mockOctokit.rest.repos;
-    (mockOctokit as any).git = mockOctokit.rest.git;
-    vi.mocked(getUserOctokit).mockResolvedValue(mockOctokit as any);
+    convex.query.mockResolvedValue(null);
 
     const req = makeManageRequest("brand-new-goal", false);
     const res = await POST(req, makeParams("brand-new-goal"));
@@ -258,5 +192,6 @@ describe("POST /api/kody/goals/[id]/manage", () => {
     expect(res.status).toBe(409);
     const json = await res.json();
     expect(json.error).toBe("goal_not_started");
+    expect(convex.mutation).not.toHaveBeenCalled();
   });
 });

@@ -11,6 +11,16 @@ export const list = query({
   },
 })
 
+export const get = query({
+  args: { tenantId: v.string(), goalId: v.string() },
+  handler: async (ctx, { tenantId, goalId }) => {
+    return await ctx.db
+      .query("goals")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId).eq("goalId", goalId))
+      .unique()
+  },
+})
+
 export const save = mutation({
   args: { tenantId: v.string(), goalId: v.string(), state: v.any(), updatedAt: v.string() },
   handler: async (ctx, args) => {
@@ -23,5 +33,16 @@ export const save = mutation({
       return existing._id
     }
     return await ctx.db.insert("goals", args)
+  },
+})
+
+export const remove = mutation({
+  args: { tenantId: v.string(), goalId: v.string() },
+  handler: async (ctx, { tenantId, goalId }) => {
+    const existing = await ctx.db
+      .query("goals")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId).eq("goalId", goalId))
+      .unique()
+    if (existing) await ctx.db.delete(existing._id)
   },
 })

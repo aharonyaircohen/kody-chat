@@ -19,17 +19,12 @@ import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
-import { logger } from "@kody-ade/base/logger";
 import {
   buildCompanyIntent,
-  companyIntentDecisionsPath,
   companyIntentPath,
   isCompanyIntentId,
-  normalizeCompanyIntent,
-  parseCompanyIntentDecisionLog,
   RELEASE_CADENCES,
   slugifyCompanyIntentId,
-  sortCompanyIntentRecords,
   type CompanyIntentInput,
   type CompanyIntentRecord,
 } from "@dashboard/lib/company-intents";
@@ -38,10 +33,10 @@ import {
   getCachedCompanyIntentRecords,
 } from "@dashboard/lib/company-intents-read-cache";
 import {
-  listStateDirectory,
-  readStateText,
-  writeStateText,
-} from "@kody-ade/base/state-repo";
+  listCompanyIntentRecords,
+  readCompanyIntentRecord,
+  saveCompanyIntent,
+} from "@dashboard/lib/company-intents-store";
 
 const intentStatusSchema = z.enum(["active", "paused", "archived"]);
 const intentPostureSchema = z.enum([
@@ -112,12 +107,6 @@ const intentPayloadSchema = z.object({
   actorLogin: z.string().trim().optional(),
 });
 
-function isCompanyIntentRecord(
-  record: CompanyIntentRecord | null,
-): record is CompanyIntentRecord {
-  return record !== null;
-}
-
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
     return NextResponse.json(
@@ -160,45 +149,6 @@ function normalizeIntentInput(
   };
 }
 
-async function readIntentRecord({
-  octokit,
-  owner,
-  repo,
-  id,
-}: {
-  octokit: NonNullable<Awaited<ReturnType<typeof getUserOctokit>>>;
-  owner: string;
-  repo: string;
-  id: string;
-}): Promise<CompanyIntentRecord | null> {
-  const intentFile = await readStateText(
-    octokit,
-    owner,
-    repo,
-    companyIntentPath(id),
-  );
-  if (!intentFile) return null;
-
-  const decisionsFile = await readStateText(
-    octokit,
-    owner,
-    repo,
-    companyIntentDecisionsPath(id),
-  );
-  const intent = normalizeCompanyIntent(
-    intentFile.path,
-    JSON.parse(intentFile.content),
-  );
-  return {
-    id,
-    path: intentFile.path,
-    intent,
-    decisions: decisionsFile
-      ? parseCompanyIntentDecisionLog(decisionsFile.content)
-      : [],
-  };
-}
-
 export async function GET(req: NextRequest) {
   const authResult = await requireKodyAuth(req);
   if (authResult instanceof NextResponse) return authResult;
@@ -219,42 +169,7 @@ export async function GET(req: NextRequest) {
     const intents = await getCachedCompanyIntentRecords(
       headerAuth.owner,
       headerAuth.repo,
-      async () => {
-        const { entries } = await listStateDirectory(
-          octokit,
-          headerAuth.owner,
-          headerAuth.repo,
-          "intents",
-        );
-
-        const records = await Promise.all(
-          entries
-            .filter(
-              (entry) =>
-                entry.type === "dir" &&
-                typeof entry.name === "string" &&
-                isCompanyIntentId(entry.name),
-            )
-            .map(async (entry): Promise<CompanyIntentRecord | null> => {
-              try {
-                return await readIntentRecord({
-                  octokit,
-                  owner: headerAuth.owner,
-                  repo: headerAuth.repo,
-                  id: entry.name,
-                });
-              } catch (err) {
-                logger.warn(
-                  { err, id: entry.name },
-                  "company-intents: skipped malformed file",
-                );
-                return null;
-              }
-            }),
-        );
-
-        return sortCompanyIntentRecords(records.filter(isCompanyIntentRecord));
-      },
+      () => listCompanyIntentRecords(headerAuth.owner, headerAuth.repo),
     );
 
     return NextResponse.json(
@@ -300,11 +215,10 @@ export async function POST(req: NextRequest) {
     }
 
     const intent = buildCompanyIntent(normalizeIntentInput(parsed.data));
-    const existing = await readStateText(
-      octokit,
+    const existing = await readCompanyIntentRecord(
       headerAuth.owner,
       headerAuth.repo,
-      companyIntentPath(intent.id),
+      intent.id,
     );
     if (existing) {
       return NextResponse.json(
@@ -316,20 +230,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await writeStateText({
-      octokit,
-      owner: headerAuth.owner,
-      repo: headerAuth.repo,
-      path: companyIntentPath(intent.id),
-      content: `${JSON.stringify(intent, null, 2)}\n`,
-      message: `chore(intents): create ${intent.id}`,
-    });
+    await saveCompanyIntent(headerAuth.owner, headerAuth.repo, intent);
     clearCompanyIntentRecordsCache(headerAuth.owner, headerAuth.repo);
 
-    // GitHub's contents API can briefly return 404 for a file immediately
-    // after creating it. The write already succeeded, so return the exact
-    // record we persisted instead of performing an eventually-consistent
-    // read that can turn a successful create into `{ intent: null }`.
+    // Return the exact record we persisted rather than re-reading.
     const record: CompanyIntentRecord = {
       id: intent.id,
       path: companyIntentPath(intent.id),

@@ -1,20 +1,20 @@
 /**
  * @fileType utility
  * @domain kody
- * @pattern notification-prefs-file-store
- * @ai-summary Read/write per-user notification preferences as a JSON file on the
- *   configured Kody state repo (`notifications/preferences/<login>.json`). One
- *   file per user → no cross-user write contention. Reads use ETag/If-None-Match
- *   so unchanged reads are a free 304. Writes use CAS (fetch SHA → write with
- *   SHA → retry on conflict).
- *
- *   This is the reusable state-repo JSON file-store helper. It generalizes to
- *   any key → `<dir>/<key>.json` path, with the state repo ref and ETag caching
- *   built in.
+ * @pattern notification-prefs-store
+ * @ai-summary Read/write per-user notification preferences in the Convex
+ *   backend (notificationPrefs.{get,save}, keyed by lowercase login, tenant
+ *   scoped by owner/repo). Short TTL cache in front of reads; writes
+ *   invalidate. Exported signatures kept from the state-repo era (the token
+ *   parameter is unused).
  */
 import "server-only";
-import { getOwner, getRepo, getOctokit } from "../github-client";
-import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
+import { getOwner, getRepo } from "../github-client";
+import {
+  backendApi,
+  getConvexClient,
+  tenantIdFor,
+} from "../backend/convex-backend";
 
 /** TTL for notification prefs cache. Low-churn data — 5 min is fine. */
 const PREFS_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -22,7 +22,6 @@ const PREFS_CACHE_TTL_MS = 5 * 60 * 1000;
 interface CacheEntry<T> {
   data: T;
   expires: number;
-  etag?: string;
 }
 
 const cache = new Map<string, CacheEntry<unknown>>();
@@ -36,18 +35,18 @@ export function _resetPrefsCache(): void {
   }
 }
 
-function getCache<T>(key: string): { data: T; etag?: string } | null {
+function getCache<T>(key: string): { data: T } | null {
   const entry = cache.get(key) as CacheEntry<T> | undefined;
   if (!entry) return null;
   if (entry.expires < Date.now()) {
     cache.delete(key);
     return null;
   }
-  return { data: entry.data, etag: entry.etag };
+  return { data: entry.data };
 }
 
-function setCache<T>(key: string, data: T, etag?: string): void {
-  cache.set(key, { data, expires: Date.now() + PREFS_CACHE_TTL_MS, etag });
+function setCache<T>(key: string, data: T): void {
+  cache.set(key, { data, expires: Date.now() + PREFS_CACHE_TTL_MS });
 }
 
 function cacheKey(owner: string, repo: string, login: string): string {
@@ -79,124 +78,61 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefsFile = {
   mutedTypes: [],
 };
 
-/** The directory within the Kody state repo where per-user prefs live. */
+/** Legacy state-repo directory — kept for the backend export route only. */
 export const PREFS_DIR = "notifications/preferences";
 
-function filePath(login: string): string {
-  return `${PREFS_DIR}/${login.toLowerCase()}.json`;
+function normalizePrefs(value: unknown): NotificationPrefsFile {
+  const parsed = value as Partial<NotificationPrefsFile> | null;
+  return {
+    version: 1,
+    mutedTypes: Array.isArray(parsed?.mutedTypes) ? parsed.mutedTypes : [],
+  };
 }
 
 /**
- * Read notification preferences for a user from the configured Kody state repo.
- * Returns the cached data if still valid, otherwise fetches from GitHub
- * (using If-None-Match for a free 304 when unchanged).
+ * Read notification preferences for a user. Returns cached data when still
+ * valid; falls back to defaults on missing doc or backend error (prefs are
+ * best-effort).
  */
 export async function readNotificationPrefs(
   login: string,
-  token: string,
+  _token: string,
 ): Promise<NotificationPrefsFile> {
   const owner = getOwner();
   const repo = getRepo();
-  const path = filePath(login);
   const key = cacheKey(owner, repo, login);
 
   const cached = getCache<NotificationPrefsFile>(key);
-  const octokit = getOctokit();
+  if (cached) return cached.data;
 
   try {
-    const file = await readStateText(octokit, owner, repo, path, {
-      headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
-    });
-    if (file) {
-      const parsed = JSON.parse(file.content) as NotificationPrefsFile;
-      const prefs: NotificationPrefsFile = {
-        version: parsed.version === 1 ? 1 : 1,
-        mutedTypes: Array.isArray(parsed.mutedTypes) ? parsed.mutedTypes : [],
-      };
-      setCache(key, prefs, file.etag);
-      return prefs;
-    }
+    const doc = (await getConvexClient().query(
+      backendApi.notificationPrefs.get,
+      { tenantId: tenantIdFor(owner, repo), login: login.toLowerCase() },
+    )) as { prefs: unknown } | null;
+    const prefs = doc ? normalizePrefs(doc.prefs) : DEFAULT_NOTIFICATION_PREFS;
+    setCache(key, prefs);
+    return prefs;
+  } catch {
+    // On any error (network, backend outage), fail open with defaults.
     return DEFAULT_NOTIFICATION_PREFS;
-  } catch (error: unknown) {
-    const status = (error as { status?: number })?.status;
-    if (status === 304 && cached) {
-      // Content unchanged; refresh TTL
-      setCache(key, cached.data, cached.etag);
-      return cached.data;
-    }
-    if (status === 404) {
-      setCache(key, DEFAULT_NOTIFICATION_PREFS);
-      return DEFAULT_NOTIFICATION_PREFS;
-    }
-    // On any other error (network, rate limit, etc.), fail open with defaults.
-    return cached?.data ?? DEFAULT_NOTIFICATION_PREFS;
   }
 }
 
-/**
- * Write notification preferences for a user to the configured Kody state repo.
- * Uses CAS: fetches the current SHA, then writes with it. Retries once on
- * conflict (GitHub returns 409 when SHA doesn't match).
- */
+/** Write notification preferences for a user to the Convex backend. */
 export async function writeNotificationPrefs(
   login: string,
-  token: string,
+  _token: string,
   prefs: NotificationPrefsFile,
 ): Promise<void> {
   const owner = getOwner();
   const repo = getRepo();
-  const path = filePath(login);
-  const key = cacheKey(owner, repo, login);
+  cache.delete(cacheKey(owner, repo, login));
 
-  // Invalidate cache so the next read goes to GitHub
-  cache.delete(key);
-
-  let sha: string | undefined;
-  // Attempt to read existing SHA (ignore errors — file may not exist yet)
-  try {
-    const octokit = getOctokit();
-    const file = await readStateText(octokit, owner, repo, path);
-    sha = file?.sha;
-  } catch {
-    // File may not exist yet or preferences may be temporarily unavailable.
-  }
-
-  const content = JSON.stringify(prefs, null, 2);
-  const message = `feat(notifications): update prefs for ${login}`;
-
-  try {
-    const octokit = getOctokit();
-    await writeStateText({
-      octokit,
-      owner,
-      repo,
-      path,
-      message,
-      content,
-      sha,
-    });
-    return;
-  } catch (error: unknown) {
-    // CAS conflict — retry once with fresh SHA
-    if ((error as { status?: number })?.status === 409) {
-      try {
-        const octokit = getOctokit();
-        const file = await readStateText(octokit, owner, repo, path);
-        await writeStateText({
-          octokit,
-          owner,
-          repo,
-          path,
-          message,
-          content,
-          sha: file?.sha,
-        });
-        return;
-      } catch {
-        // Give up — preferences are best-effort
-      }
-    }
-    // Give up — preferences are best-effort; throw so caller knows
-    throw error;
-  }
+  await getConvexClient().mutation(backendApi.notificationPrefs.save, {
+    tenantId: tenantIdFor(owner, repo),
+    login: login.toLowerCase(),
+    prefs,
+    updatedAt: new Date().toISOString(),
+  });
 }

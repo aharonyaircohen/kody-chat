@@ -2,18 +2,18 @@
  * @fileType utility
  * @domain kody
  * @pattern managed-goals-files
- * @ai-summary Read and write managed goal state through JSON todo-list files
- * in the configured Kody state repo.
+ * @ai-summary Read and write managed goal state through the Convex backend
+ * (goals.{get,list,save,remove}); each doc's `state` holds the JSON
+ * todo-list document. Company-store goal templates stay on GitHub.
  */
 
 import type { Octokit } from "@octokit/rest";
 import { getOctokit, getOwner, getRepo } from "./github-client";
 import {
-  deleteStateFile,
-  listStateDirectory,
-  readStateText,
-  writeStateText,
-} from "@kody-ade/base/state-repo";
+  backendApi,
+  getConvexClient,
+  tenantIdFor,
+} from "./backend/convex-backend";
 import { createServerTtlCache } from "@kody-ade/base/server-ttl-cache";
 import {
   companyStoreAssetPath,
@@ -39,7 +39,6 @@ import {
   type ManagedGoalState,
 } from "./managed-goals";
 
-const TODOS_ROOT = "todos";
 const MANAGED_GOALS_LIST_TTL_MS = 60_000;
 const COMPANY_STORE_GOAL_TEMPLATES_TTL_MS = 60_000;
 const MANAGED_GOALS_READ_CONCURRENCY = 8;
@@ -51,15 +50,6 @@ const companyStoreGoalTemplatesCache = createServerTtlCache<
 >({
   ttlMs: COMPANY_STORE_GOAL_TEMPLATES_TTL_MS,
 });
-
-interface ContentFile {
-  type?: string;
-  name?: string;
-  path?: string;
-  encoding?: string;
-  content?: string;
-  sha?: string;
-}
 
 type StoreTemplateSource =
   | ManagedGoalRecord[]
@@ -164,26 +154,9 @@ async function resolveStoreBackedManagedGoalState(
     : state;
 }
 
-async function listManagedTodoFiles(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-): Promise<ContentFile[]> {
-  try {
-    const { entries } = await listStateDirectory(
-      octokit,
-      owner,
-      repo,
-      TODOS_ROOT,
-      {
-        headers: { "If-None-Match": "" },
-      },
-    );
-    return entries.filter((item) => item.type === "file");
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) return [];
-    throw error;
-  }
+interface GoalDoc {
+  goalId: string;
+  state: unknown;
 }
 
 export async function listManagedGoalFiles(
@@ -194,40 +167,21 @@ export async function listManagedGoalFiles(
   return managedGoalFilesCache.get(
     managedGoalFilesCacheKey(owner, repo),
     async () => {
-      const seen = new Set<string>();
-
-      const todoEntries = await listManagedTodoFiles(octokit, owner, repo);
-      const entries = todoEntries.filter(
-        (entry): entry is ContentFile & { name: string } =>
-          typeof entry.name === "string" && entry.name.endsWith(".json"),
-      );
+      const docs = (await getConvexClient().query(backendApi.goals.list, {
+        tenantId: tenantIdFor(owner, repo),
+      })) as GoalDoc[];
       let storeTemplatesPromise: Promise<ManagedGoalRecord[]> | null = null;
       const loadStoreTemplates = () => {
         storeTemplatesPromise ??= listCompanyStoreGoalTemplateFiles(octokit);
         return storeTemplatesPromise;
       };
       const goals = await mapWithConcurrency(
-        entries,
+        docs,
         MANAGED_GOALS_READ_CONCURRENCY,
-        async (entry): Promise<ManagedGoalRecord | null> => {
-          const id = entry.name.slice(0, -5);
-          if (seen.has(id)) return null;
-          seen.add(id);
-          const file = await readManagedGoalFileWithStoreTemplates(
-            id,
-            octokit,
-            owner,
-            repo,
-            loadStoreTemplates,
-          );
-          if (!file) return null;
-          return {
-            id,
-            path: file.path,
-            state: file.state,
-            source: "local",
-            recordType: "instance",
-          };
+        async (doc): Promise<ManagedGoalRecord | null> => {
+          const record = await goalDocToRecord(doc, octokit, loadStoreTemplates);
+          if (!record) return null;
+          return record;
         },
       );
 
@@ -236,6 +190,32 @@ export async function listManagedGoalFiles(
         .sort((a, b) => a.id.localeCompare(b.id));
     },
   );
+}
+
+async function goalDocToRecord(
+  doc: GoalDoc,
+  octokit: Octokit,
+  storeTemplates?: StoreTemplateSource,
+): Promise<ManagedGoalRecord | null> {
+  const id = doc.goalId;
+  const todo = parseTodoFileContent(
+    JSON.stringify(doc.state),
+    id,
+    new Date().toISOString(),
+  );
+  if (!isManagedGoalTodo(todo)) return null;
+  const rawState = todoToManagedGoalState(id, todo);
+  const state = rawState
+    ? await resolveStoreBackedManagedGoalState(rawState, octokit, storeTemplates)
+    : null;
+  if (!state) return null;
+  return {
+    id,
+    path: managedGoalPath(id),
+    state,
+    source: "local",
+    recordType: "instance",
+  };
 }
 
 export async function listCompanyStoreGoalTemplateFiles(
@@ -317,40 +297,32 @@ export async function writeManagedGoalFile({
   if (currentTodo && !isManagedGoalTodo(currentTodo)) {
     throw new Error(`Cannot overwrite regular todo list ${id} as managed goal`);
   }
-  const existing = await readManagedGoalFile(id, octokit, owner, repo);
   const content = serializeTodoFileContent(
     managedGoalStateToTodoContent(id, state, currentTodo),
   );
 
-  await writeStateText({
-    octokit,
-    owner,
-    repo,
-    path: managedGoalPath(id),
-    message: message ?? `chore(goals): update managed goal ${id}`,
-    content,
-    sha:
-      existing?.path === managedGoalPath(id)
-        ? (sha ?? existing.sha)
-        : undefined,
+  await getConvexClient().mutation(backendApi.goals.save, {
+    tenantId: tenantIdFor(owner, repo),
+    goalId: id,
+    state: JSON.parse(content),
+    updatedAt: new Date().toISOString(),
   });
   managedGoalFilesCache.delete(managedGoalFilesCacheKey(owner, repo));
 }
 
 async function readManagedGoalTodoFile(
   id: string,
-  octokit: Octokit,
+  _octokit: Octokit,
   owner: string,
   repo: string,
 ): Promise<{ path: string; content: string; sha?: string } | null> {
-  const path = managedGoalPath(id);
-  const file = await readStateText(octokit, owner, repo, path, {
-    headers: { "If-None-Match": "" },
-  }).catch((error: unknown) => {
-    if ((error as { status?: number })?.status === 404) return null;
-    throw error;
-  });
-  return file ? { path, content: file.content, sha: file.sha } : null;
+  const doc = (await getConvexClient().query(backendApi.goals.get, {
+    tenantId: tenantIdFor(owner, repo),
+    goalId: id,
+  })) as GoalDoc | null;
+  return doc
+    ? { path: managedGoalPath(id), content: JSON.stringify(doc.state) }
+    : null;
 }
 
 async function readManagedGoalTodoContent(
@@ -381,14 +353,10 @@ export async function deleteManagedGoalFile({
   message?: string;
 }): Promise<void> {
   const existing = await readManagedGoalFile(id, octokit, owner, repo);
-  if (!existing?.sha) return;
-  await deleteStateFile({
-    octokit,
-    owner,
-    repo,
-    path: existing.path,
-    message: message ?? `chore(goals): delete managed goal ${id}`,
-    sha: sha ?? existing.sha,
+  if (!existing) return;
+  await getConvexClient().mutation(backendApi.goals.remove, {
+    tenantId: tenantIdFor(owner, repo),
+    goalId: id,
   });
   managedGoalFilesCache.delete(managedGoalFilesCacheKey(owner, repo));
 }

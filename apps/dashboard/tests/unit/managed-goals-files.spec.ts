@@ -1,11 +1,17 @@
-/** @fileoverview Unit tests for managed goal GitHub file helpers. */
+/** @fileoverview Unit tests for the Convex-backed managed goal store. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getFunctionName } from "convex/server";
 
-const stateRepo = vi.hoisted(() => ({
-  readStateText: vi.fn(),
-  writeStateText: vi.fn(),
-  listStateDirectory: vi.fn(),
-  deleteStateFile: vi.fn(),
+const convex = vi.hoisted(() => ({
+  query: vi.fn(),
+  mutation: vi.fn(),
+}));
+
+vi.mock("convex/browser", () => ({
+  ConvexHttpClient: class {
+    query = convex.query;
+    mutation = convex.mutation;
+  },
 }));
 
 const companyStore = vi.hoisted(() => ({
@@ -27,18 +33,16 @@ const companyStore = vi.hoisted(() => ({
   ),
 }));
 
-vi.mock("@kody-ade/base/state-repo", () => stateRepo);
 vi.mock("../../src/dashboard/lib/company-store/assets", () => companyStore);
 
+import { _resetConvexClient } from "@dashboard/lib/backend/convex-backend";
 import {
   deleteManagedGoalFile,
-  listCompanyStoreGoalTemplateFiles,
   listManagedGoalFiles,
   readManagedGoalFile,
   writeManagedGoalFile,
 } from "../../src/dashboard/lib/managed-goals-files";
 import type { ManagedGoalState } from "../../src/dashboard/lib/managed-goals";
-import { parseTodoFileContent } from "@kody-ade/workspace/todos/files";
 
 const baseState: ManagedGoalState = {
   version: 1,
@@ -60,542 +64,190 @@ const baseState: ManagedGoalState = {
   blockers: [],
 };
 
-const regularTodo = `${JSON.stringify(
-  {
+/** Todo-file JSON as stored in the Convex goals `state` field. */
+function managedTodoState(id: string): Record<string, unknown> {
+  return {
     version: 1,
-    title: "Regular list",
-    description: "",
+    title: id,
+    description: baseState.destination.outcome,
     createdAt: "2026-06-28T00:00:00.000Z",
-    items: [
-      {
-        id: "item-1",
-        title: "Keep this todo",
-        body: "",
-        assignee: null,
-        completed: false,
-        createdAt: "2026-06-28T00:00:00.000Z",
-        completedAt: null,
-      },
-    ],
-  },
-  null,
-  2,
-)}\n`;
-
-function managedTodo(
-  id: string,
-  overrides: Partial<ManagedGoalState> = {},
-): string {
-  const state: ManagedGoalState = {
-    ...baseState,
-    ...overrides,
-    destination: {
-      ...baseState.destination,
-      ...overrides.destination,
-    },
-    facts: overrides.facts ?? {},
-    blockers: overrides.blockers ?? [],
-  };
-  return `${JSON.stringify(
-    {
-      version: 1,
-      title: id,
-      description: state.destination.outcome,
+    managed: true,
+    managedModel: "agentGoal",
+    state: baseState.state,
+    type: baseState.type,
+    evidence: baseState.destination.evidence,
+    capabilities: baseState.capabilities,
+    route: baseState.route,
+    facts: baseState.facts,
+    blockers: baseState.blockers,
+    items: baseState.destination.evidence.map((evidence) => ({
+      id: evidence,
+      title: evidence,
+      body: "",
+      assignee: null,
+      completed: false,
       createdAt: "2026-06-28T00:00:00.000Z",
-      managed: true,
-      managedModel:
-        state.scheduleMode === "agentLoop" ? "agentLoop" : "agentGoal",
-      state: state.state,
-      type: state.type,
-      evidence: state.destination.evidence,
-      capabilities: state.capabilities,
-      route: state.route,
-      facts: state.facts,
-      blockers: state.blockers,
-      ...(state.sourceTemplate ? { sourceTemplate: state.sourceTemplate } : {}),
-      ...(state.schedule ? { schedule: state.schedule } : {}),
-      ...(state.scheduleMode ? { scheduleMode: state.scheduleMode } : {}),
-      items: state.destination.evidence.map((evidence) => ({
-        id: evidence,
-        title: evidence,
-        body: "",
-        assignee: null,
-        completed: Boolean(state.facts[evidence]),
-        createdAt: "2026-06-28T00:00:00.000Z",
-        completedAt: null,
-      })),
-    },
-    null,
-    2,
-  )}\n`;
+      completedAt: null,
+    })),
+  };
 }
 
-describe("managed goal todo-backed files", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    companyStore.getCompanyStoreTarget.mockReturnValue({
-      owner: "test-store-owner",
-      repo: "test-store-repo",
-      ref: "main",
-    });
-    companyStore.companyStoreAssetPath.mockImplementation(
-      async (_octokit, _kind, ...segments: string[]) =>
-        ["goals", ...segments].join("/"),
+const regularTodoState = {
+  version: 1,
+  title: "Regular list",
+  description: "",
+  createdAt: "2026-06-28T00:00:00.000Z",
+  items: [
+    {
+      id: "item-1",
+      title: "Keep this todo",
+      body: "",
+      assignee: null,
+      completed: false,
+      createdAt: "2026-06-28T00:00:00.000Z",
+      completedAt: null,
+    },
+  ],
+};
+
+let repoCounter = 0;
+function nextRepo(): string {
+  repoCounter += 1;
+  return `repo-${repoCounter}`;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  _resetConvexClient();
+  process.env.CONVEX_URL = "https://example.convex.cloud";
+});
+
+describe("managed goal convex store", () => {
+  it("returns null when the goal doc does not exist", async () => {
+    convex.query.mockResolvedValue(null);
+    const file = await readManagedGoalFile(
+      "goal-creation-works",
+      {} as never,
+      "test-owner",
+      nextRepo(),
     );
-    companyStore.listCompanyStoreDirectorySafe.mockResolvedValue([]);
-    companyStore.readCompanyStoreText.mockResolvedValue(null);
+    expect(file).toBeNull();
+    const [ref, args] = convex.query.mock.calls[0]!;
+    expect(getFunctionName(ref)).toBe("goals:get");
+    expect(args).toMatchObject({ goalId: "goal-creation-works" });
   });
 
-  it("returns null when no managed goal todo file exists", async () => {
-    stateRepo.readStateText.mockImplementation(
-      async (_octokit, _owner, _repo, path: string) => {
-        if (path === "todos/goal-creation-works.json") return null;
-        return null;
-      },
-    );
+  it("reads a managed goal from its Convex doc", async () => {
+    const repo = nextRepo();
+    convex.query.mockResolvedValue({
+      goalId: "goal-creation-works",
+      state: managedTodoState("goal-creation-works"),
+    });
 
     const file = await readManagedGoalFile(
       "goal-creation-works",
       {} as never,
       "test-owner",
-      "test-repo",
+      repo,
     );
 
-    expect(file).toBeNull();
-    expect(stateRepo.readStateText).toHaveBeenCalledTimes(1);
+    expect(file?.state.destination.outcome).toBe("Goal creation works.");
+    expect(file?.path).toBe("todos/goal-creation-works.json");
+    const [, args] = convex.query.mock.calls[0]!;
+    expect(args).toMatchObject({ tenantId: `test-owner/${repo}` });
   });
 
-  it("writes a managed goal to a JSON todo file", async () => {
-    stateRepo.readStateText.mockImplementation(
-      async (_octokit, _owner, _repo, path: string) => {
-        if (path === "todos/goal-creation-works.json") return null;
-        return null;
-      },
-    );
-    stateRepo.writeStateText.mockResolvedValue({ sha: "new-sha" });
+  it("lists managed goals and skips regular todo lists", async () => {
+    const repo = nextRepo();
+    convex.query.mockResolvedValue([
+      { goalId: "goal-a", state: managedTodoState("goal-a") },
+      { goalId: "shopping", state: regularTodoState },
+    ]);
+
+    const goals = await listManagedGoalFiles({} as never, "test-owner", repo);
+
+    expect(goals.map((goal) => goal.id)).toEqual(["goal-a"]);
+    const [ref, args] = convex.query.mock.calls[0]!;
+    expect(getFunctionName(ref)).toBe("goals:list");
+    expect(args).toEqual({ tenantId: `test-owner/${repo}` });
+  });
+
+  it("writes a managed goal via goals.save with the todo doc shape", async () => {
+    const repo = nextRepo();
+    convex.query.mockResolvedValue(null);
+    convex.mutation.mockResolvedValue("id-1");
 
     await writeManagedGoalFile({
       octokit: {} as never,
       owner: "test-owner",
-      repo: "test-repo",
+      repo,
       id: "goal-creation-works",
-      state: { ...baseState, facts: { planReady: true } },
+      state: baseState,
     });
 
-    expect(stateRepo.writeStateText).toHaveBeenCalledTimes(1);
-    const write = stateRepo.writeStateText.mock.calls[0]![0];
-    expect(write).toMatchObject({
-      path: "todos/goal-creation-works.json",
-      sha: undefined,
-    });
-    const parsed = parseTodoFileContent(
-      write.content,
-      "goal-creation-works",
-      "2026-06-28T00:00:00.000Z",
-    );
-    expect(parsed.description).toBe("Goal creation works.");
-    expect(parsed.frontmatter).toMatchObject({
-      managed: true,
-      managedModel: "agentGoal",
-      state: "active",
-      type: "improve",
-    });
-    expect(parsed.items).toMatchObject([
-      {
-        id: "planReady",
-        completed: true,
-        meta: {
-          evidence: "planReady",
-          stage: "plan",
-          capability: "plan",
-        },
-      },
-    ]);
+    const [ref, args] = convex.mutation.mock.calls[0]!;
+    expect(getFunctionName(ref)).toBe("goals:save");
+    const typed = args as {
+      tenantId: string;
+      goalId: string;
+      state: { managed?: boolean; title?: string };
+      updatedAt: string;
+    };
+    expect(typed.tenantId).toBe(`test-owner/${repo}`);
+    expect(typed.goalId).toBe("goal-creation-works");
+    expect(typed.state.managed).toBe(true);
+    expect(typeof typed.updatedAt).toBe("string");
   });
 
-  it("does not treat a regular todo list as a managed goal", async () => {
-    stateRepo.readStateText.mockImplementation(
-      async (_octokit, _owner, _repo, path: string) => {
-        if (path === "todos/todo-list-1.json") {
-          return { path, sha: "todo-sha", content: regularTodo };
-        }
-        return null;
-      },
-    );
-
-    const file = await readManagedGoalFile(
-      "todo-list-1",
-      {} as never,
-      "test-owner",
-      "test-repo",
-    );
-
-    expect(file).toBeNull();
-    expect(stateRepo.readStateText).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not delete a regular todo list through managed goal deletion", async () => {
-    stateRepo.readStateText.mockResolvedValue({
-      path: "todos/todo-list-1.json",
-      sha: "todo-sha",
-      content: regularTodo,
+  it("refuses to overwrite a regular todo list as a managed goal", async () => {
+    convex.query.mockResolvedValue({
+      goalId: "shopping",
+      state: regularTodoState,
     });
-
-    await deleteManagedGoalFile({
-      octokit: {} as never,
-      owner: "test-owner",
-      repo: "test-repo",
-      id: "todo-list-1",
-    });
-
-    expect(stateRepo.deleteStateFile).not.toHaveBeenCalled();
-  });
-
-  it("does not overwrite a regular todo list when writing a managed goal", async () => {
-    stateRepo.readStateText.mockImplementation(
-      async (_octokit, _owner, _repo, path: string) => {
-        if (path === "todos/todo-list-1.json") {
-          return { path, sha: "todo-sha", content: regularTodo };
-        }
-        return null;
-      },
-    );
 
     await expect(
       writeManagedGoalFile({
         octokit: {} as never,
         owner: "test-owner",
-        repo: "test-repo",
-        id: "todo-list-1",
+        repo: nextRepo(),
+        id: "shopping",
         state: baseState,
       }),
-    ).rejects.toThrow("Cannot overwrite regular todo list todo-list-1");
-    expect(stateRepo.writeStateText).not.toHaveBeenCalled();
+    ).rejects.toThrow(/Cannot overwrite regular todo list/);
+    expect(convex.mutation).not.toHaveBeenCalled();
   });
 
-  it("keeps user-edited todo item details when runtime updates state", async () => {
-    const existingTodo = `${JSON.stringify(
-      {
-        version: 1,
-        title: "goal-creation-works",
-        description: "Goal creation works.",
-        createdAt: "2026-06-28T00:00:00.000Z",
-        managed: true,
-        managedModel: "agentGoal",
-        state: "active",
-        type: "improve",
-        evidence: ["planReady"],
-        capabilities: ["plan"],
-        route: [
-          {
-            stage: "plan",
-            evidence: "planReady",
-            capability: "plan",
-          },
-        ],
-        facts: {},
-        blockers: [],
-        items: [
-          {
-            id: "planReady",
-            title: "Write the plan",
-            body: "User edited details.",
-            assignee: "aguy",
-            completed: false,
-            createdAt: "2026-06-28T00:00:00.000Z",
-            completedAt: null,
-            meta: {
-              note: "keep me",
-              evidence: "planReady",
-              stage: "plan",
-              capability: "plan",
-            },
-          },
-        ],
-      },
-      null,
-      2,
-    )}\n`;
-    stateRepo.readStateText.mockImplementation(
-      async (_octokit, _owner, _repo, path: string) => {
-        if (path === "todos/goal-creation-works.json") {
-          return { path, sha: "todo-sha", content: existingTodo };
-        }
-        return null;
-      },
-    );
-    stateRepo.writeStateText.mockResolvedValue({ sha: "new-sha" });
+  it("deletes a managed goal via goals.remove", async () => {
+    const repo = nextRepo();
+    convex.query.mockResolvedValue({
+      goalId: "goal-a",
+      state: managedTodoState("goal-a"),
+    });
+    convex.mutation.mockResolvedValue(null);
 
-    await writeManagedGoalFile({
+    await deleteManagedGoalFile({
       octokit: {} as never,
       owner: "test-owner",
-      repo: "test-repo",
-      id: "goal-creation-works",
-      state: { ...baseState, facts: { planReady: true } },
+      repo,
+      id: "goal-a",
     });
 
-    const write = stateRepo.writeStateText.mock.calls[0]![0];
-    expect(write).toMatchObject({
-      path: "todos/goal-creation-works.json",
-      sha: "todo-sha",
-    });
-    const parsed = parseTodoFileContent(
-      write.content,
-      "goal-creation-works",
-      "2026-06-28T00:00:00.000Z",
-    );
-    expect(parsed.items[0]).toMatchObject({
-      id: "planReady",
-      title: "Write the plan",
-      body: "User edited details.",
-      assignee: "aguy",
-      completed: true,
-      meta: {
-        note: "keep me",
-        evidence: "planReady",
-        stage: "plan",
-        capability: "plan",
-      },
+    const [ref, args] = convex.mutation.mock.calls[0]!;
+    expect(getFunctionName(ref)).toBe("goals:remove");
+    expect(args).toEqual({
+      tenantId: `test-owner/${repo}`,
+      goalId: "goal-a",
     });
   });
 
-  it("lists local managed goals without loading Store templates", async () => {
-    stateRepo.listStateDirectory.mockResolvedValue({
-      entries: [
-        { name: "first-goal.json", type: "file" },
-        { name: "second-goal.json", type: "file" },
-      ],
+  it("skips deletion when the goal does not exist", async () => {
+    convex.query.mockResolvedValue(null);
+    await deleteManagedGoalFile({
+      octokit: {} as never,
+      owner: "test-owner",
+      repo: nextRepo(),
+      id: "missing",
     });
-    stateRepo.readStateText.mockImplementation(
-      async (_octokit, _owner, _repo, path: string) => {
-        const id = path.replace(/^todos\//, "").replace(/\.json$/, "");
-        return { path, sha: `${id}-sha`, content: managedTodo(id) };
-      },
-    );
-
-    const goals = await listManagedGoalFiles(
-      {} as never,
-      "test-owner",
-      "list-local-only-repo",
-    );
-
-    expect(goals.map((goal) => goal.id)).toEqual(["first-goal", "second-goal"]);
-    expect(companyStore.listCompanyStoreDirectorySafe).not.toHaveBeenCalled();
-    expect(companyStore.readCompanyStoreText).not.toHaveBeenCalled();
-  });
-
-  it("loads Store templates once while listing store-backed managed goals", async () => {
-    stateRepo.listStateDirectory.mockResolvedValue({
-      entries: [
-        { name: "loop-one.json", type: "file" },
-        { name: "loop-two.json", type: "file" },
-      ],
-    });
-    stateRepo.readStateText.mockImplementation(
-      async (_octokit, _owner, _repo, path: string) => {
-        const id = path.replace(/^todos\//, "").replace(/\.json$/, "");
-        return {
-          path,
-          sha: `${id}-sha`,
-          content: managedTodo(id, {
-            type: "maintain",
-            sourceTemplate: "prs-stay-mergeable",
-            schedule: "manual",
-            scheduleMode: "agentLoop",
-            destination: {
-              outcome: "Old copied outcome.",
-              evidence: ["old-evidence"],
-            },
-            capabilities: ["old-capability"],
-            route: [],
-          }),
-        };
-      },
-    );
-    companyStore.listCompanyStoreDirectorySafe.mockImplementation(
-      async (...args: unknown[]) => {
-        const path = String(args[1] ?? "");
-        return path === "goals/templates"
-          ? [{ name: "prs-stay-mergeable", type: "dir" }]
-          : [];
-      },
-    );
-    companyStore.readCompanyStoreText.mockImplementation(
-      async (...args: unknown[]) => {
-        const path = String(args[1] ?? "");
-        return path === "goals/templates/prs-stay-mergeable/state.json"
-          ? JSON.stringify({
-              version: 1,
-              kind: "template",
-              state: "inactive",
-              type: "maintain",
-              scheduleMode: "agentLoop",
-              schedule: "15m",
-              destination: {
-                outcome: "Pull requests stay mergeable.",
-                evidence: ["pr-health-triage"],
-              },
-              capabilities: ["pr-health-triage"],
-              route: [],
-              facts: {},
-              blockers: [],
-            })
-          : null;
-      },
-    );
-
-    const goals = await listManagedGoalFiles(
-      {} as never,
-      "test-owner",
-      "list-store-backed-repo",
-    );
-
-    expect(goals).toHaveLength(2);
-    expect(goals[0]?.state.destination.outcome).toBe(
-      "Pull requests stay mergeable.",
-    );
-    expect(companyStore.readCompanyStoreText).toHaveBeenCalledTimes(1);
-  });
-
-  it("lists Store goal templates from the current goals/templates layout", async () => {
-    companyStore.listCompanyStoreDirectorySafe.mockImplementation(
-      async (...args: unknown[]) => {
-        const path = String(args[1] ?? "");
-        return path === "goals/templates"
-          ? [{ name: "prs-stay-mergeable", type: "dir" }]
-          : [];
-      },
-    );
-    companyStore.readCompanyStoreText.mockImplementation(
-      async (...args: unknown[]) => {
-        const path = String(args[1] ?? "");
-        return path === "goals/templates/prs-stay-mergeable/state.json"
-          ? JSON.stringify({
-              version: 1,
-              kind: "template",
-              state: "inactive",
-              type: "maintain",
-              scheduleMode: "agentLoop",
-              schedule: "15m",
-              destination: {
-                outcome: "PRs stay mergeable.",
-                evidence: ["pr-health-triage"],
-              },
-              capabilities: ["pr-health-triage"],
-              route: [],
-              facts: {},
-              blockers: [],
-            })
-          : null;
-      },
-    );
-
-    const goals = await listCompanyStoreGoalTemplateFiles({} as never);
-
-    expect(goals).toHaveLength(1);
-    expect(goals[0]).toMatchObject({
-      id: "prs-stay-mergeable",
-      path: "goals/templates/prs-stay-mergeable/state.json",
-      source: "store",
-      recordType: "template",
-      state: {
-        schedule: "15m",
-        scheduleMode: "agentLoop",
-      },
-    });
-  });
-
-  it("overlays Store template fields onto runtime goal state", async () => {
-    const existingTodo = `${JSON.stringify(
-      {
-        version: 1,
-        title: "prs-stay-mergeable",
-        description: "Old copied outcome.",
-        createdAt: "2026-06-28T00:00:00.000Z",
-        managed: true,
-        managedModel: "agentLoop",
-        state: "active",
-        type: "maintain",
-        sourceTemplate: "prs-stay-mergeable",
-        schedule: "manual",
-        scheduleMode: "agentLoop",
-        evidence: ["old-evidence"],
-        capabilities: ["old-capability"],
-        route: [],
-        facts: { "old-evidence": false },
-        blockers: [],
-        items: [
-          {
-            id: "old-evidence",
-            title: "Old evidence",
-            body: "",
-            assignee: null,
-            completed: false,
-            createdAt: "2026-06-28T00:00:00.000Z",
-            completedAt: null,
-          },
-        ],
-      },
-      null,
-      2,
-    )}\n`;
-    stateRepo.readStateText.mockImplementation(
-      async (_octokit, _owner, _repo, path: string) => {
-        if (path === "todos/prs-stay-mergeable.json") {
-          return { path, sha: "todo-sha", content: existingTodo };
-        }
-        return null;
-      },
-    );
-    companyStore.listCompanyStoreDirectorySafe.mockImplementation(
-      async (...args: unknown[]) => {
-        const path = String(args[1] ?? "");
-        return path === "goals/templates"
-          ? [{ name: "prs-stay-mergeable", type: "dir" }]
-          : [];
-      },
-    );
-    companyStore.readCompanyStoreText.mockImplementation(
-      async (...args: unknown[]) => {
-        const path = String(args[1] ?? "");
-        return path === "goals/templates/prs-stay-mergeable/state.json"
-          ? JSON.stringify({
-              version: 1,
-              kind: "template",
-              state: "inactive",
-              type: "maintain",
-              scheduleMode: "agentLoop",
-              schedule: "15m",
-              destination: {
-                outcome: "Pull requests stay mergeable.",
-                evidence: ["pr-health-triage"],
-              },
-              capabilities: ["pr-health-triage"],
-              route: [],
-              facts: {},
-              blockers: [],
-            })
-          : null;
-      },
-    );
-
-    const file = await readManagedGoalFile(
-      "prs-stay-mergeable",
-      {} as never,
-      "test-owner",
-      "test-repo",
-    );
-
-    expect(file?.state).toMatchObject({
-      state: "active",
-      sourceTemplate: "prs-stay-mergeable",
-      schedule: "15m",
-      scheduleMode: "agentLoop",
-      destination: {
-        outcome: "Pull requests stay mergeable.",
-        evidence: ["pr-health-triage"],
-      },
-      capabilities: ["pr-health-triage"],
-    });
+    expect(convex.mutation).not.toHaveBeenCalled();
   });
 });

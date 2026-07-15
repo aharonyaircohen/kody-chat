@@ -28,3 +28,14 @@ export const save = mutation({
     return await ctx.db.insert("viewRenderers", args)
   },
 })
+
+export const remove = mutation({
+  args: { tenantId: v.string(), slug: v.string() },
+  handler: async (ctx, { tenantId, slug }) => {
+    const existing = await ctx.db
+      .query("viewRenderers")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId).eq("slug", slug))
+      .unique()
+    if (existing) await ctx.db.delete(existing._id)
+  },
+})

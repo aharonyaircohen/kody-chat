@@ -21,6 +21,20 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
+// Agents now live in the Convex backend — mock the client so agent
+// import writes hit an in-memory store instead of GitHub.
+const convex = vi.hoisted(() => ({
+  query: vi.fn(async () => [] as unknown[]),
+  mutation: vi.fn(async () => "id-1"),
+}));
+
+vi.mock("convex/browser", () => ({
+  ConvexHttpClient: class {
+    query = convex.query;
+    mutation = convex.mutation;
+  },
+}));
+
 function badError(): Error {
   const e = new Error(
     "Bad credentials - https://docs.github.com/rest",
@@ -195,6 +209,9 @@ const bundle = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  process.env.CONVEX_URL = "https://example.convex.cloud";
+  convex.query.mockResolvedValue([]);
+  convex.mutation.mockResolvedValue("id-1");
 });
 
 describe("company import survives a cleared/bad request-context octokit", () => {
@@ -218,7 +235,8 @@ describe("company import survives a cleared/bad request-context octokit", () => 
 
   it("still reports a real write failure (does not mask genuine errors)", async () => {
     const good = makeGoodOctokit();
-    good.repos.createOrUpdateFileContents.mockRejectedValueOnce(badError());
+    // Agent writes go to Convex now — fail the first mutation.
+    convex.mutation.mockRejectedValueOnce(badError());
 
     const result = await applyCompanyBundle(good as never, bundle, "skip");
     // The one agent write genuinely failed; everything else still succeeded.
