@@ -3,9 +3,13 @@
  * @domain kody
  * @pattern company-backend-export-api
  * @ai-summary Exports the tenant's state-repo files as a DB-agnostic JSON
- *   dump keyed by backend table, using the shared mapStateFile mapping.
+ *   dump keyed by backend table, using the shared mapStateFile mapping. The
+ *   whole state repo is fetched as ONE tarball download instead of per-file
+ *   REST reads (rate-limit rules in apps/dashboard/CLAUDE.md).
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
+import { gunzipSync } from "node:zlib";
 
 import { NextRequest, NextResponse } from "next/server";
 
@@ -18,17 +22,9 @@ import {
   clearGitHubContext,
   setGitHubContext,
 } from "@dashboard/lib/github-client";
-import {
-  listStateDirectory,
-  readStateText,
-} from "@kody-ade/base/state-repo";
-import { mapStateFile, STATE_ROOTS } from "@kody-ade/backend/export-mapping";
-import type { Octokit } from "@octokit/rest";
-
-// Derived from the entity registry (packages/kody-backend/src/entities.ts) —
-// the single source of truth. Roots containing a dot are files, others dirs.
-const STATE_DIRS = STATE_ROOTS.filter((root) => !root.includes("."));
-const STATE_ROOT_FILES = STATE_ROOTS.filter((root) => root.includes("."));
+import { resolveStateRepo } from "@kody-ade/base/state-repo";
+import { parseTarEntries } from "@dashboard/lib/tar-archive";
+import { mapStateFile } from "@kody-ade/backend/export-mapping";
 
 export interface BackendExportDump {
   version: 1;
@@ -37,10 +33,6 @@ export interface BackendExportDump {
   skipped: number;
   failures: string[];
   tables: Record<string, Array<Record<string, unknown>>>;
-}
-
-function isNotFound(error: unknown): boolean {
-  return (error as { status?: number } | null)?.status === 404;
 }
 
 function mapGithubError(error: any, fallback: string, status = 500) {
@@ -62,29 +54,13 @@ function mapGithubError(error: any, fallback: string, status = 500) {
   );
 }
 
-async function walkStateFiles(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  dirPath: string,
-): Promise<string[]> {
-  let entries;
-  try {
-    ({ entries } = await listStateDirectory(octokit, owner, repo, dirPath));
-  } catch (error) {
-    if (isNotFound(error)) return [];
-    throw error;
-  }
-  const nested = await Promise.all(
-    entries.map(async (entry) => {
-      const relative = `${dirPath}/${entry.name}`;
-      if (entry.type === "dir") {
-        return walkStateFiles(octokit, owner, repo, relative);
-      }
-      return [relative];
-    }),
-  );
-  return nested.flat();
+/**
+ * GitHub tarballs wrap everything in a `<owner>-<repo>-<sha>/` directory —
+ * strip that first segment to get state-repo paths.
+ */
+function stripArchiveRoot(path: string): string {
+  const slash = path.indexOf("/");
+  return slash === -1 ? "" : path.slice(slash + 1);
 }
 
 export async function GET(req: NextRequest) {
@@ -113,26 +89,37 @@ export async function GET(req: NextRequest) {
     const tenantId = `${owner}/${repo}`;
     const now = new Date().toISOString();
 
-    const dirFiles = await Promise.all(
-      STATE_DIRS.map((dir) => walkStateFiles(octokit, owner, repo, dir)),
+    // One API call for the entire state repo instead of one REST read per
+    // file — the per-file walk drained the shared 5000/hr token budget.
+    const target = await resolveStateRepo(octokit, owner, repo);
+    const archive = await octokit.rest.repos.downloadTarballArchive({
+      owner: target.owner,
+      repo: target.repo,
+      ref: target.branch,
+    });
+    const files = parseTarEntries(
+      gunzipSync(Buffer.from(archive.data as ArrayBuffer)),
     );
-    const paths = [...STATE_ROOT_FILES, ...dirFiles.flat()];
+
+    // Tenant files live under `<basePath>/…` in the state repo.
+    const prefix = target.basePath ? `${target.basePath}/` : "";
 
     const tables = new Map<string, Array<Record<string, unknown>>>();
     let skipped = 0;
     const failures: string[] = [];
 
-    for (const path of paths) {
-      let file;
+    for (const file of files) {
+      const repoPath = stripArchiveRoot(file.path);
+      if (!repoPath || !repoPath.startsWith(prefix)) continue;
+      const statePath = repoPath.slice(prefix.length);
+      if (!statePath) continue;
       try {
-        file = await readStateText(octokit, owner, repo, path);
-      } catch (error) {
-        if (isNotFound(error)) continue;
-        throw error;
-      }
-      if (!file) continue;
-      try {
-        const rows = mapStateFile(path, file.content, tenantId, now);
+        const rows = mapStateFile(
+          statePath,
+          file.content.toString("utf8"),
+          tenantId,
+          now,
+        );
         if (!rows) {
           skipped += 1;
           continue;
@@ -142,7 +129,7 @@ export async function GET(req: NextRequest) {
           tables.set(row.table, [...docs, row.doc]);
         }
       } catch {
-        failures.push(path);
+        failures.push(statePath);
       }
     }
 

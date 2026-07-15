@@ -1,3 +1,5 @@
+import { gzipSync } from "node:zlib";
+
 import { NextRequest, NextResponse } from "next/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -20,8 +22,7 @@ const githubClient = vi.hoisted(() => ({
 }));
 
 const stateRepo = vi.hoisted(() => ({
-  listStateDirectory: vi.fn(),
-  readStateText: vi.fn(),
+  resolveStateRepo: vi.fn(),
 }));
 
 const convex = vi.hoisted(() => {
@@ -49,8 +50,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
 }));
 
 vi.mock("@kody-ade/base/state-repo", () => ({
-  listStateDirectory: stateRepo.listStateDirectory,
-  readStateText: stateRepo.readStateText,
+  resolveStateRepo: stateRepo.resolveStateRepo,
 }));
 
 vi.mock("convex/browser", () => ({
@@ -72,7 +72,44 @@ function req(path: string, method = "GET", body?: unknown): NextRequest {
   });
 }
 
-const notFound = () => Object.assign(new Error("Not Found"), { status: 404 });
+/** Build one 512-byte ustar header + padded content for a regular file. */
+function tarFile(name: string, content: string): Buffer {
+  const body = Buffer.from(content, "utf8");
+  const header = Buffer.alloc(512);
+  header.write(name, 0, 100, "utf8");
+  header.write("0000644\0", 100, 8, "utf8"); // mode
+  header.write("0000000\0", 108, 8, "utf8"); // uid
+  header.write("0000000\0", 116, 8, "utf8"); // gid
+  header.write(`${body.length.toString(8).padStart(11, "0")}\0`, 124, 12);
+  header.write("00000000000\0", 136, 12, "utf8"); // mtime
+  header.write("        ", 148, 8, "utf8"); // checksum placeholder
+  header.write("0", 156, 1, "utf8"); // typeflag: regular file
+  header.write("ustar\0", 257, 6, "utf8");
+  header.write("00", 263, 2, "utf8");
+  const checksum = header.reduce((sum, byte) => sum + byte, 0);
+  header.write(`${checksum.toString(8).padStart(6, "0")}\0 `, 148, 8);
+  const padding = Buffer.alloc((512 - (body.length % 512)) % 512);
+  return Buffer.concat([header, body, padding]);
+}
+
+/** Build a gzipped tarball like GitHub's downloadTarballArchive returns. */
+function tarball(files: Record<string, string>): ArrayBuffer {
+  const blocks = Object.entries(files).map(([name, content]) =>
+    tarFile(name, content),
+  );
+  const gz = gzipSync(Buffer.concat([...blocks, Buffer.alloc(1024)]));
+  return gz.buffer.slice(gz.byteOffset, gz.byteOffset + gz.byteLength);
+}
+
+function octokitWithTarball(data: ArrayBuffer) {
+  return {
+    rest: {
+      repos: {
+        downloadTarballArchive: vi.fn(async () => ({ data })),
+      },
+    },
+  };
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -90,65 +127,40 @@ afterEach(() => {
 });
 
 describe("GET /api/kody/company/backend/export", () => {
-  it("exports mapped state files keyed by table and counts skipped ones", async () => {
-    stateRepo.listStateDirectory.mockImplementation(
-      async (_o: unknown, _ow: string, _r: string, dir: string) => {
-        if (dir === "workflows") {
-          return {
-            targetPath: dir,
-            entries: [{ name: "bug", path: "workflows/bug", type: "dir" }],
-          };
-        }
-        if (dir === "workflows/bug") {
-          return {
-            targetPath: dir,
-            entries: [
-              {
-                name: "workflow.json",
-                path: "workflows/bug/workflow.json",
-                type: "file",
-              },
-              {
-                name: "notes.txt",
-                path: "workflows/bug/notes.txt",
-                type: "file",
-              },
-            ],
-          };
-        }
-        if (dir === "todos") {
-          return {
-            targetPath: dir,
-            entries: [
-              { name: "goal-1.json", path: "todos/goal-1.json", type: "file" },
-            ],
-          };
-        }
-        throw notFound();
-      },
+  it("exports mapped state files from one tarball download and counts skipped ones", async () => {
+    stateRepo.resolveStateRepo.mockResolvedValue({
+      owner: "acme",
+      repo: "kody-state",
+      basePath: "widgets",
+      branch: "main",
+    });
+    const octokit = octokitWithTarball(
+      tarball({
+        // Files for this tenant live under `<basePath>/…`.
+        "acme-kody-state-abc123/widgets/workflows/bug/workflow.json":
+          JSON.stringify({
+            name: "bug",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+          }),
+        "acme-kody-state-abc123/widgets/workflows/bug/notes.txt": "unmapped",
+        "acme-kody-state-abc123/widgets/todos/goal-1.json": JSON.stringify({
+          title: "Ship it",
+        }),
+        // Outside the tenant prefix — must be ignored entirely.
+        "acme-kody-state-abc123/other-tenant/todos/goal-9.json":
+          JSON.stringify({ title: "Not ours" }),
+        "acme-kody-state-abc123/README.md": "state repo readme",
+      }),
     );
-    stateRepo.readStateText.mockImplementation(
-      async (_o: unknown, _ow: string, _r: string, path: string) => {
-        if (path === "workflows/bug/workflow.json") {
-          return {
-            path,
-            content: JSON.stringify({
-              name: "bug",
-              updatedAt: "2026-01-01T00:00:00.000Z",
-            }),
-          };
-        }
-        if (path === "workflows/bug/notes.txt") {
-          return { path, content: "unmapped" };
-        }
-        if (path === "todos/goal-1.json") {
-          return { path, content: JSON.stringify({ title: "Ship it" }) };
-        }
-        return null;
-      },
-    );
+    auth.getUserOctokit.mockResolvedValue(octokit as never);
 
     const res = await EXPORT(req("/api/kody/company/backend/export"));
+    expect(octokit.rest.repos.downloadTarballArchive).toHaveBeenCalledTimes(1);
+    expect(octokit.rest.repos.downloadTarballArchive).toHaveBeenCalledWith({
+      owner: "acme",
+      repo: "kody-state",
+      ref: "main",
+    });
     expect(res.status).toBe(200);
     expect(res.headers.get("content-disposition")).toContain("attachment");
 
@@ -176,7 +188,7 @@ describe("GET /api/kody/company/backend/export", () => {
 
     const res = await EXPORT(req("/api/kody/company/backend/export"));
     expect(res.status).toBe(401);
-    expect(stateRepo.listStateDirectory).not.toHaveBeenCalled();
+    expect(stateRepo.resolveStateRepo).not.toHaveBeenCalled();
   });
 
   it("returns 400 without repo context headers", async () => {
