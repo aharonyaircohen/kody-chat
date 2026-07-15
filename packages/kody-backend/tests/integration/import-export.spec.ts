@@ -63,7 +63,7 @@ describe("importExport", () => {
         { tenantId: "other/tenantId", goalId: "g2", state: {}, updatedAt: NOW },
       ],
     })
-    await t.mutation(api.engine.appendEvent, {
+    await t.mutation(api.eventLog.append, {
       entryId: "e1",
       runId: "r",
       event: "tick",
@@ -74,7 +74,7 @@ describe("importExport", () => {
     const result = await t.mutation(api.importExport.clearRepo, { tenantId: REPO })
     expect(result.deleted).toBe(1)
     expect(await t.query(api.importExport.exportTable, { table: "goals" })).toHaveLength(1)
-    expect(await t.query(api.engine.recentEvents, {})).toHaveLength(1)
+    expect(await t.query(api.eventLog.recent, {})).toHaveLength(1)
   })
 
   it("supports a clear → re-import cycle (migration dry-run shape)", async () => {

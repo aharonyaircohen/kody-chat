@@ -54,19 +54,19 @@ describe.skipIf(!url)("migration round-trip", () => {
     // 3. Read back through the domain API.
     const workflow = await client.query(anyApi.workflows.get, { tenantId, workflowId: "deploy" })
     expect(workflow?.definition?.name).toBe("Deploy")
-    const run = await client.query(anyApi.workflows.getRun, {
+    const run = await client.query(anyApi.workflowRuns.get, {
       tenantId,
       workflowId: "deploy",
       runId: "r1",
     })
     expect(run?.state?.status).toBe("done")
-    const session = await client.query(anyApi.chat.getSession, { tenantId, sessionId: "s1" })
+    const session = await client.query(anyApi.chatSessions.get, { tenantId, sessionId: "s1" })
     expect(session?.turns).toHaveLength(1)
-    const goals = await client.query(anyApi.company.listGoals, { tenantId })
+    const goals = await client.query(anyApi.goals.list, { tenantId })
     expect(goals).toHaveLength(1)
-    const config = await client.query(anyApi.repoStore.getDoc, { tenantId, kind: "dashboard-config" })
+    const config = await client.query(anyApi.repoDocs.get, { tenantId, kind: "dashboard-config" })
     expect(config?.doc?.version).toBe(1)
-    const profile = await client.query(anyApi.users.getUserState, {
+    const profile = await client.query(anyApi.userState.get, {
       tenantId,
       namespace: "profile",
       userKey: "u1",

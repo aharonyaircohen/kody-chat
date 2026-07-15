@@ -78,21 +78,21 @@ describe("workflows", () => {
 
   it("saves, upserts, and lists runs per workflow", async () => {
     const t = setup()
-    await t.mutation(api.workflows.saveRun, {
+    await t.mutation(api.workflowRuns.save, {
       tenantId: REPO,
       workflowId: "deploy",
       runId: "r1",
       state: { status: "running", completedStepIds: [] },
       updatedAt: NOW,
     })
-    await t.mutation(api.workflows.saveRun, {
+    await t.mutation(api.workflowRuns.save, {
       tenantId: REPO,
       workflowId: "deploy",
       runId: "r1",
       state: { status: "done", completedStepIds: ["a"] },
       updatedAt: NOW,
     })
-    await t.mutation(api.workflows.saveRun, {
+    await t.mutation(api.workflowRuns.save, {
       tenantId: REPO,
       workflowId: "other",
       runId: "r9",
@@ -100,11 +100,11 @@ describe("workflows", () => {
       updatedAt: NOW,
     })
 
-    const runs = await t.query(api.workflows.listRuns, { tenantId: REPO, workflowId: "deploy" })
+    const runs = await t.query(api.workflowRuns.list, { tenantId: REPO, workflowId: "deploy" })
     expect(runs).toHaveLength(1)
     expect(runs[0].state.status).toBe("done")
 
-    const run = await t.query(api.workflows.getRun, {
+    const run = await t.query(api.workflowRuns.get, {
       tenantId: REPO,
       workflowId: "deploy",
       runId: "r1",

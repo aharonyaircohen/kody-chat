@@ -24,12 +24,12 @@ describe.skipIf(!url)("deployment smoke", () => {
   })
 
   it("appends and tails chat events", async () => {
-    await client.mutation(anyApi.chat.appendEvent, {
+    await client.mutation(anyApi.chatEvents.append, {
       tenantId,
       sessionId: "smoke",
       event: { ping: true },
     })
-    const events = await client.query(anyApi.chat.eventsSince, {
+    const events = await client.query(anyApi.chatEvents.since, {
       tenantId,
       sessionId: "smoke",
       afterSeq: -1,

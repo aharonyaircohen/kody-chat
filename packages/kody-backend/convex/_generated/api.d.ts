@@ -8,12 +8,24 @@
  * @module
  */
 
-import type * as chat from "../chat.js";
-import type * as company from "../company.js";
-import type * as engine from "../engine.js";
+import type * as actionStates from "../actionStates.js";
+import type * as agents from "../agents.js";
+import type * as channelsSeen from "../channelsSeen.js";
+import type * as chatEvents from "../chatEvents.js";
+import type * as chatSessions from "../chatSessions.js";
+import type * as chatTurns from "../chatTurns.js";
+import type * as eventLog from "../eventLog.js";
+import type * as goals from "../goals.js";
 import type * as importExport from "../importExport.js";
-import type * as repoStore from "../repoStore.js";
-import type * as users from "../users.js";
+import type * as inbox from "../inbox.js";
+import type * as intents from "../intents.js";
+import type * as macros from "../macros.js";
+import type * as notificationPrefs from "../notificationPrefs.js";
+import type * as repoDocs from "../repoDocs.js";
+import type * as reports from "../reports.js";
+import type * as userState from "../userState.js";
+import type * as viewRenderers from "../viewRenderers.js";
+import type * as workflowRuns from "../workflowRuns.js";
 import type * as workflows from "../workflows.js";
 
 import type {
@@ -23,12 +35,24 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
-  chat: typeof chat;
-  company: typeof company;
-  engine: typeof engine;
+  actionStates: typeof actionStates;
+  agents: typeof agents;
+  channelsSeen: typeof channelsSeen;
+  chatEvents: typeof chatEvents;
+  chatSessions: typeof chatSessions;
+  chatTurns: typeof chatTurns;
+  eventLog: typeof eventLog;
+  goals: typeof goals;
   importExport: typeof importExport;
-  repoStore: typeof repoStore;
-  users: typeof users;
+  inbox: typeof inbox;
+  intents: typeof intents;
+  macros: typeof macros;
+  notificationPrefs: typeof notificationPrefs;
+  repoDocs: typeof repoDocs;
+  reports: typeof reports;
+  userState: typeof userState;
+  viewRenderers: typeof viewRenderers;
+  workflowRuns: typeof workflowRuns;
   workflows: typeof workflows;
 }>;
 
