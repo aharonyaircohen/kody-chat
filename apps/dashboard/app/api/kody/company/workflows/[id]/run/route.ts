@@ -24,7 +24,10 @@ import {
   workflowRunRequest,
   withStoreTarget,
 } from "@kody-ade/fly/runners/run-request";
-import { isWorkflowDefinitionId } from "@dashboard/lib/workflow-definitions";
+import {
+  isWorkflowDefinitionId,
+  validateWorkflowDefinition,
+} from "@dashboard/lib/workflow-definitions";
 import {
   readCompanyStoreCapabilityWorkflowDefinitionFile,
   readCompanyStoreWorkflowDefinitionFile,
@@ -49,6 +52,10 @@ function workflowNotRunnableResponse() {
     },
     { status: 409 },
   );
+}
+
+function newWorkflowRunId(): string {
+  return `run-${Date.now().toString(36)}`;
 }
 
 export async function POST(
@@ -98,38 +105,45 @@ export async function POST(
     );
     const activeWorkflows = activeStringSet(config.company?.activeWorkflows);
 
-    if (!activeCapabilities.has(id)) {
-      const localWorkflow = await readWorkflowDefinitionFile(
+    let workflow = null;
+    if (activeCapabilities.has(id)) {
+      workflow = await readCompanyStoreCapabilityWorkflowDefinitionFile(
+        id,
+        octokit,
+      );
+      if (!workflow || workflow.runnable !== true) {
+        return workflowNotRunnableResponse();
+      }
+    } else {
+      workflow = await readWorkflowDefinitionFile(
         id,
         octokit,
         headerAuth.owner,
         headerAuth.repo,
       );
-      if (localWorkflow) return workflowNotRunnableResponse();
-
-      if (activeWorkflows.has(id)) {
-        const storeWorkflow = await readCompanyStoreWorkflowDefinitionFile(
-          id,
-          octokit,
-        );
-        if (storeWorkflow) return workflowNotRunnableResponse();
+      if (!workflow && activeWorkflows.has(id)) {
+        workflow = await readCompanyStoreWorkflowDefinitionFile(id, octokit);
       }
-
-      return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
-
-    const workflow = await readCompanyStoreCapabilityWorkflowDefinitionFile(
-      id,
-      octokit,
-    );
     if (!workflow) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
-    if (workflow.runnable !== true) return workflowNotRunnableResponse();
+    const validationIssues = validateWorkflowDefinition(workflow.workflow);
+    if (validationIssues.length > 0) {
+      return NextResponse.json(
+        {
+          error: "invalid_workflow",
+          message: "Workflow is invalid and was not dispatched.",
+          issues: validationIssues,
+        },
+        { status: 409 },
+      );
+    }
 
+    const runId = newWorkflowRunId();
     const run = await runScheduledKodyOnRunner(req, {
-      taskId: `company-workflow-${id}-${Date.now()}`,
-      runRequest: withStoreTarget(workflowRunRequest(id), headerAuth),
+      taskId: `company-workflow-${id}-${runId}`,
+      runRequest: withStoreTarget(workflowRunRequest(id, runId), headerAuth),
     });
     if (!run.ok) {
       return NextResponse.json(
@@ -153,6 +167,7 @@ export async function POST(
       machineId: run.machineId,
       ref: run.ref,
       workflow: id,
+      runId,
       action: id,
     });
   } catch (err: any) {

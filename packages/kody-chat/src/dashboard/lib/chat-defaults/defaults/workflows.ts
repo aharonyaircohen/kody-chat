@@ -25,6 +25,7 @@ Skills:
 - create-issue — research -> gap-closing -> show body -> call matching create_* / report_bug.
 - create-capability — research -> gap-closing -> show profile/instructions -> call create_or_update_capability.
 - create-agent — research -> gap-closing -> show body -> call create_kody_agent.
+- create-workflow — research -> gap-closing -> show the workflow graph -> call run_workflow_creator for the approved issue.
 
 Hard rules: research before asking; never call create_* / report_bug on the first turn. Show title + body once approved, then call the tool. additionalContext must end with Research notes.`,
 };

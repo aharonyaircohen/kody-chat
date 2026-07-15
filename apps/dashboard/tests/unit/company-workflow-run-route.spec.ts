@@ -163,7 +163,7 @@ describe("POST /api/kody/company/workflows/:id/run", () => {
     });
   });
 
-  it("rejects plain workflow definitions that are not engine-runnable capabilities", async () => {
+  it("runs a local workflow definition with a durable workflow-run id", async () => {
     const octokit = makeOctokit();
     auth.getUserOctokit.mockResolvedValue(octokit);
     engineConfig.getEngineConfig.mockResolvedValue({
@@ -193,10 +193,53 @@ describe("POST /api/kody/company/workflows/:id/run", () => {
 
     const res = await POST(req("release"), params("release"));
 
-    expect(res.status).toBe(409);
-    expect(runner.runScheduledKodyOnRunner).not.toHaveBeenCalled();
+    expect(res.status).toBe(200);
+    expect(runner.runScheduledKodyOnRunner).toHaveBeenCalledWith(
+      expect.any(NextRequest),
+      expect.objectContaining({
+        runRequest: expect.objectContaining({
+          target: { type: "workflow", id: "release" },
+          input: expect.objectContaining({
+            runId: expect.stringMatching(/^run-/),
+          }),
+        }),
+      }),
+    );
     await expect(res.json()).resolves.toMatchObject({
-      error: "workflow_not_runnable",
+      ok: true,
+      workflow: "release",
+      runId: expect.stringMatching(/^run-/),
     });
+  });
+
+  it("refuses to dispatch an invalid stored workflow", async () => {
+    auth.getUserOctokit.mockResolvedValue(makeOctokit());
+    engineConfig.getEngineConfig.mockResolvedValue({
+      config: { company: { activeCapabilities: [], activeWorkflows: [] } },
+      sha: "config-sha",
+    });
+    workflowFiles.readWorkflowDefinitionFile.mockResolvedValue({
+      path: "workflows/unsafe/workflow.json",
+      workflow: {
+        version: 1,
+        name: "unsafe",
+        capabilities: ["inspect"],
+        startAt: "inspect",
+        steps: [
+          { id: "inspect", capability: "inspect", next: [{ to: "missing" }] },
+        ],
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    });
+
+    const res = await POST(req("unsafe"), params("unsafe"));
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toMatchObject({
+      error: "invalid_workflow",
+      issues: [{ code: "missing_transition_target" }],
+    });
+    expect(runner.runScheduledKodyOnRunner).not.toHaveBeenCalled();
   });
 });

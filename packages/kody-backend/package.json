@@ -1,0 +1,26 @@
+{
+  "name": "@kody-ade/backend",
+  "version": "0.1.0",
+  "private": true,
+  "license": "MIT",
+  "description": "Kody Convex backend — schema, functions, and import/export tooling. Deployable independently; the dashboard connects via CONVEX_URL when migration happens.",
+  "exports": {
+    "./client": "./src/client.ts",
+    "./api": "./convex/_generated/api.js"
+  },
+  "scripts": {
+    "dev": "convex dev",
+    "deploy": "convex deploy",
+    "codegen": "convex codegen",
+    "export:github": "tsx scripts/export-github.ts",
+    "import:convex": "tsx scripts/import-convex.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "convex": "^1.17.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  }
+}

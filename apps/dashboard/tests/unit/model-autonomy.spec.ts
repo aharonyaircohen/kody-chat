@@ -66,15 +66,43 @@ describe("model run without approval flag", () => {
   });
 
   it("normalizes Store workflow steps as capabilities", () => {
-    expect(
-      normalizeWorkflowDefinition({
-        version: 1,
-        name: "Task Delivery",
-        steps: [
-          { capability: "task-verifier" },
-          { capability: "assigned-task-runner" },
-        ],
-      })?.capabilities,
-    ).toEqual(["task-verifier", "assigned-task-runner"]);
+    const workflow = normalizeWorkflowDefinition({
+      version: 1,
+      name: "Task Delivery",
+      startAt: "inspect",
+      steps: [
+        {
+          id: "inspect",
+          capability: "task-verifier",
+          next: [
+            {
+              to: "repair",
+              when: { "facts.needsFix": true },
+            },
+            { to: "done", default: true },
+          ],
+        },
+        {
+          id: "repair",
+          capability: "assigned-task-runner",
+          inputs: { feedback: { from: "facts.feedback" } },
+          next: [{ to: "inspect", maxIterations: 2 }],
+        },
+        { id: "done", capability: "task-verifier" },
+      ],
+    });
+
+    expect(workflow?.capabilities).toEqual([
+      "task-verifier",
+      "assigned-task-runner",
+    ]);
+    expect(workflow?.startAt).toBe("inspect");
+    expect(workflow?.steps?.[0]?.next?.[0]).toEqual({
+      to: "repair",
+      when: { "facts.needsFix": true },
+    });
+    expect(workflow?.steps?.[1]?.inputs).toEqual({
+      feedback: { from: "facts.feedback" },
+    });
   });
 });

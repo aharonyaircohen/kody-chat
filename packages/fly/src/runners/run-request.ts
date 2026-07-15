@@ -45,11 +45,15 @@ export function goalRunRequest(goalId: string): KodyRunRequest {
   };
 }
 
-export function workflowRunRequest(workflowId: string): KodyRunRequest {
+export function workflowRunRequest(
+  workflowId: string,
+  runId?: string,
+): KodyRunRequest {
   return {
     target: { type: "workflow", id: workflowId },
     intent: "run",
     source: "dashboard",
+    ...(runId ? { input: { runId } } : {}),
   };
 }
 

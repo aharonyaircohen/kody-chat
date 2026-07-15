@@ -2,17 +2,15 @@
  * @fileType component
  * @domain kody
  * @pattern workflows-manager
- * @ai-summary CRUD UI for workflow definitions: a name and an ordered queue
- *   of capabilities.
+ * @ai-summary Visual workflow authoring and run tracking backed by the shared
+ *   workflow validation boundary.
  */
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  ArrowDown,
   ArrowLeft,
-  ArrowUp,
   ExternalLink,
   Loader2,
   Pencil,
@@ -20,74 +18,38 @@ import {
   Plus,
   RefreshCw,
   Route,
-  Trash2,
   Workflow,
 } from "lucide-react";
-import { toast } from "sonner";
-
 import { Button } from "@kody-ade/base/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@kody-ade/base/ui/dialog";
-import { Input } from "@kody-ade/base/ui/input";
-import { Label } from "@kody-ade/base/ui/label";
 import { useTrust } from "../cto/useTrust";
 import {
   trustLevelForSubject,
   trustSubjectKey,
   type TrustLevel,
 } from "../cto/trust-state";
-import { useCapabilities } from "../hooks/useCapabilities";
 import { useMediaQuery } from "../hooks/useMediaQuery";
+import { useCapabilities } from "../hooks/useCapabilities";
 import {
   useCreateWorkflowDefinition,
-  useDeleteWorkflowDefinition,
   useRunWorkflowDefinition,
   useUpdateWorkflowDefinition,
   useWorkflowDefinitions,
+  useWorkflowRunState,
 } from "../hooks/useWorkflowDefinitions";
-import type {
-  CreateWorkflowDefinitionInput,
-  WorkflowDefinitionRecord,
-} from "../workflow-definitions";
+import type { WorkflowDefinitionRecord } from "../workflow-definitions";
+import { workflowDefinitionGraph } from "../workflow-graph";
 import { cn } from "../utils";
 import { selectionPath } from "../selection-routing";
-import { ConfirmDialog } from "./ConfirmDialog";
 import { EmptyState } from "./EmptyState";
 import { MasterDetailShell } from "./MasterDetailShell";
 import { TrustLevelControl } from "./TrustLevelControl";
-import { SearchableMultiSelect } from "./SearchableSelect";
+import { WorkflowEditorDialog } from "./WorkflowEditorDialog";
+import { WorkflowGraphCanvas } from "./WorkflowGraphCanvas";
 
 const BASE_PATH = "/workflows";
 
 interface WorkflowsManagerProps {
   selectedId?: string;
-}
-
-interface WorkflowFormState {
-  name: string;
-  capabilities: string[];
-}
-
-function moveItem<T>(items: T[], index: number, direction: -1 | 1): T[] {
-  const nextIndex = index + direction;
-  if (nextIndex < 0 || nextIndex >= items.length) return items;
-  const next = [...items];
-  const [item] = next.splice(index, 1);
-  next.splice(nextIndex, 0, item);
-  return next;
-}
-
-function mergeCapabilityQueue(current: string[], selected: string[]): string[] {
-  const selectedSet = new Set(selected);
-  const kept = current.filter((slug) => selectedSet.has(slug));
-  const known = new Set(kept);
-  const added = selected.filter((slug) => !known.has(slug));
-  return [...kept, ...added];
 }
 
 function formatDate(value?: string): string {
@@ -115,10 +77,6 @@ function workflowMatches(workflow: WorkflowDefinitionRecord, search: string) {
   return text.includes(q);
 }
 
-function isStoreWorkflow(workflow: WorkflowDefinitionRecord | null): boolean {
-  return workflow?.source === "store" || workflow?.readOnly === true;
-}
-
 export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
   const router = useRouter();
   const autoSelectFirst = useMediaQuery("(min-width: 768px)");
@@ -126,8 +84,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editingWorkflow, setEditingWorkflow] =
     useState<WorkflowDefinitionRecord | null>(null);
-  const [deletingWorkflow, setDeletingWorkflow] =
-    useState<WorkflowDefinitionRecord | null>(null);
+  const [activeRunIds, setActiveRunIds] = useState<Record<string, string>>({});
 
   const {
     data: workflows = [],
@@ -140,7 +97,6 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
     useCapabilities();
   const createWorkflow = useCreateWorkflowDefinition();
   const updateWorkflow = useUpdateWorkflowDefinition(editingWorkflow?.id ?? "");
-  const deleteWorkflow = useDeleteWorkflowDefinition();
   const runWorkflow = useRunWorkflowDefinition();
   const trust = useTrust();
 
@@ -163,22 +119,6 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
         selectedWorkflow.workflow.runWithoutApproval === true,
       )
     : "approval-required";
-  const capabilityBySlug = useMemo(
-    () =>
-      new Map(capabilities.map((capability) => [capability.slug, capability])),
-    [capabilities],
-  );
-  const capabilityOptions = useMemo(
-    () =>
-      capabilities.map((capability) => ({
-        value: capability.slug,
-        label: capability.slug,
-        selectedLabel: capability.slug,
-        description: capability.describe,
-        searchText: `${capability.slug} ${capability.describe ?? ""}`,
-      })),
-    [capabilities],
-  );
 
   useEffect(() => {
     if (isLoading) return;
@@ -250,13 +190,17 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
           selectedWorkflow ? (
             <WorkflowDetail
               workflow={selectedWorkflow}
-              capabilityBySlug={capabilityBySlug}
               trustLevel={selectedTrustLevel}
               trustPending={trust.isMutating}
               onBack={() => selectWorkflow(null)}
               onRun={async () => {
-                await runWorkflow.mutateAsync(selectedWorkflow.id);
+                const run = await runWorkflow.mutateAsync(selectedWorkflow.id);
+                setActiveRunIds((current) => ({
+                  ...current,
+                  [selectedWorkflow.id]: run.runId,
+                }));
               }}
+              runId={activeRunIds[selectedWorkflow.id]}
               onTrustLevelChange={async (level) => {
                 if (!selectedWorkflowSubject) return;
                 await trust.setTrustLevel({
@@ -269,13 +213,12 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
                 runWorkflow.variables === selectedWorkflow.id
               }
               onEdit={() => setEditingWorkflow(selectedWorkflow)}
-              onDelete={() => setDeletingWorkflow(selectedWorkflow)}
             />
           ) : (
             <EmptyState
               icon={<Workflow />}
               title="Select a workflow"
-              hint="Pick one from the list to see its capability queue."
+              hint="Pick one from the list to see and inspect its flow."
             />
           )
         }
@@ -286,7 +229,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
           <EmptyState
             icon={<Workflow />}
             title="No workflows yet"
-            hint="Create a workflow from an ordered capability queue."
+            hint="Create a visual workflow from your available capabilities."
             action={
               <Button size="sm" onClick={() => setCreateOpen(true)}>
                 <Plus className="h-4 w-4" />
@@ -314,12 +257,9 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
           </ul>
         )}
       </MasterDetailShell>
-
-      <WorkflowDialog
+      <WorkflowEditorDialog
         open={createOpen}
-        title="New workflow"
-        description="Create an ordered queue of capabilities."
-        capabilityOptions={capabilityOptions}
+        capabilities={capabilities}
         capabilitiesLoading={capabilitiesLoading}
         saving={createWorkflow.isPending}
         onOpenChange={setCreateOpen}
@@ -329,13 +269,10 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
           selectWorkflow(created.id);
         }}
       />
-
-      <WorkflowDialog
+      <WorkflowEditorDialog
         open={!!editingWorkflow}
-        title="Edit workflow"
-        description="Update the capability queue."
         initial={editingWorkflow ?? undefined}
-        capabilityOptions={capabilityOptions}
+        capabilities={capabilities}
         capabilitiesLoading={capabilitiesLoading}
         saving={updateWorkflow.isPending}
         onOpenChange={(open) => {
@@ -345,29 +282,6 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
           if (!editingWorkflow) return;
           await updateWorkflow.mutateAsync(payload);
           setEditingWorkflow(null);
-        }}
-      />
-
-      <ConfirmDialog
-        open={!!deletingWorkflow}
-        title={
-          isStoreWorkflow(deletingWorkflow)
-            ? `Remove Store workflow ${deletingWorkflow?.id ?? ""}?`
-            : `Delete workflow ${deletingWorkflow?.id ?? ""}?`
-        }
-        description={
-          isStoreWorkflow(deletingWorkflow)
-            ? "This repo will stop using the Store workflow. The Store workflow will not be deleted."
-            : "The workflow definition file will be removed from the state repo."
-        }
-        confirmLabel={isStoreWorkflow(deletingWorkflow) ? "Remove" : "Delete"}
-        variant="destructive"
-        onClose={() => setDeletingWorkflow(null)}
-        onConfirm={() => {
-          if (!deletingWorkflow) return;
-          deleteWorkflow.mutate(deletingWorkflow.id, {
-            onSuccess: () => selectWorkflow(null, true),
-          });
         }}
       />
     </>
@@ -402,7 +316,9 @@ function WorkflowRow({
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {isStoreWorkflow(workflow) ? <StoreWorkflowBadge /> : null}
+          {workflow.source === "store" || workflow.readOnly === true ? (
+            <StoreWorkflowBadge />
+          ) : null}
         </div>
         <span className="shrink-0 rounded border border-cyan-500/20 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-700 dark:text-cyan-200">
           {workflow.workflow.capabilities.length}
@@ -414,29 +330,32 @@ function WorkflowRow({
 
 function WorkflowDetail({
   workflow,
-  capabilityBySlug,
   trustLevel,
   trustPending,
   onBack,
   onRun,
+  runId,
   onTrustLevelChange,
   runPending,
   onEdit,
-  onDelete,
 }: {
   workflow: WorkflowDefinitionRecord;
-  capabilityBySlug: Map<string, { slug: string; describe?: string }>;
   trustLevel: TrustLevel;
   trustPending: boolean;
   onBack: () => void;
   onRun: () => void | Promise<void>;
+  runId?: string;
   onTrustLevelChange: (level: TrustLevel) => void | Promise<void>;
   runPending: boolean;
   onEdit: () => void;
-  onDelete: () => void;
 }) {
-  const storeBacked = isStoreWorkflow(workflow);
+  const storeBacked = workflow.source === "store" || workflow.readOnly === true;
   const runnable = workflow.runnable === true;
+  const graph = useMemo(
+    () => workflowDefinitionGraph(workflow.workflow),
+    [workflow.workflow],
+  );
+  const { data: latestRun } = useWorkflowRunState(workflow.id, runId);
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-5 md:px-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -486,9 +405,7 @@ function WorkflowDetail({
             onClick={() => void onRun()}
             disabled={!runnable || runPending}
             title={
-              runnable
-                ? "Run workflow now"
-                : "Only capability-backed Store workflows can run now"
+              runnable ? "Run workflow now" : "Workflow is not available to run"
             }
             aria-label={`Run workflow ${workflow.id}`}
           >
@@ -499,24 +416,12 @@ function WorkflowDetail({
             )}
             Run
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onEdit}
-            disabled={storeBacked}
-            title={
-              storeBacked
-                ? "Store workflows are read-only in this repo"
-                : "Edit workflow"
-            }
-          >
-            <Pencil className="h-4 w-4" />
-            Edit
-          </Button>
-          <Button variant="destructive" size="sm" onClick={onDelete}>
-            <Trash2 className="h-4 w-4" />
-            {storeBacked ? "Remove" : "Delete"}
-          </Button>
+          {!storeBacked ? (
+            <Button variant="outline" size="sm" onClick={onEdit}>
+              <Pencil className="h-4 w-4" />
+              Edit
+            </Button>
+          ) : null}
         </div>
       </div>
 
@@ -524,36 +429,17 @@ function WorkflowDetail({
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             <Route className="h-4 w-4 text-cyan-300" />
-            Capability Queue
+            Workflow
           </div>
           <span className="font-mono text-xs text-muted-foreground">
             {workflow.workflow.capabilities.length}
           </span>
         </div>
-        <div className="space-y-2">
-          {workflow.workflow.capabilities.map((slug, index) => {
-            const capability = capabilityBySlug.get(slug);
-            return (
-              <div
-                key={`${slug}:${index}`}
-                className="grid gap-3 rounded border border-border bg-background px-3 py-3 md:grid-cols-[auto_minmax(0,1fr)]"
-              >
-                <span className="flex h-7 w-7 items-center justify-center rounded-full border border-cyan-500/25 bg-cyan-500/10 font-mono text-xs text-cyan-700 dark:text-cyan-200">
-                  {index + 1}
-                </span>
-                <div className="min-w-0">
-                  <div className="truncate font-mono text-sm text-foreground">
-                    {slug}
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">
-                    {capability?.describe ??
-                      "Capability not found in this repo."}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <WorkflowGraphCanvas
+          graph={graph}
+          runId={latestRun?.runId}
+          runState={latestRun?.state}
+        />
       </section>
 
       <div className="text-xs text-muted-foreground">
@@ -568,233 +454,5 @@ function StoreWorkflowBadge() {
     <span className="shrink-0 rounded border border-cyan-500/20 bg-cyan-500/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-cyan-700 dark:text-cyan-200">
       Store
     </span>
-  );
-}
-
-function WorkflowDialog({
-  open,
-  title,
-  description,
-  initial,
-  capabilityOptions,
-  capabilitiesLoading,
-  saving,
-  onOpenChange,
-  onSubmit,
-}: {
-  open: boolean;
-  title: string;
-  description: string;
-  initial?: WorkflowDefinitionRecord;
-  capabilityOptions: Array<{
-    value: string;
-    label: string;
-    selectedLabel?: string;
-    description?: string;
-    searchText?: string;
-  }>;
-  capabilitiesLoading: boolean;
-  saving: boolean;
-  onOpenChange: (open: boolean) => void;
-  onSubmit: (payload: CreateWorkflowDefinitionInput) => Promise<void>;
-}) {
-  const [form, setForm] = useState<WorkflowFormState>({
-    name: "",
-    capabilities: [],
-  });
-
-  useEffect(() => {
-    if (!open) return;
-    setForm({
-      name: initial?.workflow.name ?? "",
-      capabilities: initial?.workflow.capabilities ?? [],
-    });
-  }, [initial, open]);
-
-  const canSave =
-    form.name.trim().length > 0 && form.capabilities.length > 0 && !saving;
-
-  const submit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!canSave) {
-      toast.error("Name and at least one capability are required");
-      return;
-    }
-    await onSubmit({
-      name: form.name.trim(),
-      capabilities: form.capabilities,
-    });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        modalSize="wide"
-        modalHeight="viewport"
-        className="min-w-0"
-      >
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <form
-          className="flex min-h-0 min-w-0 max-w-full flex-col gap-5 overflow-visible"
-          onSubmit={submit}
-        >
-          <div className="min-w-0 space-y-2">
-            <Label htmlFor="workflow-name">Name</Label>
-            <Input
-              id="workflow-name"
-              value={form.name}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, name: event.target.value }))
-              }
-              placeholder="Release readiness"
-              autoFocus
-            />
-          </div>
-
-          <div className="min-w-0 space-y-2">
-            <Label>Capabilities</Label>
-            <SearchableMultiSelect
-              value={form.capabilities}
-              options={capabilityOptions}
-              onChange={(selected) =>
-                setForm((prev) => ({
-                  ...prev,
-                  capabilities: mergeCapabilityQueue(
-                    prev.capabilities,
-                    selected,
-                  ),
-                }))
-              }
-              placeholder={
-                capabilitiesLoading
-                  ? "Loading capabilities..."
-                  : "Select capabilities"
-              }
-              searchPlaceholder="Search capabilities..."
-              emptyLabel="No capabilities found"
-              selectedLabel="capabilities"
-              selectedSingularLabel="capability"
-              showSelectedSummary={false}
-              closeOnSelect
-              disabled={capabilitiesLoading}
-            />
-          </div>
-
-          <OrderedCapabilityQueue
-            capabilities={form.capabilities}
-            onMove={(index, direction) =>
-              setForm((prev) => ({
-                ...prev,
-                capabilities: moveItem(prev.capabilities, index, direction),
-              }))
-            }
-            onRemove={(index) =>
-              setForm((prev) => ({
-                ...prev,
-                capabilities: prev.capabilities.filter((_, i) => i !== index),
-              }))
-            }
-          />
-
-          <div className="mt-auto flex justify-end gap-2 pt-1">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => onOpenChange(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!canSave}>
-              {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Save
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function OrderedCapabilityQueue({
-  capabilities,
-  onMove,
-  onRemove,
-}: {
-  capabilities: string[];
-  onMove: (index: number, direction: -1 | 1) => void;
-  onRemove: (index: number) => void;
-}) {
-  if (capabilities.length === 0) return null;
-
-  return (
-    <section className="space-y-2 rounded-md border border-border bg-muted/25 px-3 py-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="text-sm font-medium text-foreground">Queue order</h3>
-          <p className="text-xs text-muted-foreground">
-            Capabilities run in this order.
-          </p>
-        </div>
-        <span className="font-mono text-xs text-muted-foreground">
-          {capabilities.length}
-        </span>
-      </div>
-      <div className="space-y-2">
-        {capabilities.map((slug, index) => (
-          <div
-            key={`${slug}:${index}`}
-            className="grid gap-3 rounded border border-border bg-background px-3 py-2 text-sm md:grid-cols-[minmax(0,1fr)_auto]"
-          >
-            <div className="flex min-w-0 items-center gap-2 text-foreground">
-              <Route className="h-3.5 w-3.5 shrink-0 text-cyan-300" />
-              <span className="font-mono text-xs text-muted-foreground">
-                {index + 1}
-              </span>
-              <span className="truncate font-mono">{slug}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 w-7 px-0"
-                onClick={() => onMove(index, -1)}
-                disabled={index === 0}
-                aria-label={`Move ${slug} up`}
-                title="Move up"
-              >
-                <ArrowUp className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 w-7 px-0"
-                onClick={() => onMove(index, 1)}
-                disabled={index === capabilities.length - 1}
-                aria-label={`Move ${slug} down`}
-                title="Move down"
-              >
-                <ArrowDown className="h-3.5 w-3.5" />
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="h-7 w-7 px-0 text-destructive hover:text-destructive"
-                onClick={() => onRemove(index)}
-                aria-label={`Remove ${slug}`}
-                title="Remove"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }

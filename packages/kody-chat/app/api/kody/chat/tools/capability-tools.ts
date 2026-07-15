@@ -244,5 +244,37 @@ export function createCapabilityTools(ctx: Ctx) {
         }
       },
     }),
+
+    run_workflow_creator: tool({
+      description:
+        `Ask Kody's validated workflow creator to design one workflow from an approved GitHub issue in ${repoRef}. ` +
+        "It researches existing capabilities, validates the graph, and opens a review PR; it never writes an unreviewed workflow.",
+      inputSchema: z.object({
+        issue: z.number().int().positive().describe("Approved GitHub issue containing the workflow request."),
+      }),
+      execute: async ({ issue }) => {
+        try {
+          const repoMeta = await octokit.rest.repos.get({ owner, repo });
+          const ref = repoMeta.data.default_branch || "main";
+          await octokit.rest.actions.createWorkflowDispatch({
+            owner,
+            repo,
+            workflow_id: "kody.yml",
+            ref,
+            inputs: { capability: "workflow-creator", issue_number: String(issue) },
+          });
+          return {
+            ok: true,
+            workflowId: "kody.yml",
+            capability: "workflow-creator",
+            issue,
+            ref,
+            note: "Workflow creator started; it will open a validated review PR when complete.",
+          };
+        } catch (err) {
+          return { error: err instanceof Error ? err.message : String(err) };
+        }
+      },
+    }),
   };
 }

@@ -28,6 +28,7 @@ import {
 import {
   isWorkflowDefinitionId,
   mergeWorkflowDefinition,
+  validateWorkflowDefinition,
   workflowDefinitionPath,
 } from "@dashboard/lib/workflow-definitions";
 import {
@@ -37,10 +38,27 @@ import {
   readWorkflowDefinitionFile,
   writeWorkflowDefinitionFile,
 } from "@dashboard/lib/workflow-definition-files";
+import { listLocalCapabilityFiles } from "@dashboard/lib/capabilities/files";
+
+const workflowInputMappingSchema = z.object({ from: z.string().trim().min(1) });
+const workflowTransitionSchema = z.object({
+  to: z.string().trim().min(1).max(80),
+  when: z.record(z.string(), z.unknown()).optional(),
+  default: z.boolean().optional(),
+  maxIterations: z.number().int().positive().optional(),
+});
+const workflowStepSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  capability: z.string().trim().min(1).max(80),
+  inputs: z.record(z.string(), workflowInputMappingSchema).optional(),
+  next: z.array(workflowTransitionSchema).optional(),
+});
 
 const workflowPatchSchema = z.object({
   name: z.string().trim().min(1).max(160).optional(),
   capabilities: z.array(z.string().trim().min(1).max(80)).min(1).optional(),
+  startAt: z.string().trim().min(1).max(80).optional(),
+  steps: z.array(workflowStepSchema).min(1).optional(),
   runWithoutApproval: z.boolean().optional(),
   actorLogin: z.string().trim().optional(),
 });
@@ -169,6 +187,7 @@ export async function GET(
         updatedAt: existing.workflow.updatedAt,
         source: "local",
         readOnly: false,
+        runnable: true,
       },
     });
   } catch (err: any) {
@@ -245,6 +264,30 @@ export async function PATCH(
         { status: 400 },
       );
     }
+    const [{ activeCapabilities }, localCapabilities] = await Promise.all([
+      activeStoreReferenceSets(
+        context.octokit,
+        context.headerAuth.owner,
+        context.headerAuth.repo,
+      ),
+      listLocalCapabilityFiles(),
+    ]);
+    const validationIssues = validateWorkflowDefinition(workflow, {
+      knownCapabilities: new Set([
+        ...activeCapabilities,
+        ...localCapabilities.map((capability) => capability.slug),
+      ]),
+    });
+    if (validationIssues.length > 0) {
+      return NextResponse.json(
+        {
+          error: "invalid_workflow",
+          message: "Workflow is not safe to save.",
+          issues: validationIssues,
+        },
+        { status: 400 },
+      );
+    }
 
     await writeWorkflowDefinitionFile({
       octokit: context.octokit,
@@ -262,6 +305,9 @@ export async function PATCH(
         path: existing.path,
         workflow,
         updatedAt: workflow.updatedAt,
+        source: "local",
+        readOnly: false,
+        runnable: true,
       },
     });
   } catch (err: any) {

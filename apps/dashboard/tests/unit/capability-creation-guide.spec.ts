@@ -48,6 +48,14 @@ describe("capability creation guide wiring", () => {
     expect(CAPABILITY_TOOLS_SOURCE).toContain("inputs: { capability: action }");
   });
 
+  it("exposes the validated workflow creator instead of dashboard authoring", () => {
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("run_workflow_creator");
+    expect(CAPABILITY_TOOLS_SOURCE).toContain('capability: "workflow-creator"');
+    expect(DEFAULT_CHAT_CAPABILITY.tools).toContain("run_workflow_creator");
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("issue_number: String(issue)");
+    expect(CAPABILITY_TOOLS_SOURCE).not.toContain("issue: String(issue)");
+  });
+
   it("defaults Kody chat to the capability creation skill", async () => {
     const bundle = await loadChatDefaults("acme", "repo");
     const createCapability = bundle.skills["create-capability"];

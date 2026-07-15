@@ -3,6 +3,7 @@ import type {
   UpdateWorkflowDefinitionInput,
   WorkflowDefinitionRecord,
 } from "../workflow-definitions";
+import type { WorkflowRunStateRecord } from "../workflow-run-state";
 import { API_BASE, buildHeaders, handleResponse } from "./client";
 
 // ============ Workflow Definitions API ============
@@ -83,6 +84,7 @@ export const workflowDefinitionsApi = {
     workflowId: string;
     ref: string;
     workflow: string;
+    runId: string;
     action: string;
   }> => {
     const res = await fetch(
@@ -93,5 +95,20 @@ export const workflowDefinitionsApi = {
       },
     );
     return handleResponse(res);
+  },
+
+  latestRun: async (
+    id: string,
+    runId?: string,
+  ): Promise<WorkflowRunStateRecord | null> => {
+    const query = runId ? `?${new URLSearchParams({ runId }).toString()}` : "";
+    const res = await fetch(
+      `${API_BASE}/company/workflows/${encodeURIComponent(id)}/runs${query}`,
+      { headers: buildHeaders(), cache: "no-store" },
+    );
+    const data = await handleResponse<{ run: WorkflowRunStateRecord | null }>(
+      res,
+    );
+    return data.run;
   },
 };

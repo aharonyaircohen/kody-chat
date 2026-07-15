@@ -106,6 +106,7 @@ export async function listWorkflowDefinitionFiles(
       updatedAt: file.workflow.updatedAt,
       source: "local",
       readOnly: false,
+      runnable: true,
       htmlUrl: file.htmlUrl ?? null,
     });
   }
@@ -168,10 +169,9 @@ export async function listCompanyStoreWorkflowDefinitionFiles(
 export function workflowRecordFromCapabilitySummary(
   capability: CapabilitySummary,
 ): WorkflowDefinitionRecord | null {
-  const workflowSteps = normalizeWorkflowCapabilities(
-    capability.workflowSteps ?? [],
-  );
-  if (!capability.isWorkflow || workflowSteps.length === 0) return null;
+  const workflowSteps = normalizeWorkflowCapabilities(capability.workflowSteps ?? []);
+  const graph = capability.workflowDefinition;
+  if (!capability.isWorkflow || (graph?.steps.length ?? workflowSteps.length) === 0) return null;
   if (!isWorkflowDefinitionId(capability.slug)) return null;
 
   const updatedAt = capability.updatedAt ?? STORE_CAPABILITY_WORKFLOW_TIMESTAMP;
@@ -181,7 +181,10 @@ export function workflowRecordFromCapabilitySummary(
     workflow: {
       version: 1,
       name: capability.slug,
-      capabilities: workflowSteps,
+      capabilities: normalizeWorkflowCapabilities(
+        graph?.steps.map((step) => step.capability) ?? workflowSteps,
+      ),
+      ...(graph ? { startAt: graph.startAt, steps: graph.steps } : {}),
       createdAt: updatedAt,
       updatedAt,
     },

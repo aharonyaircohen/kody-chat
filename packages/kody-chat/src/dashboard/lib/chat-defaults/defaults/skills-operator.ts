@@ -34,3 +34,9 @@ export const DEFAULT_SKILL_CREATE_AGENT: SkillEntry = {
   title: "create-agent",
   body: `State-repo \`agents/<slug>.md\` — a pure reusable identity file (markdown body: intent, allowed commands, restrictions). Agents have no schedule, no state, no run/tick; they're agent identities referenced by other flows. Same gap loop and sufficiency bar as Create Kody capability. Show body, then call \`create_kody_agent\`.`,
 };
+
+export const DEFAULT_SKILL_CREATE_WORKFLOW: SkillEntry = {
+  slug: "create-workflow",
+  title: "create-workflow",
+  body: `A workflow is one validated ordered run of existing capabilities. Research the request and current capabilities first, show the proposed graph and handoffs, then create an approved issue and call \`run_workflow_creator\`. Never write workflow files from chat and never call the creator on the first turn.`,
+};

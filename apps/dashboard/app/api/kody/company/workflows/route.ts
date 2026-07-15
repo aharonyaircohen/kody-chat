@@ -2,8 +2,8 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern company-workflows-api
- * @ai-summary Lists and creates workflow definitions in the configured Kody
- *   state repo without touching the GitHub Actions workflow-runs endpoint.
+ * @ai-summary Lists and creates validated workflow definitions in the
+ *   configured Kody state repo.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -29,6 +29,7 @@ import { listManagedGoalFiles } from "@dashboard/lib/managed-goals-files";
 import {
   buildWorkflowDefinition,
   slugifyWorkflowDefinitionId,
+  validateWorkflowDefinition,
   workflowDefinitionPath,
 } from "@dashboard/lib/workflow-definitions";
 import {
@@ -38,11 +39,28 @@ import {
   readWorkflowDefinitionFile,
   writeWorkflowDefinitionFile,
 } from "@dashboard/lib/workflow-definition-files";
+import { listLocalCapabilityFiles } from "@dashboard/lib/capabilities/files";
+
+const workflowInputMappingSchema = z.object({ from: z.string().trim().min(1) });
+const workflowTransitionSchema = z.object({
+  to: z.string().trim().min(1).max(80),
+  when: z.record(z.string(), z.unknown()).optional(),
+  default: z.boolean().optional(),
+  maxIterations: z.number().int().positive().optional(),
+});
+const workflowStepSchema = z.object({
+  id: z.string().trim().min(1).max(80),
+  capability: z.string().trim().min(1).max(80),
+  inputs: z.record(z.string(), workflowInputMappingSchema).optional(),
+  next: z.array(workflowTransitionSchema).optional(),
+});
 
 const workflowPayloadSchema = z.object({
   id: z.string().trim().min(1).max(80).optional(),
   name: z.string().trim().min(1).max(160),
   capabilities: z.array(z.string().trim().min(1).max(80)).min(1),
+  startAt: z.string().trim().min(1).max(80).optional(),
+  steps: z.array(workflowStepSchema).min(1).optional(),
   runWithoutApproval: z.boolean().optional(),
   actorLogin: z.string().trim().optional(),
 });
@@ -126,7 +144,9 @@ export async function GET(req: NextRequest) {
     const managedGoals = collapseManagedGoalRecordsForList(
       await listManagedGoalFiles(octokit, headerAuth.owner, headerAuth.repo),
     );
-    const referencedWorkflowIds = new Set(referencedWorkflowSlugs(managedGoals));
+    const referencedWorkflowIds = new Set(
+      referencedWorkflowSlugs(managedGoals),
+    );
     const storeWorkflowIds = new Set([
       ...activeWorkflowIds,
       ...referencedWorkflowIds,
@@ -239,6 +259,27 @@ export async function POST(req: NextRequest) {
         { status: 400 },
       );
     }
+    const [localCapabilities, { config }] = await Promise.all([
+      listLocalCapabilityFiles(),
+      getEngineConfig(octokit, headerAuth.owner, headerAuth.repo),
+    ]);
+    const knownCapabilities = new Set([
+      ...localCapabilities.map((capability) => capability.slug),
+      ...activeCapabilitySlugs(config),
+    ]);
+    const validationIssues = validateWorkflowDefinition(workflow, {
+      knownCapabilities,
+    });
+    if (validationIssues.length > 0) {
+      return NextResponse.json(
+        {
+          error: "invalid_workflow",
+          message: "Workflow is not safe to save.",
+          issues: validationIssues,
+        },
+        { status: 400 },
+      );
+    }
     const path = workflowDefinitionPath(id);
     await writeWorkflowDefinitionFile({
       octokit,
@@ -249,7 +290,17 @@ export async function POST(req: NextRequest) {
       message: `chore(workflows): create workflow ${id}`,
     });
 
-    return NextResponse.json({ workflow: { id, path, workflow } });
+    return NextResponse.json({
+      workflow: {
+        id,
+        path,
+        workflow,
+        updatedAt: workflow.updatedAt,
+        source: "local",
+        readOnly: false,
+        runnable: true,
+      },
+    });
   } catch (err: any) {
     return mapGithubError(err, "failed_to_create_workflow");
   } finally {

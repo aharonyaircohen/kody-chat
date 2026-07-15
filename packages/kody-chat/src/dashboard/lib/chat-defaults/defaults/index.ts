@@ -40,6 +40,7 @@ import { DEFAULT_SKILL_GOAL_PLANNER } from "./skills-analyzer";
 import { DEFAULT_SKILL_CREATE_ISSUE } from "./skills-operator";
 import { DEFAULT_SKILL_CREATE_CAPABILITY } from "./skills-operator";
 import { DEFAULT_SKILL_CREATE_AGENT } from "./skills-operator";
+import { DEFAULT_SKILL_CREATE_WORKFLOW } from "./skills-operator";
 import { DEFAULT_SKILL_VIBE } from "./skills-vibe";
 import { DEFAULT_SKILL_MEMORY } from "./skills-mem";
 import type { SkillEntry } from "./types";
@@ -51,6 +52,7 @@ export const DEFAULT_SKILLS: Record<string, SkillEntry> = {
   [DEFAULT_SKILL_CREATE_ISSUE.slug]: DEFAULT_SKILL_CREATE_ISSUE,
   [DEFAULT_SKILL_CREATE_CAPABILITY.slug]: DEFAULT_SKILL_CREATE_CAPABILITY,
   [DEFAULT_SKILL_CREATE_AGENT.slug]: DEFAULT_SKILL_CREATE_AGENT,
+  [DEFAULT_SKILL_CREATE_WORKFLOW.slug]: DEFAULT_SKILL_CREATE_WORKFLOW,
   [DEFAULT_SKILL_VIBE.slug]: DEFAULT_SKILL_VIBE,
   [DEFAULT_SKILL_MEMORY.slug]: DEFAULT_SKILL_MEMORY,
 };

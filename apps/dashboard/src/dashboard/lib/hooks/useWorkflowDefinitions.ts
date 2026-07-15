@@ -23,6 +23,8 @@ import type {
 
 export const workflowDefinitionQueryKeys = {
   list: ["kody-workflow-definitions"] as const,
+  run: (id: string, runId?: string) =>
+    ["kody-workflow-run", id, runId ?? "latest"] as const,
 };
 
 type WorkflowDeleteMutationContext = {
@@ -151,6 +153,7 @@ export function useRunWorkflowDefinition() {
       workflowId: string;
       ref: string;
       workflow: string;
+      runId: string;
       action: string;
     },
     Error,
@@ -159,7 +162,7 @@ export function useRunWorkflowDefinition() {
     mutationFn: (id) => kodyApi.workflowDefinitions.run(id),
     onSuccess: (data) => {
       toast.success("Workflow started", {
-        description: `Dispatched ${data.workflow} on ${data.ref}.`,
+        description: `Run ${data.runId} dispatched on ${data.ref}.`,
       });
     },
     onError: (error) => {
@@ -167,5 +170,19 @@ export function useRunWorkflowDefinition() {
         description: error.message,
       });
     },
+  });
+}
+
+export function useWorkflowRunState(id: string, runId?: string) {
+  return useQuery({
+    queryKey: workflowDefinitionQueryKeys.run(id, runId),
+    queryFn: () => kodyApi.workflowDefinitions.latestRun(id, runId),
+    enabled: !!getStoredAuth() && id.length > 0,
+    refetchInterval: (query) =>
+      (runId && !query.state.data) ||
+      query.state.data?.state.status === "running"
+        ? 3_000
+        : false,
+    staleTime: 2_000,
   });
 }

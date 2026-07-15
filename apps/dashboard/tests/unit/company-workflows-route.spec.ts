@@ -39,6 +39,10 @@ const managedGoalFiles = vi.hoisted(() => ({
   listManagedGoalFiles: vi.fn(),
 }));
 
+const capabilityFiles = vi.hoisted(() => ({
+  listLocalCapabilityFiles: vi.fn(),
+}));
+
 vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: auth.requireKodyAuth,
   getRequestAuth: auth.getRequestAuth,
@@ -75,15 +79,24 @@ vi.mock("@dashboard/lib/managed-goals-files", () => ({
   listManagedGoalFiles: managedGoalFiles.listManagedGoalFiles,
 }));
 
-import { GET as LIST } from "../../app/api/kody/company/workflows/route";
+vi.mock("@dashboard/lib/capabilities/files", () => ({
+  listLocalCapabilityFiles: capabilityFiles.listLocalCapabilityFiles,
+}));
+
+import {
+  GET as LIST,
+  POST as CREATE,
+} from "../../app/api/kody/company/workflows/route";
 import {
   DELETE as DELETE_DETAIL,
   GET as GET_DETAIL,
+  PATCH as PATCH_DETAIL,
 } from "../../app/api/kody/company/workflows/[id]/route";
 
-function req(path: string, method = "GET"): NextRequest {
+function req(path: string, method = "GET", body?: unknown): NextRequest {
   return new NextRequest(`https://dash.test${path}`, {
     method,
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     headers: {
       "x-kody-token": "ghp_test",
       "x-kody-owner": "acme",
@@ -126,7 +139,8 @@ const webReleaseWorkflow = {
   updatedAt: "1970-01-01T00:00:00.000Z",
   source: "store",
   readOnly: true,
-  htmlUrl: "https://github.com/acme/kody-store/tree/main/.kody/workflows/web-release",
+  htmlUrl:
+    "https://github.com/acme/kody-store/tree/main/.kody/workflows/web-release",
 };
 
 function baseConfig() {
@@ -149,6 +163,9 @@ describe("company workflows route", () => {
     engineConfig.getEngineConfig.mockResolvedValue(baseConfig());
     workflowFiles.listWorkflowDefinitionFiles.mockResolvedValue([]);
     managedGoalFiles.listManagedGoalFiles.mockResolvedValue([]);
+    capabilityFiles.listLocalCapabilityFiles.mockResolvedValue(
+      ["run", "fix", "review", "reproduce", "plan", "inspect", "verify"].map((slug) => ({ slug })),
+    );
     workflowFiles.listCompanyStoreWorkflowDefinitionFiles.mockResolvedValue([]);
     workflowFiles.listCompanyStoreCapabilityWorkflowDefinitionFiles.mockResolvedValue(
       [bugWorkflow],
@@ -159,6 +176,129 @@ describe("company workflows route", () => {
     );
     workflowFiles.readCompanyStoreCapabilityWorkflowDefinitionFile.mockResolvedValue(
       bugWorkflow,
+    );
+  });
+
+  it("rejects an invalid user-created workflow before writing it", async () => {
+    const res = await CREATE(
+      req("/api/kody/company/workflows", "POST", {
+        name: "Unsafe workflow",
+        capabilities: ["inspect"],
+        startAt: "inspect",
+        steps: [
+          { id: "inspect", capability: "inspect", next: [{ to: "missing" }] },
+        ],
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    await expect(res.json()).resolves.toMatchObject({
+      error: "invalid_workflow",
+    });
+    expect(workflowFiles.writeWorkflowDefinitionFile).not.toHaveBeenCalled();
+  });
+
+  it("creates a valid visual workflow through the shared validation gate", async () => {
+    const res = await CREATE(
+      req("/api/kody/company/workflows", "POST", {
+        name: "Release readiness",
+        capabilities: ["inspect", "verify"],
+        startAt: "inspect",
+        steps: [
+          { id: "inspect", capability: "inspect", next: [{ to: "verify" }] },
+          { id: "verify", capability: "verify" },
+        ],
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(workflowFiles.writeWorkflowDefinitionFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "release-readiness",
+        workflow: expect.objectContaining({
+          startAt: "inspect",
+          steps: expect.arrayContaining([
+            expect.objectContaining({ id: "inspect" }),
+            expect.objectContaining({ id: "verify" }),
+          ]),
+        }),
+      }),
+    );
+    await expect(res.json()).resolves.toMatchObject({
+      workflow: {
+        id: "release-readiness",
+        source: "local",
+        readOnly: false,
+      },
+    });
+  });
+
+  it("rejects an invalid workflow update before writing it", async () => {
+    workflowFiles.readWorkflowDefinitionFile.mockResolvedValue({
+      path: "workflows/release/workflow.json",
+      sha: "workflow-sha",
+      workflow: {
+        version: 1,
+        name: "Release",
+        capabilities: ["inspect", "repair"],
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    });
+
+    const res = await PATCH_DETAIL(
+      req("/api/kody/company/workflows/release", "PATCH", {
+        startAt: "inspect",
+        steps: [
+          { id: "inspect", capability: "inspect", next: [{ to: "repair" }] },
+          { id: "repair", capability: "repair", next: [{ to: "inspect" }] },
+        ],
+      }),
+      params("release"),
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("invalid_workflow");
+    expect(workflowFiles.writeWorkflowDefinitionFile).not.toHaveBeenCalled();
+  });
+
+  it("updates a valid visual workflow through the shared validation gate", async () => {
+    workflowFiles.readWorkflowDefinitionFile.mockResolvedValue({
+      path: "workflows/release/workflow.json",
+      sha: "workflow-sha",
+      workflow: {
+        version: 1,
+        name: "Release",
+        capabilities: ["inspect"],
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+      },
+    });
+
+    const res = await PATCH_DETAIL(
+      req("/api/kody/company/workflows/release", "PATCH", {
+        name: "Release readiness",
+        capabilities: ["inspect", "verify"],
+        startAt: "inspect",
+        steps: [
+          { id: "inspect", capability: "inspect", next: [{ to: "verify" }] },
+          { id: "verify", capability: "verify" },
+        ],
+      }),
+      params("release"),
+    );
+
+    expect(res.status).toBe(200);
+    expect(workflowFiles.writeWorkflowDefinitionFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: "release",
+        sha: "workflow-sha",
+        workflow: expect.objectContaining({
+          name: "Release readiness",
+          startAt: "inspect",
+        }),
+      }),
     );
   });
 

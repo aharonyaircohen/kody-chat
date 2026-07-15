@@ -331,7 +331,7 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         href: "/workflows",
         label: "Workflows",
         icon: Workflow,
-        description: "Ordered capability queues.",
+        description: "Visual capability flows.",
         tint: "text-cyan-300 bg-cyan-500/10",
       },
       {

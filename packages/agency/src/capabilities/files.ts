@@ -87,10 +87,27 @@ export interface CapabilitySummary {
   isWorkflow?: boolean;
   /** Capability slugs in profile.workflow.steps, if this is a workflow. */
   workflowSteps?: string[];
+  /** Full graph for Store-backed workflows, including branches and loops. */
+  workflowDefinition?: CapabilityWorkflowSummary;
   /** Runtime resolution source. Local repo assets win over store assets. */
   source?: "local" | "store";
   /** Store-linked assets are visible and runnable, but not editable locally. */
   readOnly?: boolean;
+}
+
+export interface CapabilityWorkflowSummary {
+  startAt?: string;
+  steps: Array<{
+    id: string;
+    capability: string;
+    inputs?: Record<string, { from: string }>;
+    next?: Array<{
+      to: string;
+      when?: Record<string, unknown>;
+      default?: boolean;
+      maxIterations?: number;
+    }>;
+  }>;
 }
 
 export interface CapabilityDetail extends CapabilitySummary {
@@ -196,6 +213,48 @@ function workflowStepsFromProfile(profile: Record<string, unknown>): string[] {
   return out;
 }
 
+function workflowDefinitionFromProfile(
+  profile: Record<string, unknown>,
+): CapabilityWorkflowSummary | undefined {
+  const rawWorkflow = profile.workflow;
+  if (!rawWorkflow || typeof rawWorkflow !== "object" || Array.isArray(rawWorkflow)) return undefined;
+  const rawSteps = (rawWorkflow as { steps?: unknown }).steps;
+  if (!Array.isArray(rawSteps)) return undefined;
+  const seen = new Map<string, number>();
+  const steps: CapabilityWorkflowSummary["steps"] = [];
+  for (const raw of rawSteps) {
+    const record = typeof raw === "object" && raw !== null && !Array.isArray(raw) ? (raw as Record<string, unknown>) : null;
+    const capability = typeof raw === "string" ? raw.trim() : typeof record?.capability === "string" ? record.capability.trim() : "";
+    if (!capability) continue;
+    const base = typeof record?.id === "string" && record.id.trim() ? record.id.trim() : capability;
+    const count = (seen.get(base) ?? 0) + 1;
+    seen.set(base, count);
+    const id = count === 1 ? base : `${base}-${count}`;
+    const inputs = record?.inputs && typeof record.inputs === "object" && !Array.isArray(record.inputs)
+      ? Object.fromEntries(Object.entries(record.inputs).flatMap(([name, value]) => {
+          if (!value || typeof value !== "object" || Array.isArray(value) || typeof (value as { from?: unknown }).from !== "string") return [];
+          return [[name, { from: (value as { from: string }).from }]];
+        }))
+      : undefined;
+    const rawNext = Array.isArray(record?.next) ? record.next : record?.next === undefined ? [] : [record.next];
+    const next = rawNext.flatMap((value) => {
+      const transition = typeof value === "string" ? { to: value.trim() } : value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+      if (!transition || typeof transition.to !== "string" || !transition.to.trim()) return [];
+      return [{
+        to: transition.to.trim(),
+        ...(transition.when && typeof transition.when === "object" && !Array.isArray(transition.when) ? { when: transition.when as Record<string, unknown> } : {}),
+        ...(transition.default === true ? { default: true } : {}),
+        ...(typeof transition.maxIterations === "number" ? { maxIterations: transition.maxIterations } : {}),
+      }];
+    });
+    steps.push({ id, capability, ...(inputs && Object.keys(inputs).length > 0 ? { inputs } : {}), ...(next.length > 0 ? { next } : {}) });
+  }
+  if (steps.length === 0) return undefined;
+  const rawStartAt = (rawWorkflow as { startAt?: unknown }).startAt;
+  const startAt = typeof rawStartAt === "string" && steps.some((step) => step.id === rawStartAt) ? rawStartAt : steps[0]!.id;
+  return { startAt, steps };
+}
+
 function summaryFromProfile(
   slug: string,
   profile: Record<string, unknown>,
@@ -214,6 +273,7 @@ function summaryFromProfile(
       ? profile.every.trim()
       : null;
   const workflowSteps = workflowStepsFromProfile(profile);
+  const workflowDefinition = workflowDefinitionFromProfile(profile);
   return {
     slug,
     describe,
@@ -224,6 +284,7 @@ function summaryFromProfile(
     every,
     isWorkflow: workflowSteps.length > 0,
     workflowSteps,
+    ...(workflowDefinition ? { workflowDefinition } : {}),
     ...extra,
   };
 }
@@ -275,6 +336,7 @@ async function listCapabilityFolders(
           ? profile.every.trim()
           : null;
       const workflowSteps = profile ? workflowStepsFromProfile(profile) : [];
+      const workflowDefinition = profile ? workflowDefinitionFromProfile(profile) : undefined;
       return {
         slug,
         describe,
@@ -285,6 +347,7 @@ async function listCapabilityFolders(
         every,
         isWorkflow: workflowSteps.length > 0,
         workflowSteps,
+        ...(workflowDefinition ? { workflowDefinition } : {}),
       };
     }),
   );
