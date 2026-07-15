@@ -7,7 +7,7 @@ package replaces GitHub-as-database for Kody's own state.
 
 ## Layout
 
-- `convex/schema.ts` — all tables, partitioned by `repo` ("owner/name"), plus
+- `convex/schema.ts` — all tables, partitioned by `tenantId` (currently the "owner/name" of the business repo), plus
   `login`/`userKey` for per-user rows. Two global tables (`actionStates`,
   `eventLog`) replace the Kody-Dashboard store repo.
 - `convex/*.ts` — functions by domain: `workflows`, `chat`, `company`
@@ -30,11 +30,29 @@ pnpm --filter @kody-ade/backend dev   # logs in, creates the Convex project, liv
 Production deploys: `pnpm --filter @kody-ade/backend deploy` with
 `CONVEX_DEPLOY_KEY` set (CI).
 
+## Environments
+
+Each Convex project has two deployments; apps pick one via `CONVEX_URL`:
+
+- **dev** — your personal deployment. `pnpm dev` live-syncs functions to it
+  and writes its URL to `.env.local` (gitignored). All local work and tests
+  target this.
+- **prod** — created on first `pnpm deploy`. CLI commands target it with
+  `--prod`. CI deploys need a deploy key (`CONVEX_DEPLOY_KEY`), generated in
+  the Convex dashboard — we don't have one yet.
+
+Auth: `npx convex dev` login stores a personal access token in
+`~/.convex/config.json`; no other credentials are needed locally.
+
+Tests: smoke and e2e layers auto-skip unless `CONVEX_URL` is set — run
+`export $(grep CONVEX_URL .env.local) && pnpm test` to exercise the live dev
+deployment.
+
 ## Migration day (planned)
 
 1. Freeze writes.
 2. `GITHUB_TOKEN=… STATE_REPO=… REPO=… pnpm --filter @kody-ade/backend export:github`
-3. `CONVEX_URL=… pnpm --filter @kody-ade/backend import:convex --clear-repo owner/name`
+3. `CONVEX_URL=… pnpm --filter @kody-ade/backend import:convex --clear-tenantId owner/name`
 4. Flip the dashboard/runners' storage adapters to the Convex client.
 
 Dry-run steps 2–3 against a test deployment first. The dump doubles as a
