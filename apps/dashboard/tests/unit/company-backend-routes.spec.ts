@@ -113,6 +113,7 @@ function octokitWithTarball(data: ArrayBuffer) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  convex.mutation.mockImplementation(async () => null);
   auth.requireKodyAuth.mockResolvedValue(null);
   auth.getRequestAuth.mockReturnValue({
     token: "ghp_test",
@@ -239,6 +240,56 @@ describe("POST /api/kody/company/backend/import", () => {
       .filter((call) => (call[1] as { table: string }).table === "goals")
       .map((call) => (call[1] as { docs: unknown[] }).docs.length);
     expect(goalChunks).toEqual([50, 50, 50, 50, 50]);
+  });
+
+  it("retries a chunk when Convex throttles writes, then succeeds", async () => {
+    vi.stubEnv("CONVEX_URL", "https://demo.convex.cloud");
+    convex.mutation
+      .mockRejectedValueOnce(new Error('{"code":"TooManyWrites","message":"Too many writes per second."}'))
+      .mockRejectedValueOnce(new Error('{"code":"TooManyWrites","message":"Too many writes per second."}'));
+
+    const res = await IMPORT(
+      req("/api/kody/company/backend/import", "POST", {
+        ...dump,
+        tables: { workflows: dump.tables.workflows },
+      }),
+    );
+    expect(res.status).toBe(200);
+    expect((await res.json()).imported).toEqual({ workflows: 1 });
+    // 2 throttled attempts + 1 success for the single chunk
+    expect(convex.mutation).toHaveBeenCalledTimes(3);
+  });
+
+  it("gives up after exhausting retries on persistent throttling", async () => {
+    vi.stubEnv("CONVEX_URL", "https://demo.convex.cloud");
+    convex.mutation.mockRejectedValue(
+      new Error('{"code":"TooManyWrites","message":"Too many writes per second."}'),
+    );
+
+    const res = await IMPORT(
+      req("/api/kody/company/backend/import", "POST", {
+        ...dump,
+        tables: { workflows: dump.tables.workflows },
+      }),
+    );
+    expect(res.status).toBe(500);
+    expect((await res.json()).message).toContain("TooManyWrites");
+    // initial attempt + MAX_RETRIES (5)
+    expect(convex.mutation).toHaveBeenCalledTimes(6);
+  });
+
+  it("does not retry non-throttle errors", async () => {
+    vi.stubEnv("CONVEX_URL", "https://demo.convex.cloud");
+    convex.mutation.mockRejectedValue(new Error("schema validation failed"));
+
+    const res = await IMPORT(
+      req("/api/kody/company/backend/import", "POST", {
+        ...dump,
+        tables: { workflows: dump.tables.workflows },
+      }),
+    );
+    expect(res.status).toBe(500);
+    expect(convex.mutation).toHaveBeenCalledTimes(1);
   });
 
   it("skips clearRepo when clearFirst is not set", async () => {
