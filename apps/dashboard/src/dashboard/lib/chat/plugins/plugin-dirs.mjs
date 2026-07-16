@@ -27,6 +27,7 @@ export const CHAT_PLUGIN_DIRS = Object.freeze([
   "docs",
   "files",
   "inbox",
+  "live-events",
   "messages",
   "notifications",
   "preview",

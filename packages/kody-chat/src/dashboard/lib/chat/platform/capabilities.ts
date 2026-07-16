@@ -28,6 +28,8 @@ export const CHAT_CAPABILITIES = [
   "host-effects",
   /** Contribute side-panel views the flipped shell can render beside chat. */
   "panels",
+  /** Supply the live chat-event stream (replaces the polling fallback). */
+  "live-transport",
 ] as const;
 
 export type ChatCapability = (typeof CHAT_CAPABILITIES)[number];
@@ -57,4 +59,5 @@ export const CONTRIBUTION_CAPABILITIES = {
   sessionState: "session-state",
   hostEffects: "host-effects",
   panels: "panels",
+  liveTransport: "live-transport",
 } as const satisfies Record<string, ChatCapability>;

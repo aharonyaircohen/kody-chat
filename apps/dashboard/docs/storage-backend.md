@@ -59,3 +59,31 @@ engine's execution surface.
 
 Follow-ups: paginate unbounded `.collect()` queries and batch `clearRepo`
 for large tenants.
+
+## Engine (kody2) chat transcript reads
+
+The engine's chat runner (kody2 `src/chat/session-store.ts`) now reads the
+session transcript from Convex (`chatTurns.list`) and appends its own turns
+via `chatSessions.upsert` + `chatTurns.append`, falling back to the legacy
+state-repo `sessions/<id>.jsonl` git-pull loop when Convex is not configured.
+
+For the engine to use the Convex path, the repo that runs `kody.yml` needs
+two **GitHub Actions secrets** (the workflow forwards all secrets to the
+engine via `toJSON(secrets)` / `ALL_SECRETS`, so no `kody.yml` change is
+needed):
+
+- `CONVEX_URL` — the Convex deployment URL (same value the dashboard uses;
+  see `packages/kody-backend/.env.local`).
+- `KODY_SERVICE_KEY` — the service auth secret verified by
+  `convex/lib/auth.ts` (same value as the deployment's `KODY_SERVICE_KEY`
+  env var).
+
+The tenant scope is derived from `GITHUB_REPOSITORY` (`owner/repo`), which
+matches the dashboard's `tenantIdFor(owner, repo)`.
+
+**Dual-write retirement:** the dashboard still writes `sessions/<id>.jsonl`
+to the state repo (see `app/api/kody/chat/trigger/route.ts` and
+`src/dashboard/lib/interactive-session.ts`) solely because engines without
+the two secrets above still git-pull it. Once every engine repo has
+`CONVEX_URL` + `KODY_SERVICE_KEY` set, delete the state-repo JSONL writes
+and Convex becomes the sole transcript store.

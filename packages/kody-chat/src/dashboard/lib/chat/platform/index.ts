@@ -17,6 +17,13 @@ export {
   type ChatCapabilityGrant,
 } from "./capabilities";
 export {
+  getChatLiveTransport,
+  registerChatLiveTransport,
+  resetChatLiveTransportForTests,
+  type ChatLiveTransport,
+  type ChatLiveTransportEvent,
+} from "./live-transport";
+export {
   ChatPluginRegistrationError,
   createChatPluginRegistry,
   type ChatPluginRegistry,

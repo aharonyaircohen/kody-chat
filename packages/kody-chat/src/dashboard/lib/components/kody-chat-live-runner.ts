@@ -46,6 +46,7 @@ import {
   shouldRehydrateScope,
 } from "../chat/core/rehydration";
 import { getStoredFlyPerf } from "@dashboard/lib/api";
+import { getChatLiveTransport } from "../chat/platform/live-transport";
 import type { AgentId } from "@dashboard/lib/agents";
 import type { ChatContext } from "@dashboard/lib/chat-types";
 import { vibeTurnFields, type VibeLiveTaskContext } from "../chat/plugins/vibe";
@@ -253,11 +254,19 @@ export function useLiveRunner({
   // per actual new event.
   const pollWatermarkRef = useRef(0);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Unsubscribe handle for a plugin-supplied live transport (platform
+  // "live-transport" contract). Mutually exclusive with pollIntervalRef —
+  // when a transport is registered we stream instead of interval-polling.
+  const liveTransportUnsubRef = useRef<(() => void) | null>(null);
 
   const stopInteractivePoll = useCallback(() => {
     if (pollIntervalRef.current) {
       clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;
+    }
+    if (liveTransportUnsubRef.current) {
+      liveTransportUnsubRef.current();
+      liveTransportUnsubRef.current = null;
     }
   }, []);
 
@@ -270,17 +279,12 @@ export function useLiveRunner({
         else setMessages(updater);
       };
 
-      const handleLines = (lines: string[]) => {
-        for (const line of lines) {
-          let event: {
-            event?: string;
-            payload?: Record<string, unknown>;
-          } | null = null;
-          try {
-            event = JSON.parse(line);
-          } catch {
-            continue;
-          }
+      type RunnerEvent = {
+        event?: string;
+        payload?: Record<string, unknown>;
+      };
+      const handleEvents = (events: ReadonlyArray<RunnerEvent | null>) => {
+        for (const event of events) {
           if (!event || !event.event) continue;
           const payload = event.payload ?? {};
           switch (event.event) {
@@ -480,6 +484,33 @@ export function useLiveRunner({
           }
         }
       };
+
+      const handleLines = (lines: string[]) => {
+        const events: Array<RunnerEvent | null> = [];
+        for (const line of lines) {
+          try {
+            events.push(JSON.parse(line) as RunnerEvent);
+          } catch {
+            // skip malformed line
+          }
+        }
+        handleEvents(events);
+      };
+
+      // Plugin-supplied live transport (platform "live-transport" hook,
+      // see chat/platform/live-transport.ts): stream events reactively
+      // instead of interval-polling. Transports emit events already parsed,
+      // deduplicated, and seq-ordered, in the exact shape the poll parses
+      // from JSONL lines — one handler serves both paths. No transport
+      // registered → the polling fallback below runs unchanged.
+      const transport = getChatLiveTransport();
+      if (transport) {
+        liveTransportUnsubRef.current = transport.subscribe(
+          sessionId,
+          (event) => handleEvents([event]),
+        );
+        return;
+      }
 
       const tick = async () => {
         const auth = liveAuthFor(sessionId);

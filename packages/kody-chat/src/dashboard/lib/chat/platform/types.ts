@@ -11,6 +11,7 @@
 import type { ComponentType } from "react";
 
 import type { ChatCapability } from "./capabilities";
+import type { ChatLiveTransport } from "./live-transport";
 
 /** Where a plugin can render. The surface owns the physical layout. */
 export type ChatSlotId =
@@ -129,4 +130,10 @@ export interface ChatPlugin {
   agents?: readonly string[];
   /** i18n messages, auto-namespaced as `plugin.<id>.<key>`. */
   messages?: Readonly<Record<string, string>>;
+  /**
+   * Live chat-event stream supplier (capability "live-transport"). When
+   * registered, the surface's live runner streams session events through it
+   * instead of the interval-polling fallback. Last registration wins.
+   */
+  liveTransport?: ChatLiveTransport;
 }

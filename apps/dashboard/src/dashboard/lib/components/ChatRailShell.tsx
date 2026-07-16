@@ -108,6 +108,7 @@ import { contextChatPlugin, CONTEXT_PANEL_ID } from "@kody-ade/kody-chat/plugins
 import { docsChatPlugin, DOCS_PANEL_ID } from "../chat/plugins/docs";
 import { filesChatPlugin, FILES_PANEL_ID } from "../chat/plugins/files";
 import { inboxChatPlugin, INBOX_PANEL_ID } from "../chat/plugins/inbox";
+import { liveEventsChatPlugin } from "../chat/plugins/live-events";
 import {
   instructionsChatPlugin,
   INSTRUCTIONS_PANEL_ID,
@@ -150,6 +151,9 @@ import {
 // commands, vibe, goals (goals last — both mounts always pass
 // `onDirectToGoal`, so the pre-move conditional was always true here).
 const ADMIN_CHAT_PLUGINS = [
+  // Live transport (Convex chatEvents subscription) — inert without
+  // NEXT_PUBLIC_CONVEX_URL; the live runner then keeps interval polling.
+  { plugin: liveEventsChatPlugin },
   { plugin: terminalChatPlugin },
   { plugin: commandsChatPlugin },
   { plugin: vibeChatPlugin },

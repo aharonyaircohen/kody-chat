@@ -15,6 +15,7 @@ import {
   type ChatCapability,
   type ChatCapabilityGrant,
 } from "./capabilities";
+import { registerChatLiveTransport } from "./live-transport";
 import type {
   ChatHostEffect,
   ChatPanelView,
@@ -80,6 +81,11 @@ function contributionViolations(
     !!plugin.sessionState?.length,
   );
   need("panels", CONTRIBUTION_CAPABILITIES.panels, !!plugin.panels?.length);
+  need(
+    "liveTransport",
+    CONTRIBUTION_CAPABILITIES.liveTransport,
+    plugin.liveTransport !== undefined,
+  );
   for (const capability of plugin.capabilities) {
     if (!isGranted(grant, capability)) {
       violations.push(`capability "${capability}" is not granted`);
@@ -129,6 +135,13 @@ export function createChatPluginRegistry(): ChatPluginRegistry {
         throw new ChatPluginRegistrationError(plugin.id, violations);
       }
       plugins.set(plugin.id, { plugin, grant });
+      // Live transport is a module-scope singleton (the live runner has no
+      // registry access — see live-transport.ts). Publish on registration;
+      // re-registration from the second KodyChat mount is an idempotent
+      // replace, later plugins win.
+      if (plugin.liveTransport) {
+        registerChatLiveTransport(plugin.liveTransport);
+      }
     },
 
     pluginIds() {

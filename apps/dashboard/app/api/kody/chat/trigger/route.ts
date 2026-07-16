@@ -96,7 +96,13 @@ interface ChatMessage {
  * history route reads it without touching GitHub. The state-repo JSONL write
  * below stays — the engine runner git-pulls `sessions/<id>.jsonl` (see
  * kody2/src/chat/session.ts), so it is a functional dependency, not a
- * duplicate. Only messages beyond the already-recorded turn count are
+ * duplicate.
+ * TODO(dual-write retirement): the engine now reads Convex directly when its
+ * Actions secrets (CONVEX_URL, KODY_SERVICE_KEY) are set — see kody2
+ * src/chat/session-store.ts and docs/storage-backend.md ("Engine chat
+ * transcript reads"). Once every engine repo has those secrets, delete the
+ * state-repo JSONL write and keep only this Convex path.
+ * Only messages beyond the already-recorded turn count are
  * appended (the dispatch body carries the full history each time).
  * Failures are logged, never thrown — a Convex hiccup must not block chat.
  */

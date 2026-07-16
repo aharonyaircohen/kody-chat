@@ -225,6 +225,11 @@ export async function readSessionTranscript(
 // stays because the engine runner git-pulls sessions/<id>.jsonl for its
 // inbox loop (kody2/src/chat/inbox.ts). Mirror failures are logged, not
 // thrown — a Convex hiccup must not take down chat.
+// TODO(dual-write retirement): the engine now polls Convex directly when its
+// Actions secrets (CONVEX_URL, KODY_SERVICE_KEY) are set — see kody2
+// src/chat/session-store.ts and docs/storage-backend.md ("Engine chat
+// transcript reads"). Once every engine repo has those secrets, drop the
+// state-repo JSONL write and keep only these Convex records.
 
 async function recordSessionStart(
   owner: string,
