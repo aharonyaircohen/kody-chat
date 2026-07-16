@@ -432,6 +432,22 @@ describe("view renderer definitions", () => {
     ).toBe("title-body-actions");
   });
 
+  it("keeps an exact purpose match even when no data keys bind (regression: 'No view renderer matches purpose')", () => {
+    // The model named the renderer but sent field names the definition
+    // doesn't declare. The exact purpose match must survive the data-key
+    // gate and render from defaults instead of throwing.
+    const matched = matchViewRendererDefinition(
+      [decisionRenderer],
+      "decision",
+      {
+        message: "Deploy to production?",
+        buttons: [{ label: "Yes" }, { label: "No" }],
+      },
+      "Approve the deployment?",
+    );
+    expect(matched?.slug).toBe("decision-card");
+  });
+
   it("uses user wording to choose between compatible list renderers", () => {
     const singleSelect: ViewRendererDefinition = {
       slug: "selection-list",

@@ -777,7 +777,10 @@ export function matchViewRendererDefinition(
     })
     .filter(
       (candidate) =>
-        candidate.matched > 0 &&
+        // An exact purpose/slug/alias match may render from defaults even
+        // when none of the caller's data keys bind (the keys get dropped);
+        // heuristic-only candidates still need at least one binding key.
+        (candidate.matched > 0 || candidate.purposeMatched) &&
         (!hasUserText ||
           !candidate.decisionLike ||
           candidate.userTextScore > 0 ||
