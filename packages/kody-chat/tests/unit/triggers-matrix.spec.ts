@@ -1,11 +1,13 @@
 /**
  * Full trigger matrix: replays every catalog event through the real
  * config → engine → sink → writer → service → adapter chain against an
- * in-memory CAS storage layer, mirroring the live E2E verification.
- * Also covers the negative paths: failing condition, disabled trigger,
- * and the system-source loop guard.
+ * in-memory Convex-shaped storage layer, mirroring the live E2E
+ * verification. Also covers the negative paths: failing condition,
+ * disabled trigger, and the system-source loop guard.
  */
 import { describe, it, expect, vi, beforeAll } from "vitest";
+import type { Octokit } from "@octokit/rest";
+import { getFunctionName } from "convex/server";
 
 const h = vi.hoisted(() => {
   interface StoredFile {
@@ -18,6 +20,10 @@ const h = vi.hoisted(() => {
     files,
     nextSha: () => `sha-${(shaCounter += 1)}`,
     logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+    userStateRows: new Map<
+      string, // `${tenantId}::${namespace}::${userKey}`
+      { data: unknown; updatedAt: string }
+    >(),
   };
 });
 
@@ -28,8 +34,11 @@ vi.mock("@kody-ade/base/auth/background-token", () => ({
 vi.mock("@kody-ade/base/github/core", () => ({
   createUserOctokit: vi.fn(() => ({})),
 }));
-// In-memory state repo with real CAS semantics: writes must carry the sha
-// of the current file (or none when creating), matching GitHub contents.
+
+// State-repo is still in use for the trigger-config file (its loader
+// uses the file-based repo). User-state storage now lives in Convex, so
+// it has its own in-memory mock below — that one is NOT reset by clearing
+// the state-repo files Map.
 vi.mock("@kody-ade/base/state-repo", () => ({
   readStateText: vi.fn(async (_o, _ow, _re, path: string) => {
     const file = h.files.get(path);
@@ -57,7 +66,42 @@ vi.mock("@kody-ade/base/state-repo", () => ({
   ),
 }));
 
-import type { Octokit } from "@octokit/rest";
+// In-memory Convex backend for userState.get/save. Last-write-wins, no
+// CAS — matches the production Convex semantics.
+vi.mock("convex/browser", () => ({
+  ConvexHttpClient: class {
+    query = async (ref: unknown, args: unknown) => {
+      const name = getFunctionName(ref as never);
+      if (name !== "userState:get") {
+        throw new Error(`unexpected query in test: ${name}`);
+      }
+      const { tenantId, namespace, userKey } = args as {
+        tenantId: string;
+        namespace: string;
+        userKey: string;
+      };
+      const row = h.userStateRows.get(`${tenantId}::${namespace}::${userKey}`);
+      return row ?? null;
+    };
+    mutation = async (ref: unknown, args: unknown) => {
+      const name = getFunctionName(ref as never);
+      if (name !== "userState:save") {
+        throw new Error(`unexpected mutation in test: ${name}`);
+      }
+      const { tenantId, namespace, userKey, data, updatedAt } = args as {
+        tenantId: string;
+        namespace: string;
+        userKey: string;
+        data: unknown;
+        updatedAt: string;
+      };
+      const key = `${tenantId}::${namespace}::${userKey}`;
+      h.userStateRows.set(key, { data, updatedAt });
+      return "id-1";
+    };
+  },
+}));
+
 import { triggerSink } from "@kody-ade/base/triggers/sink";
 import { _resetTriggersConfigCache } from "@kody-ade/base/triggers/config";
 import type { TriggerConfig } from "@kody-ade/base/triggers/types";
@@ -157,7 +201,9 @@ describe("trigger matrix (all catalog events)", () => {
     _resetTriggersConfigCache();
     _resetUserStateConfigCache();
     _resetUserStateDocCache();
+    h.userStateRows.clear();
     ensureTriggerStateWriter();
+    process.env.CONVEX_URL = "https://test.convex.cloud";
     h.files.set("triggers/config.json", {
       content: JSON.stringify({ version: 1, triggers: TRIGGERS }),
       sha: "sha-config",

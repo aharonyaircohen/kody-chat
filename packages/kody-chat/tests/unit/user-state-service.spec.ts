@@ -5,17 +5,20 @@
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Octokit } from "@octokit/rest";
+import { getFunctionName } from "convex/server";
 
 const h = vi.hoisted(() => ({
-  readStateText: vi.fn(),
-  writeStateText: vi.fn(),
+  convexQuery: vi.fn(),
+  convexMutation: vi.fn(),
   emitSystemEvent: vi.fn(),
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock("@kody-ade/base/state-repo", () => ({
-  readStateText: h.readStateText,
-  writeStateText: h.writeStateText,
+vi.mock("convex/browser", () => ({
+  ConvexHttpClient: class {
+    query = h.convexQuery;
+    mutation = h.convexMutation;
+  },
 }));
 vi.mock("@kody-ade/base/logger", () => ({ logger: h.logger }));
 vi.mock("@kody-ade/base/events", () => ({
@@ -38,9 +41,12 @@ beforeEach(() => {
   vi.clearAllMocks();
   _resetUserStateConfigCache();
   _resetUserStateDocCache();
-  // No brand config, no existing docs by default.
-  h.readStateText.mockRejectedValue({ status: 404 });
-  h.writeStateText.mockResolvedValue({ sha: "s", path: "p", htmlUrl: null });
+  // Backend requires a URL to construct the cached client; the mock
+  // ConvexHttpClient ignores it.
+  process.env.CONVEX_URL = "https://test.convex.cloud";
+  // No existing docs by default.
+  h.convexQuery.mockResolvedValue(null);
+  h.convexMutation.mockResolvedValue("id-1");
 });
 
 describe("getUserState", () => {
@@ -68,7 +74,14 @@ describe("setUserState", () => {
     expect(doc.namespace).toBe("selections");
     expect(doc.userId).toBe(ctx.userId);
     expect(doc.data).toEqual({ theme: "dark" });
-    expect(h.writeStateText).toHaveBeenCalledTimes(1);
+    expect(h.convexMutation).toHaveBeenCalledTimes(1);
+    const [ref, args] = h.convexMutation.mock.calls[0]!;
+    expect(getFunctionName(ref)).toBe("userState:save");
+    expect(args).toMatchObject({
+      tenantId: "acme/shop",
+      namespace: "selections",
+      data: { theme: "dark" },
+    });
     expect(h.emitSystemEvent).toHaveBeenCalledWith(
       "state.entity.written",
       expect.objectContaining({
@@ -86,16 +99,9 @@ describe("setUserState", () => {
   });
 
   it("shallow-merges with the existing document", async () => {
-    h.readStateText.mockResolvedValue({
-      content: JSON.stringify({
-        version: 1,
-        namespace: "selections",
-        userId: ctx.userId,
-        updatedAt: "2026-07-01T00:00:00.000Z",
-        data: { theme: "dark", lang: "en" },
-      }),
-      sha: "s0",
-      path: "p",
+    h.convexQuery.mockResolvedValue({
+      data: { theme: "dark", lang: "en" },
+      updatedAt: "2026-07-01T00:00:00.000Z",
     });
 
     const doc = await setUserState(
@@ -108,35 +114,21 @@ describe("setUserState", () => {
   });
 
   it("re-merges against fresh data and retries once on a write conflict", async () => {
-    // First read: original doc. Conflict on write. Second read (post-cache
-    // clear): a concurrent writer added `other`. The retry must keep it.
-    h.readStateText
+    // First read: original doc. Conflict on write. The retry reads again
+    // and merges against the concurrent writer's data — the new `other`
+    // field must survive into the final doc.
+    h.convexQuery
       .mockResolvedValueOnce({
-        content: JSON.stringify({
-          version: 1,
-          namespace: "selections",
-          userId: ctx.userId,
-          updatedAt: "2026-07-01T00:00:00.000Z",
-          data: { theme: "dark" },
-        }),
-        sha: "s0",
-        path: "p",
+        data: { theme: "dark" },
+        updatedAt: "2026-07-01T00:00:00.000Z",
       })
-      .mockResolvedValueOnce({ content: "{}", sha: "s0", path: "p" })
       .mockResolvedValue({
-        content: JSON.stringify({
-          version: 1,
-          namespace: "selections",
-          userId: ctx.userId,
-          updatedAt: "2026-07-02T00:00:00.000Z",
-          data: { theme: "dark", other: "kept" },
-        }),
-        sha: "s1",
-        path: "p",
+        data: { theme: "dark", other: "kept" },
+        updatedAt: "2026-07-02T00:00:00.000Z",
       });
-    h.writeStateText
+    h.convexMutation
       .mockRejectedValueOnce({ status: 409 })
-      .mockResolvedValueOnce({ sha: "s2", path: "p", htmlUrl: null });
+      .mockResolvedValue("id-final");
 
     const doc = await setUserState(
       ctx,
@@ -145,7 +137,7 @@ describe("setUserState", () => {
       { source: "server" },
     );
     expect(doc.data).toEqual({ theme: "dark", other: "kept", lang: "he" });
-    expect(h.writeStateText).toHaveBeenCalledTimes(2);
+    expect(h.convexMutation).toHaveBeenCalledTimes(2);
   });
 
   it("rejects data that fails the namespace schema, without writing", async () => {
@@ -158,7 +150,7 @@ describe("setUserState", () => {
         error.status === 422 &&
         error.issues.length > 0,
     );
-    expect(h.writeStateText).not.toHaveBeenCalled();
+    expect(h.convexMutation).not.toHaveBeenCalled();
     expect(h.emitSystemEvent).not.toHaveBeenCalled();
   });
 });

@@ -154,8 +154,13 @@ describe("appendUserTurn", () => {
 
   it("retries on a 409 conflict with backoff and then succeeds", async () => {
     vi.useFakeTimers();
+    // Pin jitter to 0 so the backoff delay is deterministic (100 * attempt +
+    // Math.floor(Math.random() * 100)) = 100 with random=0). Spying on the
+    // global setTimeout is unreliable under fake timers in parallel — count
+    // by inspecting the actual delay that was scheduled instead.
+    const randomSpy = vi.spyOn(Math, "random").mockReturnValue(0);
+    const setTimeoutSpy = vi.spyOn(global, "setTimeout");
     try {
-      const setTimeoutSpy = vi.spyOn(global, "setTimeout");
       const { octokit, createOrUpdateFileContents } = makeAppendOctokit([
         409,
         "ok",
@@ -168,14 +173,17 @@ describe("appendUserTurn", () => {
       await vi.runAllTimersAsync();
       await p;
       expect(createOrUpdateFileContents).toHaveBeenCalledTimes(2);
-      // First retry: 100 * 1 + random < 100 = jittered ~100-199ms
-      // setTimeout is called once to backoff before the retry
-      expect(setTimeoutSpy).toHaveBeenCalledTimes(1);
-      const delay = setTimeoutSpy.mock.calls[0]![1] as number;
-      expect(typeof delay).toBe("number");
-      expect(delay).toBeGreaterThanOrEqual(100);
-      expect(delay).toBeLessThan(200);
+      // Locate the backoff sleep inside the spy calls — the delay is
+      // computed as `100 * attempt + Math.floor(Math.random() * 100)`.
+      const backoffCall = setTimeoutSpy.mock.calls.find(
+        ([, ms]) => typeof ms === "number" && ms >= 100 && ms < 200,
+      );
+      expect(backoffCall).toBeDefined();
+      const delay = backoffCall![1] as number;
+      expect(delay).toBe(100);
     } finally {
+      randomSpy.mockRestore();
+      setTimeoutSpy.mockRestore();
       vi.useRealTimers();
     }
   });

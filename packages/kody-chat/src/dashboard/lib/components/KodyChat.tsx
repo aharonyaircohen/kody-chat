@@ -63,11 +63,8 @@ import {
   deleteAttachment,
   purgeOrphans,
 } from "@dashboard/lib/attachment-store";
-import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
-import {
-  ChatIssueReportDialog,
-  type ChatIssueReportState,
-} from "@dashboard/lib/components/ChatIssueReportDialog";
+import { KodyChatDialogs } from "./KodyChatDialogs";
+import type { ChatIssueReportState } from "@dashboard/lib/components/ChatIssueReportDialog";
 import { useRemoteStatus } from "@dashboard/lib/hooks/useRemoteStatus";
 import { useAgents } from "@dashboard/lib/hooks/useAgents";
 import { useChatDataSources } from "./kody-chat-data";
@@ -93,36 +90,12 @@ import type {
   PreviewActDirective,
 } from "@dashboard/lib/chat-ui-actions";
 import { repoScopedHref } from "@kody-ade/base/routes";
-
-function reportValue(value: unknown, max = 1_000): string | null {
-  if (value === null || value === undefined || value === "") return null;
-  const raw =
-    typeof value === "string"
-      ? value
-      : Array.isArray(value)
-        ? value.join(", ")
-        : typeof value === "object"
-          ? JSON.stringify(value)
-          : String(value);
-  const compact = raw.replace(/\s+/g, " ").trim();
-  if (!compact) return null;
-  return compact.length > max ? `${compact.slice(0, max - 3)}...` : compact;
-}
-
-function reportItem(
-  label: string,
-  value: unknown,
-  max?: number,
-): { label: string; value: string } | null {
-  const normalized = reportValue(value, max);
-  return normalized ? { label, value: normalized } : null;
-}
-
-function compactReportItems(
-  items: Array<{ label: string; value: string } | null>,
-): Array<{ label: string; value: string }> {
-  return items.filter(Boolean) as Array<{ label: string; value: string }>;
-}
+import { usePendingRef } from "./kody-chat-pending-ref";
+import {
+  reportValue,
+  reportItem,
+  compactReportItems,
+} from "./kody-chat-report-helpers";
 
 export function KodyChat({
   context,
@@ -159,15 +132,14 @@ export function KodyChat({
   // model which dashboard page the user is looking at ("what am I viewing?").
   const pathname = usePathname();
   const pageLabel = navLabelForPath(pathname);
-  // Noun phrase passed to the backends. The client owns nav labels; each
-  // route owns how it frames this (system section vs. user-turn prefix).
+  // Noun phrase passed to the backends. The client owns nav labels.
   const currentPage = pathname
     ? pageLabel
       ? `the ${pageLabel} page (${pathname})`
       : `the page at ${pathname}`
     : null;
-  // Read at send-time from inside send callbacks (which may close over a stale
-  // render), so a ref always reflects the page the user is on right now.
+  // Read at send-time from inside send callbacks (which may close over a
+  // stale render), so a ref always reflects the page the user is on.
   const currentPageRef = useRef<string | null>(currentPage);
   currentPageRef.current = currentPage;
   // Context-kind derivations.
@@ -178,13 +150,11 @@ export function KodyChat({
     context?.kind === "capability" ? context.capability : null;
   // Goal-planner mode: chat scoped to a Goal, used for the "Plan this goal"
   // workflow (Pass 1 list-in-chat → user approves → Pass 2 create issues).
-  const plannerGoal = context?.kind === "goal-planner" ? context.goal : null;
-  const plannerSessionId =
-    context?.kind === "goal-planner" ? context.sessionId : null;
-  const plannerExistingTasks =
-    context?.kind === "goal-planner" ? context.existingTasks : undefined;
-  const onPlannerTasksCreated =
-    context?.kind === "goal-planner" ? context.onTasksCreated : undefined;
+  const isPlanner = context?.kind === "goal-planner";
+  const plannerGoal = isPlanner ? context.goal : null;
+  const plannerSessionId = isPlanner ? context.sessionId : null;
+  const plannerExistingTasks = isPlanner ? context.existingTasks : undefined;
+  const onPlannerTasksCreated = isPlanner ? context.onTasksCreated : undefined;
   const onPlannerExit =
     context?.kind === "goal-planner" ? context.onExit : undefined;
   // Report mode: chat scoped to a markdown report on /reports. The agent
@@ -193,9 +163,8 @@ export function KodyChat({
 
   // Per-scope (task / capability / planner / global) scope blocks flow through
   // the existing per-turn system-prompt blocks (## Current task / ## Current
-  // capability / ## Goal planning mode / ## Current report). The thread itself is
-  // one global store keyed by sessionId — no per-scope parallel stores.
-
+  // capability / ## Goal planning mode / ## Current report). The thread is one
+  // global store keyed by sessionId — no per-scope parallel stores.
   const [input, setInput] = useState("");
   const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
   const [agentMentionTrigger, setAgentMentionTrigger] =
@@ -207,8 +176,7 @@ export function KodyChat({
   const [contextChips, setContextChips] = useState<
     Array<{ id: string; label: string; context: string }>
   >([]);
-  // Add a picker selection as a chip. Keyed by id so a re-render with the same
-  // selection doesn't double-add; a new id adds exactly one chip.
+  // Keyed by id so a re-render with the same selection doesn't double-add.
   const lastInjectionIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (
@@ -223,8 +191,8 @@ export function KodyChat({
   const removeContextChip = useCallback((id: string) => {
     setContextChips((prev) => prev.filter((c) => c.id !== id));
   }, []);
-  // Add an injected image (e.g. a preview screenshot) as a chat attachment,
-  // mirroring a user file drop. Keyed by id so re-renders don't duplicate it.
+  // Injected image (e.g. preview screenshot) → chat attachment. Keyed by
+  // id so re-renders don't duplicate it.
   const lastAttachmentIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (
@@ -253,10 +221,8 @@ export function KodyChat({
       ]);
     })();
   }, [attachmentInjection]);
-  // Slash command autocomplete state. Open while the user is typing the
-  // slug portion of `/foo` (no space yet). Once a space is typed the
-  // menu closes and we treat the rest of the line as arguments. Enter
-  // expands `/slug args` against the prompt list before sending.
+  // Slash command autocomplete state. Open while typing the slug of `/foo`
+  // (no space yet). A space closes the menu and treats the rest as args.
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -289,43 +255,16 @@ export function KodyChat({
     }
     return registry;
   });
-  // Terminal-intent hand-off: the terminal plugin's send middleware
-  // dispatches this effect SYNCHRONOUSLY during runSendMiddleware, so
-  // sendMessage reads the ref right after the chain returns.
-  const pendingTerminalIntentRef = useRef<TerminalIntentEffectPayload | null>(
-    null,
-  );
-  const consumePendingTerminalIntent =
-    useCallback((): TerminalIntentEffectPayload | null => {
-      const intent = pendingTerminalIntentRef.current;
-      pendingTerminalIntentRef.current = null;
-      return intent;
-    }, []);
-  // Slash-expansion hand-off (Step 5b): same synchronous ref pattern —
-  // the commands plugin's middleware dispatches the expansion effect
-  // during runSendMiddleware; sendMessage reads the raw typed text for
-  // the user bubble right after the chain returns.
-  const pendingSlashExpansionRef = useRef<SlashExpansionEffectPayload | null>(
-    null,
-  );
-  const consumePendingSlashExpansion =
-    useCallback((): SlashExpansionEffectPayload | null => {
-      const expansion = pendingSlashExpansionRef.current;
-      pendingSlashExpansionRef.current = null;
-      return expansion;
-    }, []);
-  // Goal-direct hand-off (Step 5d): same synchronous ref pattern — the
-  // goals plugin's mention middleware CONSUMES the message and dispatches
-  // this effect during runSendMiddleware; sendMessage's consumed branch
-  // reads it and runs the existing onDirectToGoal path (scope swap + rest
-  // of the message back into the composer).
-  const pendingGoalDirectRef = useRef<GoalDirectEffectPayload | null>(null);
-  const consumePendingGoalDirect =
-    useCallback((): GoalDirectEffectPayload | null => {
-      const goalDirect = pendingGoalDirectRef.current;
-      pendingGoalDirectRef.current = null;
-      return goalDirect;
-    }, []);
+  // Synchronous ref/consume pair used by plugin hand-off paths (terminal
+  // intent, slash expansion, goal direct). Plugin middleware writes the
+  // ref DURING runSendMiddleware; sendMessage reads it via consume()
+  // right after the chain returns.
+  const [pendingTerminalIntentRef, consumePendingTerminalIntent] =
+    usePendingRef<TerminalIntentEffectPayload>();
+  const [pendingSlashExpansionRef, consumePendingSlashExpansion] =
+    usePendingRef<SlashExpansionEffectPayload>();
+  const [pendingGoalDirectRef, consumePendingGoalDirect] =
+    usePendingRef<GoalDirectEffectPayload>();
   // Host-effect switch. Plugins dispatch effects (scope changes, navigation
   // requests) here — unknown kinds are ignored by design.
   const handlePluginHostEffect = useCallback((effect: ChatHostEffect) => {
@@ -362,9 +301,8 @@ export function KodyChat({
   // entry wouldn't appear until a full page reload.
   const { auth } = useAuth();
   const isDesktop = useMediaQuery("(min-width: 768px)");
-  // Slash command list (builtins + state repo `commands/*.md`).
-  // Stale-while-revalidate keeps autocomplete instant; the API itself
-  // is cached on the server side via the GitHub client.
+  // Slash command list (builtins + state repo `commands/*.md`). Stale-while-
+  // revalidate keeps autocomplete instant; the API itself is server-cached.
   const { commands: slashCommands } = useSlashCommands(auth);
   // Brain visibility is driven exclusively by the per-user Settings entry
   // (URL + API key in localStorage). A server-wide `BRAIN_CHAT_URL` env on
@@ -440,8 +378,7 @@ export function KodyChat({
   const brainAbortBySessionRef = useRef(new Map<string, AbortController>());
   // AbortController for the in-process chat path (`/api/kody/chat/kody`).
   // Without this the Stop button can't cancel the in-flight stream — the
-  // model keeps generating, tokens keep flowing into the assistant bubble,
-  // and the user has no recourse. Mirrors the Brain backend's pattern.
+  // model keeps generating, tokens keep flowing. Mirrors the Brain backend.
   const kodyAbortRef = useRef<AbortController | null>(null);
   const kodyAbortBySessionRef = useRef(new Map<string, AbortController>());
   // Preview-DOM auto-attach. The Kody Preview Inspector extension reports
@@ -500,17 +437,16 @@ export function KodyChat({
     }
   };
   // Depth counter for chained `preview_act` calls. The dashboard auto-feeds
-  // each post-action DOM snapshot back to the model as a hidden user turn so
-  // it can chain steps; this ref caps the chain so a runaway model can't
-  // loop forever. Reset on every real user send (sendMessage).
+  // each post-action DOM snapshot back to the model as a hidden user turn;
+  // this ref caps the chain so a runaway model can't loop forever. Reset on
+  // every real user send (sendMessage).
   const previewActChainRef = useRef(0);
   const MAX_PREVIEW_ACT_CHAIN = 8;
   // Deferred handle to the send pipeline (type owned by kody-chat-send.ts).
   const sendTextRef = useRef<SendTextFn | null>(null);
   // Voice orchestration (phase 1.6c: kody-chat-voice.ts) — overlay/mute
   // state, the Piper voice preference, and the voice→sendText→TTS glue.
-  // Reads the send pipeline through `sendTextRef` (bound each render right
-  // after `sendText` is declared below), so it can mount before it.
+  // Reads the send pipeline through `sendTextRef`, so it can mount early.
   const {
     voiceChat,
     voiceMuted,
@@ -613,8 +549,8 @@ export function KodyChat({
   }, [allowSessionSidebarPin, isDesktop, sessionSidebarPinned]);
 
   // Reset the visible stream state on agent switch. Session switches are
-  // intentionally allowed while a reply is running; each send now writes
-  // back to the session id it started from.
+  // intentionally allowed while a reply is running; each send writes back
+  // to the session id it started from.
   const activeSessionIdForReset = sessionHook.activeSession?.id ?? null;
   // Terminal HOST wiring (phase 1.6d) — registry, checkpoint load/save,
   // payload hand-off, chrome state and the lazy terminal chrome nodes all
@@ -681,9 +617,8 @@ export function KodyChat({
   }, [autoOpenSessionSidebar, railFullscreen, isGlobalMode]);
 
   // All chat messages live in the global session store. The sessionHook
-  // owns a single `messages` list per active session; the page/scope
-  // (task, capability, planner, report) flows through the per-turn system
-  // prompt, not a separate message store.
+  // owns a single `messages` list per active session; the page/scope flows
+  // through the per-turn system prompt, not a separate message store.
   const capabilitySlug: string | null = selectedCapability?.slug ?? null;
   const messages: Message[] = sessionHook.messages.map(chatToMessage);
 
@@ -1806,22 +1741,14 @@ export function KodyChat({
         />
       }
       dialogs={
-        <>
-          <ConfirmDialog
-            open={showClearConfirm}
-            title="Clear history"
-            description="Clear conversation history? This cannot be undone."
-            confirmLabel="Clear"
-            variant="destructive"
-            onConfirm={executeClearHistory}
-            onClose={() => setShowClearConfirm(false)}
-          />
-          <ChatIssueReportDialog
-            open={showIssueReport}
-            onClose={() => setShowIssueReport(false)}
-            capturedState={issueReportState}
-          />
-        </>
+        <KodyChatDialogs
+          showClearConfirm={showClearConfirm}
+          onClearConfirm={executeClearHistory}
+          onClearClose={() => setShowClearConfirm(false)}
+          showIssueReport={showIssueReport}
+          onIssueReportClose={() => setShowIssueReport(false)}
+          issueReportState={issueReportState}
+        />
       }
     />
   );
