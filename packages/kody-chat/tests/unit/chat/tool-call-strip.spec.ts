@@ -11,6 +11,7 @@
  */
 import { describe, expect, it } from "vitest";
 import {
+  containsToolCallMarkup,
   parseAssistantContent,
   stripToolCallMarkup,
 } from "@dashboard/lib/chat/core/tool-call-strip";
@@ -324,6 +325,38 @@ describe("parseAssistantContent", () => {
   });
 
   it("returns empty answer for empty input", () => {
-    expect(parseAssistantContent("")).toEqual({ reasoning: "", answer: "" });
+    expect(parseAssistantContent("")).toEqual({
+      reasoning: "",
+      answer: "",
+      strippedToolMarkup: false,
+    });
+  });
+
+  it("flags answers whose tool-call markup was stripped", () => {
+    const parsed = parseAssistantContent(
+      'Saved! <tool_call>{"name":"cms_mutate_document"}</tool_call> id: 123',
+    );
+    expect(parsed.strippedToolMarkup).toBe(true);
+    expect(parsed.answer).not.toContain("tool_call");
+  });
+
+  it("does not flag plain answers", () => {
+    expect(parseAssistantContent("All done, no calls.").strippedToolMarkup).toBe(
+      false,
+    );
+  });
+});
+
+describe("containsToolCallMarkup", () => {
+  it("detects tool_call blocks, invoke blocks, and known self-closing tags", () => {
+    expect(containsToolCallMarkup("<tool_call>{}</tool_call>")).toBe(true);
+    expect(containsToolCallMarkup('<invoke name="x">…</invoke>')).toBe(true);
+    expect(containsToolCallMarkup("<kody_run_issue issue='7' />")).toBe(true);
+  });
+
+  it("ignores plain text, unknown tags, and stream noise", () => {
+    expect(containsToolCallMarkup("just an answer")).toBe(false);
+    expect(containsToolCallMarkup("<br /> unrelated <hr />")).toBe(false);
+    expect(containsToolCallMarkup("")).toBe(false);
   });
 });

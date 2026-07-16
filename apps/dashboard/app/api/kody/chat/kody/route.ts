@@ -129,6 +129,7 @@ import { createCmsTools } from "../tools/cms-tools";
 import { createUserStateTools } from "../tools/user-state-tools";
 import { createPositionTools } from "../tools/position-tools";
 import { applyReasoning } from "@kody-ade/kody-chat/core/reasoning-adapter";
+import { containsToolCallMarkup } from "@kody-ade/kody-chat/core/tool-call-strip";
 import { createAgentAdminTools } from "../tools/agent-admin-tools";
 import { createMacroTools } from "../tools/macros-tools";
 import {
@@ -1491,7 +1492,7 @@ This turn includes an image from the user. For questions about what is visible i
         : { toolChoice: "required" as const }),
       ...(!forceShowViewTool
         ? {
-            prepareStep: ({ steps }) => {
+            prepareStep: ({ steps, messages: stepMessages }) => {
               const finalAnswerNeedsView = steps.some((step) =>
                 step.toolResults.some(
                   (result) =>
@@ -1506,6 +1507,18 @@ This turn includes an image from the user. For questions about what is visible i
                     result.toolName !== FINAL_ANSWER_TOOL,
                 ),
               );
+              // Some models (observed: MiniMax-M3) write tool calls as
+              // literal text instead of API tool calls — nothing executes,
+              // then they report fabricated results. Bounce it immediately:
+              // the next step starts with a corrective system message.
+              const lastStepText = steps[steps.length - 1]?.text ?? "";
+              const fabricatedToolCall = containsToolCallMarkup(lastStepText);
+              if (fabricatedToolCall) {
+                traceWarn(
+                  { traceId, step: steps.length },
+                  "kody-direct: textual tool-call markup detected (bouncing)",
+                );
+              }
               return {
                 activeTools: selectChatOutputActiveTools({
                   toolNames: allActiveTools,
@@ -1515,6 +1528,18 @@ This turn includes an image from the user. For questions about what is visible i
                   finalAnswerNeedsView,
                 }),
                 toolChoice: "required" as const,
+                ...(fabricatedToolCall
+                  ? {
+                      messages: [
+                        ...stepMessages,
+                        {
+                          role: "system" as const,
+                          content:
+                            "Your previous message wrote a tool invocation as PLAIN TEXT. It did NOT execute — no tool ran, no data was read or written, and any id you produced is fabricated. Retract any claimed result and re-issue the operation as a REAL tool call through the API, or tell the user it could not be performed.",
+                        },
+                      ],
+                    }
+                  : {}),
               };
             },
           }

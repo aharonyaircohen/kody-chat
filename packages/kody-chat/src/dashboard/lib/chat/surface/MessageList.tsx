@@ -301,6 +301,17 @@ export function MessageList({
                                 className={`chat-message-text text-start prose-base break-words ${rtlAwareMarkdownClassName} [&_pre]:max-w-full [&_pre]:overflow-x-auto [&_code]:break-words`}
                               />
                             )}
+                            {parsedAssistant?.strippedToolMarkup &&
+                              !msg.isLoading && (
+                                <div
+                                  role="alert"
+                                  className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-500"
+                                >
+                                  The model wrote a tool call as plain text —
+                                  it did NOT execute. Any result or id it
+                                  reported for that call is unverified.
+                                </div>
+                              )}
                             {msg.view && isRenderedViewDirective(msg.view) && (
                               <RenderedViewCard
                                 view={msg.view}

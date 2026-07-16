@@ -315,6 +315,25 @@ function stripAllLeakedParagraphs(text: string): {
  * answer bubble shows prose only. Safe on empty / plain input (returns
  * the input unchanged for `null`/empty/strings without tool markup).
  */
+/**
+ * True when `text` contains tool-call markup the model wrote as PLAIN
+ * TEXT (a `<tool_call>`/`<invoke>` block, or a self-closing known tool
+ * tag). Such a "call" never executed — no server-side tool ran. Used to
+ * warn instead of stripping silently. Deliberately ignores channel
+ * separators, dangling stream tails, and blank-line noise: those are
+ * transport artifacts, not fabricated invocations.
+ */
+export function containsToolCallMarkup(text: string): boolean {
+  if (!text) return false;
+  if (new RegExp(TOOL_CALL_BLOCK_RE.source, "i").test(text)) return true;
+  if (new RegExp(PROVIDER_INVOKE_BLOCK_RE.source, "i").test(text)) return true;
+  const selfClosing = new RegExp(SELF_CLOSING_TAG_RE.source, "g");
+  for (let m = selfClosing.exec(text); m; m = selfClosing.exec(text)) {
+    if (KNOWN_TOOL_NAMES.has(m[1])) return true;
+  }
+  return false;
+}
+
 export function stripToolCallMarkup(text: string): string {
   if (!text) return text;
   let result = stripToolCallBlocks(text);
@@ -335,10 +354,19 @@ export function stripToolCallMarkup(text: string): string {
 export function parseAssistantContent(raw: string): {
   reasoning: string;
   answer: string;
+  /**
+   * True when tool-call markup was stripped from the ANSWER text. The
+   * model wrote a tool invocation as plain text — nothing executed. The
+   * bubble renderer surfaces a warning instead of hiding it silently:
+   * silent stripping made fabricated "saved with id X" replies look
+   * identical to real ones (real incident — no data was ever written).
+   */
+  strippedToolMarkup: boolean;
 } {
-  if (!raw) return { reasoning: "", answer: "" };
+  if (!raw) return { reasoning: "", answer: "", strippedToolMarkup: false };
   const { reasoning, answer } = parseReasoning(raw);
   const sanitizedReasoning = stripToolCallMarkup(reasoning);
+  const strippedToolMarkup = containsToolCallMarkup(answer);
   const { text, leaked } = stripLeakedReasoning(
     stripToolCallMarkup(answer),
     sanitizedReasoning,
@@ -348,5 +376,5 @@ export function parseAssistantContent(raw: string): {
       ? `${sanitizedReasoning}\n\n${leaked}`
       : leaked
     : sanitizedReasoning;
-  return { reasoning: combinedReasoning, answer: text };
+  return { reasoning: combinedReasoning, answer: text, strippedToolMarkup };
 }
