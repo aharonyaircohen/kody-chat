@@ -22,6 +22,63 @@ import {
 } from "../workflow-run-state";
 import { CONVEX_LIVE_ENABLED } from "../convex/ConvexClientProvider";
 
+/**
+ * Stable fingerprint of a subscription payload. Live entity hooks return a
+ * stamp instead of mapped data: server routes own the doc→record mapping
+ * (escape-keys, zod, manifest merge), so the client treats the subscription
+ * as a change signal and lets React Query refetch the mapped endpoint once.
+ */
+function stampOf(docs: unknown): string {
+  return JSON.stringify(docs);
+}
+
+function useTenantStamp(
+  queryRef:
+    | typeof backendApi.goals.liveList
+    | typeof backendApi.intents.liveList,
+): string | undefined {
+  // CONVEX_LIVE_ENABLED is a build-time constant, so hook order is stable.
+  if (!CONVEX_LIVE_ENABLED) return undefined;
+  const auth = getStoredAuth();
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const docs = useQuery(
+    queryRef,
+    auth ? { tenantId: `${auth.owner}/${auth.repo}` } : "skip",
+  );
+  return docs === undefined ? undefined : stampOf(docs);
+}
+
+/**
+ * Change stamp for the tenant's goals table (goals.liveList). Defined when a
+ * live subscription is active; changes whenever any goal doc changes. Callers
+ * disable their refetchInterval and refetch on stamp change instead.
+ */
+export function useGoalsLiveStamp(): string | undefined {
+  return useTenantStamp(backendApi.goals.liveList);
+}
+
+/** Change stamp for the tenant's intents table (intents.liveList). */
+export function useCompanyIntentsLiveStamp(): string | undefined {
+  return useTenantStamp(backendApi.intents.liveList);
+}
+
+/**
+ * Change stamp for one run's action state (actionStates.liveGet). Defined
+ * when a live subscription is active (null-doc runs stamp as "null").
+ */
+export function useActionStateLiveStamp(
+  runId: string | null | undefined,
+): string | undefined {
+  // CONVEX_LIVE_ENABLED is a build-time constant, so hook order is stable.
+  if (!CONVEX_LIVE_ENABLED) return undefined;
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const doc = useQuery(
+    backendApi.actionStates.liveGet,
+    runId ? { runId } : "skip",
+  );
+  return doc === undefined ? undefined : stampOf(doc);
+}
+
 /** Chat events live under a single global tenant — see chat-events-store.ts. */
 const CHAT_EVENTS_TENANT = "global";
 

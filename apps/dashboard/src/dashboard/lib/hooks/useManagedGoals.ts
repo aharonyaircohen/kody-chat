@@ -6,8 +6,11 @@
  */
 "use client";
 
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+
+import { useGoalsLiveStamp } from "./useConvexLive";
 
 import { kodyApi, NoTokenError, SessionExpiredError } from "../api";
 import {
@@ -131,12 +134,22 @@ function mergeManagedGoalRecord(
 
 export function useManagedGoals() {
   const { auth, queryKey } = useManagedGoalQueryKey();
+  // Convex live subscription replaces interval polling: when the goals table
+  // changes the stamp changes and we refetch the mapped endpoint once. The
+  // 60s interval stays only as the no-Convex fallback.
+  const liveStamp = useGoalsLiveStamp();
+  const live = liveStamp !== undefined;
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (live) void queryClient.invalidateQueries({ queryKey });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveStamp]);
   return useQuery({
     queryKey,
     queryFn: () => kodyApi.goals.listManaged(),
     enabled: !!auth,
     staleTime: 60_000,
-    refetchInterval: 60_000,
+    refetchInterval: live ? false : 60_000,
     refetchIntervalInBackground: false,
     retry: (failureCount, error) => {
       if (error instanceof SessionExpiredError) return false;

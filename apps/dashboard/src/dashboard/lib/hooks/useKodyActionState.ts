@@ -7,6 +7,8 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 
+import { useActionStateLiveStamp } from "./useConvexLive";
+
 export type ActionStatus = "running" | "waiting" | "complete" | "cancelled";
 
 export interface ActionState {
@@ -86,10 +88,21 @@ export function useKodyActionState(
     }
   }, [runId, onWaiting, onResumed]);
 
+  // Convex live subscription replaces interval polling: the stamp changes
+  // whenever the run's actionStates doc changes, and we re-fetch the mapped
+  // endpoint once (keeping the existing 404/transition logic). The interval
+  // below stays only as the no-Convex fallback.
+  const liveStamp = useActionStateLiveStamp(runId);
+  const live = liveStamp !== undefined;
+  useEffect(() => {
+    if (live && runId) void fetchState();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveStamp, runId]);
+
   useEffect(() => {
     notFoundRef.current = false; // Reset not-found flag when runId changes (new task selected)
 
-    if (!runId || pollInterval === 0) return;
+    if (!runId || pollInterval === 0 || live) return;
 
     let interval: ReturnType<typeof setInterval> | null = null;
 
@@ -117,7 +130,7 @@ export function useKodyActionState(
       document.removeEventListener("visibilitychange", handleVisibility);
       stop();
     };
-  }, [runId, pollInterval, fetchState]);
+  }, [runId, pollInterval, fetchState, live]);
 
   /** Manually refresh the state (e.g., after sending an instruction). */
   const refresh = useCallback(() => fetchState(), [fetchState]);

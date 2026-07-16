@@ -6,8 +6,11 @@
  */
 "use client";
 
+import { useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+
+import { useCompanyIntentsLiveStamp } from "./useConvexLive";
 
 import {
   getStoredAuth,
@@ -40,12 +43,25 @@ function mergeIntentRecord(
 }
 
 export function useCompanyIntents() {
+  // Convex live subscription replaces interval polling: when the intents
+  // table changes the stamp changes and we refetch the mapped endpoint once.
+  // The 120s interval stays only as the no-Convex fallback.
+  const liveStamp = useCompanyIntentsLiveStamp();
+  const live = liveStamp !== undefined;
+  const queryClient = useQueryClient();
+  useEffect(() => {
+    if (live)
+      void queryClient.invalidateQueries({
+        queryKey: companyIntentQueryKeys.list,
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveStamp]);
   return useQuery({
     queryKey: companyIntentQueryKeys.list,
     queryFn: () => kodyApi.companyIntents.list(),
     enabled: Boolean(getStoredAuth()),
     staleTime: 120_000,
-    refetchInterval: 120_000,
+    refetchInterval: live ? false : 120_000,
     refetchIntervalInBackground: false,
     retry: (failureCount, error) => {
       if (

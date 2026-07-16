@@ -25,11 +25,13 @@ describe("rate limit polling guardrails", () => {
     expect(source("src/dashboard/lib/hooks/useAgencyRuns.ts")).toContain(
       "const AGENCY_RUNS_REFETCH_MS = 120_000",
     );
+    // Convex live subscriptions replace the interval entirely; the guarded
+    // cadence remains only as the no-Convex fallback.
     expect(source("src/dashboard/lib/hooks/useManagedGoals.ts")).toContain(
-      "refetchInterval: 60_000",
+      "refetchInterval: live ? false : 60_000",
     );
     expect(source("src/dashboard/lib/hooks/useCompanyIntents.ts")).toContain(
-      "refetchInterval: 120_000",
+      "refetchInterval: live ? false : 120_000",
     );
   });
 

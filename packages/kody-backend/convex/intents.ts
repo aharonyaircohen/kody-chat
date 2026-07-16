@@ -1,5 +1,24 @@
 import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth"
+import { query as publicQuery } from "./_generated/server"
 import { v } from "convex/values"
+
+// Reactive intents list for the dashboard's live subscription
+// (useCompanyIntentsLiveStamp).
+//
+// DELIBERATELY PUBLIC (no requireServiceKey): the browser subscribes via
+// ConvexProvider and cannot carry the service secret. It exposes exactly what
+// the polled /api/kody/company/intents endpoint already serves — intent docs
+// scoped by tenantId. Bounded take. The optional serviceKey arg is accepted
+// and ignored so the auto-injecting server client can call it too.
+export const liveList = publicQuery({
+  args: { tenantId: v.string(), serviceKey: v.optional(v.string()) },
+  handler: async (ctx, { tenantId }) => {
+    return await ctx.db
+      .query("intents")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .take(500)
+  },
+})
 import { companyIntentValidator, intentDecisionValidator } from "./validators"
 
 export const list = query({

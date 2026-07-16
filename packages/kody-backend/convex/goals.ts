@@ -1,5 +1,23 @@
 import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth"
+import { query as publicQuery } from "./_generated/server"
 import { v } from "convex/values"
+
+// Reactive goals list for the dashboard's live subscription (useGoalsLiveStamp).
+//
+// DELIBERATELY PUBLIC (no requireServiceKey): the browser subscribes via
+// ConvexProvider and cannot carry the service secret. It exposes exactly what
+// the polled /api/kody/goals/managed endpoint already serves — goal docs
+// scoped by tenantId. Bounded take. The optional serviceKey arg is accepted
+// and ignored so the auto-injecting server client can call it too.
+export const liveList = publicQuery({
+  args: { tenantId: v.string(), serviceKey: v.optional(v.string()) },
+  handler: async (ctx, { tenantId }) => {
+    return await ctx.db
+      .query("goals")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
+      .take(500)
+  },
+})
 
 export const list = query({
   args: { tenantId: v.string() },
