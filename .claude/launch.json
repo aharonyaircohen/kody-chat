@@ -34,6 +34,22 @@
       ],
       "port": 3333,
       "autoPort": true
+    },
+    {
+      "name": "kody-dash-debug",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": [
+        "--filter",
+        "kody-dashboard",
+        "exec",
+        "next",
+        "dev",
+        "--turbopack",
+        "-p",
+        "3444"
+      ],
+      "port": 3444,
+      "autoPort": false
     }
   ]
 }
