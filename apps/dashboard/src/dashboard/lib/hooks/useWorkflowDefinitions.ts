@@ -190,25 +190,21 @@ export function useStopWorkflowRun() {
 }
 
 export function useWorkflowRunState(id: string, runId?: string) {
-  // Reactive Convex subscription (undefined when NEXT_PUBLIC_CONVEX_URL is
-  // unset or while the first snapshot loads) — when live, it replaces the
-  // 3s HTTP poll entirely.
+  // Reactive Convex subscription (undefined while the first snapshot loads).
+  // Convex is mandatory — the legacy 3s HTTP poll fallback was removed; the
+  // one-shot query below only fills the initial render before the first
+  // Convex snapshot arrives.
   const live = useWorkflowRunStateLive(id.length > 0 ? id : undefined, runId);
 
-  const polled = useQuery({
+  const snapshot = useQuery({
     queryKey: workflowDefinitionQueryKeys.run(id, runId),
     queryFn: () => kodyApi.workflowDefinitions.latestRun(id, runId),
     enabled: !!getStoredAuth() && id.length > 0 && live === undefined,
-    refetchInterval: (query) =>
-      (runId && !query.state.data) ||
-      query.state.data?.state.status === "running"
-        ? 3_000
-        : false,
     staleTime: 2_000,
   });
 
   if (live !== undefined) {
-    return { ...polled, data: live, isLoading: false } as typeof polled;
+    return { ...snapshot, data: live, isLoading: false } as typeof snapshot;
   }
-  return polled;
+  return snapshot;
 }

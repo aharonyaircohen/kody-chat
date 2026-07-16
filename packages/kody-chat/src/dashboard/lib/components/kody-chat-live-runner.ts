@@ -5,11 +5,16 @@
  * @ai-summary The Kody Live runner lifecycle extracted from KodyChat
  *   (phase 1.6a): the live reducer orchestration (dispatchLive + legacy
  *   ref mirrors), localStorage persistence + scope rehydration effects,
- *   the interactive event poll, the SSE stream (connect/cycle/visibility
- *   gate), the start/end/restart session actions, and the zombie-runner
- *   watchdog. Behavior is identical to the pre-extraction inline code —
- *   UI side effects (agent picker writes, session mirroring) stay in
- *   KodyChat and are injected via the `onRehydrateRestored` callback.
+ *   the live-transport event subscription (runner + scoped, with a
+ *   visibility gate), the start/end/restart session actions, and the
+ *   zombie-runner watchdog. Events arrive exclusively through the
+ *   platform "live-transport" plugin (Convex reactive stream) — the
+ *   legacy SSE (/api/kody/events/stream) and 3s interval poll
+ *   (/api/kody/events/poll) fallbacks were removed once Convex became
+ *   mandatory. A missing transport (browser built without
+ *   NEXT_PUBLIC_CONVEX_URL) degrades to an explicit in-chat error, not
+ *   silence. UI side effects (agent picker writes, session mirroring)
+ *   stay in KodyChat and are injected via `onRehydrateRestored`.
  *
  *   Placement note: this module lives in components/ (not chat/core)
  *   because it necessarily imports the components-zone `Message` type
@@ -96,7 +101,13 @@ export interface UseLiveRunnerResult {
   currentScopeKeyRef: React.MutableRefObject<LiveScopeKey>;
   /** Seconds since boot started — drives the booting banner countdown. */
   bootElapsed: number;
-  eventSourceRef: React.MutableRefObject<EventSource | null>;
+  /**
+   * Handle for the scoped (task/capability) live subscription. Kept under
+   * the legacy name so host call sites (`eventSourceRef.current?.close()`)
+   * keep working — the underlying channel is a live-transport subscription
+   * now, not an EventSource.
+   */
+  eventSourceRef: React.MutableRefObject<{ close: () => void } | null>;
   connectSSE: (
     sessionId: string,
     opts?: { interactive?: boolean; uiSessionId?: string | null },
@@ -121,6 +132,22 @@ export interface UseLiveRunnerResult {
  * 3 probes ≈ 12 minutes of total event silence in the awaiting phase.
  */
 export const WATCHDOG_MAX_INCONCLUSIVE_PROBES = 3;
+
+/** Runner event shape emitted by the live transport (parsed, deduped, seq-ordered). */
+type RunnerEvent = {
+  event?: string;
+  payload?: Record<string, unknown>;
+};
+
+/**
+ * Shown (once) when no live transport is registered — i.e. the browser
+ * bundle was built without NEXT_PUBLIC_CONVEX_URL. Convex is mandatory;
+ * there is no polling/SSE fallback anymore, so the failure must be loud.
+ */
+export const MISSING_LIVE_TRANSPORT_MESSAGE =
+  "Live events are unavailable: this deployment was built without " +
+  "NEXT_PUBLIC_CONVEX_URL, so the Convex live transport is not registered. " +
+  "Set NEXT_PUBLIC_CONVEX_URL (same value as CONVEX_URL) and redeploy.";
 
 export interface LiveSessionStartOptions {
   initialContent?: string;
@@ -160,7 +187,7 @@ export function useLiveRunner({
   // live agent, restores state, and reconnects the SSE so chat.ready /
   // chat.message / chat.exit continue to flow. Runs once.
   const liveRestoreAttemptedRef = useRef(false);
-  const eventSourceRef = useRef<EventSource | null>(null);
+  const eventSourceRef = useRef<{ close: () => void } | null>(null);
   // Consecutive inconclusive watchdog probes (see the watchdog effect at
   // the bottom of this hook). Reset to 0 by handleEvents on any real
   // runner event; at WATCHDOG_MAX_INCONCLUSIVE_PROBES the session is
@@ -260,45 +287,52 @@ export function useLiveRunner({
     liveState.runUrl,
   ]);
 
-  // ─── Polling for Kody Live ─────────────────────────────────────────────────
-  // Plain fixed-interval poll of /api/kody/events/poll. We tried real-time
-  // push (engine HttpSink → /ingest → in-memory bus) but Vercel's per-
-  // function-instance bus made it unreliable. Polling at 3s with ETag
-  // caching on the server is simple and well-understood: most polls hit
-  // GitHub's 304 cache (free), so the rate-limit cost is roughly ~1 read
-  // per actual new event.
-  const pollWatermarkRef = useRef(0);
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Unsubscribe handle for a plugin-supplied live transport (platform
-  // "live-transport" contract). Mutually exclusive with pollIntervalRef —
-  // when a transport is registered we stream instead of interval-polling.
+  // ─── Live events for Kody Live ─────────────────────────────────────────────
+  // Events arrive exclusively through the plugin-supplied live transport
+  // (platform "live-transport" contract, chat/platform/live-transport.ts —
+  // the Convex reactive stream in the dashboard). Transports emit events
+  // already parsed, deduplicated and seq-ordered. Convex is mandatory:
+  // there is no interval-poll or SSE fallback anymore. A missing transport
+  // surfaces MISSING_LIVE_TRANSPORT_MESSAGE in the chat instead of
+  // silently never updating.
   const liveTransportUnsubRef = useRef<(() => void) | null>(null);
+  const missingTransportReportedRef = useRef(false);
 
   const stopInteractivePoll = useCallback(() => {
-    if (pollIntervalRef.current) {
-      clearInterval(pollIntervalRef.current);
-      pollIntervalRef.current = null;
-    }
     if (liveTransportUnsubRef.current) {
       liveTransportUnsubRef.current();
       liveTransportUnsubRef.current = null;
     }
   }, []);
 
-  const startInteractivePoll = useCallback(
-    (sessionId: string, uiSessionId?: string | null) => {
-      stopInteractivePoll();
-      pollWatermarkRef.current = 0;
-      const writeMessages = (updater: MessagesUpdater) => {
-        if (uiSessionId) setMessagesForSession(uiSessionId, updater);
-        else setMessages(updater);
-      };
+  // Surface the missing-transport condition once per mount: stop the
+  // typing indicator and drop an explicit error bubble into the chat.
+  const reportMissingTransport = useCallback(
+    (writeMessages: (updater: MessagesUpdater) => void) => {
+      setLoading(false);
+      if (missingTransportReportedRef.current) return;
+      missingTransportReportedRef.current = true;
+      writeMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `Error: ${MISSING_LIVE_TRANSPORT_MESSAGE}`,
+          isLoading: false,
+          isError: true,
+        },
+      ]);
+    },
+    [setLoading],
+  );
 
-      type RunnerEvent = {
-        event?: string;
-        payload?: Record<string, unknown>;
-      };
-      const handleEvents = (events: ReadonlyArray<RunnerEvent | null>) => {
+  // One handler serves both the runner-scoped and task/capability-scoped
+  // subscriptions. `onExit` closes the channel the events arrived on.
+  const buildEventHandler = useCallback(
+    (
+        writeMessages: (updater: MessagesUpdater) => void,
+        onExit: () => void,
+      ) =>
+      (events: ReadonlyArray<RunnerEvent | null>) => {
         // Any real runner event is proof of life — reset the watchdog's
         // inconclusive-probe budget (see the watchdog effect below).
         watchdogProbesRef.current = 0;
@@ -315,7 +349,7 @@ export function useLiveRunner({
             case "chat.exit": {
               dispatchLive({ type: "RUNNER_EXIT" });
               setLoading(false);
-              stopInteractivePoll();
+              onExit();
               break;
             }
             case "chat.message": {
@@ -501,359 +535,95 @@ export function useLiveRunner({
             }
           }
         }
+      },
+    [dispatchLive, setLoading],
+  );
+
+  const startInteractivePoll = useCallback(
+    (sessionId: string, uiSessionId?: string | null) => {
+      stopInteractivePoll();
+      const writeMessages = (updater: MessagesUpdater) => {
+        if (uiSessionId) setMessagesForSession(uiSessionId, updater);
+        else setMessages(updater);
       };
 
-      const handleLines = (lines: string[]) => {
-        const events: Array<RunnerEvent | null> = [];
-        for (const line of lines) {
-          try {
-            events.push(JSON.parse(line) as RunnerEvent);
-          } catch {
-            // skip malformed line
-          }
-        }
-        handleEvents(events);
-      };
-
-      // Plugin-supplied live transport (platform "live-transport" hook,
-      // see chat/platform/live-transport.ts): stream events reactively
-      // instead of interval-polling. Transports emit events already parsed,
-      // deduplicated, and seq-ordered, in the exact shape the poll parses
-      // from JSONL lines — one handler serves both paths. No transport
-      // registered → the polling fallback below runs unchanged.
       const transport = getChatLiveTransport();
-      if (transport) {
-        liveTransportUnsubRef.current = transport.subscribe(
-          sessionId,
-          (event) => handleEvents([event]),
-        );
+      if (!transport) {
+        dispatchLive({
+          type: "RUNNER_ERROR",
+          errorMessage: MISSING_LIVE_TRANSPORT_MESSAGE,
+        });
+        reportMissingTransport(writeMessages);
         return;
       }
 
-      const tick = async () => {
-        const auth = liveAuthFor(sessionId);
-        const params = new URLSearchParams({
-          taskId: sessionId,
-          since: String(pollWatermarkRef.current),
-        });
-        if (auth) {
-          params.set("owner", auth.owner);
-          params.set("repo", auth.repo);
-          params.set("token", auth.token);
-        }
-        try {
-          const res = await fetch(
-            `/api/kody/events/poll?${params.toString()}`,
-            {
-              headers: { ...liveAuthHeaders(sessionId) },
-            },
-          );
-          if (!res.ok) return;
-          const body = (await res.json()) as {
-            lines?: string[];
-            totalLines?: number;
-          };
-          if (Array.isArray(body.lines) && body.lines.length > 0) {
-            handleLines(body.lines);
-            pollWatermarkRef.current =
-              body.totalLines ?? pollWatermarkRef.current + body.lines.length;
-          }
-        } catch {
-          // transient — next tick will retry
-        }
-      };
-
-      // Fire once immediately so chat.ready already on git lands without
-      // a 3s wait. Subsequent ticks every 3s — most are free 304s thanks
-      // to ETag caching on the server side.
-      void tick();
-      pollIntervalRef.current = setInterval(tick, 3_000);
+      const handleEvents = buildEventHandler(
+        writeMessages,
+        stopInteractivePoll,
+      );
+      liveTransportUnsubRef.current = transport.subscribe(
+        sessionId,
+        (event) => handleEvents([event]),
+      );
     },
     [
+      buildEventHandler,
+      reportMissingTransport,
       dispatchLive,
-      setLoading,
       setMessages,
       setMessagesForSession,
       stopInteractivePoll,
     ],
   );
 
-  // ─── SSE for chat streaming ────────────────────────────────────────────────
+  // ─── Scoped live subscription (task / capability chats) ────────────────────
 
   const connectSSE = useCallback(
     (
       sessionId: string,
       opts: { interactive?: boolean; uiSessionId?: string | null } = {},
     ) => {
-      // Close any existing connection
+      // Close any existing scoped subscription before opening a new one.
       eventSourceRef.current?.close();
+      eventSourceRef.current = null;
       const writeMessages = (updater: MessagesUpdater) => {
         if (opts.uiSessionId) setMessagesForSession(opts.uiSessionId, updater);
         else setMessages(updater);
       };
 
-      // EventSource cannot attach custom headers — we pass the same auth
-      // triplet as query params so the stream route can resolve the target
-      // repo + GitHub token the same way the other chat endpoints do.
-      // For live runners (Kody Live), use the pinned engine repo from the
-      // persisted live session — the user may have switched their connected
-      // repo after dispatch, but events still live in the dispatch repo.
-      const auth = liveAuthFor(sessionId);
-      const params = new URLSearchParams({ taskId: sessionId });
-      // mode=interactive keeps the SSE alive across multiple chat.done
-      // events (one per turn). Closes only on chat.exit.
-      if (opts.interactive) params.set("mode", "interactive");
-      if (auth) {
-        params.set("owner", auth.owner);
-        params.set("repo", auth.repo);
-        params.set("token", auth.token);
+      const transport = getChatLiveTransport();
+      if (!transport) {
+        reportMissingTransport(writeMessages);
+        return;
       }
-      const url = `/api/kody/events/stream?${params.toString()}`;
-      const es = new EventSource(url);
-      eventSourceRef.current = es;
 
-      es.onmessage = (event) => {
-        if (!event.data) return;
-        try {
-          const parsed = JSON.parse(event.data);
-          switch (parsed.type) {
-            case "connected":
-              break;
-            case "chat.ready": {
-              const runUrl =
-                typeof parsed.runUrl === "string" ? parsed.runUrl : undefined;
-              dispatchLive({ type: "RUNNER_READY", runUrl });
-              break;
-            }
-            case "chat.exit": {
-              dispatchLive({ type: "RUNNER_EXIT" });
-              setLoading(false);
-              es.close();
-              break;
-            }
-            case "chat.message": {
-              // Hazard D fix (SSE path): mirror the polling path so chat.message
-              // alone is enough to clear awaiting + the typing indicator.
-              dispatchLive({ type: "MESSAGE_RECEIVED" });
-              setLoading(false);
-              const { role, content, timestamp } = parsed;
-              // Inherit mid-turn progress (reasoning + tool calls) from the
-              // in-flight bubble before replacing it with the final reply —
-              // see the matching comment in the polling path's handler.
-              writeMessages((prev) => {
-                const inflight = prev.find(
-                  (m) => m.role === "assistant" && m.isLoading,
-                );
-                const carriedReasoning = inflight?.content ?? "";
-                const carriedToolCalls = inflight?.toolCalls;
-                return [
-                  ...prev.filter(
-                    (m) => !(m.role === "assistant" && m.isLoading),
-                  ),
-                  {
-                    role: role === "user" ? "user" : "assistant",
-                    content: carriedReasoning + (content ?? ""),
-                    timestamp: timestamp ?? new Date().toISOString(),
-                    isLoading: false,
-                    ...(carriedToolCalls && carriedToolCalls.length > 0
-                      ? { toolCalls: carriedToolCalls }
-                      : {}),
-                  },
-                ];
-              });
-              break;
-            }
-            case "chat.done":
-              dispatchLive({ type: "TURN_DONE" });
-              setLoading(false);
-              // In interactive mode, chat.done is per-turn — keep SSE open;
-              // the runner stays alive until chat.exit.
-              if (!opts.interactive) es.close();
-              break;
-            case "chat.error": {
-              dispatchLive({
-                type: "RUNNER_ERROR",
-                errorMessage:
-                  typeof parsed.error === "string"
-                    ? parsed.error
-                    : "Unknown error",
-              });
-              setLoading(false);
-              writeMessages((prev) => {
-                const filtered = prev.filter(
-                  (m) => !(m.role === "assistant" && m.isLoading),
-                );
-                return [
-                  ...filtered,
-                  {
-                    role: "assistant",
-                    content: `Error: ${parsed.error ?? "Unknown error"}`,
-                    isLoading: false,
-                    isError: true,
-                  },
-                ];
-              });
-              if (!opts.interactive) es.close();
-              break;
-            }
-            // Mid-turn progress from Kody Live (engine ≥ 0.4.69). The engine
-            // emits these as the agent works so the user sees thinking +
-            // tool calls live instead of a blank chat for 60-120s.
-            case "chat.thinking": {
-              // Inline the reasoning chunk into content as a <think>
-              // block. The existing parseReasoning() in the renderer
-              // already splits content into a ReasoningPanel + answer,
-              // so one path handles both the kody-direct (<think>) and
-              // Kody Live backends — no parallel `reasoning` field
-              // needed, no renderer change required.
-              const chunk = typeof parsed.text === "string" ? parsed.text : "";
-              if (!chunk) break;
-              const block = `<think>${chunk}</think>`;
-              writeMessages((prev) => {
-                const copy = [...prev];
-                const idx = copy.findIndex(
-                  (m) => m.role === "assistant" && m.isLoading,
-                );
-                if (idx < 0) {
-                  copy.push({
-                    role: "assistant",
-                    content: block,
-                    timestamp: parsed.timestamp ?? new Date().toISOString(),
-                    isLoading: true,
-                  });
-                } else {
-                  copy[idx] = {
-                    ...copy[idx],
-                    content: copy[idx].content + block,
-                  };
-                }
-                return copy;
-              });
-              break;
-            }
-            case "chat.tool_use": {
-              const toolName =
-                typeof parsed.name === "string" ? parsed.name : "tool";
-              const toolInput = (parsed.input ?? {}) as Record<string, unknown>;
-              const toolId =
-                typeof parsed.id === "string" ? parsed.id : undefined;
-              writeMessages((prev) => {
-                const copy = [...prev];
-                let idx = copy.findIndex(
-                  (m) => m.role === "assistant" && m.isLoading,
-                );
-                if (idx < 0) {
-                  copy.push({
-                    role: "assistant",
-                    content: "",
-                    timestamp: parsed.timestamp ?? new Date().toISOString(),
-                    isLoading: true,
-                    toolCalls: [],
-                  });
-                  idx = copy.length - 1;
-                }
-                const existing = copy[idx].toolCalls ?? [];
-                copy[idx] = {
-                  ...copy[idx],
-                  toolCalls: [
-                    ...existing,
-                    {
-                      id: toolId,
-                      name: toolName,
-                      arguments: toolInput,
-                      status: "running",
-                    },
-                  ],
-                };
-                return copy;
-              });
-              break;
-            }
-            case "chat.tool_result": {
-              const toolUseId =
-                typeof parsed.toolUseId === "string"
-                  ? parsed.toolUseId
-                  : undefined;
-              const isError = parsed.isError === true;
-              writeMessages((prev) => {
-                const copy = [...prev];
-                const idx = copy.findIndex(
-                  (m) => m.role === "assistant" && m.isLoading,
-                );
-                if (idx < 0) return copy;
-                const existing = copy[idx].toolCalls ?? [];
-                // Match by tool_use id when the engine provided one;
-                // otherwise mark the most recent pending call as done.
-                let target = -1;
-                if (toolUseId) {
-                  target = existing.findIndex((tc) => tc.id === toolUseId);
-                }
-                if (target < 0) {
-                  for (let i = existing.length - 1; i >= 0; i--) {
-                    if (existing[i].status === "running") {
-                      target = i;
-                      break;
-                    }
-                  }
-                }
-                if (target < 0) return copy;
-                const next = existing.slice();
-                next[target] = {
-                  ...next[target],
-                  status: isError ? "error" : "success",
-                };
-                copy[idx] = { ...copy[idx], toolCalls: next };
-                return copy;
-              });
-              break;
-            }
-          }
-        } catch {
-          // skip malformed
-        }
+      const close = () => {
+        unsub();
+        if (eventSourceRef.current === handle) eventSourceRef.current = null;
       };
-
-      es.onerror = () => {
-        // Don't close: EventSource auto-reconnects on transient errors
-        // (network blip, Vercel idle TCP timeout). Closing here permanently
-        // breaks long-lived interactive sessions.
-        setLoading(false);
-      };
-
-      // Vercel's Node runtime buffers SSE responses for long-lived
-      // connections — events sit in the buffer until the connection
-      // closes. A fresh connection drains the buffer immediately and
-      // reads the events from GitHub, so we sidestep the bug by cycling
-      // the connection every 25s when in interactive mode. Each cycle
-      // re-pulls all events from the events file (the server clears its
-      // per-session lastReadIndex on every new connection, so it replays
-      // from line 0; client-side seenEventIds deduplicates).
-      if (opts.interactive) {
-        const cycleTimer = setTimeout(() => {
-          if (eventSourceRef.current === es) connectSSE(sessionId, opts);
-        }, 25_000);
-        // Cancel the cycle if a NEW connectSSE supersedes us before 25s.
-        const orig = es.close.bind(es);
-        es.close = () => {
-          clearTimeout(cycleTimer);
-          orig();
-        };
-      }
+      const handle = { close };
+      const handleEvents = buildEventHandler(writeMessages, close);
+      const unsub = transport.subscribe(sessionId, (event) =>
+        handleEvents([event]),
+      );
+      eventSourceRef.current = handle;
     },
-    [dispatchLive, setLoading, setMessages, setMessagesForSession],
+    [
+      buildEventHandler,
+      reportMissingTransport,
+      setMessages,
+      setMessagesForSession,
+    ],
   );
 
-  // Open SSE whenever we have a scoped session id — task id for task mode,
-  // `capability-{slug}` for capability mode.
-  // Global-mode streams are opened on demand inside the send path.
+  // Open the scoped live subscription whenever we have a scoped session id —
+  // task id for task mode, `capability-{slug}` for capability mode.
+  // Global-mode subscriptions are opened on demand inside the send path.
   //
-  // Tab-visibility gate: the server-side SSE handler polls GitHub every 3s as
-  // a fallback for cross-instance push. With hundreds of background tabs that
-  // drains the shared GH rate-limit token. Closing the EventSource on
-  // `visibilityState=hidden` halts the server poll (req.signal.abort fires);
-  // we reopen on `visible`. Loss of in-flight push events is acceptable —
-  // chat history is hydrated from useChatSessions (the global session store)
-  // on next view, with state repo chat/global.json as a cross-device fallback.
+  // Tab-visibility gate: background tabs don't need a live subscription;
+  // close it on `visibilityState=hidden`, reopen on `visible`. Loss of
+  // in-flight events is acceptable — chat history is hydrated from
+  // useChatSessions (the global session store) on next view.
   useEffect(() => {
     const sid =
       selectedTaskId ??
@@ -866,11 +636,7 @@ export function useLiveRunner({
     }
 
     const open = () => {
-      if (
-        eventSourceRef.current &&
-        eventSourceRef.current.readyState !== EventSource.CLOSED
-      )
-        return;
+      if (eventSourceRef.current) return;
       connectSSE(sid, { uiSessionId: activeSessionIdForReset });
     };
     const close = () => {

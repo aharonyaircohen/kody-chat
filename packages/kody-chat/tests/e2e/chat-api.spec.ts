@@ -3,12 +3,9 @@
  * @testFramework playwright
  * @domain e2e
  *
- * Tests the three new API endpoints:
- *   POST /api/kody/chat          → 410 Gone (deprecated)
+ * Tests the chat flow endpoints:
  *   POST /api/kody/chat/trigger → 200 + workflow dispatch OR 503 if token missing
  *   GET  /api/kody/chat/history → 200 + messages OR 503 if token missing
- *
- * Also tests the SSE stream endpoint.
  */
 
 import { test, expect } from "@playwright/test";
@@ -122,34 +119,6 @@ test.describe("Chat API — history endpoint", () => {
       // 503 = no auth, 500 = GitHub env vars not set (common in local dev)
       expect([503, 500]).toContain(status);
     }
-  });
-});
-
-test.describe("Events API — SSE endpoint", () => {
-  test("GET /api/kody/events/stream requires taskId", async () => {
-    const { status } = await apiGet("/api/kody/events/stream");
-
-    expect(status, `Expected 400, got ${status}`).toBe(400);
-  });
-
-  test("GET /api/kody/events/stream returns text/event-stream content type", async () => {
-    // The SSE stream is infinite, so we can't consume its body in a test.
-    // The endpoint supports ?test=1 which returns headers-only (no streaming body)
-    // so we can assert Content-Type without hanging.
-    const res = await fetch(
-      `${BASE_URL}/api/kody/events/stream?taskId=${TEST_SESSION_ID}&test=1`,
-      { headers: { ...authHeaders() } },
-    );
-
-    expect(res.status, `Expected 200, got ${res.status}`).toBe(200);
-    expect(res.headers.get("content-type")).toContain("text/event-stream");
-
-    // Body is just JSON metadata in test mode
-    const body = await res.json();
-    expect(body as Record<string, unknown>).toMatchObject({
-      note: "test mode — not streaming",
-      sessionId: TEST_SESSION_ID,
-    });
   });
 });
 
