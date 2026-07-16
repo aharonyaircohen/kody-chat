@@ -89,17 +89,12 @@ export function RepoSwitcher({ variant = "header" }: RepoSwitcherProps = {}) {
     };
   }, [menuOpen]);
 
-  if (!auth) {
-    return (
-      <h1 className="text-lg md:text-xl font-semibold text-foreground truncate">
-        Kody Operations
-      </h1>
-    );
-  }
-
-  const current = auth.repos[auth.currentRepoIndex];
+  // No-auth is NOT a hidden state: the dropdown stays visible and opens
+  // straight onto the connect form. Hiding it left first-run users with
+  // a static title and no obvious way to add a repository.
+  const current = auth ? auth.repos[auth.currentRepoIndex] : undefined;
   const title = current ? current.repo : "Kody Operations";
-  const repoGroups = groupReposByOwner(auth.repos);
+  const repoGroups = auth ? groupReposByOwner(auth.repos) : [];
 
   const rail = variant === "rail";
 
@@ -168,7 +163,7 @@ export function RepoSwitcher({ variant = "header" }: RepoSwitcherProps = {}) {
               </div>
 
               {group.repos.map(({ entry, index }) => {
-                const selected = index === auth.currentRepoIndex;
+                const selected = index === auth?.currentRepoIndex;
                 return (
                   <div
                     key={`${entry.owner}/${entry.repo}`}
@@ -242,10 +237,10 @@ export function RepoSwitcher({ variant = "header" }: RepoSwitcherProps = {}) {
             </div>
           ))}
 
-          {addOpen ? (
+          {addOpen || !auth ? (
             <div className="px-3 py-2 mt-1 border-t border-zinc-800">
               <AddRepoForm
-                isBootstrap={false}
+                isBootstrap={!auth}
                 onAdded={() => {
                   setAddOpen(false);
                   setMenuOpen(false);
