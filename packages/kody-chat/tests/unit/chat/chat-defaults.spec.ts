@@ -65,7 +65,7 @@ describe("chat-defaults bundle", () => {
     const phrases = [
       "Your prose must match the tool result",
       "injected context block",
-      "one direct next-step question",
+      "next-step question only when there is a genuine next step",
       "github_search_code",
       "github_get_file",
       "github_list_tree",
@@ -78,6 +78,15 @@ describe("chat-defaults bundle", () => {
     for (const p of phrases) {
       expect(DEFAULT_IDENTITY_MD).toContain(p);
     }
+  });
+
+  it("agentIdentity does not force a question at the end of every reply (regression: over-asking)", () => {
+    // The reply contract must keep the end-of-reply question conditional.
+    // The old mandatory wording made Kody append a question to every reply.
+    expect(DEFAULT_IDENTITY_MD).not.toContain(
+      "End non-trivial replies with one direct next-step question",
+    );
+    expect(DEFAULT_IDENTITY_MD).toContain("otherwise just end");
   });
 
   it("agentIdentity does not mention phantom tools (regression: phantom tools cause hallucinations)", () => {
