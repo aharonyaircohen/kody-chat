@@ -1,18 +1,29 @@
-import { mutation, query } from "./_generated/server"
+import { query } from "./_generated/server"
 import { v } from "convex/values"
 import { workflowRunStateValidator, workflowRunnerValidator } from "./validators"
+import { serviceMutation, serviceQuery } from "./lib/auth"
 
+// DELIBERATELY PUBLIC (no requireServiceKey): the browser subscribes to this
+// via ConvexProvider (useWorkflowRunStateLive) and cannot carry the service
+// secret. It exposes exactly what GET /api/kody/company/workflows/:id/runs
+// already served — run state scoped by (tenantId, workflowId). The optional
+// serviceKey arg is accepted and ignored so the auto-injecting server client
+// can call it too.
 export const list = query({
-  args: { tenantId: v.string(), workflowId: v.string() },
+  args: {
+    tenantId: v.string(),
+    workflowId: v.string(),
+    serviceKey: v.optional(v.string()),
+  },
   handler: async (ctx, { tenantId, workflowId }) => {
     return await ctx.db
       .query("workflowRuns")
       .withIndex("by_workflow", (q) => q.eq("tenantId", tenantId).eq("workflowId", workflowId))
-      .collect()
+      .take(500) // rate-bound: a workflow's run count grows slowly
   },
 })
 
-export const get = query({
+export const get = serviceQuery({
   args: { tenantId: v.string(), workflowId: v.string(), runId: v.string() },
   handler: async (ctx, { tenantId, workflowId, runId }) => {
     return await ctx.db
@@ -24,7 +35,7 @@ export const get = query({
   },
 })
 
-export const save = mutation({
+export const save = serviceMutation({
   args: {
     tenantId: v.string(),
     workflowId: v.string(),

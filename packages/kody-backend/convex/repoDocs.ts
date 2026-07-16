@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server"
+import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth"
 import { v } from "convex/values"
 
 // Singleton per-tenant documents keyed by `kind`: dashboard config, system

@@ -1,7 +1,8 @@
-import { mutation, query } from "./_generated/server"
+import { query } from "./_generated/server"
 import { v } from "convex/values"
+import { serviceMutation, serviceQuery } from "./lib/auth"
 
-export const append = mutation({
+export const append = serviceMutation({
   args: { tenantId: v.string(), sessionId: v.string(), event: v.any() },
   handler: async (ctx, { tenantId, sessionId, event }) => {
     const last = await ctx.db
@@ -18,7 +19,7 @@ export const append = mutation({
 // feed merges the last few sessions' events into one list. Scans the newest
 // `scan` events via the by_tenant index (implicit _creationTime ordering)
 // and dedupes their session ids.
-export const recentSessions = query({
+export const recentSessions = serviceQuery({
   args: { tenantId: v.string(), limit: v.number() },
   handler: async (ctx, { tenantId, limit }) => {
     const cappedLimit = Math.max(1, Math.min(limit, 50))
@@ -41,14 +42,26 @@ export const recentSessions = query({
 
 // Reactive tail of a session's event stream — the UI subscribes with the last
 // seq it has and receives new events as they land.
+//
+// DELIBERATELY PUBLIC (no requireServiceKey): the browser subscribes to this
+// via ConvexProvider (useChatEventsLive) and cannot carry the service secret.
+// It exposes exactly what the polled /api/kody/events endpoints already
+// served — session event payloads scoped by (tenantId, sessionId). The
+// optional serviceKey arg is accepted and ignored so the auto-injecting
+// server client can call it too.
 export const since = query({
-  args: { tenantId: v.string(), sessionId: v.string(), afterSeq: v.number() },
+  args: {
+    tenantId: v.string(),
+    sessionId: v.string(),
+    afterSeq: v.number(),
+    serviceKey: v.optional(v.string()),
+  },
   handler: async (ctx, { tenantId, sessionId, afterSeq }) => {
     return await ctx.db
       .query("chatEvents")
       .withIndex("by_session", (q) =>
         q.eq("tenantId", tenantId).eq("sessionId", sessionId).gt("seq", afterSeq),
       )
-      .collect()
+      .take(1000) // rate-bound: tail reads page in ascending seq order
   },
 })

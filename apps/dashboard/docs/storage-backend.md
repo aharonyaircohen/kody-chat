@@ -33,19 +33,29 @@ GitHub artifacts are referenced by ID (repo, PR/issue number), not stored in.
 integration / smoke / e2e), and migration tooling:
 
 - `scripts/export-github.ts` — dumps the state repo to plain JSON (portable,
-  backend-agnostic; doubles as backup).
+  backend-agnostic).
 - `scripts/import-convex.ts` — loads a dump into a deployment.
 
 See the package [README](../../../packages/kody-backend/README.md) for setup,
-environments, and migration-day steps.
+environments, and migration steps.
 
-## Migration plan
+## Migration status
 
-Built and tested ahead of migration; the dashboard still runs on GitHub state
-until we flip. Cutover: freeze writes → export → import → point the
-dashboard's state layer at Convex (`CONVEX_URL`) → verify → retire the GitHub
-paths. Rollback safety is the JSON dump, not a permanent dual backend.
+Convex is live: the dashboard's state layer reads and writes it via
+`CONVEX_URL`. The Backend admin page (`/backend`) is the operator surface:
 
-Post-migration follow-ups: paginate unbounded `.collect()` queries, batch
-`clearRepo` for large tenants, and add an admin page for backend status +
-export/import so operators never need the CLI.
+- **Export (backup from database)** — the standing backup tool. Reads every
+  registry table from Convex (`importExport.exportTable`) and downloads a
+  portable JSON dump. Run it routinely; the dump is the rollback artifact.
+- **Export from GitHub (first migration)** — one-time path for a tenant still
+  on a GitHub state repo: downloads the state repo as a tarball, maps files
+  to backend tables, and produces the same dump format.
+- **Import** — loads a dump into Convex (`importExport.importChunk`),
+  optionally clearing the tenant first.
+
+First-time tenant migration: Export from GitHub → Import (clear first).
+Ongoing operations: Export (database) is the backup; GitHub is only the
+engine's execution surface.
+
+Follow-ups: paginate unbounded `.collect()` queries and batch `clearRepo`
+for large tenants.

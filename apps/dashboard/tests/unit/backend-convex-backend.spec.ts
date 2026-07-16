@@ -7,8 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const convexMock = vi.hoisted(() => ({
   ctor: vi.fn(),
-  mutation: vi.fn(async () => null),
-  query: vi.fn(async () => null),
+  mutation: vi.fn(async (..._args: unknown[]) => null),
+  query: vi.fn(async (..._args: unknown[]) => null),
 }));
 
 vi.mock("convex/browser", () => ({

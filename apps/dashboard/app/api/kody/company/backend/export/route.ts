@@ -2,29 +2,19 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern company-backend-export-api
- * @ai-summary Exports the tenant's state-repo files as a DB-agnostic JSON
- *   dump keyed by backend table, using the shared mapStateFile mapping. The
- *   whole state repo is fetched as ONE tarball download instead of per-file
- *   REST reads (rate-limit rules in apps/dashboard/CLAUDE.md).
+ * @ai-summary Exports the tenant's backend data straight from Convex (the
+ *   system of record) as a DB-agnostic JSON dump keyed by backend table.
+ *   This is the standing backup tool; the one-time GitHub state-repo export
+ *   lives at ../export-github for first-time migrations.
  */
-/* eslint-disable @typescript-eslint/no-explicit-any */
-
-import { gunzipSync } from "node:zlib";
 
 import { NextRequest, NextResponse } from "next/server";
+import { ConvexHttpClient } from "convex/browser";
+import { anyApi } from "convex/server";
 
-import {
-  getRequestAuth,
-  getUserOctokit,
-  requireKodyAuth,
-} from "@kody-ade/base/auth";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "@dashboard/lib/github-client";
-import { resolveStateRepo } from "@kody-ade/base/state-repo";
-import { parseTarEntries } from "@dashboard/lib/tar-archive";
-import { mapStateFile } from "@kody-ade/backend/export-mapping";
+import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
+import { withEscapedKeys } from "@kody-ade/backend/client";
+import { IMPORTABLE_TABLES } from "@kody-ade/backend/export-mapping";
 
 export interface BackendExportDump {
   version: 1;
@@ -33,34 +23,6 @@ export interface BackendExportDump {
   skipped: number;
   failures: string[];
   tables: Record<string, Array<Record<string, unknown>>>;
-}
-
-function mapGithubError(error: any, fallback: string, status = 500) {
-  if (error?.status === 401) {
-    return NextResponse.json(
-      { error: "github_token_expired" },
-      { status: 401 },
-    );
-  }
-  if (error?.status === 403 || error?.message?.includes("rate limit")) {
-    return NextResponse.json(
-      { error: "rate_limited", message: "GitHub API rate limit exceeded" },
-      { status: 429 },
-    );
-  }
-  return NextResponse.json(
-    { error: fallback, message: error?.message ?? fallback },
-    { status },
-  );
-}
-
-/**
- * GitHub tarballs wrap everything in a `<owner>-<repo>-<sha>/` directory —
- * strip that first segment to get state-repo paths.
- */
-function stripArchiveRoot(path: string): string {
-  const slash = path.indexOf("/");
-  return slash === -1 ? "" : path.slice(slash + 1);
 }
 
 export async function GET(req: NextRequest) {
@@ -72,64 +34,38 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
   }
 
-  setGitHubContext(
-    headerAuth.owner,
-    headerAuth.repo,
-    headerAuth.token,
-    headerAuth.storeRepoUrl,
-    headerAuth.storeRef,
-  );
-  try {
-    const octokit = await getUserOctokit(req);
-    if (!octokit) {
-      return NextResponse.json({ error: "no_user_token" }, { status: 401 });
-    }
-
-    const { owner, repo } = headerAuth;
-    const tenantId = `${owner}/${repo}`;
-    const now = new Date().toISOString();
-
-    // One API call for the entire state repo instead of one REST read per
-    // file — the per-file walk drained the shared 5000/hr token budget.
-    const target = await resolveStateRepo(octokit, owner, repo);
-    const archive = await octokit.rest.repos.downloadTarballArchive({
-      owner: target.owner,
-      repo: target.repo,
-      ref: target.branch,
-    });
-    const files = parseTarEntries(
-      gunzipSync(Buffer.from(archive.data as ArrayBuffer)),
+  const convexUrl = process.env.CONVEX_URL;
+  if (!convexUrl) {
+    return NextResponse.json(
+      {
+        error: "convex_url_not_configured",
+        message:
+          "CONVEX_URL is not set. Configure the Convex deployment URL before exporting.",
+      },
+      { status: 400 },
     );
+  }
 
-    // Tenant files live under `<basePath>/…` in the state repo.
-    const prefix = target.basePath ? `${target.basePath}/` : "";
+  const { owner, repo } = headerAuth;
+  const tenantId = `${owner}/${repo}`;
+  const now = new Date().toISOString();
 
-    const tables = new Map<string, Array<Record<string, unknown>>>();
-    let skipped = 0;
+  try {
+    // Dumps must carry original (unescaped) keys; the wrapper unescapes
+    // reserved-prefix keys ($text, _x) on the way out of the Convex wire.
+    const client = withEscapedKeys(new ConvexHttpClient(convexUrl));
+
+    const tables: Array<[string, Array<Record<string, unknown>>]> = [];
     const failures: string[] = [];
-
-    for (const file of files) {
-      const repoPath = stripArchiveRoot(file.path);
-      if (!repoPath || !repoPath.startsWith(prefix)) continue;
-      const statePath = repoPath.slice(prefix.length);
-      if (!statePath) continue;
+    for (const table of IMPORTABLE_TABLES) {
       try {
-        const rows = mapStateFile(
-          statePath,
-          file.content.toString("utf8"),
+        const docs = (await client.query(anyApi.importExport.exportTable, {
+          table,
           tenantId,
-          now,
-        );
-        if (!rows) {
-          skipped += 1;
-          continue;
-        }
-        for (const row of rows) {
-          const docs = tables.get(row.table) ?? [];
-          tables.set(row.table, [...docs, row.doc]);
-        }
+        })) as Array<Record<string, unknown>>;
+        if (docs.length > 0) tables.push([table, docs]);
       } catch {
-        failures.push(statePath);
+        failures.push(table);
       }
     }
 
@@ -137,7 +73,7 @@ export async function GET(req: NextRequest) {
       version: 1,
       exportedAt: now,
       tenantId,
-      skipped,
+      skipped: 0,
       failures,
       tables: Object.fromEntries(tables),
     };
@@ -149,9 +85,14 @@ export async function GET(req: NextRequest) {
         "Content-Disposition": `attachment; filename="${filename}"`,
       },
     });
-  } catch (err) {
-    return mapGithubError(err, "failed_to_export_backend");
-  } finally {
-    clearGitHubContext();
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: "failed_to_export_backend",
+        message:
+          error instanceof Error ? error.message : "failed_to_export_backend",
+      },
+      { status: 500 },
+    );
   }
 }

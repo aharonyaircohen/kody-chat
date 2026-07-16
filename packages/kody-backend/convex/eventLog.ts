@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server"
+import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth"
 import { v } from "convex/values"
 
 // Global (cross-tenant) engine event log — replaces event-log.jsonl in the

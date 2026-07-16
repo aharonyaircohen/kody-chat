@@ -2,9 +2,11 @@
  * @fileType component
  * @domain kody
  * @pattern backend-manager
- * @ai-summary Backend admin page — export the tenant's state data as a JSON
- *   dump and import a dump into the Convex backend. Follows the standard
- *   admin-page skeleton (PageShell header + Cards, ui-kit controls only).
+ * @ai-summary Backend admin page — back up the tenant's data as a JSON dump
+ *   straight from the Convex database (standing tool), export from the legacy
+ *   GitHub state repo (one-time migration), and import a dump into Convex.
+ *   Follows the standard admin-page skeleton (PageShell header + Cards,
+ *   ui-kit controls only).
  */
 "use client";
 
@@ -73,7 +75,9 @@ function BackendManagerInner() {
     ...buildAuthHeaders(auth),
   };
 
-  const [exporting, setExporting] = useState(false);
+  const [exportingSource, setExportingSource] = useState<
+    "convex" | "github" | null
+  >(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -87,14 +91,15 @@ function BackendManagerInner() {
   const [importError, setImportError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
-  async function handleExport() {
-    setExporting(true);
+  async function handleExport(source: "convex" | "github") {
+    setExportingSource(source);
     setExportError(null);
     try {
-      const res = await fetch("/api/kody/company/backend/export", {
-        headers,
-        cache: "no-store",
-      });
+      const path =
+        source === "convex"
+          ? "/api/kody/company/backend/export"
+          : "/api/kody/company/backend/export-github";
+      const res = await fetch(path, { headers, cache: "no-store" });
       if (!res.ok) throw new Error(await readErrorMessage(res));
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -110,7 +115,7 @@ function BackendManagerInner() {
       setExportError(message);
       toast.error(message);
     } finally {
-      setExporting(false);
+      setExportingSource(null);
     }
   }
 
@@ -190,18 +195,43 @@ function BackendManagerInner() {
               <h2 className="text-sm font-semibold">Export</h2>
             </div>
             <p className="text-sm text-white/60">
-              Download this repo&apos;s state data as a portable JSON dump —
+              Download this repo&apos;s data as a portable JSON dump —
               workflows, sessions, intents, goals, reports, and more, keyed by
-              backend table.
+              backend table. The primary export reads from the live database
+              and is the standing backup tool; the GitHub export reads the
+              legacy state repo and is only for a first-time migration.
             </p>
-            <Button size="sm" onClick={handleExport} disabled={exporting}>
-              {exporting ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Download className="w-4 h-4" />
-              )}
-              {exporting ? "Exporting…" : "Export dump"}
-            </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                size="sm"
+                onClick={() => handleExport("convex")}
+                disabled={exportingSource !== null}
+              >
+                {exportingSource === "convex" ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                {exportingSource === "convex"
+                  ? "Exporting…"
+                  : "Export (backup from database)"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleExport("github")}
+                disabled={exportingSource !== null}
+              >
+                {exportingSource === "github" ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                {exportingSource === "github"
+                  ? "Exporting…"
+                  : "Export from GitHub (first migration)"}
+              </Button>
+            </div>
             {exportError && (
               <p className="text-sm text-rose-300">{exportError}</p>
             )}

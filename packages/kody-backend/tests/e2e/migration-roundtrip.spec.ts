@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest"
-import { ConvexHttpClient } from "convex/browser"
 import { anyApi } from "convex/server"
+import { createBackendClient } from "../../src/client.ts"
 import { mapStateFile } from "../../src/export-mapping.ts"
 
 // E2E layer: the full migration path — state-tenantId files → export mapping →
 // chunked import → domain reads → export → cleanup — against a real
-// deployment. Skipped unless CONVEX_URL is set.
-// Run: CONVEX_URL=… pnpm vitest --project e2e
-const url = process.env.CONVEX_URL
+// deployment. Skipped unless CONVEX_URL and KODY_SERVICE_KEY are set.
+// Run: CONVEX_URL=… KODY_SERVICE_KEY=… pnpm vitest --project e2e
+const url = process.env.CONVEX_URL && process.env.KODY_SERVICE_KEY ? process.env.CONVEX_URL : undefined
 
 const NOW = "2026-07-15T00:00:00.000Z"
 
@@ -55,7 +55,7 @@ const STATE_FILES: Array<[path: string, text: string]> = [
 ]
 
 describe.skipIf(!url)("migration round-trip", () => {
-  const client = url ? new ConvexHttpClient(url) : null!
+  const client = url ? createBackendClient(url) : null!
   const tenantId = `e2e-test/${Date.now()}`
 
   it("export-maps, imports, reads back through domain queries, and cleans up", async () => {

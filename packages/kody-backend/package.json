@@ -13,6 +13,7 @@
   "scripts": {
     "dev": "convex dev",
     "deploy": "convex deploy",
+    "deploy:prod": "convex deploy --yes",
     "codegen": "convex codegen",
     "export:github": "tsx scripts/export-github.ts",
     "import:convex": "tsx scripts/import-convex.ts",

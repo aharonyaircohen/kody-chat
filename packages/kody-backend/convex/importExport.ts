@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server"
+import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth"
 import type { MutationCtx } from "./_generated/server"
 import { v } from "convex/values"
 import type { Doc, TableNames } from "./_generated/dataModel"

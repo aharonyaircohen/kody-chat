@@ -1,4 +1,4 @@
-import { mutation, query } from "./_generated/server"
+import { serviceMutation as mutation, serviceQuery as query } from "./lib/auth"
 import { v } from "convex/values"
 
 // Global (cross-tenant) engine action state — replaces action-state.json in

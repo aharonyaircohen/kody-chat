@@ -29,10 +29,17 @@ const convex = vi.hoisted(() => {
   const mutation = vi.fn(
     async (_ref: unknown, _args: Record<string, unknown>) => null,
   );
+  const query = vi.fn(
+    async (
+      _ref: unknown,
+      _args: Record<string, unknown>,
+    ): Promise<Array<Record<string, unknown>>> => [],
+  );
   return {
     mutation,
+    query,
     ConvexHttpClient: vi.fn(function ConvexHttpClient() {
-      return { mutation };
+      return { mutation, query };
     }),
   };
 });
@@ -58,6 +65,7 @@ vi.mock("convex/browser", () => ({
 }));
 
 import { GET as EXPORT } from "../../app/api/kody/company/backend/export/route";
+import { GET as EXPORT_GITHUB } from "../../app/api/kody/company/backend/export-github/route";
 import { POST as IMPORT } from "../../app/api/kody/company/backend/import/route";
 
 function req(path: string, method = "GET", body?: unknown): NextRequest {
@@ -114,6 +122,7 @@ function octokitWithTarball(data: ArrayBuffer) {
 beforeEach(() => {
   vi.clearAllMocks();
   convex.mutation.mockImplementation(async () => null);
+  convex.query.mockImplementation(async () => []);
   auth.requireKodyAuth.mockResolvedValue(null);
   auth.getRequestAuth.mockReturnValue({
     token: "ghp_test",
@@ -128,6 +137,95 @@ afterEach(() => {
 });
 
 describe("GET /api/kody/company/backend/export", () => {
+  it("exports every importable table from Convex as a downloadable dump", async () => {
+    vi.stubEnv("CONVEX_URL", "https://demo.convex.cloud");
+    convex.query.mockImplementation(
+      async (_ref: unknown, args: Record<string, unknown>) => {
+        if (args.table === "workflows") {
+          return [{ tenantId: args.tenantId, workflowId: "bug" }];
+        }
+        if (args.table === "goals") {
+          return [{ tenantId: args.tenantId, goalId: "goal-1" }];
+        }
+        return [];
+      },
+    );
+
+    const res = await EXPORT(req("/api/kody/company/backend/export"));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-disposition")).toContain("attachment");
+
+    const body = await res.json();
+    expect(body.version).toBe(1);
+    expect(body.tenantId).toBe("acme/widgets");
+    expect(body.skipped).toBe(0);
+    expect(body.failures).toEqual([]);
+    // Every table was queried with the tenant filter…
+    const queriedTables = convex.query.mock.calls.map(
+      (call) => (call[1] as { table: string }).table,
+    );
+    expect(queriedTables).toContain("workflows");
+    expect(queriedTables).toContain("goals");
+    expect(
+      convex.query.mock.calls.every(
+        (call) => (call[1] as { tenantId: string }).tenantId === "acme/widgets",
+      ),
+    ).toBe(true);
+    // …but only non-empty ones land in the dump.
+    expect(body.tables).toEqual({
+      workflows: [{ tenantId: "acme/widgets", workflowId: "bug" }],
+      goals: [{ tenantId: "acme/widgets", goalId: "goal-1" }],
+    });
+    // Convex export never touches GitHub.
+    expect(auth.getUserOctokit).not.toHaveBeenCalled();
+    expect(stateRepo.resolveStateRepo).not.toHaveBeenCalled();
+  });
+
+  it("records per-table failures without failing the whole export", async () => {
+    vi.stubEnv("CONVEX_URL", "https://demo.convex.cloud");
+    convex.query.mockImplementation(
+      async (_ref: unknown, args: Record<string, unknown>) => {
+        if (args.table === "goals") throw new Error("boom");
+        if (args.table === "workflows") {
+          return [{ tenantId: args.tenantId, workflowId: "bug" }];
+        }
+        return [];
+      },
+    );
+
+    const res = await EXPORT(req("/api/kody/company/backend/export"));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.failures).toEqual(["goals"]);
+    expect(body.tables.workflows).toHaveLength(1);
+  });
+
+  it("returns 400 when CONVEX_URL is not configured", async () => {
+    vi.stubEnv("CONVEX_URL", "");
+    const res = await EXPORT(req("/api/kody/company/backend/export"));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("convex_url_not_configured");
+    expect(convex.query).not.toHaveBeenCalled();
+  });
+
+  it("returns the auth failure response when auth is rejected", async () => {
+    const denied = NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    auth.requireKodyAuth.mockResolvedValue(denied as never);
+
+    const res = await EXPORT(req("/api/kody/company/backend/export"));
+    expect(res.status).toBe(401);
+    expect(convex.query).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 without repo context headers", async () => {
+    auth.getRequestAuth.mockReturnValue(null as never);
+    const res = await EXPORT(req("/api/kody/company/backend/export"));
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("no_repo_context");
+  });
+});
+
+describe("GET /api/kody/company/backend/export-github", () => {
   it("exports mapped state files from one tarball download and counts skipped ones", async () => {
     stateRepo.resolveStateRepo.mockResolvedValue({
       owner: "acme",
@@ -155,7 +253,9 @@ describe("GET /api/kody/company/backend/export", () => {
     );
     auth.getUserOctokit.mockResolvedValue(octokit as never);
 
-    const res = await EXPORT(req("/api/kody/company/backend/export"));
+    const res = await EXPORT_GITHUB(
+      req("/api/kody/company/backend/export-github"),
+    );
     expect(octokit.rest.repos.downloadTarballArchive).toHaveBeenCalledTimes(1);
     expect(octokit.rest.repos.downloadTarballArchive).toHaveBeenCalledWith({
       owner: "acme",
@@ -187,14 +287,18 @@ describe("GET /api/kody/company/backend/export", () => {
     const denied = NextResponse.json({ error: "unauthorized" }, { status: 401 });
     auth.requireKodyAuth.mockResolvedValue(denied as never);
 
-    const res = await EXPORT(req("/api/kody/company/backend/export"));
+    const res = await EXPORT_GITHUB(
+      req("/api/kody/company/backend/export-github"),
+    );
     expect(res.status).toBe(401);
     expect(stateRepo.resolveStateRepo).not.toHaveBeenCalled();
   });
 
   it("returns 400 without repo context headers", async () => {
     auth.getRequestAuth.mockReturnValue(null as never);
-    const res = await EXPORT(req("/api/kody/company/backend/export"));
+    const res = await EXPORT_GITHUB(
+      req("/api/kody/company/backend/export-github"),
+    );
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("no_repo_context");
   });

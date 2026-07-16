@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest"
-import { ConvexHttpClient } from "convex/browser"
 import { anyApi } from "convex/server"
+import { createBackendClient } from "../../src/client"
 
 // Smoke layer: a handful of real calls against a live deployment. Skipped
 // unless CONVEX_URL is set (i.e. after `npx convex dev` has created the
-// project). Run: CONVEX_URL=… pnpm vitest --project smoke
+// project). Mutations require the deployment's service key, so also set
+// KODY_SERVICE_KEY (see .env.local).
+// Run: CONVEX_URL=… KODY_SERVICE_KEY=… pnpm vitest --project smoke
 const url = process.env.CONVEX_URL
+const serviceKey = process.env.KODY_SERVICE_KEY
 
-describe.skipIf(!url)("deployment smoke", () => {
-  const client = url ? new ConvexHttpClient(url) : null!
+describe.skipIf(!url || !serviceKey)("deployment smoke", () => {
+  const client = url ? createBackendClient(url) : null!
   const tenantId = `smoke-test/${Date.now()}`
 
   it("writes and reads a workflow", async () => {
