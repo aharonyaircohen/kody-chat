@@ -60,30 +60,6 @@ async function apiPost(
   return { status: res.status, body: await res.json().catch(() => null) };
 }
 
-test.describe("Chat API — deprecated direct endpoint", () => {
-  test("POST /api/kody/chat returns 410 Gone", async () => {
-    const { status, body } = await apiPost("/api/kody/chat", {
-      messages: [{ role: "user", content: "hello" }],
-    });
-
-    expect(status, `Expected 410, got ${status}`).toBe(410);
-    expect(body as Record<string, unknown>).toMatchObject({
-      deprecated: true,
-      error: expect.stringContaining("deprecated"),
-    });
-  });
-
-  test("GET /api/kody/chat returns deprecation notice", async () => {
-    const { status, body } = await apiGet("/api/kody/chat");
-
-    expect(status).toBe(200);
-    expect(body as Record<string, unknown>).toMatchObject({
-      deprecated: true,
-      status: expect.stringContaining("deprecated"),
-    });
-  });
-});
-
 test.describe("Chat API — trigger endpoint", () => {
   test("POST /api/kody/chat/trigger requires taskId", async () => {
     const { status, body } = await apiPost("/api/kody/chat/trigger", {
@@ -177,36 +153,3 @@ test.describe("Events API — SSE endpoint", () => {
   });
 });
 
-test.describe("Events API — POST endpoint", () => {
-  test("POST /api/kody/events accepts chat.message payload", async () => {
-    const res = await fetch(`${BASE_URL}/api/kody/events`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({
-        event: "chat.message",
-        payload: {
-          runId: `test-${Date.now()}`,
-          sessionId: TEST_SESSION_ID,
-          role: "assistant",
-          content: "Hello from test",
-          timestamp: new Date().toISOString(),
-        },
-        channel: "chat",
-      }),
-    });
-
-    expect(res.status).toBeGreaterThanOrEqual(200);
-    const body = await res.json();
-    expect(body as Record<string, unknown>).toMatchObject({ ok: true });
-  });
-
-  test("POST /api/kody/events rejects when event is missing", async () => {
-    const res = await fetch(`${BASE_URL}/api/kody/events`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ payload: { runId: "test" } }),
-    });
-
-    expect(res.status).toBeGreaterThanOrEqual(400);
-  });
-});

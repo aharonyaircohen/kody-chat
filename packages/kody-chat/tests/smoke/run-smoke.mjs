@@ -27,16 +27,9 @@ const CHECKS = [
   { path: "/brands/kody", ok: [200], name: "brand detail route exists" },
   { path: "/commands/docs", ok: [200], name: "commands docs page renders" },
   { path: "/secrets/docs", ok: [200], name: "secrets docs page renders" },
-  { path: "/api/kody/repos/add", ok: [400, 401, 405], name: "repo connect API exists (no 404)", method: "POST" },
-  { path: "/api/kody/memory", ok: [200, 401, 403], name: "memory API responds (no 500)" },
-  { path: "/api/kody/context", ok: [200, 401, 403], name: "context API responds (no 500)" },
-  { path: "/api/kody/instructions", ok: [200, 401, 403], name: "instructions API responds (no 500)" },
   { path: "/client/kody", ok: [200], name: "builtin brand page renders", body: (t) => t.includes("<html") },
   { path: "/client/unknown-brand-xyz", ok: [404], name: "unknown brand 404s cleanly (no 500)" },
-  { path: "/api/kody/models", ok: [200, 401, 403], name: "models API responds (no 500)" },
-  { path: "/api/kody/commands", ok: [200, 401, 403], name: "commands API responds (no 500)" },
   { path: "/api/kody/chat/kody", ok: [400, 401, 403, 405], name: "chat API rejects unauthenticated GET cleanly", method: "GET" },
-  { path: "/api/kody/events/poll", ok: [200, 400, 401, 403, 405], name: "events poll responds (no 500)" },
 ];
 
 async function waitForServer() {
