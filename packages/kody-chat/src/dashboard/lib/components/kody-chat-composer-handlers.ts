@@ -244,10 +244,13 @@ export function useComposerHandlers({
     }
     // Desktop AI chat and terminal keep Enter-to-send. Mobile AI chat leaves
     // plain Enter to the textarea so the soft keyboard inserts a newline.
+    // While a reply streams the textarea stays enabled for type-ahead, so
+    // Enter must NOT send mid-run — it falls through and inserts a newline.
     if (
       (chatMode === "terminal" || isDesktop) &&
       e.key === "Enter" &&
-      !e.shiftKey
+      !e.shiftKey &&
+      !(chatMode === "ai" && activeLoading)
     ) {
       e.preventDefault();
       sendMessage();

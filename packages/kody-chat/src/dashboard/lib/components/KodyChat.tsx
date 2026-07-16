@@ -1471,9 +1471,11 @@ export function KodyChat({
     (chatMode === "ai" && (attachments.length > 0 || contextChips.length > 0));
   const richComposerEnabled =
     chatMode === "ai" && Boolean(railFullscreen) && isDesktop;
+  // While a reply streams (activeLoading) the textarea stays ENABLED so the
+  // user can type ahead; only sending is blocked (Enter is a newline and the
+  // primary button is Stop). Kody Live still locks input until ready.
   const composerDisabled =
-    chatMode === "ai" &&
-    (activeLoading || (isKodyLive && interactiveState !== "ready"));
+    chatMode === "ai" && isKodyLive && interactiveState !== "ready";
   type ComposerAction = "send" | "start" | "stop" | "cancel";
   const composerAction: ComposerAction = !isKodyLive
     ? "send"
