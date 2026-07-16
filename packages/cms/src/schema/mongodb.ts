@@ -74,10 +74,19 @@ export async function generateMongoCmsSchemaFiles(
       ? client.db(options.databaseName)
       : client.db();
     const skipCollections = new Set(options.skipCollections);
-    const collectionNames = (await db.listCollections().toArray())
+    const collectionInfos = await db
+      .listCollections({}, { nameOnly: false })
+      .toArray();
+    const collectionNames = collectionInfos
       .map((collection) => collection.name)
       .filter((name) => !shouldSkipCollection(name, skipCollections))
       .sort((left, right) => left.localeCompare(right));
+    const requiredFieldsByCollection = new Map<string, Set<string>>(
+      collectionInfos.map((info) => [
+        info.name,
+        extractValidatorRequiredFields(info.options),
+      ]),
+    );
 
     const rawStats = new Map<string, CollectionStats>();
     for (const collectionName of collectionNames) {
@@ -86,7 +95,14 @@ export async function generateMongoCmsSchemaFiles(
         .find({})
         .limit(options.sampleSize)
         .toArray();
-      rawStats.set(collectionName, analyzeCollection(collectionName, docs));
+      rawStats.set(
+        collectionName,
+        analyzeCollection(
+          collectionName,
+          docs,
+          requiredFieldsByCollection.get(collectionName),
+        ),
+      );
     }
 
     const titleFields = new Map<string, string>();
@@ -111,6 +127,8 @@ export async function generateMongoCmsSchemaFiles(
         collectionSlugs,
         stats,
         titleFields,
+        requiredFields:
+          requiredFieldsByCollection.get(collectionName) ?? new Set(),
       });
       const filePath = `cms/collections/${collectionSlug}.json`;
       collectionFiles.push({
@@ -171,6 +189,7 @@ function buildCollectionConfig({
   collectionSlugs,
   stats,
   titleFields,
+  requiredFields,
 }: {
   collectionName: string;
   collectionSlug: string;
@@ -178,10 +197,17 @@ function buildCollectionConfig({
   collectionSlugs: Map<string, string>;
   stats: CollectionStats;
   titleFields: Map<string, string>;
+  requiredFields: Set<string>;
 }): CmsCollectionConfig {
   const titleField = titleFields.get(collectionName);
   const fields = stats.fields.map((fieldStats) =>
-    buildFieldConfig(fieldStats, collectionNames, collectionSlugs, titleFields),
+    buildFieldConfig(
+      fieldStats,
+      collectionNames,
+      collectionSlugs,
+      titleFields,
+      requiredFields,
+    ),
   );
   const fieldByName = new Map(fields.map((field) => [field.name, field]));
   const searchFields = inferSearchFields(fields, titleField);
@@ -237,6 +263,7 @@ function buildFieldConfig(
   collectionNames: string[],
   collectionSlugs: Map<string, string>,
   titleFields: Map<string, string>,
+  requiredFields: Set<string>,
 ): CmsFieldConfig {
   const name = fieldStats.name;
   const base: CmsFieldConfig = {
@@ -244,6 +271,7 @@ function buildFieldConfig(
     type: inferFieldType(fieldStats, name),
     label: labelForField(name),
     storage: inferFieldStorage(fieldStats, name),
+    ...(requiredFields.has(name) ? { required: true } : {}),
   };
 
   if (name === "_id")
@@ -503,6 +531,7 @@ function relationNameVariants(normalized: string): string[] {
 function analyzeCollection(
   collectionName: string,
   docs: Document[],
+  requiredFields?: Set<string>,
 ): CollectionStats {
   const fields = new Map<string, FieldStats>();
   const ensure = (name: string) => {
@@ -520,6 +549,7 @@ function analyzeCollection(
   };
 
   ensure("_id");
+  for (const name of requiredFields ?? []) ensure(name);
   for (const doc of docs) {
     for (const [name, value] of Object.entries(doc)) {
       const field = ensure(name);
@@ -670,6 +700,27 @@ function normalizeRelationName(name: string): string {
     .replace(/(?:Id|Ids)$/i, "")
     .replace(/[^A-Za-z0-9]/g, "")
     .toLowerCase();
+}
+
+export function extractValidatorRequiredFields(options: unknown): Set<string> {
+  const required = new Set<string>();
+  if (!isPlainRecord(options)) return required;
+  const validator = options.validator;
+  if (!isPlainRecord(validator)) return required;
+  const jsonSchema = validator.$jsonSchema;
+  if (!isPlainRecord(jsonSchema)) return required;
+  const names = jsonSchema.required;
+  if (!Array.isArray(names)) return required;
+  for (const name of names) {
+    if (typeof name === "string" && name.length > 0 && name !== "_id") {
+      required.add(name);
+    }
+  }
+  return required;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return value != null && typeof value === "object" && !Array.isArray(value);
 }
 
 function isObjectIdString(value: unknown): boolean {
