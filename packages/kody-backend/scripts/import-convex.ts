@@ -10,6 +10,8 @@
  */
 import { readdir, readFile } from "node:fs/promises"
 import { join } from "node:path"
+// Intentionally anyApi: dynamic table-name loops / raw-deployment probes
+// that must not depend on the generated typed api.
 import { anyApi } from "convex/server"
 import { createBackendClient } from "../src/client"
 

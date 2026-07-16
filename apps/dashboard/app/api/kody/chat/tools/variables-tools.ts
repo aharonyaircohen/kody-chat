@@ -26,9 +26,8 @@ interface Ctx {
 const RESERVED = new Set(["LLM_MODELS"]);
 
 export function createVariableTools(ctx: Ctx) {
-  const { octokit, owner, repo, actorLogin } = ctx;
+  const { owner, repo, actorLogin } = ctx;
   const repoRef = `${owner}/${repo}`;
-  const by = actorLogin ? ` (via chat by @${actorLogin})` : "";
 
   return {
     list_variables: tool({
@@ -36,7 +35,7 @@ export function createVariableTools(ctx: Ctx) {
       inputSchema: z.object({}),
       execute: async () => {
         try {
-          const { doc } = await readVariables(octokit, owner, repo);
+          const { doc } = await readVariables(owner, repo);
           return { variables: listVariables(doc) };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };
@@ -62,7 +61,6 @@ export function createVariableTools(ctx: Ctx) {
           };
         try {
           await updateVariables(
-            octokit,
             owner,
             repo,
             (doc) => ({
@@ -76,7 +74,6 @@ export function createVariableTools(ctx: Ctx) {
                 },
               },
             }),
-            `chore(variables): set ${name}${by}`,
           );
           return { ok: true, name };
         } catch (err) {
@@ -94,11 +91,10 @@ export function createVariableTools(ctx: Ctx) {
             error: `"${name}" is reserved — manage it via the models tools.`,
           };
         try {
-          const { doc } = await readVariables(octokit, owner, repo);
+          const { doc } = await readVariables(owner, repo);
           if (!doc.variables[name])
             return { error: `variable "${name}" not found` };
           await updateVariables(
-            octokit,
             owner,
             repo,
             (d) => {
@@ -106,7 +102,6 @@ export function createVariableTools(ctx: Ctx) {
               delete variables[name];
               return { ...d, variables };
             },
-            `chore(variables): delete ${name}${by}`,
           );
           return { ok: true, action: "deleted", name };
         } catch (err) {

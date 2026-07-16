@@ -6,7 +6,8 @@ import { v } from "convex/values"
 
 export const workflowTransitionValidator = v.object({
   to: v.string(),
-  when: v.optional(v.string()),
+  // Dashboard sends structured condition objects; legacy rows may hold strings.
+  when: v.optional(v.union(v.string(), v.record(v.string(), v.any()))),
   default: v.optional(v.boolean()),
   maxIterations: v.optional(v.number()),
 })
@@ -63,7 +64,8 @@ export const workflowRunnerValidator = v.object({
 export const macroValidator = v.object({
   id: v.string(),
   name: v.string(),
-  createdAt: v.optional(v.string()),
+  // Dashboard stamps Unix-ms numbers; legacy rows may hold ISO strings.
+  createdAt: v.optional(v.union(v.number(), v.string())),
   steps: v.optional(v.array(v.any())),
 })
 

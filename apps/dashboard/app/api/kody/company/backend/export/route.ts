@@ -10,7 +10,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
-import { anyApi } from "convex/server";
+import { api as backendApi } from "@kody-ade/backend/api";
 
 import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
 import { withEscapedKeys } from "@kody-ade/backend/client";
@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     const failures: string[] = [];
     for (const table of IMPORTABLE_TABLES) {
       try {
-        const docs = (await client.query(anyApi.importExport.exportTable, {
+        const docs = (await client.query(backendApi.importExport.exportTable, {
           table,
           tenantId,
         })) as Array<Record<string, unknown>>;

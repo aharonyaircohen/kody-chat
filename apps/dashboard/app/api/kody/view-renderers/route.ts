@@ -79,7 +79,6 @@ export async function GET(req: NextRequest) {
       );
     }
     const files = await listViewRendererDefinitionFiles({
-      octokit,
       owner: required.auth.owner,
       repo: required.auth.repo,
     });
@@ -122,7 +121,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     }
     const existing = await readViewRendererDefinitionFile({
-      octokit,
       owner: required.auth.owner,
       repo: required.auth.repo,
       slug: definition.slug,
@@ -137,11 +135,9 @@ export async function POST(req: NextRequest) {
       );
     }
     const written = await writeViewRendererDefinitionFile({
-      octokit,
       owner: required.auth.owner,
       repo: required.auth.repo,
       definition,
-      message: `feat(renderers): add ${definition.slug}`,
     });
     recordAudit(req, {
       action: "view-renderer.create",

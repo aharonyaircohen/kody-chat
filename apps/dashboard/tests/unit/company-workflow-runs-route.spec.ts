@@ -53,7 +53,6 @@ describe("GET /api/kody/company/workflows/:id/runs", () => {
       run: { runId: "run-abc", state: { currentStepId: "verify" } },
     });
     expect(runFiles.readLatestWorkflowRunStateFile).toHaveBeenCalledWith(
-      expect.anything(),
       "acme",
       "widgets",
       "pilot",

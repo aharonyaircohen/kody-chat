@@ -64,6 +64,7 @@ export function snapshotDue(file: FlyActivityFile, now: number): boolean {
 /** Read the activity timeline (used by the API route): most recent snapshots,
  * windowed to 14 days, oldest-first (the order computeActivity expects). */
 export async function readActivityFile(
+  /** Unused by the Convex-backed store — kept for the shared adapter contract. */
   _octokit: Octokit,
   owner: string,
   repo: string,
@@ -112,6 +113,7 @@ function dateKey(ts: number): string {
  * of the read window instead of being pruned at write time.
  */
 export async function recordSnapshot(
+  /** Unused by the Convex-backed store — kept for the shared adapter contract. */
   _octokit: Octokit,
   owner: string,
   repo: string,

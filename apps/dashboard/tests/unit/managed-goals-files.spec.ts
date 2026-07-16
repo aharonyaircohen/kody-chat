@@ -178,7 +178,6 @@ describe("managed goal convex store", () => {
     convex.mutation.mockResolvedValue("id-1");
 
     await writeManagedGoalFile({
-      octokit: {} as never,
       owner: "test-owner",
       repo,
       id: "goal-creation-works",
@@ -207,7 +206,6 @@ describe("managed goal convex store", () => {
 
     await expect(
       writeManagedGoalFile({
-        octokit: {} as never,
         owner: "test-owner",
         repo: nextRepo(),
         id: "shopping",

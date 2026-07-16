@@ -10,7 +10,6 @@
 
 import type { NextRequest } from "next/server";
 import { getRequestAuth } from "../auth";
-import { createUserOctokit } from "../github/core";
 import { logger } from "@kody-ade/base/logger";
 import { readVariables } from "./store";
 
@@ -27,8 +26,7 @@ export async function getVariable(
   const auth = getRequestAuth(options.req);
   if (auth) {
     try {
-      const octokit = createUserOctokit(auth.token);
-      const { doc } = await readVariables(octokit, auth.owner, auth.repo);
+      const { doc } = await readVariables(auth.owner, auth.repo);
       const entry = doc.variables[name];
       if (entry?.value) return entry.value;
     } catch (err) {

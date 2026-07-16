@@ -150,7 +150,6 @@ export async function POST(req: NextRequest) {
     }
 
     const entry = await writeContextFile({
-      octokit: userOctokit,
       slug,
       body,
       agent,

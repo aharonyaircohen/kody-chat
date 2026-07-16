@@ -12,6 +12,14 @@ import {
 
 export type CompactionStatus = "compacting" | "compacted" | null;
 
+/**
+ * Hard deadline on the pre-turn summarization call. Compaction runs BEFORE
+ * the turn's transport (and outside any turn watchdog), so a hung
+ * /compact request would present as the whole chat hanging. On timeout the
+ * catch below falls back to sending the turn uncompacted.
+ */
+export const COMPACTION_TIMEOUT_MS = 60_000;
+
 export function useCompactionStatus(activeSessionId?: string) {
   const [status, setStatus] = useState<CompactionStatus>(null);
 
@@ -74,6 +82,7 @@ export async function compactConversationForTurn(
         messages: plan.messagesToSummarize,
         ...(args.model ? { model: args.model } : {}),
       }),
+      signal: AbortSignal.timeout(COMPACTION_TIMEOUT_MS),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const body = (await response.json()) as { summary?: unknown };

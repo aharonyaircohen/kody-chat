@@ -126,7 +126,7 @@ describe("context convex store", () => {
 
   it("deletes via repoDocs.remove", async () => {
     convex.mutation.mockResolvedValue(null);
-    await deleteContextFile(undefined, "mission");
+    await deleteContextFile("mission");
     const [ref, args] = convex.mutation.mock.calls[0]!;
     expect(getFunctionName(ref)).toBe("repoDocs:remove");
     expect(args).toEqual({ tenantId: "acme/widgets", kind: "context:mission" });

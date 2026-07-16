@@ -18,15 +18,13 @@
  *
  *   Entries owned by the built-in chat agent (`kody`) are injected into the
  *   kody-direct chat system prompt under a `## Context` heading (see
- *   `loadContextForPrompt`). Exported signatures are unchanged from the
- *   state-repo era; octokit params are accepted but unused, and `sha` is
- *   always "" (Convex docs have no git blob).
+ *   `loadContextForPrompt`). Returned `sha` is always "" (Convex docs have
+ *   no git blob).
  *
  *   Hot-path loader keeps the 60s in-process per-repo cache, invalidated by
  *   the write/delete paths.
  */
 
-import type { Octokit } from "@octokit/rest";
 import { getOwner, getRepo } from "../github";
 import {
   backendApi,
@@ -115,7 +113,6 @@ export async function listContextFiles(): Promise<ContextFile[]> {
 
 export async function readContextFile(
   slug: string,
-  _octokitOverride?: Octokit,
 ): Promise<ContextFile | null> {
   if (!isValidSlug(slug)) return null;
   const record = (await getConvexClient().query(backendApi.repoDocs.get, {
@@ -127,14 +124,11 @@ export async function readContextFile(
 }
 
 interface WriteOptions {
-  octokit?: Octokit;
   slug: string;
   /** Entry markdown (frontmatter-free); the `agent:` block is re-attached here. */
   body: string;
   /** Owning agent-member slugs persisted in `agent:` frontmatter (inline list). */
   agent: string[];
-  sha?: string;
-  message?: string;
 }
 
 export async function writeContextFile(
@@ -175,10 +169,7 @@ export async function writeContextFile(
   return refreshed;
 }
 
-export async function deleteContextFile(
-  _octokit: Octokit | undefined,
-  slug: string,
-): Promise<void> {
+export async function deleteContextFile(slug: string): Promise<void> {
   if (!isValidSlug(slug)) throw new Error(`Invalid context slug: "${slug}".`);
   await getConvexClient().mutation(backendApi.repoDocs.remove, {
     tenantId: tenantIdFor(getOwner(), getRepo()),

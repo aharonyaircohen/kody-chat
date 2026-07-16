@@ -162,7 +162,6 @@ export async function PATCH(
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
     const brand = await writeBrandFile({
-      octokit: userOctokit,
       slug,
       name: parsed.name ?? base.name,
       accent: parsed.accent ?? base.accent,
@@ -183,10 +182,6 @@ export async function PATCH(
           ? base.agentSlug
           : (parsed.agentSlug ?? undefined),
       auth: parsed.auth === undefined ? base.auth : (parsed.auth ?? undefined),
-      sha: existing?.sha,
-      message: existing
-        ? `chore(brands): update ${slug}`
-        : `feat(brands): override fallback ${slug}`,
     });
 
     recordAudit(req, {
@@ -262,10 +257,10 @@ export async function DELETE(
     }
 
     if (existing) {
-      await deleteBrandFile(userOctokit, slug);
+      await deleteBrandFile(slug);
     }
     if (fallback) {
-      await disableBrand(userOctokit, slug);
+      await disableBrand(slug);
     }
     recordAudit(req, {
       action: "brand.delete",

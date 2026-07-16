@@ -30,10 +30,6 @@ import {
   type DashboardConfig,
 } from "@dashboard/lib/dashboard-config/store";
 
-function fakeOctokit() {
-  return { marker: "octokit" } as never;
-}
-
 const DOC: DashboardConfig = {
   version: 1,
   defaultPreviewUrl: "https://preview.example",
@@ -58,9 +54,7 @@ describe("dashboard config store", () => {
   it("reads the dashboard-config repoDoc for the tenant", async () => {
     convex.query.mockResolvedValue({ doc: DOC });
 
-    const { doc, sha } = await readDashboardConfig(
-      fakeOctokit(),
-      "acme",
+    const { doc, sha } = await readDashboardConfig("acme",
       "widgets",
     );
 
@@ -76,14 +70,14 @@ describe("dashboard config store", () => {
 
   it("returns an empty doc when no repoDoc exists", async () => {
     convex.query.mockResolvedValue(null);
-    const { doc } = await readDashboardConfig(fakeOctokit(), "acme", "widgets");
+    const { doc } = await readDashboardConfig("acme", "widgets");
     expect(doc).toEqual({ version: 1 });
   });
 
   it("writes the dashboard-config repoDoc for the tenant", async () => {
     convex.mutation.mockResolvedValue("id-1");
 
-    await writeDashboardConfig(fakeOctokit(), "acme", "widgets", DOC, null);
+    await writeDashboardConfig("acme", "widgets", DOC);
 
     const [ref, args] = convex.mutation.mock.calls[0]!;
     expect(getFunctionName(ref)).toBe("repoDocs:save");
@@ -97,9 +91,9 @@ describe("dashboard config store", () => {
 
   it("serves the written doc from cache without re-querying", async () => {
     convex.mutation.mockResolvedValue("id-1");
-    await writeDashboardConfig(fakeOctokit(), "acme", "widgets", DOC, null);
+    await writeDashboardConfig("acme", "widgets", DOC);
 
-    const { doc } = await readDashboardConfig(fakeOctokit(), "acme", "widgets");
+    const { doc } = await readDashboardConfig("acme", "widgets");
     expect(doc).toEqual(DOC);
     expect(convex.query).not.toHaveBeenCalled();
   });

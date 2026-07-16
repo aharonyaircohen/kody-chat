@@ -789,7 +789,6 @@ async function handleKodyDirectPost(
     }
     try {
       const viewRendererContext = await loadViewRendererContextForPrompt({
-        octokit: createUserOctokit(repo.token),
         owner: repo.owner,
         repo: repo.repo,
       });

@@ -27,9 +27,8 @@ interface Ctx {
 }
 
 export function createContextTools(ctx: Ctx) {
-  const { octokit, owner, repo, actorLogin } = ctx;
+  const { owner, repo } = ctx;
   const repoRef = `${owner}/${repo}`;
-  const by = actorLogin ? ` (via chat by @${actorLogin})` : "";
 
   return {
     list_context: tool({
@@ -53,7 +52,7 @@ export function createContextTools(ctx: Ctx) {
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
         try {
-          const entry = await readContextFile(slug, octokit);
+          const entry = await readContextFile(slug);
           if (!entry) return { error: `context "${slug}" not found` };
           return { entry };
         } catch (err) {
@@ -73,14 +72,11 @@ export function createContextTools(ctx: Ctx) {
         if (!isValidSlug(input.slug))
           return { error: `invalid slug "${input.slug}"` };
         try {
-          const existing = await readContextFile(input.slug, octokit);
+          const existing = await readContextFile(input.slug);
           const entry = await writeContextFile({
-            octokit,
             slug: input.slug,
             body: input.body,
             agent: input.agent,
-            sha: existing?.sha,
-            message: `${existing ? "chore" : "feat"}(context): ${existing ? "update" : "add"} ${input.slug}${by}`,
           });
           return {
             ok: true,
@@ -100,9 +96,9 @@ export function createContextTools(ctx: Ctx) {
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
         try {
-          const existing = await readContextFile(slug, octokit);
+          const existing = await readContextFile(slug);
           if (!existing) return { error: `context "${slug}" not found` };
-          await deleteContextFile(octokit, slug);
+          await deleteContextFile(slug);
           return { ok: true, action: "deleted", slug };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };

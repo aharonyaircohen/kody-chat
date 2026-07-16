@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest"
+// Intentionally anyApi: dynamic table-name loops / raw-deployment probes
+// that must not depend on the generated typed api.
 import { anyApi } from "convex/server"
 import { createBackendClient } from "../../src/client.ts"
 import { mapStateFile } from "../../src/export-mapping.ts"

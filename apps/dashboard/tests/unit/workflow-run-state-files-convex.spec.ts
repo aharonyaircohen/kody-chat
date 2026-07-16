@@ -34,7 +34,6 @@ const RUN_STATE = {
   steps: [],
 };
 
-const octokit = {} as never;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -47,7 +46,6 @@ describe("workflow run state convex reads", () => {
     convex.query.mockResolvedValue({ runId: "run-b2", state: RUN_STATE, runner: { kind: "fly", machineId: "m1" } });
 
     const record = await readWorkflowRunStateFile(
-      octokit,
       "acme",
       "widgets",
       "release",
@@ -69,7 +67,6 @@ describe("workflow run state convex reads", () => {
   it("returns null when the run does not exist", async () => {
     convex.query.mockResolvedValue(null);
     const record = await readWorkflowRunStateFile(
-      octokit,
       "acme",
       "widgets",
       "release",
@@ -80,7 +77,7 @@ describe("workflow run state convex reads", () => {
 
   it("rejects invalid workflow/run ids", async () => {
     await expect(
-      readWorkflowRunStateFile(octokit, "acme", "widgets", "../bad", "run-a"),
+      readWorkflowRunStateFile("acme", "widgets", "../bad", "run-a"),
     ).rejects.toThrow(/Invalid workflow or run id/);
     expect(convex.query).not.toHaveBeenCalled();
   });
@@ -93,7 +90,6 @@ describe("workflow run state convex reads", () => {
     ]);
 
     const record = await readLatestWorkflowRunStateFile(
-      octokit,
       "acme",
       "widgets",
       "release",
@@ -108,7 +104,6 @@ describe("workflow run state convex reads", () => {
   it("returns null when the workflow has no runs", async () => {
     convex.query.mockResolvedValue([]);
     const record = await readLatestWorkflowRunStateFile(
-      octokit,
       "acme",
       "widgets",
       "release",

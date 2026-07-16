@@ -123,6 +123,18 @@ export type SettleBackend =
 /** Maximum silence between Kody Direct transport events. */
 export const KODY_DIRECT_INACTIVITY_MS = 120_000;
 
+/**
+ * Maximum silence between Brain transport events. Longer than kody-direct
+ * because a cold Fly boot legitimately produces no events for ~100s and the
+ * Vercel proxy may hold the first connection up to its 300s ceiling before
+ * handing back. Set just above that ceiling: any single silent connection is
+ * ended by the proxy first (EOF → the adapter's resume loop reconnects and
+ * replays events), so this deadline only fires when reconnect cycles
+ * themselves stay silent — i.e. the turn is genuinely dead and the UI would
+ * otherwise show "thinking" forever.
+ */
+export const BRAIN_INACTIVITY_MS = 330_000;
+
 /** Classified turn failure: Stop-button abort vs a real error. */
 export type TurnFailure =
   { kind: "abort"; message: string } | { kind: "error"; message: string };
@@ -841,8 +853,14 @@ async function runSendTextInner(
       voiceMode,
     });
     try {
-      await brainTransport.send(
-        {
+      // Run under the shared turn coordinator so Brain gets the same
+      // lifecycle guarantees as kody-direct: an inactivity deadline (a
+      // socket the Brain server holds open but never writes to can no
+      // longer pin the UI in "thinking" forever) and the done-or-error
+      // protocol invariant.
+      await runChatTurn({
+        transport: brainTransport,
+        input: {
           sessionId: uiSessionId,
           text: brainWireContent,
           agentId: effectiveAgentId,
@@ -851,12 +869,13 @@ async function runSendTextInner(
             : {}),
           context: brainTurnConfig,
         },
-        {
+        context: {
           authHeaders: { ...authHeaders(), ...brainExtraHeaders },
           signal: abort.signal,
           emit: brainTurn.handleEvent,
         },
-      );
+        inactivityMs: BRAIN_INACTIVITY_MS,
+      });
 
       // Reconnect budget ran out — the handler already surfaced the
       // error bubble; nothing to hand to TTS.

@@ -147,15 +147,10 @@ export async function POST(
     };
 
     await writeManagedGoalFile({
-      octokit,
       owner: headerAuth.owner,
       repo: headerAuth.repo,
       id,
-      message: `chore(goals): ${
-        parsed.data.managed ? "enable" : "disable"
-      } Kody management for ${id}`,
       state: next as unknown as ManagedGoalState,
-      sha: existing?.source === "todo" ? existing.sha : undefined,
     });
 
     // Take effect now, not on the next cron. Dispatch on the repo's

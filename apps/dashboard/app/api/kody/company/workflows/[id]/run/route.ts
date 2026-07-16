@@ -125,7 +125,6 @@ export async function POST(
     } else {
       workflow = await readWorkflowDefinitionFile(
         id,
-        octokit,
         headerAuth.owner,
         headerAuth.repo,
       );

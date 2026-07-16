@@ -107,7 +107,6 @@ describe("view renderers convex store", () => {
       owner: "acme",
       repo: "widgets",
       definition: DEFINITION,
-      message: "save renderer",
     });
 
     expect(file.definition.slug).toBe("decision-card");
@@ -129,7 +128,6 @@ describe("view renderers convex store", () => {
       owner: "acme",
       repo: "widgets",
       slug: "decision-card",
-      message: "delete renderer",
     });
 
     const [ref, args] = convex.mutation.mock.calls[0]!;

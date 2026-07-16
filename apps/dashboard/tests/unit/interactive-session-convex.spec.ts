@@ -4,7 +4,7 @@
  * chatSessions (+ initial turn), appended turns land in chatTurns, reads go
  * through chatSessions.get, and a Convex outage never fails the chat write.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Octokit } from "@octokit/rest";
 import { getFunctionName } from "convex/server";
 
@@ -120,6 +120,53 @@ describe("appendUserTurn convex record", () => {
     const [ref, args] = convex.mutation.mock.calls[0]!;
     expect(getFunctionName(ref)).toBe("chatTurns:append");
     expect(args.turn).toEqual({ ...TURN, toolCalls: [] });
+  });
+});
+
+describe("legacy dual-write gate (KODY_LEGACY_SESSION_WRITE)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("skips the GitHub write on session start when the flag is '0'", async () => {
+    vi.stubEnv("KODY_LEGACY_SESSION_WRITE", "0");
+    const octokit = makeOctokit();
+
+    await writeSessionMeta(octokit, "acme", "widgets", "s1", META);
+
+    const repos = (octokit as unknown as { repos: Record<string, unknown> })
+      .repos as { createOrUpdateFileContents: ReturnType<typeof vi.fn> };
+    expect(repos.createOrUpdateFileContents).not.toHaveBeenCalled();
+    // Convex record still lands.
+    const [ref] = convex.mutation.mock.calls[0]!;
+    expect(getFunctionName(ref)).toBe("chatSessions:upsert");
+  });
+
+  it("skips the GitHub write on append and counts turns from Convex", async () => {
+    vi.stubEnv("KODY_LEGACY_SESSION_WRITE", "0");
+    convex.query.mockResolvedValue([{ seq: 0, turn: TURN }]);
+    const octokit = makeOctokit();
+
+    const result = await appendUserTurn(octokit, "acme", "widgets", "s1", TURN);
+
+    const repos = (octokit as unknown as { repos: Record<string, unknown> })
+      .repos as {
+      createOrUpdateFileContents: ReturnType<typeof vi.fn>;
+      getContent: ReturnType<typeof vi.fn>;
+    };
+    expect(repos.createOrUpdateFileContents).not.toHaveBeenCalled();
+    expect(repos.getContent).not.toHaveBeenCalled();
+    const [ref] = convex.mutation.mock.calls[0]!;
+    expect(getFunctionName(ref)).toBe("chatTurns:append");
+    expect(result.turnCount).toBe(1);
+  });
+
+  it("keeps the GitHub write when the flag is unset", async () => {
+    const octokit = makeOctokit();
+    await writeSessionMeta(octokit, "acme", "widgets", "s1", META);
+    const repos = (octokit as unknown as { repos: Record<string, unknown> })
+      .repos as { createOrUpdateFileContents: ReturnType<typeof vi.fn> };
+    expect(repos.createOrUpdateFileContents).toHaveBeenCalledTimes(1);
   });
 });
 

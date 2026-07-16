@@ -410,14 +410,11 @@ async function artifactResponseToBuffer(data: unknown): Promise<Buffer> {
  * (dailyLogs, stream "activity" — one row per former `activity/<date>.jsonl`
  * line). Newest-first, in-process cached (same TTL bucket as the old
  * ETag-cached GitHub reads) with a stale fallback on backend errors.
- * Returns [] when nothing is recorded yet. `dayFiles` is kept for signature
- * compatibility; on Convex the read is a single newest-first query.
+ * Returns [] when nothing is recorded yet; on Convex the read is a single
+ * newest-first query.
  */
-const ACTIVITY_DAY_FILES = 3;
-
 export async function fetchCompanyActivity(
   limit = 100,
-  _dayFiles = ACTIVITY_DAY_FILES,
 ): Promise<CompanyActivityRecord[]> {
   const owner = getOwner();
   const repo = getRepo();

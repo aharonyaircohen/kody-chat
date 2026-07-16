@@ -147,7 +147,6 @@ export async function GET(
 
     const existing = await readWorkflowDefinitionFile(
       id,
-      context.octokit,
       context.headerAuth.owner,
       context.headerAuth.repo,
     );
@@ -228,7 +227,6 @@ export async function PATCH(
     workflowDefinitionPath(id);
     const existing = await readWorkflowDefinitionFile(
       id,
-      context.octokit,
       context.headerAuth.owner,
       context.headerAuth.repo,
     );
@@ -290,13 +288,10 @@ export async function PATCH(
     }
 
     await writeWorkflowDefinitionFile({
-      octokit: context.octokit,
-      owner: context.headerAuth.owner,
+            owner: context.headerAuth.owner,
       repo: context.headerAuth.repo,
       id,
       workflow,
-      sha: existing.sha,
-      message: `chore(workflows): update workflow ${id}`,
     });
 
     return NextResponse.json({
@@ -338,7 +333,6 @@ export async function DELETE(
 
     const existing = await readWorkflowDefinitionFile(
       id,
-      context.octokit,
       context.headerAuth.owner,
       context.headerAuth.repo,
     );
@@ -387,12 +381,9 @@ export async function DELETE(
     }
 
     await deleteWorkflowDefinitionFile({
-      octokit: context.octokit,
-      owner: context.headerAuth.owner,
+            owner: context.headerAuth.owner,
       repo: context.headerAuth.repo,
       id,
-      sha: existing.sha,
-      message: `chore(workflows): delete workflow ${id}`,
     });
 
     return NextResponse.json({ success: true });

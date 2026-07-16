@@ -143,17 +143,15 @@ async function importContexts(
   const counts = emptyCounts();
   for (const entry of entries) {
     try {
-      const existing = await readContextFile(entry.slug, octokit);
+      const existing = await readContextFile(entry.slug);
       if (existing && mode === "skip") {
         counts.skipped++;
         continue;
       }
       await writeContextFile({
-        octokit,
         slug: entry.slug,
         body: entry.body,
         agent: entry.agent,
-        sha: existing?.sha,
       });
       if (existing) counts.updated++;
       else counts.created++;
@@ -353,15 +351,11 @@ export async function applyCompanyBundle(
   let instructions: CompanyImportResult["instructions"] = "absent";
   if (bundle.instructions && bundle.instructions.trim().length > 0) {
     try {
-      const existing = await readInstructionsFile(octokit);
+      const existing = await readInstructionsFile();
       if (existing && mode === "skip") {
         instructions = "skipped";
       } else {
-        await writeInstructionsFile({
-          octokit,
-          body: bundle.instructions,
-          sha: existing?.sha,
-        });
+        await writeInstructionsFile({ body: bundle.instructions });
         instructions = existing ? "updated" : "created";
       }
     } catch (err) {

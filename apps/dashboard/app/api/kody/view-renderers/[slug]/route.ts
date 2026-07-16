@@ -77,7 +77,6 @@ export async function GET(
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     }
     const existing = await readViewRendererDefinitionFile({
-      octokit,
       owner: required.auth.owner,
       repo: required.auth.repo,
       slug,
@@ -130,7 +129,6 @@ export async function PATCH(
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     }
     const existing = await readViewRendererDefinitionFile({
-      octokit,
       owner: required.auth.owner,
       repo: required.auth.repo,
       slug,
@@ -139,12 +137,9 @@ export async function PATCH(
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
     const written = await writeViewRendererDefinitionFile({
-      octokit,
       owner: required.auth.owner,
       repo: required.auth.repo,
       definition,
-      sha: existing.sha,
-      message: `chore(renderers): update ${slug}`,
     });
     recordAudit(req, {
       action: "view-renderer.update",
@@ -196,7 +191,6 @@ export async function DELETE(
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     }
     const existing = await readViewRendererDefinitionFile({
-      octokit,
       owner: required.auth.owner,
       repo: required.auth.repo,
       slug,
@@ -205,12 +199,9 @@ export async function DELETE(
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
     await deleteViewRendererDefinitionFile({
-      octokit,
       owner: required.auth.owner,
       repo: required.auth.repo,
       slug,
-      sha: existing.sha,
-      message: `chore(renderers): delete ${slug}`,
     });
     recordAudit(req, {
       action: "view-renderer.delete",

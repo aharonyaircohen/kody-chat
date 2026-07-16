@@ -10,7 +10,7 @@
  */
 import "server-only";
 import { ConvexHttpClient } from "convex/browser";
-import { anyApi } from "convex/server";
+import { api as backendApi } from "@kody-ade/backend/api";
 import { withEscapedKeys } from "@kody-ade/backend/client";
 import { userFileKey } from "../user-key";
 import type {
@@ -79,7 +79,7 @@ export const stateRepoUserStateAdapter: UserStateAdapter = {
       return cached.doc;
     }
 
-    const record = (await getClient().query(anyApi.userState.get, {
+    const record = (await getClient().query(backendApi.userState.get, {
       tenantId: `${ctx.owner}/${ctx.repo}`,
       namespace: namespace.name,
       userKey,
@@ -107,7 +107,7 @@ export const stateRepoUserStateAdapter: UserStateAdapter = {
     const userKey = userFileKey(userId);
     cache.delete(cacheKey(ctx, namespace.name, userKey));
 
-    await getClient().mutation(anyApi.userState.save, {
+    await getClient().mutation(backendApi.userState.save, {
       tenantId: `${ctx.owner}/${ctx.repo}`,
       namespace: namespace.name,
       userKey,

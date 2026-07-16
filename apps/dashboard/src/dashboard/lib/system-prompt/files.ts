@@ -6,11 +6,9 @@
  *   the Convex backend (repoDocs, kind "system-prompt", doc `{ body }`).
  *   When present and non-empty, the engine (kody-live chat) uses it INSTEAD
  *   of its built-in CHAT_SYSTEM_PROMPT — unlike `instructions.md`, which is
- *   layered on top. Empty/absent doc → built-in prompt. Exported signatures
- *   are unchanged from the state-repo era; octokit params are unused.
+ *   layered on top. Empty/absent doc → built-in prompt.
  */
 
-import type { Octokit } from "@octokit/rest";
 import { getOwner, getRepo } from "../github-client";
 import {
   backendApi,
@@ -33,9 +31,7 @@ interface SystemPromptDoc {
   updatedAt: string;
 }
 
-export async function readSystemPromptFile(
-  _octokitOverride?: Octokit,
-): Promise<SystemPromptFile | null> {
+export async function readSystemPromptFile(): Promise<SystemPromptFile | null> {
   const record = (await getConvexClient().query(backendApi.repoDocs.get, {
     tenantId: tenantIdFor(getOwner(), getRepo()),
     kind: SYSTEM_PROMPT_KIND,
@@ -50,10 +46,7 @@ export async function readSystemPromptFile(
 }
 
 interface WriteOptions {
-  octokit?: Octokit;
   body: string;
-  sha?: string;
-  message?: string;
 }
 
 export async function writeSystemPromptFile(
@@ -70,9 +63,7 @@ export async function writeSystemPromptFile(
   return { body, sha: "", updatedAt, htmlUrl: "" };
 }
 
-export async function deleteSystemPromptFile(
-  _octokit?: Octokit,
-): Promise<void> {
+export async function deleteSystemPromptFile(): Promise<void> {
   await getConvexClient().mutation(backendApi.repoDocs.remove, {
     tenantId: tenantIdFor(getOwner(), getRepo()),
     kind: SYSTEM_PROMPT_KIND,

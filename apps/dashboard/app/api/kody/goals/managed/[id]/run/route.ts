@@ -106,12 +106,10 @@ export async function POST(
       };
       const path = managedGoalPath(id);
       await writeManagedGoalFile({
-        octokit,
         owner: headerAuth.owner,
         repo: headerAuth.repo,
         id,
         state,
-        message: `chore(goals): prepare managed goal ${id} for manual run`,
       });
       goal = {
         id,

@@ -136,13 +136,10 @@ export async function POST(
     delete next.pausedReason;
 
     await writeManagedGoalFile({
-      octokit,
       owner: headerAuth.owner,
       repo: headerAuth.repo,
       id,
-      message: `chore(goals): approve merge for ${id}`,
       state: next as unknown as ManagedGoalState,
-      sha: existing.source === "todo" ? existing.sha : undefined,
     });
 
     // Take effect now, not on the next 15-min cron. Dispatch on the repo's

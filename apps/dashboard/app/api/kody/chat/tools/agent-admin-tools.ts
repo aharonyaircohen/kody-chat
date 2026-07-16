@@ -68,7 +68,7 @@ export function createAgentAdminTools(ctx: Ctx) {
         try {
           const existing = await readAgentFile(slug);
           if (!existing) return { error: `agent "${slug}" not found` };
-          await deleteAgentFile(octokit, slug);
+          await deleteAgentFile(slug);
           return { ok: true, action: "deleted", slug };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };

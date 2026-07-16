@@ -47,14 +47,12 @@ export async function GET(
     }
     const run = runId
       ? await readWorkflowRunStateFile(
-          octokit,
           auth.owner,
           auth.repo,
           id,
           runId,
         )
       : await readLatestWorkflowRunStateFile(
-          octokit,
           auth.owner,
           auth.repo,
           id,

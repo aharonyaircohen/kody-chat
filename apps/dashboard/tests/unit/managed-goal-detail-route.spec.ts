@@ -376,7 +376,6 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
     expect(json.goal.state.state).toBe("active");
     expect(h.writeManagedGoalFile).toHaveBeenCalledTimes(1);
     expect(h.writeManagedGoalFile.mock.calls[0]![0]).toMatchObject({
-      sha: "goal-sha",
       state: {
         state: "active",
         sourceTemplate: "codebase-health",
@@ -410,7 +409,6 @@ describe("DELETE /api/kody/goals/managed/[id]", () => {
     expect(h.deleteManagedGoalFile).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "codebase-health",
-        sha: "goal-sha",
       }),
     );
   });
@@ -440,7 +438,6 @@ describe("DELETE /api/kody/goals/managed/[id]", () => {
     expect(h.deleteManagedGoalFile).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "codebase-health",
-        sha: "goal-sha",
       }),
     );
     expect(h.writeConfigPatch).not.toHaveBeenCalled();
@@ -480,7 +477,6 @@ describe("DELETE /api/kody/goals/managed/[id]", () => {
     expect(h.deleteManagedGoalFile).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "codebase-health",
-        sha: "goal-sha",
       }),
     );
     expect(h.writeConfigPatch).toHaveBeenCalledWith(
@@ -545,13 +541,11 @@ describe("DELETE /api/kody/goals/managed/[id]", () => {
     expect(h.deleteManagedGoalFile).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "codebase-health-a1",
-        sha: "goal-sha-1",
       }),
     );
     expect(h.deleteManagedGoalFile).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "codebase-health-a2",
-        sha: "goal-sha-2",
       }),
     );
   });
@@ -603,7 +597,6 @@ describe("DELETE /api/kody/goals/managed/[id]", () => {
     expect(h.deleteManagedGoalFile).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "codebase-health-a1",
-        sha: "goal-sha-1",
       }),
     );
     expect(h.writeConfigPatch).toHaveBeenCalledWith(

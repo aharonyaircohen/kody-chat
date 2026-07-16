@@ -5,8 +5,7 @@
  * @ai-summary Read/write per-user notification preferences in the Convex
  *   backend (notificationPrefs.{get,save}, keyed by lowercase login, tenant
  *   scoped by owner/repo). Short TTL cache in front of reads; writes
- *   invalidate. Exported signatures kept from the state-repo era (the token
- *   parameter is unused).
+ *   invalidate.
  */
 import "server-only";
 import { getOwner, getRepo } from "../github-client";
@@ -96,7 +95,6 @@ function normalizePrefs(value: unknown): NotificationPrefsFile {
  */
 export async function readNotificationPrefs(
   login: string,
-  _token: string,
 ): Promise<NotificationPrefsFile> {
   const owner = getOwner();
   const repo = getRepo();
@@ -122,7 +120,6 @@ export async function readNotificationPrefs(
 /** Write notification preferences for a user to the Convex backend. */
 export async function writeNotificationPrefs(
   login: string,
-  _token: string,
   prefs: NotificationPrefsFile,
 ): Promise<void> {
   const owner = getOwner();

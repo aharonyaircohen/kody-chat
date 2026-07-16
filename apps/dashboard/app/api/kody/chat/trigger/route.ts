@@ -38,6 +38,7 @@ import {
 import { applyPageContextToLastUser } from "@kody-ade/kody-chat/core/page-context";
 import { recordDispatchFailure } from "@dashboard/lib/health/dispatch-failures";
 import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
+import { isLegacySessionWriteEnabled } from "@dashboard/lib/legacy-session-write";
 import {
   backendApi,
   getConvexClient,
@@ -238,28 +239,33 @@ export async function POST(req: NextRequest) {
       "chat: writing session file",
     );
 
-    let sha: string | undefined;
-    try {
-      sha = (await readStateText(octokit, owner, repo, sessionPath))?.sha;
-    } catch (err: unknown) {
-      const e = err as { status?: number };
-      if (e.status !== 404) {
-        logger.warn(
-          { err, taskId },
-          "chat: could not check existing session file",
-        );
+    // Legacy dual-write gate: with KODY_LEGACY_SESSION_WRITE=0 the state-repo
+    // JSONL write is skipped; Convex (below) is the only transcript record.
+    // See legacy-session-write.ts for when that is safe.
+    if (isLegacySessionWriteEnabled()) {
+      let sha: string | undefined;
+      try {
+        sha = (await readStateText(octokit, owner, repo, sessionPath))?.sha;
+      } catch (err: unknown) {
+        const e = err as { status?: number };
+        if (e.status !== 404) {
+          logger.warn(
+            { err, taskId },
+            "chat: could not check existing session file",
+          );
+        }
       }
-    }
 
-    await writeStateText({
-      octokit,
-      owner,
-      repo,
-      path: sessionPath,
-      message: `chat: update session ${taskId}`,
-      content: jsonlContent,
-      ...(sha ? { sha } : {}),
-    });
+      await writeStateText({
+        octokit,
+        owner,
+        repo,
+        path: sessionPath,
+        message: `chat: update session ${taskId}`,
+        content: jsonlContent,
+        ...(sha ? { sha } : {}),
+      });
+    }
 
     await mirrorSessionToConvex(owner, repo, taskId, messages);
 

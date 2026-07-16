@@ -72,10 +72,7 @@ export async function listAgentFiles(): Promise<AgentFile[]> {
     .sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
-export async function readAgentFile(
-  slug: string,
-  _octokitOverride?: Octokit,
-): Promise<AgentFile | null> {
+export async function readAgentFile(slug: string): Promise<AgentFile | null> {
   if (!isValidSlug(slug)) return null;
   const docs = (await getConvexClient().query(backendApi.agents.list, {
     tenantId: tenantId(),
@@ -131,10 +128,7 @@ export async function writeAgentFile(
   return agentFileFromDoc({ slug: opts.slug, body: raw, updatedAt });
 }
 
-export async function deleteAgentFile(
-  _octokit: Octokit,
-  slug: string,
-): Promise<void> {
+export async function deleteAgentFile(slug: string): Promise<void> {
   if (!isValidSlug(slug)) return;
   await getConvexClient().mutation(backendApi.agents.remove, {
     tenantId: tenantId(),
@@ -157,7 +151,7 @@ export async function readResolvedAgentFile(
   slug: string,
   octokitOverride?: Octokit,
 ): Promise<AgentFile | null> {
-  const local = await readAgentFile(slug, octokitOverride);
+  const local = await readAgentFile(slug);
   if (local) return local;
   const store = await listStoreAgentFiles(
     octokitOverride ?? getOctokit(),

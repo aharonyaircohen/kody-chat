@@ -179,7 +179,6 @@ describe("brands API routes", () => {
         name: "Acme Support",
         modelId: "sonnet-4",
         agentSlug: "qa-agent",
-        sha: "sha",
       }),
     );
   });
@@ -235,7 +234,7 @@ describe("brands API routes", () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ success: true });
-    expect(h.deleteBrandFile).toHaveBeenCalledWith({ rest: {} }, "custom");
+    expect(h.deleteBrandFile).toHaveBeenCalledWith("custom");
     expect(h.disableBrand).not.toHaveBeenCalled();
   });
 
@@ -250,7 +249,7 @@ describe("brands API routes", () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ success: true });
     expect(h.deleteBrandFile).not.toHaveBeenCalled();
-    expect(h.disableBrand).toHaveBeenCalledWith({ rest: {} }, "acme");
+    expect(h.disableBrand).toHaveBeenCalledWith("acme");
   });
 
   it("deletes a repo override for a built-in and keeps fallback hidden", async () => {
@@ -262,7 +261,7 @@ describe("brands API routes", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(h.deleteBrandFile).toHaveBeenCalledWith({ rest: {} }, "acme");
-    expect(h.disableBrand).toHaveBeenCalledWith({ rest: {} }, "acme");
+    expect(h.deleteBrandFile).toHaveBeenCalledWith("acme");
+    expect(h.disableBrand).toHaveBeenCalledWith("acme");
   });
 });

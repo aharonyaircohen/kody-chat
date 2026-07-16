@@ -110,7 +110,7 @@ async function readManagedGoalFileWithStoreTemplates(
   path: string;
   source: "todo";
 } | null> {
-  const todoFile = await readManagedGoalTodoFile(goalId, octokit, owner, repo);
+  const todoFile = await readManagedGoalTodoFile(goalId, owner, repo);
   if (!todoFile) return null;
   const todo = parseTodoFileContent(
     todoFile.content,
@@ -272,28 +272,17 @@ async function loadCompanyStoreGoalTemplateFiles(
 }
 
 export async function writeManagedGoalFile({
-  octokit,
   owner = getOwner(),
   repo = getRepo(),
   id,
   state,
-  sha,
-  message,
 }: {
-  octokit: Octokit;
   owner?: string;
   repo?: string;
   id: string;
   state: ManagedGoalState;
-  sha?: string;
-  message?: string;
 }): Promise<void> {
-  const currentTodo = await readManagedGoalTodoContent(
-    id,
-    octokit,
-    owner,
-    repo,
-  );
+  const currentTodo = await readManagedGoalTodoContent(id, owner, repo);
   if (currentTodo && !isManagedGoalTodo(currentTodo)) {
     throw new Error(`Cannot overwrite regular todo list ${id} as managed goal`);
   }
@@ -312,7 +301,6 @@ export async function writeManagedGoalFile({
 
 async function readManagedGoalTodoFile(
   id: string,
-  _octokit: Octokit,
   owner: string,
   repo: string,
 ): Promise<{ path: string; content: string; sha?: string } | null> {
@@ -327,11 +315,10 @@ async function readManagedGoalTodoFile(
 
 async function readManagedGoalTodoContent(
   id: string,
-  octokit: Octokit,
   owner: string,
   repo: string,
 ): Promise<TodoFileContent | null> {
-  const file = await readManagedGoalTodoFile(id, octokit, owner, repo);
+  const file = await readManagedGoalTodoFile(id, owner, repo);
   return file
     ? parseTodoFileContent(file.content, id, new Date().toISOString())
     : null;
@@ -342,15 +329,12 @@ export async function deleteManagedGoalFile({
   owner = getOwner(),
   repo = getRepo(),
   id,
-  sha,
-  message,
 }: {
+  /** Used to resolve company-store goal templates during the pre-delete read. */
   octokit: Octokit;
   owner?: string;
   repo?: string;
   id: string;
-  sha?: string;
-  message?: string;
 }): Promise<void> {
   const existing = await readManagedGoalFile(id, octokit, owner, repo);
   if (!existing) return;

@@ -132,7 +132,7 @@ describe("agent files convex store", () => {
   it("deletes an agent via agents.remove", async () => {
     convex.mutation.mockResolvedValue(null);
 
-    await deleteAgentFile({} as never, "release");
+    await deleteAgentFile("release");
 
     const [ref, args] = convex.mutation.mock.calls[0]!;
     expect(getFunctionName(ref)).toBe("agents:remove");

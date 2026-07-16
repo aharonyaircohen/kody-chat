@@ -283,12 +283,10 @@ export async function PATCH(
           );
           const path = managedGoalPath(id);
           await writeManagedGoalFile({
-            octokit: context.octokit,
             owner: context.headerAuth.owner,
             repo: context.headerAuth.repo,
             id,
             state: nextState,
-            message: `chore(goals): update managed goal ${id}`,
           });
           return NextResponse.json({ goal: { id, path, state: nextState } });
         }
@@ -321,13 +319,10 @@ export async function PATCH(
         parsed.data.pausedReason,
       );
       await writeManagedGoalFile({
-        octokit: context.octokit,
         owner: context.headerAuth.owner,
         repo: context.headerAuth.repo,
         id,
         state: nextState,
-        sha: existing.sha,
-        message: `chore(goals): update managed goal ${id}`,
       });
       return NextResponse.json({
         goal: { id, path: existing.path, state: nextState },
@@ -440,13 +435,10 @@ export async function PATCH(
     }
 
     await writeManagedGoalFile({
-      octokit: context.octokit,
       owner: context.headerAuth.owner,
       repo: context.headerAuth.repo,
       id,
       state: nextState,
-      sha: existing.sha,
-      message: `chore(goals): update managed goal ${id}`,
     });
 
     return NextResponse.json({
@@ -506,8 +498,6 @@ export async function DELETE(
             owner: context.headerAuth.owner,
             repo: context.headerAuth.repo,
             id: goal.id,
-            sha: file.sha,
-            message: `chore(goals): delete managed goal ${goal.id}`,
           });
           deletedCount += 1;
         }
@@ -546,8 +536,6 @@ export async function DELETE(
       owner: context.headerAuth.owner,
       repo: context.headerAuth.repo,
       id,
-      sha: existing.sha,
-      message: `chore(goals): delete managed goal ${id}`,
     });
 
     const removedReference = shouldRemoveActiveStoreGoalReference(

@@ -5,11 +5,9 @@
  * @ai-summary Server-side store for saved preview macros, backed by the
  *   Convex backend (macros.{list,save,remove}, one row per macro, tenant
  *   scoped by owner/repo) so chat (server-side) and every device can read,
- *   rename, and delete them. Exported signatures kept from the state-repo
- *   era; octokit params are unused and retained for compatibility.
+ *   rename, and delete them.
  */
 
-import type { Octokit } from "@octokit/rest";
 import { getOwner, getRepo } from "./github-client";
 import {
   backendApi,
@@ -48,9 +46,10 @@ async function saveMacro(macro: Macro): Promise<void> {
  * Read every saved macro (newest-first, matching the old localStorage
  * behavior). `sha` is always null — Convex needs no CAS token.
  */
-export async function readMacrosFile(
-  _octokitOverride?: Octokit,
-): Promise<{ macros: Macro[]; sha: string | null }> {
+export async function readMacrosFile(): Promise<{
+  macros: Macro[];
+  sha: string | null;
+}> {
   const docs = (await getConvexClient().query(backendApi.macros.list, {
     tenantId: tenantId(),
   })) as Array<{ macro: unknown }>;
@@ -74,10 +73,8 @@ function newId(name: string): string {
  * names or zero-step recordings are rejected.
  */
 export async function addMacroToFile(opts: {
-  octokit?: Octokit;
   name: string;
   steps: Macro["steps"];
-  message?: string;
 }): Promise<Macro> {
   const name = opts.name.trim().slice(0, 64);
   if (!name) throw new Error("Macro name is required");
@@ -96,9 +93,7 @@ export async function addMacroToFile(opts: {
 
 /** Delete a macro by id. Returns true if one was removed. */
 export async function deleteMacroFromFile(opts: {
-  octokit?: Octokit;
   id: string;
-  message?: string;
 }): Promise<boolean> {
   const { macros } = await readMacrosFile();
   if (!macros.some((m) => m.id === opts.id)) return false;
@@ -111,10 +106,8 @@ export async function deleteMacroFromFile(opts: {
 
 /** Rename a macro by id. Returns the updated macro, or null if not found. */
 export async function renameMacroInFile(opts: {
-  octokit?: Octokit;
   id: string;
   name: string;
-  message?: string;
 }): Promise<Macro | null> {
   const name = opts.name.trim().slice(0, 64);
   if (!name) throw new Error("New name is required");

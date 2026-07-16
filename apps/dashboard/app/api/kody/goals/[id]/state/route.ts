@@ -207,19 +207,11 @@ export async function PUT(
       delete next.pausedReason;
     }
 
-    const message =
-      parsed.data.state === "active"
-        ? `chore(goals): start runner for ${id}`
-        : `chore(goals): pause runner for ${id}`;
-
     await writeManagedGoalFile({
-      octokit,
       owner: headerAuth.owner,
       repo: headerAuth.repo,
       id,
-      message,
       state: next as unknown as ManagedGoalState,
-      sha: existing?.source === "todo" ? existing.sha : undefined,
     });
 
     // Starting a goal must take effect now, not on the next cron tick.

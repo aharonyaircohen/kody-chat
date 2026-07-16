@@ -293,7 +293,6 @@ describe("company workflows route", () => {
     expect(workflowFiles.writeWorkflowDefinitionFile).toHaveBeenCalledWith(
       expect.objectContaining({
         id: "release",
-        sha: "workflow-sha",
         workflow: expect.objectContaining({
           name: "Release readiness",
           startAt: "inspect",

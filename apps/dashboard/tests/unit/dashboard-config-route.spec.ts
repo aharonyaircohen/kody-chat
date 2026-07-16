@@ -106,7 +106,6 @@ describe("GET /api/kody/dashboard-config", () => {
       "ghs_app_token",
     );
     expect(store.readDashboardConfig).toHaveBeenCalledWith(
-      { marker: "app-octokit" },
       "acme",
       "widgets",
     );
@@ -123,7 +122,6 @@ describe("GET /api/kody/dashboard-config", () => {
     expect(res.status).toBe(200);
     expect(auth.getUserOctokit).toHaveBeenCalled();
     expect(store.readDashboardConfig).toHaveBeenCalledWith(
-      { marker: "viewer-octokit" },
       "acme",
       "widgets",
     );
@@ -193,7 +191,6 @@ describe("PUT /api/kody/dashboard-config", () => {
 
     expect(res.status).toBe(200);
     expect(store.writeDashboardConfig).toHaveBeenCalledWith(
-      { marker: "viewer-octokit" },
       "acme",
       "widgets",
       {
@@ -201,8 +198,6 @@ describe("PUT /api/kody/dashboard-config", () => {
         defaultPreviewUrl: "https://legacy.example.com",
         namedPreviews: [],
       },
-      "sha-1",
-      "chore(dashboard): update preview environments",
     );
   });
 
@@ -225,7 +220,6 @@ describe("PUT /api/kody/dashboard-config", () => {
 
     expect(res.status).toBe(200);
     expect(store.writeDashboardConfig).toHaveBeenCalledWith(
-      { marker: "viewer-octokit" },
       "acme",
       "widgets",
       {
@@ -239,8 +233,6 @@ describe("PUT /api/kody/dashboard-config", () => {
           },
         ],
       },
-      "sha-1",
-      "chore(dashboard): update preview environments",
     );
   });
 });

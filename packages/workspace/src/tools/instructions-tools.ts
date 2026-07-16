@@ -25,9 +25,8 @@ interface Ctx {
 }
 
 export function createInstructionsTools(ctx: Ctx) {
-  const { octokit, owner, repo, actorLogin } = ctx;
+  const { owner, repo } = ctx;
   const repoRef = `${owner}/${repo}`;
-  const by = actorLogin ? ` (via chat by @${actorLogin})` : "";
 
   return {
     read_instructions: tool({
@@ -35,7 +34,7 @@ export function createInstructionsTools(ctx: Ctx) {
       inputSchema: z.object({}),
       execute: async () => {
         try {
-          const file = await readInstructionsFile(octokit);
+          const file = await readInstructionsFile();
           return {
             body: file?.body ?? null,
             htmlUrl: file ? dashboardInstructionsUrl() : null,
@@ -51,13 +50,8 @@ export function createInstructionsTools(ctx: Ctx) {
       inputSchema: z.object({ body: z.string().min(1) }),
       execute: async ({ body }) => {
         try {
-          const existing = await readInstructionsFile(octokit);
-          await writeInstructionsFile({
-            octokit,
-            body,
-            sha: existing?.sha,
-            message: `chore(instructions): update${by}`,
-          });
+          const existing = await readInstructionsFile();
+          await writeInstructionsFile({ body });
           return {
             ok: true,
             action: existing ? "updated" : "created",
@@ -74,9 +68,9 @@ export function createInstructionsTools(ctx: Ctx) {
       inputSchema: z.object({}),
       execute: async () => {
         try {
-          const existing = await readInstructionsFile(octokit);
+          const existing = await readInstructionsFile();
           if (!existing) return { error: "no instructions file to delete" };
-          await deleteInstructionsFile(octokit);
+          await deleteInstructionsFile();
           return { ok: true, action: "deleted" };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };

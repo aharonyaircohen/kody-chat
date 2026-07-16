@@ -8,8 +8,6 @@
  * file is not secret. Currently holds preview and dashboard preferences.
  */
 
-import type { Octokit } from "@octokit/rest";
-
 import { logger } from "@kody-ade/base/logger";
 import type {
   PreviewEnvironment,
@@ -76,7 +74,6 @@ function emptyDoc(): DashboardConfig {
 }
 
 async function fetchRaw(
-  _octokit: Octokit,
   owner: string,
   repo: string,
 ): Promise<{ doc: DashboardConfig; sha: string | null }> {
@@ -101,7 +98,6 @@ async function fetchRaw(
 }
 
 export async function readDashboardConfig(
-  octokit: Octokit,
   owner: string,
   repo: string,
   options: { force?: boolean } = {},
@@ -117,7 +113,7 @@ export async function readDashboardConfig(
   const inflight = INFLIGHT.get(key);
   if (inflight) return inflight;
 
-  const promise = fetchRaw(octokit, owner, repo)
+  const promise = fetchRaw(owner, repo)
     .then((result) => {
       CACHE.set(key, {
         doc: result.doc,
@@ -135,12 +131,9 @@ export async function readDashboardConfig(
 }
 
 export async function writeDashboardConfig(
-  _octokit: Octokit,
   owner: string,
   repo: string,
   doc: DashboardConfig,
-  _currentSha: string | null,
-  _commitMessage = "chore(dashboard): update dashboard config",
 ): Promise<{ sha: string }> {
   await getConvexClient().mutation(backendApi.repoDocs.save, {
     tenantId: tenantIdFor(owner, repo),
@@ -169,13 +162,12 @@ export function invalidateDashboardConfigCache(
  * adding a known branch or removing an unknown one is a no-op write-wise.
  */
 export async function setBranchPreview(
-  octokit: Octokit,
   owner: string,
   repo: string,
   branch: string,
   present: boolean,
 ): Promise<string[]> {
-  const { doc, sha } = await readDashboardConfig(octokit, owner, repo, {
+  const { doc } = await readDashboardConfig(owner, repo, {
     force: true,
   });
   const current = doc.branchPreviews ?? [];
@@ -191,16 +183,7 @@ export async function setBranchPreview(
     branchPreviews: nextList.length > 0 ? nextList : undefined,
   };
 
-  await writeDashboardConfig(
-    octokit,
-    owner,
-    repo,
-    next,
-    sha,
-    present
-      ? `chore(dashboard): track branch preview ${branch}`
-      : `chore(dashboard): drop branch preview ${branch}`,
-  );
+  await writeDashboardConfig(owner, repo, next);
   invalidateDashboardConfigCache(owner, repo);
   return nextList;
 }

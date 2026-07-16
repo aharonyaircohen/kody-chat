@@ -13,7 +13,7 @@
  */
 
 import { ConvexClient } from "convex/browser";
-import { anyApi } from "convex/server";
+import { api as backendApi } from "@kody-ade/backend/api";
 import { deepUnescapeKeys } from "@kody-ade/backend/escape-keys";
 import type {
   ChatLiveTransport,
@@ -65,7 +65,7 @@ export function createConvexChatLiveTransport(url: string): ChatLiveTransport {
       let lastSeq = -1;
       let stopped = false;
       const unsubscribe = client.onUpdate(
-        anyApi.chatEvents.since,
+        backendApi.chatEvents.since,
         { tenantId: CHAT_EVENTS_TENANT, sessionId, afterSeq: -1 },
         (docs: unknown) => {
           if (stopped || !Array.isArray(docs)) return;

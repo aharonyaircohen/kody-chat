@@ -85,7 +85,7 @@ export async function PUT(req: NextRequest) {
   }
   try {
     const payload = await req.json();
-    const { body, sha, actorLogin } = writeSchema.parse(payload);
+    const { body, actorLogin } = writeSchema.parse(payload);
 
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
@@ -103,16 +103,11 @@ export async function PUT(req: NextRequest) {
     }
 
     if (body.trim().length === 0) {
-      await deleteInstructionsFile(userOctokit);
+      await deleteInstructionsFile();
       return NextResponse.json({ instructions: null });
     }
 
-    const existing = await readInstructionsFile();
-    const instructions = await writeInstructionsFile({
-      octokit: userOctokit,
-      body,
-      sha: sha ?? existing?.sha,
-    });
+    const instructions = await writeInstructionsFile({ body });
     return NextResponse.json({ instructions });
   } catch (error: any) {
     console.error("[Instructions] write failed:", error);
@@ -160,7 +155,7 @@ export async function DELETE(req: NextRequest) {
     if (!userOctokit) {
       return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     }
-    await deleteInstructionsFile(userOctokit);
+    await deleteInstructionsFile();
     return NextResponse.json({ instructions: null });
   } catch (error: any) {
     console.error("[Instructions] delete failed:", error);

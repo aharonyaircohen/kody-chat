@@ -15,7 +15,10 @@ import {
   kodyDirectTransport,
   sendKodyDirectTurn,
 } from "@dashboard/lib/chat/core/transports/kody-direct";
-import { sendBrainTurn } from "@dashboard/lib/chat/core/transports/brain";
+import {
+  brainTransport,
+  sendBrainTurn,
+} from "@dashboard/lib/chat/core/transports/brain";
 import { runChatTurn } from "@dashboard/lib/chat/core/transports/turn-coordinator";
 import {
   createTransportTurnHandler,
@@ -303,6 +306,63 @@ describe("kody-direct send→stream→persist", () => {
 });
 
 describe("brain send→stream→persist", () => {
+  it("turns a silent connection into a stalled error instead of an endless spinner", async () => {
+    vi.useFakeTimers();
+    // A fetch that never resolves, rejecting only on abort — models a Brain
+    // server (or proxy) that accepts the connection but never writes. The
+    // turn coordinator's inactivity deadline must abort it and the settle
+    // seam must surface an error bubble; before Brain ran under the
+    // coordinator this scenario pinned the UI in "thinking" forever.
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(
+      async (_input: string | URL | Request, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            "abort",
+            () => reject(init.signal?.reason),
+            { once: true },
+          );
+        }),
+    ) as typeof fetch;
+    restoreFetch = () => {
+      globalThis.fetch = originalFetch;
+    };
+
+    const { store, setMessages } = messageStore(seedTurn("hello brain"));
+    const { handler, loading } = makeHandler(setMessages);
+    const turn = runChatTurn({
+      transport: brainTransport,
+      input: {
+        sessionId: "s1",
+        text: "hello brain",
+        agentId: "brain",
+        context: {
+          endpoint: "/api/kody/chat/brain",
+          chatId: "k--global--s1",
+          initialBody: { chatId: "k--global--s1", message: "hello brain" },
+        },
+      },
+      context: { authHeaders: {}, emit: handler.handleEvent },
+      inactivityMs: 5_000,
+    }).catch((error) => {
+      applySettleDecision(settleDecision("brain", classifyTurnFailure(error)), {
+        setMessages,
+        setLoading: (value) => (loading.value = value),
+      });
+    });
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    await turn;
+
+    expect(loading.value).toBe(false);
+    expect(store.messages[1]).toMatchObject({
+      role: "assistant",
+      isError: true,
+      isLoading: false,
+    });
+    expect(store.messages[1].content).toContain("stalled");
+  });
+
   it("replays full snapshots into the bubble and settles on chat.done", async () => {
     const l = (p: Record<string, unknown>) => `data: ${JSON.stringify(p)}\n`;
     restoreFetch = installFetch([

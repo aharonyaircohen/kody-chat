@@ -43,7 +43,6 @@ interface WorkflowDoc {
 
 export async function readWorkflowDefinitionFile(
   id: string,
-  _octokit: Octokit = getOctokit(),
   owner = getOwner(),
   repo = getRepo(),
 ): Promise<{
@@ -65,7 +64,6 @@ export async function readWorkflowDefinitionFile(
 }
 
 export async function listWorkflowDefinitionFiles(
-  _octokit: Octokit = getOctokit(),
   owner = getOwner(),
   repo = getRepo(),
 ): Promise<WorkflowDefinitionRecord[]> {
@@ -206,13 +204,10 @@ export async function writeWorkflowDefinitionFile({
   id,
   workflow,
 }: {
-  octokit?: Octokit;
   owner?: string;
   repo?: string;
   id: string;
   workflow: WorkflowDefinition;
-  sha?: string;
-  message?: string;
 }): Promise<void> {
   await getConvexClient().mutation(backendApi.workflows.save, {
     tenantId: tenantIdFor(owner, repo),
@@ -228,12 +223,9 @@ export async function deleteWorkflowDefinitionFile({
   repo = getRepo(),
   id,
 }: {
-  octokit?: Octokit;
   owner?: string;
   repo?: string;
   id: string;
-  sha?: string;
-  message?: string;
 }): Promise<void> {
   await getConvexClient().mutation(backendApi.workflows.remove, {
     tenantId: tenantIdFor(owner, repo),

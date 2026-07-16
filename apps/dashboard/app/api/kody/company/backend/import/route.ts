@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { ConvexHttpClient } from "convex/browser";
-import { anyApi } from "convex/server";
+import { api as backendApi } from "@kody-ade/backend/api";
 
 import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
 import { withEscapedKeys } from "@kody-ade/backend/client";
@@ -90,7 +90,7 @@ export async function POST(req: NextRequest) {
 
     if (clearFirst) {
       await withWriteRetry(() =>
-        client.mutation(anyApi.importExport.clearRepo, { tenantId }),
+        client.mutation(backendApi.importExport.clearRepo, { tenantId }),
       );
     }
 
@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     for (const [table, docs] of Object.entries(tables)) {
       for (const batch of chunk(docs, CHUNK_SIZE)) {
         await withWriteRetry(() =>
-          client.mutation(anyApi.importExport.importChunk, {
+          client.mutation(backendApi.importExport.importChunk, {
             table,
             docs: batch,
           }),

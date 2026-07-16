@@ -3,11 +3,8 @@
  * @domain kody
  * @pattern workflow-run-state-files
  * @ai-summary Read workflow run state from the Convex backend
- *   (workflowRuns.{get,list}, tenant-scoped by owner/repo). Function
- *   signatures kept from the state-repo era so routes don't change; the
- *   octokit parameter is unused and retained for compatibility.
+ *   (workflowRuns.{get,list}, tenant-scoped by owner/repo).
  */
-import type { Octokit } from "@octokit/rest";
 import {
   backendApi,
   getConvexClient,
@@ -15,6 +12,7 @@ import {
 } from "./backend/convex-backend";
 import {
   normalizeWorkflowRunState,
+  type WorkflowRunState,
   type WorkflowRunStateRecord,
 } from "./workflow-run-state";
 
@@ -36,7 +34,6 @@ interface WorkflowRunDoc {
 }
 
 export async function readWorkflowRunStateFile(
-  _octokit: Octokit,
   owner: string,
   repo: string,
   workflowId: string,
@@ -56,7 +53,6 @@ export async function readWorkflowRunStateFile(
 }
 
 export async function readLatestWorkflowRunStateFile(
-  _octokit: Octokit,
   owner: string,
   repo: string,
   workflowId: string,
@@ -90,9 +86,10 @@ export async function recordWorkflowRunRunner(
   const existing = await getConvexClient().query(backendApi.workflowRuns.get, {
     tenantId: tenantIdFor(owner, repo), workflowId, runId,
   }) as WorkflowRunDoc | null;
+  const fallback: WorkflowRunState = { status: "running", completedStepIds: [], transitionCounts: {}, facts: {}, evidence: {}, artifacts: [] };
   await getConvexClient().mutation(backendApi.workflowRuns.save, {
     tenantId: tenantIdFor(owner, repo), workflowId, runId,
-    state: existing?.state ?? { status: "running", completedStepIds: [], transitionCounts: {}, facts: {}, evidence: {}, artifacts: [] },
+    state: normalizeWorkflowRunState(existing?.state) ?? fallback,
     runner,
     updatedAt: new Date().toISOString(),
   });

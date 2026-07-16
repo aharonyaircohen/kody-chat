@@ -137,7 +137,6 @@ describe("brand files (convex)", () => {
     convex.mutation.mockResolvedValue(null);
 
     const written = await writeBrandFile({
-      octokit: { rest: {} } as never,
       slug: " Write Brand ",
       name: " Write Brand ",
       accent: "#2563EB",
@@ -186,7 +185,7 @@ describe("brand files (convex)", () => {
   it("deletes a brand via repoDocs.remove", async () => {
     convex.mutation.mockResolvedValue(null);
 
-    await deleteBrandFile({ rest: {} } as never, "deletebrand");
+    await deleteBrandFile("deletebrand");
 
     const [ref, args] = convex.mutation.mock.calls[0]!;
     expect(getFunctionName(ref)).toBe("repoDocs:remove");
@@ -196,7 +195,7 @@ describe("brand files (convex)", () => {
   it("writes a disabled marker for a deleted fallback brand", async () => {
     convex.mutation.mockResolvedValue(null);
 
-    await disableBrand({ rest: {} } as never, "Acme");
+    await disableBrand("Acme");
 
     const [ref, args] = convex.mutation.mock.calls[0]!;
     expect(getFunctionName(ref)).toBe("repoDocs:save");

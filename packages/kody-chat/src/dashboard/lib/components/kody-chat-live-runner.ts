@@ -112,6 +112,16 @@ export interface UseLiveRunnerResult {
   rehydrateForScope: (scopeKey: LiveScopeKey) => void;
 }
 
+/**
+ * Watchdog probe budget. Each watchdog deadline (150s booting / 240s
+ * awaiting) that ends in an inconclusive status check — fetch failed, or
+ * the server said "alive" while still no event reached the client — spends
+ * one probe. Exhausting the budget marks the session stuck so the Restart
+ * banner appears, instead of trusting an unverifiable "alive" forever.
+ * 3 probes ≈ 12 minutes of total event silence in the awaiting phase.
+ */
+export const WATCHDOG_MAX_INCONCLUSIVE_PROBES = 3;
+
 export interface LiveSessionStartOptions {
   initialContent?: string;
   initialTimestamp?: string;
@@ -151,6 +161,11 @@ export function useLiveRunner({
   // chat.message / chat.exit continue to flow. Runs once.
   const liveRestoreAttemptedRef = useRef(false);
   const eventSourceRef = useRef<EventSource | null>(null);
+  // Consecutive inconclusive watchdog probes (see the watchdog effect at
+  // the bottom of this hook). Reset to 0 by handleEvents on any real
+  // runner event; at WATCHDOG_MAX_INCONCLUSIVE_PROBES the session is
+  // force-marked stuck.
+  const watchdogProbesRef = useRef(0);
 
   const liveStateRef = useRef<LiveSessionState>(initialLiveState);
   const [liveState, setLiveState] =
@@ -284,6 +299,9 @@ export function useLiveRunner({
         payload?: Record<string, unknown>;
       };
       const handleEvents = (events: ReadonlyArray<RunnerEvent | null>) => {
+        // Any real runner event is proof of life — reset the watchdog's
+        // inconclusive-probe budget (see the watchdog effect below).
+        watchdogProbesRef.current = 0;
         for (const event of events) {
           if (!event || !event.event) continue;
           const payload = event.payload ?? {};
@@ -1126,6 +1144,28 @@ export function useLiveRunner({
       if (localLast !== null) {
         params.set("clientLastEventAt", String(localLast));
       }
+      // An inconclusive probe (status fetch failed, non-ok, or "alive" with
+      // still no events reaching the client) consumes one unit of the probe
+      // budget. Exhausting the budget force-marks the session stuck; short
+      // of that, re-arm the watchdog via STATUS_RESULT — without the bump a
+      // cleared timer with unchanged deps would never probe again, ending
+      // watchdog coverage for the session.
+      const recordInconclusiveProbe = () => {
+        watchdogProbesRef.current += 1;
+        if (watchdogProbesRef.current >= WATCHDOG_MAX_INCONCLUSIVE_PROBES) {
+          dispatchLive({
+            type: "MARK_STUCK",
+            errorMessage:
+              "No runner events for several minutes and the status check can't confirm the runner is alive. Restart the session to continue.",
+          });
+          return;
+        }
+        dispatchLive({
+          type: "STATUS_RESULT",
+          runnerAlive: true,
+          lastEventAt: null,
+        });
+      };
       fetch(
         `/api/kody/chat/session/${encodeURIComponent(sessionId)}/status${params.size ? `?${params}` : ""}`,
         { headers: { ...liveAuthHeaders(sessionId) } },
@@ -1139,21 +1179,30 @@ export function useLiveRunner({
               reason?: string | null;
             } | null,
           ) => {
-            if (!body) return;
+            if (!body) {
+              recordInconclusiveProbe();
+              return;
+            }
+            if (body.runnerAlive) {
+              recordInconclusiveProbe();
+              return;
+            }
             // The reducer guards against a stale dispatch — only flips to
             // 'stuck' if it's still in an active phase when STATUS_RESULT
             // arrives.
             dispatchLive({
               type: "STATUS_RESULT",
-              runnerAlive: Boolean(body.runnerAlive),
+              runnerAlive: false,
               lastEventAt: body.lastEventAt ?? null,
               errorMessage: body.reason ?? undefined,
             });
           },
         )
         .catch(() => {
-          // Network failure: don't assume zombie. Leave the user the manual
-          // restart affordance — the banner already shows after enough time.
+          // Network failure: don't assume zombie yet — count it against the
+          // probe budget so a persistently unreachable status endpoint
+          // (e.g. expired live-auth token) still resolves to 'stuck'.
+          recordInconclusiveProbe();
         });
     }, remainingMs);
 

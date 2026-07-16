@@ -6,13 +6,11 @@
  *   (repoDocs, kind `brand:<slug>`, doc = the validated ClientBrand JSON;
  *   disabled markers are kind `brand-disabled:<slug>`). These records feed
  *   `/client/<slug>`, the branding chat plugin, and client-surface chat
- *   defaults enforced by the chat route. Exported signatures are unchanged
- *   from the state-repo era; octokit params are unused and `sha` is always ""
+ *   defaults enforced by the chat route. Returned `sha` is always ""
  *   (Convex docs have no git blob). One `listByPrefix` query replaces the old
  *   per-brand GitHub reads — the state repo remains export-only.
  */
 
-import type { Octokit } from "@octokit/rest";
 import { z } from "zod";
 import {
   backendApi,
@@ -192,7 +190,6 @@ export async function listBrandFiles(): Promise<BrandFile[]> {
 
 export async function readBrandFile(
   slug: string,
-  _octokitOverride?: Octokit,
 ): Promise<BrandFile | null> {
   const normalized = normalizeClientBrandSlug(slug);
   if (!isValidBrandSlug(normalized)) return null;
@@ -214,7 +211,6 @@ export async function findBrandFileFromList(
 }
 
 export interface WriteBrandOptions {
-  octokit?: Octokit;
   slug: string;
   name: string;
   accent: string;
@@ -228,8 +224,6 @@ export interface WriteBrandOptions {
     allowedEmails?: string[];
     allowedDomains?: string[];
   };
-  sha?: string;
-  message?: string;
 }
 
 export async function writeBrandFile(
@@ -267,10 +261,7 @@ export async function writeBrandFile(
   };
 }
 
-export async function deleteBrandFile(
-  _octokit: Octokit | undefined,
-  slug: string,
-): Promise<void> {
+export async function deleteBrandFile(slug: string): Promise<void> {
   const normalized = normalizeClientBrandSlug(slug);
   if (!isValidBrandSlug(normalized)) return;
   await getConvexClient().mutation(backendApi.repoDocs.remove, {
@@ -279,10 +270,7 @@ export async function deleteBrandFile(
   });
 }
 
-export async function disableBrand(
-  _octokit: Octokit | undefined,
-  slug: string,
-): Promise<void> {
+export async function disableBrand(slug: string): Promise<void> {
   const normalized = normalizeClientBrandSlug(slug);
   if (!isValidBrandSlug(normalized)) return;
   await getConvexClient().mutation(backendApi.repoDocs.save, {

@@ -13,7 +13,7 @@
 "use client";
 
 import { useQuery } from "convex/react";
-import { anyApi } from "convex/server";
+import { api as backendApi } from "@kody-ade/backend/api";
 import { deepUnescapeKeys } from "@kody-ade/backend/escape-keys";
 import { getStoredAuth } from "../api";
 import {
@@ -56,7 +56,7 @@ export function useChatEventsLive(
   if (!CONVEX_LIVE_ENABLED) return undefined;
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const docs = useQuery(
-    anyApi.chatEvents.since,
+    backendApi.chatEvents.since,
     sessionId
       ? { tenantId: CHAT_EVENTS_TENANT, sessionId, afterSeq }
       : "skip",
@@ -82,7 +82,7 @@ export function useWorkflowRunStateLive(
   const auth = getStoredAuth();
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const docs = useQuery(
-    anyApi.workflowRuns.list,
+    backendApi.workflowRuns.list,
     auth && workflowId
       ? { tenantId: `${auth.owner}/${auth.repo}`, workflowId }
       : "skip",

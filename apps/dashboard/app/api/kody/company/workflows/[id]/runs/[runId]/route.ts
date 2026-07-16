@@ -21,7 +21,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const octokit = await getUserOctokit(req);
     if (!octokit) return NextResponse.json({ error: "no_user_token" }, { status: 401 });
-    const run = await readWorkflowRunStateFile(octokit, auth.owner, auth.repo, id, runId);
+    const run = await readWorkflowRunStateFile(auth.owner, auth.repo, id, runId);
     if (!run) return NextResponse.json({ error: "run_not_found" }, { status: 404 });
     if (run.state.status !== "running") return NextResponse.json({ error: "run_not_active" }, { status: 409 });
     if (!run.runner || run.runner.kind !== "fly") {

@@ -41,12 +41,11 @@ function loadModels(doc: VariablesDocument): ChatModel[] {
 }
 
 export function createModelTools(ctx: Ctx) {
-  const { octokit, owner, repo, actorLogin } = ctx;
+  const { owner, repo, actorLogin } = ctx;
   const repoRef = `${owner}/${repo}`;
-  const by = actorLogin ? ` (via chat by @${actorLogin})` : "";
 
   async function persist(models: ChatModel[]) {
-    const { doc, sha } = await readVariables(octokit, owner, repo, {
+    const { doc } = await readVariables(owner, repo, {
       force: true,
     });
     const next: VariablesDocument = {
@@ -60,14 +59,7 @@ export function createModelTools(ctx: Ctx) {
         },
       },
     };
-    await writeVariables(
-      octokit,
-      owner,
-      repo,
-      next,
-      sha,
-      `chore(models): update LLM_MODELS${by}`,
-    );
+    await writeVariables(owner, repo, next);
     invalidateVariablesCache(owner, repo);
   }
 
@@ -77,7 +69,7 @@ export function createModelTools(ctx: Ctx) {
       inputSchema: z.object({}),
       execute: async () => {
         try {
-          const { doc } = await readVariables(octokit, owner, repo);
+          const { doc } = await readVariables(owner, repo);
           const models = loadModels(doc).map((m) => ({
             id: m.id,
             label: m.label,
@@ -101,7 +93,7 @@ export function createModelTools(ctx: Ctx) {
       }),
       execute: async ({ id, scope }) => {
         try {
-          const { doc } = await readVariables(octokit, owner, repo, {
+          const { doc } = await readVariables(owner, repo, {
             force: true,
           });
           const models = loadModels(doc);
@@ -129,7 +121,7 @@ export function createModelTools(ctx: Ctx) {
       inputSchema: z.object({ id: z.string().min(1), enabled: z.boolean() }),
       execute: async ({ id, enabled }) => {
         try {
-          const { doc } = await readVariables(octokit, owner, repo, {
+          const { doc } = await readVariables(owner, repo, {
             force: true,
           });
           const models = loadModels(doc);

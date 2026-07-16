@@ -258,12 +258,10 @@ export async function POST(req: NextRequest) {
     const state = buildManagedGoalState(parsed.data);
     const path = managedGoalPath(goalId);
     await writeManagedGoalFile({
-      octokit,
       owner: headerAuth.owner,
       repo: headerAuth.repo,
       id: goalId,
       state,
-      message: `chore(goals): create managed goal ${goalId}`,
     });
 
     let engineDispatched = false;

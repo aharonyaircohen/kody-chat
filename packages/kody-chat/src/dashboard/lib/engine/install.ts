@@ -346,7 +346,7 @@ async function readChatModels(
   repo: string,
 ): Promise<ChatModel[]> {
   try {
-    const { doc } = await readVariables(octokit, owner, repo, { force: true });
+    const { doc } = await readVariables(owner, repo, { force: true });
     const raw = doc.variables[VAR_LLM_MODELS]?.value;
     if (!raw) return [];
     return ChatModelsSchema.parse(JSON.parse(raw));

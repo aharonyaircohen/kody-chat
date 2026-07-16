@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
 
   setGitHubContext(auth.owner, auth.repo, token);
   try {
-    const prefs = await readNotificationPrefs(login, token);
+    const prefs = await readNotificationPrefs(login);
     return NextResponse.json({ login, mutedTypes: prefs.mutedTypes });
   } catch (err) {
     return NextResponse.json(
@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
       version: 1,
       mutedTypes: parsed.data.mutedTypes as ServerNotificationType[],
     };
-    await writeNotificationPrefs(login, token, prefs);
+    await writeNotificationPrefs(login, prefs);
     return NextResponse.json({ ok: true, login, mutedTypes: prefs.mutedTypes });
   } catch (err) {
     return NextResponse.json(

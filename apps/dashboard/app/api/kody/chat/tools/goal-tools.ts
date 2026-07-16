@@ -303,11 +303,9 @@ export function createGoalTools(ctx: Ctx) {
 
           const state = buildManagedGoalState(input);
           await writeManagedGoalFile({
-            octokit,
             owner,
             repo,
             id: goalId,
-            message: `chore(goals): create managed goal ${goalId}`,
             state,
           });
 

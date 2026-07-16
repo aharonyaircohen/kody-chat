@@ -384,13 +384,10 @@ describe("applyCompanyBundle", () => {
 
     expect(result.goals).toMatchObject({ created: 1, failed: 0 });
     expect(h.writeManagedGoalFile).toHaveBeenCalledWith({
-      octokit,
       owner: "acme",
       repo: "widgets",
       id: "ship-goals-page",
       state: goalState,
-      sha: undefined,
-      message: "chore(goals): import managed goal ship-goals-page",
     });
   });
 

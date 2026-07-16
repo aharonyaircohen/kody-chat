@@ -27,6 +27,7 @@ import {
   getConvexClient,
   tenantIdFor,
 } from "./backend/convex-backend";
+import { isLegacySessionWriteEnabled } from "./legacy-session-write";
 
 const SESSION_DIR = "sessions";
 const DEFAULT_BRANCH = "main";
@@ -96,6 +97,14 @@ export async function writeSessionMeta(
   maxRetries = 4,
   initialTurn?: ChatTurn,
 ): Promise<void> {
+  // Legacy dual-write gate: with KODY_LEGACY_SESSION_WRITE=0 the state-repo
+  // JSONL write is skipped entirely — Convex is the only record. See
+  // legacy-session-write.ts for when that is safe.
+  if (!isLegacySessionWriteEnabled()) {
+    await recordSessionStart(owner, repo, sessionId, meta, initialTurn);
+    return;
+  }
+
   const path = sessionFilePath(sessionId);
   const content = initialTurn
     ? `${JSON.stringify(meta)}\n${JSON.stringify({
@@ -154,6 +163,13 @@ export async function appendUserTurn(
   branch: string = DEFAULT_BRANCH,
   maxRetries = 3,
 ): Promise<{ turnCount: number }> {
+  // Legacy dual-write gate: with KODY_LEGACY_SESSION_WRITE=0 only Convex is
+  // written; the turn count comes from the Convex record instead of the file.
+  if (!isLegacySessionWriteEnabled()) {
+    await recordTurn(owner, repo, sessionId, turn);
+    return { turnCount: await convexTurnCount(owner, repo, sessionId) };
+  }
+
   const path = sessionFilePath(sessionId);
 
   let attempt = 0;
@@ -279,6 +295,27 @@ async function recordTurn(
       { err, sessionId },
       "interactive-session: convex turn record failed",
     );
+  }
+}
+
+/** Turn count from the Convex record (used when the legacy write is off). */
+async function convexTurnCount(
+  owner: string,
+  repo: string,
+  sessionId: string,
+): Promise<number> {
+  try {
+    const turns = (await getConvexClient().query(backendApi.chatTurns.list, {
+      tenantId: tenantIdFor(owner, repo),
+      sessionId,
+    })) as unknown[];
+    return turns.length;
+  } catch (err) {
+    logger.error(
+      { err, sessionId },
+      "interactive-session: convex turn count failed",
+    );
+    return 0;
   }
 }
 

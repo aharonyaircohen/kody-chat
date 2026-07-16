@@ -226,7 +226,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "no_octokit" }, { status: 401 });
 
   try {
-    const { doc } = await readDashboardConfig(octokit, auth.owner, auth.repo);
+    const { doc } = await readDashboardConfig(auth.owner, auth.repo);
     const config = await withRepoViewSourceLinks(
       octokit,
       auth.owner,
@@ -278,9 +278,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: "no_octokit" }, { status: 401 });
 
   try {
-    const { doc, sha } = await readDashboardConfig(
-      octokit,
-      auth.owner,
+    const { doc, sha } = await readDashboardConfig(auth.owner,
       auth.repo,
       {
         force: true,
@@ -313,14 +311,7 @@ export async function PUT(req: NextRequest) {
         next.brainFlyChatEnabled ? "enable" : "disable"
       } Repo Brain in chat`;
     }
-    await writeDashboardConfig(
-      octokit,
-      auth.owner,
-      auth.repo,
-      next,
-      sha,
-      commitMessage,
-    );
+    await writeDashboardConfig(auth.owner, auth.repo, next);
     invalidateDashboardConfigCache(auth.owner, auth.repo);
     return NextResponse.json({ ok: true, config: next });
   } catch (err) {

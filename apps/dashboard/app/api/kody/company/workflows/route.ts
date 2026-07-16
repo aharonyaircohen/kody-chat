@@ -130,7 +130,6 @@ export async function GET(req: NextRequest) {
     }
 
     const localWorkflows = await listWorkflowDefinitionFiles(
-      octokit,
       headerAuth.owner,
       headerAuth.repo,
     );
@@ -235,7 +234,6 @@ export async function POST(req: NextRequest) {
 
     const existing = await readWorkflowDefinitionFile(
       id,
-      octokit,
       headerAuth.owner,
       headerAuth.repo,
     );
@@ -282,12 +280,10 @@ export async function POST(req: NextRequest) {
     }
     const path = workflowDefinitionPath(id);
     await writeWorkflowDefinitionFile({
-      octokit,
       owner: headerAuth.owner,
       repo: headerAuth.repo,
       id,
       workflow,
-      message: `chore(workflows): create workflow ${id}`,
     });
 
     return NextResponse.json({

@@ -32,7 +32,7 @@ export async function register(): Promise<void> {
     "@dashboard/lib/dashboard-config/store"
   );
   setTrackedBranchesReader(async (octokit, owner, repo) => {
-    const { doc } = await readDashboardConfig(octokit, owner, repo, {
+    const { doc } = await readDashboardConfig(owner, repo, {
       force: true,
     });
     return doc.branchPreviews ?? [];

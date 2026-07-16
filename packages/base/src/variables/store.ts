@@ -5,13 +5,10 @@
  * @ai-summary Read/write repo plaintext variables in the Convex backend
  * (repoDocs, kind "variables", doc = the VariablesDocument — the same JSON
  * `variables.json` used to hold, so the export/import mapping round-trips
- * unchanged). Sensitive values still belong in the encrypted vault. Exported
- * signatures are unchanged from the state-repo era; octokit params are unused
- * and `sha` is always null/"" (Convex docs have no git blob, and repoDocs.save
+ * unchanged). Sensitive values still belong in the encrypted vault. Returned
+ * `sha` is always null/"" (Convex docs have no git blob, and repoDocs.save
  * upserts so there is no CAS conflict to retry).
  */
-
-import type { Octokit } from "@octokit/rest";
 
 import { backendApi, getConvexClient, tenantIdFor } from "../backend/convex";
 
@@ -73,7 +70,6 @@ async function fetchRaw(
 }
 
 export async function readVariables(
-  _octokit: Octokit | undefined,
   owner: string,
   repo: string,
   options: { force?: boolean } = {},
@@ -107,12 +103,9 @@ export async function readVariables(
 }
 
 export async function writeVariables(
-  _octokit: Octokit | undefined,
   owner: string,
   repo: string,
   doc: VariablesDocument,
-  _currentSha: string | null,
-  _commitMessage = "chore(variables): update dashboard variables",
 ): Promise<{ sha: string }> {
   await getConvexClient().mutation(backendApi.repoDocs.save, {
     tenantId: tenantIdFor(owner, repo),
@@ -140,20 +133,18 @@ export function invalidateVariablesCache(owner: string, repo: string): void {
  * though Convex upserts no longer produce 409 SHA conflicts.
  */
 export async function updateVariables(
-  octokit: Octokit | undefined,
   owner: string,
   repo: string,
   mutate: (doc: VariablesDocument) => VariablesDocument,
-  commitMessage: string,
   maxAttempts = 3,
 ): Promise<{ doc: VariablesDocument }> {
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const { doc, sha } = await readVariables(octokit, owner, repo, {
+    const { doc } = await readVariables(owner, repo, {
       force: true,
     });
     const next = mutate(doc);
     try {
-      await writeVariables(octokit, owner, repo, next, sha, commitMessage);
+      await writeVariables(owner, repo, next);
       invalidateVariablesCache(owner, repo);
       return { doc: next };
     } catch (err) {

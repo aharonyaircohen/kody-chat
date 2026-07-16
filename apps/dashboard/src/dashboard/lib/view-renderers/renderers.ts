@@ -6,7 +6,6 @@
  *   backend (viewRenderers.{list,save,remove}, tenant-scoped by owner/repo).
  */
 import { z } from "zod";
-import type { Octokit } from "@octokit/rest";
 import {
   RENDER_VIEW_DIRECTIVE,
   type RenderedViewAction,
@@ -810,7 +809,6 @@ export async function readViewRendererDefinitionFile({
   repo,
   slug,
 }: {
-  octokit?: Octokit;
   owner: string;
   repo: string;
   slug: string;
@@ -824,18 +822,15 @@ export async function readViewRendererDefinitionFile({
 }
 
 export async function resolveViewRendererDefinition({
-  octokit,
   owner,
   repo,
   slug,
 }: {
-  octokit: Octokit;
   owner: string;
   repo: string;
   slug: string;
 }): Promise<ViewRendererDefinitionFile> {
   const file = await readViewRendererDefinitionFile({
-    octokit,
     owner,
     repo,
     slug,
@@ -845,14 +840,12 @@ export async function resolveViewRendererDefinition({
 }
 
 export async function resolveBestViewRendererDefinition({
-  octokit,
   owner,
   repo,
   purpose,
   data,
   userText,
 }: {
-  octokit?: Octokit;
   owner?: string;
   repo?: string;
   purpose: string;
@@ -860,8 +853,8 @@ export async function resolveBestViewRendererDefinition({
   userText?: string | null;
 }): Promise<ViewRendererDefinitionFile> {
   const files =
-    octokit && owner && repo
-      ? await listViewRendererDefinitionFiles({ octokit, owner, repo })
+    owner && repo
+      ? await listViewRendererDefinitionFiles({ owner, repo })
       : [];
   const definitions = files.map((file) => file.definition);
   const matched = matchViewRendererDefinition(
@@ -881,28 +874,23 @@ export async function resolveBestViewRendererDefinition({
 }
 
 export async function loadViewRendererRulesForPrompt({
-  octokit,
   owner,
   repo,
 }: {
-  octokit: Octokit;
   owner: string;
   repo: string;
 }): Promise<string | null> {
-  return (await loadViewRendererContextForPrompt({ octokit, owner, repo }))
-    .rules;
+  return (await loadViewRendererContextForPrompt({ owner, repo })).rules;
 }
 
 export async function loadViewRendererContextForPrompt({
-  octokit,
   owner,
   repo,
 }: {
-  octokit: Octokit;
   owner: string;
   repo: string;
 }): Promise<ViewRendererPromptContext> {
-  const files = await listViewRendererDefinitionFiles({ octokit, owner, repo });
+  const files = await listViewRendererDefinitionFiles({ owner, repo });
   const definitions = files
     .map((file) => file.definition)
     .sort((a, b) => a.slug.localeCompare(b.slug));
@@ -916,7 +904,6 @@ export async function listViewRendererDefinitionFiles({
   owner,
   repo,
 }: {
-  octokit?: Octokit;
   owner: string;
   repo: string;
 }): Promise<ViewRendererDefinitionFile[]> {
@@ -939,12 +926,9 @@ export async function writeViewRendererDefinitionFile({
   repo,
   definition,
 }: {
-  octokit?: Octokit;
   owner: string;
   repo: string;
   definition: ViewRendererDefinition;
-  sha?: string;
-  message: string;
 }): Promise<ViewRendererDefinitionFile> {
   // Round-trip through the serializer so only schema-valid data persists.
   const validated = JSON.parse(
@@ -969,12 +953,9 @@ export async function deleteViewRendererDefinitionFile({
   repo,
   slug,
 }: {
-  octokit?: Octokit;
   owner: string;
   repo: string;
   slug: string;
-  sha?: string;
-  message: string;
 }): Promise<void> {
   await getConvexClient().mutation(backendApi.viewRenderers.remove, {
     tenantId: tenantIdFor(owner, repo),

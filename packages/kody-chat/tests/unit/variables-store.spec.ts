@@ -58,7 +58,7 @@ describe("readVariables", () => {
   it("reads the variables repoDoc for the tenant", async () => {
     convex.query.mockResolvedValue({ doc: DOC, updatedAt: "t" });
 
-    const { doc, sha } = await readVariables(fakeOctokit(), "acme", "widgets");
+    const { doc, sha } = await readVariables("acme", "widgets");
 
     expect(doc).toEqual(DOC);
     expect(sha).toBeNull();
@@ -70,7 +70,7 @@ describe("readVariables", () => {
   it("returns an empty document when no record exists", async () => {
     convex.query.mockResolvedValue(null);
 
-    const { doc, sha } = await readVariables(fakeOctokit(), "acme", "widgets");
+    const { doc, sha } = await readVariables("acme", "widgets");
 
     expect(doc).toEqual({ version: 1, variables: {} });
     expect(sha).toBeNull();
@@ -79,8 +79,8 @@ describe("readVariables", () => {
   it("caches reads for the TTL", async () => {
     convex.query.mockResolvedValue({ doc: DOC, updatedAt: "t" });
 
-    await readVariables(fakeOctokit(), "acme", "widgets");
-    await readVariables(fakeOctokit(), "acme", "widgets");
+    await readVariables("acme", "widgets");
+    await readVariables("acme", "widgets");
 
     expect(convex.query).toHaveBeenCalledTimes(1);
   });
@@ -89,7 +89,7 @@ describe("readVariables", () => {
     convex.query.mockResolvedValue({ doc: { nope: true }, updatedAt: "t" });
 
     await expect(
-      readVariables(fakeOctokit(), "acme", "widgets"),
+      readVariables("acme", "widgets"),
     ).rejects.toThrow("unexpected shape");
   });
 });
@@ -98,13 +98,7 @@ describe("writeVariables", () => {
   it("saves the document via repoDocs.save", async () => {
     convex.mutation.mockResolvedValue("id-1");
 
-    const { sha } = await writeVariables(
-      fakeOctokit(),
-      "acme",
-      "widgets",
-      DOC,
-      null,
-    );
+    const { sha } = await writeVariables("acme", "widgets", DOC);
 
     expect(sha).toBe("");
     const [ref, args] = convex.mutation.mock.calls[0]!;
@@ -123,7 +117,6 @@ describe("updateVariables", () => {
     convex.mutation.mockResolvedValue("id-1");
 
     const { doc } = await updateVariables(
-      fakeOctokit(),
       "acme",
       "widgets",
       (current) => ({
@@ -133,7 +126,6 @@ describe("updateVariables", () => {
           NEW_VAR: { value: "x", updatedAt: "t2" },
         },
       }),
-      "chore: add NEW_VAR",
     );
 
     expect(doc.variables.NEW_VAR?.value).toBe("x");

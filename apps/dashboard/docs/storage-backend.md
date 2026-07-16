@@ -87,3 +87,20 @@ to the state repo (see `app/api/kody/chat/trigger/route.ts` and
 the two secrets above still git-pull it. Once every engine repo has
 `CONVEX_URL` + `KODY_SERVICE_KEY` set, delete the state-repo JSONL writes
 and Convex becomes the sole transcript store.
+
+### `KODY_LEGACY_SESSION_WRITE` flag
+
+The legacy state-repo JSONL write is gated by the dashboard env var
+`KODY_LEGACY_SESSION_WRITE` (helper:
+`src/dashboard/lib/legacy-session-write.ts`):
+
+- **What it gates:** only the GitHub `sessions/<id>.jsonl` dual-write in
+  `app/api/kody/chat/trigger/route.ts` and
+  `src/dashboard/lib/interactive-session.ts`. The Convex write path is
+  unconditional and unaffected.
+- **Default:** on — the legacy write happens unless the var is exactly `"0"`.
+- **When it's safe to set `"0"`:** once every engine repo runs
+  `@kody-ade/kody-engine` >= 0.4.381 with the `CONVEX_URL` +
+  `KODY_SERVICE_KEY` Actions secrets set, so no runner git-pulls the JSONL.
+  Flipping the var retires the dual-write without a deploy; deleting the
+  gated code is the final cleanup step.

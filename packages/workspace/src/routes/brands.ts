@@ -149,7 +149,6 @@ export async function POST(req: NextRequest) {
     }
 
     const brand = await writeBrandFile({
-      octokit: userOctokit,
       slug,
       name: parsed.name,
       accent: parsed.accent,

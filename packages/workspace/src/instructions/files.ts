@@ -9,15 +9,12 @@
  *   the user's place to put tone, length, formatting, or behavioral
  *   preferences that override the base agent prompt. Voice overlay still
  *   wins over this block (applied after buildSystemPrompt in route.ts) so
- *   TTS output shape stays correct on the mic. Exported signatures are
- *   unchanged from the state-repo era; octokit params are unused and `sha`
- *   is always "".
+ *   TTS output shape stays correct on the mic. Returned `sha` is always "".
  *
  *   Cache mirrors the memory-index pattern: 60s in-process per repo,
  *   invalidated by the PUT/DELETE routes.
  */
 
-import type { Octokit } from "@octokit/rest";
 import { getOwner, getRepo } from "../github";
 import {
   backendApi,
@@ -40,9 +37,7 @@ interface InstructionsDocRecord {
   updatedAt: string;
 }
 
-export async function readInstructionsFile(
-  _octokitOverride?: Octokit,
-): Promise<InstructionsFile | null> {
+export async function readInstructionsFile(): Promise<InstructionsFile | null> {
   const record = (await getConvexClient().query(backendApi.repoDocs.get, {
     tenantId: tenantIdFor(getOwner(), getRepo()),
     kind: INSTRUCTIONS_KIND,
@@ -57,10 +52,7 @@ export async function readInstructionsFile(
 }
 
 interface WriteOptions {
-  octokit?: Octokit;
   body: string;
-  sha?: string;
-  message?: string;
 }
 
 export async function writeInstructionsFile(
@@ -78,7 +70,7 @@ export async function writeInstructionsFile(
   return { body, sha: "", updatedAt, htmlUrl: "" };
 }
 
-export async function deleteInstructionsFile(_octokit?: Octokit): Promise<void> {
+export async function deleteInstructionsFile(): Promise<void> {
   await getConvexClient().mutation(backendApi.repoDocs.remove, {
     tenantId: tenantIdFor(getOwner(), getRepo()),
     kind: INSTRUCTIONS_KIND,
