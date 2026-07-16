@@ -159,6 +159,18 @@ interface CacheEntry {
 const CACHE = new Map<string, CacheEntry>();
 const INFLIGHT = new Map<string, Promise<CmsRuntimeConfig | null>>();
 const TTL_MS = 60_000;
+/**
+ * Last successfully loaded config per repo, kept past TTL. A cold reload
+ * fans out one GitHub read per collection file; a single transient
+ * rejection (rate limiting, "Bad request" HTML) must degrade to the last
+ * good config instead of taking the whole CMS tool family down for the
+ * turn.
+ */
+const LAST_GOOD = new Map<string, CmsRuntimeConfig | null>();
+/** Short re-check window after a failed reload served stale config. */
+const STALE_RETRY_TTL_MS = 15_000;
+const TRANSIENT_READ_RETRIES = 2;
+const TRANSIENT_READ_BACKOFF_MS = 250;
 
 function cacheKey(owner: string, repo: string): string {
   return `${owner}/${repo}`;
@@ -312,11 +324,13 @@ export function invalidateCmsConfigCache(owner?: string, repo?: string): void {
     const key = cacheKey(owner, repo);
     CACHE.delete(key);
     INFLIGHT.delete(key);
+    LAST_GOOD.delete(key);
     return;
   }
 
   CACHE.clear();
   INFLIGHT.clear();
+  LAST_GOOD.clear();
 }
 
 export async function loadCmsConfigFromState(
@@ -340,6 +354,42 @@ export async function loadCmsConfigFromState(
   }
 
   const promise = (async () => {
+    try {
+      return await loadCmsConfigFresh(octokit, owner, repo, key, useCache);
+    } catch (err) {
+      // Serve the last good config on a failed reload; re-check soon.
+      if (useCache && LAST_GOOD.has(key)) {
+        const stale = LAST_GOOD.get(key) ?? null;
+        CACHE.set(key, {
+          config: stale,
+          expiresAt: Date.now() + STALE_RETRY_TTL_MS,
+        });
+        return stale;
+      }
+      throw err;
+    }
+  })().finally(() => {
+    if (useCache) {
+      INFLIGHT.delete(key);
+    }
+  });
+
+  if (!useCache) {
+    return promise;
+  }
+
+  INFLIGHT.set(key, promise);
+  return promise;
+}
+
+async function loadCmsConfigFresh(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  key: string,
+  useCache: boolean,
+): Promise<CmsRuntimeConfig | null> {
+  {
     const rawConfig = await readStateJson(
       octokit,
       owner,
@@ -350,6 +400,7 @@ export async function loadCmsConfigFromState(
     if (!rawConfig) {
       if (useCache) {
         CACHE.set(key, { config: null, expiresAt: Date.now() + TTL_MS });
+        LAST_GOOD.set(key, null);
       }
       return null;
     }
@@ -427,20 +478,10 @@ export async function loadCmsConfigFromState(
 
     if (useCache) {
       CACHE.set(key, { config: normalized, expiresAt: Date.now() + TTL_MS });
+      LAST_GOOD.set(key, normalized);
     }
     return normalized;
-  })().finally(() => {
-    if (useCache) {
-      INFLIGHT.delete(key);
-    }
-  });
-
-  if (!useCache) {
-    return promise;
   }
-
-  INFLIGHT.set(key, promise);
-  return promise;
 }
 
 export function normalizeCmsConfig(rawConfig: unknown): CmsRuntimeConfig {
@@ -609,6 +650,31 @@ export function normalizeSearchQuery(
   return { query, fields };
 }
 
+/**
+ * readStateText with retry on transport errors (rate limiting, transient
+ * GitHub rejections). Missing files return null and are not retried.
+ */
+async function readStateTextWithRetry(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  path: string,
+): Promise<Awaited<ReturnType<typeof readStateText>>> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= TRANSIENT_READ_RETRIES; attempt += 1) {
+    try {
+      return await readStateText(octokit, owner, repo, path);
+    } catch (err) {
+      lastError = err;
+      if (attempt === TRANSIENT_READ_RETRIES) break;
+      await new Promise((resolve) =>
+        setTimeout(resolve, TRANSIENT_READ_BACKOFF_MS * (attempt + 1)),
+      );
+    }
+  }
+  throw lastError;
+}
+
 async function readStateJson(
   octokit: Octokit,
   owner: string,
@@ -616,7 +682,7 @@ async function readStateJson(
   path: string,
   options: { required?: boolean } = {},
 ): Promise<unknown | null> {
-  const file = await readStateText(octokit, owner, repo, path);
+  const file = await readStateTextWithRetry(octokit, owner, repo, path);
   if (!file) {
     if (options.required === false) {
       return null;

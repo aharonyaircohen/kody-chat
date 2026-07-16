@@ -45,15 +45,11 @@ export function parseExplicitViewRequest(
 export function buildExplicitViewRequestInstruction(
   request: ExplicitViewRequest,
 ): string {
-  const data: Record<string, unknown> = {};
-  if (request.title) data.title = request.title;
   return [
     "The latest user message is an explicit UI render request.",
     "Your next action must be a show_view tool call.",
-    `Use purpose: ${request.purpose}.`,
-    `Use data: ${JSON.stringify(data)}.`,
+    `Render the view named "${request.purpose}": use the matching view component from the show_view catalog as the spec root, or compose it from atoms if no component matches.`,
+    ...(request.title ? [`Use the title: ${JSON.stringify(request.title)}.`] : []),
     "Do not answer in prose before the tool call.",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  ].join("\n");
 }

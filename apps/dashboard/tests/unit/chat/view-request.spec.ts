@@ -34,7 +34,10 @@ describe("explicit view requests", () => {
       "Your next action must be a show_view tool call.",
     );
     expect(buildExplicitViewRequestInstruction(request!)).toContain(
-      "Use purpose: decision.",
+      'Render the view named "decision"',
+    );
+    expect(buildExplicitViewRequestInstruction(request!)).toContain(
+      'Use the title: "Create this?".',
     );
   });
 });

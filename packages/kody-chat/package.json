@@ -2,7 +2,7 @@
   "name": "@kody-ade/kody-chat",
   "version": "0.1.4",
   "license": "MIT",
-  "description": "Kody Chat \u2014 multi-tenant branded client chat product and embeddable chat platform",
+  "description": "Kody Chat — multi-tenant branded client chat product and embeddable chat platform",
   "repository": {
     "type": "git",
     "url": "https://github.com/aharonyaircohen/kody-chat.git"
@@ -70,6 +70,7 @@
     "@ai-sdk/anthropic": "^3.0.77",
     "@ai-sdk/mcp": "^1.0.30",
     "@ai-sdk/openai-compatible": "^2.0.47",
+    "@json-render/core": "^0.19.0",
     "@kody-ade/agency": "workspace:*",
     "@kody-ade/backend": "workspace:*",
     "@kody-ade/base": "workspace:*",

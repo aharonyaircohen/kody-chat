@@ -70,7 +70,7 @@ describe("Kody chat evals", () => {
       {
         previewContext: "Preview shows a Hebrew marketing page.",
         viewRendererRules:
-          "- Purpose `decision`: Use this purpose when Kody presents a decision.\n  Data keys:\n  - title (title): Short heading.\n  - body (text): Supporting text.\n  - actions (actions, default available): Available responses.",
+          "- DecisionCard: Use this purpose when Kody presents a decision.",
       },
     );
 
@@ -86,7 +86,7 @@ describe("Kody chat evals", () => {
       "Do not print JSON or describe the tool call",
     );
     expect(promptWithPreview).toContain(
-      "Dashboard chooses the matching user-managed renderer",
+      "takes a JSON spec (`root` + flat `elements` map)",
     );
     expect(promptWithPreview).toContain(
       "UI-card requests are display requests, not issue-creation requests",
@@ -99,38 +99,25 @@ describe("Kody chat evals", () => {
     );
     expect(promptWithPreview).toContain("The user does not need to ask for UI");
     expect(promptWithPreview).toContain(
-      "`show_view` takes only `purpose` and `data`",
+      "Prefer a high-level view component when its purpose matches the interaction",
     );
     expect(promptWithPreview).toContain(
-      "Use the renderer rule's listed Data keys as the field names",
+      "first call the read/list tool needed to get the records, then call `show_view` with those records as the selectable items",
     );
     expect(promptWithPreview).toContain(
-      "fill them from the current interaction you are presenting",
-    );
-    expect(promptWithPreview).toContain(
-      "If the user's request includes line-separated or bulleted choices",
-    );
-    expect(promptWithPreview).toContain(
-      "first call the read/list tool needed to get the records, then call `show_view` with the matching renderer purpose",
-    );
-    expect(promptWithPreview).toContain(
-      "Each field in `data` must come from one of two places",
+      "Every value you place in the spec must come from one of two places",
     );
     expect(promptWithPreview).toContain(
       "Do not silently copy preview, page, repo, task, memory, or research context into view fields",
     );
     expect(promptWithPreview).toContain(
-      "Do not name a renderer, preset, or hardcoded view type",
+      "fix the spec exactly as the error describes and call it again",
     );
-    expect(promptWithPreview).toContain("Available renderer rules");
-    expect(promptWithPreview).toContain("Purpose `decision`");
     expect(promptWithPreview).toContain(
-      "Use this purpose when Kody presents a decision",
+      "Available view components and when to use them:",
     );
-    expect(promptWithPreview).toContain("Data keys:");
-    expect(promptWithPreview).toContain("title (title): Short heading.");
     expect(promptWithPreview).toContain(
-      "actions (actions, default available): Available responses.",
+      "DecisionCard: Use this purpose when Kody presents a decision.",
     );
   });
 
@@ -145,15 +132,22 @@ describe("Kody chat evals", () => {
     expect(route).toContain("selectChatOutputActiveTools");
     expect(route).toContain("allActiveTools");
     expect(route).toContain("Do not finish with `final_answer`");
-    expect(route).toContain("terminalToolAttempt(SHOW_VIEW_TOOL)");
+    expect(route).toContain(
+      "settledToolAttempts(SHOW_VIEW_TOOL, MAX_SHOW_VIEW_ATTEMPTS)",
+    );
     expect(route).toContain("successfulToolResult(FINAL_ANSWER_TOOL)");
   });
 
-  it("does not retry a failed show_view finalizer forever", () => {
+  it("retries a failed show_view a bounded number of times, not forever", () => {
     const route = readFileSync("app/api/kody/chat/kody/route.ts", "utf8");
 
-    expect(route).toContain("terminalToolAttempt(SHOW_VIEW_TOOL)");
+    expect(route).toContain("MAX_SHOW_VIEW_ATTEMPTS = 3");
+    expect(route).toContain(
+      "settledToolAttempts(SHOW_VIEW_TOOL, MAX_SHOW_VIEW_ATTEMPTS)",
+    );
     expect(route).toContain("successfulToolResult(FINAL_ANSWER_TOOL)");
-    expect(route).not.toContain("successfulToolResult(SHOW_VIEW_TOOL)");
+    // The old behavior ended the turn on the FIRST show_view attempt even
+    // when validation failed — that's what forced the repair heuristics.
+    expect(route).not.toContain("terminalToolAttempt");
   });
 });

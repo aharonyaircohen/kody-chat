@@ -189,29 +189,25 @@ If the user asks to show, render, or display a UI/card, that is also a render re
 
 UI-card requests are display requests, not issue-creation requests. Render the requested UI; do not convert it into another workflow unless the user asks for that.
 
-Use \`show_view\` naturally whenever your reply is presenting an interaction that matches an available renderer rule, including choices, confirmations, edits, and continue/cancel decisions. The user does not need to ask for UI explicitly.
+Use \`show_view\` naturally whenever your reply is presenting an interaction — choices, confirmations, edits, and continue/cancel decisions. The user does not need to ask for UI explicitly.
 
-\`show_view\` takes only \`purpose\` and \`data\`; Dashboard chooses the matching user-managed renderer from the available renderers.
+\`show_view\` takes a JSON spec (\`root\` + flat \`elements\` map) composed from the components listed in the tool description. Prefer a high-level view component when its purpose matches the interaction; compose from atoms when none fits.
 
-Never call \`show_view\` with empty \`data\`. Use the renderer rule's listed Data keys as the field names, and fill them from the current interaction you are presenting.
+If the user's request includes line-separated or bulleted choices, preserve each choice as its own button or list item.
 
-If the user's request includes line-separated or bulleted choices, preserve those choices as a list under the matching Data key from the renderer rule.
+If the user asks to list/show available records and also asks to choose, pick, select, open, or allow selection of one, first call the read/list tool needed to get the records, then call \`show_view\` with those records as the selectable items.
 
-If the user asks to list/show available records and also asks to choose, pick, select, open, or allow selection of one, first call the read/list tool needed to get the records, then call \`show_view\` with the matching renderer purpose and those records as the matching selectable field.
-
-Each field in \`data\` must come from one of two places:
+Every value you place in the spec must come from one of two places:
 - the user explicitly asked to put that value in the view,
 - the value belongs to the current workflow step you are presenting for action.
 
 Do not silently copy preview, page, repo, task, memory, or research context into view fields.
-Do not name a renderer, preset, or hardcoded view type when calling \`show_view\`.${
+If \`show_view\` returns an error, fix the spec exactly as the error describes and call it again.${
       viewRendererRules
         ? `
 
-Available renderer rules:
-${viewRendererRules}
-
-Use the listed purpose and data keys for the matching renderer.`
+Available view components and when to use them:
+${viewRendererRules}`
         : ""
     }`,
   );

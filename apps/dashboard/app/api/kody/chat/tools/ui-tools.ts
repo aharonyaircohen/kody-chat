@@ -8,7 +8,6 @@
  *  side effect; the client owns the action.
  */
 import { randomUUID } from "crypto";
-import type { Octokit } from "@octokit/rest";
 import { jsonSchema, tool } from "ai";
 import { z } from "zod";
 import { AGENTS, type AgentId } from "@dashboard/lib/agents";
@@ -25,17 +24,15 @@ import {
   dashboardNavigationCatalogForPrompt,
   resolveDashboardNavigationTarget,
 } from "@dashboard/lib/dashboard-navigation";
+import type { ViewRendererDefinition } from "@dashboard/lib/view-renderers/renderers";
+import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "@dashboard/lib/view-renderers/builtin";
 import {
-  buildRenderedViewDirective,
-  resolveBestViewRendererDefinition,
-  type ViewRendererDefinition,
-} from "@dashboard/lib/view-renderers/renderers";
-import {
+  buildChatViewCatalog,
   buildShowViewInputJsonSchema,
-  collectShowViewData,
-  validateShowViewInput,
-  type ShowViewInput,
-} from "@dashboard/lib/view-renderers/chat-contract";
+} from "@dashboard/lib/view-renderers/spec/catalog";
+import { validateChatViewSpec } from "@dashboard/lib/view-renderers/spec/validate";
+import { buildChatViewDirective } from "@dashboard/lib/view-renderers/spec/expand";
+import { buildShowViewGuidance } from "@dashboard/lib/view-renderers/spec/prompt";
 import {
   FINAL_ANSWER_REQUIRES_VIEW_ERROR,
   FINAL_ANSWER_TOOL,
@@ -48,13 +45,8 @@ const SELECTABLE_AGENT_IDS = Object.values(AGENTS).map(
 ) as SwitchAgentTargetId[];
 
 interface UiToolsCtx {
-  octokit?: Octokit;
-  owner?: string;
-  repo?: string;
-  actorLogin?: string | null;
-  viewRendererRules?: string | null;
+  /** Brand renderer definitions; built-ins are used when empty/omitted. */
   viewRendererDefinitions?: ViewRendererDefinition[];
-  userText?: string | null;
 }
 
 export const switchAgentTool = tool({
@@ -215,19 +207,21 @@ export const dashboardNavigateTool = tool({
   },
 });
 
-function hasRepoContext(
-  ctx: UiToolsCtx,
-): ctx is UiToolsCtx & { octokit: Octokit; owner: string; repo: string } {
-  return Boolean(ctx.octokit && ctx.owner && ctx.repo);
-}
-
 export function createUiTools(ctx: UiToolsCtx = {}) {
-  const viewRendererRules = ctx.viewRendererRules?.trim();
   let interactiveFinalAnswerText: string | null = null;
-  const showViewInputSchema = jsonSchema<ShowViewInput>(
-    buildShowViewInputJsonSchema(ctx.viewRendererDefinitions ?? []),
+  const definitions =
+    ctx.viewRendererDefinitions && ctx.viewRendererDefinitions.length > 0
+      ? ctx.viewRendererDefinitions
+      : [...BUILTIN_VIEW_RENDERER_DEFINITIONS];
+  const catalog = buildChatViewCatalog(definitions);
+  // The SDK-level schema documents the spec envelope but never rejects:
+  // strict per-component validation runs inside execute, so a bad spec
+  // surfaces as a tool error the model can read and retry — instead of
+  // aborting the stream or triggering arg-repair heuristics.
+  const showViewInputSchema = jsonSchema<unknown>(
+    buildShowViewInputJsonSchema(catalog),
     {
-      validate: validateShowViewInput,
+      validate: (value) => ({ success: true, value }),
     },
   );
   return {
@@ -246,7 +240,11 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
           ),
       }),
       execute: async ({ content }) => {
+        // Nudge toward show_view at most once per turn: if the model
+        // insists on plain text after the first rejection, accept it —
+        // a wrongly-forced card (e.g. on a greeting) is worse than prose.
         if (
+          interactiveFinalAnswerText === null &&
           shouldRequireViewOutputForAssistantText({
             assistantText: content,
             definitions: ctx.viewRendererDefinitions ?? [],
@@ -266,45 +264,24 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
     preview_act: previewActTool,
     [SHOW_VIEW_TOOL]: tool({
       description:
-        "Render data in the chat UI using a user-managed view purpose. " +
-        "Dashboard loads all renderers from views/renderers/*.json and chooses the renderer whose purpose matches the request. " +
-        "Use this when the next user interaction matches an available renderer rule. " +
-        "Also use it when the user asks to show, render, or display a UI card; do not print JSON for the user to copy. " +
-        "Pass plain data values only. For list-style data, pass an array of labels or records from the read/list tool result. " +
-        "Do not pass empty data. Use the selected renderer rule's Data keys as the object keys, and include any user-provided line-separated or bulleted choices under the matching list key. " +
-        "If the selected renderer defines defaults, omitted fields are filled by Dashboard. " +
-        "Only put data into the view when it belongs to the current interaction you are presenting for action. " +
-        "Do not silently copy preview, page, repo, task, memory, or research context into view fields. " +
-        "This tool only shows UI; it does not execute the selected action." +
-        (viewRendererRules
-          ? `\n\nAvailable renderer rules:\n${viewRendererRules}`
-          : ""),
+        "Render an interactive UI card in the chat from a JSON spec. " +
+        "Use this whenever the reply asks the user to choose, approve, confirm, continue, cancel, or pick an action — and when the user asks to show, render, or display a UI card; do not print JSON for the user to copy. " +
+        "Compose the spec only from the components listed below. " +
+        "Put only data that belongs to the current interaction into the view; do not copy preview, page, repo, task, memory, or research context into it. " +
+        "This tool only shows UI; it does not execute the selected action. " +
+        "If the call returns an error, fix the spec it describes and call again.\n\n" +
+        buildShowViewGuidance(catalog),
       inputSchema: showViewInputSchema,
       execute: async (input) => {
-        const validated = validateShowViewInput(input);
-        if (validated.success === false) {
-          return {
-            error: validated.error.message,
-          };
-        }
-        const resolvedInput = validated.value;
-        const data = collectShowViewData({ ...resolvedInput });
-        if (Object.keys(data).length === 0) {
-          return { error: "show_view requires data" };
+        const validated = validateChatViewSpec(catalog, input);
+        if (!validated.success) {
+          return { error: validated.error };
         }
         try {
-          const resolved = await resolveBestViewRendererDefinition({
-            ...(hasRepoContext(ctx)
-              ? { octokit: ctx.octokit, owner: ctx.owner, repo: ctx.repo }
-              : {}),
-            purpose: resolvedInput.purpose,
-            data,
-            userText: interactiveFinalAnswerText ?? ctx.userText,
-          });
-          return buildRenderedViewDirective({
+          return buildChatViewDirective({
             id: `view-${randomUUID()}`,
-            definition: resolved.definition,
-            data,
+            catalog,
+            spec: validated.spec,
           });
         } catch (err) {
           return {

@@ -203,20 +203,20 @@ describe("chat-defaults bundle", () => {
     expect(DEFAULT_CHAT_CAPABILITY.tools).toContain("show_view");
   });
 
-  it("documents show_view as purpose-based renderer matching", () => {
+  it("documents show_view as spec-based rendering with strict validation", () => {
     const uiTools = readFileSync("app/api/kody/chat/tools/ui-tools.ts", "utf8");
-    expect(uiTools).toContain("user-managed view purpose");
-    expect(uiTools).toContain("views/renderers/*.json");
-    expect(uiTools).toContain("purpose matches the request");
+    expect(uiTools).toContain("Render an interactive UI card");
     expect(uiTools).toContain("do not print JSON");
-    expect(uiTools).toContain("array of labels or records");
-    expect(uiTools).toContain("renderer defines defaults");
-    expect(uiTools).toContain("Only put data into the view");
+    expect(uiTools).toContain("buildShowViewGuidance");
+    expect(uiTools).toContain("validateChatViewSpec");
+    expect(uiTools).toContain("fix the spec it describes and call again");
+    expect(uiTools).toContain("Put only data that belongs");
     expect(uiTools).toContain(
-      "Do not silently copy preview, page, repo, task, memory, or research context into view fields",
+      "do not copy preview, page, repo, task, memory, or research context",
     );
-    expect(uiTools).not.toContain("rendererSlug");
-    expect(uiTools).not.toContain("preset");
+    // Guardrails against reintroducing the heuristic matcher.
+    expect(uiTools).not.toContain("resolveBestViewRendererDefinition");
+    expect(uiTools).not.toContain("purpose matches the request");
   });
 
   it("exposes 4 workflows — kody-analyzer, kody-operator, kody-vibe, kody-mem", () => {

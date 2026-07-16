@@ -142,7 +142,6 @@ import {
   loadViewRendererContextForPrompt,
   type ViewRendererDefinition,
 } from "@dashboard/lib/view-renderers/renderers";
-import { repairShowViewToolCall } from "@dashboard/lib/view-renderers/chat-contract";
 import { loadInstructionsForPrompt } from "@kody-ade/workspace/instructions/files";
 import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
 import { buildExplicitMemoryDraft } from "./explicit-memory";
@@ -264,12 +263,37 @@ function successfulToolResult(toolName: string): StopCondition<ToolSet> {
     ) ?? false;
 }
 
-function terminalToolAttempt(toolName: string): StopCondition<ToolSet> {
+/**
+ * Cap on `show_view` attempts per turn. A failed call returns its
+ * validation error as the tool result so the model can fix the spec and
+ * retry; the cap stops a model that keeps producing invalid specs.
+ */
+export const MAX_SHOW_VIEW_ATTEMPTS = 3;
+
+/**
+ * Stop once the tool succeeds, or once it has been attempted `maxAttempts`
+ * times (successful or not) — whichever comes first.
+ */
+function settledToolAttempts(
+  toolName: string,
+  maxAttempts: number,
+): StopCondition<ToolSet> {
   return ({ steps }) => {
     const lastStep = steps[steps.length - 1];
-    return (
-      lastStep?.toolCalls?.some((call) => call.toolName === toolName) ?? false
+    const succeeded =
+      lastStep?.toolResults?.some(
+        (result) =>
+          result.toolName === toolName && !isToolErrorOutput(result.output),
+      ) ?? false;
+    if (succeeded) return true;
+    const attempts = steps.reduce(
+      (count, step) =>
+        count +
+        (step.toolCalls?.filter((call) => call.toolName === toolName).length ??
+          0),
+      0,
     );
+    return attempts >= maxAttempts;
   };
 }
 
@@ -973,15 +997,7 @@ async function handleKodyDirectPost(
     // Per-request Octokit (no shared singleton) so the GitHub tools
     // don't race other concurrent /api/kody/chat/kody requests.
     const octokit = createUserOctokit(repo.token);
-    uiToolSet = createUiTools({
-      octokit,
-      owner: repo.owner,
-      repo: repo.repo,
-      actorLogin: verifiedActorLogin,
-      viewRendererRules,
-      viewRendererDefinitions,
-      userText: latestUserText,
-    });
+    uiToolSet = createUiTools({ viewRendererDefinitions });
     extraTools = {
       ...extraTools,
       ...createGitHubTools({ octokit, owner: repo.owner, repo: repo.repo }),
@@ -1547,19 +1563,10 @@ This turn includes an image from the user. For questions about what is visible i
       // rationale and the per-model override path. The constant lives at
       // module level so tests can assert the value.
       stopWhen: [
-        terminalToolAttempt(SHOW_VIEW_TOOL),
+        settledToolAttempts(SHOW_VIEW_TOOL, MAX_SHOW_VIEW_ATTEMPTS),
         successfulToolResult(FINAL_ANSWER_TOOL),
         stepCountIs(resolvedModel.maxSteps ?? DEFAULT_MAX_STEPS),
       ],
-      experimental_repairToolCall: async ({ toolCall, messages }) => {
-        if (toolCall.toolName !== SHOW_VIEW_TOOL) return null;
-        return repairShowViewToolCall({
-          toolCall,
-          definitions: viewRendererDefinitions,
-          userText: latestUserText,
-          context: messages,
-        });
-      },
       // Per-provider thinking config so reasoning-delta chunks actually
       // reach the client. Without this, `sendReasoning: true` below has
       // nothing to stream and the chat looks idle until the final answer.

@@ -16,7 +16,6 @@ import {
 const streamTextMock = vi.hoisted(() => vi.fn());
 const createUIMessageStreamResponseMock = vi.hoisted(() => vi.fn());
 const loadViewRendererContextForPromptMock = vi.hoisted(() => vi.fn());
-const resolveBestViewRendererDefinitionMock = vi.hoisted(() => vi.fn());
 const loadInstructionsForPromptMock = vi.hoisted(() => vi.fn());
 
 vi.mock("ai", () => ({
@@ -78,7 +77,6 @@ vi.mock("@dashboard/lib/view-renderers/renderers", async (importOriginal) => {
   return {
     ...actual,
     loadViewRendererContextForPrompt: loadViewRendererContextForPromptMock,
-    resolveBestViewRendererDefinition: resolveBestViewRendererDefinitionMock,
   };
 });
 
@@ -193,13 +191,6 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
         "  - actions (actions, default available, optional)",
       definitions: [approvalRendererDefinition],
     });
-    resolveBestViewRendererDefinitionMock.mockResolvedValue({
-      definition: approvalRendererDefinition,
-      source: "repo",
-      sha: "approval-fixture",
-      htmlUrl:
-        "https://github.test/acme/app/views/renderers/approval-card.json",
-    });
     streamTextMock.mockReturnValue({
       toUIMessageStream: vi.fn(() => ({})),
     });
@@ -258,7 +249,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     );
   });
 
-  it("exposes a working show_view contract for approval renderer requests", async () => {
+  it("exposes a working show_view spec contract for approval renderer requests", async () => {
     const { POST } = await import("../../app/api/kody/chat/kody/route");
 
     const res = await POST(
@@ -280,38 +271,42 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
           description?: string;
           inputSchema?: {
             jsonSchema?: {
-              oneOf?: Array<{
-                properties?: {
-                  purpose?: { enum?: string[] };
-                  data?: {
-                    required?: string[];
-                    properties?: Record<string, unknown>;
+              required?: string[];
+              properties?: {
+                elements?: {
+                  additionalProperties?: {
+                    properties?: { type?: { enum?: string[] } };
                   };
                 };
-              }>;
+              };
             };
           };
           execute?: (input: Record<string, unknown>) => Promise<unknown>;
         }
       | undefined;
 
-    expect(showView?.description).toContain("Available renderer rules");
-    const approvalVariant = showView?.inputSchema?.jsonSchema?.oneOf?.find(
-      (variant) => variant.properties?.purpose?.enum?.[0] === "approval-card",
-    );
-    expect(approvalVariant?.properties?.data).toMatchObject({
-      required: ["title"],
-      properties: {
-        title: expect.objectContaining({ type: "string" }),
-      },
-    });
+    expect(showView?.description).toContain("Spec format");
+    expect(showView?.description).toContain("ApprovalCard");
+    expect(showView?.inputSchema?.jsonSchema?.required).toEqual([
+      "root",
+      "elements",
+    ]);
+    expect(
+      showView?.inputSchema?.jsonSchema?.properties?.elements
+        ?.additionalProperties?.properties?.type?.enum,
+    ).toEqual(expect.arrayContaining(["ApprovalCard", "Stack", "Button"]));
     expect(showView?.execute).toBeTypeOf("function");
 
     const output = await showView?.execute?.({
-      purpose: "approval-card",
-      data: {
-        title: "Confirm this question?",
-        body: "Should I continue?",
+      root: "card",
+      elements: {
+        card: {
+          type: "ApprovalCard",
+          props: {
+            title: "Confirm this question?",
+            body: "Should I continue?",
+          },
+        },
       },
     });
 
@@ -319,23 +314,20 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
       action: RENDER_VIEW_DIRECTIVE,
       view: "renderer",
       rendererSlug: "approval-card",
-      data: {
-        title: "Confirm this question?",
-        body: "Should I continue?",
-      },
-    });
-    expect(resolveBestViewRendererDefinitionMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        purpose: "approval-card",
-        data: {
-          title: "Confirm this question?",
-          body: "Should I continue?",
-        },
+      ui: expect.objectContaining({
+        type: "stack",
+        children: expect.arrayContaining([
+          expect.objectContaining({
+            type: "text",
+            value: "Confirm this question?",
+            variant: "title",
+          }),
+        ]),
       }),
-    );
+    });
   });
 
-  it("repairs an empty show_view tool call using renderer definitions", async () => {
+  it("does not install arg-repair heuristics and surfaces spec errors to the model", async () => {
     const { POST } = await import("../../app/api/kody/chat/kody/route");
 
     const res = await POST(
@@ -350,111 +342,22 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     );
 
     expect(res.status).toBe(200);
-    const repairToolCall = streamTextMock.mock.calls[0]?.[0]
-      ?.experimental_repairToolCall as
-      | ((input: {
-          toolCall: {
-            type: "tool-call";
-            toolCallId: string;
-            toolName: string;
-            input: string;
-          };
-        }) => Promise<{ input: string } | null>)
+    const options = streamTextMock.mock.calls[0]?.[0];
+    // The old pipeline scraped prose into renderer data via
+    // experimental_repairToolCall; the spec contract must not.
+    expect(options?.experimental_repairToolCall).toBeUndefined();
+
+    const showView = options?.tools?.show_view as
+      | {
+          execute?: (
+            input: Record<string, unknown>,
+          ) => Promise<{ error?: string }>;
+        }
       | undefined;
+    const output = await showView?.execute?.({});
 
-    expect(repairToolCall).toBeTypeOf("function");
-    const repaired = await repairToolCall?.({
-      toolCall: {
-        type: "tool-call",
-        toolCallId: "empty-show-view",
-        toolName: "show_view",
-        input: "{}",
-      },
-    });
-
-    expect(repaired).toMatchObject({
-      toolName: "show_view",
-    });
-    expect(JSON.parse(repaired?.input ?? "{}")).toMatchObject({
-      purpose: "approval-card",
-      data: {
-        title: expect.stringContaining("approval"),
-      },
-    });
-  });
-
-  it("repairs an empty show_view call from prior list tool results", async () => {
-    loadViewRendererContextForPromptMock.mockResolvedValue({
-      rules:
-        "- Purpose `selection-list`: Use this purpose when Kody asks the user to choose exactly one item from a list.\n" +
-        "  Data keys:\n" +
-        "  - title (text): Short title.\n" +
-        "  - body (text, optional)\n" +
-        "  - items (selection): Selectable items.",
-      definitions: [reportSelectionRendererDefinition],
-    });
-    const { POST } = await import("../../app/api/kody/chat/kody/route");
-
-    const res = await POST(
-      makeRequest({
-        messages: [
-          {
-            role: "user",
-            content: "list reports and allow me to select a few",
-          },
-        ],
-      }),
-    );
-
-    expect(res.status).toBe(200);
-    const repairToolCall = streamTextMock.mock.calls[0]?.[0]
-      ?.experimental_repairToolCall as
-      | ((input: {
-          toolCall: {
-            type: "tool-call";
-            toolCallId: string;
-            toolName: string;
-            input: string;
-          };
-          messages: unknown[];
-        }) => Promise<{ input: string } | null>)
-      | undefined;
-
-    const repaired = await repairToolCall?.({
-      toolCall: {
-        type: "tool-call",
-        toolCallId: "empty-show-view",
-        toolName: "show_view",
-        input: "{}",
-      },
-      messages: [
-        {
-          role: "tool",
-          content: [
-            {
-              type: "tool-result",
-              toolName: "list_reports",
-              output: {
-                reports: [
-                  { slug: "cto", title: "CTO Report" },
-                  { slug: "security-audit", title: "Security Audit" },
-                ],
-              },
-            },
-          ],
-        },
-      ],
-    });
-
-    expect(repaired).toMatchObject({ toolName: "show_view" });
-    expect(JSON.parse(repaired?.input ?? "{}")).toMatchObject({
-      purpose: "selection-list",
-      data: {
-        items: [
-          { slug: "cto", title: "CTO Report" },
-          { slug: "security-audit", title: "Security Audit" },
-        ],
-      },
+    expect(output).toMatchObject({
+      error: expect.stringContaining("root"),
     });
   });
 

@@ -5,7 +5,6 @@
  * @ai-summary Decides when a chat turn should end with a user-managed renderer.
  */
 import type { ViewRendererDefinition } from "./renderers";
-import type { RenderedViewUiNode } from "@dashboard/lib/chat-ui-actions";
 
 const RENDERER_INTENT_STOP_WORDS = new Set([
   "a",
