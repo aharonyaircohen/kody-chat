@@ -139,13 +139,3 @@ export async function mutateTriggers(
   }
   throw new Error("triggers config write retry exhausted");
 }
-
-/** Overwrite the full triggers file. Prefer mutateTriggers for upserts. */
-export async function saveTriggers(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  triggers: readonly TriggerConfig[],
-): Promise<void> {
-  await mutateTriggers(octokit, owner, repo, () => triggers);
-}

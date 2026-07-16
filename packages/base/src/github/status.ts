@@ -11,11 +11,6 @@ import {
   sortActivityNewestFirst,
   type CompanyActivityRecord,
 } from "../activity/company";
-import {
-  listStateDirectory,
-  readStateText,
-  stateRepoPath,
-} from "@kody-ade/base/state-repo";
 import { parseKodyRunLogZip, type KodyRunLogsRun } from "../activity/run-logs";
 import type { KodyPipelineStatus, WorkflowRun } from "@kody-ade/base/types";
 import { getCached, getStale, setCache, getOctokit, getOwner, getRepo } from "@kody-ade/base/github/core";
@@ -226,78 +221,6 @@ export async function findStatusOnBranch(
   }
 
   return null;
-}
-
-/**
- * Read `todos/<id>.json` from the configured Kody state repo with cache +
- * ETag/304 revalidation. Returns `null` when the file is missing (= the
- * engine has never ticked this goal) or unparseable.
- *
- * Uses the polling token (no per-user octokit) because the goals listing
- * route is hot — every poll fetches goals, and per-user reads would
- * multiply the rate-limit cost. The state file lives in the configured Kody state repo
- * branch (engine commits it there), so the polling token is sufficient.
- */
-export async function fetchGoalStateFromRepo(goalId: string): Promise<{
-  goalIssueNumber?: number;
-  goalPrUrl?: string;
-} | null> {
-  if (!goalId || /[\\/]|\.\./.test(goalId)) return null;
-  const path = `todos/${goalId}.json`;
-  const cacheKey = `goal-state:${getOwner()}:${getRepo()}:${goalId}`;
-  const cached = getCached<{
-    goalIssueNumber?: number;
-    goalPrUrl?: string;
-  } | null>(cacheKey);
-  if (cached !== null) return cached;
-
-  const stale = getStale<{
-    goalIssueNumber?: number;
-    goalPrUrl?: string;
-  } | null>(cacheKey);
-  const octokit = getOctokit();
-
-  try {
-    const file = await readStateText(octokit, getOwner(), getRepo(), path, {
-      headers: stale?.etag ? { "If-None-Match": stale.etag } : undefined,
-    }).catch((error: any) => {
-      if (error.status === 404) return null;
-      throw error;
-    });
-    if (!file) {
-      setCache(cacheKey, CACHE_TTL.tasks, null);
-      return null;
-    }
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(file.content) as Record<string, unknown>;
-    } catch {
-      setCache(cacheKey, CACHE_TTL.tasks, null, { etag: file.etag });
-      return null;
-    }
-    const goalIssueNumber =
-      typeof parsed.goalIssueNumber === "number"
-        ? parsed.goalIssueNumber
-        : undefined;
-    const goalPrUrl =
-      typeof parsed.goalPrUrl === "string" && parsed.goalPrUrl.length > 0
-        ? parsed.goalPrUrl
-        : undefined;
-    const result = { goalIssueNumber, goalPrUrl };
-    setCache(cacheKey, CACHE_TTL.tasks, result, { etag: file.etag });
-    return result;
-  } catch (error: any) {
-    if (error.status === 304 && stale) {
-      setCache(cacheKey, CACHE_TTL.tasks, stale.data, { etag: stale.etag });
-      return stale.data;
-    }
-    if (error.status === 404) {
-      setCache(cacheKey, CACHE_TTL.tasks, null);
-      return null;
-    }
-    console.error(`[Kody] Error reading goal state for ${goalId}:`, error);
-    return null;
-  }
 }
 
 /**

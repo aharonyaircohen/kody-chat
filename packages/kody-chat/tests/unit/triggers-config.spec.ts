@@ -1,7 +1,7 @@
 /**
  * Unit tests for the trigger config loader/saver
- * (@kody-ade/base/triggers/config): validation, unknown-event drop,
- * caching, and CAS save.
+
+ * (@kody-ade/base/triggers/config): validation, unknown-event drop, and caching.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Octokit } from "@octokit/rest";
@@ -20,7 +20,6 @@ vi.mock("@kody-ade/base/logger", () => ({ logger: h.logger }));
 
 import {
   getTriggers,
-  saveTriggers,
   _resetTriggersConfigCache,
 } from "@kody-ade/base/triggers/config";
 import type { TriggerConfig } from "@kody-ade/base/triggers/types";
@@ -81,23 +80,6 @@ describe("getTriggers", () => {
   it("caches per owner/repo", async () => {
     h.readStateText.mockRejectedValue({ status: 404 });
     await getTriggers(octokit, "acme", "shop");
-    await getTriggers(octokit, "acme", "shop");
-    expect(h.readStateText).toHaveBeenCalledTimes(1);
-  });
-});
-
-describe("saveTriggers", () => {
-  it("writes with the existing sha and invalidates the cache", async () => {
-    h.readStateText.mockResolvedValue({ content: "{}", sha: "old", path: "p" });
-    h.writeStateText.mockResolvedValue({ sha: "new", path: "p", htmlUrl: null });
-
-    await saveTriggers(octokit, "acme", "shop", [VALID]);
-
-    expect(h.writeStateText).toHaveBeenCalledWith(
-      expect.objectContaining({ sha: "old", path: "triggers/config.json" }),
-    );
-    h.readStateText.mockClear();
-    h.readStateText.mockRejectedValue({ status: 404 });
     await getTriggers(octokit, "acme", "shop");
     expect(h.readStateText).toHaveBeenCalledTimes(1);
   });
