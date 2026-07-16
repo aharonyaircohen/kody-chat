@@ -1130,6 +1130,11 @@ async function handleKodyDirectPost(
     ...extraTools,
     ...createRemoteTools(verifiedActorLogin),
   };
+  // Optional tool families that failed to load this turn. The model MUST
+  // be told about these: a chat that silently lacks its cms/user-state
+  // tools invites the model to simulate the calls and report fabricated
+  // success (real incident: "saved to CMS with id X" and nothing existed).
+  const failedToolFamilies: string[] = [];
   if (repo && !clientSurface) {
     const octokit = createUserOctokit(repo.token);
     // Optional tool families discover configuration from GitHub before the
@@ -1142,6 +1147,7 @@ async function handleKodyDirectPost(
       try {
         return await load();
       } catch (err) {
+        failedToolFamilies.push(toolFamily);
         traceWarn(
           {
             traceId,
@@ -1328,6 +1334,18 @@ async function handleKodyDirectPost(
         role: "system",
         content:
           "The latest user message asks for an interactive response that matches the available renderer rules. Use read/list tools first if needed, then finish this turn with `show_view`. Do not finish with `final_answer`.",
+      },
+    ];
+  }
+  if (failedToolFamilies.length > 0) {
+    modelMessages = [
+      ...modelMessages,
+      {
+        role: "system",
+        content:
+          `Tool families UNAVAILABLE this turn (their configuration failed to load): ${failedToolFamilies.join(", ")}. ` +
+          "If the user asks for a related action, state plainly that the tools are unavailable right now and suggest retrying. " +
+          "NEVER simulate these tool calls, never invent ids or results, and never claim data was read or written.",
       },
     ];
   }
@@ -1643,6 +1661,14 @@ This turn includes an image from the user. For questions about what is visible i
           type: "data-tools-index",
           data: toolDescriptionByName,
         });
+        if (failedToolFamilies.length > 0) {
+          // Visible warning line — without it a fabricated "saved!" reply
+          // is indistinguishable from a real one for the user.
+          writer.write({
+            type: "error",
+            errorText: `Some tools failed to load this turn and are unavailable: ${failedToolFamilies.join(", ")}. Related actions cannot run right now.`,
+          });
+        }
         writer.merge(result.toUIMessageStream({ sendReasoning: true }));
       },
       onError: (error) => {
