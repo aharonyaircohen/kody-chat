@@ -241,7 +241,9 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
           .string()
           .min(1)
           .max(12000)
-          .describe("The final user-visible answer."),
+          .describe(
+            "The final user-visible answer. Write it as a short executive summary for a product manager: 3-6 plain sentences leading with the outcome, at most one small list. NEVER include raw JSON, schemas, code, id dumps, or step-by-step work here unless the user explicitly asked to see them — say where the data lives instead. Long content the user did not ask for is a failure.",
+          ),
       }),
       execute: async ({ content }) => {
         if (
