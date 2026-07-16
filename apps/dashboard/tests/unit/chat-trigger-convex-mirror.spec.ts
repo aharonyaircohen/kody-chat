@@ -51,7 +51,7 @@ vi.mock("@kody-ade/base/github/core", () => ({
   createUserOctokit: vi.fn(() => ({}) as never),
 }));
 
-vi.mock("@kody-chat/user-state", () => ({
+vi.mock("@kody-ade/kody-chat/user-state", () => ({
   ensureTriggerStateWriter: vi.fn(),
 }));
 

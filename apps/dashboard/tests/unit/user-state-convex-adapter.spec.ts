@@ -22,12 +22,12 @@ vi.mock("convex/browser", () => ({
 import {
   _resetUserStateDocCache,
   stateRepoUserStateAdapter,
-} from "@kody-chat/user-state/adapters/state-repo";
-import { userFileKey } from "@kody-chat/user-state/user-key";
+} from "@kody-ade/kody-chat/user-state/adapters/state-repo";
+import { userFileKey } from "@kody-ade/kody-chat/user-state/user-key";
 import type {
   UserStateDoc,
   UserStateNamespace,
-} from "@kody-chat/user-state/types";
+} from "@kody-ade/kody-chat/user-state/types";
 
 const NAMESPACE: UserStateNamespace = {
   name: "profile",

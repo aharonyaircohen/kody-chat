@@ -75,7 +75,6 @@ const nextConfig = {
       async_hooks: { browser: "./src/dashboard/lib/empty-module.js" },
       "@dashboard/*": "./src/dashboard/*",
       "@/*": "./src/*",
-      "@kody-chat/*": "./node_modules/@kody-ade/kody-chat/src/dashboard/lib/*",
     },
   },
   // Exclude engine files from webpack compilation
@@ -90,10 +89,6 @@ const nextConfig = {
       ...config.resolve.alias,
       "@dashboard": new URL("./src/dashboard", import.meta.url).pathname,
       "@": new URL("./src", import.meta.url).pathname,
-      "@kody-chat": new URL(
-        "./node_modules/@kody-ade/kody-chat/src/dashboard/lib",
-        import.meta.url,
-      ).pathname,
     };
     // github-client.ts lazily require()s the `async_hooks` Node builtin for
     // per-request context isolation. It's imported transitively by client

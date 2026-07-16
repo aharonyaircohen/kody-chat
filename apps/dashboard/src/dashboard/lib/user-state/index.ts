@@ -5,4 +5,4 @@
  * @ai-summary Host re-export of the kody-chat user-state module so package
  *   routes that import `@dashboard/lib/user-state` resolve on this host.
  */
-export * from "@kody-chat/user-state";
+export * from "@kody-ade/kody-chat/user-state";

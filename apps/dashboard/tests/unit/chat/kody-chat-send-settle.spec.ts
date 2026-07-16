@@ -17,8 +17,8 @@ import {
   classifyTurnFailure,
   settleDecision,
   applySettleDecision,
-} from "@kody-chat/components/kody-chat-send";
-import type { Message } from "@kody-chat/components/kody-chat-types";
+} from "@kody-ade/kody-chat/components/kody-chat-send";
+import type { Message } from "@kody-ade/kody-chat/components/kody-chat-types";
 
 const abortError = () => {
   const err = new Error("signal is aborted without reason");

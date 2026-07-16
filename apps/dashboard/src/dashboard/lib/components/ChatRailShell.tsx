@@ -59,7 +59,7 @@ import { routeOwnsAppHeader } from "./header-ownership";
 // barrel statically reaches ChatTerminalSurface/TerminalControls, which
 // must only ever load through KodyChat's React.lazy chunks — a static path
 // here would drag them into the shared sync chunks /client also loads.
-import { terminalChatPlugin } from "@kody-chat/chat/plugins/terminal/plugin";
+import { terminalChatPlugin } from "@kody-ade/kody-chat/plugins/terminal/plugin";
 import { commandsChatPlugin } from "@kody-ade/kody-chat/plugins/commands";
 import { vibeChatPlugin } from "@kody-ade/kody-chat/plugins/vibe";
 import { goalsChatPlugin } from "@kody-ade/kody-chat/plugins/goals";

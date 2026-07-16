@@ -27,16 +27,16 @@ import {
   updateFlyConnectionState,
   waitForFlyInputAck,
   type FlyConnectionDeps,
-} from "@kody-chat/chat/plugins/terminal/fly-connection";
+} from "@kody-ade/kody-chat/plugins/terminal/fly-connection";
 import {
   openTerminalWebLink,
   usefulCapturedOutput,
-} from "@kody-chat/chat/plugins/terminal/terminal-text";
-import { resetTerminalUiForRestart } from "@kody-chat/chat/plugins/terminal/xterm-setup";
+} from "@kody-ade/kody-chat/plugins/terminal/terminal-text";
+import { resetTerminalUiForRestart } from "@kody-ade/kody-chat/plugins/terminal/xterm-setup";
 import type {
   ChatTerminalConnectionState,
   TerminalInputSignal,
-} from "@kody-chat/chat/plugins/terminal/types";
+} from "@kody-ade/kody-chat/plugins/terminal/types";
 
 interface DepsHarness {
   ref: { current: FlyConnectionDeps };

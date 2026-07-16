@@ -61,7 +61,7 @@ import {
 } from "@dashboard/lib/github-client";
 import { getSecret } from "@kody-ade/base/vault/get-secret";
 import { emitSystemEvent } from "@kody-ade/base/events";
-import { ensureTriggerStateWriter } from "@kody-chat/user-state";
+import { ensureTriggerStateWriter } from "@kody-ade/kody-chat/user-state";
 import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import {
   resolveClientBrand,
