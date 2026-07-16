@@ -105,6 +105,7 @@ describe("kody-direct send→stream→persist", () => {
         }),
         d({ type: "text-delta", delta: "Issue #7 " }),
         d({ type: "text-delta", delta: "is a bug report." }),
+       d({ type: "finish" }),
       ]),
     ]);
 
@@ -178,6 +179,7 @@ describe("kody-direct send→stream→persist", () => {
           output: switchAgent,
         }),
         d({ type: "text-delta", delta: "Created #42, handing off." }),
+       d({ type: "finish" }),
       ]),
     ]);
 
@@ -216,6 +218,7 @@ describe("kody-direct send→stream→persist", () => {
           toolCallId: "c1",
           output: { error: "renderer failed" },
         }),
+       d({ type: "finish" }),
       ]),
     ]);
 

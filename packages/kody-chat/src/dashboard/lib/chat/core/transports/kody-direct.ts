@@ -11,7 +11,9 @@
  *   render_view) — emitting them as ChatEvents. The surface owns bubbles,
  *   the abort controller, and the post-stream directive application
  *   (including preview_act chaining into a synthetic follow-up turn). A clean
- *   EOF emits `done`; the shared coordinator owns terminal lifecycle state.
+ *   EOF (after `finish`/`[DONE]`) emits `done`; an EOF without a terminal
+ *   marker is a dropped connection and emits a non-recoverable `error`.
+ *   The shared coordinator owns terminal lifecycle state.
  */
 
 import { parseKodyDirectChunk, type KodyDirectChunk } from "./envelope";
@@ -27,6 +29,12 @@ import {
   getToolErrorMessage,
   isFinalAnswerOutput,
 } from "@dashboard/lib/chat-output-tools";
+
+/** `error` ChatEvent code emitted when the stream drops mid-turn. */
+export const KODY_DIRECT_ERROR_CODE_DROPPED = "kody-direct-dropped";
+
+export const KODY_DIRECT_DROPPED_MESSAGE =
+  "lost the connection before the reply finished. The server may still be working — send your message again in a moment.";
 
 export interface KodyDirectTurnConfig {
   /** `/api/kody/chat/kody`. */
@@ -110,8 +118,19 @@ export async function sendKodyDirectTurn(
   // (issue #321). One event per turn — not one per call — so this map is
   // small and stable for the lifetime of the turn.
   const toolDescriptionByName = new Map<string, string>();
+  // A healthy AI SDK UI stream always ends with a `finish` chunk followed
+  // by the `[DONE]` sentinel. An EOF without either means the connection
+  // dropped mid-turn (network blip, proxy kill, laptop sleep) — the server
+  // may keep working, but nothing will reach this client. Without this
+  // flag a drop is indistinguishable from a clean finish and the chat
+  // goes silent with no error.
+  let sawTerminal = false;
 
   const applyChunk = (chunk: KodyDirectChunk): void => {
+    if (chunk.type === "finish") {
+      sawTerminal = true;
+      return;
+    }
     if (chunk.type === "text-delta" && typeof chunk.delta === "string") {
       ctx.emit({ type: "token", text: chunk.delta });
     } else if (
@@ -121,6 +140,9 @@ export async function sendKodyDirectTurn(
       ctx.emit({ type: "reasoning", text: chunk.delta });
     } else if (chunk.type === "error" && typeof chunk.errorText === "string") {
       // Inline stream error — the surface appends it to the transcript.
+      // Counts as terminal: the user already sees why the turn ended, so
+      // an EOF right after must not also report a dropped connection.
+      sawTerminal = true;
       ctx.emit({ type: "error", message: chunk.errorText, recoverable: true });
     } else if (
       chunk.type === "data-tools-index" &&
@@ -260,7 +282,11 @@ export async function sendKodyDirectTurn(
       sseBuf = sseBuf.slice(sep + 2);
       if (!event.startsWith("data:")) continue;
       const payload = event.slice(5).trim();
-      if (!payload || payload === "[DONE]") continue;
+      if (payload === "[DONE]") {
+        sawTerminal = true;
+        continue;
+      }
+      if (!payload) continue;
       const chunk = parseKodyDirectChunk(payload);
       if (!chunk) continue; // skip malformed
       try {
@@ -269,6 +295,18 @@ export async function sendKodyDirectTurn(
         // Ignore malformed chunks rather than aborting the stream.
       }
     }
+  }
+  if (!sawTerminal && ctx.signal?.aborted !== true) {
+    // EOF with no `finish`, `[DONE]`, or stream error: the connection
+    // dropped mid-turn. Surface it — matching the brain adapter's
+    // exhaustion semantics — instead of settling as a clean finish.
+    ctx.emit({
+      type: "error",
+      message: KODY_DIRECT_DROPPED_MESSAGE,
+      recoverable: false,
+      code: KODY_DIRECT_ERROR_CODE_DROPPED,
+    });
+    return;
   }
   ctx.emit({ type: "done" });
 }

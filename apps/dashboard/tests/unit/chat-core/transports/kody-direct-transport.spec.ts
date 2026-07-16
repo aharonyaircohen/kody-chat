@@ -13,6 +13,8 @@ import { describe, it, expect, afterEach } from "vitest";
 import {
   sendKodyDirectTurn,
   kodyDirectTransport,
+  KODY_DIRECT_DROPPED_MESSAGE,
+  KODY_DIRECT_ERROR_CODE_DROPPED,
   type KodyDirectTurnConfig,
 } from "@kody-ade/kody-chat/core/transports/kody-direct";
 import {
@@ -96,6 +98,7 @@ describe("sendKodyDirectTurn", () => {
             toolCallId: "call-1",
             output: { ok: true },
           }),
+         "data: [DONE]\n\n",
         ]),
     ]);
     restoreFetch = restore;
@@ -138,6 +141,7 @@ describe("sendKodyDirectTurn", () => {
             toolCallId: "fa-1",
             output: { content: "Final." },
           }),
+         "data: [DONE]\n\n",
         ]),
     ]);
     restoreFetch = restore;
@@ -167,6 +171,7 @@ describe("sendKodyDirectTurn", () => {
             toolCallId: "c1",
             output: { error: "renderer exploded" },
           }),
+         "data: [DONE]\n\n",
         ]),
     ]);
     restoreFetch = restore;
@@ -203,6 +208,7 @@ describe("sendKodyDirectTurn", () => {
             toolCallId: "c9",
             errorText: "timed out",
           }),
+         "data: [DONE]\n\n",
         ]),
     ]);
     restoreFetch = restore;
@@ -238,6 +244,7 @@ describe("sendKodyDirectTurn", () => {
             toolCallId: "c2",
             output: switchAgent,
           }),
+         "data: [DONE]\n\n",
         ]),
     ]);
     restoreFetch = restore;
@@ -305,6 +312,7 @@ describe("sendKodyDirectTurn", () => {
             toolCallId: "p1",
             output: act,
           }),
+         "data: [DONE]\n\n",
         ]),
     ]);
     restoreFetch = restore;
@@ -366,6 +374,51 @@ describe("sendKodyDirectTurn", () => {
       sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit }),
     ).rejects.toMatchObject({ name: "AbortError" });
     expect(sink.events).toEqual([{ type: "token", text: "par" }]);
+  });
+
+  it("emits a non-recoverable dropped-connection error when the stream ends without a terminal marker", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({ type: "reasoning-delta", delta: "thinking\u2026" }),
+          chunk({ type: "text-delta", delta: "partial" }),
+          // No `finish` chunk, no `[DONE]`: the connection dropped.
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toEqual([
+      { type: "reasoning", text: "thinking\u2026" },
+      { type: "token", text: "partial" },
+      {
+        type: "error",
+        message: KODY_DIRECT_DROPPED_MESSAGE,
+        recoverable: false,
+        code: KODY_DIRECT_ERROR_CODE_DROPPED,
+      },
+    ]);
+  });
+
+  it("treats a `finish` chunk as terminal even without the [DONE] sentinel", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({ type: "text-delta", delta: "hi" }),
+          chunk({ type: "finish" }),
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toEqual([
+      { type: "token", text: "hi" },
+      { type: "done" },
+    ]);
   });
 });
 
