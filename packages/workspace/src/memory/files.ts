@@ -22,7 +22,6 @@ import {
   getOctokit,
   getOwner,
   getRepo,
-  invalidateMemoryCache,
 } from "../github";
 import {
   deleteStateFile,
@@ -423,7 +422,6 @@ export async function writeMemoryFile(opts: WriteOptions): Promise<MemoryFile> {
     content,
     sha: opts.sha,
   });
-  invalidateMemoryCache(opts.id);
 
   await rebuildAndWriteIndex({
     octokit: opts.octokit,
@@ -457,7 +455,6 @@ export async function deleteMemoryFile(
     message: `chore(memory): remove ${id}`,
     sha: existing.sha,
   });
-  invalidateMemoryCache(id);
   await rebuildAndWriteIndex({
     octokit,
     message: `chore(memory): refresh INDEX after remove ${id}`,

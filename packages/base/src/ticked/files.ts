@@ -68,8 +68,8 @@ export interface TickedFilesConfig {
   dir: string;
   /** Conventional-commit scope used in generated commit messages. */
   commitScope: string;
-  /** In-process cache invalidator for this kind. */
-  invalidateCache: (slug?: string) => void;
+  /** Optional in-process cache invalidator for this kind. */
+  invalidateCache?: (slug?: string) => void;
 }
 
 export interface TickedFilesApi {
@@ -329,7 +329,7 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
       sha: opts.sha,
     });
 
-    invalidateCache(opts.slug);
+    invalidateCache?.(opts.slug);
     // Confirm with the SAME octokit that performed the write — never the
     // per-request global, which a concurrent request may have cleared
     // (→ env-token fallback → 401 "Bad credentials" on an otherwise
@@ -361,7 +361,7 @@ export function createTickedFiles(config: TickedFilesConfig): TickedFilesApi {
       message: `chore(${commitScope}): remove ${slug}`,
       sha: existing.sha,
     });
-    invalidateCache(slug);
+    invalidateCache?.(slug);
   }
 
   return { listFiles, readFile, writeFile, deleteFile, isValidSlug };

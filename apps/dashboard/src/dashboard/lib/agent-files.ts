@@ -11,7 +11,7 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import { getOctokit, invalidateStaffCache } from "@kody-ade/base/github/core";
+import { getOctokit } from "@kody-ade/base/github/core";
 import { getOwner, getRepo } from "./github-client";
 import { mergeAssetsBySlug } from "@kody-ade/base/company-store/assets";
 import {
@@ -124,7 +124,6 @@ export async function writeAgentFile(
     body: raw,
     updatedAt,
   });
-  invalidateStaffCache(opts.slug);
   return agentFileFromDoc({ slug: opts.slug, body: raw, updatedAt });
 }
 
@@ -134,7 +133,6 @@ export async function deleteAgentFile(slug: string): Promise<void> {
     tenantId: tenantId(),
     slug,
   });
-  invalidateStaffCache(slug);
 }
 
 export async function listResolvedAgentFiles(): Promise<AgentFile[]> {

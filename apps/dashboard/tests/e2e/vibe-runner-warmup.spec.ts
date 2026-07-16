@@ -34,31 +34,40 @@ function parseRepo(url: string): { owner: string; repo: string } {
 
 const { owner, repo } = parseRepo(REPO_URL);
 
-/** Read state-repo events through the dashboard; [] until first write. */
+const CONVEX_URL =
+  process.env.NEXT_PUBLIC_CONVEX_URL ?? process.env.CONVEX_URL ?? "";
+
+/**
+ * Read the session's chat events straight from Convex (the /events/poll
+ * route was removed with the polling fallback; chatEvents.since is the
+ * deliberately-public query the live transport subscribes to).
+ */
 async function readEvents(taskId: string): Promise<Array<{ event?: string }>> {
-  const res = await fetch(
-    `${BASE_URL}/api/kody/events/poll?taskId=${encodeURIComponent(taskId)}&since=0`,
-    {
-      headers: {
-        "x-kody-token": TOKEN,
-        "x-kody-owner": owner,
-        "x-kody-repo": repo,
-      },
-    },
-  );
-  if (!res.ok) return [];
-  const body = (await res.json()) as { lines?: string[] };
-  return (body.lines ?? []).map((l) => {
-    try {
-      return JSON.parse(l);
-    } catch {
-      return {};
-    }
+  if (!CONVEX_URL) return [];
+  const res = await fetch(`${CONVEX_URL}/api/query`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      path: "chatEvents:since",
+      args: { tenantId: "global", sessionId: taskId, afterSeq: -1 },
+      format: "json",
+    }),
   });
+  if (!res.ok) return [];
+  const body = (await res.json()) as {
+    status?: string;
+    value?: Array<{ event?: { event?: string } }>;
+  };
+  if (body.status !== "success" || !Array.isArray(body.value)) return [];
+  return body.value.map((doc) => ({ event: doc.event?.event }));
 }
 
 test.describe("REPRO — Vibe runner warmup", () => {
   test.skip(!TOKEN, "E2E_GITHUB_TOKEN not set");
+  test.skip(
+    !CONVEX_URL,
+    "NEXT_PUBLIC_CONVEX_URL / CONVEX_URL not set (needed to read chat events)",
+  );
 
   test("runner emits chat.ready within 90s of the chat handoff", async ({
     request,

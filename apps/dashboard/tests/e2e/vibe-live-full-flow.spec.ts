@@ -331,8 +331,9 @@ test.describe("Vibe — LIVE full flow against production", () => {
     //
     // NOTE: with @kody-ade/kody-engine ≤ 0.4.71 the runner commits its
     // chat.done event to the PR branch (not main), so the dashboard's
-    // /events/poll?ref=main never sees it and `setLoading(false)`
-    // never fires — the textarea stays `disabled`. Engine 0.4.72
+    // event reader (now the Convex live transport) never sees it and
+    // `setLoading(false)` never fires — the textarea stays `disabled`.
+    // Engine 0.4.72
     // (worktree-on-main fix, pending npm publish) routes the event
     // commit to main and the composer unfreezes normally. Until then
     // we skip the follow-up turn and treat the test as passed on

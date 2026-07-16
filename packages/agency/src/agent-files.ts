@@ -10,7 +10,7 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import { getOctokit, invalidateStaffCache } from "@kody-ade/base/github/core";
+import { getOctokit } from "@kody-ade/base/github/core";
 import {
   buildCompanyStoreBlobUrl,
   companyStoreAssetPath,
@@ -30,7 +30,6 @@ export type AgentFile = TickFile;
 const impl = createTickedFiles({
   dir: "agents",
   commitScope: "agent",
-  invalidateCache: invalidateStaffCache,
 });
 
 export const listAgentFiles = impl.listFiles;

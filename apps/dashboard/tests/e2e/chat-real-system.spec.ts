@@ -20,6 +20,8 @@
 import { test, expect, type Page } from "@playwright/test";
 
 const BASE_URL = process.env.BASE_URL ?? "";
+const CONVEX_URL =
+  process.env.NEXT_PUBLIC_CONVEX_URL ?? process.env.CONVEX_URL ?? "";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
 const TEST_REPO = process.env.E2E_GITHUB_REPO ?? "";
 const RUN_REAL = process.env.RUN_REAL_E2E === "1";
@@ -56,6 +58,11 @@ test.describe("Real chat flow @real", () => {
   test.beforeAll(() => {
     if (!BASE_URL || !TEST_TOKEN || !TEST_REPO) {
       test.skip(true, "BASE_URL / E2E_GITHUB_TOKEN / E2E_GITHUB_REPO required");
+    if (!CONVEX_URL)
+      test.skip(
+        true,
+        "NEXT_PUBLIC_CONVEX_URL / CONVEX_URL required to read chat events",
+      );
     }
   });
 
@@ -78,10 +85,12 @@ test.describe("Real chat flow @real", () => {
     // Capture what the browser actually requests so we can distinguish
     // server-side failures from client-side bugs (EventSource auth, bundle
     // cache, etc.).
-    const streamRequests: string[] = [];
-    page.on("request", (req) => {
-      if (req.url().includes("/api/kody/events/stream"))
-        streamRequests.push(req.url());
+    // Chat events now arrive over the Convex live transport (WebSocket to
+    // the Convex deployment), not an /events/stream SSE route — track the
+    // websocket for diagnostics instead.
+    const liveSockets: string[] = [];
+    page.on("websocket", (ws) => {
+      if (ws.url().includes("convex")) liveSockets.push(ws.url());
     });
 
     const input = page.getByPlaceholder(/ask kody|kody is waiting/i).first();
@@ -102,28 +111,31 @@ test.describe("Real chat flow @real", () => {
     const sessionId = triggerBody.taskId;
     expect(sessionId, "UI must send a taskId to /chat/trigger").toBeTruthy();
 
-    // Phase 1 — engine-side ground truth: poll the dashboard event API. If
-    // this fails, the server pipeline is broken (dispatch / workflow / kody /
-    // state-repo write).
-    const { owner, repo } = parseRepo(TEST_REPO);
+    // Phase 1 — engine-side ground truth: read the session's chat events
+    // straight from Convex (chatEvents.since, the deliberately-public query
+    // the live transport subscribes to — the /events/poll route was removed
+    // with the polling fallback). If this fails, the server pipeline is
+    // broken (dispatch / workflow / kody / events ingest).
     const deadline = Date.now() + 150_000;
 
     let markerFound = false;
     while (Date.now() < deadline) {
-      const res = await fetch(
-        `${BASE_URL}/api/kody/events/poll?taskId=${encodeURIComponent(sessionId!)}&since=0`,
-        {
-          headers: {
-            "x-kody-token": TEST_TOKEN,
-            "x-kody-owner": owner,
-            "x-kody-repo": repo,
-          },
-        },
-      );
+      const res = await fetch(`${CONVEX_URL}/api/query`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          path: "chatEvents:since",
+          args: { tenantId: "global", sessionId, afterSeq: -1 },
+          format: "json",
+        }),
+      });
       if (res.status === 200) {
-        const data = (await res.json()) as { lines?: string[] };
-        const body = (data.lines ?? []).join("\n");
-        if (new RegExp(`pong\\s+${marker}`, "i").test(body)) {
+        const data = (await res.json()) as { status?: string; value?: unknown };
+        const body = JSON.stringify(data.value ?? "");
+        if (
+          data.status === "success" &&
+          new RegExp(`pong\\s+${marker}`, "i").test(body)
+        ) {
           markerFound = true;
           break;
         }
@@ -149,14 +161,12 @@ test.describe("Real chat flow @real", () => {
       await expect(assistantBubble).toBeVisible({ timeout: 30_000 });
     } catch (e) {
       const sample =
-        streamRequests[0] ?? "<no /events/stream request was made>";
-      const hasAuth = /[?&]token=|[?&]owner=|[?&]repo=/.test(sample);
+        liveSockets[0] ?? "<no Convex websocket was opened by the page>";
       throw new Error(
-        `engine reply reached the repo but UI never rendered it.\n` +
-          `  stream requests made: ${streamRequests.length}\n` +
-          `  first stream URL:     ${sample}\n` +
-          `  carries query auth?:  ${hasAuth}\n` +
-          `  original error:       ${e instanceof Error ? e.message : String(e)}`,
+        `engine reply reached Convex but UI never rendered it.\n` +
+          `  convex websockets opened: ${liveSockets.length}\n` +
+          `  first websocket URL:      ${sample}\n` +
+          `  original error:           ${e instanceof Error ? e.message : String(e)}`,
       );
     }
   });

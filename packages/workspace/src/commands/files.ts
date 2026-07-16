@@ -17,7 +17,6 @@ import {
   getOctokit,
   getOwner,
   getRepo,
-  invalidateCommandsCache,
 } from "../github";
 import {
   deleteStateFile,
@@ -295,7 +294,6 @@ export async function writeCommandFile(
     sha: opts.sha,
   });
 
-  invalidateCommandsCache(opts.slug);
   // Confirm with the same octokit that wrote — not the per-request global,
   // which a concurrent request may have cleared (→ 401 "Bad credentials").
   const refreshed = await readCommandFile(opts.slug, opts.octokit);
@@ -325,5 +323,4 @@ export async function deleteCommandFile(
     message: `chore(commands): remove ${slug}`,
     sha: existing.sha,
   });
-  invalidateCommandsCache(slug);
 }

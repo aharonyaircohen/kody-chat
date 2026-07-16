@@ -149,31 +149,22 @@ test.describe("Chat API — history endpoint", () => {
   });
 });
 
-test.describe("Events API — SSE endpoint", () => {
-  test("GET /api/kody/events/stream requires taskId", async () => {
-    const { status } = await apiGet("/api/kody/events/stream");
-
-    expect(status, `Expected 400, got ${status}`).toBe(400);
+test.describe("Events API — legacy SSE/poll endpoints removed", () => {
+  // Chat events are delivered exclusively over the Convex live transport
+  // (chatEvents.since); the SSE stream and interval-poll routes were deleted.
+  // Pin the removal so a regression re-introducing them fails loudly.
+  test("GET /api/kody/events/stream is gone", async () => {
+    const { status } = await apiGet(
+      `/api/kody/events/stream?taskId=${TEST_SESSION_ID}`,
+    );
+    expect(status, `Expected 404, got ${status}`).toBe(404);
   });
 
-  test("GET /api/kody/events/stream returns text/event-stream content type", async () => {
-    // The SSE stream is infinite, so we can't consume its body in a test.
-    // The endpoint supports ?test=1 which returns headers-only (no streaming body)
-    // so we can assert Content-Type without hanging.
-    const res = await fetch(
-      `${BASE_URL}/api/kody/events/stream?taskId=${TEST_SESSION_ID}&test=1`,
-      { headers: { ...authHeaders() } },
+  test("GET /api/kody/events/poll is gone", async () => {
+    const { status } = await apiGet(
+      `/api/kody/events/poll?taskId=${TEST_SESSION_ID}&since=0`,
     );
-
-    expect(res.status, `Expected 200, got ${res.status}`).toBe(200);
-    expect(res.headers.get("content-type")).toContain("text/event-stream");
-
-    // Body is just JSON metadata in test mode
-    const body = await res.json();
-    expect(body as Record<string, unknown>).toMatchObject({
-      note: "test mode — not streaming",
-      sessionId: TEST_SESSION_ID,
-    });
+    expect(status, `Expected 404, got ${status}`).toBe(404);
   });
 });
 

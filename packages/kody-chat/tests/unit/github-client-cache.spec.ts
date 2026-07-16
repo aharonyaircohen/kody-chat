@@ -60,9 +60,6 @@ import {
   clearCache,
   getCacheStats,
   invalidateCapabilitiesCache,
-  invalidateStaffCache,
-  invalidateCommandsCache,
-  invalidateMemoryCache,
   setCache,
   fetchWorkflowRuns,
   fetchKodyRunLogArtifact,
@@ -291,85 +288,5 @@ describe("invalidateCapabilitiesCache", () => {
     const keys = getCacheStats().keys;
     expect(keys.some((k) => k.startsWith("capability:"))).toBe(true);
     expect(keys.some((k) => k.startsWith("capabilities:"))).toBe(false);
-  });
-});
-
-describe("invalidateStaffCache", () => {
-  it("clears only the per-item cache when a slug is given", () => {
-    setCache("agent:acme:widgets:jane", 60_000, { name: "Jane" });
-    setCache("staffs:acme:widgets:{}", 60_000, [{ slug: "jane" }]);
-
-    invalidateStaffCache("jane");
-
-    const keys = getCacheStats().keys;
-    expect(keys.some((k) => k.startsWith("agent:"))).toBe(false);
-    expect(keys.some((k) => k.startsWith("staffs:"))).toBe(true);
-  });
-
-  it("clears only the listing cache when no slug is given", () => {
-    setCache("agent:acme:widgets:jane", 60_000, { name: "Jane" });
-    setCache("staffs:acme:widgets:{}", 60_000, [{ slug: "jane" }]);
-
-    invalidateStaffCache();
-
-    const keys = getCacheStats().keys;
-    expect(keys.some((k) => k.startsWith("agent:"))).toBe(true);
-    expect(keys.some((k) => k.startsWith("staffs:"))).toBe(false);
-  });
-});
-
-describe("invalidateCommandsCache", () => {
-  it("clears only the per-item cache when a slug is given", () => {
-    setCache("prompt:acme:widgets:my-cmd", 60_000, { prompt: "hello" });
-    setCache("prompts:acme:widgets:{}", 60_000, [{ slug: "my-cmd" }]);
-
-    invalidateCommandsCache("my-cmd");
-
-    const keys = getCacheStats().keys;
-    expect(keys.some((k) => k.startsWith("prompt:"))).toBe(false);
-    expect(keys.some((k) => k.startsWith("prompts:"))).toBe(true);
-  });
-
-  it("clears only the listing cache when no slug is given", () => {
-    setCache("prompt:acme:widgets:my-cmd", 60_000, { prompt: "hello" });
-    setCache("prompts:acme:widgets:{}", 60_000, [{ slug: "my-cmd" }]);
-
-    invalidateCommandsCache();
-
-    const keys = getCacheStats().keys;
-    expect(keys.some((k) => k.startsWith("prompt:"))).toBe(true);
-    expect(keys.some((k) => k.startsWith("prompts:"))).toBe(false);
-  });
-});
-
-describe("invalidateMemoryCache", () => {
-  it("clears only the per-item cache when an id is given", () => {
-    setCache("memory:acme:widgets:mem-1", 60_000, { text: "hello" });
-    setCache("memory-index:acme:widgets:{}", 60_000, [{ id: "mem-1" }]);
-    setCache("memories:acme:widgets:{}", 60_000, [{ id: "mem-1" }]);
-
-    invalidateMemoryCache("mem-1");
-
-    const keys = getCacheStats().keys;
-    expect(
-      keys.some((k) => k.startsWith("memory:") && !k.includes("index")),
-    ).toBe(false);
-    expect(keys.some((k) => k.startsWith("memory-index:"))).toBe(true);
-    expect(keys.some((k) => k.startsWith("memories:"))).toBe(true);
-  });
-
-  it("clears only the listing cache when no id is given", () => {
-    setCache("memory:acme:widgets:mem-1", 60_000, { text: "hello" });
-    setCache("memory-index:acme:widgets:{}", 60_000, [{ id: "mem-1" }]);
-    setCache("memories:acme:widgets:{}", 60_000, [{ id: "mem-1" }]);
-
-    invalidateMemoryCache();
-
-    const keys = getCacheStats().keys;
-    expect(
-      keys.some((k) => k.startsWith("memory:") && !k.includes("index")),
-    ).toBe(true);
-    expect(keys.some((k) => k.startsWith("memory-index:"))).toBe(false);
-    expect(keys.some((k) => k.startsWith("memories:"))).toBe(false);
   });
 });

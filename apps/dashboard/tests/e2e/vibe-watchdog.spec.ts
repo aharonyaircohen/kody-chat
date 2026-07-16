@@ -637,38 +637,11 @@ test.describe("Kody Live — watchdog + reducer (live)", () => {
     expect(finalMap[`vibe-${ISSUE_B}`]?.sessionId).toBe(SESSION_B);
   });
 
-  test("SSE break does not kill the session: polling keeps the lifecycle alive", async ({
-    page,
-  }, testInfo) => {
-    // Hazard B from the audit: SSE drops mid-stream. The dashboard runs
-    // a parallel poll fallback every 3s — this test confirms that even
-    // when SSE is completely unreachable, the session reaches 'ready'
-    // and the reducer transitions correctly.
-    testInfo.setTimeout(300_000);
-    const { owner, repo } = parseRepo(TEST_REPO);
-
-    // Block all SSE requests at the network layer.
-    await page.route("**/api/kody/events/stream*", (route) =>
-      route.abort("failed"),
-    );
-
-    await page.goto(`${BASE_URL}/login`);
-    await injectAuth(page, owner, repo);
-    await page.goto(`${BASE_URL}/vibe`);
-    await page.waitForLoadState("domcontentloaded");
-
-    const viewport = await page.viewportSize();
-    test.skip((viewport?.width ?? 1280) < 768, "chat rail hidden on mobile");
-
-    await expectLivePhase(page, "idle");
-    await clickBootRunner(page);
-    await expectLivePhase(page, "booting", 10_000);
-
-    // The runner must still reach 'ready' via the 3s poll loop alone.
-    await expectLivePhase(page, "ready", 180_000);
-
-    await clickStopIfVisible(page);
-  });
+  // NOTE: the former "SSE break does not kill the session" test was removed
+  // with the SSE/poll fallback architecture itself — chat events now arrive
+  // solely over the Convex live transport (see convex-live-transport.ts), so
+  // there is no /api/kody/events/stream route to break and no 3s poll loop
+  // to fall back on.
 
   test("Kody Live (Fly) runtime: full soft path on the alternate runner", async ({
     page,
