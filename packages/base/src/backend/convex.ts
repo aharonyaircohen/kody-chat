@@ -10,10 +10,15 @@
  */
 import { ConvexHttpClient } from "convex/browser";
 import { anyApi } from "convex/server";
+import { withEscapedKeys } from "@kody-ade/backend/client";
 
 let client: ConvexHttpClient | null = null;
 
-/** Cached ConvexHttpClient built from CONVEX_URL. Throws when unset. */
+/**
+ * Cached ConvexHttpClient built from CONVEX_URL. Throws when unset.
+ * Wrapped with withEscapedKeys so reserved-prefix keys ($/_) inside open
+ * payloads round-trip through Convex — callers always see original keys.
+ */
 export function getConvexClient(): ConvexHttpClient {
   if (client) return client;
   const url = process.env.CONVEX_URL;
@@ -22,7 +27,7 @@ export function getConvexClient(): ConvexHttpClient {
       "CONVEX_URL is not configured — the Kody backend requires a Convex deployment URL",
     );
   }
-  client = new ConvexHttpClient(url);
+  client = withEscapedKeys(new ConvexHttpClient(url));
   return client;
 }
 

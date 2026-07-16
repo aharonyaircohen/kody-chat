@@ -14,6 +14,7 @@
 
 import { useQuery } from "convex/react";
 import { anyApi } from "convex/server";
+import { deepUnescapeKeys } from "@kody-ade/backend/escape-keys";
 import { getStoredAuth } from "../api";
 import {
   normalizeWorkflowRunState,
@@ -61,7 +62,9 @@ export function useChatEventsLive(
       : "skip",
   ) as ChatEventDoc[] | undefined;
   if (!docs) return undefined;
-  return docs.map((doc) => doc.event);
+  // Stored payloads are key-escaped (Convex reserves $/_ prefixes) —
+  // subscriptions bypass the wrapped HTTP client, so unescape here.
+  return docs.map((doc) => deepUnescapeKeys(doc.event));
 }
 
 /**
@@ -96,7 +99,8 @@ export function useWorkflowRunStateLive(
   if (!targetRunId) return null;
 
   const doc = docs.find((d) => d.runId === targetRunId);
-  const state = doc ? normalizeWorkflowRunState(doc.state) : null;
+  // Stored payloads are key-escaped — see useChatEventsLive.
+  const state = doc ? normalizeWorkflowRunState(deepUnescapeKeys(doc.state)) : null;
   return state
     ? { workflowId, runId: targetRunId, state, ...(doc?.runner ? { runner: doc.runner } : {}) }
     : null;

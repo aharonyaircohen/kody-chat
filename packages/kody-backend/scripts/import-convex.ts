@@ -10,8 +10,8 @@
  */
 import { readdir, readFile } from "node:fs/promises"
 import { join } from "node:path"
-import { ConvexHttpClient } from "convex/browser"
 import { anyApi } from "convex/server"
+import { createBackendClient } from "../src/client"
 
 const url = process.env.CONVEX_URL
 if (!url) {
@@ -28,7 +28,9 @@ const dir = argValue("--dir") ?? "./dump"
 const clearRepo = argValue("--clear-tenantId")
 const CHUNK_SIZE = 200
 
-const client = new ConvexHttpClient(url)
+// Wrapped client: reserved-prefix keys ($text, _x) in dump payloads are
+// escaped on the wire and unescaped on reads — dumps stay backend-agnostic.
+const client = createBackendClient(url)
 
 if (clearRepo) {
   const result = await client.mutation(anyApi.importExport.clearRepo, { tenantId: clearRepo })

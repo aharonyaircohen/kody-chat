@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const convexMock = vi.hoisted(() => ({
   ctor: vi.fn(),
+  mutation: vi.fn(async () => null),
+  query: vi.fn(async () => null),
 }));
 
 vi.mock("convex/browser", () => ({
@@ -15,6 +17,12 @@ vi.mock("convex/browser", () => ({
     constructor(url: string) {
       convexMock.ctor(url);
       this.url = url;
+    }
+    mutation(fn: unknown, args?: unknown) {
+      return convexMock.mutation(fn, args);
+    }
+    query(fn: unknown, args?: unknown) {
+      return convexMock.query(fn, args);
     }
   },
 }));
@@ -54,5 +62,28 @@ describe("convex backend helper", () => {
 
   it("scopes tenants as owner/repo", () => {
     expect(tenantIdFor("acme", "widgets")).toBe("acme/widgets");
+  });
+
+  it("escapes reserved-prefix keys on writes (Convex reserves $/_ field names)", async () => {
+    const client = getConvexClient();
+    await client.mutation("viewRenderers.save" as never, {
+      tenantId: "acme/widgets",
+      definition: { $text: "hi", nodes: [{ _k: 1 }] },
+    } as never);
+    expect(convexMock.mutation).toHaveBeenCalledWith("viewRenderers.save", {
+      tenantId: "acme/widgets",
+      definition: { "~$text": "hi", nodes: [{ "~_k": 1 }] },
+    });
+  });
+
+  it("unescapes stored payloads on reads so callers see original keys", async () => {
+    convexMock.query.mockResolvedValueOnce([
+      { _id: "1", definition: { "~$text": "hi" } },
+    ] as never);
+    const client = getConvexClient();
+    const result = await client.query("viewRenderers.list" as never, {
+      tenantId: "acme/widgets",
+    } as never);
+    expect(result).toEqual([{ _id: "1", definition: { $text: "hi" } }]);
   });
 });

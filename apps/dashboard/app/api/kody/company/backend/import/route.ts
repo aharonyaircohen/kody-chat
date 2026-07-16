@@ -12,6 +12,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { anyApi } from "convex/server";
 
 import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
+import { withEscapedKeys } from "@kody-ade/backend/client";
 
 const CHUNK_SIZE = 50;
 const MAX_RETRIES = 5;
@@ -83,7 +84,9 @@ export async function POST(req: NextRequest) {
   const { tenantId, tables, clearFirst } = parsed.data;
 
   try {
-    const client = new ConvexHttpClient(convexUrl);
+    // Dumps carry original keys; the wrapper escapes reserved-prefix keys
+    // ($text, _x) so any tenant payload survives the Convex wire.
+    const client = withEscapedKeys(new ConvexHttpClient(convexUrl));
 
     if (clearFirst) {
       await withWriteRetry(() =>

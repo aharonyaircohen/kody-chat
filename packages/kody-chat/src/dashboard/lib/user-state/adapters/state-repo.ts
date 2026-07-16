@@ -11,6 +11,7 @@
 import "server-only";
 import { ConvexHttpClient } from "convex/browser";
 import { anyApi } from "convex/server";
+import { withEscapedKeys } from "@kody-ade/backend/client";
 import { userFileKey } from "../user-key";
 import type {
   UserStateAdapter,
@@ -38,7 +39,9 @@ function getClient(): ConvexHttpClient {
       "CONVEX_URL is not configured — user-state requires a Convex deployment URL",
     );
   }
-  client = new ConvexHttpClient(url);
+  // Escaping wrapper: user-state `data` is an open payload — reserved-prefix
+  // keys ($/_) are escaped on writes and unescaped on reads.
+  client = withEscapedKeys(new ConvexHttpClient(url));
   return client;
 }
 

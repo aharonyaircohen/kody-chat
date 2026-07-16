@@ -71,6 +71,7 @@
     "@ai-sdk/mcp": "^1.0.30",
     "@ai-sdk/openai-compatible": "^2.0.47",
     "@kody-ade/agency": "workspace:*",
+    "@kody-ade/backend": "workspace:*",
     "@kody-ade/base": "workspace:*",
     "@kody-ade/brain": "workspace:*",
     "@kody-ade/cms": "workspace:*",

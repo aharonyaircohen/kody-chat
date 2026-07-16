@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { api } from "../../convex/_generated/api"
 import { setup } from "./helpers"
+import { deepEscapeKeys, deepUnescapeKeys } from "../../src/escape-keys"
 
 const REPO = "acme/app"
 const NOW = "2026-07-15T00:00:00.000Z"
@@ -211,5 +212,65 @@ describe("importExport", () => {
     const exported = await t.query(api.importExport.exportTable, { table: "goals", tenantId: REPO })
     expect(exported).toHaveLength(1)
     expect((exported[0] as { state: { v: number } }).state.v).toBe(2)
+  })
+})
+
+// Reserved-key payloads ($text, _x) can't cross the Convex wire raw — every
+// real client escapes via src/escape-keys.ts before calling and unescapes
+// results (withEscapedKeys in src/client.ts). These tests exercise the same
+// boundary: escape → importChunk → exportTable → unescape restores the dump.
+describe("importExport with reserved-prefix keys (escaped boundary)", () => {
+  it("round-trips a viewRenderers definition containing $ and _ keys", async () => {
+    const t = setup()
+    const original = {
+      tenantId: REPO,
+      slug: "hero",
+      definition: {
+        $text: "hello",
+        nodes: [{ _private: true, "~tilde": { $nested: [1, { $x: "y" }] } }],
+      },
+      updatedAt: NOW,
+    }
+    await t.mutation(api.importExport.importChunk, {
+      table: "viewRenderers",
+      docs: [deepEscapeKeys(original)],
+    })
+    const exported = await t.query(api.importExport.exportTable, {
+      table: "viewRenderers",
+      tenantId: REPO,
+    })
+    expect(deepUnescapeKeys(exported)).toEqual([original])
+  })
+
+  it("escaped upserts still match by natural key on re-import", async () => {
+    const t = setup()
+    const doc = (v: number) =>
+      deepEscapeKeys({ tenantId: REPO, goalId: "g1", state: { $v: v }, updatedAt: NOW })
+    await t.mutation(api.importExport.importChunk, { table: "goals", docs: [doc(1)] })
+    const second = await t.mutation(api.importExport.importChunk, { table: "goals", docs: [doc(2)] })
+    expect(second).toEqual({ inserted: 0, updated: 1 })
+    const exported = await t.query(api.importExport.exportTable, { table: "goals", tenantId: REPO })
+    expect(deepUnescapeKeys(exported)).toEqual([
+      { tenantId: REPO, goalId: "g1", state: { $v: 2 }, updatedAt: NOW },
+    ])
+  })
+
+  it("escaping only touches reserved-prefix keys inside open payloads (validated tables pass)", async () => {
+    const t = setup()
+    // workflows.definition is strictly validated at the top — escaped input
+    // leaves fixed field names (version, name, steps…) intact.
+    const original = {
+      tenantId: REPO,
+      workflowId: "w1",
+      definition: { version: 1, name: "W", steps: [{ id: "s1", capability: "c" }] },
+      source: "local",
+      updatedAt: NOW,
+    }
+    await t.mutation(api.importExport.importChunk, {
+      table: "workflows",
+      docs: [deepEscapeKeys(original)],
+    })
+    const exported = await t.query(api.importExport.exportTable, { table: "workflows", tenantId: REPO })
+    expect(deepUnescapeKeys(exported)).toEqual([original])
   })
 })

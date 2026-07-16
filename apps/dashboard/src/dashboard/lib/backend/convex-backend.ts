@@ -8,10 +8,17 @@
  */
 import { ConvexHttpClient } from "convex/browser";
 import { anyApi } from "convex/server";
+import { withEscapedKeys } from "@kody-ade/backend/client";
 
 let client: ConvexHttpClient | null = null;
 
-/** Cached ConvexHttpClient built from CONVEX_URL. Throws when unset. */
+/**
+ * Cached ConvexHttpClient built from CONVEX_URL. Throws when unset.
+ * Wrapped with withEscapedKeys: Convex reserves `$`/`_`-prefixed object keys,
+ * so open payloads (view renderer nodes, chat turns, user state…) are
+ * key-escaped on every write and unescaped on every read — callers always
+ * see the original keys.
+ */
 export function getConvexClient(): ConvexHttpClient {
   if (client) return client;
   const url = process.env.CONVEX_URL;
@@ -20,7 +27,7 @@ export function getConvexClient(): ConvexHttpClient {
       "CONVEX_URL is not configured — the dashboard backend requires a Convex deployment URL",
     );
   }
-  client = new ConvexHttpClient(url);
+  client = withEscapedKeys(new ConvexHttpClient(url));
   return client;
 }
 
