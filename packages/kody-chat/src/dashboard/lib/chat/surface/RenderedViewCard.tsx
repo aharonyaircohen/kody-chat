@@ -20,6 +20,37 @@ import {
   type RenderedViewUiNode,
 } from "@dashboard/lib/chat-ui-actions";
 
+export function hasCheckboxNodes(node: RenderedViewUiNode): boolean {
+  if (node.type === "checkbox") return true;
+  if (node.type === "stack" || node.type === "row" || node.type === "list") {
+    return node.children.some(hasCheckboxNodes);
+  }
+  return false;
+}
+
+/**
+ * The text reply a form submit sends back to the model. Views with
+ * checkboxes report the selection ("Selected: …", explicit "none" when
+ * unchecked). Views without checkboxes are plain confirmations (approval
+ * cards) — the reply is the button label itself; "Selected: none" there
+ * reads as a rejection.
+ */
+export function buildSubmitResponse(
+  ui: RenderedViewUiNode,
+  formValues: Record<string, Array<{ value: string; label: string }>>,
+  label: string,
+): string {
+  if (!hasCheckboxNodes(ui)) return label;
+  const selected = Object.values(formValues).flat();
+  if (selected.length === 0) return "Selected: none";
+  const selectedText = selected
+    .map((item) =>
+      item.value === item.label ? item.label : `${item.label} (${item.value})`,
+    )
+    .join(", ");
+  return `Selected: ${selectedText}`;
+}
+
 export function RenderedViewCard({
   view,
   disabled,
@@ -53,17 +84,7 @@ export function RenderedViewCard({
     });
   };
   const submitForm = (label: string) => {
-    const selected = Object.values(formValues).flat();
-    const selectedText =
-      selected.length > 0
-        ? selected
-            .map((item) =>
-              item.value === item.label
-                ? item.label
-                : `${item.label} (${item.value})`,
-            )
-            .join(", ")
-        : "none";
+    const response = buildSubmitResponse(ui, formValues, label);
     trackSystemEvent("ui.form.submitted", {
       viewId: view.rendererSlug,
       fields: Object.keys(formValues),
@@ -71,7 +92,7 @@ export function RenderedViewCard({
     onAction({
       id: "submit",
       label,
-      response: `Selected: ${selectedText}`,
+      response,
       result: formValues,
     });
   };
