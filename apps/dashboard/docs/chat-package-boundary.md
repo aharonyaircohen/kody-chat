@@ -99,3 +99,14 @@ reports-files, managed-goals-files, kody-store, dashboard-config store, events
 reader/store, …) have zero dashboard importers — they exist only to feed the
 package's port-3344 dev harness and are handled by Phases 4–5 (slim harness,
 reachability-trace deletion), not by a move.
+
+## Phase 5 reachability trace result (2026-07-16)
+
+Strict trace from the export map + remaining harness `app/**` + `tests/**` +
+`scripts/**` + the dashboard's raw `node_modules/@kody-ade/kody-chat/src/...`
+references, with a string-mention safety pass for dynamic imports:
+**350 lib files, 0 deletable.** The only two files outside the import graph
+(`chat/plugins/plugin-dirs.mjs`, `empty-module.js`) are consumed by the
+package's `eslint.config.mjs` / `next.config.mjs`. The tens-of-thousands-line
+twin deletion already happened in commit `1dc82da4` ("cleanup phase 2 —
+unreachable kody-chat lib tree"); everything left is live product code.
