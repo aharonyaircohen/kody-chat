@@ -37,7 +37,16 @@ import {
 export interface TransportTurnState {
   /** Model thought summaries — wrapped in <think>…</think> for display. */
   reasoningBuf: string;
-  /** The visible answer text (kody-direct delta stream). */
+  /**
+   * Model narration between tool calls (kody-direct text deltas). This is
+   * "thinking out loud", not the answer — the answer arrives via
+   * final_answer (text-replace) or a rendered view. Narration displays
+   * inside the collapsed reasoning panel; if the turn ends with neither a
+   * final answer nor a view, finalize falls back to showing it as the
+   * visible answer so the bubble is never empty.
+   */
+  narrationBuf: string;
+  /** The visible answer text (final_answer replace, or voice-mode deltas). */
   textBuf: string;
   /** Latest full assistant snapshot (brain message replay). */
   latestAssistantText: string;
@@ -72,6 +81,7 @@ export interface TransportTurnHandler {
 function createInitialState(): TransportTurnState {
   return {
     reasoningBuf: "",
+    narrationBuf: "",
     textBuf: "",
     latestAssistantText: "",
     exhausted: false,
@@ -96,9 +106,12 @@ export function createTransportTurnHandler(
   const state = createInitialState();
   const { setMessages } = hooks;
 
-  const composeContent = () =>
-    (state.reasoningBuf ? `<think>${state.reasoningBuf}</think>\n\n` : "") +
-    state.textBuf;
+  const composeContent = () => {
+    const thought = [state.reasoningBuf, state.narrationBuf]
+      .filter(Boolean)
+      .join("\n\n");
+    return (thought ? `<think>${thought}</think>\n\n` : "") + state.textBuf;
+  };
 
   /** Rewrite the in-flight assistant bubble from the text buffers. */
   const syncComposedContent = () => {
@@ -116,8 +129,16 @@ export function createTransportTurnHandler(
   const handleEvent = (event: ChatEvent): void => {
     switch (event.type) {
       case "token": {
-        state.textBuf += event.text;
-        hooks.emitVoiceDelta?.(stripReasoning(state.textBuf));
+        // Voice mode speaks deltas live, so tokens stay the visible/spoken
+        // text there. Everywhere else, streamed text is narration between
+        // tool calls — it belongs in the collapsed reasoning panel; the
+        // visible answer arrives via text-replace (final_answer) or a view.
+        if (hooks.voiceMode) {
+          state.textBuf += event.text;
+          hooks.emitVoiceDelta?.(stripReasoning(state.textBuf));
+        } else {
+          state.narrationBuf += event.text;
+        }
         syncComposedContent();
         return;
       }
@@ -227,7 +248,11 @@ export function createTransportTurnHandler(
           if (ranWithOutput) {
             state.lastToolErrorToolName = event.toolName ?? null;
             if (event.toolName === SHOW_VIEW_TOOL) {
+              // Draft/invoke markup must not leak into the visible chat —
+              // clear the narration too so the finalize fallback can't
+              // resurface it.
               state.textBuf = "";
+              state.narrationBuf = "";
             }
           }
           setMessages((prev) => {

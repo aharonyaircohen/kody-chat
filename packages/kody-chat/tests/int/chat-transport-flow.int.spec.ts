@@ -15,6 +15,7 @@ import {
   kodyDirectTransport,
   sendKodyDirectTurn,
 } from "@dashboard/lib/chat/core/transports/kody-direct";
+import { finalizeKodyDirectTurn } from "@dashboard/lib/components/kody-chat-send";
 import { sendBrainTurn } from "@dashboard/lib/chat/core/transports/brain";
 import { runChatTurn } from "@dashboard/lib/chat/core/transports/turn-coordinator";
 import {
@@ -179,15 +180,19 @@ describe("kody-direct send→stream→persist", () => {
     );
 
     // The surface-side settle (what sendText does after send() resolves).
-    setMessages((prev) =>
-      prev.map((m) => (m.isLoading ? { ...m, isLoading: false } : m)),
-    );
+    finalizeKodyDirectTurn({
+      io: { setMessages, setLoading: () => {} },
+      turn: handler.state,
+      assistantDisplayOverride: null,
+    });
 
     expect(store.messages).toHaveLength(2);
     const assistant = store.messages[1];
     expect(assistant.role).toBe("assistant");
     expect(assistant.isLoading).toBe(false);
-    // Reasoning wrapped for the collapsed panel + the streamed answer.
+    // Streamed text is narration (collapsed with the reasoning) during the
+    // turn; with no final_answer or view, finalize surfaces it as the
+    // visible answer, keeping only the true reasoning collapsed.
     expect(assistant.content).toBe(
       "<think>plan the reply</think>\n\nIssue #7 is a bug report.",
     );
@@ -251,6 +256,12 @@ describe("kody-direct send→stream→persist", () => {
       { endpoint: "/api/kody/chat/kody", body: { messages: [] } },
       { authHeaders: {}, emit: handler.handleEvent },
     );
+
+    finalizeKodyDirectTurn({
+      io: { setMessages, setLoading: () => {} },
+      turn: handler.state,
+      assistantDisplayOverride: null,
+    });
 
     // Directives are pending state for the post-stream code — not UI.
     expect(handler.state.pendingSwitchAgent).toEqual(switchAgent);
