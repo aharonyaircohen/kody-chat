@@ -256,22 +256,6 @@ const MAX_HISTORY_MESSAGES = 50;
  */
 export const DEFAULT_MAX_STEPS = 100;
 
-/**
- * Corrective continuation for turns that end with ZERO tool calls. Some
- * OpenAI-compat providers (observed: MiniMax-M3) ignore
- * `toolChoice: "required"` and finish in plain prose — narrating tool
- * calls and results that never executed (fabricated CMS saves with
- * invented ids). When that happens the route continues the turn once
- * with this system message so the model either does the work for real
- * or retracts the claim. Model-agnostic: enforced at the protocol
- * level, no text sniffing.
- */
-export const ZERO_TOOL_CALL_CORRECTIVE =
-  "PROTOCOL VIOLATION: you ended the turn without making a single real tool call. " +
-  "Anything your text described — reads, writes, saves, ids — did NOT happen; no tool executed. " +
-  "Continue now by EITHER performing the user's request through real tool calls and finishing with final_answer/show_view, " +
-  "OR finishing with final_answer that plainly retracts the claims and says the operation was not performed.";
-
 function successfulToolResult(toolName: string): StopCondition<ToolSet> {
   return ({ steps }) =>
     steps[steps.length - 1]?.toolResults?.some(
@@ -1711,55 +1695,32 @@ This turn includes an image from the user. For questions about what is visible i
           });
         }
         writer.merge(result.toUIMessageStream({ sendReasoning: true }));
-        // Zero-tool-call turns are protocol violations (see
-        // ZERO_TOOL_CALL_CORRECTIVE): continue the turn ONCE with a
-        // corrective system message so the model does the work for real
-        // or retracts. `result.steps` resolves when the first stream is
-        // done; the merge above keeps flowing while we wait.
+        // A turn that ends with ZERO real tool calls violated the output
+        // protocol (every reply must land via final_answer/show_view —
+        // even plain answers). Observed with providers that ignore
+        // toolChoice:"required" (MiniMax-M3): the model narrates reads/
+        // writes/ids that never executed. One honest, simple response:
+        // stamp the reply with a visible warning so it can't pass as real.
         try {
           const steps = await result.steps;
           const madeToolCall = steps.some(
             (step) => (step.toolCalls?.length ?? 0) > 0,
           );
           if (!madeToolCall) {
-            const firstText = await result.text;
             traceWarn(
               { traceId, modelId },
-              "kody-direct: turn ended with zero tool calls — continuing with corrective",
+              "kody-direct: turn ended with zero tool calls",
             );
-            const continuation = streamText({
-              model,
-              system: groundedSystemPrompt,
-              messages: [
-                ...modelMessages,
-                ...(firstText.trim()
-                  ? [{ role: "assistant" as const, content: firstText }]
-                  : []),
-                { role: "system" as const, content: ZERO_TOOL_CALL_CORRECTIVE },
-              ],
-              tools,
-              toolChoice: "required" as const,
-              stopWhen: [
-                terminalToolAttempt(SHOW_VIEW_TOOL),
-                successfulToolResult(FINAL_ANSWER_TOOL),
-                stepCountIs(resolvedModel.maxSteps ?? DEFAULT_MAX_STEPS),
-              ],
-              ...(voiceMode
-                ? {}
-                : applyReasoning(resolvedModel, body.reasoningEffort)),
-              onError: ({ error }) => {
-                traceError(
-                  { traceId, err: formatProviderError(error) },
-                  "kody-direct: corrective continuation onError",
-                );
-              },
+            writer.write({
+              type: "error",
+              errorText:
+                "This reply ran no real actions (the model made no tool calls). Any reads, writes, or ids it mentions are unverified.",
             });
-            writer.merge(continuation.toUIMessageStream({ sendReasoning: true }));
           }
         } catch (err) {
           traceWarn(
             { traceId, err: err instanceof Error ? err.message : String(err) },
-            "kody-direct: zero-tool-call check failed (skipping continuation)",
+            "kody-direct: zero-tool-call check failed",
           );
         }
       },
