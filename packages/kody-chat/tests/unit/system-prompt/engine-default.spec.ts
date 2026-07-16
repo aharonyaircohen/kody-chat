@@ -25,12 +25,15 @@ describe("engine default system prompt", () => {
     );
   });
 
-  it("still requires a go-ahead before mutating work", () => {
+  it("treats an explicit instruction to act as the go-ahead (regression: double-confirmation)", () => {
     expect(ENGINE_DEFAULT_SYSTEM_PROMPT).toContain(
       "# Answer first, act second (HARD RULE)",
     );
     expect(ENGINE_DEFAULT_SYSTEM_PROMPT).toContain(
-      "stop for the user's go-ahead",
+      "IS the go-ahead — proceed without asking again",
+    );
+    expect(ENGINE_DEFAULT_SYSTEM_PROMPT).toContain(
+      "only when the user has not",
     );
   });
 });
