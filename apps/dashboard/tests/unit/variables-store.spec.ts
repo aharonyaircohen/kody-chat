@@ -1,29 +1,29 @@
 /**
- * Unit tests for the plaintext variables store. Variables live in the
- * configured external state repo next to the encrypted vault.
+ * Unit tests for the Convex-backed variables store (repoDocs kind
+ * "variables", doc = the VariablesDocument).
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { getFunctionName } from "convex/server";
 
-const stateRepo = vi.hoisted(() => ({
-  readStateText: vi.fn(),
-  writeStateText: vi.fn(),
+const convex = vi.hoisted(() => ({
+  query: vi.fn(),
+  mutation: vi.fn(),
 }));
 
-vi.mock("@kody-ade/base/state-repo", () => ({
-  readStateText: stateRepo.readStateText,
-  writeStateText: stateRepo.writeStateText,
+vi.mock("convex/browser", () => ({
+  ConvexHttpClient: class {
+    query = convex.query;
+    mutation = convex.mutation;
+  },
 }));
 
-vi.mock("@kody-ade/base/logger", () => ({
-  logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
-}));
-
+import { _resetConvexClient } from "@kody-ade/base/backend/convex";
 import {
   invalidateVariablesCache,
   listVariables,
   readVariables,
-  VARIABLES_PATH,
+  updateVariables,
   writeVariables,
   type VariablesDocument,
 } from "@kody-ade/base/variables/store";
@@ -45,6 +45,8 @@ const DOC: VariablesDocument = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  _resetConvexClient();
+  process.env.CONVEX_URL = "https://example.convex.cloud";
   invalidateVariablesCache("acme", "widgets");
 });
 
@@ -53,59 +55,92 @@ afterEach(() => {
 });
 
 describe("readVariables", () => {
-  it("reads variables.json from the configured state repo", async () => {
-    const octokit = fakeOctokit();
-    stateRepo.readStateText.mockResolvedValue({
-      content: JSON.stringify(DOC),
-      sha: "sha-1",
-    });
+  it("reads the variables repoDoc for the tenant", async () => {
+    convex.query.mockResolvedValue({ doc: DOC, updatedAt: "t" });
 
-    const { doc, sha } = await readVariables(octokit, "acme", "widgets");
+    const { doc, sha } = await readVariables(fakeOctokit(), "acme", "widgets");
 
     expect(doc).toEqual(DOC);
-    expect(sha).toBe("sha-1");
-    expect(stateRepo.readStateText).toHaveBeenCalledWith(
-      octokit,
-      "acme",
-      "widgets",
-      VARIABLES_PATH,
-      { headers: { "If-None-Match": "" } },
-    );
+    expect(sha).toBeNull();
+    const [ref, args] = convex.query.mock.calls[0]!;
+    expect(getFunctionName(ref)).toBe("repoDocs:get");
+    expect(args).toEqual({ tenantId: "acme/widgets", kind: "variables" });
   });
 
-  it("returns an empty document when variables.json does not exist", async () => {
-    stateRepo.readStateText.mockResolvedValue(null);
+  it("returns an empty document when no record exists", async () => {
+    convex.query.mockResolvedValue(null);
 
     const { doc, sha } = await readVariables(fakeOctokit(), "acme", "widgets");
 
     expect(doc).toEqual({ version: 1, variables: {} });
     expect(sha).toBeNull();
   });
+
+  it("caches reads for the TTL", async () => {
+    convex.query.mockResolvedValue({ doc: DOC, updatedAt: "t" });
+
+    await readVariables(fakeOctokit(), "acme", "widgets");
+    await readVariables(fakeOctokit(), "acme", "widgets");
+
+    expect(convex.query).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects a malformed document", async () => {
+    convex.query.mockResolvedValue({ doc: { nope: true }, updatedAt: "t" });
+
+    await expect(
+      readVariables(fakeOctokit(), "acme", "widgets"),
+    ).rejects.toThrow("unexpected shape");
+  });
 });
 
 describe("writeVariables", () => {
-  it("writes variables.json to the configured state repo", async () => {
-    stateRepo.writeStateText.mockResolvedValue({ sha: "sha-2" });
-    const octokit = fakeOctokit();
+  it("saves the document via repoDocs.save", async () => {
+    convex.mutation.mockResolvedValue("id-1");
 
     const { sha } = await writeVariables(
-      octokit,
+      fakeOctokit(),
       "acme",
       "widgets",
       DOC,
-      "sha-1",
+      null,
     );
 
-    expect(sha).toBe("sha-2");
-    expect(stateRepo.writeStateText).toHaveBeenCalledWith({
-      octokit,
-      owner: "acme",
-      repo: "widgets",
-      path: VARIABLES_PATH,
-      content: JSON.stringify(DOC, null, 2),
-      message: "chore(variables): update dashboard variables",
-      sha: "sha-1",
+    expect(sha).toBe("");
+    const [ref, args] = convex.mutation.mock.calls[0]!;
+    expect(getFunctionName(ref)).toBe("repoDocs:save");
+    expect(args).toMatchObject({
+      tenantId: "acme/widgets",
+      kind: "variables",
+      doc: DOC,
     });
+  });
+});
+
+describe("updateVariables", () => {
+  it("applies the mutation over the latest document", async () => {
+    convex.query.mockResolvedValue({ doc: DOC, updatedAt: "t" });
+    convex.mutation.mockResolvedValue("id-1");
+
+    const { doc } = await updateVariables(
+      fakeOctokit(),
+      "acme",
+      "widgets",
+      (current) => ({
+        ...current,
+        variables: {
+          ...current.variables,
+          NEW_VAR: { value: "x", updatedAt: "t2" },
+        },
+      }),
+      "chore: add NEW_VAR",
+    );
+
+    expect(doc.variables.NEW_VAR?.value).toBe("x");
+    const [, args] = convex.mutation.mock.calls[0]!;
+    expect(
+      (args as { doc: VariablesDocument }).doc.variables.NEW_VAR?.value,
+    ).toBe("x");
   });
 });
 

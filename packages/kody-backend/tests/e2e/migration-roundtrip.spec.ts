@@ -72,7 +72,7 @@ describe.skipIf(!url)("migration round-trip", () => {
     // 2. Import chunks (what import-convex.ts does).
     for (const [table, docs] of Object.entries(byTable)) {
       const result = await client.mutation(anyApi.importExport.importChunk, { table, docs })
-      expect(result.inserted).toBe(docs.length)
+      expect(result.inserted + result.updated).toBe(docs.length)
     }
 
     // 3. Read back through the domain API.

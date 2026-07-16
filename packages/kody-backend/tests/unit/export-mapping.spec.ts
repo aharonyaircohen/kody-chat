@@ -232,6 +232,25 @@ describe("mapStateFile — extended state kinds", () => {
     expect(mapStateFile("operations/release/notes.md", "x", REPO, NOW)).toBeNull()
   })
 
+  it("maps client brands and disabled markers to repoDocs kinds", () => {
+    const rows = mapStateFile(
+      "brands/acme.json",
+      JSON.stringify({ slug: "acme", name: "Acme", accent: "#2563eb" }),
+      REPO,
+      NOW,
+    )
+    expect(rows?.[0]).toMatchObject({
+      table: "repoDocs",
+      doc: { tenantId: REPO, kind: "brand:acme", doc: { slug: "acme" } },
+    })
+    // Disabled markers are plain text, not JSON.
+    expect(mapStateFile("brands/acme.disabled", "acme\n", REPO, NOW)?.[0].doc).toMatchObject({
+      kind: "brand-disabled:acme",
+      doc: { slug: "acme" },
+    })
+    expect(mapStateFile("brands/README.md", "x", REPO, NOW)).toBeNull()
+  })
+
   it("maps the global chat snapshot and its write gate", () => {
     expect(mapStateFile("chat/global.json", "{}", REPO, NOW)?.[0].doc.kind).toBe("chat-global")
     expect(mapStateFile("chat/last-written.json", "{}", REPO, NOW)?.[0].doc.kind).toBe(

@@ -27,6 +27,38 @@ describe("entity registry drift", () => {
     }
   })
 
+  it("every entity declares a non-empty natural key of schema fields", () => {
+    for (const entity of ENTITIES) {
+      expect(entity.naturalKey.length, `${entity.table} has no naturalKey`).toBeGreaterThan(0)
+      const table = (schema.tables as Record<string, unknown>)[entity.table] as {
+        export: () => { documentType: { value: Record<string, unknown> } }
+      }
+      const schemaFields = Object.keys(table.export().documentType.value)
+      for (const field of entity.naturalKey) {
+        expect(schemaFields, `${entity.table}.naturalKey field "${field}" missing from schema`)
+          .toContain(field)
+      }
+      expect(entity.naturalKey, `${entity.table} naturalKey must not include tenantId`)
+        .not.toContain("tenantId")
+    }
+  })
+
+  it("every declared upsertIndex exists and is prefixed by [tenantId?, ...naturalKey]", () => {
+    for (const entity of ENTITIES) {
+      if (!entity.upsertIndex) continue
+      const table = (schema.tables as Record<string, unknown>)[entity.table] as {
+        export: () => { indexes: Array<{ indexDescriptor: string; fields: string[] }> }
+      }
+      const index = table.export().indexes.find((i) => i.indexDescriptor === entity.upsertIndex)
+      expect(index, `${entity.table} upsertIndex "${entity.upsertIndex}" not in schema`).toBeDefined()
+      const expectedPrefix = entity.global ? entity.naturalKey : ["tenantId", ...entity.naturalKey]
+      expect(
+        index?.fields.slice(0, expectedPrefix.length),
+        `${entity.table} index "${entity.upsertIndex}" does not cover the natural key`,
+      ).toEqual(expectedPrefix)
+    }
+  })
+
   it("derives a stable export walk list", () => {
     expect(STATE_ROOTS).toContain("workflows")
     expect(STATE_ROOTS).toContain("agency")

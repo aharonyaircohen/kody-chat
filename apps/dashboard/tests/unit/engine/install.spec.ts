@@ -7,12 +7,52 @@
  * model and default implementation.
  */
 
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Variables now live in Convex (repoDocs kind "variables") — mock the client.
+const convex = vi.hoisted(() => ({
+  query: vi.fn(),
+  mutation: vi.fn(),
+}));
+
+vi.mock("convex/browser", () => ({
+  ConvexHttpClient: class {
+    query = convex.query;
+    mutation = convex.mutation;
+  },
+}));
+
+import { _resetConvexClient } from "@kody-ade/base/backend/convex";
+import { invalidateVariablesCache } from "@kody-ade/base/variables/store";
 import {
   installEngine,
   WORKFLOW_TEMPLATE_SOURCE,
   type InstallEngineInput,
 } from "@dashboard/lib/engine/install";
+
+/** Seed the Convex variables doc returned by repoDocs:get. */
+function mockVariables(models: Array<Record<string, unknown>>) {
+  convex.query.mockResolvedValue({
+    doc: {
+      version: 1,
+      variables: {
+        LLM_MODELS: {
+          value: JSON.stringify(models),
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      },
+    },
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  });
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  _resetConvexClient();
+  process.env.CONVEX_URL = "https://example.convex.cloud";
+  invalidateVariablesCache("example", "my-repo");
+  convex.query.mockResolvedValue(null); // no variables doc by default
+});
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Mock helpers
@@ -150,42 +190,20 @@ describe("installEngine", () => {
       const octokit = createMockOctokit();
       const { getByPath } = captureFileWrites(octokit);
 
-      // Simulate variables.json returning a default model
-      vi.spyOn(octokit.repos, "getContent").mockImplementation(
-        async (params: any) => {
-          if (params.path === "my-repo/variables.json") {
-            const variablesContent = JSON.stringify({
-              version: 1,
-              variables: {
-                LLM_MODELS: {
-                  value: JSON.stringify([
-                    {
-                      id: "example/chat-model",
-                      label: "Example Chat Model",
-                      provider: "openai",
-                      protocol: "openai",
-                      baseURL: "",
-                      modelName: "chat-model",
-                      apiKeySecret: "MY_API_KEY",
-                      enabled: true,
-                      default: true,
-                    },
-                  ]),
-                  updatedAt: "2026-01-01T00:00:00.000Z",
-                },
-              },
-            });
-            return {
-              data: {
-                type: "file",
-                content: Buffer.from(variablesContent).toString("base64"),
-                sha: "varsha",
-              },
-            };
-          }
-          return { data: { content: "", sha: "abc123" } };
+      // Simulate the variables doc returning a default model
+      mockVariables([
+        {
+          id: "example/chat-model",
+          label: "Example Chat Model",
+          provider: "openai",
+          protocol: "openai",
+          baseURL: "",
+          modelName: "chat-model",
+          apiKeySecret: "MY_API_KEY",
+          enabled: true,
+          default: true,
         },
-      );
+      ]);
 
       const input: InstallEngineInput = {
         octokit,
@@ -211,52 +229,30 @@ describe("installEngine", () => {
       const octokit = createMockOctokit();
       const { getByPath } = captureFileWrites(octokit);
 
-      vi.spyOn(octokit.repos, "getContent").mockImplementation(
-        async (params: any) => {
-          if (params.path === "my-repo/variables.json") {
-            const variablesContent = JSON.stringify({
-              version: 1,
-              variables: {
-                LLM_MODELS: {
-                  value: JSON.stringify([
-                    {
-                      id: "anthropic/claude-sonnet-4-6",
-                      label: "Chat",
-                      provider: "anthropic",
-                      protocol: "anthropic",
-                      baseURL: "",
-                      modelName: "claude-sonnet-4-6",
-                      apiKeySecret: "ANTHROPIC_API_KEY",
-                      enabled: true,
-                      default: true,
-                    },
-                    {
-                      id: "minimax/MiniMax-M3",
-                      label: "Engine",
-                      provider: "custom",
-                      protocol: "openai",
-                      baseURL: "https://api.minimax.io/v1",
-                      modelName: "MiniMax-M3",
-                      apiKeySecret: "MINIMAX_API_KEY",
-                      enabled: true,
-                      engineDefault: true,
-                    },
-                  ]),
-                  updatedAt: "2026-01-01T00:00:00.000Z",
-                },
-              },
-            });
-            return {
-              data: {
-                type: "file",
-                content: Buffer.from(variablesContent).toString("base64"),
-                sha: "varsha",
-              },
-            };
-          }
-          return { data: { content: "", sha: "abc123" } };
+      mockVariables([
+        {
+          id: "anthropic/claude-sonnet-4-6",
+          label: "Chat",
+          provider: "anthropic",
+          protocol: "anthropic",
+          baseURL: "",
+          modelName: "claude-sonnet-4-6",
+          apiKeySecret: "ANTHROPIC_API_KEY",
+          enabled: true,
+          default: true,
         },
-      );
+        {
+          id: "minimax/MiniMax-M3",
+          label: "Engine",
+          provider: "custom",
+          protocol: "openai",
+          baseURL: "https://api.minimax.io/v1",
+          modelName: "MiniMax-M3",
+          apiKeySecret: "MINIMAX_API_KEY",
+          enabled: true,
+          engineDefault: true,
+        },
+      ]);
 
       const input: InstallEngineInput = {
         octokit,

@@ -22,6 +22,12 @@ type Mapper = (
 export interface EntityDef {
   /** Convex table name (must exist in convex/schema.ts). */
   table: string
+  /** Fields (besides tenantId) that uniquely identify a row — imports upsert by tenantId + naturalKey. */
+  naturalKey: string[]
+  /** Schema index whose fields start with [tenantId, ...naturalKey] ([...naturalKey] for global tables); import lookups use it. Omit to fall back to .filter. */
+  upsertIndex?: string
+  /** Table is not tenant-scoped (global engine store — no tenantId field). */
+  global?: boolean
   /** Top-level state-repo dirs/files this entity is exported from ([] = not file-sourced: gists, client, or global stores). */
   statePaths: string[]
   /** Maps one state-repo file to rows, or null when the path isn't this entity's. Omitted for non-file-sourced entities. */
@@ -39,6 +45,8 @@ export function parseJsonl(text: string): unknown[] {
 export const ENTITIES: EntityDef[] = [
   {
     table: "workflows",
+    naturalKey: ["workflowId"],
+    upsertIndex: "by_tenant",
     statePaths: ["workflows"],
     map: (path, text, tenantId, now) => {
       const m = path.match(/^workflows\/([^/]+)\/workflow\.json$/)
@@ -60,6 +68,8 @@ export const ENTITIES: EntityDef[] = [
   },
   {
     table: "workflowRuns",
+    naturalKey: ["workflowId", "runId"],
+    upsertIndex: "by_run",
     statePaths: ["workflows"],
     map: (path, text, tenantId, now) => {
       const m = path.match(/^workflows\/([^/]+)\/runs\/([^/]+)\.json$/)
@@ -74,6 +84,8 @@ export const ENTITIES: EntityDef[] = [
   },
   {
     table: "chatSessions",
+    naturalKey: ["sessionId"],
+    upsertIndex: "by_session",
     statePaths: ["sessions"],
     map: (path, text, tenantId, now) => {
       const m = path.match(/^sessions\/([^/]+)\.jsonl$/)
@@ -89,9 +101,16 @@ export const ENTITIES: EntityDef[] = [
       ]
     },
   },
-  { table: "chatTurns", statePaths: ["sessions"] }, // exported by the chatSessions mapper
+  {
+    table: "chatTurns",
+    naturalKey: ["sessionId", "seq"],
+    upsertIndex: "by_session",
+    statePaths: ["sessions"],
+  }, // exported by the chatSessions mapper
   {
     table: "chatEvents",
+    naturalKey: ["sessionId", "seq"],
+    upsertIndex: "by_session",
     statePaths: ["events"],
     map: (path, text, tenantId) => {
       const m = path.match(/^events\/([^/]+)\.jsonl$/)
@@ -105,6 +124,8 @@ export const ENTITIES: EntityDef[] = [
   },
   {
     table: "intents",
+    naturalKey: ["intentId"],
+    upsertIndex: "by_tenant",
     statePaths: ["intents"],
     map: (path, text, tenantId, now) => {
       const m = path.match(/^intents\/([^/]+)\/intent\.json$/)
@@ -120,6 +141,8 @@ export const ENTITIES: EntityDef[] = [
   },
   {
     table: "intentDecisions",
+    naturalKey: ["intentId", "seq"],
+    upsertIndex: "by_intent",
     statePaths: ["intents"],
     map: (path, text, tenantId) => {
       const m = path.match(/^intents\/([^/]+)\/decisions\.jsonl$/)
@@ -133,6 +156,8 @@ export const ENTITIES: EntityDef[] = [
   },
   {
     table: "goals",
+    naturalKey: ["goalId"],
+    upsertIndex: "by_tenant",
     statePaths: ["todos"],
     map: (path, text, tenantId, now) => {
       const m = path.match(/^todos\/([^/]+)\.json$/)
@@ -144,6 +169,8 @@ export const ENTITIES: EntityDef[] = [
   },
   {
     table: "reports",
+    naturalKey: ["slug", "runId"],
+    upsertIndex: "by_slug",
     statePaths: ["reports"],
     map: (path, text, tenantId, now) => {
       let m = path.match(/^reports\/([^/]+)\/runs\/([^/]+)\.md$/)
@@ -164,6 +191,8 @@ export const ENTITIES: EntityDef[] = [
   },
   {
     table: "agents",
+    naturalKey: ["slug"],
+    upsertIndex: "by_tenant",
     statePaths: ["agents"],
     map: (path, text, tenantId, now) => {
       const m = path.match(/^agents\/([^/]+)\.md$/)
@@ -178,6 +207,8 @@ export const ENTITIES: EntityDef[] = [
   },
   {
     table: "viewRenderers",
+    naturalKey: ["slug"],
+    upsertIndex: "by_tenant",
     statePaths: ["views"],
     map: (path, text, tenantId, now) => {
       const m = path.match(/^views\/renderers\/([^/]+)\.json$/)
@@ -192,6 +223,8 @@ export const ENTITIES: EntityDef[] = [
   },
   {
     table: "macros",
+    naturalKey: ["macroId"],
+    upsertIndex: "by_tenant",
     statePaths: ["macros.json"],
     map: (path, text, tenantId) => {
       if (path !== "macros.json") return null
@@ -204,6 +237,8 @@ export const ENTITIES: EntityDef[] = [
   },
   {
     table: "repoDocs",
+    naturalKey: ["kind"],
+    upsertIndex: "by_kind",
     statePaths: [
       "dashboard.json",
       "system-prompt.md",
@@ -217,6 +252,7 @@ export const ENTITIES: EntityDef[] = [
       "terminal",
       "operations",
       "chat",
+      "brands",
     ],
     map: (path, text, tenantId, now) => {
       if (path === "dashboard.json") {
@@ -278,6 +314,25 @@ export const ENTITIES: EntityDef[] = [
           { table: "repoDocs", doc: { tenantId, kind, doc: JSON.parse(text), updatedAt: now } },
         ]
       }
+      m = path.match(/^brands\/([^/]+)\.json$/)
+      if (m) {
+        return [
+          {
+            table: "repoDocs",
+            doc: { tenantId, kind: `brand:${m[1]}`, doc: JSON.parse(text), updatedAt: now },
+          },
+        ]
+      }
+      // Disabled markers are plain text (`<slug>\n`), not JSON.
+      m = path.match(/^brands\/([^/]+)\.disabled$/)
+      if (m) {
+        return [
+          {
+            table: "repoDocs",
+            doc: { tenantId, kind: `brand-disabled:${m[1]}`, doc: { slug: m[1] }, updatedAt: now },
+          },
+        ]
+      }
       m = path.match(/^terminal\/checkpoints\/([^/]+)\.json$/)
       if (m) {
         return [
@@ -297,6 +352,8 @@ export const ENTITIES: EntityDef[] = [
   },
   {
     table: "notificationPrefs",
+    naturalKey: ["login"],
+    upsertIndex: "by_login",
     statePaths: ["notifications"],
     map: (path, text, tenantId, now) => {
       const m = path.match(/^notifications\/preferences\/([^/]+)\.json$/)
@@ -311,6 +368,8 @@ export const ENTITIES: EntityDef[] = [
   },
   {
     table: "userState",
+    naturalKey: ["namespace", "userKey"],
+    upsertIndex: "by_user",
     statePaths: ["user-state"],
     map: (path, text, tenantId, now) => {
       const m = path.match(/^user-state\/([^/]+)\/([^/]+)\.json$/)
@@ -332,6 +391,8 @@ export const ENTITIES: EntityDef[] = [
   },
   {
     table: "agencyRecords",
+    naturalKey: ["kind", "recordId"],
+    upsertIndex: "by_tenant",
     statePaths: ["agency"],
     map: (path, text, tenantId, now) => {
       const m = path.match(/^agency\/(observations|findings|learnings)\/([^/]+)\.json$/)
@@ -347,6 +408,8 @@ export const ENTITIES: EntityDef[] = [
   },
   {
     table: "taskState",
+    naturalKey: ["taskKey", "kind"],
+    upsertIndex: "by_task",
     statePaths: ["tasks"],
     map: (path, text, tenantId, now) => {
       const m = path.match(/^tasks\/((?:issues\/|prs\/)?[^/]+)\/([^/]+)\.json$/)
@@ -368,6 +431,8 @@ export const ENTITIES: EntityDef[] = [
   },
   {
     table: "capabilityState",
+    naturalKey: ["slug"],
+    upsertIndex: "by_tenant",
     statePaths: ["capabilities"],
     map: (path, text, tenantId, now) => {
       const m = path.match(/^capabilities\/([^/]+)\/state\.json$/)
@@ -382,6 +447,8 @@ export const ENTITIES: EntityDef[] = [
   },
   {
     table: "dailyLogs",
+    naturalKey: ["stream", "date", "seq"],
+    upsertIndex: "by_stream",
     statePaths: ["activity", "events"],
     map: (path, text, tenantId) => {
       let m = path.match(/^activity\/(\d{4}-\d{2}-\d{2})\.jsonl$/)
@@ -402,10 +469,10 @@ export const ENTITIES: EntityDef[] = [
     },
   },
   // Not file-sourced: gist-backed, client-side, or global engine stores.
-  { table: "inboxEntries", statePaths: [] },
-  { table: "channelsSeen", statePaths: [] },
-  { table: "actionStates", statePaths: [] },
-  { table: "eventLog", statePaths: [] },
+  { table: "inboxEntries", naturalKey: ["login", "entryId"], upsertIndex: "by_entry", statePaths: [] },
+  { table: "channelsSeen", naturalKey: ["login"], upsertIndex: "by_login", statePaths: [] },
+  { table: "actionStates", naturalKey: ["runId"], upsertIndex: "by_run", global: true, statePaths: [] },
+  { table: "eventLog", naturalKey: ["entryId"], global: true, statePaths: [] }, // no index on entryId — lookups fall back to .filter
 ]
 
 /** Every table an import may write to — derived, never hand-listed. */

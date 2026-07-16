@@ -2,26 +2,24 @@
  * @fileType util
  * @domain client-chat
  * @pattern brands-files
- * @ai-summary Read/write operator-managed client brand JSON files under
- *   `brands/<slug>.json` in the resolved Kody state repo. These records feed
+ * @ai-summary Read/write operator-managed client brands in the Convex backend
+ *   (repoDocs, kind `brand:<slug>`, doc = the validated ClientBrand JSON;
+ *   disabled markers are kind `brand-disabled:<slug>`). These records feed
  *   `/client/<slug>`, the branding chat plugin, and client-surface chat
- *   defaults enforced by the chat route.
+ *   defaults enforced by the chat route. Exported signatures are unchanged
+ *   from the state-repo era; octokit params are unused and `sha` is always ""
+ *   (Convex docs have no git blob). One `listByPrefix` query replaces the old
+ *   per-brand GitHub reads — the state repo remains export-only.
  */
 
 import type { Octokit } from "@octokit/rest";
 import { z } from "zod";
 import {
-  getOctokit,
-  getOwner,
-  getRepo,
-  invalidateBrandsCache,
-} from "../github";
-import {
-  deleteStateFile,
-  listStateDirectory,
-  readStateText,
-  writeStateText,
-} from "@kody-ade/base/state-repo";
+  backendApi,
+  getConvexClient,
+  tenantIdFor,
+} from "@kody-ade/base/backend/convex";
+import { getOwner, getRepo } from "../github";
 import {
   normalizeClientBrandLocale,
   normalizeClientBrandSlug,
@@ -37,9 +35,8 @@ export interface BrandFile extends ClientBrand {
   htmlUrl: string;
 }
 
-const BRANDS_DIR = "brands";
-const DELETED_BRAND_SUFFIX = ".disabled";
-const BRAND_CACHE_TTL_MS = 60_000;
+const BRAND_KIND_PREFIX = "brand:";
+const DISABLED_KIND_PREFIX = "brand-disabled:";
 const HEX_COLOR_RE = /^#[0-9a-f]{6}$/;
 
 const brandFileSchema = z.object({
@@ -65,57 +62,22 @@ const brandFileSchema = z.object({
 
 type BrandFileInput = z.infer<typeof brandFileSchema>;
 
-interface CacheEntry<T> {
-  data: T;
-  expires: number;
-  etag?: string;
+interface BrandDocRecord {
+  kind: string;
+  doc: unknown;
+  updatedAt: string;
 }
 
-const cache = new Map<string, CacheEntry<unknown>>();
-
-function cacheEntry<T>(key: string): CacheEntry<T> | null {
-  const entry = cache.get(key);
-  return entry ? (entry as CacheEntry<T>) : null;
+function tenantId(): string {
+  return tenantIdFor(getOwner(), getRepo());
 }
 
-function cacheGet<T>(key: string): T | undefined {
-  const entry = cacheEntry<T>(key);
-  if (!entry || entry.expires <= Date.now()) return undefined;
-  return entry.data as T;
+function brandKind(slug: string): string {
+  return `${BRAND_KIND_PREFIX}${slug}`;
 }
 
-function cacheSet<T>(key: string, data: T, etag?: string): void {
-  cache.set(key, {
-    data,
-    expires: Date.now() + BRAND_CACHE_TTL_MS,
-    etag,
-  });
-}
-
-function invalidateLocalBrandCache(slug?: string): void {
-  if (slug) {
-    cache.delete(`brand:${getOwner()}:${getRepo()}:${slug}`);
-  }
-  cache.delete(`brands:${getOwner()}:${getRepo()}`);
-  cache.delete(`brands-deleted:${getOwner()}:${getRepo()}`);
-}
-
-function slugFromName(name: string): string | null {
-  if (!name.endsWith(".json")) return null;
-  const slug = name.slice(0, -".json".length);
-  if (slug.length === 0 || slug.startsWith(".") || slug.startsWith("_")) {
-    return null;
-  }
-  return normalizeClientBrandSlug(slug);
-}
-
-function slugFromDeletedName(name: string): string | null {
-  if (!name.endsWith(DELETED_BRAND_SUFFIX)) return null;
-  const slug = name.slice(0, -DELETED_BRAND_SUFFIX.length);
-  if (slug.length === 0 || slug.startsWith(".") || slug.startsWith("_")) {
-    return null;
-  }
-  return normalizeClientBrandSlug(slug);
+function disabledKind(slug: string): string {
+  return `${DISABLED_KIND_PREFIX}${slug}`;
 }
 
 export function isValidBrandSlug(slug: string): boolean {
@@ -130,21 +92,13 @@ function normalizeAgentSlug(input: string): string {
   return slugifyTitle(input);
 }
 
-function parseBrandJson(raw: string, fallbackSlug: string): ClientBrand {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new Error(`Invalid brand file "${fallbackSlug}": JSON is malformed`);
-  }
-
-  const result = brandFileSchema.safeParse(parsed);
+function parseBrandDoc(doc: unknown, fallbackSlug: string): ClientBrand {
+  const result = brandFileSchema.safeParse(doc);
   if (!result.success) {
     throw new Error(
-      `Invalid brand file "${fallbackSlug}": ${result.error.issues[0]?.message ?? "validation failed"}`,
+      `Invalid brand record "${fallbackSlug}": ${result.error.issues[0]?.message ?? "validation failed"}`,
     );
   }
-
   return normalizeBrandInput(result.data, fallbackSlug);
 }
 
@@ -179,124 +133,75 @@ function normalizeBrandInput(input: BrandFileInput, fallbackSlug?: string) {
   } satisfies ClientBrand;
 }
 
-function brandFilePath(slug: string): string {
-  return `${BRANDS_DIR}/${slug}.json`;
-}
-
-function deletedBrandPath(slug: string): string {
-  return `${BRANDS_DIR}/${slug}${DELETED_BRAND_SUFFIX}`;
+function recordToBrandFile(record: BrandDocRecord): BrandFile | null {
+  const slug = normalizeClientBrandSlug(
+    record.kind.slice(BRAND_KIND_PREFIX.length),
+  );
+  if (!isValidBrandSlug(slug)) return null;
+  try {
+    return {
+      ...parseBrandDoc(record.doc, slug),
+      source: "repo" as const,
+      sha: "",
+      updatedAt: record.updatedAt ?? "",
+      htmlUrl: "",
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function listDeletedBrandSlugs(): Promise<Set<string>> {
-  const octokit = getOctokit();
-  const cacheKey = `brands-deleted:${getOwner()}:${getRepo()}`;
-  const cached = cacheGet<string[]>(cacheKey);
-  if (cached !== undefined) return new Set(cached);
-
-  const { entries, etag } = await listStateDirectory(
-    octokit,
-    getOwner(),
-    getRepo(),
-    BRANDS_DIR,
-  );
-  const slugs = entries
-    .filter((entry) => entry.type === "file")
-    .map((entry) => slugFromDeletedName(entry.name))
-    .filter((slug): slug is string => Boolean(slug));
-  const unique = [...new Set(slugs)].sort();
-  cacheSet(cacheKey, unique, etag);
-  return new Set(unique);
+  const records = (await getConvexClient().query(
+    backendApi.repoDocs.listByPrefix,
+    { tenantId: tenantId(), prefix: DISABLED_KIND_PREFIX },
+  )) as BrandDocRecord[];
+  const slugs = records
+    .map((record) =>
+      normalizeClientBrandSlug(record.kind.slice(DISABLED_KIND_PREFIX.length)),
+    )
+    .filter((slug) => isValidBrandSlug(slug));
+  return new Set(slugs);
 }
 
 export async function isBrandDeleted(slug: string): Promise<boolean> {
   const normalized = normalizeClientBrandSlug(slug);
   if (!isValidBrandSlug(normalized)) return false;
-  const deleted = await listDeletedBrandSlugs();
-  return deleted.has(normalized);
+  const record = (await getConvexClient().query(backendApi.repoDocs.get, {
+    tenantId: tenantId(),
+    kind: disabledKind(normalized),
+  })) as BrandDocRecord | null;
+  return record !== null;
 }
 
+/** One indexed Convex query for all brands (was N GitHub reads). */
 export async function listBrandFiles(): Promise<BrandFile[]> {
-  const octokit = getOctokit();
-  const cacheKey = `brands:${getOwner()}:${getRepo()}`;
-  const cached = cacheGet<BrandFile[]>(cacheKey);
-  if (cached !== undefined) return cached;
-
-  const stale = cacheEntry<BrandFile[]>(cacheKey);
-  try {
-    const { entries, etag } = await listStateDirectory(
-      octokit,
-      getOwner(),
-      getRepo(),
-      BRANDS_DIR,
-      stale?.etag ? { headers: { "If-None-Match": stale.etag } } : {},
-    );
-    const slugs = entries
-      .filter((entry) => entry.type === "file")
-      .map((entry) => slugFromName(entry.name))
-      .filter((slug): slug is string => Boolean(slug));
-    const files = await Promise.all(slugs.map((slug) => readBrandFile(slug)));
-    const deletedSlugs = await listDeletedBrandSlugs();
-    const brands = files
-      .filter((file): file is BrandFile => file !== null)
-      .filter((file) => !deletedSlugs.has(file.slug))
-      .sort((a, b) => a.slug.localeCompare(b.slug));
-    cacheSet(cacheKey, brands, etag);
-    return brands;
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 304 && stale) {
-      cacheSet(cacheKey, stale.data, stale.etag);
-      return stale.data;
-    }
-    throw error;
-  }
+  const [records, deletedSlugs] = await Promise.all([
+    getConvexClient().query(backendApi.repoDocs.listByPrefix, {
+      tenantId: tenantId(),
+      prefix: BRAND_KIND_PREFIX,
+    }) as Promise<BrandDocRecord[]>,
+    listDeletedBrandSlugs(),
+  ]);
+  return records
+    .map(recordToBrandFile)
+    .filter((file): file is BrandFile => file !== null)
+    .filter((file) => !deletedSlugs.has(file.slug))
+    .sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
 export async function readBrandFile(
   slug: string,
-  octokitOverride?: Octokit,
+  _octokitOverride?: Octokit,
 ): Promise<BrandFile | null> {
   const normalized = normalizeClientBrandSlug(slug);
   if (!isValidBrandSlug(normalized)) return null;
-  const cacheKey = `brand:${getOwner()}:${getRepo()}:${normalized}`;
-  const cached = cacheGet<BrandFile | null>(cacheKey);
-  if (cached !== undefined) return cached;
-
-  const octokit = octokitOverride ?? getOctokit();
-  const stale = cacheEntry<BrandFile | null>(cacheKey);
-  const filePath = brandFilePath(normalized);
-  try {
-    const file = await readStateText(
-      octokit,
-      getOwner(),
-      getRepo(),
-      filePath,
-      stale?.etag ? { headers: { "If-None-Match": stale.etag } } : {},
-    );
-    if (!file) {
-      cacheSet(cacheKey, null);
-      return null;
-    }
-    const brand = parseBrandJson(file.content, normalized);
-    const resolved = {
-      ...brand,
-      source: "repo" as const,
-      sha: file.sha,
-      updatedAt: "",
-      htmlUrl: file.htmlUrl ?? "",
-    };
-    cacheSet(cacheKey, resolved, file.etag);
-    return resolved;
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) {
-      cacheSet(cacheKey, null);
-      return null;
-    }
-    if ((error as { status?: number })?.status === 304 && stale) {
-      cacheSet(cacheKey, stale.data, stale.etag);
-      return stale.data;
-    }
-    throw error;
-  }
+  const record = (await getConvexClient().query(backendApi.repoDocs.get, {
+    tenantId: tenantId(),
+    kind: brandKind(normalized),
+  })) as BrandDocRecord | null;
+  if (!record) return null;
+  return recordToBrandFile(record);
 }
 
 export async function findBrandFileFromList(
@@ -309,7 +214,7 @@ export async function findBrandFileFromList(
 }
 
 export interface WriteBrandOptions {
-  octokit: Octokit;
+  octokit?: Octokit;
   slug: string;
   name: string;
   accent: string;
@@ -327,42 +232,6 @@ export interface WriteBrandOptions {
   message?: string;
 }
 
-function buildFileContent(opts: Omit<WriteBrandOptions, "octokit" | "sha">) {
-  const brand = normalizeBrandInput({
-    slug: opts.slug,
-    name: opts.name,
-    accent: opts.accent,
-    locale: opts.locale,
-    welcomeText: opts.welcomeText,
-    modelId: opts.modelId,
-    agentSlug: opts.agentSlug,
-    auth: opts.auth,
-  });
-  return `${JSON.stringify(brand, null, 2)}\n`;
-}
-
-async function deleteDisabledBrandMarker(
-  octokit: Octokit,
-  slug: string,
-): Promise<void> {
-  const normalized = normalizeClientBrandSlug(slug);
-  const path = deletedBrandPath(normalized);
-  try {
-    const existing = await readStateText(octokit, getOwner(), getRepo(), path);
-    if (!existing) return;
-    await deleteStateFile({
-      octokit,
-      owner: getOwner(),
-      repo: getRepo(),
-      path,
-      message: `chore(brands): re-enable ${normalized}`,
-      sha: existing.sha,
-    });
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status !== 404) throw error;
-  }
-}
-
 export async function writeBrandFile(
   opts: WriteBrandOptions,
 ): Promise<BrandFile> {
@@ -376,68 +245,50 @@ export async function writeBrandFile(
     agentSlug: opts.agentSlug,
     auth: opts.auth,
   });
-  const filePath = brandFilePath(brand.slug);
-  await writeStateText({
-    octokit: opts.octokit,
-    owner: getOwner(),
-    repo: getRepo(),
-    path: filePath,
-    message:
-      opts.message ??
-      `${opts.sha ? "chore" : "feat"}(brands): ${opts.sha ? "update" : "add"} ${brand.slug}`,
-    content: buildFileContent(opts),
-    sha: opts.sha,
+  const updatedAt = new Date().toISOString();
+  const client = getConvexClient();
+  await client.mutation(backendApi.repoDocs.save, {
+    tenantId: tenantId(),
+    kind: brandKind(brand.slug),
+    doc: brand,
+    updatedAt,
   });
-
-  await deleteDisabledBrandMarker(opts.octokit, brand.slug);
-  invalidateLocalBrandCache(brand.slug);
-  invalidateBrandsCache(brand.slug);
-  const refreshed = await readBrandFile(brand.slug, opts.octokit);
-  if (!refreshed) {
-    throw new Error(
-      "writeBrandFile: file was written but could not be re-read",
-    );
-  }
-  return refreshed;
+  // Writing a brand re-enables it.
+  await client.mutation(backendApi.repoDocs.remove, {
+    tenantId: tenantId(),
+    kind: disabledKind(brand.slug),
+  });
+  return {
+    ...brand,
+    source: "repo" as const,
+    sha: "",
+    updatedAt,
+    htmlUrl: "",
+  };
 }
 
 export async function deleteBrandFile(
-  octokit: Octokit,
-  slug: string,
-): Promise<void> {
-  const existing = await readBrandFile(slug, octokit);
-  if (!existing) return;
-  await deleteStateFile({
-    octokit,
-    owner: getOwner(),
-    repo: getRepo(),
-    path: brandFilePath(existing.slug),
-    message: `chore(brands): remove ${existing.slug}`,
-    sha: existing.sha,
-  });
-  invalidateLocalBrandCache(existing.slug);
-  invalidateBrandsCache(existing.slug);
-}
-
-export async function disableBrand(
-  octokit: Octokit,
+  _octokit: Octokit | undefined,
   slug: string,
 ): Promise<void> {
   const normalized = normalizeClientBrandSlug(slug);
   if (!isValidBrandSlug(normalized)) return;
-  const path = deletedBrandPath(normalized);
-  const existing = await readStateText(octokit, getOwner(), getRepo(), path);
-  await writeStateText({
-    octokit,
-    owner: getOwner(),
-    repo: getRepo(),
-    path,
-    message: existing
-      ? `chore(brands): keep ${normalized} disabled`
-      : `chore(brands): disable ${normalized}`,
-    content: `${normalized}\n`,
-    sha: existing?.sha,
+  await getConvexClient().mutation(backendApi.repoDocs.remove, {
+    tenantId: tenantId(),
+    kind: brandKind(normalized),
   });
-  invalidateLocalBrandCache(normalized);
-  invalidateBrandsCache(normalized);
+}
+
+export async function disableBrand(
+  _octokit: Octokit | undefined,
+  slug: string,
+): Promise<void> {
+  const normalized = normalizeClientBrandSlug(slug);
+  if (!isValidBrandSlug(normalized)) return;
+  await getConvexClient().mutation(backendApi.repoDocs.save, {
+    tenantId: tenantId(),
+    kind: disabledKind(normalized),
+    doc: { slug: normalized },
+    updatedAt: new Date().toISOString(),
+  });
 }

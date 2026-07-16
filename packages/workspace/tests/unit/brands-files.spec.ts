@@ -1,75 +1,74 @@
+/**
+ * Unit tests for the Convex-backed brands store (src/brands/files.ts):
+ * repoDocs kinds `brand:<slug>` and `brand-disabled:<slug>`.
+ */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getFunctionName } from "convex/server";
 
-const h = vi.hoisted(() => ({
-  getOctokit: vi.fn(),
-  getOwner: vi.fn(),
-  getRepo: vi.fn(),
-  invalidateBrandsCache: vi.fn(),
-  listStateDirectory: vi.fn(),
-  readStateText: vi.fn(),
-  writeStateText: vi.fn(),
-  deleteStateFile: vi.fn(),
+const convex = vi.hoisted(() => ({
+  query: vi.fn(),
+  mutation: vi.fn(),
+}));
+
+vi.mock("convex/browser", () => ({
+  ConvexHttpClient: class {
+    query = convex.query;
+    mutation = convex.mutation;
+  },
 }));
 
 vi.mock("@kody-ade/workspace/github", () => ({
-  getOctokit: h.getOctokit,
-  getOwner: h.getOwner,
-  getRepo: h.getRepo,
-  invalidateBrandsCache: h.invalidateBrandsCache,
+  getOwner: () => "acme",
+  getRepo: () => "widgets",
+  getOctokit: () => ({}) as never,
 }));
 
-vi.mock("@kody-ade/base/state-repo", () => ({
-  listStateDirectory: h.listStateDirectory,
-  readStateText: h.readStateText,
-  writeStateText: h.writeStateText,
-  deleteStateFile: h.deleteStateFile,
-}));
-
+import { _resetConvexClient } from "@kody-ade/base/backend/convex";
 import {
   disableBrand,
   deleteBrandFile,
   findBrandFileFromList,
+  isBrandDeleted,
   listBrandFiles,
+  listDeletedBrandSlugs,
   readBrandFile,
   writeBrandFile,
 } from "../../src/brands/files";
 
-describe("brand files", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    h.getOctokit.mockReturnValue({ rest: {} });
-    h.getOwner.mockReturnValue("acme");
-    h.getRepo.mockReturnValue("widgets");
-    h.listStateDirectory.mockResolvedValue({
-      entries: [],
-      targetPath: "widgets/brands",
-    });
-    h.readStateText.mockResolvedValue(null);
-    h.writeStateText.mockResolvedValue({
-      sha: "new-sha",
-      path: "widgets/brands/acme.json",
-      htmlUrl: "https://github.test/acme",
-    });
-  });
+const TENANT = "acme/widgets";
 
-  it("lists valid brand json files from the state repo", async () => {
-    h.listStateDirectory.mockResolvedValue({
-      entries: [
-        { name: "listbrand.json", type: "file" },
-        { name: "README.md", type: "file" },
-        { name: "_hidden.json", type: "file" },
-      ],
-    });
-    h.readStateText.mockResolvedValue({
-      content: JSON.stringify({
+function brandRecord(slug: string, doc: Record<string, unknown>) {
+  return { kind: `brand:${slug}`, doc, updatedAt: "2026-07-01T00:00:00.000Z" };
+}
+
+// listBrandFiles issues two listByPrefix queries: "brand:" then "brand-disabled:".
+function mockPrefixQueries(
+  brands: Array<Record<string, unknown>>,
+  disabled: Array<Record<string, unknown>> = [],
+) {
+  convex.query.mockImplementation((_ref, args: { prefix?: string }) => {
+    if (args.prefix === "brand:") return Promise.resolve(brands);
+    if (args.prefix === "brand-disabled:") return Promise.resolve(disabled);
+    return Promise.resolve(null);
+  });
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  _resetConvexClient();
+  process.env.CONVEX_URL = "https://example.convex.cloud";
+});
+
+describe("brand files (convex)", () => {
+  it("lists brands from one listByPrefix query, normalized", async () => {
+    mockPrefixQueries([
+      brandRecord("list-brand", {
         slug: "List Brand",
         name: "List Brand",
         accent: "#2563eb",
         locale: "HE_IL",
       }),
-      sha: "sha",
-      htmlUrl: "https://github.test/acme",
-    });
+    ]);
 
     await expect(listBrandFiles()).resolves.toEqual([
       expect.objectContaining({
@@ -78,56 +77,66 @@ describe("brand files", () => {
         accent: "#2563eb",
         locale: "he-il",
         source: "repo",
+        sha: "",
       }),
     ]);
-  });
-
-  it("uses the cached brand list before probing a random slug", async () => {
-    h.getRepo.mockReturnValue("random-budget");
-    h.listStateDirectory.mockResolvedValue({
-      entries: [],
-      targetPath: "random-budget/brands",
-      etag: "list-etag",
-    });
-
-    await expect(findBrandFileFromList("random-one")).resolves.toBeNull();
-    await expect(findBrandFileFromList("random-two")).resolves.toBeNull();
-
-    expect(h.listStateDirectory).toHaveBeenCalledTimes(2);
-    expect(h.readStateText).not.toHaveBeenCalled();
-  });
-
-  it("rejects invalid brand file content", async () => {
-    h.readStateText.mockResolvedValue({
-      content: JSON.stringify({
-        slug: "invalid",
-        name: "Acme",
-        accent: "blue",
-      }),
-      sha: "sha",
-      htmlUrl: "",
-    });
-
-    await expect(readBrandFile("invalid")).rejects.toThrow(
-      "Invalid brand file",
+    const prefixes = convex.query.mock.calls.map(
+      ([, args]) => (args as { prefix: string }).prefix,
     );
+    expect(prefixes.sort()).toEqual(["brand-disabled:", "brand:"]);
   });
 
-  it("writes normalized brand JSON and invalidates brand cache", async () => {
-    h.readStateText.mockImplementation((_octokit, _owner, _repo, path) => {
-      if (path === "brands/write-brand.disabled") return Promise.resolve(null);
-      return Promise.resolve({
-        content: JSON.stringify({
-          slug: "write-brand",
-          name: "Write Brand",
-          accent: "#2563eb",
-        }),
-        sha: "new-sha",
-        htmlUrl: "https://github.test/writebrand",
-      });
-    });
+  it("skips malformed brand records instead of failing the list", async () => {
+    mockPrefixQueries([
+      brandRecord("bad", { slug: "bad", name: "Bad", accent: "blue" }),
+      brandRecord("good", { slug: "good", name: "Good", accent: "#2563eb" }),
+    ]);
 
-    await writeBrandFile({
+    const brands = await listBrandFiles();
+    expect(brands.map((b) => b.slug)).toEqual(["good"]);
+  });
+
+  it("does not list brands with a disabled marker", async () => {
+    mockPrefixQueries(
+      [brandRecord("acme", { slug: "acme", name: "Acme", accent: "#2563eb" })],
+      [{ kind: "brand-disabled:acme", doc: { slug: "acme" }, updatedAt: "t" }],
+    );
+
+    await expect(listBrandFiles()).resolves.toEqual([]);
+    await expect(listDeletedBrandSlugs()).resolves.toEqual(new Set(["acme"]));
+  });
+
+  it("reads a single brand via repoDocs.get", async () => {
+    convex.query.mockResolvedValue(
+      brandRecord("solo", { slug: "solo", name: "Solo", accent: "#2563eb" }),
+    );
+
+    const brand = await readBrandFile("solo");
+    expect(brand?.slug).toBe("solo");
+    const [ref, args] = convex.query.mock.calls[0]!;
+    expect(getFunctionName(ref)).toBe("repoDocs:get");
+    expect(args).toEqual({ tenantId: TENANT, kind: "brand:solo" });
+  });
+
+  it("returns null for a missing or invalid-slug brand", async () => {
+    convex.query.mockResolvedValue(null);
+    expect(await readBrandFile("missing")).toBeNull();
+    expect(await readBrandFile("__nope__")).toBeNull();
+  });
+
+  it("finds a brand from the list without extra reads", async () => {
+    mockPrefixQueries([]);
+    await expect(findBrandFileFromList("random-one")).resolves.toBeNull();
+    // Only listByPrefix calls — never a per-slug get.
+    for (const [ref] of convex.query.mock.calls) {
+      expect(getFunctionName(ref)).toBe("repoDocs:listByPrefix");
+    }
+  });
+
+  it("writes a normalized brand and clears its disabled marker", async () => {
+    convex.mutation.mockResolvedValue(null);
+
+    const written = await writeBrandFile({
       octokit: { rest: {} } as never,
       slug: " Write Brand ",
       name: " Write Brand ",
@@ -138,81 +147,74 @@ describe("brand files", () => {
       agentSlug: "qa_agent",
     });
 
-    expect(h.writeStateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        owner: "acme",
-        repo: "widgets",
-        path: "brands/write-brand.json",
-        content: `${JSON.stringify(
-          {
-            slug: "write-brand",
-            name: "Write Brand",
-            accent: "#2563eb",
-            locale: "he-il",
-            modelId: "sonnet-4",
-            agentSlug: "qa_agent",
-          },
-          null,
-          2,
-        )}\n`,
-      }),
-    );
-    expect(h.invalidateBrandsCache).toHaveBeenCalledWith("write-brand");
+    expect(written).toMatchObject({
+      slug: "write-brand",
+      name: "Write Brand",
+      accent: "#2563eb",
+      locale: "he-il",
+      modelId: "sonnet-4",
+      source: "repo",
+      sha: "",
+    });
+
+    const [saveRef, saveArgs] = convex.mutation.mock.calls[0]!;
+    expect(getFunctionName(saveRef)).toBe("repoDocs:save");
+    expect(saveArgs).toMatchObject({
+      tenantId: TENANT,
+      kind: "brand:write-brand",
+      doc: expect.objectContaining({ slug: "write-brand", accent: "#2563eb" }),
+    });
+    const [removeRef, removeArgs] = convex.mutation.mock.calls[1]!;
+    expect(getFunctionName(removeRef)).toBe("repoDocs:remove");
+    expect(removeArgs).toEqual({
+      tenantId: TENANT,
+      kind: "brand-disabled:write-brand",
+    });
   });
 
-  it("does not list brands with a repo-level disabled marker", async () => {
-    h.listStateDirectory.mockResolvedValue({
-      entries: [
-        { name: "acme.json", type: "file" },
-        { name: "acme.disabled", type: "file" },
-      ],
-    });
-    h.readStateText.mockResolvedValue({
-      content: JSON.stringify({
-        slug: "acme",
-        name: "Acme",
-        accent: "#2563eb",
+  it("rejects invalid brand input on write", async () => {
+    await expect(
+      writeBrandFile({
+        slug: "bad",
+        name: "Bad",
+        accent: "blue",
       }),
-      sha: "sha",
-      htmlUrl: "https://github.test/acme",
-    });
-
-    await expect(listBrandFiles()).resolves.toEqual([]);
+    ).rejects.toThrow("hex color");
+    expect(convex.mutation).not.toHaveBeenCalled();
   });
 
-  it("deletes an existing brand file", async () => {
-    h.readStateText.mockResolvedValue({
-      content: JSON.stringify({
-        slug: "deletebrand",
-        name: "Delete Brand",
-        accent: "#2563eb",
-      }),
-      sha: "sha",
-      htmlUrl: "",
-    });
+  it("deletes a brand via repoDocs.remove", async () => {
+    convex.mutation.mockResolvedValue(null);
 
     await deleteBrandFile({ rest: {} } as never, "deletebrand");
 
-    expect(h.deleteStateFile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: "brands/deletebrand.json",
-        sha: "sha",
-      }),
-    );
-    expect(h.invalidateBrandsCache).toHaveBeenCalledWith("deletebrand");
+    const [ref, args] = convex.mutation.mock.calls[0]!;
+    expect(getFunctionName(ref)).toBe("repoDocs:remove");
+    expect(args).toEqual({ tenantId: TENANT, kind: "brand:deletebrand" });
   });
 
   it("writes a disabled marker for a deleted fallback brand", async () => {
-    h.readStateText.mockResolvedValue(null);
+    convex.mutation.mockResolvedValue(null);
 
     await disableBrand({ rest: {} } as never, "Acme");
 
-    expect(h.writeStateText).toHaveBeenCalledWith(
-      expect.objectContaining({
-        path: "brands/acme.disabled",
-        content: "acme\n",
-      }),
-    );
-    expect(h.invalidateBrandsCache).toHaveBeenCalledWith("acme");
+    const [ref, args] = convex.mutation.mock.calls[0]!;
+    expect(getFunctionName(ref)).toBe("repoDocs:save");
+    expect(args).toMatchObject({
+      tenantId: TENANT,
+      kind: "brand-disabled:acme",
+      doc: { slug: "acme" },
+    });
+  });
+
+  it("isBrandDeleted checks the marker doc directly", async () => {
+    convex.query.mockResolvedValue({
+      kind: "brand-disabled:acme",
+      doc: { slug: "acme" },
+      updatedAt: "t",
+    });
+    expect(await isBrandDeleted("acme")).toBe(true);
+    convex.query.mockResolvedValue(null);
+    expect(await isBrandDeleted("other")).toBe(false);
   });
 });
