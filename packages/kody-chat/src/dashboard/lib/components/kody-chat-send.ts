@@ -204,7 +204,7 @@ export function settleDecision(
     : { ...abort };
 }
 
-export interface SettleIO {
+interface SettleIO {
   setMessages: (updater: (prev: Message[]) => Message[]) => void;
   setLoading: (loading: boolean) => void;
 }
@@ -265,7 +265,7 @@ function applyBrainFinish(io: SettleIO): void {
  * blank bubble — the user must always get feedback. A trailing tool
  * error with no answer surfaces as the error.
  */
-export function finalizeKodyDirectTurn(params: {
+function finalizeKodyDirectTurn(params: {
   io: SettleIO;
   turn: TransportTurnState;
   assistantDisplayOverride: string | null | void;
@@ -300,17 +300,6 @@ export function finalizeKodyDirectTurn(params: {
         !pendingSwitchAgent &&
         !pendingDashboardNavigate &&
         !pendingView;
-      // Turn ended with narration but no final_answer and no view: surface
-      // the narration as the visible answer (it's all the model said) —
-      // keeping only the true reasoning collapsed.
-      const narrationFallback =
-        !shouldSurfaceToolError &&
-        !answer.trim() &&
-        !pendingView &&
-        turn.narrationBuf.trim()
-          ? (turn.reasoningBuf ? `<think>${turn.reasoningBuf}</think>\n\n` : "") +
-            turn.narrationBuf
-          : null;
       copy[idx] = shouldSurfaceToolError
         ? {
             ...m,
@@ -330,9 +319,7 @@ export function finalizeKodyDirectTurn(params: {
               ...m,
               ...(typeof assistantDisplayOverride === "string"
                 ? { content: assistantDisplayOverride }
-                : narrationFallback
-                  ? { content: narrationFallback }
-                  : {}),
+                : {}),
               isLoading: false,
             };
     }
