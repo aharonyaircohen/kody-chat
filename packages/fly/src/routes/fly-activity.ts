@@ -5,11 +5,11 @@
  *
  * GET /api/kody/fly/activity — per-machine activity history for the connected
  * repo: working time span, uptime %, suspend count, and estimated cost,
- * computed from snapshots we record in the configured Kody state repo.
+ * computed from snapshots we record on the Convex backend (dailyLogs,
+ * stream "flyActivity").
  *
  * Each call opportunistically records a fresh snapshot (throttled to ≥5 min in
- * the store), so simply viewing this view keeps the timeline ticking — no cron,
- * no DB (GitHub-only, per the dashboard's infra rule).
+ * the store), so simply viewing this view keeps the timeline ticking — no cron.
  *
  * Auth: requireKodyAuth. Fly token: the connected repo's vault FLY_API_TOKEN.
  */

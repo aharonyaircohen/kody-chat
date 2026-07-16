@@ -1,7 +1,11 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
 
-const streamValidator = v.union(v.literal("activity"), v.literal("events"))
+const streamValidator = v.union(
+  v.literal("activity"),
+  v.literal("events"),
+  v.literal("flyActivity"),
+)
 
 export const forDate = query({
   args: { tenantId: v.string(), stream: streamValidator, date: v.string() },

@@ -179,7 +179,11 @@ export default defineSchema({
   // Daily append-only streams (activity/<date>.jsonl, events/log/<date>.jsonl).
   dailyLogs: defineTable({
     tenantId: v.string(),
-    stream: v.union(v.literal("activity"), v.literal("events")),
+    stream: v.union(
+      v.literal("activity"),
+      v.literal("events"),
+      v.literal("flyActivity"),
+    ),
     date: v.string(), // YYYY-MM-DD
     seq: v.number(),
     entry: v.any(),
