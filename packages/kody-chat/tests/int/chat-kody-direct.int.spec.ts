@@ -244,12 +244,18 @@ describe("POST /api/kody/chat/kody", () => {
   it("base kody prompt gives direction when useful and bans sycophantic openers", async () => {
     // Regression: model used to close replies with no follow-up and start
     // with "Great question!" / "Sure!". The prompt now asks for direction
-    // on non-trivial replies while still banning sycophantic openers.
+    // on non-trivial replies while still banning sycophantic openers. The
+    // end-of-reply question is conditional, not mandatory, so the model
+    // never pads a reply with filler just to ask something.
     const { loadChatDefaults } =
       await import("../../src/dashboard/lib/chat-defaults");
     const prompt = (await loadChatDefaults("acme", "repo")).agentIdentity;
-    expect(prompt).toMatch(/one direct next-step question/i);
+    // Reply contract: conditional next-step question, not a hard rule.
+    expect(prompt).toMatch(/next-step question only when there is a genuine next step/i);
+    expect(prompt).toContain("otherwise just end");
+    // Mandatory question phrasing was removed — over-asking regression guard.
     expect(prompt).not.toMatch(/This applies to EVERY reply/i);
+    expect(prompt).not.toContain("End non-trivial replies with one direct next-step question");
     for (const banned of [
       "Great question",
       "Sure!",

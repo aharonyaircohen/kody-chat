@@ -159,6 +159,7 @@ export const ChatTerminalSurface = forwardRef<
   const stopRef = useRef<() => Promise<void>>(async () => {});
   const onConnectionStateChangeRef = useRef(onConnectionStateChange);
   const onSessionEndedRef = useRef(onSessionEnded);
+
   const [ready, setReady] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [session, setSession] = useState<TerminalSessionState | null>(null);
@@ -180,25 +181,16 @@ export const ChatTerminalSurface = forwardRef<
     flyReconnectExhaustedRef.current = false;
   }, [chatSessionId, currentTransportKey]);
 
+  // Mirror props into refs so async engine callbacks read live state without
+  // closing over stale renders. One effect covers all five mirrors — each
+  // statement only reads its own prop, so merging is functionally equivalent.
   useEffect(() => {
     sessionRef.current = session;
-  }, [session]);
-
-  useEffect(() => {
     activeRef.current = active;
-  }, [active]);
-
-  useEffect(() => {
     transportRef.current = transport;
-  }, [transport]);
-
-  useEffect(() => {
     onConnectionStateChangeRef.current = onConnectionStateChange;
-  }, [onConnectionStateChange]);
-
-  useEffect(() => {
     onSessionEndedRef.current = onSessionEnded;
-  }, [onSessionEnded]);
+  }, [session, active, transport, onConnectionStateChange, onSessionEnded]);
 
   const notifyConnectionState = useCallback(
     (state: ChatTerminalConnectionState) => {
@@ -285,31 +277,14 @@ export const ChatTerminalSurface = forwardRef<
     null as unknown as FlyConnectionDeps,
   );
   flyDepsRef.current = {
-    chatSessionId,
-    terminalRef,
-    fitAddonRef,
-    transportRef,
-    disposedRef,
-    sessionEndNotifiedRef,
-    flySocketRef,
-    flyConnectionStateRef,
-    flyTargetKeyRef,
-    flyConnectSeqRef,
-    flyConnectInFlightKeyRef,
-    flyConnectFailureKeyRef,
-    flyReconnectTimerRef,
-    flyReconnectNoticeRef,
-    flyReconnectAttemptRef,
-    flyReconnectExhaustedRef,
-    pendingFlyInputAckTimerRef,
-    setFlyConnectionState,
-    notifyConnectionState,
-    setError,
-    setInputSignal,
-    setInputSignalBriefly,
-    appendCapturedOutput,
-    notifyTerminalSessionEnded,
-  };
+    chatSessionId, terminalRef, fitAddonRef, transportRef, disposedRef,
+    sessionEndNotifiedRef, flySocketRef, flyConnectionStateRef, flyTargetKeyRef,
+    flyConnectSeqRef, flyConnectInFlightKeyRef, flyConnectFailureKeyRef,
+    flyReconnectTimerRef, flyReconnectNoticeRef, flyReconnectAttemptRef,
+    flyReconnectExhaustedRef, pendingFlyInputAckTimerRef,
+    setFlyConnectionState, notifyConnectionState, setError, setInputSignal,
+    setInputSignalBriefly, appendCapturedOutput, notifyTerminalSessionEnded,
+  } as FlyConnectionDeps;
 
   const connectFlyTerminal = useCallback(
     (opts?: { force?: boolean; resetSession?: boolean }) =>

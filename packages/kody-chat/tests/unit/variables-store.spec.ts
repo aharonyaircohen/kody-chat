@@ -28,10 +28,6 @@ import {
   type VariablesDocument,
 } from "@kody-ade/base/variables/store";
 
-function fakeOctokit() {
-  return { marker: "octokit" } as never;
-}
-
 const DOC: VariablesDocument = {
   version: 1,
   variables: {

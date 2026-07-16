@@ -20,6 +20,7 @@
  * shared context) is mocked.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { getFunctionName } from "convex/server";
 
 function badError(): Error {
   const e = new Error(
@@ -52,6 +53,14 @@ const badOctokit = {
   rest: { repos: badRepos },
 };
 
+// In-memory Convex backend for repoDocs (kind "instructions"). The
+// instructions/files helper is exercised for real so the octokit-threading
+// is genuinely under test; only the network surface (Convex) is mocked.
+const convexRepoDocs = vi.hoisted(() => {
+  const docs = new Map<string, { doc: unknown; updatedAt: string }>();
+  return { docs };
+});
+
 vi.mock("@dashboard/lib/github-client", () => ({
   getOctokit: vi.fn(() => badOctokit),
   getOwner: vi.fn(() => "acme"),
@@ -76,6 +85,43 @@ vi.mock("@kody-ade/base/github/core", async (importOriginal) => ({
   getOctokit: vi.fn(() => badOctokit),
   getOwner: vi.fn(() => "acme"),
   getRepo: vi.fn(() => "widgets"),
+}));
+
+vi.mock("convex/browser", () => ({
+  ConvexHttpClient: class {
+    query = async (ref: unknown, args: unknown) => {
+      const name = getFunctionName(ref as never);
+      if (name !== "repoDocs:get") {
+        throw new Error(`unexpected query in test: ${name}`);
+      }
+      const { tenantId, kind } = args as {
+        tenantId: string;
+        kind: string;
+      };
+      return convexRepoDocs.docs.get(`${tenantId}::${kind}`) ?? null;
+    };
+    mutation = async (ref: unknown, args: unknown) => {
+      const name = getFunctionName(ref as never);
+      if (name !== "repoDocs:save" && name !== "repoDocs:remove") {
+        throw new Error(`unexpected mutation in test: ${name}`);
+      }
+      const { tenantId, kind } = args as {
+        tenantId: string;
+        kind: string;
+      };
+      const key = `${tenantId}::${kind}`;
+      if (name === "repoDocs:remove") {
+        convexRepoDocs.docs.delete(key);
+        return "id-removed";
+      }
+      const { doc, updatedAt } = args as {
+        doc: unknown;
+        updatedAt: string;
+      };
+      convexRepoDocs.docs.set(key, { doc, updatedAt });
+      return "id-1";
+    };
+  },
 }));
 
 import { applyCompanyBundle } from "@dashboard/lib/company/import";
@@ -196,6 +242,9 @@ const bundle = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  convexRepoDocs.docs.clear();
+  // Backend needs a URL to construct the cached client; the mock ignores it.
+  process.env.CONVEX_URL = "https://test.convex.cloud";
 });
 
 describe("company import survives a cleared/bad request-context octokit", () => {
