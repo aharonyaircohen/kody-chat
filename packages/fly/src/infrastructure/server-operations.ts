@@ -225,6 +225,11 @@ export interface InfrastructureServerOperations {
     machineId: string,
     cfg: ProviderRuntimeConfig,
   ): Promise<void>;
+  stopMachine(
+    appName: string,
+    machineId: string,
+    cfg: ProviderRuntimeConfig,
+  ): Promise<void>;
   hostname(appName: string): string;
   listInventory(
     cfg: ProviderRuntimeConfig,

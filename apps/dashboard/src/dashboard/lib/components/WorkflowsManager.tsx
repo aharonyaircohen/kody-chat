@@ -32,6 +32,7 @@ import { useCapabilities } from "../hooks/useCapabilities";
 import {
   useCreateWorkflowDefinition,
   useRunWorkflowDefinition,
+  useStopWorkflowRun,
   useUpdateWorkflowDefinition,
   useWorkflowDefinitions,
   useWorkflowRunState,
@@ -98,6 +99,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
   const createWorkflow = useCreateWorkflowDefinition();
   const updateWorkflow = useUpdateWorkflowDefinition(editingWorkflow?.id ?? "");
   const runWorkflow = useRunWorkflowDefinition();
+  const stopWorkflow = useStopWorkflowRun();
   const trust = useTrust();
 
   const filtered = useMemo(
@@ -200,6 +202,15 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
                   [selectedWorkflow.id]: run.runId,
                 }));
               }}
+              onResume={async (currentRunId) => {
+                const run = await runWorkflow.mutateAsync({ id: selectedWorkflow.id, mode: "resume", runId: currentRunId });
+                setActiveRunIds((current) => ({ ...current, [selectedWorkflow.id]: run.runId }));
+              }}
+              onRetry={async () => {
+                const run = await runWorkflow.mutateAsync(selectedWorkflow.id);
+                setActiveRunIds((current) => ({ ...current, [selectedWorkflow.id]: run.runId }));
+              }}
+              onStop={(currentRunId) => stopWorkflow.mutateAsync({ workflowId: selectedWorkflow.id, runId: currentRunId })}
               runId={activeRunIds[selectedWorkflow.id]}
               onTrustLevelChange={async (level) => {
                 if (!selectedWorkflowSubject) return;
@@ -212,6 +223,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
                 runWorkflow.isPending &&
                 runWorkflow.variables === selectedWorkflow.id
               }
+              stopPending={stopWorkflow.isPending}
               onEdit={() => setEditingWorkflow(selectedWorkflow)}
             />
           ) : (
@@ -334,9 +346,13 @@ function WorkflowDetail({
   trustPending,
   onBack,
   onRun,
+  onResume,
+  onRetry,
+  onStop,
   runId,
   onTrustLevelChange,
   runPending,
+  stopPending,
   onEdit,
 }: {
   workflow: WorkflowDefinitionRecord;
@@ -344,9 +360,13 @@ function WorkflowDetail({
   trustPending: boolean;
   onBack: () => void;
   onRun: () => void | Promise<void>;
+  onResume: (runId: string) => void | Promise<void>;
+  onRetry: () => void | Promise<void>;
+  onStop: (runId: string) => void | Promise<void>;
   runId?: string;
   onTrustLevelChange: (level: TrustLevel) => void | Promise<void>;
   runPending: boolean;
+  stopPending: boolean;
   onEdit: () => void;
 }) {
   const storeBacked = workflow.source === "store" || workflow.readOnly === true;
@@ -356,6 +376,7 @@ function WorkflowDetail({
     [workflow.workflow],
   );
   const { data: latestRun } = useWorkflowRunState(workflow.id, runId);
+  const latestRunId = latestRun?.runId;
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-5 px-4 py-5 md:px-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -369,6 +390,23 @@ function WorkflowDetail({
             <ArrowLeft className="h-4 w-4" />
             Back
           </Button>
+          {latestRun?.state.status === "running" && latestRunId ? (
+            latestRun.runner?.kind === "fly" ? (
+              <Button variant="destructive" size="sm" onClick={() => void onStop(latestRunId)} disabled={stopPending}>
+                Stop
+              </Button>
+            ) : (
+              <span className="text-xs text-muted-foreground" title="Shared runners cannot be stopped safely.">
+                Stop unavailable on shared runner
+              </span>
+            )
+          ) : null}
+          {latestRun && latestRun.state.status !== "running" && latestRun.state.status !== "done" ? (
+            <>
+              <Button variant="outline" size="sm" onClick={() => void onResume(latestRunId!)} disabled={runPending}>Resume</Button>
+              <Button variant="outline" size="sm" onClick={() => void onRetry()} disabled={runPending}>Retry</Button>
+            </>
+          ) : null}
           <div className="flex min-w-0 items-center gap-2">
             <Workflow className="h-5 w-5 shrink-0 text-cyan-300" />
             <h2 className="truncate text-xl font-semibold text-foreground">

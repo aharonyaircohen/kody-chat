@@ -79,6 +79,7 @@ export const workflowDefinitionsApi = {
 
   run: async (
     id: string,
+    options?: { mode?: "resume"; runId?: string },
   ): Promise<{
     ok: boolean;
     workflowId: string;
@@ -92,6 +93,7 @@ export const workflowDefinitionsApi = {
       {
         method: "POST",
         headers: buildHeaders(),
+        ...(options ? { body: JSON.stringify(options) } : {}),
       },
     );
     return handleResponse(res);

@@ -109,6 +109,9 @@ export const flyServerProvider: FlyServerProvider &
   startMachine(appName, machineId, cfg) {
     return machineClientOps.startMachine(appName, machineId, cfg);
   },
+  stopMachine(appName, machineId, cfg) {
+    return machineClientOps.stopMachine(appName, machineId, cfg);
+  },
   hostname(appName) {
     return machineClientOps.flyHostname(appName);
   },

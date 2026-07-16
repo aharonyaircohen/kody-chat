@@ -15,6 +15,7 @@ import {
   NoTokenError,
   SessionExpiredError,
 } from "../api";
+import { stopWorkflowRun } from "../api/workflow-run-controls";
 import type {
   CreateWorkflowDefinitionInput,
   UpdateWorkflowDefinitionInput,
@@ -158,9 +159,11 @@ export function useRunWorkflowDefinition() {
       action: string;
     },
     Error,
-    string
+    string | { id: string; mode?: "resume"; runId?: string }
   >({
-    mutationFn: (id) => kodyApi.workflowDefinitions.run(id),
+    mutationFn: (input) => typeof input === "string"
+      ? kodyApi.workflowDefinitions.run(input)
+      : kodyApi.workflowDefinitions.run(input.id, { mode: input.mode, runId: input.runId }),
     onSuccess: (data) => {
       toast.success("Workflow started", {
         description: `Run ${data.runId} dispatched on ${data.ref}.`,
@@ -171,6 +174,18 @@ export function useRunWorkflowDefinition() {
         description: error.message,
       });
     },
+  });
+}
+
+export function useStopWorkflowRun() {
+  const queryClient = useQueryClient();
+  return useMutation<void, Error, { workflowId: string; runId: string }>({
+    mutationFn: ({ workflowId, runId }) => stopWorkflowRun(workflowId, runId),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: workflowDefinitionQueryKeys.run(variables.workflowId, variables.runId) });
+      toast.success("Workflow stopped");
+    },
+    onError: (error) => toast.error("Failed to stop workflow", { description: error.message }),
   });
 }
 

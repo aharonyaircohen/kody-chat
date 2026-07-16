@@ -15,6 +15,7 @@ export interface WorkflowRunStateRecord {
   workflowId: string;
   runId: string;
   state: WorkflowRunState;
+  runner?: { kind: "pool" | "fly"; machineId: string };
 }
 
 export function normalizeWorkflowRunState(

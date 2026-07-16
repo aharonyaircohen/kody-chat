@@ -1,6 +1,6 @@
 import { mutation, query } from "./_generated/server"
 import { v } from "convex/values"
-import { workflowRunStateValidator } from "./validators"
+import { workflowRunStateValidator, workflowRunnerValidator } from "./validators"
 
 export const list = query({
   args: { tenantId: v.string(), workflowId: v.string() },
@@ -30,6 +30,7 @@ export const save = mutation({
     workflowId: v.string(),
     runId: v.string(),
     state: workflowRunStateValidator,
+    runner: v.optional(workflowRunnerValidator),
     updatedAt: v.string(),
   },
   handler: async (ctx, args) => {
@@ -40,7 +41,11 @@ export const save = mutation({
       )
       .unique()
     if (existing) {
-      await ctx.db.patch(existing._id, { state: args.state, updatedAt: args.updatedAt })
+      await ctx.db.patch(existing._id, {
+        state: args.state,
+        ...(args.runner ? { runner: args.runner } : {}),
+        updatedAt: args.updatedAt,
+      })
       return existing._id
     }
     return await ctx.db.insert("workflowRuns", args)

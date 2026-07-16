@@ -33,6 +33,7 @@ import {
   readCompanyStoreWorkflowDefinitionFile,
   readWorkflowDefinitionFile,
 } from "@dashboard/lib/workflow-definition-files";
+import { recordWorkflowRunRunner } from "@dashboard/lib/workflow-run-state-files";
 
 function activeStringSet(values: string[] | undefined): Set<string> {
   return new Set(
@@ -83,6 +84,13 @@ export async function POST(
     headerAuth.storeRef,
   );
   try {
+    let requestedRunId: string | undefined;
+    try {
+      const body = await req.json();
+      if (body?.mode === "resume" && typeof body.runId === "string") requestedRunId = body.runId;
+    } catch {
+      // Empty request body is the normal new-run path.
+    }
     const octokit = await getUserOctokit(req);
     if (!octokit) {
       return NextResponse.json(
@@ -140,7 +148,9 @@ export async function POST(
       );
     }
 
-    const runId = newWorkflowRunId();
+    const runId = requestedRunId && /^run-[a-z0-9]+$/.test(requestedRunId)
+      ? requestedRunId
+      : newWorkflowRunId();
     const run = await runScheduledKodyOnRunner(req, {
       taskId: `company-workflow-${id}-${runId}`,
       runRequest: withStoreTarget(workflowRunRequest(id, runId), headerAuth),
@@ -153,6 +163,17 @@ export async function POST(
         },
         { status: run.status },
       );
+    }
+    try {
+      await recordWorkflowRunRunner(
+        headerAuth.owner,
+        headerAuth.repo,
+        id,
+        runId,
+        { kind: run.runner, machineId: run.machineId },
+      );
+    } catch (trackingError) {
+      console.warn("[company-workflows/run] runner tracking unavailable", trackingError);
     }
 
     recordAudit(req, {

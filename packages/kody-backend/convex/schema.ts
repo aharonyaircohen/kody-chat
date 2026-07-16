@@ -7,6 +7,7 @@ import {
   macroValidator,
   workflowDefinitionValidator,
   workflowRunStateValidator,
+  workflowRunnerValidator,
 } from "./validators"
 
 // Every table is partitioned by `tenantId` ("owner/name" of the connected consumer
@@ -27,6 +28,7 @@ export default defineSchema({
     workflowId: v.string(),
     runId: v.string(),
     state: workflowRunStateValidator,
+    runner: v.optional(workflowRunnerValidator),
     updatedAt: v.string(),
   })
     .index("by_run", ["tenantId", "workflowId", "runId"])

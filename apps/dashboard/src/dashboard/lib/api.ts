@@ -11,6 +11,7 @@ export * from "./api/tasks";
 export * from "./api/prs";
 export * from "./api/repo";
 export * from "./api/workflow-definitions";
+export * from "./api/workflow-run-controls";
 export * from "./api/remote";
 export * from "./api/capabilities";
 export * from "./api/agents";

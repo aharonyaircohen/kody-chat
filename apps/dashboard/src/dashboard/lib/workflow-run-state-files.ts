@@ -32,6 +32,7 @@ function assertIds(workflowId: string, runId?: string): void {
 interface WorkflowRunDoc {
   runId: string;
   state: unknown;
+  runner?: { kind: "pool" | "fly"; machineId: string };
 }
 
 export async function readWorkflowRunStateFile(
@@ -49,7 +50,9 @@ export async function readWorkflowRunStateFile(
   })) as WorkflowRunDoc | null;
   if (!doc) return null;
   const state = normalizeWorkflowRunState(doc.state);
-  return state ? { workflowId, runId, state } : null;
+  return state
+    ? { workflowId, runId, state, ...(doc.runner ? { runner: doc.runner } : {}) }
+    : null;
 }
 
 export async function readLatestWorkflowRunStateFile(
@@ -71,5 +74,26 @@ export async function readLatestWorkflowRunStateFile(
   if (!latest) return null;
   const doc = docs.find((d) => d.runId === latest);
   const state = doc ? normalizeWorkflowRunState(doc.state) : null;
-  return state ? { workflowId, runId: latest, state } : null;
+  return state
+    ? { workflowId, runId: latest, state, ...(doc?.runner ? { runner: doc.runner } : {}) }
+    : null;
+}
+
+export async function recordWorkflowRunRunner(
+  owner: string,
+  repo: string,
+  workflowId: string,
+  runId: string,
+  runner: { kind: "pool" | "fly"; machineId: string },
+): Promise<void> {
+  assertIds(workflowId, runId);
+  const existing = await getConvexClient().query(backendApi.workflowRuns.get, {
+    tenantId: tenantIdFor(owner, repo), workflowId, runId,
+  }) as WorkflowRunDoc | null;
+  await getConvexClient().mutation(backendApi.workflowRuns.save, {
+    tenantId: tenantIdFor(owner, repo), workflowId, runId,
+    state: existing?.state ?? { status: "running", completedStepIds: [], transitionCounts: {}, facts: {}, evidence: {}, artifacts: [] },
+    runner,
+    updatedAt: new Date().toISOString(),
+  });
 }
