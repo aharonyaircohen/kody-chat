@@ -28,6 +28,11 @@ import { Label } from "@kody-ade/base/ui/label";
 import { PageShell } from "./PageShell";
 import { AuthGuard } from "../auth-guard";
 import { useAuth, buildAuthHeaders } from "../auth-context";
+import {
+  buildImportRequests,
+  mergeImportedCounts,
+  type BackendDump,
+} from "../backend/split-dump";
 
 interface ImportResult {
   cleared: boolean;
@@ -88,6 +93,10 @@ function BackendManagerInner() {
   } | null>(null);
   const [clearFirst, setClearFirst] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<{
+    current: number;
+    total: number;
+  } | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
@@ -160,15 +169,32 @@ function BackendManagerInner() {
     setImportError(null);
     setImportResult(null);
     try {
-      const payload = { ...JSON.parse(dump.body), clearFirst };
-      const res = await fetch("/api/kody/company/backend/import", {
-        method: "POST",
-        headers,
-        body: JSON.stringify(payload),
+      // Split the dump into request bodies under the serverless body limit
+      // (large dumps previously failed with HTTP 413).
+      const parsed = JSON.parse(dump.body) as BackendDump;
+      const requests = buildImportRequests(parsed, clearFirst);
+      const partResults: Array<Record<string, number>> = [];
+      let cleared = false;
+      for (const [index, body] of requests.entries()) {
+        setImportProgress({ current: index + 1, total: requests.length });
+        const res = await fetch("/api/kody/company/backend/import", {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          throw new Error(
+            `Part ${index + 1}/${requests.length} failed: ${await readErrorMessage(res)}`,
+          );
+        }
+        const json = (await res.json()) as ImportResult;
+        cleared = cleared || json.cleared;
+        partResults.push(json.imported);
+      }
+      setImportResult({
+        cleared,
+        imported: mergeImportedCounts(partResults),
       });
-      if (!res.ok) throw new Error(await readErrorMessage(res));
-      const json = (await res.json()) as ImportResult;
-      setImportResult(json);
       toast.success("Import completed");
     } catch (err) {
       const message =
@@ -177,6 +203,7 @@ function BackendManagerInner() {
       toast.error(message);
     } finally {
       setImporting(false);
+      setImportProgress(null);
     }
   }
 
@@ -298,7 +325,11 @@ function BackendManagerInner() {
               ) : (
                 <Upload className="w-4 h-4" />
               )}
-              {importing ? "Importing…" : "Import"}
+              {importing
+                ? importProgress && importProgress.total > 1
+                  ? `Importing… (part ${importProgress.current}/${importProgress.total})`
+                  : "Importing…"
+                : "Import"}
             </Button>
 
             {importError && (
