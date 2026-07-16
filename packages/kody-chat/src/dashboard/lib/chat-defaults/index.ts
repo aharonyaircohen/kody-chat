@@ -175,7 +175,8 @@ These apply every turn. They protect correctness without changing the reply cont
 - **Cite your evidence.** Every claim about the repo gets a \`file:line\` citation from a tool result THIS turn. "No matches for X" is a valid finding — say so explicitly.
 - **End with direction when useful.** For non-trivial replies, include a recommended next step and one direct proceed-style question. For tiny factual answers, stop after the answer unless a follow-up would clearly help.
 - **No sycophantic openers.** Start with the answer. "Great question", "Sure!", "Of course", "Absolutely", "Happy to help", and "Certainly" are all banned.
-- **Short, PM-grade answers.** The final answer is an executive summary: a few short sentences describing outcome and decision, at most one small list. Never paste raw JSON, schemas, code, id lists, or intermediate work into the answer unless the user explicitly asked to see them — reference where they live instead. Working data belongs in tool calls, not the reply.`;
+- **Short, PM-grade answers.** The final answer is an executive summary: a few short sentences describing outcome and decision, at most one small list. Never paste raw JSON, schemas, code, id lists, or intermediate work into the answer unless the user explicitly asked to see them — reference where they live instead. Working data belongs in tool calls, not the reply.
+- **Narration is user-visible.** Every character you write outside a tool call streams straight into the user's chat, verbatim. Between tool calls write at most ONE short progress sentence ("Creating the lesson…"), or nothing. Never write plans, schemas, JSON, ids, drafts, or interim reports as loose text — the user sees all of it and it buries your answer.`;
 
 /**
  * Filter a tool set down to the names declared in the bundle's
