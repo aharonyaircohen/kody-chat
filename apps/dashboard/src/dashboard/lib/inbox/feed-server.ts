@@ -1,125 +1,40 @@
-/**
- * @fileType utility
- * @domain kody
- * @pattern inbox-feed-cas
- * @ai-summary Server-only read/append over the inbox-feed manifest issue.
- *   The read → mutate → write → verify cycle (in-process per-repo mutex +
- *   retry) now lives in the shared `manifest-store` core; this file is just
- *   the inbox-feed config plus the original public API.
- *
- *   `appendInboxFeed` keeps its bespoke semantics (dedupe-by-id against the
- *   *fresh* read each attempt, FIFO sort by `sentAt`, cap at
- *   INBOX_FEED_MAX_ENTRIES, return the count actually added) by expressing
- *   them as the core's mutator: nothing new → noop with result 0; otherwise
- *   write the capped+sorted list and report `fresh.length`. `readInboxFeed`
- *   uses the cached (ETag/304) read — same as before.
- */
-import {
-  createManifestStore,
-  type ManifestMutationOutcome,
-} from "../manifest-store";
-import {
-  EMPTY_INBOX_FEED_MANIFEST,
-  INBOX_FEED_LABEL,
-  INBOX_FEED_ISSUE_TITLE,
-  capFeedEntries,
-  ctoFeedKey,
-  parseInboxFeedBody,
-  serializeInboxFeedBody,
-  type InboxFeedEntry,
-  type InboxFeedManifest,
-} from "./feed";
+import "server-only";
+import { backendApi, getConvexClient, tenantIdFor } from "../backend/convex-backend";
+import { capFeedEntries, type InboxFeedEntry, type InboxFeedManifest } from "./feed";
+import type { InboxEntry } from "./types";
 
-function manifestsEqual(a: InboxFeedManifest, b: InboxFeedManifest): boolean {
-  if (a.entries.length !== b.entries.length) return false;
-  for (let i = 0; i < a.entries.length; i++) {
-    if (a.entries[i].id !== b.entries[i].id) return false;
-  }
-  return true;
+function tenantFromEntries(entries: InboxFeedEntry[]): string {
+  const repo = entries[0]?.repoFullName;
+  if (!repo || !/^[^/\s]+\/[^/\s]+$/.test(repo)) throw new Error("Inbox feed entries require repoFullName");
+  return tenantIdFor(...repo.split("/") as [string, string]);
 }
 
-const store = createManifestStore<InboxFeedManifest>({
-  label: INBOX_FEED_LABEL,
-  title: INBOX_FEED_ISSUE_TITLE,
-  name: "inbox-feed",
-  lockPrefix: "inbox-feed:",
-  parse: parseInboxFeedBody,
-  serialize: serializeInboxFeedBody,
-  empty: () => ({ ...EMPTY_INBOX_FEED_MANIFEST, entries: [] }),
-  equals: manifestsEqual,
-});
-
-/**
- * Read the current feed. Cached path is fine for the API read; the append
- * path always reads fresh inside the CAS loop.
- */
-export function readInboxFeed(): Promise<InboxFeedManifest> {
-  return store.readCached();
+function toInboxEntry(entry: InboxFeedEntry): InboxEntry {
+  return { ...entry, readAt: null };
 }
 
-/**
- * Append entries to the feed, deduping by `id` and FIFO-capping at
- * INBOX_FEED_MAX_ENTRIES. Best-effort: callers (webhook) must not let a
- * feed-write failure break delivery — wrap in try/catch and swallow.
- * Returns the number of entries actually added (0 if all were duplicates).
- */
-export async function appendInboxFeed(
-  incoming: InboxFeedEntry[],
-  maxAttempts = 3,
-): Promise<number> {
+export async function readInboxFeed(): Promise<InboxFeedManifest> {
+  throw new Error("readInboxFeed requires a tenant-specific inbox read");
+}
+
+export async function readInboxFeedForTenant(owner: string, repo: string): Promise<InboxFeedManifest> {
+  const rows = await getConvexClient().query(backendApi.inbox.listByTenant, { tenantId: tenantIdFor(owner, repo) });
+  return { version: 1, entries: (rows as Array<{ login: string; entry: Omit<InboxFeedEntry, "login"> }>).map((row) => ({ ...row.entry, login: row.login })) };
+}
+
+export async function appendInboxFeed(incoming: InboxFeedEntry[]): Promise<number> {
   if (incoming.length === 0) return 0;
-
-  const outcome:
-    | ManifestMutationOutcome<InboxFeedManifest, number>
-    | { kind: "noop"; result: number } = await store.mutate<number>(
-    (current) => {
-      const seen = new Set(current.entries.map((e) => e.id));
-      let fresh = incoming.filter((e) => !seen.has(e.id));
-      if (fresh.length === 0) return { kind: "noop", result: 0 };
-
-      // Collapse repeated CTO recommendations: within this batch keep only
-      // the newest per (user, repo, task, action), and have those supersede
-      // any matching older row already in the feed. Without this, every CTO
-      // re-post is a new comment URL → a new entry → hundreds of rows.
-      const freshByKey = new Map<string, InboxFeedEntry>();
-      const freshNonCto: InboxFeedEntry[] = [];
-      for (const e of fresh) {
-        const k = ctoFeedKey(e);
-        if (k === null) {
-          freshNonCto.push(e);
-          continue;
-        }
-        const prev = freshByKey.get(k);
-        if (
-          !prev ||
-          new Date(e.sentAt).getTime() > new Date(prev.sentAt).getTime()
-        ) {
-          freshByKey.set(k, e);
-        }
-      }
-      fresh = [...freshNonCto, ...freshByKey.values()];
-
-      const supersededKeys = new Set(freshByKey.keys());
-      const retained =
-        supersededKeys.size === 0
-          ? current.entries
-          : current.entries.filter((e) => {
-              const k = ctoFeedKey(e);
-              return k === null || !supersededKeys.has(k);
-            });
-
-      const all = [...fresh, ...retained];
-      all.sort(
-        (a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime(),
-      );
-      const next: InboxFeedManifest = {
-        version: 1,
-        entries: capFeedEntries(all),
-      };
-      return { next, result: fresh.length };
-    },
-    { maxAttempts },
-  );
-
-  return outcome.result;
+  const tenantId = tenantFromEntries(incoming);
+  const existing = await getConvexClient().query(backendApi.inbox.listByTenant, { tenantId });
+  const seen = new Set((existing as Array<{ entry: InboxEntry }>).map((row) => row.entry.id));
+  const batchSeen = new Set<string>();
+  const fresh = incoming.filter((entry) => {
+    if (seen.has(entry.id) || batchSeen.has(entry.id)) return false;
+    batchSeen.add(entry.id);
+    return true;
+  });
+  await Promise.all(fresh.map((entry) => getConvexClient().mutation(backendApi.inbox.upsert, {
+    tenantId, login: entry.login.toLowerCase(), entryId: entry.id, entry: toInboxEntry(entry), sentAt: entry.sentAt,
+  })));
+  return fresh.length;
 }

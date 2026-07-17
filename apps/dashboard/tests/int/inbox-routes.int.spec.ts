@@ -37,7 +37,7 @@ vi.mock("@dashboard/lib/inbox/convex-store", () => ({
 }));
 
 vi.mock("@dashboard/lib/inbox/feed-server", () => ({
-  readInboxFeed: (...a: unknown[]) => mocks.readInboxFeed(...(a as [])),
+  readInboxFeedForTenant: (...a: unknown[]) => mocks.readInboxFeed(...(a as [])),
 }));
 
 vi.mock("@dashboard/lib/github-client", () => ({

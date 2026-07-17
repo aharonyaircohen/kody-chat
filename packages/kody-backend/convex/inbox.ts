@@ -13,6 +13,12 @@ export const list = query({
   },
 })
 
+export const listByTenant = query({
+  args: { tenantId: v.string() },
+  handler: async (ctx, { tenantId }) =>
+    await ctx.db.query("inboxEntries").withIndex("by_login", (q) => q.eq("tenantId", tenantId)).collect(),
+})
+
 export const upsert = mutation({
   args: {
     tenantId: v.string(),
