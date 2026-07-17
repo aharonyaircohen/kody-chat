@@ -6,20 +6,13 @@
  * GET /api/kody/chat/history?taskId=xxx
  *
  * Fetches the chat session history from the Convex transcript record
- * (chatSessions/chatTurns — dual-written by interactive-session.ts and the
- * trigger route). Sessions that predate the Convex migration fall back to
- * the state repo's `sessions/<id>.jsonl` file.
+ * (chatSessions/chatTurns).
  * Used when reopening a task's chat to restore full conversation context.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import {
-  requireKodyAuth,
-  getUserOctokit,
-  getRequestAuth,
-} from "@kody-ade/base/auth";
+import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
 import { logger } from "@kody-ade/base/logger";
-import { readStateText } from "@kody-ade/base/state-repo";
 import {
   backendApi,
   getConvexClient,
@@ -74,38 +67,6 @@ async function readConvexMessages(
     .filter(isChatMessage);
 }
 
-async function readStateRepoMessages(
-  req: NextRequest,
-  owner: string,
-  repo: string,
-  taskId: string,
-): Promise<ChatMessage[] | NextResponse> {
-  const octokit = await getUserOctokit(req);
-  if (!octokit) {
-    return NextResponse.json(
-      { error: "No GitHub token available" },
-      { status: 503 },
-    );
-  }
-  const file = await readStateText(
-    octokit,
-    owner,
-    repo,
-    `sessions/${taskId}.jsonl`,
-  );
-  if (!file) return [];
-
-  const messages: ChatMessage[] = [];
-  for (const line of file.content.trim().split("\n").filter(Boolean)) {
-    try {
-      messages.push(JSON.parse(line) as ChatMessage);
-    } catch {
-      // Skip malformed lines
-    }
-  }
-  return messages;
-}
-
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
@@ -122,10 +83,7 @@ export async function GET(req: NextRequest) {
     if (convexMessages !== null) {
       return NextResponse.json({ messages: convexMessages });
     }
-    // Pre-migration sessions live only in the state repo.
-    const fallback = await readStateRepoMessages(req, owner, repo, taskId);
-    if (fallback instanceof NextResponse) return fallback;
-    return NextResponse.json({ messages: fallback });
+    return NextResponse.json({ messages: [] });
   } catch (err: unknown) {
     const e = err as { status?: number };
     if (e.status === 404) {

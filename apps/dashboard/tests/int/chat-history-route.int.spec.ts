@@ -1,6 +1,6 @@
 /**
  * @fileoverview Integration coverage for the chat history route
- *   (Convex transcript first, state-repo JSONL fallback).
+ *   (Convex transcript only).
  * @testFramework vitest
  * @domain chat
  */
@@ -14,19 +14,13 @@ const auth = vi.hoisted(() => ({
     repo: "widgets",
     token: "ghp_test",
   })),
-  getUserOctokit: vi.fn(async () => ({}) as unknown),
 }));
 
 const convex = vi.hoisted(() => ({
   query: vi.fn(),
 }));
 
-const stateRepo = vi.hoisted(() => ({
-  readStateText: vi.fn(),
-}));
-
 vi.mock("@kody-ade/base/auth", () => auth);
-vi.mock("@kody-ade/base/state-repo", () => stateRepo);
 vi.mock("@dashboard/lib/backend/convex-backend", () => ({
   getConvexClient: () => convex,
   backendApi: { chatTurns: { list: "chatTurns.list" } },
@@ -47,9 +41,7 @@ beforeEach(() => {
     repo: "widgets",
     token: "ghp_test",
   });
-  auth.getUserOctokit.mockResolvedValue({});
   convex.query.mockResolvedValue([]);
-  stateRepo.readStateText.mockResolvedValue(null);
 });
 
 describe("GET /api/kody/chat/history", () => {
@@ -75,7 +67,7 @@ describe("GET /api/kody/chat/history", () => {
       tenantId: "acme/widgets",
       sessionId: "task-1",
     });
-    expect(stateRepo.readStateText).not.toHaveBeenCalled();
+    expect(convex.query).toHaveBeenCalledTimes(1);
   });
 
   it("requires a taskId", async () => {
@@ -86,52 +78,11 @@ describe("GET /api/kody/chat/history", () => {
     expect(convex.query).not.toHaveBeenCalled();
   });
 
-  it("falls back to the state-repo JSONL file for pre-migration sessions", async () => {
-    stateRepo.readStateText.mockResolvedValue({
-      content: [
-        JSON.stringify({ role: "user", content: "old msg", timestamp: "t1" }),
-        "not-json",
-        JSON.stringify({
-          role: "assistant",
-          content: "old reply",
-          timestamp: "t2",
-        }),
-      ].join("\n"),
-    });
-
-    const res = await GET(makeReq("taskId=legacy-1"));
-
-    expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({
-      messages: [
-        { role: "user", content: "old msg", timestamp: "t1" },
-        { role: "assistant", content: "old reply", timestamp: "t2" },
-      ],
-    });
-    expect(stateRepo.readStateText).toHaveBeenCalledWith(
-      expect.anything(),
-      "acme",
-      "widgets",
-      "sessions/legacy-1.jsonl",
-    );
-  });
-
-  it("returns empty messages when neither store has the session", async () => {
+  it("returns empty messages when Convex has no session", async () => {
     const res = await GET(makeReq("taskId=missing-1"));
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ messages: [] });
-  });
-
-  it("returns 503 when the fallback has no GitHub token", async () => {
-    auth.getUserOctokit.mockResolvedValue(null as never);
-
-    const res = await GET(makeReq("taskId=legacy-1"));
-
-    expect(res.status).toBe(503);
-    await expect(res.json()).resolves.toEqual({
-      error: "No GitHub token available",
-    });
   });
 
   it("maps 404 fetch failures to an empty history", async () => {
