@@ -2,11 +2,8 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern goals-api
- * @ai-summary Reorder goals — POST accepts an ordered list of goal IDs and
- *   rewrites the manifest with goals in that order. Goals not present in the
- *   payload are appended at the end (preserving their existing relative order).
- *   Goes through `mutateGoalsManifest` so concurrent goal mutations can't
- *   silently overwrite each other (per-instance mutex + verify-after-write).
+ * @ai-summary Reorder goals — POST persists goal positions in Convex. Goals
+ *   omitted from the payload retain their relative order.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";

@@ -2,10 +2,8 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern goals-api
- * @ai-summary Goal detail API — PATCH updates goal metadata; DELETE removes the
- *   goal from the manifest. Backed by a single manifest issue. Writes go
- *   through `mutateGoalsManifest` so concurrent goal mutations can't silently
- *   overwrite each other (per-instance mutex + verify-after-write retry).
+ * @ai-summary Goal detail API — PATCH and DELETE update Convex goal metadata;
+ *   GitHub discussions are updated or closed when present.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";

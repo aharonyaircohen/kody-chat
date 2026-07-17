@@ -2,11 +2,8 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern goals-api
- * @ai-summary Goals API — GET lists goals from the manifest issue; POST creates
- *   a goal (creating the manifest issue on first use). Goals are JSON entries
- *   inside a single GitHub issue labelled `kody:goals-manifest`. Writes go
- *   through `mutateGoalsManifest` so concurrent goal mutations can't silently
- *   overwrite each other (per-instance mutex + verify-after-write retry).
+ * @ai-summary Goals API — goal metadata is stored in Convex. GitHub is used
+ *   only for optional discussion threads and execution labels.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
@@ -18,7 +15,6 @@ import {
   getRequestAuth,
 } from "@kody-ade/base/auth";
 import {
-  fetchIssues,
   ensureLabel,
   setGitHubContext,
   clearGitHubContext,
@@ -29,54 +25,16 @@ import {
   getRepo,
 } from "../github";
 import {
-  EMPTY_MANIFEST,
-  GOALS_MANIFEST_LABEL,
   goalLabel,
-  parseManifestBody,
   slugifyGoalName,
   uniqueGoalId,
   goalDiscussionSeedBody,
   type Goal,
-  type GoalsManifest,
 } from "../goals";
-import { mutateGoalsManifest } from "../goals-server";
 import { recordAudit } from "@kody-ade/base/activity/audit";
 import { listGoals, saveGoal, type StoredGoal } from "../backend/goals-state";
 
 const GOAL_LABEL_COLOR = "38bdf8"; // Tailwind sky-400
-
-type ManifestIssueRef = { number: number; body: string };
-
-async function findManifestIssue(): Promise<ManifestIssueRef | null> {
-  // Short TTL keeps cross-instance staleness bounded. Post-TTL revalidation
-  // returns 304 (free) via the cached ETag when nothing changed; on writes,
-  // the route invalidates this instance's cache directly.
-  // NOTE: `fetchIssues` already returns the full body for list items, so we
-  // intentionally do NOT make a follow-up `fetchIssue` call here — that
-  // doubled GitHub REST cost on every poll and was a rate-limit hot spot.
-  const issues = await fetchIssues({
-    state: "open",
-    labels: GOALS_MANIFEST_LABEL,
-    perPage: 5,
-    ttl: 15_000,
-  });
-  if (!issues.length) return null;
-  // If multiple exist, prefer the earliest created (stable anchor).
-  const sorted = [...issues].sort((a, b) => a.number - b.number);
-  const first = sorted[0];
-  return { number: first.number, body: first.body ?? "" };
-}
-
-async function readManifest(): Promise<{
-  manifest: GoalsManifest;
-  issue: ManifestIssueRef | null;
-}> {
-  const issue = await findManifestIssue();
-  const manifest = issue
-    ? parseManifestBody(issue.body)
-    : { ...EMPTY_MANIFEST, goals: [] };
-  return { manifest, issue };
-}
 
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
