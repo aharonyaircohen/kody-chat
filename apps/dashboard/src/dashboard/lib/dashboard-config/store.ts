@@ -1,11 +1,12 @@
 /**
  * @fileType utility
  * @domain dashboard-config
- * @pattern state-repo
- * @ai-summary Read/write per-repo plain-JSON dashboard config at
- * `dashboard.json` in the configured Kody state repo. Mirrors vault
- * store pattern (cache + in-flight dedup + 60s TTL) without crypto; this
- * file is not secret. Currently holds preview and dashboard preferences.
+ * @pattern convex-backend
+ * @ai-summary Read/write the per-repo dashboard config doc in Convex
+ * (`repoDocs` kind `dashboard-config`; historically `dashboard.json` in the
+ * state repo, which now only receives export copies). Mirrors vault store
+ * pattern (cache + in-flight dedup + 60s TTL) without crypto; this doc is
+ * not secret. Currently holds preview and dashboard preferences.
  */
 
 import { logger } from "@kody-ade/base/logger";

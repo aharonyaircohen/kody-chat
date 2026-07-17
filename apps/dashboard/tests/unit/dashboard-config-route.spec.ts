@@ -201,6 +201,40 @@ describe("PUT /api/kody/dashboard-config", () => {
     );
   });
 
+  it("writes through the Convex store without requiring a user octokit", async () => {
+    auth.getUserOctokit.mockResolvedValueOnce(
+      null as unknown as { marker: string },
+    );
+
+    const res = await PUT(
+      new NextRequest("http://localhost/api/kody/dashboard-config", {
+        method: "PUT",
+        body: JSON.stringify({
+          namedPreviews: [{ id: "prod", label: "Prod", url: "https://p.dev" }],
+          actorLogin: "alice",
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    // Environments persist via the Convex-backed store — no GitHub client
+    // is constructed on the write path.
+    expect(auth.getUserOctokit).not.toHaveBeenCalled();
+    expect(githubClient.createUserOctokit).not.toHaveBeenCalled();
+    expect(store.readDashboardConfig).toHaveBeenCalledWith("acme", "widgets", {
+      force: true,
+    });
+    expect(store.writeDashboardConfig).toHaveBeenCalledWith("acme", "widgets", {
+      version: 1,
+      defaultPreviewUrl: undefined,
+      namedPreviews: [{ id: "prod", label: "Prod", url: "https://p.dev" }],
+    });
+    expect(store.invalidateDashboardConfigCache).toHaveBeenCalledWith(
+      "acme",
+      "widgets",
+    );
+  });
+
   it("accepts a Fly branch preview environment without a URL", async () => {
     const res = await PUT(
       new NextRequest("http://localhost/api/kody/dashboard-config", {

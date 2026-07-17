@@ -2,9 +2,11 @@
  * @fileType api-endpoint
  * @domain dashboard-config
  * @pattern repo-config
- * @ai-summary GET — return per-repo dashboard config from state repo `dashboard.json`.
- *   PUT — upsert config (currently `defaultPreviewUrl`). Plain JSON, not encrypted.
- *   Used by the Vibe page to remember the default preview URL across users.
+ * @ai-summary GET — return per-repo dashboard config from the Convex
+ *   `repoDocs` doc (kind `dashboard-config`). PUT — partial-merge upsert
+ *   (preview environments/folders, default preview URL, chat toggles) back
+ *   to the same Convex doc. GitHub is touched only to enrich repo-backed
+ *   view entries with source links.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -273,10 +275,6 @@ export async function PUT(req: NextRequest) {
   const verify = await verifyActorLogin(req, parsed.data.actorLogin);
   if ("status" in verify) return verify;
 
-  const octokit = await getUserOctokit(req);
-  if (!octokit)
-    return NextResponse.json({ error: "no_octokit" }, { status: 401 });
-
   try {
     const { doc, sha } = await readDashboardConfig(auth.owner,
       auth.repo,
@@ -289,27 +287,19 @@ export async function PUT(req: NextRequest) {
     // clobber each other's value.
     const bodyKeys = body && typeof body === "object" ? body : {};
     const next: DashboardConfig = { ...doc, version: 1 };
-    let commitMessage = `chore(dashboard): update dashboard config`;
     if ("defaultPreviewUrl" in bodyKeys) {
       const trimmed = parsed.data.defaultPreviewUrl?.trim();
       next.defaultPreviewUrl = trimmed ? trimmed : undefined;
-      commitMessage = `chore(dashboard): set default preview URL`;
     }
     if ("namedPreviews" in bodyKeys) {
-      const list = parsed.data.namedPreviews ?? [];
-      next.namedPreviews = list;
-      commitMessage = `chore(dashboard): update preview environments`;
+      next.namedPreviews = parsed.data.namedPreviews ?? [];
     }
     if ("previewFolders" in bodyKeys) {
       const list = parsed.data.previewFolders ?? [];
       next.previewFolders = list.length > 0 ? list : undefined;
-      commitMessage = `chore(dashboard): update preview folders`;
     }
     if ("brainFlyChatEnabled" in bodyKeys) {
       next.brainFlyChatEnabled = parsed.data.brainFlyChatEnabled === true;
-      commitMessage = `chore(dashboard): ${
-        next.brainFlyChatEnabled ? "enable" : "disable"
-      } Repo Brain in chat`;
     }
     await writeDashboardConfig(auth.owner, auth.repo, next);
     invalidateDashboardConfigCache(auth.owner, auth.repo);
