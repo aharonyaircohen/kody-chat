@@ -75,8 +75,7 @@
     "test:e2e": "playwright test",
     "test:e2e:local": "PW_LOCAL=1 BASE_URL=http://127.0.0.1:3344 playwright test --project=chromium",
     "test:gate": "pnpm test:unit && pnpm test:int && pnpm test:smoke && pnpm test:e2e:local",
-    "vault:init": "node scripts/generate-vault-key.mjs",
-    "push:init": "node scripts/generate-vapid-keys.mjs"
+    "vault:init": "node scripts/generate-vault-key.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.77",
@@ -132,7 +131,6 @@
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.4.0",
     "tailwindcss-animate": "^1.0.7",
-    "web-push": "^3.6.7",
     "zod": "^4.3.5"
   },
   "devDependencies": {
@@ -144,7 +142,6 @@
     "@types/node": "^22.5.4",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@types/web-push": "^3.6.4",
     "@typescript-eslint/eslint-plugin": "^8.57.2",
     "@typescript-eslint/parser": "^8.57.2",
     "@vitest/coverage-v8": "4.0.16",
