@@ -13,7 +13,13 @@ const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
 const TEST_REPO = "https://github.com/test-owner/test-repo";
 
 function sseBody(events: unknown[]): string {
-  return events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
+  // A healthy AI SDK UI stream ends with `finish` + `[DONE]`; the transport
+  // treats an EOF without them as a dropped connection (kody-direct.ts).
+  const withTerminal = [...events, { type: "finish" }];
+  return (
+    withTerminal.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("") +
+    "data: [DONE]\n\n"
+  );
 }
 
 async function seedAuth(page: Page): Promise<void> {
