@@ -11,8 +11,10 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
-import { buildCompanyBundle } from "@dashboard/lib/company/export";
-import { applyCompanyBundle } from "@dashboard/lib/company/import";
+import {
+  buildCompanyBundle,
+  applyCompanyBundle,
+} from "../../../../../tests/fixtures/chat-business-fixtures";
 import { companyBundleSchema } from "@dashboard/lib/company/types";
 import { readOperators, writeOperators } from "@kody-ade/base/engine/config";
 

@@ -11,7 +11,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
-import { readInbox } from "@dashboard/lib/inbox/gist-store";
+import { readInbox } from "../../../../../tests/fixtures/chat-business-fixtures";
 
 interface Ctx {
   octokit: Octokit;

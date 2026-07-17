@@ -25,7 +25,7 @@ import {
   readMacrosFile,
   addMacroToFile,
   deleteMacroFromFile,
-} from "@dashboard/lib/macros-files";
+} from "../../../../tests/fixtures/chat-business-fixtures";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

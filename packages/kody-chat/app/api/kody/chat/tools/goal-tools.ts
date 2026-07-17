@@ -30,7 +30,7 @@ import {
   listManagedGoalFiles,
   readManagedGoalFile,
   writeManagedGoalFile,
-} from "@dashboard/lib/managed-goals-files";
+} from "../../../../../tests/fixtures/chat-business-fixtures";
 
 interface Ctx {
   octokit: Octokit;

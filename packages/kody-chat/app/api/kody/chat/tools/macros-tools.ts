@@ -16,7 +16,7 @@ import {
   readMacrosFile,
   deleteMacroFromFile,
   renameMacroInFile,
-} from "@dashboard/lib/macros-files";
+} from "../../../../../tests/fixtures/chat-business-fixtures";
 import { formatMacroForChat } from "@dashboard/lib/macros";
 
 interface Ctx {

@@ -30,13 +30,7 @@ export async function register(): Promise<void> {
   const { setTrackedBranchesReader } = await import(
     "@kody-ade/fly/previews/tracked-branches-hook"
   );
-  const { readDashboardConfig } = await import(
-    "@dashboard/lib/dashboard-config/store"
-  );
-  setTrackedBranchesReader(async (octokit, owner, repo) => {
-    const { doc } = await readDashboardConfig(octokit, owner, repo, {
-      force: true,
-    });
-    return doc.branchPreviews ?? [];
-  });
+  // The chat harness has no dashboard-config store (that's dashboard-domain
+  // code in apps/dashboard) — no branch previews to track here.
+  setTrackedBranchesReader(async () => []);
 }

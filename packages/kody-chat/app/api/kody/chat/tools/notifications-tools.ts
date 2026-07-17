@@ -19,7 +19,7 @@ import {
 import {
   mutateNotificationsManifest,
   readNotificationsManifestFresh,
-} from "@dashboard/lib/notifications-server";
+} from "../../../../../tests/fixtures/chat-business-fixtures";
 
 const ChannelSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("slack-webhook"), url: z.string().url() }),

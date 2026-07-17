@@ -12,7 +12,7 @@ import {
   listReportFiles,
   readReportFile,
   isValidSlug,
-} from "@dashboard/lib/reports-files";
+} from "../../../../../tests/fixtures/chat-business-fixtures";
 
 export function createReportTools(opts: { owner: string; repo: string }) {
   const repoRef = `${opts.owner}/${opts.repo}`;

@@ -11,7 +11,7 @@
  */
 import { tool } from "ai";
 import { z } from "zod";
-import { getRemoteConfig } from "@dashboard/lib/remote-config";
+import { getRemoteConfig } from "../../../../../tests/fixtures/chat-business-fixtures";
 import { logger } from "@kody-ade/base/logger";
 
 const REMOTE_TIMEOUT_MS = 60_000;
