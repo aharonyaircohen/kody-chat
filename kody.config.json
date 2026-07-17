@@ -40,15 +40,7 @@
     ],
     "activeGoals": [
       {
-        "template": "company-growth-loop",
-        "every": "15m"
-      },
-      {
         "template": "agency-evolution-loop",
-        "every": "15m"
-      },
-      {
-        "template": "agency-operations-loop",
         "every": "15m"
       },
       {
