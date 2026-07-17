@@ -13,13 +13,13 @@
  *      their inbox/history loop.
  *
  * This flag gates ONLY the legacy GitHub write (#2). The Convex write is
- * unconditional. Default is ON; set `KODY_LEGACY_SESSION_WRITE=0` to turn
- * the legacy write off without a deploy. That is safe once every engine
+ * unconditional. Default is OFF; set `KODY_LEGACY_SESSION_WRITE=1` only as
+ * an emergency rollback for an older engine. This is safe once every engine
  * repo runs `@kody-ade/kody-engine` >= 0.4.381 (the version that reads the
  * transcript from Convex via its CONVEX_URL / KODY_SERVICE_KEY Actions
  * secrets — see kody2 src/chat/session-store.ts and
  * docs/storage-backend.md).
  */
 export function isLegacySessionWriteEnabled(): boolean {
-  return process.env.KODY_LEGACY_SESSION_WRITE !== "0";
+  return process.env.KODY_LEGACY_SESSION_WRITE === "1";
 }

@@ -108,6 +108,7 @@ describe("writeSessionMeta convex record", () => {
 
 describe("appendUserTurn convex record", () => {
   it("appends the turn to chatTurns", async () => {
+    convex.query.mockResolvedValue([{ seq: 0, turn: TURN }]);
     const result = await appendUserTurn(
       makeOctokit(),
       "acme",
@@ -162,6 +163,7 @@ describe("legacy dual-write gate (KODY_LEGACY_SESSION_WRITE)", () => {
   });
 
   it("keeps the GitHub write when the flag is unset", async () => {
+    vi.stubEnv("KODY_LEGACY_SESSION_WRITE", "1");
     const octokit = makeOctokit();
     await writeSessionMeta(octokit, "acme", "widgets", "s1", META);
     const repos = (octokit as unknown as { repos: Record<string, unknown> })
