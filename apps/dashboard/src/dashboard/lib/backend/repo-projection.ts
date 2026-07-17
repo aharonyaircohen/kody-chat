@@ -1,5 +1,5 @@
 import type { KodyConfig } from "@kody-ade/base/engine/config";
-import { getEngineConfig } from "@kody-ade/base/engine/config";
+import { defaultConfig } from "@kody-ade/base/engine/config";
 import type { Octokit } from "@octokit/rest";
 import { listCatalogEntries, saveCatalogEntry } from "./catalog";
 import { backendApi, getConvexClient, tenantIdFor } from "./convex-backend";
@@ -7,35 +7,15 @@ import type { WorkflowDefinitionRecord } from "../workflow-definitions";
 import type { CapabilitySummary } from "@kody-ade/agency/capabilities/files";
 
 export async function getProjectedEngineConfig(
-  octokit: Octokit,
+  _octokit: Octokit,
   owner: string,
   repo: string,
 ): Promise<{ config: KodyConfig; sha: string | null }> {
-  try {
-    const projected = await listCatalogEntries<{ config: KodyConfig; sha: string | null }>(
-      owner,
-      repo,
-      "config",
-    );
-    const current = projected.find((entry) => entry.slug === "kody.config.json");
-    if (current?.doc?.config) {
-      return { config: current.doc.config, sha: current.doc.sha ?? null };
-    }
-  } catch {
-    // Fall through to the authoritative GitHub source during bootstrap.
-  }
-
-  const result = await getEngineConfig(octokit, owner, repo);
-  await saveCatalogEntry(
-    owner,
-    repo,
-    "config",
-    "kody.config.json",
-    result,
-    "consumer-repo",
-    result.sha ?? undefined,
-  ).catch(() => undefined);
-  return result;
+  const projected = await listCatalogEntries<{ config: KodyConfig; sha: string | null }>(owner, repo, "config");
+  const current = projected.find((entry) => entry.slug === "kody.config.json");
+  return current?.doc?.config
+    ? { config: current.doc.config, sha: current.doc.sha ?? null }
+    : { config: defaultConfig, sha: null };
 }
 
 export async function listProjectedWorkflows(
@@ -107,4 +87,17 @@ export async function saveProjectedCapability(
     capability.source === "store" ? "company-store" : "state-repo",
     capability.updatedAt ?? undefined,
   );
+}
+
+export async function getProjectedCapability(
+  owner: string,
+  repo: string,
+  slug: string,
+): Promise<CapabilitySummary | null> {
+  const entry = await getConvexClient().query(backendApi.catalog.get, {
+    tenantId: tenantIdFor(owner, repo),
+    category: "capability",
+    slug,
+  });
+  return (entry as { doc?: CapabilitySummary } | null)?.doc ?? null;
 }

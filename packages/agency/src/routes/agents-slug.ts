@@ -27,6 +27,7 @@ import {
   deleteAgentFile,
   isValidSlug,
 } from "../agent-files";
+import { getProjectedAgent } from "../backend/agents-projection";
 import {
   getEngineConfig,
   writeConfigPatch,
@@ -55,7 +56,10 @@ export async function GET(
     if (!isValidSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    const agentMember = await readResolvedAgentFile(slug);
+    const context = getRequestAuth(req);
+    const agentMember = context
+      ? await getProjectedAgent(context.owner, context.repo, slug)
+      : null;
     if (!agentMember) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }

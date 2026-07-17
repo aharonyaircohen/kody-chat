@@ -37,6 +37,27 @@ export async function listProjectedAgents(
   }));
 }
 
+export async function getProjectedAgent(
+  owner: string,
+  repo: string,
+  slug: string,
+): Promise<ProjectedAgent | null> {
+  const rows = (await createBackendClient().query(backendApi.agents.list, {
+    tenantId: tenantIdFor(owner, repo),
+  })) as Array<{ slug: string; frontmatter: { title?: string }; body: string; updatedAt: string }>;
+  const row = rows.find((candidate) => candidate.slug === slug);
+  return row
+    ? {
+        slug: row.slug,
+        title: row.frontmatter?.title ?? row.slug,
+        body: row.body,
+        updatedAt: row.updatedAt,
+        source: "local",
+        readOnly: false,
+      }
+    : null;
+}
+
 export async function saveProjectedAgent(
   owner: string,
   repo: string,

@@ -60,41 +60,22 @@ export async function GET(req: NextRequest) {
           headerAuth.owner,
           headerAuth.repo,
         );
-        if (projected.length > 0) {
-          return NextResponse.json(
-            { agent: projected },
-            { headers: NO_STORE_HEADERS },
-          );
-        }
-      } catch {
-        // Bootstrap from GitHub below.
+        return NextResponse.json(
+          { agent: projected },
+          { headers: NO_STORE_HEADERS },
+        );
+      } catch (error) {
+        console.error("[Agent] Convex projection read failed", error);
+        return NextResponse.json(
+          { agent: [], error: "backend_unavailable" },
+          { status: 503, headers: NO_STORE_HEADERS },
+        );
       }
     }
-    const activeAgents = new Set<string>();
-    const octokit = await getUserOctokit(req);
-    if (octokit && headerAuth) {
-      const { config } = await getEngineConfig(
-        octokit,
-        headerAuth.owner,
-        headerAuth.repo,
-      );
-      for (const slug of config.company?.activeAgents ?? []) {
-        activeAgents.add(slug);
-      }
-    }
-    const agent = (await listResolvedAgentFiles()).filter(
-      (item) => item.source !== "store" || activeAgents.has(item.slug),
+    return NextResponse.json(
+      { agent: [], error: "repository_context_required" },
+      { status: 400, headers: NO_STORE_HEADERS },
     );
-    if (headerAuth) {
-      await Promise.all(
-        agent.map((item) =>
-          saveProjectedAgent(headerAuth.owner, headerAuth.repo, item).catch(
-            () => undefined,
-          ),
-        ),
-      );
-    }
-    return NextResponse.json({ agent }, { headers: NO_STORE_HEADERS });
   } catch (error: any) {
     console.error("[Agent] Error fetching agent:", error);
 

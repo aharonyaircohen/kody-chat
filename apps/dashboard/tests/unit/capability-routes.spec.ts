@@ -21,6 +21,8 @@ const h = vi.hoisted(() => ({
   resolveInstalledCapabilitySlugs: vi.fn(),
   getEngineConfig: vi.fn(),
   writeConfigPatch: vi.fn(),
+  getProjectedEngineConfig: vi.fn(),
+  listProjectedCapabilities: vi.fn(),
   recordAudit: vi.fn(),
 }));
 
@@ -53,6 +55,11 @@ vi.mock("@kody-ade/base/engine/config", () => ({
 
 vi.mock("@dashboard/lib/company-store/installed-capabilities", () => ({
   resolveInstalledCapabilitySlugs: h.resolveInstalledCapabilitySlugs,
+}));
+
+vi.mock("@dashboard/lib/backend/repo-projection", () => ({
+  getProjectedEngineConfig: h.getProjectedEngineConfig,
+  listProjectedCapabilities: h.listProjectedCapabilities,
 }));
 
 vi.mock("@kody-ade/base/activity/audit", () => ({
@@ -109,15 +116,17 @@ describe("GET /api/kody/capabilities", () => {
       sha: "config-sha",
     });
     h.resolveInstalledCapabilitySlugs.mockResolvedValue(new Set(["store-on"]));
+    h.getProjectedEngineConfig.mockResolvedValue({
+      config: { company: { activeCapabilities: ["store-on"] } },
+      sha: null,
+    });
+    h.listProjectedCapabilities.mockResolvedValue([
+      { slug: "local-one", source: "local" },
+      { slug: "store-on", source: "store" },
+    ]);
   });
 
   it("lists local capabilities and active Store capabilities only", async () => {
-    h.listCapabilityFiles.mockResolvedValue([
-      { slug: "local-one", source: "local" },
-      { slug: "store-on", source: "store" },
-      { slug: "store-off", source: "store" },
-    ]);
-
     const res = await GET(request("https://dash.test/api/kody/capabilities"));
     const json = await res.json();
 
@@ -126,17 +135,7 @@ describe("GET /api/kody/capabilities", () => {
       json.capabilities.map((entry: { slug: string }) => entry.slug),
     ).toEqual(["local-one", "store-on"]);
     expect(json.implementations).toBeUndefined();
-    expect(h.resolveInstalledCapabilitySlugs).toHaveBeenCalledWith(
-      { rest: {} },
-      {
-        company: {
-          activeCapabilities: ["store-on"],
-        },
-      },
-    );
-    expect(h.listCapabilityFiles).toHaveBeenCalledWith({
-      activeStoreSlugs: new Set(["store-on"]),
-    });
+    expect(h.listProjectedCapabilities).toHaveBeenCalled();
   });
 });
 

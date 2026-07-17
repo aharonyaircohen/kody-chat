@@ -78,14 +78,16 @@ export async function GET(req: NextRequest) {
             headerAuth.repo,
             activeCapabilities,
           );
-          if (projected.length > 0) {
-            return NextResponse.json(
-              { capabilities: projected, defaults },
-              { headers: NO_STORE_HEADERS },
-            );
-          }
-        } catch {
-          // Bootstrap from GitHub below.
+          return NextResponse.json(
+            { capabilities: projected, defaults },
+            { headers: NO_STORE_HEADERS },
+          );
+        } catch (error) {
+          console.error("[Capabilities] Convex projection read failed", error);
+          return NextResponse.json(
+            { capabilities: [], defaults, error: "backend_unavailable" },
+            { status: 503, headers: NO_STORE_HEADERS },
+          );
         }
       }
     }
