@@ -5,6 +5,7 @@ import {
   getToolErrorMessage,
   isToolErrorOutput,
   selectChatOutputActiveTools,
+  selectChatOutputToolChoice,
 } from "@dashboard/lib/chat-output-tools";
 
 describe("chat output tools", () => {
@@ -44,6 +45,22 @@ describe("chat output tools", () => {
         finalAnswerNeedsView: true,
       }),
     ).toEqual([FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL]);
+  });
+
+  it("pins show_view by name when a step is locked to it (regression: MiniMax ignores generic required and ends with prose)", () => {
+    expect(selectChatOutputToolChoice([SHOW_VIEW_TOOL])).toEqual({
+      type: "tool",
+      toolName: SHOW_VIEW_TOOL,
+    });
+  });
+
+  it("keeps generic required tool choice when multiple tools are active", () => {
+    expect(
+      selectChatOutputToolChoice([SHOW_VIEW_TOOL, "list_reports"]),
+    ).toEqual("required");
+    expect(
+      selectChatOutputToolChoice([FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL]),
+    ).toEqual("required");
   });
 
   it("allows read tools before renderer output for explicit selection turns", () => {

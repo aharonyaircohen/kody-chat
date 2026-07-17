@@ -108,7 +108,12 @@ import {
   isFinalAnswerRequiresViewOutput,
   isToolErrorOutput,
   selectChatOutputActiveTools,
+  selectChatOutputToolChoice,
 } from "@dashboard/lib/chat-output-tools";
+import { parseReasoning } from "@kody-ade/kody-chat/core/reasoning";
+import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "@dashboard/lib/view-renderers/builtin";
+import { buildChatViewCatalog } from "@dashboard/lib/view-renderers/spec/catalog";
+import { buildViewComponentRules } from "@dashboard/lib/view-renderers/spec/prompt";
 import {
   shouldAllowPreRenderToolCallsForTurn,
   shouldRequireViewOutputForTurn,
@@ -269,6 +274,12 @@ function successfulToolResult(toolName: string): StopCondition<ToolSet> {
  * retry; the cap stops a model that keeps producing invalid specs.
  */
 export const MAX_SHOW_VIEW_ATTEMPTS = 3;
+
+/**
+ * Cap on corrective re-runs after a turn ends with no visible output at
+ * all (no output tool, no answer text). See the silent-turn retry block.
+ */
+export const MAX_SILENT_TURN_RETRIES = 2;
 
 /**
  * Stop once the tool succeeds, or once it has been attempted `maxAttempts`
@@ -774,6 +785,15 @@ async function handleKodyDirectPost(
       repo.token,
       repo.storeRepoUrl,
       repo.storeRef,
+    );
+    // Client chats render with the packaged built-in renderers (the tool
+    // catalog already falls back to them). The gating that forces a card
+    // for interactive turns must see the same definitions — with an empty
+    // list, brand chats never pinned show_view and interactive turns
+    // could end with prose or nothing.
+    viewRendererDefinitions = [...BUILTIN_VIEW_RENDERER_DEFINITIONS];
+    viewRendererRules = buildViewComponentRules(
+      buildChatViewCatalog(viewRendererDefinitions),
     );
   }
   if (repo && !clientSurface) {
@@ -1497,10 +1517,11 @@ This turn includes an image from the user. For questions about what is visible i
     );
     armHeartbeat(30_000);
     armHeartbeat(60_000);
-    const result = streamText({
+    const runModelTurn = (turnMessages: typeof modelMessages) =>
+      streamText({
       model,
       system: groundedSystemPrompt,
-      messages: modelMessages,
+      messages: turnMessages,
       tools,
       ...(forceShowViewTool
         ? { toolChoice: { type: "tool" as const, toolName: SHOW_VIEW_TOOL } }
@@ -1534,15 +1555,19 @@ This turn includes an image from the user. For questions about what is visible i
                   "kody-direct: textual tool-call markup detected (bouncing)",
                 );
               }
+              const stepActiveTools = selectChatOutputActiveTools({
+                toolNames: allActiveTools,
+                requireViewOutput,
+                allowPreRenderTools:
+                  shouldAllowPreRenderTools && !hasPreRenderToolResult,
+                finalAnswerNeedsView,
+              });
               return {
-                activeTools: selectChatOutputActiveTools({
-                  toolNames: allActiveTools,
-                  requireViewOutput,
-                  allowPreRenderTools:
-                    shouldAllowPreRenderTools && !hasPreRenderToolResult,
-                  finalAnswerNeedsView,
-                }),
-                toolChoice: "required" as const,
+                activeTools: stepActiveTools,
+                // Pin show_view by name when it is the only allowed tool —
+                // some providers ignore the generic "required" and finish
+                // with prose, ending the turn with nothing visible.
+                toolChoice: selectChatOutputToolChoice(stepActiveTools),
                 ...(fabricatedToolCall
                   ? {
                       messages: [
@@ -1659,7 +1684,8 @@ This turn includes an image from the user. For questions about what is visible i
           "kody-direct: finish",
         );
       },
-    });
+      });
+    const result = runModelTurn(modelMessages);
     // Prepend a single `data-tools-index` event to the UI stream so the
     // client can hydrate a name→description lookup for the thinking panel.
     // One event for the whole turn (not one per tool call) — see the
@@ -1668,7 +1694,7 @@ This turn includes an image from the user. For questions about what is visible i
     // client sees; the rest of the stream is the same `result.toUIMessageStream`
     // the SDK would have produced on its own.
     const uiStream = createUIMessageStream({
-      execute: ({ writer }) => {
+      execute: async ({ writer }) => {
         writer.write({
           type: "data-tools-index",
           data: toolDescriptionByName,
@@ -1682,6 +1708,51 @@ This turn includes an image from the user. For questions about what is visible i
           });
         }
         writer.merge(result.toUIMessageStream({ sendReasoning: true }));
+        // Silent-turn retry: some providers (observed: MiniMax-M3)
+        // intermittently burn the whole turn inside thinking and finish
+        // with no tool call and no visible text — even with a pinned
+        // tool choice (confirmed at the wire level). Each attempt is an
+        // independent sample, so up to two corrective follow-up turns
+        // are merged into the same UI stream before giving up.
+        try {
+          let attempt = result;
+          for (
+            let retryCount = 0;
+            retryCount <= MAX_SILENT_TURN_RETRIES;
+            retryCount += 1
+          ) {
+            const steps = await attempt.steps;
+            const producedOutputTool = steps.some((step) =>
+              step.toolResults.some(
+                (stepResult) =>
+                  (stepResult.toolName === SHOW_VIEW_TOOL ||
+                    stepResult.toolName === FINAL_ANSWER_TOOL) &&
+                  !isToolErrorOutput(stepResult.output),
+              ),
+            );
+            const visibleAnswer = parseReasoning(
+              steps.map((step) => step.text ?? "").join(""),
+            ).answer.trim();
+            if (producedOutputTool || visibleAnswer) return;
+            if (retryCount === MAX_SILENT_TURN_RETRIES) return;
+            traceWarn(
+              { traceId, retry: retryCount + 1, requireViewOutput },
+              "kody-direct: turn ended silent (retrying)",
+            );
+            attempt = runModelTurn([
+              ...modelMessages,
+              {
+                role: "system",
+                content: requireViewOutput
+                  ? "Your previous attempt ended WITHOUT the required `show_view` tool call and produced no visible reply. Call `show_view` NOW with a valid spec for this interaction. Do not answer in prose."
+                  : "Your previous attempt produced no visible reply. Finish NOW with a `show_view` call if the reply asks the user to choose or approve, otherwise a `final_answer` call with your reply.",
+              },
+            ]);
+            writer.merge(attempt.toUIMessageStream({ sendReasoning: true }));
+          }
+        } catch {
+          // The primary stream already reported its own error state.
+        }
       },
       onError: (error) => {
         clearHeartbeats();

@@ -43,6 +43,21 @@ export function isFinalAnswerRequiresViewOutput(output: unknown): boolean {
   return getToolErrorMessage(output) === FINAL_ANSWER_REQUIRES_VIEW_ERROR;
 }
 
+/**
+ * Per-step tool choice. When a step is locked to `show_view` alone, pin
+ * the tool by name — some providers (observed: MiniMax-M3) ignore the
+ * generic "required" and finish with prose, ending the turn with no
+ * visible output. Pinning the specific function is honored far more
+ * reliably.
+ */
+export function selectChatOutputToolChoice<T extends string>(
+  activeTools: readonly T[],
+): { type: "tool"; toolName: T } | "required" {
+  return activeTools.length === 1 && activeTools[0] === SHOW_VIEW_TOOL
+    ? { type: "tool", toolName: activeTools[0] }
+    : "required";
+}
+
 export function selectChatOutputActiveTools<T extends string>({
   toolNames,
   requireViewOutput,

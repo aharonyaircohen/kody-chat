@@ -221,6 +221,44 @@ describe("surface scoping — kody in-process route", () => {
     }
   });
 
+  it("keeps required-view gating alive on client-surface turns via builtin renderers (regression: brand chat never rendered cards)", async () => {
+    const model = mockModel();
+    h.resolveClientBrand.mockResolvedValue({
+      slug: "acme",
+      name: "Acme",
+      accent: "#7c3aed",
+      agentSlug: "support-agent",
+    });
+    h.resolveChatModel.mockResolvedValue({
+      model,
+      resolvedModel: { id: "mock/model", modelName: "mock-model" },
+    });
+
+    const res = await kodyChatPOST(
+      makeRequest(
+        "/api/kody/chat/kody",
+        {
+          messages: [
+            {
+              role: "user",
+              content: "aske me a q and ask for approval to confirm it",
+            },
+          ],
+        },
+        ticketHeaders(),
+      ),
+    );
+
+    expect(res.status).toBe(200);
+    await res.text();
+    // The first step must pin show_view — that only happens when the
+    // builtin renderer definitions back the client-surface turn.
+    expect(model.doStreamCalls[0]?.toolChoice).toEqual({
+      type: "tool",
+      toolName: "show_view",
+    });
+  });
+
   it("still 401s with neither PAT nor ticket (unchanged)", async () => {
     const res = await kodyChatPOST(
       makeRequest("/api/kody/chat/kody", chatBody, {}),

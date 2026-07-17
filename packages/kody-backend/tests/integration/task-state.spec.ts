@@ -38,4 +38,26 @@ describe("taskState", () => {
     expect(state?.doc.column).toBe("done")
     expect(await t.query(api.taskState.list, { tenantId: TENANT, taskKey: "issues/2" })).toHaveLength(2)
   })
+
+  it("rejects a stale conditional write", async () => {
+    const t = setup()
+    await t.mutation(api.taskState.save, {
+      tenantId: TENANT,
+      taskKey: "issues/3",
+      kind: "state",
+      doc: { column: "todo" },
+      updatedAt: NOW,
+    })
+
+    await expect(
+      t.mutation(api.taskState.save, {
+        tenantId: TENANT,
+        taskKey: "issues/3",
+        kind: "state",
+        doc: { column: "done" },
+        updatedAt: "2026-07-15T00:01:00.000Z",
+        expectedUpdatedAt: "stale",
+      }),
+    ).rejects.toThrow("Task state changed since it was read")
+  })
 })

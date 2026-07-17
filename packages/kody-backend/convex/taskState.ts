@@ -30,6 +30,7 @@ export const save = mutation({
     kind: v.string(),
     doc: v.any(),
     updatedAt: v.string(),
+    expectedUpdatedAt: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -39,6 +40,9 @@ export const save = mutation({
       )
       .unique()
     if (existing) {
+      if (args.expectedUpdatedAt !== undefined && existing.updatedAt !== args.expectedUpdatedAt) {
+        throw new Error("Task state changed since it was read")
+      }
       await ctx.db.patch(existing._id, { doc: args.doc, updatedAt: args.updatedAt })
       return existing._id
     }

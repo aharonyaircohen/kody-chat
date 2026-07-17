@@ -181,6 +181,18 @@ describe("view renderer chat intent", () => {
     ).toBe(true);
   });
 
+  it("does not treat the read VERB alone as a data match (regression: 'random list of items' stalled on unused read tools)", () => {
+    // "list" matches the verb prefix of list_reports, but the request
+    // names no actual record domain — the turn must lock straight to
+    // show_view so tool forcing can be pinned.
+    expect(
+      shouldAllowPreRenderToolCallsForTurn({
+        userText: "show me random list of items and let me select a few",
+        toolNames: ["list_reports", "read_report", "show_view"],
+      }),
+    ).toBe(false);
+  });
+
   it("does not allow unrelated tools before pure approval rendering", () => {
     expect(
       shouldAllowPreRenderToolCallsForTurn({

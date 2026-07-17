@@ -56,7 +56,7 @@ const BUILTIN_SOURCES: readonly string[] = [
     name: "Selection list",
     purpose: "selection-list",
     description: "Single-choice list of selectable items.",
-    rule: "Use this purpose when Kody asks the user to choose exactly one item from a list.",
+    rule: "Use this purpose when Kody asks the user to choose, pick, or select exactly one entry from a list of options.",
     data: {
       title: { type: "text", description: "Card heading shown at the top." },
       body: {
@@ -86,7 +86,7 @@ const BUILTIN_SOURCES: readonly string[] = [
     name: "Multi-select list",
     purpose: "multi-select-list",
     description: "Multi-choice list of selectable items.",
-    rule: "Use this purpose when Kody asks the user to choose multiple, several, a few, one or more, or zero or more items from a list.",
+    rule: "Use this purpose when Kody asks the user to choose, pick, or select multiple, several, a few, one or more, or zero or more entries from a list of options.",
     data: {
       title: { type: "text", description: "Card heading shown at the top." },
       body: {

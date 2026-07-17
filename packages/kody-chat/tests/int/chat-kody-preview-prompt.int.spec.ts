@@ -361,6 +361,89 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     });
   });
 
+  it("retries up to twice in the same stream when a required-view turn stays silent", async () => {
+    const silentResult = () => ({
+      toUIMessageStream: vi.fn(() => ({})),
+      steps: Promise.resolve([
+        { toolResults: [], text: "<think>planning only, no call</think>" },
+      ]),
+    });
+    streamTextMock
+      .mockReturnValueOnce(silentResult())
+      .mockReturnValueOnce(silentResult())
+      .mockReturnValueOnce(silentResult());
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+
+    const res = await POST(
+      makeRequest({
+        messages: [
+          {
+            role: "user",
+            content: "aske me a q and ask for approval to confirm it",
+          },
+        ],
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const stream = createUIMessageStreamResponseMock.mock.calls[0]?.[0]
+      ?.stream as {
+      execute: (opts: {
+        writer: { write: (c: unknown) => void; merge: (s: unknown) => void };
+      }) => Promise<void>;
+    };
+    const writer = { write: vi.fn(), merge: vi.fn() };
+    await stream.execute({ writer });
+
+    // Two corrective re-runs after the silent original, then give up.
+    expect(streamTextMock).toHaveBeenCalledTimes(3);
+    const retryMessages = streamTextMock.mock.calls[1]?.[0]?.messages;
+    expect(JSON.stringify(retryMessages)).toContain(
+      "Call `show_view` NOW",
+    );
+    expect(writer.merge).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not retry when the turn produced a rendered view", async () => {
+    const viewResult = {
+      toUIMessageStream: vi.fn(() => ({})),
+      steps: Promise.resolve([
+        {
+          toolResults: [
+            { toolName: "show_view", output: { action: "render_view" } },
+          ],
+          text: "",
+        },
+      ]),
+    };
+    streamTextMock.mockReturnValueOnce(viewResult);
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+
+    const res = await POST(
+      makeRequest({
+        messages: [
+          {
+            role: "user",
+            content: "aske me a q and ask for approval to confirm it",
+          },
+        ],
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    const stream = createUIMessageStreamResponseMock.mock.calls[0]?.[0]
+      ?.stream as {
+      execute: (opts: {
+        writer: { write: (c: unknown) => void; merge: (s: unknown) => void };
+      }) => Promise<void>;
+    };
+    const writer = { write: vi.fn(), merge: vi.fn() };
+    await stream.execute({ writer });
+
+    expect(streamTextMock).toHaveBeenCalledTimes(1);
+    expect(writer.merge).toHaveBeenCalledTimes(1);
+  });
+
   it("forces show_view after a plain final answer asks for a user choice", async () => {
     const { POST } = await import("../../app/api/kody/chat/kody/route");
 
