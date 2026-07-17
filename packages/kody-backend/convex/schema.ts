@@ -56,6 +56,13 @@ export default defineSchema({
     .index("by_run", ["tenantId", "runId", "seq"])
     .index("by_goal", ["tenantId", "goalId", "time"]),
 
+  manifests: defineTable({
+    tenantId: v.string(),
+    kind: v.string(),
+    doc: v.any(),
+    updatedAt: v.string(),
+  }).index("by_kind", ["tenantId", "kind"]),
+
   chatSessions: defineTable({
     tenantId: v.string(),
     sessionId: v.string(),

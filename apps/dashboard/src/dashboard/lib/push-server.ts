@@ -1,27 +1,20 @@
 /**
  * @fileType utility
  * @domain kody
- * @pattern push-subscriptions-cas
- * @ai-summary Server-only helpers for the push-subscriptions manifest issue.
- *   The read → mutate → write → verify cycle (in-process per-repo mutex +
- *   retry) now lives in the shared `manifest-store` core; this file is just
- *   the push-specific config plus the original public API (names/signatures
- *   unchanged).
+ * @pattern push-subscriptions-convex-store
+ * @ai-summary Server-only helpers for the Convex push-subscriptions manifest.
  */
 import {
-  createManifestStore,
-  type ManifestRef,
-  type ManifestMutateOptions,
-  type ManifestMutationOutcome,
-  type ManifestMutator,
-  type ManifestMutatorReturn,
-} from "./manifest-store";
+  createBackendManifestStore,
+  type BackendManifestRef,
+  type BackendManifestMutateOptions,
+  type BackendManifestMutationOutcome,
+  type BackendManifestMutator,
+  type BackendManifestMutatorReturn,
+} from "@kody-ade/base/backend-manifest-store";
 import {
   EMPTY_PUSH_MANIFEST,
-  PUSH_SUBSCRIPTIONS_LABEL,
-  PUSH_MANIFEST_ISSUE_TITLE,
-  parsePushManifestBody,
-  serializePushManifestBody,
+  parsePushManifest,
   type PushSubscriptionsManifest,
   type PushSubscriptionRecord,
 } from "./push";
@@ -29,33 +22,6 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 // CAS verify — two-level field-by-field (manifest → each subscription)
 // ─────────────────────────────────────────────────────────────────────────────
-
-function subscriptionsEqual(
-  a: PushSubscriptionRecord,
-  b: PushSubscriptionRecord,
-): boolean {
-  return (
-    a.endpoint === b.endpoint &&
-    a.keys.p256dh === b.keys.p256dh &&
-    a.keys.auth === b.keys.auth &&
-    (a.label ?? null) === (b.label ?? null) &&
-    (a.userLogin ?? null) === (b.userLogin ?? null) &&
-    a.createdAt === b.createdAt &&
-    (a.lastSeenAt ?? null) === (b.lastSeenAt ?? null)
-  );
-}
-
-function manifestsEqual(
-  a: PushSubscriptionsManifest,
-  b: PushSubscriptionsManifest,
-): boolean {
-  if (a.subscriptions.length !== b.subscriptions.length) return false;
-  for (let i = 0; i < a.subscriptions.length; i++) {
-    if (!subscriptionsEqual(a.subscriptions[i], b.subscriptions[i]))
-      return false;
-  }
-  return true;
-}
 
 /**
  * Hard cap on durable push subscriptions per repo. Each record is ~600 bytes
@@ -85,15 +51,11 @@ function trimOldestSubscriptions(
   return { ...manifest, subscriptions: ranked.map((r) => r.sub) };
 }
 
-const store = createManifestStore<PushSubscriptionsManifest>({
-  label: PUSH_SUBSCRIPTIONS_LABEL,
-  title: PUSH_MANIFEST_ISSUE_TITLE,
+const store = createBackendManifestStore<PushSubscriptionsManifest>({
+  kind: "push-subscriptions",
   name: "push manifest",
-  lockPrefix: "push:",
-  parse: parsePushManifestBody,
-  serialize: serializePushManifestBody,
+  parse: parsePushManifest,
   empty: () => ({ ...EMPTY_PUSH_MANIFEST, subscriptions: [] }),
-  equals: manifestsEqual,
   beforeWrite: trimOldestSubscriptions,
 });
 
@@ -101,16 +63,16 @@ const store = createManifestStore<PushSubscriptionsManifest>({
 // Public API (unchanged surface)
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type MutateOptions = ManifestMutateOptions;
-export type MutationOutcome<T> = ManifestMutationOutcome<
+export type MutateOptions = BackendManifestMutateOptions;
+export type MutationOutcome<T> = BackendManifestMutationOutcome<
   PushSubscriptionsManifest,
   T
 >;
-export type MutatorReturn<T> = ManifestMutatorReturn<
+export type MutatorReturn<T> = BackendManifestMutatorReturn<
   PushSubscriptionsManifest,
   T
 >;
-export type Mutator<T> = ManifestMutator<PushSubscriptionsManifest, T>;
+export type Mutator<T> = BackendManifestMutator<PushSubscriptionsManifest, T>;
 
 export function mutatePushManifest<T>(
   mutator: Mutator<T>,
@@ -120,7 +82,7 @@ export function mutatePushManifest<T>(
 }
 
 export function readPushManifest(): Promise<
-  ManifestRef<PushSubscriptionsManifest>
+  BackendManifestRef<PushSubscriptionsManifest>
 > {
   return store.readFresh();
 }

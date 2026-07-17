@@ -2,19 +2,8 @@
  * @fileType utility
  * @domain kody
  * @pattern notifications-manifest
- * @ai-summary Notification rules live in a single "manifest" GitHub issue
- *   labelled `kody:notifications-manifest` whose body carries a JSON block
- *   between HTML comment markers. Mirrors the goals-manifest pattern exactly
- *   (label, comment markers, fenced JSON, server-side CAS via mutex). A rule
- *   ties one event to one channel (slack-webhook for now) with an optional
- *   message template.
- *
- *   Note on secrets: Slack webhook URLs are stored in the issue body. They
- *   are post-only URLs (one channel) — if the repo is private only
- *   collaborators can read them. The dashboard surfaces a warning. A future
- *   iteration can move URLs to repo Actions variables and reference them by
- *   name, but that requires the dashboard to read repo vars (not currently
- *   wired) — out of scope for v1.
+ * @ai-summary Notification rules stored in the repo-scoped Convex manifest.
+ *   The legacy issue-body parser remains only for migration compatibility.
  */
 
 import { slugifyTitle } from "@kody-ade/base/slug";
@@ -127,6 +116,37 @@ export interface NotificationsManifest {
 
 export const EMPTY_MANIFEST: NotificationsManifest = { version: 1, rules: [] };
 
+export function parseNotificationsManifest(value: unknown): NotificationsManifest {
+  if (!value || typeof value !== "object") return { version: 1, rules: [] };
+  const parsed = value as Partial<NotificationsManifest>;
+  if (!Array.isArray(parsed.rules)) return { version: 1, rules: [] };
+  const rules: NotificationRule[] = [];
+  for (const candidate of parsed.rules) {
+    if (!candidate || typeof candidate !== "object") continue;
+    const rule = candidate as NotificationRule;
+    if (
+      typeof rule.id !== "string" ||
+      typeof rule.name !== "string" ||
+      !isNotificationEvent(rule.event)
+    ) {
+      continue;
+    }
+    const channel = sanitizeChannel(rule.channel);
+    if (!channel) continue;
+    rules.push({
+      id: rule.id,
+      name: rule.name,
+      enabled: rule.enabled !== false,
+      event: rule.event,
+      channel,
+      template: typeof rule.template === "string" ? rule.template : undefined,
+      createdAt: rule.createdAt ?? new Date().toISOString(),
+      updatedAt: rule.updatedAt,
+    });
+  }
+  return { version: 1, rules };
+}
+
 export function isNotificationEvent(v: unknown): v is NotificationEvent {
   return (
     typeof v === "string" &&
@@ -226,35 +246,7 @@ export function parseManifestBody(
   if (!json) return { version: 1, rules: [] };
 
   try {
-    const parsed = JSON.parse(json) as Partial<NotificationsManifest>;
-    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.rules)) {
-      return { version: 1, rules: [] };
-    }
-    const rules: NotificationRule[] = [];
-    for (const r of parsed.rules) {
-      if (!r || typeof r !== "object") continue;
-      const rule = r as NotificationRule;
-      if (
-        typeof rule.id !== "string" ||
-        typeof rule.name !== "string" ||
-        !isNotificationEvent(rule.event)
-      ) {
-        continue;
-      }
-      const channel = sanitizeChannel(rule.channel);
-      if (!channel) continue;
-      rules.push({
-        id: rule.id,
-        name: rule.name,
-        enabled: rule.enabled !== false,
-        event: rule.event,
-        channel,
-        template: typeof rule.template === "string" ? rule.template : undefined,
-        createdAt: rule.createdAt ?? new Date().toISOString(),
-        updatedAt: rule.updatedAt,
-      });
-    }
-    return { version: 1, rules };
+    return parseNotificationsManifest(JSON.parse(json));
   } catch {
     return { version: 1, rules: [] };
   }

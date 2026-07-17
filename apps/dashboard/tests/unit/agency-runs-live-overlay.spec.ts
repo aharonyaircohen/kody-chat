@@ -24,7 +24,7 @@ describe("listAgencyRuns", () => {
     vi.setSystemTime(new Date("2026-07-06T06:30:00Z"));
     vi.clearAllMocks();
     backend.listStoredAgencyRuns.mockImplementation(async () => {
-      const file = await vi.mocked(readStateText)();
+      const file = await vi.mocked(readStateText)({} as never, "o", "r", "runs/index.json");
       const parsed = JSON.parse(file?.content ?? "{}") as {
         runs?: Array<Record<string, unknown>>;
       };
@@ -37,7 +37,7 @@ describe("listAgencyRuns", () => {
       }));
     });
     backend.listGoals.mockImplementation(async () => {
-      const file = await vi.mocked(readStateText)();
+      const file = await vi.mocked(readStateText)({} as never, "o", "r", "todos/goal.json");
       if (!file) return [];
       const state = JSON.parse(file.content) as Record<string, unknown>;
       const match = file.path.match(/todos\/([^/]+)\.json$/);

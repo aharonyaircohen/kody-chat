@@ -7,16 +7,13 @@
  *   capability slug. Two capabilities sharing an agent identity earn autonomy independently.
  *
  *     - keyed by capability slug → stats (mode/approvals/rejections/streak);
- *     - stored as a JSON file in the configured Kody state repo (see `trust-store.ts`),
- *       never on an issue;
+ *     - stored as a repo-scoped Convex manifest (see `trust-store.ts`);
  *     - read by BOTH the engine (the gate that lets a trusted capability self-dispatch)
  *       and the dashboard (the /trust page), so this shape is a shared contract.
  *
  *   All transforms are pure + immutable. Keep the JSON shape stable across repos.
  */
 
-/** Path of the single per-repo ledger file in the configured Kody state repo. */
-export const TRUST_FILE_PATH = "state/trust.json";
 export const TRUST_MANIFEST_VERSION = 1 as const;
 
 /** Bound the log — it's a recent-activity signal, not an archive. */

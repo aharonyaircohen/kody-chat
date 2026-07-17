@@ -486,6 +486,12 @@ export const ENTITIES: EntityDef[] = [
     upsertIndex: "by_run",
     statePaths: [],
   },
+  {
+    table: "manifests",
+    naturalKey: ["kind"],
+    upsertIndex: "by_kind",
+    statePaths: [],
+  },
   // Not file-sourced: client-side or global engine stores.
   { table: "inboxEntries", naturalKey: ["login", "entryId"], upsertIndex: "by_entry", statePaths: [] },
   { table: "channelsSeen", naturalKey: ["login"], upsertIndex: "by_login", statePaths: [] },

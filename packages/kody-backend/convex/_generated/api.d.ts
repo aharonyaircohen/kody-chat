@@ -26,6 +26,7 @@ import type * as inbox from "../inbox.js";
 import type * as intents from "../intents.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as macros from "../macros.js";
+import type * as manifests from "../manifests.js";
 import type * as notificationPrefs from "../notificationPrefs.js";
 import type * as repoDocs from "../repoDocs.js";
 import type * as reports from "../reports.js";
@@ -62,6 +63,7 @@ declare const fullApi: ApiFromModules<{
   intents: typeof intents;
   "lib/auth": typeof lib_auth;
   macros: typeof macros;
+  manifests: typeof manifests;
   notificationPrefs: typeof notificationPrefs;
   repoDocs: typeof repoDocs;
   reports: typeof reports;
