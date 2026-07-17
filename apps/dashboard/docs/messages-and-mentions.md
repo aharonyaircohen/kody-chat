@@ -69,7 +69,7 @@ the inbox uses, never a shared repo artifact:
   `{ version, baseline, seen }`, discovered by gist description
   `kody-channels:<owner>/<repo>`, one `channels-seen.json` file.
 - Server CRUD (per-`(login, repo)` in-process mutex, lazy-create on first
-  read): [`channels-seen-store.ts`](../src/dashboard/lib/messages/channels-seen-store.ts).
+  read): [`channels-seen-convex.ts`](../src/dashboard/lib/messages/channels-seen-convex.ts).
 - API: [`messages/read-state/route.ts`](../app/api/kody/messages/read-state/route.ts) —
   `GET` returns `{ baseline, seen }`; `POST { channelNumber }` stamps that
   channel seen at `now`. Requires the PAT's `gist` scope (surfaces a
@@ -248,7 +248,7 @@ why it needed no new dispatch code at all.
 | [`messages/[number]/route.ts`](../app/api/kody/messages/[number]/route.ts)         | Channel feed: GET comments, POST message, DELETE channel |
 | [`messages/read-state/route.ts`](../app/api/kody/messages/read-state/route.ts)     | Per-user unread state (GET / POST mark-seen)             |
 | [`channels-seen.ts`](../src/dashboard/lib/messages/channels-seen.ts)               | Read-state manifest types + parse/serialize              |
-| [`channels-seen-store.ts`](../src/dashboard/lib/messages/channels-seen-store.ts)   | Gist CRUD for read-state (lazy-create, mutex)            |
+| [`channels-seen-convex.ts`](../src/dashboard/lib/messages/channels-seen-convex.ts) | Convex CRUD for read-state |
 | [`useChannelsUnread.ts`](../src/dashboard/lib/hooks/useChannelsUnread.ts)          | Derives unread set; `markSeen` (loop-safe)               |
 | [`mention-dispatch.ts`](../src/dashboard/lib/push/mention-dispatch.ts)             | `dispatchMentionPushes` orchestrator                     |
 | [`source-event.ts`](../src/dashboard/lib/notifications/source-event.ts)            | Shared webhook → `SourceEvent` normalizer                |
