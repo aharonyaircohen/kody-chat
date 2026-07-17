@@ -23,6 +23,13 @@ export interface ChatViewCatalog {
   elementSchemas: ReadonlyMap<string, z.ZodType<ChatViewSpecElement>>;
   /** Renderer definition behind each high-level component name. */
   definitionComponents: ReadonlyMap<string, ViewRendererDefinition>;
+  /**
+   * The main text prop per component (`Text` → `value`, `Button` →
+   * `label`, definitions → first text-like data key). Used to salvage
+   * props the model sent as a bare string. Absent for prop-less
+   * containers, whose string props coerce to `{}`.
+   */
+  primaryTextProps: ReadonlyMap<string, string>;
 }
 
 export interface ChatViewSpecElement {
@@ -55,12 +62,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * Normalize those shapes before strict validation.
  */
 function coerceChoiceList(value: unknown): unknown {
-  const items = Array.isArray(value)
+  const raw = Array.isArray(value)
     ? value
     : isRecord(value)
       ? Object.values(value)
       : value;
-  if (!Array.isArray(items)) return items;
+  if (!Array.isArray(raw)) return raw;
+  // Flatten one level: models sometimes wrap the list in another array.
+  const items = raw.flat(1);
   return items.map((item) =>
     typeof item === "string" ? { label: item } : item,
   );
@@ -110,6 +119,29 @@ export function propsSchemaForDefinition(
   return z.object(shape).strict();
 }
 
+const ATOM_PRIMARY_TEXT_PROPS: Partial<
+  Record<(typeof ATOM_COMPONENT_NAMES)[number], string>
+> = {
+  Text: "value",
+  Markdown: "value",
+  Input: "value",
+  Button: "label",
+  Submit: "label",
+  Checkbox: "label",
+};
+
+const TEXT_LIKE_FIELD_TYPES = new Set(["text", "markdown", "input"]);
+
+function primaryTextPropForDefinition(
+  definition: ViewRendererDefinition,
+): string | null {
+  const entries = Object.entries(definition.data ?? {});
+  const textLike = entries.find(([, field]) =>
+    TEXT_LIKE_FIELD_TYPES.has(field.type ?? ""),
+  );
+  return textLike?.[0] ?? null;
+}
+
 function elementSchemaFor(
   name: string,
   props: z.ZodType,
@@ -137,19 +169,25 @@ export function buildChatViewCatalog(
     }
   }
   const elementSchemas = new Map<string, z.ZodType<ChatViewSpecElement>>();
+  const primaryTextProps = new Map<string, string>();
   for (const [name, definition] of definitionComponents) {
     elementSchemas.set(
       name,
       elementSchemaFor(name, propsSchemaForDefinition(definition)),
     );
+    const primary = primaryTextPropForDefinition(definition);
+    if (primary) primaryTextProps.set(name, primary);
   }
   for (const name of ATOM_COMPONENT_NAMES) {
     elementSchemas.set(name, elementSchemaFor(name, ATOM_COMPONENTS[name]));
+    const primary = ATOM_PRIMARY_TEXT_PROPS[name];
+    if (primary) primaryTextProps.set(name, primary);
   }
   return {
     componentNames: [...elementSchemas.keys()],
     elementSchemas,
     definitionComponents,
+    primaryTextProps,
   };
 }
 

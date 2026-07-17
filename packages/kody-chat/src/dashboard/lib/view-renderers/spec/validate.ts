@@ -52,7 +52,10 @@ const ELEMENT_ENVELOPE_KEYS = new Set(["type", "props", "children"]);
  * element instead of nested. Anything else still fails validation with a
  * precise error the model can act on.
  */
-export function coerceSpecElementShape(raw: unknown): unknown {
+export function coerceSpecElementShape(
+  catalog: ChatViewCatalog,
+  raw: unknown,
+): unknown {
   if (!isRecord(raw)) return raw;
   const element = { ...raw };
   if (typeof element.props === "string") {
@@ -60,8 +63,14 @@ export function coerceSpecElementShape(raw: unknown): unknown {
       const parsed: unknown = JSON.parse(element.props);
       if (isRecord(parsed)) element.props = parsed;
     } catch {
-      // Leave as-is; validation reports it.
+      // Not JSON — salvage below.
     }
+  }
+  if (typeof element.props === "string" && typeof element.type === "string") {
+    // Bare-string props: map to the component's main text prop, or drop
+    // for prop-less containers.
+    const primary = catalog.primaryTextProps.get(element.type);
+    element.props = primary ? { [primary]: element.props } : {};
   }
   if (element.props === undefined || element.props === null) {
     const flattened = Object.entries(element).filter(
@@ -92,11 +101,24 @@ function unknownTypeMessage(
  * Validate a raw `show_view` input. Element-level issues are collected per
  * element key so one bad element doesn't hide the others.
  */
+/**
+ * Accept a bare component element as the whole spec — the shortcut weak
+ * models reach for. `{type: "MultiSelectList", props: {...}}` becomes
+ * `{root: "root", elements: {root: <element>}}`.
+ */
+function coerceSpecEnvelope(input: unknown): unknown {
+  if (!isRecord(input)) return input;
+  if (input.root !== undefined || input.elements !== undefined) return input;
+  const type = input.type ?? input.component;
+  if (typeof type !== "string") return input;
+  return { root: "root", elements: { root: { ...input, type } } };
+}
+
 export function validateChatViewSpec(
   catalog: ChatViewCatalog,
   input: unknown,
 ): ChatViewSpecValidation {
-  const envelope = SPEC_ENVELOPE_SCHEMA.safeParse(input);
+  const envelope = SPEC_ENVELOPE_SCHEMA.safeParse(coerceSpecEnvelope(input));
   if (!envelope.success) {
     return {
       success: false,
@@ -106,7 +128,7 @@ export function validateChatViewSpec(
   const issues: string[] = [];
   const elements: Record<string, ChatViewSpec["elements"][string]> = {};
   for (const [key, rawInput] of Object.entries(envelope.data.elements)) {
-    const raw = coerceSpecElementShape(rawInput);
+    const raw = coerceSpecElementShape(catalog, rawInput);
     const type =
       raw && typeof raw === "object"
         ? (raw as { type?: unknown }).type

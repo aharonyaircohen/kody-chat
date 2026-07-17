@@ -277,7 +277,7 @@ function applyBrainFinish(io: SettleIO): void {
  * blank bubble — the user must always get feedback. A trailing tool
  * error with no answer surfaces as the error.
  */
-function finalizeKodyDirectTurn(params: {
+export function finalizeKodyDirectTurn(params: {
   io: SettleIO;
   turn: TransportTurnState;
   assistantDisplayOverride: string | null | void;
@@ -305,9 +305,11 @@ function finalizeKodyDirectTurn(params: {
         !pendingDashboardNavigate &&
         !pendingView &&
         (!answer.trim() || lastToolErrorToolName === SHOW_VIEW_TOOL);
+      // Reasoning alone is NOT a response — a turn that only "thought"
+      // must still surface the no-response note (the thought panel is
+      // kept above it), or the user gets a silent collapsed bubble.
       const producedNothing =
         !answer.trim() &&
-        !reasoning.trim() &&
         !hadSuccessfulTools &&
         !pendingSwitchAgent &&
         !pendingDashboardNavigate &&
@@ -324,8 +326,7 @@ function finalizeKodyDirectTurn(params: {
               ...m,
               isLoading: false,
               isError: true,
-              content:
-                "Kody returned no response. The model may not be configured for this repo, or it ended the turn without a reply — try again, or check Chat Models in Settings.",
+              content: `${reasoning.trim() ? `<think>${reasoning}</think>\n\n` : ""}Kody returned no response. The model may not be configured for this repo, or it ended the turn without a reply — try again, or check Chat Models in Settings.`,
             }
           : {
               ...m,

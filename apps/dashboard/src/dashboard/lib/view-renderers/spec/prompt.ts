@@ -43,6 +43,19 @@ function definitionComponentLine(
   return `- ${name} { ${props} }${usage ? `\n  ${usage}` : ""}`;
 }
 
+const SINGLE_COMPONENT_EXAMPLE = `{
+  "root": "card",
+  "elements": {
+    "card": {
+      "type": "MultiSelectList",
+      "props": {
+        "title": "Pick a few items",
+        "items": [ { "label": "Alpha" }, { "label": "Beta" }, { "label": "Gamma" } ]
+      }
+    }
+  }
+}`;
+
 const SPEC_EXAMPLE = `{
   "root": "card",
   "elements": {
@@ -72,7 +85,9 @@ export function buildShowViewGuidance(catalog: ChatViewCatalog): string {
       .join("\n")}`,
     "Buttons and choices send their `response` text back as the user's next message — make responses short, stable tokens (e.g. \"approve\"), not sentences.",
     "Write all user-visible text (labels, titles) in the user's language.",
-    `Example:\n${SPEC_EXAMPLE}`,
+    "Every element MUST have a `type` from the lists above and an object `props`. Most interactions need only ONE view component element:",
+    `Example (preferred — one view component):\n${SINGLE_COMPONENT_EXAMPLE}`,
+    `Example (custom layout from atoms):\n${SPEC_EXAMPLE}`,
   ]
     .filter(Boolean)
     .join("\n\n");

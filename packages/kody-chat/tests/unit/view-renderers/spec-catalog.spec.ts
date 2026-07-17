@@ -228,6 +228,57 @@ describe("validateChatViewSpec", () => {
     }
   });
 
+  it("coerces non-JSON string props and nested choice arrays (regression: random list turn)", () => {
+    const result = validateChatViewSpec(catalog, {
+      root: "card",
+      elements: {
+        card: {
+          type: "Stack",
+          props: "container",
+          children: ["title", "list", "actions"],
+        },
+        title: { type: "Text", props: "Random items" },
+        list: {
+          type: "SelectionList",
+          props: {
+            title: "Pick one",
+            items: [["Alpha", "Beta", "Gamma"]],
+          },
+        },
+        actions: { type: "Row", props: "", children: ["ok"] },
+        ok: { type: "Button", props: { label: "OK", response: "ok" } },
+      },
+    });
+    expect(result).toMatchObject({ success: true });
+    if (result.success) {
+      expect(result.spec.elements.card.props).toEqual({});
+      expect(result.spec.elements.title.props).toEqual({
+        value: "Random items",
+      });
+      expect(result.spec.elements.list.props.items).toEqual([
+        { label: "Alpha" },
+        { label: "Beta" },
+        { label: "Gamma" },
+      ]);
+    }
+  });
+
+  it("accepts a single top-level component without the envelope (weak-model shortcut)", () => {
+    const result = validateChatViewSpec(catalog, {
+      type: "MultiSelectList",
+      props: {
+        title: "Pick a few",
+        items: [{ label: "Alpha" }, { label: "Beta" }],
+      },
+    });
+    expect(result).toMatchObject({ success: true });
+    if (result.success) {
+      expect(result.spec.elements[result.spec.root]).toMatchObject({
+        type: "MultiSelectList",
+      });
+    }
+  });
+
   it("rejects non-spec input with envelope errors", () => {
     const result = validateChatViewSpec(catalog, {
       purpose: "approval-card",
