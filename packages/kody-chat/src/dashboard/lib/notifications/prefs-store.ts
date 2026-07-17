@@ -13,8 +13,9 @@
  *   built in.
  */
 import "server-only";
-import { getOwner, getRepo, getOctokit } from "../github-client";
-import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
+import { getOwner, getRepo } from "../github-client";
+import { api } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 
 /** TTL for notification prefs cache. Low-churn data — 5 min is fine. */
 const PREFS_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -91,43 +92,22 @@ function filePath(login: string): string {
  * Returns the cached data if still valid, otherwise fetches from GitHub
  * (using If-None-Match for a free 304 when unchanged).
  */
-export async function readNotificationPrefs(
-  login: string,
-  token: string,
-): Promise<NotificationPrefsFile> {
+export async function readNotificationPrefs(login: string, _token?: string): Promise<NotificationPrefsFile> {
   const owner = getOwner();
   const repo = getRepo();
   const path = filePath(login);
   const key = cacheKey(owner, repo, login);
 
   const cached = getCache<NotificationPrefsFile>(key);
-  const octokit = getOctokit();
-
   try {
-    const file = await readStateText(octokit, owner, repo, path, {
-      headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
-    });
-    if (file) {
-      const parsed = JSON.parse(file.content) as NotificationPrefsFile;
-      const prefs: NotificationPrefsFile = {
-        version: parsed.version === 1 ? 1 : 1,
-        mutedTypes: Array.isArray(parsed.mutedTypes) ? parsed.mutedTypes : [],
-      };
-      setCache(key, prefs, file.etag);
-      return prefs;
-    }
-    return DEFAULT_NOTIFICATION_PREFS;
+    const row = (await createBackendClient().query(api.notificationPrefs.get, {
+      tenantId: `${owner}/${repo}`,
+      login: login.toLowerCase(),
+    })) as { prefs?: unknown } | null;
+    const prefs = normalizePrefs(row?.prefs);
+    setCache(key, prefs);
+    return prefs;
   } catch (error: unknown) {
-    const status = (error as { status?: number })?.status;
-    if (status === 304 && cached) {
-      // Content unchanged; refresh TTL
-      setCache(key, cached.data, cached.etag);
-      return cached.data;
-    }
-    if (status === 404) {
-      setCache(key, DEFAULT_NOTIFICATION_PREFS);
-      return DEFAULT_NOTIFICATION_PREFS;
-    }
     // On any other error (network, rate limit, etc.), fail open with defaults.
     return cached?.data ?? DEFAULT_NOTIFICATION_PREFS;
   }
@@ -140,63 +120,26 @@ export async function readNotificationPrefs(
  */
 export async function writeNotificationPrefs(
   login: string,
-  token: string,
-  prefs: NotificationPrefsFile,
+  prefsOrToken: NotificationPrefsFile | string,
+  tokenOrPrefs?: string | NotificationPrefsFile,
 ): Promise<void> {
+  const prefs = typeof prefsOrToken === "string" ? (tokenOrPrefs as NotificationPrefsFile) : prefsOrToken;
   const owner = getOwner();
   const repo = getRepo();
-  const path = filePath(login);
   const key = cacheKey(owner, repo, login);
 
   // Invalidate cache so the next read goes to GitHub
   cache.delete(key);
 
-  let sha: string | undefined;
-  // Attempt to read existing SHA (ignore errors — file may not exist yet)
-  try {
-    const octokit = getOctokit();
-    const file = await readStateText(octokit, owner, repo, path);
-    sha = file?.sha;
-  } catch {
-    // File may not exist yet or preferences may be temporarily unavailable.
-  }
+  await createBackendClient().mutation(api.notificationPrefs.save, {
+    tenantId: `${owner}/${repo}`,
+    login: login.toLowerCase(),
+    prefs,
+    updatedAt: new Date().toISOString(),
+  });
+}
 
-  const content = JSON.stringify(prefs, null, 2);
-  const message = `feat(notifications): update prefs for ${login}`;
-
-  try {
-    const octokit = getOctokit();
-    await writeStateText({
-      octokit,
-      owner,
-      repo,
-      path,
-      message,
-      content,
-      sha,
-    });
-    return;
-  } catch (error: unknown) {
-    // CAS conflict — retry once with fresh SHA
-    if ((error as { status?: number })?.status === 409) {
-      try {
-        const octokit = getOctokit();
-        const file = await readStateText(octokit, owner, repo, path);
-        await writeStateText({
-          octokit,
-          owner,
-          repo,
-          path,
-          message,
-          content,
-          sha: file?.sha,
-        });
-        return;
-      } catch {
-        // Give up — preferences are best-effort
-      }
-    }
-    // Give up — preferences are best-effort; throw so caller knows
-    throw error;
-  }
+function normalizePrefs(value: unknown): NotificationPrefsFile {
+  const parsed = value as Partial<NotificationPrefsFile> | null;
+  return { version: 1, mutedTypes: Array.isArray(parsed?.mutedTypes) ? parsed.mutedTypes : [] };
 }
