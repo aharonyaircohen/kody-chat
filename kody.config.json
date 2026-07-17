@@ -11,7 +11,9 @@
   "github": {
     "owner": "aharonyaircohen",
     "repo": "kody-chat",
-    "operators": ["aguyaharonyair"]
+    "operators": [
+      "aguyaharonyair"
+    ]
   },
   "agent": {
     "model": "minimax/MiniMax-M3"
@@ -20,7 +22,11 @@
     "stateBackend": "contents-api"
   },
   "company": {
-    "activeAgents": ["ceo", "cto", "coo"],
+    "activeAgents": [
+      "ceo",
+      "cto",
+      "coo"
+    ],
     "activeCapabilities": [
       "company-portfolio-management",
       "agency-portfolio-management",
@@ -33,16 +39,34 @@
       "ceo-performance-review"
     ],
     "activeGoals": [
-      { "template": "company-growth-loop", "every": "15m" },
-      { "template": "agency-evolution-loop", "every": "15m" },
-      { "template": "agency-operations-loop", "every": "15m" },
-      { "template": "agency-observer", "every": "15m" },
-      { "template": "agency-operating-loop", "every": "15m" },
-      { "template": "ai-agency-health", "every": "15m" }
+      {
+        "template": "company-growth-loop",
+        "every": "15m"
+      },
+      {
+        "template": "agency-evolution-loop",
+        "every": "15m"
+      },
+      {
+        "template": "agency-operations-loop",
+        "every": "15m"
+      },
+      {
+        "template": "agency-observer",
+        "every": "15m"
+      },
+      {
+        "template": "agency-operating-loop",
+        "every": "15m"
+      }
     ]
   },
   "access": {
-    "allowedAssociations": ["OWNER", "MEMBER", "COLLABORATOR"]
+    "allowedAssociations": [
+      "OWNER",
+      "MEMBER",
+      "COLLABORATOR"
+    ]
   },
   "defaultExecutable": "classify",
   "defaultPrExecutable": "fix",
