@@ -7,8 +7,12 @@
  */
 import type { Octokit } from "@octokit/rest";
 
-import { readStateText } from "@kody-ade/base/state-repo";
 import { createServerTtlCache } from "@kody-ade/base/server-ttl-cache";
+import {
+  listStoredAgencyRuns,
+  listStoredRunEvents,
+} from "./backend/agency-runs-store";
+import { listGoals } from "./backend/goals-state";
 
 export type AgencyRunKind = "goal" | "loop" | "workflow";
 export type AgencyRunOrigin = "manual" | "scheduled" | "event" | "local";
@@ -78,7 +82,7 @@ export interface AgencyRunsPayload {
   counts: Record<AgencyRunKind, number>;
   computedAt: string;
   source: {
-    path: "runs/index.json";
+    path: "convex:agencyRuns";
     updatedAt: string | null;
     etag: string | null;
   };
@@ -139,25 +143,11 @@ interface RunIndexRow {
   actor?: unknown;
 }
 
-interface RunIndexFile {
-  updatedAt: string | null;
-  runs: RunIndexRow[];
-}
-
-const RUN_INDEX_PATH = "runs/index.json";
 const DISPATCH_STUCK_MS = 20 * 60_000;
 const WORKFLOW_OVERLAY_TTL_MS = 60_000;
 const AGENCY_RUNS_TTL_MS = 60_000;
 const AGENCY_RUN_DETAIL_TTL_MS = 60_000;
 const WORKFLOW_LOG_INSIGHT_TTL_MS = 60_000;
-const readCache = new Map<
-  string,
-  { etag: string | undefined; json: string; path: string }
->();
-const managedGoalReadCache = new Map<
-  string,
-  { etag: string | undefined; json: string }
->();
 const workflowOverlayCache = new Map<
   string,
   { expiresAt: number; runs: GitHubWorkflowRun[] }
@@ -175,10 +165,6 @@ const workflowLogInsightCache =
 
 function cacheKey(owner: string, repo: string) {
   return `${owner}/${repo}`;
-}
-
-function pathCacheKey(owner: string, repo: string, path: string): string {
-  return `${owner}/${repo}:${path}`;
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -213,13 +199,8 @@ function statusValue(value: unknown): AgencyRunStatus {
   return "recorded";
 }
 
-function managedGoalPath(goalId: string): string | null {
-  if (!goalId || /[\\/]/.test(goalId) || goalId.includes("..")) return null;
-  return `todos/${goalId}.json`;
-}
-
-function parseManagedGoalState(json: string): ManagedGoalStateLite | null {
-  const parsed = asRecord(JSON.parse(json));
+function parseManagedGoalState(value: unknown): ManagedGoalStateLite | null {
+  const parsed = asRecord(value);
   const state = parsed?.state;
   if (
     state !== "inactive" &&
@@ -416,32 +397,6 @@ function originValue(value: unknown): AgencyRunOrigin {
     return value;
   }
   return "event";
-}
-
-function parseRunIndex(json: string): RunIndexFile {
-  const parsed = asRecord(JSON.parse(json));
-  const rows = Array.isArray(parsed?.runs)
-    ? parsed.runs.filter((row): row is RunIndexRow => asRecord(row) !== null)
-    : [];
-  return {
-    updatedAt: stringValue(parsed?.updatedAt),
-    runs: rows,
-  };
-}
-
-function parseJsonl(content: string): Array<Record<string, unknown>> {
-  return content
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      try {
-        return asRecord(JSON.parse(line));
-      } catch {
-        return null;
-      }
-    })
-    .filter((entry): entry is Record<string, unknown> => entry !== null);
 }
 
 function stripAnsi(value: string): string {
@@ -726,17 +681,6 @@ async function readWorkflowLogInsight({
   });
 }
 
-function assertAllowedDetailPath(path: string): void {
-  if (
-    path.includes("..") ||
-    path.startsWith("/") ||
-    !path.startsWith("logs/goals/") ||
-    !path.endsWith(".jsonl")
-  ) {
-    throw new Error("unsupported_run_detail_path");
-  }
-}
-
 function durationMs(startedAt: string | null, updatedAt: string | null) {
   if (!startedAt || !updatedAt) return null;
   const start = Date.parse(startedAt);
@@ -781,9 +725,9 @@ function rowToAgencyRun(row: RunIndexRow): AgencyRunSummary | null {
     kodyRunId: stringValue(row.kodyRunId),
     githubRunId: stringValue(row.githubRunId),
     githubRunUrl: stringValue(row.githubRunUrl),
-    logUrl: stringValue(row.detailUrl),
-    statePath: stringValue(row.statePath),
-    sourcePath: stringValue(row.sourcePath),
+    logUrl: null,
+    statePath: null,
+    sourcePath: id,
     action: stringValue(row.action),
     capability: stringValue(row.capability),
     workflow: stringValue(row.workflow),
@@ -869,44 +813,11 @@ async function applyGitHubRunOverlay({
   });
 }
 
-async function readManagedGoalState({
-  octokit,
-  owner,
-  repo,
-  path,
-}: {
-  octokit: Octokit;
-  owner: string;
-  repo: string;
-  path: string;
-}): Promise<ManagedGoalStateLite | null> {
-  const key = pathCacheKey(owner, repo, path);
-  const cached = managedGoalReadCache.get(key);
-  try {
-    const file = await readStateText(octokit, owner, repo, path, {
-      headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
-    });
-    if (!file) return null;
-    managedGoalReadCache.set(key, {
-      etag: file.etag,
-      json: file.content,
-    });
-    return parseManagedGoalState(file.content);
-  } catch (error: unknown) {
-    const status = (error as { status?: number })?.status;
-    if (status === 304 && cached) return parseManagedGoalState(cached.json);
-    if (status === 404) return null;
-    throw error;
-  }
-}
-
 async function applyDispatchTargetOverlay({
-  octokit,
   owner,
   repo,
   runs,
 }: {
-  octokit: Octokit;
   owner: string;
   repo: string;
   runs: AgencyRunSummary[];
@@ -919,18 +830,12 @@ async function applyDispatchTargetOverlay({
   if (!targetIds.size) return runs;
 
   const goals = new Map<string, ManagedGoalStateLite>();
-  await Promise.all(
-    Array.from(new Set(targetIds.values())).map(async (goalId) => {
-      const path = managedGoalPath(goalId);
-      if (!path) return;
-      try {
-        const goal = await readManagedGoalState({ octokit, owner, repo, path });
-        if (goal) goals.set(goalId, goal);
-      } catch {
-        // Keep the run index usable when a target goal file disappeared.
-      }
-    }),
-  );
+  const wantedGoalIds = new Set(targetIds.values());
+  for (const storedGoal of await listGoals(owner, repo)) {
+    if (!wantedGoalIds.has(storedGoal.id)) continue;
+    const goal = parseManagedGoalState(storedGoal);
+    if (goal) goals.set(storedGoal.id, goal);
+  }
   if (!goals.size) return runs;
 
   return runs.map((run) => {
@@ -952,39 +857,6 @@ async function applyDispatchTargetOverlay({
   });
 }
 
-async function readRunIndexFile({
-  octokit,
-  owner,
-  repo,
-}: {
-  octokit: Octokit;
-  owner: string;
-  repo: string;
-}): Promise<{ index: RunIndexFile; etag: string | null }> {
-  const key = cacheKey(owner, repo);
-  const cached = readCache.get(key);
-  try {
-    const file = await readStateText(octokit, owner, repo, RUN_INDEX_PATH, {
-      headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
-    });
-    if (!file) return { index: { updatedAt: null, runs: [] }, etag: null };
-    readCache.set(key, {
-      etag: file.etag,
-      json: file.content,
-      path: file.path,
-    });
-    return { index: parseRunIndex(file.content), etag: file.etag ?? null };
-  } catch (error: unknown) {
-    const status = (error as { status?: number })?.status;
-    if (status === 304 && cached) {
-      return { index: parseRunIndex(cached.json), etag: cached.etag ?? null };
-    }
-    if (status === 404)
-      return { index: { updatedAt: null, runs: [] }, etag: null };
-    throw error;
-  }
-}
-
 export async function listAgencyRuns({
   octokit,
   owner,
@@ -999,8 +871,12 @@ export async function listAgencyRuns({
   const boundedLimit = Math.max(1, Math.min(100, Math.floor(limit)));
   const key = `${owner}/${repo}:${boundedLimit}`;
   return agencyRunsCache.get(key, async () => {
-    const { index, etag } = await readRunIndexFile({ octokit, owner, repo });
-    const indexedRuns = index.runs
+    const storedRuns = await listStoredAgencyRuns(owner, repo, boundedLimit);
+    const indexedRuns = storedRuns
+      .flatMap((stored) => {
+        const run = asRecord(stored.run);
+        return run ? [run as RunIndexRow] : [];
+      })
       .map(rowToAgencyRun)
       .filter((run): run is AgencyRunSummary => run !== null)
       .sort((a, b) => sortTime(b) - sortTime(a))
@@ -1012,7 +888,6 @@ export async function listAgencyRuns({
       runs: indexedRuns,
     });
     const runs = await applyDispatchTargetOverlay({
-      octokit,
       owner,
       repo,
       runs: runsWithGitHub,
@@ -1027,9 +902,9 @@ export async function listAgencyRuns({
       },
       computedAt: new Date().toISOString(),
       source: {
-        path: RUN_INDEX_PATH,
-        updatedAt: index.updatedAt,
-        etag,
+        path: "convex:agencyRuns",
+        updatedAt: indexedRuns[0]?.updatedAt ?? null,
+        etag: null,
       },
     };
   });
@@ -1048,17 +923,19 @@ export async function readAgencyRunDetail({
   sourcePath: string;
   githubRunId?: string | null;
 }): Promise<AgencyRunDetailPayload> {
-  assertAllowedDetailPath(sourcePath);
   const key = `${owner}/${repo}:${sourcePath}:${githubRunId ?? ""}`;
   return agencyRunDetailCache.get(key, async () => {
-    const [file, workflowLog] = await Promise.all([
-      readStateText(octokit, owner, repo, sourcePath),
+    const [storedEvents, workflowLog] = await Promise.all([
+      listStoredRunEvents(owner, repo, sourcePath),
       readWorkflowLogInsight({ octokit, owner, repo, githubRunId }),
     ]);
     return {
       path: sourcePath,
-      htmlUrl: file?.htmlUrl ?? null,
-      events: parseJsonl(file?.content ?? ""),
+      htmlUrl: null,
+      events: storedEvents.flatMap((stored) => {
+        const event = asRecord(stored.event);
+        return event ? [event] : [];
+      }),
       workflowLog,
       computedAt: new Date().toISOString(),
     };

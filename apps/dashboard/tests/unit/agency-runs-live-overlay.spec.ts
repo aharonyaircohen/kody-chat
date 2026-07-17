@@ -3,8 +3,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { listAgencyRuns } from "../../src/dashboard/lib/agency-runs";
 import { readStateText } from "@kody-ade/base/state-repo";
 
+const backend = vi.hoisted(() => ({
+  listStoredAgencyRuns: vi.fn(),
+  listGoals: vi.fn(),
+}));
+
 vi.mock("@kody-ade/base/state-repo", () => ({
   readStateText: vi.fn(),
+}));
+vi.mock("@kody-ade/agency/backend/agency-runs-store", () => ({
+  listStoredAgencyRuns: backend.listStoredAgencyRuns,
+}));
+vi.mock("@kody-ade/agency/backend/goals-state", () => ({
+  listGoals: backend.listGoals,
 }));
 
 describe("listAgencyRuns", () => {
@@ -12,6 +23,26 @@ describe("listAgencyRuns", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-07-06T06:30:00Z"));
     vi.clearAllMocks();
+    backend.listStoredAgencyRuns.mockImplementation(async () => {
+      const file = await vi.mocked(readStateText)();
+      const parsed = JSON.parse(file?.content ?? "{}") as {
+        runs?: Array<Record<string, unknown>>;
+      };
+      return (parsed.runs ?? []).map((run) => ({
+        runId: run.id,
+        subjectType: run.subjectType,
+        subjectId: run.subjectId,
+        run,
+        updatedAt: run.updatedAt,
+      }));
+    });
+    backend.listGoals.mockImplementation(async () => {
+      const file = await vi.mocked(readStateText)();
+      if (!file) return [];
+      const state = JSON.parse(file.content) as Record<string, unknown>;
+      const match = file.path.match(/todos\/([^/]+)\.json$/);
+      return match ? [{ id: match[1], ...state }] : [];
+    });
   });
 
   afterEach(() => {

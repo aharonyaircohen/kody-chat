@@ -75,10 +75,10 @@ export const agencyRunsApi = {
     return handleResponse(res);
   },
   detail: async (
-    sourcePath: string,
+    runId: string,
     githubRunId?: string | null,
   ): Promise<import("../agency-runs").AgencyRunDetailPayload> => {
-    const params = new URLSearchParams({ path: sourcePath });
+    const params = new URLSearchParams({ runId });
     if (githubRunId) params.set("githubRunId", githubRunId);
     const res = await fetch(`${API_BASE}/agency-runs/detail?${params}`, {
       headers: buildHeaders(),

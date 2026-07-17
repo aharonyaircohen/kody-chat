@@ -7,10 +7,9 @@
  */
 import type { Octokit } from "@octokit/rest";
 
-import { listStateDirectory, readStateText } from "@kody-ade/base/state-repo";
 import { createServerTtlCache } from "@kody-ade/base/server-ttl-cache";
+import { listStoredGoalRunEvents } from "./backend/agency-runs-store";
 
-const GOAL_RUNS_DIR = "logs/goals";
 const DEFAULT_LIMIT = 8;
 const MAX_LIMIT = 20;
 const RUN_LOGS_TTL_MS = 60_000;
@@ -163,7 +162,6 @@ export function summarizeManagedGoalRunLog(
 }
 
 export async function listManagedGoalRunLogs({
-  octokit,
   owner,
   repo,
   goalId,
@@ -176,38 +174,31 @@ export async function listManagedGoalRunLogs({
   limit?: number;
 }): Promise<ManagedGoalRunLogsPayload> {
   const boundedLimit = Math.max(1, Math.min(MAX_LIMIT, Math.floor(limit)));
-  const dirPath = `${GOAL_RUNS_DIR}/${goalId}/runs`;
   const cacheKey = `${owner}/${repo}:${goalId}:${boundedLimit}`;
 
   return runLogsCache.get(cacheKey, async () => {
-    let entries: Awaited<ReturnType<typeof listStateDirectory>>["entries"];
-    try {
-      const listed = await listStateDirectory(octokit, owner, repo, dirPath);
-      entries = listed.entries;
-    } catch (error) {
-      if ((error as { status?: number })?.status === 404) {
-        return { goalId, runs: [] };
-      }
-      throw error;
-    }
-
-    const files = entries
-      .filter((entry) => entry.type === "file" && entry.name.endsWith(".jsonl"))
-      .sort((a, b) => b.name.localeCompare(a.name))
-      .slice(0, boundedLimit);
-
-    const runs = await Promise.all(
-      files.map(async (entry) => {
-        const relativePath = `${dirPath}/${entry.name}`;
-        const file = await readStateText(octokit, owner, repo, relativePath);
-        return summarizeManagedGoalRunLog(
-          entry.name,
-          relativePath,
-          file?.htmlUrl ?? entry.htmlUrl ?? null,
-          file?.content ?? "",
-        );
-      }),
+    const events = await listStoredGoalRunEvents(
+      owner,
+      repo,
+      goalId,
+      boundedLimit * 100,
     );
+    const byRun = new Map<string, typeof events>();
+    for (const event of events) {
+      const existing = byRun.get(event.runId) ?? [];
+      existing.push(event);
+      byRun.set(event.runId, existing);
+    }
+    const runs = [...byRun.entries()]
+      .map(([runId, rows]) => {
+        const content = rows
+          .sort((a, b) => a.seq - b.seq)
+          .map((row) => JSON.stringify(row.event))
+          .join("\n");
+        return summarizeManagedGoalRunLog(runId, runId, null, content);
+      })
+      .sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))
+      .slice(0, boundedLimit);
 
     return { goalId, runs };
   });

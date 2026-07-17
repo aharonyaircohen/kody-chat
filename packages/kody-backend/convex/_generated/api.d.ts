@@ -10,6 +10,7 @@
 
 import type * as actionStates from "../actionStates.js";
 import type * as agencyRecords from "../agencyRecords.js";
+import type * as agencyRuns from "../agencyRuns.js";
 import type * as agents from "../agents.js";
 import type * as capabilityState from "../capabilityState.js";
 import type * as catalog from "../catalog.js";
@@ -28,6 +29,7 @@ import type * as macros from "../macros.js";
 import type * as notificationPrefs from "../notificationPrefs.js";
 import type * as repoDocs from "../repoDocs.js";
 import type * as reports from "../reports.js";
+import type * as runEvents from "../runEvents.js";
 import type * as taskState from "../taskState.js";
 import type * as userState from "../userState.js";
 import type * as validators from "../validators.js";
@@ -44,6 +46,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   actionStates: typeof actionStates;
   agencyRecords: typeof agencyRecords;
+  agencyRuns: typeof agencyRuns;
   agents: typeof agents;
   capabilityState: typeof capabilityState;
   catalog: typeof catalog;
@@ -62,6 +65,7 @@ declare const fullApi: ApiFromModules<{
   notificationPrefs: typeof notificationPrefs;
   repoDocs: typeof repoDocs;
   reports: typeof reports;
+  runEvents: typeof runEvents;
   taskState: typeof taskState;
   userState: typeof userState;
   validators: typeof validators;

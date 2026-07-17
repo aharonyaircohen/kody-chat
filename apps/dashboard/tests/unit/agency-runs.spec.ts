@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const stateRepo = vi.hoisted(() => ({
-  readStateText: vi.fn(),
+const backend = vi.hoisted(() => ({
+  listStoredAgencyRuns: vi.fn(),
+  listStoredRunEvents: vi.fn(),
 }));
 
-vi.mock("@kody-ade/base/state-repo", () => stateRepo);
+vi.mock("@kody-ade/agency/backend/agency-runs-store", () => backend);
+vi.mock("@kody-ade/agency/backend/goals-state", () => ({
+  listGoals: vi.fn().mockResolvedValue([]),
+}));
 
 import {
   listAgencyRuns,
@@ -17,14 +21,8 @@ describe("agency runs", () => {
   });
 
   it("projects the engine run index without scanning goals or logs", async () => {
-    stateRepo.readStateText.mockResolvedValue({
-      path: "A-Guy-Web/runs/index.json",
-      sha: "sha",
-      etag: '"runs-v1"',
-      content: JSON.stringify({
-        version: 1,
-        updatedAt: "2026-07-05T10:03:00.000Z",
-        runs: [
+    backend.listStoredAgencyRuns.mockResolvedValue(
+      [
           {
             version: 1,
             id: "workflow:release-queue:run-workflow-1",
@@ -73,9 +71,14 @@ describe("agency runs", () => {
             title: "Ignored",
             updatedAt: "2026-07-05T10:03:00.000Z",
           },
-        ],
-      }),
-    });
+      ].map((run) => ({
+        runId: run.id,
+        subjectType: run.subjectType,
+        subjectId: run.subjectId,
+        run,
+        updatedAt: run.updatedAt,
+      })),
+    );
 
     const payload = await listAgencyRuns({
       octokit: {} as never,
@@ -83,19 +86,16 @@ describe("agency runs", () => {
       repo: "test-repo",
     });
 
-    expect(stateRepo.readStateText).toHaveBeenCalledOnce();
-    expect(stateRepo.readStateText).toHaveBeenCalledWith(
-      {} as never,
+    expect(backend.listStoredAgencyRuns).toHaveBeenCalledWith(
       "test-owner",
       "test-repo",
-      "runs/index.json",
-      { headers: undefined },
+      50,
     );
     expect(payload.counts).toEqual({ goal: 0, loop: 1, workflow: 1 });
     expect(payload.source).toEqual({
-      path: "runs/index.json",
-      updatedAt: "2026-07-05T10:03:00.000Z",
-      etag: '"runs-v1"',
+      path: "convex:agencyRuns",
+      updatedAt: "2026-07-05T10:02:00.000Z",
+      etag: null,
     });
     expect(payload.runs.map((run) => `${run.kind}:${run.targetId}`)).toEqual([
       "workflow:release-queue",
@@ -109,29 +109,24 @@ describe("agency runs", () => {
   });
 
   it("reads one selected run detail file", async () => {
-    stateRepo.readStateText.mockResolvedValue({
-      path: "A-Guy-Web/logs/goals/ci-health/runs/run.jsonl",
-      sha: "sha",
-      htmlUrl: "https://github.com/test/state/run.jsonl",
-      content: [
-        JSON.stringify({
+    backend.listStoredRunEvents.mockResolvedValue(
+      [
+        {
           time: "2026-07-05T10:00:00.000Z",
-          event: "loop.tick.dispatch",
-          status: "dispatch",
-        }),
-        JSON.stringify({
+          event: { event: "loop.tick.dispatch", status: "dispatch" },
+        },
+        {
           time: "2026-07-05T10:01:00.000Z",
-          event: "loop.tick.done",
-          status: "completed",
-        }),
-      ].join("\n"),
-    });
+          event: { event: "loop.tick.done", status: "completed" },
+        },
+      ].map((row, seq) => ({ ...row, runId: "loop:ci-health:run-1", seq })),
+    );
 
     const payload = await readAgencyRunDetail({
       octokit: {} as never,
       owner: "test-owner",
       repo: "test-repo",
-      sourcePath: "logs/goals/ci-health/runs/run.jsonl",
+      sourcePath: "loop:ci-health:run-1",
     });
 
     expect(payload.events).toHaveLength(2);
@@ -143,18 +138,7 @@ describe("agency runs", () => {
   });
 
   it("summarizes the selected GitHub run log when requested", async () => {
-    stateRepo.readStateText.mockResolvedValue({
-      path: "A-Guy-Web/logs/goals/ci-health/runs/run.jsonl",
-      sha: "sha",
-      htmlUrl: "https://github.com/test/state/run.jsonl",
-      content: [
-        JSON.stringify({
-          time: "2026-07-05T10:00:00.000Z",
-          event: "goal.tick.dispatch",
-          status: "dispatch",
-        }),
-      ].join("\n"),
-    });
+    backend.listStoredRunEvents.mockResolvedValue([]);
     const octokit = {
       request: vi
         .fn()
@@ -195,18 +179,7 @@ describe("agency runs", () => {
   });
 
   it("caches selected GitHub run log summaries across repeated detail reads", async () => {
-    stateRepo.readStateText.mockResolvedValue({
-      path: "A-Guy-Web/logs/goals/cache-check/runs/run.jsonl",
-      sha: "sha",
-      htmlUrl: "https://github.com/test/state/cache-check.jsonl",
-      content: [
-        JSON.stringify({
-          time: "2026-07-05T10:00:00.000Z",
-          event: "goal.tick.dispatch",
-          status: "dispatch",
-        }),
-      ].join("\n"),
-    });
+    backend.listStoredRunEvents.mockResolvedValue([]);
     const octokit = {
       request: vi
         .fn()
@@ -235,16 +208,11 @@ describe("agency runs", () => {
 
     expect(second).toEqual(first);
     expect(octokit.request).toHaveBeenCalledTimes(2);
-    expect(stateRepo.readStateText).toHaveBeenCalledTimes(1);
+    expect(backend.listStoredRunEvents).toHaveBeenCalledTimes(1);
   });
 
   it("formats noisy agency health summaries into readable lines", async () => {
-    stateRepo.readStateText.mockResolvedValue({
-      path: "A-Guy-Web/logs/goals/ai-agency-health/runs/run.jsonl",
-      sha: "sha",
-      htmlUrl: "https://github.com/test/state/run.jsonl",
-      content: "",
-    });
+    backend.listStoredRunEvents.mockResolvedValue([]);
     const noisyLine = [
       "Added A-Guy-Web/reports/ai-agency-health-matrix/runs/2026-07-05T23-37-00Z.md in A-Guy-educ/kody-state.",
       "AI Agency Health: YELLOW (80 rows).",
@@ -293,14 +261,18 @@ describe("agency runs", () => {
     );
   });
 
-  it("rejects unsupported detail paths", async () => {
-    await expect(
-      readAgencyRunDetail({
-        octokit: {} as never,
-        owner: "test-owner",
-        repo: "test-repo",
-        sourcePath: "../secret.json",
-      }),
-    ).rejects.toThrow("unsupported_run_detail_path");
+  it("uses an opaque run id as the evidence address", async () => {
+    backend.listStoredRunEvents.mockResolvedValue([]);
+    await readAgencyRunDetail({
+      octokit: {} as never,
+      owner: "test-owner",
+      repo: "test-repo",
+      sourcePath: "goal:release:run-42",
+    });
+    expect(backend.listStoredRunEvents).toHaveBeenCalledWith(
+      "test-owner",
+      "test-repo",
+      "goal:release:run-42",
+    );
   });
 });

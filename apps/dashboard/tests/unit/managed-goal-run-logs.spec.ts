@@ -1,11 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const stateRepo = vi.hoisted(() => ({
-  listStateDirectory: vi.fn(),
-  readStateText: vi.fn(),
+const backend = vi.hoisted(() => ({
+  listStoredGoalRunEvents: vi.fn(),
 }));
 
-vi.mock("@kody-ade/base/state-repo", () => stateRepo);
+vi.mock("@kody-ade/agency/backend/agency-runs-store", () => backend);
 
 import {
   listManagedGoalRunLogs,
@@ -81,8 +80,8 @@ describe("managed goal run logs", () => {
     });
   });
 
-  it("returns an empty run list when a goal has no persisted run directory", async () => {
-    stateRepo.listStateDirectory.mockRejectedValue({ status: 404 });
+  it("returns an empty run list when a goal has no persisted run events", async () => {
+    backend.listStoredGoalRunEvents.mockResolvedValue([]);
 
     await expect(
       listManagedGoalRunLogs({
@@ -94,22 +93,23 @@ describe("managed goal run logs", () => {
     ).resolves.toEqual({ goalId: "ci-health", runs: [] });
   });
 
-  it("reads newest run logs first up to the requested limit", async () => {
-    stateRepo.listStateDirectory.mockResolvedValue({
-      entries: [
-        { name: "2026-07-04T10-00-00Z.jsonl", type: "file" },
-        { name: "2026-07-05T10-00-00Z.jsonl", type: "file" },
-        { name: "notes.txt", type: "file" },
-      ],
-    });
-    stateRepo.readStateText.mockImplementation(
-      async (_octokit, _owner, _repo, path: string) => ({
-        path,
-        sha: `${path}-sha`,
-        htmlUrl: `https://github.com/test/state/blob/main/${path}`,
-        content: `${JSON.stringify({ time: path })}\n`,
-      }),
-    );
+  it("reads newest Convex runs first up to the requested limit", async () => {
+    backend.listStoredGoalRunEvents.mockResolvedValue([
+      {
+        runId: "run-old",
+        goalId: "ci-health",
+        seq: 0,
+        time: "2026-07-04T10:00:00.000Z",
+        event: { time: "2026-07-04T10:00:00.000Z", event: "old" },
+      },
+      {
+        runId: "run-new",
+        goalId: "ci-health",
+        seq: 0,
+        time: "2026-07-05T10:00:00.000Z",
+        event: { time: "2026-07-05T10:00:00.000Z", event: "new" },
+      },
+    ]);
 
     const payload = await listManagedGoalRunLogs({
       octokit: {} as never,
@@ -120,12 +120,12 @@ describe("managed goal run logs", () => {
     });
 
     expect(payload.runs).toHaveLength(1);
-    expect(payload.runs[0]?.fileName).toBe("2026-07-05T10-00-00Z.jsonl");
-    expect(stateRepo.readStateText).toHaveBeenCalledWith(
-      {},
+    expect(payload.runs[0]?.fileName).toBe("run-new");
+    expect(backend.listStoredGoalRunEvents).toHaveBeenCalledWith(
       "test-owner",
       "state-repo",
-      "logs/goals/ci-health/runs/2026-07-05T10-00-00Z.jsonl",
+      "ci-health",
+      100,
     );
   });
 });

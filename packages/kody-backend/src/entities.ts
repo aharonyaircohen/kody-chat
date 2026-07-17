@@ -474,7 +474,19 @@ export const ENTITIES: EntityDef[] = [
       }))
     },
   },
-  // Not file-sourced: gist-backed, client-side, or global engine stores.
+  {
+    table: "agencyRuns",
+    naturalKey: ["runId"],
+    upsertIndex: "by_run",
+    statePaths: [],
+  },
+  {
+    table: "runEvents",
+    naturalKey: ["runId", "seq"],
+    upsertIndex: "by_run",
+    statePaths: [],
+  },
+  // Not file-sourced: client-side or global engine stores.
   { table: "inboxEntries", naturalKey: ["login", "entryId"], upsertIndex: "by_entry", statePaths: [] },
   { table: "channelsSeen", naturalKey: ["login"], upsertIndex: "by_login", statePaths: [] },
   { table: "actionStates", naturalKey: ["runId"], upsertIndex: "by_run", global: true, statePaths: [] },

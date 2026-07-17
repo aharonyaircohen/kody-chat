@@ -333,7 +333,7 @@ export function agencyRunDiagnosis(
     ["running", "waiting", "stuck", "recorded"].includes(run.status)
       ? "No final outcome event."
       : null,
-    !run.sourcePath && events.length === 0 ? "No source log." : null,
+    !run.sourcePath && events.length === 0 ? "No persisted run evidence." : null,
     run.githubRunId && !run.githubRunUrl ? "No GitHub run link." : null,
   ].filter((line): line is string => line !== null);
 
@@ -478,7 +478,7 @@ function rawRunEvidenceLines(run: AgencyRunSummary): string[] {
     run.summary ? `Summary: ${run.summary}` : null,
     run.decision ? `Decision: ${run.decision}` : null,
     run.currentStep ? `Current step: ${run.currentStep}` : null,
-    run.sourcePath ? `Source log: ${run.sourcePath}` : null,
+    run.sourcePath ? `Evidence ID: ${run.sourcePath}` : null,
     run.statePath ? `State path: ${run.statePath}` : null,
     run.logUrl ? `Kody log URL: ${run.logUrl}` : null,
     run.githubRunUrl ? `GitHub run URL: ${run.githubRunUrl}` : null,
@@ -1029,7 +1029,7 @@ function RunRow({
             ) : run.sourcePath ? (
               <div className="mt-2 text-white/45">No events found</div>
             ) : (
-              <div className="mt-2 text-white/45">No source log</div>
+              <div className="mt-2 text-white/45">No persisted run evidence</div>
             )}
           </details>
 

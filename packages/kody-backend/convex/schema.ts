@@ -34,6 +34,28 @@ export default defineSchema({
     .index("by_run", ["tenantId", "workflowId", "runId"])
     .index("by_workflow", ["tenantId", "workflowId"]),
 
+  agencyRuns: defineTable({
+    tenantId: v.string(),
+    runId: v.string(),
+    subjectType: v.union(v.literal("goal"), v.literal("loop"), v.literal("workflow")),
+    subjectId: v.string(),
+    run: v.any(),
+    updatedAt: v.string(),
+  })
+    .index("by_run", ["tenantId", "runId"])
+    .index("by_tenant", ["tenantId", "updatedAt"]),
+
+  runEvents: defineTable({
+    tenantId: v.string(),
+    runId: v.string(),
+    goalId: v.optional(v.string()),
+    seq: v.number(),
+    event: v.any(),
+    time: v.string(),
+  })
+    .index("by_run", ["tenantId", "runId", "seq"])
+    .index("by_goal", ["tenantId", "goalId", "time"]),
+
   chatSessions: defineTable({
     tenantId: v.string(),
     sessionId: v.string(),

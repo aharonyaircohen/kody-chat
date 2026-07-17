@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern agency-run-detail-api
- * @ai-summary GET /api/kody/agency-runs/detail reads one run source file.
+ * @ai-summary GET /api/kody/agency-runs/detail reads one run's Convex evidence.
  */
 import { NextRequest, NextResponse } from "next/server";
 
@@ -26,9 +26,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
   }
 
-  const sourcePath = req.nextUrl.searchParams.get("path")?.trim();
-  if (!sourcePath) {
-    return NextResponse.json({ error: "missing_path" }, { status: 400 });
+  const runId = req.nextUrl.searchParams.get("runId")?.trim();
+  if (!runId) {
+    return NextResponse.json({ error: "missing_run_id" }, { status: 400 });
   }
   const githubRunId = req.nextUrl.searchParams.get("githubRunId")?.trim();
 
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
       octokit,
       owner: headerAuth.owner,
       repo: headerAuth.repo,
-      sourcePath,
+      sourcePath: runId,
       githubRunId,
     });
     return NextResponse.json(payload, {
@@ -61,13 +61,12 @@ export async function GET(req: NextRequest) {
   } catch (error: unknown) {
     const message =
       error instanceof Error ? error.message : "Failed to read run detail";
-    const status = message === "unsupported_run_detail_path" ? 400 : 500;
     return NextResponse.json(
       {
         error: "failed_to_read_run_detail",
         message,
       },
-      { status },
+      { status: 500 },
     );
   } finally {
     clearGitHubContext();
