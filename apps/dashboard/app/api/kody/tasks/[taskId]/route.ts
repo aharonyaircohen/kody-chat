@@ -157,8 +157,14 @@ export async function GET(
   try {
     const { taskId } = await params;
 
-    // Try to find by issue number first (optimized path - single API call)
-    const issueNumberFromUrl = parseInt(taskId.replace("issue-", ""), 10);
+    // Try to find by issue number first (optimized path - single API call).
+    // Whole-string match only: parseInt would accept the leading digits of a
+    // date-shaped engine ID like "260701-auto-1" and wrongly 404 on the
+    // issue path instead of reaching the marker-search fallback below.
+    const issueIdMatch = /^(?:issue-)?(\d+)$/.exec(taskId);
+    const issueNumberFromUrl = issueIdMatch
+      ? parseInt(issueIdMatch[1], 10)
+      : NaN;
 
     if (!isNaN(issueNumberFromUrl)) {
       // Optimized: directly fetch the single issue by number

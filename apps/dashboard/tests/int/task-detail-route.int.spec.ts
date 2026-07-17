@@ -130,10 +130,6 @@ describe("GET /api/kody/tasks/[taskId]", () => {
     expect(json.error).toBe("Task not found");
   });
 
-  // NOTE: canonical kody task IDs like "260701-auto-1" start with digits, so
-  // parseInt() succeeds on the leading digits and the route takes the numeric
-  // fetchIssue path (→ 404) — the comment-marker fallback is only reachable
-  // for taskIds that do NOT start with a digit. Documented as found behavior.
   it("finds a non-digit-leading taskId via comment task markers", async () => {
     mocks.fetchIssues.mockResolvedValueOnce([makeIssue(20)]);
     mocks.fetchComments.mockResolvedValue([makeRawComment(5, "marker")]);
@@ -161,13 +157,26 @@ describe("GET /api/kody/tasks/[taskId]", () => {
     expect(res.status).toBe(404);
   });
 
-  it("treats digit-leading kody task IDs as issue numbers (marker fallback unreachable)", async () => {
-    mocks.fetchIssue.mockResolvedValueOnce(null);
+  it("resolves digit-leading kody task IDs via marker search, not as issue numbers", async () => {
+    mocks.fetchIssues.mockResolvedValueOnce([makeIssue(22)]);
+    mocks.fetchComments.mockResolvedValue([makeRawComment(6, "marker")]);
+    mocks.parseAllComments.mockReturnValue([
+      {
+        type: "task-marker",
+        taskId: "260701-auto-1",
+        body: "",
+        createdAt: "2026-07-01T11:00:00Z",
+      },
+    ]);
+
     const res = await GET(req, ctx("260701-auto-1"));
-    expect(res.status).toBe(404);
-    // parseInt("260701-auto-1") === 260701 → numeric path, not marker search
-    expect(mocks.fetchIssue).toHaveBeenCalledWith(260701);
-    expect(mocks.fetchIssues).not.toHaveBeenCalled();
+    const json = await res.json();
+    expect(res.status).toBe(200);
+    expect(json.task.id).toBe("260701-auto-1");
+    // The whole-string ID check must keep this off the fetchIssue path.
+    expect(mocks.fetchIssue).not.toHaveBeenCalled();
+    mocks.parseAllComments.mockReturnValue([]);
+    mocks.fetchComments.mockResolvedValue([]);
   });
 
   it("returns the auth response when unauthenticated", async () => {
