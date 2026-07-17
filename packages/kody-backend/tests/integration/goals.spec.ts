@@ -35,4 +35,23 @@ describe("goals", () => {
     })
     expect(await t.query(api.goals.list, { tenantId: "other/tenant" })).toHaveLength(0)
   })
+
+  it("rejects stale goal updates", async () => {
+    const t = setup()
+    await t.mutation(api.goals.save, {
+      tenantId: TENANT,
+      goalId: "g-stale",
+      state: { state: "open" },
+      updatedAt: NOW,
+    })
+    await expect(
+      t.mutation(api.goals.save, {
+        tenantId: TENANT,
+        goalId: "g-stale",
+        state: { state: "wrong" },
+        updatedAt: "2026-07-15T00:01:00.000Z",
+        expectedUpdatedAt: "old",
+      }),
+    ).rejects.toThrow("Goal state changed since it was read")
+  })
 })

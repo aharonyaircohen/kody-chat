@@ -25,7 +25,7 @@ export const list = query({
     return await ctx.db
       .query("goals")
       .withIndex("by_tenant", (q) => q.eq("tenantId", tenantId))
-      .collect()
+      .take(500)
   },
 })
 
@@ -40,13 +40,22 @@ export const get = query({
 })
 
 export const save = mutation({
-  args: { tenantId: v.string(), goalId: v.string(), state: v.any(), updatedAt: v.string() },
+  args: {
+    tenantId: v.string(),
+    goalId: v.string(),
+    state: v.any(),
+    updatedAt: v.string(),
+    expectedUpdatedAt: v.optional(v.string()),
+  },
   handler: async (ctx, args) => {
     const existing = await ctx.db
       .query("goals")
       .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId).eq("goalId", args.goalId))
       .unique()
     if (existing) {
+      if (args.expectedUpdatedAt !== undefined && existing.updatedAt !== args.expectedUpdatedAt) {
+        throw new Error("Goal state changed since it was read")
+      }
       await ctx.db.patch(existing._id, { state: args.state, updatedAt: args.updatedAt })
       return existing._id
     }
