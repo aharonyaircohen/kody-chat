@@ -14,11 +14,13 @@ import { notFound, redirect } from "next/navigation";
 // Package-owned (hosts deleted their copies) — must stay relative.
 import { ClientChatSurface } from "../../../src/dashboard/lib/components/ClientChatSurface";
 import {
+  getBuiltinClientBrand,
   resolveClientBrand,
   type ClientBrandResolveContext,
 } from "@dashboard/lib/client-brand";
+import { defaultClientBrandRepoContext } from "@dashboard/lib/client-brand-default-repo";
 import { getClientSurfaceCatalog } from "../../../src/dashboard/lib/client-chat-strings";
-import { resolveClientLanguageStrings } from "../../../src/dashboard/lib/client-language";
+import { resolveClientLanguageStrings } from "../../../src/dashboard/lib/client-language-resolver";
 import { type ClientBrandRepoContext } from "@dashboard/lib/client-brand-repo-cookie";
 import { mintClientSurfaceTicket } from "../../../src/dashboard/lib/chat/platform/surface-scope";
 import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
@@ -42,8 +44,8 @@ interface ClientChatPageProps {
 /** Parsed URL shape: brand slug plus the repo it lives in. */
 interface ClientChatRoute {
   brandSlug: string;
-  /** Repo context from the URL. */
-  urlContext: ClientBrandRepoContext;
+  /** Repo context from the URL; null for builtin-brand 1-segment links. */
+  urlContext: ClientBrandRepoContext | null;
   /** The path the surface should return to after auth round-trips. */
   callbackUrl: string;
 }
@@ -57,6 +59,16 @@ function parseClientChatRoute(
   const segments = path.map((segment) => decodeURIComponent(segment).trim());
   if (segments.some((segment) => !segment)) return null;
 
+  // 1-segment links serve the builtin reference brands (kody, kody-he, acme)
+  // without a repo context — pinned by the smoke and e2e suites. Repo-hosted
+  // brands remain repo-qualified only (3 segments).
+  if (segments.length === 1 && getBuiltinClientBrand(segments[0])) {
+    return {
+      brandSlug: segments[0],
+      urlContext: null,
+      callbackUrl: `/client/${encodeURIComponent(segments[0])}`,
+    };
+  }
   if (segments.length === 3) {
     const [owner, repo, brandSlug] = segments;
     if (!OWNER_REPO_PATTERN.test(owner) || !OWNER_REPO_PATTERN.test(repo)) {
@@ -83,12 +95,23 @@ async function withVaultToken(
   };
 }
 
-/** Resolve the brand from the repo named in the URL. */
+/**
+ * Resolve the brand from the repo named in the URL. Builtin-brand links
+ * (1 segment, no repo in the URL) resolve against the configured default
+ * repo when one is set, otherwise the builtin definition itself.
+ */
 async function resolveBrandAndContext(route: ClientChatRoute): Promise<{
   brand: Awaited<ReturnType<typeof resolveClientBrand>>;
-  context: ClientBrandResolveContext;
+  context: ClientBrandResolveContext | null;
 }> {
-  const context = await withVaultToken(route.urlContext);
+  const repoContext = route.urlContext ?? defaultClientBrandRepoContext();
+  if (!repoContext) {
+    return {
+      brand: await resolveClientBrand(route.brandSlug, null),
+      context: null,
+    };
+  }
+  const context = await withVaultToken(repoContext);
   return { brand: await resolveClientBrand(route.brandSlug, context), context };
 }
 
