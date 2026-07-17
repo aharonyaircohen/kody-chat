@@ -25,6 +25,8 @@ import {
   fetchRepoDiscussionMeta,
   createGoalDiscussion,
   enableRepoDiscussions,
+  getOwner,
+  getRepo,
 } from "../github";
 import {
   EMPTY_MANIFEST,
@@ -39,6 +41,7 @@ import {
 } from "../goals";
 import { mutateGoalsManifest } from "../goals-server";
 import { recordAudit } from "@kody-ade/base/activity/audit";
+import { listGoals, saveGoal, type StoredGoal } from "../backend/goals-state";
 
 const GOAL_LABEL_COLOR = "38bdf8"; // Tailwind sky-400
 
@@ -103,7 +106,9 @@ export async function GET(req: NextRequest) {
     setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
 
   try {
-    const { manifest, issue } = await readManifest();
+    const owner = headerAuth?.owner ?? getOwner();
+    const repo = headerAuth?.repo ?? getRepo();
+    const goals = await listGoals(owner, repo);
     // Best-effort capability lookup. Cached 10min, so this doesn't add a
     // GraphQL hit per poll. Failures (rate limit, no perms) just mean the UI
     // assumes Discussions are off and shows the disabled badge.
@@ -120,8 +125,8 @@ export async function GET(req: NextRequest) {
     // dueDate, etc.). Per-goal task PRs are discovered on the tasks route.
     return NextResponse.json(
       {
-        goals: manifest.goals,
-        manifest: { issueNumber: issue?.number ?? null },
+        goals,
+        manifest: { issueNumber: null },
         capabilities: { discussionsEnabled },
       },
       { headers: { "Cache-Control": "no-store" } },
@@ -151,6 +156,8 @@ export async function POST(req: NextRequest) {
     setGitHubContext(headerAuth.owner, headerAuth.repo, headerAuth.token);
 
   try {
+    const owner = headerAuth?.owner ?? getOwner();
+    const repo = headerAuth?.repo ?? getRepo();
     const payload = await req.json();
     const parsed = createGoalSchema.parse(payload);
 
@@ -195,34 +202,21 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const outcome = await mutateGoalsManifest<Goal>(
-      (current) => {
-        const id = uniqueGoalId(slugifyGoalName(parsed.name), current.goals);
-        const now = new Date().toISOString();
-        const newGoal: Goal = {
-          id,
-          name: parsed.name.trim(),
-          description: parsed.description?.trim() || undefined,
-          dueDate: parsed.dueDate?.trim() || undefined,
-          assignee: parsed.assignee?.trim() || undefined,
-          createdAt: now,
-          updatedAt: now,
-          discussionId: discussionRef?.id,
-          discussionNumber: discussionRef?.number,
-        };
-        return {
-          next: { version: 1, goals: [...current.goals, newGoal] },
-          result: newGoal,
-        };
-      },
-      { userOctokit: userOctokit ?? undefined },
-    );
-
-    if ("kind" in outcome) {
-      // Mutator never returns noop in the create path.
-      return NextResponse.json({ error: "create_failed" }, { status: 500 });
-    }
-    const newGoal = outcome.result;
+    const existingGoals = await listGoals(owner, repo);
+    const id = uniqueGoalId(slugifyGoalName(parsed.name), existingGoals as Goal[]);
+    const now = new Date().toISOString();
+    const newGoal: StoredGoal = {
+      id,
+      name: parsed.name.trim(),
+      description: parsed.description?.trim() || undefined,
+      dueDate: parsed.dueDate?.trim() || undefined,
+      assignee: parsed.assignee?.trim() || undefined,
+      createdAt: now,
+      updatedAt: now,
+      discussionId: discussionRef?.id,
+      discussionNumber: discussionRef?.number,
+    };
+    await saveGoal(owner, repo, newGoal);
 
     // Pre-create the `goal:<id>` repo label so attach operations later don't
     // 422. GitHub's addLabels endpoint requires the label to exist already.

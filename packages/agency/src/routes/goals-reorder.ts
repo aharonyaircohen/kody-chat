@@ -17,12 +17,9 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import {
-  setGitHubContext,
-  clearGitHubContext,
-} from "../github";
-import { type Goal, type GoalsManifest } from "../goals";
-import { mutateGoalsManifest } from "../goals-server";
+import { setGitHubContext, clearGitHubContext } from "../github";
+import { getOwner, getRepo } from "../github";
+import { listGoals, saveGoal, type StoredGoal } from "../backend/goals-state";
 
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
@@ -49,7 +46,7 @@ const reorderSchema = z.object({
 });
 
 type ReorderOutcome =
-  | { ok: true; goals: Goal[] }
+  | { ok: true; goals: StoredGoal[] }
   | { ok: false; reason: "not_found" };
 
 export async function POST(req: NextRequest) {
@@ -67,43 +64,23 @@ export async function POST(req: NextRequest) {
     const actorResult = await verifyActorLogin(req, parsed.actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
 
-    const userOctokit = await getUserOctokit(req);
-
-    const outcome = await mutateGoalsManifest<ReorderOutcome>(
-      (current) => {
-        if (current.goals.length === 0) {
-          return {
-            kind: "noop" as const,
-            result: { ok: false, reason: "not_found" } as const,
-          };
-        }
-
-        const byId = new Map(current.goals.map((g) => [g.id, g]));
-        const ordered: Goal[] = [];
-        const seen = new Set<string>();
-        for (const id of parsed.orderedIds) {
-          const goal = byId.get(id);
-          if (goal && !seen.has(id)) {
-            ordered.push(goal);
-            seen.add(id);
-          }
-        }
-        // Append any goals missing from the payload (keeps their original order).
-        for (const goal of current.goals) {
-          if (!seen.has(goal.id)) ordered.push(goal);
-        }
-        const next: GoalsManifest = { version: 1, goals: ordered };
-        return { next, result: { ok: true, goals: ordered } };
-      },
-      { userOctokit: userOctokit ?? undefined },
-    );
-
-    const result =
-      "kind" in outcome ? outcome.result : (outcome.result as ReorderOutcome);
-    if (!result.ok) {
+    const owner = headerAuth?.owner ?? getOwner();
+    const repo = headerAuth?.repo ?? getRepo();
+    const current = await listGoals(owner, repo);
+    if (current.length === 0) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
-    return NextResponse.json({ goals: result.goals });
+    const byId = new Map(current.map((goal) => [goal.id, goal]));
+    const ordered: StoredGoal[] = [];
+    const seen = new Set<string>();
+    for (const id of parsed.orderedIds) {
+      const goal = byId.get(id);
+      if (goal && !seen.has(id)) { ordered.push(goal); seen.add(id); }
+    }
+    for (const goal of current) if (!seen.has(goal.id)) ordered.push(goal);
+    const now = new Date().toISOString();
+    await Promise.all(ordered.map((goal, position) => saveGoal(owner, repo, { ...goal, position, updatedAt: now })));
+    return NextResponse.json({ goals: ordered.map((goal, position) => ({ ...goal, position, updatedAt: now })) });
   } catch (error: any) {
     console.error("[Goals] Error reordering goals:", error);
     if (error instanceof z.ZodError) {

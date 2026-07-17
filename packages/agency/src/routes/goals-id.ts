@@ -21,13 +21,13 @@ import {
   clearGitHubContext,
   updateGoalDiscussion,
   closeGoalDiscussion,
+  getOwner,
+  getRepo,
 } from "../github";
 import {
-  type Goal,
-  type GoalsManifest,
   goalDiscussionSeedBody,
 } from "../goals";
-import { mutateGoalsManifest } from "../goals-server";
+import { listGoals, removeGoal, saveGoal, type StoredGoal } from "../backend/goals-state";
 
 function mapGithubError(error: any, fallback: string, status = 500) {
   if (error?.status === 401) {
@@ -57,7 +57,7 @@ const patchGoalSchema = z.object({
 });
 
 type PatchOutcome =
-  | { ok: true; goal: Goal }
+  | { ok: true; goal: StoredGoal }
   | { ok: false; reason: "not_found" };
 
 export async function PATCH(
@@ -80,53 +80,21 @@ export async function PATCH(
     if (actorResult instanceof NextResponse) return actorResult;
 
     const userOctokit = await getUserOctokit(req);
-
-    const outcome = await mutateGoalsManifest<PatchOutcome>(
-      (current) => {
-        const index = current.goals.findIndex((g) => g.id === id);
-        if (index === -1) {
-          return {
-            kind: "noop" as const,
-            result: { ok: false, reason: "not_found" } as const,
-          };
-        }
-        const cur = current.goals[index];
-        const updated: Goal = {
-          ...cur,
-          name: patch.name?.trim() ?? cur.name,
-          description:
-            patch.description === null
-              ? undefined
-              : patch.description === undefined
-                ? cur.description
-                : patch.description.trim() || undefined,
-          dueDate:
-            patch.dueDate === null
-              ? undefined
-              : patch.dueDate === undefined
-                ? cur.dueDate
-                : patch.dueDate.trim() || undefined,
-          assignee:
-            patch.assignee === null
-              ? undefined
-              : patch.assignee === undefined
-                ? cur.assignee
-                : patch.assignee.trim() || undefined,
-          updatedAt: new Date().toISOString(),
-        };
-        const nextGoals = [...current.goals];
-        nextGoals[index] = updated;
-        const next: GoalsManifest = { version: 1, goals: nextGoals };
-        return { next, result: { ok: true, goal: updated } };
-      },
-      { userOctokit: userOctokit ?? undefined },
-    );
-
-    const result =
-      "kind" in outcome ? outcome.result : (outcome.result as PatchOutcome);
-    if (!result.ok) {
+    const owner = headerAuth?.owner ?? getOwner();
+    const repo = headerAuth?.repo ?? getRepo();
+    const current = (await listGoals(owner, repo)).find((goal) => goal.id === id);
+    if (!current) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
+    const result: PatchOutcome = { ok: true, goal: {
+      ...current,
+      name: patch.name?.trim() ?? current.name,
+      description: patch.description === null ? undefined : patch.description === undefined ? current.description : patch.description.trim() || undefined,
+      dueDate: patch.dueDate === null ? undefined : patch.dueDate === undefined ? current.dueDate : patch.dueDate.trim() || undefined,
+      assignee: patch.assignee === null ? undefined : patch.assignee === undefined ? current.assignee : patch.assignee.trim() || undefined,
+      updatedAt: new Date().toISOString(),
+    }};
+    await saveGoal(owner, repo, result.goal);
     // Mirror name/description/dueDate changes into the backing discussion if
     // one exists. Failures are non-fatal — the goal is already updated and
     // the next visit can resync via lazy-create / manual edit.
@@ -190,36 +158,18 @@ export async function DELETE(
     if (actorResult instanceof NextResponse) return actorResult;
 
     const userOctokit = await getUserOctokit(req);
-
-    const outcome = await mutateGoalsManifest<DeleteOutcome>(
-      (current) => {
-        const removed = current.goals.find((g) => g.id === id);
-        const nextGoals = current.goals.filter((g) => g.id !== id);
-        if (nextGoals.length === current.goals.length) {
-          return {
-            kind: "noop" as const,
-            result: { ok: false, reason: "not_found" } as const,
-          };
-        }
-        const next: GoalsManifest = { version: 1, goals: nextGoals };
-        return {
-          next,
-          result: { ok: true, discussionId: removed?.discussionId },
-        };
-      },
-      { userOctokit: userOctokit ?? undefined },
-    );
-
-    const result =
-      "kind" in outcome ? outcome.result : (outcome.result as DeleteOutcome);
-    if (!result.ok) {
+    const owner = headerAuth?.owner ?? getOwner();
+    const repo = headerAuth?.repo ?? getRepo();
+    const removed = (await listGoals(owner, repo)).find((goal) => goal.id === id);
+    if (!removed) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
+    await removeGoal(owner, repo, id);
     // Close the backing discussion to preserve history (never delete).
-    if (result.discussionId) {
+    if (removed.discussionId) {
       try {
         await closeGoalDiscussion(
-          result.discussionId,
+          removed.discussionId,
           userOctokit ?? undefined,
         );
       } catch (discErr) {
