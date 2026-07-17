@@ -1,17 +1,12 @@
 /**
  * @fileType api-endpoint
  * @domain view-renderers
- * @pattern state-repo-crud-api
+ * @pattern convex-crud-api
  * @ai-summary Reads, updates, and deletes one view renderer definition.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import {
-  getRequestAuth,
-  getUserOctokit,
-  requireKodyAuth,
-  verifyActorLogin,
-} from "@kody-ade/base/auth";
+import { getRequestAuth, requireKodyAuth, verifyActorLogin } from "@kody-ade/base/auth";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import {
   deleteViewRendererDefinitionFile,
@@ -72,10 +67,6 @@ export async function GET(
     if (!isValidViewRendererSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    const octokit = await getUserOctokit(req);
-    if (!octokit) {
-      return NextResponse.json({ error: "no_user_token" }, { status: 401 });
-    }
     const existing = await readViewRendererDefinitionFile({
       owner: required.auth.owner,
       repo: required.auth.repo,
@@ -124,10 +115,6 @@ export async function PATCH(
     }
     const actorResult = await verifyActorLogin(req, payload.actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
-    const octokit = await getUserOctokit(req);
-    if (!octokit) {
-      return NextResponse.json({ error: "no_user_token" }, { status: 401 });
-    }
     const existing = await readViewRendererDefinitionFile({
       owner: required.auth.owner,
       repo: required.auth.repo,
@@ -186,10 +173,6 @@ export async function DELETE(
     const actorLogin = searchParams.get("actorLogin") ?? undefined;
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
-    const octokit = await getUserOctokit(req);
-    if (!octokit) {
-      return NextResponse.json({ error: "no_user_token" }, { status: 401 });
-    }
     const existing = await readViewRendererDefinitionFile({
       owner: required.auth.owner,
       repo: required.auth.repo,

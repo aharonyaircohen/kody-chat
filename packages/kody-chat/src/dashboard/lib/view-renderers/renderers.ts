@@ -8,12 +8,8 @@
  *   spec/. This file owns storage CRUD and prompt-context loading.
  */
 import type { Octokit } from "@octokit/rest";
-import {
-  deleteStateFile,
-  listStateDirectory,
-  readStateText,
-  writeStateText,
-} from "@kody-ade/base/state-repo";
+import { api } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 import {
   BUILTIN_VIEW_RENDERER_DEFINITIONS,
   getBuiltinViewRendererDefinition,
@@ -78,17 +74,22 @@ export async function readViewRendererDefinitionFile({
   slug: string;
 }): Promise<ViewRendererDefinitionFile | null> {
   if (!isValidViewRendererSlug(slug)) return null;
-  const file = await readStateText(octokit, owner, repo, filePathForSlug(slug));
-  if (!file) {
+  void octokit;
+  const row = (await createBackendClient().query(api.viewRenderers.list, {
+    tenantId: `${owner}/${repo}`,
+  })).find((entry: { slug: string }) => entry.slug === slug) as
+    | { definition: ViewRendererDefinition; updatedAt?: string }
+    | undefined;
+  if (!row) {
     // No repo override — fall back to the packaged built-in, if any.
     const builtin = getBuiltinViewRendererDefinition(slug);
     return builtin ? builtinDefinitionFile(builtin) : null;
   }
   return {
-    definition: parseViewRendererDefinition(file.content),
+    definition: parseViewRendererDefinition(JSON.stringify(row.definition)),
     source: "repo",
-    sha: file.sha,
-    htmlUrl: file.htmlUrl ?? "",
+    sha: row.updatedAt ?? "convex",
+    htmlUrl: "",
   };
 }
 
@@ -154,28 +155,16 @@ export async function listViewRendererDefinitionFiles({
   owner: string;
   repo: string;
 }): Promise<ViewRendererDefinitionFile[]> {
-  const { entries } = await listStateDirectory(
-    octokit,
-    owner,
-    repo,
-    VIEW_RENDERERS_DIR,
-  );
-  const files = await Promise.all(
-    entries
-      .filter((entry) => entry.type === "file" && entry.name.endsWith(".json"))
-      .map((entry) =>
-        readViewRendererDefinitionFile({
-          octokit,
-          owner,
-          repo,
-          slug: entry.name.slice(0, -".json".length),
-        }).catch(() => null),
-      ),
-  );
-  const repoFiles = files.filter(
-    (file): file is ViewRendererDefinitionFile =>
-      Boolean(file) && file?.source === "repo",
-  );
+  void octokit;
+  const rows = (await createBackendClient().query(api.viewRenderers.list, {
+    tenantId: `${owner}/${repo}`,
+  })) as Array<{ definition: ViewRendererDefinition; updatedAt?: string }>;
+  const repoFiles = rows.map((row) => ({
+    definition: row.definition,
+    source: "repo" as const,
+    sha: row.updatedAt ?? "convex",
+    htmlUrl: "",
+  }));
   // Built-ins fill the gaps; a repo file with the same slug overrides its
   // built-in.
   const repoSlugs = new Set(repoFiles.map((file) => file.definition.slug));
@@ -200,21 +189,21 @@ export async function writeViewRendererDefinitionFile({
   sha?: string;
   message: string;
 }): Promise<ViewRendererDefinitionFile> {
-  const content = serializeViewRendererDefinition(definition);
-  const written = await writeStateText({
-    octokit,
-    owner,
-    repo,
-    path: filePathForSlug(definition.slug),
-    content,
-    message,
-    ...(sha ? { sha } : {}),
+  void octokit;
+  void sha;
+  void message;
+  const updatedAt = new Date().toISOString();
+  await createBackendClient().mutation(api.viewRenderers.save, {
+    tenantId: `${owner}/${repo}`,
+    slug: definition.slug,
+    definition,
+    updatedAt,
   });
   return {
     definition,
     source: "repo",
-    sha: written.sha ?? "",
-    htmlUrl: written.htmlUrl ?? "",
+    sha: updatedAt,
+    htmlUrl: "",
   };
 }
 
@@ -233,12 +222,11 @@ export async function deleteViewRendererDefinitionFile({
   sha: string;
   message: string;
 }): Promise<void> {
-  await deleteStateFile({
-    octokit,
-    owner,
-    repo,
-    path: filePathForSlug(slug),
-    sha,
-    message,
+  void octokit;
+  void sha;
+  void message;
+  await createBackendClient().mutation(api.viewRenderers.remove, {
+    tenantId: `${owner}/${repo}`,
+    slug,
   });
 }

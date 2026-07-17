@@ -1,18 +1,13 @@
 /**
  * @fileType api-endpoint
  * @domain view-renderers
- * @pattern state-repo-crud-api
+ * @pattern convex-crud-api
  * @ai-summary Lists and creates user-managed renderer definitions stored under
  *   `views/renderers/*.json` in the Kody state repo.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import {
-  getRequestAuth,
-  getUserOctokit,
-  requireKodyAuth,
-  verifyActorLogin,
-} from "@kody-ade/base/auth";
+import { getRequestAuth, requireKodyAuth, verifyActorLogin } from "@kody-ade/base/auth";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import {
   isValidViewRendererSlug,
@@ -71,13 +66,6 @@ export async function GET(req: NextRequest) {
   if ("response" in required) return required.response;
 
   try {
-    const octokit = await getUserOctokit(req);
-    if (!octokit) {
-      return NextResponse.json(
-        { error: "no_user_token" },
-        { status: 401, headers: NO_STORE_HEADERS },
-      );
-    }
     const files = await listViewRendererDefinitionFiles({
       owner: required.auth.owner,
       repo: required.auth.repo,
@@ -116,10 +104,6 @@ export async function POST(req: NextRequest) {
     }
     const actorResult = await verifyActorLogin(req, payload.actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
-    const octokit = await getUserOctokit(req);
-    if (!octokit) {
-      return NextResponse.json({ error: "no_user_token" }, { status: 401 });
-    }
     const existing = await readViewRendererDefinitionFile({
       owner: required.auth.owner,
       repo: required.auth.repo,
