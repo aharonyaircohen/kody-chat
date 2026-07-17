@@ -25,11 +25,17 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 import nock from "nock";
 import { NextRequest } from "next/server";
 import { POST as appendPOST } from "../../app/api/kody/chat/interactive/append/route";
 import { STATE_BRANCH } from "@kody-ade/base/state-branch";
+
+const backend = vi.hoisted(() => ({ query: vi.fn(), mutation: vi.fn() }));
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => backend,
+}));
 
 const GITHUB_API = "https://api.github.com";
 const REAL_FETCH = globalThis.fetch;
@@ -73,22 +79,10 @@ function captureAppendedTurn(sessionId: string): Promise<{
   content: string;
 }> {
   return new Promise((resolve) => {
-    nock(GITHUB_API)
-      .get(sessionPath(sessionId))
-      .query({ ref: STATE_BRANCH })
-      .reply(404);
-    mockStateBranch();
-    nock(GITHUB_API)
-      .put(sessionPath(sessionId), (payload: { content: string }) => {
-        const decoded = Buffer.from(payload.content, "base64").toString(
-          "utf-8",
-        );
-        const lines = decoded.split("\n").filter(Boolean);
-        const last = JSON.parse(lines[lines.length - 1]);
-        resolve(last);
-        return true;
-      })
-      .reply(201, { content: { sha: "newsha" } });
+    backend.mutation.mockImplementationOnce(async (_ref, args) => {
+      resolve(args.turn);
+      return "id";
+    });
   });
 }
 
@@ -103,6 +97,8 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  backend.query.mockReset().mockResolvedValue([]);
+  backend.mutation.mockReset().mockResolvedValue("id");
   mockRepoConfig404();
 });
 

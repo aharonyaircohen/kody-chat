@@ -45,4 +45,22 @@ describe("chatTurns", () => {
     const turns = await t.query(api.chatTurns.list, { tenantId: TENANT, sessionId: "s1" })
     expect(turns.map((x) => x.turn.content)).toEqual(["a", "b"])
   })
+
+  it("treats an identical adjacent turn as an idempotent retry", async () => {
+    const t = setup()
+    const first = { role: "user", content: "same" }
+    const firstId = await t.mutation(api.chatTurns.append, {
+      tenantId: TENANT,
+      sessionId: "dedupe",
+      turn: first,
+    })
+    const retryId = await t.mutation(api.chatTurns.append, {
+      tenantId: TENANT,
+      sessionId: "dedupe",
+      turn: first,
+    })
+    expect(retryId).toBe(firstId)
+    const turns = await t.query(api.chatTurns.list, { tenantId: TENANT, sessionId: "dedupe" })
+    expect(turns).toHaveLength(1)
+  })
 })

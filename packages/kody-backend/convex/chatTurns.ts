@@ -19,6 +19,20 @@ export const append = mutation({
       .withIndex("by_session", (q) => q.eq("tenantId", tenantId).eq("sessionId", sessionId))
       .order("desc")
       .first()
+    // Dashboard dispatch and the runner can both seed the same initial user
+    // turn. Treat an identical adjacent turn as an idempotent retry; distinct
+    // repeated messages remain valid once an assistant turn separates them.
+    if (
+      last &&
+      typeof last.turn === "object" &&
+      last.turn !== null &&
+      typeof turn === "object" &&
+      turn !== null &&
+      last.turn.role === turn.role &&
+      last.turn.content === turn.content
+    ) {
+      return last._id
+    }
     const seq = (last?.seq ?? -1) + 1
     return await ctx.db.insert("chatTurns", { tenantId, sessionId, seq, turn })
   },

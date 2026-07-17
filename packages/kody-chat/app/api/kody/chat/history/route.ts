@@ -5,19 +5,16 @@
  *
  * GET /api/kody/chat/history?taskId=xxx
  *
- * Fetches the chat session history from the configured Kody state repo's
- * session file.
+ * Fetches the chat session history from the Convex transcript.
  * Used when reopening a task's chat to restore full conversation context.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import {
   requireKodyAuth,
-  getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import { logger } from "@kody-ade/base/logger";
-import { readStateText } from "@kody-ade/base/state-repo";
+import { readSessionTranscript } from "@dashboard/lib/interactive-session";
 
 export const runtime = "nodejs";
 
@@ -56,43 +53,16 @@ export async function GET(req: NextRequest) {
   }
 
   const { owner, repo } = getEngineRepo(req);
-  const sessionPath = `sessions/${taskId}.jsonl`;
-
-  const octokit = await getUserOctokit(req);
-  if (!octokit) {
-    return NextResponse.json(
-      { error: "No GitHub token available" },
-      { status: 503 },
-    );
-  }
-
   try {
-    const file = await readStateText(octokit, owner, repo, sessionPath);
-    if (!file) {
+    const transcript = await readSessionTranscript(owner, repo, taskId);
+    if (!transcript) {
       return NextResponse.json({ messages: [] });
     }
-
-    const lines = file.content.trim().split("\n").filter(Boolean);
-
-    const messages: ChatMessage[] = [];
-    for (const line of lines) {
-      try {
-        messages.push(JSON.parse(line) as ChatMessage);
-      } catch {
-        // Skip malformed lines
-      }
-    }
-
-    return NextResponse.json({ messages });
+    return NextResponse.json({ messages: transcript.turns });
   } catch (err: unknown) {
-    const e = err as { status?: number };
-    if (e.status === 404) {
-      return NextResponse.json({ messages: [] });
-    }
-    logger.error({ err, taskId }, "chat history: fetch failed");
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Failed to fetch history" },
-      { status: 500 },
+      { error: err instanceof Error ? err.message : "Backend unavailable" },
+      { status: 503 },
     );
   }
 }

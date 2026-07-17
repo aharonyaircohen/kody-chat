@@ -8,7 +8,7 @@
  * Same shape as /interactive/start, but instead of dispatching the
  * `kody.yml` workflow on GitHub Actions, starts the installed server provider.
  *
- * The session JSONL lives in the state repo's `sessions/{id}.jsonl`, so the
+ * The session transcript lives in Convex, so the
  * existing append + event-stream paths work unchanged — only the runtime moves.
  *
  * Body: see /interactive/start (taskId, idleExitMs, hardCapMs).

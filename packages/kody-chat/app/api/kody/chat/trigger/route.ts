@@ -5,9 +5,9 @@
  *
  * POST /api/kody/chat/trigger
  *
- * Persists the chat session file to the configured Kody state repo, then dispatches the
- * engine's `kody.yml` workflow with chat-mode inputs. The engine reads
- * `sessions/{sessionId}.jsonl`, runs `kody dispatch` → chat flow,
+ * Persists the chat transcript to Convex, then dispatches the engine's
+ * `kody.yml` workflow with chat-mode inputs. The engine reads the Convex
+ * transcript and runs `kody dispatch` → chat flow,
  * and streams events back to the dashboard via the ingest endpoint using
  * the inline HMAC token embedded in `dashboardUrl`.
  *
@@ -35,7 +35,7 @@ import {
 } from "@dashboard/lib/vibe/primer";
 import { applyPageContextToLastUser } from "@dashboard/lib/chat/core/page-context";
 import { recordDispatchFailure } from "@dashboard/lib/health/dispatch-failures";
-import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
+import { recordSessionStart, recordTurn } from "@dashboard/lib/interactive-session";
 
 export const runtime = "nodejs";
 
@@ -133,7 +133,6 @@ export async function POST(req: NextRequest) {
 
   const { owner, repo } = getEngineRepo(req);
   const workflowId = getChatWorkflowId();
-  const sessionPath = `sessions/${taskId}.jsonl`;
   const headerAuthForEvents = getRequestAuth(req);
   emitSystemEvent(
     "chat.message.sent",
@@ -148,19 +147,6 @@ export async function POST(req: NextRequest) {
     },
   );
 
-  // Serialize messages as JSONL
-  const jsonlContent =
-    messages
-      .map((m) =>
-        JSON.stringify({
-          role: m.role,
-          content: m.content,
-          timestamp: m.timestamp,
-          toolCalls: m.toolCalls ?? [],
-        }),
-      )
-      .join("\n") + "\n";
-
   const octokit = await getUserOctokit(req);
   if (!octokit) {
     return NextResponse.json(
@@ -170,33 +156,16 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    logger.info(
-      { taskId, owner, repo, messageCount: messages.length },
-      "chat: writing session file",
-    );
-
-    let sha: string | undefined;
-    try {
-      sha = (await readStateText(octokit, owner, repo, sessionPath))?.sha;
-    } catch (err: unknown) {
-      const e = err as { status?: number };
-      if (e.status !== 404) {
-        logger.warn(
-          { err, taskId },
-          "chat: could not check existing session file",
-        );
-      }
-    }
-
-    await writeStateText({
-      octokit,
+    await recordSessionStart(
       owner,
       repo,
-      path: sessionPath,
-      message: `chat: update session ${taskId}`,
-      content: jsonlContent,
-      ...(sha ? { sha } : {}),
-    });
+      taskId,
+      { type: "meta", mode: "one-shot", createdAt: new Date().toISOString() },
+      messages[0],
+    );
+    for (const message of messages.slice(1)) {
+      await recordTurn(owner, repo, taskId, message);
+    }
 
     logger.info({ taskId, owner, repo }, "chat: triggering workflow");
 

@@ -6,7 +6,7 @@
  * POST /api/kody/chat/interactive/start
  *
  * Starts a long-lived "interactive runner" chat session. Writes the meta
- * line to the state repo's `sessions/{sessionId}.jsonl` (no user turn yet)
+ * record to Convex (no user turn yet)
  * and dispatches `kody.yml`. The runner detects the meta line, enters its
  * poll loop, and emits `chat.ready` to signal the dashboard to unlock
  * input. New user messages get appended via /api/kody/chat/interactive/append

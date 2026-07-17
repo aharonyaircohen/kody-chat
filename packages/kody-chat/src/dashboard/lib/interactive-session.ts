@@ -11,8 +11,7 @@
  * Why this lives in its own module: the existing trigger route does
  * dispatch-per-turn and assumes one workflow run = one reply. Interactive
  * mode breaks that — start() dispatches once, then append() writes to the
- * session file in the configured Kody state repo without triggering anything
- * new.
+ * Convex transcript without triggering anything new.
  *
  * Auth model is the same inline HMAC token as one-shot chat — see
  * chat-token.ts. The runner verifies the token on ingest POSTs so we
@@ -20,7 +19,8 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
+import { api as backendApi } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 
 const SESSION_DIR = "sessions";
 const DEFAULT_BRANCH = "main";
@@ -28,7 +28,7 @@ const DEFAULT_BRANCH = "main";
 /** Meta line written as the first JSONL row. The engine reads it via readMeta. */
 export interface SessionMeta {
   type: "meta";
-  mode: "interactive";
+  mode: "interactive" | "one-shot";
   createdAt: string;
   /** Idle window before the runner exits (default: 5min in engine). */
   idleExitMs?: number;
@@ -60,8 +60,7 @@ export function buildMetaLine(
 }
 
 /**
- * Writes the meta line as the (initial) content of the session file. Use at
- * the start of an interactive session.
+ * Writes the meta record at the start of an interactive session.
  *
  * `initialTurn` (optional): when provided, the first user turn is written in
  * the SAME commit as the meta line, so the runner sees it on its first read.
@@ -73,12 +72,7 @@ export function buildMetaLine(
  * happened / chat sits silent" bug). Folding the first turn into the meta
  * write removes that race entirely.
  *
- * Concurrency: each start commits a (distinct) session file to the same
- * branch, so two starts firing at once race on the branch HEAD — the loser
- * gets a 409 ("<path> is at <sha> but expected <sha>"). Without a retry that
- * surfaces as a 500 to the user (observed when two Vibe runs start together).
- * We retry on 409 with a small jittered backoff so concurrent starters
- * desynchronise and both land — same pattern appendUserTurn uses.
+ * Convex mutations provide the durable write boundary for concurrent starts.
  */
 export async function writeSessionMeta(
   octokit: Octokit,
@@ -90,53 +84,13 @@ export async function writeSessionMeta(
   maxRetries = 4,
   initialTurn?: ChatTurn,
 ): Promise<void> {
-  const path = sessionFilePath(sessionId);
-  const content = initialTurn
-    ? `${JSON.stringify(meta)}\n${JSON.stringify({
-        role: initialTurn.role,
-        content: initialTurn.content,
-        timestamp: initialTurn.timestamp,
-        toolCalls: initialTurn.toolCalls ?? [],
-      })}\n`
-    : `${JSON.stringify(meta)}\n`;
-
-  let attempt = 0;
-  while (true) {
-    attempt += 1;
-    // Re-read the sha each attempt: a concurrent start may have created this
-    // exact file (re-run of the same sessionId), and the branch HEAD may have
-    // moved, so a stale sha would just collide again.
-    const sha = await getFileSha(octokit, owner, repo, path, branch);
-    try {
-      await writeStateText({
-        octokit,
-        owner,
-        repo,
-        path,
-        message: `chat: start interactive session ${sessionId}`,
-        content,
-        ...(sha ? { sha } : {}),
-        maxAttempts: 1,
-      });
-      return;
-    } catch (err: unknown) {
-      const e = err as { status?: number };
-      if (e.status === 409 && attempt < maxRetries) {
-        await sleep(100 * attempt + Math.floor(Math.random() * 100));
-        continue;
-      }
-      throw err;
-    }
-  }
+  await recordSessionStart(owner, repo, sessionId, meta, initialTurn);
 }
 
 /**
- * Reads the existing session file, appends a single user turn, writes back.
+ * Appends a single user turn to the Convex transcript.
  * Returns the new turn count so the caller can update local UI watermarks.
  *
- * Race window: if the runner pushes between our read and write, the sha
- * check fails and we retry once. Beyond that, surface the error — the
- * caller can decide to fall back to a fresh dispatch.
  */
 export async function appendUserTurn(
   octokit: Octokit,
@@ -147,93 +101,29 @@ export async function appendUserTurn(
   branch: string = DEFAULT_BRANCH,
   maxRetries = 3,
 ): Promise<{ turnCount: number }> {
-  const path = sessionFilePath(sessionId);
-
-  let attempt = 0;
-  while (true) {
-    attempt += 1;
-    const existing = await readSessionFile(octokit, owner, repo, path, branch);
-    const newContent =
-      existing.content +
-      `${JSON.stringify({
-        role: turn.role,
-        content: turn.content,
-        timestamp: turn.timestamp,
-        toolCalls: turn.toolCalls ?? [],
-      })}\n`;
-
-    try {
-      await writeStateText({
-        octokit,
-        owner,
-        repo,
-        path,
-        message: `chat: append turn for ${sessionId}`,
-        content: newContent,
-        sha: existing.sha,
-        maxAttempts: 1,
-      });
-      return { turnCount: countTurnLines(newContent) };
-    } catch (err: unknown) {
-      const e = err as { status?: number };
-      // 409 = sha mismatch (concurrent runner push). Retry with fresh sha.
-      if (e.status === 409 && attempt < maxRetries) {
-        await sleep(100 * attempt + Math.floor(Math.random() * 100));
-        continue;
-      }
-      throw err;
-    }
-  }
+  await recordTurn(owner, repo, sessionId, turn);
+  const turns = await createBackendClient().query(backendApi.chatTurns.list, {
+    tenantId: `${owner}/${repo}`,
+    sessionId,
+  });
+  return { turnCount: (turns as unknown[]).length };
 }
 
-// ─── internals ─────────────────────────────────────────────────────────────
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+export async function readSessionTranscript(owner: string, repo: string, sessionId: string) {
+  const result = await createBackendClient().query(backendApi.chatSessions.get, {
+    tenantId: `${owner}/${repo}`,
+    sessionId,
+  }) as { session: { meta: SessionMeta }; turns: Array<{ seq: number; turn: ChatTurn }> } | null;
+  if (!result) return null;
+  return { meta: result.session.meta, turns: result.turns.sort((a, b) => a.seq - b.seq).map((entry) => entry.turn) };
 }
 
-async function getFileSha(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  path: string,
-  _branch: string,
-): Promise<string | null> {
-  try {
-    return (await readStateText(octokit, owner, repo, path))?.sha ?? null;
-  } catch (err: unknown) {
-    const e = err as { status?: number };
-    if (e.status === 404) return null;
-    throw err;
-  }
+export async function recordSessionStart(owner: string, repo: string, sessionId: string, meta: SessionMeta, initialTurn?: ChatTurn): Promise<void> {
+  const client = createBackendClient();
+  await client.mutation(backendApi.chatSessions.upsert, { tenantId: `${owner}/${repo}`, sessionId, meta, updatedAt: new Date().toISOString() });
+  if (initialTurn) await recordTurn(owner, repo, sessionId, initialTurn);
 }
 
-async function readSessionFile(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  path: string,
-  _branch: string,
-): Promise<{ content: string; sha: string | undefined }> {
-  try {
-    const file = await readStateText(octokit, owner, repo, path);
-    if (!file) return { content: "", sha: undefined };
-    return { content: file.content, sha: file.sha };
-  } catch (err: unknown) {
-    const e = err as { status?: number };
-    if (e.status === 404) return { content: "", sha: undefined };
-    throw err;
-  }
-}
-
-function countTurnLines(content: string): number {
-  return content.split("\n").filter((line) => {
-    if (!line.trim()) return false;
-    try {
-      const parsed = JSON.parse(line) as { role?: string };
-      return parsed.role === "user" || parsed.role === "assistant";
-    } catch {
-      return false;
-    }
-  }).length;
+export async function recordTurn(owner: string, repo: string, sessionId: string, turn: ChatTurn): Promise<void> {
+  await createBackendClient().mutation(backendApi.chatTurns.append, { tenantId: `${owner}/${repo}`, sessionId, turn: { ...turn, toolCalls: turn.toolCalls ?? [] } });
 }

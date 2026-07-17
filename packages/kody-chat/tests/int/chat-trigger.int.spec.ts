@@ -30,6 +30,11 @@ import { NextRequest } from "next/server";
 import { POST as triggerPOST } from "../../app/api/kody/chat/trigger/route";
 import { STATE_BRANCH } from "@kody-ade/base/state-branch";
 
+const backend = vi.hoisted(() => ({ query: vi.fn(), mutation: vi.fn() }));
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => backend,
+}));
+
 const GITHUB_API = "https://api.github.com";
 const REAL_FETCH = globalThis.fetch;
 
@@ -78,6 +83,8 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  backend.query.mockReset().mockResolvedValue([]);
+  backend.mutation.mockReset().mockResolvedValue("id");
   mockRepoConfig404();
 });
 

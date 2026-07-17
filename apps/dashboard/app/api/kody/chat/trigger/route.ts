@@ -37,8 +37,6 @@ import {
 } from "@dashboard/lib/vibe/primer";
 import { applyPageContextToLastUser } from "@kody-ade/kody-chat/core/page-context";
 import { recordDispatchFailure } from "@dashboard/lib/health/dispatch-failures";
-import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
-import { isLegacySessionWriteEnabled } from "@dashboard/lib/legacy-session-write";
 import {
   backendApi,
   getConvexClient,
@@ -140,6 +138,7 @@ async function mirrorSessionToConvex(
     }
   } catch (err) {
     logger.error({ err, sessionId }, "chat: convex transcript mirror failed");
+    throw err;
   }
 }
 
@@ -192,7 +191,6 @@ export async function POST(req: NextRequest) {
 
   const { owner, repo } = getEngineRepo(req);
   const workflowId = getChatWorkflowId();
-  const sessionPath = `sessions/${taskId}.jsonl`;
 
   ensureTriggerStateWriter();
   const headerAuthForEvents = getRequestAuth(req);
@@ -212,19 +210,6 @@ export async function POST(req: NextRequest) {
     },
   );
 
-  // Serialize messages as JSONL
-  const jsonlContent =
-    messages
-      .map((m) =>
-        JSON.stringify({
-          role: m.role,
-          content: m.content,
-          timestamp: m.timestamp,
-          toolCalls: m.toolCalls ?? [],
-        }),
-      )
-      .join("\n") + "\n";
-
   const octokit = await getUserOctokit(req);
   if (!octokit) {
     return NextResponse.json(
@@ -238,34 +223,6 @@ export async function POST(req: NextRequest) {
       { taskId, owner, repo, messageCount: messages.length },
       "chat: writing session file",
     );
-
-    // Legacy dual-write gate: with KODY_LEGACY_SESSION_WRITE=0 the state-repo
-    // JSONL write is skipped; Convex (below) is the only transcript record.
-    // See legacy-session-write.ts for when that is safe.
-    if (isLegacySessionWriteEnabled()) {
-      let sha: string | undefined;
-      try {
-        sha = (await readStateText(octokit, owner, repo, sessionPath))?.sha;
-      } catch (err: unknown) {
-        const e = err as { status?: number };
-        if (e.status !== 404) {
-          logger.warn(
-            { err, taskId },
-            "chat: could not check existing session file",
-          );
-        }
-      }
-
-      await writeStateText({
-        octokit,
-        owner,
-        repo,
-        path: sessionPath,
-        message: `chat: update session ${taskId}`,
-        content: jsonlContent,
-        ...(sha ? { sha } : {}),
-      });
-    }
 
     await mirrorSessionToConvex(owner, repo, taskId, messages);
 
