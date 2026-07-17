@@ -25,7 +25,11 @@ import {
   isValidSlug,
   PERMISSION_MODES,
 } from "@dashboard/lib/capabilities";
-import { getEngineConfig } from "@kody-ade/base/engine/config";
+import { getProjectedEngineConfig } from "@dashboard/lib/backend/repo-projection";
+import {
+  listProjectedCapabilities,
+  saveProjectedCapability,
+} from "@dashboard/lib/backend/repo-projection";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import { resolveInstalledCapabilitySlugs } from "@dashboard/lib/company-store/installed-capabilities";
 
@@ -54,7 +58,7 @@ export async function GET(req: NextRequest) {
     if (headerAuth) {
       const userOctokit = await getUserOctokit(req);
       if (userOctokit) {
-        const { config } = await getEngineConfig(
+        const { config } = await getProjectedEngineConfig(
           userOctokit,
           headerAuth.owner,
           headerAuth.repo,
@@ -67,6 +71,22 @@ export async function GET(req: NextRequest) {
           userOctokit,
           config,
         );
+
+        try {
+          const projected = await listProjectedCapabilities(
+            headerAuth.owner,
+            headerAuth.repo,
+            activeCapabilities,
+          );
+          if (projected.length > 0) {
+            return NextResponse.json(
+              { capabilities: projected, defaults },
+              { headers: NO_STORE_HEADERS },
+            );
+          }
+        } catch {
+          // Bootstrap from GitHub below.
+        }
       }
     }
     const capabilities = (
@@ -74,6 +94,17 @@ export async function GET(req: NextRequest) {
     ).filter(
       (item) => item.source !== "store" || activeCapabilities.has(item.slug),
     );
+    if (headerAuth) {
+      await Promise.all(
+        capabilities.map((capability) =>
+          saveProjectedCapability(
+            headerAuth.owner,
+            headerAuth.repo,
+            capability,
+          ).catch(() => undefined),
+        ),
+      );
+    }
     return NextResponse.json(
       { capabilities, defaults },
       { headers: NO_STORE_HEADERS },

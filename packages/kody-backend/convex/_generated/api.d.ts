@@ -12,6 +12,7 @@ import type * as actionStates from "../actionStates.js";
 import type * as agencyRecords from "../agencyRecords.js";
 import type * as agents from "../agents.js";
 import type * as capabilityState from "../capabilityState.js";
+import type * as catalog from "../catalog.js";
 import type * as channelsSeen from "../channelsSeen.js";
 import type * as chatEvents from "../chatEvents.js";
 import type * as chatSessions from "../chatSessions.js";
@@ -45,6 +46,7 @@ declare const fullApi: ApiFromModules<{
   agencyRecords: typeof agencyRecords;
   agents: typeof agents;
   capabilityState: typeof capabilityState;
+  catalog: typeof catalog;
   channelsSeen: typeof channelsSeen;
   chatEvents: typeof chatEvents;
   chatSessions: typeof chatSessions;

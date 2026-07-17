@@ -38,6 +38,7 @@ import {
   type ManagedGoalRecord,
   type ManagedGoalState,
 } from "./managed-goals";
+import { listCatalogEntries, saveCatalogEntry } from "./backend/catalog";
 
 const MANAGED_GOALS_LIST_TTL_MS = 60_000;
 const COMPANY_STORE_GOAL_TEMPLATES_TTL_MS = 60_000;
@@ -223,7 +224,33 @@ export async function listCompanyStoreGoalTemplateFiles(
 ): Promise<ManagedGoalRecord[]> {
   return companyStoreGoalTemplatesCache.get(
     companyStoreGoalTemplatesCacheKey(),
-    () => loadCompanyStoreGoalTemplateFiles(octokit),
+    async () => {
+      const owner = getOwner();
+      const repo = getRepo();
+      try {
+        const projected = await listCatalogEntries<ManagedGoalRecord>(
+          owner,
+          repo,
+          "goal-template",
+        );
+        if (projected.length > 0) {
+          return projected
+            .map((entry) => entry.doc)
+            .filter((entry): entry is ManagedGoalRecord => Boolean(entry))
+            .sort((a, b) => a.id.localeCompare(b.id));
+        }
+      } catch {
+        // Convex is optional for local/dashboard fallback environments.
+      }
+
+      const loaded = await loadCompanyStoreGoalTemplateFiles(octokit);
+      await Promise.all(
+        loaded.map((goal) =>
+          saveCatalogEntry(owner, repo, "goal-template", goal.id, goal, "company-store").catch(() => undefined),
+        ),
+      );
+      return loaded;
+    },
   );
 }
 

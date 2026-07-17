@@ -38,10 +38,8 @@ import {
   readManagedGoalFile,
   writeManagedGoalFile,
 } from "@dashboard/lib/managed-goals-files";
-import {
-  getEngineConfig,
-  type ActiveGoalConfigEntry,
-} from "@kody-ade/base/engine/config";
+import { type ActiveGoalConfigEntry } from "@kody-ade/base/engine/config";
+import { getProjectedEngineConfig } from "@dashboard/lib/backend/repo-projection";
 
 function activeGoalSlug(entry: ActiveGoalConfigEntry): string {
   return typeof entry === "string" ? entry : entry.template;
@@ -146,7 +144,7 @@ export async function GET(req: NextRequest) {
       headerAuth.repo,
     );
     const visibleLocalGoals = collapseManagedGoalRecordsForList(localGoals);
-    const { config } = await getEngineConfig(
+    const { config } = await getProjectedEngineConfig(
       octokit,
       headerAuth.owner,
       headerAuth.repo,

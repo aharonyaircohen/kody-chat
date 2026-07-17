@@ -44,6 +44,12 @@ export function parseJsonl(text: string): unknown[] {
 
 export const ENTITIES: EntityDef[] = [
   {
+    table: "catalog",
+    naturalKey: ["category", "slug"],
+    upsertIndex: "by_key",
+    statePaths: [],
+  },
+  {
     table: "workflows",
     naturalKey: ["workflowId"],
     upsertIndex: "by_tenant",

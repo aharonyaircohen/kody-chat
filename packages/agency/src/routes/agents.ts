@@ -29,6 +29,10 @@ import {
 import { normalizeAgentSlug } from "../agent-slug";
 import { getEngineConfig } from "@kody-ade/base/engine/config";
 import { recordAudit } from "@kody-ade/base/activity/audit";
+import {
+  listProjectedAgents,
+  saveProjectedAgent,
+} from "../backend/agents-projection";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -50,6 +54,22 @@ export async function GET(req: NextRequest) {
     );
 
   try {
+    if (headerAuth) {
+      try {
+        const projected = await listProjectedAgents(
+          headerAuth.owner,
+          headerAuth.repo,
+        );
+        if (projected.length > 0) {
+          return NextResponse.json(
+            { agent: projected },
+            { headers: NO_STORE_HEADERS },
+          );
+        }
+      } catch {
+        // Bootstrap from GitHub below.
+      }
+    }
     const activeAgents = new Set<string>();
     const octokit = await getUserOctokit(req);
     if (octokit && headerAuth) {
@@ -65,6 +85,15 @@ export async function GET(req: NextRequest) {
     const agent = (await listResolvedAgentFiles()).filter(
       (item) => item.source !== "store" || activeAgents.has(item.slug),
     );
+    if (headerAuth) {
+      await Promise.all(
+        agent.map((item) =>
+          saveProjectedAgent(headerAuth.owner, headerAuth.repo, item).catch(
+            () => undefined,
+          ),
+        ),
+      );
+    }
     return NextResponse.json({ agent }, { headers: NO_STORE_HEADERS });
   } catch (error: any) {
     console.error("[Agent] Error fetching agent:", error);

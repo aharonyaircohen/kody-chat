@@ -100,6 +100,27 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_tenant", ["tenantId", "slug"]),
 
+  // Read-optimized projection of GitHub-owned repository/company assets.
+  // GitHub remains the source of truth; Dashboard list pages read this table
+  // instead of fanning out through the GitHub Contents API.
+  catalog: defineTable({
+    tenantId: v.string(),
+    category: v.union(
+      v.literal("config"),
+      v.literal("capability"),
+      v.literal("agent"),
+      v.literal("goal-template"),
+      v.literal("workflow-template"),
+      v.literal("capability-workflow"),
+    ),
+    slug: v.string(),
+    doc: v.any(),
+    source: v.string(),
+    sourceUpdatedAt: v.optional(v.string()),
+    updatedAt: v.string(),
+  })
+    .index("by_key", ["tenantId", "category", "slug"]),
+
   viewRenderers: defineTable({
     tenantId: v.string(),
     slug: v.string(),
