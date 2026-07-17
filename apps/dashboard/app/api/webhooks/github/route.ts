@@ -40,6 +40,10 @@ import { dispatchNotifications } from "@dashboard/lib/notifications-dispatch";
 import { dispatchMentionPushes } from "@dashboard/lib/push/mention-dispatch";
 import { dispatchAgentMentions } from "@dashboard/lib/push/agent-mention-dispatch";
 import { dispatchCapabilityFailures } from "@dashboard/lib/push/capability-failure-dispatch";
+import {
+  invalidateCatalogProjection,
+  isCatalogRelevantPath,
+} from "@dashboard/lib/backend/catalog-invalidation";
 import { dispatchReportPushes } from "@dashboard/lib/push/report-dispatch";
 import { applyVerdictFromComment } from "@dashboard/lib/ui-verify/apply-label";
 import {
@@ -356,6 +360,13 @@ function dispatch(event: string, payload: unknown): DispatchResult {
         ...(head?.removed ?? []),
       ];
       const requiredEffects: Promise<void>[] = [];
+      if (repoFullName && changedPaths.some(isCatalogRelevantPath)) {
+        requiredEffects.push(
+          invalidateCatalogProjection(repoFullName, changedPaths).catch(
+            () => undefined,
+          ),
+        );
+      }
       if (repoFullName && branch && sha && !isDeletedRef) {
         requiredEffects.push(
           mustFinish(

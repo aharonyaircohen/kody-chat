@@ -61,3 +61,17 @@ export const remove = mutation({
     if (existing) await ctx.db.delete(existing._id)
   },
 })
+
+export const clearCategories = mutation({
+  args: { tenantId: v.string(), categories: v.array(category) },
+  handler: async (ctx, { tenantId, categories }) => {
+    const wanted = new Set(categories)
+    const rows = await ctx.db
+      .query("catalog")
+      .withIndex("by_key", (q) => q.eq("tenantId", tenantId))
+      .take(1000)
+    for (const row of rows) {
+      if (wanted.has(row.category)) await ctx.db.delete(row._id)
+    }
+  },
+})
