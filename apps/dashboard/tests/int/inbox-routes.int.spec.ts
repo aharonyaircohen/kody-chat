@@ -30,7 +30,7 @@ vi.mock("@kody-ade/base/auth", () => ({
   getUserOctokit: (...a: unknown[]) => mocks.getUserOctokit(...(a as [])),
 }));
 
-vi.mock("@dashboard/lib/inbox/gist-store", () => ({
+vi.mock("@dashboard/lib/inbox/convex-store", () => ({
   readInbox: (...a: unknown[]) => mocks.readInbox(...(a as [])),
   appendInboxEntries: (...a: unknown[]) =>
     mocks.appendInboxEntries(...(a as [])),

@@ -43,7 +43,7 @@ The duplicate `packages/kody-chat/src/dashboard/lib` tree totals **62,770 lines*
 | `packages/base/src/branches/infra/github-branch-repo.ts` | 275 | branches subsystem (branch-service) | **KEEP** |
 | `packages/kody-backend/scripts/export-github.ts` (+export-mapping.ts) | 85+11 | `pnpm --filter @kody-ade/backend export:github` only | **RETIRE-AFTER** migration window closes for all tenants |
 | `apps/dashboard/.../company/backend/export-github/route.ts` | 158 | BackendManager.tsx "GitHub" export button | **RETIRE-AFTER** migration window closes (remove UI branch with it); sibling `export/route.ts` (Convex backup) is KEEP |
-| `apps/dashboard/src/dashboard/lib/inbox/gist-store.ts` | 299 | inbox routes ×5 + chat inbox-tools | **KEEP — UNMIGRATED** (gist, not Convex; migration candidate, has `inbox` Convex table already) |
+| `apps/dashboard/src/dashboard/lib/inbox/convex-store.ts` | — | inbox routes ×5 + chat inbox-tools | **MIGRATED** (Convex) |
 | `apps/dashboard/src/dashboard/lib/messages/channels-seen-convex.ts` (+channels-seen.ts) | — | messages/read-state route | **MIGRATED** (Convex) |
 
 ### The `packages/kody-chat` duplicate tree — verdict: partially legacy

@@ -18,7 +18,7 @@ import {
   getRequestAuth,
   getUserOctokit,
 } from "@kody-ade/base/auth";
-import { appendInboxEntries, readInbox } from "@dashboard/lib/inbox/gist-store";
+import { appendInboxEntries, readInbox } from "@dashboard/lib/inbox/convex-store";
 import type { InboxEntry, InboxSource } from "@dashboard/lib/inbox/types";
 
 const SOURCES = [

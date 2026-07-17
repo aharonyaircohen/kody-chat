@@ -40,3 +40,12 @@ export const upsert = mutation({
     return await ctx.db.insert("inboxEntries", args)
   },
 })
+
+export const remove = mutation({
+  args: { tenantId: v.string(), login: v.string(), entryId: v.string() },
+  handler: async (ctx, { tenantId, login, entryId }) => {
+    const existing = await ctx.db.query("inboxEntries").withIndex("by_entry", (q) =>
+      q.eq("tenantId", tenantId).eq("login", login).eq("entryId", entryId)).unique()
+    if (existing) await ctx.db.delete(existing._id)
+  },
+})
