@@ -19,14 +19,6 @@ import {
   getRepo,
 } from "../github";
 import {
-  deleteStateFile,
-  listStateDirectory,
-  readStateText,
-  resolveStateRepo,
-  stateRepoPath,
-  writeStateText,
-} from "@kody-ade/base/state-repo";
-import {
   joinFrontmatter,
   splitFrontmatter,
   type CommandFrontmatter,
@@ -75,28 +67,6 @@ function slugFromName(name: string): string | null {
 
 export function isValidSlug(slug: string): boolean {
   return /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug);
-}
-
-async function fetchLastCommitDate(
-  octokit: Octokit,
-  filePath: string,
-): Promise<string> {
-  try {
-    const target = await resolveStateRepo(octokit, getOwner(), getRepo());
-    const { data } = await octokit.repos.listCommits({
-      owner: target.owner,
-      repo: target.repo,
-      path: stateRepoPath(target, filePath),
-      per_page: 1,
-    });
-    return (
-      data[0]?.commit.committer?.date ??
-      data[0]?.commit.author?.date ??
-      new Date().toISOString()
-    );
-  } catch {
-    return new Date().toISOString();
-  }
 }
 
 function parseCommandMarkdown(raw: string): {

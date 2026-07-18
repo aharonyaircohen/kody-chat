@@ -6,15 +6,7 @@
  * in the configured Kody state repo. Each file is one list.
  */
 import type { Octokit } from "@octokit/rest";
-import { getOctokit, getOwner, getRepo } from "../github";
-import {
-  deleteStateFile,
-  listStateDirectory,
-  readStateText,
-  resolveStateRepo,
-  stateRepoPath,
-  writeStateText,
-} from "@kody-ade/base/state-repo";
+import { getOwner, getRepo } from "../github";
 import { slugifyTitle } from "@kody-ade/base/slug";
 import { api } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
@@ -65,28 +57,6 @@ function slugFromName(name: string): string | null {
 
 function todoJsonPath(slug: string): string {
   return `${TODOS_DIR}/${slug}.json`;
-}
-
-async function fetchLastCommitDate(
-  octokit: Octokit,
-  filePath: string,
-): Promise<string> {
-  try {
-    const target = await resolveStateRepo(octokit, getOwner(), getRepo());
-    const { data } = await octokit.repos.listCommits({
-      owner: target.owner,
-      repo: target.repo,
-      path: stateRepoPath(target, filePath),
-      per_page: 1,
-    });
-    return (
-      data[0]?.commit.committer?.date ??
-      data[0]?.commit.author?.date ??
-      new Date().toISOString()
-    );
-  } catch {
-    return new Date().toISOString();
-  }
 }
 
 function normalizeMarkdown(value: string): string {

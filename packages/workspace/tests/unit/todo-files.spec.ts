@@ -14,10 +14,18 @@ const mocks = vi.hoisted(() => ({
     stateRepoPath: vi.fn(),
     writeStateText: vi.fn(),
   },
+  backend: {
+    query: vi.fn(),
+    mutation: vi.fn(),
+  },
 }));
 
 vi.mock("@kody-ade/workspace/github", () => mocks.githubClient);
 vi.mock("@kody-ade/base/state-repo", () => mocks.stateRepo);
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => mocks.backend,
+}));
+vi.mock("@kody-ade/backend/api", () => ({ api: { repoDocs: { get: "get", save: "save" } } }));
 
 import {
   parseTodoFileContent,
@@ -43,6 +51,8 @@ beforeEach(() => {
     (target: { basePath: string }, path: string) =>
       [target.basePath, path].filter(Boolean).join("/"),
   );
+  mocks.backend.query.mockResolvedValue(null);
+  mocks.backend.mutation.mockResolvedValue("todo-id");
 });
 
 describe("todo file content", () => {
@@ -126,14 +136,6 @@ describe("todo file content", () => {
   });
 
   it("returns the written todo when a new file cannot be re-read immediately", async () => {
-    mocks.stateRepo.readStateText.mockResolvedValueOnce(null);
-    mocks.stateRepo.writeStateText.mockResolvedValueOnce({
-      sha: "todo-sha",
-      path: "widgets/todos/checkout-work.json",
-      htmlUrl:
-        "https://github.com/acme/kody-state/blob/kody-state/widgets/todos/checkout-work.json",
-    });
-
     const todo = await writeTodoFile({
       octokit: {} as Parameters<typeof writeTodoFile>[0]["octokit"],
       slug: "checkout-work",
@@ -158,9 +160,6 @@ describe("todo file content", () => {
       path: "todos/checkout-work.json",
       title: "Checkout work",
       description: "Track checkout work.",
-      sha: "todo-sha",
-      htmlUrl:
-        "https://github.com/acme/kody-state/blob/kody-state/widgets/todos/checkout-work.json",
       items: [
         {
           id: "item-1",
@@ -170,6 +169,6 @@ describe("todo file content", () => {
       ],
     });
     expect(Date.parse(todo.updatedAt)).not.toBeNaN();
-    expect(mocks.stateRepo.readStateText).toHaveBeenCalledTimes(1);
+    expect(mocks.backend.mutation).toHaveBeenCalledTimes(1);
   });
 });
