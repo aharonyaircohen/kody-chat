@@ -152,6 +152,14 @@ export const PRIMARY_NAV_ITEMS: readonly SettingsNavItem[] = [
   },
 
   {
+    href: "/inbox",
+    label: "Inbox",
+    icon: Bell,
+    description:
+      "Everything Kody is waiting on you for — approvals, requests, and mentions.",
+    tint: "text-amber-300 bg-amber-500/10",
+  },
+  {
     href: "/messages",
     label: "Messages",
     icon: MessageSquare,
@@ -555,6 +563,7 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
       VIBE_NAV_ITEM,
       PREVIEW_NAV_ITEM,
       TODOS_NAV_ITEM,
+      navItemForHref("/inbox"),
       navItemForHref("/agency-runs"),
     ],
   },
