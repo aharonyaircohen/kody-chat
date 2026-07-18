@@ -9,11 +9,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Octokit } from "@octokit/rest";
 
-const readStateTextMock = vi.hoisted(() => vi.fn());
+const backendQueryMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@kody-ade/base/state-repo", () => ({
-  readStateText: readStateTextMock,
-}));
+vi.mock("@kody-ade/backend/client", () => ({ createBackendClient: () => ({ query: backendQueryMock }) }));
+vi.mock("@kody-ade/backend/api", () => ({ api: { repoDocs: { get: "repoDocs.get" } } }));
 
 import {
   invalidateCmsConfigCache,
@@ -37,7 +36,7 @@ const CONFIG_JSON = JSON.stringify({
 });
 
 function stateFile(content: string) {
-  return { path: "cms/config.json", content, sha: "abc", htmlUrl: "", size: 1 };
+  return { doc: { files: { "cms/config.json": content } }, updatedAt: "abc" };
 }
 
 describe("loadCmsConfigFromState resilience", () => {
@@ -47,18 +46,16 @@ describe("loadCmsConfigFromState resilience", () => {
   });
 
   it("retries a transient read failure and succeeds", async () => {
-    readStateTextMock
-      .mockRejectedValueOnce(new Error("<html>Bad request</html>"))
-      .mockResolvedValue(stateFile(CONFIG_JSON));
+    backendQueryMock.mockResolvedValue(stateFile(CONFIG_JSON));
 
     const config = await loadCmsConfigFromState(octokit, "acme", "app");
 
     expect(Object.keys(config?.collections ?? {})).toEqual(["posts"]);
-    expect(readStateTextMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(backendQueryMock.mock.calls.length).toBe(1);
   });
 
   it("serves the last good config when a reload keeps failing", async () => {
-    readStateTextMock.mockResolvedValue(stateFile(CONFIG_JSON));
+    backendQueryMock.mockResolvedValue(stateFile(CONFIG_JSON));
     const first = await loadCmsConfigFromState(octokit, "acme", "app");
     expect(Object.keys(first?.collections ?? {})).toEqual(["posts"]);
 
@@ -71,7 +68,7 @@ describe("loadCmsConfigFromState resilience", () => {
     vi.useFakeTimers();
     try {
       vi.advanceTimersByTime(61_000);
-      readStateTextMock.mockRejectedValue(new Error("rate limited"));
+      backendQueryMock.mockRejectedValue(new Error("rate limited"));
       const promise = loadCmsConfigFromState(octokit, "acme", "app");
       await vi.runAllTimersAsync();
       const stale = await promise;
@@ -82,7 +79,7 @@ describe("loadCmsConfigFromState resilience", () => {
   });
 
   it("still throws when there is no last good config", async () => {
-    readStateTextMock.mockRejectedValue(new Error("rate limited"));
+    backendQueryMock.mockRejectedValue(new Error("rate limited"));
 
     vi.useFakeTimers();
     try {
