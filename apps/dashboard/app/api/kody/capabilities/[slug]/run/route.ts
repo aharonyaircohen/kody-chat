@@ -14,9 +14,10 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
+import { api } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 import {
   isValidSlug,
-  readResolvedCapabilityFile,
 } from "@dashboard/lib/capabilities";
 import {
   setGitHubContext,
@@ -84,7 +85,12 @@ export async function POST(
   }
 
   try {
-    const capability = await readResolvedCapabilityFile(slug, octokit);
+    const row = await createBackendClient().query(api.catalog.get, {
+      tenantId: `${owner}/${repo}`,
+      category: "capability",
+      slug,
+    });
+    const capability = (row as { doc?: { slug?: string } } | null)?.doc;
     if (!capability) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
