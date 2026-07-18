@@ -33,7 +33,7 @@ import { PageShell } from "./PageShell";
 import { OperatorsWarningBanner } from "./OperatorsWarningBanner";
 import { InboxThreadDialog, resolvableThread } from "./InboxThreadDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { InboxCard } from "./InboxCard";
+import { DecisionButtons, InboxCard } from "./InboxCard";
 import { kodyApi } from "../api";
 import {
   SOURCE_CHIP,
@@ -686,41 +686,7 @@ function CtoDialogActions({
         <span className="mr-auto text-[10px] uppercase tracking-wider text-amber-300/70">
           CTO · {action}
         </span>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={deciding}
-          onClick={() => onDecide("dismiss")}
-          className="h-7 gap-1 text-white/60 hover:text-white"
-          title="Skip without affecting trust"
-        >
-          <MinusCircle className="w-3.5 h-3.5" />
-          Dismiss
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={deciding}
-          onClick={() => onDecide("reject")}
-          className="h-7 gap-1 border border-rose-500/30 bg-rose-500/[0.06] text-rose-200 hover:bg-rose-500/15"
-        >
-          <X className="w-3.5 h-3.5" />
-          Reject
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={deciding}
-          onClick={() => onDecide("approve")}
-          className="h-7 gap-1 border border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-200 hover:bg-emerald-500/15"
-        >
-          {deciding ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
-          ) : (
-            <Check className="w-3.5 h-3.5" />
-          )}
-          Approve
-        </Button>
+        <DecisionButtons deciding={!!deciding} onDecide={onDecide} />
       </>
     );
   }

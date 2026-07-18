@@ -77,6 +77,75 @@ export interface InboxCardProps {
   repoHref: (href: string) => string;
 }
 
+/** The one Approve/Reject/Dismiss set, shared by the card and the thread
+ *  modal footer so a decision looks identical everywhere. */
+export function DecisionButtons({
+  deciding,
+  onDecide,
+}: {
+  deciding: boolean;
+  onDecide: (decision: CtoVerdict) => void;
+}) {
+  return (
+    <>
+      <Button
+        size="sm"
+        disabled={deciding}
+        onClick={() => onDecide("approve")}
+        className="gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white"
+      >
+        {deciding ? (
+          <Loader2 className="w-4 h-4 animate-spin" />
+        ) : (
+          <Check className="w-4 h-4" />
+        )}
+        Approve
+      </Button>
+      <Button
+        size="sm"
+        variant="outline"
+        disabled={deciding}
+        onClick={() => onDecide("reject")}
+        className="gap-1.5 border-rose-500/40 text-rose-200 hover:bg-rose-500/15"
+      >
+        <X className="w-4 h-4" />
+        Reject
+      </Button>
+      <button
+        type="button"
+        disabled={deciding}
+        onClick={() => onDecide("dismiss")}
+        className="text-xs text-white/45 hover:text-white/75 underline-offset-2 hover:underline"
+        title="Skip without affecting trust"
+      >
+        Dismiss
+      </button>
+    </>
+  );
+}
+
+/** Settled-verdict chip, shared by the card and the modal footer. */
+export function VerdictBadge({ verdict }: { verdict: CtoVerdict }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium",
+        VERDICT_CLASS[verdict],
+      )}
+      title="This request was already decided"
+    >
+      {verdict === "approve" ? (
+        <Check className="w-3.5 h-3.5" />
+      ) : verdict === "reject" ? (
+        <X className="w-3.5 h-3.5" />
+      ) : (
+        <MinusCircle className="w-3.5 h-3.5" />
+      )}
+      {VERDICT_LABEL[verdict]}
+    </span>
+  );
+}
+
 /** One consequence sentence: what a Yes does, in plain words. */
 function consequenceLine(rec: CtoRecommendation): string {
   if (rec.action === "merge") {
@@ -292,57 +361,9 @@ export function InboxCard({
       {rec ? (
         <div className="mt-3 ml-5 flex items-center gap-2 flex-wrap">
           {verdict ? (
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-medium",
-                VERDICT_CLASS[verdict],
-              )}
-              title="This request was already decided"
-            >
-              {verdict === "approve" ? (
-                <Check className="w-3.5 h-3.5" />
-              ) : verdict === "reject" ? (
-                <X className="w-3.5 h-3.5" />
-              ) : (
-                <MinusCircle className="w-3.5 h-3.5" />
-              )}
-              {VERDICT_LABEL[verdict]}
-            </span>
+            <VerdictBadge verdict={verdict} />
           ) : isRequest ? (
-            <>
-              <Button
-                size="sm"
-                disabled={deciding}
-                onClick={() => onDecide("approve")}
-                className="gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white"
-              >
-                {deciding ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Check className="w-4 h-4" />
-                )}
-                Approve
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={deciding}
-                onClick={() => onDecide("reject")}
-                className="gap-1.5 border-rose-500/40 text-rose-200 hover:bg-rose-500/15"
-              >
-                <X className="w-4 h-4" />
-                Reject
-              </Button>
-              <button
-                type="button"
-                disabled={deciding}
-                onClick={() => onDecide("dismiss")}
-                className="text-xs text-white/45 hover:text-white/75 underline-offset-2 hover:underline"
-                title="Skip without affecting trust"
-              >
-                Dismiss
-              </button>
-            </>
+            <DecisionButtons deciding={deciding} onDecide={onDecide} />
           ) : (
             <Button
               asChild
