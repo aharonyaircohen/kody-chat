@@ -49,6 +49,8 @@ interface DumpSummary {
 interface BackendInfo {
   convexHost: string | null;
   configured: boolean;
+  /** "dev" | "prod" from the Convex deployment name, or null when unknown. */
+  databaseTier: string | null;
   runtimeEnv: string;
 }
 
@@ -87,12 +89,16 @@ function ConnectedBackendCard() {
             <span
               className={
                 "ml-auto text-[11px] uppercase tracking-wide px-2 py-0.5 rounded border " +
-                (info.runtimeEnv === "production"
+                (info.databaseTier === "prod"
                   ? "text-emerald-300 bg-emerald-500/10 border-emerald-500/20"
-                  : "text-amber-300 bg-amber-500/10 border-amber-500/20")
+                  : info.databaseTier === "dev"
+                    ? "text-amber-300 bg-amber-500/10 border-amber-500/20"
+                    : "text-white/50 bg-white/5 border-white/10")
               }
             >
-              {info.runtimeEnv}
+              {info.databaseTier
+                ? `${info.databaseTier} database`
+                : "unknown database"}
             </span>
           ) : null}
         </div>
@@ -104,10 +110,10 @@ function ConnectedBackendCard() {
           </p>
         ) : info.configured ? (
           <p className="text-sm text-white/60">
-            This dashboard reads and writes{" "}
+            This dashboard ({info.runtimeEnv}) reads and writes{" "}
             <span className="font-mono text-white/85">{info.convexHost}</span>.
-            Webhooks and engine runs always land on the production deployment —
-            a local dev backend will not see them.
+            Webhooks and engine runs always land in the prod database — a dev
+            database will not see them.
           </p>
         ) : (
           <p className="text-sm text-rose-300">
