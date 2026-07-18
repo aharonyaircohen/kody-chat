@@ -21,7 +21,10 @@ export function getChatProviderCapabilities(
   if (
     provider === "minimax" ||
     modelName.startsWith("minimax-") ||
-    provider === "openrouter"
+    provider === "openrouter" ||
+    provider === "google" ||
+    provider === "gemini" ||
+    modelName.startsWith("gemini-")
   ) {
     return {
       supportsRequiredToolChoice: false,

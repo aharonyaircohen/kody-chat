@@ -1330,6 +1330,33 @@ async function handleKodyDirectPost(
       });
     }
   }
+  // Tool failures must become tool results, not stream-level failures. The
+  // client can then show the real reason and the model can correct its input
+  // instead of every provider collapsing the error to "An error occurred."
+  for (const [name, candidate] of Object.entries(allowlistedTools)) {
+    if (!candidate || typeof candidate !== "object") continue;
+    const executable = candidate as {
+      execute?: (input: unknown) => Promise<unknown>;
+    };
+    if (!executable.execute) continue;
+    const execute = executable.execute;
+    allowlistedTools[name] = {
+      ...executable,
+      execute: async (input: unknown) => {
+        try {
+          return await execute(input);
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          traceError(
+            { traceId, tool: name, err: message },
+            "kody-direct: tool execution failed",
+          );
+          return { error: message || "Tool execution failed" };
+        }
+      },
+    };
+  }
   const tools = allowlistedTools as Parameters<typeof streamText>[0]["tools"];
   const requireViewOutput =
     !explicitViewRequest &&

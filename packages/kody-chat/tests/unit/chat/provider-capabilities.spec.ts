@@ -29,6 +29,17 @@ describe("chat provider capabilities", () => {
     ).toEqual({ supportsRequiredToolChoice: false, supportsNamedToolChoice: false });
   });
 
+  it("uses automatic tool selection for Gemini's OpenAI-compatible endpoint", () => {
+    expect(
+      getChatProviderCapabilities(
+        model({ provider: "google", modelName: "gemini-2.5-pro" }),
+      ),
+    ).toEqual({
+      supportsRequiredToolChoice: false,
+      supportsNamedToolChoice: false,
+    });
+  });
+
   it("keeps strict tool selection for native OpenAI-compatible models", () => {
     expect(getChatProviderCapabilities(model())).toEqual({
       supportsRequiredToolChoice: true,

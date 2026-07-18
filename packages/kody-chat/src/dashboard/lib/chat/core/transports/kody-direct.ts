@@ -254,11 +254,13 @@ export async function sendKodyDirectTurn(
         output: chunk.output,
       });
     } else if (
-      chunk.type === "tool-output-error" &&
+      (chunk.type === "tool-output-error" ||
+        chunk.type === "tool-input-error") &&
       chunk.toolCallId !== undefined
     ) {
-      // Stream-level tool failure: no output arrived, so no toolName is
-      // recorded for the empty-bubble fallback (historical behavior).
+      // Both malformed model arguments and execution failures can arrive as
+      // stream-level errors. Preserve the provider's message instead of
+      // reducing both cases to the generic "An error occurred." text.
       ctx.emit({
         type: "tool-result",
         id: chunk.toolCallId,

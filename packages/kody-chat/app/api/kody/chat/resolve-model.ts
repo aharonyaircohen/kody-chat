@@ -122,6 +122,11 @@ function isMiniMaxModel(model: ChatModel): boolean {
   return spec.includes("minimax");
 }
 
+function isEmbeddingModel(model: ChatModel): boolean {
+  const spec = `${model.id} ${model.label} ${model.modelName}`.toLowerCase();
+  return /(?:embed|embedding|text-embedding|bge-|e5-)/.test(spec);
+}
+
 function pickVisionModel(
   model: ChatModel,
   availableModels: ChatModel[],
@@ -166,9 +171,25 @@ export async function resolveChatModel(
   options: ResolveChatModelOptions = {},
 ): Promise<ResolvedChatModel | { error: NextResponse }> {
   const availableModels = await loadChatModels(req);
+  const requestedModel = modelId
+    ? pickModelById(availableModels, modelId)
+    : null;
+  if (requestedModel && isEmbeddingModel(requestedModel)) {
+    return {
+      error: NextResponse.json(
+        {
+          error: "model_not_chat_capable",
+          fallback: "kody-live",
+          message: `${requestedModel.label || requestedModel.modelName} is an embedding model, not a chat model. Choose a Gemini, MiniMax, OpenAI, or other chat model under /models.`,
+        },
+        { status: 409 },
+      ),
+    };
+  }
+  const chatModels = availableModels.filter((model) => !isEmbeddingModel(model));
   const selectedModel =
-    pickModelById(availableModels, modelId) ??
-    pickDefaultModel(availableModels) ??
+    requestedModel ??
+    pickDefaultModel(chatModels) ??
     (await loadEngineFallbackModel(req));
   if (!selectedModel) {
     return {

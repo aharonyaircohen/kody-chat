@@ -120,6 +120,34 @@ describe("resolveChatModel", () => {
     expect(result.model).toMatchObject({ modelName: "MiniMax-M3" });
   });
 
+  it("rejects an embedding model with a clear chat-model error", async () => {
+    vi.mocked(loadChatModels).mockResolvedValue([
+      {
+        id: "openrouter/nemotron-3-embed-1b:free",
+        label: "OpenRouter Nemotron embedding",
+        provider: "openrouter",
+        protocol: "openai",
+        baseURL: "https://openrouter.ai/api/v1",
+        modelName: "nemotron-3-embed-1b:free",
+        apiKeySecret: "OPENROUTER_API_KEY",
+        enabled: true,
+        default: true,
+      },
+    ]);
+
+    const result = await resolveChatModel(
+      request(),
+      "openrouter/nemotron-3-embed-1b:free",
+    );
+
+    expect("error" in result).toBe(true);
+    if (!("error" in result)) return;
+    expect(result.error.status).toBe(409);
+    await expect(result.error.json()).resolves.toMatchObject({
+      error: "model_not_chat_capable",
+    });
+  });
+
   it("uses MiniMax M3 for image turns when MiniMax M2 is selected", async () => {
     vi.mocked(loadChatModels).mockResolvedValue([
       {

@@ -222,6 +222,34 @@ describe("sendKodyDirectTurn", () => {
     ]);
   });
 
+  it("preserves stream-level tool-input-error details", async () => {
+    const { restore } = installScriptedFetch([
+      () =>
+        sseResponse([
+          chunk({
+            type: "tool-input-error",
+            toolCallId: "c10",
+            errorText: "arguments must include owner and repo",
+          }),
+          "data: [DONE]\n\n",
+        ]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await sendKodyDirectTurn(CONFIG, { authHeaders: {}, emit: sink.emit });
+
+    expect(sink.events).toEqual([
+      {
+        type: "tool-result",
+        id: "c10",
+        isError: true,
+        errorText: "arguments must include owner and repo",
+      },
+      { type: "done" },
+    ]);
+  });
+
   it("detects directives by shape and emits them before the success result", async () => {
     const switchAgent = {
       action: "switch_agent",
