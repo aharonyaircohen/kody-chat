@@ -6,17 +6,17 @@ repo (imported here with full history under `apps/dashboard`).
 
 ## Layout
 
-| Path | Package | Role |
-| --- | --- | --- |
-| `packages/base` | `@kody-ade/base` | Platform layer: GitHub data layer (cache/ETag/rate-limit rules), auth, vault, storage, state-repo, events, infrastructure contracts/registry, UI kit, logger |
-| `packages/kody-chat` | `@kody-ade/kody-chat` | Chat product: core, platform, plugins, shared pages/components; also a standalone Next.js host app |
-| `packages/workspace` | `@kody-ade/workspace` | Content features: commands, context, instructions, brands, memory, todos (stores, chat tools, route handlers) |
-| `packages/fly` | `@kody-ade/fly` | Fly.io surface: previews, runners, fly provider plugin, server orchestration, one-shot builder |
-| `packages/terminal` | `@kody-ade/terminal` | Terminal: local PTY sessions, remote bridge protocol/tokens, checkpoints |
-| `packages/brain` | `@kody-ade/brain` | Brain runtime control plane + proxy (depends on terminal + fly) |
-| `packages/agency` | `@kody-ade/agency` | Agency: runs, goals, capabilities, agent file stores, trust ledger |
-| `packages/cms` | `@kody-ade/cms` | CMS: adapters, model, schema, MCP surface, routes/tools |
-| `apps/dashboard` | `kody-dashboard` | Operations dashboard host app (Next.js) — being shrunk to a shell |
+| Path                 | Package               | Role                                                                                                                                                                |
+| -------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/base`      | `@kody-ade/base`      | Platform layer: GitHub data layer (cache/ETag/rate-limit rules), auth, vault, storage, backend transport, events, infrastructure contracts/registry, UI kit, logger |
+| `packages/kody-chat` | `@kody-ade/kody-chat` | Chat product: core, platform, plugins, shared pages/components; also a standalone Next.js host app                                                                  |
+| `packages/workspace` | `@kody-ade/workspace` | Content features: commands, context, instructions, brands, memory, todos (stores, chat tools, route handlers)                                                       |
+| `packages/fly`       | `@kody-ade/fly`       | Fly.io surface: previews, runners, fly provider plugin, server orchestration, one-shot builder                                                                      |
+| `packages/terminal`  | `@kody-ade/terminal`  | Terminal: local PTY sessions, remote bridge protocol/tokens, checkpoints                                                                                            |
+| `packages/brain`     | `@kody-ade/brain`     | Brain runtime control plane + proxy (depends on terminal + fly)                                                                                                     |
+| `packages/agency`    | `@kody-ade/agency`    | Agency: runs, goals, capabilities, agent file stores, trust ledger                                                                                                  |
+| `packages/cms`       | `@kody-ade/cms`       | CMS: adapters, model, schema, MCP surface, routes/tools                                                                                                             |
+| `apps/dashboard`     | `kody-dashboard`      | Operations dashboard host app (Next.js) — being shrunk to a shell                                                                                                   |
 
 ## Dependency rules (lint-enforced by review; keep the DAG)
 

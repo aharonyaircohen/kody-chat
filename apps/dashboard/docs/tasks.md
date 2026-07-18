@@ -130,11 +130,11 @@ the `kody:*` labels are the human-visible projection.
 
 This trips people up, so it's worth being precise:
 
-| State                         | Stored as                                                          | Read by                                                           |
-| ----------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------- |
-| Per-task `kodyState`          | A **comment on the GitHub issue** (repo-global, not branch-scoped) | `fetchKodyState` → `fetchComments` → `findKodyStateInComments`    |
-| Goal/job file state, cursors  | Files in the **configured Kody backend**                           | State-repo readers such as `readStateText` / `listStateDirectory` |
-| Human config (`.md`, prompts) | The **default branch**                                             | their own readers                                                 |
+| State                         | Stored as                                                          | Read by                                                        |
+| ----------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------- |
+| Per-task `kodyState`          | A **comment on the GitHub issue** (repo-global, not branch-scoped) | `fetchKodyState` → `fetchComments` → `findKodyStateInComments` |
+| Goal/job file state, cursors  | Documents in the **Convex backend**                                | Backend readers such as `repoDocs` and typed runtime queries   |
+| Human config (`.md`, prompts) | The **default branch**                                             | their own readers                                              |
 
 So the broad rule "all machine-written engine state goes to the configured Kody
 backend, never the consumer default branch" holds for **file-based** state —
