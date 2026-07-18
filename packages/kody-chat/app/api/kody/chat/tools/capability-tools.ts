@@ -10,14 +10,10 @@ import path from "path";
 import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
+import { api } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 import {
-  listCapabilityFiles,
-  readCapabilityFile,
-  writeCapabilityFile,
-  deleteCapabilityFile,
   isValidSlug,
-  composeProfile,
-  validateProfile,
   PERMISSION_MODES,
 } from "@dashboard/lib/capabilities";
 import { dashboardCapabilityUrl } from "@dashboard/lib/thread-link";
@@ -95,7 +91,8 @@ export function createCapabilityTools(ctx: Ctx) {
       inputSchema: z.object({}),
       execute: async () => {
         try {
-          const capabilities = await listCapabilityFiles();
+          const rows = (await createBackendClient().query(api.catalog.list, { tenantId: repoRef, category: "capability" })) as Array<{ doc: unknown }>;
+          const capabilities = rows.map((row) => row.doc);
           return { capabilities };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };
@@ -111,7 +108,8 @@ export function createCapabilityTools(ctx: Ctx) {
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
         try {
-          const capability = await readCapabilityFile(slug, octokit);
+          const row = await createBackendClient().query(api.catalog.get, { tenantId: repoRef, category: "capability", slug });
+          const capability = (row as { doc?: unknown } | null)?.doc;
           if (!capability) return { error: `capability "${slug}" not found` };
           return { capability };
         } catch (err) {
@@ -142,45 +140,31 @@ export function createCapabilityTools(ctx: Ctx) {
           return { error: `invalid slug "${input.slug}"` };
         }
 
-        const fields = {
-          slug: input.slug,
-          describe: input.describe,
-          prompt: input.instructions,
-          model: input.model,
-          permissionMode: input.permissionMode,
-          tools: input.tools,
-          skills: input.skills.map((s) => s.name),
-          shellScripts: input.shellScripts.map((s) => s.name),
-          mcpServers: [],
-          landing: input.landing,
-        };
-
-        const errors = validateProfile(composeProfile(fields));
-        if (errors.length > 0) {
-          return { error: `invalid profile: ${errors.join("; ")}` };
-        }
-
         try {
-          const existing = await readCapabilityFile(input.slug, octokit);
-          const removedSkills = existing
-            ? existing.skills
-                .map((s) => s.name)
-                .filter((n) => !input.skills.some((s) => s.name === n))
-            : [];
-          const removedShellScripts = existing
-            ? existing.shellScripts
-                .map((s) => s.name)
-                .filter((n) => !input.shellScripts.some((s) => s.name === n))
-            : [];
-
-          await writeCapabilityFile({
-            octokit,
-            fields,
-            skills: input.skills,
-            shellScripts: input.shellScripts,
-            removedSkills,
-            removedShellScripts,
-            isUpdate: !!existing,
+          const existingRow = await createBackendClient().query(api.catalog.get, { tenantId: repoRef, category: "capability", slug: input.slug });
+          const existing = (existingRow as { doc?: Record<string, unknown> } | null)?.doc;
+          await createBackendClient().mutation(api.catalog.save, {
+            tenantId: repoRef,
+            category: "capability",
+            slug: input.slug,
+            doc: {
+              ...(existing ?? {}),
+              slug: input.slug,
+              describe: input.describe,
+              prompt: input.instructions,
+              model: input.model,
+              permissionMode: input.permissionMode,
+              tools: input.tools,
+              skills: input.skills,
+              shellScripts: input.shellScripts,
+              mcpServers: [],
+              landing: input.landing,
+              source: "local",
+              readOnly: false,
+              updatedAt: new Date().toISOString(),
+            },
+            source: "local",
+            updatedAt: new Date().toISOString(),
           });
           return {
             ok: true,
@@ -202,9 +186,9 @@ export function createCapabilityTools(ctx: Ctx) {
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
         try {
-          const existing = await readCapabilityFile(slug, octokit);
+          const existing = await createBackendClient().query(api.catalog.get, { tenantId: repoRef, category: "capability", slug });
           if (!existing) return { error: `capability "${slug}" not found` };
-          await deleteCapabilityFile(octokit, slug);
+          await createBackendClient().mutation(api.catalog.remove, { tenantId: repoRef, category: "capability", slug });
           return { ok: true, action: "deleted", slug };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };
@@ -220,11 +204,12 @@ export function createCapabilityTools(ctx: Ctx) {
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
         try {
-          const existing = await readCapabilityFile(slug, octokit);
+          const row = await createBackendClient().query(api.catalog.get, { tenantId: repoRef, category: "capability", slug });
+          const existing = (row as { doc?: { profileJson?: string; prompt?: string } } | null)?.doc;
           if (!existing) return { error: `capability "${slug}" not found` };
           const repoMeta = await octokit.rest.repos.get({ owner, repo });
           const ref = repoMeta.data.default_branch || "main";
-          const action = actionFromCapability(slug, existing.profileJson);
+          const action = actionFromCapability(slug, existing.profileJson ?? JSON.stringify({ name: existing.prompt ?? slug }));
           await octokit.rest.actions.createWorkflowDispatch({
             owner,
             repo,
