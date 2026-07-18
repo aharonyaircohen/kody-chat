@@ -44,6 +44,10 @@ export const CTO_ACTIONS = [
   "merge",
   "approve",
   "comment",
+  // An agent asking the operator to run a capability (e.g. operation-creator
+  // proposing a new Operation). Stamped by the webhook dispatcher — never
+  // parsed from free text, so ordinary comments can't misroute into it.
+  "request",
   "other",
 ] as const;
 export type CtoAction = (typeof CTO_ACTIONS)[number];

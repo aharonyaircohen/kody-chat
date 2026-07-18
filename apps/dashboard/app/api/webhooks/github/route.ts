@@ -40,6 +40,7 @@ import { dispatchNotifications } from "@dashboard/lib/notifications-dispatch";
 import { dispatchMentionPushes } from "@dashboard/lib/push/mention-dispatch";
 import { dispatchAgentMentions } from "@dashboard/lib/push/agent-mention-dispatch";
 import { dispatchCapabilityFailures } from "@dashboard/lib/push/capability-failure-dispatch";
+import { dispatchOperatorRequests } from "@dashboard/lib/push/operator-request-dispatch";
 import {
   invalidateCatalogProjection,
   isCatalogRelevantPath,
@@ -524,6 +525,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           error: err instanceof Error ? err.message : String(err),
         },
         "dispatchAgentMentions threw — should have been caught internally",
+      );
+    });
+    // Agent capability request issue (`[<slug>] …`) → approvable inbox entry
+    // for every operator, so requests never sit unnoticed as plain issues.
+    // Awaited for the same serverless reason as the mention feed write above.
+    await dispatchOperatorRequests(eventType, obj).catch((err: unknown) => {
+      logger.error(
+        {
+          event: "operator_request_dispatch_crashed",
+          error: err instanceof Error ? err.message : String(err),
+        },
+        "dispatchOperatorRequests threw — should have been caught internally",
       );
     });
     // Failed capability run → inbox entry for every operator. Triggered by the

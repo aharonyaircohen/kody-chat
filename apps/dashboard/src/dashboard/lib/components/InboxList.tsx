@@ -99,6 +99,7 @@ const SOURCE_LABEL: Record<InboxSource, string> = {
   assigned: "assigned you",
   comment: "commented",
   subscribed: "subscribed thread",
+  request: "requests your approval",
   other: "activity",
 };
 
@@ -110,6 +111,7 @@ const SOURCE_CHIP: Record<InboxSource, string> = {
   assigned: "Assigned",
   comment: "Comments",
   subscribed: "Subscribed",
+  request: "Requests",
   other: "Other",
 };
 

@@ -36,6 +36,8 @@ export type InboxSource =
   | "assigned"
   | "team_mention"
   | "subscribed"
+  /** An agent asks the operator to approve running a capability. */
+  | "request"
   | "other";
 
 export interface InboxEntry {
