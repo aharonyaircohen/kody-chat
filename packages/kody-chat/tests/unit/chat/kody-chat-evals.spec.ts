@@ -124,7 +124,7 @@ describe("Kody chat evals", () => {
   it("requires a terminal output tool instead of allowing plain prose stops", () => {
     const route = readFileSync("app/api/kody/chat/kody/route.ts", "utf8");
 
-    expect(route).toContain('toolChoice: "required"');
+    expect(route).toContain("toolChoice: selectChatOutputToolChoice(");
     expect(route).toContain("CHAT_OUTPUT_TOOL_NAMES");
     expect(route).toContain("shouldRequireViewOutputForTurn");
     expect(route).toContain("shouldAllowPreRenderToolCallsForTurn");
