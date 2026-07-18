@@ -35,6 +35,7 @@ import {
   X,
   XCircle,
 } from "lucide-react";
+import { CapabilityTrustCard } from "./CapabilityTrustCard";
 import { PageShell } from "./PageShell";
 import { cn } from "../utils";
 import { selectionPath } from "../selection-routing";
@@ -102,6 +103,8 @@ interface CapabilitySummary {
   agent?: string | null;
   source?: "local" | "store";
   readOnly?: boolean;
+  /** Declared boundary from profile.capabilityKind — observe/verify run freely. */
+  capabilityKind?: "observe" | "act" | "verify" | null;
 }
 interface CapabilityDetail extends CapabilitySummary {
   /** Engine file is still prompt.md; product concept is "instructions". */
@@ -833,6 +836,10 @@ function CapabilityDetail({
             </div>
           </header>
         </div>
+      </div>
+
+      <div className="max-w-4xl mx-auto px-4 md:px-8 pt-4 md:pt-6">
+        <CapabilityTrustCard slug={e.slug} capabilityKind={e.capabilityKind} />
       </div>
 
       <CapabilityContentBody

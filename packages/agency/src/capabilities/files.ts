@@ -93,6 +93,8 @@ export interface CapabilitySummary {
   source?: "local" | "store";
   /** Store-linked assets are visible and runnable, but not editable locally. */
   readOnly?: boolean;
+  /** Declared boundary from profile.capabilityKind — observe/verify run freely. */
+  capabilityKind?: "observe" | "act" | "verify" | null;
 }
 
 export interface CapabilityWorkflowSummary {
@@ -274,6 +276,12 @@ function summaryFromProfile(
       : null;
   const workflowSteps = workflowStepsFromProfile(profile);
   const workflowDefinition = workflowDefinitionFromProfile(profile);
+  const capabilityKind =
+    profile.capabilityKind === "observe" ||
+    profile.capabilityKind === "act" ||
+    profile.capabilityKind === "verify"
+      ? profile.capabilityKind
+      : null;
   return {
     slug,
     describe,
@@ -284,6 +292,7 @@ function summaryFromProfile(
     every,
     isWorkflow: workflowSteps.length > 0,
     workflowSteps,
+    capabilityKind,
     ...(workflowDefinition ? { workflowDefinition } : {}),
     ...extra,
   };

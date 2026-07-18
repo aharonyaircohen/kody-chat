@@ -46,6 +46,8 @@ export interface TrustCapabilityStats {
   mode: TrustMode;
   /** User-facing trust level for one runnable item. */
   level: TrustLevel;
+  /** Pins the item to approval-required even after graduating to auto. */
+  neverAuto?: boolean;
 }
 
 export interface TrustDecisionLogEntry {
@@ -385,6 +387,23 @@ export function trustLevelForCapability(
   return "approval-required";
 }
 
+/** Pin or unpin a capability (and its subject entry) to approval-required. */
+export function applyCapabilityNeverAuto(
+  manifest: TrustManifest,
+  capability: string,
+  neverAuto: boolean,
+): TrustManifest {
+  const subject = trustSubjectKey("capability", capability);
+  const withCapability = withStats(manifest, capability, {
+    ...statsFor(manifest, capability),
+    neverAuto,
+  });
+  return withSubjectStats(withCapability, subject, {
+    ...statsForSubject(withCapability, subject),
+    neverAuto,
+  });
+}
+
 /** True when the engine may let this capability self-dispatch. */
 export function isGraduated(
   manifest: TrustManifest,
@@ -501,6 +520,7 @@ function normalizeStats(
     consecutiveApprovals,
     mode,
     level,
+    ...(stats?.neverAuto === true ? { neverAuto: true } : {}),
   };
 }
 

@@ -21,6 +21,7 @@ import { useAuth } from "../auth-context";
 import { kodyApi } from "../api";
 import {
   TRUST_MANIFEST_VERSION,
+  applyCapabilityNeverAuto,
   applyCapabilityTrustLevel,
   applySubjectTrustOp,
   applySubjectTrustLevel,
@@ -43,7 +44,8 @@ type TrustMutationInput =
   | { capability: string; subject?: never; op: TrustOp }
   | { capability?: never; subject: TrustSubjectKey; op: TrustOp }
   | { capability: string; subject?: never; level: TrustLevel }
-  | { capability?: never; subject: TrustSubjectKey; level: TrustLevel };
+  | { capability?: never; subject: TrustSubjectKey; level: TrustLevel }
+  | { capability: string; subject?: never; neverAuto: boolean };
 
 export interface UseTrustResult {
   /** Per-capability view rows (auto-first), or [] while loading. */
@@ -72,6 +74,11 @@ export interface UseTrustResult {
       | { capability: string; level: TrustLevel }
       | { subject: TrustSubjectKey; level: TrustLevel },
   ) => Promise<void>;
+  /** Pin/unpin a capability to approval-required regardless of earned trust. */
+  setNeverAuto: (input: {
+    capability: string;
+    neverAuto: boolean;
+  }) => Promise<void>;
   /** True while a `setTrust` mutation is in flight. */
   isMutating: boolean;
 }
@@ -191,6 +198,9 @@ export function useTrust(): UseTrustResult {
     setTrustLevel: async (input) => {
       await mutation.mutateAsync(input);
     },
+    setNeverAuto: async (input) => {
+      await mutation.mutateAsync(input);
+    },
     isMutating: mutation.isPending,
   };
 }
@@ -207,13 +217,19 @@ function applyTrustCacheOp(
     log: current.log,
   };
   const manifest =
-    "level" in input
-      ? input.subject
-        ? applySubjectTrustLevel(baseManifest, input.subject, input.level)
-        : applyCapabilityTrustLevel(baseManifest, input.capability, input.level)
-      : input.subject
-        ? applySubjectTrustOp(baseManifest, input.op, input.subject)
-        : applyTrustOp(baseManifest, input.op, input.capability);
+    "neverAuto" in input
+      ? applyCapabilityNeverAuto(baseManifest, input.capability, input.neverAuto)
+      : "level" in input
+        ? input.subject
+          ? applySubjectTrustLevel(baseManifest, input.subject, input.level)
+          : applyCapabilityTrustLevel(
+              baseManifest,
+              input.capability,
+              input.level,
+            )
+        : input.subject
+          ? applySubjectTrustOp(baseManifest, input.op, input.subject)
+          : applyTrustOp(baseManifest, input.op, input.capability);
   return {
     ...current,
     capabilities: manifest.capabilities,

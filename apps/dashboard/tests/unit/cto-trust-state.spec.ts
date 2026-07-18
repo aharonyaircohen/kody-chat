@@ -16,6 +16,7 @@ import {
   TRUST_GRADUATION_THRESHOLD,
   applySubjectTrustOp,
   applySubjectTrustLevel,
+  applyCapabilityNeverAuto,
   applyCapabilityTrustLevel,
   applyTrustDecision,
   applyTrustOp,
@@ -272,5 +273,27 @@ describe("summarizeTrust", () => {
     ]);
     expect(qa.remaining).toBe(TRUST_GRADUATION_THRESHOLD - 4);
     expect(qa.progress).toBeCloseTo(4 / TRUST_GRADUATION_THRESHOLD);
+  });
+});
+
+describe("applyCapabilityNeverAuto", () => {
+  it("pins capability and subject entries and round-trips through parse", () => {
+    const pinned = applyCapabilityNeverAuto(EMPTY_TRUST_MANIFEST, "qa", true);
+    expect(pinned.capabilities.qa?.neverAuto).toBe(true);
+    expect(pinned.subjects["capability:qa"]?.neverAuto).toBe(true);
+
+    const reparsed = parseTrustManifest(serializeTrustManifest(pinned));
+    expect(reparsed.capabilities.qa?.neverAuto).toBe(true);
+
+    const unpinned = applyCapabilityNeverAuto(pinned, "qa", false);
+    expect(unpinned.capabilities.qa?.neverAuto).toBe(false);
+    const reparsedOff = parseTrustManifest(serializeTrustManifest(unpinned));
+    expect(reparsedOff.capabilities.qa?.neverAuto).toBeUndefined();
+  });
+
+  it("preserves earned stats when pinning", () => {
+    const earned = approvals("qa", 7);
+    const pinned = applyCapabilityNeverAuto(earned, "qa", true);
+    expect(pinned.capabilities.qa?.consecutiveApprovals).toBe(7);
   });
 });

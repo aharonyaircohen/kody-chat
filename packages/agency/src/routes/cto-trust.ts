@@ -30,6 +30,7 @@ import {
   applySubjectTrustOp,
   applySubjectTrustLevel,
   applyCapabilityTrustLevel,
+  applyCapabilityNeverAuto,
   applyTrustOp,
   isTrustSubjectKey,
   TRUST_LEVELS,
@@ -48,15 +49,26 @@ const bodySchema = z
     subject: z.string().refine(isTrustSubjectKey).optional(),
     op: z.enum(TRUST_OPS).optional(),
     level: z.enum(TRUST_LEVELS).optional(),
+    neverAuto: z.boolean().optional(),
     actorLogin: z.string().optional(),
   })
   .refine((body) => Boolean(body.capability) !== Boolean(body.subject), {
     message: "Provide exactly one of capability or subject",
     path: ["capability"],
   })
-  .refine((body) => Boolean(body.op) !== Boolean(body.level), {
-    message: "Provide exactly one of op or level",
-    path: ["op"],
+  .refine(
+    (body) =>
+      [body.op, body.level, body.neverAuto].filter(
+        (value) => value !== undefined,
+      ).length === 1,
+    {
+      message: "Provide exactly one of op, level, or neverAuto",
+      path: ["op"],
+    },
+  )
+  .refine((body) => body.neverAuto === undefined || Boolean(body.capability), {
+    message: "neverAuto applies to a capability",
+    path: ["neverAuto"],
   });
 
 /** GET — full capability trust stats + recent log for the /trust page. */
@@ -112,7 +124,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "bad_json" }, { status: 400 });
     }
 
-    const { capability, subject, op, level, actorLogin } = payload;
+    const { capability, subject, op, level, neverAuto, actorLogin } = payload;
 
     if (actorLogin) {
       const actorResult = await verifyActorLogin(req, actorLogin);
@@ -120,6 +132,9 @@ export async function POST(req: NextRequest) {
     }
 
     const manifest = await mutateTrust((current) => {
+      if (neverAuto !== undefined) {
+        return applyCapabilityNeverAuto(current, capability!, neverAuto);
+      }
       if (level) {
         return capability
           ? applyCapabilityTrustLevel(current, capability, level)
@@ -130,19 +145,27 @@ export async function POST(req: NextRequest) {
         : applySubjectTrustOp(current, op!, subject!);
     });
     const target = capability ?? subject!;
-    const action = level ? `trust.set.${level}` : `trust.${op}`;
+    const action =
+      neverAuto !== undefined
+        ? `trust.neverAuto.${neverAuto ? "on" : "off"}`
+        : level
+          ? `trust.set.${level}`
+          : `trust.${op}`;
 
     recordAudit(req, {
       action,
       resource: target,
       ...(capability ? { capability } : {}),
-      detail: `${level ?? op} trust for ${target}`,
+      detail:
+        neverAuto !== undefined
+          ? `neverAuto=${neverAuto} for ${target}`
+          : `${level ?? op} trust for ${target}`,
     });
 
     return NextResponse.json({
       ok: true,
       ...(capability ? { capability } : { subject }),
-      ...(op ? { op } : { level }),
+      ...(neverAuto !== undefined ? { neverAuto } : op ? { op } : { level }),
       stats: capability
         ? (manifest.capabilities[capability] ?? null)
         : (manifest.subjects[subject!] ?? null),

@@ -104,6 +104,7 @@ export const ctoApi = {
     subject?: import("../cto/trust-state").TrustSubjectKey;
     op?: import("../cto/trust-state").TrustOp;
     level?: import("../cto/trust-state").TrustLevel;
+    neverAuto?: boolean;
     actorLogin?: string;
   }): Promise<{
     ok: true;
