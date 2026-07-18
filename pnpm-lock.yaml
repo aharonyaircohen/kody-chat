@@ -817,6 +817,9 @@ importers:
 
   packages/workspace:
     dependencies:
+      '@kody-ade/backend':
+        specifier: workspace:*
+        version: link:../kody-backend
       '@kody-ade/base':
         specifier: workspace:*
         version: link:../base

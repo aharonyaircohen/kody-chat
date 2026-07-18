@@ -32,6 +32,8 @@ import {
   writeStateText,
 } from "@kody-ade/base/state-repo";
 import { slugifyTitle } from "@kody-ade/base/slug";
+import { api } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 
 export type MemoryType = "user" | "feedback" | "project" | "reference";
 
@@ -62,6 +64,7 @@ export interface MemoryFile {
 }
 
 const MEMORY_DIR = "memory";
+const MEMORY_KIND_PREFIX = "memory:";
 const INDEX_FILE = "INDEX.md";
 const MEMORY_TYPES: readonly MemoryType[] = [
   "user",
@@ -215,59 +218,13 @@ async function fetchLastCommitDate(
  * Returns `[]` if the directory does not exist (fresh repo).
  */
 export async function listMemoryFiles(): Promise<MemoryFile[]> {
-  const octokit = getOctokit();
-
-  const { entries } = await listStateDirectory(
-    octokit,
-    getOwner(),
-    getRepo(),
-    MEMORY_DIR,
-    { headers: { "If-None-Match": "" } },
-  );
-
-  const ids = entries
-    .filter(
-      (e) =>
-        e.type === "file" && e.name.endsWith(".md") && e.name !== INDEX_FILE,
-    )
-    .map((e) => ({
-      id: e.name.slice(0, -".md".length),
-      name: e.name,
-    }))
-    .filter((e) => isValidMemoryId(e.id));
-
-  const files = await Promise.all(
-    ids.map(async ({ id, name }) => {
-      try {
-        const filePath = `${MEMORY_DIR}/${name}`;
-        const file = await readStateText(
-          octokit,
-          getOwner(),
-          getRepo(),
-          filePath,
-          { headers: { "If-None-Match": "" } },
-        );
-        if (!file) return null;
-        const raw = file.content;
-        const parsed = parseMemoryFile(raw, id);
-        if (!parsed) return null;
-        const updatedAt = await fetchLastCommitDate(octokit, filePath);
-        return {
-          id,
-          meta: parsed.meta,
-          body: parsed.body,
-          sha: file.sha,
-          updatedAt,
-          htmlUrl: file.htmlUrl ?? "",
-        } satisfies MemoryFile;
-      } catch {
-        return null;
-      }
-    }),
-  );
-
-  return files
-    .filter((f): f is MemoryFile => f !== null)
+  const records = await createBackendClient().query(api.repoDocs.listByPrefix, {
+    tenantId: `${getOwner()}/${getRepo()}`,
+    prefix: MEMORY_KIND_PREFIX,
+  }) as Array<{ kind: string; doc: { meta: MemoryFrontmatter; body: string }; updatedAt: string }>;
+  return records
+    .map((record) => ({ id: record.kind.slice(MEMORY_KIND_PREFIX.length), meta: record.doc.meta, body: record.doc.body, sha: "", updatedAt: record.updatedAt, htmlUrl: "" }))
+    .filter((f) => isValidMemoryId(f.id))
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 
@@ -277,28 +234,8 @@ export async function listMemoryFiles(): Promise<MemoryFile[]> {
  */
 export async function readMemoryFile(id: string): Promise<MemoryFile | null> {
   if (!isValidMemoryId(id)) return null;
-  const octokit = getOctokit();
-  const filePath = `${MEMORY_DIR}/${id}.md`;
-  try {
-    const file = await readStateText(octokit, getOwner(), getRepo(), filePath, {
-      headers: { "If-None-Match": "" },
-    });
-    if (!file) return null;
-    const parsed = parseMemoryFile(file.content, id);
-    if (!parsed) return null;
-    const updatedAt = await fetchLastCommitDate(octokit, filePath);
-    return {
-      id,
-      meta: parsed.meta,
-      body: parsed.body,
-      sha: file.sha,
-      updatedAt,
-      htmlUrl: file.htmlUrl ?? "",
-    };
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) return null;
-    throw error;
-  }
+  const record = await createBackendClient().query(api.repoDocs.get, { tenantId: `${getOwner()}/${getRepo()}`, kind: `${MEMORY_KIND_PREFIX}${id}` }) as { doc: { meta: MemoryFrontmatter; body: string }; updatedAt: string } | null;
+  return record ? { id, meta: record.doc.meta, body: record.doc.body, sha: "", updatedAt: record.updatedAt, htmlUrl: "" } : null;
 }
 
 // ---------- Index ----------
@@ -313,18 +250,8 @@ export async function readMemoryIndex(): Promise<{
   body: string;
   sha: string;
 } | null> {
-  const octokit = getOctokit();
-  const filePath = `${MEMORY_DIR}/${INDEX_FILE}`;
-  try {
-    const file = await readStateText(octokit, getOwner(), getRepo(), filePath, {
-      headers: { "If-None-Match": "" },
-    });
-    if (!file) return null;
-    return { body: file.content, sha: file.sha };
-  } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 404) return null;
-    return null;
-  }
+  const files = await listMemoryFiles();
+  return files.length ? { body: buildIndexBody(files), sha: "" } : null;
 }
 
 function indexHeader(): string {
@@ -364,20 +291,7 @@ async function rebuildAndWriteIndex(opts: {
   octokit: Octokit;
   message: string;
 }): Promise<void> {
-  const { octokit, message } = opts;
-  const files = await listMemoryFiles();
-  const body = buildIndexBody(files);
-  const existing = await readMemoryIndex();
-  if (existing && existing.body === body) return;
-  await writeStateText({
-    octokit,
-    owner: getOwner(),
-    repo: getRepo(),
-    path: `${MEMORY_DIR}/${INDEX_FILE}`,
-    message,
-    content: body,
-    sha: existing?.sha,
-  });
+  void opts;
 }
 
 // ---------- Write / Delete ----------
@@ -413,15 +327,7 @@ export async function writeMemoryFile(opts: WriteOptions): Promise<MemoryFile> {
   const verb = opts.sha ? "update" : "add";
   const message = opts.message ?? `chore(memory): ${verb} ${opts.id}`;
 
-  await writeStateText({
-    octokit: opts.octokit,
-    owner: getOwner(),
-    repo: getRepo(),
-    path: filePath,
-    message,
-    content,
-    sha: opts.sha,
-  });
+  await createBackendClient().mutation(api.repoDocs.save, { tenantId: `${getOwner()}/${getRepo()}`, kind: `${MEMORY_KIND_PREFIX}${opts.id}`, doc: { meta: opts.meta, body: opts.body }, updatedAt: new Date().toISOString() });
 
   await rebuildAndWriteIndex({
     octokit: opts.octokit,
@@ -447,14 +353,7 @@ export async function deleteMemoryFile(
   }
   const existing = await readMemoryFile(id);
   if (!existing) return;
-  await deleteStateFile({
-    octokit,
-    owner: getOwner(),
-    repo: getRepo(),
-    path: `${MEMORY_DIR}/${id}.md`,
-    message: `chore(memory): remove ${id}`,
-    sha: existing.sha,
-  });
+  await createBackendClient().mutation(api.repoDocs.remove, { tenantId: `${getOwner()}/${getRepo()}`, kind: `${MEMORY_KIND_PREFIX}${id}` });
   await rebuildAndWriteIndex({
     octokit,
     message: `chore(memory): refresh INDEX after remove ${id}`,

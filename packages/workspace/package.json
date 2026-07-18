@@ -27,6 +27,7 @@
     "test:unit": "vitest run"
   },
   "dependencies": {
+    "@kody-ade/backend": "workspace:*",
     "@kody-ade/base": "workspace:*",
     "@octokit/rest": "^22.0.1",
     "ai": "^6.0.97",
