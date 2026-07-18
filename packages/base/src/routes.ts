@@ -44,6 +44,7 @@ const REPO_OWNED_LEGACY_PREFIXES = [
   "/docs",
   "/files",
   "/fly",
+  "/inbox",
   "/instructions",
   "/jobs",
   "/memory",
