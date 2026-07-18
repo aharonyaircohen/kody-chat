@@ -21,8 +21,6 @@ import {
   BellOff,
   Check,
   CheckCheck,
-  ChevronDown,
-  ChevronUp,
   ExternalLink,
   FileText,
   GitMerge,
@@ -109,7 +107,6 @@ export function InboxCard({
   const isRequest = entry.source === "request";
   const pending = isRequest && !!rec && verdict === null;
   const [copied, setCopied] = useState(false);
-  const [expanded, setExpanded] = useState(false);
   const category = inboxCategory(entry);
   const muted = category ? isMuted(category) : false;
   const categoryLabel = category ? NOTIFICATION_META[category].label : "";
@@ -359,20 +356,7 @@ export function InboxCard({
               </RepoScopedLink>
             </Button>
           )}
-          {isRequest ? (
-            <button
-              type="button"
-              onClick={() => setExpanded((v) => !v)}
-              className="ml-auto inline-flex items-center gap-1 text-xs text-white/45 hover:text-white/75"
-            >
-              Details
-              {expanded ? (
-                <ChevronUp className="w-3.5 h-3.5" />
-              ) : (
-                <ChevronDown className="w-3.5 h-3.5" />
-              )}
-            </button>
-          ) : (
+          {!isRequest ? (
             <RepoScopedLink
               href={repoHref(`/${rec.taskNumber}`)}
               title="Open this task in the dashboard"
@@ -380,33 +364,7 @@ export function InboxCard({
             >
               Task #{rec.taskNumber}
             </RepoScopedLink>
-          )}
-        </div>
-      ) : null}
-
-      {expanded && rec ? (
-        <div className="mt-2 ml-5 space-y-2 rounded border border-white/[0.06] bg-black/20 p-3 text-xs text-white/60">
-          {entry.snippet ? <p>{entry.snippet}</p> : null}
-          <p className="font-mono text-white/45">{entry.title}</p>
-          {rec.command ? (
-            <p>
-              Approve posts{" "}
-              <code className="rounded bg-white/[0.05] px-1 py-0.5 font-mono text-white/75">
-                {rec.command}
-              </code>
-            </p>
           ) : null}
-          <a
-            href={entry.url}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-sky-300/80 hover:text-sky-200 hover:underline"
-          >
-            <ExternalLink className="w-3.5 h-3.5" />
-            {rec.action === "merge"
-              ? "Review the full proposal on GitHub"
-              : "Open on GitHub"}
-          </a>
         </div>
       ) : null}
     </li>

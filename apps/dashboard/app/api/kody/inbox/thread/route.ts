@@ -26,6 +26,12 @@ import {
 const getSchema = z.object({
   type: z.enum(["Issue", "PullRequest", "Discussion"]),
   number: z.coerce.number().int().positive(),
+  /** `owner/repo` of the thread when it is NOT the connected repo (e.g. an
+   *  agent review PR on the state repo). Fetched with the same user token. */
+  repo: z
+    .string()
+    .regex(/^[^/\s]+\/[^/\s]+$/)
+    .optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -42,6 +48,7 @@ export async function GET(req: NextRequest) {
     const parsed = getSchema.safeParse({
       type: searchParams.get("type"),
       number: searchParams.get("number"),
+      repo: searchParams.get("repo") ?? undefined,
     });
     if (!parsed.success) {
       return NextResponse.json(
@@ -50,7 +57,11 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const { type, number } = parsed.data;
+    const { type, number, repo } = parsed.data;
+    if (repo && headerAuth) {
+      const [threadOwner, threadRepo] = repo.split("/") as [string, string];
+      setGitHubContext(threadOwner, threadRepo, headerAuth.token);
+    }
 
     // Goals are GitHub Discussions — different API (GraphQL), same
     // normalized response shape so the client renders them identically.
