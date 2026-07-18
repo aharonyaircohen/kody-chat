@@ -154,7 +154,8 @@ import {
   isValidSlug as isValidAgentSlug,
   readResolvedAgentFile,
 } from "@dashboard/lib/agent-files";
-import { readResolvedCapabilityFile } from "@kody-ade/agency/capabilities";
+import { api as backendApi } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 import {
   appendAgentChatSpeakerOverride,
   buildAgentChatIdentity,
@@ -993,7 +994,11 @@ async function handleKodyDirectPost(
     const caps = (
       await Promise.all(
         addressedAgentMember.capabilities.map((slug) =>
-          readResolvedCapabilityFile(slug, octokit).catch(() => null),
+          createBackendClient().query(backendApi.catalog.get, {
+            tenantId: `${repo.owner}/${repo.repo}`,
+            category: "capability",
+            slug,
+          }).then((row) => (row as { doc?: { prompt?: string; tools?: string[] } } | null)?.doc ?? null).catch(() => null),
         ),
       )
     ).filter((cap): cap is NonNullable<typeof cap> => cap !== null);
