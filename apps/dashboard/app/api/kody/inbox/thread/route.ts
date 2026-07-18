@@ -26,8 +26,8 @@ import {
 const getSchema = z.object({
   type: z.enum(["Issue", "PullRequest", "Discussion"]),
   number: z.coerce.number().int().positive(),
-  /** `owner/repo` of the thread when it is NOT the connected repo (e.g. an
-   *  agent review PR on the state repo). Fetched with the same user token. */
+  /** `owner/repo` of the thread when it is not the connected repo.
+   * Fetched with the same user token. */
   repo: z
     .string()
     .regex(/^[^/\s]+\/[^/\s]+$/)
