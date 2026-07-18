@@ -389,14 +389,13 @@ export function InboxList() {
   const subtitle = auth ? `${auth.owner}/${auth.repo}` : undefined;
 
   const openEntry = async (entry: InboxEntry) => {
-    // Issues/PRs in the connected repo render inline; everything else
-    // (discussions, commits, cross-repo) still opens github.com.
+    // Issues/PRs in the connected repo render inline. Everything else
+    // (discussions, commits, cross-repo) has no inline view — clicking only
+    // marks it read; GitHub stays behind the explicit external-link icon.
     const target = resolvableThread(entry, connectedRepo);
     if (target) {
       setActiveEntry(entry);
       syncDeepLink(target.type, target.number);
-    } else if (typeof window !== "undefined") {
-      window.open(entry.url, "_blank", "noopener,noreferrer");
     }
     if (entry.readAt === null) {
       setBusyId(entry.id);
