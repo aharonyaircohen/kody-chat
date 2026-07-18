@@ -41,10 +41,11 @@ describe("capability creation guide wiring", () => {
   });
 
   it("uses capability storage and workflow dispatch", () => {
-    expect(CAPABILITY_TOOLS_SOURCE).toContain("listCapabilityFiles");
-    expect(CAPABILITY_TOOLS_SOURCE).toContain("readCapabilityFile");
     expect(CAPABILITY_TOOLS_SOURCE).toContain("writeCapabilityFile");
     expect(CAPABILITY_TOOLS_SOURCE).toContain("deleteCapabilityFile");
+    expect(CAPABILITY_TOOLS_SOURCE).toContain('source: "engine-definition"');
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("api.catalog.list");
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("api.catalog.get");
     expect(CAPABILITY_TOOLS_SOURCE).toContain("inputs: { capability: action }");
   });
 

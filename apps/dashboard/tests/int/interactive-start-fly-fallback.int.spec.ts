@@ -35,6 +35,14 @@ const checkGitHubActionsHealth = vi.fn();
 const resolveServerContext = vi.fn();
 const isServerProviderAvailable = vi.fn();
 const claimOrRunServer = vi.fn();
+const backend = vi.hoisted(() => ({
+  mutation: vi.fn(),
+  query: vi.fn(),
+}));
+const convex = vi.hoisted(() => ({
+  mutation: vi.fn(),
+  query: vi.fn(),
+}));
 
 vi.mock("@kody-ade/fly/runners/github-health", () => ({
   checkGitHubActionsHealth: (...a: unknown[]) => checkGitHubActionsHealth(...a),
@@ -45,6 +53,16 @@ vi.mock("@kody-ade/fly/runners/server-run", () => ({
   isServerProviderAvailable: (...a: unknown[]) =>
     isServerProviderAvailable(...a),
   claimOrRunServer: (...a: unknown[]) => claimOrRunServer(...a),
+}));
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => backend,
+  withEscapedKeys: (client: unknown) => client,
+}));
+vi.mock("convex/browser", () => ({
+  ConvexHttpClient: class {
+    mutation = convex.mutation;
+    query = convex.query;
+  },
 }));
 
 import { POST as startPOST } from "../../app/api/kody/chat/interactive/start/route";
@@ -116,6 +134,11 @@ afterAll(() => {
 
 beforeEach(() => {
   mockRepoConfig404();
+  backend.mutation.mockResolvedValue(undefined);
+  backend.query.mockResolvedValue([]);
+  process.env.CONVEX_URL = "https://example.convex.cloud";
+  convex.mutation.mockResolvedValue(undefined);
+  convex.query.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -128,7 +151,6 @@ afterEach(() => {
 
 describe("POST /interactive/start — GitHub-to-server fallback", () => {
   it("proactively runs on server when GitHub Actions is degraded (no workflow dispatch)", async () => {
-    nockSessionWrite("sess-proactive");
     checkGitHubActionsHealth.mockResolvedValue({
       healthy: false,
       statusDegraded: true,
@@ -136,7 +158,10 @@ describe("POST /interactive/start — GitHub-to-server fallback", () => {
       queueFull: false,
       reason: "actions status degraded_performance",
     });
-    resolveServerContext.mockResolvedValue({ ok: true, context: serverContext });
+    resolveServerContext.mockResolvedValue({
+      ok: true,
+      context: serverContext,
+    });
     isServerProviderAvailable.mockReturnValue(true);
     claimOrRunServer.mockResolvedValue({ runner: "pool", machineId: "m-warm" });
 
@@ -153,7 +178,6 @@ describe("POST /interactive/start — GitHub-to-server fallback", () => {
   });
 
   it("reactively falls back to server when the workflow dispatch throws", async () => {
-    nockSessionWrite("sess-reactive");
     checkGitHubActionsHealth.mockResolvedValue({
       healthy: true,
       statusDegraded: false,
@@ -161,7 +185,10 @@ describe("POST /interactive/start — GitHub-to-server fallback", () => {
       queueFull: false,
       reason: "healthy",
     });
-    resolveServerContext.mockResolvedValue({ ok: true, context: serverContext });
+    resolveServerContext.mockResolvedValue({
+      ok: true,
+      context: serverContext,
+    });
     isServerProviderAvailable.mockReturnValue(true);
     claimOrRunServer.mockResolvedValue({ runner: "fly", machineId: "m-fresh" });
     // GitHub healthy → route attempts the dispatch; make it 500.
@@ -180,7 +207,6 @@ describe("POST /interactive/start — GitHub-to-server fallback", () => {
   });
 
   it("stays on GitHub when unhealthy but no server provider is available", async () => {
-    nockSessionWrite("sess-nofly");
     checkGitHubActionsHealth.mockResolvedValue({
       healthy: false,
       statusDegraded: true,
@@ -188,7 +214,10 @@ describe("POST /interactive/start — GitHub-to-server fallback", () => {
       queueFull: false,
       reason: "actions status major_outage",
     });
-    resolveServerContext.mockResolvedValue({ ok: true, context: serverContext });
+    resolveServerContext.mockResolvedValue({
+      ok: true,
+      context: serverContext,
+    });
     isServerProviderAvailable.mockReturnValue(false);
     const dispatch = nock(GITHUB_API)
       .post(/\/repos\/acme\/widgets\/actions\/workflows\/kody\.yml\/dispatches/)

@@ -19,6 +19,21 @@ function assertTable(table: string): asserts table is TableNames {
   }
 }
 
+function tenantQuery(ctx: MutationCtx, entity: EntityDef, tenantId: string) {
+  if (!entity.upsertIndex) {
+    throw new Error(`Tenant-scoped table is missing an index: ${entity.table}`)
+  }
+  type EqRange = { eq: (field: "tenantId", value: string) => EqRange }
+  return (
+    ctx.db.query(entity.table as TableNames) as unknown as {
+      withIndex: (
+        name: string,
+        range: (q: EqRange) => EqRange,
+      ) => { collect: () => Promise<Doc<TableNames>[]> }
+    }
+  ).withIndex(entity.upsertIndex, (q) => q.eq("tenantId", tenantId))
+}
+
 /** tenantId (unless global) + the entity's natural key — the identity an upsert matches on. */
 function keyFields(entity: EntityDef): string[] {
   return entity.global ? entity.naturalKey : ["tenantId", ...entity.naturalKey]
@@ -89,10 +104,7 @@ export const dedupeTenant = mutation({
     for (const entity of ENTITIES) {
       if (entity.global) continue
       if (table && entity.table !== table) continue
-      const docs = await ctx.db
-        .query(entity.table as TableNames)
-        .filter((q) => q.eq(q.field("tenantId"), tenantId))
-        .collect()
+      const docs = await tenantQuery(ctx, entity, tenantId).collect()
       const byKey = new Map<string, Doc<TableNames>[]>()
       for (const doc of docs) {
         const key = JSON.stringify(
@@ -121,11 +133,9 @@ export const clearRepo = mutation({
   handler: async (ctx, { tenantId }) => {
     let deleted = 0
     for (const table of TABLES) {
-      if (ENTITY_BY_TABLE.get(table)?.global) continue
-      const docs = await ctx.db
-        .query(table as TableNames)
-        .filter((q) => q.eq(q.field("tenantId"), tenantId))
-        .collect()
+      const entity = ENTITY_BY_TABLE.get(table)
+      if (!entity || entity.global) continue
+      const docs = await tenantQuery(ctx, entity, tenantId).collect()
       for (const doc of docs) {
         await ctx.db.delete(doc._id)
         deleted++

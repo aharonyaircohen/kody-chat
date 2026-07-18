@@ -21,6 +21,10 @@ const stateRepo = vi.hoisted(() => ({
     target: { owner: "octo-state", repo: "kody-state", basePath: "widgets" },
   })),
 }));
+const backend = vi.hoisted(() => ({
+  query: vi.fn(),
+  mutation: vi.fn(),
+}));
 
 vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: auth.requireKodyAuth,
@@ -34,6 +38,9 @@ vi.mock("@kody-ade/base/state-repo", () => ({
   stateRepoPath: stateRepo.stateRepoPath,
   writeStateBase64Files: stateRepo.writeStateBase64Files,
 }));
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => backend,
+}));
 
 vi.mock("@kody-ade/base/logger", () => ({
   logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
@@ -43,6 +50,7 @@ import { DELETE, POST } from "../../app/api/kody/views/route";
 
 beforeEach(() => {
   vi.clearAllMocks();
+  backend.mutation.mockResolvedValue(undefined);
   stateRepo.stateRepoPath.mockImplementation(
     (target: { basePath: string }, path: string) =>
       [target.basePath, path].filter(Boolean).join("/"),
@@ -50,7 +58,7 @@ beforeEach(() => {
 });
 
 describe("POST /api/kody/views", () => {
-  it("writes uploaded view files to the state branch", async () => {
+  it("writes uploaded view files to Convex", async () => {
     const form = new FormData();
     form.append(
       "file",
@@ -77,33 +85,23 @@ describe("POST /api/kody/views", () => {
     );
     expect(body.repoPath).toMatch(/^views\/hello-html-[a-f0-9]{8}$/);
     expect(body.entryPath).toBe("index.html");
-    expect(body.htmlUrl).toMatch(
-      /^https:\/\/github\.com\/octo-state\/kody-state\/tree\/main\/widgets\/views\/hello-html-[a-f0-9]{8}$/,
-    );
-    expect(body.sourceHtmlUrl).toMatch(
-      /^https:\/\/github\.com\/octo-state\/kody-state\/blob\/main\/widgets\/views\/hello-html-[a-f0-9]{8}\/index\.html$/,
-    );
-    expect(stateRepo.writeStateBase64Files).toHaveBeenCalledWith({
-      octokit: { marker: "viewer-octokit" },
-      owner: "acme",
-      repo: "widgets",
-      message: expect.stringMatching(
-        /^chore\(dashboard\): add static view hello-html-[a-f0-9]{8}$/,
-      ),
-      files: [
-        {
-          path: expect.stringMatching(
-            /^views\/hello-html-[a-f0-9]{8}\/index\.html$/,
-          ),
-          contentBase64: Buffer.from("<h1>Hello</h1>").toString("base64"),
+    expect(body.htmlUrl).toBeNull();
+    expect(body.sourceHtmlUrl).toBeNull();
+    expect(backend.mutation).toHaveBeenCalledWith(expect.anything(), {
+      tenantId: "acme/widgets",
+      kind: expect.stringMatching(/^views\/hello-html-[a-f0-9]{8}$/),
+      doc: expect.objectContaining({
+        files: {
+          "index.html": Buffer.from("<h1>Hello</h1>").toString("base64"),
         },
-      ],
+      }),
+      updatedAt: expect.any(String),
     });
   });
 });
 
 describe("DELETE /api/kody/views", () => {
-  it("deletes the repo-backed view folder from the configured state repo", async () => {
+  it("deletes the view document from Convex", async () => {
     const res = await DELETE(
       new NextRequest("http://localhost/api/kody/views?view=mobile-html-1234", {
         method: "DELETE",
@@ -111,13 +109,10 @@ describe("DELETE /api/kody/views", () => {
     );
 
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ ok: true, deleted: 2 });
-    expect(stateRepo.deleteStateDirectory).toHaveBeenCalledWith({
-      octokit: { marker: "viewer-octokit" },
-      owner: "acme",
-      repo: "widgets",
-      path: "views/mobile-html-1234",
-      message: "chore(dashboard): remove static view mobile-html-1234",
+    await expect(res.json()).resolves.toEqual({ ok: true });
+    expect(backend.mutation).toHaveBeenCalledWith(expect.anything(), {
+      tenantId: "acme/widgets",
+      kind: "views/mobile-html-1234",
     });
   });
 

@@ -5,6 +5,10 @@ const stateRepo = vi.hoisted(() => ({
 }));
 
 vi.mock("@kody-ade/base/state-repo", () => stateRepo);
+vi.mock("@kody-ade/cms/repo-docs", () => ({
+  readCmsFile: async (owner: string, repo: string, filePath: string) =>
+    stateRepo.readStateText({}, owner, repo, filePath),
+}));
 
 import {
   getCollection,

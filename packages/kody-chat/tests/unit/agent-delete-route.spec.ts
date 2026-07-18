@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
   deleteAgentFile: vi.fn(),
   getEngineConfig: vi.fn(),
   writeConfigPatch: vi.fn(),
+  removeProjectedAgent: vi.fn(),
   recordAudit: vi.fn(),
 }));
 
@@ -49,6 +50,10 @@ vi.mock("@kody-ade/base/engine/config", () => ({
 
 vi.mock("@kody-ade/base/activity/audit", () => ({
   recordAudit: h.recordAudit,
+}));
+vi.mock("@kody-ade/agency/backend/agents-projection", () => ({
+  getProjectedAgent: vi.fn(),
+  removeProjectedAgent: h.removeProjectedAgent,
 }));
 
 import { DELETE } from "../../app/api/kody/agents/[slug]/route";

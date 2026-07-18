@@ -82,6 +82,13 @@ vi.mock("@dashboard/lib/managed-goals-files", () => ({
 vi.mock("@dashboard/lib/capabilities/files", () => ({
   listLocalCapabilityFiles: capabilityFiles.listLocalCapabilityFiles,
 }));
+vi.mock("@dashboard/lib/backend/repo-projection", () => ({
+  getProjectedEngineConfig: (...args: unknown[]) =>
+    engineConfig.getEngineConfig(...args),
+  listProjectedWorkflows: (...args: unknown[]) =>
+    workflowFiles.listWorkflowDefinitionFiles(...args),
+  saveProjectedWorkflow: vi.fn(async () => undefined),
+}));
 
 import {
   GET as LIST,
@@ -164,7 +171,9 @@ describe("company workflows route", () => {
     workflowFiles.listWorkflowDefinitionFiles.mockResolvedValue([]);
     managedGoalFiles.listManagedGoalFiles.mockResolvedValue([]);
     capabilityFiles.listLocalCapabilityFiles.mockResolvedValue(
-      ["run", "fix", "review", "reproduce", "plan", "inspect", "verify"].map((slug) => ({ slug })),
+      ["run", "fix", "review", "reproduce", "plan", "inspect", "verify"].map(
+        (slug) => ({ slug }),
+      ),
     );
     workflowFiles.listCompanyStoreWorkflowDefinitionFiles.mockResolvedValue([]);
     workflowFiles.listCompanyStoreCapabilityWorkflowDefinitionFiles.mockResolvedValue(

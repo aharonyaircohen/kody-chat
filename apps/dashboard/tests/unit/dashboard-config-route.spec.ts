@@ -45,9 +45,8 @@ const stateRepo = vi.hoisted(() => ({
     basePath: "widgets",
     branch: "main",
   })),
-  stateRepoPath: vi.fn(
-    (target: { basePath: string }, path: string) =>
-      [target.basePath, path].filter(Boolean).join("/"),
+  stateRepoPath: vi.fn((target: { basePath: string }, path: string) =>
+    [target.basePath, path].filter(Boolean).join("/"),
   ),
 }));
 
@@ -89,7 +88,7 @@ beforeEach(() => {
 });
 
 describe("GET /api/kody/dashboard-config", () => {
-  it("reads shared config with the background token when available", async () => {
+  it("reads shared config directly from Convex", async () => {
     const res = await GET(
       new NextRequest("http://localhost/api/kody/dashboard-config"),
     );
@@ -98,21 +97,13 @@ describe("GET /api/kody/dashboard-config", () => {
     await expect(res.json()).resolves.toEqual({
       config: { version: 1, namedPreviews: [] },
     });
-    expect(backgroundToken.resolveBackgroundToken).toHaveBeenCalledWith(
-      "acme",
-      "widgets",
-    );
-    expect(githubClient.createUserOctokit).toHaveBeenCalledWith(
-      "ghs_app_token",
-    );
-    expect(store.readDashboardConfig).toHaveBeenCalledWith(
-      "acme",
-      "widgets",
-    );
+    expect(backgroundToken.resolveBackgroundToken).not.toHaveBeenCalled();
+    expect(githubClient.createUserOctokit).not.toHaveBeenCalled();
+    expect(store.readDashboardConfig).toHaveBeenCalledWith("acme", "widgets");
     expect(auth.getUserOctokit).not.toHaveBeenCalled();
   });
 
-  it("falls back to the viewer token when no background token is available", async () => {
+  it("does not require a viewer token when no background token is available", async () => {
     backgroundToken.resolveBackgroundToken.mockResolvedValueOnce(null);
 
     const res = await GET(
@@ -120,14 +111,11 @@ describe("GET /api/kody/dashboard-config", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(auth.getUserOctokit).toHaveBeenCalled();
-    expect(store.readDashboardConfig).toHaveBeenCalledWith(
-      "acme",
-      "widgets",
-    );
+    expect(auth.getUserOctokit).not.toHaveBeenCalled();
+    expect(store.readDashboardConfig).toHaveBeenCalledWith("acme", "widgets");
   });
 
-  it("adds source links for existing repo-backed views", async () => {
+  it("returns Convex-backed view metadata without synthetic GitHub links", async () => {
     store.readDashboardConfig.mockResolvedValueOnce({
       doc: {
         version: 1,
@@ -153,18 +141,13 @@ describe("GET /api/kody/dashboard-config", () => {
       config: {
         namedPreviews: [
           {
-            repoViewEntryPath: "index.html",
-            repoViewSourceUrl:
-              "https://github.com/acme-state/kody-state/blob/main/widgets/views/shop1-html-050ae2c2/index.html",
+            id: "shop",
+            repoViewPath: "views/shop1-html-050ae2c2",
           },
         ],
       },
     });
-    expect(stateRepo.resolveStateRepo).toHaveBeenCalledWith(
-      { marker: "app-octokit" },
-      "acme",
-      "widgets",
-    );
+    expect(stateRepo.resolveStateRepo).not.toHaveBeenCalled();
   });
 });
 
@@ -190,15 +173,11 @@ describe("PUT /api/kody/dashboard-config", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(store.writeDashboardConfig).toHaveBeenCalledWith(
-      "acme",
-      "widgets",
-      {
-        version: 1,
-        defaultPreviewUrl: "https://legacy.example.com",
-        namedPreviews: [],
-      },
-    );
+    expect(store.writeDashboardConfig).toHaveBeenCalledWith("acme", "widgets", {
+      version: 1,
+      defaultPreviewUrl: "https://legacy.example.com",
+      namedPreviews: [],
+    });
   });
 
   it("writes through the Convex store without requiring a user octokit", async () => {
@@ -253,20 +232,16 @@ describe("PUT /api/kody/dashboard-config", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(store.writeDashboardConfig).toHaveBeenCalledWith(
-      "acme",
-      "widgets",
-      {
-        version: 1,
-        defaultPreviewUrl: undefined,
-        namedPreviews: [
-          {
-            id: "dev",
-            label: "dev",
-            flyBranch: { repo: "acme/widgets", branch: "dev" },
-          },
-        ],
-      },
-    );
+    expect(store.writeDashboardConfig).toHaveBeenCalledWith("acme", "widgets", {
+      version: 1,
+      defaultPreviewUrl: undefined,
+      namedPreviews: [
+        {
+          id: "dev",
+          label: "dev",
+          flyBranch: { repo: "acme/widgets", branch: "dev" },
+        },
+      ],
+    });
   });
 });

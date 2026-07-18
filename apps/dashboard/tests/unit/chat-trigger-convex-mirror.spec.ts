@@ -1,8 +1,6 @@
 /**
  * Unit tests for the Convex transcript mirror in POST /api/kody/chat/trigger:
- * the state-repo JSONL write stays (the engine git-pulls it), and the session
- * meta + only-the-new turns are mirrored to chatSessions/chatTurns. A Convex
- * failure must not block the dispatch.
+ * session metadata and new turns are written to Convex before workflow dispatch.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
@@ -97,7 +95,7 @@ beforeEach(() => {
 });
 
 describe("POST /api/kody/chat/trigger convex mirror", () => {
-  it("keeps the state-repo write and mirrors session + new turns to Convex", async () => {
+  it("writes session + new turns only to Convex", async () => {
     convex.query.mockResolvedValue([{ seq: 0 }]); // one turn already recorded
     convex.mutation.mockResolvedValue(null);
 
@@ -105,9 +103,7 @@ describe("POST /api/kody/chat/trigger convex mirror", () => {
     expect(res.status).toBe(200);
 
     // Engine dependency: sessions/<id>.jsonl still written to the state repo.
-    expect(h.writeStateText).toHaveBeenCalledWith(
-      expect.objectContaining({ path: "sessions/live-9.jsonl" }),
-    );
+    expect(h.writeStateText).not.toHaveBeenCalled();
 
     // Session meta upserted.
     const upsert = convex.mutation.mock.calls.find(
@@ -124,17 +120,19 @@ describe("POST /api/kody/chat/trigger convex mirror", () => {
       ([ref]) => getFunctionName(ref as never) === "chatTurns:append",
     );
     expect(
-      appends.map(([, args]) => (args as { turn: { content: string } }).turn.content),
+      appends.map(
+        ([, args]) => (args as { turn: { content: string } }).turn.content,
+      ),
     ).toEqual(["two", "three"]);
 
     expect(h.createWorkflowDispatch).toHaveBeenCalled();
   });
 
-  it("a Convex failure does not block the workflow dispatch", async () => {
+  it("a Convex failure blocks dispatch so runtime state is not lost", async () => {
     convex.query.mockRejectedValue(new Error("backend down"));
 
     const res = await POST(makeReq({ taskId: "live-9", messages }));
-    expect(res.status).toBe(200);
-    expect(h.createWorkflowDispatch).toHaveBeenCalled();
+    expect(res.status).toBe(500);
+    expect(h.createWorkflowDispatch).not.toHaveBeenCalled();
   });
 });

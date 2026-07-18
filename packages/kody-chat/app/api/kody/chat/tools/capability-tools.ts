@@ -13,9 +13,10 @@ import type { Octokit } from "@octokit/rest";
 import { api } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 import {
-  isValidSlug,
-  PERMISSION_MODES,
-} from "@dashboard/lib/capabilities";
+  deleteCapabilityFile,
+  writeCapabilityFile,
+} from "@kody-ade/agency/capabilities";
+import { isValidSlug, PERMISSION_MODES } from "@dashboard/lib/capabilities";
 import { dashboardCapabilityUrl } from "@dashboard/lib/thread-link";
 
 interface Ctx {
@@ -91,7 +92,10 @@ export function createCapabilityTools(ctx: Ctx) {
       inputSchema: z.object({}),
       execute: async () => {
         try {
-          const rows = (await createBackendClient().query(api.catalog.list, { tenantId: repoRef, category: "capability" })) as Array<{ doc: unknown }>;
+          const rows = (await createBackendClient().query(api.catalog.list, {
+            tenantId: repoRef,
+            category: "capability",
+          })) as Array<{ doc: unknown }>;
           const capabilities = rows.map((row) => row.doc);
           return { capabilities };
         } catch (err) {
@@ -108,7 +112,11 @@ export function createCapabilityTools(ctx: Ctx) {
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
         try {
-          const row = await createBackendClient().query(api.catalog.get, { tenantId: repoRef, category: "capability", slug });
+          const row = await createBackendClient().query(api.catalog.get, {
+            tenantId: repoRef,
+            category: "capability",
+            slug,
+          });
           const capability = (row as { doc?: unknown } | null)?.doc;
           if (!capability) return { error: `capability "${slug}" not found` };
           return { capability };
@@ -141,30 +149,38 @@ export function createCapabilityTools(ctx: Ctx) {
         }
 
         try {
-          const existingRow = await createBackendClient().query(api.catalog.get, { tenantId: repoRef, category: "capability", slug: input.slug });
-          const existing = (existingRow as { doc?: Record<string, unknown> } | null)?.doc;
-          await createBackendClient().mutation(api.catalog.save, {
-            tenantId: repoRef,
-            category: "capability",
-            slug: input.slug,
-            doc: {
-              ...(existing ?? {}),
+          const existingRow = await createBackendClient().query(
+            api.catalog.get,
+            { tenantId: repoRef, category: "capability", slug: input.slug },
+          );
+          const existing = (
+            existingRow as { doc?: Record<string, unknown> } | null
+          )?.doc;
+          const capability = await writeCapabilityFile({
+            octokit,
+            fields: {
               slug: input.slug,
               describe: input.describe,
               prompt: input.instructions,
               model: input.model,
               permissionMode: input.permissionMode,
               tools: input.tools,
-              skills: input.skills,
-              shellScripts: input.shellScripts,
+              skills: input.skills.map((skill) => skill.name),
+              shellScripts: input.shellScripts.map((script) => script.name),
               mcpServers: [],
               landing: input.landing,
-              source: "local",
-              readOnly: false,
-              updatedAt: new Date().toISOString(),
             },
-            source: "local",
-            updatedAt: new Date().toISOString(),
+            skills: input.skills,
+            shellScripts: input.shellScripts,
+            isUpdate: Boolean(existing),
+          });
+          await createBackendClient().mutation(api.catalog.save, {
+            tenantId: repoRef,
+            category: "capability",
+            slug: capability.slug,
+            doc: capability,
+            source: "engine-definition",
+            updatedAt: capability.updatedAt ?? new Date().toISOString(),
           });
           return {
             ok: true,
@@ -186,9 +202,18 @@ export function createCapabilityTools(ctx: Ctx) {
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
         try {
-          const existing = await createBackendClient().query(api.catalog.get, { tenantId: repoRef, category: "capability", slug });
+          const existing = await createBackendClient().query(api.catalog.get, {
+            tenantId: repoRef,
+            category: "capability",
+            slug,
+          });
           if (!existing) return { error: `capability "${slug}" not found` };
-          await createBackendClient().mutation(api.catalog.remove, { tenantId: repoRef, category: "capability", slug });
+          await deleteCapabilityFile(octokit, slug);
+          await createBackendClient().mutation(api.catalog.remove, {
+            tenantId: repoRef,
+            category: "capability",
+            slug,
+          });
           return { ok: true, action: "deleted", slug };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };
@@ -204,12 +229,22 @@ export function createCapabilityTools(ctx: Ctx) {
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
         try {
-          const row = await createBackendClient().query(api.catalog.get, { tenantId: repoRef, category: "capability", slug });
-          const existing = (row as { doc?: { profileJson?: string; prompt?: string } } | null)?.doc;
+          const row = await createBackendClient().query(api.catalog.get, {
+            tenantId: repoRef,
+            category: "capability",
+            slug,
+          });
+          const existing = (
+            row as { doc?: { profileJson?: string; prompt?: string } } | null
+          )?.doc;
           if (!existing) return { error: `capability "${slug}" not found` };
           const repoMeta = await octokit.rest.repos.get({ owner, repo });
           const ref = repoMeta.data.default_branch || "main";
-          const action = actionFromCapability(slug, existing.profileJson ?? JSON.stringify({ name: existing.prompt ?? slug }));
+          const action = actionFromCapability(
+            slug,
+            existing.profileJson ??
+              JSON.stringify({ name: existing.prompt ?? slug }),
+          );
           await octokit.rest.actions.createWorkflowDispatch({
             owner,
             repo,
@@ -235,7 +270,11 @@ export function createCapabilityTools(ctx: Ctx) {
         `Ask Kody's validated workflow creator to design one workflow from an approved GitHub issue in ${repoRef}. ` +
         "It researches existing capabilities, validates the graph, and opens a review PR; it never writes an unreviewed workflow.",
       inputSchema: z.object({
-        issue: z.number().int().positive().describe("Approved GitHub issue containing the workflow request."),
+        issue: z
+          .number()
+          .int()
+          .positive()
+          .describe("Approved GitHub issue containing the workflow request."),
       }),
       execute: async ({ issue }) => {
         try {
@@ -246,7 +285,10 @@ export function createCapabilityTools(ctx: Ctx) {
             repo,
             workflow_id: "kody.yml",
             ref,
-            inputs: { capability: "workflow-creator", issue_number: String(issue) },
+            inputs: {
+              capability: "workflow-creator",
+              issue_number: String(issue),
+            },
           });
           return {
             ok: true,

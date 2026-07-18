@@ -1,10 +1,7 @@
 import { NextRequest } from "next/server";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-import {
-  CmsConfigError,
-  invalidateCmsConfigCache,
-} from "@kody-ade/cms/config";
+import { CmsConfigError, invalidateCmsConfigCache } from "@kody-ade/cms/config";
 import type { CmsConfigState } from "@kody-ade/cms/types";
 
 const auth = vi.hoisted(() => ({
@@ -40,12 +37,10 @@ const github = vi.hoisted(() => ({
 }));
 
 const service = vi.hoisted(() => ({
-  listCmsCollections: vi.fn(
-    async (): Promise<CmsConfigState> => ({
-      configured: false,
-      collections: [],
-    }),
-  ),
+  listCmsCollections: vi.fn(async (): Promise<CmsConfigState> => ({
+    configured: false,
+    collections: [],
+  })),
   listCmsDocuments: vi.fn(async () => ({
     docs: [],
     total: 0,
@@ -79,6 +74,14 @@ const stateRepo = vi.hoisted(() => ({
   writeStateText: vi.fn(async (_input: unknown): Promise<void> => undefined),
   writeStateFiles: vi.fn(async (_input: unknown): Promise<void> => undefined),
   deleteStateFile: vi.fn(async (_input: unknown): Promise<void> => undefined),
+}));
+vi.mock("@kody-ade/cms/repo-docs", () => ({
+  readCmsFile: async (owner: string, repo: string, filePath: string) =>
+    stateRepo.readStateText({}, owner, repo, filePath),
+  readStateText: (...args: unknown[]) => stateRepo.readStateText(...args),
+  writeStateText: (input: unknown) => stateRepo.writeStateText(input),
+  writeStateFiles: (input: unknown) => stateRepo.writeStateFiles(input),
+  deleteStateFile: (input: unknown) => stateRepo.deleteStateFile(input),
 }));
 
 const mongoSchema = vi.hoisted(() => ({

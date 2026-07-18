@@ -22,9 +22,14 @@ const h = vi.hoisted(() => ({
 
 vi.mock("@kody-ade/base/auth", () => ({
   requireKodyAuth: vi.fn(),
-  getRequestAuth: vi.fn(),
+  getRequestAuth: vi.fn(() => ({ owner: "acme", repo: "widgets" })),
   verifyActorLogin: h.verifyActorLogin,
   getUserOctokit: h.getUserOctokit,
+}));
+vi.mock("@kody-ade/agency/backend/agents-projection", () => ({
+  saveProjectedAgent: vi.fn(),
+  getProjectedAgent: vi.fn(),
+  removeProjectedAgent: vi.fn(),
 }));
 
 vi.mock("@kody-ade/agency/github", () => ({

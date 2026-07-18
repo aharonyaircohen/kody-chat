@@ -50,6 +50,9 @@ vi.mock("@kody-ade/base/engine/config", () => ({
 vi.mock("@kody-ade/fly/runners/kody-runner", () => ({
   runScheduledKodyOnRunner: h.runScheduledKodyOnRunner,
 }));
+vi.mock("@dashboard/lib/backend/repo-projection", () => ({
+  getProjectedEngineConfig: () => h.getEngineConfig(),
+}));
 
 import { GET, POST } from "../../app/api/kody/goals/managed/route";
 

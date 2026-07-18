@@ -31,6 +31,10 @@ const vault = vi.hoisted(() => ({
 }));
 
 vi.mock("@kody-ade/base/state-repo", () => stateRepo);
+vi.mock("@kody-ade/cms/repo-docs", () => ({
+  readCmsFile: async (owner: string, repo: string, filePath: string) =>
+    stateRepo.readStateText({}, owner, repo, filePath),
+}));
 vi.mock("@kody-ade/cms/roles", () => roles);
 vi.mock("@kody-ade/base/vault/get-secret", () => vault);
 
@@ -753,9 +757,7 @@ function hasMaterializedRuntimePackage(
     );
     if (!existsSync(adapterFile)) continue;
     if (!readFileSync(adapterFile, "utf8").includes(sourceMarker)) continue;
-    return existsSync(
-      path.join(materializedRoot, "node_modules", packageName),
-    );
+    return existsSync(path.join(materializedRoot, "node_modules", packageName));
   }
 
   return false;

@@ -10,6 +10,10 @@ const convex = vi.hoisted(() => ({
   query: vi.fn(),
   mutation: vi.fn(),
 }));
+const engineAgents = vi.hoisted(() => ({
+  writeAgentFile: vi.fn(),
+  deleteAgentFile: vi.fn(),
+}));
 
 vi.mock("convex/browser", () => ({
   ConvexHttpClient: class {
@@ -30,6 +34,8 @@ vi.mock("@kody-ade/base/github/core", () => ({
 
 vi.mock("@kody-ade/agency/agent-files", () => ({
   listStoreAgentFiles: vi.fn(async () => []),
+  writeAgentFile: engineAgents.writeAgentFile,
+  deleteAgentFile: engineAgents.deleteAgentFile,
 }));
 
 import { _resetConvexClient } from "@dashboard/lib/backend/convex-backend";
@@ -54,6 +60,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   _resetConvexClient();
   process.env.CONVEX_URL = "https://example.convex.cloud";
+  engineAgents.writeAgentFile.mockResolvedValue(undefined);
+  engineAgents.deleteAgentFile.mockResolvedValue(undefined);
 });
 
 describe("agent files convex store", () => {

@@ -14,26 +14,15 @@ import { z } from "zod";
 import {
   requireKodyAuth,
   verifyActorLogin,
-  getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import {
   invalidateDashboardConfigCache,
   readDashboardConfig,
   writeDashboardConfig,
   type DashboardConfig,
 } from "@dashboard/lib/dashboard-config/store";
-import { createUserOctokit } from "@dashboard/lib/github-client";
 import { logger } from "@kody-ade/base/logger";
-import {
-  resolveStateRepo,
-  stateRepoPath,
-} from "@kody-ade/base/state-repo";
-import {
-  repoViewIdFromPath,
-  type PreviewEnvironment,
-} from "@kody-ade/fly/preview-environments";
 
 const PreviewUrlSchema = z
   .string()
@@ -135,82 +124,6 @@ const UpsertSchema = z.object({
   actorLogin: z.string().optional(),
 });
 
-function encodeGitHubPath(path: string): string {
-  return path.split("/").map(encodeURIComponent).join("/");
-}
-
-function entryPathFromViewUrl(
-  url: string | undefined,
-  viewId: string,
-): string | null {
-  if (!url) return null;
-  try {
-    const parsed = new URL(url, "http://kody.local");
-    const parts = parsed.pathname.split("/").filter(Boolean);
-    if (
-      parts[0] !== "api" ||
-      parts[1] !== "kody" ||
-      parts[2] !== "views"
-    ) {
-      return null;
-    }
-    if (parts[3] === "_t") {
-      if (parts[5] !== viewId) return null;
-      return parts.slice(6).join("/") || "index.html";
-    }
-    if (parts[3] !== viewId) return null;
-    return parts.slice(4).join("/") || "index.html";
-  } catch {
-    return null;
-  }
-}
-
-async function withRepoViewSourceLinks(
-  octokit: NonNullable<Awaited<ReturnType<typeof getUserOctokit>>>,
-  owner: string,
-  repo: string,
-  doc: DashboardConfig,
-): Promise<DashboardConfig> {
-  const previews = doc.namedPreviews ?? [];
-  const needsSource = previews.some(
-    (env) => env.repoViewPath && !env.repoViewSourceUrl,
-  );
-  if (!needsSource) return doc;
-
-  try {
-    const target = await resolveStateRepo(octokit, owner, repo);
-    return {
-      ...doc,
-      namedPreviews: previews.map((env: PreviewEnvironment) => {
-        if (!env.repoViewPath || env.repoViewSourceUrl) return env;
-        const viewId = repoViewIdFromPath(env.repoViewPath);
-        if (!viewId) return env;
-        const entryPath =
-          env.repoViewEntryPath ??
-          entryPathFromViewUrl(env.url, viewId) ??
-          "index.html";
-        const repoFilePath = stateRepoPath(
-          target,
-          `${env.repoViewPath}/${entryPath}`,
-        );
-        return {
-          ...env,
-          repoViewEntryPath: entryPath,
-          repoViewSourceUrl: `https://github.com/${target.owner}/${target.repo}/blob/${encodeURIComponent(
-            target.branch,
-          )}/${encodeGitHubPath(repoFilePath)}`,
-        };
-      }),
-    };
-  } catch (err) {
-    logger.warn(
-      { err, owner, repo },
-      "dashboard-config: repo view source enrichment failed",
-    );
-    return doc;
-  }
-}
-
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
@@ -220,22 +133,9 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
   }
 
-  const background = await resolveBackgroundToken(auth.owner, auth.repo);
-  const octokit = background
-    ? createUserOctokit(background.token)
-    : await getUserOctokit(req);
-  if (!octokit)
-    return NextResponse.json({ error: "no_octokit" }, { status: 401 });
-
   try {
     const { doc } = await readDashboardConfig(auth.owner, auth.repo);
-    const config = await withRepoViewSourceLinks(
-      octokit,
-      auth.owner,
-      auth.repo,
-      doc,
-    );
-    return NextResponse.json({ config });
+    return NextResponse.json({ config: doc });
   } catch (err) {
     logger.error(
       { err, owner: auth.owner, repo: auth.repo },
@@ -276,12 +176,9 @@ export async function PUT(req: NextRequest) {
   if ("status" in verify) return verify;
 
   try {
-    const { doc, sha } = await readDashboardConfig(auth.owner,
-      auth.repo,
-      {
-        force: true,
-      },
-    );
+    const { doc, sha } = await readDashboardConfig(auth.owner, auth.repo, {
+      force: true,
+    });
     // Partial merge: only fields present in the request body are
     // overwritten, so a Vibe-page save and a chat-default save don't
     // clobber each other's value.

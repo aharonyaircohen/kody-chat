@@ -23,9 +23,26 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // Agents now live in the Convex backend — mock the client so agent
 // import writes hit an in-memory store instead of GitHub.
+const convexDocs = vi.hoisted(() => new Map<string, unknown>());
 const convex = vi.hoisted(() => ({
-  query: vi.fn(async () => [] as unknown[]),
-  mutation: vi.fn(async () => "id-1"),
+  query: vi.fn(async (_ref: unknown, args: { kind?: string }) =>
+    args.kind && convexDocs.has(args.kind)
+      ? {
+          doc: convexDocs.get(args.kind),
+          updatedAt: "2026-07-18T00:00:00.000Z",
+        }
+      : args.kind
+        ? null
+        : ([] as unknown[]),
+  ),
+  mutation: vi.fn(
+    async (_ref: unknown, args: { kind?: string; doc?: unknown }) => {
+      if (args.kind && args.doc !== undefined) {
+        convexDocs.set(args.kind, args.doc);
+      }
+      return "id-1";
+    },
+  ),
 }));
 
 vi.mock("convex/browser", () => ({
@@ -208,10 +225,9 @@ const bundle = {
 };
 
 beforeEach(() => {
+  convexDocs.clear();
   vi.clearAllMocks();
   process.env.CONVEX_URL = "https://example.convex.cloud";
-  convex.query.mockResolvedValue([]);
-  convex.mutation.mockResolvedValue("id-1");
 });
 
 describe("company import survives a cleared/bad request-context octokit", () => {

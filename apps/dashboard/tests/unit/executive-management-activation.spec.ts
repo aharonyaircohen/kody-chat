@@ -13,7 +13,7 @@ describe("kody-chat executive management activation", () => {
     expect(config.github).toEqual({
       owner: "aharonyaircohen",
       repo: "kody-chat",
-      operators: ["aguyaharonyair"],
+      operators: ["aguyaharonyair", "aharonyaircohen"],
     });
     expect(config.state).toMatchObject({
       repo: "https://github.com/aharonyaircohen/kody-state",
@@ -40,10 +40,9 @@ describe("kody-chat executive management activation", () => {
     );
     expect(config.company.activeGoals).toEqual(
       expect.arrayContaining([
-        { template: "company-growth-loop", every: "15m" },
         { template: "agency-evolution-loop", every: "15m" },
-        { template: "agency-operations-loop", every: "15m" },
-        { template: "ai-agency-health", every: "15m" },
+        { template: "agency-observer", every: "15m" },
+        { template: "agency-operating-loop", every: "15m" },
       ]),
     );
   });

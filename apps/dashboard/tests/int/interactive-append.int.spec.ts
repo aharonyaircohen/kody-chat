@@ -25,11 +25,23 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 import nock from "nock";
 import { NextRequest } from "next/server";
 import { POST as appendPOST } from "../../app/api/kody/chat/interactive/append/route";
 import { STATE_BRANCH } from "@kody-ade/base/state-branch";
+
+const convex = vi.hoisted(() => ({
+  mutation: vi.fn(),
+  query: vi.fn(),
+}));
+vi.mock("convex/browser", () => ({
+  ConvexHttpClient: class {
+    mutation = convex.mutation;
+    query = convex.query;
+  },
+}));
 
 const GITHUB_API = "https://api.github.com";
 const REAL_FETCH = globalThis.fetch;
@@ -68,28 +80,14 @@ function makeRequest(body: unknown): NextRequest {
  * return a promise that resolves with the decoded content of the appended
  * turn (the last JSONL line written in the PUT body).
  */
-function captureAppendedTurn(sessionId: string): Promise<{
+function capturedAppendedTurn(): {
   role: string;
   content: string;
-}> {
-  return new Promise((resolve) => {
-    nock(GITHUB_API)
-      .get(sessionPath(sessionId))
-      .query({ ref: STATE_BRANCH })
-      .reply(404);
-    mockStateBranch();
-    nock(GITHUB_API)
-      .put(sessionPath(sessionId), (payload: { content: string }) => {
-        const decoded = Buffer.from(payload.content, "base64").toString(
-          "utf-8",
-        );
-        const lines = decoded.split("\n").filter(Boolean);
-        const last = JSON.parse(lines[lines.length - 1]);
-        resolve(last);
-        return true;
-      })
-      .reply(201, { content: { sha: "newsha" } });
-  });
+} {
+  const args = convex.mutation.mock.calls
+    .map((call) => call[1])
+    .find((value) => value?.turn);
+  return args?.turn;
 }
 
 beforeAll(() => {
@@ -103,6 +101,10 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  vi.clearAllMocks();
+  process.env.CONVEX_URL = "https://example.convex.cloud";
+  convex.mutation.mockResolvedValue(undefined);
+  convex.query.mockResolvedValue([]);
   mockRepoConfig404();
 });
 
@@ -124,8 +126,6 @@ describe("POST /api/kody/chat/interactive/append", () => {
   });
 
   it("prepends the vibe follow-up primer (branch-pinned) to the appended turn", async () => {
-    const turn = captureAppendedTurn("sess-vibe-1");
-
     const res = await appendPOST(
       makeRequest({
         taskId: "sess-vibe-1",
@@ -136,7 +136,7 @@ describe("POST /api/kody/chat/interactive/append", () => {
     );
 
     expect(res.status).toBe(200);
-    const written = await turn;
+    const written = capturedAppendedTurn();
     expect(written.role).toBe("user");
     // Primer rode along…
     expect(written.content).toContain("[Vibe mode");
@@ -149,8 +149,6 @@ describe("POST /api/kody/chat/interactive/append", () => {
   });
 
   it("uses gh-pr-list discovery when vibeMode is set but no branch is known", async () => {
-    const turn = captureAppendedTurn("sess-vibe-2");
-
     const res = await appendPOST(
       makeRequest({
         taskId: "sess-vibe-2",
@@ -161,19 +159,17 @@ describe("POST /api/kody/chat/interactive/append", () => {
     );
 
     expect(res.status).toBe(200);
-    const written = await turn;
+    const written = capturedAppendedTurn();
     expect(written.content).toContain('gh pr list --search "Closes #7"');
   });
 
   it("does NOT inject the primer for ordinary (non-vibe) interactive turns", async () => {
-    const turn = captureAppendedTurn("sess-plain");
-
     const res = await appendPOST(
       makeRequest({ taskId: "sess-plain", content: "just a normal message" }),
     );
 
     expect(res.status).toBe(200);
-    const written = await turn;
+    const written = capturedAppendedTurn();
     expect(written.content).toBe("just a normal message");
     expect(written.content).not.toContain("[Vibe mode");
   });

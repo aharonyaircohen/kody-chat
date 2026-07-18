@@ -15,13 +15,28 @@
  * committed JSONL contains meta + the primed user turn.
  */
 
-import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { Buffer } from "buffer";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { NextRequest } from "next/server";
 
 const claimFromPool = vi.fn();
 const spawnRunner = vi.fn();
 const resolveFlyContext = vi.fn();
+const backend = vi.hoisted(() => ({
+  mutation: vi.fn(),
+  query: vi.fn(),
+}));
+const convex = vi.hoisted(() => ({
+  mutation: vi.fn(),
+  query: vi.fn(),
+}));
 
 vi.mock("@kody-ade/fly/runners/pool-client", () => ({
   claimFromPool: (...args: unknown[]) => claimFromPool(...args),
@@ -31,6 +46,16 @@ vi.mock("@kody-ade/fly/plugin/runners/fly", () => ({
 }));
 vi.mock("@kody-ade/fly/plugin/runners/context", () => ({
   resolveFlyContext: (...args: unknown[]) => resolveFlyContext(...args),
+}));
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => backend,
+  withEscapedKeys: (client: unknown) => client,
+}));
+vi.mock("convex/browser", () => ({
+  ConvexHttpClient: class {
+    mutation = convex.mutation;
+    query = convex.query;
+  },
 }));
 
 // Import AFTER mocks are registered.
@@ -59,10 +84,8 @@ function makeRequest(body: unknown): NextRequest {
  * 404 (new file), createOrUpdateFileContents records the decoded JSONL.
  */
 function capturingContext() {
-  let written = "";
   const createOrUpdateFileContents = vi.fn(
     async (args: { content: string }) => {
-      written = Buffer.from(args.content, "base64").toString("utf-8");
       return { data: { content: { sha: "newsha" } } };
     },
   );
@@ -95,11 +118,19 @@ function capturingContext() {
       perfTier: "medium",
     },
   };
-  return { ctx, getWritten: () => written };
+  return { ctx };
 }
 
 beforeAll(() => {
   process.env.KODY_MASTER_KEY = "interactive-start-fly-test-secret";
+});
+
+beforeEach(() => {
+  backend.mutation.mockResolvedValue(undefined);
+  backend.query.mockResolvedValue([]);
+  process.env.CONVEX_URL = "https://example.convex.cloud";
+  convex.mutation.mockResolvedValue(undefined);
+  convex.query.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -108,7 +139,7 @@ afterEach(() => {
 
 describe("POST /api/kody/chat/interactive/start-fly — atomic initial turn", () => {
   it("folds the primed first turn into the session commit even on a pool claim", async () => {
-    const { ctx, getWritten } = capturingContext();
+    const { ctx } = capturingContext();
     resolveFlyContext.mockResolvedValue(ctx);
     claimFromPool.mockResolvedValue({ ok: true, machineId: "pool-m-1" });
 
@@ -126,12 +157,12 @@ describe("POST /api/kody/chat/interactive/start-fly — atomic initial turn", ()
     // Claim path must not have skipped the turn write.
     expect(spawnRunner).not.toHaveBeenCalled();
 
-    const lines = getWritten()
-      .split("\n")
-      .filter(Boolean)
-      .map((l) => JSON.parse(l));
-    expect(lines[0]).toMatchObject({ type: "meta", mode: "interactive" });
-    const userTurn = lines.find((l) => l.role === "user");
+    const mutationArgs = convex.mutation.mock.calls.map((call) => call[1]);
+    expect(mutationArgs[0]).toMatchObject({
+      sessionId: "vibe-77-fly",
+      meta: { type: "meta", mode: "interactive" },
+    });
+    const userTurn = mutationArgs.find((args) => args.turn)?.turn;
     expect(
       userTurn,
       "start-fly must persist the first user turn atomically with meta — " +
@@ -144,18 +175,18 @@ describe("POST /api/kody/chat/interactive/start-fly — atomic initial turn", ()
   });
 
   it("writes a meta-only session when no initial content is given (back-compat)", async () => {
-    const { ctx, getWritten } = capturingContext();
+    const { ctx } = capturingContext();
     resolveFlyContext.mockResolvedValue(ctx);
     claimFromPool.mockResolvedValue({ ok: true, machineId: "pool-m-2" });
 
     const res = await startFlyPOST(makeRequest({ taskId: "plain-fly" }));
     expect(res.status).toBe(200);
 
-    const lines = getWritten()
-      .split("\n")
-      .filter(Boolean)
-      .map((l) => JSON.parse(l));
-    expect(lines).toHaveLength(1);
-    expect(lines[0]).toMatchObject({ type: "meta", mode: "interactive" });
+    const mutationArgs = convex.mutation.mock.calls.map((call) => call[1]);
+    expect(mutationArgs).toHaveLength(1);
+    expect(mutationArgs[0]).toMatchObject({
+      sessionId: "plain-fly",
+      meta: { type: "meta", mode: "interactive" },
+    });
   });
 });

@@ -1,10 +1,31 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const stateRepo = vi.hoisted(() => ({
-  readStateText: vi.fn(),
+const backend = vi.hoisted(() => ({
+  query: vi.fn(),
 }));
 
-vi.mock("@kody-ade/base/state-repo", () => stateRepo);
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => backend,
+}));
+
+function storedRuns(runs: Array<Record<string, unknown>>) {
+  return runs.map((run) => ({
+    runId: String(run.id),
+    subjectType: run.subjectType,
+    subjectId: run.subjectId,
+    run,
+    updatedAt: String(run.updatedAt ?? ""),
+  }));
+}
+
+function storedEvents(events: Array<Record<string, unknown>>) {
+  return events.map((event, seq) => ({
+    runId: "run",
+    seq,
+    event,
+    time: String(event.time ?? ""),
+  }));
+}
 
 import {
   listAgencyRuns,
@@ -17,65 +38,58 @@ describe("agency runs", () => {
   });
 
   it("projects the engine run index without scanning goals or logs", async () => {
-    stateRepo.readStateText.mockResolvedValue({
-      path: "A-Guy-Web/runs/index.json",
-      sha: "sha",
-      etag: '"runs-v1"',
-      content: JSON.stringify({
-        version: 1,
-        updatedAt: "2026-07-05T10:03:00.000Z",
-        runs: [
-          {
-            version: 1,
-            id: "workflow:release-queue:run-workflow-1",
-            subjectType: "workflow",
-            subjectId: "release-queue",
-            subjectLabel: "Release queue",
-            status: "running",
-            title: "Release queue",
-            summary: "Planning workflow",
-            currentStep: "plan",
-            startedAt: "2026-07-05T10:00:00.000Z",
-            updatedAt: "2026-07-05T10:02:00.000Z",
-            kodyRunId: "run-workflow-1",
-            model: "claude/claude-haiku-4-5-20251001",
-            modelProvider: "claude",
-            modelName: "claude-haiku-4-5-20251001",
-            implementation: "release-prepare",
-            workflow: "release-queue",
-            triggerMode: "manual",
-          },
-          {
-            version: 1,
-            id: "loop:ci-health:gh-123-1",
-            subjectType: "loop",
-            subjectId: "ci-health",
-            subjectModel: "agentLoop",
-            status: "running",
-            title: "ci-health",
-            currentStep: "loop.tick.dispatch",
-            startedAt: "2026-07-05T10:00:00.000Z",
-            updatedAt: "2026-07-05T10:01:00.000Z",
-            kodyRunId: "gh-123-1",
-            githubRunId: "123",
-            githubRunUrl: "https://github.com/test/repo/actions/runs/123",
-            detailUrl: "https://github.com/test/state/ci-health.jsonl",
-            sourcePath: "logs/goals/ci-health/runs/run.jsonl",
-            model: "claude/claude-haiku-4-5-20251001",
-            triggerMode: "scheduled",
-          },
-          {
-            version: 1,
-            id: "capability:ignored:run-1",
-            subjectType: "capability",
-            subjectId: "ignored",
-            status: "running",
-            title: "Ignored",
-            updatedAt: "2026-07-05T10:03:00.000Z",
-          },
-        ],
-      }),
-    });
+    backend.query.mockResolvedValue(
+      storedRuns([
+        {
+          version: 1,
+          id: "workflow:release-queue:run-workflow-1",
+          subjectType: "workflow",
+          subjectId: "release-queue",
+          subjectLabel: "Release queue",
+          status: "running",
+          title: "Release queue",
+          summary: "Planning workflow",
+          currentStep: "plan",
+          startedAt: "2026-07-05T10:00:00.000Z",
+          updatedAt: "2026-07-05T10:02:00.000Z",
+          kodyRunId: "run-workflow-1",
+          model: "claude/claude-haiku-4-5-20251001",
+          modelProvider: "claude",
+          modelName: "claude-haiku-4-5-20251001",
+          implementation: "release-prepare",
+          workflow: "release-queue",
+          triggerMode: "manual",
+        },
+        {
+          version: 1,
+          id: "loop:ci-health:gh-123-1",
+          subjectType: "loop",
+          subjectId: "ci-health",
+          subjectModel: "agentLoop",
+          status: "running",
+          title: "ci-health",
+          currentStep: "loop.tick.dispatch",
+          startedAt: "2026-07-05T10:00:00.000Z",
+          updatedAt: "2026-07-05T10:01:00.000Z",
+          kodyRunId: "gh-123-1",
+          githubRunId: "123",
+          githubRunUrl: "https://github.com/test/repo/actions/runs/123",
+          detailUrl: "https://github.com/test/state/ci-health.jsonl",
+          sourcePath: "logs/goals/ci-health/runs/run.jsonl",
+          model: "claude/claude-haiku-4-5-20251001",
+          triggerMode: "scheduled",
+        },
+        {
+          version: 1,
+          id: "capability:ignored:run-1",
+          subjectType: "capability",
+          subjectId: "ignored",
+          status: "running",
+          title: "Ignored",
+          updatedAt: "2026-07-05T10:03:00.000Z",
+        },
+      ]),
+    );
 
     const payload = await listAgencyRuns({
       octokit: {} as never,
@@ -83,19 +97,16 @@ describe("agency runs", () => {
       repo: "test-repo",
     });
 
-    expect(stateRepo.readStateText).toHaveBeenCalledOnce();
-    expect(stateRepo.readStateText).toHaveBeenCalledWith(
-      {} as never,
-      "test-owner",
-      "test-repo",
-      "runs/index.json",
-      { headers: undefined },
-    );
+    expect(backend.query).toHaveBeenCalledOnce();
+    expect(backend.query).toHaveBeenCalledWith(expect.anything(), {
+      tenantId: "test-owner/test-repo",
+      limit: 50,
+    });
     expect(payload.counts).toEqual({ goal: 0, loop: 1, workflow: 1 });
     expect(payload.source).toEqual({
-      path: "runs/index.json",
-      updatedAt: "2026-07-05T10:03:00.000Z",
-      etag: '"runs-v1"',
+      path: "convex:agencyRuns",
+      updatedAt: "2026-07-05T10:02:00.000Z",
+      etag: null,
     });
     expect(payload.runs.map((run) => `${run.kind}:${run.targetId}`)).toEqual([
       "workflow:release-queue",
@@ -109,23 +120,20 @@ describe("agency runs", () => {
   });
 
   it("reads one selected run detail file", async () => {
-    stateRepo.readStateText.mockResolvedValue({
-      path: "A-Guy-Web/logs/goals/ci-health/runs/run.jsonl",
-      sha: "sha",
-      htmlUrl: "https://github.com/test/state/run.jsonl",
-      content: [
-        JSON.stringify({
+    backend.query.mockResolvedValue(
+      storedEvents([
+        {
           time: "2026-07-05T10:00:00.000Z",
           event: "loop.tick.dispatch",
           status: "dispatch",
-        }),
-        JSON.stringify({
+        },
+        {
           time: "2026-07-05T10:01:00.000Z",
           event: "loop.tick.done",
           status: "completed",
-        }),
-      ].join("\n"),
-    });
+        },
+      ]),
+    );
 
     const payload = await readAgencyRunDetail({
       octokit: {} as never,
@@ -143,18 +151,15 @@ describe("agency runs", () => {
   });
 
   it("summarizes the selected GitHub run log when requested", async () => {
-    stateRepo.readStateText.mockResolvedValue({
-      path: "A-Guy-Web/logs/goals/ci-health/runs/run.jsonl",
-      sha: "sha",
-      htmlUrl: "https://github.com/test/state/run.jsonl",
-      content: [
-        JSON.stringify({
+    backend.query.mockResolvedValue(
+      storedEvents([
+        {
           time: "2026-07-05T10:00:00.000Z",
           event: "goal.tick.dispatch",
           status: "dispatch",
-        }),
-      ].join("\n"),
-    });
+        },
+      ]),
+    );
     const octokit = {
       request: vi
         .fn()
@@ -195,18 +200,15 @@ describe("agency runs", () => {
   });
 
   it("caches selected GitHub run log summaries across repeated detail reads", async () => {
-    stateRepo.readStateText.mockResolvedValue({
-      path: "A-Guy-Web/logs/goals/cache-check/runs/run.jsonl",
-      sha: "sha",
-      htmlUrl: "https://github.com/test/state/cache-check.jsonl",
-      content: [
-        JSON.stringify({
+    backend.query.mockResolvedValue(
+      storedEvents([
+        {
           time: "2026-07-05T10:00:00.000Z",
           event: "goal.tick.dispatch",
           status: "dispatch",
-        }),
-      ].join("\n"),
-    });
+        },
+      ]),
+    );
     const octokit = {
       request: vi
         .fn()
@@ -235,16 +237,11 @@ describe("agency runs", () => {
 
     expect(second).toEqual(first);
     expect(octokit.request).toHaveBeenCalledTimes(2);
-    expect(stateRepo.readStateText).toHaveBeenCalledTimes(1);
+    expect(backend.query).toHaveBeenCalledTimes(1);
   });
 
   it("formats noisy agency health summaries into readable lines", async () => {
-    stateRepo.readStateText.mockResolvedValue({
-      path: "A-Guy-Web/logs/goals/ai-agency-health/runs/run.jsonl",
-      sha: "sha",
-      htmlUrl: "https://github.com/test/state/run.jsonl",
-      content: "",
-    });
+    backend.query.mockResolvedValue([]);
     const noisyLine = [
       "Added A-Guy-Web/reports/ai-agency-health-matrix/runs/2026-07-05T23-37-00Z.md in A-Guy-educ/kody-state.",
       "AI Agency Health: YELLOW (80 rows).",
@@ -293,14 +290,19 @@ describe("agency runs", () => {
     );
   });
 
-  it("rejects unsupported detail paths", async () => {
-    await expect(
-      readAgencyRunDetail({
-        octokit: {} as never,
-        owner: "test-owner",
-        repo: "test-repo",
-        sourcePath: "../secret.json",
-      }),
-    ).rejects.toThrow("unsupported_run_detail_path");
+  it("uses the selected Convex run id directly", async () => {
+    backend.query.mockResolvedValue([]);
+
+    await readAgencyRunDetail({
+      octokit: {} as never,
+      owner: "test-owner",
+      repo: "test-repo",
+      sourcePath: "goal:ci-health:run-1",
+    });
+
+    expect(backend.query).toHaveBeenCalledWith(expect.anything(), {
+      tenantId: "test-owner/test-repo",
+      runId: "goal:ci-health:run-1",
+    });
   });
 });

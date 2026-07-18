@@ -30,6 +30,17 @@ import { NextRequest } from "next/server";
 import { POST as triggerPOST } from "../../app/api/kody/chat/trigger/route";
 import { STATE_BRANCH } from "@kody-ade/base/state-branch";
 
+const convex = vi.hoisted(() => ({
+  mutation: vi.fn(),
+  query: vi.fn(),
+}));
+vi.mock("convex/browser", () => ({
+  ConvexHttpClient: class {
+    mutation = convex.mutation;
+    query = convex.query;
+  },
+}));
+
 const GITHUB_API = "https://api.github.com";
 const REAL_FETCH = globalThis.fetch;
 
@@ -78,6 +89,10 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  vi.clearAllMocks();
+  process.env.CONVEX_URL = "https://example.convex.cloud";
+  convex.mutation.mockResolvedValue(undefined);
+  convex.query.mockResolvedValue([]);
   mockRepoConfig404();
 });
 

@@ -20,7 +20,11 @@ import {
   type TickWriteOptions,
 } from "@kody-ade/base/ticked/files";
 import { joinFrontmatter } from "@kody-ade/base/ticked/frontmatter";
-import { listStoreAgentFiles } from "@kody-ade/agency/agent-files";
+import {
+  deleteAgentFile as deleteEngineAgentFile,
+  listStoreAgentFiles,
+  writeAgentFile as writeEngineAgentFile,
+} from "@kody-ade/agency/agent-files";
 import {
   backendApi,
   getConvexClient,
@@ -113,14 +117,13 @@ export async function writeAgentFile(
   if (!isValidSlug(opts.slug)) {
     throw new Error(`Invalid agent slug "${opts.slug}"`);
   }
+  await writeEngineAgentFile(opts);
   const raw = buildRawMarkdown(opts);
   const updatedAt = new Date().toISOString();
   await getConvexClient().mutation(backendApi.agents.save, {
     tenantId: tenantId(),
     slug: opts.slug,
-    frontmatter: opts.capabilities
-      ? { capabilities: opts.capabilities }
-      : {},
+    frontmatter: opts.capabilities ? { capabilities: opts.capabilities } : {},
     body: raw,
     updatedAt,
   });
@@ -129,6 +132,7 @@ export async function writeAgentFile(
 
 export async function deleteAgentFile(slug: string): Promise<void> {
   if (!isValidSlug(slug)) return;
+  await deleteEngineAgentFile(getOctokit(), slug);
   await getConvexClient().mutation(backendApi.agents.remove, {
     tenantId: tenantId(),
     slug,

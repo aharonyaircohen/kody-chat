@@ -4,21 +4,16 @@
  * @testFramework vitest
  * @domain vibe
  *
- * ROOT CAUSE (found from real session files): the handoff writes the runner's
- * session JSONL in TWO separate GitHub writes — `/interactive/start` writes
- * the meta line, then `/interactive/append` writes the first user turn. Those
- * two writes race on the same file/branch HEAD, and the append's turn is
- * frequently lost — the session ends up meta-only. The runner then boots,
- * finds no turn, waits, and idle-exits with turnsCompleted:0. The chat shows
- * a "processing…" spinner the whole time, so it looks stuck and the task
- * never runs.
+ * ROOT CAUSE: the handoff used two separate persistence mutations for session
+ * metadata and the first user turn. The runner could boot between them, see no
+ * turn, and idle-exit with turnsCompleted:0.
  *
  * FIX: let `/interactive/start` write the meta line AND the first user turn in
- * ONE atomic file write, so the runner always sees the kickoff turn on its
+ * ONE atomic backend mutation, so the runner always sees the kickoff turn on its
  * first read — no second write to race with.
  *
  * This test drives the start route with an initial `content` and asserts the
- * committed session file contains the user turn. It fails on the old route
+ * persisted session contains the user turn. It fails on the old route
  * (meta-only) and passes once start writes the turn atomically.
  */
 
@@ -30,11 +25,19 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 import nock from "nock";
 import { NextRequest } from "next/server";
 import { POST as startPOST } from "../../app/api/kody/chat/interactive/start/route";
-import { STATE_BRANCH } from "@kody-ade/base/state-branch";
+
+const backend = vi.hoisted(() => ({
+  mutation: vi.fn(),
+  query: vi.fn(),
+}));
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => backend,
+}));
 
 const GITHUB_API = "https://api.github.com";
 const REAL_FETCH = globalThis.fetch;
@@ -43,16 +46,6 @@ function mockRepoConfig404(): void {
   nock(GITHUB_API)
     .get("/repos/acme/widgets/contents/kody.config.json")
     .reply(404);
-}
-
-function sessionPath(sessionId: string): string {
-  return `/repos/acme/kody-state/contents/widgets%2Fsessions%2F${sessionId}.jsonl`;
-}
-
-function mockStateBranch(): void {
-  nock(GITHUB_API)
-    .get(`/repos/acme/kody-state/git/ref/heads%2F${STATE_BRANCH}`)
-    .reply(200, { object: { sha: "state-sha" } });
 }
 
 function makeRequest(body: unknown): NextRequest {
@@ -68,25 +61,10 @@ function makeRequest(body: unknown): NextRequest {
   });
 }
 
-/** Capture the JSONL committed to the session file (decoded from the PUT). */
-function captureSessionWrite(sessionId: string): Promise<string> {
-  return new Promise((resolve) => {
-    nock(GITHUB_API)
-      .get(sessionPath(sessionId))
-      .query({ ref: STATE_BRANCH })
-      .reply(404);
-    mockStateBranch();
-    nock(GITHUB_API)
-      .put(sessionPath(sessionId), (payload: { content: string }) => {
-        resolve(Buffer.from(payload.content, "base64").toString("utf-8"));
-        return true;
-      })
-      .reply(201, { content: { sha: "newsha" } });
-    // The workflow dispatch that follows the session write.
-    nock(GITHUB_API)
-      .post(/\/repos\/acme\/widgets\/actions\/workflows\/kody\.yml\/dispatches/)
-      .reply(204);
-  });
+function mockWorkflowDispatch(): void {
+  nock(GITHUB_API)
+    .post(/\/repos\/acme\/widgets\/actions\/workflows\/kody\.yml\/dispatches/)
+    .reply(204);
 }
 
 beforeAll(() => {
@@ -100,7 +78,10 @@ afterAll(() => {
 });
 
 beforeEach(() => {
+  vi.clearAllMocks();
   mockRepoConfig404();
+  backend.mutation.mockResolvedValue(undefined);
+  backend.query.mockResolvedValue([]);
 });
 
 afterEach(() => {
@@ -109,7 +90,7 @@ afterEach(() => {
 
 describe("POST /api/kody/chat/interactive/start — atomic initial turn", () => {
   it("writes the first user turn INTO the session file alongside meta (no separate append to race)", async () => {
-    const written = captureSessionWrite("vibe-42-abc");
+    mockWorkflowDispatch();
 
     const res = await startPOST(
       makeRequest({
@@ -121,17 +102,12 @@ describe("POST /api/kody/chat/interactive/start — atomic initial turn", () => 
     );
     expect(res.status).toBe(200);
 
-    const jsonl = await written;
-    const lines = jsonl
-      .split("\n")
-      .filter(Boolean)
-      .map((l) => JSON.parse(l));
-
-    // Line 1 is the interactive meta marker.
-    expect(lines[0]).toMatchObject({ type: "meta", mode: "interactive" });
-
-    // Line 2 MUST be the first user turn — this is what was being lost.
-    const userTurn = lines.find((l) => l.role === "user");
+    const mutationArgs = backend.mutation.mock.calls.map((call) => call[1]);
+    expect(mutationArgs[0]).toMatchObject({
+      sessionId: "vibe-42-abc",
+      meta: { type: "meta", mode: "interactive" },
+    });
+    const userTurn = mutationArgs.find((args) => args.turn)?.turn;
     expect(
       userTurn,
       "start must persist the first user turn atomically with meta — " +
@@ -146,17 +122,16 @@ describe("POST /api/kody/chat/interactive/start — atomic initial turn", () => 
   });
 
   it("still writes a meta-only session when no initial content is given (back-compat)", async () => {
-    const written = captureSessionWrite("plain-1");
+    mockWorkflowDispatch();
 
     const res = await startPOST(makeRequest({ taskId: "plain-1" }));
     expect(res.status).toBe(200);
 
-    const jsonl = await written;
-    const lines = jsonl
-      .split("\n")
-      .filter(Boolean)
-      .map((l) => JSON.parse(l));
-    expect(lines).toHaveLength(1);
-    expect(lines[0]).toMatchObject({ type: "meta", mode: "interactive" });
+    const mutationArgs = backend.mutation.mock.calls.map((call) => call[1]);
+    expect(mutationArgs).toHaveLength(1);
+    expect(mutationArgs[0]).toMatchObject({
+      sessionId: "plain-1",
+      meta: { type: "meta", mode: "interactive" },
+    });
   });
 });

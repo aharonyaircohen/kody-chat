@@ -1,10 +1,35 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { listAgencyRuns } from "../../src/dashboard/lib/agency-runs";
-import { readStateText } from "@kody-ade/base/state-repo";
 
-vi.mock("@kody-ade/base/state-repo", () => ({
-  readStateText: vi.fn(),
+const convexFixture = vi.hoisted(() => ({
+  read: vi.fn(),
+}));
+
+const backend = vi.hoisted(() => ({
+  query: vi.fn(async (_reference: unknown, args: Record<string, unknown>) => {
+    const response = await convexFixture.read();
+    const parsed = JSON.parse(response.content) as Record<string, unknown>;
+    if ("limit" in args) {
+      return ((parsed.runs as Array<Record<string, unknown>>) ?? []).map(
+        (run) => ({
+          runId: String(run.id),
+          subjectType: run.subjectType,
+          subjectId: run.subjectId,
+          run,
+          updatedAt: String(run.updatedAt ?? ""),
+        }),
+      );
+    }
+    const goalId = String(response.path)
+      .replace(/^todos\//, "")
+      .replace(/\.json$/, "");
+    return [{ goalId, state: { ...parsed, id: goalId } }];
+  }),
+}));
+
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => backend,
 }));
 
 describe("listAgencyRuns", () => {
@@ -19,7 +44,7 @@ describe("listAgencyRuns", () => {
   });
 
   it("overlays live GitHub workflow status on non-terminal Kody rows", async () => {
-    vi.mocked(readStateText).mockResolvedValue({
+    convexFixture.read.mockResolvedValue({
       content: JSON.stringify({
         updatedAt: "2026-07-06T06:19:43.979Z",
         runs: [
@@ -73,7 +98,7 @@ describe("listAgencyRuns", () => {
   });
 
   it("does not turn a completed dispatch row back into running from its GitHub run", async () => {
-    vi.mocked(readStateText).mockResolvedValue({
+    convexFixture.read.mockResolvedValue({
       content: JSON.stringify({
         updatedAt: "2026-07-06T06:19:43.979Z",
         runs: [
@@ -130,7 +155,7 @@ describe("listAgencyRuns", () => {
   });
 
   it("shows a loop dispatch through the failed child workflow outcome", async () => {
-    vi.mocked(readStateText)
+    convexFixture.read
       .mockResolvedValueOnce({
         content: JSON.stringify({
           updatedAt: "2026-07-06T12:23:12.356Z",
@@ -206,7 +231,7 @@ describe("listAgencyRuns", () => {
   });
 
   it("does not turn an idle waiting loop row into a GitHub shell success", async () => {
-    vi.mocked(readStateText).mockResolvedValue({
+    convexFixture.read.mockResolvedValue({
       content: JSON.stringify({
         runs: [
           {
@@ -215,7 +240,8 @@ describe("listAgencyRuns", () => {
             subjectId: "daily-web-release-loop",
             status: "waiting",
             title: "daily-web-release-loop",
-            summary: "already dispatched today at preferred time 02:00 Asia/Jerusalem",
+            summary:
+              "already dispatched today at preferred time 02:00 Asia/Jerusalem",
             currentStep: "loop.tick.idle",
             updatedAt: "2026-07-06T11:51:07.846Z",
             githubRunId: "28788241519",
@@ -253,12 +279,13 @@ describe("listAgencyRuns", () => {
       id: "loop:daily-web-release-loop:gh-28788241519-1-1",
       status: "waiting",
       currentStep: "loop.tick.idle",
-      summary: "already dispatched today at preferred time 02:00 Asia/Jerusalem",
+      summary:
+        "already dispatched today at preferred time 02:00 Asia/Jerusalem",
     });
   });
 
   it("does not let GitHub shell completion hide an active dispatch target", async () => {
-    vi.mocked(readStateText)
+    convexFixture.read
       .mockResolvedValueOnce({
         content: JSON.stringify({
           runs: [
@@ -324,7 +351,7 @@ describe("listAgencyRuns", () => {
   });
 
   it("keeps persisted statuses when the live GitHub overlay is unavailable", async () => {
-    vi.mocked(readStateText).mockResolvedValue({
+    convexFixture.read.mockResolvedValue({
       content: JSON.stringify({
         runs: [
           {
@@ -344,7 +371,9 @@ describe("listAgencyRuns", () => {
 
     const octokit = {
       actions: {
-        listWorkflowRunsForRepo: vi.fn().mockRejectedValue(new Error("rate limit")),
+        listWorkflowRunsForRepo: vi
+          .fn()
+          .mockRejectedValue(new Error("rate limit")),
       },
     };
 
@@ -358,7 +387,7 @@ describe("listAgencyRuns", () => {
   });
 
   it("shows non-terminal dispatch rows as stuck when their child goal is stale and active", async () => {
-    vi.mocked(readStateText)
+    convexFixture.read
       .mockResolvedValueOnce({
         content: JSON.stringify({
           runs: [

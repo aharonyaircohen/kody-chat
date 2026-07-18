@@ -30,16 +30,16 @@ function sectionHrefs(
 }
 
 describe("settings navigation", () => {
-  it("exposes reports without legacy inbox, trust, or ledger sections", () => {
+  it("exposes reports and inbox without legacy trust or ledger sections", () => {
     const hrefs = exposedHrefs();
 
     expect(hrefs).toContain("/reports");
-    expect(hrefs).not.toContain("/inbox");
+    expect(hrefs).toContain("/inbox");
     expect(hrefs).not.toContain("/trust");
     expect(hrefs).not.toContain("/ledgers");
 
     expect(navLabelForPath("/reports")).toBe("Reports");
-    expect(navLabelForPath("/inbox")).toBeNull();
+    expect(navLabelForPath("/inbox")).toBe("Inbox");
     expect(navLabelForPath("/trust")).toBeNull();
     expect(navLabelForPath("/ledgers")).toBeNull();
   });

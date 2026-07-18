@@ -25,6 +25,10 @@ const stateRepo = vi.hoisted(() => ({
     [target.basePath, path].filter(Boolean).join("/"),
   ),
 }));
+const backend = vi.hoisted(() => ({
+  query: vi.fn(),
+  mutation: vi.fn(),
+}));
 
 vi.mock("@dashboard/lib/github-client", () => ({
   createUserOctokit: githubClient.createUserOctokit,
@@ -37,6 +41,9 @@ vi.mock("@kody-ade/base/auth/background-token", () => ({
 vi.mock("@kody-ade/base/state-repo", () => ({
   resolveStateRepo: stateRepo.resolveStateRepo,
   stateRepoPath: stateRepo.stateRepoPath,
+}));
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => backend,
 }));
 
 import { GET } from "../../app/api/kody/views/[...path]/route";
@@ -58,6 +65,7 @@ function mintTicket(viewId = "pdf-f7fef487"): string {
 beforeEach(() => {
   vi.clearAllMocks();
   process.env.KODY_MASTER_KEY = "test-master-key";
+  backend.query.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -70,15 +78,12 @@ afterEach(() => {
 });
 
 describe("repo-backed view serving", () => {
-  it("serves direct PDF URLs inline PDF bytes from the state repo", async () => {
+  it("serves direct PDF URLs inline from Convex", async () => {
     const token = mintTicket();
     const pdf = Buffer.from("%PDF-1.4\nbody");
-    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(pdf, {
-        status: 200,
-        headers: { "Content-Type": "application/vnd.github.raw+json" },
-      }),
-    );
+    backend.query.mockResolvedValue({
+      doc: { files: { "-_-.pdf": pdf.toString("base64") } },
+    });
     const req = new NextRequest(
       `http://localhost/api/kody/views/_t/${token}/pdf-f7fef487/-_-.pdf`,
     );
@@ -97,35 +102,22 @@ describe("repo-backed view serving", () => {
     expect(Buffer.from(await res.arrayBuffer()).toString("utf8")).toBe(
       pdf.toString("utf8"),
     );
-    expect(backgroundToken.resolveBackgroundToken).toHaveBeenCalledWith(
-      "octo",
-      "repo",
-    );
-    expect(githubClient.createUserOctokit).toHaveBeenCalledWith(
-      "ghs_app_token",
-    );
-    expect(stateRepo.resolveStateRepo).toHaveBeenCalledWith(
-      { marker: "octokit" },
-      "octo",
-      "repo",
-    );
-    expect(fetchMock.mock.calls[0]?.[0]).toContain(
-      "/repos/octo-state/kody-state/contents/repo/views/pdf-f7fef487/-_-.pdf",
-    );
-    expect(fetchMock.mock.calls[0]?.[0]).toContain(`ref=${STATE_BRANCH}`);
-    expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
-      headers: expect.objectContaining({
-        Authorization: "Bearer ghs_app_token",
-      }),
+    expect(backend.query).toHaveBeenCalledWith(expect.anything(), {
+      tenantId: "octo/repo",
+      kind: "views/pdf-f7fef487",
     });
   });
 
   it("falls back to the viewer token when no background token is available", async () => {
     backgroundToken.resolveBackgroundToken.mockResolvedValueOnce(null);
     const token = mintTicket("view-123");
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(Buffer.from("<h1>ok</h1>"), { status: 200 }),
-    );
+    backend.query.mockResolvedValue({
+      doc: {
+        files: {
+          "index.html": Buffer.from("<h1>ok</h1>").toString("base64"),
+        },
+      },
+    });
     const req = new NextRequest(
       `http://localhost/api/kody/views/_t/${token}/view-123/index.html`,
     );
@@ -137,16 +129,12 @@ describe("repo-backed view serving", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(githubClient.createUserOctokit).toHaveBeenCalledWith(
-      "ghs_test_token",
-    );
+    expect(backend.query).toHaveBeenCalledOnce();
   });
 
   it("returns 404 when the state repo view file does not exist", async () => {
     const token = mintTicket("view-123");
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(null, { status: 404 }),
-    );
+    backend.query.mockResolvedValue(null);
     const req = new NextRequest(
       `http://localhost/api/kody/views/_t/${token}/view-123/index.html`,
     );

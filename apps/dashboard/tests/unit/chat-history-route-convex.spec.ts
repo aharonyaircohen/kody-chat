@@ -1,7 +1,6 @@
 /**
  * Unit tests for GET /api/kody/chat/history on the Convex backend: reads
- * chatTurns.list first, falls back to the state repo's sessions/<id>.jsonl
- * for pre-migration sessions. Response contract is `{ messages }`.
+ * chatTurns.list is the sole runtime source. Response contract is `{ messages }`.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
@@ -79,7 +78,7 @@ describe("GET /api/kody/chat/history (convex)", () => {
     expect(h.readStateText).not.toHaveBeenCalled();
   });
 
-  it("falls back to the state repo when Convex has no turns", async () => {
+  it("does not fall back to GitHub when Convex has no turns", async () => {
     convex.query.mockResolvedValue([]);
     h.readStateText.mockResolvedValue({
       content:
@@ -90,15 +89,8 @@ describe("GET /api/kody/chat/history (convex)", () => {
 
     const res = await GET(makeReq("live-old"));
     const body = await res.json();
-    expect(body.messages).toEqual([
-      { role: "user", content: "old", timestamp: "t" },
-    ]);
-    expect(h.readStateText).toHaveBeenCalledWith(
-      expect.anything(),
-      "acme",
-      "widgets",
-      "sessions/live-old.jsonl",
-    );
+    expect(body.messages).toEqual([]);
+    expect(h.readStateText).not.toHaveBeenCalled();
   });
 
   it("returns empty messages when neither store has the session", async () => {

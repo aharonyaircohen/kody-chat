@@ -20,10 +20,19 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 import nock from "nock";
 import { NextRequest } from "next/server";
 import { z } from "zod";
+
+const backend = vi.hoisted(() => ({
+  mutation: vi.fn(),
+  query: vi.fn(),
+}));
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => backend,
+}));
 
 import { POST as triggerPOST } from "../../app/api/kody/chat/trigger/route";
 import { buildPluginToolsBearer } from "@dashboard/lib/chat/platform/plugin-tools-config";
@@ -76,9 +85,7 @@ function makeRequest(taskId: string): NextRequest {
   });
 }
 
-function expectDispatch(
-  check: (dashboardUrl: string) => void,
-): nock.Scope {
+function expectDispatch(check: (dashboardUrl: string) => void): nock.Scope {
   return nock(GITHUB_API)
     .post(
       "/repos/test-owner/test-repo/actions/workflows/kody.yml/dispatches",
@@ -105,7 +112,11 @@ afterAll(() => {
   globalThis.fetch = REAL_FETCH;
 });
 
-beforeEach(() => nock.cleanAll());
+beforeEach(() => {
+  nock.cleanAll();
+  backend.mutation.mockResolvedValue(undefined);
+  backend.query.mockResolvedValue([]);
+});
 afterEach(() => nock.cleanAll());
 
 describe("plugin-tools bridge fail-open (trigger route)", () => {

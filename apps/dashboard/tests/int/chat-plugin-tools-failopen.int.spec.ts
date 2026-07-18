@@ -20,10 +20,30 @@ import {
   describe,
   expect,
   it,
+  vi,
 } from "vitest";
 import nock from "nock";
 import { NextRequest } from "next/server";
 import { z } from "zod";
+
+const backend = vi.hoisted(() => ({
+  mutation: vi.fn(),
+  query: vi.fn(),
+}));
+const convex = vi.hoisted(() => ({
+  mutation: vi.fn(),
+  query: vi.fn(),
+}));
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => backend,
+  withEscapedKeys: (client: unknown) => client,
+}));
+vi.mock("convex/browser", () => ({
+  ConvexHttpClient: class {
+    mutation = convex.mutation;
+    query = convex.query;
+  },
+}));
 
 import { POST as triggerPOST } from "../../app/api/kody/chat/trigger/route";
 import { buildPluginToolsBearer } from "@kody-ade/kody-chat/platform/plugin-tools-config";
@@ -76,9 +96,7 @@ function makeRequest(taskId: string): NextRequest {
   });
 }
 
-function expectDispatch(
-  check: (dashboardUrl: string) => void,
-): nock.Scope {
+function expectDispatch(check: (dashboardUrl: string) => void): nock.Scope {
   return nock(GITHUB_API)
     .post(
       "/repos/test-owner/test-repo/actions/workflows/kody.yml/dispatches",
@@ -105,7 +123,14 @@ afterAll(() => {
   globalThis.fetch = REAL_FETCH;
 });
 
-beforeEach(() => nock.cleanAll());
+beforeEach(() => {
+  nock.cleanAll();
+  backend.mutation.mockResolvedValue(undefined);
+  backend.query.mockResolvedValue([]);
+  process.env.CONVEX_URL = "https://example.convex.cloud";
+  convex.mutation.mockResolvedValue(undefined);
+  convex.query.mockResolvedValue([]);
+});
 afterEach(() => nock.cleanAll());
 
 describe("plugin-tools bridge fail-open (trigger route)", () => {
