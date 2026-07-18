@@ -9,9 +9,10 @@
  */
 import "server-only";
 import type { Octokit } from "@octokit/rest";
+import { api } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 import { isSystemEventName } from "@kody-ade/base/events/catalog";
 import { logger } from "@kody-ade/base/logger";
-import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
 import {
   triggersFileSchema,
   type TriggerConfig,
@@ -51,9 +52,12 @@ export async function getTriggers(
 
   let triggers: readonly TriggerConfig[] = [];
   try {
-    const file = await readStateText(octokit, owner, repo, TRIGGERS_CONFIG_PATH);
-    if (file) {
-      const parsed = triggersFileSchema.parse(JSON.parse(file.content));
+    const record = await createBackendClient().query(api.repoDocs.get, {
+      tenantId: `${owner}/${repo}`,
+      kind: TRIGGERS_CONFIG_PATH,
+    });
+    if (record) {
+      const parsed = triggersFileSchema.parse(record.doc);
       triggers = parsed.triggers.filter((trigger) => {
         if (!isSystemEventName(trigger.event)) {
           logger.warn(
@@ -86,10 +90,13 @@ async function readTriggersFile(
   repo: string,
 ): Promise<TriggersFileRead> {
   try {
-    const file = await readStateText(octokit, owner, repo, TRIGGERS_CONFIG_PATH);
-    if (!file) return { triggers: [], sha: undefined };
-    const parsed = triggersFileSchema.parse(JSON.parse(file.content));
-    return { triggers: parsed.triggers, sha: file.sha };
+    const record = await createBackendClient().query(api.repoDocs.get, {
+      tenantId: `${owner}/${repo}`,
+      kind: TRIGGERS_CONFIG_PATH,
+    });
+    if (!record) return { triggers: [], sha: undefined };
+    const parsed = triggersFileSchema.parse(record.doc);
+    return { triggers: parsed.triggers, sha: record.updatedAt };
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) {
       return { triggers: [], sha: undefined };
@@ -119,15 +126,12 @@ export async function mutateTriggers(
     const next = mutate(triggers);
     const file: TriggersFile = { version: 1, triggers: [...next] };
     try {
-      await writeStateText({
-        octokit,
-        owner,
-        repo,
-        path: TRIGGERS_CONFIG_PATH,
-        content: `${JSON.stringify(file, null, 2)}\n`,
-        message: "feat(triggers): update trigger rules",
-        sha,
-        maxAttempts: 1,
+      await createBackendClient().mutation(api.repoDocs.save, {
+        tenantId: `${owner}/${repo}`,
+        kind: TRIGGERS_CONFIG_PATH,
+        doc: file,
+        updatedAt: new Date().toISOString(),
+        expectedUpdatedAt: sha,
       });
       cache.delete(cacheKey(owner, repo));
       return next;

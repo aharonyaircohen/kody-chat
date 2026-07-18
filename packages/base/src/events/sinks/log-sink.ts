@@ -2,28 +2,21 @@
  * @fileType utility
  * @domain events
  * @pattern system-event-sink
- * @ai-summary Durable sink: appends system events as JSONL to a day-sharded
- *   file (`events/log/YYYY-MM-DD.jsonl`) in the brand's state repo. Day
- *   sharding keeps files bounded without trim logic and lets analytics
- *   consume by date range. Writes are CAS (read sha → append → write with
- *   sha), retried on conflict. Best-effort: failures warn, never throw.
+ * @ai-summary Durable sink: appends system events to a day-sharded Convex
+ *   stream. Day
+ *   sharding keeps entries bounded and lets analytics consume by date range.
+ *   Best-effort: failures warn, never throw.
  */
 import "server-only";
-import type { Octokit } from "@octokit/rest";
-import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
-import { createUserOctokit } from "@kody-ade/base/github/core";
+import { api } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 import { logger } from "@kody-ade/base/logger";
-import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
 import type { SystemEventEnvelope, SystemEventSink } from "../types";
-
-const MAX_WRITE_ATTEMPTS = 3;
 
 /**
  * Only low-volume, high-value events are durably persisted. High-frequency
  * UI telemetry (page views, view shown/clicked) stays on the in-memory /
- * pino path — one GitHub commit per event would hammer rate limits and
- * bloat the state repo. A proper analytics sink picks those up in a later
- * phase.
+ * pino path. A proper analytics sink can pick those up separately.
  */
 const DURABLE_EVENT_NAMES = new Set([
   "session.started",
@@ -40,49 +33,6 @@ const DURABLE_EVENT_NAMES = new Set([
 export function eventLogPath(occurredAt: string): string {
   const day = occurredAt.slice(0, 10);
   return `events/log/${day}.jsonl`;
-}
-
-async function resolveOctokit(
-  ctxOctokit: unknown | null,
-  owner: string,
-  repo: string,
-): Promise<Octokit | null> {
-  if (ctxOctokit) return ctxOctokit as Octokit;
-  const bg = await resolveBackgroundToken(owner, repo);
-  return bg ? createUserOctokit(bg.token) : null;
-}
-
-async function appendEvents(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  path: string,
-  lines: string,
-): Promise<void> {
-  for (let attempt = 1; attempt <= MAX_WRITE_ATTEMPTS; attempt += 1) {
-    const existing = await readStateText(octokit, owner, repo, path).catch(
-      (error: unknown) => {
-        if ((error as { status?: number })?.status === 404) return null;
-        throw error;
-      },
-    );
-    const content = existing ? `${existing.content.trimEnd()}\n${lines}` : lines;
-    try {
-      await writeStateText({
-        octokit,
-        owner,
-        repo,
-        path,
-        content: `${content}\n`,
-        message: "chore(events): append system events",
-        sha: existing?.sha,
-      });
-      return;
-    } catch (error: unknown) {
-      const status = (error as { status?: number })?.status;
-      if (status !== 409 || attempt === MAX_WRITE_ATTEMPTS) throw error;
-    }
-  }
 }
 
 export const durableLogSink: SystemEventSink = {
@@ -109,15 +59,15 @@ export const durableLogSink: SystemEventSink = {
       };
       const path = eventLogPath(group[0].occurredAt);
       try {
-        const octokit = await resolveOctokit(ctx.octokit, owner, repo);
-        if (!octokit) {
-          logger.warn({ key }, "system-event durable sink: no token, skipped");
-          continue;
+        const client = createBackendClient();
+        for (const event of group) {
+          await client.mutation(api.dailyLogs.append, {
+            tenantId: `${owner}/${repo}`,
+            stream: "events",
+            date: path.slice(-13, -5),
+            entry: event,
+          });
         }
-        const lines = group
-          .map((event) => JSON.stringify(event))
-          .join("\n");
-        await appendEvents(octokit, owner, repo, path, lines);
       } catch (err) {
         logger.warn({ err, key }, "system-event durable sink failed");
       }
