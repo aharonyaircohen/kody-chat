@@ -19,21 +19,11 @@ import {
   getUserOctokit,
 } from "@kody-ade/base/auth";
 import { appendInboxEntries, readInbox } from "@dashboard/lib/inbox/convex-store";
-import type { InboxEntry, InboxSource } from "@dashboard/lib/inbox/types";
-
-const SOURCES = [
-  "mention",
-  "comment",
-  "review_requested",
-  "assigned",
-  "team_mention",
-  "subscribed",
-  "other",
-] as const satisfies readonly InboxSource[];
+import { INBOX_SOURCES, type InboxEntry } from "@dashboard/lib/inbox/types";
 
 const entrySchema = z.object({
   id: z.string().min(1).max(256),
-  source: z.enum(SOURCES),
+  source: z.enum(INBOX_SOURCES),
   repoFullName: z.string().min(3).max(140),
   threadType: z.string().min(1).max(40),
   title: z.string().max(280),

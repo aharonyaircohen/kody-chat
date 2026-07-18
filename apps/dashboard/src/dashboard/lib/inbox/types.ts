@@ -28,17 +28,21 @@ export const INBOX_GIST_FILE = "inbox.json";
 export const INBOX_MAX_ENTRIES = 200;
 export const INBOX_MANIFEST_VERSION = 1 as const;
 
-/** Why this entry was added to the inbox. Drives icon + tone in the UI. */
-export type InboxSource =
-  | "mention"
-  | "comment"
-  | "review_requested"
-  | "assigned"
-  | "team_mention"
-  | "subscribed"
+/** Why this entry was added to the inbox. Drives icon + tone in the UI.
+ *  Canonical list — API validators derive from this so it can't drift. */
+export const INBOX_SOURCES = [
+  "mention",
+  "comment",
+  "review_requested",
+  "assigned",
+  "team_mention",
+  "subscribed",
   /** An agent asks the operator to approve running a capability. */
-  | "request"
-  | "other";
+  "request",
+  "other",
+] as const;
+
+export type InboxSource = (typeof INBOX_SOURCES)[number];
 
 export interface InboxEntry {
   /** Stable opaque ID — recommended shape: `${threadType}:${threadId}:${commentId|updated_at}`. */
