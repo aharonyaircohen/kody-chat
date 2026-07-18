@@ -7,17 +7,10 @@
  */
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getRequestAuth,
-  getUserOctokit,
-  requireKodyAuth,
-} from "@kody-ade/base/auth";
+import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
 import { logger } from "@kody-ade/base/logger";
-import {
-  deleteStateDirectory,
-  stateRepoPath,
-  writeStateBase64Files,
-} from "@kody-ade/base/state-repo";
+import { api } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 import { slugifyTitle } from "@kody-ade/base/slug";
 
 export const runtime = "nodejs";
@@ -113,49 +106,12 @@ function encodeGitHubPath(path: string): string {
   return path.split("/").map(encodeURIComponent).join("/");
 }
 
-async function commitFiles(input: {
-  octokit: NonNullable<Awaited<ReturnType<typeof getUserOctokit>>>;
-  owner: string;
-  repo: string;
-  rootPath: string;
-  files: Array<{ path: string; raw: Buffer }>;
-  message: string;
-}): Promise<{
-  branch: string;
-  commitSha: string;
-  owner: string;
-  repo: string;
-  rootPath: string;
-}> {
-  const result = await writeStateBase64Files({
-    octokit: input.octokit,
-    owner: input.owner,
-    repo: input.repo,
-    message: input.message,
-    files: input.files.map((file) => ({
-      path: file.path,
-      contentBase64: file.raw.toString("base64"),
-    })),
-  });
-  return {
-    branch: result.branch,
-    commitSha: result.sha,
-    owner: result.target.owner,
-    repo: result.target.repo,
-    rootPath: stateRepoPath(result.target, input.rootPath),
-  };
-}
-
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
   const auth = getRequestAuth(req);
   if (!auth) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
-  }
-  const octokit = await getUserOctokit(req);
-  if (!octokit) {
-    return NextResponse.json({ error: "no_octokit" }, { status: 401 });
   }
 
   let form: FormData;
@@ -247,31 +203,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
   });
 
   const repoRoot = `${VIEW_ROOT}/${viewId}`;
-  const repoFiles = uploads.map((upload) => ({
-    path: `${repoRoot}/${upload.path}`,
-    raw: upload.raw,
-  }));
   try {
-    const {
-      branch,
-      owner: stateOwner,
-      repo: stateRepo,
-      rootPath,
-    } = await commitFiles({
-      octokit,
-      owner: auth.owner,
-      repo: auth.repo,
-      rootPath: repoRoot,
-      files: repoFiles,
-      message: `chore(dashboard): add static view ${viewId}`,
+    const files = Object.fromEntries(uploads.map((upload) => [upload.path, upload.raw.toString("base64")]));
+    await createBackendClient().mutation(api.repoDocs.save, {
+      tenantId: `${auth.owner}/${auth.repo}`,
+      kind: repoRoot,
+      doc: { id: viewId, name: viewName, files },
+      updatedAt: new Date().toISOString(),
     });
     const entryPath = pickEntryPath(uploads);
-    const treeUrl = `https://github.com/${stateOwner}/${stateRepo}/tree/${encodeURIComponent(
-      branch,
-    )}/${encodeGitHubPath(rootPath)}`;
-    const sourceHtmlUrl = `https://github.com/${stateOwner}/${stateRepo}/blob/${encodeURIComponent(
-      branch,
-    )}/${encodeGitHubPath(`${rootPath}/${entryPath}`)}`;
     return NextResponse.json(
       {
         id: viewId,
@@ -280,8 +220,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         repoPath: repoRoot,
         entryPath,
         files: uploads.map((upload) => upload.path),
-        htmlUrl: treeUrl,
-        sourceHtmlUrl,
+        htmlUrl: null,
+        sourceHtmlUrl: null,
       },
       { status: 201 },
     );
@@ -304,10 +244,6 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
   if (!auth) {
     return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
   }
-  const octokit = await getUserOctokit(req);
-  if (!octokit) {
-    return NextResponse.json({ error: "no_octokit" }, { status: 401 });
-  }
 
   const viewId = new URL(req.url).searchParams.get("view")?.trim() ?? "";
   if (!VIEW_ID_RE.test(viewId)) {
@@ -315,14 +251,11 @@ export async function DELETE(req: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const result = await deleteStateDirectory({
-      octokit,
-      owner: auth.owner,
-      repo: auth.repo,
-      path: `${VIEW_ROOT}/${viewId}`,
-      message: `chore(dashboard): remove static view ${viewId}`,
+    await createBackendClient().mutation(api.repoDocs.remove, {
+      tenantId: `${auth.owner}/${auth.repo}`,
+      kind: `${VIEW_ROOT}/${viewId}`,
     });
-    return NextResponse.json({ ok: true, ...result });
+    return NextResponse.json({ ok: true });
   } catch (err) {
     logger.error(
       { err, owner: auth.owner, repo: auth.repo, viewId },

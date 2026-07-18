@@ -7,6 +7,8 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestAuth } from "@kody-ade/base/auth";
+import { api } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import { createUserOctokit } from "@dashboard/lib/github-client";
 import { logger } from "@kody-ade/base/logger";
@@ -331,20 +333,19 @@ export async function GET(
     );
   }
 
-  const repoPath = `${VIEW_ROOT}/${access.viewId}/${resourcePath}`;
   try {
-    const body = await fetchRepoFile({
-      owner: access.owner,
-      repo: access.repo,
-      token: access.token,
-      repoPath,
-    });
-    if (!body) {
+    const doc = await createBackendClient().query(api.repoDocs.get, {
+      tenantId: `${access.owner}/${access.repo}`,
+      kind: `${VIEW_ROOT}/${access.viewId}`,
+    }) as { doc?: { files?: Record<string, string> } } | null;
+    const encoded = doc?.doc?.files?.[resourcePath];
+    if (!encoded) {
       return NextResponse.json(
         { error: "view_file_not_found" },
         { status: 404 },
       );
     }
+    const body = Buffer.from(encoded, "base64");
     return responseForBody(body, resourcePath, req.headers.get("range"));
   } catch (err) {
     logger.error(
