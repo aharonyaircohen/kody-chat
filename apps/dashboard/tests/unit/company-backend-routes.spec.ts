@@ -56,10 +56,6 @@ vi.mock("@dashboard/lib/github-client", () => ({
   clearGitHubContext: githubClient.clearGitHubContext,
 }));
 
-vi.mock("@kody-ade/base/state-repo", () => ({
-  resolveStateRepo: stateRepo.resolveStateRepo,
-}));
-
 vi.mock("convex/browser", () => ({
   ConvexHttpClient: convex.ConvexHttpClient,
 }));
@@ -208,7 +204,10 @@ describe("GET /api/kody/company/backend/export", () => {
   });
 
   it("returns the auth failure response when auth is rejected", async () => {
-    const denied = NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    const denied = NextResponse.json(
+      { error: "unauthorized" },
+      { status: 401 },
+    );
     auth.requireKodyAuth.mockResolvedValue(denied as never);
 
     const res = await EXPORT(req("/api/kody/company/backend/export"));
@@ -269,8 +268,16 @@ describe("POST /api/kody/company/backend/import", () => {
   it("retries a chunk when Convex throttles writes, then succeeds", async () => {
     vi.stubEnv("CONVEX_URL", "https://demo.convex.cloud");
     convex.mutation
-      .mockRejectedValueOnce(new Error('{"code":"TooManyWrites","message":"Too many writes per second."}'))
-      .mockRejectedValueOnce(new Error('{"code":"TooManyWrites","message":"Too many writes per second."}'));
+      .mockRejectedValueOnce(
+        new Error(
+          '{"code":"TooManyWrites","message":"Too many writes per second."}',
+        ),
+      )
+      .mockRejectedValueOnce(
+        new Error(
+          '{"code":"TooManyWrites","message":"Too many writes per second."}',
+        ),
+      );
 
     const res = await IMPORT(
       req("/api/kody/company/backend/import", "POST", {
@@ -288,7 +295,9 @@ describe("POST /api/kody/company/backend/import", () => {
     vi.stubEnv("CONVEX_URL", "https://demo.convex.cloud");
     vi.useFakeTimers();
     convex.mutation.mockRejectedValue(
-      new Error('{"code":"TooManyWrites","message":"Too many writes per second."}'),
+      new Error(
+        '{"code":"TooManyWrites","message":"Too many writes per second."}',
+      ),
     );
 
     try {
@@ -363,7 +372,10 @@ describe("POST /api/kody/company/backend/import", () => {
   });
 
   it("returns the auth failure response when auth is rejected", async () => {
-    const denied = NextResponse.json({ error: "unauthorized" }, { status: 401 });
+    const denied = NextResponse.json(
+      { error: "unauthorized" },
+      { status: 401 },
+    );
     auth.requireKodyAuth.mockResolvedValue(denied as never);
 
     const res = await IMPORT(

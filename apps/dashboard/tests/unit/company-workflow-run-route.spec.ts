@@ -97,7 +97,7 @@ function makeOctokit() {
 
 const runnableBugWorkflow = {
   id: "bug",
-  path: ".kody/capabilities/bug/profile.json",
+  path: "legacy/capabilities/bug/profile.json",
   runnable: true,
   workflow: {
     version: 1,

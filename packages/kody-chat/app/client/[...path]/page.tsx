@@ -6,7 +6,7 @@
  *   around the real KodyChat and stays outside the dashboard chat rail.
  *   URL shape: /client/<owner>/<repo>/<brandSlug> — self-contained; the link
  *   itself names the repo the brand lives in, so any visitor on any device
- *   resolves the right context (kody-state stays repo-agnostic).
+ *   resolves the right context (Kody backend stays repo-agnostic).
  */
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
@@ -128,7 +128,10 @@ export async function generateMetadata({
     brand.locale ?? "en",
     context,
   );
-  const catalog = getClientSurfaceCatalog(brand.locale ?? "en", languageStrings);
+  const catalog = getClientSurfaceCatalog(
+    brand.locale ?? "en",
+    languageStrings,
+  );
 
   return {
     title: catalog.t("chat.client.metaTitle", { brand: brand.name }),
@@ -241,18 +244,18 @@ export default async function ClientChatPage({ params }: ClientChatPageProps) {
       <BrandSnippets snippets={snippets} placement="body-start" />
       <PageViewTracker />
       <ClientChatSurface
-      brand={brand}
-      surfaceTicket={ticket}
-      user={surfaceUser}
-      languageStrings={languageStrings}
-      signOutAction={
-        surfaceUser
-          ? async () => {
-              "use server";
-              await signOut({ redirectTo: callbackUrl });
-            }
-          : undefined
-      }
+        brand={brand}
+        surfaceTicket={ticket}
+        user={surfaceUser}
+        languageStrings={languageStrings}
+        signOutAction={
+          surfaceUser
+            ? async () => {
+                "use server";
+                await signOut({ redirectTo: callbackUrl });
+              }
+            : undefined
+        }
       />
       <BrandSnippets snippets={snippets} placement="body-end" />
     </>

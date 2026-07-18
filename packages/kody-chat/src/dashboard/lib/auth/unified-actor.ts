@@ -27,7 +27,7 @@ export interface UnifiedActor {
   userId: string;
   kind: UnifiedActorKind;
   brand: SystemEventBrand | null;
-  /** Operator PAT when kind is "operator" — used for state-repo access. */
+  /** Operator PAT when kind is "operator" — used for backend access. */
   token: string | null;
 }
 

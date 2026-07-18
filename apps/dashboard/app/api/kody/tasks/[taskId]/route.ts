@@ -12,7 +12,6 @@ import {
   fetchIssue,
   fetchIssues,
   fetchComments,
-  findTaskBranch,
   getStatusFromBranch,
   findAssociatedPRByIssueNumber,
   fetchWorkflowRuns,
@@ -20,7 +19,7 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { parseAllComments } from "@dashboard/lib/task-parser";
-import { findKodyStateInComments } from "@kody-ade/base/kody-state";
+import { findKodyStateInComments } from "@kody-ade/base/task-comment-state";
 import { matchWorkflowRunToTask } from "@dashboard/lib/workflow-matching";
 import { parseKodyPhase, parseKodyFlow } from "@kody-ade/base/constants";
 import type {
@@ -175,10 +174,8 @@ export async function GET(
         const comments = await fetchComments(issue.number);
         const parsed = parseAllComments(comments);
 
-        // Get workflow runs, branch, and PR in parallel
-        const [runs, branch, associatedPR] = await Promise.all([
+        const [runs, associatedPR] = await Promise.all([
           fetchWorkflowRuns({ perPage: 50 }),
-          findTaskBranch(taskId),
           findAssociatedPRByIssueNumber(issueNumberFromUrl),
         ]);
 
@@ -189,10 +186,7 @@ export async function GET(
           taskId,
         );
 
-        let pipeline = null;
-        if (branch) {
-          pipeline = await getStatusFromBranch(taskId, branch);
-        }
+        const pipeline = await getStatusFromBranch(String(issue.number), "");
 
         const task = buildKodyTask({
           issue,
@@ -253,10 +247,8 @@ export async function GET(
       const taskMarker = parsed.find((c) => c.type === "task-marker");
 
       if (taskMarker?.taskId === taskId) {
-        // Get workflow runs, branch, and PR in parallel
-        const [runs, branch, associatedPR] = await Promise.all([
+        const [runs, associatedPR] = await Promise.all([
           fetchWorkflowRuns({ perPage: 50 }),
-          findTaskBranch(taskId),
           findAssociatedPRByIssueNumber(issue.number),
         ]);
 
@@ -268,10 +260,7 @@ export async function GET(
         );
 
         // Get pipeline status
-        let pipeline = null;
-        if (branch) {
-          pipeline = await getStatusFromBranch(taskId, branch);
-        }
+        const pipeline = await getStatusFromBranch(String(issue.number), "");
 
         // Build task
         const task = buildKodyTask({

@@ -112,19 +112,13 @@ import { PageHeader } from "./PageShell";
 import { SimpleTooltip } from "./SimpleTooltip";
 
 type ItemEditorState =
-  | { mode: "create" }
-  | { mode: "edit"; item: TodoItem }
-  | null;
+  { mode: "create" } | { mode: "edit"; item: TodoItem } | null;
 
 type TodoItemFilter = "all" | "open" | "done" | "mine" | "unassigned";
 type TodoListKind = "list" | "goal" | "loop";
 type TodoListFilter = TodoListKind;
 type ManagedGoalResultClass =
-  | "succeeded"
-  | "pending"
-  | "retryable"
-  | "needsFix"
-  | "fatal";
+  "succeeded" | "pending" | "retryable" | "needsFix" | "fatal";
 
 interface ManagedGoalItemStatus {
   resultClass: ManagedGoalResultClass;
@@ -792,7 +786,7 @@ export function TodoControlInner({
         title="Delete todo list?"
         description={
           pendingDelete
-            ? `Todo list "${pendingDelete.title}" and its ${pendingDelete.items.length} items will be removed from the state repo todo store.`
+            ? `Todo list "${pendingDelete.title}" and its ${pendingDelete.items.length} items will be removed from the backend todo store.`
             : ""
         }
         variant="destructive"

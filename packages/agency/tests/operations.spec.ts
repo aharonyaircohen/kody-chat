@@ -205,7 +205,7 @@ describe("Operation contract", () => {
     ).toEqual(["Operation must own at least one Goal or Loop"]);
   });
 
-  it("uses one predictable state-repo path", () => {
+  it("uses one predictable backend path", () => {
     expect(operationPath("release")).toBe("operations/release/operation.json");
     expect(slugifyOperationId("Release Operations!")).toBe(
       "release-operations",

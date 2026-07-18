@@ -3,7 +3,7 @@
  * @domain capabilities
  * @pattern capabilities-manager
  * @ai-summary CRUD UI for custom capabilities stored at
- *   `capabilities/<slug>/` in the state repo.
+ *   `capabilities/<slug>/` in the backend.
  *   The editor shows name + instructions first, with model/tools/skills/scripts
  *   kept in advanced controls. A validation block checks the generated profile.json before saving.
  */

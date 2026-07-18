@@ -130,8 +130,8 @@ describe("client brand config", () => {
       resolveClientBrand("aguy", {
         owner: "A-Guy-educ",
         repo: "A-Guy-Web",
-        storeRepoUrl: "https://github.com/A-Guy-educ/kody-state",
-        storeRef: "kody-state",
+        storeRepoUrl: "https://github.com/A-Guy-educ/backend-store",
+        storeRef: "backend-store",
       }),
     ).resolves.toMatchObject({
       slug: "aguy",
@@ -143,8 +143,8 @@ describe("client brand config", () => {
       "A-Guy-educ",
       "A-Guy-Web",
       undefined,
-      "https://github.com/A-Guy-educ/kody-state",
-      "kody-state",
+      "https://github.com/A-Guy-educ/backend-store",
+      "backend-store",
     );
     expect(h.clearGitHubContext).toHaveBeenCalled();
   });
@@ -178,7 +178,9 @@ describe("client brand config", () => {
   });
 
   it("keeps built-in fallback when repo brand lookup is unavailable", async () => {
-    h.findBrandFileFromList.mockRejectedValue(new Error("missing repo context"));
+    h.findBrandFileFromList.mockRejectedValue(
+      new Error("missing repo context"),
+    );
 
     await expect(resolveClientBrand("kody-he")).resolves.toMatchObject({
       slug: "kody-he",

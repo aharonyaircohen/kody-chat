@@ -146,15 +146,21 @@ export async function listCompanyStoreWorkflowDefinitionFiles(
 export function workflowRecordFromCapabilitySummary(
   capability: CapabilitySummary,
 ): WorkflowDefinitionRecord | null {
-  const workflowSteps = normalizeWorkflowCapabilities(capability.workflowSteps ?? []);
+  const workflowSteps = normalizeWorkflowCapabilities(
+    capability.workflowSteps ?? [],
+  );
   const graph = capability.workflowDefinition;
-  if (!capability.isWorkflow || (graph?.steps.length ?? workflowSteps.length) === 0) return null;
+  if (
+    !capability.isWorkflow ||
+    (graph?.steps.length ?? workflowSteps.length) === 0
+  )
+    return null;
   if (!isWorkflowDefinitionId(capability.slug)) return null;
 
   const updatedAt = capability.updatedAt ?? STORE_CAPABILITY_WORKFLOW_TIMESTAMP;
   return {
     id: capability.slug,
-    path: `.kody/capabilities/${capability.slug}/profile.json`,
+    path: `capabilities/${capability.slug}/profile.json`,
     workflow: {
       version: 1,
       name: capability.slug,

@@ -41,11 +41,11 @@ Open <http://localhost:3333>, sign in with GitHub, and point it at a repo where 
 ## Features
 
 - Task board (inbox → spec → building → review → done) with drag-and-drop
-- Capability manager — markdown-defined capabilities in `.kody/capabilities/`, with legacy capabilities still readable while repos migrate
+- Capability manager — markdown-defined capabilities in `backend definitions (capabilities)`, with legacy capabilities still readable while repos migrate
 - Parallel task execution — each task is its own GitHub Actions workflow run
 - PR viewer with file diffs, CI status, and gate approvals
 - Live previews — per-PR Fly.io preview environments (see [docs/previews.md](./docs/previews.md))
-- Per-repo encrypted secrets vault (`.kody/secrets.enc`, AES-256-GCM)
+- Per-repo encrypted secrets vault (`backend vault record`, AES-256-GCM)
 - Provider-agnostic chat — Claude, GPT, Gemini, Groq, OpenRouter, Mistral, DeepSeek, xAI, or any OpenAI-compatible endpoint, configured in-app (Anthropic Messages or OpenAI Chat Completions protocols)
 - Multiple chat backends (direct via configured provider, external Brain, engine via GitHub Actions)
 - Real-time pipeline status via GitHub webhooks (push-based, IP-verified)

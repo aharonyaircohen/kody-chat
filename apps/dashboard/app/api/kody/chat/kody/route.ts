@@ -136,6 +136,7 @@ import { createPositionTools } from "../tools/position-tools";
 import { applyReasoning } from "@kody-ade/kody-chat/core/reasoning-adapter";
 import { containsToolCallMarkup } from "@kody-ade/kody-chat/core/tool-call-strip";
 import { createAgentAdminTools } from "../tools/agent-admin-tools";
+import { readCapabilityFile } from "@kody-ade/agency/capabilities";
 import { createMacroTools } from "../tools/macros-tools";
 import {
   invalidateMemoryIndexPromptCache,
@@ -154,8 +155,6 @@ import {
   isValidSlug as isValidAgentSlug,
   readResolvedAgentFile,
 } from "@dashboard/lib/agent-files";
-import { api as backendApi } from "@kody-ade/backend/api";
-import { createBackendClient } from "@kody-ade/backend/client";
 import {
   appendAgentChatSpeakerOverride,
   buildAgentChatIdentity,
@@ -994,18 +993,7 @@ async function handleKodyDirectPost(
     const caps = (
       await Promise.all(
         addressedAgentMember.capabilities.map((slug) =>
-          createBackendClient()
-            .query(backendApi.catalog.get, {
-              tenantId: `${repo.owner}/${repo.repo}`,
-              category: "capability",
-              slug,
-            })
-            .then(
-              (row) =>
-                (row as { doc?: { prompt?: string; tools?: string[] } } | null)
-                  ?.doc ?? null,
-            )
-            .catch(() => null),
+          readCapabilityFile(slug).catch(() => null),
         ),
       )
     ).filter((cap): cap is NonNullable<typeof cap> => cap !== null);

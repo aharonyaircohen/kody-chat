@@ -362,7 +362,7 @@ export function KodyChat({
   // entry wouldn't appear until a full page reload.
   const { auth } = useAuth();
   const isDesktop = useMediaQuery("(min-width: 768px)");
-  // Slash command list (builtins + state repo `commands/*.md`).
+  // Slash command list (builtins + backend `commands/*.md`).
   // Stale-while-revalidate keeps autocomplete instant; the API itself
   // is cached on the server side via the GitHub client.
   const { commands: slashCommands } = useSlashCommands(auth);
@@ -481,7 +481,7 @@ export function KodyChat({
       if (!info) return parts.length > 0 ? parts.join("\n\n") : null;
       // Append the saved-macros catalog so the model can offer to run them
       // when the user mentions one by name ("run my Login macro"). Macros
-      // now live in the state repo (macros.json), so fetch per-send — newly
+      // now live in the backend (macros.json), so fetch per-send — newly
       // saved macros are visible immediately, and it works across devices.
       parts.push(formatPageInfo(info));
       try {

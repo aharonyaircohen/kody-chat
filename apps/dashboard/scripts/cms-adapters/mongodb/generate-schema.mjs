@@ -8,7 +8,8 @@ import { MongoClient, ObjectId } from "mongodb";
 const DEFAULT_INTERNAL_COLLECTIONS = new Set();
 
 const SYSTEM_FIELDS = new Set(["_id", "__v", "createdAt", "updatedAt"]);
-const SENSITIVE_RE = /(password|secret|token|hash|salt|session|ipHash|userAgentHash)/i;
+const SENSITIVE_RE =
+  /(password|secret|token|hash|salt|session|ipHash|userAgentHash)/i;
 const TEXT_SEARCH_RE =
   /(title|name|label|email|slug|code|key|status|type|kind|role|locale|currency|provider|description|filename|adminTitle)$/i;
 const TITLE_FIELD_CANDIDATES = [
@@ -22,7 +23,6 @@ const TITLE_FIELD_CANDIDATES = [
   "slug",
   "_id",
 ];
-
 
 const args = parseArgs(process.argv.slice(2));
 
@@ -68,13 +68,20 @@ try {
 
   const rawStats = new Map();
   for (const collectionName of collectionNames) {
-    const docs = await db.collection(collectionName).find({}).limit(sampleSize).toArray();
+    const docs = await db
+      .collection(collectionName)
+      .find({})
+      .limit(sampleSize)
+      .toArray();
     rawStats.set(collectionName, analyzeCollection(collectionName, docs));
   }
 
   const titleFields = new Map();
   for (const collectionName of collectionNames) {
-    titleFields.set(collectionName, inferTitleField(rawStats.get(collectionName)));
+    titleFields.set(
+      collectionName,
+      inferTitleField(rawStats.get(collectionName)),
+    );
   }
 
   const generatedFiles = [];
@@ -147,7 +154,9 @@ function buildCollectionConfig({
   const fieldByName = new Map(fields.map((field) => [field.name, field]));
   const searchFields = inferSearchFields(fields, titleField);
   const listFields = inferListFields(fields, titleField, searchFields);
-  const filters = inferFilters(listFields.map((entry) => fieldByName.get(entry.name)).filter(Boolean));
+  const filters = inferFilters(
+    listFields.map((entry) => fieldByName.get(entry.name)).filter(Boolean),
+  );
 
   return {
     name: collectionName,
@@ -176,11 +185,15 @@ function buildCollectionConfig({
         fields: listFields,
       },
       detail: {
-        fields: fields.filter((field) => !field.hidden).map((field) => ({ name: field.name })),
+        fields: fields
+          .filter((field) => !field.hidden)
+          .map((field) => ({ name: field.name })),
       },
       form: {
         fields: fields
-          .filter((field) => !field.hidden && !field.readOnly && field.type !== "id")
+          .filter(
+            (field) => !field.hidden && !field.readOnly && field.type !== "id",
+          )
           .map((field) => ({ name: field.name })),
       },
     },
@@ -196,9 +209,18 @@ function buildFieldConfig(fieldStats, collectionNames, titleFields) {
     label: labelForField(name),
   };
 
-  if (name === "_id") return { ...base, type: "id", label: "ID", readOnly: true };
-  if (name === "__v") return { ...base, type: "number", label: "Version", readOnly: true, hidden: true };
-  if (name === "createdAt" || name === "updatedAt") return { ...base, type: "date", readOnly: true };
+  if (name === "_id")
+    return { ...base, type: "id", label: "ID", readOnly: true };
+  if (name === "__v")
+    return {
+      ...base,
+      type: "number",
+      label: "Version",
+      readOnly: true,
+      hidden: true,
+    };
+  if (name === "createdAt" || name === "updatedAt")
+    return { ...base, type: "date", readOnly: true };
   if (SENSITIVE_RE.test(name)) base.hidden = true;
 
   const relationTarget = inferRelationTarget(name, base.type, collectionNames);
@@ -229,7 +251,9 @@ function buildFieldConfig(fieldStats, collectionNames, titleFields) {
 }
 
 function mergeExistingField(generated, existingCollection) {
-  const existing = existingCollection?.fields?.find((field) => field.name === generated.name);
+  const existing = existingCollection?.fields?.find(
+    (field) => field.name === generated.name,
+  );
   if (!existing) return generated;
   return {
     ...generated,
@@ -254,7 +278,8 @@ function inferFieldType(fieldStats, fieldName) {
     return "array";
   }
   if (fieldStats.types.has("objectId")) return "relation";
-  if (fieldStats.types.has("date") || looksLikeDateField(fieldName)) return "date";
+  if (fieldStats.types.has("date") || looksLikeDateField(fieldName))
+    return "date";
   if (fieldStats.types.has("boolean")) return "boolean";
   if (fieldStats.types.has("number")) return "number";
   if (fieldStats.types.has("object")) return "object";
@@ -286,7 +311,8 @@ function inferSearchFields(fields, titleField) {
 
   add(titleField);
   for (const field of fields) {
-    if (TEXT_SEARCH_RE.test(field.name) || /label/i.test(field.name)) add(field.name);
+    if (TEXT_SEARCH_RE.test(field.name) || /label/i.test(field.name))
+      add(field.name);
   }
   return result.slice(0, 8);
 }
@@ -306,7 +332,9 @@ function inferListFields(fields, titleField, searchFields) {
     .filter((field) => !SYSTEM_FIELDS.has(field.name))
     .filter((field) => field.name !== titleField)
     .filter((field) => !field.hidden && isCompactListField(field))
-    .sort((left, right) => compareListFieldPriority(left, right, searchFields))) {
+    .sort((left, right) =>
+      compareListFieldPriority(left, right, searchFields),
+    )) {
     if (result.length >= 6) break;
     add(field.name);
   }
@@ -350,7 +378,12 @@ function inferFilters(fields) {
       return [{ field: field.name, operators: ["equals"] }];
     }
     if (field.type === "number" || field.type === "date") {
-      return [{ field: field.name, operators: ["equals", "greater_than_equal", "less_than_equal"] }];
+      return [
+        {
+          field: field.name,
+          operators: ["equals", "greater_than_equal", "less_than_equal"],
+        },
+      ];
     }
     return [];
   });
@@ -360,8 +393,10 @@ function inferDefaultSort(fieldByName) {
   if (fieldByName.get("order")?.type === "number") {
     return [{ field: "order", direction: "asc" }];
   }
-  if (fieldByName.has("updatedAt")) return [{ field: "updatedAt", direction: "desc" }];
-  if (fieldByName.has("createdAt")) return [{ field: "createdAt", direction: "desc" }];
+  if (fieldByName.has("updatedAt"))
+    return [{ field: "updatedAt", direction: "desc" }];
+  if (fieldByName.has("createdAt"))
+    return [{ field: "createdAt", direction: "desc" }];
   return [];
 }
 
@@ -469,19 +504,29 @@ function compareFields(a, b) {
 }
 
 function arrayLooksLikeObjectIds(fieldStats) {
-  const samples = fieldStats.arrayValues.filter((value) => value !== null && value !== undefined);
+  const samples = fieldStats.arrayValues.filter(
+    (value) => value !== null && value !== undefined,
+  );
   if (samples.length === 0) return false;
-  return samples.some((value) => value instanceof ObjectId || isObjectIdString(value));
+  return samples.some(
+    (value) => value instanceof ObjectId || isObjectIdString(value),
+  );
 }
 
 function arrayLooksLikeEnum(fieldStats) {
-  const samples = fieldStats.arrayValues.filter((value) => typeof value === "string");
+  const samples = fieldStats.arrayValues.filter(
+    (value) => typeof value === "string",
+  );
   return samples.length > 0 && new Set(samples).size <= 20;
 }
 
 function stringLooksLikeEnum(fieldStats, fieldName) {
   if (!fieldStats.types.has("string")) return false;
-  if (!/(status|type|kind|role|locale|currency|provider|access|visibility|state)$/i.test(fieldName)) {
+  if (
+    !/(status|type|kind|role|locale|currency|provider|access|visibility|state)$/i.test(
+      fieldName,
+    )
+  ) {
     return false;
   }
   return fieldStats.stringValues.size > 0 && fieldStats.stringValues.size <= 20;
@@ -491,7 +536,9 @@ function stringLooksLikeTextarea(fieldStats, fieldName) {
   if (!fieldStats.types.has("string")) return false;
   return (
     fieldStats.maxStringLength > 160 ||
-    /(description|content|body|notes|message|prompt|summary|meta)$/i.test(fieldName)
+    /(description|content|body|notes|message|prompt|summary|meta)$/i.test(
+      fieldName,
+    )
   );
 }
 
@@ -506,7 +553,10 @@ function mergeOptionConfig(generatedOptions, existingOptions) {
   if (!generatedOptions && !existingOptions) return {};
   const result = [];
   const seen = new Set();
-  for (const option of [...(existingOptions ?? []), ...(generatedOptions ?? [])]) {
+  for (const option of [
+    ...(existingOptions ?? []),
+    ...(generatedOptions ?? []),
+  ]) {
     const value = typeof option === "string" ? option : option?.value;
     if (!value || seen.has(value)) continue;
     seen.add(value);
@@ -520,7 +570,14 @@ function looksLikeDateField(fieldName) {
 }
 
 function isCompactListField(field) {
-  return !["array", "json", "object", "textarea", "relationMany", "multiSelect"].includes(field.type);
+  return ![
+    "array",
+    "json",
+    "object",
+    "textarea",
+    "relationMany",
+    "multiSelect",
+  ].includes(field.type);
 }
 
 function existingFieldStillExists(fieldName, stats) {
@@ -553,7 +610,9 @@ function readExistingCollections(root) {
   for (const entry of fs.readdirSync(root)) {
     if (!entry.endsWith(".json")) continue;
     try {
-      const parsed = JSON.parse(fs.readFileSync(path.join(root, entry), "utf8"));
+      const parsed = JSON.parse(
+        fs.readFileSync(path.join(root, entry), "utf8"),
+      );
       if (parsed?.name) collections.set(parsed.name, parsed);
     } catch {
       // Invalid existing files should not prevent regeneration.
@@ -650,7 +709,7 @@ function toMcpName(collectionName) {
 
 function printUsage() {
   console.log(`Usage:
-  pnpm cms:generate-schema -- --adapter mongodb --state-root /path/to/kody-state --repo my-repo --env-file /path/to/.env
+  pnpm cms:generate-schema -- --adapter mongodb --state-root /path/to/Kody backend --repo my-repo --env-file /path/to/.env
 
 Options:
   --database-uri-env NAME    Env var holding the MongoDB URI. Default: DATABASE_URL

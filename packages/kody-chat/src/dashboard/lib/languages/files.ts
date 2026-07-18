@@ -3,7 +3,7 @@
  * @domain client-chat
  * @pattern languages-files
  * @ai-summary Read/write operator-managed client language JSON files under
- *   `languages/<code>.json` in the resolved Kody state repo. Packs override
+ *   `languages/<code>.json` in the resolved Kody backend. Packs override
  *   the built-in English strings on the /client chat surface; a brand's
  *   `locale` selects the pack.
  */
@@ -132,7 +132,12 @@ export async function listLanguageFiles(): Promise<LanguageFile[]> {
         const code = codeFromName(row.kind.slice(`${LANGUAGES_DIR}/`.length));
         if (!code) return null;
         const language = parseLanguageJson(JSON.stringify(row.doc), code);
-        return { ...language, source: "repo" as const, sha: row.updatedAt ?? "convex", htmlUrl: "" };
+        return {
+          ...language,
+          source: "repo" as const,
+          sha: row.updatedAt ?? "convex",
+          htmlUrl: "",
+        };
       })
       .filter((file): file is LanguageFile => file !== null)
       .sort((a, b) => a.code.localeCompare(b.code));

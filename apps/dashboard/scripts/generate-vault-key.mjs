@@ -9,14 +9,14 @@
  *   1) Vercel project env vars as KODY_MASTER_KEY (Production + Preview)
  *   2) Your password manager — losing this key invalidates every secret.
  */
-import { randomBytes } from "crypto"
+import { randomBytes } from "crypto";
 
-const key = randomBytes(32).toString("hex")
+const key = randomBytes(32).toString("hex");
 process.stdout.write(
   `\nKODY_MASTER_KEY=${key}\n\n` +
     `Add the line above to:\n` +
     `  - Vercel -> Project Settings -> Environment Variables (Production + Preview)\n` +
     `  - Your password manager (1Password / Bitwarden / etc.) for recovery\n\n` +
-    `Losing this key means every secret in .kody/secrets.enc becomes unreadable\n` +
+    `Losing this key means every secret in backend vault record becomes unreadable\n` +
     `and must be re-entered. Save it.\n\n`,
-)
+);

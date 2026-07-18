@@ -76,7 +76,7 @@ describe("managed goal run route", () => {
     h.getUserOctokit.mockResolvedValue(mockOctokit);
     h.readManagedGoalFile.mockResolvedValue({
       sha: "state-sha",
-      path: ".kody/todos/web-release.json",
+      path: "legacy/todos/web-release.json",
       state: {
         version: 1,
         state: "active",
@@ -144,7 +144,7 @@ describe("managed goal run route", () => {
     });
     h.readManagedGoalFile.mockResolvedValue({
       sha: "state-sha",
-      path: ".kody/todos/web-release.json",
+      path: "legacy/todos/web-release.json",
       state: {
         version: 1,
         state: "active",

@@ -41,6 +41,10 @@ vi.mock("@kody-ade/agency/github", () => ({
   setGitHubContext: h.setGitHubContext,
   clearGitHubContext: h.clearGitHubContext,
 }));
+vi.mock("@dashboard/lib/github-client", () => ({
+  setGitHubContext: h.setGitHubContext,
+  clearGitHubContext: h.clearGitHubContext,
+}));
 
 vi.mock("@kody-ade/agency/capabilities", () => ({
   listCapabilityFiles: h.listCapabilityFiles,
@@ -69,6 +73,9 @@ vi.mock("@dashboard/lib/backend/repo-projection", () => ({
 }));
 
 vi.mock("@kody-ade/base/activity/audit", () => ({
+  recordAudit: h.recordAudit,
+}));
+vi.mock("@dashboard/lib/activity/audit", () => ({
   recordAudit: h.recordAudit,
 }));
 vi.mock("@kody-ade/backend/api", () => ({
@@ -143,7 +150,7 @@ describe("GET /api/kody/capabilities", () => {
       config: { company: { activeCapabilities: ["store-on"] } },
       sha: null,
     });
-    h.listProjectedCapabilities.mockResolvedValue([
+    h.listCapabilityFiles.mockResolvedValue([
       { slug: "local-one", source: "local" },
       { slug: "store-on", source: "store" },
     ]);
@@ -158,7 +165,7 @@ describe("GET /api/kody/capabilities", () => {
       json.capabilities.map((entry: { slug: string }) => entry.slug),
     ).toEqual(["local-one", "store-on"]);
     expect(json.implementations).toBeUndefined();
-    expect(h.listProjectedCapabilities).toHaveBeenCalled();
+    expect(h.listCapabilityFiles).toHaveBeenCalled();
   });
 });
 
@@ -203,19 +210,10 @@ describe("POST /api/kody/capabilities", () => {
     expect(json).not.toHaveProperty("implementation");
     expect(h.writeCapabilityFile).toHaveBeenCalledWith(
       expect.objectContaining({
-        octokit: { rest: {} },
         fields: expect.objectContaining({
           slug: "ship-feature",
           prompt: "Ship the feature.",
         }),
-      }),
-    );
-    expect(h.saveProjectedCapability).toHaveBeenCalledWith(
-      "acme",
-      "widgets",
-      expect.objectContaining({
-        slug: "ship-feature",
-        prompt: "Ship the feature.",
       }),
     );
     expect(h.recordAudit).toHaveBeenCalledWith(
@@ -244,9 +242,7 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
   });
 
   it("deletes the Convex capability projection", async () => {
-    h.backendQuery.mockResolvedValue({ doc: { slug: "ship-feature" } });
-    h.backendMutation.mockResolvedValue(undefined);
-    h.getProjectedCapability.mockResolvedValue({
+    h.readCapabilityFile.mockResolvedValue({
       slug: "ship-feature",
       describe: "Ship feature",
     });
@@ -261,11 +257,7 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ success: true });
-    expect(h.backendMutation).toHaveBeenCalled();
-    expect(h.deleteCapabilityFile).toHaveBeenCalledWith(
-      { rest: {} },
-      "ship-feature",
-    );
+    expect(h.deleteCapabilityFile).toHaveBeenCalledWith("ship-feature");
     expect(h.writeConfigPatch).not.toHaveBeenCalled();
     expect(h.recordAudit).toHaveBeenCalledWith(
       expect.any(NextRequest),
@@ -277,19 +269,17 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
   });
 
   it("updates the engine definition and Convex projection together", async () => {
-    h.backendQuery.mockResolvedValue({
-      doc: {
-        slug: "ship-feature",
-        describe: "Ship feature",
-        prompt: "Old instructions",
-        model: "inherit",
-        permissionMode: "acceptEdits",
-        tools: [],
-        skills: [],
-        shellScripts: [],
-        mcpServers: [],
-        landing: "pr",
-      },
+    h.readCapabilityFile.mockResolvedValue({
+      slug: "ship-feature",
+      describe: "Ship feature",
+      prompt: "Old instructions",
+      model: "inherit",
+      permissionMode: "acceptEdits",
+      tools: [],
+      skills: [],
+      shellScripts: [],
+      mcpServers: [],
+      landing: "pr",
     });
     h.writeCapabilityFile.mockResolvedValue({
       slug: "ship-feature",
@@ -318,6 +308,5 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
 
     expect(res.status).toBe(200);
     expect(h.writeCapabilityFile).toHaveBeenCalled();
-    expect(h.backendMutation).toHaveBeenCalled();
   });
 });

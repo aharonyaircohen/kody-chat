@@ -16,9 +16,9 @@ const fetchComments = process.argv.includes("--comments");
 const reportSource = argValue("--report-source") || "remote";
 const [repoOwner, repoName] = repo.split("/");
 const stateRepo =
-  argValue("--state-repo") ||
+  argValue("--backend") ||
   process.env.KODY_STATE_REPO ||
-  `${repoOwner}/kody-state`;
+  `${repoOwner}/Kody backend`;
 const statePath = normalizePath(
   argValue("--state-path") || process.env.KODY_STATE_PATH || repoName || repo,
 );

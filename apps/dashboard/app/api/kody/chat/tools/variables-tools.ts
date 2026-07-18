@@ -3,7 +3,7 @@
  * @domain variables
  * @pattern chat-tools
  * @ai-summary Chat tools to manage non-secret dashboard variables
- *   (`variables.json` in the state repo) — list, set, delete. Variables are plaintext
+ *   (`variables.json` in the backend) — list, set, delete. Variables are plaintext
  *   config knobs (unlike the encrypted secrets vault). The reserved
  *   LLM_MODELS variable is managed via the models tools, not here.
  */
@@ -31,7 +31,7 @@ export function createVariableTools(ctx: Ctx) {
 
   return {
     list_variables: tool({
-      description: `List the non-secret dashboard variables for ${repoRef} (variables.json in the state repo) with their values and last-updated timestamps. These are plaintext config — secrets live in the encrypted vault instead.`,
+      description: `List the non-secret dashboard variables for ${repoRef} (variables.json in the backend) with their values and last-updated timestamps. These are plaintext config — secrets live in the encrypted vault instead.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
@@ -60,21 +60,17 @@ export function createVariableTools(ctx: Ctx) {
             error: `"${name}" is reserved — manage it via the models tools.`,
           };
         try {
-          await updateVariables(
-            owner,
-            repo,
-            (doc) => ({
-              ...doc,
-              variables: {
-                ...doc.variables,
-                [name]: {
-                  value,
-                  updatedAt: new Date().toISOString(),
-                  ...(actorLogin ? { updatedBy: actorLogin } : {}),
-                },
+          await updateVariables(owner, repo, (doc) => ({
+            ...doc,
+            variables: {
+              ...doc.variables,
+              [name]: {
+                value,
+                updatedAt: new Date().toISOString(),
+                ...(actorLogin ? { updatedBy: actorLogin } : {}),
               },
-            }),
-          );
+            },
+          }));
           return { ok: true, name };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };
@@ -94,15 +90,11 @@ export function createVariableTools(ctx: Ctx) {
           const { doc } = await readVariables(owner, repo);
           if (!doc.variables[name])
             return { error: `variable "${name}" not found` };
-          await updateVariables(
-            owner,
-            repo,
-            (d) => {
-              const variables = { ...d.variables };
-              delete variables[name];
-              return { ...d, variables };
-            },
-          );
+          await updateVariables(owner, repo, (d) => {
+            const variables = { ...d.variables };
+            delete variables[name];
+            return { ...d, variables };
+          });
           return { ok: true, action: "deleted", name };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };

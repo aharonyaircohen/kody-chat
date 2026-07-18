@@ -64,7 +64,7 @@ export const COMMON_TOOLS = [
 
 /** Dashboard-facing description of a capability, independent of GitHub I/O. */
 export interface CapabilityFields {
-  /** Folder name under `capabilities/` in the state repo. */
+  /** Folder name under `capabilities/` in the backend. */
   slug: string;
   /** One-line human description (`profile.describe`). */
   describe: string;

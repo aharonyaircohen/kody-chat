@@ -4,7 +4,7 @@
  * @pattern agent-api
  * @ai-summary Agent detail API — GET reads a single agent file, PATCH
  *   updates the title/body, DELETE removes the file. Backed by
- *   `agents/<slug>.md` in the state repo. Duplicated
+ *   `agents/<slug>.md` in the backend. Duplicated
  *   from the capabilities detail API.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
@@ -24,11 +24,6 @@ import {
   deleteAgentFile,
   isValidSlug,
 } from "../agent-files";
-import {
-  getProjectedAgent,
-  removeProjectedAgent,
-  saveProjectedAgent,
-} from "../backend/agents-projection";
 import {
   getEngineConfig,
   writeConfigPatch,
@@ -57,10 +52,7 @@ export async function GET(
     if (!isValidSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    const context = getRequestAuth(req);
-    const agentMember = context
-      ? await getProjectedAgent(context.owner, context.repo, slug)
-      : null;
+    const agentMember = await readResolvedAgentFile(slug);
     if (!agentMember) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
@@ -109,9 +101,8 @@ export async function PATCH(
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
 
-    // Store-linked agents (readOnly, sha "") are editable too: the first
-    // save materializes a repo copy at .kody/agents/<slug>.md, which the
-    // resolver prefers over the Store version from then on.
+    // Store-linked agents are editable too: the first save publishes a local
+    // backend definition, which then becomes the active version.
     const existing = await readResolvedAgentFile(slug);
     if (!existing) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
@@ -124,20 +115,7 @@ export async function PATCH(
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
 
-    const userOctokit = await getUserOctokit(req);
-    if (!userOctokit) {
-      return NextResponse.json(
-        {
-          error: "no_user_token",
-          message:
-            "A signed-in GitHub token is required to commit agent files.",
-        },
-        { status: 401 },
-      );
-    }
-
     const agentMember = await writeAgentFile({
-      octokit: userOctokit,
       slug,
       title: title ?? existing.title,
       body: body ?? existing.body,
@@ -148,16 +126,6 @@ export async function PATCH(
     if (!headerAuth) {
       throw new Error("Repository context is required to save an agent");
     }
-    await saveProjectedAgent(headerAuth.owner, headerAuth.repo, {
-      slug: agentMember.slug,
-      title: agentMember.title,
-      body: agentMember.body,
-      updatedAt: agentMember.updatedAt,
-      capabilities: agentMember.capabilities,
-      source: "local",
-      readOnly: false,
-    });
-
     recordAudit(req, {
       action: "agent.update",
       resource: slug,
@@ -222,24 +190,23 @@ export async function DELETE(
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
 
-    const userOctokit = await getUserOctokit(req);
-    if (!userOctokit) {
-      return NextResponse.json(
-        {
-          error: "no_user_token",
-          message:
-            "A signed-in GitHub token is required to delete agent files.",
-        },
-        { status: 401 },
-      );
-    }
-
-    const existing = await readAgentFile(slug, userOctokit);
+    const existing = await readAgentFile(slug);
     if (!existing) {
       if (!headerAuth) {
         return NextResponse.json({ success: true, alreadyMissing: true });
       }
 
+      const userOctokit = await getUserOctokit(req);
+      if (!userOctokit) {
+        return NextResponse.json(
+          {
+            error: "no_user_token",
+            message:
+              "A signed-in GitHub token is required to update repository configuration.",
+          },
+          { status: 401 },
+        );
+      }
       const { config } = await getEngineConfig(
         userOctokit,
         headerAuth.owner,
@@ -271,10 +238,7 @@ export async function DELETE(
       return NextResponse.json({ success: true, removedStoreReference: true });
     }
 
-    await deleteAgentFile(userOctokit, slug);
-    if (headerAuth) {
-      await removeProjectedAgent(headerAuth.owner, headerAuth.repo, slug);
-    }
+    await deleteAgentFile(slug);
 
     recordAudit(req, {
       action: "agent.delete",

@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain preview
  * @pattern repo-backed-static-views
- * @ai-summary POST uploads static resources into the configured Kody state repo
+ * @ai-summary POST uploads static resources into the configured Kody backend
  * under `views/<view-id>/` and returns a dashboard-served view URL.
  */
 import { randomUUID } from "node:crypto";
@@ -204,7 +204,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   const repoRoot = `${VIEW_ROOT}/${viewId}`;
   try {
-    const files = Object.fromEntries(uploads.map((upload) => [upload.path, upload.raw.toString("base64")]));
+    const files = Object.fromEntries(
+      uploads.map((upload) => [upload.path, upload.raw.toString("base64")]),
+    );
     await createBackendClient().mutation(api.repoDocs.save, {
       tenantId: `${auth.owner}/${auth.repo}`,
       kind: repoRoot,

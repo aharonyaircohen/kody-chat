@@ -6,7 +6,7 @@
  *   template against caller data: normalize values, merge defaults, and
  *   interpolate `$key` bindings into a RenderedViewUiNode tree. Extracted
  *   from renderers.ts so the spec expander and both storage backends
- *   (state-repo, Convex) share one implementation.
+ *   (backend, Convex) share one implementation.
  */
 import { z } from "zod";
 import {

@@ -79,11 +79,7 @@ const BRAIN_SUSPENSION_OPTIONS: Array<{
 ];
 
 export type BrainFlyState =
-  | "off"
-  | "running"
-  | "suspended"
-  | "stopped"
-  | "unknown";
+  "off" | "running" | "suspended" | "stopped" | "unknown";
 
 interface BrainFlyCardProps {
   /** Authenticated request headers (x-kody-token / -owner / -repo). */
@@ -242,7 +238,7 @@ export function BrainFlyCard({
       // ignore — best-effort persistence
     }
   }, [customAppName]);
-  // Per-repo state repo dashboard.json flag - whether the "Repo Brain"
+  // Per-repo backend dashboard.json flag - whether the "Repo Brain"
   // row is offered in the chat picker. Default off. Independent of the
   // provision lifecycle above and of Fly task execution.
   const [chatEnabled, setChatEnabled] = useState(false);
@@ -519,7 +515,7 @@ export function BrainFlyCard({
   }
 
   /**
-   * Clear the stored record at state-repo root `users/<login>/data/brain.json`
+   * Clear the stored record at backend root `users/<login>/data/brain.json`
    * without touching Fly. Use this for the orphan case: the dashboard
    * remembers a brain app the user can no longer reach (token revoked,
    * app moved orgs, etc.) and the user wants to start fresh.

@@ -37,12 +37,12 @@ const ADAPTER_METADATA: Record<
   },
   github: {
     label: "GitHub JSON",
-    description: "JSON documents in the state repo",
+    description: "JSON documents in the backend",
     supportsSchemaGeneration: false,
   },
   file: {
-    label: "kody-state JSON",
-    description: "JSON documents in kody-state",
+    label: "Kody backend JSON",
+    description: "JSON documents in Kody backend",
     supportsSchemaGeneration: false,
   },
 };
@@ -59,13 +59,15 @@ export async function listStoreCmsAdapters(
       (entry) => entry.type === "dir" && isValidCmsAdapterName(entry.name),
     )
     .map((entry) => cmsAdapterCatalogItem(entry.name));
-  const items = uniqueByName([cmsAdapterCatalogItem(DEFAULT_CMS_ADAPTER), ...storeAdapters]);
-  return items
-    .sort((a, b) => {
-      if (a.name === DEFAULT_CMS_ADAPTER) return -1;
-      if (b.name === DEFAULT_CMS_ADAPTER) return 1;
-      return a.name.localeCompare(b.name);
-    });
+  const items = uniqueByName([
+    cmsAdapterCatalogItem(DEFAULT_CMS_ADAPTER),
+    ...storeAdapters,
+  ]);
+  return items.sort((a, b) => {
+    if (a.name === DEFAULT_CMS_ADAPTER) return -1;
+    if (b.name === DEFAULT_CMS_ADAPTER) return 1;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 export function isValidCmsAdapterName(name: string): boolean {

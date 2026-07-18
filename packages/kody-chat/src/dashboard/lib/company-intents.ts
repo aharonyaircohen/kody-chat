@@ -2,18 +2,14 @@
  * @fileType utility
  * @domain kody
  * @pattern company-intents
- * @ai-summary Types and normalizers for CTO agency-architect intents stored in state repo.
+ * @ai-summary Types and normalizers for CTO agency-architect intents stored in backend.
  */
 
 import { slugifyTitle } from "@kody-ade/base/slug";
 
 export type CompanyIntentStatus = "active" | "paused" | "archived";
 export type CompanyIntentPosture =
-  | "confidence"
-  | "speed"
-  | "stability-recovery"
-  | "maintenance"
-  | "balanced";
+  "confidence" | "speed" | "stability-recovery" | "maintenance" | "balanced";
 export const RELEASE_CADENCES = ["manual", "15m", "1d", "1w"] as const;
 export type ReleaseCadence = (typeof RELEASE_CADENCES)[number];
 

@@ -89,7 +89,7 @@ const bodySchema = z.object({
   command: z.string().max(300).optional(),
   /**
    * `owner/repo` of the thread the rec lives on, when it is NOT the
-   * connected repo (e.g. a state-repo proposal PR). `merge` approves merge
+   * connected repo (e.g. a backend proposal PR). `merge` approves merge
    * the PR there; command-posting recs stay connected-repo only.
    */
   repoFullName: z

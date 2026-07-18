@@ -630,7 +630,7 @@ describe("canDeleteManagedGoal", () => {
   it("allows removing Store references from this repo", () => {
     const goal: ManagedGoalRecord = {
       id: "codebase-health",
-      path: ".kody/goals/templates/codebase-health/state.json",
+      path: "legacy/goals/templates/codebase-health/state.json",
       source: "store",
       recordType: "template",
       state: {

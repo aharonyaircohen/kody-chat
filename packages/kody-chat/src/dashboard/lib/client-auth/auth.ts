@@ -11,7 +11,10 @@
 import NextAuth from "next-auth";
 import type { Provider } from "next-auth/providers";
 
-import { parseClientBrandRepoCookie, CLIENT_BRAND_REPO_COOKIE } from "../client-brand-repo-cookie";
+import {
+  parseClientBrandRepoCookie,
+  CLIENT_BRAND_REPO_COOKIE,
+} from "../client-brand-repo-cookie";
 import type { ClientBrandRepoContext } from "../client-brand-repo-cookie";
 import { defaultClientBrandRepoContext } from "../client-brand-default-repo";
 import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
@@ -94,7 +97,11 @@ const PROVIDER_IMPORTS: Record<string, () => Promise<ProviderModule>> = {
 /** Load an Auth.js provider module by its id (id = module filename). */
 async function loadProvider(
   id: string,
-  creds: { clientId: string; clientSecret: string; extra?: Record<string, string> },
+  creds: {
+    clientId: string;
+    clientSecret: string;
+    extra?: Record<string, string>;
+  },
 ): Promise<Provider | null> {
   const load = isSupportedProviderId(id) ? PROVIDER_IMPORTS[id] : undefined;
   if (!load) return null;
@@ -118,7 +125,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth(async (req) => {
     ) ??
     defaultClientBrandRepoContext();
   // Authenticate credential reads with the repo's token (same as the page
-  // does) — app installation token first, vault fallback. The state repo
+  // does) — app installation token first, vault fallback. The backend
   // may be private, so unauthenticated reads silently drop every provider.
   const repoContext = cookieContext
     ? {
@@ -157,9 +164,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth(async (req) => {
             ...(account?.provider ? { provider: account.provider } : {}),
           },
           {
-            userId: user.email
-              ? `client:${user.email.toLowerCase()}`
-              : null,
+            userId: user.email ? `client:${user.email.toLowerCase()}` : null,
             brand: cookieContext,
             source: "server",
           },

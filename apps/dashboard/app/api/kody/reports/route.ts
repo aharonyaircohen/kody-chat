@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern reports-api
  * @ai-summary Reports API — GET lists goal/loop report families in the
- *   configured Kody state repo. Read-only: reports are produced by the engine,
+ *   configured Kody backend. Read-only: reports are produced by the engine,
  *   not edited from the dashboard.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */

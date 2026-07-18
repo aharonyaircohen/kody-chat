@@ -8,11 +8,8 @@ import {
   normalizeCmsConfig,
 } from "../config";
 import { CmsRuntimeError } from "../service";
-import type {
-  CmsCollectionConfig,
-  CmsFieldConfig,
-} from "../types";
-import { readStateText } from "../repo-docs";
+import type { CmsCollectionConfig, CmsFieldConfig } from "../types";
+import { readRepoDocFile } from "../repo-docs";
 
 import {
   cmsModelOptionsFromText,
@@ -137,7 +134,7 @@ export async function buildCmsModelFiles({
   repo: string;
   collection: CmsCollectionConfig;
 }) {
-  const configFile = await readStateText(
+  const configFile = await readRepoDocFile(
     octokit,
     owner,
     repo,
@@ -184,7 +181,7 @@ export async function buildCmsModelFiles({
   });
 
   if (
-    !(await readStateText(
+    !(await readRepoDocFile(
       octokit,
       owner,
       repo,
@@ -225,7 +222,7 @@ export async function buildDeleteCmsModelFiles({
   name: string;
 }> {
   const resourceName = cleanSlug(name, "resource name");
-  const configFile = await readStateText(
+  const configFile = await readRepoDocFile(
     octokit,
     owner,
     repo,
@@ -417,7 +414,7 @@ async function upsertCollectionRef(
     if (collectionNameMatches(cmsCollectionNameFromKey(ref), collection.name)) {
       return path;
     }
-    const file = await readStateText(octokit, owner, repo, path);
+    const file = await readRepoDocFile(octokit, owner, repo, path);
     if (!file) continue;
     const existing = parseJsonRecord(file.content, path);
     if (collectionRecordEntryMatches(ref, existing, collection.name)) {
@@ -492,7 +489,7 @@ async function removeCollectionRef(
 
   for (const ref of collectionRefs) {
     const path = `cms/${ref}`;
-    const file = await readStateText(octokit, owner, repo, path);
+    const file = await readRepoDocFile(octokit, owner, repo, path);
     let existing: Record<string, unknown> | null = null;
     let matches = collectionNameMatches(cmsCollectionNameFromKey(ref), name);
     if (!matches && file) {

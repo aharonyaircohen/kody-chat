@@ -18,11 +18,11 @@ import type {
 } from "@kody-ade/cms/adapters/types";
 import { defaultCmsAdapterSettings } from "@kody-ade/cms/adapter-catalog";
 import { loadCmsConfigFromState } from "@kody-ade/cms/config";
+import { createCmsRepoDocsTransport } from "@kody-ade/cms/repo-docs";
 import type { CmsCollectionConfig, CmsDocument } from "@kody-ade/cms/types";
 import { logger } from "@kody-ade/base/logger";
 import { readVault } from "@kody-ade/base/vault/store";
 import { isVaultConfigured } from "@kody-ade/base/vault/crypto";
-import { resolveStateRepo } from "@kody-ade/base/state-repo";
 import {
   UserStateError,
   type UserStateAdapter,
@@ -103,16 +103,7 @@ async function resolveCmsBinding(
       getSecret: (name) =>
         resolveSecret(ctx.octokit, ctx.owner, ctx.repo, name),
       store: { octokit: ctx.octokit },
-      getStateRepository: async () => {
-        const target = await resolveStateRepo(ctx.octokit, ctx.owner, ctx.repo);
-        return {
-          octokit: ctx.octokit,
-          owner: target.owner,
-          repo: target.repo,
-          branch: target.branch,
-          basePath: target.basePath,
-        };
-      },
+      transport: createCmsRepoDocsTransport(ctx.owner, ctx.repo),
     },
   };
 }

@@ -9,8 +9,7 @@
  * The default is a *per-user* preference (each person picks their own starting
  * agent), so it lives in localStorage — repo-scoped so a default chosen for
  * repo A doesn't bleed into repo B. Previously this was repo-shared in
- * `.kody/dashboard.json`, which meant one user's pick silently changed the
- * default for everyone.
+ * shared backend config, which meant one user's pick silently changed the default for everyone.
  */
 
 import { readActiveRepoScope } from "@kody-ade/base/active-repo";

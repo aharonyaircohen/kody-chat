@@ -11,7 +11,7 @@
  * contracts are unchanged.
  *
  * The octokit/owner/repo/branch parameters are retained for signature
- * compatibility with the state-repo era; Convex reads ignore them.
+ * compatibility with the backend era; Convex reads ignore them.
  */
 
 import type { Octokit } from "@octokit/rest";

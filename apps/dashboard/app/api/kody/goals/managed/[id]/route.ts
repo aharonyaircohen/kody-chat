@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern managed-goal-detail-api
  * @ai-summary Updates and deletes engine managed goal todo files under
- * `todos/<id>.json` in the configured Kody state repo.
+ * `todos/<id>.json` in the configured Kody backend.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -372,7 +372,7 @@ export async function PATCH(
         : undefined);
     const nextRunWithoutApproval =
       parsed.data.runWithoutApproval ??
-      (existing.state.runWithoutApproval === true);
+      existing.state.runWithoutApproval === true;
     const routeChanged =
       parsed.data.route !== undefined || shouldUseTypeDefaults;
     const capabilitiesChanged =

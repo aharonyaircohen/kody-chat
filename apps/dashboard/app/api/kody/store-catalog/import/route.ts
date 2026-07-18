@@ -18,6 +18,8 @@ import {
 import {
   listCompanyStoreAssetSlugs,
   listCompanyStoreMarkdownAssetSlugs,
+  companyStoreAssetPath,
+  readCompanyStoreText,
 } from "@dashboard/lib/company-store/assets";
 import {
   clearGitHubContext,
@@ -29,7 +31,16 @@ import {
   type ActiveGoalConfigEntry,
   type ConfigPatch,
 } from "@kody-ade/base/engine/config";
-import { readResolvedCapabilityFile } from "@dashboard/lib/capabilities";
+import {
+  readCompanyStoreCapabilityFolderFiles,
+  readResolvedCapabilityFile,
+} from "@dashboard/lib/capabilities";
+import { api as backendApi } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
+import {
+  definitionVersion,
+  type DefinitionBundle,
+} from "@kody-ade/backend/definition-bundle";
 import { listCompanyStoreGoalTemplateFiles } from "@dashboard/lib/managed-goals-files";
 import {
   managedGoalModel,
@@ -428,6 +439,72 @@ async function activationPlanFor(
   return plan;
 }
 
+async function publishDefinition(
+  tenantId: string,
+  kind: "agent" | "capability" | "goal",
+  slug: string,
+  files: Record<string, string>,
+): Promise<void> {
+  const bundle: DefinitionBundle = { schemaVersion: 1, files };
+  await createBackendClient().mutation(backendApi.definitions.publish, {
+    tenantId,
+    kind,
+    slug,
+    version: definitionVersion(bundle),
+    bundle,
+    source: "store",
+    createdAt: new Date().toISOString(),
+  });
+}
+
+async function publishActivationPlan(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  plan: ActivationPlan,
+): Promise<void> {
+  const tenantId = `${owner}/${repo}`;
+
+  for (const slug of plan.activeAgents) {
+    const path = await companyStoreAssetPath(octokit, "agents", `${slug}.md`);
+    const raw = await readCompanyStoreText(octokit, path);
+    if (raw === null) throw dependencyNotFound("agent", slug);
+    await publishDefinition(tenantId, "agent", slug, { "agent.md": raw });
+  }
+
+  for (const slug of plan.activeCapabilities) {
+    const files = await readCompanyStoreCapabilityFolderFiles(slug, octokit);
+    if (!files) throw dependencyNotFound("capability", slug);
+    await publishDefinition(tenantId, "capability", slug, files);
+  }
+
+  if (plan.activeGoals.length > 0) {
+    const goals = await listCompanyStoreGoalTemplateFiles(octokit);
+    for (const slug of plan.activeGoals) {
+      const goal = goals.find((candidate) => candidate.id === slug);
+      if (!goal) throw dependencyNotFound("goal", slug);
+      await publishDefinition(tenantId, "goal", slug, {
+        "state.json": `${JSON.stringify(goal.state, null, 2)}\n`,
+      });
+    }
+  }
+
+  if (plan.activeWorkflows.length > 0) {
+    const workflows = await listCompanyStoreWorkflowDefinitionFiles(octokit);
+    for (const slug of plan.activeWorkflows) {
+      const workflow = workflows.find((candidate) => candidate.id === slug);
+      if (!workflow) throw dependencyNotFound("workflow", slug);
+      await createBackendClient().mutation(backendApi.workflows.save, {
+        tenantId,
+        workflowId: slug,
+        definition: workflow.workflow,
+        source: "store",
+        updatedAt: new Date().toISOString(),
+      });
+    }
+  }
+}
+
 async function addStoreReference({
   octokit,
   owner,
@@ -447,6 +524,7 @@ async function addStoreReference({
     force: true,
   });
   const plan = await activationPlanFor(octokit, kind, slug);
+  await publishActivationPlan(octokit, owner, repo, plan);
   const nextActiveAgents =
     plan.activeAgents.length > 0
       ? addSlugs(config.company?.activeAgents, plan.activeAgents)
@@ -602,6 +680,26 @@ async function removeStoreReference({
     patch,
     `chore(kody): remove store ${kind} ${slug}`,
   );
+
+  const tenantId = `${owner}/${repo}`;
+  if (kind === "agent" || kind === "capability") {
+    await createBackendClient().mutation(backendApi.definitions.retire, {
+      tenantId,
+      kind,
+      slug,
+    });
+  } else if (kind === "agentGoal" || kind === "agentLoop") {
+    await createBackendClient().mutation(backendApi.definitions.retire, {
+      tenantId,
+      kind: "goal",
+      slug,
+    });
+  } else if (kind === "workflow") {
+    await createBackendClient().mutation(backendApi.workflows.remove, {
+      tenantId,
+      workflowId: slug,
+    });
+  }
 
   return { removed: true, status: "removed", path };
 }

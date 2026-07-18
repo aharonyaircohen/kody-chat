@@ -4,7 +4,7 @@
  * @pattern repo-config
  * @ai-summary Named preview environments (Production / Staging / Dev …) — a
  *   label + base-URL list stored per-repo in `dashboard.json` in the configured
- *   Kody state repo. Generalises
+ *   Kody backend. Generalises
  *   the legacy single `defaultPreviewUrl`: when no explicit list exists yet we
  *   migrate that one value into a "Default" environment so nothing is lost.
  *   Pure helpers (no React, no storage, no fetch) so the API route and the UI
@@ -45,7 +45,7 @@ export interface PreviewEnvironment {
    */
   uploadContext?: PreviewUploadContext;
   /**
-   * Set for static resources stored in the state repo under `views/<id>`.
+   * Set for static resources stored in the backend under `views/<id>`.
    * These are served by dashboard API with a short-lived
    * ticket instead of Fly.
    */

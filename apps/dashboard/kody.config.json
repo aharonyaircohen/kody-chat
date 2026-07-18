@@ -16,9 +16,6 @@
   "agent": {
     "model": "minimax/MiniMax-M3"
   },
-  "jobs": {
-    "stateBackend": "contents-api"
-  },
   "company": {
     "activeGoals": [
       "codebase-health",
@@ -28,9 +25,7 @@
       "cms-content-editing",
       "web-release"
     ],
-    "activeAgents": [
-      "ceo"
-    ],
+    "activeAgents": ["ceo"],
     "activeCapabilities": [
       "capability-call",
       "cms-content-editor",
@@ -44,9 +39,7 @@
       "fix",
       "merge"
     ],
-    "activeExecutables": [
-      "agent-ask"
-    ]
+    "activeExecutables": ["agent-ask"]
   },
   "access": {
     "allowedAssociations": [
@@ -58,10 +51,5 @@
     ]
   },
   "defaultExecutable": "classify",
-  "defaultPrExecutable": "fix",
-  "state": {
-    "repo": "https://github.com/aharonyaircohen/kody-state",
-    "path": "Kody-Dashboard",
-    "branch": "main"
-  }
+  "defaultPrExecutable": "fix"
 }

@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern company-workflows-api
  * @ai-summary Lists and creates validated workflow definitions in the
- *   configured Kody state repo.
+ *   configured Kody backend.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -197,9 +197,11 @@ export async function GET(req: NextRequest) {
     ].sort((a, b) => a.id.localeCompare(b.id));
     await Promise.all(
       workflows.map((workflow) =>
-        saveProjectedWorkflow(headerAuth.owner, headerAuth.repo, workflow).catch(
-          () => undefined,
-        ),
+        saveProjectedWorkflow(
+          headerAuth.owner,
+          headerAuth.repo,
+          workflow,
+        ).catch(() => undefined),
       ),
     );
     return NextResponse.json(

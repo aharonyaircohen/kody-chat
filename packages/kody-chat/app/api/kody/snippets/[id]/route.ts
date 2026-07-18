@@ -1,9 +1,9 @@
 /**
  * @fileType api-endpoint
  * @domain snippets
- * @pattern state-repo-crud-api
+ * @pattern backend-crud-api
  * @ai-summary Deletes one brand snippet by id from `snippets/config.json`
- *   in the Kody state repo. Admin only; audited.
+ *   in the Kody backend. Admin only; audited.
  */
 import { NextRequest, NextResponse } from "next/server";
 import {

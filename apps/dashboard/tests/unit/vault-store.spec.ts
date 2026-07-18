@@ -1,6 +1,6 @@
 /**
  * Unit tests for the encrypted vault store. The vault is encrypted, but the
- * file itself lives in the configured external state repo.
+ * values live in the configured backend.
  */
 
 import { randomBytes } from "crypto";
@@ -67,7 +67,7 @@ afterEach(() => {
 });
 
 describe("readVault", () => {
-  it("reads and decrypts secrets.enc from the configured state repo", async () => {
+  it("reads and decrypts secrets.enc from the configured backend", async () => {
     const octokit = fakeOctokit();
     backend.query.mockResolvedValue({
       doc: { ciphertext: stateFile(DOC).content },
@@ -110,7 +110,7 @@ describe("readVault", () => {
     expect(backend.query).toHaveBeenCalledTimes(2);
   });
 
-  it("collapses concurrent reads into one state repo call", async () => {
+  it("collapses concurrent reads into one backend call", async () => {
     let resolve!: (value: unknown) => void;
     backend.query.mockReturnValue(
       new Promise((r) => {
@@ -142,7 +142,7 @@ describe("readVault", () => {
 });
 
 describe("writeVault", () => {
-  it("encrypts and writes secrets.enc to the configured state repo", async () => {
+  it("encrypts and writes secrets.enc to the configured backend", async () => {
     backend.mutation.mockResolvedValue(undefined);
     const octokit = fakeOctokit();
 
@@ -177,7 +177,7 @@ describe("writeVault", () => {
     });
   });
 
-  it("returns empty sha when state repo write returns no sha", async () => {
+  it("returns empty sha when backend write returns no sha", async () => {
     backend.mutation.mockResolvedValue(undefined);
 
     const { sha } = await writeVault(

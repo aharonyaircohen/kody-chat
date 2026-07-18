@@ -86,22 +86,22 @@ describe("manageBrainServer", () => {
   });
 
   it("does not report provision success when the Brain app record cannot be saved", async () => {
-    store.writeBrainApp.mockRejectedValueOnce(new Error("state repo down"));
+    store.writeBrainApp.mockRejectedValueOnce(new Error("backend down"));
 
     await expect(
       manageBrainServer({ command: "provision", context }),
-    ).rejects.toThrow("state repo down");
+    ).rejects.toThrow("backend down");
 
     expect(brainFly.provisionBrain).toHaveBeenCalled();
     expect(store.writeBrainApp).toHaveBeenCalled();
   });
 
   it("does not report destroy success when the stored Brain record cannot be cleared", async () => {
-    store.clearBrainApp.mockRejectedValueOnce(new Error("state repo down"));
+    store.clearBrainApp.mockRejectedValueOnce(new Error("backend down"));
 
     await expect(
       manageBrainServer({ command: "destroy", context }),
-    ).rejects.toThrow("state repo down");
+    ).rejects.toThrow("backend down");
 
     expect(brainFly.destroyBrain).toHaveBeenCalled();
     expect(runtimeManager.clearBrainRuntimeDeployment).toHaveBeenCalledWith(

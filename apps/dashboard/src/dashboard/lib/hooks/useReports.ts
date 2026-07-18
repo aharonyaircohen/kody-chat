@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern reports-hooks
  * @ai-summary React Query hooks for goal/loop report families in the
- *   configured Kody state repo. Read-only — reports are produced by the engine.
+ *   configured Kody backend. Read-only — reports are produced by the engine.
  */
 "use client";
 

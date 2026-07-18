@@ -150,10 +150,10 @@ describe("preview webhook maintenance", () => {
     });
   });
 
-  it("skips the rebuild when a PR branch update only touches engine bookkeeping", async () => {
+  it("skips the rebuild when a PR branch update only touches release bookkeeping", async () => {
     mocks.resolveBackgroundToken.mockResolvedValue({ token: "github-token" });
     mocks.compareCommitsWithBasehead.mockResolvedValue({
-      data: { files: [{ filename: ".kody/state.json" }] },
+      data: { files: [{ filename: "CHANGELOG.md" }] },
     });
 
     await handlePrOpenedOrSynced({
@@ -218,7 +218,7 @@ describe("preview webhook maintenance", () => {
       repoFullName: "acme/widgets",
       branch: "dev",
       ref: "new-head-sha",
-      changedPaths: [".kody/state.json", "CHANGELOG.md"],
+      changedPaths: ["CHANGELOG.md"],
     });
 
     expect(mocks.resolveBackgroundToken).not.toHaveBeenCalled();

@@ -4,7 +4,7 @@
  * @pattern client-language-config
  * @ai-summary Client-surface language packs. English ships built-in; other
  *   languages are operator-managed JSON files at `languages/<code>.json` in
- *   the state repo. A brand's `locale` selects the language pack.
+ *   the backend. A brand's `locale` selects the language pack.
  */
 
 export interface ClientLanguage {

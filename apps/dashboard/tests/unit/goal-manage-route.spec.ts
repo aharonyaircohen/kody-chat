@@ -49,7 +49,7 @@ vi.mock("@kody-ade/base/engine/config", () => ({
     config: {
       defaultImplementation: "run",
       state: {
-        repo: "https://github.com/test-owner/kody-state",
+        repo: "https://github.com/test-owner/backend-store",
         path: "test-repo",
       },
     },

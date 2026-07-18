@@ -1,9 +1,9 @@
 /**
  * @fileType util
  * @domain view-renderers
- * @pattern state-repo-config
+ * @pattern backend-config
  * @ai-summary User-managed renderer definitions stored under
- *   `views/renderers/<slug>.json` in the Kody state repo. Template
+ *   `views/renderers/<slug>.json` in the Kody backend. Template
  *   resolution lives in template.ts; the model-facing spec contract in
  *   spec/. This file owns storage CRUD and prompt-context loading.
  */
@@ -75,11 +75,12 @@ export async function readViewRendererDefinitionFile({
 }): Promise<ViewRendererDefinitionFile | null> {
   if (!isValidViewRendererSlug(slug)) return null;
   void octokit;
-  const row = (await createBackendClient().query(api.viewRenderers.list, {
-    tenantId: `${owner}/${repo}`,
-  })).find((entry: { slug: string }) => entry.slug === slug) as
-    | { definition: ViewRendererDefinition; updatedAt?: string }
-    | undefined;
+  const row = (
+    await createBackendClient().query(api.viewRenderers.list, {
+      tenantId: `${owner}/${repo}`,
+    })
+  ).find((entry: { slug: string }) => entry.slug === slug) as
+    { definition: ViewRendererDefinition; updatedAt?: string } | undefined;
   if (!row) {
     // No repo override — fall back to the packaged built-in, if any.
     const builtin = getBuiltinViewRendererDefinition(slug);

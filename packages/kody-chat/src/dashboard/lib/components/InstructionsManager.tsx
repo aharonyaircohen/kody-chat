@@ -2,9 +2,9 @@
  * @fileType component
  * @domain instructions
  * @pattern instructions-manager
- * @ai-summary Editor for state repo `instructions.md` — the per-repo user
+ * @ai-summary Editor for backend `instructions.md` — the per-repo user
  *   instructions appended to every kody-direct chat turn — plus the base
- *   system prompt override card (state repo `system-prompt.md`) rendered
+ *   system prompt override card (backend `system-prompt.md`) rendered
  *   below it.
  */
 "use client";
@@ -331,7 +331,7 @@ function InstructionsManagerInner({ footerSlot }: InstructionsManagerProps) {
       <ConfirmDialog
         open={confirmDelete}
         title="Remove instructions?"
-        description="The state repo instructions.md file will be deleted. Chat falls back to the base agent prompt only."
+        description="The backend instructions.md file will be deleted. Chat falls back to the base agent prompt only."
         confirmLabel={remove.isPending ? "Removing…" : "Remove"}
         variant="destructive"
         onConfirm={() => {
@@ -340,8 +340,6 @@ function InstructionsManagerInner({ footerSlot }: InstructionsManagerProps) {
         }}
         onClose={() => setConfirmDelete(false)}
       />
-
     </PageShell>
   );
 }
-

@@ -1,7 +1,7 @@
 /**
  * Unit tests for the vault's authenticated-encryption core
  * (src/dashboard/lib/vault/crypto.ts). The vault stores third-party API
- * keys committed to each repo at `.kody/secrets.enc`, so the crypto here is
+ * keys committed to each repo at `legacy/secrets.enc`, so the crypto here is
  * the only thing standing between a repo read and plaintext secrets — it
  * was previously at ~3% coverage.
  *

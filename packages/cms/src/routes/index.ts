@@ -5,10 +5,7 @@ import {
   getUserOctokit,
   requireKodyAuth,
 } from "@kody-ade/base/auth";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "../github";
+import { clearGitHubContext, setGitHubContext } from "../github";
 import { logger } from "@kody-ade/base/logger";
 import {
   assertSchemaOperationAllowed,
@@ -22,14 +19,11 @@ import {
   defaultCmsAdapterSettings,
   isValidCmsAdapterName,
 } from "../adapter-catalog";
+import { CmsRuntimeError, listCmsCollections } from "../service";
 import {
-  CmsRuntimeError,
-  listCmsCollections,
-} from "../service";
-import {
-  readStateText,
-  writeStateFiles,
-  writeStateText,
+  readRepoDocFile,
+  writeRepoDocFiles,
+  writeRepoDocFile,
 } from "../repo-docs";
 import { getCmsActorRole } from "../roles";
 import type {
@@ -115,7 +109,7 @@ export async function POST(req: NextRequest) {
     const payload = await req.json().catch(() => ({}));
     const name = readCmsName(payload, headerAuth.repo);
     const adapter = readCmsAdapter(payload);
-    const existing = await readStateText(
+    const existing = await readRepoDocFile(
       octokit,
       headerAuth.owner,
       headerAuth.repo,
@@ -149,7 +143,7 @@ export async function POST(req: NextRequest) {
       collections: [],
     };
 
-    await writeStateText({
+    await writeRepoDocFile({
       octokit,
       owner: headerAuth.owner,
       repo: headerAuth.repo,
@@ -251,7 +245,7 @@ export async function PATCH(req: NextRequest) {
         );
 
     if (files.length > 0) {
-      await writeStateFiles({
+      await writeRepoDocFiles({
         octokit,
         owner: headerAuth.owner,
         repo: headerAuth.repo,
@@ -519,7 +513,7 @@ async function buildCmsPermissionFiles(
   if (!octokit)
     throw new CmsRuntimeError("no_user_token", "No user token", 401);
 
-  const configFile = await readStateText(
+  const configFile = await readRepoDocFile(
     octokit,
     owner,
     repo,
@@ -553,7 +547,7 @@ async function buildCmsPermissionFiles(
       const entry = rawCollections[index];
       if (typeof entry === "string") {
         const path = `cms/${entry}`;
-        const file = await readStateText(octokit, owner, repo, path);
+        const file = await readRepoDocFile(octokit, owner, repo, path);
         if (!file) continue;
         const collection = parseJsonRecord(file.content, path);
         const name = String(collection.name ?? "");
@@ -646,7 +640,7 @@ async function buildCmsAdapterFiles(
   if (!octokit)
     throw new CmsRuntimeError("no_user_token", "No user token", 401);
 
-  const configFile = await readStateText(
+  const configFile = await readRepoDocFile(
     octokit,
     owner,
     repo,
@@ -742,7 +736,7 @@ async function applyAdapterToDefaultCollections(
       const entry = rawCollections[index];
       if (typeof entry === "string") {
         const path = `cms/${entry}`;
-        const file = await readStateText(octokit, owner, repo, path);
+        const file = await readRepoDocFile(octokit, owner, repo, path);
         if (!file) continue;
         const collection = parseJsonRecord(file.content, path);
         if (!shouldSwitchCollectionAdapter(collection, oldDefault)) continue;

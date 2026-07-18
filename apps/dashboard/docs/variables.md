@@ -2,7 +2,7 @@
 
 The dashboard keeps a per-repo file of **non-secret config** that you
 edit from the `/variables` page. Values are stored in the connected
-GitHub repo at `.kody/variables.json` as **plaintext** JSON, and runtime
+GitHub repo at `backend variables record` as **plaintext** JSON, and runtime
 code reads them at request time via the `getVariable()` helper, falling
 back to `process.env` when the file is empty or unconfigured.
 
@@ -14,7 +14,7 @@ feature flags, target URLs, usernames.
 
 ## What it is
 
-- **Per-repo**: each connected repo has its own `.kody/variables.json`.
+- **Per-repo**: each connected repo has its own `backend variables record`.
 - **Plaintext**: the file is committed as readable JSON. Anyone with
   repo read access sees the values. That is by design.
 - **Editable without redeploys**: change a value on the `/variables`
@@ -35,7 +35,7 @@ reads at request time:
 
 Do **not** use a variable for anything sensitive — API keys, passwords,
 tokens. Those go in the encrypted [Secrets vault](./secrets-vault.md)
-(`.kody/secrets.enc`). The split is deliberate: a model entry's
+(`backend vault record`). The split is deliberate: a model entry's
 `apiKeySecret` names a vault secret, so `LLM_MODELS` (plaintext) and the
 key it points at (encrypted) live in different stores.
 
@@ -50,7 +50,7 @@ key it points at (encrypted) live in different stores.
    string up to 64 KB — JSON, plain text, ids).
 4. **Save**.
 
-The dashboard upserts the entry into `.kody/variables.json` and commits
+The dashboard upserts the entry into `backend variables record` and commits
 it to the connected repo with a message like
 `chore(variables): upsert QA_URL`, then invalidates the in-memory cache
 so the next read sees the new value.
@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
 The helper:
 
 - Returns the variable value when the request has auth headers and the
-  entry exists in `.kody/variables.json`.
+  entry exists in `backend variables record`.
 - Falls back to `process.env[name]` otherwise — pass
   `{ req, variablesOnly: true }` to skip the env fallback and return
   `null` instead.
@@ -106,7 +106,7 @@ in-flight dedup, so polling endpoints don't stampede GitHub.
                                                     ▼
                                          ┌──────────────────────────┐
                                          │ GitHub Contents API      │
-                                         │ PUT .kody/variables.json │
+                                         │ PUT backend variables record │
                                          └──────────────────────────┘
 
 ┌────────────────────┐  read   ┌────────────────┐   fetch (plain)  ┌───────────────┐
@@ -129,15 +129,15 @@ in-flight dedup, so polling endpoints don't stampede GitHub.
 
 ## File reference
 
-| File                                                                                                        | Purpose                                                                         |
-| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
-| [`src/dashboard/lib/variables/get-variable.ts`](../src/dashboard/lib/variables/get-variable.ts)             | Runtime helper: `getVariable(name, { req })` with `process.env` fallback        |
-| [`src/dashboard/lib/variables/store.ts`](../src/dashboard/lib/variables/store.ts)                           | GitHub Contents API read/write of `.kody/variables.json` + per-repo cache + CAS |
-| [`src/dashboard/lib/variables/models.ts`](../src/dashboard/lib/variables/models.ts)                         | Typed accessor + Zod schema for the `LLM_MODELS` variable                       |
-| [`app/api/kody/variables/route.ts`](../app/api/kody/variables/route.ts)                                     | `GET` (list with values) and `POST` (upsert)                                    |
-| [`app/api/kody/variables/[name]/route.ts`](../app/api/kody/variables/%5Bname%5D/route.ts)                   | `DELETE`                                                                        |
-| [`app/(chat-rail)/variables/page.tsx`](<../app/(chat-rail)/variables/page.tsx>)                             | The `/variables` page route                                                     |
-| [`src/dashboard/lib/components/VariablesManager.tsx`](../src/dashboard/lib/components/VariablesManager.tsx) | The `/variables` page UI                                                        |
+| File                                                                                                        | Purpose                                                                             |
+| ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| [`src/dashboard/lib/variables/get-variable.ts`](../src/dashboard/lib/variables/get-variable.ts)             | Runtime helper: `getVariable(name, { req })` with `process.env` fallback            |
+| [`src/dashboard/lib/variables/store.ts`](../src/dashboard/lib/variables/store.ts)                           | GitHub Contents API read/write of `backend variables record` + per-repo cache + CAS |
+| [`src/dashboard/lib/variables/models.ts`](../src/dashboard/lib/variables/models.ts)                         | Typed accessor + Zod schema for the `LLM_MODELS` variable                           |
+| [`app/api/kody/variables/route.ts`](../app/api/kody/variables/route.ts)                                     | `GET` (list with values) and `POST` (upsert)                                        |
+| [`app/api/kody/variables/[name]/route.ts`](../app/api/kody/variables/%5Bname%5D/route.ts)                   | `DELETE`                                                                            |
+| [`app/(chat-rail)/variables/page.tsx`](<../app/(chat-rail)/variables/page.tsx>)                             | The `/variables` page route                                                         |
+| [`src/dashboard/lib/components/VariablesManager.tsx`](../src/dashboard/lib/components/VariablesManager.tsx) | The `/variables` page UI                                                            |
 
 ## FAQ
 
@@ -156,7 +156,7 @@ timestamps only. That difference is the whole point of having two stores.
 
 **Can the same variables file be shared across connected repos?**
 
-No. Each connected repo has its own `.kody/variables.json`. For shared
+No. Each connected repo has its own `backend variables record`. For shared
 config, put it in `process.env` (the default fallback) or duplicate it
 per repo.
 

@@ -14,17 +14,6 @@ const backgroundToken = vi.hoisted(() => ({
   ),
 }));
 
-const stateRepo = vi.hoisted(() => ({
-  resolveStateRepo: vi.fn(async () => ({
-    owner: "octo-state",
-    repo: "kody-state",
-    basePath: "repo",
-    branch: "main",
-  })),
-  stateRepoPath: vi.fn((target: { basePath: string }, path: string) =>
-    [target.basePath, path].filter(Boolean).join("/"),
-  ),
-}));
 const backend = vi.hoisted(() => ({
   query: vi.fn(),
   mutation: vi.fn(),
@@ -38,16 +27,11 @@ vi.mock("@kody-ade/base/auth/background-token", () => ({
   resolveBackgroundToken: backgroundToken.resolveBackgroundToken,
 }));
 
-vi.mock("@kody-ade/base/state-repo", () => ({
-  resolveStateRepo: stateRepo.resolveStateRepo,
-  stateRepoPath: stateRepo.stateRepoPath,
-}));
 vi.mock("@kody-ade/backend/client", () => ({
   createBackendClient: () => backend,
 }));
 
 import { GET } from "../../app/api/kody/views/[...path]/route";
-import { STATE_BRANCH } from "@kody-ade/base/state-branch";
 import { mintRepoViewToken } from "@dashboard/lib/view-token";
 
 const ORIGINAL_MASTER_KEY = process.env.KODY_MASTER_KEY;
@@ -132,7 +116,7 @@ describe("repo-backed view serving", () => {
     expect(backend.query).toHaveBeenCalledOnce();
   });
 
-  it("returns 404 when the state repo view file does not exist", async () => {
+  it("returns 404 when the backend view file does not exist", async () => {
     const token = mintTicket("view-123");
     backend.query.mockResolvedValue(null);
     const req = new NextRequest(

@@ -208,7 +208,7 @@ separately and in a different module — see below.
 a sibling the webhook calls right after `dispatchMentionPushes`. It:
 
 1. Normalizes via the same `buildSourceEvent` + an action gate.
-2. Resolves the repo's agent roster (`.kody/agents/`) and matches slugs
+2. Resolves the repo's agent roster (`backend definitions (agents)`) and matches slugs
    with [`extractStaffMentions`](../src/dashboard/lib/mentions/agent-mentions.ts)
    (agent slug wins over a colliding GitHub login).
 3. Dispatches a one-shot `agent-ask` tick per matched slug, with the
@@ -248,7 +248,7 @@ why it needed no new dispatch code at all.
 | [`messages/[number]/route.ts`](../app/api/kody/messages/[number]/route.ts)         | Channel feed: GET comments, POST message, DELETE channel |
 | [`messages/read-state/route.ts`](../app/api/kody/messages/read-state/route.ts)     | Per-user unread state (GET / POST mark-seen)             |
 | [`channels-seen.ts`](../src/dashboard/lib/messages/channels-seen.ts)               | Read-state manifest types + parse/serialize              |
-| [`channels-seen-convex.ts`](../src/dashboard/lib/messages/channels-seen-convex.ts) | Convex CRUD for read-state |
+| [`channels-seen-convex.ts`](../src/dashboard/lib/messages/channels-seen-convex.ts) | Convex CRUD for read-state                               |
 | [`useChannelsUnread.ts`](../src/dashboard/lib/hooks/useChannelsUnread.ts)          | Derives unread set; `markSeen` (loop-safe)               |
 | [`mention-dispatch.ts`](../src/dashboard/lib/push/mention-dispatch.ts)             | `dispatchMentionPushes` orchestrator                     |
 | [`source-event.ts`](../src/dashboard/lib/notifications/source-event.ts)            | Shared webhook → `SourceEvent` normalizer                |

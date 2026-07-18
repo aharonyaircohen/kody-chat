@@ -1,9 +1,9 @@
 /**
  * @fileType api-endpoint
  * @domain triggers
- * @pattern state-repo-crud-api
+ * @pattern backend-crud-api
  * @ai-summary Deletes one trigger rule by id from `triggers/config.json`
- *   in the Kody state repo. Admin only; audited.
+ *   in the Kody backend. Admin only; audited.
  */
 import { NextRequest, NextResponse } from "next/server";
 import {

@@ -36,8 +36,12 @@ const h = vi.hoisted(() => ({
   readCapabilityFolderFiles: vi.fn(
     async () => null as Record<string, string> | null,
   ),
-  listProjectedCapabilities: vi.fn(async () => [] as Array<Record<string, unknown>>),
-  getProjectedCapability: vi.fn(async () => null as Record<string, unknown> | null),
+  listProjectedCapabilities: vi.fn(
+    async () => [] as Array<Record<string, unknown>>,
+  ),
+  getProjectedCapability: vi.fn(
+    async () => null as Record<string, unknown> | null,
+  ),
   saveProjectedCapability: vi.fn(),
   writeCapabilityFolderFiles: vi.fn(),
   // managed-goals-files
@@ -79,8 +83,9 @@ vi.mock("@kody-ade/workspace/instructions/files", () => ({
   readInstructionsFile: h.readInstructionsFile,
   writeInstructionsFile: h.writeInstructionsFile,
 }));
-vi.mock("@dashboard/lib/capabilities", () => ({
-  listCapabilityFiles: h.listCapabilityFiles,
+vi.mock("@kody-ade/agency/capabilities", () => ({
+  listLocalCapabilityFiles: h.listCapabilityFiles,
+  readCapabilityFile: h.getProjectedCapability,
   readCapabilityFolderFiles: h.readCapabilityFolderFiles,
   writeCapabilityFolderFiles: h.writeCapabilityFolderFiles,
 }));
@@ -196,7 +201,7 @@ describe("buildCompanyBundle", () => {
     h.listAgentFiles.mockResolvedValue([
       tickFile({ slug: "cto", title: "CTO" }),
     ]);
-    h.listProjectedCapabilities.mockResolvedValue([]);
+    h.listCapabilityFiles.mockResolvedValue([]);
     h.listContextFiles.mockResolvedValue([
       {
         slug: "reports",
@@ -281,7 +286,7 @@ describe("buildCompanyBundle", () => {
 
   it("emits null instructions when the file is blank/absent", async () => {
     h.listAgentFiles.mockResolvedValue([]);
-    h.listProjectedCapabilities.mockResolvedValue([]);
+    h.listCapabilityFiles.mockResolvedValue([]);
     h.listContextFiles.mockResolvedValue([]);
     h.listRepoCommandFiles.mockResolvedValue({
       commands: [],
@@ -294,22 +299,20 @@ describe("buildCompanyBundle", () => {
 
   it("exports capability folders recursively", async () => {
     h.listAgentFiles.mockResolvedValue([]);
-    h.listProjectedCapabilities.mockResolvedValue([]);
+    h.listCapabilityFiles.mockResolvedValue([]);
     h.listContextFiles.mockResolvedValue([]);
     h.listRepoCommandFiles.mockResolvedValue({
       commands: [],
       builtinsDisabled: false,
     });
     h.readInstructionsFile.mockResolvedValue(null);
-    h.listProjectedCapabilities.mockResolvedValue([
+    h.listCapabilityFiles.mockResolvedValue([
       { slug: "repo-graph", describe: "", landing: "comment" },
     ]);
-    h.getProjectedCapability.mockResolvedValue({
-      slug: "repo-graph",
-      prompt: "# Instructions\n",
-      profileJson: '{"name":"repo-graph"}\n',
-      skills: [{ name: "repo-graph", body: "# Skill\n" }],
-      shellScripts: [],
+    h.readCapabilityFolderFiles.mockResolvedValue({
+      "profile.json": '{"name":"repo-graph"}\n',
+      "capability.md": "# Instructions\n",
+      "skills/repo-graph/SKILL.md": "# Skill\n",
     });
 
     const bundle = await buildCompanyBundle();
@@ -491,14 +494,10 @@ describe("applyCompanyBundle", () => {
     );
 
     expect(result.capabilities).toMatchObject({ created: 1, failed: 0 });
-    expect(h.saveProjectedCapability).toHaveBeenCalledWith(
-      "acme",
-      "widgets",
-      expect.objectContaining({
-        slug: "repo-graph",
-        prompt: "# Instructions\n",
-        profileJson: files["profile.json"],
-      }),
-    );
+    expect(h.writeCapabilityFolderFiles).toHaveBeenCalledWith({
+      slug: "repo-graph",
+      files,
+      isUpdate: false,
+    });
   });
 });

@@ -18,7 +18,7 @@ const stateRepo = vi.hoisted(() => ({
   writeStateBase64Files: vi.fn(async () => ({
     sha: "commit-sha",
     branch: "main",
-    target: { owner: "octo-state", repo: "kody-state", basePath: "widgets" },
+    target: { owner: "octo-state", repo: "backend-store", basePath: "widgets" },
   })),
 }));
 const backend = vi.hoisted(() => ({
@@ -32,12 +32,6 @@ vi.mock("@kody-ade/base/auth", () => ({
   getUserOctokit: auth.getUserOctokit,
 }));
 
-vi.mock("@kody-ade/base/state-repo", () => ({
-  deleteStateDirectory: stateRepo.deleteStateDirectory,
-  resolveStateRepo: stateRepo.resolveStateRepo,
-  stateRepoPath: stateRepo.stateRepoPath,
-  writeStateBase64Files: stateRepo.writeStateBase64Files,
-}));
 vi.mock("@kody-ade/backend/client", () => ({
   createBackendClient: () => backend,
 }));

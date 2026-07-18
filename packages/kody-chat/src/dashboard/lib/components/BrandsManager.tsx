@@ -3,7 +3,7 @@
  * @domain client-chat
  * @pattern brands-manager
  * @ai-summary CRUD UI for client brands. Repo brands live at
- *   `brands/<slug>.json` in the state repo; built-ins are fallback rows that
+ *   `brands/<slug>.json` in the backend; built-ins are fallback rows that
  *   become repo overrides when edited.
  */
 "use client";
@@ -208,7 +208,11 @@ export function BrandsManager({
     staleTime: 30_000,
   });
   const { data: languageOptions = [] } = useQuery<BrandLanguageOption[]>({
-    queryKey: ["kody-brands-language-options", queryScope.owner, queryScope.repo],
+    queryKey: [
+      "kody-brands-language-options",
+      queryScope.owner,
+      queryScope.repo,
+    ],
     queryFn: () => listBrandLanguagesApi(headers),
     enabled: !!auth,
     staleTime: 30_000,
@@ -278,7 +282,10 @@ export function BrandsManager({
       if (selectedSlug) router.replace("/brands");
       return;
     }
-    if (selectedSlug && !filtered.some((brand) => brand.slug === selectedSlug)) {
+    if (
+      selectedSlug &&
+      !filtered.some((brand) => brand.slug === selectedSlug)
+    ) {
       router.replace("/brands");
       return;
     }
@@ -604,7 +611,9 @@ function BrandDetail({
           <div className="grid gap-3 md:grid-cols-2">
             <DetailField
               label="Sign-in"
-              value={brand.auth?.required ? "Google sign-in required" : "Public"}
+              value={
+                brand.auth?.required ? "Google sign-in required" : "Public"
+              }
             />
             <DetailField
               label="Allowed"

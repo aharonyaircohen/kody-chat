@@ -4,7 +4,7 @@
  * @pattern languages-api
  * @ai-summary Language registry API. Lists resolved repo + built-in client
  *   language packs and creates repo-owned JSON files under
- *   `languages/<code>.json` in the state repo.
+ *   `languages/<code>.json` in the backend.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";

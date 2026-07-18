@@ -129,7 +129,7 @@ export function invalidateVariablesCache(owner: string, repo: string): void {
 
 /**
  * Read-modify-write helper. `mutate` is pure and runs on the latest document.
- * Kept the retry loop shape from the state-repo era for transient errors,
+ * Kept the retry loop shape from the backend era for transient errors,
  * though Convex upserts no longer produce 409 SHA conflicts.
  */
 export async function updateVariables(

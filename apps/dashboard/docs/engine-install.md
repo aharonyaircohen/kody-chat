@@ -20,7 +20,7 @@ auth headers):
    PAT. Without this the engine has no GitHub auth at runtime — labels,
    comments, and PR updates would fail.
 4. **Makes repo vault secrets available to workflows.** Reads
-   `.kody/secrets.enc`, decrypts it with the dashboard's
+   `backend vault record`, decrypts it with the dashboard's
    `KODY_MASTER_KEY`, and writes each entry as a repo Actions secret.
    This keeps older env-based engine paths working. Newer engine scripts that
    need repo-owned secrets, such as QA auth, read the encrypted vault directly
@@ -82,7 +82,7 @@ Re-run `/init` (or POST with `force: true`) whenever:
 ## Vault runtime access
 
 The engine runs inside the consumer repo's GitHub Actions runner. It
-can read the configured state repo with `KODY_TOKEN` and decrypt
+can read the configured backend with `KODY_TOKEN` and decrypt
 `secrets.enc` with `KODY_MASTER_KEY`. QA auth uses that vault-first path, so
 `LOGIN_PASSWORD` does not need a separate repo Actions secret. Mirrored
 Actions secrets remain a compatibility path for engine code that still reads

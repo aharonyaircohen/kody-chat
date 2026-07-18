@@ -4,7 +4,7 @@
  * @pattern brands-api
  * @ai-summary Brand registry API. Lists resolved repo+built-in client brands
  *   and creates repo-owned brand JSON files under `brands/<slug>.json` in the
- *   state repo.
+ *   backend.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";

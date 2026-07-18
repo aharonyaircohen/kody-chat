@@ -93,29 +93,25 @@ describe("addUploadedEnvironment", () => {
 });
 
 describe("repo view paths", () => {
-  it("reads legacy and state-root repo view paths", () => {
-    expect(repoViewIdFromPath(".kody/views/mobile-html-1234")).toBe(
-      "mobile-html-1234",
-    );
+  it("reads backend repo view paths and rejects removed legacy paths", () => {
+    expect(repoViewIdFromPath("legacy/views/mobile-html-1234")).toBeNull();
     expect(repoViewIdFromPath("views/mobile-html-1234")).toBe(
       "mobile-html-1234",
     );
   });
 
-  it("stores new repo view environments with state-root paths", () => {
-    expect(normalizeRepoViewPath(".kody/views/mobile-html-1234")).toBe(
-      "views/mobile-html-1234",
-    );
+  it("stores new repo view environments with backend paths", () => {
+    expect(normalizeRepoViewPath("legacy/views/mobile-html-1234")).toBeNull();
 
     const next = addRepoViewEnvironment(
       [],
       "Mobile",
       "/api/kody/views/mobile-html-1234/index.html",
-      ".kody/views/mobile-html-1234",
+      "views/mobile-html-1234",
       undefined,
       {
         sourceUrl:
-          "https://github.com/acme/kody-state/blob/main/app/views/mobile-html-1234/index.html",
+          "https://github.com/acme/backend-store/blob/main/app/views/mobile-html-1234/index.html",
         entryPath: "index.html",
       },
     );
@@ -123,7 +119,7 @@ describe("repo view paths", () => {
     expect(next).toHaveLength(1);
     expect(next[0]?.repoViewPath).toBe("views/mobile-html-1234");
     expect(next[0]?.repoViewSourceUrl).toBe(
-      "https://github.com/acme/kody-state/blob/main/app/views/mobile-html-1234/index.html",
+      "https://github.com/acme/backend-store/blob/main/app/views/mobile-html-1234/index.html",
     );
     expect(next[0]?.repoViewEntryPath).toBe("index.html");
   });
@@ -248,7 +244,7 @@ describe("resolveEnvironments", () => {
           url: "/api/kody/views/mobile-html-1234/index.html",
           repoViewPath: "views/mobile-html-1234",
           repoViewSourceUrl:
-            "https://github.com/acme/kody-state/blob/main/app/views/mobile-html-1234/index.html",
+            "https://github.com/acme/backend-store/blob/main/app/views/mobile-html-1234/index.html",
           repoViewEntryPath: "index.html",
         },
       ],
@@ -256,7 +252,7 @@ describe("resolveEnvironments", () => {
     expect(out[0]).toMatchObject({
       repoViewPath: "views/mobile-html-1234",
       repoViewSourceUrl:
-        "https://github.com/acme/kody-state/blob/main/app/views/mobile-html-1234/index.html",
+        "https://github.com/acme/backend-store/blob/main/app/views/mobile-html-1234/index.html",
       repoViewEntryPath: "index.html",
     });
   });

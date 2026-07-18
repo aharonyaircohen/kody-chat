@@ -41,8 +41,8 @@ describe("CMS adapter defaults", () => {
       },
       {
         name: "file",
-        label: "kody-state JSON",
-        description: "JSON documents in kody-state",
+        label: "Kody backend JSON",
+        description: "JSON documents in Kody backend",
         supportsSchemaGeneration: false,
         htmlUrl:
           "https://github.com/acme/kody-store/blob/stable/cms/adapters/file/index.mjs",

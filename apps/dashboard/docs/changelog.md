@@ -150,18 +150,18 @@ with a Refresh button and a "View on GitHub" link.
 
 ## File reference
 
-| File                                                                                                         | Purpose                                                          |
-| ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
-| [`../src/dashboard/lib/changelog/format.ts`](../src/dashboard/lib/changelog/format.ts)                       | Pure transforms — append bullet, promote version, format entry   |
-| [`../src/dashboard/lib/changelog/file.ts`](../src/dashboard/lib/changelog/file.ts)                           | Contents-API read/write + read-modify-write with 409 retry       |
-| [`../src/dashboard/lib/changelog/handlers.ts`](../src/dashboard/lib/changelog/handlers.ts)                   | Webhook side-effects: `handlePrMerged`, `handleReleasePublished` |
-| [`../app/api/webhooks/github/route.ts`](../app/api/webhooks/github/route.ts)                                 | Webhook receiver — dispatches merge → append, release → promote  |
-| [`../app/api/kody/changelog/route.ts`](../app/api/kody/changelog/route.ts)                                   | `GET /api/kody/changelog` — read-only fetch for the view         |
-| [`../src/dashboard/lib/components/ChangelogView.tsx`](../src/dashboard/lib/components/ChangelogView.tsx)     | Read-only markdown view                                          |
-| [`../src/dashboard/lib/hooks/useChangelog.ts`](../src/dashboard/lib/hooks/useChangelog.ts)                   | React Query hook (30s stale)                                     |
-| [`../app/changelog/page.tsx`](../app/changelog/page.tsx)                                                     | `/changelog` page entry point                                    |
-| [`../.husky/pre-commit`](../.husky/pre-commit), [`../scripts/bump-version.mjs`](../scripts/bump-version.mjs) | `main`-only `package.json` patch bump                            |
-| [`../.kody/capabilities/qa/capability.md`](../.kody/capabilities/qa/capability.md)                           | The capability that writes QA markers (see [./qa.md](./qa.md))   |
+| File                                                                                                             | Purpose                                                          |
+| ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
+| [`../src/dashboard/lib/changelog/format.ts`](../src/dashboard/lib/changelog/format.ts)                           | Pure transforms — append bullet, promote version, format entry   |
+| [`../src/dashboard/lib/changelog/file.ts`](../src/dashboard/lib/changelog/file.ts)                               | Contents-API read/write + read-modify-write with 409 retry       |
+| [`../src/dashboard/lib/changelog/handlers.ts`](../src/dashboard/lib/changelog/handlers.ts)                       | Webhook side-effects: `handlePrMerged`, `handleReleasePublished` |
+| [`../app/api/webhooks/github/route.ts`](../app/api/webhooks/github/route.ts)                                     | Webhook receiver — dispatches merge → append, release → promote  |
+| [`../app/api/kody/changelog/route.ts`](../app/api/kody/changelog/route.ts)                                       | `GET /api/kody/changelog` — read-only fetch for the view         |
+| [`../src/dashboard/lib/components/ChangelogView.tsx`](../src/dashboard/lib/components/ChangelogView.tsx)         | Read-only markdown view                                          |
+| [`../src/dashboard/lib/hooks/useChangelog.ts`](../src/dashboard/lib/hooks/useChangelog.ts)                       | React Query hook (30s stale)                                     |
+| [`../app/changelog/page.tsx`](../app/changelog/page.tsx)                                                         | `/changelog` page entry point                                    |
+| [`../.husky/pre-commit`](../.husky/pre-commit), [`../scripts/bump-version.mjs`](../scripts/bump-version.mjs)     | `main`-only `package.json` patch bump                            |
+| [`../backend definitions (capabilities)qa/capability.md`](../backend definitions (capabilities)qa/capability.md) | The capability that writes QA markers (see [./qa.md](./qa.md))   |
 
 ## FAQ
 

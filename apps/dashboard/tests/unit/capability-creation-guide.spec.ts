@@ -14,7 +14,7 @@ describe("capability creation guide wiring", () => {
     expect(CAPABILITY_GUIDE).toContain(
       "A **capability** is a reusable way the agency can produce a result.",
     );
-    expect(CAPABILITY_GUIDE).toContain(".kody/capabilities/<slug>/");
+    expect(CAPABILITY_GUIDE).toContain("backend definitions");
     expect(CAPABILITY_GUIDE).toContain("`create_or_update_capability`");
     expect(CAPABILITY_GUIDE).toMatch(
       /A capability contract defines what reusable ability exists and how it is safely\s+exposed\./,
@@ -28,24 +28,30 @@ describe("capability creation guide wiring", () => {
     expect(CAPABILITY_TOOLS_SOURCE).toContain(
       "Before calling it, call read_capability_creation_guide",
     );
-    expect(DEFAULT_CHAT_CAPABILITY.tools).toContain("read_capability_creation_guide");
+    expect(DEFAULT_CHAT_CAPABILITY.tools).toContain(
+      "read_capability_creation_guide",
+    );
   });
 
   it("exposes a unified create-or-update tool", () => {
     expect(CAPABILITY_TOOLS_SOURCE).toContain("create_or_update_capability");
-    expect(DEFAULT_CHAT_CAPABILITY.tools).toContain("create_or_update_capability");
-    expect(DEFAULT_CHAT_CAPABILITY.tools).not.toContain("create_or_update_executable");
+    expect(DEFAULT_CHAT_CAPABILITY.tools).toContain(
+      "create_or_update_capability",
+    );
+    expect(DEFAULT_CHAT_CAPABILITY.tools).not.toContain(
+      "create_or_update_executable",
+    );
     expect(DEFAULT_CHAT_CAPABILITY.tools).not.toContain(
       "create_or_update_executable",
     );
   });
 
   it("uses capability storage and workflow dispatch", () => {
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("listLocalCapabilityFiles");
+    expect(CAPABILITY_TOOLS_SOURCE).toContain("readCapabilityFile");
     expect(CAPABILITY_TOOLS_SOURCE).toContain("writeCapabilityFile");
     expect(CAPABILITY_TOOLS_SOURCE).toContain("deleteCapabilityFile");
-    expect(CAPABILITY_TOOLS_SOURCE).toContain('source: "engine-definition"');
-    expect(CAPABILITY_TOOLS_SOURCE).toContain("api.catalog.list");
-    expect(CAPABILITY_TOOLS_SOURCE).toContain("api.catalog.get");
+    expect(CAPABILITY_TOOLS_SOURCE).not.toContain("api.catalog");
     expect(CAPABILITY_TOOLS_SOURCE).toContain("inputs: { capability: action }");
   });
 
@@ -62,9 +68,13 @@ describe("capability creation guide wiring", () => {
     const createCapability = bundle.skills["create-capability"];
 
     expect(createCapability).toBeDefined();
-    expect(createCapability!.body).toContain("`read_capability_creation_guide`");
+    expect(createCapability!.body).toContain(
+      "`read_capability_creation_guide`",
+    );
     expect(createCapability!.body).toContain("`create_or_update_capability`");
     expect(DEFAULT_CHAT_CAPABILITY.skills).toContain("create-capability");
-    expect(DEFAULT_CHAT_CAPABILITY.skills).not.toContain("create-implementation");
+    expect(DEFAULT_CHAT_CAPABILITY.skills).not.toContain(
+      "create-implementation",
+    );
   });
 });

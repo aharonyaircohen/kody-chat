@@ -121,7 +121,7 @@ export function BrandEditor({
           <DialogDescription>
             {initial?.source === "builtin"
               ? "Saving creates a repo override for this fallback brand."
-              : "Stored at brands/<slug>.json in the state repo."}
+              : "Stored at brands/<slug>.json in the backend."}
           </DialogDescription>
         </DialogHeader>
 
@@ -200,7 +200,9 @@ export function BrandEditor({
               onChange={(event) => setLocale(event.target.value)}
               className="mt-1 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground"
             >
-              {languageOptions.some((option) => option.code === locale) ? null : (
+              {languageOptions.some(
+                (option) => option.code === locale,
+              ) ? null : (
                 <option value={locale}>{locale}</option>
               )}
               {languageOptions.map((option) => (

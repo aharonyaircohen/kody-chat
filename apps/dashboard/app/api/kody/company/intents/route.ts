@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern company-intents-api
- * @ai-summary Lists and creates company intents in the configured Kody state repo.
+ * @ai-summary Lists and creates company intents in the configured Kody backend.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

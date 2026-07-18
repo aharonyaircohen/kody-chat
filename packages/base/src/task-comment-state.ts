@@ -1,7 +1,7 @@
 /**
  * @fileType utility
  * @domain kody
- * @pattern canonical-state-reader
+ * @pattern task-comment-state-reader
  * @ai-summary Parses the canonical kody TaskState JSON embedded in a sentinel-bracketed
  * issue comment. Mirrors the producer schema in kody-engine's src/state.ts (TaskState).
  *
@@ -96,9 +96,7 @@ function normalizeHistoryEntry(raw: unknown): KodyHistoryEntry | null {
   return {
     timestamp,
     capability:
-      rawString(entry.capability) ??
-      rawString(entry.implementation) ??
-      null,
+      rawString(entry.capability) ?? rawString(entry.implementation) ?? null,
     implementation: rawString(entry.implementation) ?? null,
     action: rawString(entry.action) ?? "",
     note: rawString(entry.note),

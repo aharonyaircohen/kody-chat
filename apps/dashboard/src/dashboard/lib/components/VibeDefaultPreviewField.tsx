@@ -4,7 +4,7 @@
  * @pattern vibe
  * @ai-summary Inline editor for the Vibe page's default preview URL. Shown
  *   on the empty preview pane when no issue is selected. Persists to
- *   state repo `dashboard.json` via `/api/kody/dashboard-config` (PUT). The
+ *   backend `dashboard.json` via `/api/kody/dashboard-config` (PUT). The
  *   parent owns the value + save mutation; this component is presentation.
  */
 "use client";

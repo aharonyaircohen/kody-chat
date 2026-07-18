@@ -4,7 +4,7 @@
  * @testFramework vitest
  * @domain vibe
  *
- * The runner reads each user turn out of the state-repo session log on its
+ * The runner reads each user turn out of the backend session log on its
  * next sync. The vibe primer is SERVER-ONLY (the dashboard never renders it),
  * so it must be injected here, into the turn content that gets written to the
  * session file — otherwise the runner has no idea it's in vibe mode, forgets
@@ -30,7 +30,6 @@ import {
 import nock from "nock";
 import { NextRequest } from "next/server";
 import { POST as appendPOST } from "../../app/api/kody/chat/interactive/append/route";
-import { STATE_BRANCH } from "@kody-ade/base/state-branch";
 
 const convex = vi.hoisted(() => ({
   mutation: vi.fn(),
@@ -50,16 +49,6 @@ function mockRepoConfig404(): void {
   nock(GITHUB_API)
     .get("/repos/acme/widgets/contents/kody.config.json")
     .reply(404);
-}
-
-function sessionPath(sessionId: string): string {
-  return `/repos/acme/kody-state/contents/widgets%2Fsessions%2F${sessionId}.jsonl`;
-}
-
-function mockStateBranch(): void {
-  nock(GITHUB_API)
-    .get(`/repos/acme/kody-state/git/ref/heads%2F${STATE_BRANCH}`)
-    .reply(200, { object: { sha: "state-sha" } });
 }
 
 function makeRequest(body: unknown): NextRequest {

@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain agency-operations
  * @pattern operations-api
- * @ai-summary Lists and creates Operation contracts in the state repo.
+ * @ai-summary Lists and creates Operation contracts in the backend.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 

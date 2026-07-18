@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain kody
  * @pattern system-prompt-api
- * @ai-summary Per-repo base system prompt override at state-repo
+ * @ai-summary Per-repo base system prompt override at backend
  *   `system-prompt.md`. GET reads it, PUT upserts it, DELETE removes it.
  *   When present, the engine chat (kody-live) uses this INSTEAD of its
  *   built-in base prompt; absent → built-in. Mirrors the instructions API.

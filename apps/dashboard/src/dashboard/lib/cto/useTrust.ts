@@ -4,7 +4,7 @@
  * @domain kody
  * @pattern capability-trust-client
  * @ai-summary TanStack Query binding for the /trust page. Reads the capability-keyed
- *   trust ledger (GET /api/kody/cto/trust, backed by a Kody state repo file) AND the
+ *   trust ledger (GET /api/kody/cto/trust, backed by a Kody backend file) AND the
  *   capability roster (to show the agent identity each capability runs as), then projects both
  *   through the pure `summarizeTrust`.
  *
@@ -218,7 +218,11 @@ function applyTrustCacheOp(
   };
   const manifest =
     "neverAuto" in input
-      ? applyCapabilityNeverAuto(baseManifest, input.capability, input.neverAuto)
+      ? applyCapabilityNeverAuto(
+          baseManifest,
+          input.capability,
+          input.neverAuto,
+        )
       : "level" in input
         ? input.subject
           ? applySubjectTrustLevel(baseManifest, input.subject, input.level)

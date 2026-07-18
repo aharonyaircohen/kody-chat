@@ -189,91 +189,10 @@ describe("PATCH /api/kody/company/config — reasoningEffort handling", () => {
     expect(engineConfig.writeConfigPatch).not.toHaveBeenCalled();
   });
 
-  it("a PATCH with state writes the external Kody state repo config", async () => {
-    const state = {
-      repo: "https://github.com/acme/kody-state",
-      path: "widgets",
-    };
-    engineConfig.getEngineConfig.mockResolvedValueOnce({
-      config: { ...structuredClone(STORED_CONFIG), state },
-      sha: "new-sha",
-    });
-
+  it("rejects the removed legacy state configuration", async () => {
     const res = await PATCH(
       patchReq({
-        state,
-        actorLogin: "alice",
-      }),
-    );
-
-    expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toMatchObject({ state });
-
-    const calls = engineConfig.writeConfigPatch.mock.calls as unknown as Array<
-      [unknown, unknown, unknown, Record<string, unknown>]
-    >;
-    expect(calls).toHaveLength(1);
-    expect(calls[0][3].state).toEqual(state);
-  });
-
-  it("a PATCH with blank state path is forwarded as root state path", async () => {
-    const state = {
-      repo: "https://github.com/acme/kody-state",
-      path: "",
-    };
-    engineConfig.getEngineConfig.mockResolvedValueOnce({
-      config: { ...structuredClone(STORED_CONFIG), state },
-      sha: "new-sha",
-    });
-
-    const res = await PATCH(
-      patchReq({
-        state,
-        actorLogin: "alice",
-      }),
-    );
-
-    expect(res.status).toBe(200);
-
-    const calls = engineConfig.writeConfigPatch.mock.calls as unknown as Array<
-      [unknown, unknown, unknown, Record<string, unknown>]
-    >;
-    expect(calls).toHaveLength(1);
-    expect(calls[0][3].state).toEqual(state);
-  });
-
-  it("a PATCH with slash state path is normalized to root state path", async () => {
-    engineConfig.getEngineConfig.mockResolvedValueOnce({
-      config: {
-        ...structuredClone(STORED_CONFIG),
-        state: { repo: "https://github.com/acme/kody-state", path: "" },
-      },
-      sha: "new-sha",
-    });
-
-    const res = await PATCH(
-      patchReq({
-        state: { repo: "https://github.com/acme/kody-state", path: "/" },
-        actorLogin: "alice",
-      }),
-    );
-
-    expect(res.status).toBe(200);
-
-    const calls = engineConfig.writeConfigPatch.mock.calls as unknown as Array<
-      [unknown, unknown, unknown, Record<string, unknown>]
-    >;
-    expect(calls).toHaveLength(1);
-    expect(calls[0][3].state).toEqual({
-      repo: "https://github.com/acme/kody-state",
-      path: "",
-    });
-  });
-
-  it("a PATCH with invalid state repo is rejected with 400 by Zod schema", async () => {
-    const res = await PATCH(
-      patchReq({
-        state: { repo: "kody-state", path: "widgets" },
+        state: { repo: "backend-store", path: "widgets" },
         actorLogin: "alice",
       }),
     );
@@ -282,11 +201,11 @@ describe("PATCH /api/kody/company/config — reasoningEffort handling", () => {
     expect(engineConfig.writeConfigPatch).not.toHaveBeenCalled();
   });
 
-  it("a PATCH with unsafe state path is rejected with 400 by Zod schema", async () => {
+  it("rejects all legacy state configuration variants", async () => {
     const res = await PATCH(
       patchReq({
         state: {
-          repo: "https://github.com/acme/kody-state",
+          repo: "https://github.com/acme/backend-store",
           path: "../widgets",
         },
         actorLogin: "alice",

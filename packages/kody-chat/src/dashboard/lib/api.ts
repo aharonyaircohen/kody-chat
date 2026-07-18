@@ -1616,9 +1616,7 @@ export interface GoalDiscussionComment {
  * the appropriate badge / tooltip.
  */
 export type DiscussionDisabledReason =
-  | "discussions_disabled"
-  | "category_missing"
-  | "provision_failed";
+  "discussions_disabled" | "category_missing" | "provision_failed";
 
 export type GoalDiscussionPayload =
   | {
@@ -2583,10 +2581,6 @@ export interface EngineEditableConfig {
       }
   >;
   activeWorkflows?: string[];
-  state: {
-    repo?: string;
-    path?: string;
-  } | null;
   defaultBranch: string;
   perImplementation: Record<string, string>;
   /** Thinking level for the engine (off|low|medium|high). Null = unset.

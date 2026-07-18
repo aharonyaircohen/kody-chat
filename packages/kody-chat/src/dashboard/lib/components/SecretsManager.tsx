@@ -3,7 +3,7 @@
  * @domain vault
  * @pattern secrets-manager
  * @ai-summary CRUD UI for the dashboard secrets vault. Per-repo encrypted
- *   vault stored in the connected repo's external state repo. Values
+ *   vault stored in the connected repo's external backend. Values
  *   are write-only after creation — the GitHub Contents API returns
  *   ciphertext only and the server never echoes plaintext back to the client.
  */
@@ -603,7 +603,7 @@ function SecretEditor({
             {isUpdate ? `Edit ${initialName}` : "New secret"}
           </DialogTitle>
           <DialogDescription>
-            Stored encrypted in <code>secrets.enc</code> in the state repo.
+            Stored encrypted in <code>secrets.enc</code> in the backend.
             Existing values aren&apos;t shown — saving overwrites the current
             value.
           </DialogDescription>

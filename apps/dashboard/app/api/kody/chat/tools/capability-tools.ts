@@ -3,17 +3,17 @@
  * @domain capabilities
  * @pattern chat-tools
  * @ai-summary In-process chat tools that let Kody build and manage custom
- *   capabilities (`capabilities/<slug>/` in the state repo) by conversation.
+ *   backend-authoritative capabilities by conversation.
  */
 import { readFile } from "fs/promises";
 import path from "path";
 import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
-import { api } from "@kody-ade/backend/api";
-import { createBackendClient } from "@kody-ade/backend/client";
 import {
   deleteCapabilityFile,
+  listLocalCapabilityFiles,
+  readCapabilityFile,
   writeCapabilityFile,
 } from "@kody-ade/agency/capabilities";
 import { isValidSlug, PERMISSION_MODES } from "@dashboard/lib/capabilities";
@@ -47,7 +47,7 @@ async function readCapabilityGuide(): Promise<string> {
       "# How to create a proper capability",
       "",
       "- Kody can create or update capabilities with `create_or_update_capability`.",
-      "- Capabilities live at state repo `capabilities/<slug>/profile.json` plus `capability.md`.",
+      "- Capabilities are versioned definitions in the Kody backend.",
       "- Keep `capability.md` as small operator-owned instructions.",
       "- Put reusable method/rules in `skills/<name>/SKILL.md`.",
       "- Put deterministic setup work in capability-owned `*.sh` scripts.",
@@ -88,16 +88,11 @@ export function createCapabilityTools(ctx: Ctx) {
     }),
 
     list_capabilities: tool({
-      description: `List custom capabilities in ${repoRef} stored at state repo capabilities/<slug>/. Returns slug, description, tools, and landing.`,
+      description: `List custom capabilities in ${repoRef}. Returns slug, description, tools, and landing.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {
-          const rows = (await createBackendClient().query(api.catalog.list, {
-            tenantId: repoRef,
-            category: "capability",
-          })) as Array<{ doc: unknown }>;
-          const capabilities = rows.map((row) => row.doc);
-          return { capabilities };
+          return { capabilities: await listLocalCapabilityFiles() };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };
         }
@@ -112,12 +107,7 @@ export function createCapabilityTools(ctx: Ctx) {
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
         try {
-          const row = await createBackendClient().query(api.catalog.get, {
-            tenantId: repoRef,
-            category: "capability",
-            slug,
-          });
-          const capability = (row as { doc?: unknown } | null)?.doc;
+          const capability = await readCapabilityFile(slug);
           if (!capability) return { error: `capability "${slug}" not found` };
           return { capability };
         } catch (err) {
@@ -129,7 +119,7 @@ export function createCapabilityTools(ctx: Ctx) {
     create_or_update_capability: tool({
       description:
         `Create or update a custom capability in ${repoRef}. Before calling it, call read_capability_creation_guide and follow that guide. ` +
-        "Commits state repo capabilities/<slug>/ (profile.json + capability.md + any skills/scripts) as one commit.",
+        "Publishes one immutable backend definition version containing profile, instructions, skills, and scripts.",
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
         describe: z.string().default(""),
@@ -149,15 +139,8 @@ export function createCapabilityTools(ctx: Ctx) {
         }
 
         try {
-          const existingRow = await createBackendClient().query(
-            api.catalog.get,
-            { tenantId: repoRef, category: "capability", slug: input.slug },
-          );
-          const existing = (
-            existingRow as { doc?: Record<string, unknown> } | null
-          )?.doc;
-          const capability = await writeCapabilityFile({
-            octokit,
+          const existing = await readCapabilityFile(input.slug);
+          await writeCapabilityFile({
             fields: {
               slug: input.slug,
               describe: input.describe,
@@ -174,14 +157,6 @@ export function createCapabilityTools(ctx: Ctx) {
             shellScripts: input.shellScripts,
             isUpdate: Boolean(existing),
           });
-          await createBackendClient().mutation(api.catalog.save, {
-            tenantId: repoRef,
-            category: "capability",
-            slug: capability.slug,
-            doc: capability,
-            source: "engine-definition",
-            updatedAt: capability.updatedAt ?? new Date().toISOString(),
-          });
           return {
             ok: true,
             action: existing ? "updated" : "created",
@@ -195,25 +170,16 @@ export function createCapabilityTools(ctx: Ctx) {
     }),
 
     delete_capability: tool({
-      description: `Delete a custom capability from ${repoRef}; removes the whole state repo capabilities/<slug>/ folder in one commit.`,
+      description: `Retire a custom capability from ${repoRef}; immutable version history is retained for audit.`,
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
       }),
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
         try {
-          const existing = await createBackendClient().query(api.catalog.get, {
-            tenantId: repoRef,
-            category: "capability",
-            slug,
-          });
+          const existing = await readCapabilityFile(slug);
           if (!existing) return { error: `capability "${slug}" not found` };
-          await deleteCapabilityFile(octokit, slug);
-          await createBackendClient().mutation(api.catalog.remove, {
-            tenantId: repoRef,
-            category: "capability",
-            slug,
-          });
+          await deleteCapabilityFile(slug);
           return { ok: true, action: "deleted", slug };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };
@@ -229,14 +195,7 @@ export function createCapabilityTools(ctx: Ctx) {
       execute: async ({ slug }) => {
         if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
         try {
-          const row = await createBackendClient().query(api.catalog.get, {
-            tenantId: repoRef,
-            category: "capability",
-            slug,
-          });
-          const existing = (
-            row as { doc?: { profileJson?: string; prompt?: string } } | null
-          )?.doc;
+          const existing = await readCapabilityFile(slug);
           if (!existing) return { error: `capability "${slug}" not found` };
           const repoMeta = await octokit.rest.repos.get({ owner, repo });
           const ref = repoMeta.data.default_branch || "main";

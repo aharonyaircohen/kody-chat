@@ -402,7 +402,7 @@ test.describe("Admin Kody chat regression", () => {
       sha: "abc123",
       updatedAt: "2026-07-01T00:00:00.000Z",
       htmlUrl:
-        "https://github.com/test-owner/test-repo/blob/kody-state/todos/inject-list.json",
+        "https://github.com/test-owner/test-repo/blob/backend-store/todos/inject-list.json",
     };
     await page.route("**/api/kody/todos", (route) =>
       route.fulfill({

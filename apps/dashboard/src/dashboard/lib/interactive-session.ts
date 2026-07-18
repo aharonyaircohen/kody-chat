@@ -121,7 +121,7 @@ export async function appendUserTurn(
 /**
  * Read a session's transcript from the Convex record
  * (chatSessions.get → { session, turns }). Returns null when the session
- * was never recorded (pre-migration sessions live only in the state repo).
+ * was never recorded (pre-migration sessions live only in the backend).
  */
 export async function readSessionTranscript(
   owner: string,

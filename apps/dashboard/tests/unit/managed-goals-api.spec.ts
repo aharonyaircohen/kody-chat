@@ -19,7 +19,7 @@ describe("managed goals API client", () => {
       new Response(
         JSON.stringify({
           error: "failed_to_create_managed_goal",
-          message: "Invalid request: Kody state repo could not be updated.",
+          message: "Invalid request: Kody backend could not be updated.",
         }),
         { status: 500, headers: { "content-type": "application/json" } },
       ),
@@ -40,7 +40,7 @@ describe("managed goals API client", () => {
           },
         ],
       }),
-    ).rejects.toThrow("Invalid request: Kody state repo could not be updated.");
+    ).rejects.toThrow("Invalid request: Kody backend could not be updated.");
   });
 
   afterEach(() => {

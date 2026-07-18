@@ -243,7 +243,7 @@ describe("agency runs", () => {
   it("formats noisy agency health summaries into readable lines", async () => {
     backend.query.mockResolvedValue([]);
     const noisyLine = [
-      "Added A-Guy-Web/reports/ai-agency-health-matrix/runs/2026-07-05T23-37-00Z.md in A-Guy-educ/kody-state.",
+      "Added A-Guy-Web/reports/ai-agency-health-matrix/runs/2026-07-05T23-37-00Z.md in A-Guy-educ/backend-store.",
       "AI Agency Health: YELLOW (80 rows).",
       'KODY_AGENCY_BOUNDARY_EVAL={"version":1,"status":"pass","findings":[{"rule":"observe-does-not-act"},{"rule":"verify-does-not-fix"},{"rule":"capability-does-not-own-goal-progress"}]}',
       "→ kody: in-process hand-off → dev-ci-health (hop 1/60)",
@@ -268,7 +268,7 @@ describe("agency runs", () => {
     });
 
     expect(payload.workflowLog?.lines).toEqual([
-      "Added report: A-Guy-Web/reports/ai-agency-health-matrix/runs/2026-07-05T23-37-00Z.md (A-Guy-educ/kody-state).",
+      "Added report: A-Guy-Web/reports/ai-agency-health-matrix/runs/2026-07-05T23-37-00Z.md (A-Guy-educ/backend-store).",
       "AI Agency Health: YELLOW (80 rows).",
       "Agency boundary eval: pass (3 checks).",
       "Hand-off: kody -> dev-ci-health (hop 1/60).",
@@ -276,7 +276,7 @@ describe("agency runs", () => {
     expect(payload.workflowLog?.evidenceLines).toEqual(
       expect.arrayContaining([
         "Report file: A-Guy-Web/reports/ai-agency-health-matrix/runs/2026-07-05T23-37-00Z.md.",
-        "State repo: A-Guy-educ/kody-state.",
+        "Backend: A-Guy-educ/backend-store.",
         "Health matrix: YELLOW (80 rows).",
         "Boundary eval: version 1, status pass.",
         'Raw boundary eval: KODY_AGENCY_BOUNDARY_EVAL={"version":1,"status":"pass","findings":[{"rule":"observe-does-not-act"},{"rule":"verify-does-not-fix"},{"rule":"capability-does-not-own-goal-progress"}]}',

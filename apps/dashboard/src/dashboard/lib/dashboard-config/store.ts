@@ -4,7 +4,7 @@
  * @pattern convex-backend
  * @ai-summary Read/write the per-repo dashboard config doc in Convex
  * (`repoDocs` kind `dashboard-config`; historically `dashboard.json` in the
- * state repo, which now only receives export copies). Mirrors vault store
+ * backend, which now only receives export copies). Mirrors vault store
  * pattern (cache + in-flight dedup + 60s TTL) without crypto; this doc is
  * not secret. Currently holds preview and dashboard preferences.
  */

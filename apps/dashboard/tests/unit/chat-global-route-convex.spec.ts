@@ -1,7 +1,7 @@
 /**
  * Unit tests for /api/kody/chat/global on the Convex backend: repoDocs kind
  * "chat-global" (snapshot) + "chat-global-gate" (24h per-session gate).
- * Response contracts unchanged from the state-repo era.
+ * Response contracts unchanged from the backend era.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
@@ -140,8 +140,6 @@ describe("POST /api/kody/chat/global (convex)", () => {
     });
     const [, gateArgs] = convex.mutation.mock.calls[1]!;
     expect(gateArgs).toMatchObject({ kind: "chat-global-gate" });
-    expect(
-      (gateArgs as { doc: Record<string, string> }).doc.s1,
-    ).toBeTruthy();
+    expect((gateArgs as { doc: Record<string, string> }).doc.s1).toBeTruthy();
   });
 });

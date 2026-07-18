@@ -8,7 +8,7 @@
  * `.github/workflows/kody.yml` in the target repo, (best-effort) writes the
  * user's PAT as the
  * `KODY_TOKEN` Actions secret so the engine has GitHub auth at runtime,
- * (best-effort) decrypts the per-repo vault from the state repo and
+ * (best-effort) decrypts the per-repo vault from the backend and
  * mirrors every entry into the consumer repo's Actions secrets so the
  * engine has provider API keys at runtime, and (best-effort) registers
  * the dashboard webhook so push-based cache invalidation works from

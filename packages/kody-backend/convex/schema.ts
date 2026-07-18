@@ -1,5 +1,5 @@
-import { defineSchema, defineTable } from "convex/server"
-import { v } from "convex/values"
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
 import {
   companyIntentValidator,
   inboxEntryValidator,
@@ -8,10 +8,10 @@ import {
   workflowDefinitionValidator,
   workflowRunStateValidator,
   workflowRunnerValidator,
-} from "./validators"
+} from "./validators";
 
 // Every table is partitioned by `tenantId` ("owner/name" of the connected consumer
-// tenantId) — the same scope the GitHub state repo serves today. Per-user rows add
+// tenantId) — the same scope the GitHub backend serves today. Per-user rows add
 // `login`. Flexible payloads stay v.any() so brand-defined shapes keep working;
 // invariant fields are typed.
 export default defineSchema({
@@ -37,7 +37,11 @@ export default defineSchema({
   agencyRuns: defineTable({
     tenantId: v.string(),
     runId: v.string(),
-    subjectType: v.union(v.literal("goal"), v.literal("loop"), v.literal("workflow")),
+    subjectType: v.union(
+      v.literal("goal"),
+      v.literal("loop"),
+      v.literal("workflow"),
+    ),
     subjectId: v.string(),
     run: v.any(),
     updatedAt: v.string(),
@@ -129,9 +133,9 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_tenant", ["tenantId", "slug"]),
 
-  // Read-optimized projection of GitHub-owned repository/company assets.
-  // GitHub remains the source of truth; Dashboard list pages read this table
-  // instead of fanning out through the GitHub Contents API.
+  // Legacy-compatible catalog records. Runtime definitions use the versioned
+  // definition tables below; Store activation may still populate catalog
+  // entries while older consumers transition.
   catalog: defineTable({
     tenantId: v.string(),
     category: v.union(
@@ -147,8 +151,37 @@ export default defineSchema({
     source: v.string(),
     sourceUpdatedAt: v.optional(v.string()),
     updatedAt: v.string(),
+  }).index("by_key", ["tenantId", "category", "slug"]),
+
+  definitionHeads: defineTable({
+    tenantId: v.string(),
+    kind: v.union(
+      v.literal("agent"),
+      v.literal("capability"),
+      v.literal("goal"),
+    ),
+    slug: v.string(),
+    version: v.string(),
+    bundle: v.any(),
+    source: v.optional(v.union(v.literal("local"), v.literal("store"))),
+    updatedAt: v.string(),
+  }).index("by_key", ["tenantId", "kind", "slug"]),
+
+  definitionVersions: defineTable({
+    tenantId: v.string(),
+    kind: v.union(
+      v.literal("agent"),
+      v.literal("capability"),
+      v.literal("goal"),
+    ),
+    slug: v.string(),
+    version: v.string(),
+    bundle: v.any(),
+    source: v.optional(v.union(v.literal("local"), v.literal("store"))),
+    createdAt: v.string(),
   })
-    .index("by_key", ["tenantId", "category", "slug"]),
+    .index("by_version", ["tenantId", "kind", "slug", "version"])
+    .index("by_definition", ["tenantId", "kind", "slug", "createdAt"]),
 
   viewRenderers: defineTable({
     tenantId: v.string(),
@@ -207,7 +240,11 @@ export default defineSchema({
 
   agencyRecords: defineTable({
     tenantId: v.string(),
-    kind: v.union(v.literal("observation"), v.literal("finding"), v.literal("learning")),
+    kind: v.union(
+      v.literal("observation"),
+      v.literal("finding"),
+      v.literal("learning"),
+    ),
     recordId: v.string(),
     doc: v.any(),
     updatedAt: v.string(),
@@ -259,4 +296,4 @@ export default defineSchema({
   })
     .index("by_run", ["runId"])
     .index("by_emitted", ["emittedAt"]),
-})
+});

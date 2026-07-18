@@ -86,7 +86,7 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     "read_context",
     "create_or_update_context",
     "delete_context",
-    // ── Todos page (actor-gated, state repo todos/*.json) ──────────────────
+    // ── Todos page (actor-gated, backend todos/*.json) ──────────────────
     "list_todo_lists",
     "read_todo_list",
     "create_or_update_todo_list",

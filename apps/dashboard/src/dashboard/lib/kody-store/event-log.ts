@@ -6,10 +6,10 @@
  * Append-only event log stored in the global (cross-tenant) Convex
  * `eventLog` table via eventLog.{append,forRun,recent}. The backend caps
  * the table at 10k entries (trim-on-append, oldest first) — same policy as
- * the old `event-log.jsonl` in the Kody state repo, which this replaces.
+ * the old `event-log.jsonl` in the Kody backend, which this replaces.
  *
  * The `opts` bags (owner/repo/branch/octokit) are retained for signature
- * compatibility with the state-repo era; Convex ignores them.
+ * compatibility with the backend era; Convex ignores them.
  */
 
 import type { Octokit } from "@octokit/rest";

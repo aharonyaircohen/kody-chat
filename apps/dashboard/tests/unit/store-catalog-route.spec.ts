@@ -44,7 +44,7 @@ const engineConfig = vi.hoisted(() => ({
 }));
 
 function storeUrl(slug: string): string {
-  return `https://github.com/acme/store/tree/main/.kody/capabilities/${slug}`;
+  return `https://github.com/acme/store/tree/main/legacy/capabilities/${slug}`;
 }
 
 vi.mock("@kody-ade/base/auth", () => ({

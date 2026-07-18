@@ -41,7 +41,7 @@ const store = vi.hoisted(() => ({
 const stateRepo = vi.hoisted(() => ({
   resolveStateRepo: vi.fn(async () => ({
     owner: "acme-state",
-    repo: "kody-state",
+    repo: "backend-store",
     basePath: "widgets",
     branch: "main",
   })),
@@ -69,11 +69,6 @@ vi.mock("@dashboard/lib/dashboard-config/store", () => ({
   invalidateDashboardConfigCache: store.invalidateDashboardConfigCache,
   readDashboardConfig: store.readDashboardConfig,
   writeDashboardConfig: store.writeDashboardConfig,
-}));
-
-vi.mock("@kody-ade/base/state-repo", () => ({
-  resolveStateRepo: stateRepo.resolveStateRepo,
-  stateRepoPath: stateRepo.stateRepoPath,
 }));
 
 vi.mock("@kody-ade/base/logger", () => ({

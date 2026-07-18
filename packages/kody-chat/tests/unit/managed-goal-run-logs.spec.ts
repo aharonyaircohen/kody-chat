@@ -89,7 +89,7 @@ describe("managed goal run logs", () => {
       listManagedGoalRunLogs({
         octokit: {} as never,
         owner: "test-owner",
-        repo: "state-repo",
+        repo: "backend",
         goalId: "ci-health",
       }),
     ).resolves.toEqual({ goalId: "ci-health", runs: [] });
@@ -114,7 +114,7 @@ describe("managed goal run logs", () => {
     const payload = await listManagedGoalRunLogs({
       octokit: {} as never,
       owner: "test-owner",
-      repo: "state-repo",
+      repo: "backend",
       goalId: "ci-health",
       limit: 1,
     });
@@ -122,7 +122,7 @@ describe("managed goal run logs", () => {
     expect(payload.runs).toHaveLength(1);
     expect(payload.runs[0]?.fileName).toBe("2026-07-05T10-00-00Z");
     expect(backend.query).toHaveBeenCalledWith(expect.anything(), {
-      tenantId: "test-owner/state-repo",
+      tenantId: "test-owner/backend",
       goalId: "ci-health",
       limit: 100,
     });

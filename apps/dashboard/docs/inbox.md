@@ -25,7 +25,7 @@ Do not design new capability flows around Inbox Approve / Reject / Dismiss.
 
 Reports now carry the reviewable output:
 
-- Findings live in `reports/<slug>/runs/<timestamp>.md` in the configured Kody state repo.
+- Findings live in `reports/<slug>/runs/<timestamp>.md` in the configured Kody backend.
 - Optional `suggestedActions` render as buttons on the Reports page.
 - `dispatch` runs a named capability/action against a concrete issue/PR.
 - `create-task` opens the task dialog with report lineage.

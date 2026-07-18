@@ -540,14 +540,16 @@ function RunLogCard({ run }: { run: KodyRunLogsRun }) {
             {run.agencyBoundaryEvals.length === 1 ? "" : "s"}
           </span>
         )}
-        <a
-          href={run.htmlUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1 text-xs text-sky-200/70 hover:text-sky-100"
-        >
-          Actions <ExternalLink className="h-3 w-3" />
-        </a>
+        {run.htmlUrl && (
+          <a
+            href={run.htmlUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-sky-200/70 hover:text-sky-100"
+          >
+            Actions <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
       </div>
       <div className="border-t border-white/[0.06] px-3 py-2.5">
         {run.agencyBoundaryEvals.length > 0 && (
@@ -562,12 +564,11 @@ function RunLogCard({ run }: { run: KodyRunLogsRun }) {
         )}
         {!isAvailable ? (
           <p className="text-xs text-white/45">
-            {run.message ??
-              "Run log artifact is unavailable. Open the workflow run for logs."}
+            {run.message ?? "Run log is unavailable."}
           </p>
         ) : run.timeline.length === 0 ? (
           <p className="text-xs text-white/45">
-            Artifact found, but no timeline events matched.
+            Run found, but no timeline events were recorded.
           </p>
         ) : (
           <ul className="space-y-2">
@@ -602,11 +603,7 @@ function RunLogsView({ active }: { active: boolean }) {
 
       <div className="mb-3 grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard label="Runs" value={data?.total ?? "—"} />
-        <StatCard
-          label="Artifacts"
-          value={data?.available ?? "—"}
-          tone="good"
-        />
+        <StatCard label="Run logs" value={data?.available ?? "—"} tone="good" />
         <StatCard label="Fallbacks" value={data?.missing ?? "—"} />
         <StatCard
           label="Traces"
@@ -725,7 +722,7 @@ function FeedView({ active }: { active: boolean }) {
       )}
       <p className="mt-6 text-[10px] text-white/30">
         One row per chat/run session, grouped from the engine&apos;s per-session
-        event files in the state repo (events/*.jsonl). Expand a session for its
+        event files in the backend (events/*.jsonl). Expand a session for its
         events; expand an event for the exact time and raw payload (copyable).
         Loads only when this tab is open (60s server cache, recent sessions
         only), never polled — no steady-state GitHub API budget.
@@ -743,7 +740,7 @@ function autoTriggerBadge(trigger: "schedule" | "manual" | "event"): string {
 /**
  * "Auto" tab — the Company Activity feed: named, attributed actions the
  * engine performed (an agent ran a capability, why, and the result), written
- * by the engine to `activity/*.jsonl` in the configured Kody state repo. NOT derived from commits/PRs —
+ * by the engine to `activity/*.jsonl` in the configured Kody backend. NOT derived from commits/PRs —
  * those carry no agent/capability/purpose.
  */
 function AutoView({ active }: { active: boolean }) {

@@ -30,11 +30,6 @@ vi.mock("@kody-ade/base/vault/store", () => ({ readVault: vi.fn() }));
 vi.mock("@kody-ade/base/vault/crypto", () => ({
   isVaultConfigured: vi.fn(() => false),
 }));
-vi.mock("@kody-ade/base/state-repo", () => ({
-  resolveStateRepo: vi.fn(),
-  readStateText: vi.fn(),
-  writeStateText: vi.fn(),
-}));
 
 import {
   cmsBridgeUserStateAdapter,

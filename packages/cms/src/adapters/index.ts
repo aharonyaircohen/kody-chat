@@ -9,11 +9,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import type { Octokit } from "@octokit/rest";
-import {
-  createCmsStorageTransport,
-  createGitHubStorageAdapter,
-  type CmsStorageTransport,
-} from "@kody-ade/base/storage";
+import type { CmsStorageTransport } from "@kody-ade/base/storage";
 
 import type {
   CmsCollectionConfig,
@@ -51,7 +47,6 @@ type StoreAdapterOptions = {
   collection: CmsCollectionConfig;
   settings: CmsAdapterContext["settings"];
   getSecret: CmsAdapterContext["getSecret"];
-  getStateRepository: CmsAdapterContext["getStateRepository"];
   context: CmsAdapterContext;
   transport?: CmsStorageTransport;
 };
@@ -88,7 +83,9 @@ export function getCmsAdapter(name: string): CmsAdapter | null {
   if (!adapter) {
     adapter =
       adapterName === "storage"
-        ? createStorageCmsAdapter({ resolveTransport: createSharedStorageTransport })
+        ? createStorageCmsAdapter({
+            resolveTransport: (context) => context.transport,
+          })
         : createStoreAdapterBridge(adapterName);
     ADAPTERS.set(adapterName, adapter);
   }
@@ -159,44 +156,14 @@ async function withStoreAdapter<T>(
         collection: context.collection,
         settings: context.settings,
         getSecret: context.getSecret,
-        getStateRepository: context.getStateRepository,
         context,
-        transport: createSharedStorageTransport(context),
+        transport: context.transport,
         ...getStoreAdapterRuntime(name),
       }),
     );
   } catch (error) {
     throw normalizeStoreAdapterError(error);
   }
-}
-
-function createSharedStorageTransport(
-  context: CmsAdapterContext,
-): CmsStorageTransport | undefined {
-  if (!context.store?.octokit || !context.getStateRepository) {
-    return undefined;
-  }
-
-  let stateRepository:
-    | ReturnType<NonNullable<CmsAdapterContext["getStateRepository"]>>
-    | undefined;
-  const resolveStateRepository = () => {
-    stateRepository ??= context.getStateRepository!();
-    return stateRepository;
-  };
-
-  return createCmsStorageTransport({
-    adapter: createGitHubStorageAdapter(context.store.octokit),
-    resolveTarget: async () => {
-      const target = await resolveStateRepository();
-      return {
-        owner: target.owner,
-        repo: target.repo,
-        ref: target.branch,
-      };
-    },
-    resolveBasePath: async () => (await resolveStateRepository()).basePath,
-  });
 }
 
 async function loadStoreAdapterModule(

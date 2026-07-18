@@ -6,14 +6,6 @@ const mocks = vi.hoisted(() => ({
     getOwner: vi.fn(() => "acme"),
     getRepo: vi.fn(() => "widgets"),
   },
-  stateRepo: {
-    deleteStateFile: vi.fn(),
-    listStateDirectory: vi.fn(),
-    readStateText: vi.fn(),
-    resolveStateRepo: vi.fn(),
-    stateRepoPath: vi.fn(),
-    writeStateText: vi.fn(),
-  },
   backend: {
     query: vi.fn(),
     mutation: vi.fn(),
@@ -21,11 +13,12 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@kody-ade/workspace/github", () => mocks.githubClient);
-vi.mock("@kody-ade/base/state-repo", () => mocks.stateRepo);
 vi.mock("@kody-ade/backend/client", () => ({
   createBackendClient: () => mocks.backend,
 }));
-vi.mock("@kody-ade/backend/api", () => ({ api: { repoDocs: { get: "get", save: "save" } } }));
+vi.mock("@kody-ade/backend/api", () => ({
+  api: { repoDocs: { get: "get", save: "save" } },
+}));
 
 import {
   parseTodoFileContent,
@@ -42,15 +35,6 @@ beforeEach(() => {
   mocks.githubClient.getOctokit.mockReturnValue({});
   mocks.githubClient.getOwner.mockReturnValue("acme");
   mocks.githubClient.getRepo.mockReturnValue("widgets");
-  mocks.stateRepo.resolveStateRepo.mockResolvedValue({
-    owner: "acme",
-    repo: "kody-state",
-    basePath: "widgets",
-  });
-  mocks.stateRepo.stateRepoPath.mockImplementation(
-    (target: { basePath: string }, path: string) =>
-      [target.basePath, path].filter(Boolean).join("/"),
-  );
   mocks.backend.query.mockResolvedValue(null);
   mocks.backend.mutation.mockResolvedValue("todo-id");
 });

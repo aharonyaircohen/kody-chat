@@ -4,8 +4,8 @@
  * @pattern commands-builtins
  * @ai-summary Fallback commands bundled with the dashboard for cold-start
  *   and unavailable-Store cases. Shared command catalog lives in Store.
- *   State-repo commands and Store `.kody/commands/<slug>.md` files shadow these by slug.
- *   Drop `commands/.disable-builtins` in the state repo to hide every fallback
+ *   Backend commands and Store `commands/<slug>.md` files shadow these by slug.
+ *   Drop `commands/.disable-builtins` in the backend to hide every fallback
  *   built-in without overriding individually.
  *
  *   Matching Store files for `/research`, `/plan`, and `/issue` enforce
@@ -148,7 +148,7 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
     argumentHint: "<what should it do>",
     body:
       "Draft a Kody capability that does the following: $ARGUMENTS.\n\n" +
-      "Output a folder proposal for state-repo `capabilities/<slug>/` with `profile.json` metadata " +
+      "Output a folder proposal for backend `capabilities/<slug>/` with `profile.json` metadata " +
       "(action, implementation when needed, every, agent, readsFrom/writesTo) and a " +
       "`capability.md` body with a clear H1, `## Job`, `## Implementation` when relevant, " +
       "`## Output`, `## Allowed Commands`, and `## Restrictions`. Keep implementation " +

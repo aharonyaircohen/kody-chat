@@ -299,7 +299,7 @@ describe("GET /api/kody/goals/managed", () => {
     h.listCompanyStoreGoalTemplateFiles.mockResolvedValue([
       {
         id: "web-release",
-        path: ".kody/goals/templates/web-release/state.json",
+        path: "legacy/goals/templates/web-release/state.json",
         source: "store",
         recordType: "template",
         state: {
@@ -319,7 +319,7 @@ describe("GET /api/kody/goals/managed", () => {
       },
       {
         id: "codebase-health",
-        path: ".kody/goals/templates/codebase-health/state.json",
+        path: "legacy/goals/templates/codebase-health/state.json",
         source: "store",
         recordType: "template",
         state: {

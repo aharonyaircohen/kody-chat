@@ -7,7 +7,7 @@
  *   chat scope and the iframe; merging an issue removes it from the list.
  *   Reuses KodyChat (root layout), PreviewBrowser, PreviewActions,
  *   MergeButton, CIStatusBadge. Default preview URL persists per-repo in
- *   state repo `dashboard.json`.
+ *   backend `dashboard.json`.
  */
 "use client";
 

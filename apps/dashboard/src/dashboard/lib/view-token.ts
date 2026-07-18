@@ -4,7 +4,7 @@
  * @pattern encrypted-view-token
  * @ai-summary Short-lived encrypted access tokens for repo-backed static
  * views. The browser sees only opaque ciphertext; the API decrypts it to read
- * `views/<id>` files from the configured state repo for iframe loads.
+ * `views/<id>` files from the configured backend for iframe loads.
  */
 import crypto from "crypto";
 

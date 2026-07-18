@@ -3,7 +3,7 @@
  * @domain variables
  * @pattern variables-manager
  * @ai-summary CRUD UI for the dashboard variables store. Per-repo plaintext
- *   JSON in the connected repo's external state repo. Unlike secrets, values are visible/editable
+ *   JSON in the connected repo's external backend. Unlike secrets, values are visible/editable
  *   in the UI — variables hold non-sensitive config (model lists, feature
  *   flags, etc) that the dashboard reads at runtime.
  */
@@ -243,8 +243,8 @@ function VariablesManagerInner() {
               <p className="text-xs text-white/40 max-w-md mx-auto">
                 Variables are plaintext config stored as{" "}
                 <code className="text-white/55">variables.json</code> in the
-                state repo. Use them for non-sensitive values the dashboard
-                reads at runtime — model lists, feature flags, default ids.
+                backend. Use them for non-sensitive values the dashboard reads
+                at runtime — model lists, feature flags, default ids.
               </p>
               <Button
                 size="sm"
@@ -339,7 +339,7 @@ function VariablesManagerInner() {
       <ConfirmDialog
         open={deleting !== null}
         title={`Delete ${deleting}?`}
-        description="The variable is removed from variables.json in the state repo. Runtime code reading it falls back to environment variables."
+        description="The variable is removed from variables.json in the backend. Runtime code reading it falls back to environment variables."
         confirmLabel={remove.isPending ? "Deleting…" : "Delete"}
         variant="destructive"
         onConfirm={() => {
@@ -400,8 +400,8 @@ function VariableEditor({
             {isUpdate ? `Edit ${initialName}` : "New variable"}
           </DialogTitle>
           <DialogDescription>
-            Stored plaintext in <code>variables.json</code> in the state repo.
-            Use this page for non-sensitive config only.
+            Stored plaintext in <code>variables.json</code> in the backend. Use
+            this page for non-sensitive config only.
           </DialogDescription>
         </DialogHeader>
         <div className="mt-2 flex min-h-0 min-w-0 flex-col gap-3 overflow-visible">

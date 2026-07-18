@@ -19,6 +19,8 @@ import type * as chatEvents from "../chatEvents.js";
 import type * as chatSessions from "../chatSessions.js";
 import type * as chatTurns from "../chatTurns.js";
 import type * as dailyLogs from "../dailyLogs.js";
+import type * as definitionProposals from "../definitionProposals.js";
+import type * as definitions from "../definitions.js";
 import type * as eventLog from "../eventLog.js";
 import type * as goals from "../goals.js";
 import type * as importExport from "../importExport.js";
@@ -56,6 +58,8 @@ declare const fullApi: ApiFromModules<{
   chatSessions: typeof chatSessions;
   chatTurns: typeof chatTurns;
   dailyLogs: typeof dailyLogs;
+  definitionProposals: typeof definitionProposals;
+  definitions: typeof definitions;
   eventLog: typeof eventLog;
   goals: typeof goals;
   importExport: typeof importExport;

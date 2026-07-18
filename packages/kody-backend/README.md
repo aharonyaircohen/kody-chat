@@ -14,8 +14,8 @@ package replaced GitHub-as-database for Kody's own state.
   `users` (user-state/prefs/inbox), `engine` (action state/event log),
   `importExport` (migration surface).
 - `convex/_generated/` — placeholder stubs typed from the schema; `npx convex
-  dev` overwrites them with real codegen.
-- `scripts/export-github.ts` — dumps the GitHub state repo to plain JSON
+dev` overwrites them with real codegen.
+- `scripts/export-github.ts` — dumps the GitHub backend to plain JSON
   (`dump/<table>.json`), backend-agnostic.
 - `scripts/import-convex.ts` — loads a dump into a Convex deployment.
 - `src/client.ts` — server-side `ConvexHttpClient` factory (`CONVEX_URL`).
@@ -93,7 +93,7 @@ both flows without the CLI:
   table from Convex (`importExport.exportTable`) into a portable JSON dump.
   Run it routinely; the dump is the rollback artifact.
 - **First-time tenant migration:** "Export from GitHub (first migration)"
-  maps a legacy GitHub state repo to the same dump format; then Import
+  maps a legacy GitHub backend to the same dump format; then Import
   (clear first) loads it into Convex.
 
 CLI equivalents remain for scripted use: `pnpm --filter @kody-ade/backend

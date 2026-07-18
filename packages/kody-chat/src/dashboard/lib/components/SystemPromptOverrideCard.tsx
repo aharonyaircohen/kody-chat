@@ -2,7 +2,7 @@
  * @fileType component
  * @domain instructions
  * @pattern system-prompt-override-card
- * @ai-summary Editor card for state repo `system-prompt.md` — the per-repo
+ * @ai-summary Editor card for backend `system-prompt.md` — the per-repo
  *   BASE system prompt override for engine chat (kody-live). Unlike
  *   instructions.md (layered on top), a non-empty file REPLACES the
  *   engine's built-in prompt, including its tool-usage and grounding
@@ -90,7 +90,6 @@ export function SystemPromptOverrideCard() {
   const baseline = file?.body ?? ENGINE_DEFAULT_SYSTEM_PROMPT;
   useEffect(() => {
     setDraft(baseline);
-     
   }, [file?.sha, baseline]);
 
   const dirty = draft !== baseline;
@@ -122,8 +121,8 @@ export function SystemPromptOverrideCard() {
             {file
               ? "your saved override — the engine uses it instead of its built-in prompt."
               : "the engine's built-in default — edit and save to override it."}{" "}
-            &quot;Remove override&quot; returns to the built-in. Instructions above are
-            layered on top either way.
+            &quot;Remove override&quot; returns to the built-in. Instructions
+            above are layered on top either way.
           </p>
         </div>
         {isLoading ? (

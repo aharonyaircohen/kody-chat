@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern capability-trust-management
  * @ai-summary GET/POST /api/kody/cto/trust — read + management surface for the
- *   capability-keyed trust ledger, stored as a JSON file in the configured Kody state repo
+ *   capability-keyed trust ledger, stored as a JSON file in the configured Kody backend
  *   (`state/trust.json`), NOT an issue. Powers the /trust page.
  *
  *   GET  → the full per-capability trust stats (`capabilities[slug]`) + recent log.
@@ -21,10 +21,7 @@ import {
   verifyActorLogin,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import {
-  setGitHubContext,
-  clearGitHubContext,
-} from "../github";
+import { setGitHubContext, clearGitHubContext } from "../github";
 import { readTrust, mutateTrust } from "../cto/trust-store";
 import {
   applySubjectTrustOp,

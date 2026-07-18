@@ -15,13 +15,22 @@
 
 import type { Octokit } from "@octokit/rest";
 import { readAgentFile, writeAgentFile } from "../agent-files";
-import { readCommandFile, writeCommandFile } from "@kody-ade/workspace/commands/files";
-import { readContextFile, writeContextFile } from "@kody-ade/workspace/context/files";
+import {
+  readCommandFile,
+  writeCommandFile,
+} from "@kody-ade/workspace/commands/files";
+import {
+  readContextFile,
+  writeContextFile,
+} from "@kody-ade/workspace/context/files";
 import {
   readInstructionsFile,
   writeInstructionsFile,
 } from "@kody-ade/workspace/instructions/files";
-import { getProjectedCapability, saveProjectedCapability } from "../backend/repo-projection";
+import {
+  readCapabilityFile,
+  writeCapabilityFolderFiles,
+} from "@kody-ade/agency/capabilities";
 import {
   readManagedGoalFile,
   writeManagedGoalFile,
@@ -180,37 +189,18 @@ async function importCapabilities(
         notes.push(`capability "${entry.slug}" failed: missing profile.json`);
         continue;
       }
-      const existing = await getProjectedCapability(getOwner(), getRepo(), entry.slug);
+      const existing = await readCapabilityFile(entry.slug);
       if (existing && mode === "skip") {
         counts.skipped++;
         continue;
       }
 
-      const profile = JSON.parse(profileJson) as Record<string, unknown>;
-      const skills = Object.entries(entry.files)
-        .filter(([path]) => path.startsWith("skills/") && path.endsWith("/SKILL.md"))
-        .map(([path, body]) => ({ name: path.split("/")[1]!, body }));
-      const shellScripts = Object.entries(entry.files)
-        .filter(([path]) => path.endsWith(".sh") && !path.includes("/"))
-        .map(([name, content]) => ({ name, content }));
-      await saveProjectedCapability(getOwner(), getRepo(), {
+      JSON.parse(profileJson);
+      await writeCapabilityFolderFiles({
         slug: entry.slug,
-        describe: typeof profile.describe === "string" ? profile.describe : "",
-        landing: profile.landing === "comment" ? "comment" : "pr",
-        updatedAt: new Date().toISOString(),
-        htmlUrl: "",
-        agent: typeof profile.agent === "string" ? profile.agent : null,
-        prompt: entry.files["capability.md"] ?? "",
-        model: typeof profile.model === "string" ? profile.model : "inherit",
-        permissionMode: typeof profile.permissionMode === "string" ? profile.permissionMode : "acceptEdits",
-        tools: Array.isArray(profile.tools) ? profile.tools.filter((v): v is string => typeof v === "string") : [],
-        skills,
-        shellScripts,
-        mcpServers: Array.isArray(profile.mcpServers) ? profile.mcpServers : [],
-        profileJson: profileJson,
-        source: "local",
-        readOnly: false,
-      } as never);
+        files: entry.files,
+        isUpdate: Boolean(existing),
+      });
       if (existing) counts.updated++;
       else counts.created++;
     } catch (err) {

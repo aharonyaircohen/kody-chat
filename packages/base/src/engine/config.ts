@@ -29,12 +29,6 @@ export interface ActiveGoalConfigObject {
 
 export type ActiveGoalConfigEntry = string | ActiveGoalConfigObject;
 
-export interface KodyStateConfig {
-  repo?: string;
-  path?: string;
-  branch?: string;
-}
-
 export interface KodyConfig {
   /** The model the engine runs, as `provider/model`. This is the key the
    * kody-engine actually reads (`parseProviderModel(cfg.agent.model)`).
@@ -64,8 +58,6 @@ export interface KodyConfig {
     repo?: string;
     operators?: string[];
   };
-  /** External Kody runtime-state repository and per-consumer path. */
-  state?: KodyStateConfig;
   /** Verification commands the engine runs (typecheck/lint/format/test). */
   quality?: KodyQuality;
   /** Comment subcommand aliases, e.g. `{ "build": "run" }` lets `@kody build`
@@ -242,33 +234,16 @@ async function fetchConfig(
       path: KODY_CONFIG_PATH,
     });
     const data = res.data as
-      | { content?: string; sha?: string }
-      | Array<unknown>;
+      { content?: string; sha?: string } | Array<unknown>;
     if (Array.isArray(data) || !("content" in data) || !data.content) {
       return { config: defaultConfig, sha: null };
     }
     const content = Buffer.from(data.content, "base64").toString("utf-8");
     const parsed = JSON.parse(content) as KodyConfig;
-    const parsedWithStateAliases = parsed as KodyConfig & {
-      stateRepo?: string;
-      statePath?: string;
-      stateBranch?: string;
-    };
     return {
       config: {
         agent: parsed.agent,
         github: parsed.github,
-        state:
-          parsed.state ??
-          (parsedWithStateAliases.stateRepo ||
-          parsedWithStateAliases.statePath ||
-          parsedWithStateAliases.stateBranch
-            ? {
-                repo: parsedWithStateAliases.stateRepo,
-                path: parsedWithStateAliases.statePath,
-                branch: parsedWithStateAliases.stateBranch,
-              }
-            : undefined),
         defaultImplementation: parsed.defaultImplementation,
         defaultPrImplementation: parsed.defaultPrImplementation,
         quality: parsed.quality,
@@ -512,7 +487,8 @@ export async function writeDefaultImplementation(
   implementation: string | null,
   commitMessage?: string,
 ): Promise<{ sha: string | null }> {
-  const key = target === "issue" ? "defaultImplementation" : "defaultPrImplementation";
+  const key =
+    target === "issue" ? "defaultImplementation" : "defaultPrImplementation";
   return mutateConfig(
     octokit,
     owner,
@@ -678,53 +654,6 @@ function cleanFlyPreviews(
   return out;
 }
 
-function cleanStateConfig(
-  raw: KodyStateConfig | null | undefined,
-): KodyStateConfig | null {
-  if (!raw) return null;
-  const repo = raw.repo?.trim().replace(/\/+$/, "") ?? "";
-  const path = raw.path?.trim().replace(/^\/+|\/+$/g, "") ?? "";
-  const branch = raw.branch?.trim() ?? "";
-  const pathSegments = path.split("/");
-  if (
-    !/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/i.test(repo)
-  ) {
-    return null;
-  }
-  if (
-    raw.path === undefined ||
-    path.includes("\\") ||
-    pathSegments.some(
-      (segment) =>
-        path.length > 0 && (!segment || segment === "." || segment === ".."),
-    )
-  ) {
-    return null;
-  }
-  if (
-    branch &&
-    (branch.startsWith("/") ||
-      branch.endsWith("/") ||
-      branch.includes("\\") ||
-      branch.includes("..") ||
-      branch.includes("@{") ||
-      branch
-        .split("/")
-        .some(
-          (segment) =>
-            !segment ||
-            segment === "." ||
-            segment === ".." ||
-            segment.startsWith(".") ||
-            segment.endsWith(".lock"),
-        ) ||
-      /[\x00-\x20\x7f~^:?*\[]/.test(branch))
-  ) {
-    return null;
-  }
-  return branch ? { repo, path, branch } : { repo, path };
-}
-
 /** Uppercase, keep only valid GitHub associations, de-dupe (order-preserving). */
 export function normalizeAssociations(raw: readonly string[]): string[] {
   const seen = new Set<string>();
@@ -754,7 +683,6 @@ export interface ConfigPatch {
   activeGoals?: ActiveGoalConfigEntry[] | null;
   activeWorkflows?: string[] | null;
   activeFeatures?: string[] | null;
-  state?: KodyStateConfig | null;
   defaultBranch?: string | null;
   perImplementation?: Record<string, string> | null;
   /** Bare-`@kody` issue default (`defaultImplementation`).
@@ -869,12 +797,6 @@ export async function writeConfigPatch(
         setCompanyField(next, "activeFeatures", list);
       }
 
-      if (patch.state !== undefined) {
-        const cleaned = cleanStateConfig(patch.state);
-        if (cleaned) next.state = cleaned;
-        else delete next.state;
-      }
-
       if (patch.defaultBranch !== undefined) {
         const branch = patch.defaultBranch?.trim();
         const prevGit =
@@ -907,7 +829,10 @@ export async function writeConfigPatch(
         }
       }
 
-      for (const key of ["defaultImplementation", "defaultPrImplementation"] as const) {
+      for (const key of [
+        "defaultImplementation",
+        "defaultPrImplementation",
+      ] as const) {
         if (patch[key] === undefined) continue;
         const val = patch[key]?.trim();
         if (val) next[key] = val;

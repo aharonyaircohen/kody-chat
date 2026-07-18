@@ -257,15 +257,11 @@ interface TrackedBranchPushEvent {
 }
 
 /**
- * Skip base rebuilds when the push only touches engine bookkeeping —
- * matches the Vercel `ignoreCommand` policy on consumer repos so we
- * don't rebuild the base image on every `.kody/**` state write.
+ * Skip base rebuilds when a release push only updates the changelog.
  */
 function isEngineOnlyPush(changedPaths: string[]): boolean {
   if (changedPaths.length === 0) return false;
-  return changedPaths.every(
-    (p) => p.startsWith(".kody/") || p === "CHANGELOG.md",
-  );
+  return changedPaths.every((p) => p === "CHANGELOG.md");
 }
 
 export async function handleDefaultBranchPush(

@@ -6,7 +6,7 @@
  *   (repoDocs, kind `operation:<id>`, doc = the Operation JSON). Follows the
  *   context-docs approach: one repoDocs kind per operation, listed via
  *   repoDocs.listByPrefix. Exported signatures are unchanged from the
- *   state-repo era; octokit params are unused and `sha` is always "".
+ *   backend era; octokit params are unused and `sha` is always "".
  */
 
 import type { Octokit } from "@octokit/rest";
@@ -46,7 +46,9 @@ function operationKind(id: string): string {
   return `${OPERATION_KIND_PREFIX}${id}`;
 }
 
-function recordFromDoc(record: OperationDocRecord): StoredOperationRecord | null {
+function recordFromDoc(
+  record: OperationDocRecord,
+): StoredOperationRecord | null {
   const id = record.kind.slice(OPERATION_KIND_PREFIX.length);
   if (!isOperationId(id)) return null;
   const path = operationPath(id);
@@ -139,8 +141,7 @@ export async function loadOperationCatalog(
   const intentRecords = await listCompanyIntentRecords(owner, repo);
   const intents = intentRecords
     .filter(
-      (record) =>
-        record.intent.status === "active" && isOperationId(record.id),
+      (record) => record.intent.status === "active" && isOperationId(record.id),
     )
     .map((record) => record.id);
 

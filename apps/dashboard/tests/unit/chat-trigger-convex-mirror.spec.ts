@@ -36,11 +36,6 @@ vi.mock("@kody-ade/base/auth", () => ({
   })),
 }));
 
-vi.mock("@kody-ade/base/state-repo", () => ({
-  readStateText: h.readStateText,
-  writeStateText: h.writeStateText,
-}));
-
 vi.mock("@kody-ade/base/events", () => ({
   emitSystemEvent: vi.fn(),
 }));
@@ -102,7 +97,7 @@ describe("POST /api/kody/chat/trigger convex mirror", () => {
     const res = await POST(makeReq({ taskId: "live-9", messages }));
     expect(res.status).toBe(200);
 
-    // Engine dependency: sessions/<id>.jsonl still written to the state repo.
+    // Engine dependency: sessions/<id>.jsonl still written to the backend.
     expect(h.writeStateText).not.toHaveBeenCalled();
 
     // Session meta upserted.

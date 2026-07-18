@@ -22,7 +22,6 @@ import {
   Shield,
   GitBranch,
   ArrowRightLeft,
-  Database,
 } from "lucide-react";
 import { Card, CardContent } from "@kody-ade/base/ui/card";
 import { Button } from "@kody-ade/base/ui/button";
@@ -32,7 +31,6 @@ import {
   useEngineConfig,
   type UseEngineConfig,
 } from "../engine/useEngineConfig";
-import { useAuth } from "../auth-context";
 import type { EngineEditableConfig } from "../api";
 
 /** GitHub author associations the access gate accepts (display order).
@@ -57,31 +55,11 @@ const QUALITY_FIELDS: {
   { key: "testUnit", label: "Unit tests", placeholder: "pnpm test" },
 ];
 
-const STATE_REPO_PATTERN =
-  /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/i;
-
-function cleanStateRepoUrl(value: string): string {
-  return value.trim().replace(/\/+$/g, "");
-}
-
-function cleanStatePath(value: string): string {
-  return value.trim().replace(/^\/+|\/+$/g, "");
-}
-
-function isValidStatePath(value: string): boolean {
-  if (value.includes("\\")) return false;
-  if (!value) return true;
-  return value
-    .split("/")
-    .every((segment) => segment && segment !== "." && segment !== "..");
-}
-
 export function EngineConfigCards() {
   const cfg = useEngineConfig();
   return (
     <>
       <ReasoningEffortCard cfg={cfg} />
-      <StateRepoCard cfg={cfg} />
       <QualityCommandsCard cfg={cfg} />
       <AccessGateCard cfg={cfg} />
       <DefaultBranchCard cfg={cfg} />
@@ -118,142 +96,6 @@ function Loading() {
       <Loader2 className="w-3.5 h-3.5 animate-spin" />
       Loading…
     </div>
-  );
-}
-
-// ─── Kody state repo ────────────────────────────────────────────────────────
-function StateRepoCard({ cfg }: { cfg: UseEngineConfig }) {
-  const { auth } = useAuth();
-  const { config, loading, saving, save } = cfg;
-  const defaultRepo = auth?.owner
-    ? `https://github.com/${auth.owner}/kody-state`
-    : "";
-  const defaultPath = auth?.repo ?? "";
-  const hasSavedState = !!config?.state?.repo && config?.state?.path !== undefined;
-  const savedRepo = config?.state?.repo ?? "";
-  const savedPath = config?.state?.path ?? "";
-  const [repoDraft, setRepoDraft] = useState("");
-  const [pathDraft, setPathDraft] = useState("");
-
-  useEffect(() => {
-    if (!config) return;
-    setRepoDraft(savedRepo || defaultRepo);
-    setPathDraft(hasSavedState ? savedPath : defaultPath);
-  }, [config, defaultPath, defaultRepo, hasSavedState, savedPath, savedRepo]);
-
-  const repoValue = cleanStateRepoUrl(repoDraft);
-  const pathValue = cleanStatePath(pathDraft);
-  const repoValid = STATE_REPO_PATTERN.test(repoValue);
-  const pathValid = isValidStatePath(pathValue);
-  const dirty =
-    !!config &&
-    (repoValue !== savedRepo ||
-      pathValue !== (hasSavedState ? savedPath : defaultPath));
-
-  async function handleSave() {
-    if (!repoValid || !pathValid) {
-      toast.error("State repo must be a GitHub URL with a relative path");
-      return;
-    }
-    try {
-      await save({ state: { repo: repoValue, path: pathValue } });
-      setPathDraft(pathValue);
-      toast.success("State repo saved");
-    } catch {
-      toast.error("Couldn't save state repo");
-    }
-  }
-
-  async function handleClear() {
-    try {
-      await save({ state: null });
-      toast.success("State repo cleared");
-    } catch {
-      toast.error("Couldn't clear state repo");
-    }
-  }
-
-  return (
-    <Card className="border-white/[0.08] bg-white/[0.03]">
-      <CardContent className="p-4 space-y-3">
-        <CardHeader
-          icon={Database}
-          iconClass="text-cyan-400"
-          title="Kody state repo"
-        >
-          Runtime state repository and path written to{" "}
-          <code className="text-white/70">kody.config.json</code>.
-        </CardHeader>
-
-        {loading ? (
-          <Loading />
-        ) : (
-          <>
-            <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,0.7fr)]">
-              <label className="space-y-1">
-                <span className="text-xs text-white/50">Repository</span>
-                <Input
-                  value={repoDraft}
-                  onChange={(e) => setRepoDraft(e.target.value)}
-                  placeholder="https://github.com/owner/kody-state"
-                  disabled={saving}
-                  className="h-8 text-sm font-mono"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="text-xs text-white/50">Path</span>
-                <Input
-                  value={pathDraft}
-                  onChange={(e) => setPathDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && dirty && repoValid && pathValid) {
-                      e.preventDefault();
-                      void handleSave();
-                    }
-                  }}
-                  placeholder="repo-name or / for root"
-                  disabled={saving}
-                  className="h-8 text-sm font-mono"
-                />
-              </label>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                disabled={saving || !dirty || !repoValid || !pathValid}
-                onClick={() => void handleSave()}
-              >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
-              </Button>
-              {hasSavedState && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={saving}
-                  onClick={() => void handleClear()}
-                >
-                  Clear
-                </Button>
-              )}
-              <p className="text-[11px] text-white/40">
-                Currently:{" "}
-                <span className="text-white/70 font-mono">
-                  {hasSavedState
-                    ? `${savedRepo}/${savedPath || "(root)"}`
-                    : "not registered"}
-                </span>
-              </p>
-            </div>
-            {(!repoValid || !pathValid) && (
-              <p className="text-[11px] text-rose-300">
-                Use a GitHub repository URL and a relative path, or blank / for
-                root.
-              </p>
-            )}
-          </>
-        )}
-      </CardContent>
-    </Card>
   );
 }
 

@@ -231,7 +231,10 @@ async function ensureBrainMachine() {
     "Brain machine to exist",
     12 * 60_000,
   );
-  step("Brain provisioned", `${status.app}/${status.machineId} (${status.state})`);
+  step(
+    "Brain provisioned",
+    `${status.app}/${status.machineId} (${status.state})`,
+  );
   return status;
 }
 
@@ -245,7 +248,10 @@ function assertBrainStatusUsable(status, label) {
 
 async function ensureBrainRunning(status) {
   if (status.state === "running") return status;
-  step("Resuming Brain", `${status.app}/${status.machineId} is ${status.state}`);
+  step(
+    "Resuming Brain",
+    `${status.app}/${status.machineId} is ${status.state}`,
+  );
   await api("POST", "/api/kody/brain/resume", {}, { timeoutMs: 180_000 });
   const running = await waitForBrain(
     (next) => next.app && next.machineId && next.state === "running",
@@ -265,7 +271,9 @@ async function waitForBrain(predicate, label, timeoutMs) {
     if (predicate(last)) return last;
     await sleep(5_000);
   }
-  throw new Error(`Timed out waiting for ${label}. Last status: ${JSON.stringify(last)}`);
+  throw new Error(
+    `Timed out waiting for ${label}. Last status: ${JSON.stringify(last)}`,
+  );
 }
 
 function brainTransport(status) {
@@ -393,7 +401,9 @@ async function terminalSession(status, resetSession = false) {
   }
   if (!session) throw lastErr ?? new Error("Terminal session did not start");
   if (!session.webSocketUrl) {
-    throw new Error(`Terminal session did not return webSocketUrl: ${JSON.stringify(session)}`);
+    throw new Error(
+      `Terminal session did not return webSocketUrl: ${JSON.stringify(session)}`,
+    );
   }
   return session;
 }
@@ -438,14 +448,18 @@ async function verifyTerminalStatus(status) {
     { timeoutMs: 60_000 },
   );
   if (result.ok !== true || typeof result.alive !== "boolean") {
-    throw new Error(`Unexpected terminal status response: ${JSON.stringify(result)}`);
+    throw new Error(
+      `Unexpected terminal status response: ${JSON.stringify(result)}`,
+    );
   }
   step("Terminal status", `alive=${result.alive}`);
 }
 
 async function runTerminalCommand(webSocketUrl, command, expect, timeoutMs) {
   if (typeof WebSocket === "undefined") {
-    throw new Error("Node WebSocket is unavailable. Run the verifier with Node 22+.");
+    throw new Error(
+      "Node WebSocket is unavailable. Run the verifier with Node 22+.",
+    );
   }
 
   await new Promise((resolve, reject) => {
@@ -519,7 +533,11 @@ async function runTerminalCommand(webSocketUrl, command, expect, timeoutMs) {
             return;
           }
           if (message.type === "error") {
-            rejectOnce(new Error(`Terminal bridge error: ${message.message ?? "unknown"}`));
+            rejectOnce(
+              new Error(
+                `Terminal bridge error: ${message.message ?? "unknown"}`,
+              ),
+            );
           }
         })
         .catch(rejectOnce);
@@ -597,10 +615,7 @@ function shellQuote(value) {
 }
 
 function stripAnsi(value) {
-  return String(value).replace(
-    /\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g,
-    "",
-  );
+  return String(value).replace(/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g, "");
 }
 
 async function verifyDisposableCheckpoint() {
@@ -614,7 +629,12 @@ async function verifyDisposableCheckpoint() {
     shell: "/bin/sh",
     output,
   });
-  await waitForCheckpointOutput(transport, localSessionId, output, "checkpoint");
+  await waitForCheckpointOutput(
+    transport,
+    localSessionId,
+    output,
+    "checkpoint",
+  );
   await deleteCheckpoint(transport, localSessionId);
   step("Checkpoint verified", "local disposable checkpoint round trip");
 }
@@ -631,7 +651,12 @@ async function verifyBrainCheckpointRoundTrip(status) {
       shell: "/bin/sh",
       output,
     });
-    await waitForCheckpointOutput(transport, chatSessionId, output, "Brain checkpoint");
+    await waitForCheckpointOutput(
+      transport,
+      chatSessionId,
+      output,
+      "Brain checkpoint",
+    );
     step("Brain checkpoint verified", "backup, mutate, read");
   } finally {
     if (previous) {
@@ -642,11 +667,15 @@ async function verifyBrainCheckpointRoundTrip(status) {
         shell: previous.shell,
         output: previous.output,
       }).catch((err) => {
-        console.error(`WARN failed to restore previous Brain checkpoint: ${err.message}`);
+        console.error(
+          `WARN failed to restore previous Brain checkpoint: ${err.message}`,
+        );
       });
     } else {
       await deleteCheckpoint(transport, chatSessionId).catch((err) => {
-        console.error(`WARN failed to delete test Brain checkpoint: ${err.message}`);
+        console.error(
+          `WARN failed to delete test Brain checkpoint: ${err.message}`,
+        );
       });
     }
   }
@@ -681,16 +710,27 @@ async function deleteCheckpoint(transport, sessionId) {
     chatSessionId: sessionId,
     transport: JSON.stringify(transport),
   });
-  await api("DELETE", `/api/kody/chat/terminal/checkpoint?${params}`, undefined);
+  await api(
+    "DELETE",
+    `/api/kody/chat/terminal/checkpoint?${params}`,
+    undefined,
+  );
 }
 
 async function saveBrainImage() {
   step("Saving Brain image", "starting GHCR image save job");
-  const started = await api("POST", "/api/kody/brain/image", {}, {
-    timeoutMs: 180_000,
-  });
+  const started = await api(
+    "POST",
+    "/api/kody/brain/image",
+    {},
+    {
+      timeoutMs: 180_000,
+    },
+  );
   if (!started.jobId) {
-    throw new Error(`Brain image save did not return jobId: ${JSON.stringify(started)}`);
+    throw new Error(
+      `Brain image save did not return jobId: ${JSON.stringify(started)}`,
+    );
   }
   const timeoutMs = Number(env("KODY_LIVE_SAVE_TIMEOUT_MS") ?? 2 * 60 * 60_000);
   const deadline = Date.now() + timeoutMs;
@@ -726,11 +766,15 @@ async function saveBrainImage() {
       return last;
     }
     if (last.status === "failed") {
-      throw new Error(`Brain image save failed: ${last.message ?? JSON.stringify(last)}`);
+      throw new Error(
+        `Brain image save failed: ${last.message ?? JSON.stringify(last)}`,
+      );
     }
     step("Brain image save pending", last.status ?? "running");
   }
-  throw new Error(`Timed out waiting for Brain image save. Last status: ${JSON.stringify(last)}`);
+  throw new Error(
+    `Timed out waiting for Brain image save. Last status: ${JSON.stringify(last)}`,
+  );
 }
 
 async function destroyBrain() {
@@ -769,7 +813,11 @@ function finish() {
 
 function redact(value) {
   let text = String(value);
-  for (const secret of [token, env("KODY_LIVE_GITHUB_TOKEN"), env("GITHUB_TOKEN")]) {
+  for (const secret of [
+    token,
+    env("KODY_LIVE_GITHUB_TOKEN"),
+    env("GITHUB_TOKEN"),
+  ]) {
     if (secret) text = text.split(secret).join("[redacted]");
   }
   return text;
@@ -786,7 +834,7 @@ Required:
 
 Optional:
   KODY_LIVE_BASE_URL=http://localhost:3333
-  KODY_LIVE_STORE_REPO_URL=https://github.com/owner/state-repo
+  KODY_LIVE_STORE_REPO_URL=https://github.com/owner/backend
   KODY_LIVE_STORE_REF=main
   KODY_LIVE_ALLOW_PROVISION=1
   KODY_LIVE_ALLOW_APPLY=1

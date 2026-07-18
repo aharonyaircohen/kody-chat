@@ -4,7 +4,7 @@
  * @pattern backend-manager
  * @ai-summary Backend admin page — back up the tenant's data as a JSON dump
  *   straight from the Convex database (standing tool), export from the legacy
- *   GitHub state repo (one-time migration), and import a dump into Convex.
+ *   GitHub backend (one-time migration), and import a dump into Convex.
  *   Follows the standard admin-page skeleton (PageShell header + Cards,
  *   ui-kit controls only).
  */
@@ -182,7 +182,10 @@ function BackendManagerInner() {
     setExportingSource("convex");
     setExportError(null);
     try {
-      const res = await fetch("/api/kody/company/backend/export", { headers, cache: "no-store" });
+      const res = await fetch("/api/kody/company/backend/export", {
+        headers,
+        cache: "no-store",
+      });
       if (!res.ok) throw new Error(await readErrorMessage(res));
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -297,7 +300,8 @@ function BackendManagerInner() {
               <h2 className="text-sm font-semibold">Export</h2>
             </div>
             <p className="text-sm text-white/60">
-              Download this repo&apos;s data as a portable JSON backup from the live database.
+              Download this repo&apos;s data as a portable JSON backup from the
+              live database.
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <Button

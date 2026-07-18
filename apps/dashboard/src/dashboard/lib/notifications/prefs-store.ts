@@ -77,7 +77,7 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefsFile = {
   mutedTypes: [],
 };
 
-/** Legacy state-repo directory — kept for the backend export route only. */
+/** Legacy backend directory — kept for the backend export route only. */
 export const PREFS_DIR = "notifications/preferences";
 
 function normalizePrefs(value: unknown): NotificationPrefsFile {

@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern chat-events-store
  * @ai-summary Convex-backed chat event stream (chatEvents.{append,since}).
- *   Replaces the events/<sessionId>.jsonl state-repo file as the durability
+ *   Replaces the events/<sessionId>.jsonl backend file as the durability
  *   layer behind /api/kody/events/{ingest,poll,stream}. Chat sessionIds are
  *   globally unique, so events live under a single "global" tenant — the
  *   ingest side (engine HMAC token, no repo context) and the read side

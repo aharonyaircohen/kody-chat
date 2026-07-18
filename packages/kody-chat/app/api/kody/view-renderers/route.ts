@@ -1,9 +1,9 @@
 /**
  * @fileType api-endpoint
  * @domain view-renderers
- * @pattern state-repo-crud-api
+ * @pattern backend-crud-api
  * @ai-summary Lists and creates user-managed renderer definitions stored under
- *   `views/renderers/*.json` in the Kody state repo.
+ *   `views/renderers/*.json` in the Kody backend.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";

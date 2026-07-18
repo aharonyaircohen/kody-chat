@@ -1,13 +1,11 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-const stateRepo = vi.hoisted(() => ({
-  readStateText: vi.fn(),
+const backendDocs = vi.hoisted(() => ({
+  readCmsFile: vi.fn(),
 }));
 
-vi.mock("@kody-ade/base/state-repo", () => stateRepo);
 vi.mock("@kody-ade/cms/repo-docs", () => ({
-  readCmsFile: async (owner: string, repo: string, filePath: string) =>
-    stateRepo.readStateText({}, owner, repo, filePath),
+  readCmsFile: backendDocs.readCmsFile,
 }));
 
 import {
@@ -18,10 +16,10 @@ import {
   normalizeSearchQuery,
   normalizeSortQuery,
 } from "@kody-ade/cms/config";
-import { readStateText } from "@kody-ade/base/state-repo";
+import { readCmsFile } from "@kody-ade/cms/repo-docs";
 
 describe("CMS config contract", () => {
-  const mockReadStateText = vi.mocked(readStateText);
+  const mockReadStateText = vi.mocked(readCmsFile);
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -35,8 +33,7 @@ describe("CMS config contract", () => {
       loadCmsConfigFromState({} as never, "A-Guy-educ", "A-Guy-Web"),
     ).resolves.toBeNull();
 
-    expect(readStateText).toHaveBeenCalledWith(
-      expect.anything(),
+    expect(readCmsFile).toHaveBeenCalledWith(
       "A-Guy-educ",
       "A-Guy-Web",
       "cms/config.json",
@@ -45,7 +42,7 @@ describe("CMS config contract", () => {
 
   it("loads empty root cms/config.json as configured", async () => {
     mockReadStateText.mockResolvedValueOnce({
-      path: "cms/config.json",
+      updatedAt: "2026-01-01T00:00:00.000Z",
       sha: "config-sha",
       content: JSON.stringify({
         version: 1,
@@ -67,7 +64,7 @@ describe("CMS config contract", () => {
   it("still fails when a referenced CMS file is missing", async () => {
     mockReadStateText
       .mockResolvedValueOnce({
-        path: "A-Guy-Admin/cms/config.json",
+        updatedAt: "2026-01-01T00:00:00.000Z",
         sha: "config-sha",
         content: JSON.stringify({
           version: 1,
@@ -87,7 +84,7 @@ describe("CMS config contract", () => {
 
   it("dedupes concurrent config loads", async () => {
     mockReadStateText.mockResolvedValue({
-      path: "A-Guy-Web/cms/config.json",
+      updatedAt: "2026-01-01T00:00:00.000Z",
       sha: "config-sha",
       content: JSON.stringify({
         version: 1,
@@ -107,50 +104,48 @@ describe("CMS config contract", () => {
     ]);
 
     expect(first).toEqual(second);
-    expect(readStateText).toHaveBeenCalledTimes(1);
+    expect(readCmsFile).toHaveBeenCalledTimes(1);
   });
 
   it("loads referenced collection files concurrently", async () => {
     let activeCollectionReads = 0;
     let maxActiveCollectionReads = 0;
 
-    mockReadStateText.mockImplementation(
-      async (_octokit, _owner, _repo, path) => {
-        if (path === "cms/config.json") {
-          return {
-            path,
-            sha: "config-sha",
-            content: JSON.stringify({
-              version: 1,
-              defaultAdapter: "memory",
-              collections: [
-                "collections/alpha.json",
-                "collections/beta.json",
-                "collections/gamma.json",
-              ],
-            }),
-          };
-        }
-
-        activeCollectionReads += 1;
-        maxActiveCollectionReads = Math.max(
-          maxActiveCollectionReads,
-          activeCollectionReads,
-        );
-        await new Promise((resolve) => setTimeout(resolve, 10));
-        activeCollectionReads -= 1;
-
-        const name = String(path).match(/collections\/(.+)\.json$/)?.[1];
+    mockReadStateText.mockImplementation(async (_owner, _repo, path) => {
+      if (path === "cms/config.json") {
         return {
-          path: String(path),
-          sha: `${name}-sha`,
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          sha: "config-sha",
           content: JSON.stringify({
-            name,
-            fields: [{ name: "title", type: "text" }],
+            version: 1,
+            defaultAdapter: "memory",
+            collections: [
+              "collections/alpha.json",
+              "collections/beta.json",
+              "collections/gamma.json",
+            ],
           }),
         };
-      },
-    );
+      }
+
+      activeCollectionReads += 1;
+      maxActiveCollectionReads = Math.max(
+        maxActiveCollectionReads,
+        activeCollectionReads,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      activeCollectionReads -= 1;
+
+      const name = String(path).match(/collections\/(.+)\.json$/)?.[1];
+      return {
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        sha: `${name}-sha`,
+        content: JSON.stringify({
+          name,
+          fields: [{ name: "title", type: "text" }],
+        }),
+      };
+    });
 
     const config = await loadCmsConfigFromState(
       {} as never,

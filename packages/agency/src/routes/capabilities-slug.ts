@@ -1,22 +1,20 @@
 /** Convex-owned capability detail API. */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { api } from "@kody-ade/backend/api";
-import { createBackendClient } from "@kody-ade/backend/client";
 import {
   requireKodyAuth,
   verifyActorLogin,
   getRequestAuth,
-  getUserOctokit,
 } from "@kody-ade/base/auth";
 import { recordAudit } from "@kody-ade/base/activity/audit";
 import {
   deleteCapabilityFile,
   isValidSlug,
   PERMISSION_MODES,
+  readCapabilityFile,
   writeCapabilityFile,
-} from "../capabilities";
-import { clearGitHubContext, setGitHubContext } from "../github";
+} from "@kody-ade/agency/capabilities";
+import { clearGitHubContext, setGitHubContext } from "@kody-ade/agency/github";
 
 const skillSchema = z.object({
   name: z.string().min(1).max(64),
@@ -53,15 +51,10 @@ function context(req: NextRequest): string | null {
 }
 
 async function getCapability(
-  tenantId: string,
+  _tenantId: string,
   slug: string,
 ): Promise<any | null> {
-  const row = await createBackendClient().query(api.catalog.get, {
-    tenantId,
-    category: "capability",
-    slug,
-  });
-  return (row as { doc?: unknown } | null)?.doc ?? null;
+  return readCapabilityFile(slug);
 }
 
 export async function GET(
@@ -126,9 +119,6 @@ export async function PATCH(
     const existing = await getCapability(tenantId, slug);
     if (!existing)
       return NextResponse.json({ error: "not_found" }, { status: 404 });
-    const octokit = await getUserOctokit(req);
-    if (!octokit)
-      return NextResponse.json({ error: "no_user_token" }, { status: 401 });
     const capability = {
       ...existing,
       ...input,
@@ -138,7 +128,6 @@ export async function PATCH(
       readOnly: false,
     };
     await writeCapabilityFile({
-      octokit,
       fields: {
         slug,
         describe: capability.describe ?? "",
@@ -161,14 +150,6 @@ export async function PATCH(
         ? { profileJsonOverride: capability.profileJsonOverride }
         : {}),
       isUpdate: true,
-    });
-    await createBackendClient().mutation(api.catalog.save, {
-      tenantId,
-      category: "capability",
-      slug,
-      doc: capability,
-      source: "local",
-      updatedAt: capability.updatedAt,
     });
     recordAudit(req, {
       action: "capability.update",
@@ -229,15 +210,7 @@ export async function DELETE(
     const existing = await getCapability(tenantId, slug);
     if (!existing)
       return NextResponse.json({ success: true, alreadyMissing: true });
-    const octokit = await getUserOctokit(req);
-    if (!octokit)
-      return NextResponse.json({ error: "no_user_token" }, { status: 401 });
-    await deleteCapabilityFile(octokit, slug);
-    await createBackendClient().mutation(api.catalog.remove, {
-      tenantId,
-      category: "capability",
-      slug,
-    });
+    await deleteCapabilityFile(slug);
     recordAudit(req, {
       action: "capability.delete",
       resource: slug,

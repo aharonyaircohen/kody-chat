@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern managed-goal-run-logs
  * @ai-summary Reads persisted managed-goal run JSONL logs from the configured
- *   Kody state repo and projects them into a compact UI timeline.
+ *   Kody backend and projects them into a compact UI timeline.
  */
 import type { Octokit } from "@octokit/rest";
 

@@ -15,7 +15,7 @@
 
 /**
  * One chat event from the runner's event stream, in the same shape the
- * polling path parses from `.kody/events/{sessionId}.jsonl` lines:
+ * backend event stream provides:
  * `{ event: "chat.message", payload: {...} }`. Transports must emit each
  * event exactly once, in seq order — the consumer does no deduplication.
  */

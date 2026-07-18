@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern agent-api
  * @ai-summary Agent Control API — GET lists agent, POST creates one.
- *   An agent is a markdown file at `agents/<slug>.md` in the state repo.
+ *   An agent is a markdown file at `agents/<slug>.md` in the backend.
  *   Duplicated from the capabilities API; the manual "Run now"
  *   path reuses the engine's `capability-tick` plumbing.
  */
@@ -13,7 +13,6 @@ import { z } from "zod";
 import {
   requireKodyAuth,
   verifyActorLogin,
-  getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
 import { setGitHubContext, clearGitHubContext } from "../github";
@@ -26,10 +25,6 @@ import {
 import { normalizeAgentSlug } from "../agent-slug";
 import { getEngineConfig } from "@kody-ade/base/engine/config";
 import { recordAudit } from "@kody-ade/base/activity/audit";
-import {
-  listProjectedAgents,
-  saveProjectedAgent,
-} from "../backend/agents-projection";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -51,27 +46,14 @@ export async function GET(req: NextRequest) {
     );
 
   try {
-    if (headerAuth) {
-      try {
-        const projected = await listProjectedAgents(
-          headerAuth.owner,
-          headerAuth.repo,
-        );
-        return NextResponse.json(
-          { agent: projected },
-          { headers: NO_STORE_HEADERS },
-        );
-      } catch (error) {
-        console.error("[Agent] Convex projection read failed", error);
-        return NextResponse.json(
-          { agent: [], error: "backend_unavailable" },
-          { status: 503, headers: NO_STORE_HEADERS },
-        );
-      }
-    }
+    if (!headerAuth)
+      return NextResponse.json(
+        { agent: [], error: "repository_context_required" },
+        { status: 400, headers: NO_STORE_HEADERS },
+      );
     return NextResponse.json(
-      { agent: [], error: "repository_context_required" },
-      { status: 400, headers: NO_STORE_HEADERS },
+      { agent: await listResolvedAgentFiles() },
+      { headers: NO_STORE_HEADERS },
     );
   } catch (error: any) {
     console.error("[Agent] Error fetching agent:", error);
@@ -162,20 +144,7 @@ export async function POST(req: NextRequest) {
     const actorResult = await verifyActorLogin(req, actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
 
-    const userOctokit = await getUserOctokit(req);
-    if (!userOctokit) {
-      return NextResponse.json(
-        {
-          error: "no_user_token",
-          message:
-            "A signed-in GitHub token is required to commit agent files.",
-        },
-        { status: 401 },
-      );
-    }
-
     const agentMember = await writeAgentFile({
-      octokit: userOctokit,
       slug,
       title,
       body,
@@ -184,16 +153,6 @@ export async function POST(req: NextRequest) {
     if (!headerAuth) {
       throw new Error("Repository context is required to save an agent");
     }
-    await saveProjectedAgent(headerAuth.owner, headerAuth.repo, {
-      slug: agentMember.slug,
-      title: agentMember.title,
-      body: agentMember.body,
-      updatedAt: agentMember.updatedAt,
-      capabilities: agentMember.capabilities,
-      source: "local",
-      readOnly: false,
-    });
-
     recordAudit(req, {
       action: "agent.create",
       resource: slug,

@@ -23,8 +23,8 @@ import {
 describe("chat-defaults bundle", () => {
   it("loads repo-backed chat workflows when present, otherwise uses defaults", async () => {
     const bundle = await loadChatDefaults("acme", "widget");
-    const capabilityPath = ".kody/capabilities/kody-chat/profile.json";
-    const analyzerPath = ".kody/capabilities/kody-analyzer/profile.json";
+    const capabilityPath = "legacy/capabilities/kody-chat/profile.json";
+    const analyzerPath = "legacy/capabilities/kody-analyzer/profile.json";
 
     expect(bundle.capability.slug).toBe("kody-chat");
     if (existsSync(capabilityPath) && existsSync(analyzerPath)) {
@@ -300,7 +300,7 @@ describe("chat-defaults bundle", () => {
 
   it("capability exposes todo-page management tools", () => {
     // Kody chat should manage the dashboard Todos page directly through
-    // state-repo todo files, not redirect todo requests into GitHub issues.
+    // backend todo files, not redirect todo requests into GitHub issues.
     const required = [
       "list_todo_lists",
       "read_todo_list",

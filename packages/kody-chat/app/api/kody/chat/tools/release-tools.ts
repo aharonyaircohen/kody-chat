@@ -6,7 +6,7 @@
  *
  * Opens a release-tracking GitHub issue and posts `@kody release` on it.
  * The repo-stored release implementation reads branch policy from
- * state repo `variables.json` and handles both single-main and dev-to-main repos.
+ * backend `variables.json` and handles both single-main and dev-to-main repos.
  */
 import { tool } from "ai";
 import { z } from "zod";

@@ -31,15 +31,15 @@ import {
   type StopCondition,
   type ToolSet,
 } from "ai";
-import { getChatServerToolRegistry } from "@dashboard/lib/chat/platform/server-tools";
+import { getChatServerToolRegistry } from "@kody-ade/kody-chat/platform/server-tools";
 import {
   resolveSurfaceScope,
   CLIENT_SURFACE_TOOL_ALLOWLIST,
-} from "@dashboard/lib/chat/platform/surface-scope";
+} from "@kody-ade/kody-chat/platform/surface-scope";
 import type {
   ChatPluginToolDefinition,
   ChatToolServerContext,
-} from "@dashboard/lib/chat/platform";
+} from "@kody-ade/kody-chat/platform";
 import {
   getAgent,
   isValidAgentId,
@@ -60,14 +60,16 @@ import {
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { getSecret } from "@kody-ade/base/vault/get-secret";
+import { emitSystemEvent } from "@kody-ade/base/events";
+import { ensureTriggerStateWriter } from "@kody-ade/kody-chat/user-state";
 import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
 import {
   resolveClientBrand,
   type ClientBrand,
 } from "@dashboard/lib/client-brand";
 import { resolveChatModel } from "../resolve-model";
-import { supportsVision } from "@dashboard/lib/chat/core/vision-support";
-import { formatAttachmentForTextBackend } from "@dashboard/lib/chat/core/attachment-text";
+import { supportsVision } from "@kody-ade/kody-chat/core/vision-support";
+import { formatAttachmentForTextBackend } from "@kody-ade/kody-chat/core/attachment-text";
 import {
   buildSystemPrompt,
   formatUserInstructionsPromptSection,
@@ -108,7 +110,7 @@ import {
   selectChatOutputActiveTools,
   selectChatOutputToolChoice,
 } from "@dashboard/lib/chat-output-tools";
-import { parseReasoning } from "@dashboard/lib/chat/core/reasoning";
+import { parseReasoning } from "@kody-ade/kody-chat/core/reasoning";
 import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "@dashboard/lib/view-renderers/builtin";
 import { buildChatViewCatalog } from "@dashboard/lib/view-renderers/spec/catalog";
 import { buildViewComponentRules } from "@dashboard/lib/view-renderers/spec/prompt";
@@ -131,11 +133,10 @@ import { createInboxTools } from "../tools/inbox-tools";
 import { createCmsTools } from "../tools/cms-tools";
 import { createUserStateTools } from "../tools/user-state-tools";
 import { createPositionTools } from "../tools/position-tools";
-import { ensureTriggerStateWriter } from "@dashboard/lib/user-state";
-import { emitSystemEvent } from "@kody-ade/base/events";
-import { applyReasoning } from "@dashboard/lib/chat/core/reasoning-adapter";
-import { containsToolCallMarkup } from "@dashboard/lib/chat/core/tool-call-strip";
+import { applyReasoning } from "@kody-ade/kody-chat/core/reasoning-adapter";
+import { containsToolCallMarkup } from "@kody-ade/kody-chat/core/tool-call-strip";
 import { createAgentAdminTools } from "../tools/agent-admin-tools";
+import { readCapabilityFile } from "@kody-ade/agency/capabilities";
 import { createMacroTools } from "../tools/macros-tools";
 import {
   invalidateMemoryIndexPromptCache,
@@ -154,8 +155,6 @@ import {
   isValidSlug as isValidAgentSlug,
   readResolvedAgentFile,
 } from "@dashboard/lib/agent-files";
-import { api as backendApi } from "@kody-ade/backend/api";
-import { createBackendClient } from "@kody-ade/backend/client";
 import {
   appendAgentChatSpeakerOverride,
   buildAgentChatIdentity,
@@ -717,7 +716,7 @@ async function handleKodyDirectPost(
   const trimmedCount = allMessages.length - messages.length;
   const hasImageParts = messagesHaveImageParts(messages);
 
-  // Resolve the model from the user-managed list in state repo variables.json.
+  // Resolve the model from the user-managed list in Convex variables.json.
   // The client can override per-request via `body.model`, but it must
   // match an enabled entry — we never trust arbitrary ids from the wire.
   // Voice mode does not affect model selection; it's a per-turn prompt
@@ -762,6 +761,7 @@ async function handleKodyDirectPost(
       userId: eventUserId,
       brand: repo ? { owner: repo.owner, repo: repo.repo } : null,
       source: "server",
+      octokit: repo ? createUserOctokit(repo.token) : null,
     },
   );
 
@@ -904,7 +904,7 @@ async function handleKodyDirectPost(
         {
           role: "system",
           content:
-            `Explicit memory request already persisted to state repo memory/${file.id}.md ` +
+            `Explicit memory request already persisted to Convex memory/${file.id}.md ` +
             `as ${file.meta.type}. Do not call remember/update_memory again. ` +
             "Briefly confirm it was saved.",
         },
@@ -994,11 +994,7 @@ async function handleKodyDirectPost(
     const caps = (
       await Promise.all(
         addressedAgentMember.capabilities.map((slug) =>
-          createBackendClient().query(backendApi.catalog.get, {
-            tenantId: `${repo.owner}/${repo.repo}`,
-            category: "capability",
-            slug,
-          }).then((row) => (row as { doc?: { prompt?: string; tools?: string[] } } | null)?.doc ?? null).catch(() => null),
+          readCapabilityFile(slug).catch(() => null),
         ),
       )
     ).filter((cap): cap is NonNullable<typeof cap> => cap !== null);
@@ -1179,9 +1175,8 @@ async function handleKodyDirectPost(
   const failedToolFamilies: string[] = [];
   if (repo && !clientSurface) {
     const octokit = createUserOctokit(repo.token);
-    // Optional tool families discover configuration from GitHub before the
-    // model starts. A transient read failure or one malformed optional
-    // config must not prevent the core chat from answering.
+    // These tool families discover optional configuration through GitHub.
+    // A transient GitHub failure must not block the core chat response.
     const loadOptionalTools = async (
       toolFamily: string,
       load: () => Promise<Record<string, unknown>>,
@@ -1525,190 +1520,173 @@ This turn includes an image from the user. For questions about what is visible i
     armHeartbeat(60_000);
     const runModelTurn = (turnMessages: typeof modelMessages) =>
       streamText({
-      model,
-      system: groundedSystemPrompt,
+        model,
+        system: groundedSystemPrompt,
         messages: turnMessages,
-      tools,
-      ...(forceShowViewTool
-        ? { toolChoice: { type: "tool" as const, toolName: SHOW_VIEW_TOOL } }
-        : { toolChoice: "required" as const }),
-      ...(!forceShowViewTool
-        ? {
-            prepareStep: ({ steps, messages: stepMessages }) => {
-              const finalAnswerNeedsView = steps.some((step) =>
-                step.toolResults.some(
-                  (result) =>
-                    result.toolName === FINAL_ANSWER_TOOL &&
-                    isFinalAnswerRequiresViewOutput(result.output),
-                ),
-              );
-              const hasPreRenderToolResult = steps.some((step) =>
-                step.toolResults.some(
-                  (result) =>
-                    result.toolName !== SHOW_VIEW_TOOL &&
-                    result.toolName !== FINAL_ANSWER_TOOL,
-                ),
-              );
-              // Some models (observed: MiniMax-M3) write tool calls as
-              // literal text instead of API tool calls — nothing executes,
-              // then they report fabricated results. Bounce it immediately:
-              // the next step starts with a corrective system message.
-              const lastStepText = steps[steps.length - 1]?.text ?? "";
-              const fabricatedToolCall = containsToolCallMarkup(lastStepText);
-              if (fabricatedToolCall) {
-                traceWarn(
-                  { traceId, step: steps.length },
-                  "kody-direct: textual tool-call markup detected (bouncing)",
+        tools,
+        ...(forceShowViewTool
+          ? { toolChoice: { type: "tool" as const, toolName: SHOW_VIEW_TOOL } }
+          : { toolChoice: "required" as const }),
+        ...(!forceShowViewTool
+          ? {
+              prepareStep: ({ steps, messages: stepMessages }) => {
+                const finalAnswerNeedsView = steps.some((step) =>
+                  step.toolResults.some(
+                    (result) =>
+                      result.toolName === FINAL_ANSWER_TOOL &&
+                      isFinalAnswerRequiresViewOutput(result.output),
+                  ),
                 );
-              }
-              const stepActiveTools = selectChatOutputActiveTools({
-                toolNames: allActiveTools,
-                requireViewOutput,
-                allowPreRenderTools:
-                  shouldAllowPreRenderTools && !hasPreRenderToolResult,
-                finalAnswerNeedsView,
-              });
-              return {
-                activeTools: stepActiveTools,
-                // Pin show_view by name when it is the only allowed tool —
-                // some providers ignore the generic "required" and finish
-                // with prose, ending the turn with nothing visible.
-                toolChoice: selectChatOutputToolChoice(stepActiveTools),
-                ...(fabricatedToolCall
-                  ? {
-                      messages: [
-                        ...stepMessages,
-                        {
-                          role: "system" as const,
-                          content:
-                            "Your previous message wrote a tool invocation as PLAIN TEXT. It did NOT execute — no tool ran, no data was read or written, and any id you produced is fabricated. Retract any claimed result and re-issue the operation as a REAL tool call through the API, or tell the user it could not be performed.",
-                        },
-                      ],
-                    }
-                  : {}),
-              };
-            },
-          }
-        : {}),
-      // Optimized for deep analysis: see DEFAULT_MAX_STEPS for the cap
-      // rationale and the per-model override path. The constant lives at
-      // module level so tests can assert the value.
-      stopWhen: [
-        settledToolAttempts(SHOW_VIEW_TOOL, MAX_SHOW_VIEW_ATTEMPTS),
-        successfulToolResult(FINAL_ANSWER_TOOL),
-        stepCountIs(resolvedModel.maxSteps ?? DEFAULT_MAX_STEPS),
-      ],
-      // Per-provider thinking config so reasoning-delta chunks actually
-      // reach the client. Without this, `sendReasoning: true` below has
-      // nothing to stream and the chat looks idle until the final answer.
-      // Voice mode skips reasoning entirely — the voice overlay forbids
-      // reading anything other than the final answer, and the chat client
-      // also drops reasoning chunks defensively in this mode.
-      // `applyReasoning` is the single source of truth for the
-      // effort→wire-shape translation; the user-picked level is forwarded
-      // as `body.reasoningEffort` and validated against the model's
-      // declared `efforts` list. Returns `{}` for models that don't
-      // reason, so non-reasoning providers stay untouched.
-      ...(voiceMode ? {} : applyReasoning(resolvedModel, body.reasoningEffort)),
-      // Per-tool tracing. `experimental_onToolCallStart` fires before the
-      // tool's `execute` is invoked; `experimental_onToolCallFinish`
-      // afterward with the SDK-measured `durationMs` and a success flag.
-      // Together with onStepFinish they give us a per-step, per-tool view
-      // of where time goes.
-      experimental_onToolCallStart: ({ toolCall }) => {
-        traceLog(
-          {
-            traceId,
-            tool: toolCall.toolName,
-            toolCallId: toolCall.toolCallId,
-          },
-          "kody-direct: tool start",
-        );
-      },
-      experimental_onToolCallFinish: (event) => {
-        const base = {
-          traceId,
-          tool: event.toolCall.toolName,
-          toolCallId: event.toolCall.toolCallId,
-          durationMs: event.durationMs,
-        };
-        if (event.success) {
-          traceLog(base, "kody-direct: tool ok");
-        } else {
-          traceWarn(
+                const hasPreRenderToolResult = steps.some((step) =>
+                  step.toolResults.some(
+                    (result) =>
+                      result.toolName !== SHOW_VIEW_TOOL &&
+                      result.toolName !== FINAL_ANSWER_TOOL,
+                  ),
+                );
+                // Some models (observed: MiniMax-M3) write tool calls as
+                // literal text instead of API tool calls — nothing executes,
+                // then they report fabricated results. Bounce it immediately:
+                // the next step starts with a corrective system message.
+                const lastStepText = steps[steps.length - 1]?.text ?? "";
+                const fabricatedToolCall = containsToolCallMarkup(lastStepText);
+                if (fabricatedToolCall) {
+                  traceWarn(
+                    { traceId, step: steps.length },
+                    "kody-direct: textual tool-call markup detected (bouncing)",
+                  );
+                }
+                const stepActiveTools = selectChatOutputActiveTools({
+                  toolNames: allActiveTools,
+                  requireViewOutput,
+                  allowPreRenderTools:
+                    shouldAllowPreRenderTools && !hasPreRenderToolResult,
+                  finalAnswerNeedsView,
+                });
+                return {
+                  activeTools: stepActiveTools,
+                  // Pin show_view by name when it is the only allowed tool —
+                  // some providers ignore the generic "required" and finish
+                  // with prose, ending the turn with nothing visible.
+                  toolChoice: selectChatOutputToolChoice(stepActiveTools),
+                  ...(fabricatedToolCall
+                    ? {
+                        messages: [
+                          ...stepMessages,
+                          {
+                            role: "system" as const,
+                            content:
+                              "Your previous message wrote a tool invocation as PLAIN TEXT. It did NOT execute — no tool ran, no data was read or written, and any id you produced is fabricated. Retract any claimed result and re-issue the operation as a REAL tool call through the API, or tell the user it could not be performed.",
+                          },
+                        ],
+                      }
+                    : {}),
+                };
+              },
+            }
+          : {}),
+        // Optimized for deep analysis: see DEFAULT_MAX_STEPS for the cap
+        // rationale and the per-model override path. The constant lives at
+        // module level so tests can assert the value.
+        stopWhen: [
+          settledToolAttempts(SHOW_VIEW_TOOL, MAX_SHOW_VIEW_ATTEMPTS),
+          successfulToolResult(FINAL_ANSWER_TOOL),
+          stepCountIs(resolvedModel.maxSteps ?? DEFAULT_MAX_STEPS),
+        ],
+        // Per-provider thinking config so reasoning-delta chunks actually
+        // reach the client. Without this, `sendReasoning: true` below has
+        // nothing to stream and the chat looks idle until the final answer.
+        // Voice mode skips reasoning entirely — the voice overlay forbids
+        // reading anything other than the final answer, and the chat client
+        // also drops reasoning chunks defensively in this mode.
+        // `applyReasoning` is the single source of truth for the
+        // effort→wire-shape translation; the user-picked level is forwarded
+        // as `body.reasoningEffort` and validated against the model's
+        // declared `efforts` list. Returns `{}` for models that don't
+        // reason, so non-reasoning providers stay untouched.
+        ...(voiceMode
+          ? {}
+          : applyReasoning(resolvedModel, body.reasoningEffort)),
+        // Per-tool tracing. `experimental_onToolCallStart` fires before the
+        // tool's `execute` is invoked; `experimental_onToolCallFinish`
+        // afterward with the SDK-measured `durationMs` and a success flag.
+        // Together with onStepFinish they give us a per-step, per-tool view
+        // of where time goes.
+        experimental_onToolCallStart: ({ toolCall }) => {
+          traceLog(
             {
-              ...base,
-              err:
-                event.error instanceof Error
-                  ? event.error.message
-                  : String(event.error),
+              traceId,
+              tool: toolCall.toolName,
+              toolCallId: toolCall.toolCallId,
             },
-            "kody-direct: tool error",
+            "kody-direct: tool start",
           );
-        }
-      },
-      onStepFinish: (step) => {
-        stepNum++;
-        if (stepNum === 1) clearHeartbeats();
-        traceLog(
-          {
+        },
+        experimental_onToolCallFinish: (event) => {
+          const base = {
             traceId,
-            step: stepNum,
-            finishReason: step.finishReason,
-            toolCalls: step.toolCalls?.map((c) => c.toolName) ?? [],
-            usage: step.usage,
-          },
-          "kody-direct: step finish",
-        );
-      },
-      onError: ({ error }) => {
-        clearHeartbeats();
-        // Server-side log of stream errors. We *also* surface the message
-        // to the UI via the `onError` arg to toUIMessageStreamResponse
-        // below, so the user sees what happened instead of a silent hang.
-        traceError(
-          {
-            traceId,
-            modelId,
-            err: formatProviderError(error),
-            ...extractProviderErrorMeta(error),
-          },
-          "kody-direct: stream onError",
-        );
-      },
-      onFinish: (event) => {
-        clearHeartbeats();
-        clearGitHubContext();
-        traceLog(
-          {
-            traceId,
-            steps: stepNum,
-            finishReason: event.finishReason,
-            totalDuration: Date.now() - reqStartedAt,
-            usage: event.usage,
-          },
-          "kody-direct: finish",
-        );
-        emitSystemEvent(
-          "chat.response.completed",
-          {
-            model: modelId,
-            durationMs: Date.now() - reqStartedAt,
-            ...(event.usage?.inputTokens != null
-              ? { inputTokens: event.usage.inputTokens }
-              : {}),
-            ...(event.usage?.outputTokens != null
-              ? { outputTokens: event.usage.outputTokens }
-              : {}),
-            ...(event.finishReason ? { finishReason: event.finishReason } : {}),
-          },
-          {
-            userId: eventUserId,
-            brand: repo ? { owner: repo.owner, repo: repo.repo } : null,
-            source: "server",
-          },
-        );
-      },
+            tool: event.toolCall.toolName,
+            toolCallId: event.toolCall.toolCallId,
+            durationMs: event.durationMs,
+          };
+          if (event.success) {
+            traceLog(base, "kody-direct: tool ok");
+          } else {
+            traceWarn(
+              {
+                ...base,
+                err:
+                  event.error instanceof Error
+                    ? event.error.message
+                    : String(event.error),
+              },
+              "kody-direct: tool error",
+            );
+          }
+        },
+        onStepFinish: (step) => {
+          stepNum++;
+          if (stepNum === 1) clearHeartbeats();
+          traceLog(
+            {
+              traceId,
+              step: stepNum,
+              finishReason: step.finishReason,
+              toolCalls: step.toolCalls?.map((c) => c.toolName) ?? [],
+              usage: step.usage,
+            },
+            "kody-direct: step finish",
+          );
+        },
+        onError: ({ error }) => {
+          clearHeartbeats();
+          // Server-side log of stream errors. We *also* surface the message
+          // to the UI via the `onError` arg to toUIMessageStreamResponse
+          // below, so the user sees what happened instead of a silent hang.
+          traceError(
+            {
+              traceId,
+              modelId,
+              err: formatProviderError(error),
+              ...extractProviderErrorMeta(error),
+            },
+            "kody-direct: stream onError",
+          );
+        },
+        onFinish: (event) => {
+          clearHeartbeats();
+          clearGitHubContext();
+          traceLog(
+            {
+              traceId,
+              steps: stepNum,
+              finishReason: event.finishReason,
+              totalDuration: Date.now() - reqStartedAt,
+              usage: event.usage,
+            },
+            "kody-direct: finish",
+          );
+        },
       });
     const result = runModelTurn(modelMessages);
     // Prepend a single `data-tools-index` event to the UI stream so the

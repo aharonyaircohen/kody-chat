@@ -44,7 +44,9 @@ describe("GitHub storage adapter", () => {
       message: "delete next",
     });
 
-    await expect(adapter.readText(target, "memory/next.md")).resolves.toBeNull();
+    await expect(
+      adapter.readText(target, "memory/next.md"),
+    ).resolves.toBeNull();
   });
 
   it("commits multiple text files and directory deletions through git tree operations", async () => {
@@ -127,7 +129,7 @@ describe("GitHub storage adapter", () => {
 
     await expect(
       adapter.readText(
-        { owner: "acme", repo: "kody-state" },
+        { owner: "acme", repo: "backend-store" },
         "widgets/secrets.enc",
       ),
     ).resolves.toEqual(
@@ -140,7 +142,7 @@ describe("GitHub storage adapter", () => {
     );
 
     expect(requestedUrls).toEqual([
-      "https://api.github.com/repos/acme/kody-state/contents/widgets/secrets.enc",
+      "https://api.github.com/repos/acme/backend-store/contents/widgets/secrets.enc",
     ]);
   });
 
@@ -162,7 +164,7 @@ describe("GitHub storage adapter", () => {
     );
 
     await adapter.readText(
-      { owner: "acme", repo: "kody-state", ref: "state/main" },
+      { owner: "acme", repo: "backend-store", ref: "state/main" },
       "widgets/secrets.enc",
     );
 
@@ -178,7 +180,7 @@ describe("GitHub storage adapter", () => {
 
     await expect(
       adapter.readText(
-        { owner: "acme", repo: "kody-state" },
+        { owner: "acme", repo: "backend-store" },
         "widgets/secrets.enc",
       ),
     ).resolves.toBeNull();

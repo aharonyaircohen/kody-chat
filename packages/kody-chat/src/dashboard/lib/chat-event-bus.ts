@@ -5,7 +5,7 @@
  *
  * In-memory pub/sub for chat events. The ingest endpoint publishes; the SSE
  * stream subscribes. Events are also written by the engine to the configured
- * state repo — the stream still polls that file as durable fallback and for
+ * backend — the stream still polls that file as durable fallback and for
  * rehydration on reconnect.
  *
  * LIMITATION: module-scoped state doesn't cross Vercel serverless instances.

@@ -4,7 +4,7 @@
 agency is, what it builds, its domain, customers, vocabulary, plus
 agent briefs and any standing facts a agent member should always have
 on hand. Each entry is a plain markdown file at
-`.kody/context/<slug>.md` in the connected repo, edited from the
+`backend repo documents (context)<slug>.md` in the connected repo, edited from the
 `/context` page, and **attached to one or more agent members** who then
 inherit it without you restating it every turn.
 
@@ -17,7 +17,7 @@ context entry" is a planned affordance but **not built yet**.
 > **Supersedes [Agency Profile](./profile.md).** Context is the renamed,
 > generalized successor to the old Agency Profile (landed on the engine
 > in `0.4.136`). The `/profile` page, `/api/kody/profile` routes, and
-> `ProfileManager` component have all been **removed**; `.kody/profile/`
+> `ProfileManager` component have all been **removed**; `backend repo documents (profile)`
 > is gone too. The old agency profile is now just one Context entry
 > (typically slugged `company-profile`) attached to the `kody` agent.
 > [`./profile.md`](./profile.md) is retained only as historical
@@ -25,13 +25,13 @@ context entry" is a planned affordance but **not built yet**.
 
 ## The pieces
 
-| Piece                      | What it is                                                                                                                                                | Where                                                                                   |
-| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| **Context entry**          | One free-form markdown file. Slug = entry name (also the `###` heading Kody sees); body = the curated text. No built-ins.                                 | `.kody/context/<slug>.md`                                                               |
-| **`agent:` frontmatter**   | A tiny one-line inline YAML list naming the agent-member slugs that **own** the entry. Decides which consumers load it.                                   | Frontmatter block atop each file (`agent: [kody, qa-engineer]`)                         |
-| **Built-in audiences**     | `kody` (the in-process chat agent) and `qa-engineer` (the engine QA preflight). Always offered in the picker even without a `.kody/agents/*.md` file.     | [`context/frontmatter.ts`](../src/dashboard/lib/context/frontmatter.ts)                 |
-| **`*` all-agent wildcard** | An entry owned by `*` is loaded by **every** consumer (chat, QA, and any future agent). Mutually exclusive with specific slugs — collapses to a lone `*`. | `ALL_STAFF` constant                                                                    |
-| **Chat-prompt loader**     | Concatenates the `kody`-owned (or `*`) entries into the chat system prompt under a `## Context` heading. 60s in-process per-repo cache.                   | `loadContextForPrompt()` in [`context/files.ts`](../src/dashboard/lib/context/files.ts) |
+| Piece                      | What it is                                                                                                                                                           | Where                                                                                   |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| **Context entry**          | One free-form markdown file. Slug = entry name (also the `###` heading Kody sees); body = the curated text. No built-ins.                                            | `backend repo documents (context)<slug>.md`                                             |
+| **`agent:` frontmatter**   | A tiny one-line inline YAML list naming the agent-member slugs that **own** the entry. Decides which consumers load it.                                              | Frontmatter block atop each file (`agent: [kody, qa-engineer]`)                         |
+| **Built-in audiences**     | `kody` (the in-process chat agent) and `qa-engineer` (the engine QA preflight). Always offered in the picker even without a `backend definitions (agents)*.md` file. | [`context/frontmatter.ts`](../src/dashboard/lib/context/frontmatter.ts)                 |
+| **`*` all-agent wildcard** | An entry owned by `*` is loaded by **every** consumer (chat, QA, and any future agent). Mutually exclusive with specific slugs — collapses to a lone `*`.            | `ALL_STAFF` constant                                                                    |
+| **Chat-prompt loader**     | Concatenates the `kody`-owned (or `*`) entries into the chat system prompt under a `## Context` heading. 60s in-process per-repo cache.                              | `loadContextForPrompt()` in [`context/files.ts`](../src/dashboard/lib/context/files.ts) |
 
 There is **no schedule** and no built-in entries — Context is reference
 material, not scheduled work. (Contrast agent/capabilities, which are scheduled
@@ -79,7 +79,7 @@ blocks, and the system-prompt builder drops the result under a
 
 ```
 ┌────────────────────────┐  per turn   ┌─────────────────────────┐  list + filter   ┌───────────────┐
-│ /api/kody/chat/kody     │────────────▶│ loadContextForPrompt()  │─────────────────▶│ .kody/context │
+│ /api/kody/chat/kody     │────────────▶│ loadContextForPrompt()  │─────────────────▶│ backend-managed resources/context │
 └────────────────────────┘             └────────────┬────────────┘  (60s cache)      │   *.md files  │
                                                      │ keep agent ⊇ {kody, *}          └───────────────┘
                                                      │ "### <slug>\n\n<body>" joined
@@ -105,7 +105,7 @@ preflight, not by anything in the dashboard runtime — see
 
 ## How it works
 
-- **Storage:** one markdown file per entry under `.kody/context/`, read
+- **Storage:** one markdown file per entry under `backend repo documents (context)`, read
   and written via the GitHub Contents API
   ([`context/files.ts`](../src/dashboard/lib/context/files.ts)). The
   `agent:` frontmatter is split off on read and re-attached on write;
@@ -137,7 +137,7 @@ Open `/context`.
 4. Write the **body** as plain markdown.
 5. **Create entry.**
 
-The dashboard commits `.kody/context/<slug>.md`
+The dashboard commits `backend repo documents (context)<slug>.md`
 (`feat(context): add <slug>`).
 
 ### Edit an entry
@@ -157,17 +157,17 @@ reads work with any dashboard auth.
 
 ## File reference
 
-| File                                                                                                    | Purpose                                                                                        |
-| ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| [`src/dashboard/lib/context/files.ts`](../src/dashboard/lib/context/files.ts)                           | CRUD `.kody/context/<slug>.md` + `loadContextForPrompt()` (filters to `kody`/`*`, 60s cache)   |
-| [`src/dashboard/lib/context/frontmatter.ts`](../src/dashboard/lib/context/frontmatter.ts)               | `agent:` frontmatter parse/serialize, legacy `audience:` mapping, `*` wildcard, built-in slugs |
-| [`app/api/kody/context/route.ts`](../app/api/kody/context/route.ts)                                     | `GET` (list), `POST` (create)                                                                  |
-| [`app/api/kody/context/[slug]/route.ts`](../app/api/kody/context/%5Bslug%5D/route.ts)                   | `GET` (read), `PATCH` (body and/or agent), `DELETE`                                            |
-| [`src/dashboard/lib/components/ContextControl.tsx`](../src/dashboard/lib/components/ContextControl.tsx) | The `/context` page UI — list, view, create, edit, delete, agent multi-select + badges         |
-| [`app/(chat-rail)/context/page.tsx`](<../app/(chat-rail)/context/page.tsx>)                             | `/context` route entry point                                                                   |
-| [`app/api/kody/chat/kody/route.ts`](../app/api/kody/chat/kody/route.ts)                                 | Calls `loadContextForPrompt()` on each kody-direct turn                                        |
-| [`app/api/kody/chat/kody/system-prompt.ts`](../app/api/kody/chat/kody/system-prompt.ts)                 | Builds the `## Context — your default frame` system-prompt section                             |
-| [`src/dashboard/lib/api.ts`](../src/dashboard/lib/api.ts)                                               | `contextApi` client + `ContextEntry` type                                                      |
+| File                                                                                                    | Purpose                                                                                                        |
+| ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| [`src/dashboard/lib/context/files.ts`](../src/dashboard/lib/context/files.ts)                           | CRUD `backend repo documents (context)<slug>.md` + `loadContextForPrompt()` (filters to `kody`/`*`, 60s cache) |
+| [`src/dashboard/lib/context/frontmatter.ts`](../src/dashboard/lib/context/frontmatter.ts)               | `agent:` frontmatter parse/serialize, legacy `audience:` mapping, `*` wildcard, built-in slugs                 |
+| [`app/api/kody/context/route.ts`](../app/api/kody/context/route.ts)                                     | `GET` (list), `POST` (create)                                                                                  |
+| [`app/api/kody/context/[slug]/route.ts`](../app/api/kody/context/%5Bslug%5D/route.ts)                   | `GET` (read), `PATCH` (body and/or agent), `DELETE`                                                            |
+| [`src/dashboard/lib/components/ContextControl.tsx`](../src/dashboard/lib/components/ContextControl.tsx) | The `/context` page UI — list, view, create, edit, delete, agent multi-select + badges                         |
+| [`app/(chat-rail)/context/page.tsx`](<../app/(chat-rail)/context/page.tsx>)                             | `/context` route entry point                                                                                   |
+| [`app/api/kody/chat/kody/route.ts`](../app/api/kody/chat/kody/route.ts)                                 | Calls `loadContextForPrompt()` on each kody-direct turn                                                        |
+| [`app/api/kody/chat/kody/system-prompt.ts`](../app/api/kody/chat/kody/system-prompt.ts)                 | Builds the `## Context — your default frame` system-prompt section                                             |
+| [`src/dashboard/lib/api.ts`](../src/dashboard/lib/api.ts)                                               | `contextApi` client + `ContextEntry` type                                                                      |
 
 ## FAQ
 
@@ -193,7 +193,7 @@ other non-`kody` agent) never reaches chat — it's consumed elsewhere
 loaded by no consumer. A valid "parked"/draft state.
 
 **Can I attach an entry to a custom agent member?** Yes. The picker offers
-the two built-ins (`kody`, `qa-engineer`) plus every `.kody/agents/*.md`
+the two built-ins (`kody`, `qa-engineer`) plus every `backend definitions (agents)*.md`
 member in the repo. Only the built-in consumers (chat, QA preflight) load
 context today; a custom agent slug owns the entry but nothing in the
 dashboard runtime loads it yet.
@@ -207,7 +207,7 @@ cache immediately; other Vercel instances pick up the change within the
 audience list.
 
 **Why not put this in instructions?** Instructions
-(`.kody/instructions.md`) are a behavioral overlay (tone/length/
+(`backend instructions document`) are a behavioral overlay (tone/length/
 formatting), appended **last** in the prompt so they win on style. Context
 is factual/agent background, injected **near the top** so it frames
 everything. Keep facts and agent briefs in Context, behavioral rules in

@@ -28,7 +28,6 @@ import {
 import nock from "nock";
 import { NextRequest } from "next/server";
 import { POST as triggerPOST } from "../../app/api/kody/chat/trigger/route";
-import { STATE_BRANCH } from "@kody-ade/base/state-branch";
 
 const convex = vi.hoisted(() => ({
   mutation: vi.fn(),
@@ -48,16 +47,6 @@ function mockRepoConfig404(owner = "test-owner", repo = "test-repo"): void {
   nock(GITHUB_API)
     .get(`/repos/${owner}/${repo}/contents/kody.config.json`)
     .reply(404);
-}
-
-function sessionPath(owner: string, repo: string, sessionId: string): string {
-  return `/repos/${owner}/kody-state/contents/${repo}%2Fsessions%2F${sessionId}.jsonl`;
-}
-
-function mockStateBranch(owner: string): void {
-  nock(GITHUB_API)
-    .get(`/repos/${owner}/kody-state/git/ref/heads%2F${STATE_BRANCH}`)
-    .reply(200, { object: { sha: "state-sha" } });
 }
 
 function makeRequest(
@@ -127,16 +116,6 @@ describe("POST /api/kody/chat/trigger", () => {
   });
 
   it("dispatches kody.yml against the connected repo with only sessionId+message+dashboardUrl", async () => {
-    // Session file write: getContent (404 = new) + createOrUpdateFileContents.
-    nock(GITHUB_API)
-      .get(sessionPath("test-owner", "test-repo", "sess-42"))
-      .query({ ref: STATE_BRANCH })
-      .reply(404);
-    mockStateBranch("test-owner");
-    nock(GITHUB_API)
-      .put(sessionPath("test-owner", "test-repo", "sess-42"))
-      .reply(201, { content: { sha: "abc" } });
-
     // The dispatch assertion — this is the core regression guard.
     const dispatch = nock(GITHUB_API)
       .post(
@@ -173,15 +152,6 @@ describe("POST /api/kody/chat/trigger", () => {
     // Simulates the prod bug: env set to a numeric id with \n.
     vi.stubEnv("KODY_CHAT_WORKFLOW_ID", "259395493\n");
 
-    nock(GITHUB_API)
-      .get(sessionPath("test-owner", "test-repo", "sess-42"))
-      .query({ ref: STATE_BRANCH })
-      .reply(404);
-    mockStateBranch("test-owner");
-    nock(GITHUB_API)
-      .put(sessionPath("test-owner", "test-repo", "sess-42"))
-      .reply(201, { content: { sha: "x" } });
-
     // Expect the hardcoded kody.yml path — NOT the stale numeric id.
     const goodDispatch = nock(GITHUB_API)
       .post("/repos/test-owner/test-repo/actions/workflows/kody.yml/dispatches")
@@ -196,15 +166,6 @@ describe("POST /api/kody/chat/trigger", () => {
     vi.stubEnv("KODY_CHAT_WORKFLOW_REPO", "override-owner/override-repo");
     mockRepoConfig404("override-owner", "override-repo");
 
-    nock(GITHUB_API)
-      .get(sessionPath("override-owner", "override-repo", "sess-42"))
-      .query({ ref: STATE_BRANCH })
-      .reply(404);
-    mockStateBranch("override-owner");
-    nock(GITHUB_API)
-      .put(sessionPath("override-owner", "override-repo", "sess-42"))
-      .reply(201, { content: { sha: "x" } });
-
     const dispatch = nock(GITHUB_API)
       .post(
         "/repos/override-owner/override-repo/actions/workflows/kody.yml/dispatches",
@@ -218,13 +179,6 @@ describe("POST /api/kody/chat/trigger", () => {
 
   it("returns 500 when GitHub rejects dispatch (surfaces real errors)", async () => {
     nock(GITHUB_API)
-      .get(sessionPath("test-owner", "test-repo", "sess-42"))
-      .query({ ref: STATE_BRANCH })
-      .reply(404);
-    mockStateBranch("test-owner");
-    nock(GITHUB_API)
-      .put(sessionPath("test-owner", "test-repo", "sess-42"))
-      .reply(201, { content: { sha: "x" } })
       .post("/repos/test-owner/test-repo/actions/workflows/kody.yml/dispatches")
       .reply(422, { message: "Unexpected inputs provided" });
 

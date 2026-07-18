@@ -22,7 +22,7 @@
  * Also accepts an array of events for batching.
  *
  * Events are fanned out to any SSE / long-poll subscribers for this
- * sessionId. The engine also persists events to the configured state repo
+ * sessionId. The engine also persists events to the configured backend
  * for durability; this endpoint is the low-latency path.
  */
 

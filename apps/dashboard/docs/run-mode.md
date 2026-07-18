@@ -28,7 +28,7 @@ saved permission from the workflow, goal, or loop that uses them.
 
 Run Mode is repo-specific state.
 
-The dashboard stores it in the configured Kody state repo:
+The dashboard stores it in the configured Kody backend:
 
 ```text
 state/trust.json

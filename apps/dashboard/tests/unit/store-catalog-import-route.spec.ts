@@ -22,6 +22,8 @@ const githubClient = vi.hoisted(() => ({
 const companyStore = vi.hoisted(() => ({
   listCompanyStoreAssetSlugs: vi.fn(),
   listCompanyStoreMarkdownAssetSlugs: vi.fn(),
+  companyStoreAssetPath: vi.fn(),
+  readCompanyStoreText: vi.fn(),
 }));
 
 const managedGoals = vi.hoisted(() => ({
@@ -35,11 +37,16 @@ const workflowDefinitions = vi.hoisted(() => ({
 
 const capabilities = vi.hoisted(() => ({
   readResolvedCapabilityFile: vi.fn(),
+  readCompanyStoreCapabilityFolderFiles: vi.fn(),
 }));
 
 const engineConfig = vi.hoisted(() => ({
   getEngineConfig: vi.fn(),
   writeConfigPatch: vi.fn(),
+}));
+
+const backend = vi.hoisted(() => ({
+  mutation: vi.fn(async () => null),
 }));
 
 vi.mock("@kody-ade/base/auth", () => ({
@@ -58,6 +65,8 @@ vi.mock("@dashboard/lib/company-store/assets", () => ({
   listCompanyStoreAssetSlugs: companyStore.listCompanyStoreAssetSlugs,
   listCompanyStoreMarkdownAssetSlugs:
     companyStore.listCompanyStoreMarkdownAssetSlugs,
+  companyStoreAssetPath: companyStore.companyStoreAssetPath,
+  readCompanyStoreText: companyStore.readCompanyStoreText,
 }));
 
 vi.mock("@dashboard/lib/managed-goals-files", () => ({
@@ -76,6 +85,12 @@ vi.mock("@dashboard/lib/workflow-definition-files", () => ({
 
 vi.mock("@dashboard/lib/capabilities", () => ({
   readResolvedCapabilityFile: capabilities.readResolvedCapabilityFile,
+  readCompanyStoreCapabilityFolderFiles:
+    capabilities.readCompanyStoreCapabilityFolderFiles,
+}));
+
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => backend,
 }));
 
 vi.mock("@kody-ade/base/engine/config", () => ({
@@ -140,6 +155,11 @@ describe("store catalog import route", () => {
         return [];
       },
     );
+    companyStore.companyStoreAssetPath.mockImplementation(
+      async (_octokit: unknown, kind: string, ...segments: string[]) =>
+        [kind, ...segments].join("/"),
+    );
+    companyStore.readCompanyStoreText.mockResolvedValue("# Atlas Agent\n");
     managedGoals.listCompanyStoreGoalTemplateFiles.mockResolvedValue([
       {
         id: "weekly-quality",
@@ -195,11 +215,20 @@ describe("store catalog import route", () => {
             }
           : null,
     );
+    capabilities.readCompanyStoreCapabilityFolderFiles.mockImplementation(
+      async (slug: string) => ({
+        "profile.json": JSON.stringify({
+          name: slug,
+          implementation: slug,
+        }),
+        "capability.md": `# ${slug}\n`,
+      }),
+    );
     engineConfig.getEngineConfig.mockResolvedValue(baseConfig());
     engineConfig.writeConfigPatch.mockResolvedValue({ sha: "next-sha" });
   });
 
-  it("adds a store agent by config reference without copying files", async () => {
+  it("publishes a store agent to the backend before linking config", async () => {
     const octokit = makeOctokit();
     auth.getUserOctokit.mockResolvedValue(octokit);
 
@@ -227,9 +256,21 @@ describe("store catalog import route", () => {
     );
     expect(octokit.repos.getContent).not.toHaveBeenCalled();
     expect(octokit.git.createTree).not.toHaveBeenCalled();
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        tenantId: "acme/widgets",
+        kind: "agent",
+        slug: "atlas-agent",
+        bundle: {
+          schemaVersion: 1,
+          files: { "agent.md": "# Atlas Agent\n" },
+        },
+      }),
+    );
   });
 
-  it("adds a store capability by config reference without copying files", async () => {
+  it("publishes a store capability to the backend before linking config", async () => {
     const octokit = makeOctokit();
     auth.getUserOctokit.mockResolvedValue(octokit);
 
@@ -257,6 +298,14 @@ describe("store catalog import route", () => {
     );
     expect(octokit.repos.getContent).not.toHaveBeenCalled();
     expect(octokit.git.createTree).not.toHaveBeenCalled();
+    expect(backend.mutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        tenantId: "acme/widgets",
+        kind: "capability",
+        slug: "ship-feature",
+      }),
+    );
   });
 
   it("adds store goal and command types with their active capability dependencies", async () => {
@@ -505,7 +554,9 @@ describe("store catalog import route", () => {
     const octokit = makeOctokit();
     auth.getUserOctokit.mockResolvedValue(octokit);
 
-    const res = await POST(req({ kind: "implementation", slug: "ship-feature" }));
+    const res = await POST(
+      req({ kind: "implementation", slug: "ship-feature" }),
+    );
 
     expect(res.status).toBe(400);
     await expect(res.json()).resolves.toMatchObject({

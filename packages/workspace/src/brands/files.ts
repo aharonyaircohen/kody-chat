@@ -8,7 +8,7 @@
  *   `/client/<slug>`, the branding chat plugin, and client-surface chat
  *   defaults enforced by the chat route. Returned `sha` is always ""
  *   (Convex docs have no git blob). One `listByPrefix` query replaces the old
- *   per-brand GitHub reads — the state repo remains export-only.
+ *   per-brand GitHub reads — the backend remains export-only.
  */
 
 import { z } from "zod";

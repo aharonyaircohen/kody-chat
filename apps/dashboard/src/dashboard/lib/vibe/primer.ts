@@ -49,7 +49,7 @@ const VIBE_COMMIT_RULE = [
   "  ```",
   "- Verify the working tree only contains files you intend to leave",
   "  uncommitted (e.g. node_modules artifacts). Kody session and event state",
-  "  is stored in the external state repo, not in this branch.",
+  "  is stored in the external backend, not in this branch.",
   "- Run `git log -1 --oneline` and `gh pr view <pr> --json headRefOid` to",
   "  confirm the commit you just made is on the PR branch on the remote.",
   "- Your reply MUST cite the commit SHA you just pushed. If you cannot cite",

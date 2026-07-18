@@ -4,7 +4,7 @@
  * @pattern fly-activity-store
  * @ai-summary Persists Fly activity snapshots on the Convex backend
  *   (dailyLogs, stream "flyActivity" — one row per snapshot). Replaces the
- *   old `state/fly-activity.json` GitHub state-repo file, which silently
+ *   old `state/fly-activity.json` GitHub backend file, which silently
  *   broke once it crossed GitHub's 1 MB contents-API limit (reads returned
  *   null → empty timeline, writes 422'd). Reads take the most recent rows
  *   and window them to 14 days; writes are throttled (≥5 min interval).

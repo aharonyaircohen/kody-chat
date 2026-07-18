@@ -3,7 +3,7 @@
  * @domain commands
  * @pattern commands-manager
  * @ai-summary CRUD UI for repo-local slash commands plus activated Store
- * commands. Repo commands live at `commands/<slug>.md` in the state repo; Store commands
+ * commands. Repo commands live at `commands/<slug>.md` in the backend; Store commands
  * are enabled by `company.activeCommands`; Dashboard built-ins are fallback
  * only. Editing a shared command writes a same-slug repo copy so repo wins by
  * slug — UI just says "Edit", fork happens silently.
@@ -295,8 +295,7 @@ function CommandsManagerInner() {
                 Commands appear as <code className="text-white/55">/slash</code>{" "}
                 entries in chat. Stored at{" "}
                 <code className="text-white/55">commands/&lt;slug&gt;.md</code>{" "}
-                in the state repo so they&apos;re git-tracked and
-                team-shareable.
+                in the backend so they&apos;re git-tracked and team-shareable.
               </p>
             </CardContent>
           </Card>
@@ -495,8 +494,8 @@ function CommandEditor({
           </DialogTitle>
           <DialogDescription>
             {isBuiltinEdit
-              ? "Saving stores your version at commands/<slug>.md in the state repo, which takes over from the shared default."
-              : "Stored at commands/<slug>.md in the state repo. Use $ARGUMENTS for the full input, $0/$1/… for positional tokens."}
+              ? "Saving stores your version at commands/<slug>.md in the backend, which takes over from the shared default."
+              : "Stored at commands/<slug>.md in the backend. Use $ARGUMENTS for the full input, $0/$1/… for positional tokens."}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 mt-2">

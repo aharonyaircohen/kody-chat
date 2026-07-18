@@ -33,34 +33,6 @@ vi.mock("@kody-ade/base/auth/background-token", () => ({
 vi.mock("@kody-ade/base/github/core", () => ({
   createUserOctokit: vi.fn(() => ({})),
 }));
-// In-memory state repo with real CAS semantics: writes must carry the sha
-// of the current file (or none when creating), matching GitHub contents.
-vi.mock("@kody-ade/base/state-repo", () => ({
-  readStateText: vi.fn(async (_o, _ow, _re, path: string) => {
-    const file = h.files.get(path);
-    if (!file) {
-      throw Object.assign(new Error("not found"), { status: 404 });
-    }
-    return { path, content: file.content, sha: file.sha };
-  }),
-  writeStateText: vi.fn(
-    async (opts: { path: string; content: string; sha?: string }) => {
-      const existing = h.files.get(opts.path);
-      if (existing && !opts.sha) {
-        throw Object.assign(new Error("exists"), { status: 422 });
-      }
-      if (existing && opts.sha && opts.sha !== existing.sha) {
-        throw Object.assign(new Error("conflict"), { status: 409 });
-      }
-      if (!existing && opts.sha) {
-        throw Object.assign(new Error("conflict"), { status: 409 });
-      }
-      const sha = h.nextSha();
-      h.files.set(opts.path, { content: opts.content, sha });
-      return { sha, path: opts.path, htmlUrl: null };
-    },
-  ),
-}));
 vi.mock("@kody-ade/backend/client", () => ({
   createBackendClient: () => ({
     query: vi.fn(async (_fn, args: Record<string, unknown>) => {

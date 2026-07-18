@@ -5,10 +5,7 @@ import {
   getUserOctokit,
   requireKodyAuth,
 } from "@kody-ade/base/auth";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "../github";
+import { clearGitHubContext, setGitHubContext } from "../github";
 import {
   assertSchemaOperationAllowed,
   CmsConfigError,
@@ -25,7 +22,7 @@ import {
 } from "../model/server";
 import { getCmsActorRole } from "../roles";
 import { CmsRuntimeError } from "../service";
-import { deleteStateFile, writeStateFiles } from "../repo-docs";
+import { deleteRepoDocFile, writeRepoDocFiles } from "../repo-docs";
 import { logger } from "@kody-ade/base/logger";
 
 export const runtime = "nodejs";
@@ -91,7 +88,7 @@ export async function PATCH(req: NextRequest) {
       collection,
     });
 
-    await writeStateFiles({
+    await writeRepoDocFiles({
       octokit,
       owner: headerAuth.owner,
       repo: headerAuth.repo,
@@ -181,7 +178,7 @@ export async function DELETE(req: NextRequest) {
       name,
     });
 
-    await writeStateFiles({
+    await writeRepoDocFiles({
       octokit,
       owner: headerAuth.owner,
       repo: headerAuth.repo,
@@ -189,7 +186,7 @@ export async function DELETE(req: NextRequest) {
       message: `chore(cms): delete ${plan.name} schema`,
     });
     if (plan.deleteFile) {
-      await deleteStateFile({
+      await deleteRepoDocFile({
         octokit,
         owner: headerAuth.owner,
         repo: headerAuth.repo,

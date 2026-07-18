@@ -2,7 +2,7 @@
  * @fileType api-endpoint
  * @domain preview
  * @pattern repo-backed-static-view-server
- * @ai-summary Serves static resources stored in the configured Kody state repo
+ * @ai-summary Serves static resources stored in the configured Kody backend
  * under `views/<view-id>/...`.
  */
 import { NextRequest, NextResponse } from "next/server";
@@ -290,10 +290,10 @@ export async function GET(
   }
 
   try {
-    const doc = await createBackendClient().query(api.repoDocs.get, {
+    const doc = (await createBackendClient().query(api.repoDocs.get, {
       tenantId: `${access.owner}/${access.repo}`,
       kind: `${VIEW_ROOT}/${access.viewId}`,
-    }) as { doc?: { files?: Record<string, string> } } | null;
+    })) as { doc?: { files?: Record<string, string> } } | null;
     const encoded = doc?.doc?.files?.[resourcePath];
     if (!encoded) {
       return NextResponse.json(

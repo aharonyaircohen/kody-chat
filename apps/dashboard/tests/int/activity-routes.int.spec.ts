@@ -27,8 +27,7 @@ vi.mock("@kody-ade/base/auth", () => ({
 }));
 
 vi.mock("@dashboard/lib/github-client", () => ({
-  fetchWorkflowRuns: (...a: unknown[]) =>
-    mocks.fetchWorkflowRuns(...(a as [])),
+  fetchWorkflowRuns: (...a: unknown[]) => mocks.fetchWorkflowRuns(...(a as [])),
   fetchIssues: (...a: unknown[]) => mocks.fetchIssues(...(a as [])),
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
@@ -50,8 +49,7 @@ vi.mock("@dashboard/lib/activity/feed-source", () => ({
 }));
 
 vi.mock("@dashboard/lib/activity/feed", () => ({
-  buildFeedSnapshot: (...a: unknown[]) =>
-    mocks.buildFeedSnapshot(...(a as [])),
+  buildFeedSnapshot: (...a: unknown[]) => mocks.buildFeedSnapshot(...(a as [])),
 }));
 
 vi.mock("@dashboard/lib/github-error-handler", async () => {
@@ -128,7 +126,7 @@ describe("GET /api/kody/activity/feed", () => {
     });
   });
 
-  it("returns the feed snapshot built from the state-repo entries", async () => {
+  it("returns the feed snapshot built from the backend entries", async () => {
     const entries = [{ sessionId: "s1" }];
     mocks.readFeedEntries.mockResolvedValueOnce(entries);
 
@@ -137,11 +135,7 @@ describe("GET /api/kody/activity/feed", () => {
 
     expect(res.status).toBe(200);
     expect(json).toEqual({ feed: true });
-    expect(mocks.readFeedEntries).toHaveBeenCalledWith(
-      "owner",
-      "repo",
-      "tok",
-    );
+    expect(mocks.readFeedEntries).toHaveBeenCalledWith("owner", "repo", "tok");
     expect(mocks.buildFeedSnapshot).toHaveBeenCalledWith(entries);
   });
 
@@ -168,9 +162,6 @@ describe("GET /api/kody/activity/feed", () => {
     mocks.readFeedEntries.mockRejectedValueOnce(err);
     const res = await getFeed(req);
     expect(res.status).toBe(500);
-    expect(mocks.handleKodyApiError).toHaveBeenCalledWith(
-      err,
-      "activity-feed",
-    );
+    expect(mocks.handleKodyApiError).toHaveBeenCalledWith(err, "activity-feed");
   });
 });

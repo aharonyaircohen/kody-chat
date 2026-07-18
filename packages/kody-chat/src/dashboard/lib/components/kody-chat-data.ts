@@ -29,7 +29,7 @@ export interface ChatDataSources {
   chatModels: ChatModelEntry[];
   chatModelsLoaded: boolean;
   /**
-   * Per-repo opt-in for the "Repo Brain" chat row (state repo
+   * Per-repo opt-in for the "Repo Brain" chat row (backend
    * dashboard.json, default false). Chat-only — does NOT gate Fly task
    * execution.
    */

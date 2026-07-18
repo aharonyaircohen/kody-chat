@@ -1,6 +1,6 @@
 /**
  * Built-in default renderers: shipped with the package, overridable by
- * state-repo files with the same slug.
+ * backend files with the same slug.
  *
  * @testFramework vitest
  * @domain unit
@@ -14,9 +14,9 @@ import { buildChatViewCatalog } from "@dashboard/lib/view-renderers/spec/catalog
 
 describe("builtin view renderers", () => {
   it("ships the three default renderers, validated", () => {
-    expect(
-      BUILTIN_VIEW_RENDERER_DEFINITIONS.map((d) => d.slug).sort(),
-    ).toEqual(["approval-card", "multi-select-list", "selection-list"]);
+    expect(BUILTIN_VIEW_RENDERER_DEFINITIONS.map((d) => d.slug).sort()).toEqual(
+      ["approval-card", "multi-select-list", "selection-list"],
+    );
     for (const definition of BUILTIN_VIEW_RENDERER_DEFINITIONS) {
       expect(definition.ui.type).toBe("stack");
       expect(definition.rule?.trim()).toBeTruthy();

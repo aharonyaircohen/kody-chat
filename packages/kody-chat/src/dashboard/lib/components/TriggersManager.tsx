@@ -4,7 +4,7 @@
  * @pattern triggers-manager
  * @ai-summary CRUD UI for trigger rules ("when event X matches, save mapped
  *   payload values to user-state entity Y"). Rules live at
- *   `triggers/config.json` in the state repo; the event dropdown is the
+ *   `triggers/config.json` in the backend; the event dropdown is the
  *   hardcoded system-event catalog, the entity dropdown is the brand's
  *   user-state namespaces. Follows the standard admin-page structure:
  *   PageShell + card rows with status icon and Power toggle + ui-kit
@@ -423,8 +423,8 @@ export function TriggersManager() {
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor="trigger-map">
-                      Data map (JSON: entity key → payload.path /
-                      literal:value; empty = save whole payload)
+                      Data map (JSON: entity key → payload.path / literal:value;
+                      empty = save whole payload)
                     </Label>
                     <Textarea
                       id="trigger-map"

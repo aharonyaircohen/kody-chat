@@ -83,7 +83,7 @@ export interface InboxEntry {
   ctoAgent?: string;
   /**
    * `owner/repo` where Approve acts when it is NOT the connected repo —
-   * e.g. a state-repo proposal PR that Approve squash-merges. Absent for
+   * e.g. a backend proposal PR that Approve squash-merges. Absent for
    * connected-repo threads.
    */
   ctoRepo?: string;

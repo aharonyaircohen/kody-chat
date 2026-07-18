@@ -2,7 +2,7 @@
  * @fileType page
  * @domain capabilities
  * @pattern capabilities-page
- * @ai-summary Selected capability route backed by state-repo capabilities storage.
+ * @ai-summary Selected capability route backed by backend capabilities storage.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { CapabilitiesManager } from "@dashboard/lib/components/CapabilitiesManager";

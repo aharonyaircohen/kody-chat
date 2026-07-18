@@ -22,7 +22,7 @@ in `tests/unit/derive-column.spec.ts`.
 | Piece                   | What it is                                                                                                                                                                               | Where                                                                                                                              |
 | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | **Task**                | A GitHub issue. `id` is `<taskId>-<issue#>` when the title carries a `[YYMMDD-…]` task-id bracket, else just the issue number.                                                           | [`/api/kody/tasks`](../app/api/kody/tasks/route.ts) (GET list, POST create)                                                        |
-| **`kodyState` comment** | The canonical engine state — a `<!-- kody:state:v1 -->`-bracketed `json` block edited in place on the issue. Holds `core.phase`, `core.status`, `prUrl`, `lastOutcome`, attempts.        | [`kody-state.ts`](../src/dashboard/lib/kody-state.ts)                                                                              |
+| **`kodyState` comment** | The canonical engine state — a `<!-- kody:state:v1 -->`-bracketed `json` block edited in place on the issue. Holds `core.phase`, `core.status`, `prUrl`, `lastOutcome`, attempts.        | [`Kody backend.ts`](../src/dashboard/lib/Kody backend.ts)                                                                          |
 | **Column derivation**   | Pure function that turns issue + workflow run + PR + `kodyState` + pipeline into one `ColumnId`. Order is load-bearing.                                                                  | [`derive-column.ts`](../src/dashboard/lib/tasks/derive-column.ts)                                                                  |
 | **`kody:*` labels**     | Lifecycle phase (`kody:building`, `kody:reviewing`, …) and flow (`kody-flow:feature\|bug\|spec\|chore`). Slow-changing projections; only consulted when `kodyState`/pipeline are absent. | [`constants.ts`](../src/dashboard/lib/constants.ts) (`parseKodyPhase`, `parseKodyFlow`)                                            |
 | **Board UI**            | The seven lanes, their icons/labels, and the per-card actions.                                                                                                                           | [`TaskList.tsx`](../src/dashboard/lib/components/TaskList.tsx), [`TaskDetail.tsx`](../src/dashboard/lib/components/TaskDetail.tsx) |
@@ -133,16 +133,16 @@ This trips people up, so it's worth being precise:
 | State                         | Stored as                                                          | Read by                                                           |
 | ----------------------------- | ------------------------------------------------------------------ | ----------------------------------------------------------------- |
 | Per-task `kodyState`          | A **comment on the GitHub issue** (repo-global, not branch-scoped) | `fetchKodyState` → `fetchComments` → `findKodyStateInComments`    |
-| Goal/job file state, cursors  | Files in the **configured Kody state repo**                        | State-repo readers such as `readStateText` / `listStateDirectory` |
+| Goal/job file state, cursors  | Files in the **configured Kody backend**                           | State-repo readers such as `readStateText` / `listStateDirectory` |
 | Human config (`.md`, prompts) | The **default branch**                                             | their own readers                                                 |
 
 So the broad rule "all machine-written engine state goes to the configured Kody
-state repo, never the consumer default branch" holds for **file-based** state —
+backend, never the consumer default branch" holds for **file-based** state —
 goal `state.json`, per-job cursors, activity. The per-_task_ `kodyState` the
 board uses for lane derivation is the exception: it rides as **issue comment**,
 which GitHub stores repo-level independent of any branch. The board reads it
-via `fetchComments`, not by reading file state from the state repo. Both "the
-engine writes it"; only the file-based half lives in state repo.
+via `fetchComments`, not by reading file state from the backend. Both "the
+engine writes it"; only the file-based half lives in backend.
 
 When multiple `kodyState` comments exist (a re-classify or self-dispatch retry
 can post a fresh one while the canonical one is edited in place),
@@ -219,8 +219,8 @@ Never add `noCache: true` to "fix staleness"; lower the TTL, call
 | File                                                                                           | Purpose                                                          |
 | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | [`tasks/derive-column.ts`](../src/dashboard/lib/tasks/derive-column.ts)                        | Pure lane derivation — the priority order above. **Read first.** |
-| [`kody-state.ts`](../src/dashboard/lib/kody-state.ts)                                          | Parse the canonical `kodyState` comment; newest-wins selection.  |
-| [`state-repo.ts`](../src/dashboard/lib/state-repo.ts)                                          | Resolves and reads/writes the configured Kody state repo.        |
+| [`Kody backend.ts`](../src/dashboard/lib/Kody backend.ts)                                      | Parse the canonical `kodyState` comment; newest-wins selection.  |
+| [`backend.ts`](../src/dashboard/lib/backend.ts)                                                | Resolves and reads/writes the configured Kody backend.           |
 | [`constants.ts`](../src/dashboard/lib/constants.ts)                                            | `ColumnId`, `COLUMN_DEFS`, `parseKodyPhase`, `parseKodyFlow`.    |
 | [`types.ts`](../src/dashboard/lib/types.ts)                                                    | `KodyTask`, `GitHubIssue`/`PR`/`WorkflowRun`, `ColumnId`.        |
 | [`/api/kody/tasks/route.ts`](../app/api/kody/tasks/route.ts)                                   | GET list (derivation orchestration) + POST create.               |
@@ -255,10 +255,10 @@ labels are ignored.
 comment. The board derives the lane from the latter and shows the former as a
 chip.
 
-**Where does task state live — the `kody-state` branch or the issue?**
+**Where does task state live — the `Kody backend` branch or the issue?**
 
 Per-_task_ state is an issue **comment** (repo-global, not branch-scoped).
-The configured Kody state repo holds **file-based** state — goal `state.json`,
+The configured Kody backend holds **file-based** state — goal `state.json`,
 per-job cursors, activity. Both are engine-written; only the file-based half
 sits on the branch.
 

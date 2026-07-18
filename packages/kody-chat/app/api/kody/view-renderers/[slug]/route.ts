@@ -1,7 +1,7 @@
 /**
  * @fileType api-endpoint
  * @domain view-renderers
- * @pattern state-repo-crud-api
+ * @pattern backend-crud-api
  * @ai-summary Reads, updates, and deletes one view renderer definition.
  */
 import { NextRequest, NextResponse } from "next/server";

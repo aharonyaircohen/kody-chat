@@ -43,7 +43,7 @@ capability supplies the meaning.
 2. Say: **"I finished step 3 of the lesson."**
 3. The model calls `set_position("lesson", 4)` on its own and confirms.
 
-**Verify it saved:** in your state repo (or Mongo, if that's your
+**Verify it saved:** in your backend (or Mongo, if that's your
 backend) open the student's progress record —
 `user-state/progress/<user>.json` — and check `position:lesson` is `4`.
 

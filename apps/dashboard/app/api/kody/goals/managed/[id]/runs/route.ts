@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern managed-goal-run-logs-api
  * @ai-summary GET /api/kody/goals/managed/:id/runs reads recent managed-goal
- *   JSONL run logs from the configured Kody state repo.
+ *   JSONL run logs from the configured Kody backend.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";

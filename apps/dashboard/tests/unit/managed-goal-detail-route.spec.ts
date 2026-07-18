@@ -295,7 +295,7 @@ describe("PATCH /api/kody/goals/managed/[id]", () => {
     h.listCompanyStoreGoalTemplateFiles.mockResolvedValue([
       {
         id: "codebase-health",
-        path: ".kody/goals/templates/codebase-health/state.json",
+        path: "legacy/goals/templates/codebase-health/state.json",
         source: "store",
         recordType: "template",
         state: {
@@ -617,7 +617,7 @@ describe("DELETE /api/kody/goals/managed/[id]", () => {
     h.listCompanyStoreGoalTemplateFiles.mockResolvedValue([
       {
         id: "codebase-health",
-        path: ".kody/goals/templates/codebase-health/state.json",
+        path: "legacy/goals/templates/codebase-health/state.json",
         source: "store",
         recordType: "template",
         state: localGoalState(),

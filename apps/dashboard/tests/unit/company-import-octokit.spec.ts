@@ -242,9 +242,10 @@ describe("company import survives a cleared/bad request-context octokit", () => 
     expect(result.instructions).toBe("created");
     expect(result.notes).toEqual([]);
 
-    // The writes really went through the GOOD octokit...
-    expect(good.repos.createOrUpdateFileContents).toHaveBeenCalled();
-    // ...and the bad global octokit was never touched.
+    // Runtime definitions and company data are backend-owned.
+    expect(convex.mutation).toHaveBeenCalled();
+    expect(good.repos.createOrUpdateFileContents).not.toHaveBeenCalled();
+    // Neither the passed nor global GitHub client is used for runtime state.
     expect(badOctokit.repos.getContent).not.toHaveBeenCalled();
     expect(badOctokit.repos.createOrUpdateFileContents).not.toHaveBeenCalled();
   });

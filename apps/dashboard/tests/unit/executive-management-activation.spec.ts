@@ -15,10 +15,7 @@ describe("kody-chat executive management activation", () => {
       repo: "kody-chat",
       operators: ["aguyaharonyair", "aharonyaircohen"],
     });
-    expect(config.state).toMatchObject({
-      repo: "https://github.com/aharonyaircohen/kody-state",
-      path: "kody-chat",
-    });
+    expect(config).not.toHaveProperty("state");
   });
 
   it("activates the three Store managers on a 15-minute pilot cadence", () => {

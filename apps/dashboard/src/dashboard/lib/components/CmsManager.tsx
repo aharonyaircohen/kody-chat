@@ -57,7 +57,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@kody-ade/base/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@kody-ade/base/ui/tabs";
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@kody-ade/base/ui/tabs";
 import { Textarea } from "@kody-ade/base/ui/textarea";
 
 import { ConfirmDialog } from "./ConfirmDialog";
@@ -423,7 +428,7 @@ function CmsConfigPage() {
                 ? "Update content schema?"
                 : "Generate content schema?"
             }
-            description="Kody will read the connected database and write the generated content config into the state repo. Review any state changes before shipping them."
+            description="Kody will read the connected database and write the generated content config into the backend. Review any state changes before shipping them."
             confirmLabel={
               schemaGenerationRequest?.refresh
                 ? "Update schema"
@@ -1400,7 +1405,7 @@ function CmsAdapterSettingsPanel({
                 disabled={saving}
               />
               <span className="text-xs text-muted-foreground">
-                Folder inside kody-state used by this adapter. Collection file
+                Folder inside Kody backend used by this adapter. Collection file
                 paths stay in Models.
               </span>
             </label>
@@ -1456,7 +1461,7 @@ function CmsSchemaPanel({
           <>
             <p>
               MongoDB schema generation uses the `DATABASE_URL` secret and
-              writes cms/config.json changes to the state repo.
+              writes cms/config.json changes to the backend.
             </p>
             <p>
               Current schema has {config.collections.length.toLocaleString()}{" "}
@@ -4483,7 +4488,7 @@ function UnconfiguredCmsState({
         Content is not configured
       </div>
       <div className="mt-1 max-w-md text-body-sm text-muted-foreground">
-        Create cms/config.json in the state repo to enable this view.
+        Create cms/config.json in the backend to enable this view.
       </div>
       <div className="mt-4 w-full max-w-xs text-left">
         <div className="mb-1 text-label font-medium text-muted-foreground">

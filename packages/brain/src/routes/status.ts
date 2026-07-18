@@ -14,7 +14,7 @@
  *     app, url, machineId?, stored? }                   — live machine state.
  *
  * `stored` is the per-user record at
- * state-repo root `users/<login>/data/brain.json` (see `brain/store.ts`). It can
+ * backend root `users/<login>/data/brain.json` (see `brain/store.ts`). It can
  * outlive the user's access to the app on Fly (token revoked, app moved
  * orgs, slug taken by another account) — in that case `state` is `off`
  * and `stored` is non-null, which the Runner page surfaces as an orphan
@@ -28,10 +28,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@kody-ade/base/auth";
 import { readBrainOverview } from "../overview";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "../github";
+import { clearGitHubContext, setGitHubContext } from "../github";
 import { logger } from "@kody-ade/base/logger";
 import { resolveServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
 

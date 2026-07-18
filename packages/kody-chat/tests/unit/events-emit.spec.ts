@@ -10,10 +10,6 @@ const h = vi.hoisted(() => ({
 }));
 
 vi.mock("@kody-ade/base/logger", () => ({ logger: h.logger }));
-vi.mock("@kody-ade/base/state-repo", () => ({
-  readStateText: vi.fn(),
-  writeStateText: vi.fn(),
-}));
 vi.mock("@kody-ade/base/auth/background-token", () => ({
   resolveBackgroundToken: vi.fn().mockResolvedValue(null),
 }));
@@ -133,7 +129,11 @@ describe("emitSystemEvent", () => {
     });
     const received = captureSink("healthy");
 
-    emitSystemEvent("session.ended", { sessionId: "s-1" }, { source: "server" });
+    emitSystemEvent(
+      "session.ended",
+      { sessionId: "s-1" },
+      { source: "server" },
+    );
     await flushAsync();
 
     expect(received).toHaveLength(1);
@@ -152,7 +152,11 @@ describe("emitSystemEvent", () => {
       },
     });
 
-    emitSystemEvent("session.started", { sessionId: "s-2" }, { source: "server" });
+    emitSystemEvent(
+      "session.started",
+      { sessionId: "s-2" },
+      { source: "server" },
+    );
     await flushAsync();
 
     expect(received).toHaveLength(1);

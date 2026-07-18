@@ -39,14 +39,11 @@ import { logger } from "@kody-ade/base/logger";
 import { dispatchNotifications } from "@dashboard/lib/notifications-dispatch";
 import { dispatchMentionPushes } from "@dashboard/lib/push/mention-dispatch";
 import { dispatchAgentMentions } from "@dashboard/lib/push/agent-mention-dispatch";
-import { dispatchCapabilityFailures } from "@dashboard/lib/push/capability-failure-dispatch";
 import { dispatchOperatorRequests } from "@dashboard/lib/push/operator-request-dispatch";
-import { dispatchReviewPrs } from "@dashboard/lib/push/review-pr-dispatch";
 import {
   invalidateCatalogProjection,
   isCatalogRelevantPath,
 } from "@dashboard/lib/backend/catalog-invalidation";
-import { dispatchReportPushes } from "@dashboard/lib/push/report-dispatch";
 import { applyVerdictFromComment } from "@dashboard/lib/ui-verify/apply-label";
 import {
   handlePrMerged,
@@ -285,7 +282,7 @@ function dispatch(event: string, payload: unknown): DispatchResult {
               ref: p.pull_request.head.sha,
               // Only set on `synchronize` (push to PR branch). When
               // present, the handler skips the build if the diff
-              // before..head is engine-only (.kody/** + CHANGELOG).
+              // before..head only changes release bookkeeping.
               beforeSha:
                 p.action === "synchronize" && p.before ? p.before : undefined,
             }),
@@ -345,7 +342,7 @@ function dispatch(event: string, payload: unknown): DispatchResult {
       invalidatePRBehindCache();
       // Default-branch push → refresh the per-repo GHCR base image so
       // future PR builds inherit fresh deps + build cache. Skipped at
-      // the handler level for engine-only pushes (.kody/** + CHANGELOG).
+      // the handler level for release-bookkeeping-only pushes.
       const p = payload as PushPayload;
       const defaultBranch = p?.repository?.default_branch;
       const ref = p?.ref;
@@ -538,43 +535,6 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           error: err instanceof Error ? err.message : String(err),
         },
         "dispatchOperatorRequests threw — should have been caught internally",
-      );
-    });
-    // Agent review PR on the state repo (`<capability>: …`) → approvable
-    // inbox entry whose Approve squash-merges the PR from the dashboard.
-    await dispatchReviewPrs(eventType, obj).catch((err: unknown) => {
-      logger.error(
-        {
-          event: "review_pr_dispatch_crashed",
-          error: err instanceof Error ? err.message : String(err),
-        },
-        "dispatchReviewPrs threw — should have been caught internally",
-      );
-    });
-    // Failed capability run → inbox entry for every operator. Triggered by the
-    // engine's activity-log commit to the state repo (a `push` event), so
-    // a silent cron failure surfaces without any engine change. Awaited for
-    // the same serverless reason as the mention feed write above.
-    await dispatchCapabilityFailures(eventType, obj).catch((err: unknown) => {
-      logger.error(
-        {
-          event: "capability_failure_dispatch_crashed",
-          error: err instanceof Error ? err.message : String(err),
-        },
-        "dispatchCapabilityFailures threw — should have been caught internally",
-      );
-    });
-    // New report run committed under <repo>/reports/<slug>/runs/ in the state repo →
-    // broadcast browser banner to every subscribed device for the repo, so a
-    // report landing feels like an inbox/mention ping. Awaited for the same
-    // serverless reason as the entries above.
-    await dispatchReportPushes(eventType, obj).catch((err: unknown) => {
-      logger.error(
-        {
-          event: "report_push_dispatch_crashed",
-          error: err instanceof Error ? err.message : String(err),
-        },
-        "dispatchReportPushes threw — should have been caught internally",
       );
     });
   }

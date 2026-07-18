@@ -5,12 +5,12 @@
  *
  * Stores action polling state in the global (cross-tenant) Convex
  * `actionStates` table via actionStates.{get,save,list,remove}.
- * Replaces the GitHub-backed `action-state.json` in the Kody state repo
+ * Replaces the GitHub-backed `action-state.json` in the Kody backend
  * (which itself replaced a local-FS store that didn't survive Vercel
  * serverless cold starts).
  *
  * The `opts` bags (owner/repo/branch/octokit) are retained for signature
- * compatibility with the state-repo era; Convex ignores them — the table is
+ * compatibility with the backend era; Convex ignores them — the table is
  * global and keyed by runId.
  */
 

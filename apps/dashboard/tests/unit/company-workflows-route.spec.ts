@@ -118,7 +118,7 @@ function params(id: string) {
 
 const bugWorkflow = {
   id: "bug",
-  path: ".kody/capabilities/bug/profile.json",
+  path: "legacy/capabilities/bug/profile.json",
   workflow: {
     version: 1,
     name: "bug",
@@ -130,12 +130,12 @@ const bugWorkflow = {
   source: "store",
   readOnly: true,
   htmlUrl:
-    "https://github.com/acme/kody-store/tree/main/.kody/capabilities/bug",
+    "https://github.com/acme/kody-store/tree/main/legacy/capabilities/bug",
 };
 
 const webReleaseWorkflow = {
   id: "web-release",
-  path: ".kody/workflows/web-release/workflow.json",
+  path: "legacy/workflows/web-release/workflow.json",
   workflow: {
     version: 1,
     name: "Web release",
@@ -147,7 +147,7 @@ const webReleaseWorkflow = {
   source: "store",
   readOnly: true,
   htmlUrl:
-    "https://github.com/acme/kody-store/tree/main/.kody/workflows/web-release",
+    "https://github.com/acme/kody-store/tree/main/legacy/workflows/web-release",
 };
 
 function baseConfig() {

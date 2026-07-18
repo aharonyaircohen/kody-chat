@@ -49,7 +49,6 @@ export async function GET(req: NextRequest) {
       activeCommands: config.company?.activeCommands ?? [],
       activeGoals: config.company?.activeGoals ?? [],
       activeWorkflows: config.company?.activeWorkflows ?? [],
-      state: config.state ?? null,
       defaultBranch: config.git?.defaultBranch ?? "",
       perImplementation: config.agent?.perImplementation ?? {},
       reasoningEffort: config.agent?.reasoningEffort ?? null,
@@ -87,31 +86,6 @@ const activeGoalSchema = z.union([
   }),
 ]);
 
-const stateRepoSchema = z
-  .string()
-  .trim()
-  .min(1)
-  .max(255)
-  .regex(/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/?$/i);
-const statePathSchema = z
-  .string()
-  .trim()
-  .max(255)
-  .transform((value) => value.replace(/^\/+|\/+$/g, ""))
-  .refine(
-    (value) =>
-      !value.includes("\\") &&
-      (value.length === 0 ||
-        value
-          .split("/")
-          .every((segment) => segment && segment !== "." && segment !== "..")),
-    { message: "must be a relative path without parent segments" },
-  );
-const stateSchema = z.object({
-  repo: stateRepoSchema,
-  path: statePathSchema,
-});
-
 const PatchSchema = z
   .object({
     quality: z
@@ -137,7 +111,6 @@ const PatchSchema = z
     activeCommands: z.array(slugSchema).max(200).nullable().optional(),
     activeGoals: z.array(activeGoalSchema).max(200).nullable().optional(),
     activeWorkflows: z.array(slugSchema).max(200).nullable().optional(),
-    state: stateSchema.nullable().optional(),
     defaultBranch: z.string().max(255).nullable().optional(),
     // Implementation slug -> `provider/model` override. Bounded so a paste can't
     // bloat the config blob.
@@ -165,7 +138,6 @@ const PatchSchema = z
       b.activeCommands !== undefined ||
       b.activeGoals !== undefined ||
       b.activeWorkflows !== undefined ||
-      b.state !== undefined ||
       b.defaultBranch !== undefined ||
       b.perImplementation !== undefined ||
       b.reasoningEffort !== undefined,
@@ -213,7 +185,6 @@ export async function PATCH(req: NextRequest) {
     activeCapabilities,
     activeGoals,
     activeWorkflows,
-    state,
     defaultBranch,
     perImplementation,
     reasoningEffort,
@@ -239,7 +210,6 @@ export async function PATCH(req: NextRequest) {
         activeCommands,
         activeGoals,
         activeWorkflows,
-        state,
         defaultBranch,
         perImplementation,
         reasoningEffort,
@@ -259,7 +229,6 @@ export async function PATCH(req: NextRequest) {
       activeCommands: config.company?.activeCommands ?? [],
       activeGoals: config.company?.activeGoals ?? [],
       activeWorkflows: config.company?.activeWorkflows ?? [],
-      state: config.state ?? null,
       defaultBranch: config.git?.defaultBranch ?? "",
       perImplementation: config.agent?.perImplementation ?? {},
       reasoningEffort: config.agent?.reasoningEffort ?? null,

@@ -6,10 +6,7 @@ import {
   getUserOctokit,
   requireKodyAuth,
 } from "@kody-ade/base/auth";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "../github";
+import { clearGitHubContext, setGitHubContext } from "../github";
 import { logger } from "@kody-ade/base/logger";
 import {
   assertSchemaOperationAllowed,
@@ -18,14 +15,11 @@ import {
   loadCmsConfigFromState,
 } from "../config";
 import { generateMongoCmsSchemaFiles } from "../schema/mongodb";
+import { CmsRuntimeError, listCmsCollections } from "../service";
 import {
-  CmsRuntimeError,
-  listCmsCollections,
-} from "../service";
-import {
-  readStateText,
-  writeStateFiles,
-  type StateRepoWriteFile,
+  readRepoDocFile,
+  writeRepoDocFiles,
+  type CmsWriteFile,
 } from "../repo-docs";
 import { getSecret } from "@kody-ade/base/vault/get-secret";
 import { getCmsActorRole } from "../roles";
@@ -150,7 +144,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    await writeStateFiles({
+    await writeRepoDocFiles({
       octokit,
       owner: headerAuth.owner,
       repo: headerAuth.repo,
@@ -221,7 +215,7 @@ async function readCmsConfigRoot(
   owner: string,
   repo: string,
 ): Promise<Record<string, unknown> | null> {
-  const file = await readStateText(octokit, owner, repo, "cms/config.json");
+  const file = await readRepoDocFile(octokit, owner, repo, "cms/config.json");
   if (!file) return null;
 
   let config: unknown;
@@ -265,9 +259,9 @@ function mergeStringLists(...lists: string[][]): string[] {
 }
 
 function preserveSchemaGenerationSkipCollections(
-  files: StateRepoWriteFile[],
+  files: CmsWriteFile[],
   skipCollections: string[],
-): StateRepoWriteFile[] {
+): CmsWriteFile[] {
   if (skipCollections.length === 0) return files;
   return files.map((file) => {
     if (file.path !== "cms/config.json") return file;

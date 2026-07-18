@@ -4,7 +4,7 @@
  * @pattern agent-page
  * @ai-summary Agent entry point. Renders a tabbed shell hosting Agent
  *   Control under a single route. Mirrors the Capabilities page; starts empty
- *   (no capabilities are copied — `agents/` is its own state-repo directory).
+ *   (no capabilities are copied — `agents/` is its own backend directory).
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { AgentsPageTabs } from "@dashboard/lib/components/AgentsPageTabs";

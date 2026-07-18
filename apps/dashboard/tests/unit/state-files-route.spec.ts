@@ -3,21 +3,28 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const auth = vi.hoisted(() => ({
   requireKodyAuth: vi.fn(async () => null),
-  getRequestAuth: vi.fn(() => ({ token: "viewer", owner: "acme", repo: "widgets" })),
+  getRequestAuth: vi.fn(() => ({
+    token: "viewer",
+    owner: "acme",
+    repo: "widgets",
+  })),
 }));
 const backend = vi.hoisted(() => ({ query: vi.fn() }));
-const refs = vi.hoisted(() => ({ workflowGet: Symbol("workflowRuns:get"), repoDocGet: Symbol("repoDocs:get") }));
+const refs = vi.hoisted(() => ({
+  workflowGet: Symbol("workflowRuns:get"),
+  repoDocGet: Symbol("repoDocs:get"),
+}));
 
 vi.mock("@kody-ade/base/auth", () => auth);
-vi.mock("@kody-ade/base/state-repo", () => ({
-  normalizeStatePath: (path: string) => {
-    const value = path.trim().replace(/^\/+|\/+$/g, "");
-    if (value.includes("..")) throw new Error("invalid state path");
-    return value;
+vi.mock("@kody-ade/backend/api", () => ({
+  api: {
+    workflowRuns: { get: refs.workflowGet },
+    repoDocs: { get: refs.repoDocGet },
   },
 }));
-vi.mock("@kody-ade/backend/api", () => ({ api: { workflowRuns: { get: refs.workflowGet }, repoDocs: { get: refs.repoDocGet } } }));
-vi.mock("@kody-ade/backend/client", () => ({ createBackendClient: () => backend }));
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => backend,
+}));
 
 import { GET } from "../../app/api/kody/state-files/route";
 
@@ -26,22 +33,45 @@ describe("GET /api/kody/state-files", () => {
 
   it("reads workflow evidence from Convex", async () => {
     backend.query.mockResolvedValue({ state: { event: "done" } });
-    const res = await GET(new NextRequest("http://localhost/api/kody/state-files?path=logs/goals/ci-health/runs/run.jsonl"));
+    const res = await GET(
+      new NextRequest(
+        "http://localhost/api/kody/state-files?path=logs/goals/ci-health/runs/run.jsonl",
+      ),
+    );
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toMatchObject({ path: "logs/goals/ci-health/runs/run.jsonl", content: '{\n  "event": "done"\n}' });
-    expect(backend.query).toHaveBeenCalledWith(refs.workflowGet, { tenantId: "acme/widgets", workflowId: "ci-health", runId: "run" });
+    await expect(res.json()).resolves.toMatchObject({
+      path: "logs/goals/ci-health/runs/run.jsonl",
+      content: '{\n  "event": "done"\n}',
+    });
+    expect(backend.query).toHaveBeenCalledWith(refs.workflowGet, {
+      tenantId: "acme/widgets",
+      workflowId: "ci-health",
+      runId: "run",
+    });
   });
 
   it("reads a projected document from Convex", async () => {
     backend.query.mockResolvedValue({ doc: { enabled: true } });
-    const res = await GET(new NextRequest("http://localhost/api/kody/state-files?path=user-state/config.json"));
+    const res = await GET(
+      new NextRequest(
+        "http://localhost/api/kody/state-files?path=user-state/config.json",
+      ),
+    );
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toMatchObject({ path: "user-state/config.json", content: '{\n  "enabled": true\n}' });
-    expect(backend.query).toHaveBeenCalledWith(refs.repoDocGet, { tenantId: "acme/widgets", kind: "user-state/config.json" });
+    await expect(res.json()).resolves.toMatchObject({
+      path: "user-state/config.json",
+      content: '{\n  "enabled": true\n}',
+    });
+    expect(backend.query).toHaveBeenCalledWith(refs.repoDocGet, {
+      tenantId: "acme/widgets",
+      kind: "user-state/config.json",
+    });
   });
 
   it("rejects unsafe paths before any backend read", async () => {
-    const res = await GET(new NextRequest("http://localhost/api/kody/state-files?path=../secret"));
+    const res = await GET(
+      new NextRequest("http://localhost/api/kody/state-files?path=../secret"),
+    );
     expect(res.status).toBe(400);
     expect(backend.query).not.toHaveBeenCalled();
   });

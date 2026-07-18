@@ -78,10 +78,10 @@ const stateRepo = vi.hoisted(() => ({
 vi.mock("@kody-ade/cms/repo-docs", () => ({
   readCmsFile: async (owner: string, repo: string, filePath: string) =>
     stateRepo.readStateText({}, owner, repo, filePath),
-  readStateText: (...args: unknown[]) => stateRepo.readStateText(...args),
-  writeStateText: (input: unknown) => stateRepo.writeStateText(input),
-  writeStateFiles: (input: unknown) => stateRepo.writeStateFiles(input),
-  deleteStateFile: (input: unknown) => stateRepo.deleteStateFile(input),
+  readRepoDocFile: (...args: unknown[]) => stateRepo.readStateText(...args),
+  writeRepoDocFile: (input: unknown) => stateRepo.writeStateText(input),
+  writeRepoDocFiles: (input: unknown) => stateRepo.writeStateFiles(input),
+  deleteRepoDocFile: (input: unknown) => stateRepo.deleteStateFile(input),
 }));
 
 const mongoSchema = vi.hoisted(() => ({
@@ -108,7 +108,6 @@ const vault = vi.hoisted(() => ({
 vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@dashboard/lib/github-client", () => github);
 vi.mock("@kody-ade/cms/service", () => service);
-vi.mock("@kody-ade/base/state-repo", () => stateRepo);
 vi.mock("@kody-ade/cms/schema/mongodb", () => mongoSchema);
 vi.mock("@kody-ade/base/vault/get-secret", () => vault);
 
@@ -238,7 +237,7 @@ describe("CMS API routes", () => {
     });
   });
 
-  it("creates a neutral CMS config in the state repo", async () => {
+  it("creates a neutral CMS config in the backend", async () => {
     const res = await indexPOST(
       postRequest({ name: "Example CMS", adapter: "github" }),
     );
@@ -291,7 +290,7 @@ describe("CMS API routes", () => {
     expect(stateRepo.writeStateText).not.toHaveBeenCalled();
   });
 
-  it("switches the configured CMS adapter in state repo", async () => {
+  it("switches the configured CMS adapter in backend", async () => {
     const rootConfig = {
       path: "cms/config.json",
       sha: "config-sha",
@@ -405,7 +404,7 @@ describe("CMS API routes", () => {
     });
   });
 
-  it("updates CMS adapter settings in state repo", async () => {
+  it("updates CMS adapter settings in backend", async () => {
     const rootConfig = {
       path: "cms/config.json",
       sha: "config-sha",
@@ -474,7 +473,7 @@ describe("CMS API routes", () => {
     });
   });
 
-  it("updates CMS permissions in state repo", async () => {
+  it("updates CMS permissions in backend", async () => {
     const rootConfig = {
       path: "cms/config.json",
       sha: "config-sha",
@@ -1192,7 +1191,7 @@ describe("CMS API routes", () => {
     expect(auth.verifyActorLogin).not.toHaveBeenCalled();
   });
 
-  it("generates CMS schema into the state repo", async () => {
+  it("generates CMS schema into the backend", async () => {
     stateRepo.readStateText.mockResolvedValueOnce({
       path: "cms/config.json",
       content: JSON.stringify({

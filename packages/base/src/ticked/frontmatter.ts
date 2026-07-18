@@ -50,7 +50,7 @@ export interface TickFrontmatter {
    * `false` keeps the file active.
    */
   disabled?: boolean;
-  /** Slug of an agent identity under `agents/<agent>.md` in the state repo. */
+  /** Slug of an agent identity under `agents/<agent>.md` in the backend. */
   agent?: string;
   /**
    * Capability slugs attached to this record (agent files). Each named

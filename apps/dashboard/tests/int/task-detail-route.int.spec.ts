@@ -38,8 +38,7 @@ vi.mock("@dashboard/lib/github-client", () => ({
     mocks.getStatusFromBranch(...(a as [])),
   findAssociatedPRByIssueNumber: (...a: unknown[]) =>
     mocks.findAssociatedPRByIssueNumber(...(a as [])),
-  fetchWorkflowRuns: (...a: unknown[]) =>
-    mocks.fetchWorkflowRuns(...(a as [])),
+  fetchWorkflowRuns: (...a: unknown[]) => mocks.fetchWorkflowRuns(...(a as [])),
   setGitHubContext: vi.fn(),
   clearGitHubContext: vi.fn(),
 }));
@@ -48,7 +47,7 @@ vi.mock("@dashboard/lib/task-parser", () => ({
   parseAllComments: (...a: unknown[]) => mocks.parseAllComments(...(a as [])),
 }));
 
-vi.mock("@kody-ade/base/kody-state", () => ({
+vi.mock("@kody-ade/base/task-comment-state", () => ({
   findKodyStateInComments: (...a: unknown[]) =>
     mocks.findKodyStateInComments(...(a as [])),
 }));

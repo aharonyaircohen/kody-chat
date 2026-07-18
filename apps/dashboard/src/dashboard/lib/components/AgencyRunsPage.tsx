@@ -333,7 +333,9 @@ export function agencyRunDiagnosis(
     ["running", "waiting", "stuck", "recorded"].includes(run.status)
       ? "No final outcome event."
       : null,
-    !run.sourcePath && events.length === 0 ? "No persisted run evidence." : null,
+    !run.sourcePath && events.length === 0
+      ? "No persisted run evidence."
+      : null,
     run.githubRunId && !run.githubRunUrl ? "No GitHub run link." : null,
   ].filter((line): line is string => line !== null);
 
@@ -1029,7 +1031,9 @@ function RunRow({
             ) : run.sourcePath ? (
               <div className="mt-2 text-white/45">No events found</div>
             ) : (
-              <div className="mt-2 text-white/45">No persisted run evidence</div>
+              <div className="mt-2 text-white/45">
+                No persisted run evidence
+              </div>
             )}
           </details>
 
@@ -1068,7 +1072,7 @@ function EmptyPanel({ label }: { label: string }) {
       <Route className="h-7 w-7 text-white/25" />
       <div className="text-sm font-medium text-white/75">No {label} runs</div>
       <div className="max-w-sm text-xs text-white/40">
-        This page only shows Kody-native runs recorded in the state repo.
+        This page only shows Kody-native runs recorded in the backend.
       </div>
     </div>
   );

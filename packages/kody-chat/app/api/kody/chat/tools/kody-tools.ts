@@ -29,8 +29,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
-import { api } from "@kody-ade/backend/api";
-import { createBackendClient } from "@kody-ade/backend/client";
+import { readCapabilityFile } from "@kody-ade/agency/capabilities";
 import { logger } from "@kody-ade/base/logger";
 import {
   invalidateIssueCache,
@@ -46,12 +45,7 @@ interface Ctx {
 }
 
 type KodyPrCommand =
-  | "fix"
-  | "fix-ci"
-  | "review"
-  | "resolve"
-  | "revert"
-  | "sync";
+  "fix" | "fix-ci" | "review" | "resolve" | "revert" | "sync";
 
 interface DispatchResult {
   number: number;
@@ -76,12 +70,7 @@ async function resolveCapabilityAction(
         "Refusing to dispatch: capability must be lowercase letters, digits, dashes, or underscores.",
     };
   }
-  const row = await createBackendClient().query(api.catalog.get, {
-    tenantId: `${ctx.owner}/${ctx.repo}`,
-    category: "capability",
-    slug,
-  });
-  const capability = (row as { doc?: { slug?: string } } | null)?.doc;
+  const capability = await readCapabilityFile(slug);
   if (!capability) {
     return {
       error: `Refusing to dispatch: capability "${slug}" was not found.`,
@@ -241,7 +230,7 @@ const CAPABILITY_SCHEMA = z
   .max(64)
   .optional()
   .describe(
-    "Which Kody capability to run. Defaults to `classify`. The capability folder must exist under `capabilities/<slug>/` in the state repo.",
+    "Which Kody capability to run. Defaults to `classify`. The capability folder must exist under `capabilities/<slug>/` in the backend.",
   );
 
 const NOTES_SCHEMA = z

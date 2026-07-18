@@ -87,7 +87,7 @@ describe("managed goal run logs", () => {
       listManagedGoalRunLogs({
         octokit: {} as never,
         owner: "test-owner",
-        repo: "state-repo",
+        repo: "backend",
         goalId: "ci-health",
       }),
     ).resolves.toEqual({ goalId: "ci-health", runs: [] });
@@ -114,7 +114,7 @@ describe("managed goal run logs", () => {
     const payload = await listManagedGoalRunLogs({
       octokit: {} as never,
       owner: "test-owner",
-      repo: "state-repo",
+      repo: "backend",
       goalId: "ci-health",
       limit: 1,
     });
@@ -123,7 +123,7 @@ describe("managed goal run logs", () => {
     expect(payload.runs[0]?.fileName).toBe("run-new");
     expect(backend.listStoredGoalRunEvents).toHaveBeenCalledWith(
       "test-owner",
-      "state-repo",
+      "backend",
       "ci-health",
       100,
     );

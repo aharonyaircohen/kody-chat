@@ -16,14 +16,42 @@ import { CHAT_PLUGIN_DIRS } from "./src/dashboard/lib/chat/plugins/plugin-dirs.m
 const CHAT = "./src/dashboard/lib/chat";
 const chatLayerZones = [
   // core is the bottom layer: no platform/surface/plugins/legacy components.
-  { target: `${CHAT}/core`, from: `${CHAT}/surface`, message: "core must not import surface" },
-  { target: `${CHAT}/core`, from: `${CHAT}/plugins`, message: "core must not import plugins" },
-  { target: `${CHAT}/core`, from: `${CHAT}/platform`, message: "core must not import platform" },
-  { target: `${CHAT}/core`, from: "./src/dashboard/lib/components", message: "core must not import components" },
+  {
+    target: `${CHAT}/core`,
+    from: `${CHAT}/surface`,
+    message: "core must not import surface",
+  },
+  {
+    target: `${CHAT}/core`,
+    from: `${CHAT}/plugins`,
+    message: "core must not import plugins",
+  },
+  {
+    target: `${CHAT}/core`,
+    from: `${CHAT}/platform`,
+    message: "core must not import platform",
+  },
+  {
+    target: `${CHAT}/core`,
+    from: "./src/dashboard/lib/components",
+    message: "core must not import components",
+  },
   // platform sits above core only.
-  { target: `${CHAT}/platform`, from: `${CHAT}/surface`, message: "platform must not import surface" },
-  { target: `${CHAT}/platform`, from: `${CHAT}/plugins`, message: "platform must not import plugins" },
-  { target: `${CHAT}/platform`, from: "./src/dashboard/lib/components", message: "platform must not import components" },
+  {
+    target: `${CHAT}/platform`,
+    from: `${CHAT}/surface`,
+    message: "platform must not import surface",
+  },
+  {
+    target: `${CHAT}/platform`,
+    from: `${CHAT}/plugins`,
+    message: "platform must not import plugins",
+  },
+  {
+    target: `${CHAT}/platform`,
+    from: "./src/dashboard/lib/components",
+    message: "platform must not import components",
+  },
   // plugins may use platform + core utilities — but never the stream
   // reducer. Lifecycle needs (message start/end, thinking, stream events)
   // go through the ChatPlugin contract (platform/types.ts): add a hook to
@@ -31,7 +59,8 @@ const chatLayerZones = [
   {
     target: `${CHAT}/plugins`,
     from: `${CHAT}/core/kody-chat-reducer.ts`,
-    message: "plugins must not import the chat reducer — extend the ChatPlugin contract (platform/types.ts) with a lifecycle hook instead",
+    message:
+      "plugins must not import the chat reducer — extend the ChatPlugin contract (platform/types.ts) with a lifecycle hook instead",
   },
   // plugins may use platform + core, never each other.
   ...CHAT_PLUGIN_DIRS.map((dir) => ({
@@ -48,7 +77,6 @@ export default [
     ignores: [
       "**/node_modules/**",
       "**/.claude/**",
-      "**/.kody/**",
       "**/.next/**",
       "**/dist/**",
       "**/build/**",
@@ -79,7 +107,10 @@ export default [
       ...tseslint.configs.recommended.rules,
       ...jsxA11y.configs.recommended.rules,
       ...nextPlugin.configs.recommended.rules,
-      "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_", varsIgnorePattern: "^_" }],
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
+      ],
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/triple-slash-reference": "off",
       "react-hooks/rules-of-hooks": "error",
@@ -98,7 +129,10 @@ export default [
     // Chat platform: strict standards + layering. These are ERRORS (the
     // repo-wide config only warns) — the refactor gate runs lint blocking.
     name: "chat-platform-standards",
-    files: ["src/dashboard/lib/chat/**/*.ts", "src/dashboard/lib/chat/**/*.tsx"],
+    files: [
+      "src/dashboard/lib/chat/**/*.ts",
+      "src/dashboard/lib/chat/**/*.tsx",
+    ],
     plugins: { import: importPlugin },
     settings: {
       // Resolve .ts/.tsx so the relative-path layer zones fire. Alias-form
@@ -111,7 +145,10 @@ export default [
     rules: {
       "no-console": "error",
       "@typescript-eslint/no-explicit-any": "error",
-      "max-lines": ["error", { max: 800, skipBlankLines: true, skipComments: true }],
+      "max-lines": [
+        "error",
+        { max: 800, skipBlankLines: true, skipComments: true },
+      ],
       "import/no-restricted-paths": ["error", { zones: chatLayerZones }],
     },
   },
@@ -124,54 +161,124 @@ export default [
     name: "kodychat-size-ratchet",
     files: ["src/dashboard/lib/components/KodyChat.tsx"],
     rules: {
-      "max-lines": ["error", { max: 1760, skipBlankLines: false, skipComments: false }],
+      "max-lines": [
+        "error",
+        { max: 1760, skipBlankLines: false, skipComments: false },
+      ],
     },
   },
   {
     // Layer zones, alias form. no-restricted-paths only sees resolvable
     // relative imports; these blocks close the @dashboard/@ alias route.
     name: "chat-core-alias-zones",
-    files: ["src/dashboard/lib/chat/core/**/*.ts", "src/dashboard/lib/chat/core/**/*.tsx"],
+    files: [
+      "src/dashboard/lib/chat/core/**/*.ts",
+      "src/dashboard/lib/chat/core/**/*.tsx",
+    ],
     rules: {
-      "no-restricted-imports": ["error", { patterns: [
-        { group: ["@dashboard/lib/chat/surface*", "@/dashboard/lib/chat/surface*"], message: "core must not import surface" },
-        { group: ["@dashboard/lib/chat/plugins*", "@/dashboard/lib/chat/plugins*"], message: "core must not import plugins" },
-        { group: ["@dashboard/lib/chat/platform*", "@/dashboard/lib/chat/platform*"], message: "core must not import platform" },
-        { group: ["@dashboard/lib/components*", "@/dashboard/lib/components*"], message: "core must not import components" },
-      ]}],
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "@dashboard/lib/chat/surface*",
+                "@/dashboard/lib/chat/surface*",
+              ],
+              message: "core must not import surface",
+            },
+            {
+              group: [
+                "@dashboard/lib/chat/plugins*",
+                "@/dashboard/lib/chat/plugins*",
+              ],
+              message: "core must not import plugins",
+            },
+            {
+              group: [
+                "@dashboard/lib/chat/platform*",
+                "@/dashboard/lib/chat/platform*",
+              ],
+              message: "core must not import platform",
+            },
+            {
+              group: [
+                "@dashboard/lib/components*",
+                "@/dashboard/lib/components*",
+              ],
+              message: "core must not import components",
+            },
+          ],
+        },
+      ],
     },
   },
   {
     name: "chat-platform-alias-zones",
-    files: ["src/dashboard/lib/chat/platform/**/*.ts", "src/dashboard/lib/chat/platform/**/*.tsx"],
+    files: [
+      "src/dashboard/lib/chat/platform/**/*.ts",
+      "src/dashboard/lib/chat/platform/**/*.tsx",
+    ],
     rules: {
-      "no-restricted-imports": ["error", { patterns: [
-        { group: ["@dashboard/lib/chat/surface*", "@/dashboard/lib/chat/surface*"], message: "platform must not import surface" },
-        { group: ["@dashboard/lib/chat/plugins*", "@/dashboard/lib/chat/plugins*"], message: "platform must not import plugins" },
-        { group: ["@dashboard/lib/components*", "@/dashboard/lib/components*"], message: "platform must not import components" },
-      ]}],
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: [
+                "@dashboard/lib/chat/surface*",
+                "@/dashboard/lib/chat/surface*",
+              ],
+              message: "platform must not import surface",
+            },
+            {
+              group: [
+                "@dashboard/lib/chat/plugins*",
+                "@/dashboard/lib/chat/plugins*",
+              ],
+              message: "platform must not import plugins",
+            },
+            {
+              group: [
+                "@dashboard/lib/components*",
+                "@/dashboard/lib/components*",
+              ],
+              message: "platform must not import components",
+            },
+          ],
+        },
+      ],
     },
   },
   ...CHAT_PLUGIN_DIRS.map((dir) => ({
     name: `chat-plugin-${dir}-alias-zones`,
-    files: [`src/dashboard/lib/chat/plugins/${dir}/**/*.ts`, `src/dashboard/lib/chat/plugins/${dir}/**/*.tsx`],
+    files: [
+      `src/dashboard/lib/chat/plugins/${dir}/**/*.ts`,
+      `src/dashboard/lib/chat/plugins/${dir}/**/*.tsx`,
+    ],
     rules: {
-      "no-restricted-imports": ["error", { patterns: [
+      "no-restricted-imports": [
+        "error",
         {
-          group: CHAT_PLUGIN_DIRS.filter((d) => d !== dir).flatMap((d) => [
-            `@dashboard/lib/chat/plugins/${d}*`,
-            `@/dashboard/lib/chat/plugins/${d}*`,
-          ]),
-          message: `plugins must not import sibling plugins (${dir})`,
-        },
-        {
-          group: [
-            "@dashboard/lib/chat/core/kody-chat-reducer*",
-            "@/dashboard/lib/chat/core/kody-chat-reducer*",
+          patterns: [
+            {
+              group: CHAT_PLUGIN_DIRS.filter((d) => d !== dir).flatMap((d) => [
+                `@dashboard/lib/chat/plugins/${d}*`,
+                `@/dashboard/lib/chat/plugins/${d}*`,
+              ]),
+              message: `plugins must not import sibling plugins (${dir})`,
+            },
+            {
+              group: [
+                "@dashboard/lib/chat/core/kody-chat-reducer*",
+                "@/dashboard/lib/chat/core/kody-chat-reducer*",
+              ],
+              message:
+                "plugins must not import the chat reducer — extend the ChatPlugin contract (platform/types.ts) with a lifecycle hook instead",
+            },
           ],
-          message: "plugins must not import the chat reducer — extend the ChatPlugin contract (platform/types.ts) with a lifecycle hook instead",
         },
-      ]}],
+      ],
     },
   })),
   {

@@ -3,7 +3,7 @@
  * @domain capabilities
  * @pattern capabilities-index
  * @ai-summary Public surface for the capability feature. Capabilities are
- *   stored under state-repo `capabilities/<slug>/` with `profile.json` and
+ *   stored under backend `capabilities/<slug>/` with `profile.json` and
  *   `capability.md`.
  */
 
@@ -34,6 +34,7 @@ export {
   listStoreCapabilityFiles,
   readCapabilityFile,
   readCapabilityFolderFiles,
+  readCompanyStoreCapabilityFolderFiles,
   readResolvedCapabilityFile,
   writeCapabilityFile,
   writeCapabilityFolderFiles,

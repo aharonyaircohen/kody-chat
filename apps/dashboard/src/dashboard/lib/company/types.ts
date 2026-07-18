@@ -40,7 +40,7 @@ export interface CompanyCommandEntry {
   body: string;
 }
 
-/** A company context entry under `context/<slug>.md` in the state repo. */
+/** A company context entry under `context/<slug>.md` in the backend. */
 export interface CompanyContextEntry {
   slug: string;
   body: string;
@@ -49,7 +49,7 @@ export interface CompanyContextEntry {
 
 /**
  * A custom capability/action folder. Unlike the single-file concepts above,
- * these ship as a path→content map of every file under the state-repo folder.
+ * these ship as a path→content map of every file under the backend folder.
  * Paths are relative to the folder.
  */
 export interface CompanyCapabilityEntry {
@@ -57,7 +57,7 @@ export interface CompanyCapabilityEntry {
   files: Record<string, string>;
 }
 
-/** A managed company goal under `todos/<id>.json` in the configured Kody state repo. */
+/** A managed company goal under `todos/<id>.json` in the configured Kody backend. */
 export interface CompanyGoalEntry {
   id: string;
   state: ManagedGoalState;
@@ -115,10 +115,7 @@ export interface CompanyImportCounts {
 
 /** What happened to the single instructions file on import. */
 export type CompanyInstructionsOutcome =
-  | "created"
-  | "updated"
-  | "skipped"
-  | "absent";
+  "created" | "updated" | "skipped" | "absent";
 
 /** What happened to the engine-config slice on import. `applied` = some field
  * was written; `skipped` = bundle had config but skip-mode left every field
@@ -190,7 +187,9 @@ const configBundleSchema = z.object({
   allowedAssociations: z.array(z.string().max(40)).max(16).optional(),
   defaultImplementation: z.string().max(64).optional(),
   defaultPrImplementation: z.string().max(64).optional(),
-  perImplementation: z.record(z.string().max(64), z.string().max(128)).optional(),
+  perImplementation: z
+    .record(z.string().max(64), z.string().max(128))
+    .optional(),
 });
 
 /**

@@ -3,7 +3,7 @@
  * @domain snippets
  * @pattern snippet-store
  * @ai-summary Loads and atomically mutates the brand's snippets from
- *   `snippets/config.json` in the state repo. Same loader conventions as
+ *   `snippets/config.json` in the backend. Same loader conventions as
  *   triggers: Zod-validated, invalid file tolerated (warn + empty), 60s TTL
  *   cache, CAS read-modify-write so concurrent saves never drop entries.
  */

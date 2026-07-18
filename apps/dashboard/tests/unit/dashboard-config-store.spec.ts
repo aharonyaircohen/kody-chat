@@ -38,7 +38,7 @@ const DOC: DashboardConfig = {
       id: "web",
       label: "Web",
       url: "https://preview.example",
-      repoViewPath: ".kody/views/legacy-view",
+      repoViewPath: "legacy/views/legacy-view",
     },
   ],
 };

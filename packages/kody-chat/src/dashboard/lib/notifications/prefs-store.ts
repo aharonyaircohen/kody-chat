@@ -3,13 +3,13 @@
  * @domain kody
  * @pattern notification-prefs-file-store
  * @ai-summary Read/write per-user notification preferences as a JSON file on the
- *   configured Kody state repo (`notifications/preferences/<login>.json`). One
+ *   configured Kody backend (`notifications/preferences/<login>.json`). One
  *   file per user → no cross-user write contention. Reads use ETag/If-None-Match
  *   so unchanged reads are a free 304. Writes use CAS (fetch SHA → write with
  *   SHA → retry on conflict).
  *
- *   This is the reusable state-repo JSON file-store helper. It generalizes to
- *   any key → `<dir>/<key>.json` path, with the state repo ref and ETag caching
+ *   This is the reusable backend JSON file-store helper. It generalizes to
+ *   any key → `<dir>/<key>.json` path, with the backend ref and ETag caching
  *   built in.
  */
 import "server-only";
@@ -80,7 +80,7 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefsFile = {
   mutedTypes: [],
 };
 
-/** The directory within the Kody state repo where per-user prefs live. */
+/** The directory within the Kody backend where per-user prefs live. */
 export const PREFS_DIR = "notifications/preferences";
 
 function filePath(login: string): string {
@@ -88,11 +88,14 @@ function filePath(login: string): string {
 }
 
 /**
- * Read notification preferences for a user from the configured Kody state repo.
+ * Read notification preferences for a user from the configured Kody backend.
  * Returns the cached data if still valid, otherwise fetches from GitHub
  * (using If-None-Match for a free 304 when unchanged).
  */
-export async function readNotificationPrefs(login: string, _token?: string): Promise<NotificationPrefsFile> {
+export async function readNotificationPrefs(
+  login: string,
+  _token?: string,
+): Promise<NotificationPrefsFile> {
   const owner = getOwner();
   const repo = getRepo();
   const path = filePath(login);
@@ -114,7 +117,7 @@ export async function readNotificationPrefs(login: string, _token?: string): Pro
 }
 
 /**
- * Write notification preferences for a user to the configured Kody state repo.
+ * Write notification preferences for a user to the configured Kody backend.
  * Uses CAS: fetches the current SHA, then writes with it. Retries once on
  * conflict (GitHub returns 409 when SHA doesn't match).
  */
@@ -123,7 +126,10 @@ export async function writeNotificationPrefs(
   prefsOrToken: NotificationPrefsFile | string,
   tokenOrPrefs?: string | NotificationPrefsFile,
 ): Promise<void> {
-  const prefs = typeof prefsOrToken === "string" ? (tokenOrPrefs as NotificationPrefsFile) : prefsOrToken;
+  const prefs =
+    typeof prefsOrToken === "string"
+      ? (tokenOrPrefs as NotificationPrefsFile)
+      : prefsOrToken;
   const owner = getOwner();
   const repo = getRepo();
   const key = cacheKey(owner, repo, login);
@@ -141,5 +147,8 @@ export async function writeNotificationPrefs(
 
 function normalizePrefs(value: unknown): NotificationPrefsFile {
   const parsed = value as Partial<NotificationPrefsFile> | null;
-  return { version: 1, mutedTypes: Array.isArray(parsed?.mutedTypes) ? parsed.mutedTypes : [] };
+  return {
+    version: 1,
+    mutedTypes: Array.isArray(parsed?.mutedTypes) ? parsed.mutedTypes : [],
+  };
 }

@@ -13,7 +13,7 @@ import type {
   CmsViewFieldConfig,
 } from "../types";
 import { normalizeCmsCollectionSlug } from "../config";
-import type { StateRepoWriteFile } from "@kody-ade/base/state-repo";
+import type { CmsWriteFile } from "../repo-docs";
 
 const SYSTEM_FIELDS = new Set(["_id", "__v", "createdAt", "updatedAt"]);
 const SENSITIVE_RE =
@@ -59,7 +59,7 @@ interface GenerateMongoCmsSchemaOptions {
 }
 
 export interface GeneratedMongoCmsSchema {
-  files: StateRepoWriteFile[];
+  files: CmsWriteFile[];
   collectionCount: number;
 }
 
@@ -112,7 +112,7 @@ export async function generateMongoCmsSchemaFiles(
     }
     const collectionSlugs = buildCollectionSlugMap(collectionNames);
 
-    const collectionFiles: StateRepoWriteFile[] = [];
+    const collectionFiles: CmsWriteFile[] = [];
     const collectionRefs: string[] = [];
     for (const collectionName of collectionNames) {
       const stats = rawStats.get(collectionName);

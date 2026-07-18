@@ -548,7 +548,7 @@ function formatOperatorSummaryLine(line: string): OperatorSummaryFormat {
     const repo = report[2].replace(/\.$/, "");
     out.push(`Added report: ${report[1]} (${repo}).`);
     evidenceLines.push(`Report file: ${report[1]}.`);
-    evidenceLines.push(`State repo: ${repo}.`);
+    evidenceLines.push(`Backend: ${repo}.`);
   }
 
   const health = line.match(/\bAI Agency Health:\s*([A-Za-z]+)\s*\(([^)]+)\)/);

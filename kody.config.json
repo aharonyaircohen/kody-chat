@@ -11,23 +11,13 @@
   "github": {
     "owner": "aharonyaircohen",
     "repo": "kody-chat",
-    "operators": [
-      "aguyaharonyair",
-      "aharonyaircohen"
-    ]
+    "operators": ["aguyaharonyair", "aharonyaircohen"]
   },
   "agent": {
     "model": "minimax/MiniMax-M3"
   },
-  "jobs": {
-    "stateBackend": "contents-api"
-  },
   "company": {
-    "activeAgents": [
-      "ceo",
-      "cto",
-      "coo"
-    ],
+    "activeAgents": ["ceo", "cto", "coo"],
     "activeCapabilities": [
       "company-portfolio-management",
       "agency-portfolio-management",
@@ -55,17 +45,8 @@
     ]
   },
   "access": {
-    "allowedAssociations": [
-      "OWNER",
-      "MEMBER",
-      "COLLABORATOR"
-    ]
+    "allowedAssociations": ["OWNER", "MEMBER", "COLLABORATOR"]
   },
   "defaultExecutable": "classify",
-  "defaultPrExecutable": "fix",
-  "state": {
-    "repo": "https://github.com/aharonyaircohen/kody-state",
-    "path": "kody-chat",
-    "branch": "main"
-  }
+  "defaultPrExecutable": "fix"
 }

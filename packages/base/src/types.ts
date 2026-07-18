@@ -96,13 +96,7 @@ export type TaskType =
 export type RiskLevel = "low" | "medium" | "high";
 
 export type PrimaryDomain =
-  | "backend"
-  | "frontend"
-  | "infra"
-  | "data"
-  | "llm"
-  | "devops"
-  | "product";
+  "backend" | "frontend" | "infra" | "data" | "llm" | "devops" | "product";
 
 export interface MissingInput {
   field: string;
@@ -278,9 +272,9 @@ export interface KodyTask {
    * are projections that can drift (e.g. concurrency-cancelled run mistaken
    * for a build failure). Absent on legacy / non-kody issues.
    *
-   * Schema mirrors kody-engine's TaskState (see src/dashboard/lib/kody-state.ts).
+   * Schema mirrors kody-engine's TaskState comment marker.
    */
-  kodyState?: import("./kody-state").KodyTaskState;
+  kodyState?: import("./task-comment-state").KodyTaskState;
   /**
    * One-line failure reason extracted from kodyState.core.lastOutcome.payload.reason
    * when the task is in column='failed'. Surfaced inline on the task card so the
@@ -307,11 +301,7 @@ export interface KodyTask {
 // ============ Sort Types ============
 
 export type ViewMode =
-  | "running"
-  | "backlog"
-  | "history"
-  | "unassigned"
-  | "queue";
+  "running" | "backlog" | "history" | "unassigned" | "queue";
 
 export type SortField =
   | "updatedAt"

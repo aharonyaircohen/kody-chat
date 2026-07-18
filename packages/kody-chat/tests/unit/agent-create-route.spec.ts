@@ -17,7 +17,6 @@ const h = vi.hoisted(() => ({
   readAgentFile: vi.fn(),
   writeAgentFile: vi.fn(),
   getEngineConfig: vi.fn(),
-  saveProjectedAgent: vi.fn(),
   recordAudit: vi.fn(),
 }));
 
@@ -47,10 +46,6 @@ vi.mock("@kody-ade/base/engine/config", () => ({
 vi.mock("@kody-ade/base/activity/audit", () => ({
   recordAudit: h.recordAudit,
 }));
-vi.mock("@kody-ade/agency/backend/agents-projection", () => ({
-  saveProjectedAgent: h.saveProjectedAgent,
-}));
-
 import { POST } from "../../app/api/kody/agents/route";
 
 function request(body: Record<string, unknown>) {
@@ -111,6 +106,7 @@ describe("POST /api/kody/agents", () => {
         body: "Runs QA checks.",
       }),
     );
+    expect(h.getUserOctokit).not.toHaveBeenCalled();
   });
 
   it("normalizes an invalid requested slug instead of returning invalid_slug", async () => {

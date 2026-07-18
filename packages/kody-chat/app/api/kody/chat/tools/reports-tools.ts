@@ -3,7 +3,7 @@
  * @domain reports
  * @pattern chat-tools
  * @ai-summary Read-only chat tools for goal/loop report families in the
- *   configured Kody state repo — list and read.
+ *   configured Kody backend — list and read.
  *   Reports are the Dashboard-facing summaries produced after goals/loops apply evidence.
  */
 import { tool } from "ai";
@@ -18,7 +18,7 @@ export function createReportTools(opts: { owner: string; repo: string }) {
   const repoRef = `${opts.owner}/${opts.repo}`;
   return {
     list_reports: tool({
-      description: `List the goal/loop reports in ${repoRef} (state repo reports/). Returns slug, title, and last-updated for each report.`,
+      description: `List the goal/loop reports in ${repoRef} (backend reports/). Returns slug, title, and last-updated for each report.`,
       inputSchema: z.object({}),
       execute: async () => {
         try {

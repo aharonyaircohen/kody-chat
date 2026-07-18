@@ -10,23 +10,20 @@ import { z } from "zod";
 import {
   requireKodyAuth,
   verifyActorLogin,
-  getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import { writeCapabilityFile } from "@kody-ade/agency/capabilities";
+import {
+  listCapabilityFiles,
+  readCapabilityFile,
+  writeCapabilityFile,
+} from "@kody-ade/agency/capabilities";
 import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
 import { isValidSlug, PERMISSION_MODES } from "@dashboard/lib/capabilities";
 import { getProjectedEngineConfig } from "@dashboard/lib/backend/repo-projection";
-import {
-  listProjectedCapabilities,
-  saveProjectedCapability,
-  getProjectedCapability,
-} from "@dashboard/lib/backend/repo-projection";
 import { recordAudit } from "@dashboard/lib/activity/audit";
-import { resolveInstalledCapabilitySlugs } from "@dashboard/lib/company-store/installed-capabilities";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -48,7 +45,6 @@ export async function GET(req: NextRequest) {
     );
 
   try {
-    let activeCapabilities = new Set<string>();
     let defaults = { issue: null as string | null, pr: null as string | null };
     if (!headerAuth)
       return NextResponse.json(
@@ -64,11 +60,7 @@ export async function GET(req: NextRequest) {
       issue: config.defaultImplementation ?? null,
       pr: config.defaultPrImplementation ?? null,
     };
-    const projected = await listProjectedCapabilities(
-      headerAuth.owner,
-      headerAuth.repo,
-      activeCapabilities,
-    );
+    const projected = await listCapabilityFiles();
     return NextResponse.json(
       { capabilities: projected, defaults },
       { headers: NO_STORE_HEADERS },
@@ -157,16 +149,15 @@ function slugifyInstructions(instructions: string): string {
  */
 async function deriveFreeSlug(
   instructions: string,
-  owner: string,
-  repo: string,
+  _owner: string,
+  _repo: string,
 ): Promise<string | null> {
   const base = slugifyInstructions(instructions);
   if (!base || !isValidSlug(base)) return null;
-  if (!(await getProjectedCapability(owner, repo, base))) return base;
+  if (!(await readCapabilityFile(base))) return base;
   for (let i = 2; i <= 99; i++) {
     const candidate = `${base}-${i}`.slice(0, 64);
-    if (!(await getProjectedCapability(owner, repo, candidate)))
-      return candidate;
+    if (!(await readCapabilityFile(candidate))) return candidate;
   }
   return null;
 }
@@ -204,13 +195,7 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         );
       }
-      if (
-        await getProjectedCapability(
-          headerAuth?.owner ?? "",
-          headerAuth?.repo ?? "",
-          input.slug,
-        )
-      ) {
+      if (await readCapabilityFile(input.slug)) {
         return NextResponse.json(
           {
             error: "slug_taken",
@@ -252,30 +237,7 @@ export async function POST(req: NextRequest) {
         { error: "repository_context_required" },
         { status: 400 },
       );
-    const octokit = await getUserOctokit(req);
-    if (!octokit) {
-      return NextResponse.json({ error: "no_user_token" }, { status: 401 });
-    }
-    const capability = {
-      slug,
-      describe: input.describe,
-      htmlUrl: "",
-      updatedAt: new Date().toISOString(),
-      source: "local" as const,
-      agent: null,
-      readOnly: false,
-      landing: input.landing,
-      prompt: instructions,
-      model: input.model,
-      permissionMode: input.permissionMode,
-      tools: input.tools,
-      skills: input.skills,
-      shellScripts: input.shellScripts,
-      mcpServers: input.mcpServers,
-      profileJson: input.profileJsonOverride ?? "",
-    };
-    await writeCapabilityFile({
-      octokit,
+    const capability = await writeCapabilityFile({
       fields: {
         slug,
         describe: input.describe,
@@ -294,12 +256,6 @@ export async function POST(req: NextRequest) {
         ? { profileJsonOverride: input.profileJsonOverride }
         : {}),
     });
-    await saveProjectedCapability(
-      headerAuth.owner,
-      headerAuth.repo,
-      capability,
-    );
-
     recordAudit(req, {
       action: "capability.create",
       resource: slug,

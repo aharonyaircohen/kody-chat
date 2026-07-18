@@ -394,4 +394,4 @@ Who owns what (phase-1 end state — update when phase 1.6 moves a row):
 | Agent/model selection, reasoning effort            | KodyChat (phase 1.6: extract)                                                  | `kody-default-chat-entry:<owner>/<repo>`, reasoning-pref                      |
 | Data loading (models, dashboard config, Fly probe) | KodyChat (phase 1.6: extract)                                                  | —                                                                             |
 | Voice                                              | KodyChat + `useKodyTTS*` hooks (phase 1.6: extract)                            | —                                                                             |
-| Brand/theme on /client                             | `plugins/branding` via `registry.theme()`                                      | `brands/<slug>.json` in state repo, then `client-brand.ts` fallback           |
+| Brand/theme on /client                             | `plugins/branding` via `registry.theme()`                                      | `brands/<slug>.json` in backend, then `client-brand.ts` fallback              |

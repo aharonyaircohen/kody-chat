@@ -17,8 +17,12 @@ vi.mock("@dashboard/lib/capabilities", () => ({
 }));
 
 const backend = vi.hoisted(() => ({ query: vi.fn() }));
-vi.mock("@kody-ade/backend/api", () => ({ api: { catalog: { get: "catalog.get" } } }));
-vi.mock("@kody-ade/backend/client", () => ({ createBackendClient: () => backend }));
+vi.mock("@kody-ade/backend/api", () => ({
+  api: { definitions: { getCurrent: "definitions.getCurrent" } },
+}));
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => backend,
+}));
 
 const { createKodyTools } =
   await import("../../app/api/kody/chat/tools/kody-tools");
@@ -78,7 +82,31 @@ describe("kody dispatch tools use capabilities", () => {
 
   it("posts the capability action for issue dispatch", async () => {
     const { ctx, createComment } = createCtx();
-    backend.query.mockResolvedValue({ doc: { slug: "feature" } });
+    backend.query.mockResolvedValue({
+      tenantId: "test-owner/test-repo",
+      kind: "capability",
+      slug: "feature",
+      bundle: {
+        files: {
+          "profile.json": JSON.stringify({
+            name: "feature",
+            describe: "Feature",
+            model: "inherit",
+            permissionMode: "acceptEdits",
+            tools: [],
+            skills: [],
+            shellScripts: [],
+            mcpServers: [],
+            landing: "pr",
+          }),
+          "capability.md": "Ship the feature",
+        },
+      },
+      source: "local",
+      version: 1,
+      contentHash: "test",
+      publishedAt: "2026-07-18T00:00:00.000Z",
+    });
 
     const tools = createKodyTools(ctx);
     const result = await tools.kody_run_issue.execute?.(

@@ -129,11 +129,17 @@ describe("activity run logs", () => {
       name: "execute",
       durationMs: 3000,
     })}\n`;
-    const zip = makeStoredZip(".kody/agent-runs/123/events.jsonl", jsonl);
-
-    expect(extractZipEntryText(zip, ".kody/agent-runs/123/events.jsonl")).toBe(
+    const zip = makeStoredZip(
+      ".kody-engine/runtime/agent-runs/123/events.jsonl",
       jsonl,
     );
+
+    expect(
+      extractZipEntryText(
+        zip,
+        ".kody-engine/runtime/agent-runs/123/events.jsonl",
+      ),
+    ).toBe(jsonl);
     const parsed = parseKodyRunLogZip(zip, 123);
 
     expect(parsed?.events).toHaveLength(1);
@@ -154,7 +160,10 @@ describe("activity run logs", () => {
     const marker =
       'KODY_AGENCY_BOUNDARY_EVAL={"version":1,"status":"pass","capability":"ai-agency-health-matrix","capabilityKind":"observe","findings":[{"rule":"observe-does-not-act","status":"pass","message":"observe capability reported facts without action output","evidence":{"resultCount":0}}]}';
     const zip = makeStoredZipEntries([
-      { path: ".kody/agent-runs/123/events.jsonl", content: jsonl },
+      {
+        path: ".kody-engine/runtime/agent-runs/123/events.jsonl",
+        content: jsonl,
+      },
       { path: "run.log", content: marker },
     ]);
 

@@ -3,7 +3,7 @@
  * @domain runner
  * @pattern fly-inventory-server
  *
- * Server-only inventory helpers that need request auth and state-repo access.
+ * Server-only inventory helpers that need request auth and backend access.
  */
 import "server-only";
 
@@ -20,14 +20,8 @@ import {
 } from "@kody-ade/base/github/core";
 import { logger } from "@kody-ade/base/logger";
 import type { FlyPreviewConfig } from "../previews/machines-client";
-import {
-  resolveFlyContext,
-  type FlyContext,
-} from "./context";
-import {
-  listFlyInventory,
-  type FlyInventory,
-} from "./inventory";
+import { resolveFlyContext, type FlyContext } from "./context";
+import { listFlyInventory, type FlyInventory } from "./inventory";
 import { isFlyMachineRunning } from "./machine-model";
 import { createServerTtlCache } from "@kody-ade/base/server-ttl-cache";
 

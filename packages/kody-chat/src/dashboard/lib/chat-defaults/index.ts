@@ -10,8 +10,7 @@
  *   + workflows (kody-analyzer, kody-operator, kody-vibe, kody-mem) → workflow index
  *   + skills (diagnose-pr, report-advise, goal-planner, create-issue, …) → reusable method
  *
- * The bundle can be app-local under `.kody/capabilities/kody-*` folders, with
- * TS-embedded defaults as fallback.
+ * Product-owned defaults are embedded and versioned with the Dashboard.
  */
 
 import {
@@ -23,7 +22,6 @@ import {
   type ChatCapabilityEntry,
   type SkillEntry,
 } from "./defaults";
-import { loadChatDefaultsFromFiles } from "./files";
 
 export interface ChatDefaults {
   /** Base agentIdentity text — who the agent is, hard rules, style. */
@@ -37,19 +35,12 @@ export interface ChatDefaults {
 }
 
 /**
- * Load the chat defaults bundle from repo-backed capabilities first,
- * falling back to TS-embedded defaults when files are absent or invalid.
- *
- * @param owner GitHub owner — reserved for the future repo-read path.
- * @param repo GitHub repo — reserved for the future repo-read path.
+ * Load the product-owned chat defaults bundle.
  */
 export async function loadChatDefaults(
-  owner?: string,
-  repo?: string,
+  _owner?: string,
+  _repo?: string,
 ): Promise<ChatDefaults> {
-  const fileBackedBundle = await loadChatDefaultsFromFiles();
-  if (fileBackedBundle) return fileBackedBundle;
-
   return {
     agentIdentity: DEFAULT_IDENTITY_MD,
     capability: DEFAULT_CHAT_CAPABILITY,

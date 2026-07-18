@@ -27,7 +27,7 @@ export function isMerged(outcome: MergeOutcome): boolean {
 export async function attemptSquashMerge(
   octokit: Octokit,
   prNumber: number,
-  /** Merge in a different repo than the connected one (e.g. a state-repo
+  /** Merge in a different repo than the connected one (e.g. a backend
    *  proposal PR). Defaults to the connected repo. */
   target?: { owner: string; repo: string },
 ): Promise<MergeOutcome> {

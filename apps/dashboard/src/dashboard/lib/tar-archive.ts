@@ -5,7 +5,7 @@
  * @ai-summary Minimal pure tar reader for GitHub tarball archives. Parses
  *   512-byte ustar headers, handles the ustar prefix field and GNU long-name
  *   ('L') entries, and returns regular files only. Lets the backend export
- *   route fetch a whole state repo in one API call instead of one REST
+ *   route fetch a whole backend in one API call instead of one REST
  *   request per file (see the rate-limit rules in apps/dashboard/CLAUDE.md).
  */
 
@@ -65,8 +65,7 @@ export function parseTarEntries(archive: Buffer): TarFileEntry[] {
     } else if (typeflag === "0" || typeflag === "\0") {
       const name = readString(header, 0, 100);
       const prefix = readString(header, 345, 155);
-      const path =
-        pendingLongName ?? (prefix ? `${prefix}/${name}` : name);
+      const path = pendingLongName ?? (prefix ? `${prefix}/${name}` : name);
       pendingLongName = null;
       entries.push({ path, content: Buffer.from(content) });
     } else {

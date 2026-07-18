@@ -4,7 +4,7 @@
  * @pattern company-intents-store
  * @ai-summary Convex-backed store for company intents and their decision
  *   logs (intents.{list,get,save,listDecisions,appendDecision}, tenant-scoped
- *   by owner/repo). The API routes call these instead of state-repo files.
+ *   by owner/repo). The API routes call these instead of backend files.
  */
 import {
   backendApi,

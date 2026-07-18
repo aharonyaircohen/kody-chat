@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern reports-page
  * @ai-summary Reports view — list and read system report families in the
- *   configured Kody state repo. Read-only. Mobile-first responsive layout that
+ *   configured Kody backend. Read-only. Mobile-first responsive layout that
  *   mirrors CapabilityControl: master/detail with a back button on small viewports.
  */
 "use client";
@@ -100,7 +100,9 @@ export function ReportsViewInner({
   } | null>(null);
   const [runningActionKey, setRunningActionKey] = useState<string | null>(null);
 
-  const selectedReportType = reportType ? normalizeReportType(reportType) : null;
+  const selectedReportType = reportType
+    ? normalizeReportType(reportType)
+    : null;
   const reportTypes = useMemo(() => availableReportTypes(reports), [reports]);
   const filtered = useMemo(() => {
     const typedReports = filterReportsByType(reports, selectedReportType);
@@ -175,7 +177,9 @@ export function ReportsViewInner({
   };
 
   const selectReportType = (type: string | null) => {
-    router.push(type ? `/reports?type=${encodeURIComponent(type)}` : "/reports");
+    router.push(
+      type ? `/reports?type=${encodeURIComponent(type)}` : "/reports",
+    );
   };
 
   // Mark a report as read the moment it's opened in the detail pane —

@@ -3,7 +3,7 @@
  * @domain context
  * @pattern context-control-page
  * @ai-summary Context Control — list, view, create, edit, and delete context
- *   entries. An entry is a markdown file at `context/<slug>.md` in the state repo:
+ *   entries. An entry is a markdown file at `context/<slug>.md` in the backend:
  *   the slug is the entry name (e.g. `company-profile`,
  *   `mission`, `products`) and the body is free-form markdown — curated
  *   context you write FOR Kody (company facts, brand, agentIdentity briefs).
@@ -72,7 +72,11 @@ import { useAgents } from "@dashboard/lib/hooks/useAgents";
 import { useGitHubIdentity } from "@dashboard/lib/hooks/useGitHubIdentity";
 import { useMediaQuery } from "@dashboard/lib/hooks/useMediaQuery";
 import type { ContextEntry } from "@dashboard/lib/api";
-import { KODY_CHAT_AGENT, QA_AGENT, ALL_AGENT } from "@kody-ade/workspace/context/frontmatter";
+import {
+  KODY_CHAT_AGENT,
+  QA_AGENT,
+  ALL_AGENT,
+} from "@kody-ade/workspace/context/frontmatter";
 import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
 import { ListSearch } from "@dashboard/lib/components/ListSearch";
 import { MarkdownEditor } from "@dashboard/lib/components/MarkdownEditor";
@@ -92,7 +96,7 @@ const ALL_AGENT_OPTION: StaffOption = {
   hint: "Every agent, including ones added later",
 };
 
-/** Built-in agents always offered, even with no matching state repo `agents/*.md` file. */
+/** Built-in agents always offered, even with no matching backend `agents/*.md` file. */
 const BUILTIN_AGENT: StaffOption[] = [
   {
     slug: KODY_CHAT_AGENT,
@@ -124,7 +128,7 @@ function staffBadgeLabel(slug: string): string {
 
 /**
  * The options offered in an agent multi-select: the built-ins (Kody, QA)
- * plus any state repo `agents/*.md` members.
+ * plus any backend `agents/*.md` members.
  */
 function useAgentsOptions(): StaffOption[] {
   const { data: agent = [] } = useAgents();
@@ -481,7 +485,7 @@ export function ContextControlInner({
           title="Delete this context entry?"
           description={
             pendingDelete
-              ? `Entry "${pendingDelete.slug}" will be removed from the state repo context store.`
+              ? `Entry "${pendingDelete.slug}" will be removed from the backend context store.`
               : ""
           }
           variant="destructive"
@@ -823,9 +827,9 @@ function CreateEntryDialog({
         <DialogHeader>
           <DialogTitle>New context entry</DialogTitle>
           <DialogDescription>
-            Give the entry a name and write the markdown Kody should know.
-            Agent decides which consumers load it — leave all unchecked to keep
-            the entry unassigned.
+            Give the entry a name and write the markdown Kody should know. Agent
+            decides which consumers load it — leave all unchecked to keep the
+            entry unassigned.
           </DialogDescription>
         </DialogHeader>
 
@@ -929,8 +933,8 @@ function EditEntryDialog({
         <DialogHeader>
           <DialogTitle>Edit entry `{entry.slug}`</DialogTitle>
           <DialogDescription>
-            Update the content or owning agent. Saving commits the file to
-            the default branch.
+            Update the content or owning agent. Saving commits the file to the
+            default branch.
           </DialogDescription>
         </DialogHeader>
 

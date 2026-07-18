@@ -1,9 +1,9 @@
 /**
  * @fileType component
  * @domain view-renderers
- * @pattern state-repo-manager
+ * @pattern backend-manager
  * @ai-summary CRUD UI for renderer JSON definitions stored at
- *   `views/renderers/<slug>.json` in the state repo.
+ *   `views/renderers/<slug>.json` in the backend.
  */
 "use client";
 
@@ -716,7 +716,7 @@ function ViewRenderersManagerInner({
       <ConfirmDialog
         open={deleting !== null}
         title={`Delete ${deleting?.name}?`}
-        description="This removes the renderer JSON from the state repo."
+        description="This removes the renderer JSON from the backend."
         confirmLabel={remove.isPending ? "Deleting..." : "Delete"}
         variant="destructive"
         onConfirm={() => {

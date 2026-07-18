@@ -3,11 +3,15 @@
  * @domain view-renderers
  * @pattern convex-crud-api
  * @ai-summary Lists and creates user-managed renderer definitions stored under
- *   `views/renderers/*.json` in the Kody state repo.
+ *   `views/renderers/*.json` in the Kody backend.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { getRequestAuth, requireKodyAuth, verifyActorLogin } from "@kody-ade/base/auth";
+import {
+  getRequestAuth,
+  requireKodyAuth,
+  verifyActorLogin,
+} from "@kody-ade/base/auth";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import {
   isValidViewRendererSlug,

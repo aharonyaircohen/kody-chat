@@ -1,67 +1,72 @@
-import { describe, expect, it } from "vitest"
-import schema from "../../convex/schema"
-import { ENTITIES, IMPORTABLE_TABLES, STATE_ROOTS } from "../../src/entities"
+import { describe, expect, it } from "vitest";
+import schema from "../../convex/schema";
+import { TABLES, IMPORTABLE_TABLES } from "../../src/table-registry";
 
 // Drift guard: every schema table must be registered in src/entities.ts and
 // vice versa. If this fails you added a table or an entity in only one place —
 // register it in the entity registry, never in downstream lists.
 describe("entity registry drift", () => {
-  const schemaTables = Object.keys(schema.tables).sort()
-  const registryTables = [...IMPORTABLE_TABLES].sort()
+  const schemaTables = Object.keys(schema.tables).sort();
+  const registryTables = [...IMPORTABLE_TABLES].sort();
 
   it("covers every schema table", () => {
-    expect(registryTables).toEqual(schemaTables)
-  })
+    expect(registryTables).toEqual(schemaTables);
+  });
 
   it("has no duplicate table entries", () => {
-    const tables = ENTITIES.map((e) => e.table)
-    expect(new Set(tables).size).toBe(tables.length)
-  })
-
-  it("every file-sourced entity declares its state paths", () => {
-    for (const entity of ENTITIES) {
-      if (entity.map) {
-        expect(entity.statePaths.length, `${entity.table} has a mapper but no statePaths`)
-          .toBeGreaterThan(0)
-      }
-    }
-  })
+    const tables = TABLES.map((e) => e.table);
+    expect(new Set(tables).size).toBe(tables.length);
+  });
 
   it("every entity declares a non-empty natural key of schema fields", () => {
-    for (const entity of ENTITIES) {
-      expect(entity.naturalKey.length, `${entity.table} has no naturalKey`).toBeGreaterThan(0)
-      const table = (schema.tables as Record<string, unknown>)[entity.table] as {
-        export: () => { documentType: { value: Record<string, unknown> } }
-      }
-      const schemaFields = Object.keys(table.export().documentType.value)
+    for (const entity of TABLES) {
+      expect(
+        entity.naturalKey.length,
+        `${entity.table} has no naturalKey`,
+      ).toBeGreaterThan(0);
+      const table = (schema.tables as Record<string, unknown>)[
+        entity.table
+      ] as {
+        export: () => { documentType: { value: Record<string, unknown> } };
+      };
+      const schemaFields = Object.keys(table.export().documentType.value);
       for (const field of entity.naturalKey) {
-        expect(schemaFields, `${entity.table}.naturalKey field "${field}" missing from schema`)
-          .toContain(field)
+        expect(
+          schemaFields,
+          `${entity.table}.naturalKey field "${field}" missing from schema`,
+        ).toContain(field);
       }
-      expect(entity.naturalKey, `${entity.table} naturalKey must not include tenantId`)
-        .not.toContain("tenantId")
+      expect(
+        entity.naturalKey,
+        `${entity.table} naturalKey must not include tenantId`,
+      ).not.toContain("tenantId");
     }
-  })
+  });
 
   it("every declared upsertIndex exists and is prefixed by [tenantId?, ...naturalKey]", () => {
-    for (const entity of ENTITIES) {
-      if (!entity.upsertIndex) continue
-      const table = (schema.tables as Record<string, unknown>)[entity.table] as {
-        export: () => { indexes: Array<{ indexDescriptor: string; fields: string[] }> }
-      }
-      const index = table.export().indexes.find((i) => i.indexDescriptor === entity.upsertIndex)
-      expect(index, `${entity.table} upsertIndex "${entity.upsertIndex}" not in schema`).toBeDefined()
-      const expectedPrefix = entity.global ? entity.naturalKey : ["tenantId", ...entity.naturalKey]
+    for (const entity of TABLES) {
+      if (!entity.upsertIndex) continue;
+      const table = (schema.tables as Record<string, unknown>)[
+        entity.table
+      ] as {
+        export: () => {
+          indexes: Array<{ indexDescriptor: string; fields: string[] }>;
+        };
+      };
+      const index = table
+        .export()
+        .indexes.find((i) => i.indexDescriptor === entity.upsertIndex);
+      expect(
+        index,
+        `${entity.table} upsertIndex "${entity.upsertIndex}" not in schema`,
+      ).toBeDefined();
+      const expectedPrefix = entity.global
+        ? entity.naturalKey
+        : ["tenantId", ...entity.naturalKey];
       expect(
         index?.fields.slice(0, expectedPrefix.length),
         `${entity.table} index "${entity.upsertIndex}" does not cover the natural key`,
-      ).toEqual(expectedPrefix)
+      ).toEqual(expectedPrefix);
     }
-  })
-
-  it("derives a stable export walk list", () => {
-    expect(STATE_ROOTS).toContain("workflows")
-    expect(STATE_ROOTS).toContain("agency")
-    expect(new Set(STATE_ROOTS).size).toBe(STATE_ROOTS.length)
-  })
-})
+  });
+});

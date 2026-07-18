@@ -12,7 +12,7 @@ surface server-rendered.
 
 ## Current state
 
-- Repo brands live at `brands/<slug>.json` in the resolved state repo via
+- Repo brands live at `brands/<slug>.json` in the resolved backend via
   [brands/files.ts](../src/dashboard/lib/brands/files.ts).
 - Built-ins remain in [client-brand.ts](../src/dashboard/lib/client-brand.ts)
   (`kody`, `kody-he`, `acme`; unknown slugs get a title-cased default).
@@ -24,7 +24,7 @@ surface server-rendered.
 ## Shipped shape
 
 **Storage.** Brand files are at `brands/<slug>.json` through the
-existing state-repo layer ([state-repo.ts](../src/dashboard/lib/state-repo.ts)),
+existing backend layer ([backend.ts](../src/dashboard/lib/backend.ts)),
 exactly like slash commands ([commands/files.ts](../src/dashboard/lib/commands/files.ts)).
 `src/dashboard/lib/brands/files.ts` owns list/read/write/delete, cached
 reads, zod validation (`slug`, `name`, `accent`, `locale?`, `welcomeText?`),

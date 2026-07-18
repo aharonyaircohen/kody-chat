@@ -4,7 +4,7 @@
  * @pattern company-backend-export-api
  * @ai-summary Exports the tenant's backend data straight from Convex (the
  *   system of record) as a DB-agnostic JSON dump keyed by backend table.
- *   This is the standing backup tool; the one-time GitHub state-repo export
+ *   This is the standing backup tool; the one-time GitHub backend export
  *   lives at ../export-github for first-time migrations.
  */
 
@@ -14,7 +14,7 @@ import { api as backendApi } from "@kody-ade/backend/api";
 
 import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
 import { withEscapedKeys } from "@kody-ade/backend/client";
-import { IMPORTABLE_TABLES } from "@kody-ade/backend/export-mapping";
+import { IMPORTABLE_TABLES } from "@kody-ade/backend/table-registry";
 
 export interface BackendExportDump {
   version: 1;

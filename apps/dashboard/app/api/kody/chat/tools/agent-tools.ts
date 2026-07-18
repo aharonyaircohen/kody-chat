@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern ai-sdk-tool
  * @ai-summary Agent-creation tool for the kody-direct chat agent. Writes a
- *   `agents/<slug>.md` state repo file via the same `writeAgentFile` helper the
+ *   `agents/<slug>.md` backend file via the same `writeAgentFile` helper the
  *   dashboard's POST /api/kody/agents endpoint uses. An agent is a pure
  *   reusable IDENTITY: a markdown body describing intent, allowed commands,
  *   and restrictions. Agents have no schedule, no state, and no run/tick —
@@ -116,7 +116,7 @@ export function createAgentTools(ctx: Ctx) {
     create_kody_agent: tool({
       description:
         `Create a new Kody Agent member in ${repoRef} by committing a markdown file at ` +
-        "`agents/<slug>.md` in the state repo. An agent is a pure reusable identity — a " +
+        "`agents/<slug>.md` in the backend. An agent is a pure reusable identity — a " +
         "markdown body describing intent, allowed commands, and restrictions. " +
         "Agents have no schedule, no state, and no run/tick; they're agent identities " +
         "referenced by other flows.\n\n" +
@@ -150,7 +150,6 @@ export function createAgentTools(ctx: Ctx) {
           const body = buildAgentBody(input);
           const message = `feat(agent): add ${slug}${actorLogin ? ` (via chat by @${actorLogin})` : ""}`;
           const agentMember = await writeAgentFile({
-            octokit,
             slug,
             title: input.title,
             body,
@@ -167,7 +166,7 @@ export function createAgentTools(ctx: Ctx) {
             title: agentMember.title,
             htmlUrl: dashboardAgentUrl(agentMember.slug),
             note:
-              "AgentIdentity committed at `agents/<slug>.md` in the state repo. It can " +
+              "AgentIdentity published as an immutable backend definition. It can " +
               "now be referenced by other flows.",
           };
         } catch (err) {

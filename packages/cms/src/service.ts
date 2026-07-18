@@ -5,7 +5,6 @@ import type { Octokit } from "@octokit/rest";
 
 import { getRequestAuth } from "@kody-ade/base/auth";
 import { getSecret } from "@kody-ade/base/vault/get-secret";
-import { resolveStateRepo } from "@kody-ade/base/state-repo";
 import {
   assertReadOperationAllowed,
   assertWriteOperationAllowed,
@@ -26,6 +25,7 @@ import {
 import { defaultCmsAdapterSettings } from "./adapter-catalog";
 import { getCmsActorRole } from "./roles";
 import { getCmsDocumentValidationIssues } from "./validation";
+import { createCmsRepoDocsTransport } from "./repo-docs";
 import type {
   CmsCollectionConfig,
   CmsDocument,
@@ -321,17 +321,8 @@ function getAdapterContext(
         repoUrl: requestAuth?.storeRepoUrl,
         ref: requestAuth?.storeRef,
       },
+      transport: createCmsRepoDocsTransport(owner, repo),
       getSecret: (name) => getSecret(name, { req }),
-      getStateRepository: async () => {
-        const target = await resolveStateRepo(octokit, owner, repo);
-        return {
-          octokit,
-          owner: target.owner,
-          repo: target.repo,
-          branch: target.branch,
-          basePath: target.basePath,
-        };
-      },
     },
   };
 }

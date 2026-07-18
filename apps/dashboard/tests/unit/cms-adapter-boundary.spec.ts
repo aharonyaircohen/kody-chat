@@ -36,11 +36,17 @@ describe("CMS adapter boundary", () => {
 
   it("injects remote adapter package dependencies from host code", () => {
     const bridgeSource = readFileSync(
-      path.join(process.cwd(), "node_modules/@kody-ade/cms/src/adapters/index.ts"),
+      path.join(
+        process.cwd(),
+        "node_modules/@kody-ade/cms/src/adapters/index.ts",
+      ),
       "utf8",
     );
     const depsSource = readFileSync(
-      path.join(process.cwd(), "node_modules/@kody-ade/cms/src/runtime-deps.ts"),
+      path.join(
+        process.cwd(),
+        "node_modules/@kody-ade/cms/src/runtime-deps.ts",
+      ),
       "utf8",
     );
 
@@ -63,14 +69,13 @@ describe("CMS adapter boundary", () => {
         export function createCmsAdapter(options) {
           return {
             async list(collectionName, query) {
-              const { octokit: _octokit, ...state } = await options.getStateRepository()
               return {
                 docs: [{
                   collectionName,
                   query,
                   mode: options.settings.mode,
                   secret: await options.getSecret("EXAMPLE_SECRET"),
-                  state
+                  hasTransport: Boolean(options.transport)
                 }],
                 total: 1,
                 limit: query?.limit ?? 50,
@@ -109,12 +114,7 @@ describe("CMS adapter boundary", () => {
               query: { limit: 2 },
               mode: "test",
               secret: "secret-value",
-              state: {
-                owner: "A-Guy-educ",
-                repo: "kody-state",
-                branch: "main",
-                basePath: "A-Guy-Web",
-              },
+              hasTransport: true,
             },
           ],
           total: 1,
@@ -275,13 +275,12 @@ function testContext(
     store: options.store,
     getSecret: async (name) =>
       name === "EXAMPLE_SECRET" ? "secret-value" : null,
-    getStateRepository: async () => ({
-      octokit: {} as never,
-      owner: "A-Guy-educ",
-      repo: "kody-state",
-      branch: "main",
-      basePath: "A-Guy-Web",
-    }),
+    transport: {
+      listFiles: async () => [],
+      readFile: async () => "",
+      writeFile: async () => undefined,
+      deleteFile: async () => undefined,
+    },
   };
 }
 

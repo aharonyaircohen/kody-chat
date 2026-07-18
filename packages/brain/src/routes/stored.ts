@@ -6,7 +6,7 @@
  * GET /api/kody/brain/stored   — read the user's stored brain record.
  * DELETE /api/kody/brain/stored — clear the stored record (orphan recovery).
  *
- * The stored record at state-repo root `users/<login>/data/brain.json` is the
+ * The stored record at backend root `users/<login>/data/brain.json` is the
  * dashboard's record of "here is the Fly app we believe this user has."
  * It can outlive the user's access to the app on Fly (token revoked, app
  * moved to a different org, slug taken by another account, etc.), in
@@ -20,15 +20,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireKodyAuth } from "@kody-ade/base/auth";
-import {
-  clearBrainApp,
-  readBrainApp,
-  type BrainAppFile,
-} from "../store";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "../github";
+import { clearBrainApp, readBrainApp, type BrainAppFile } from "../store";
+import { clearGitHubContext, setGitHubContext } from "../github";
 import { logger } from "@kody-ade/base/logger";
 import { resolveServerProviderContext } from "@kody-ade/fly/infrastructure/server-context";
 

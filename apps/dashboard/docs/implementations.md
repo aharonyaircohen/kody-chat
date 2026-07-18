@@ -19,7 +19,7 @@ the capability run.
 The current dashboard creates capabilities under:
 
 ```text
-.kody/capabilities/<slug>/
+backend definitions (capabilities)<slug>/
   profile.json
   capability.md
   skills/
@@ -29,7 +29,7 @@ The current dashboard creates capabilities under:
 Some repos still have implementation folders under the legacy path:
 
 ```text
-.kody/implementations/<slug>/
+backend definition bundles (implementations)<slug>/
   profile.json
   prompt.md
   skills/
@@ -65,8 +65,8 @@ wake-up behavior.
 
 Keep these names when editing config or engine-compatible JSON:
 
-| Field                 | Meaning                                                  |
-| --------------------- | -------------------------------------------------------- |
+| Field                     | Meaning                                                  |
+| ------------------------- | -------------------------------------------------------- |
 | `implementation`          | Implementation slug for a capability.                    |
 | `implementations`         | Ordered implementation list for a multi-step capability. |
 | `agent.perImplementation` | Legacy config map for per-capability model overrides.    |
@@ -97,7 +97,7 @@ Run the `broken-link-report` implementation.
 ## Output
 
 Write `reports/broken-link-report/runs/<timestamp>.md` in the configured Kody
-state repo.
+backend.
 
 ## Restrictions
 
@@ -116,10 +116,10 @@ contract.
 
 ## File Reference
 
-| File                                                                                                               | Purpose                               |
-| ------------------------------------------------------------------------------------------------------------------ | ------------------------------------- |
+| File                                                                                                                       | Purpose                               |
+| -------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
 | [`../src/dashboard/lib/implementations/files.ts`](../src/dashboard/lib/implementations/files.ts)                           | Legacy implementation folder CRUD.    |
 | [`../src/dashboard/lib/implementations/profile.ts`](../src/dashboard/lib/implementations/profile.ts)                       | Profile validation and form mapping.  |
 | [`../src/dashboard/lib/components/ImplementationsManager.tsx`](../src/dashboard/lib/components/ImplementationsManager.tsx) | Compatibility UI implementation.      |
-| [`../app/api/kody/capabilities/`](../app/api/kody/capabilities/)                                                   | Current capability API.               |
-| [`./capabilities.md`](./capabilities.md)                                                                           | Canonical capability authoring guide. |
+| [`../app/api/kody/capabilities/`](../app/api/kody/capabilities/)                                                           | Current capability API.               |
+| [`./capabilities.md`](./capabilities.md)                                                                                   | Canonical capability authoring guide. |

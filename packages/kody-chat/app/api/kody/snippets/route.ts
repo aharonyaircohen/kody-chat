@@ -1,9 +1,9 @@
 /**
  * @fileType api-endpoint
  * @domain snippets
- * @pattern state-repo-crud-api
+ * @pattern backend-crud-api
  * @ai-summary Lists and upserts brand snippets stored at
- *   `snippets/config.json` in the Kody state repo. Admin (operator PAT)
+ *   `snippets/config.json` in the Kody backend. Admin (operator PAT)
  *   only; mutations are audited.
  */
 import { NextRequest, NextResponse } from "next/server";

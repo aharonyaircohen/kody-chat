@@ -3,7 +3,7 @@
  * @domain triggers
  * @pattern trigger-config
  * @ai-summary Loads and saves the brand's trigger rules from
- *   `triggers/config.json` in the state repo. Zod-validated with unknown
+ *   `triggers/config.json` in the backend. Zod-validated with unknown
  *   event names and invalid entries dropped (warn), 60s TTL cache,
  *   CAS-safe writes. Same loader pattern as the user-state config.
  */

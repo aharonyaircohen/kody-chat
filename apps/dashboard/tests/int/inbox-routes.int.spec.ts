@@ -37,7 +37,8 @@ vi.mock("@dashboard/lib/inbox/convex-store", () => ({
 }));
 
 vi.mock("@dashboard/lib/inbox/feed-server", () => ({
-  readInboxFeedForTenant: (...a: unknown[]) => mocks.readInboxFeed(...(a as [])),
+  readInboxFeedForTenant: (...a: unknown[]) =>
+    mocks.readInboxFeed(...(a as [])),
 }));
 
 vi.mock("@dashboard/lib/github-client", () => ({
@@ -46,7 +47,10 @@ vi.mock("@dashboard/lib/github-client", () => ({
 }));
 
 import { NextResponse } from "next/server";
-import { GET as getInbox, POST as postInbox } from "../../app/api/kody/inbox/route";
+import {
+  GET as getInbox,
+  POST as postInbox,
+} from "../../app/api/kody/inbox/route";
 import { GET as getInboxFeed } from "../../app/api/kody/inbox/feed/route";
 
 function validEntry(overrides: Record<string, unknown> = {}) {
@@ -213,9 +217,7 @@ describe("GET /api/kody/inbox/feed", () => {
   function feedReq(since?: string) {
     return {
       nextUrl: {
-        searchParams: new URLSearchParams(
-          since ? { since } : {},
-        ),
+        searchParams: new URLSearchParams(since ? { since } : {}),
       },
     } as unknown as Parameters<typeof getInboxFeed>[0];
   }
@@ -276,7 +278,7 @@ describe("GET /api/kody/inbox/feed", () => {
   });
 
   it("returns 500 when the feed manifest read fails", async () => {
-    mocks.readInboxFeed.mockRejectedValueOnce(new Error("state repo gone"));
+    mocks.readInboxFeed.mockRejectedValueOnce(new Error("backend gone"));
     const res = await getInboxFeed(feedReq());
     const json = await res.json();
     expect(res.status).toBe(500);

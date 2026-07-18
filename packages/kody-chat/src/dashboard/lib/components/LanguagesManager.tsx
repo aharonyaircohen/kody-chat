@@ -3,7 +3,7 @@
  * @domain client-chat
  * @pattern languages-manager
  * @ai-summary CRUD UI for client language packs. Repo packs live at
- *   `languages/<code>.json` in the state repo; built-in English is the
+ *   `languages/<code>.json` in the backend; built-in English is the
  *   fallback row that becomes a repo override when edited. A brand's
  *   `locale` selects the pack on /client surfaces.
  */

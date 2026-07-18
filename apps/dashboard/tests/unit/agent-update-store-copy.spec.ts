@@ -1,6 +1,6 @@
 /**
  * @fileoverview Store-linked agents are editable: PATCH materializes a repo
- * copy at .kody/agents/<slug>.md (create, sha "") that overrides the Store
+ * copy at legacy/agents/<slug>.md (create, sha "") that overrides the Store
  * version — this is how the built-in Kody chat identity becomes editable.
  * @testFramework vitest
  * @domain agents

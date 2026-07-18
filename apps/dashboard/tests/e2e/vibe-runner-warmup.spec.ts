@@ -3,7 +3,7 @@
  *   minutes ("Almost ready... 3:24 elapsed") instead of becoming ready fast.
  *
  *   The dashboard's "Almost ready" timer waits for the runner to emit a
- *   `chat.ready` event (written to the state repo events log). This test
+ *   `chat.ready` event (written to the backend events log). This test
  *   drives the exact handoff endpoint the chat uses
  *   (/api/kody/chat/interactive/start-fly) and measures how long until
  *   chat.ready appears. It should complete within the Fly boot budget; the

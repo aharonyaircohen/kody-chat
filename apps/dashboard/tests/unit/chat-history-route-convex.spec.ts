@@ -32,10 +32,6 @@ vi.mock("@kody-ade/base/auth", () => ({
   getUserOctokit: vi.fn(async () => ({}) as never),
 }));
 
-vi.mock("@kody-ade/base/state-repo", () => ({
-  readStateText: h.readStateText,
-}));
-
 import { _resetConvexClient } from "@dashboard/lib/backend/convex-backend";
 import { GET } from "../../app/api/kody/chat/history/route";
 

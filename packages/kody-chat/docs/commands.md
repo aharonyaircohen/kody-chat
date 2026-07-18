@@ -22,14 +22,14 @@ prompt — same fallback Claude Code uses.
 
 Three layers, merged at runtime:
 
-| Source    | Location                                    | Editable here?                                       |
-| --------- | ------------------------------------------- | ---------------------------------------------------- |
-| Your repo | `.kody/commands/<slug>.md`                  | Yes — full CRUD                                      |
-| Store     | `.kody/commands/<slug>.md` in company store | Import/remove active reference; Edit forks into repo |
-| Dashboard | bundled fallback built-ins                  | Forks into repo                                      |
+| Source    | Location                                                      | Editable here?                                       |
+| --------- | ------------------------------------------------------------- | ---------------------------------------------------- |
+| Your repo | `backend repo documents (commands)<slug>.md`                  | Yes — full CRUD                                      |
+| Store     | `backend repo documents (commands)<slug>.md` in company store | Import/remove active reference; Edit forks into repo |
+| Dashboard | bundled fallback built-ins                                    | Forks into repo                                      |
 
 Repo commands win on slug collision, Store commands come next, and Dashboard
-built-ins are fallback only. Dropping `.kody/commands/review.md` in repo
+built-ins are fallback only. Dropping `backend repo documents (commands)review.md` in repo
 overrides Store or fallback `/review`. Use **Edit** on a shared command to seed
 same-slug repo file from the shared command's current contents.
 
@@ -39,7 +39,7 @@ loops: importing from Store writes an explicit `company.activeCommands` entry in
 without deleting the Store asset.
 
 To hide every built-in for a repo, commit any empty file
-`.kody/commands/.disable-builtins`. Store commands are still shared defaults and
+`backend repo documents (commands).disable-builtins`. Store commands are still shared defaults and
 are not hidden by this sentinel.
 
 ## File format
@@ -92,23 +92,23 @@ Migrate the SearchBar component from React to Vue.
 
 ## Shared default commands
 
-These live in Store under `.kody/commands/`. Dashboard keeps matching fallback
+These live in Store under `backend repo documents (commands)`. Dashboard keeps matching fallback
 built-ins for cold-start and unavailable-Store cases.
 
-| Slug          | What it does                                                 |
-| ------------- | ------------------------------------------------------------ |
-| `/capability` | Draft a scheduled capability folder.                         |
-| `/analyze`    | Analyze whatever you're viewing: issue, PR, run, or check.   |
-| `/briefing`   | Summarize current work that needs attention.                 |
-| `/explain`    | Explain topic in codebase.                                   |
-| `/factory`    | Create an agent-factory state-repo PR for model definitions. |
-| `/goal`       | Draft new goal.                                              |
-| `/init`       | Install Kody engine in connected repo.                       |
-| `/issue`      | Research, draft, create issue, then offer to run Kody.       |
-| `/mission`    | Draft a mission task group.                                  |
-| `/plan`       | Plan change without writing code yet.                        |
-| `/research`   | Investigate topic; summary only, no edits.                   |
-| `/review`     | Review your uncommitted changes.                             |
+| Slug          | What it does                                               |
+| ------------- | ---------------------------------------------------------- |
+| `/capability` | Draft a scheduled capability folder.                       |
+| `/analyze`    | Analyze whatever you're viewing: issue, PR, run, or check. |
+| `/briefing`   | Summarize current work that needs attention.               |
+| `/explain`    | Explain topic in codebase.                                 |
+| `/factory`    | Create an agent-factory backend PR for model definitions.  |
+| `/goal`       | Draft new goal.                                            |
+| `/init`       | Install Kody engine in connected repo.                     |
+| `/issue`      | Research, draft, create issue, then offer to run Kody.     |
+| `/mission`    | Draft a mission task group.                                |
+| `/plan`       | Plan change without writing code yet.                      |
+| `/research`   | Investigate topic; summary only, no edits.                 |
+| `/review`     | Review your uncommitted changes.                           |
 
 Fork any of them to customize the wording for your repo.
 

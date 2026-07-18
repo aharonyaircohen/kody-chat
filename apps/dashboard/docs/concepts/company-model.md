@@ -177,7 +177,7 @@ operations/<id>/operation.json
 
 The authenticated Dashboard API exposes list/create, read/update/delete, and
 run endpoints under `/api/kody/operations`. Every mutation verifies the GitHub
-actor and writes through the configured state repo with the current file SHA.
+actor and writes through the configured backend with the current file SHA.
 
 Activation and run both reject an Operation when:
 

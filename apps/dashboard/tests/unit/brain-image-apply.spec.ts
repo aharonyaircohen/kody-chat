@@ -480,7 +480,7 @@ describe("applyBrainImageToRuntime", () => {
   });
 
   it("fails the apply operation when the Brain app record cannot be saved", async () => {
-    store.writeBrainApp.mockRejectedValueOnce(new Error("state repo down"));
+    store.writeBrainApp.mockRejectedValueOnce(new Error("backend down"));
 
     await expect(
       applyBrainImageToRuntime({
@@ -495,13 +495,13 @@ describe("applyBrainImageToRuntime", () => {
         dashboardUrl: "https://dash.test",
         imageRef: "ghcr.io/acme/kody-brain-octocat:selected",
       }),
-    ).rejects.toThrow("state repo down");
+    ).rejects.toThrow("backend down");
 
     expect(runtimeManager.failBrainRuntimeApply).toHaveBeenCalledWith(
       "octocat",
       "gh-token",
       "ghcr.io/acme/kody-brain-octocat:selected",
-      "state repo down",
+      "backend down",
     );
   });
 });

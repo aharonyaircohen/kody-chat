@@ -3,7 +3,6 @@ import { createBackendClient } from "@kody-ade/backend/client";
 
 const CATALOG_PATHS = [
   "kody.config.json",
-  ".kody/",
   "capabilities/",
   "agents/",
   "workflows/",
@@ -56,5 +55,7 @@ export async function invalidateCatalogProjection(
 }
 
 export function isCatalogRelevantPath(path: string): boolean {
-  return CATALOG_PATHS.some((prefix) => path === prefix || path.startsWith(prefix));
+  return CATALOG_PATHS.some(
+    (prefix) => path === prefix || path.startsWith(prefix),
+  );
 }

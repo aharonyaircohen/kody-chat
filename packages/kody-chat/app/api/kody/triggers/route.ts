@@ -1,9 +1,9 @@
 /**
  * @fileType api-endpoint
  * @domain triggers
- * @pattern state-repo-crud-api
+ * @pattern backend-crud-api
  * @ai-summary Lists and upserts the brand's trigger rules stored at
- *   `triggers/config.json` in the Kody state repo. Admin (operator PAT)
+ *   `triggers/config.json` in the Kody backend. Admin (operator PAT)
  *   only; mutations are audited.
  */
 import { NextRequest, NextResponse } from "next/server";

@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern company-workflow-detail-api
  * @ai-summary Reads, updates, and deletes workflow definition files in the
- *   configured Kody state repo.
+ *   configured Kody backend.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -288,7 +288,7 @@ export async function PATCH(
     }
 
     await writeWorkflowDefinitionFile({
-            owner: context.headerAuth.owner,
+      owner: context.headerAuth.owner,
       repo: context.headerAuth.repo,
       id,
       workflow,
@@ -381,7 +381,7 @@ export async function DELETE(
     }
 
     await deleteWorkflowDefinitionFile({
-            owner: context.headerAuth.owner,
+      owner: context.headerAuth.owner,
       repo: context.headerAuth.repo,
       id,
     });

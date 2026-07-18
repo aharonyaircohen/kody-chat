@@ -7,20 +7,20 @@ agency, workspace) run 2026-07-11.
 
 ## Target package map
 
-| Package | Contents | Depends on |
-| --- | --- | --- |
-| `@kody-ade/base` | github-client (core transport only), auth (framework-agnostic), vault, state-repo + engine/config, storage, variables, logger, utils, active-repo + routes, github-contents-write, events (injected scheduler), infrastructure contracts/registry/server-\*, ui kit | — |
-| `@kody-ade/kody-chat` | chat core + platform (already a package) | base |
-| `@kody-ade/workspace` | context, commands, instructions, brands, todos, memory + their chat tools | base, kody-chat (tools) |
-| `@kody-ade/cms` | cms/ (5.7k LOC, own Mongo transport + MCP), content/content-model routes | base |
-| `@kody-ade/fly` | infrastructure/plugins/fly, previews/, runners/, preview-token, preview-environments, builder/ (already standalone), fly pages + API | base |
-| `@kody-ade/terminal` | terminal core (local-chat-session, checkpoints, directive) | base |
-| `@kody-ade/brain` | brain/ runtime control plane (3.9k LOC) | base, terminal, fly |
-| `@kody-ade/agency` | agency-runs, goals, capabilities, agents, cto + pages + plugin manifests | base, kody-chat (**peer**) |
-| host app (temporary) | Next shell: route mounting, API route wiring, leftover hooks/components | everything |
+| Package               | Contents                                                                                                                                                                                                                                                         | Depends on                 |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
+| `@kody-ade/base`      | github-client (core transport only), auth (framework-agnostic), vault, backend + engine/config, storage, variables, logger, utils, active-repo + routes, github-contents-write, events (injected scheduler), infrastructure contracts/registry/server-\*, ui kit | —                          |
+| `@kody-ade/kody-chat` | chat core + platform (already a package)                                                                                                                                                                                                                         | base                       |
+| `@kody-ade/workspace` | context, commands, instructions, brands, todos, memory + their chat tools                                                                                                                                                                                        | base, kody-chat (tools)    |
+| `@kody-ade/cms`       | cms/ (5.7k LOC, own Mongo transport + MCP), content/content-model routes                                                                                                                                                                                         | base                       |
+| `@kody-ade/fly`       | infrastructure/plugins/fly, previews/, runners/, preview-token, preview-environments, builder/ (already standalone), fly pages + API                                                                                                                             | base                       |
+| `@kody-ade/terminal`  | terminal core (local-chat-session, checkpoints, directive)                                                                                                                                                                                                       | base                       |
+| `@kody-ade/brain`     | brain/ runtime control plane (3.9k LOC)                                                                                                                                                                                                                          | base, terminal, fly        |
+| `@kody-ade/agency`    | agency-runs, goals, capabilities, agents, cto + pages + plugin manifests                                                                                                                                                                                         | base, kody-chat (**peer**) |
+| host app (temporary)  | Next shell: route mounting, API route wiring, leftover hooks/components                                                                                                                                                                                          | everything                 |
 
 `company/import.ts` is an aggregator over many features — it stays at the host
-(or a thin meta-package) *above* the feature packages, never inside one.
+(or a thin meta-package) _above_ the feature packages, never inside one.
 `docs/` (writes consumer README) is excluded from workspace — different backing.
 
 ## Blockers found (must fix before/while extracting)
@@ -58,7 +58,7 @@ agency, workspace) run 2026-07-11.
    (ETag/If-None-Match plumbing, cache invalidation) verbatim.
 3. **Extract `@kody-ade/base`.** Clean-move set first (logger, vault, storage,
    variables, ui, infrastructure, active-repo, github-contents-write, auth/),
-   then the untangled core client, state-repo, auth with request adapters.
+   then the untangled core client, backend, auth with request adapters.
    Config via one injected object, not scattered `process.env`.
 4. **Repoint kody-chat at base.** Delete the `@dashboard` alias from the
    package. Layering is now correct: base ← kody-chat ← everything else.
