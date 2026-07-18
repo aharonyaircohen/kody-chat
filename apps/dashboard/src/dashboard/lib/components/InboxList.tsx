@@ -750,21 +750,6 @@ export function InboxList() {
       null
     );
   };
-  const pendingDecisions = useMemo(
-    () => [...filteredUnread, ...filteredRead].filter(isPendingDecision),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- verdictFor is stable per decisions query
-    [filteredUnread, filteredRead, verdictFor],
-  );
-  const listUnread = useMemo(
-    () => filteredUnread.filter((e) => !isPendingDecision(e)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filteredUnread, verdictFor],
-  );
-  const listRead = useMemo(
-    () => filteredRead.filter((e) => !isPendingDecision(e)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filteredRead, verdictFor],
-  );
 
   // Build the chip options from what's actually in the inbox so we never show
   // a filter that would match nothing. Derived from the unfiltered union so
@@ -1023,34 +1008,8 @@ export function InboxList() {
         </div>
       )}
 
-      {pendingDecisions.length > 0 && (
-        <div className="mb-6">
-          <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-amber-300/80">
-            Needs your decision ({pendingDecisions.length})
-          </h2>
-          <div className="space-y-3">
-            {pendingDecisions.map((entry) => {
-              const rec = detectCtoRecommendation(entry)!;
-              return (
-                <DecisionCard
-                  key={entry.id}
-                  entry={entry}
-                  rec={rec}
-                  deciding={deciding}
-                  trustStreak={
-                    trust.capabilities[rec.capability]?.consecutiveApprovals ??
-                    null
-                  }
-                  onDecide={(decision) => void decideRequest(rec, decision)}
-                />
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       <Section
-        title={`Unread (${listUnread.length})`}
+        title={`Unread (${filteredUnread.length})`}
         empty={
           isLoading
             ? "Loading…"
@@ -1058,7 +1017,7 @@ export function InboxList() {
               ? "No unread matches your filters."
               : "Nothing unread. New @mentions land here automatically."
         }
-        entries={listUnread}
+        entries={filteredUnread}
         connectedRepo={connectedRepo}
         busyId={busyId}
         onOpen={openEntry}
@@ -1071,14 +1030,29 @@ export function InboxList() {
         readSection={false}
         onDecideRequest={(rec, decision) => void decideRequest(rec, decision)}
         deciding={deciding}
+        decisionCardFor={(entry) => {
+          if (!isPendingDecision(entry)) return null;
+          const rec = detectCtoRecommendation(entry)!;
+          return (
+            <DecisionCard
+              entry={entry}
+              rec={rec}
+              deciding={deciding}
+              trustStreak={
+                trust.capabilities[rec.capability]?.consecutiveApprovals ?? null
+              }
+              onDecide={(decision) => void decideRequest(rec, decision)}
+            />
+          );
+        }}
       />
 
-      {listRead.length > 0 && (
+      {filteredRead.length > 0 && (
         <div className="mt-6">
           <Section
-            title={`Read (${listRead.length})`}
+            title={`Read (${filteredRead.length})`}
             empty=""
-            entries={listRead}
+            entries={filteredRead}
             connectedRepo={connectedRepo}
             busyId={busyId}
             onOpen={openEntry}
@@ -1091,6 +1065,22 @@ export function InboxList() {
             readSection
             onDecideRequest={(rec, decision) => void decideRequest(rec, decision)}
             deciding={deciding}
+            decisionCardFor={(entry) => {
+              if (!isPendingDecision(entry)) return null;
+              const rec = detectCtoRecommendation(entry)!;
+              return (
+                <DecisionCard
+                  entry={entry}
+                  rec={rec}
+                  deciding={deciding}
+                  trustStreak={
+                    trust.capabilities[rec.capability]?.consecutiveApprovals ??
+                    null
+                  }
+                  onDecide={(decision) => void decideRequest(rec, decision)}
+                />
+              );
+            }}
           />
         </div>
       )}
@@ -1269,6 +1259,8 @@ interface SectionProps {
   readSection: boolean;
   onDecideRequest: RowProps["onDecideRequest"];
   deciding: boolean;
+  /** Card renderer for pending-decision entries; null → normal row. */
+  decisionCardFor?: (entry: InboxEntry) => ReactNode | null;
 }
 
 function Section({
@@ -1287,6 +1279,7 @@ function Section({
   readSection,
   onDecideRequest,
   deciding,
+  decisionCardFor,
 }: SectionProps) {
   return (
     <div>
@@ -1305,7 +1298,10 @@ function Section({
                 {group.label}
               </h3>
               <ul className="space-y-2">
-                {group.entries.map((e) => (
+                {group.entries.map((e) => {
+                  const card = decisionCardFor?.(e);
+                  if (card) return <li key={e.id}>{card}</li>;
+                  return (
                   <Row
                     key={e.id}
                     entry={e}
@@ -1320,7 +1316,8 @@ function Section({
                     onDecideRequest={onDecideRequest}
                     deciding={deciding}
                   />
-                ))}
+                  );
+                })}
               </ul>
             </div>
           ))}
