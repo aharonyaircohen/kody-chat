@@ -152,6 +152,7 @@ import {
 import { loadInstructionsForPrompt } from "@kody-ade/workspace/instructions/files";
 import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
 import { buildExplicitMemoryDraft } from "./explicit-memory";
+import { ensureKodyRuntimeInitialized } from "./runtime-init";
 import {
   isValidSlug as isValidAgentSlug,
   readResolvedAgentFile,
@@ -577,6 +578,7 @@ async function handleKodyDirectPost(
     const authError = await requireKodyAuth(req);
     if (authError) return authError;
   }
+  await ensureKodyRuntimeInitialized();
   const clientSurface = surfaceScope.kind === "client";
 
   // Key resolution is per-model: each LLM_MODELS entry names which secret
@@ -835,7 +837,6 @@ async function handleKodyDirectPost(
     }
     try {
       const viewRendererContext = await loadViewRendererContextForPrompt({
-        octokit: createUserOctokit(repo.token),
         owner: repo.owner,
         repo: repo.repo,
       });

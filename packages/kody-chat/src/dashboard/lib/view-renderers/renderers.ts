@@ -68,7 +68,7 @@ export async function readViewRendererDefinitionFile({
   repo,
   slug,
 }: {
-  octokit: Octokit;
+  octokit?: Octokit;
   owner: string;
   repo: string;
   slug: string;
@@ -100,7 +100,7 @@ export async function resolveViewRendererDefinition({
   repo,
   slug,
 }: {
-  octokit: Octokit;
+  octokit?: Octokit;
   owner: string;
   repo: string;
   slug: string;
@@ -120,7 +120,7 @@ export async function loadViewRendererRulesForPrompt({
   owner,
   repo,
 }: {
-  octokit: Octokit;
+  octokit?: Octokit;
   owner: string;
   repo: string;
 }): Promise<string | null> {
@@ -133,7 +133,7 @@ export async function loadViewRendererContextForPrompt({
   owner,
   repo,
 }: {
-  octokit: Octokit;
+  octokit?: Octokit;
   owner: string;
   repo: string;
 }): Promise<ViewRendererPromptContext> {
@@ -152,7 +152,7 @@ export async function listViewRendererDefinitionFiles({
   owner,
   repo,
 }: {
-  octokit: Octokit;
+  octokit?: Octokit;
   owner: string;
   repo: string;
 }): Promise<ViewRendererDefinitionFile[]> {
