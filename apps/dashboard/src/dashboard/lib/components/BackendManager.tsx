@@ -80,9 +80,7 @@ function BackendManagerInner() {
     ...buildAuthHeaders(auth),
   };
 
-  const [exportingSource, setExportingSource] = useState<
-    "convex" | "github" | null
-  >(null);
+  const [exportingSource, setExportingSource] = useState<"convex" | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -100,15 +98,11 @@ function BackendManagerInner() {
   const [importError, setImportError] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
 
-  async function handleExport(source: "convex" | "github") {
-    setExportingSource(source);
+  async function handleExport() {
+    setExportingSource("convex");
     setExportError(null);
     try {
-      const path =
-        source === "convex"
-          ? "/api/kody/company/backend/export"
-          : "/api/kody/company/backend/export-github";
-      const res = await fetch(path, { headers, cache: "no-store" });
+      const res = await fetch("/api/kody/company/backend/export", { headers, cache: "no-store" });
       if (!res.ok) throw new Error(await readErrorMessage(res));
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -222,16 +216,12 @@ function BackendManagerInner() {
               <h2 className="text-sm font-semibold">Export</h2>
             </div>
             <p className="text-sm text-white/60">
-              Download this repo&apos;s data as a portable JSON dump —
-              workflows, sessions, intents, goals, reports, and more, keyed by
-              backend table. The primary export reads from the live database
-              and is the standing backup tool; the GitHub export reads the
-              legacy state repo and is only for a first-time migration.
+              Download this repo&apos;s data as a portable JSON backup from the live database.
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <Button
                 size="sm"
-                onClick={() => handleExport("convex")}
+                onClick={() => handleExport()}
                 disabled={exportingSource !== null}
               >
                 {exportingSource === "convex" ? (
@@ -242,21 +232,6 @@ function BackendManagerInner() {
                 {exportingSource === "convex"
                   ? "Exporting…"
                   : "Export (backup from database)"}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => handleExport("github")}
-                disabled={exportingSource !== null}
-              >
-                {exportingSource === "github" ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Download className="w-4 h-4" />
-                )}
-                {exportingSource === "github"
-                  ? "Exporting…"
-                  : "Export from GitHub (first migration)"}
               </Button>
             </div>
             {exportError && (

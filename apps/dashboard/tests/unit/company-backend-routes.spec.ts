@@ -65,7 +65,6 @@ vi.mock("convex/browser", () => ({
 }));
 
 import { GET as EXPORT } from "../../app/api/kody/company/backend/export/route";
-import { GET as EXPORT_GITHUB } from "../../app/api/kody/company/backend/export-github/route";
 import { POST as IMPORT } from "../../app/api/kody/company/backend/import/route";
 
 function req(path: string, method = "GET", body?: unknown): NextRequest {
@@ -220,85 +219,6 @@ describe("GET /api/kody/company/backend/export", () => {
   it("returns 400 without repo context headers", async () => {
     auth.getRequestAuth.mockReturnValue(null as never);
     const res = await EXPORT(req("/api/kody/company/backend/export"));
-    expect(res.status).toBe(400);
-    expect((await res.json()).error).toBe("no_repo_context");
-  });
-});
-
-describe("GET /api/kody/company/backend/export-github", () => {
-  it("exports mapped state files from one tarball download and counts skipped ones", async () => {
-    stateRepo.resolveStateRepo.mockResolvedValue({
-      owner: "acme",
-      repo: "kody-state",
-      basePath: "widgets",
-      branch: "main",
-    });
-    const octokit = octokitWithTarball(
-      tarball({
-        // Files for this tenant live under `<basePath>/…`.
-        "acme-kody-state-abc123/widgets/workflows/bug/workflow.json":
-          JSON.stringify({
-            name: "bug",
-            updatedAt: "2026-01-01T00:00:00.000Z",
-          }),
-        "acme-kody-state-abc123/widgets/workflows/bug/notes.txt": "unmapped",
-        "acme-kody-state-abc123/widgets/todos/goal-1.json": JSON.stringify({
-          title: "Ship it",
-        }),
-        // Outside the tenant prefix — must be ignored entirely.
-        "acme-kody-state-abc123/other-tenant/todos/goal-9.json":
-          JSON.stringify({ title: "Not ours" }),
-        "acme-kody-state-abc123/README.md": "state repo readme",
-      }),
-    );
-    auth.getUserOctokit.mockResolvedValue(octokit as never);
-
-    const res = await EXPORT_GITHUB(
-      req("/api/kody/company/backend/export-github"),
-    );
-    expect(octokit.rest.repos.downloadTarballArchive).toHaveBeenCalledTimes(1);
-    expect(octokit.rest.repos.downloadTarballArchive).toHaveBeenCalledWith({
-      owner: "acme",
-      repo: "kody-state",
-      ref: "main",
-    });
-    expect(res.status).toBe(200);
-    expect(res.headers.get("content-disposition")).toContain("attachment");
-
-    const body = await res.json();
-    expect(body.version).toBe(1);
-    expect(body.tenantId).toBe("acme/widgets");
-    expect(body.skipped).toBe(1);
-    expect(body.failures).toEqual([]);
-    expect(body.tables.workflows).toEqual([
-      expect.objectContaining({
-        tenantId: "acme/widgets",
-        workflowId: "bug",
-        updatedAt: "2026-01-01T00:00:00.000Z",
-      }),
-    ]);
-    expect(body.tables.goals).toEqual([
-      expect.objectContaining({ tenantId: "acme/widgets", goalId: "goal-1" }),
-    ]);
-    expect(githubClient.clearGitHubContext).toHaveBeenCalled();
-  });
-
-  it("returns the auth failure response when auth is rejected", async () => {
-    const denied = NextResponse.json({ error: "unauthorized" }, { status: 401 });
-    auth.requireKodyAuth.mockResolvedValue(denied as never);
-
-    const res = await EXPORT_GITHUB(
-      req("/api/kody/company/backend/export-github"),
-    );
-    expect(res.status).toBe(401);
-    expect(stateRepo.resolveStateRepo).not.toHaveBeenCalled();
-  });
-
-  it("returns 400 without repo context headers", async () => {
-    auth.getRequestAuth.mockReturnValue(null as never);
-    const res = await EXPORT_GITHUB(
-      req("/api/kody/company/backend/export-github"),
-    );
     expect(res.status).toBe(400);
     expect((await res.json()).error).toBe("no_repo_context");
   });
