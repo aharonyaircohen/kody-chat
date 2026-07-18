@@ -41,6 +41,7 @@ import { dispatchMentionPushes } from "@dashboard/lib/push/mention-dispatch";
 import { dispatchAgentMentions } from "@dashboard/lib/push/agent-mention-dispatch";
 import { dispatchCapabilityFailures } from "@dashboard/lib/push/capability-failure-dispatch";
 import { dispatchOperatorRequests } from "@dashboard/lib/push/operator-request-dispatch";
+import { dispatchReviewPrs } from "@dashboard/lib/push/review-pr-dispatch";
 import {
   invalidateCatalogProjection,
   isCatalogRelevantPath,
@@ -537,6 +538,17 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
           error: err instanceof Error ? err.message : String(err),
         },
         "dispatchOperatorRequests threw — should have been caught internally",
+      );
+    });
+    // Agent review PR on the state repo (`<capability>: …`) → approvable
+    // inbox entry whose Approve squash-merges the PR from the dashboard.
+    await dispatchReviewPrs(eventType, obj).catch((err: unknown) => {
+      logger.error(
+        {
+          event: "review_pr_dispatch_crashed",
+          error: err instanceof Error ? err.message : String(err),
+        },
+        "dispatchReviewPrs threw — should have been caught internally",
       );
     });
     // Failed capability run → inbox entry for every operator. Triggered by the

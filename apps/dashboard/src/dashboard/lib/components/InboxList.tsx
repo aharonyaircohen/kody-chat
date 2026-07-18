@@ -504,7 +504,7 @@ function Row({
                 )}
                 {VERDICT_LABEL[ctoVerdict]}
               </span>
-            ) : cto.action === "request" ? (
+            ) : entry.source === "request" ? (
               <span className="inline-flex items-center gap-1.5">
                 <Button
                   size="sm"
@@ -605,12 +605,15 @@ export function InboxList() {
         capability: rec.capability,
         decision,
         ...(rec.command ? { command: rec.command } : {}),
+        ...(rec.repo ? { repoFullName: rec.repo } : {}),
         ...(auth?.user?.login ? { actorLogin: auth.user.login } : {}),
       });
       refreshDecisions();
       toast.success(
         decision === "approve"
-          ? `Approved — posted ${rec.command ?? "the request"} on #${rec.taskNumber}`
+          ? rec.action === "merge"
+            ? `Approved — merged PR #${rec.taskNumber}`
+            : `Approved — posted ${rec.command ?? "the request"} on #${rec.taskNumber}`
           : decision === "reject"
             ? "Rejected"
             : "Dismissed",
@@ -1029,7 +1032,7 @@ export function InboxList() {
                 rec.action,
                 activeEntry.sentAt,
               )}
-              {...(rec.action === "request"
+              {...(activeEntry.source === "request"
                 ? {
                     onDecide: (decision: CtoVerdict) =>
                       void decideRequest(rec, decision),

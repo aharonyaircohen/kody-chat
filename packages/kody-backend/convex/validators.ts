@@ -172,5 +172,6 @@ export const inboxEntryValidator = v.object({
   ctoCommand: v.optional(v.string()),
   ctoAgent: v.optional(v.string()),
   ctoCapability: v.optional(v.string()),
+  ctoRepo: v.optional(v.string()),
   category: v.optional(v.string()),
 })

@@ -87,6 +87,16 @@ const bodySchema = z.object({
    * when absent so older recs stay actionable.
    */
   command: z.string().max(300).optional(),
+  /**
+   * `owner/repo` of the thread the rec lives on, when it is NOT the
+   * connected repo (e.g. a state-repo proposal PR). `merge` approves merge
+   * the PR there; command-posting recs stay connected-repo only.
+   */
+  repoFullName: z
+    .string()
+    .regex(/^[^/\s]+\/[^/\s]+$/)
+    .max(140)
+    .optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -113,7 +123,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "bad_json" }, { status: 400 });
     }
 
-    const { taskNumber, action, decision, actorLogin, agent } = payload;
+    const { taskNumber, action, decision, actorLogin, agent, repoFullName } =
+      payload;
     const capability = payload.capability ?? agent;
     const requested = payload.command?.trim();
 
@@ -134,7 +145,14 @@ export async function POST(req: NextRequest) {
       // capability posts the rec on the PR). A blocked merge (CI/conflict) returns
       // 409 BEFORE recording, so it never counts toward the trust streak.
       const mergeOctokit = userOctokit ?? getOctokit();
-      const outcome = await attemptSquashMerge(mergeOctokit, taskNumber);
+      const [targetOwner, targetRepo] = repoFullName?.split("/") ?? [];
+      const outcome = await attemptSquashMerge(
+        mergeOctokit,
+        taskNumber,
+        targetOwner && targetRepo
+          ? { owner: targetOwner, repo: targetRepo }
+          : undefined,
+      );
       if (!isMerged(outcome)) {
         return NextResponse.json(
           {

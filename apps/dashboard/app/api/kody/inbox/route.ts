@@ -36,6 +36,11 @@ const entrySchema = z.object({
   ctoCommand: z.string().max(300).optional(),
   ctoAgent: z.string().max(40).optional(),
   ctoCapability: z.string().max(40).optional(),
+  ctoRepo: z
+    .string()
+    .regex(/^[^/\s]+\/[^/\s]+$/)
+    .max(140)
+    .optional(),
 }) satisfies z.ZodType<InboxEntry>;
 
 const appendSchema = z.object({

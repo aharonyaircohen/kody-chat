@@ -20,6 +20,8 @@ export const ctoApi = {
     actorLogin?: string;
     /** The exact `@kody …` command from the agent's `kody-cmd` line. */
     command?: string;
+    /** `owner/repo` of the thread when not the connected repo (merge acts there). */
+    repoFullName?: string;
   }): Promise<{
     ok: true;
     executed: boolean;

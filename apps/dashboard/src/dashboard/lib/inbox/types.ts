@@ -82,6 +82,12 @@ export interface InboxEntry {
    */
   ctoAgent?: string;
   /**
+   * `owner/repo` where Approve acts when it is NOT the connected repo —
+   * e.g. a state-repo proposal PR that Approve squash-merges. Absent for
+   * connected-repo threads.
+   */
+  ctoRepo?: string;
+  /**
    * Slug of the capability that emitted the recommendation, parsed from the raw
    * body's `kody-capability` line at write time. The trust key — scopes autonomy
    * per capability, not just per agentIdentity. Absent on legacy entries (the client

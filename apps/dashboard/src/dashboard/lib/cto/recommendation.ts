@@ -154,6 +154,8 @@ export interface CtoRecommendation {
   action: CtoAction;
   /** The exact `@kody …` command Approve will post, or null if none. */
   command: string | null;
+  /** `owner/repo` where Approve acts when not the connected repo, or null. */
+  repo: string | null;
   /** True when Approve can actually run the action from the dashboard. */
   dispatchable: boolean;
 }
@@ -322,5 +324,6 @@ export function detectCtoRecommendation(
   // Approve squash-merges the PR. Other actions are dispatchable iff they
   // resolved to a command to post.
   const dispatchable = isDashboardAction(action) || command !== null;
-  return { agent, capability, taskNumber, action, command, dispatchable };
+  const repo = entry.ctoRepo?.trim() || null;
+  return { agent, capability, taskNumber, action, command, repo, dispatchable };
 }

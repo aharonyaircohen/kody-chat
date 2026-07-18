@@ -75,6 +75,8 @@ export interface InboxFeedEntry {
   ctoAgent?: string;
   /** Emitting capability slug from the raw body's `kody-capability` line — the trust key. */
   ctoCapability?: string;
+  /** `owner/repo` where Approve acts when not the connected repo (e.g. state-repo PR). */
+  ctoRepo?: string;
   /**
    * Server-classified notification category for this entry (`chat-response`,
    * `task-assigned`, …), computed from the source event at write time. Drives
