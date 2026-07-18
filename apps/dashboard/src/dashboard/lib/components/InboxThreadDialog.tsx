@@ -61,6 +61,15 @@ export function resolvableThread(
   ) {
     return null;
   }
+  // Entries whose thread lives in a DIFFERENT repo than the one they are
+  // filed under (ctoRepo, e.g. a state-repo proposal PR) can't render
+  // inline — the fetch would hit the wrong repo's thread number.
+  if (
+    entry.ctoRepo &&
+    entry.ctoRepo.toLowerCase() !== entry.repoFullName.toLowerCase()
+  ) {
+    return null;
+  }
 
   const m = entry.url.match(/\/(?:issues|pull|discussions)\/(\d+)/);
   if (!m) return null;

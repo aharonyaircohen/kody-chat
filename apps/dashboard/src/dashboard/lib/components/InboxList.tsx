@@ -478,15 +478,29 @@ function Row({
         <div className="mt-2.5 ml-5 flex flex-col gap-1.5">
           <div className="flex items-center gap-2">
             <span className="text-[10px] uppercase tracking-wider text-amber-300/70">
-              CTO · {cto.action === "other" ? "review" : cto.action}
+              {entry.source === "request"
+                ? `${cto.capability} · ${cto.action === "merge" ? "review PR" : "capability request"}`
+                : `CTO · ${cto.action === "other" ? "review" : cto.action}`}
             </span>
-            <RepoScopedLink
-              href={repoHref(`/${cto.taskNumber}`)}
-              title="Open this task in the dashboard"
-              className="text-[11px] font-medium text-sky-300/80 hover:text-sky-200 hover:underline"
-            >
-              Task #{cto.taskNumber}
-            </RepoScopedLink>
+            {cto.repo ? (
+              <a
+                href={entry.url}
+                target="_blank"
+                rel="noreferrer"
+                title={`Open ${cto.repo} PR #${cto.taskNumber} on GitHub`}
+                className="text-[11px] font-medium text-sky-300/80 hover:text-sky-200 hover:underline"
+              >
+                {cto.repo.split("/")[1]} PR #{cto.taskNumber}
+              </a>
+            ) : (
+              <RepoScopedLink
+                href={repoHref(`/${cto.taskNumber}`)}
+                title="Open this task in the dashboard"
+                className="text-[11px] font-medium text-sky-300/80 hover:text-sky-200 hover:underline"
+              >
+                Task #{cto.taskNumber}
+              </RepoScopedLink>
+            )}
             {ctoVerdict ? (
               <span
                 className={cn(
@@ -556,14 +570,30 @@ function Row({
               </Button>
             )}
           </div>
-          {cto.command && (
+          {entry.source === "request" ? (
+            <span className="text-[11px] text-white/50">
+              {cto.action === "merge" ? (
+                <>Approve merges this proposal ({cto.repo ?? entry.repoFullName} PR #{cto.taskNumber}).</>
+              ) : cto.command ? (
+                <>
+                  Approve runs{" "}
+                  <code className="rounded bg-white/[0.04] px-1 py-0.5 font-mono text-white/70">
+                    {cto.command}
+                  </code>{" "}
+                  on #{cto.taskNumber}.
+                </>
+              ) : (
+                <>Approve accepts this request.</>
+              )}
+            </span>
+          ) : cto.command ? (
             <code
               title="The exact comment Approve will post on this task"
               className="w-fit max-w-full truncate rounded bg-white/[0.04] px-1.5 py-0.5 font-mono text-[11px] text-white/70"
             >
               {cto.command}
             </code>
-          )}
+          ) : null}
         </div>
       )}
     </li>
