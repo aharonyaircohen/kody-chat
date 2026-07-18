@@ -28,7 +28,15 @@ const RendererDefaultValueSchema = z.union([
 const RendererDataFieldSchema = z.object({
   description: z.string().trim().min(1).max(300).optional(),
   type: z
-    .enum(["text", "markdown", "actions", "selection", "input", "value"])
+    .enum([
+      "text",
+      "markdown",
+      "actions",
+      "selection",
+      "fields",
+      "input",
+      "value",
+    ])
     .optional(),
   optional: z.boolean().optional(),
 });
@@ -54,6 +62,8 @@ export type RendererUiTemplateNode =
       type: "input";
       value: string;
       label?: string;
+      name?: string;
+      inputType?: string;
       readOnly?: boolean;
     }
   | {
@@ -95,6 +105,8 @@ const RendererUiTemplateNodeSchema: z.ZodType<RendererUiTemplateNode> = z.lazy(
         type: z.literal("input"),
         value: z.string().max(2_000),
         label: z.string().trim().min(1).max(80).optional(),
+        name: z.string().trim().min(1).max(80).optional(),
+        inputType: z.string().trim().max(40).optional(),
         readOnly: z.boolean().optional(),
       }),
       z.object({

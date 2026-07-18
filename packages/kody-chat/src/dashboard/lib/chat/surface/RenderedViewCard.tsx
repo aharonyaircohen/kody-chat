@@ -64,6 +64,7 @@ export function RenderedViewCard({
   const [formValues, setFormValues] = useState<
     Record<string, Array<{ value: string; label: string }>>
   >({});
+  const [inputValues, setInputValues] = useState<Record<string, string>>({});
   useEffect(() => {
     trackSystemEvent("ui.view.shown", { renderer: view.rendererSlug });
   }, [view.rendererSlug]);
@@ -93,7 +94,7 @@ export function RenderedViewCard({
       id: "submit",
       label,
       response,
-      result: formValues,
+      result: { ...formValues, ...inputValues },
     });
   };
   const renderButton = (
@@ -207,8 +208,18 @@ export function RenderedViewCard({
             </span>
           ) : null}
           <input
-            value={node.value}
+            value={
+              node.name ? (inputValues[node.name] ?? node.value) : node.value
+            }
             readOnly={node.readOnly ?? true}
+            type={node.inputType ?? "text"}
+            onChange={(event) => {
+              if (!node.name || node.readOnly) return;
+              setInputValues((current) => ({
+                ...current,
+                [node.name!]: event.target.value,
+              }));
+            }}
             className="h-8 w-full rounded-md border border-border bg-muted/40 px-2 text-sm text-foreground"
           />
         </label>

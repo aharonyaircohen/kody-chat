@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 /**
@@ -31,28 +31,41 @@ describe("package export map", () => {
     }
   });
 
-  it.each(explicit)("explicit export %s resolves to an existing file", (subpath, target) => {
-    expect(existsSync(join(pkgRoot, target)), `${subpath} -> ${target}`).toBe(true);
-  });
+  it.each(explicit)(
+    "explicit export %s resolves to an existing file",
+    (subpath, target) => {
+      expect(existsSync(join(pkgRoot, target)), `${subpath} -> ${target}`).toBe(
+        true,
+      );
+    },
+  );
 
-  it.each(wildcard)("wildcard export %s matches at least one file", (subpath, target) => {
-    // target like ./src/dashboard/lib/chat/platform/*.ts — check the directory exists
-    // and contains at least one file matching the suffix.
-    const starIdx = target.indexOf("*");
-    const dir = join(pkgRoot, target.slice(0, starIdx));
-    const suffix = target.slice(starIdx + 1);
-    expect(existsSync(dir), `${subpath}: directory ${dir} missing`).toBe(true);
-    const { readdirSync } = require("node:fs") as typeof import("node:fs");
-    const hasMatch = (d: string, depth: number): boolean => {
-      if (depth > 3) return false;
-      for (const e of readdirSync(d, { withFileTypes: true })) {
-        if (e.isFile() && (suffix === "" || join(d, e.name).endsWith(suffix))) return true;
-        if (e.isDirectory() && hasMatch(join(d, e.name), depth + 1)) return true;
-      }
-      return false;
-    };
-    expect(hasMatch(dir, 0), `${subpath}: no file matches ${target}`).toBe(true);
-  });
+  it.each(wildcard)(
+    "wildcard export %s matches at least one file",
+    (subpath, target) => {
+      // target like ./src/dashboard/lib/chat/platform/*.ts — check the directory exists
+      // and contains at least one file matching the suffix.
+      const starIdx = target.indexOf("*");
+      const dir = join(pkgRoot, target.slice(0, starIdx));
+      const suffix = target.slice(starIdx + 1);
+      expect(existsSync(dir), `${subpath}: directory ${dir} missing`).toBe(
+        true,
+      );
+      const hasMatch = (d: string, depth: number): boolean => {
+        if (depth > 3) return false;
+        for (const e of readdirSync(d, { withFileTypes: true })) {
+          if (e.isFile() && (suffix === "" || join(d, e.name).endsWith(suffix)))
+            return true;
+          if (e.isDirectory() && hasMatch(join(d, e.name), depth + 1))
+            return true;
+        }
+        return false;
+      };
+      expect(hasMatch(dir, 0), `${subpath}: no file matches ${target}`).toBe(
+        true,
+      );
+    },
+  );
 });
 
 describe("export map runtime resolution (non-route .ts entries)", () => {
@@ -63,7 +76,10 @@ describe("export map runtime resolution (non-route .ts entries)", () => {
     ([, target]) => target.endsWith(".ts") && !target.startsWith("./app/"),
   );
 
-  it.each(importable)("%s imports without throwing", async (_subpath, target) => {
-    await expect(import(join(pkgRoot, target))).resolves.toBeDefined();
-  });
+  it.each(importable)(
+    "%s imports without throwing",
+    async (_subpath, target) => {
+      await expect(import(join(pkgRoot, target))).resolves.toBeDefined();
+    },
+  );
 });

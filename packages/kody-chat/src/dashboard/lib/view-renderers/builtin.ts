@@ -32,8 +32,18 @@ const BUILTIN_SOURCES: readonly string[] = [
     },
     defaults: {
       actions: [
-        { id: "approve", label: "Approve", response: "approve", variant: "primary" },
-        { id: "cancel", label: "Cancel", response: "cancel", variant: "secondary" },
+        {
+          id: "approve",
+          label: "Approve",
+          response: "approve",
+          variant: "primary",
+        },
+        {
+          id: "cancel",
+          label: "Cancel",
+          response: "cancel",
+          variant: "secondary",
+        },
       ],
     },
     type: "layout",
@@ -114,6 +124,45 @@ const BUILTIN_SOURCES: readonly string[] = [
           },
         },
         { type: "submit", label: "Confirm" },
+      ],
+    },
+  }),
+  JSON.stringify({
+    slug: "guided-form",
+    name: "Guided form",
+    purpose: "guided-form",
+    description: "Small validated form used by a GuidedFlow step.",
+    rule: "Use this purpose when a guided step needs a few user-entered values before continuing.",
+    data: {
+      title: { type: "text", description: "Form heading." },
+      body: { type: "text", optional: true, description: "Form explanation." },
+      fields: { type: "fields", description: "Input field definitions." },
+      submitLabel: {
+        type: "text",
+        optional: true,
+        description: "Submit label.",
+      },
+    },
+    type: "layout",
+    ui: {
+      type: "stack",
+      children: [
+        { type: "text", variant: "title", value: "$title" },
+        { type: "text", value: "$body" },
+        {
+          type: "list",
+          for: "$fields",
+          as: "field",
+          item: {
+            type: "input",
+            name: "$field.name",
+            label: "$field.label",
+            value: "$field.value",
+            inputType: "$field.inputType",
+            readOnly: false,
+          },
+        },
+        { type: "submit", label: "$submitLabel" },
       ],
     },
   }),

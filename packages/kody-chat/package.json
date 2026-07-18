@@ -14,6 +14,8 @@
   "exports": {
     "./platform": "./src/dashboard/lib/chat/platform/index.ts",
     "./platform/lazy-panel": "./src/dashboard/lib/chat/platform/lazy-panel.tsx",
+    "./routes/guided-flows": "./app/api/kody/guided-flows/route.ts",
+    "./guided-flows/*": "./src/dashboard/lib/guided-flows/*.ts",
     "./platform/*": "./src/dashboard/lib/chat/platform/*.ts",
     "./core/*": "./src/dashboard/lib/chat/core/*.ts",
     "./chat-output-tools": "./src/dashboard/lib/chat-output-tools.ts",

@@ -8,6 +8,7 @@ import {
   workflowDefinitionValidator,
   workflowRunStateValidator,
   workflowRunnerValidator,
+  guidedFlowStatusValidator,
 } from "./validators";
 
 // Every table is partitioned by `tenantId` ("owner/name" of the connected consumer
@@ -33,6 +34,24 @@ export default defineSchema({
   })
     .index("by_run", ["tenantId", "workflowId", "runId"])
     .index("by_workflow", ["tenantId", "workflowId"]),
+
+  guidedFlowInstances: defineTable({
+    tenantId: v.string(),
+    actorId: v.string(),
+    instanceId: v.string(),
+    instanceKey: v.optional(v.string()),
+    flowId: v.string(),
+    flowVersion: v.number(),
+    currentStepId: v.string(),
+    status: guidedFlowStatusValidator,
+    revision: v.number(),
+    data: v.any(),
+    history: v.array(v.string()),
+    updatedAt: v.string(),
+    mutationId: v.optional(v.string()),
+  })
+    .index("by_instance", ["tenantId", "actorId", "instanceId"])
+    .index("by_actor_status", ["tenantId", "actorId", "status"]),
 
   agencyRuns: defineTable({
     tenantId: v.string(),

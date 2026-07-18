@@ -9,6 +9,7 @@
  * xterm lifecycle, the local pty session, and input routing).
  */
 "use client";
+/* eslint-disable max-lines -- terminal surface owns the complete terminal lifecycle. */
 
 import {
   forwardRef,
@@ -49,10 +50,7 @@ import {
   MAX_CAPTURE_CHARS,
   usefulCapturedOutput,
 } from "./terminal-text";
-import {
-  mountChatTerminal,
-  resetTerminalUiForRestart,
-} from "./xterm-setup";
+import { mountChatTerminal, resetTerminalUiForRestart } from "./xterm-setup";
 import type {
   ChatTerminalChromeState,
   ChatTerminalConnectionState,
@@ -552,9 +550,7 @@ export const ChatTerminalSurface = forwardRef<
       }
       if (
         document.visibilityState === "visible" &&
-        shouldReconnectVisibleRemoteTerminal(
-          flyConnectionStateRef.current,
-        )
+        shouldReconnectVisibleRemoteTerminal(flyConnectionStateRef.current)
       ) {
         scheduleFlyTerminalReconnect();
       }
@@ -576,73 +572,76 @@ export const ChatTerminalSurface = forwardRef<
     };
   }, [scheduleFlyTerminalReconnect]);
 
-  const pollOutput = useCallback(async (options: { waitMs?: number } = {}) => {
-    const current = sessionRef.current;
-    if (!current || pollBusyRef.current) return false;
+  const pollOutput = useCallback(
+    async (options: { waitMs?: number } = {}) => {
+      const current = sessionRef.current;
+      if (!current || pollBusyRef.current) return false;
 
-    pollBusyRef.current = true;
-    try {
-      const params = new URLSearchParams({
-        sessionId: current.sessionId,
-        cursor: String(current.cursor),
-      });
-      if (options.waitMs) {
-        params.set("waitMs", String(options.waitMs));
-      }
-      const res = await fetchWithTimeout(
-        `/api/kody/chat/terminal/output?${params}`,
-        { headers: authHeaders() },
-        LOCAL_OUTPUT_READ_TIMEOUT_MS,
-      );
-      const data = (await res.json().catch(() => ({}))) as {
-        events?: TerminalOutputEvent[];
-        cursor?: number;
-        alive?: boolean;
-        error?: string;
-      };
-      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
-      setError(null);
-
-      const nextSession = {
-        ...current,
-        cursor: data.cursor ?? current.cursor,
-        alive: data.alive ?? current.alive,
-      };
-      sessionRef.current = nextSession;
-      setSession(nextSession);
-
-      for (const event of data.events ?? []) {
-        if (event.type === "output") {
-          appendCapturedOutput(event.data);
-          terminalRef.current?.write(event.data);
-          continue;
+      pollBusyRef.current = true;
+      try {
+        const params = new URLSearchParams({
+          sessionId: current.sessionId,
+          cursor: String(current.cursor),
+        });
+        if (options.waitMs) {
+          params.set("waitMs", String(options.waitMs));
         }
-        terminalRef.current?.writeln(
-          `\r\nProcess exited${event.code === undefined ? "" : ` (${event.code})`}`,
+        const res = await fetchWithTimeout(
+          `/api/kody/chat/terminal/output?${params}`,
+          { headers: authHeaders() },
+          LOCAL_OUTPUT_READ_TIMEOUT_MS,
         );
-        sessionRef.current = { ...nextSession, alive: false };
-        notifyConnectionState("closed");
-        notifyTerminalSessionEnded();
-        setSession((existing) =>
-          existing ? { ...existing, alive: false } : existing,
-        );
+        const data = (await res.json().catch(() => ({}))) as {
+          events?: TerminalOutputEvent[];
+          cursor?: number;
+          alive?: boolean;
+          error?: string;
+        };
+        if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
+        setError(null);
+
+        const nextSession = {
+          ...current,
+          cursor: data.cursor ?? current.cursor,
+          alive: data.alive ?? current.alive,
+        };
+        sessionRef.current = nextSession;
+        setSession(nextSession);
+
+        for (const event of data.events ?? []) {
+          if (event.type === "output") {
+            appendCapturedOutput(event.data);
+            terminalRef.current?.write(event.data);
+            continue;
+          }
+          terminalRef.current?.writeln(
+            `\r\nProcess exited${event.code === undefined ? "" : ` (${event.code})`}`,
+          );
+          sessionRef.current = { ...nextSession, alive: false };
+          notifyConnectionState("closed");
+          notifyTerminalSessionEnded();
+          setSession((existing) =>
+            existing ? { ...existing, alive: false } : existing,
+          );
+        }
+        if (current.alive && data.alive === false) {
+          notifyTerminalSessionEnded();
+        }
+        return true;
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") {
+          setError("Terminal output stalled; retrying.");
+        } else {
+          const message = err instanceof Error ? err.message : String(err);
+          setError(message);
+        }
+        return false;
+      } finally {
+        pollBusyRef.current = false;
       }
-      if (current.alive && data.alive === false) {
-        notifyTerminalSessionEnded();
-      }
-      return true;
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        setError("Terminal output stalled; retrying.");
-      } else {
-        const message = err instanceof Error ? err.message : String(err);
-        setError(message);
-      }
-      return false;
-    } finally {
-      pollBusyRef.current = false;
-    }
-  }, [appendCapturedOutput, notifyTerminalSessionEnded, notifyConnectionState]);
+    },
+    [appendCapturedOutput, notifyTerminalSessionEnded, notifyConnectionState],
+  );
 
   useEffect(() => {
     if (!ready || !active) return;

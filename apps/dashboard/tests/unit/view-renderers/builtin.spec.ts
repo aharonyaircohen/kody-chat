@@ -13,9 +13,9 @@ import {
 import { buildChatViewCatalog } from "@dashboard/lib/view-renderers/spec/catalog";
 
 describe("builtin view renderers", () => {
-  it("ships the three default renderers, validated", () => {
+  it("ships the default renderers, validated", () => {
     expect(BUILTIN_VIEW_RENDERER_DEFINITIONS.map((d) => d.slug).sort()).toEqual(
-      ["approval-card", "multi-select-list", "selection-list"],
+      ["approval-card", "guided-form", "multi-select-list", "selection-list"],
     );
     for (const definition of BUILTIN_VIEW_RENDERER_DEFINITIONS) {
       expect(definition.ui.type).toBe("stack");
@@ -42,6 +42,9 @@ describe("builtin view renderers", () => {
     );
     expect(catalog.definitionComponents.get("MultiSelectList")?.slug).toBe(
       "multi-select-list",
+    );
+    expect(catalog.definitionComponents.get("GuidedForm")?.slug).toBe(
+      "guided-form",
     );
   });
 });

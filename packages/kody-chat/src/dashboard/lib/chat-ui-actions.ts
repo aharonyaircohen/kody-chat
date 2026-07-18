@@ -81,7 +81,7 @@ export interface RenderedViewAction {
   label: string;
   response: string;
   variant?: "primary" | "secondary" | "danger";
-  result?: Record<string, Array<{ value: string; label: string }>>;
+  result?: Record<string, unknown>;
 }
 
 export type RenderedViewDataValue =
@@ -89,7 +89,8 @@ export type RenderedViewDataValue =
   | number
   | boolean
   | null
-  | RenderedViewAction[];
+  | RenderedViewAction[]
+  | Array<Record<string, string | boolean>>;
 
 export type RenderedViewUiNode =
   | {
@@ -109,6 +110,8 @@ export type RenderedViewUiNode =
       type: "input";
       value: string;
       label?: string;
+      name?: string;
+      inputType?: "text" | "password";
       readOnly?: boolean;
     }
   | {
@@ -133,7 +136,12 @@ export interface RenderedViewDirective {
   id: string;
   rendererSlug: string;
   rendererName: string;
-  resultTarget: "chat";
+  resultTarget: "chat" | "guided-flow";
+  guidedFlow?: {
+    instanceId: string;
+    stepId: string;
+    revision: number;
+  };
   ui: RenderedViewUiNode;
   data: Record<string, RenderedViewDataValue>;
 }
@@ -195,7 +203,18 @@ function isRenderedViewDataValue(
     typeof value === "string" ||
     typeof value === "number" ||
     typeof value === "boolean" ||
-    (Array.isArray(value) && value.every(isRenderedViewAction))
+    (Array.isArray(value) &&
+      value.every(
+        (item) =>
+          isRenderedViewAction(item) ||
+          (!!item &&
+            typeof item === "object" &&
+            !Array.isArray(item) &&
+            Object.values(item as Record<string, unknown>).every(
+              (entry) =>
+                typeof entry === "string" || typeof entry === "boolean",
+            )),
+      ))
   );
 }
 
@@ -223,6 +242,10 @@ function isRenderedViewUiNode(value: unknown): value is RenderedViewUiNode {
     return (
       typeof node.value === "string" &&
       (node.label === undefined || typeof node.label === "string") &&
+      (node.name === undefined || typeof node.name === "string") &&
+      (node.inputType === undefined ||
+        node.inputType === "text" ||
+        node.inputType === "password") &&
       (node.readOnly === undefined || typeof node.readOnly === "boolean")
     );
   }
@@ -253,13 +276,25 @@ export function isRenderedViewDirective(
     typeof v.id !== "string" ||
     typeof v.rendererSlug !== "string" ||
     typeof v.rendererName !== "string" ||
-    v.resultTarget !== "chat" ||
+    (v.resultTarget !== "chat" && v.resultTarget !== "guided-flow") ||
     !isRenderedViewUiNode(v.ui) ||
     !v.data ||
     typeof v.data !== "object" ||
     Array.isArray(v.data)
   ) {
     return false;
+  }
+  if (v.resultTarget === "guided-flow") {
+    const flow = v.guidedFlow;
+    if (
+      !flow ||
+      typeof flow !== "object" ||
+      typeof (flow as Record<string, unknown>).instanceId !== "string" ||
+      typeof (flow as Record<string, unknown>).stepId !== "string" ||
+      typeof (flow as Record<string, unknown>).revision !== "number"
+    ) {
+      return false;
+    }
   }
   return Object.values(v.data as Record<string, unknown>).every(
     isRenderedViewDataValue,

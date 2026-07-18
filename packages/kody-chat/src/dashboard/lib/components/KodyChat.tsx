@@ -1,10 +1,10 @@
 "use client";
+/* eslint-disable max-lines -- legacy host component; extracted concerns keep this bounded for now. */
 
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { navLabelForPath } from "@dashboard/lib/components/settings-nav";
 import { useLiveRunner } from "./kody-chat-live-runner";
-import { FileText, FileCode } from "lucide-react";
 import {
   createChatPluginRegistry,
   FULL_GRANT,
@@ -92,6 +92,7 @@ import type {
   RenderedViewDirective,
   PreviewActDirective,
 } from "@dashboard/lib/chat-ui-actions";
+import { isRenderedViewDirective } from "@dashboard/lib/chat-ui-actions";
 import { repoScopedHref } from "@kody-ade/base/routes";
 
 function reportValue(value: unknown, max = 1_000): string | null {
@@ -375,12 +376,8 @@ export function KodyChat({
   const brainConfigured = Boolean(auth?.brain?.url && auth?.brain?.apiKey);
   // Mount-time data loads (phase 1.6c: kody-chat-data.ts) — the chat model
   // list, the Repo Brain chat toggle, and the FLY_API_TOKEN vault probe.
-  const {
-    chatModels,
-    chatModelsLoaded,
-    brainFlyChatEnabled,
-    flyConfigured,
-  } = useChatDataSources();
+  const { chatModels, chatModelsLoaded, brainFlyChatEnabled, flyConfigured } =
+    useChatDataSources();
 
   // Use one session bucket for Vibe. The selected task is request context, not
   // a separate visible conversation; otherwise issue creation navigates to an
@@ -661,6 +658,7 @@ export function KodyChat({
       if (activeId) sessionHook.setSessionAgent(activeId, entry.key);
       setAgentMenuOpen(false);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [
       sessionHook.activeSession?.id,
       sessionHook.setSessionAgent,
@@ -707,6 +705,99 @@ export function KodyChat({
   // prompt, not a separate message store.
   const capabilitySlug: string | null = selectedCapability?.slug ?? null;
   const messages: Message[] = sessionHook.messages.map(chatToMessage);
+  const ensureChatSession = sessionHook.createSession;
+  const activeChatSessionId = sessionHook.activeSession?.id;
+
+  const [resumedGuidedFlowMessage, setResumedGuidedFlowMessage] =
+    useState<Message | null>(null);
+
+  useEffect(() => {
+    const activeSessionId = activeChatSessionId;
+    if (lockedAgentSlug || messages.length > 0) {
+      setResumedGuidedFlowMessage(null);
+      return;
+    }
+    if (!activeSessionId) {
+      ensureChatSession();
+      return;
+    }
+
+    let cancelled = false;
+    void fetch("/api/kody/guided-flows", { headers: authHeaders() })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return (await response.json()) as {
+          flows?: Array<{ view?: unknown }>;
+        };
+      })
+      .then((payload) => {
+        if (cancelled) return;
+        const view = payload?.flows?.[0]?.view;
+        if (!isRenderedViewDirective(view)) return;
+        setResumedGuidedFlowMessage({
+          role: "assistant",
+          content:
+            "You have an unfinished GuidedFlow. Continue where you stopped.",
+          timestamp: new Date().toISOString(),
+          view,
+        });
+      })
+      .catch(() => {
+        // Resume is an enhancement; an unavailable endpoint must not break chat.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    ensureChatSession,
+    lockedAgentSlug,
+    messages.length,
+    activeChatSessionId,
+  ]);
+
+  useEffect(() => {
+    if (lockedAgentSlug) return;
+    if (!activeChatSessionId) {
+      ensureChatSession();
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const flowId = params.get("guidedFlow");
+    const instanceKey = params.get("instanceKey") ?? undefined;
+    if (!flowId) return;
+
+    window.history.replaceState({}, "", window.location.pathname);
+    let cancelled = false;
+    void fetch("/api/kody/guided-flows", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders() },
+      body: JSON.stringify({ action: "start", flowId, instanceKey }),
+    })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return (await response.json()) as { view?: unknown };
+      })
+      .then((payload) => {
+        if (cancelled || !isRenderedViewDirective(payload?.view)) return;
+        setResumedGuidedFlowMessage({
+          role: "assistant",
+          content: "GuidedFlow started. Follow the steps below.",
+          timestamp: new Date().toISOString(),
+          view: payload.view,
+        });
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeChatSessionId, ensureChatSession, lockedAgentSlug]);
+
+  const displayMessages =
+    resumedGuidedFlowMessage && messages.length === 0
+      ? [resumedGuidedFlowMessage]
+      : messages;
 
   const setMessages = useCallback(
     (updater: Message[] | ((prev: Message[]) => Message[])) => {
@@ -1174,6 +1265,84 @@ export function KodyChat({
         next.add(view.id);
         return next;
       });
+
+      if (view.resultTarget === "guided-flow" && view.guidedFlow) {
+        void (async () => {
+          try {
+            const response = await fetch("/api/kody/guided-flows", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", ...authHeaders() },
+              body: JSON.stringify({
+                action: action.id === "back" ? "back" : "submit",
+                instanceId: view.guidedFlow?.instanceId,
+                stepId: view.guidedFlow?.stepId,
+                expectedRevision: view.guidedFlow?.revision,
+                ...(action.id === "back" ? {} : { actionId: action.id }),
+                ...(action.result ? { result: action.result } : {}),
+                mutationId: globalThis.crypto.randomUUID(),
+              }),
+            });
+            const payload = (await response.json()) as {
+              view?: unknown;
+              instance?: { status?: string };
+              navigation?: DashboardNavigateDirective;
+              error?: string;
+            };
+            if (!response.ok) {
+              throw new Error(payload.error ?? "GuidedFlow action failed");
+            }
+
+            setResumedGuidedFlowMessage(null);
+            if (isRenderedViewDirective(payload.view)) {
+              const nextView = payload.view;
+              setMessages((prev) => [
+                ...prev,
+                {
+                  role: "assistant",
+                  content: "Continue with the next step below.",
+                  timestamp: new Date().toISOString(),
+                  view: nextView,
+                },
+              ]);
+            } else {
+              setMessages((prev) => [
+                ...prev,
+                {
+                  role: "assistant",
+                  content:
+                    payload.instance?.status === "cancelled"
+                      ? "GuidedFlow cancelled."
+                      : "GuidedFlow completed.",
+                  timestamp: new Date().toISOString(),
+                },
+              ]);
+            }
+            if (payload.navigation?.action === "dashboard_navigate") {
+              runDashboardNavigateFromDirective(payload.navigation);
+            }
+          } catch (error) {
+            setUsedViewIds((prev) => {
+              const next = new Set(prev);
+              next.delete(view.id);
+              return next;
+            });
+            setMessages((prev) => [
+              ...prev,
+              {
+                role: "assistant",
+                content:
+                  error instanceof Error
+                    ? `GuidedFlow could not continue: ${error.message}`
+                    : "GuidedFlow could not continue.",
+                timestamp: new Date().toISOString(),
+                isError: true,
+              },
+            ]);
+          }
+        })();
+        return;
+      }
+
       const resultPayload = JSON.stringify({
         kind: "view_result",
         view: "renderer",
@@ -1190,7 +1359,7 @@ export function KodyChat({
         },
       );
     },
-    [sendText, usedViewIds],
+    [runDashboardNavigateFromDirective, sendText, setMessages, usedViewIds],
   );
 
   // Planner auto-kickoff. The "Plan with chat" button is the user's consent
@@ -1678,7 +1847,7 @@ export function KodyChat({
       messageList={
         <MessageList
           chatMode={chatMode}
-          messages={messages}
+          messages={displayMessages}
           setMessages={setMessages}
           onResend={(content) => {
             void sendText(content, []);

@@ -101,6 +101,7 @@ import { applyVibeToolPolicy } from "./vibe-tool-policy";
 import { fetchUrlTool } from "../tools/fetch-url";
 import { featureTools } from "../tools/feature-tools";
 import { createUiTools } from "../tools/ui-tools";
+import { createGuidedFlowTools } from "../tools/guided-flow-tools";
 import {
   CHAT_OUTPUT_TOOL_NAMES,
   FINAL_ANSWER_TOOL,
@@ -1170,6 +1171,12 @@ async function handleKodyDirectPost(
   extraTools = {
     ...extraTools,
     ...createRemoteTools(verifiedActorLogin),
+    ...(repo && !clientSurface && verifiedActorLogin
+      ? createGuidedFlowTools({
+          tenantId: `${repo.owner}/${repo.repo}`,
+          actorId: verifiedActorLogin,
+        })
+      : {}),
   };
   // Optional tool families that failed to load this turn. The model MUST
   // be told about these: a chat that silently lacks its cms/user-state

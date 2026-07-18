@@ -183,6 +183,17 @@ function resolveRendererUiTemplate(
       ...(template.label
         ? { label: resolveTemplateString(template.label, scope) }
         : {}),
+      ...(template.name
+        ? { name: resolveTemplateString(template.name, scope) }
+        : {}),
+      ...(template.inputType
+        ? {
+            inputType:
+              resolveTemplateString(template.inputType, scope) === "password"
+                ? "password"
+                : "text",
+          }
+        : {}),
       readOnly: template.readOnly ?? true,
     };
   }
@@ -215,7 +226,7 @@ function cloneDefaultValue(
   value: RenderedViewDataValue,
 ): RenderedViewDataValue {
   if (Array.isArray(value)) {
-    return value.map((action) => ({ ...action }));
+    return value.map((item) => ({ ...item })) as RenderedViewDataValue;
   }
   return value;
 }
@@ -396,6 +407,28 @@ function isListRendererField(
   return type === "actions" || type === "selection";
 }
 
+function normalizeRendererFields(
+  value: unknown,
+): Array<Record<string, string | boolean>> | null {
+  if (!Array.isArray(value)) return null;
+  const fields = value.map((item) => {
+    if (!isRecord(item)) return null;
+    const name = typeof item.name === "string" ? item.name.trim() : "";
+    const label = typeof item.label === "string" ? item.label.trim() : "";
+    const fieldValue = typeof item.value === "string" ? item.value : "";
+    if (!name || !label) return null;
+    return {
+      name,
+      label,
+      value: fieldValue,
+      ...(item.inputType === "password" ? { inputType: "password" } : {}),
+    };
+  });
+  return fields.every(Boolean)
+    ? (fields as Array<Record<string, string | boolean>>)
+    : null;
+}
+
 function normalizeRendererFieldValue({
   definition,
   bind,
@@ -405,6 +438,13 @@ function normalizeRendererFieldValue({
   bind: string;
   value: unknown;
 }): RenderedViewDataValue {
+  if ((definition.data?.[bind]?.type ?? "value") === "fields") {
+    const fields = normalizeRendererFields(value);
+    if (!fields) {
+      throw new Error(`Invalid renderer data for "${bind}": expected fields`);
+    }
+    return fields;
+  }
   if (isListRendererField(definition, bind)) {
     const items = listItemsFromValue(value);
     if (!items) {

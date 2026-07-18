@@ -291,6 +291,64 @@ function renderedMultiSelectionView() {
   };
 }
 
+function guidedFlowView(step: "form" | "review", revision: number) {
+  const isForm = step === "form";
+  return {
+    action: "render_view",
+    view: "renderer",
+    id: `guided-flow-e2e-${revision}`,
+    rendererSlug: isForm ? "guided-form" : "approval-card",
+    rendererName: isForm ? "Guided form" : "Approval card",
+    resultTarget: "guided-flow",
+    guidedFlow: {
+      instanceId: "guided-flow-e2e",
+      stepId: isForm ? "choose-capability" : "review",
+      revision,
+    },
+    ui: isForm
+      ? {
+          type: "stack",
+          children: [
+            { type: "text", value: "Create a workflow", variant: "title" },
+            { type: "text", value: "Describe the workflow." },
+            {
+              type: "input",
+              name: "workflowName",
+              label: "Workflow name",
+              value: "",
+              readOnly: false,
+            },
+            {
+              type: "input",
+              name: "capabilitySlug",
+              label: "Capability slug",
+              value: "",
+              readOnly: false,
+            },
+            { type: "submit", label: "Review workflow" },
+          ],
+        }
+      : {
+          type: "stack",
+          children: [
+            { type: "text", value: "Review workflow", variant: "title" },
+            { type: "text", value: "Create this workflow?" },
+            {
+              type: "button",
+              label: "Create workflow",
+              action: {
+                id: "approve",
+                label: "Create workflow",
+                response: "approve",
+                variant: "primary",
+              },
+            },
+          ],
+        },
+    data: {},
+  };
+}
+
 async function mockChatStream(
   page: Page,
   options: {
@@ -592,6 +650,62 @@ test.describe("Kody chat renderer output", () => {
     expect(sentMessages.at(-1)).toContain("cto");
     expect(sentMessages.at(-1)).toContain("health");
     expect(sentMessages.at(-1)).not.toBe("Confirm reports");
+  });
+
+  test("resumes a GuidedFlow and advances form input without a model turn", async ({
+    page,
+  }) => {
+    const guidedRequests: Array<Record<string, unknown>> = [];
+    await page.route("**/api/kody/guided-flows", async (route) => {
+      if (route.request().method() === "GET") {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            flows: [{ view: guidedFlowView("form", 0) }],
+          }),
+        });
+        return;
+      }
+      const body = route.request().postDataJSON() as Record<string, unknown>;
+      guidedRequests.push(body);
+      const action = body.actionId;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          action === "submit"
+            ? {
+                instance: { status: "active" },
+                view: guidedFlowView("review", 1),
+              }
+            : { instance: { status: "completed" }, navigation: undefined },
+        ),
+      });
+    });
+    await openChat(page);
+
+    await expect(
+      page.getByText("You have an unfinished GuidedFlow."),
+    ).toBeVisible();
+    await page.getByLabel("Workflow name").fill("Nightly checks");
+    await page.getByLabel("Capability slug").fill("run-tests");
+    await page.getByRole("button", { name: "Review workflow" }).click();
+
+    await expect(page.getByText("Review workflow")).toBeVisible();
+    expect(guidedRequests).toHaveLength(1);
+    expect(guidedRequests[0]).toMatchObject({
+      action: "submit",
+      actionId: "submit",
+      result: { workflowName: "Nightly checks", capabilitySlug: "run-tests" },
+    });
+
+    await page.getByRole("button", { name: "Create workflow" }).click();
+    await expect(page.getByText("GuidedFlow completed.")).toBeVisible();
+    expect(guidedRequests[1]).toMatchObject({
+      action: "submit",
+      actionId: "approve",
+    });
   });
 
   test("approval request uses renderer-capable Kody path when a model exists without a saved default", async ({

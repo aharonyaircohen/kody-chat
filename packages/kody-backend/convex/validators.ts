@@ -61,6 +61,12 @@ export const workflowRunnerValidator = v.object({
   machineId: v.string(),
 })
 
+export const guidedFlowStatusValidator = v.union(
+  v.literal("active"),
+  v.literal("completed"),
+  v.literal("cancelled"),
+)
+
 export const macroValidator = v.object({
   id: v.string(),
   name: v.string(),

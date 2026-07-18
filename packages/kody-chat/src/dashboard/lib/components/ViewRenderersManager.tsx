@@ -59,7 +59,14 @@ interface RendererRow {
     string,
     {
       description?: string;
-      type?: "text" | "markdown" | "actions" | "selection" | "input" | "value";
+      type?:
+        | "text"
+        | "markdown"
+        | "actions"
+        | "selection"
+        | "fields"
+        | "input"
+        | "value";
       optional?: boolean;
     }
   >;
