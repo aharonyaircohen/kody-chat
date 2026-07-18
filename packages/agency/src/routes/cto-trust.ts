@@ -140,6 +140,15 @@ export async function POST(req: NextRequest) {
           ? applyCapabilityTrustLevel(current, capability, level)
           : applySubjectTrustLevel(current, subject!, level);
       }
+      if (capability && op === "earn") {
+        // Earn resumes the default path — clear the capability entry AND its
+        // subject-side pin so nothing keeps overriding the earned streak.
+        return applySubjectTrustOp(
+          applyTrustOp(current, op, capability),
+          op,
+          `capability:${capability}` as const,
+        );
+      }
       return capability
         ? applyTrustOp(current, op!, capability)
         : applySubjectTrustOp(current, op!, subject!);

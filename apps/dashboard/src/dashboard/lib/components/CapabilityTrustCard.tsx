@@ -3,25 +3,64 @@
  * @fileType component
  * @domain kody
  * @pattern capability-trust-card
- * @ai-summary Trust section for one capability's detail page. Shows the
- *   effective autonomy tier (observe/verify run freely; act earns trust via
- *   the ledger), the approval streak, a TrustLevelControl editor, and the
- *   "never auto" pin that keeps the capability approval-required forever.
+ * @ai-summary Trust section for one capability's detail page. Observe/verify
+ *   capabilities run freely (badge only). Act capabilities get ONE control with
+ *   three modes: Earn trust (default ask→auto path, streak preserved), Always
+ *   ask (neverAuto pin — pauses auto without losing progress), Auto (trusted
+ *   now). No separate level toggle + pin checkbox — one choice, one meaning.
  */
-import { Eye, Loader2, Lock, ShieldQuestion } from "lucide-react";
+import {
+  Eye,
+  GraduationCap,
+  Loader2,
+  Lock,
+  ShieldCheck,
+  ShieldQuestion,
+} from "lucide-react";
 
+import { Button } from "@kody-ade/base/ui/button";
 import { Card, CardContent } from "@kody-ade/base/ui/card";
-import { Checkbox } from "@kody-ade/base/ui/checkbox";
-import { Label } from "@kody-ade/base/ui/label";
 
 import {
   TRUST_GRADUATION_THRESHOLD,
-  trustLevelForCapability,
   trustSubjectKey,
-  type TrustLevel,
 } from "../cto/trust-state";
 import { useTrust } from "../cto/useTrust";
-import { TrustLevelControl } from "./TrustLevelControl";
+import { cn } from "../utils";
+
+type TrustChoice = "earn" | "always-ask" | "auto";
+
+const choices: Array<{
+  value: TrustChoice;
+  label: string;
+  hint: string;
+  Icon: typeof GraduationCap;
+  activeClassName: string;
+}> = [
+  {
+    value: "earn",
+    label: "Earn trust",
+    hint: "Asks for approval; goes auto after a clean streak.",
+    Icon: GraduationCap,
+    activeClassName:
+      "border-amber-500/40 bg-amber-500/15 text-amber-200",
+  },
+  {
+    value: "always-ask",
+    label: "Always ask",
+    hint: "Never goes auto. Progress is kept — switch back anytime.",
+    Icon: Lock,
+    activeClassName: "border-red-500/40 bg-red-500/15 text-red-200",
+  },
+  {
+    value: "auto",
+    label: "Auto",
+    hint: "Runs without asking, starting now.",
+    Icon: ShieldCheck,
+    activeClassName:
+      "border-emerald-500/40 bg-emerald-500/15 text-emerald-200",
+  },
+];
 
 export function CapabilityTrustCard({
   slug,
@@ -32,12 +71,17 @@ export function CapabilityTrustCard({
 }) {
   const trust = useTrust();
   const stats = trust.capabilities[slug] ?? null;
-  const subjectStats = trust.subjects[trustSubjectKey("capability", slug)] ?? null;
-  const runsFreely = capabilityKind === "observe" || capabilityKind === "verify";
-  const neverAuto = stats?.neverAuto === true || subjectStats?.neverAuto === true;
-  const level: TrustLevel = neverAuto
-    ? "approval-required"
-    : trustLevelForCapability(stats, subjectStats);
+  const subjectStats =
+    trust.subjects[trustSubjectKey("capability", slug)] ?? null;
+  const runsFreely =
+    capabilityKind === "observe" || capabilityKind === "verify";
+  const neverAuto =
+    stats?.neverAuto === true || subjectStats?.neverAuto === true;
+  const current: TrustChoice = neverAuto
+    ? "always-ask"
+    : stats?.mode === "auto" || subjectStats?.mode === "auto"
+      ? "auto"
+      : "earn";
   const streak = stats?.consecutiveApprovals ?? 0;
   const remaining = Math.max(0, TRUST_GRADUATION_THRESHOLD - streak);
 
@@ -52,9 +96,21 @@ export function CapabilityTrustCard({
     );
   }
 
+  const select = (choice: TrustChoice) => {
+    if (choice === current) return;
+    if (choice === "always-ask") {
+      void trust.setNeverAuto({ capability: slug, neverAuto: true });
+      return;
+    }
+    void trust.setTrust({
+      capability: slug,
+      op: choice === "auto" ? "graduate" : "earn",
+    });
+  };
+
   return (
     <Card className="border-white/[0.08] bg-white/[0.02]">
-      <CardContent className="p-3 space-y-3">
+      <CardContent className="p-3 space-y-2.5">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-2 text-sm font-medium">
             <ShieldQuestion className="w-4 h-4 text-muted-foreground" />
@@ -67,44 +123,43 @@ export function CapabilityTrustCard({
               without approval
             </span>
           ) : (
-            <TrustLevelControl
-              value={level}
-              pending={trust.isMutating}
-              onChange={(next) => void trust.setTrustLevel({ capability: slug, level: next })}
-            />
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {choices.map(({ value, label, Icon, activeClassName }) => (
+                <Button
+                  key={value}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={trust.isMutating}
+                  onClick={() => select(value)}
+                  className={cn(
+                    "gap-1.5 text-xs",
+                    value === current
+                      ? activeClassName
+                      : "text-muted-foreground",
+                  )}
+                  aria-pressed={value === current}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
+                </Button>
+              ))}
+            </div>
           )}
         </div>
 
         {!runsFreely ? (
           <p className="text-xs text-muted-foreground">
-            {level === "auto-approval"
-              ? "Graduated — the engine may run this capability without asking."
-              : streak > 0
-                ? `${streak} clean approval${streak === 1 ? "" : "s"} — ${remaining} more to graduate.`
-                : "Every run asks for approval until it earns a clean streak."}
+            {choices.find((choice) => choice.value === current)?.hint}{" "}
+            {current !== "auto"
+              ? streak > 0
+                ? `Streak: ${streak} clean approval${streak === 1 ? "" : "s"}${current === "earn" ? `, ${remaining} more to go auto.` : "."}`
+                : current === "earn"
+                  ? `Goes auto after ${TRUST_GRADUATION_THRESHOLD} clean approvals.`
+                  : ""
+              : ""}
           </p>
         ) : null}
-
-        <div className="flex items-center justify-between gap-3 rounded border border-white/[0.06] bg-black/20 px-3 py-2">
-          <Label
-            htmlFor={`never-auto-${slug}`}
-            className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer"
-          >
-            <Lock className="w-3.5 h-3.5" />
-            Never auto — always require approval, even after graduating
-          </Label>
-          <Checkbox
-            id={`never-auto-${slug}`}
-            checked={neverAuto}
-            disabled={trust.isMutating}
-            onCheckedChange={(checked) =>
-              void trust.setNeverAuto({
-                capability: slug,
-                neverAuto: checked === true,
-              })
-            }
-          />
-        </div>
       </CardContent>
     </Card>
   );

@@ -297,3 +297,21 @@ describe("applyCapabilityNeverAuto", () => {
     expect(pinned.capabilities.qa?.consecutiveApprovals).toBe(7);
   });
 });
+
+describe("earn op", () => {
+  it("returns to ask while preserving the streak and lifting the pin", () => {
+    let m = approvals("qa", 6);
+    m = applyCapabilityNeverAuto(m, "qa", true);
+    m = applyTrustOp(m, "earn", "qa");
+    expect(m.capabilities.qa?.mode).toBe("ask");
+    expect(m.capabilities.qa?.consecutiveApprovals).toBe(6);
+    expect(m.capabilities.qa?.neverAuto).toBeUndefined();
+  });
+
+  it("earn on a subject lifts its pin too", () => {
+    let m = applyCapabilityNeverAuto(EMPTY_TRUST_MANIFEST, "qa", true);
+    m = applySubjectTrustOp(m, "earn", "capability:qa");
+    expect(m.subjects["capability:qa"]?.neverAuto).toBeUndefined();
+    expect(m.subjects["capability:qa"]?.mode).toBe("ask");
+  });
+});

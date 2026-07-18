@@ -214,7 +214,7 @@ export function latestTrustDecisions(
 // Operator overrides (the /trust page buttons) — pure
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const TRUST_OPS = ["reset", "graduate", "degrade"] as const;
+export const TRUST_OPS = ["reset", "graduate", "degrade", "earn"] as const;
 export type TrustOp = (typeof TRUST_OPS)[number];
 
 /** Wipe a capability's trust back to zero / "ask". */
@@ -257,6 +257,24 @@ export function degradeCapability(
   });
 }
 
+/**
+ * Back to the default earning path — asks now, keeps the earned streak and
+ * totals, and lifts a neverAuto pin. Unlike `degrade` this is non-destructive:
+ * the capability resumes graduating from where it left off.
+ */
+export function earnCapability(
+  manifest: TrustManifest,
+  capability: string,
+): TrustManifest {
+  const prev = statsFor(manifest, capability);
+  const { neverAuto: _pin, ...rest } = prev;
+  return withStats(manifest, capability, {
+    ...rest,
+    mode: "ask",
+    level: "approval-required",
+  });
+}
+
 export function applyTrustOp(
   manifest: TrustManifest,
   op: TrustOp,
@@ -269,6 +287,8 @@ export function applyTrustOp(
       return graduateCapability(manifest, capability);
     case "degrade":
       return degradeCapability(manifest, capability);
+    case "earn":
+      return earnCapability(manifest, capability);
   }
 }
 
@@ -307,6 +327,20 @@ export function resetSubject(
   return { ...manifest, subjects };
 }
 
+/** Subject twin of `earnCapability` — ask now, streak and totals kept, pin lifted. */
+export function earnSubject(
+  manifest: TrustManifest,
+  subject: TrustSubjectKey,
+): TrustManifest {
+  const prev = statsForSubject(manifest, subject);
+  const { neverAuto: _pin, ...rest } = prev;
+  return withSubjectStats(manifest, subject, {
+    ...rest,
+    mode: "ask",
+    level: "approval-required",
+  });
+}
+
 export function applySubjectTrustOp(
   manifest: TrustManifest,
   op: TrustOp,
@@ -319,6 +353,8 @@ export function applySubjectTrustOp(
       return graduateSubject(manifest, subject);
     case "degrade":
       return degradeSubject(manifest, subject);
+    case "earn":
+      return earnSubject(manifest, subject);
   }
 }
 
