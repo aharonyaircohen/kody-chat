@@ -157,6 +157,7 @@ export const inboxEntryValidator = v.object({
     v.literal("assigned"),
     v.literal("team_mention"),
     v.literal("subscribed"),
+    v.literal("request"),
     v.literal("other"),
   ),
   repoFullName: v.string(),
