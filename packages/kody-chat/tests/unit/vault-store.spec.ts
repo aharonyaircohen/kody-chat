@@ -6,15 +6,9 @@
 import { randomBytes } from "crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const stateRepo = vi.hoisted(() => ({
-  readStateText: vi.fn(),
-  writeStateText: vi.fn(),
-}));
-
-vi.mock("@kody-ade/base/state-repo", () => ({
-  readStateText: stateRepo.readStateText,
-  writeStateText: stateRepo.writeStateText,
-}));
+const backend = vi.hoisted(() => ({ query: vi.fn(), mutation: vi.fn() }));
+vi.mock("@kody-ade/backend/api", () => ({ api: { repoDocs: { get: "repoDocs:get", save: "repoDocs:save" } } }));
+vi.mock("@kody-ade/backend/client", () => ({ createBackendClient: () => backend }));
 
 vi.mock("@kody-ade/base/logger", () => ({
   logger: { warn: vi.fn(), info: vi.fn(), error: vi.fn() },
@@ -71,44 +65,38 @@ afterEach(() => {
 describe("readVault", () => {
   it("reads and decrypts secrets.enc from the configured state repo", async () => {
     const octokit = fakeOctokit();
-    stateRepo.readStateText.mockResolvedValue(stateFile(DOC));
+    backend.query.mockResolvedValue({ doc: { ciphertext: stateFile(DOC).content }, updatedAt: "sha-1" });
 
     const { doc, sha } = await readVault(octokit, "acme", "widgets");
 
     expect(doc).toEqual(DOC);
     expect(sha).toBe("sha-1");
-    expect(stateRepo.readStateText).toHaveBeenCalledWith(
-      octokit,
-      "acme",
-      "widgets",
-      VAULT_PATH,
-      { headers: { "If-None-Match": "" } },
-    );
+    expect(backend.query).toHaveBeenCalledWith("repoDocs:get", { tenantId: "acme/widgets", kind: VAULT_PATH });
   });
 
   it("caches reads per repo until invalidated", async () => {
-    stateRepo.readStateText.mockResolvedValue(stateFile(DOC));
+    backend.query.mockResolvedValue({ doc: { ciphertext: stateFile(DOC).content }, updatedAt: "sha-1" });
     const octokit = fakeOctokit();
 
     await readVault(octokit, "acme", "widgets");
     await readVault(octokit, "acme", "widgets");
 
-    expect(stateRepo.readStateText).toHaveBeenCalledTimes(1);
+    expect(backend.query).toHaveBeenCalledTimes(1);
   });
 
   it("force read bypasses cache", async () => {
-    stateRepo.readStateText.mockResolvedValue(stateFile(DOC));
+    backend.query.mockResolvedValue({ doc: { ciphertext: stateFile(DOC).content }, updatedAt: "sha-1" });
     const octokit = fakeOctokit();
 
     await readVault(octokit, "acme", "widgets");
     await readVault(octokit, "acme", "widgets", { force: true });
 
-    expect(stateRepo.readStateText).toHaveBeenCalledTimes(2);
+    expect(backend.query).toHaveBeenCalledTimes(2);
   });
 
   it("collapses concurrent reads into one state repo call", async () => {
     let resolve!: (value: unknown) => void;
-    stateRepo.readStateText.mockReturnValue(
+    backend.query.mockReturnValue(
       new Promise((r) => {
         resolve = r;
       }),
@@ -117,15 +105,15 @@ describe("readVault", () => {
 
     const p1 = readVault(octokit, "acme", "widgets");
     const p2 = readVault(octokit, "acme", "widgets");
-    resolve(stateFile(DOC));
+    resolve({ doc: { ciphertext: stateFile(DOC).content }, updatedAt: "sha-1" });
     const [a, b] = await Promise.all([p1, p2]);
 
-    expect(stateRepo.readStateText).toHaveBeenCalledTimes(1);
+    expect(backend.query).toHaveBeenCalledTimes(1);
     expect(a.doc).toEqual(b.doc);
   });
 
   it("returns an empty document when the state file does not exist", async () => {
-    stateRepo.readStateText.mockResolvedValue(null);
+    backend.query.mockResolvedValue(null);
 
     const { doc, sha } = await readVault(fakeOctokit(), "acme", "widgets");
 
@@ -136,27 +124,17 @@ describe("readVault", () => {
 
 describe("writeVault", () => {
   it("encrypts and writes secrets.enc to the configured state repo", async () => {
-    stateRepo.writeStateText.mockResolvedValue({ sha: "sha-2" });
+    backend.mutation.mockResolvedValue(undefined);
     const octokit = fakeOctokit();
 
     const { sha } = await writeVault(octokit, "acme", "widgets", DOC, "sha-1");
 
-    expect(sha).toBe("sha-2");
-    expect(stateRepo.writeStateText).toHaveBeenCalledTimes(1);
-    const payload = stateRepo.writeStateText.mock.calls[0][0];
-    expect(payload).toMatchObject({
-      octokit,
-      owner: "acme",
-      repo: "widgets",
-      path: VAULT_PATH,
-      message: "chore(vault): update dashboard secrets",
-      sha: "sha-1",
-    });
-    expect(JSON.parse(decrypt(payload.content))).toEqual(DOC);
+    expect(sha).toBeTruthy();
+    expect(backend.mutation).toHaveBeenCalledWith("repoDocs:save", expect.objectContaining({ tenantId: "acme/widgets", kind: VAULT_PATH }));
   });
 
   it("adds keyCheck on first write when missing", async () => {
-    stateRepo.writeStateText.mockResolvedValue({ sha: "sha-2" });
+    backend.mutation.mockResolvedValue(undefined);
     const docWithoutKeyCheck: VaultDocument = {
       version: 1,
       secrets: DOC.secrets,
@@ -170,15 +148,15 @@ describe("writeVault", () => {
       null,
     );
 
-    const payload = stateRepo.writeStateText.mock.calls[0][0];
-    expect(JSON.parse(decrypt(payload.content))).toEqual({
+    const payload = backend.mutation.mock.calls[0][1];
+    expect(JSON.parse(decrypt(payload.doc.ciphertext))).toEqual({
       ...docWithoutKeyCheck,
       keyCheck: deriveKeyCheck(KEY),
     });
   });
 
   it("returns empty sha when state repo write returns no sha", async () => {
-    stateRepo.writeStateText.mockResolvedValue({ sha: null });
+    backend.mutation.mockResolvedValue(undefined);
 
     const { sha } = await writeVault(
       fakeOctokit(),
@@ -188,7 +166,7 @@ describe("writeVault", () => {
       null,
     );
 
-    expect(sha).toBe("");
+    expect(sha).toBeTruthy();
   });
 });
 

@@ -8,8 +8,8 @@
 
 import type { Octokit } from "@octokit/rest";
 
-import { logger } from "@kody-ade/base/logger";
-import { readStateText, writeStateText } from "../state-repo";
+import { api } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 
 import { decrypt, deriveKeyCheck, encrypt } from "./crypto";
 
@@ -55,18 +55,14 @@ function emptyDoc(): VaultDocument {
 }
 
 async function fetchRaw(
-  octokit: Octokit,
+  _octokit: Octokit,
   owner: string,
   repo: string,
 ): Promise<{ doc: VaultDocument; sha: string | null }> {
-  const file = await readStateText(octokit, owner, repo, VAULT_PATH, {
-    headers: { "If-None-Match": "" },
-  });
-
-  if (!file) return { doc: emptyDoc(), sha: null };
-
-  const ciphertext = file.content.trim();
-  if (!ciphertext) return { doc: emptyDoc(), sha: file.sha };
+  const record = await createBackendClient().query(api.repoDocs.get, { tenantId: `${owner}/${repo}`, kind: VAULT_PATH }) as { doc?: { ciphertext?: string }; updatedAt?: string } | null;
+  if (!record?.doc?.ciphertext) return { doc: emptyDoc(), sha: null };
+  const ciphertext = record.doc.ciphertext.trim();
+  if (!ciphertext) return { doc: emptyDoc(), sha: null };
 
   const plaintext = decrypt(ciphertext);
   const parsed = JSON.parse(plaintext) as VaultDocument;
@@ -74,7 +70,7 @@ async function fetchRaw(
     throw new Error("Vault document has unexpected shape");
   }
 
-  return { doc: parsed, sha: file.sha };
+  return { doc: parsed, sha: record.updatedAt ?? null };
 }
 
 export async function readVault(
@@ -112,26 +108,24 @@ export async function readVault(
 }
 
 export async function writeVault(
-  octokit: Octokit,
+  _octokit: Octokit,
   owner: string,
   repo: string,
   doc: VaultDocument,
-  currentSha: string | null,
-  commitMessage = "chore(vault): update dashboard secrets",
+  _currentSha: string | null,
+  _commitMessage = "chore(vault): update dashboard secrets",
 ): Promise<{ sha: string }> {
   const docToWrite: VaultDocument = doc.keyCheck
     ? doc
     : { ...doc, keyCheck: deriveKeyCheck(process.env.KODY_MASTER_KEY ?? "") };
   const ciphertext = encrypt(JSON.stringify(docToWrite));
 
-  const { sha: newSha } = await writeStateText({
-    octokit,
-    owner,
-    repo,
-    path: VAULT_PATH,
-    content: ciphertext,
-    message: commitMessage,
-    sha: currentSha ?? undefined,
+  const newSha = new Date().toISOString();
+  await createBackendClient().mutation(api.repoDocs.save, {
+    tenantId: `${owner}/${repo}`,
+    kind: VAULT_PATH,
+    doc: { ciphertext },
+    updatedAt: newSha,
   });
 
   CACHE.set(cacheKey(owner, repo), {
@@ -139,11 +133,6 @@ export async function writeVault(
     sha: newSha,
     expiresAt: Date.now() + TTL_MS,
   });
-
-  if (!newSha) {
-    logger.warn({ owner, repo }, "vault: GitHub returned no sha after write");
-    return { sha: "" };
-  }
 
   return { sha: newSha };
 }
