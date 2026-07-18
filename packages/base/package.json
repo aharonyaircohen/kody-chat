@@ -15,6 +15,7 @@
     "./state-branch": "./src/state-branch.ts",
     "./state-repo": "./src/state-repo.ts",
     "./backend-manifest-store": "./src/backend-manifest-store.ts",
+    "./backend/repo-docs": "./src/backend/repo-docs.ts",
     "./active-repo": "./src/active-repo.ts",
     "./routes": "./src/routes.ts",
     "./slug": "./src/slug.ts",

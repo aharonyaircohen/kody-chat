@@ -10,7 +10,7 @@
 import "server-only";
 
 import { getOctokit, getOwner, getRepo } from "./github";
-import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
+import { readBackendDoc as readStateText, writeBackendDoc as writeStateText } from "@kody-ade/base/backend/repo-docs";
 import { isValidBrainImageRef } from "./store";
 
 const CACHE_TTL_MS = 60 * 1000;
