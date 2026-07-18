@@ -2,8 +2,7 @@
  * @fileType api-endpoint
  * @domain capabilities
  * @pattern capabilities-api
- * @ai-summary Capabilities Control API — GET lists custom capabilities stored
- *   at `capabilities/<slug>/` in the state repo, POST creates one.
+ * @ai-summary Capabilities Control API backed by the tenant Convex catalog.
  */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from "next/server";
@@ -11,24 +10,18 @@ import { z } from "zod";
 import {
   requireKodyAuth,
   verifyActorLogin,
-  getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
 import {
   setGitHubContext,
   clearGitHubContext,
 } from "@dashboard/lib/github-client";
-import {
-  listCapabilityFiles,
-  readCapabilityFile,
-  writeCapabilityFile,
-  isValidSlug,
-  PERMISSION_MODES,
-} from "@dashboard/lib/capabilities";
+import { isValidSlug, PERMISSION_MODES } from "@dashboard/lib/capabilities";
 import { getProjectedEngineConfig } from "@dashboard/lib/backend/repo-projection";
 import {
   listProjectedCapabilities,
   saveProjectedCapability,
+  getProjectedCapability,
 } from "@dashboard/lib/backend/repo-projection";
 import { recordAudit } from "@dashboard/lib/activity/audit";
 import { resolveInstalledCapabilitySlugs } from "@dashboard/lib/company-store/installed-capabilities";
@@ -55,62 +48,11 @@ export async function GET(req: NextRequest) {
   try {
     let activeCapabilities = new Set<string>();
     let defaults = { issue: null as string | null, pr: null as string | null };
-    if (headerAuth) {
-      const userOctokit = await getUserOctokit(req);
-      if (userOctokit) {
-        const { config } = await getProjectedEngineConfig(
-          userOctokit,
-          headerAuth.owner,
-          headerAuth.repo,
-        );
-        defaults = {
-          issue: config.defaultImplementation ?? null,
-          pr: config.defaultPrImplementation ?? null,
-        };
-        activeCapabilities = await resolveInstalledCapabilitySlugs(
-          userOctokit,
-          config,
-        );
-
-        try {
-          const projected = await listProjectedCapabilities(
-            headerAuth.owner,
-            headerAuth.repo,
-            activeCapabilities,
-          );
-          return NextResponse.json(
-            { capabilities: projected, defaults },
-            { headers: NO_STORE_HEADERS },
-          );
-        } catch (error) {
-          console.error("[Capabilities] Convex projection read failed", error);
-          return NextResponse.json(
-            { capabilities: [], defaults, error: "backend_unavailable" },
-            { status: 503, headers: NO_STORE_HEADERS },
-          );
-        }
-      }
-    }
-    const capabilities = (
-      await listCapabilityFiles({ activeStoreSlugs: activeCapabilities })
-    ).filter(
-      (item) => item.source !== "store" || activeCapabilities.has(item.slug),
-    );
-    if (headerAuth) {
-      await Promise.all(
-        capabilities.map((capability) =>
-          saveProjectedCapability(
-            headerAuth.owner,
-            headerAuth.repo,
-            capability,
-          ).catch(() => undefined),
-        ),
-      );
-    }
-    return NextResponse.json(
-      { capabilities, defaults },
-      { headers: NO_STORE_HEADERS },
-    );
+    if (!headerAuth) return NextResponse.json({ error: "repository_context_required" }, { status: 400, headers: NO_STORE_HEADERS });
+    const { config } = await getProjectedEngineConfig({} as never, headerAuth.owner, headerAuth.repo);
+    defaults = { issue: config.defaultImplementation ?? null, pr: config.defaultPrImplementation ?? null };
+    const projected = await listProjectedCapabilities(headerAuth.owner, headerAuth.repo, activeCapabilities);
+    return NextResponse.json({ capabilities: projected, defaults }, { headers: NO_STORE_HEADERS });
   } catch (error: any) {
     console.error("[Capabilities] Error listing capabilities:", error);
     if (error?.status === 401) {
@@ -193,13 +135,13 @@ function slugifyInstructions(instructions: string): string {
  * Derive a valid, unused capability slug from the instructions. Appends a
  * numeric suffix when the base is taken. Returns null if nothing slug-able.
  */
-async function deriveFreeSlug(instructions: string): Promise<string | null> {
+async function deriveFreeSlug(instructions: string, owner: string, repo: string): Promise<string | null> {
   const base = slugifyInstructions(instructions);
   if (!base || !isValidSlug(base)) return null;
-  if (!(await readCapabilityFile(base))) return base;
+  if (!(await getProjectedCapability(owner, repo, base))) return base;
   for (let i = 2; i <= 99; i++) {
     const candidate = `${base}-${i}`.slice(0, 64);
-    if (!(await readCapabilityFile(candidate))) return candidate;
+    if (!(await getProjectedCapability(owner, repo, candidate))) return candidate;
   }
   return null;
 }
@@ -237,7 +179,7 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         );
       }
-      if (await readCapabilityFile(input.slug)) {
+      if (await getProjectedCapability(headerAuth?.owner ?? "", headerAuth?.repo ?? "", input.slug)) {
         return NextResponse.json(
           {
             error: "slug_taken",
@@ -248,7 +190,8 @@ export async function POST(req: NextRequest) {
       }
       slug = input.slug;
     } else {
-      const derived = await deriveFreeSlug(instructions);
+      if (!headerAuth) return NextResponse.json({ error: "repository_context_required" }, { status: 400 });
+      const derived = await deriveFreeSlug(instructions, headerAuth.owner, headerAuth.repo);
       if (!derived) {
         return NextResponse.json(
           {
@@ -265,36 +208,26 @@ export async function POST(req: NextRequest) {
     const actorResult = await verifyActorLogin(req, input.actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
 
-    const userOctokit = await getUserOctokit(req);
-    if (!userOctokit) {
-      return NextResponse.json(
-        {
-          error: "no_user_token",
-          message:
-            "A signed-in GitHub token is required to commit capability files.",
-        },
-        { status: 401 },
-      );
-    }
-
-    const capability = await writeCapabilityFile({
-      octokit: userOctokit,
-      fields: {
+    if (!headerAuth) return NextResponse.json({ error: "repository_context_required" }, { status: 400 });
+    const capability = {
         slug,
         describe: input.describe,
+        htmlUrl: "",
+        updatedAt: new Date().toISOString(),
+        source: "local" as const,
+        agent: null,
+        readOnly: false,
+        landing: input.landing,
         prompt: instructions,
         model: input.model,
         permissionMode: input.permissionMode,
         tools: input.tools,
-        skills: input.skills.map((s) => s.name),
-        shellScripts: input.shellScripts.map((s) => s.name),
+        skills: input.skills,
+        shellScripts: input.shellScripts,
         mcpServers: input.mcpServers,
-        landing: input.landing,
-      },
-      skills: input.skills,
-      shellScripts: input.shellScripts,
-      profileJsonOverride: input.profileJsonOverride,
-    });
+        profileJson: input.profileJsonOverride ?? "",
+      };
+    await saveProjectedCapability(headerAuth.owner, headerAuth.repo, capability);
 
     recordAudit(req, {
       action: "capability.create",

@@ -23,6 +23,8 @@ const h = vi.hoisted(() => ({
   writeConfigPatch: vi.fn(),
   getProjectedEngineConfig: vi.fn(),
   listProjectedCapabilities: vi.fn(),
+  getProjectedCapability: vi.fn(),
+  saveProjectedCapability: vi.fn(),
   recordAudit: vi.fn(),
 }));
 
@@ -60,6 +62,8 @@ vi.mock("@dashboard/lib/company-store/installed-capabilities", () => ({
 vi.mock("@dashboard/lib/backend/repo-projection", () => ({
   getProjectedEngineConfig: h.getProjectedEngineConfig,
   listProjectedCapabilities: h.listProjectedCapabilities,
+  getProjectedCapability: h.getProjectedCapability,
+  saveProjectedCapability: h.saveProjectedCapability,
 }));
 
 vi.mock("@kody-ade/base/activity/audit", () => ({
@@ -107,6 +111,8 @@ describe("GET /api/kody/capabilities", () => {
       storeRef: "stable",
     });
     h.getUserOctokit.mockResolvedValue({ rest: {} });
+    h.getProjectedCapability.mockResolvedValue(null);
+    h.saveProjectedCapability.mockResolvedValue(undefined);
     h.getEngineConfig.mockResolvedValue({
       config: {
         company: {
@@ -178,13 +184,10 @@ describe("POST /api/kody/capabilities", () => {
     const json = await res.json();
     expect(json).toMatchObject({ capability: { slug: "ship-feature" } });
     expect(json).not.toHaveProperty("implementation");
-    expect(h.writeCapabilityFile).toHaveBeenCalledWith(
-      expect.objectContaining({
-        fields: expect.objectContaining({
-          slug: "ship-feature",
-          prompt: "Ship the feature.",
-        }),
-      }),
+    expect(h.saveProjectedCapability).toHaveBeenCalledWith(
+      "acme",
+      "widgets",
+      expect.objectContaining({ slug: "ship-feature", prompt: "Ship the feature." }),
     );
     expect(h.recordAudit).toHaveBeenCalledWith(
       expect.any(NextRequest),
