@@ -17,8 +17,8 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { getRequestAuth, getUserOctokit } from "@kody-ade/base/auth";
 import { getEngineConfig } from "@kody-ade/base/engine/config";
 import { getSecret } from "@kody-ade/base/vault/get-secret";
-import { normalizeOpenAICompatibleRequestBody } from "@dashboard/lib/chat/core/openai-compatible-request";
-import { supportsVision } from "@dashboard/lib/chat/core/vision-support";
+import { normalizeOpenAICompatibleRequestBody } from "@kody-ade/kody-chat/core/openai-compatible-request";
+import { supportsVision } from "@kody-ade/kody-chat/core/vision-support";
 import { loadChatModels } from "@kody-ade/base/variables/load-chat-models";
 import {
   PROVIDER_PRESETS,

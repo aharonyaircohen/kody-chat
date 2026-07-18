@@ -30,6 +30,14 @@ const CHECKS = [
   { path: "/client/kody", ok: [200], name: "builtin brand page renders", body: (t) => t.includes("<html") },
   { path: "/client/unknown-brand-xyz", ok: [404], name: "unknown brand 404s cleanly (no 500)" },
   { path: "/api/kody/chat/kody", ok: [400, 401, 403, 405], name: "chat API rejects unauthenticated GET cleanly", method: "GET" },
+  {
+    path: "/api/kody/chat/kody",
+    ok: [401, 403],
+    name: "chat API rejects unauthenticated POST cleanly",
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ messages: [{ role: "user", content: "hi" }] }),
+  },
 ];
 
 async function waitForServer() {
@@ -50,10 +58,15 @@ async function runChecks() {
   let failed = 0;
   for (const c of CHECKS) {
     try {
-      const res = await fetch(BASE + c.path, { method: c.method ?? "GET", redirect: "manual" });
+      const res = await fetch(BASE + c.path, {
+        method: c.method ?? "GET",
+        headers: c.headers,
+        body: c.body,
+        redirect: "manual",
+      });
       const statusOk = c.ok.includes(res.status);
       let bodyOk = true;
-      if (statusOk && c.body) bodyOk = c.body(await res.text());
+      if (statusOk && c.bodyPredicate) bodyOk = c.bodyPredicate(await res.text());
       if (statusOk && bodyOk) {
         console.log(`  ✓ ${c.name} [${res.status}]`);
       } else {

@@ -63,6 +63,20 @@ describe("chat output tools", () => {
     ).toEqual("required");
   });
 
+  it("uses automatic selection for providers without strict tool-choice support", () => {
+    const capabilities = {
+      supportsRequiredToolChoice: false,
+      supportsNamedToolChoice: false,
+    };
+
+    expect(
+      selectChatOutputToolChoice([FINAL_ANSWER_TOOL, SHOW_VIEW_TOOL], capabilities),
+    ).toBe("auto");
+    expect(selectChatOutputToolChoice([SHOW_VIEW_TOOL], capabilities)).toBe(
+      "auto",
+    );
+  });
+
   it("allows read tools before renderer output for explicit selection turns", () => {
     expect(
       selectChatOutputActiveTools({

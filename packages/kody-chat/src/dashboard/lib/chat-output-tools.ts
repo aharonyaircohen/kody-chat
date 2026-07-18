@@ -52,10 +52,23 @@ export function isFinalAnswerRequiresViewOutput(output: unknown): boolean {
  */
 export function selectChatOutputToolChoice<T extends string>(
   activeTools: readonly T[],
-): { type: "tool"; toolName: T } | "required" {
-  return activeTools.length === 1 && activeTools[0] === SHOW_VIEW_TOOL
-    ? { type: "tool", toolName: activeTools[0] }
-    : "required";
+  capabilities: {
+    supportsRequiredToolChoice?: boolean;
+    supportsNamedToolChoice?: boolean;
+  } = {},
+): { type: "tool"; toolName: T } | "required" | "auto" {
+  const supportsRequired = capabilities.supportsRequiredToolChoice !== false;
+  const supportsNamed = capabilities.supportsNamedToolChoice !== false;
+
+  if (
+    supportsNamed &&
+    activeTools.length === 1 &&
+    activeTools[0] === SHOW_VIEW_TOOL
+  ) {
+    return { type: "tool", toolName: activeTools[0] };
+  }
+
+  return supportsRequired ? "required" : "auto";
 }
 
 export function selectChatOutputActiveTools<T extends string>({

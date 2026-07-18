@@ -111,6 +111,7 @@ import {
   selectChatOutputToolChoice,
 } from "@dashboard/lib/chat-output-tools";
 import { parseReasoning } from "@kody-ade/kody-chat/core/reasoning";
+import { getChatProviderCapabilities } from "@kody-ade/kody-chat/core/provider-capabilities";
 import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "@dashboard/lib/view-renderers/builtin";
 import { buildChatViewCatalog } from "@dashboard/lib/view-renderers/spec/catalog";
 import { buildViewComponentRules } from "@dashboard/lib/view-renderers/spec/prompt";
@@ -731,6 +732,7 @@ async function handleKodyDirectPost(
   });
   if ("error" in resolution) return resolution.error;
   const { model, resolvedModel } = resolution;
+  const providerCapabilities = getChatProviderCapabilities(resolvedModel);
   const modelId = resolvedModel.id;
   // Client-surface turns carry no PAT, so there is no GitHub identity to
   // verify — actor-gated tools (remote_*) simply stay off (null login).
@@ -1525,8 +1527,17 @@ This turn includes an image from the user. For questions about what is visible i
         messages: turnMessages,
         tools,
         ...(forceShowViewTool
-          ? { toolChoice: { type: "tool" as const, toolName: SHOW_VIEW_TOOL } }
-          : { toolChoice: "required" as const }),
+          ? {
+              toolChoice: selectChatOutputToolChoice(
+                [SHOW_VIEW_TOOL],
+                providerCapabilities,
+              ),
+            }
+          : {
+              toolChoice: providerCapabilities.supportsRequiredToolChoice
+                ? ("required" as const)
+                : ("auto" as const),
+            }),
         ...(!forceShowViewTool
           ? {
               prepareStep: ({ steps, messages: stepMessages }) => {
@@ -1568,7 +1579,10 @@ This turn includes an image from the user. For questions about what is visible i
                   // Pin show_view by name when it is the only allowed tool —
                   // some providers ignore the generic "required" and finish
                   // with prose, ending the turn with nothing visible.
-                  toolChoice: selectChatOutputToolChoice(stepActiveTools),
+                  toolChoice: selectChatOutputToolChoice(
+                    stepActiveTools,
+                    providerCapabilities,
+                  ),
                   ...(fabricatedToolCall
                     ? {
                         messages: [

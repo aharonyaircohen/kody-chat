@@ -80,7 +80,7 @@ vi.mock("@dashboard/lib/view-renderers/renderers", async (importOriginal) => {
   };
 });
 
-vi.mock("../../app/api/kody/chat/resolve-model", () => ({
+vi.mock("../../../../packages/kody-chat/app/api/kody/chat/resolve-model", () => ({
   resolveChatModel: vi.fn(async () => ({
     model: { modelId: "test-model" },
     apiKey: "test-key",
@@ -98,7 +98,7 @@ vi.mock("../../app/api/kody/chat/resolve-model", () => ({
   })),
 }));
 
-vi.mock("../../app/api/kody/chat/tools/cms-tools", () => ({
+vi.mock("../../../../packages/kody-chat/app/api/kody/chat/tools/cms-tools", () => ({
   createCmsTools: vi.fn(async () => ({})),
 }));
 
