@@ -32,6 +32,7 @@ describe("kody-chat executive management activation", () => {
         "agency-portfolio-management",
         "agency-operations-management",
         "ai-agency-health-matrix",
+        "agency-supervisor",
         "ceo-performance-review",
       ]),
     );
@@ -40,6 +41,7 @@ describe("kody-chat executive management activation", () => {
         { template: "agency-evolution-loop", every: "15m" },
         { template: "agency-observer", every: "15m" },
         { template: "agency-operating-loop", every: "15m" },
+        { template: "agency-supervision-loop", every: "1h" },
       ]),
     );
   });

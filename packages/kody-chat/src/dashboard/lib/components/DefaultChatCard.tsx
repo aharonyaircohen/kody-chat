@@ -25,7 +25,10 @@ import {
 } from "@kody-ade/base/ui/select";
 import { getStoredAuth } from "@dashboard/lib/api";
 import { useAuth } from "@dashboard/lib/auth-context";
-import { buildAgentList, type ChatModelEntry } from "../chat/platform/agent-entries";
+import {
+  buildAgentList,
+  type ChatModelEntry,
+} from "../chat/platform/agent-entries";
 import {
   clearDefaultChatEntry,
   readDefaultChatEntry,
@@ -141,8 +144,7 @@ export function DefaultChatCard() {
           <h2 className="text-sm font-semibold">Default chat</h2>
         </div>
         <p className="text-xs text-white/50 -mt-2">
-          Which assistant loads when you open chat. Pick a chat model or Fly
-          Brain; &quot;Automatic&quot; falls back to Kody Live. Saved per repo,
+          Which configured model loads when you open chat. Saved per repo,
           just for you.
         </p>
 
@@ -182,13 +184,6 @@ export function DefaultChatCard() {
               className="underline hover:text-white/70"
             >
               Chat models
-            </RepoScopedLink>{" "}
-            or enable Fly Brain on{" "}
-            <RepoScopedLink
-              href="/runner"
-              className="underline hover:text-white/70"
-            >
-              Fly Runner
             </RepoScopedLink>
             .
           </p>

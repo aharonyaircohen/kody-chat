@@ -155,7 +155,7 @@ describe("KodyChat — writes per-session agent on every change path", () => {
     // explicit user preference that Settings → "Default chat" is the
     // sole owner of the global default).
     expect(KODY_CHAT_SOURCE).toMatch(
-      /sessionHook\.setSessionAgent\(\s*activeId,\s*a\.key\s*\)/,
+      /sessionHook\.setSessionAgent\(\s*activeId,\s*entry\.key\s*\)/,
     );
     expect(KODY_CHAT_SOURCE).not.toMatch(
       /onClick=\{\(\) => \{[\s\S]*?writeDefaultChatEntry\(a\.key\)/,
@@ -186,21 +186,14 @@ describe("KodyChat — writes per-session agent on every change path", () => {
     );
   });
 
-  it("rehydrated Kody Live session mirrors onto the active session", () => {
-    // After a page refresh, rehydrate restores the runner AND seeds
-    // the active session's agentKey so a subsequent session switch
-    // doesn't bounce the user off Live. The REHYDRATE_RESTORED action
-    // itself is now built by chat/core/rehydration.ts
-    // (buildRehydrateAction), so the anchor is the restored branch of
-    // rehydrateForScope — the "Mirror the rehydrated runner agent"
-    // comment sits directly above the setSessionAgent call.
-    const rehydrateBlock = extractRegionAround(
+  it("does not persist an internal Live runner as a visible model choice", () => {
+    const rehydrateBlock = extractCallbackBody(
       SELECTION_SOURCE,
-      "Mirror the rehydrated runner agent",
+      "onRehydrateRestored",
     );
-    expect(rehydrateBlock).toMatch(
-      /sessionHook\.setSessionAgent\(\s*rehydrateId,\s*rehydrateEntry\.key\s*\)/,
-    );
+    expect(rehydrateBlock).toBeTruthy();
+    expect(rehydrateBlock).toContain('setSelectedAgentId("kody-live")');
+    expect(rehydrateBlock).not.toMatch(/setSessionAgent/);
   });
 
   it("defines a per-session agent sync effect that adopts the active session's agentKey", () => {

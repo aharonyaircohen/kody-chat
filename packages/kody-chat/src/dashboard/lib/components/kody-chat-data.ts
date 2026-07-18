@@ -5,7 +5,7 @@
  * @ai-summary KodyChat's async data sources extracted from KodyChat
  *   (phase 1.6c): the user-managed chat model list (/api/kody/models),
  *   the repo-wide dashboard config toggle (brainFlyChatEnabled), and the
- *   per-repo FLY_API_TOKEN vault probe. All three load once on mount and
+ *   per-repo FLY_API_TOKEN vault probe. All sources load on mount and
  *   fail silent — chat keeps working through the engine path with the
  *   affected dropdown rows hidden. Behavior is identical to the
  *   pre-extraction inline effects.

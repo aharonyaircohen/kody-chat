@@ -74,7 +74,7 @@ describe("resolveDefaultAgentEntry", () => {
     expect(entry?.key).toBe("kody:claude-sonnet");
   });
 
-  it("uses Brain when configured and no Kody model exists", () => {
+  it("returns no visible entry when no custom model exists", () => {
     const agentList = list({ brain: true });
     const entry = resolveDefaultAgentEntry({
       defaultChatEntryKey: null,
@@ -82,10 +82,10 @@ describe("resolveDefaultAgentEntry", () => {
       brainConfigured: true,
       agentList,
     });
-    expect(entry?.key).toBe("brain");
+    expect(entry).toBeNull();
   });
 
-  it("falls through to the Live entry when nothing else is configured", () => {
+  it("returns no visible entry when nothing is configured", () => {
     const agentList = list();
     const entry = resolveDefaultAgentEntry({
       defaultChatEntryKey: null,
@@ -93,10 +93,10 @@ describe("resolveDefaultAgentEntry", () => {
       brainConfigured: false,
       agentList,
     });
-    expect(entry?.key).toBe("kody-live");
+    expect(entry).toBeNull();
   });
 
-  it("prefers the Fly Live variant when the repo is on Fly", () => {
+  it("does not expose an internal Fly runner as a model", () => {
     const agentList = list({ fly: true });
     const entry = resolveDefaultAgentEntry({
       defaultChatEntryKey: null,
@@ -104,7 +104,7 @@ describe("resolveDefaultAgentEntry", () => {
       brainConfigured: false,
       agentList,
     });
-    expect(entry?.key).toBe("kody-live-fly");
+    expect(entry).toBeNull();
   });
 
   it("ignores a saved pick that no longer resolves to a row", () => {
@@ -115,33 +115,32 @@ describe("resolveDefaultAgentEntry", () => {
       brainConfigured: false,
       agentList,
     });
-    expect(entry?.key).toBe("kody-live");
+    expect(entry).toBeNull();
   });
 });
 
 describe("familySnapEntry", () => {
-  it("snaps Live ↔ Live-Fly within the family", () => {
-    expect(familySnapEntry("kody-live", list({ fly: true }))?.key).toBe(
-      "kody-live-fly",
-    );
-    expect(familySnapEntry("kody-live-fly", list())?.key).toBe("kody-live");
+  it("drops old Live keys when there is no visible custom model", () => {
+    expect(familySnapEntry("kody-live", list({ fly: true }))).toBeNull();
+    expect(familySnapEntry("kody-live-fly", list())).toBeNull();
   });
 
-  it("snaps Brain ↔ Brain-Fly within the family", () => {
-    expect(familySnapEntry("brain-fly", list({ brain: true }))?.key).toBe(
-      "brain",
+  it("migrates old Brain keys to the first custom model", () => {
+    const models = list({ models: MODELS });
+    expect(familySnapEntry("brain-fly", models)?.key).toBe(
+      "kody:claude-sonnet",
     );
     expect(familySnapEntry("brain", list())).toBeNull();
   });
 
-  it("snaps a removed gateway model to another Kody row, then Live", () => {
+  it("snaps a removed gateway model to another custom row or null", () => {
     const withModel = list({
       models: [{ id: "claude-sonnet", label: "Claude Sonnet" }],
     });
     expect(familySnapEntry("kody:removed", withModel)?.key).toBe(
       "kody:claude-sonnet",
     );
-    expect(familySnapEntry("kody:removed", list())?.key).toBe("kody-live");
+    expect(familySnapEntry("kody:removed", list())).toBeNull();
   });
 
   it("returns null for keys outside the known families", () => {

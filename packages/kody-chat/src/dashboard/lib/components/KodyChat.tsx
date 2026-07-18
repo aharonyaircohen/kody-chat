@@ -375,8 +375,12 @@ export function KodyChat({
   const brainConfigured = Boolean(auth?.brain?.url && auth?.brain?.apiKey);
   // Mount-time data loads (phase 1.6c: kody-chat-data.ts) — the chat model
   // list, the Repo Brain chat toggle, and the FLY_API_TOKEN vault probe.
-  const { chatModels, chatModelsLoaded, brainFlyChatEnabled, flyConfigured } =
-    useChatDataSources();
+  const {
+    chatModels,
+    chatModelsLoaded,
+    brainFlyChatEnabled,
+    flyConfigured,
+  } = useChatDataSources();
 
   // Use one session bucket for Vibe. The selected task is request context, not
   // a separate visible conversation; otherwise issue creation navigates to an
@@ -648,6 +652,23 @@ export function KodyChat({
     composerTextareaRef,
     setContextChips,
   });
+
+  const selectChatEntry = useCallback(
+    (entry: (typeof agentList)[number]) => {
+      setSelectedAgentId(entry.agentId);
+      setSelectedModelId(entry.modelId);
+      const activeId = sessionHook.activeSession?.id;
+      if (activeId) sessionHook.setSessionAgent(activeId, entry.key);
+      setAgentMenuOpen(false);
+    },
+    [
+      sessionHook.activeSession?.id,
+      sessionHook.setSessionAgent,
+      setAgentMenuOpen,
+      setSelectedAgentId,
+      setSelectedModelId,
+    ],
+  );
   // Client trace: record display-mode flips (ai ↔ terminal). Inspection
   // only — no behavior change (trace never throws, never logs).
   useEffect(() => {
@@ -1604,25 +1625,7 @@ export function KodyChat({
           agentList={agentList}
           selectedAgentId={selectedAgentId}
           selectedModelId={selectedModelId}
-          onSelectEntry={(a) => {
-            setSelectedAgentId(a.agentId);
-            setSelectedModelId(a.modelId);
-            // Per-session pick: the same agent stays active when the user
-            // comes back to THIS conversation. Each session remembers its
-            // own choice — switching to another chat and back restores the
-            // agent that was active for that thread, not whichever one the
-            // user just clicked.
-            //
-            // The global `defaultChatEntryKey` is intentionally NOT touched
-            // here. Settings → "Default chat" is the single owner of the
-            // default for new sessions; the chat picker only mutates the
-            // active session.
-            const activeId = sessionHook.activeSession?.id;
-            if (activeId) {
-              sessionHook.setSessionAgent(activeId, a.key);
-            }
-            setAgentMenuOpen(false);
-          }}
+          onSelectEntry={selectChatEntry}
           remoteStatus={remoteStatus}
           onNewConversation={() => {
             // Seed the new session with the current effective agent so a
@@ -1665,12 +1668,7 @@ export function KodyChat({
               effectiveReasoningEffort={effectiveReasoningEffort}
               setReasoningEffort={setReasoningEffort}
               placement="below"
-              onSelectEntry={(entry) => {
-                setSelectedAgentId(entry.agentId);
-                setSelectedModelId(entry.modelId);
-                const activeId = sessionHook.activeSession?.id;
-                if (activeId) sessionHook.setSessionAgent(activeId, entry.key);
-              }}
+              onSelectEntry={selectChatEntry}
             />
           }
         />

@@ -55,8 +55,13 @@ export function ChatSettingsMenu({
         {!lockedAgentId && (
           <div className="grid gap-1">
             <p className="px-2 pt-1 text-xs font-medium text-muted-foreground">
-              Assistant
+              Model
             </p>
+            {agentList.length === 0 && (
+              <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                No models configured
+              </p>
+            )}
             {agentList.map((entry) => {
               const Icon = entry.icon;
               const selected =

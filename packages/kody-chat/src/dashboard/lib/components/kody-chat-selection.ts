@@ -20,7 +20,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AGENT_KODY, AGENTS, type AgentConfig, type AgentId } from "@dashboard/lib/agents";
+import {
+  AGENT_KODY,
+  AGENTS,
+  type AgentConfig,
+  type AgentId,
+} from "@dashboard/lib/agents";
 import {
   buildAgentList,
   shouldWaitForModelBackedEntryResolution,
@@ -43,8 +48,7 @@ import type { UseChatSessionsResult } from "../chat/core/use-chat-sessions";
  *   1. `defaultChatEntryKey` — Settings → "Default chat" pick.
  *   2. Legacy: a Kody model with `default: true` on the Models page.
  *   3. First configured Kody model.
- *   4. Brain if configured.
- *   5. First valid Live entry (Kody Live, or Live-Fly when on Fly).
+ *   4. No visible model.
  *
  * Renderers are part of the in-process Kody chat protocol. If a repo has
  * a Kody model configured but no saved default, default to that renderer-
@@ -56,8 +60,7 @@ export function resolveDefaultAgentEntry(options: {
   brainConfigured: boolean;
   agentList: ChatDropdownEntry[];
 }): ChatDropdownEntry | null {
-  const { defaultChatEntryKey, chatModels, brainConfigured, agentList } =
-    options;
+  const { defaultChatEntryKey, chatModels, agentList } = options;
   if (defaultChatEntryKey) {
     const entry = agentList.find((e) => e.key === defaultChatEntryKey);
     if (entry) return entry;
@@ -71,52 +74,26 @@ export function resolveDefaultAgentEntry(options: {
   }
   const firstKodyModel = agentList.find((e) => e.agentId === "kody");
   if (firstKodyModel) return firstKodyModel;
-  if (brainConfigured) {
-    const entry = agentList.find(
-      (e) => e.key === "brain" || e.key === "brain-fly",
-    );
-    if (entry) return entry;
-  }
-  return (
-    agentList.find((e) => e.key === "kody-live-fly" || e.key === "kody-live") ??
-    agentList[0] ??
-    null
-  );
+  return null;
 }
 
 /**
- * Family snap. When a probe flips availability (Fly token added/removed,
- * Brain Fly toggle flipped), a session's `agentKey` may point at a
- * dropdown row that's no longer in the list. The same agent is still
- * available under a sibling key (Live ↔ Live-Fly, Brain ↔ Brain-Fly);
- * use that instead of bouncing the user back to a different family.
- * For removed gateway models, fall back to any other Kody row, then
- * Live if no Kody rows exist.
+ * Old runner/Brain keys and removed custom models fall back to the first
+ * configured custom model. With no custom model, there is no visible choice.
  */
 export function familySnapEntry(
   key: string,
   agentList: ChatDropdownEntry[],
 ): ChatDropdownEntry | null {
-  if (key === "kody-live" || key === "kody-live-fly") {
-    return (
-      agentList.find(
-        (e) => e.key === "kody-live-fly" || e.key === "kody-live",
-      ) ?? null
-    );
-  }
-  if (key === "brain" || key === "brain-fly") {
-    return (
-      agentList.find((e) => e.key === "brain-fly" || e.key === "brain") ?? null
-    );
-  }
-  if (key.startsWith("kody:")) {
-    return (
-      agentList.find((e) => e.agentId === "kody") ??
-      agentList.find(
-        (e) => e.key === "kody-live-fly" || e.key === "kody-live",
-      ) ??
-      null
-    );
+  if (
+    key === "kody-live" ||
+    key === "kody-live-fly" ||
+    key === "brain" ||
+    key === "brain-fly" ||
+    key === "claude" ||
+    key.startsWith("kody:")
+  ) {
+    return agentList.find((entry) => entry.agentId === "kody") ?? null;
   }
   return null;
 }
@@ -366,18 +343,7 @@ export function useAgentSelection(
   // hook's rehydrateForScope when a saved record exists for the scope.
   const onRehydrateRestored = useCallback(() => {
     setSelectedAgentId("kody-live");
-    // Mirror the rehydrated runner agent onto the active session so
-    // a refresh / re-open lands back on Kody Live. The Fly variant
-    // is also valid here — the entry list is the source of truth
-    // for which one is available.
-    const rehydrateEntry = agentList.find(
-      (e) => e.key === "kody-live-fly" || e.key === "kody-live",
-    );
-    const rehydrateId = sessionHook.activeSession?.id;
-    if (rehydrateId && rehydrateEntry) {
-      sessionHook.setSessionAgent(rehydrateId, rehydrateEntry.key);
-    }
-  }, [agentList, sessionHook]);
+  }, []);
 
   return {
     selectedAgentId,

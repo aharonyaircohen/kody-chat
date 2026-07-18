@@ -17,6 +17,12 @@ Instructions = chat behavior
 State = what happened
 ```
 
+Agency Director is a responsibility, not a new agency model:
+
+```text
+Agency Director = COO identity + management capability + management loop
+```
+
 If a new agency file mixes two rows, stop and split it before adding more
 behavior.
 
@@ -84,14 +90,24 @@ the context, ownership, and reporting boundary used when managing several Goals
 and Loops together. Users author and approve Intents. Existing Agents manage
 Operations through Capabilities and Loops.
 
-Manager is not another agency model:
+The Agency Director is not another agency model:
 
 ```text
-Agent = who makes the decision
+Agent = who makes the decision (COO)
 Capability = what management action it can perform
 Loop = when that management action wakes
 Operation = the durable responsibility being managed
 ```
+
+In the current agency configuration, the Agency Director is represented by:
+
+- `coo` as the identity;
+- `agency-portfolio-management` and `agency-operations-management` as management capabilities;
+- `agency-evolution-loop` as the recurring management loop.
+
+The Director reviews active Intents and Operations, chooses `NOOP`, `PROPOSE`,
+`DISPATCH`, `PAUSE`, or `ESCALATE`, and leaves execution to the linked
+Operations and their existing Goals, Loops, Workflows, and Capabilities.
 
 Intent and Operation have different lifetimes:
 

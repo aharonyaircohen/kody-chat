@@ -31,6 +31,7 @@
       "agency-portfolio-management",
       "agency-operations-management",
       "ai-agency-health-matrix",
+      "agency-supervisor",
       "repo-source-health",
       "observe-repo-ci",
       "observe-agency-flow",
@@ -50,6 +51,10 @@
       {
         "template": "agency-operating-loop",
         "every": "15m"
+      },
+      {
+        "template": "agency-supervision-loop",
+        "every": "1h"
       }
     ]
   },

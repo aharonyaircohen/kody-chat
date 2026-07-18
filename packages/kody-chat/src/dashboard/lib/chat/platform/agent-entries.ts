@@ -2,14 +2,15 @@
  * @fileType config
  * @domain kody
  * @pattern chat-entry-list
- * @ai-summary Builds the selectable chat agent/model entry list (Live variant +
- *   Brain variant + user-managed models) shared by the chat picker (KodyChat)
- *   and the Settings "Default chat" selector. Pure — no React, no fetch, no
- *   localStorage.
+ * @ai-summary Builds the user-facing list of configured custom chat models.
+ *   Internal Brain and Live runners are not model-picker choices.
  */
 
 import { AGENTS, type AgentConfig, type AgentId } from "@dashboard/lib/agents";
-import { resolveReasoning, type ModelReasoning } from "../core/reasoning-adapter";
+import {
+  resolveReasoning,
+  type ModelReasoning,
+} from "../core/reasoning-adapter";
 
 /** A single selectable row in the chat agent picker. */
 export interface ChatDropdownEntry {
@@ -65,78 +66,16 @@ export function shouldWaitForModelBackedEntryResolution({
 /**
  * Build the ordered list of selectable chat entries.
  *
- * Every row the user can pick from shows up here — including Live. The chat's
- * internal default is `selectedAgentId="kody-live"`, and the previous version
- * of this list deliberately omitted Live so the user couldn't see or change
- * it from the picker. That was wrong: when the user opens the dashboard, the
- * chat is in a "Live" state they didn't ask for, and the only way to know is
- * to scroll past the composer dot. The visible row now matches the actual
- * state, and a Live runner only starts when the user actually picks it
- * (or types and sends, which auto-starts a one-shot session per the existing
- * /interactive/start flow).
- *
- * Brain row: offer Repo Brain only when the repo has FLY_API_TOKEN *and* the
- * per-repo `brainFlyChatEnabled` toggle is on (Settings -> Repo Brain on Fly,
- * default off). Fly task *execution* is independent and still keys off
- * FLY_API_TOKEN alone - this flag is chat-only. Otherwise fall back to the
- * manual Brain (URL+key via Settings). Same single-slot rule as Live - one or
- * the other, never both.
+ * Brain and Live configuration is accepted for compatibility with existing
+ * callers, but neither internal runner is exposed as a model choice.
  */
 export function buildAgentList(
-  brainConfigured: boolean,
-  flyConfigured: boolean,
-  brainFlyChatEnabled: boolean,
+  _brainConfigured: boolean,
+  _flyConfigured: boolean,
+  _brainFlyChatEnabled: boolean,
   models: ChatModelEntry[],
 ): ChatDropdownEntry[] {
   const entries: ChatDropdownEntry[] = [];
-  // Live (long-lived runner) — always offered. Fly variant when the repo has
-  // FLY_API_TOKEN; otherwise the standard GitHub Actions runner.
-  if (flyConfigured) {
-    const liveFly = AGENTS["kody-live-fly"];
-    entries.push({
-      key: "kody-live-fly",
-      agentId: "kody-live-fly",
-      modelId: null,
-      name: liveFly.name,
-      description: liveFly.description,
-      icon: liveFly.icon,
-      reasoning: null,
-    });
-  } else {
-    const live = AGENTS["kody-live"];
-    entries.push({
-      key: "kody-live",
-      agentId: "kody-live",
-      modelId: null,
-      name: live.name,
-      description: live.description,
-      icon: live.icon,
-      reasoning: null,
-    });
-  }
-  if (flyConfigured && brainFlyChatEnabled) {
-    const brainFly = AGENTS["brain-fly"];
-    entries.push({
-      key: "brain-fly",
-      agentId: "brain-fly",
-      modelId: null,
-      name: brainFly.name,
-      description: brainFly.description,
-      icon: brainFly.icon,
-      reasoning: null,
-    });
-  } else if (brainConfigured) {
-    const brain = AGENTS.brain;
-    entries.push({
-      key: "brain",
-      agentId: "brain",
-      modelId: null,
-      name: brain.name,
-      description: brain.description,
-      icon: brain.icon,
-      reasoning: null,
-    });
-  }
   // One row per enabled user-managed model. All route through the in-process
   // gateway path (`/api/kody/chat/kody`) with the model id forwarded in the
   // request body.
