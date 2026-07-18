@@ -16,10 +16,7 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import {
-  setGitHubContext,
-  clearGitHubContext,
-} from "../github";
+import { setGitHubContext, clearGitHubContext } from "../github";
 import {
   listResolvedAgentFiles,
   writeAgentFile,
@@ -183,6 +180,18 @@ export async function POST(req: NextRequest) {
       title,
       body,
       ...(capabilities ? { capabilities } : {}),
+    });
+    if (!headerAuth) {
+      throw new Error("Repository context is required to save an agent");
+    }
+    await saveProjectedAgent(headerAuth.owner, headerAuth.repo, {
+      slug: agentMember.slug,
+      title: agentMember.title,
+      body: agentMember.body,
+      updatedAt: agentMember.updatedAt,
+      capabilities: agentMember.capabilities,
+      source: "local",
+      readOnly: false,
     });
 
     recordAudit(req, {

@@ -12,6 +12,7 @@ export interface ProjectedAgent {
   updatedAt?: string;
   source?: "local" | "store";
   readOnly?: boolean;
+  capabilities?: string[];
 }
 
 export async function listProjectedAgents(
@@ -23,7 +24,7 @@ export async function listProjectedAgents(
     tenantId: tenantIdFor(owner, repo),
   })) as Array<{
     slug: string;
-    frontmatter: { title?: string };
+    frontmatter: { title?: string; capabilities?: string[] };
     body: string;
     updatedAt: string;
   }>;
@@ -32,6 +33,7 @@ export async function listProjectedAgents(
     title: row.frontmatter?.title ?? row.slug,
     body: row.body,
     updatedAt: row.updatedAt,
+    capabilities: row.frontmatter?.capabilities,
     source: "local",
     readOnly: false,
   }));
@@ -44,7 +46,12 @@ export async function getProjectedAgent(
 ): Promise<ProjectedAgent | null> {
   const rows = (await createBackendClient().query(backendApi.agents.list, {
     tenantId: tenantIdFor(owner, repo),
-  })) as Array<{ slug: string; frontmatter: { title?: string }; body: string; updatedAt: string }>;
+  })) as Array<{
+    slug: string;
+    frontmatter: { title?: string; capabilities?: string[] };
+    body: string;
+    updatedAt: string;
+  }>;
   const row = rows.find((candidate) => candidate.slug === slug);
   return row
     ? {
@@ -52,6 +59,7 @@ export async function getProjectedAgent(
         title: row.frontmatter?.title ?? row.slug,
         body: row.body,
         updatedAt: row.updatedAt,
+        capabilities: row.frontmatter?.capabilities,
         source: "local",
         readOnly: false,
       }
@@ -66,8 +74,22 @@ export async function saveProjectedAgent(
   await createBackendClient().mutation(backendApi.agents.save, {
     tenantId: tenantIdFor(owner, repo),
     slug: agent.slug,
-    frontmatter: { title: agent.title },
+    frontmatter: {
+      title: agent.title,
+      ...(agent.capabilities ? { capabilities: agent.capabilities } : {}),
+    },
     body: agent.body,
     updatedAt: agent.updatedAt ?? new Date().toISOString(),
+  });
+}
+
+export async function removeProjectedAgent(
+  owner: string,
+  repo: string,
+  slug: string,
+): Promise<void> {
+  await createBackendClient().mutation(backendApi.agents.remove, {
+    tenantId: tenantIdFor(owner, repo),
+    slug,
   });
 }

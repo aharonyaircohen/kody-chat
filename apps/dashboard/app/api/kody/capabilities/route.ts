@@ -10,8 +10,10 @@ import { z } from "zod";
 import {
   requireKodyAuth,
   verifyActorLogin,
+  getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
+import { writeCapabilityFile } from "@kody-ade/agency/capabilities";
 import {
   setGitHubContext,
   clearGitHubContext,
@@ -48,11 +50,29 @@ export async function GET(req: NextRequest) {
   try {
     let activeCapabilities = new Set<string>();
     let defaults = { issue: null as string | null, pr: null as string | null };
-    if (!headerAuth) return NextResponse.json({ error: "repository_context_required" }, { status: 400, headers: NO_STORE_HEADERS });
-    const { config } = await getProjectedEngineConfig({} as never, headerAuth.owner, headerAuth.repo);
-    defaults = { issue: config.defaultImplementation ?? null, pr: config.defaultPrImplementation ?? null };
-    const projected = await listProjectedCapabilities(headerAuth.owner, headerAuth.repo, activeCapabilities);
-    return NextResponse.json({ capabilities: projected, defaults }, { headers: NO_STORE_HEADERS });
+    if (!headerAuth)
+      return NextResponse.json(
+        { error: "repository_context_required" },
+        { status: 400, headers: NO_STORE_HEADERS },
+      );
+    const { config } = await getProjectedEngineConfig(
+      {} as never,
+      headerAuth.owner,
+      headerAuth.repo,
+    );
+    defaults = {
+      issue: config.defaultImplementation ?? null,
+      pr: config.defaultPrImplementation ?? null,
+    };
+    const projected = await listProjectedCapabilities(
+      headerAuth.owner,
+      headerAuth.repo,
+      activeCapabilities,
+    );
+    return NextResponse.json(
+      { capabilities: projected, defaults },
+      { headers: NO_STORE_HEADERS },
+    );
   } catch (error: any) {
     console.error("[Capabilities] Error listing capabilities:", error);
     if (error?.status === 401) {
@@ -135,13 +155,18 @@ function slugifyInstructions(instructions: string): string {
  * Derive a valid, unused capability slug from the instructions. Appends a
  * numeric suffix when the base is taken. Returns null if nothing slug-able.
  */
-async function deriveFreeSlug(instructions: string, owner: string, repo: string): Promise<string | null> {
+async function deriveFreeSlug(
+  instructions: string,
+  owner: string,
+  repo: string,
+): Promise<string | null> {
   const base = slugifyInstructions(instructions);
   if (!base || !isValidSlug(base)) return null;
   if (!(await getProjectedCapability(owner, repo, base))) return base;
   for (let i = 2; i <= 99; i++) {
     const candidate = `${base}-${i}`.slice(0, 64);
-    if (!(await getProjectedCapability(owner, repo, candidate))) return candidate;
+    if (!(await getProjectedCapability(owner, repo, candidate)))
+      return candidate;
   }
   return null;
 }
@@ -179,7 +204,13 @@ export async function POST(req: NextRequest) {
           { status: 400 },
         );
       }
-      if (await getProjectedCapability(headerAuth?.owner ?? "", headerAuth?.repo ?? "", input.slug)) {
+      if (
+        await getProjectedCapability(
+          headerAuth?.owner ?? "",
+          headerAuth?.repo ?? "",
+          input.slug,
+        )
+      ) {
         return NextResponse.json(
           {
             error: "slug_taken",
@@ -190,8 +221,16 @@ export async function POST(req: NextRequest) {
       }
       slug = input.slug;
     } else {
-      if (!headerAuth) return NextResponse.json({ error: "repository_context_required" }, { status: 400 });
-      const derived = await deriveFreeSlug(instructions, headerAuth.owner, headerAuth.repo);
+      if (!headerAuth)
+        return NextResponse.json(
+          { error: "repository_context_required" },
+          { status: 400 },
+        );
+      const derived = await deriveFreeSlug(
+        instructions,
+        headerAuth.owner,
+        headerAuth.repo,
+      );
       if (!derived) {
         return NextResponse.json(
           {
@@ -208,26 +247,58 @@ export async function POST(req: NextRequest) {
     const actorResult = await verifyActorLogin(req, input.actorLogin);
     if (actorResult instanceof NextResponse) return actorResult;
 
-    if (!headerAuth) return NextResponse.json({ error: "repository_context_required" }, { status: 400 });
+    if (!headerAuth)
+      return NextResponse.json(
+        { error: "repository_context_required" },
+        { status: 400 },
+      );
+    const octokit = await getUserOctokit(req);
+    if (!octokit) {
+      return NextResponse.json({ error: "no_user_token" }, { status: 401 });
+    }
     const capability = {
+      slug,
+      describe: input.describe,
+      htmlUrl: "",
+      updatedAt: new Date().toISOString(),
+      source: "local" as const,
+      agent: null,
+      readOnly: false,
+      landing: input.landing,
+      prompt: instructions,
+      model: input.model,
+      permissionMode: input.permissionMode,
+      tools: input.tools,
+      skills: input.skills,
+      shellScripts: input.shellScripts,
+      mcpServers: input.mcpServers,
+      profileJson: input.profileJsonOverride ?? "",
+    };
+    await writeCapabilityFile({
+      octokit,
+      fields: {
         slug,
         describe: input.describe,
-        htmlUrl: "",
-        updatedAt: new Date().toISOString(),
-        source: "local" as const,
-        agent: null,
-        readOnly: false,
-        landing: input.landing,
         prompt: instructions,
         model: input.model,
         permissionMode: input.permissionMode,
         tools: input.tools,
-        skills: input.skills,
-        shellScripts: input.shellScripts,
+        skills: input.skills.map((skill) => skill.name),
+        shellScripts: input.shellScripts.map((script) => script.name),
         mcpServers: input.mcpServers,
-        profileJson: input.profileJsonOverride ?? "",
-      };
-    await saveProjectedCapability(headerAuth.owner, headerAuth.repo, capability);
+        landing: input.landing,
+      },
+      skills: input.skills,
+      shellScripts: input.shellScripts,
+      ...(input.profileJsonOverride
+        ? { profileJsonOverride: input.profileJsonOverride }
+        : {}),
+    });
+    await saveProjectedCapability(
+      headerAuth.owner,
+      headerAuth.repo,
+      capability,
+    );
 
     recordAudit(req, {
       action: "capability.create",

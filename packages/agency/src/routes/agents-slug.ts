@@ -16,10 +16,7 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import {
-  setGitHubContext,
-  clearGitHubContext,
-} from "../github";
+import { setGitHubContext, clearGitHubContext } from "../github";
 import {
   readAgentFile,
   readResolvedAgentFile,
@@ -27,7 +24,11 @@ import {
   deleteAgentFile,
   isValidSlug,
 } from "../agent-files";
-import { getProjectedAgent } from "../backend/agents-projection";
+import {
+  getProjectedAgent,
+  removeProjectedAgent,
+  saveProjectedAgent,
+} from "../backend/agents-projection";
 import {
   getEngineConfig,
   writeConfigPatch,
@@ -144,6 +145,18 @@ export async function PATCH(
       // Preserve existing capabilities unless the caller sends a new list.
       capabilities: capabilities ?? existing.capabilities,
     });
+    if (!headerAuth) {
+      throw new Error("Repository context is required to save an agent");
+    }
+    await saveProjectedAgent(headerAuth.owner, headerAuth.repo, {
+      slug: agentMember.slug,
+      title: agentMember.title,
+      body: agentMember.body,
+      updatedAt: agentMember.updatedAt,
+      capabilities: agentMember.capabilities,
+      source: "local",
+      readOnly: false,
+    });
 
     recordAudit(req, {
       action: "agent.update",
@@ -259,6 +272,9 @@ export async function DELETE(
     }
 
     await deleteAgentFile(userOctokit, slug);
+    if (headerAuth) {
+      await removeProjectedAgent(headerAuth.owner, headerAuth.repo, slug);
+    }
 
     recordAudit(req, {
       action: "agent.delete",

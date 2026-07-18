@@ -72,14 +72,23 @@ vi.mock("@kody-ade/base/activity/audit", () => ({
   recordAudit: h.recordAudit,
 }));
 vi.mock("@kody-ade/backend/api", () => ({
-  api: { catalog: { get: "catalog:get", remove: "catalog:remove" } },
+  api: {
+    catalog: {
+      get: "catalog:get",
+      remove: "catalog:remove",
+      save: "catalog:save",
+    },
+  },
 }));
 vi.mock("@kody-ade/backend/client", () => ({
-  createBackendClient: () => ({ query: h.backendQuery, mutation: h.backendMutation }),
+  createBackendClient: () => ({
+    query: h.backendQuery,
+    mutation: h.backendMutation,
+  }),
 }));
 
 import { GET, POST } from "../../app/api/kody/capabilities/route";
-import { DELETE } from "../../app/api/kody/capabilities/[slug]/route";
+import { DELETE, PATCH } from "../../app/api/kody/capabilities/[slug]/route";
 
 function authHeaders() {
   return {
@@ -192,10 +201,22 @@ describe("POST /api/kody/capabilities", () => {
     const json = await res.json();
     expect(json).toMatchObject({ capability: { slug: "ship-feature" } });
     expect(json).not.toHaveProperty("implementation");
+    expect(h.writeCapabilityFile).toHaveBeenCalledWith(
+      expect.objectContaining({
+        octokit: { rest: {} },
+        fields: expect.objectContaining({
+          slug: "ship-feature",
+          prompt: "Ship the feature.",
+        }),
+      }),
+    );
     expect(h.saveProjectedCapability).toHaveBeenCalledWith(
       "acme",
       "widgets",
-      expect.objectContaining({ slug: "ship-feature", prompt: "Ship the feature." }),
+      expect.objectContaining({
+        slug: "ship-feature",
+        prompt: "Ship the feature.",
+      }),
     );
     expect(h.recordAudit).toHaveBeenCalledWith(
       expect.any(NextRequest),
@@ -241,6 +262,10 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ success: true });
     expect(h.backendMutation).toHaveBeenCalled();
+    expect(h.deleteCapabilityFile).toHaveBeenCalledWith(
+      { rest: {} },
+      "ship-feature",
+    );
     expect(h.writeConfigPatch).not.toHaveBeenCalled();
     expect(h.recordAudit).toHaveBeenCalledWith(
       expect.any(NextRequest),
@@ -249,5 +274,50 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
         resource: "ship-feature",
       }),
     );
+  });
+
+  it("updates the engine definition and Convex projection together", async () => {
+    h.backendQuery.mockResolvedValue({
+      doc: {
+        slug: "ship-feature",
+        describe: "Ship feature",
+        prompt: "Old instructions",
+        model: "inherit",
+        permissionMode: "acceptEdits",
+        tools: [],
+        skills: [],
+        shellScripts: [],
+        mcpServers: [],
+        landing: "pr",
+      },
+    });
+    h.writeCapabilityFile.mockResolvedValue({
+      slug: "ship-feature",
+      describe: "Ship feature",
+      prompt: "New instructions",
+      model: "inherit",
+      permissionMode: "acceptEdits",
+      tools: [],
+      skills: [],
+      shellScripts: [],
+      mcpServers: [],
+      landing: "pr",
+      updatedAt: "2026-07-18T00:00:00.000Z",
+    });
+
+    const res = await PATCH(
+      request("https://dash.test/api/kody/capabilities/ship-feature", {
+        method: "PATCH",
+        body: JSON.stringify({
+          instructions: "New instructions",
+          actorLogin: "alice",
+        }),
+      }),
+      params(),
+    );
+
+    expect(res.status).toBe(200);
+    expect(h.writeCapabilityFile).toHaveBeenCalled();
+    expect(h.backendMutation).toHaveBeenCalled();
   });
 });

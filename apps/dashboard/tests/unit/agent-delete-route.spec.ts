@@ -19,6 +19,7 @@ const h = vi.hoisted(() => ({
   deleteAgentFile: vi.fn(),
   getEngineConfig: vi.fn(),
   writeConfigPatch: vi.fn(),
+  removeProjectedAgent: vi.fn(),
   recordAudit: vi.fn(),
 }));
 
@@ -49,6 +50,10 @@ vi.mock("@kody-ade/base/engine/config", () => ({
 
 vi.mock("@kody-ade/base/activity/audit", () => ({
   recordAudit: h.recordAudit,
+}));
+vi.mock("@kody-ade/agency/backend/agents-projection", () => ({
+  getProjectedAgent: vi.fn(),
+  removeProjectedAgent: h.removeProjectedAgent,
 }));
 
 import { DELETE } from "../../app/api/kody/agents/[slug]/route";
@@ -89,6 +94,7 @@ describe("DELETE /api/kody/agents/[slug]", () => {
       sha: "config-sha",
     });
     h.writeConfigPatch.mockResolvedValue({ sha: "next-sha" });
+    h.removeProjectedAgent.mockResolvedValue(undefined);
   });
 
   it("removes an active Store agent reference when no local file exists", async () => {
@@ -165,6 +171,11 @@ describe("DELETE /api/kody/agents/[slug]", () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ success: true });
     expect(h.deleteAgentFile).toHaveBeenCalledWith(octokit, "release-manager");
+    expect(h.removeProjectedAgent).toHaveBeenCalledWith(
+      "acme",
+      "widgets",
+      "release-manager",
+    );
     expect(h.writeConfigPatch).not.toHaveBeenCalled();
     expect(h.recordAudit).toHaveBeenCalledWith(
       expect.any(NextRequest),
