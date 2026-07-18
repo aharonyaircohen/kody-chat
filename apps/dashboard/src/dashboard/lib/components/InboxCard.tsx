@@ -148,10 +148,20 @@ export function InboxCard({
             unread ? "bg-amber-400" : "bg-white/20",
           )}
         />
-        <button
-          type="button"
-          onClick={onOpen}
-          className="flex-1 min-w-0 text-left"
+        {/* div, not <button>: keeps the card text selectable/copyable. A
+            click only opens the item when it isn't finishing a text
+            selection. */}
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => {
+            if (window.getSelection()?.toString()) return;
+            onOpen();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") onOpen();
+          }}
+          className="flex-1 min-w-0 cursor-pointer select-text text-left"
           title="Open the full item"
         >
           <div className="flex items-baseline justify-between gap-2">
@@ -216,7 +226,7 @@ export function InboxCard({
           {!isRequest && preview ? (
             <p className="mt-1 text-sm text-white/55 line-clamp-2">{preview}</p>
           ) : null}
-        </button>
+        </div>
 
         <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <button
