@@ -29,15 +29,14 @@
 import { tool } from "ai";
 import { z } from "zod";
 import type { Octokit } from "@octokit/rest";
+import { api } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 import { logger } from "@kody-ade/base/logger";
 import {
   invalidateIssueCache,
   invalidatePRCache,
 } from "@dashboard/lib/github-client";
-import {
-  isValidSlug,
-  readResolvedCapabilityFile,
-} from "@dashboard/lib/capabilities";
+import { isValidSlug } from "@dashboard/lib/capabilities";
 import { dashboardTaskUrl } from "@dashboard/lib/thread-link";
 
 interface Ctx {
@@ -77,13 +76,19 @@ async function resolveCapabilityAction(
         "Refusing to dispatch: capability must be lowercase letters, digits, dashes, or underscores.",
     };
   }
-  const capability = await readResolvedCapabilityFile(slug, ctx.octokit);
+  const row = await createBackendClient().query(api.catalog.get, {
+    tenantId: `${ctx.owner}/${ctx.repo}`,
+    category: "capability",
+    slug,
+  });
+  const capability = (row as { doc?: { slug?: string } } | null)?.doc;
   if (!capability) {
     return {
       error: `Refusing to dispatch: capability "${slug}" was not found.`,
     };
   }
-  return { slug: capability.slug, action: capability.slug };
+  const resolvedSlug = capability.slug ?? slug;
+  return { slug: resolvedSlug, action: resolvedSlug };
 }
 
 async function dispatchOnPr(
