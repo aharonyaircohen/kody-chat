@@ -5,7 +5,7 @@ import { API_BASE, buildHeaders, handleResponse } from "./client";
 export interface Report {
   /** Report family slug — stable identity. */
   slug: string;
-  /** State-repo-relative markdown path for the currently shown report. */
+  /** Backend-relative markdown path for the currently shown report. */
   path: string;
   /** Run id when this report came from `reports/<slug>/runs/<run>.md`. */
   runId: string | null;
@@ -19,9 +19,9 @@ export interface Report {
   }[];
   title: string;
   body: string;
-  /** Last commit timestamp affecting this file (ISO8601). */
+  /** Last update timestamp for this report (ISO8601). */
   updatedAt: string;
-  /** Convenience link to the file on github.com. */
+  /** Optional source link when the connected repository owns the content. */
   htmlUrl: string;
   /** Size in bytes. */
   size: number;

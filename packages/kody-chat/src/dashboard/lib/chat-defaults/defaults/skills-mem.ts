@@ -8,7 +8,7 @@ import type { SkillEntry } from "./types";
 export const DEFAULT_SKILL_MEMORY: SkillEntry = {
   slug: "memory",
   title: "memory",
-  body: `State-repo \`memory/\`. INDEX injected under "## Remembered context"; apply automatically.
+  body: `Backend \`memory/\`. INDEX injected under "## Remembered context"; apply automatically.
 
 **Memory tools:**
 - \`recall(id)\` — full body of one memory entry.

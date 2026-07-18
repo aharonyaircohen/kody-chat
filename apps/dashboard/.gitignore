@@ -32,7 +32,7 @@ pnpm-debug.log*
 # Vercel
 .vercel
 
-# Kody action state (legacy local-FS store — now GitHub-backed)
+# Kody action state (local scratch only; durable state is in Convex)
 .kody-action-store/
 
 # Kody sandboxes — local agent working copies (do not commit)
@@ -48,5 +48,5 @@ test-results/
 coverage/
 _tmp-drive.mjs
 
-# Kody runtime/state now lives in configured kody-state repo
+# Kody runtime scratch; durable runtime state and model definitions live in Convex.
 .kody/

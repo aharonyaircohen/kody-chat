@@ -28,7 +28,7 @@ export interface ReportProducer {
 export interface ReportFile {
   /** Report family slug — stable identity. */
   slug: string;
-  /** State-repo-relative markdown path for the currently shown report. */
+  /** Backend-relative markdown path for the currently shown report. */
   path: string;
   /** Run id when this report came from `reports/<slug>/runs/<run>.md`. */
   runId: string | null;
@@ -210,15 +210,14 @@ interface ReportDoc {
   updatedAt: string;
 }
 
-function reportFileFromDoc(
-  doc: ReportDoc,
-  runs: ReportRun[],
-): ReportFile {
+function reportFileFromDoc(doc: ReportDoc, runs: ReportRun[]): ReportFile {
   const runId = doc.runId ?? null;
   const parsed = parseReportMarkdown(doc.body, doc.slug);
   const generatedAt =
     parsed.generatedAt ??
-    (runId ? (runs.find((run) => run.id === runId)?.generatedAt ?? null) : null);
+    (runId
+      ? (runs.find((run) => run.id === runId)?.generatedAt ?? null)
+      : null);
   const path = runId
     ? `${REPORTS_DIR}/${doc.slug}/${RUNS_DIR}/${runId}.md`
     : `${REPORTS_DIR}/${doc.slug}.md`;

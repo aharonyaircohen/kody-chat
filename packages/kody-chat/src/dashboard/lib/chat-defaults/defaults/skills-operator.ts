@@ -22,7 +22,7 @@ Never call \`create_*\` / \`report_bug\` on first turn.
 export const DEFAULT_SKILL_CREATE_CAPABILITY: SkillEntry = {
   slug: "create-capability",
   title: "create-capability",
-  body: `State-repo \`capabilities/<slug>/\` is a callable agency capability: \`profile.json\` holds execution settings and \`capability.md\` holds the instructions. First call \`read_capability_creation_guide\`. Never first turn.
+  body: `Backend capability \`capabilities/<slug>/\` is a callable agency capability: \`profile.json\` holds execution settings and \`capability.md\` holds the instructions. First call \`read_capability_creation_guide\`. Never first turn.
 
 Sufficiency: name, clear instructions, landing, needed tools, optional skills, and optional scripts. Capabilities produce the result; the owning agent/goal/loop decides when and why to run them. Show the profile and instructions, then call \`create_or_update_capability\` only after the user approves.
 
@@ -32,7 +32,7 @@ Sufficiency: name, clear instructions, landing, needed tools, optional skills, a
 export const DEFAULT_SKILL_CREATE_AGENT: SkillEntry = {
   slug: "create-agent",
   title: "create-agent",
-  body: `State-repo \`agents/<slug>.md\` — a pure reusable identity file (markdown body: intent, allowed commands, restrictions). Agents have no schedule, no state, no run/tick; they're agent identities referenced by other flows. Same gap loop and sufficiency bar as Create Kody capability. Show body, then call \`create_kody_agent\`.`,
+  body: `Backend agent \`agents/<slug>.md\` — a pure reusable identity record (intent, allowed commands, restrictions). Agents have no schedule, no state, no run/tick; they're agent identities referenced by other flows. Same gap loop and sufficiency bar as Create Kody capability. Show body, then call \`create_kody_agent\`.`,
 };
 
 export const DEFAULT_SKILL_CREATE_WORKFLOW: SkillEntry = {

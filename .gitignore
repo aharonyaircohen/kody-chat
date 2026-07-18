@@ -48,7 +48,7 @@ test-results/
 coverage/
 _tmp-drive.mjs
 
-# Kody runtime/state now lives in configured kody-state repo
+# Kody runtime scratch; durable runtime state and model definitions live in Convex.
 .kody/
 *.tgz
 .vercel

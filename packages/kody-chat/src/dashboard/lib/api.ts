@@ -1318,7 +1318,7 @@ export const contextApi = {
 export interface TodoEntry {
   /** Filename without `.json` stable identity. */
   slug: string;
-  /** State-repo path, usually `todos/<slug>.json` during migration. */
+  /** Backend-relative path, usually `todos/<slug>.json`. */
   path?: string;
   title: string;
   /** Markdown description for the list itself. */
@@ -1516,7 +1516,7 @@ export const memoryApi = {
 export interface Report {
   /** Report family slug — stable identity. */
   slug: string;
-  /** State-repo-relative markdown path for the currently shown report. */
+  /** Backend-relative markdown path for the currently shown report. */
   path: string;
   /** Run id when this report came from `reports/<slug>/runs/<run>.md`. */
   runId: string | null;
