@@ -36,6 +36,7 @@ import { PageShell } from "./PageShell";
 import { OperatorsWarningBanner } from "./OperatorsWarningBanner";
 import { InboxThreadDialog, resolvableThread } from "./InboxThreadDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
+import { kodyApi } from "../api";
 import { useAuth } from "../auth-context";
 import { useInbox } from "../inbox/useInbox";
 import { cn } from "../utils";
@@ -283,6 +284,12 @@ interface RowProps {
     sinceIso?: string,
   ) => CtoVerdict | null;
   repoHref: (href: string) => string;
+  /** Decide a capability request in place (approve posts its command). */
+  onDecideRequest: (
+    rec: NonNullable<ReturnType<typeof detectCtoRecommendation>>,
+    decision: CtoVerdict,
+  ) => void;
+  deciding: boolean;
 }
 
 function Row({
@@ -295,6 +302,8 @@ function Row({
   onToggleMute,
   verdictFor,
   repoHref,
+  onDecideRequest,
+  deciding,
 }: RowProps) {
   const unread = entry.readAt === null;
   const [copied, setCopied] = useState(false);
@@ -495,6 +504,44 @@ function Row({
                 )}
                 {VERDICT_LABEL[ctoVerdict]}
               </span>
+            ) : cto.action === "request" ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={deciding}
+                  onClick={() => onDecideRequest(cto, "dismiss")}
+                  className="h-7 gap-1 text-white/60 hover:text-white"
+                  title="Skip without affecting trust"
+                >
+                  <MinusCircle className="w-3.5 h-3.5" />
+                  Dismiss
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={deciding}
+                  onClick={() => onDecideRequest(cto, "reject")}
+                  className="h-7 gap-1 border border-rose-500/30 bg-rose-500/[0.06] text-rose-200 hover:bg-rose-500/15"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  Reject
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={deciding}
+                  onClick={() => onDecideRequest(cto, "approve")}
+                  className="h-7 gap-1 border border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-200 hover:bg-emerald-500/15"
+                >
+                  {deciding ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5" />
+                  )}
+                  Approve
+                </Button>
+              </span>
             ) : (
               <Button
                 asChild
@@ -540,7 +587,42 @@ export function InboxList() {
     clearAll,
     remove,
   } = useInbox();
-  const { verdictFor } = useTrustDecisions();
+  const { verdictFor, invalidate: refreshDecisions } = useTrustDecisions();
+  const [deciding, setDeciding] = useState(false);
+
+  /** Decide a capability REQUEST right here (no report exists for it):
+   *  approve posts its `@kody <capability>` command; all verdicts feed trust. */
+  const decideRequest = async (
+    rec: NonNullable<ReturnType<typeof detectCtoRecommendation>>,
+    decision: CtoVerdict,
+  ) => {
+    setDeciding(true);
+    try {
+      await kodyApi.cto.decide({
+        taskNumber: rec.taskNumber,
+        action: rec.action,
+        agent: rec.agent,
+        capability: rec.capability,
+        decision,
+        ...(rec.command ? { command: rec.command } : {}),
+        ...(auth?.user?.login ? { actorLogin: auth.user.login } : {}),
+      });
+      refreshDecisions();
+      toast.success(
+        decision === "approve"
+          ? `Approved — posted ${rec.command ?? "the request"} on #${rec.taskNumber}`
+          : decision === "reject"
+            ? "Rejected"
+            : "Dismissed",
+      );
+    } catch (err) {
+      toast.error("Decision failed", {
+        description: err instanceof Error ? err.message : "Unknown error",
+      });
+    } finally {
+      setDeciding(false);
+    }
+  };
   const { prefs: notifPrefs, updatePrefs: updateNotifPrefs } =
     useNotificationStore();
   // Latest muted list, kept in a ref so the toast "Undo" callback (created at
@@ -896,6 +978,8 @@ export function InboxList() {
         verdictFor={verdictFor}
         repoHref={scopedHref}
         readSection={false}
+        onDecideRequest={(rec, decision) => void decideRequest(rec, decision)}
+        deciding={deciding}
       />
 
       {filteredRead.length > 0 && (
@@ -914,6 +998,8 @@ export function InboxList() {
             verdictFor={verdictFor}
             repoHref={scopedHref}
             readSection
+            onDecideRequest={(rec, decision) => void decideRequest(rec, decision)}
+            deciding={deciding}
           />
         </div>
       )}
@@ -943,6 +1029,13 @@ export function InboxList() {
                 rec.action,
                 activeEntry.sentAt,
               )}
+              {...(rec.action === "request"
+                ? {
+                    onDecide: (decision: CtoVerdict) =>
+                      void decideRequest(rec, decision),
+                    deciding,
+                  }
+                : {})}
             />
           );
         })()}
@@ -963,16 +1056,68 @@ export function InboxList() {
 }
 
 /**
- * Recommendation footer for opened inbox threads. Decisions now live on
- * /reports; Inbox keeps the notification and links the operator there.
+ * Recommendation footer for opened inbox threads. Report-backed decisions
+ * live on /reports; Inbox keeps the notification and links the operator
+ * there. Capability REQUESTS have no report — they are decided right here:
+ * Approve posts the request's `@kody <capability>` command on the issue and
+ * records the trust decision; Reject/Dismiss record only.
  */
 function CtoDialogActions({
   action,
   verdict,
+  onDecide,
+  deciding,
 }: {
   action: string;
   verdict: CtoVerdict | null;
+  /** Present only for directly-decidable entries (capability requests). */
+  onDecide?: (decision: CtoVerdict) => void;
+  deciding?: boolean;
 }) {
+  if (onDecide && !verdict) {
+    return (
+      <>
+        <span className="mr-auto text-[10px] uppercase tracking-wider text-amber-300/70">
+          CTO · {action}
+        </span>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={deciding}
+          onClick={() => onDecide("dismiss")}
+          className="h-7 gap-1 text-white/60 hover:text-white"
+          title="Skip without affecting trust"
+        >
+          <MinusCircle className="w-3.5 h-3.5" />
+          Dismiss
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={deciding}
+          onClick={() => onDecide("reject")}
+          className="h-7 gap-1 border border-rose-500/30 bg-rose-500/[0.06] text-rose-200 hover:bg-rose-500/15"
+        >
+          <X className="w-3.5 h-3.5" />
+          Reject
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={deciding}
+          onClick={() => onDecide("approve")}
+          className="h-7 gap-1 border border-emerald-500/30 bg-emerald-500/[0.06] text-emerald-200 hover:bg-emerald-500/15"
+        >
+          {deciding ? (
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          ) : (
+            <Check className="w-3.5 h-3.5" />
+          )}
+          Approve
+        </Button>
+      </>
+    );
+  }
   return (
     <>
       <span className="mr-auto text-[10px] uppercase tracking-wider text-amber-300/70">
@@ -1031,6 +1176,8 @@ interface SectionProps {
   ) => CtoVerdict | null;
   repoHref: (href: string) => string;
   readSection: boolean;
+  onDecideRequest: RowProps["onDecideRequest"];
+  deciding: boolean;
 }
 
 function Section({
@@ -1047,6 +1194,8 @@ function Section({
   verdictFor,
   repoHref,
   readSection,
+  onDecideRequest,
+  deciding,
 }: SectionProps) {
   return (
     <div>
@@ -1077,6 +1226,8 @@ function Section({
                     onToggleMute={onToggleMute}
                     verdictFor={verdictFor}
                     repoHref={repoHref}
+                    onDecideRequest={onDecideRequest}
+                    deciding={deciding}
                   />
                 ))}
               </ul>
