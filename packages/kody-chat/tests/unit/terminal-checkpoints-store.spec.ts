@@ -6,13 +6,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const stateRepo = vi.hoisted(() => ({
-  readStateText: vi.fn(),
-  writeStateText: vi.fn(),
+  readBackendDoc: vi.fn(),
+  writeBackendDoc: vi.fn(),
 }));
 
-vi.mock("@kody-ade/base/state-repo", () => ({
-  readStateText: stateRepo.readStateText,
-  writeStateText: stateRepo.writeStateText,
+vi.mock("@kody-ade/base/backend/repo-docs", () => ({
+  readBackendDoc: stateRepo.readBackendDoc,
+  writeBackendDoc: stateRepo.writeBackendDoc,
 }));
 
 vi.mock("@kody-ade/base/logger", () => ({
@@ -42,7 +42,7 @@ beforeEach(() => {
 
 describe("terminal checkpoint store", () => {
   it("stores checkpoints in one document per verified user", async () => {
-    stateRepo.readStateText.mockResolvedValue({
+    stateRepo.readBackendDoc.mockResolvedValue({
       sha: "sha-1",
       content: JSON.stringify({ version: 1, checkpoints: [] }),
     });
@@ -55,7 +55,7 @@ describe("terminal checkpoint store", () => {
     );
 
     expect(result.doc.checkpoints).toEqual([]);
-    expect(stateRepo.readStateText).toHaveBeenCalledWith(
+    expect(stateRepo.readBackendDoc).toHaveBeenCalledWith(
       { marker: "octokit" },
       "acme",
       "widgets",
@@ -104,7 +104,7 @@ describe("terminal checkpoint store", () => {
       transport: localTransport,
       chatSessionId: "chat-1",
     });
-    stateRepo.readStateText.mockResolvedValue({
+    stateRepo.readBackendDoc.mockResolvedValue({
       sha: "sha-1",
       content: JSON.stringify({
         version: 1,
@@ -132,7 +132,7 @@ describe("terminal checkpoint store", () => {
         ],
       }),
     });
-    stateRepo.writeStateText.mockResolvedValue({ sha: "sha-2" });
+    stateRepo.writeBackendDoc.mockResolvedValue({ sha: "sha-2" });
 
     const result = await upsertTerminalCheckpoint(
       fakeOctokit(),
@@ -156,7 +156,7 @@ describe("terminal checkpoint store", () => {
     expect(result.doc.checkpoints.map((checkpoint) => checkpoint.key)).toEqual([
       localKey,
     ]);
-    const write = stateRepo.writeStateText.mock.calls[0][0];
+    const write = stateRepo.writeBackendDoc.mock.calls[0][0];
     expect(write).toMatchObject({
       owner: "acme",
       repo: "widgets",
@@ -171,7 +171,7 @@ describe("terminal checkpoint store", () => {
       transport,
       chatSessionId: "chat-1",
     });
-    stateRepo.readStateText.mockResolvedValue({
+    stateRepo.readBackendDoc.mockResolvedValue({
       sha: "sha-1",
       content: JSON.stringify({
         version: 1,
@@ -208,12 +208,16 @@ describe("terminal checkpoint store", () => {
     );
 
     expect(result.checkpoint.updatedAt).toBe("2026-06-24T00:00:00.000Z");
-    expect(stateRepo.writeStateText).not.toHaveBeenCalled();
+    expect(stateRepo.writeBackendDoc).not.toHaveBeenCalled();
   });
 
   it("reads and deletes the checkpoint for the current terminal key", async () => {
     const keepTransport = { type: "local" as const };
-    const dropTransport = { type: "fly" as const, app: "runner", machineId: "m2" };
+    const dropTransport = {
+      type: "fly" as const,
+      app: "runner",
+      machineId: "m2",
+    };
     const keepKey = terminalCheckpointKey({
       transport: keepTransport,
       chatSessionId: "chat-1",
@@ -222,7 +226,7 @@ describe("terminal checkpoint store", () => {
       transport: dropTransport,
       chatSessionId: "chat-2",
     });
-    stateRepo.readStateText.mockResolvedValue({
+    stateRepo.readBackendDoc.mockResolvedValue({
       sha: "sha-1",
       content: JSON.stringify({
         version: 1,
@@ -250,7 +254,7 @@ describe("terminal checkpoint store", () => {
         ],
       }),
     });
-    stateRepo.writeStateText.mockResolvedValue({ sha: "sha-2" });
+    stateRepo.writeBackendDoc.mockResolvedValue({ sha: "sha-2" });
 
     await expect(
       getTerminalCheckpoint(fakeOctokit(), "acme", "widgets", "alice", {
@@ -279,7 +283,7 @@ describe("terminal checkpoint store", () => {
       transport: localTransport,
       chatSessionId: "chat-1",
     });
-    stateRepo.readStateText.mockResolvedValue({
+    stateRepo.readBackendDoc.mockResolvedValue({
       sha: "sha-1",
       content: JSON.stringify({
         version: 1,

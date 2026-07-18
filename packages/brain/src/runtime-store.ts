@@ -10,7 +10,10 @@
 import "server-only";
 
 import { getOctokit, getOwner, getRepo } from "./github";
-import { readBackendDoc as readStateText, writeBackendDoc as writeStateText } from "@kody-ade/base/backend/repo-docs";
+import {
+  readBackendDoc,
+  writeBackendDoc,
+} from "@kody-ade/base/backend/repo-docs";
 import { isValidBrainImageRef } from "./store";
 
 const CACHE_TTL_MS = 60 * 1000;
@@ -161,7 +164,7 @@ export async function readBrainRuntimeState(
   const octokit = getOctokit();
 
   try {
-    const file = await readStateText(octokit, owner, repo, path, {
+    const file = await readBackendDoc(octokit, owner, repo, path, {
       scope: "root",
       headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
     });
@@ -204,7 +207,7 @@ export async function writeBrainRuntimeState(
   let sha: string | undefined;
   try {
     const octokit = getOctokit();
-    const current = await readStateText(octokit, owner, repo, path, {
+    const current = await readBackendDoc(octokit, owner, repo, path, {
       scope: "root",
     });
     sha = current?.sha;
@@ -216,7 +219,7 @@ export async function writeBrainRuntimeState(
   const content = JSON.stringify(normalized, null, 2);
   try {
     const octokit = getOctokit();
-    await writeStateText({
+    await writeBackendDoc({
       octokit,
       owner,
       repo,
@@ -229,10 +232,10 @@ export async function writeBrainRuntimeState(
   } catch (error: unknown) {
     if ((error as { status?: number })?.status !== 409) throw error;
     const octokit = getOctokit();
-    const current = await readStateText(octokit, owner, repo, path, {
+    const current = await readBackendDoc(octokit, owner, repo, path, {
       scope: "root",
     });
-    await writeStateText({
+    await writeBackendDoc({
       octokit,
       owner,
       repo,

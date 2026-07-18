@@ -3,12 +3,10 @@
  * @domain kody
  * @pattern brain-app-file-store
  * @ai-summary Per-user record of the Brain Fly app the dashboard provisioned.
- *   One JSON file per GitHub login at
- *   `users/<login>/data/brain.json` at the root of the configured Kody
- *   state repo.
+ *   One JSON document per GitHub login at
+ *   `users/<login>/data/brain.json` in the tenant's Convex repository docs.
  *
- *   Mirrors `notifications/prefs-store.ts`: ETag/If-None-Match for free 304s,
- *   CAS writes (fetch SHA → write with SHA → retry once on 409). The folder
+ *   Uses short-lived local caching and optimistic writes. The folder
  *   shape (`users/<login>/data/…`) is intentionally a folder per user so
  *   future per-user data files (`preferences.json`, `settings.json`, …) can
  *   sit alongside `brain.json` without colliding.
@@ -22,7 +20,11 @@
 import "server-only";
 
 import { getOctokit, getOwner, getRepo } from "./github";
-import { deleteBackendDoc as deleteStateFile, readBackendDoc as readStateText, writeBackendDoc as writeStateText } from "@kody-ade/base/backend/repo-docs";
+import {
+  deleteBackendDoc,
+  readBackendDoc,
+  writeBackendDoc,
+} from "@kody-ade/base/backend/repo-docs";
 
 /** TTL for brain app cache. Low-churn data — 5 min matches the prefs store. */
 const BRAIN_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -286,10 +288,9 @@ function isBrainImageSaveFile(value: unknown): value is BrainImageSaveFile {
 }
 
 /**
- * Read the Brain app record for a user from the configured Kody state repo.
+ * Read the Brain app record for a user from Convex.
  * Returns `null` when no record exists (user has never provisioned, or the
- * file was deleted). Throws on non-404 GitHub errors so the caller can
- * surface a real failure.
+ * document was deleted). Backend errors are surfaced to the caller.
  */
 export async function readBrainApp(
   login: string,
@@ -304,7 +305,7 @@ export async function readBrainApp(
   const octokit = getOctokit();
 
   try {
-    const file = await readStateText(octokit, owner, repo, path, {
+    const file = await readBackendDoc(octokit, owner, repo, path, {
       scope: "root",
       headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
     });
@@ -315,16 +316,6 @@ export async function readBrainApp(
         return null;
       }
       setCache(key, parsed, file.etag);
-      return parsed;
-    }
-    const legacyFile = await readStateText(octokit, owner, repo, path);
-    if (legacyFile) {
-      const parsed: unknown = JSON.parse(legacyFile.content);
-      if (!isBrainAppFile(parsed)) {
-        setCache(key, null, legacyFile.etag);
-        return null;
-      }
-      setCache(key, parsed, legacyFile.etag);
       return parsed;
     }
     setCache(key, null);
@@ -344,8 +335,7 @@ export async function readBrainApp(
 }
 
 /**
- * Write the Brain app record for a user to the configured Kody state repo. Uses CAS:
- * fetches the current SHA, then writes with it. Retries once on 409.
+ * Write the Brain app record to Convex using optimistic concurrency.
  */
 export async function writeBrainApp(
   login: string,
@@ -363,7 +353,7 @@ export async function writeBrainApp(
 
   try {
     const octokit = getOctokit();
-    const current = await readStateText(octokit, owner, repo, path, {
+    const current = await readBackendDoc(octokit, owner, repo, path, {
       scope: "root",
     });
     sha = current?.sha;
@@ -377,7 +367,7 @@ export async function writeBrainApp(
 
   try {
     const octokit = getOctokit();
-    await writeStateText({
+    await writeBackendDoc({
       octokit,
       owner,
       repo,
@@ -392,10 +382,10 @@ export async function writeBrainApp(
     if ((error as { status?: number })?.status === 409) {
       try {
         const octokit = getOctokit();
-        const current = await readStateText(octokit, owner, repo, path, {
+        const current = await readBackendDoc(octokit, owner, repo, path, {
           scope: "root",
         });
-        await writeStateText({
+        await writeBackendDoc({
           octokit,
           owner,
           repo,
@@ -415,7 +405,7 @@ export async function writeBrainApp(
 }
 
 /**
- * Delete the Brain app record for a user from the configured Kody state repo.
+ * Delete the Brain app record from Convex.
  * Idempotent — returns silently if the file doesn't exist. Best-effort:
  * the Brain record is metadata; if clearing fails the caller can still
  * proceed (the next write will overwrite).
@@ -433,11 +423,11 @@ export async function clearBrainApp(
 
   try {
     const octokit = getOctokit();
-    const current = await readStateText(octokit, owner, repo, path, {
+    const current = await readBackendDoc(octokit, owner, repo, path, {
       scope: "root",
     });
     if (current?.sha) {
-      await deleteStateFile({
+      await deleteBackendDoc({
         octokit,
         owner,
         repo,
@@ -445,17 +435,6 @@ export async function clearBrainApp(
         message: `feat(brain): clear brain app for ${login}`,
         sha: current.sha,
         scope: "root",
-      });
-    }
-    const legacy = await readStateText(octokit, owner, repo, path);
-    if (legacy?.sha) {
-      await deleteStateFile({
-        octokit,
-        owner,
-        repo,
-        path,
-        message: `feat(brain): clear legacy repo brain app for ${login}`,
-        sha: legacy.sha,
       });
     }
   } catch (error: unknown) {
@@ -482,7 +461,7 @@ export async function readBrainImage(
   const octokit = getOctokit();
 
   try {
-    const file = await readStateText(octokit, owner, repo, path, {
+    const file = await readBackendDoc(octokit, owner, repo, path, {
       scope: "root",
       headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
     });
@@ -531,7 +510,7 @@ export async function writeBrainImage(
   let sha: string | undefined;
   try {
     const octokit = getOctokit();
-    const current = await readStateText(octokit, owner, repo, path, {
+    const current = await readBackendDoc(octokit, owner, repo, path, {
       scope: "root",
     });
     sha = current?.sha;
@@ -545,7 +524,7 @@ export async function writeBrainImage(
 
   try {
     const octokit = getOctokit();
-    await writeStateText({
+    await writeBackendDoc({
       octokit,
       owner,
       repo,
@@ -560,10 +539,10 @@ export async function writeBrainImage(
     if ((error as { status?: number })?.status === 409) {
       try {
         const octokit = getOctokit();
-        const current = await readStateText(octokit, owner, repo, path, {
+        const current = await readBackendDoc(octokit, owner, repo, path, {
           scope: "root",
         });
-        await writeStateText({
+        await writeBackendDoc({
           octokit,
           owner,
           repo,
@@ -676,7 +655,9 @@ export async function markBrainImageRunning(
     current.runningAt = fresh.runningAt;
     current.runningApp = fresh.runningApp;
     current.runningMachineId = fresh.runningMachineId;
-    selected = current.images.find((image) => image.imageRef === input.imageRef);
+    selected = current.images.find(
+      (image) => image.imageRef === input.imageRef,
+    );
   }
   if (!selected) {
     throw new Error("Brain image is not saved");
@@ -772,11 +753,11 @@ export async function clearBrainImage(
 
   try {
     const octokit = getOctokit();
-    const current = await readStateText(octokit, owner, repo, path, {
+    const current = await readBackendDoc(octokit, owner, repo, path, {
       scope: "root",
     });
     if (current?.sha) {
-      await deleteStateFile({
+      await deleteBackendDoc({
         octokit,
         owner,
         repo,
@@ -806,7 +787,7 @@ export async function readBrainImageSave(
   const octokit = getOctokit();
 
   try {
-    const file = await readStateText(octokit, owner, repo, path, {
+    const file = await readBackendDoc(octokit, owner, repo, path, {
       scope: "root",
       headers: cached?.etag ? { "If-None-Match": cached.etag } : undefined,
     });
@@ -817,16 +798,6 @@ export async function readBrainImageSave(
         return null;
       }
       setCache(key, parsed, file.etag);
-      return parsed;
-    }
-    const legacyFile = await readStateText(octokit, owner, repo, path);
-    if (legacyFile) {
-      const parsed: unknown = JSON.parse(legacyFile.content);
-      if (!isBrainImageSaveFile(parsed)) {
-        setCache(key, null, legacyFile.etag);
-        return null;
-      }
-      setCache(key, parsed, legacyFile.etag);
       return parsed;
     }
     setCache(key, null);
@@ -863,7 +834,7 @@ export async function writeBrainImageSave(
   let sha: string | undefined;
   try {
     const octokit = getOctokit();
-    const current = await readStateText(octokit, owner, repo, path, {
+    const current = await readBackendDoc(octokit, owner, repo, path, {
       scope: "root",
     });
     sha = current?.sha;
@@ -877,7 +848,7 @@ export async function writeBrainImageSave(
 
   try {
     const octokit = getOctokit();
-    await writeStateText({
+    await writeBackendDoc({
       octokit,
       owner,
       repo,
@@ -892,10 +863,10 @@ export async function writeBrainImageSave(
     if ((error as { status?: number })?.status === 409) {
       try {
         const octokit = getOctokit();
-        const current = await readStateText(octokit, owner, repo, path, {
+        const current = await readBackendDoc(octokit, owner, repo, path, {
           scope: "root",
         });
-        await writeStateText({
+        await writeBackendDoc({
           octokit,
           owner,
           repo,
@@ -927,11 +898,11 @@ export async function clearBrainImageSave(
 
   try {
     const octokit = getOctokit();
-    const current = await readStateText(octokit, owner, repo, path, {
+    const current = await readBackendDoc(octokit, owner, repo, path, {
       scope: "root",
     });
     if (current?.sha) {
-      await deleteStateFile({
+      await deleteBackendDoc({
         octokit,
         owner,
         repo,
@@ -939,17 +910,6 @@ export async function clearBrainImageSave(
         message: `feat(brain): clear brain image save job for ${login}`,
         sha: current.sha,
         scope: "root",
-      });
-    }
-    const legacy = await readStateText(octokit, owner, repo, path);
-    if (legacy?.sha) {
-      await deleteStateFile({
-        octokit,
-        owner,
-        repo,
-        path,
-        message: `feat(brain): clear legacy repo brain image save job for ${login}`,
-        sha: legacy.sha,
       });
     }
   } catch (error: unknown) {

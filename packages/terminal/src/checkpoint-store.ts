@@ -1,17 +1,20 @@
 /**
  * @fileType utility
  * @domain terminal
- * @pattern terminal-checkpoints-state-repo
+ * @pattern terminal-checkpoints-backend
  *
  * Durable terminal checkpoints stored as one hidden checkpoint per terminal
- * identity in the configured Kody state repo.
+ * identity in the tenant's Convex repository docs.
  */
 
 import type { Octokit } from "@octokit/rest";
 import { z } from "zod";
 
 import { logger } from "@kody-ade/base/logger";
-import { readBackendDoc as readStateText, writeBackendDoc as writeStateText } from "@kody-ade/base/backend/repo-docs";
+import {
+  readBackendDoc,
+  writeBackendDoc,
+} from "@kody-ade/base/backend/repo-docs";
 import {
   limitTerminalCheckpointOutput,
   TERMINAL_CHECKPOINT_LIMIT,
@@ -116,7 +119,7 @@ export async function readTerminalCheckpoints(
   actorLogin: string,
 ): Promise<{ doc: TerminalCheckpointsDocument; sha: string | null }> {
   const path = terminalCheckpointsPath(actorLogin);
-  const file = await readStateText(octokit, owner, repo, path, {
+  const file = await readBackendDoc(octokit, owner, repo, path, {
     headers: { "If-None-Match": "" },
   });
   if (!file) return { doc: emptyDoc(), sha: null };
@@ -209,7 +212,7 @@ export async function upsertTerminalCheckpoint(
     ]).slice(0, TERMINAL_CHECKPOINT_LIMIT),
   };
 
-  const write = await writeStateText({
+  const write = await writeBackendDoc({
     octokit,
     owner,
     repo,
@@ -248,7 +251,7 @@ export async function deleteTerminalCheckpoint(
     version: 1,
     checkpoints: doc.checkpoints.filter((checkpoint) => checkpoint.key !== key),
   };
-  const write = await writeStateText({
+  const write = await writeBackendDoc({
     octokit,
     owner,
     repo,
