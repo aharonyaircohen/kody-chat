@@ -10,7 +10,8 @@
 import "server-only";
 import type { Octokit } from "@octokit/rest";
 import { logger } from "@kody-ade/base/logger";
-import { readStateText, writeStateText } from "@kody-ade/base/state-repo";
+import { api } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 import {
   snippetsFileSchema,
   type SnippetConfig,
@@ -48,10 +49,14 @@ async function readSnippetsFile(
   repo: string,
 ): Promise<SnippetsFileRead> {
   try {
-    const file = await readStateText(octokit, owner, repo, SNIPPETS_CONFIG_PATH);
-    if (!file) return { snippets: [], sha: undefined };
-    const parsed = snippetsFileSchema.parse(JSON.parse(file.content));
-    return { snippets: parsed.snippets, sha: file.sha };
+    void octokit;
+    const row = (await createBackendClient().query(api.repoDocs.get, {
+      tenantId: `${owner}/${repo}`,
+      kind: SNIPPETS_CONFIG_PATH,
+    })) as { doc?: unknown; updatedAt?: string } | null;
+    if (!row) return { snippets: [], sha: undefined };
+    const parsed = snippetsFileSchema.parse(row.doc);
+    return { snippets: parsed.snippets, sha: row.updatedAt };
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) {
       return { snippets: [], sha: undefined };
@@ -100,15 +105,13 @@ export async function mutateSnippets(
     const next = mutate(snippets);
     const file: SnippetsFile = { version: 1, snippets: [...next] };
     try {
-      await writeStateText({
-        octokit,
-        owner,
-        repo,
-        path: SNIPPETS_CONFIG_PATH,
-        content: `${JSON.stringify(file, null, 2)}\n`,
-        message: "feat(snippets): update snippets",
-        sha,
-        maxAttempts: 1,
+      void octokit;
+      void sha;
+      await createBackendClient().mutation(api.repoDocs.save, {
+        tenantId: `${owner}/${repo}`,
+        kind: SNIPPETS_CONFIG_PATH,
+        doc: file,
+        updatedAt: new Date().toISOString(),
       });
       cache.delete(cacheKey(owner, repo));
       return next;
