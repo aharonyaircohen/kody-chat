@@ -14,13 +14,11 @@ vi.mock("@dashboard/lib/github-client", () => ({
 
 vi.mock("@dashboard/lib/capabilities", () => ({
   isValidSlug: vi.fn((slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug)),
-  readResolvedCapabilityFile: vi.fn(),
 }));
 
-const capabilityFiles = await import("@dashboard/lib/capabilities");
-const { readResolvedCapabilityFile } = capabilityFiles as unknown as {
-  readResolvedCapabilityFile: ReturnType<typeof vi.fn>;
-};
+const backend = vi.hoisted(() => ({ query: vi.fn() }));
+vi.mock("@kody-ade/backend/api", () => ({ api: { catalog: { get: "catalog.get" } } }));
+vi.mock("@kody-ade/backend/client", () => ({ createBackendClient: () => backend }));
 
 const { createKodyTools } =
   await import("../../app/api/kody/chat/tools/kody-tools");
@@ -61,7 +59,7 @@ afterEach(() => {
 describe("kody dispatch tools use capabilities", () => {
   it("refuses to run an issue command when the capability folder is missing", async () => {
     const { ctx, createComment } = createCtx();
-    readResolvedCapabilityFile.mockResolvedValue(null);
+    backend.query.mockResolvedValue(null);
 
     const tools = createKodyTools(ctx);
     const result = await tools.kody_run_issue.execute?.(
@@ -80,9 +78,7 @@ describe("kody dispatch tools use capabilities", () => {
 
   it("posts the capability action for issue dispatch", async () => {
     const { ctx, createComment } = createCtx();
-    readResolvedCapabilityFile.mockResolvedValue({
-      slug: "feature",
-    });
+    backend.query.mockResolvedValue({ doc: { slug: "feature" } });
 
     const tools = createKodyTools(ctx);
     const result = await tools.kody_run_issue.execute?.(
@@ -99,10 +95,7 @@ describe("kody dispatch tools use capabilities", () => {
       triggered: true,
       url: "/repo/test-owner/test-repo/123",
     });
-    expect(readResolvedCapabilityFile).toHaveBeenCalledWith(
-      "feature",
-      ctx.octokit,
-    );
+    expect(backend.query).toHaveBeenCalled();
     expect(createComment).toHaveBeenCalledWith({
       owner: "test-owner",
       repo: "test-repo",
@@ -113,7 +106,7 @@ describe("kody dispatch tools use capabilities", () => {
 
   it("refuses PR dispatch when the command has no capability", async () => {
     const { ctx, createComment } = createCtx({ isPr: true });
-    readResolvedCapabilityFile.mockResolvedValue(null);
+    backend.query.mockResolvedValue(null);
 
     const tools = createKodyTools(ctx);
     const result = await tools.kody_fix_pr.execute?.(
