@@ -10,7 +10,27 @@
  *   resolver, tracked-branches reader) into its injection hooks.
  */
 export async function register(): Promise<void> {
-  // Server startup wiring is intentionally disabled here until it has a
-  // server-only entrypoint. Next currently bundles this file for the browser
-  // too, which made every page fail before the request could run.
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  const { after } = await import("next/server");
+  const { setEventFlushScheduler } = await import("@kody-ade/base/events");
+  setEventFlushScheduler(after);
+
+  const { registerBrainHostHooks } = await import("@kody-ade/brain/register");
+  registerBrainHostHooks();
+
+  const { ensureTriggerStateWriter } = await import("@kody-chat/user-state");
+  ensureTriggerStateWriter();
+
+  const { setTrackedBranchesReader } = await import(
+    "@kody-ade/fly/previews/tracked-branches-hook"
+  );
+  const { readDashboardConfig } = await import(
+    "@dashboard/lib/dashboard-config/store"
+  );
+  setTrackedBranchesReader(async (octokit, owner, repo) => {
+    const { doc } = await readDashboardConfig(owner, repo, {
+      force: true,
+    });
+    return doc.branchPreviews ?? [];
+  });
 }
