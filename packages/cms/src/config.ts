@@ -3,7 +3,7 @@ import "server-only";
 import type { Octokit } from "@octokit/rest";
 
 import { slugifyTitle } from "@kody-ade/base/slug";
-import { readStateText } from "@kody-ade/base/state-repo";
+import { readCmsFile } from "./repo-docs";
 import type {
   CmsCollectionConfig,
   CmsContentOperation,
@@ -390,13 +390,7 @@ async function loadCmsConfigFresh(
   useCache: boolean,
 ): Promise<CmsRuntimeConfig | null> {
   {
-    const rawConfig = await readStateJson(
-      octokit,
-      owner,
-      repo,
-      "cms/config.json",
-      { required: false },
-    );
+    const rawConfig = await readCmsJson(owner, repo, "cms/config.json", false);
     if (!rawConfig) {
       if (useCache) {
         CACHE.set(key, { config: null, expiresAt: Date.now() + TTL_MS });
@@ -420,7 +414,7 @@ async function loadCmsConfigFresh(
     const loadedCollections = await mapWithConcurrency(
       collectionFiles,
       8,
-      (entry) => readStateJson(octokit, owner, repo, `cms/${entry}`),
+      (entry) => readCmsJson(owner, repo, `cms/${entry}`),
     );
 
     for (const collection of loadedCollections) {
@@ -443,12 +437,7 @@ async function loadCmsConfigFresh(
 
     let environment: Record<string, unknown> = {};
     if (typeof config.environmentFile === "string" && config.environmentFile) {
-      const rawEnvironment = await readStateJson(
-        octokit,
-        owner,
-        repo,
-        `cms/${config.environmentFile}`,
-      );
+      const rawEnvironment = await readCmsJson(owner, repo, `cms/${config.environmentFile}`);
       environment = isRecord(rawEnvironment) ? rawEnvironment : {};
     }
 
@@ -650,41 +639,15 @@ export function normalizeSearchQuery(
   return { query, fields };
 }
 
-/**
- * readStateText with retry on transport errors (rate limiting, transient
- * GitHub rejections). Missing files return null and are not retried.
- */
-async function readStateTextWithRetry(
-  octokit: Octokit,
+async function readCmsJson(
   owner: string,
   repo: string,
   path: string,
-): Promise<Awaited<ReturnType<typeof readStateText>>> {
-  let lastError: unknown;
-  for (let attempt = 0; attempt <= TRANSIENT_READ_RETRIES; attempt += 1) {
-    try {
-      return await readStateText(octokit, owner, repo, path);
-    } catch (err) {
-      lastError = err;
-      if (attempt === TRANSIENT_READ_RETRIES) break;
-      await new Promise((resolve) =>
-        setTimeout(resolve, TRANSIENT_READ_BACKOFF_MS * (attempt + 1)),
-      );
-    }
-  }
-  throw lastError;
-}
-
-async function readStateJson(
-  octokit: Octokit,
-  owner: string,
-  repo: string,
-  path: string,
-  options: { required?: boolean } = {},
+  required = true,
 ): Promise<unknown | null> {
-  const file = await readStateTextWithRetry(octokit, owner, repo, path);
+  const file = await readCmsFile(owner, repo, path);
   if (!file) {
-    if (options.required === false) {
+    if (!required) {
       return null;
     }
     throw new CmsConfigError([`missing state file: ${path}`]);

@@ -26,7 +26,7 @@ import {
   readStateText,
   writeStateFiles,
   type StateRepoWriteFile,
-} from "@kody-ade/base/state-repo";
+} from "../repo-docs";
 import { getSecret } from "@kody-ade/base/vault/get-secret";
 import { getCmsActorRole } from "../roles";
 

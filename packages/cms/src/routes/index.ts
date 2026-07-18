@@ -30,7 +30,7 @@ import {
   readStateText,
   writeStateFiles,
   writeStateText,
-} from "@kody-ade/base/state-repo";
+} from "../repo-docs";
 import { getCmsActorRole } from "../roles";
 import type {
   CmsAdapterSettings,

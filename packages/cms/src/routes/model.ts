@@ -25,7 +25,7 @@ import {
 } from "../model/server";
 import { getCmsActorRole } from "../roles";
 import { CmsRuntimeError } from "../service";
-import { deleteStateFile, writeStateFiles } from "@kody-ade/base/state-repo";
+import { deleteStateFile, writeStateFiles } from "../repo-docs";
 import { logger } from "@kody-ade/base/logger";
 
 export const runtime = "nodejs";
