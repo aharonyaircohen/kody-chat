@@ -10,13 +10,9 @@
 
 import type { Octokit } from "@octokit/rest";
 import { z } from "zod";
-import { getOctokit, getOwner, getRepo } from "@dashboard/lib/github-client";
-import {
-  deleteStateFile,
-  listStateDirectory,
-  readStateText,
-  writeStateText,
-} from "@kody-ade/base/state-repo";
+import { getOwner, getRepo } from "@dashboard/lib/github-client";
+import { api } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 import {
   isValidLanguageCode,
   normalizeClientLanguageCode,
@@ -121,37 +117,28 @@ function languageFilePath(code: string): string {
 }
 
 export async function listLanguageFiles(): Promise<LanguageFile[]> {
-  const octokit = getOctokit();
   const cacheKey = `languages:${getOwner()}:${getRepo()}`;
   const cached = cacheGet<LanguageFile[]>(cacheKey);
   if (cached !== undefined) return cached;
 
   const stale = cacheEntry<LanguageFile[]>(cacheKey);
   try {
-    const { entries, etag } = await listStateDirectory(
-      octokit,
-      getOwner(),
-      getRepo(),
-      LANGUAGES_DIR,
-      stale?.etag ? { headers: { "If-None-Match": stale.etag } } : {},
-    );
-    const codes = entries
-      .filter((entry) => entry.type === "file")
-      .map((entry) => codeFromName(entry.name))
-      .filter((code): code is string => Boolean(code));
-    const files = await Promise.all(
-      codes.map((code) => readLanguageFile(code)),
-    );
-    const languages = files
+    const rows = (await createBackendClient().query(api.repoDocs.listByPrefix, {
+      tenantId: `${getOwner()}/${getRepo()}`,
+      prefix: `${LANGUAGES_DIR}/`,
+    })) as Array<{ kind: string; doc: unknown; updatedAt?: string }>;
+    const languages = rows
+      .map((row) => {
+        const code = codeFromName(row.kind.slice(`${LANGUAGES_DIR}/`.length));
+        if (!code) return null;
+        const language = parseLanguageJson(JSON.stringify(row.doc), code);
+        return { ...language, source: "repo" as const, sha: row.updatedAt ?? "convex", htmlUrl: "" };
+      })
       .filter((file): file is LanguageFile => file !== null)
       .sort((a, b) => a.code.localeCompare(b.code));
-    cacheSet(cacheKey, languages, etag);
+    cacheSet(cacheKey, languages);
     return languages;
   } catch (error: unknown) {
-    if ((error as { status?: number })?.status === 304 && stale) {
-      cacheSet(cacheKey, stale.data, stale.etag);
-      return stale.data;
-    }
     if ((error as { status?: number })?.status === 404) {
       cacheSet(cacheKey, []);
       return [];
@@ -170,37 +157,30 @@ export async function readLanguageFile(
   const cached = cacheGet<LanguageFile | null>(cacheKey);
   if (cached !== undefined) return cached;
 
-  const octokit = octokitOverride ?? getOctokit();
+  void octokitOverride;
   const stale = cacheEntry<LanguageFile | null>(cacheKey);
   try {
-    const file = await readStateText(
-      octokit,
-      getOwner(),
-      getRepo(),
-      languageFilePath(normalized),
-      stale?.etag ? { headers: { "If-None-Match": stale.etag } } : {},
-    );
-    if (!file) {
+    const row = (await createBackendClient().query(api.repoDocs.get, {
+      tenantId: `${getOwner()}/${getRepo()}`,
+      kind: languageFilePath(normalized),
+    })) as { doc?: unknown; updatedAt?: string } | null;
+    if (!row) {
       cacheSet(cacheKey, null);
       return null;
     }
-    const language = parseLanguageJson(file.content, normalized);
+    const language = parseLanguageJson(JSON.stringify(row.doc), normalized);
     const resolved = {
       ...language,
       source: "repo" as const,
-      sha: file.sha,
-      htmlUrl: file.htmlUrl ?? "",
+      sha: row.updatedAt ?? "convex",
+      htmlUrl: "",
     };
-    cacheSet(cacheKey, resolved, file.etag);
+    cacheSet(cacheKey, resolved);
     return resolved;
   } catch (error: unknown) {
     if ((error as { status?: number })?.status === 404) {
       cacheSet(cacheKey, null);
       return null;
-    }
-    if ((error as { status?: number })?.status === 304 && stale) {
-      cacheSet(cacheKey, stale.data, stale.etag);
-      return stale.data;
     }
     throw error;
   }
@@ -232,16 +212,14 @@ export async function writeLanguageFile(
     name: opts.name,
     strings: opts.strings,
   });
-  await writeStateText({
-    octokit: opts.octokit,
-    owner: getOwner(),
-    repo: getRepo(),
-    path: languageFilePath(language.code),
-    message:
-      opts.message ??
-      `${opts.sha ? "chore" : "feat"}(languages): ${opts.sha ? "update" : "add"} ${language.code}`,
-    content: `${JSON.stringify(language, null, 2)}\n`,
-    sha: opts.sha,
+  void opts.octokit;
+  void opts.sha;
+  void opts.message;
+  await createBackendClient().mutation(api.repoDocs.save, {
+    tenantId: `${getOwner()}/${getRepo()}`,
+    kind: languageFilePath(language.code),
+    doc: language,
+    updatedAt: new Date().toISOString(),
   });
 
   invalidateLocalLanguageCache(language.code);
@@ -260,13 +238,9 @@ export async function deleteLanguageFile(
 ): Promise<void> {
   const existing = await readLanguageFile(code, octokit);
   if (!existing) return;
-  await deleteStateFile({
-    octokit,
-    owner: getOwner(),
-    repo: getRepo(),
-    path: languageFilePath(existing.code),
-    message: `chore(languages): remove ${existing.code}`,
-    sha: existing.sha,
+  await createBackendClient().mutation(api.repoDocs.remove, {
+    tenantId: `${getOwner()}/${getRepo()}`,
+    kind: languageFilePath(existing.code),
   });
   invalidateLocalLanguageCache(existing.code);
 }

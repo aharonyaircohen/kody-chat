@@ -7,7 +7,7 @@ vi.mock("@kody-ade/base/logger", () => ({ logger: { warn: vi.fn() } }))
 
 import { _resetSnippetsCache, getSnippets, mutateSnippets } from "../../src/dashboard/lib/snippets/store"
 
-const snippet = { id: "tag", name: "Tag", html: "<script>x()</script>", placement: "body-start", enabled: true }
+const snippet = { id: "tag", name: "Tag", html: "<script>x()</script>", placement: "body-start" as const, enabled: true }
 
 describe("Convex snippets store", () => {
   beforeEach(() => {
