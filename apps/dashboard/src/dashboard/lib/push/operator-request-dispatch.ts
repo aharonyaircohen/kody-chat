@@ -77,10 +77,9 @@ export function requestIssueFromPayload(
     body: typeof issue?.body === "string" ? issue.body : "",
     author: typeof user?.login === "string" ? user.login : undefined,
     url,
-    openedAt:
-      typeof issue?.created_at === "string"
-        ? issue.created_at
-        : new Date().toISOString(),
+    // Delivery time, not the issue's created_at: the inbox watcher pulls
+    // entries newer than its cursor, and a reopened request must surface now.
+    openedAt: new Date().toISOString(),
   };
 }
 
