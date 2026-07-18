@@ -7,15 +7,17 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Octokit } from "@octokit/rest";
 
 const h = vi.hoisted(() => ({
-  readStateText: vi.fn(),
-  writeStateText: vi.fn(),
+  query: vi.fn(),
+  mutation: vi.fn(),
   emitSystemEvent: vi.fn(),
   logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-vi.mock("@kody-ade/base/state-repo", () => ({
-  readStateText: h.readStateText,
-  writeStateText: h.writeStateText,
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => ({
+    query: h.query,
+    mutation: h.mutation,
+  }),
 }));
 vi.mock("@kody-ade/base/logger", () => ({ logger: h.logger }));
 vi.mock("@kody-ade/base/events", () => ({
@@ -24,7 +26,7 @@ vi.mock("@kody-ade/base/events", () => ({
 
 import { getUserState, setUserState } from "@dashboard/lib/user-state/service";
 import { _resetUserStateConfigCache } from "@dashboard/lib/user-state/config";
-import { _resetUserStateDocCache } from "@dashboard/lib/user-state/adapters/state-repo";
+import { _resetUserStateDocCache } from "@dashboard/lib/user-state/adapters/convex";
 import { UserStateError } from "@dashboard/lib/user-state/types";
 
 const ctx = {
@@ -38,9 +40,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   _resetUserStateConfigCache();
   _resetUserStateDocCache();
-  // No brand config, no existing docs by default.
-  h.readStateText.mockRejectedValue({ status: 404 });
-  h.writeStateText.mockResolvedValue({ sha: "s", path: "p", htmlUrl: null });
+  h.query.mockResolvedValue(null);
+  h.mutation.mockResolvedValue(undefined);
 });
 
 describe("getUserState", () => {
@@ -68,7 +69,7 @@ describe("setUserState", () => {
     expect(doc.namespace).toBe("selections");
     expect(doc.userId).toBe(ctx.userId);
     expect(doc.data).toEqual({ theme: "dark" });
-    expect(h.writeStateText).toHaveBeenCalledTimes(1);
+    expect(h.mutation).toHaveBeenCalledTimes(1);
     expect(h.emitSystemEvent).toHaveBeenCalledWith(
       "state.entity.written",
       expect.objectContaining({
@@ -86,17 +87,14 @@ describe("setUserState", () => {
   });
 
   it("shallow-merges with the existing document", async () => {
-    h.readStateText.mockResolvedValue({
-      content: JSON.stringify({
-        version: 1,
-        namespace: "selections",
-        userId: ctx.userId,
-        updatedAt: "2026-07-01T00:00:00.000Z",
-        data: { theme: "dark", lang: "en" },
-      }),
-      sha: "s0",
-      path: "p",
-    });
+    h.query.mockImplementation(async (_fn, args: Record<string, unknown>) =>
+      args.namespace === "selections"
+        ? {
+            data: { theme: "dark", lang: "en" },
+            updatedAt: "2026-07-01T00:00:00.000Z",
+          }
+        : null,
+    );
 
     const doc = await setUserState(
       ctx,
@@ -107,50 +105,14 @@ describe("setUserState", () => {
     expect(doc.data).toEqual({ theme: "dark", lang: "he" });
   });
 
-  it("re-merges against fresh data and retries once on a write conflict", async () => {
-    // First read: original doc. Conflict on write. Second read (post-cache
-    // clear): a concurrent writer added `other`. The retry must keep it.
-    h.readStateText
-      .mockResolvedValueOnce({
-        content: JSON.stringify({
-          version: 1,
-          namespace: "selections",
-          userId: ctx.userId,
-          updatedAt: "2026-07-01T00:00:00.000Z",
-          data: { theme: "dark" },
-        }),
-        sha: "s0",
-        path: "p",
-      })
-      .mockResolvedValueOnce({ content: "{}", sha: "s0", path: "p" })
-      .mockResolvedValue({
-        content: JSON.stringify({
-          version: 1,
-          namespace: "selections",
-          userId: ctx.userId,
-          updatedAt: "2026-07-02T00:00:00.000Z",
-          data: { theme: "dark", other: "kept" },
-        }),
-        sha: "s1",
-        path: "p",
-      });
-    h.writeStateText
-      .mockRejectedValueOnce({ status: 409 })
-      .mockResolvedValueOnce({ sha: "s2", path: "p", htmlUrl: null });
-
-    const doc = await setUserState(
-      ctx,
-      "selections",
-      { lang: "he" },
-      { source: "server" },
-    );
-    expect(doc.data).toEqual({ theme: "dark", other: "kept", lang: "he" });
-    expect(h.writeStateText).toHaveBeenCalledTimes(2);
-  });
-
   it("rejects data that fails the namespace schema, without writing", async () => {
     await expect(
-      setUserState(ctx, "stats", { visits: "not-a-number" }, { source: "server" }),
+      setUserState(
+        ctx,
+        "stats",
+        { visits: "not-a-number" },
+        { source: "server" },
+      ),
     ).rejects.toSatisfy(
       (error: unknown) =>
         error instanceof UserStateError &&
@@ -158,7 +120,7 @@ describe("setUserState", () => {
         error.status === 422 &&
         error.issues.length > 0,
     );
-    expect(h.writeStateText).not.toHaveBeenCalled();
+    expect(h.mutation).not.toHaveBeenCalled();
     expect(h.emitSystemEvent).not.toHaveBeenCalled();
   });
 });

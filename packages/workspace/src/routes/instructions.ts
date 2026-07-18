@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern instructions-api
  * @ai-summary Per-repo user instructions document at
- *   state-repo `instructions.md`. GET reads it, PUT upserts it, DELETE
+ *   Convex `instructions.md`. GET reads it, PUT upserts it, DELETE
  *   removes it. The body is appended to every kody-direct chat
  *   turn so users can override tone / length / formatting without
  *   touching code.
@@ -17,10 +17,7 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import {
-  setGitHubContext,
-  clearGitHubContext,
-} from "../github";
+import { setGitHubContext, clearGitHubContext } from "../github";
 import {
   readInstructionsFile,
   writeInstructionsFile,

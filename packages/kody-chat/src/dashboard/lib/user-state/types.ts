@@ -21,7 +21,7 @@ export interface UserStateNamespace {
   /** Core namespaces ship in kody code; brand namespaces come from config. */
   readonly origin: "core" | "brand";
   readonly schema: z.ZodType<Record<string, unknown>>;
-  /** Adapter name, e.g. "state-repo". */
+  /** Adapter name, e.g. "convex". */
   readonly adapter: string;
   readonly merge: UserStateMergePolicy;
   /** Whether the chat model may write this namespace via the save tool. */
@@ -51,7 +51,7 @@ export interface UserStateAdapterContext {
 }
 
 /**
- * The narrow storage seam. Phase 1 ships "state-repo"; a CMS bridge (e.g.
+ * The narrow storage seam. Core state uses "convex"; a CMS bridge (e.g.
  * MongoDB) implements the same two methods later with no contract change.
  */
 export interface UserStateAdapter {
@@ -98,7 +98,11 @@ export class UserStateError extends Error {
   readonly status: number;
   readonly issues: string[];
 
-  constructor(code: UserStateErrorCode, message: string, issues: string[] = []) {
+  constructor(
+    code: UserStateErrorCode,
+    message: string,
+    issues: string[] = [],
+  ) {
     super(message);
     this.name = "UserStateError";
     this.code = code;

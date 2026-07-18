@@ -3,7 +3,7 @@
  * @domain todos
  * @pattern todo-list-files
  * @ai-summary Read/write Kody todo-list JSON files under `todos/<slug>.json`
- * in the configured Kody state repo. Each file is one list.
+ * in the tenant's Convex backend. Each document is one list.
  */
 import type { Octokit } from "@octokit/rest";
 import { getOwner, getRepo } from "../github";
@@ -204,12 +204,27 @@ export function serializeTodoFileContent(content: TodoFileContent): string {
 }
 
 export async function listTodoFiles(): Promise<TodoFile[]> {
-  const records = await createBackendClient().query(api.repoDocs.listByPrefix, { tenantId: `${getOwner()}/${getRepo()}`, prefix: TODO_KIND_PREFIX }) as Array<{ kind: string; doc: TodoFileContent; updatedAt: string }>;
-  return records.map((record) => {
-    const slug = record.kind.slice(TODO_KIND_PREFIX.length);
-    const parsed = parseTodoFileContent(JSON.stringify(record.doc), slug, record.updatedAt);
-    return { ...parsed, slug, path: todoJsonPath(slug), sha: "", updatedAt: record.updatedAt, htmlUrl: "" };
-  })
+  const records = (await createBackendClient().query(
+    api.repoDocs.listByPrefix,
+    { tenantId: `${getOwner()}/${getRepo()}`, prefix: TODO_KIND_PREFIX },
+  )) as Array<{ kind: string; doc: TodoFileContent; updatedAt: string }>;
+  return records
+    .map((record) => {
+      const slug = record.kind.slice(TODO_KIND_PREFIX.length);
+      const parsed = parseTodoFileContent(
+        JSON.stringify(record.doc),
+        slug,
+        record.updatedAt,
+      );
+      return {
+        ...parsed,
+        slug,
+        path: todoJsonPath(slug),
+        sha: "",
+        updatedAt: record.updatedAt,
+        htmlUrl: "",
+      };
+    })
     .filter((file): file is TodoFile => file !== null)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
@@ -222,10 +237,17 @@ export async function readTodoFile(
   if (!isValidTodoSlug(slug)) return null;
   try {
     const filePath = todoJsonPath(slug);
-    const record = await createBackendClient().query(api.repoDocs.get, { tenantId: `${getOwner()}/${getRepo()}`, kind: `${TODO_KIND_PREFIX}${slug}` }) as { doc: TodoFileContent; updatedAt: string } | null;
+    const record = (await createBackendClient().query(api.repoDocs.get, {
+      tenantId: `${getOwner()}/${getRepo()}`,
+      kind: `${TODO_KIND_PREFIX}${slug}`,
+    })) as { doc: TodoFileContent; updatedAt: string } | null;
     if (!record) return null;
     const updatedAt = record.updatedAt;
-    const parsed = parseTodoFileContent(JSON.stringify(record.doc), slug, updatedAt);
+    const parsed = parseTodoFileContent(
+      JSON.stringify(record.doc),
+      slug,
+      updatedAt,
+    );
 
     return {
       slug,
@@ -296,7 +318,12 @@ export async function writeTodoFile(opts: WriteTodoOptions): Promise<TodoFile> {
       opts.sha ? "update" : "add"
     } ${opts.slug}`;
 
-  await createBackendClient().mutation(api.repoDocs.save, { tenantId: `${getOwner()}/${getRepo()}`, kind: `${TODO_KIND_PREFIX}${opts.slug}`, doc: JSON.parse(normalizedContent), updatedAt: new Date().toISOString() });
+  await createBackendClient().mutation(api.repoDocs.save, {
+    tenantId: `${getOwner()}/${getRepo()}`,
+    kind: `${TODO_KIND_PREFIX}${opts.slug}`,
+    doc: JSON.parse(normalizedContent),
+    updatedAt: new Date().toISOString(),
+  });
 
   const updatedAt = new Date().toISOString();
   const parsed = parseTodoFileContent(normalizedContent, opts.slug, updatedAt);
@@ -321,5 +348,8 @@ export async function deleteTodoFile(
   if (!isValidTodoSlug(slug)) {
     throw new Error(`Invalid todo list slug: "${slug}".`);
   }
-  await createBackendClient().mutation(api.repoDocs.remove, { tenantId: `${getOwner()}/${getRepo()}`, kind: `${TODO_KIND_PREFIX}${slug}` });
+  await createBackendClient().mutation(api.repoDocs.remove, {
+    tenantId: `${getOwner()}/${getRepo()}`,
+    kind: `${TODO_KIND_PREFIX}${slug}`,
+  });
 }

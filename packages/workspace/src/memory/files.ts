@@ -2,13 +2,10 @@
  * @fileType utility
  * @domain kody
  * @pattern memory-files
- * @ai-summary Memory file storage — read/write `memory/<id>.md` and
- *   `memory/INDEX.md` in the configured Kody state repo. Mirrors the capabilities-
- *   files pattern: filename is identity, body is markdown, frontmatter
- *   carries metadata (name, description, type, created). The INDEX file
- *   is a one-line-per-entry pointer file injected into the chat system
- *   prompt every turn so the agent can decide whether a new memory would
- *   be a duplicate or an update.
+ * @ai-summary Memory storage in Convex. Each `memory:<id>` repoDoc stores
+ *   markdown plus metadata (name, description, type, created). The prompt
+ *   index is derived from those documents so the agent can detect duplicate
+ *   memories and update existing ones.
  *
  *   Memory types follow the same model as the Claude harness's auto-memory:
  *     - user      facts about the requester's role / preferences
@@ -53,7 +50,6 @@ export interface MemoryFile {
 
 const MEMORY_DIR = "memory";
 const MEMORY_KIND_PREFIX = "memory:";
-const INDEX_FILE = "INDEX.md";
 const MEMORY_TYPES: readonly MemoryType[] = [
   "user",
   "feedback",
@@ -83,111 +79,32 @@ function isMemoryType(value: unknown): value is MemoryType {
   );
 }
 
-// ---------- Frontmatter ----------
-
-const FRONTMATTER_RE = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
-
-interface RawFrontmatter {
-  name?: string;
-  description?: string;
-  type?: string;
-  created?: string;
-}
-
-/**
- * Tiny scalar-only YAML parser, scoped to memory frontmatter. We keep the
- * surface small on purpose — the Kody capabilities frontmatter helper has a similar
- * design. Strings may be unquoted, single-quoted, or double-quoted; values
- * with special characters (`:`, `#`, leading whitespace) MUST be quoted.
- */
-function parseFlatYaml(input: string): RawFrontmatter {
-  const out: RawFrontmatter = {};
-  for (const rawLine of input.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (line.length === 0 || line.startsWith("#")) continue;
-    const colon = line.indexOf(":");
-    if (colon < 0) continue;
-    const key = line.slice(0, colon).trim();
-    let value = line.slice(colon + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
-      value = value.slice(1, -1);
-    }
-    if (key === "name") out.name = value;
-    else if (key === "description") out.description = value;
-    else if (key === "type") out.type = value;
-    else if (key === "created") out.created = value;
-  }
-  return out;
-}
-
-function escapeYamlString(value: string): string {
-  // Quote if the value contains special characters that would break a flat
-  // scalar parse. Always quote to keep the format predictable across edits.
-  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
-}
-
-function buildFileContent(meta: MemoryFrontmatter, body: string): string {
-  const trimmed = body.replace(/^\s+/, "").replace(/\s+$/, "");
-  const fm = [
-    "---",
-    `name: ${escapeYamlString(meta.name)}`,
-    `description: ${escapeYamlString(meta.description)}`,
-    `type: ${meta.type}`,
-    `created: ${meta.created}`,
-    "---",
-    "",
-  ].join("\n");
-  return `${fm}\n${trimmed}\n`;
-}
-
-function splitFrontmatter(raw: string): { meta: RawFrontmatter; body: string } {
-  const match = FRONTMATTER_RE.exec(raw);
-  if (!match) return { meta: {}, body: raw };
-  const inner = match[1] ?? "";
-  const body = raw.slice(match[0].length);
-  return { meta: parseFlatYaml(inner), body };
-}
-
-function parseMemoryFile(
-  raw: string,
-  id: string,
-): { meta: MemoryFrontmatter; body: string } | null {
-  const { meta: rawMeta, body } = splitFrontmatter(raw);
-  if (
-    !rawMeta.name ||
-    !rawMeta.description ||
-    !rawMeta.created ||
-    !isMemoryType(rawMeta.type)
-  ) {
-    return null;
-  }
-  return {
-    meta: {
-      name: rawMeta.name,
-      description: rawMeta.description,
-      type: rawMeta.type,
-      created: rawMeta.created,
-    },
-    body: body.trim(),
-  };
-}
-
 // ---------- List / Read ----------
 
 /**
- * List every memory file under `memory/` in the state repo, excluding INDEX.md.
- * Returns `[]` if the directory does not exist (fresh repo).
+ * List every memory document in Convex. Returns `[]` for a fresh tenant.
  */
 export async function listMemoryFiles(): Promise<MemoryFile[]> {
-  const records = await createBackendClient().query(api.repoDocs.listByPrefix, {
-    tenantId: `${getOwner()}/${getRepo()}`,
-    prefix: MEMORY_KIND_PREFIX,
-  }) as Array<{ kind: string; doc: { meta: MemoryFrontmatter; body: string }; updatedAt: string }>;
+  const records = (await createBackendClient().query(
+    api.repoDocs.listByPrefix,
+    {
+      tenantId: `${getOwner()}/${getRepo()}`,
+      prefix: MEMORY_KIND_PREFIX,
+    },
+  )) as Array<{
+    kind: string;
+    doc: { meta: MemoryFrontmatter; body: string };
+    updatedAt: string;
+  }>;
   return records
-    .map((record) => ({ id: record.kind.slice(MEMORY_KIND_PREFIX.length), meta: record.doc.meta, body: record.doc.body, sha: "", updatedAt: record.updatedAt, htmlUrl: "" }))
+    .map((record) => ({
+      id: record.kind.slice(MEMORY_KIND_PREFIX.length),
+      meta: record.doc.meta,
+      body: record.doc.body,
+      sha: "",
+      updatedAt: record.updatedAt,
+      htmlUrl: "",
+    }))
     .filter((f) => isValidMemoryId(f.id))
     .sort((a, b) => a.id.localeCompare(b.id));
 }
@@ -198,15 +115,30 @@ export async function listMemoryFiles(): Promise<MemoryFile[]> {
  */
 export async function readMemoryFile(id: string): Promise<MemoryFile | null> {
   if (!isValidMemoryId(id)) return null;
-  const record = await createBackendClient().query(api.repoDocs.get, { tenantId: `${getOwner()}/${getRepo()}`, kind: `${MEMORY_KIND_PREFIX}${id}` }) as { doc: { meta: MemoryFrontmatter; body: string }; updatedAt: string } | null;
-  return record ? { id, meta: record.doc.meta, body: record.doc.body, sha: "", updatedAt: record.updatedAt, htmlUrl: "" } : null;
+  const record = (await createBackendClient().query(api.repoDocs.get, {
+    tenantId: `${getOwner()}/${getRepo()}`,
+    kind: `${MEMORY_KIND_PREFIX}${id}`,
+  })) as {
+    doc: { meta: MemoryFrontmatter; body: string };
+    updatedAt: string;
+  } | null;
+  return record
+    ? {
+        id,
+        meta: record.doc.meta,
+        body: record.doc.body,
+        sha: "",
+        updatedAt: record.updatedAt,
+        htmlUrl: "",
+      }
+    : null;
 }
 
 // ---------- Index ----------
 
 /**
- * Read `memory/INDEX.md` from the state repo. Returns the raw markdown body (no
- * frontmatter — the index is plain markdown), or `null` if missing.
+ * Build the memory index from the current Convex documents. Returns the raw
+ * markdown body, or `null` when no memories exist.
  * The system-prompt builder injects this verbatim under a
  * `## Remembered context` heading.
  */
@@ -247,33 +179,22 @@ function buildIndexBody(files: MemoryFile[]): string {
   return `${indexHeader()}${sorted.map(renderIndexLine).join("\n")}\n`;
 }
 
-/**
- * Rebuild INDEX.md from the live directory listing and commit it.
- * Idempotent — if the body matches the current sha, the commit is skipped.
- */
-async function rebuildAndWriteIndex(opts: {
-  octokit: Octokit;
-  message: string;
-}): Promise<void> {
-  void opts;
-}
-
 // ---------- Write / Delete ----------
 
 interface WriteOptions {
+  /** Retained for the shared tool contract; Convex does not use Octokit. */
   octokit: Octokit;
   id: string;
   meta: MemoryFrontmatter;
   body: string;
-  /** SHA of the existing blob; omit on create. */
+  /** Legacy revision field retained for API compatibility. */
   sha?: string;
-  /** Commit message override. */
+  /** Legacy audit message retained for API compatibility. */
   message?: string;
 }
 
 /**
- * Create or update a memory file, then rebuild INDEX.md. Returns the
- * refreshed MemoryFile record.
+ * Create or update a memory document. The index is derived on read.
  */
 export async function writeMemoryFile(opts: WriteOptions): Promise<MemoryFile> {
   if (!isValidMemoryId(opts.id)) {
@@ -286,18 +207,11 @@ export async function writeMemoryFile(opts: WriteOptions): Promise<MemoryFile> {
       `Invalid memory type: "${opts.meta.type}". Use one of ${MEMORY_TYPES.join(", ")}.`,
     );
   }
-  const filePath = `${MEMORY_DIR}/${opts.id}.md`;
-  const content = buildFileContent(opts.meta, opts.body);
-  const verb = opts.sha ? "update" : "add";
-  const message = opts.message ?? `chore(memory): ${verb} ${opts.id}`;
-
-  await createBackendClient().mutation(api.repoDocs.save, { tenantId: `${getOwner()}/${getRepo()}`, kind: `${MEMORY_KIND_PREFIX}${opts.id}`, doc: { meta: opts.meta, body: opts.body }, updatedAt: new Date().toISOString() });
-
-  await rebuildAndWriteIndex({
-    octokit: opts.octokit,
-    message: `chore(memory): refresh INDEX after ${verb} ${opts.id}`,
-  }).catch(() => {
-    // Index rebuild is best-effort; per-memory files are source of truth.
+  await createBackendClient().mutation(api.repoDocs.save, {
+    tenantId: `${getOwner()}/${getRepo()}`,
+    kind: `${MEMORY_KIND_PREFIX}${opts.id}`,
+    doc: { meta: opts.meta, body: opts.body },
+    updatedAt: new Date().toISOString(),
   });
 
   const refreshed = await readMemoryFile(opts.id);
@@ -312,17 +226,15 @@ export async function deleteMemoryFile(
   octokit: Octokit,
   id: string,
 ): Promise<void> {
+  void octokit;
   if (!isValidMemoryId(id)) {
     throw new Error(`Invalid memory id: "${id}".`);
   }
   const existing = await readMemoryFile(id);
   if (!existing) return;
-  await createBackendClient().mutation(api.repoDocs.remove, { tenantId: `${getOwner()}/${getRepo()}`, kind: `${MEMORY_KIND_PREFIX}${id}` });
-  await rebuildAndWriteIndex({
-    octokit,
-    message: `chore(memory): refresh INDEX after remove ${id}`,
-  }).catch(() => {
-    /* best-effort */
+  await createBackendClient().mutation(api.repoDocs.remove, {
+    tenantId: `${getOwner()}/${getRepo()}`,
+    kind: `${MEMORY_KIND_PREFIX}${id}`,
   });
 }
 // ---------- Cached system-prompt loader ----------
@@ -341,7 +253,7 @@ function indexCacheKey(): string {
 
 /**
  * Load the memory index for the current request's repo, with a 60-second
- * in-process cache so chat turns don't pay a GitHub round-trip per turn.
+ * in-process cache so chat turns don't pay a Convex query per turn.
  * Returns `null` when the index file is absent (fresh repo / never used).
  */
 export async function loadMemoryIndexForPrompt(): Promise<string | null> {

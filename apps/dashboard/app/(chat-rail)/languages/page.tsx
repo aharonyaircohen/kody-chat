@@ -3,7 +3,7 @@
  * @domain client-chat
  * @pattern languages-page
  * @ai-summary Client language registry entry point. Manages language JSON
- *   files stored at `languages/<code>.json` in the state repo.
+ *   documents stored in Convex.
  */
 import { LanguagesManager } from "@kody-ade/kody-chat/components/LanguagesManager";
 import { buildKodyMetadata } from "../../metadata";

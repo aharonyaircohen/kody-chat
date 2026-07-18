@@ -1,7 +1,7 @@
 /**
  * @fileType utility
  * @domain vault
- * @pattern state-repo
+ * @pattern Convex
  * @ai-summary Read/write repo encrypted vault in the configured external state
  * repo. Caches decrypted contents per repo for short polling windows.
  */
@@ -59,7 +59,10 @@ async function fetchRaw(
   owner: string,
   repo: string,
 ): Promise<{ doc: VaultDocument; sha: string | null }> {
-  const record = await createBackendClient().query(api.repoDocs.get, { tenantId: `${owner}/${repo}`, kind: VAULT_PATH }) as { doc?: { ciphertext?: string }; updatedAt?: string } | null;
+  const record = (await createBackendClient().query(api.repoDocs.get, {
+    tenantId: `${owner}/${repo}`,
+    kind: VAULT_PATH,
+  })) as { doc?: { ciphertext?: string }; updatedAt?: string } | null;
   if (!record?.doc?.ciphertext) return { doc: emptyDoc(), sha: null };
   const ciphertext = record.doc.ciphertext.trim();
   if (!ciphertext) return { doc: emptyDoc(), sha: null };

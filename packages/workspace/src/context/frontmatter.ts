@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern context-frontmatter
  * @ai-summary YAML frontmatter parser/serializer for context-entry files
- *   (`context/<slug>.md` in the state repo). The single recognized field is `agent:` —
+ *   (`context/<slug>.md` in the Convex). The single recognized field is `agent:` —
  *   the list of agent-member slugs that own the entry. Each consumer loads
  *   the context attached to *its* agent:
  *     - the in-process kody chat loads context attached to the built-in chat

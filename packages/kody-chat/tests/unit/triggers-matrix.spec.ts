@@ -13,9 +13,14 @@ const h = vi.hoisted(() => {
     sha: string;
   }
   const files = new Map<string, StoredFile>();
+  const userStateDocs = new Map<
+    string,
+    { data: Record<string, unknown>; updatedAt: string }
+  >();
   let shaCounter = 0;
   return {
     files,
+    userStateDocs,
     nextSha: () => `sha-${(shaCounter += 1)}`,
     logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
   };
@@ -56,6 +61,28 @@ vi.mock("@kody-ade/base/state-repo", () => ({
     },
   ),
 }));
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => ({
+    query: vi.fn(async (_fn, args: Record<string, unknown>) => {
+      if (args.kind === "triggers/config.json") {
+        const file = h.files.get("triggers/config.json");
+        return file
+          ? { doc: JSON.parse(file.content), updatedAt: file.sha }
+          : null;
+      }
+      if (typeof args.kind === "string") return null;
+      const key = `${args.tenantId}:${args.namespace}:${args.userKey}`;
+      return h.userStateDocs.get(key) ?? null;
+    }),
+    mutation: vi.fn(async (_fn, args: Record<string, unknown>) => {
+      const key = `${args.tenantId}:${args.namespace}:${args.userKey}`;
+      h.userStateDocs.set(key, {
+        data: args.data as Record<string, unknown>,
+        updatedAt: args.updatedAt as string,
+      });
+    }),
+  }),
+}));
 
 import type { Octokit } from "@octokit/rest";
 import { triggerSink } from "@kody-ade/base/triggers/sink";
@@ -64,7 +91,7 @@ import type { TriggerConfig } from "@kody-ade/base/triggers/types";
 import type { SystemEventEnvelope } from "@kody-ade/base/events/types";
 import { ensureTriggerStateWriter } from "@dashboard/lib/user-state/trigger-writer";
 import { _resetUserStateConfigCache } from "@dashboard/lib/user-state/config";
-import { _resetUserStateDocCache } from "@dashboard/lib/user-state/adapters/state-repo";
+import { _resetUserStateDocCache } from "@dashboard/lib/user-state/adapters/convex";
 import { getUserState } from "@dashboard/lib/user-state/service";
 
 const octokit = {} as Octokit;
@@ -90,30 +117,54 @@ function trg(
 }
 
 const TRIGGERS: TriggerConfig[] = [
-  trg("t-ses-start", "session.started", "selections", { s_started: "payload.sessionId" }),
-  trg("t-ses-end", "session.ended", "selections", { s_ended: "payload.sessionId" }),
+  trg("t-ses-start", "session.started", "selections", {
+    s_started: "payload.sessionId",
+  }),
+  trg("t-ses-end", "session.ended", "selections", {
+    s_ended: "payload.sessionId",
+  }),
   trg("t-page", "page.viewed", "selections", { p_viewed: "payload.path" }),
-  trg("t-shown", "ui.view.shown", "selections", { v_shown: "payload.renderer" }),
+  trg("t-shown", "ui.view.shown", "selections", {
+    v_shown: "payload.renderer",
+  }),
   trg("t-form", "ui.form.submitted", "selections", {
     f_submitted: "payload.viewId",
     f_fields: "payload.fields",
   }),
-  trg("t-click", "ui.action.clicked", "selections", { a_clicked: "payload.actionId" }),
-  trg("t-chat", "chat.message.sent", "selections", { c_sent: "payload.transport" }),
+  trg("t-click", "ui.action.clicked", "selections", {
+    a_clicked: "payload.actionId",
+  }),
+  trg("t-chat", "chat.message.sent", "selections", {
+    c_sent: "payload.transport",
+  }),
   trg("t-done", "chat.response.completed", "progress", {
     c_completed: "payload.model",
     c_ms: "payload.durationMs",
   }),
   trg("t-in", "auth.signed_in", "selections", { au_in: "payload.kind" }),
   trg("t-out", "auth.signed_out", "selections", { au_out: "payload.kind" }),
-  trg("t-prop", "model.save.proposed", "selections", { m_prop: "payload.namespace" }),
+  trg("t-prop", "model.save.proposed", "selections", {
+    m_prop: "payload.namespace",
+  }),
   trg("t-err", "system.error", "selections", { sys_err: "payload.message" }),
-  trg("t-neg-cond", "page.viewed", "selections", { neg_cond: "literal:BAD" }, {
-    conditions: [{ path: "path", op: "equals", value: "/never" }],
-  }),
-  trg("t-neg-off", "page.viewed", "selections", { neg_off: "literal:BAD" }, {
-    enabled: false,
-  }),
+  trg(
+    "t-neg-cond",
+    "page.viewed",
+    "selections",
+    { neg_cond: "literal:BAD" },
+    {
+      conditions: [{ path: "path", op: "equals", value: "/never" }],
+    },
+  ),
+  trg(
+    "t-neg-off",
+    "page.viewed",
+    "selections",
+    { neg_off: "literal:BAD" },
+    {
+      enabled: false,
+    },
+  ),
   trg("t-neg-loop", "state.entity.written", "selections", {
     neg_loop: "literal:BAD",
   }),
@@ -172,7 +223,12 @@ describe("trigger matrix (all catalog events)", () => {
       [
         envelope(
           "state.entity.written",
-          { namespace: "selections", namespaceVersion: 1, keys: [], source: "system" },
+          {
+            namespace: "selections",
+            namespaceVersion: 1,
+            keys: [],
+            source: "system",
+          },
           "system",
         ),
       ],

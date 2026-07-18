@@ -84,7 +84,7 @@ export async function saveProjectedCapability(
     "capability",
     capability.slug,
     capability,
-    capability.source === "store" ? "company-store" : "state-repo",
+    capability.source === "store" ? "company-store" : "engine-definition",
     capability.updatedAt ?? undefined,
   );
 }

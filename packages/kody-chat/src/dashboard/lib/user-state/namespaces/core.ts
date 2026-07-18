@@ -4,7 +4,7 @@
  * @pattern user-state-core-namespaces
  * @ai-summary The core user-state namespaces shipped by kody: profile,
  *   progress, selections, stats. Brands cannot override these — custom
- *   namespaces come from `user-state/config.json` in the brand state repo.
+ *   namespaces come from the tenant's Convex user-state configuration.
  */
 import { z } from "zod";
 import type { UserStateNamespace } from "../types";
@@ -36,7 +36,7 @@ export const CORE_USER_STATE_NAMESPACES: readonly UserStateNamespace[] = [
     version: 1,
     origin: "core",
     schema: profileSchema,
-    adapter: "state-repo",
+    adapter: "convex",
     merge: "shallow-merge",
     modelWritable: false,
   },
@@ -45,7 +45,7 @@ export const CORE_USER_STATE_NAMESPACES: readonly UserStateNamespace[] = [
     version: 1,
     origin: "core",
     schema: progressSchema,
-    adapter: "state-repo",
+    adapter: "convex",
     merge: "shallow-merge",
     modelWritable: true,
   },
@@ -54,7 +54,7 @@ export const CORE_USER_STATE_NAMESPACES: readonly UserStateNamespace[] = [
     version: 1,
     origin: "core",
     schema: selectionsSchema,
-    adapter: "state-repo",
+    adapter: "convex",
     merge: "shallow-merge",
     modelWritable: true,
   },
@@ -63,7 +63,7 @@ export const CORE_USER_STATE_NAMESPACES: readonly UserStateNamespace[] = [
     version: 1,
     origin: "core",
     schema: statsSchema,
-    adapter: "state-repo",
+    adapter: "convex",
     merge: "shallow-merge",
     modelWritable: true,
   },

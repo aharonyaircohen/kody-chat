@@ -15,10 +15,7 @@ import {
   requireKodyAuth,
   verifyActorLogin,
 } from "@kody-ade/base/auth";
-import {
-  clearGitHubContext,
-  setGitHubContext,
-} from "../github";
+import { clearGitHubContext, setGitHubContext } from "../github";
 import {
   isValidBrandSlug,
   listBrands,

@@ -10,7 +10,7 @@ import { buildKodyMetadata } from "../../metadata";
 export const metadata = buildKodyMetadata({
   title: "Secrets — Kody Operations Dashboard",
   description:
-    "Manage API keys and secrets stored in the encrypted state repo vault.",
+    "Manage API keys and secrets stored in the encrypted Convex vault.",
   path: "/secrets",
 });
 export const dynamic = "force-static";

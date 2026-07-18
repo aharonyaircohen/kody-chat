@@ -13,10 +13,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { requireKodyAuth, getRequestAuth } from "@kody-ade/base/auth";
-import {
-  setGitHubContext,
-  clearGitHubContext,
-} from "../github";
+import { setGitHubContext, clearGitHubContext } from "../github";
 import { AGENT_KODY_SYSTEM_PROMPT } from "@kody-ade/base/agents-data";
 import { buildSystemPrompt } from "@kody-ade/base/kody-system-prompt";
 import { loadMemoryIndexForPrompt } from "../memory/files";

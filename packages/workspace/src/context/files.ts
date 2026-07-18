@@ -4,7 +4,7 @@
  * @pattern context-files
  * @ai-summary Read/write context entries in the Convex backend (repoDocs,
  *   kind `context:<slug>`, doc `{ body }` where body is the full markdown
- *   INCLUDING the `agent:` frontmatter block — the same text the state-repo
+ *   INCLUDING the `agent:` frontmatter block — the same text the Convex
  *   file used to hold, so the export/import mapping round-trips unchanged).
  *   The slug is the entry name (e.g. `company-profile`, `mission`) and the
  *   body is free-form markdown — curated context you write FOR Kody.

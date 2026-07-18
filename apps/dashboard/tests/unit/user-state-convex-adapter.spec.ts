@@ -1,6 +1,6 @@
 /**
  * Unit tests for the Convex-backed user-state adapter
- * (packages/kody-chat user-state "state-repo" adapter): userState get/save
+ * (packages/kody-chat user-state Convex adapter): userState get/save
  * with the right tenantId, namespace, and userKey, plus caching.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -21,8 +21,8 @@ vi.mock("convex/browser", () => ({
 
 import {
   _resetUserStateDocCache,
-  stateRepoUserStateAdapter,
-} from "@kody-ade/kody-chat/user-state/adapters/state-repo";
+  convexUserStateAdapter,
+} from "@kody-ade/kody-chat/user-state/adapters/convex";
 import { userFileKey } from "@kody-ade/kody-chat/user-state/user-key";
 import type {
   UserStateDoc,
@@ -34,7 +34,7 @@ const NAMESPACE: UserStateNamespace = {
   version: 1,
   origin: "core",
   schema: z.object({}).passthrough(),
-  adapter: "state-repo",
+  adapter: "convex",
   merge: "shallow-merge",
   modelWritable: true,
 };
@@ -56,7 +56,7 @@ describe("user-state convex adapter", () => {
       updatedAt: "2026-07-01T00:00:00.000Z",
     });
 
-    const doc = await stateRepoUserStateAdapter.get(CTX, USER_ID, NAMESPACE);
+    const doc = await convexUserStateAdapter.get(CTX, USER_ID, NAMESPACE);
 
     expect(doc).toEqual({
       version: 1,
@@ -79,10 +79,10 @@ describe("user-state convex adapter", () => {
     convex.query.mockResolvedValue(null);
 
     expect(
-      await stateRepoUserStateAdapter.get(CTX, USER_ID, NAMESPACE),
+      await convexUserStateAdapter.get(CTX, USER_ID, NAMESPACE),
     ).toBeNull();
     expect(
-      await stateRepoUserStateAdapter.get(CTX, USER_ID, NAMESPACE),
+      await convexUserStateAdapter.get(CTX, USER_ID, NAMESPACE),
     ).toBeNull();
     expect(convex.query).toHaveBeenCalledTimes(1);
   });
@@ -93,7 +93,7 @@ describe("user-state convex adapter", () => {
       updatedAt: "2026-07-01T00:00:00.000Z",
     });
     convex.mutation.mockResolvedValue("id-1");
-    await stateRepoUserStateAdapter.get(CTX, USER_ID, NAMESPACE);
+    await convexUserStateAdapter.get(CTX, USER_ID, NAMESPACE);
 
     const doc: UserStateDoc = {
       version: 1,
@@ -102,7 +102,7 @@ describe("user-state convex adapter", () => {
       updatedAt: "2026-07-02T00:00:00.000Z",
       data: { locale: "en" },
     };
-    await stateRepoUserStateAdapter.set(CTX, USER_ID, NAMESPACE, doc);
+    await convexUserStateAdapter.set(CTX, USER_ID, NAMESPACE, doc);
 
     const [ref, args] = convex.mutation.mock.calls[0]!;
     expect(getFunctionName(ref)).toBe("userState:save");
@@ -114,7 +114,7 @@ describe("user-state convex adapter", () => {
       updatedAt: "2026-07-02T00:00:00.000Z",
     });
 
-    await stateRepoUserStateAdapter.get(CTX, USER_ID, NAMESPACE);
+    await convexUserStateAdapter.get(CTX, USER_ID, NAMESPACE);
     expect(convex.query).toHaveBeenCalledTimes(2);
   });
 });

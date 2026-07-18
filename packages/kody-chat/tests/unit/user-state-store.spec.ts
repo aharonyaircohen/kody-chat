@@ -1,33 +1,41 @@
 /**
- * Unit tests for the state-repo user-state adapter and user file keys
- * (src/dashboard/lib/user-state/adapters/state-repo.ts, user-key.ts):
- * per-user paths, 404→null, ETag 304 refresh, CAS retry on 409.
+ * Unit tests for the Convex user-state adapter and stable user keys.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Octokit } from "@octokit/rest";
 
 const h = vi.hoisted(() => ({
-  readStateText: vi.fn(),
-  writeStateText: vi.fn(),
+  query: vi.fn(),
+  mutation: vi.fn(),
 }));
 
-vi.mock("@kody-ade/base/state-repo", () => ({
-  readStateText: h.readStateText,
-  writeStateText: h.writeStateText,
+vi.mock("@kody-ade/backend/api", () => ({
+  api: {
+    userState: {
+      get: "userState:get",
+      save: "userState:save",
+    },
+  },
+}));
+
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => ({
+    query: h.query,
+    mutation: h.mutation,
+  }),
 }));
 
 import { userFileKey } from "@dashboard/lib/user-state/user-key";
 import {
-  stateRepoUserStateAdapter,
-  userStateFilePath,
+  convexUserStateAdapter,
   _resetUserStateDocCache,
-} from "@dashboard/lib/user-state/adapters/state-repo";
+} from "@dashboard/lib/user-state/adapters/convex";
 import { CORE_USER_STATE_NAMESPACES } from "@dashboard/lib/user-state/namespaces/core";
 import type { UserStateDoc } from "@dashboard/lib/user-state/types";
 
 const ctx = { octokit: {} as Octokit, owner: "acme", repo: "shop" };
 const selections = CORE_USER_STATE_NAMESPACES.find(
-  (ns) => ns.name === "selections",
+  (namespace) => namespace.name === "selections",
 )!;
 const USER = "client:jane@example.com";
 
@@ -53,89 +61,78 @@ describe("userFileKey", () => {
     expect(userFileKey(USER)).toBe(key);
   });
 
-  it("distinct ids that sanitize identically never collide", () => {
-    expect(userFileKey("client:a.b@x.io")).not.toBe(userFileKey("client:a-b@x.io"));
+  it("keeps ids distinct when their sanitized prefixes match", () => {
+    expect(userFileKey("client:a.b@x.io")).not.toBe(
+      userFileKey("client:a-b@x.io"),
+    );
   });
 });
 
-describe("stateRepoUserStateAdapter.get", () => {
-  it("reads the per-user per-namespace path", async () => {
-    h.readStateText.mockResolvedValue({
-      content: JSON.stringify(doc({ theme: "dark" })),
-      sha: "s1",
-      etag: 'W/"1"',
-      path: "x",
+describe("convexUserStateAdapter", () => {
+  it("reads a tenant-scoped user document", async () => {
+    h.query.mockResolvedValue({
+      data: { theme: "dark" },
+      updatedAt: "2026-07-11T00:00:00.000Z",
     });
-    const result = await stateRepoUserStateAdapter.get(ctx, USER, selections);
-    expect(result?.data).toEqual({ theme: "dark" });
-    expect(h.readStateText).toHaveBeenCalledWith(
-      ctx.octokit,
-      "acme",
-      "shop",
-      userStateFilePath("selections", USER),
-      expect.anything(),
-    );
-  });
 
-  it("returns null on 404", async () => {
-    h.readStateText.mockRejectedValue({ status: 404 });
-    expect(
-      await stateRepoUserStateAdapter.get(ctx, USER, selections),
-    ).toBeNull();
-  });
+    const result = await convexUserStateAdapter.get(ctx, USER, selections);
 
-  it("serves the cached doc on 304", async () => {
-    h.readStateText.mockResolvedValueOnce({
-      content: JSON.stringify(doc({ theme: "dark" })),
-      sha: "s1",
-      etag: 'W/"1"',
-      path: "x",
+    expect(result).toMatchObject({
+      namespace: "selections",
+      userId: USER,
+      data: { theme: "dark" },
+      revision: null,
     });
-    await stateRepoUserStateAdapter.get(ctx, USER, selections);
-    h.readStateText.mockRejectedValueOnce({ status: 304 });
-    const result = await stateRepoUserStateAdapter.get(ctx, USER, selections);
-    expect(result?.data).toEqual({ theme: "dark" });
-  });
-});
-
-describe("stateRepoUserStateAdapter.set", () => {
-  it("writes with the existing sha", async () => {
-    h.readStateText.mockResolvedValue({ content: "{}", sha: "old", path: "x" });
-    h.writeStateText.mockResolvedValue({ sha: "new", path: "x", htmlUrl: null });
-    await stateRepoUserStateAdapter.set(ctx, USER, selections, doc({ a: "1" }));
-    expect(h.writeStateText).toHaveBeenCalledWith(
-      expect.objectContaining({ sha: "old" }),
-    );
+    expect(h.query).toHaveBeenCalledWith("userState:get", {
+      tenantId: "acme/shop",
+      namespace: "selections",
+      userKey: userFileKey(USER),
+    });
   });
 
-  it("propagates a conflict instead of rewriting stale content", async () => {
-    h.readStateText.mockResolvedValue({ content: "{}", sha: "old", path: "x" });
-    h.writeStateText.mockRejectedValue({ status: 409 });
+  it("returns null for a missing document", async () => {
+    h.query.mockResolvedValue(null);
     await expect(
-      stateRepoUserStateAdapter.set(ctx, USER, selections, doc({ a: "1" })),
-    ).rejects.toMatchObject({ status: 409 });
-    expect(h.writeStateText).toHaveBeenCalledTimes(1);
+      convexUserStateAdapter.get(ctx, USER, selections),
+    ).resolves.toBeNull();
   });
 
-  it("writes with the caller's revision without re-reading the sha", async () => {
-    h.writeStateText.mockResolvedValue({ sha: "new", path: "x", htmlUrl: null });
-    await stateRepoUserStateAdapter.set(ctx, USER, selections, doc({ a: "1" }), {
-      expectedRevision: "rev-from-get",
+  it("uses the read cache until a write invalidates it", async () => {
+    h.query.mockResolvedValue({
+      data: { theme: "dark" },
+      updatedAt: "2026-07-11T00:00:00.000Z",
     });
-    expect(h.readStateText).not.toHaveBeenCalled();
-    expect(h.writeStateText).toHaveBeenCalledWith(
-      expect.objectContaining({ sha: "rev-from-get", maxAttempts: 1 }),
+    await convexUserStateAdapter.get(ctx, USER, selections);
+    await convexUserStateAdapter.get(ctx, USER, selections);
+    expect(h.query).toHaveBeenCalledTimes(1);
+
+    h.mutation.mockResolvedValue(undefined);
+    await convexUserStateAdapter.set(
+      ctx,
+      USER,
+      selections,
+      doc({ theme: "light" }),
     );
+    await convexUserStateAdapter.get(ctx, USER, selections);
+    expect(h.query).toHaveBeenCalledTimes(2);
   });
 
-  it("create-only write (revision null) passes no sha", async () => {
-    h.writeStateText.mockResolvedValue({ sha: "new", path: "x", htmlUrl: null });
-    await stateRepoUserStateAdapter.set(ctx, USER, selections, doc({ a: "1" }), {
-      expectedRevision: null,
-    });
-    expect(h.readStateText).not.toHaveBeenCalled();
-    expect(h.writeStateText).toHaveBeenCalledWith(
-      expect.objectContaining({ sha: undefined }),
+  it("writes through the Convex backend contract", async () => {
+    h.mutation.mockResolvedValue(undefined);
+
+    await convexUserStateAdapter.set(
+      ctx,
+      USER,
+      selections,
+      doc({ theme: "dark" }),
     );
+
+    expect(h.mutation).toHaveBeenCalledWith("userState:save", {
+      tenantId: "acme/shop",
+      namespace: "selections",
+      userKey: userFileKey(USER),
+      data: { theme: "dark" },
+      updatedAt: "2026-07-11T00:00:00.000Z",
+    });
   });
 });

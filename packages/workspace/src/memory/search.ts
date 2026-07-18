@@ -31,10 +31,7 @@ export function searchMemoryFiles(
         searchable.length,
         index + needle.length + SNIPPET_RADIUS,
       );
-      const snippet = searchable
-        .slice(start, end)
-        .replace(/\s+/g, " ")
-        .trim();
+      const snippet = searchable.slice(start, end).replace(/\s+/g, " ").trim();
       return [
         {
           id: memory.id,

@@ -2,8 +2,8 @@
  * @fileType utility
  * @domain user-state
  * @pattern user-state-config
- * @ai-summary Loads the brand's custom user-state namespaces from
- *   `user-state/config.json` in the state repo, Zod-validates the spec,
+ * @ai-summary Loads the brand's custom user-state namespaces from the
+ *   tenant's Convex `user-state/config.json` document, validates the spec,
  *   compiles field-specs to schemas, and merges with the core namespaces
  *   (core always wins on name collision). 60s TTL cache per owner/repo,
  *   mirroring the CMS config loader.
@@ -15,10 +15,7 @@ import { logger } from "@kody-ade/base/logger";
 import { api } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 import { CORE_USER_STATE_NAMESPACES } from "./namespaces/core";
-import {
-  compileNamespaceSchema,
-  namespaceSpecSchema,
-} from "./schema-compile";
+import { compileNamespaceSchema, namespaceSpecSchema } from "./schema-compile";
 import type { UserStateNamespace } from "./types";
 
 export const USER_STATE_CONFIG_PATH = "user-state/config.json";
@@ -61,7 +58,12 @@ async function loadBrandNamespaces(
       kind: USER_STATE_CONFIG_PATH,
     })) as { doc?: unknown } | null;
     const doc = row?.doc as { content?: unknown } | unknown;
-    raw = typeof doc === "string" ? doc : typeof (doc as { content?: unknown })?.content === "string" ? (doc as { content: string }).content : null;
+    raw =
+      typeof doc === "string"
+        ? doc
+        : typeof (doc as { content?: unknown })?.content === "string"
+          ? (doc as { content: string }).content
+          : null;
   } catch (error: unknown) {
     if ((error as { status?: number })?.status !== 404) {
       logger.warn({ err: error, owner, repo }, "user-state config read failed");

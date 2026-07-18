@@ -47,7 +47,7 @@ export const DEFAULT_WORKFLOW_KODY_MEM: ChatWorkflowEntry = {
   body: `Persistent memory management. Use when the user gives feedback, corrects a choice, shares a project fact, or agentIdentity memory triggers fire.
 
 Skills:
-- memory — apply the state-repo memory index, use recall / recall_search / list_memories when needed. Triggers: explicit memory command ("remember X", "store this", "save this later") -> remember; correction -> feedback; project fact -> project; user profile -> user; update_memory when a similar entry already exists.`,
+- memory — apply the Convex memory index, use recall / recall_search / list_memories when needed. Triggers: explicit memory command ("remember X", "store this", "save this later") -> remember; correction -> feedback; project fact -> project; user profile -> user; update_memory when a similar entry already exists.`,
 };
 
 export const DEFAULT_WORKFLOWS = [

@@ -188,9 +188,7 @@ export async function listBrandFiles(): Promise<BrandFile[]> {
     .sort((a, b) => a.slug.localeCompare(b.slug));
 }
 
-export async function readBrandFile(
-  slug: string,
-): Promise<BrandFile | null> {
+export async function readBrandFile(slug: string): Promise<BrandFile | null> {
   const normalized = normalizeClientBrandSlug(slug);
   if (!isValidBrandSlug(normalized)) return null;
   const record = (await getConvexClient().query(backendApi.repoDocs.get, {

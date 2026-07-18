@@ -12,7 +12,7 @@ export const DEFAULT_SKILL_MEMORY: SkillEntry = {
 
 **Memory tools:**
 - \`recall(id)\` — full body of one memory entry.
-- \`recall_search(query)\` — search every memory file's body via GitHub code search (use when the index is truncated or the hook you need isn't there).
+- \`recall_search(query)\` — search every memory file's body via Convex memory search (use when the index is truncated or the hook you need isn't there).
 - \`list_memories\` — enumerate all entries (use when you want a full inventory, e.g. before deciding whether a new memory is a duplicate).
 - \`update_memory\` — replace an existing entry (use when the new fact supersedes an old one, never to write a duplicate of an existing entry).
 - \`remember\` — write a new entry. Required whenever a trigger below fires.

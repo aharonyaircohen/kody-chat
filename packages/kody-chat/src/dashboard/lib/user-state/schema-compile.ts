@@ -32,10 +32,10 @@ export const namespaceSpecSchema = z
       .string()
       .trim()
       .regex(
-        /^(state-repo|cms:[a-zA-Z][a-zA-Z0-9_-]*)$/,
-        'adapter must be "state-repo" or "cms:<collection>"',
+        /^(convex|cms:[a-zA-Z][a-zA-Z0-9_-]*)$/,
+        'adapter must be "convex" or "cms:<collection>"',
       )
-      .default("state-repo"),
+      .default("convex"),
     merge: z.enum(["replace", "shallow-merge"]).default("shallow-merge"),
     modelWritable: z.boolean().default(false),
     fields: z.array(fieldSpecSchema).min(1).max(100),
@@ -50,7 +50,8 @@ function compileField(spec: UserStateFieldSpec): z.ZodType {
       let field = z.string();
       if (spec.min !== undefined) field = field.min(spec.min);
       if (spec.max !== undefined) field = field.max(spec.max);
-      if (spec.pattern !== undefined) field = field.regex(new RegExp(spec.pattern));
+      if (spec.pattern !== undefined)
+        field = field.regex(new RegExp(spec.pattern));
       return field;
     }
     case "number": {

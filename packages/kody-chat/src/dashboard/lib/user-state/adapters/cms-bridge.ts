@@ -100,7 +100,8 @@ async function resolveCmsBinding(
         ...defaultCmsAdapterSettings(collection.adapter),
         ...(config.adapters[collection.adapter] ?? {}),
       },
-      getSecret: (name) => resolveSecret(ctx.octokit, ctx.owner, ctx.repo, name),
+      getSecret: (name) =>
+        resolveSecret(ctx.octokit, ctx.owner, ctx.repo, name),
       store: { octokit: ctx.octokit },
       getStateRepository: async () => {
         const target = await resolveStateRepo(ctx.octokit, ctx.owner, ctx.repo);

@@ -2,8 +2,8 @@
  * @fileType util
  * @domain kody
  * @pattern commands-files
- * @ai-summary Read/write consumer command files under `commands/<slug>.md`
- *   in the configured Kody state repo. Same shape as `capabilities-files.ts`:
+ * @ai-summary Read/write repo-scoped slash commands in Convex. The logical
+ *   shape remains compatible with `commands/<slug>.md`:
  *   filename is the slug, frontmatter holds description/argument-hint,
  *   body is the command template that gets substituted with $ARGUMENTS.
  *
@@ -13,11 +13,7 @@
  */
 
 import type { Octokit } from "@octokit/rest";
-import {
-  getOctokit,
-  getOwner,
-  getRepo,
-} from "../github";
+import { getOctokit, getOwner, getRepo } from "../github";
 import {
   joinFrontmatter,
   splitFrontmatter,
@@ -78,19 +74,39 @@ function parseCommandMarkdown(raw: string): {
 }
 
 /**
- * List every command file under `commands/` in the state repo. Returns `[]` if the
- * directory does not exist. Also returns a flag indicating whether the
- * repo has opted out of built-in commands.
+ * List every local command document in Convex. Also returns whether the
+ * tenant has opted out of built-in commands.
  */
 export async function listRepoCommandFiles(): Promise<{
   commands: CommandFile[];
   builtinsDisabled: boolean;
 }> {
   const client = createBackendClient();
-  const records = await client.query(api.repoDocs.listByPrefix, { tenantId: `${getOwner()}/${getRepo()}`, prefix: COMMAND_KIND_PREFIX }) as Array<{ kind: string; doc: { description?: string; argumentHint?: string; body: string }; updatedAt: string }>;
-  const meta = await client.query(api.repoDocs.get, { tenantId: `${getOwner()}/${getRepo()}`, kind: COMMAND_META_KIND }) as { doc?: { builtinsDisabled?: boolean } } | null;
+  const records = (await client.query(api.repoDocs.listByPrefix, {
+    tenantId: `${getOwner()}/${getRepo()}`,
+    prefix: COMMAND_KIND_PREFIX,
+  })) as Array<{
+    kind: string;
+    doc: { description?: string; argumentHint?: string; body: string };
+    updatedAt: string;
+  }>;
+  const meta = (await client.query(api.repoDocs.get, {
+    tenantId: `${getOwner()}/${getRepo()}`,
+    kind: COMMAND_META_KIND,
+  })) as { doc?: { builtinsDisabled?: boolean } } | null;
   const builtinsDisabled = meta?.doc?.builtinsDisabled === true;
-  const nonNull: CommandFile[] = records.map((record) => ({ slug: record.kind.slice(COMMAND_KIND_PREFIX.length), description: record.doc.description ?? "", argumentHint: record.doc.argumentHint ?? "", body: record.doc.body, source: "repo" as const, sha: "", updatedAt: record.updatedAt, htmlUrl: "" })).filter((f) => isValidSlug(f.slug));
+  const nonNull: CommandFile[] = records
+    .map((record) => ({
+      slug: record.kind.slice(COMMAND_KIND_PREFIX.length),
+      description: record.doc.description ?? "",
+      argumentHint: record.doc.argumentHint ?? "",
+      body: record.doc.body,
+      source: "repo" as const,
+      sha: "",
+      updatedAt: record.updatedAt,
+      htmlUrl: "",
+    }))
+    .filter((f) => isValidSlug(f.slug));
   nonNull.sort((a, b) => a.slug.localeCompare(b.slug));
   return { commands: nonNull, builtinsDisabled };
 }
@@ -101,7 +117,13 @@ export async function readCommandFile(
 ): Promise<CommandFile | null> {
   if (!isValidSlug(slug)) return null;
   try {
-    const record = await createBackendClient().query(api.repoDocs.get, { tenantId: `${getOwner()}/${getRepo()}`, kind: `${COMMAND_KIND_PREFIX}${slug}` }) as { doc: { description?: string; argumentHint?: string; body: string }; updatedAt: string } | null;
+    const record = (await createBackendClient().query(api.repoDocs.get, {
+      tenantId: `${getOwner()}/${getRepo()}`,
+      kind: `${COMMAND_KIND_PREFIX}${slug}`,
+    })) as {
+      doc: { description?: string; argumentHint?: string; body: string };
+      updatedAt: string;
+    } | null;
     if (!record) return null;
     return {
       slug,
@@ -208,7 +230,16 @@ export async function writeCommandFile(
     `${opts.sha ? "chore" : "feat"}(commands): ${opts.sha ? "update" : "add"} ${opts.slug}`;
 
   const { frontmatter, body } = parseCommandMarkdown(content);
-  await createBackendClient().mutation(api.repoDocs.save, { tenantId: `${getOwner()}/${getRepo()}`, kind: `${COMMAND_KIND_PREFIX}${opts.slug}`, doc: { description: frontmatter.description ?? "", argumentHint: frontmatter.argumentHint ?? "", body }, updatedAt: new Date().toISOString() });
+  await createBackendClient().mutation(api.repoDocs.save, {
+    tenantId: `${getOwner()}/${getRepo()}`,
+    kind: `${COMMAND_KIND_PREFIX}${opts.slug}`,
+    doc: {
+      description: frontmatter.description ?? "",
+      argumentHint: frontmatter.argumentHint ?? "",
+      body,
+    },
+    updatedAt: new Date().toISOString(),
+  });
 
   // Confirm with the same octokit that wrote — not the per-request global,
   // which a concurrent request may have cleared (→ 401 "Bad credentials").
@@ -231,5 +262,8 @@ export async function deleteCommandFile(
   const existing = await readCommandFile(slug);
   if (!existing) return;
   const filePath = `${COMMANDS_DIR}/${slug}.md`;
-  await createBackendClient().mutation(api.repoDocs.remove, { tenantId: `${getOwner()}/${getRepo()}`, kind: `${COMMAND_KIND_PREFIX}${slug}` });
+  await createBackendClient().mutation(api.repoDocs.remove, {
+    tenantId: `${getOwner()}/${getRepo()}`,
+    kind: `${COMMAND_KIND_PREFIX}${slug}`,
+  });
 }

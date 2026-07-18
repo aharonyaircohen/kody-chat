@@ -62,7 +62,9 @@ async function readOptionalJson<T>(...segments: string[]): Promise<T | null> {
 }
 
 function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((item) => typeof item === "string");
+  return (
+    Array.isArray(value) && value.every((item) => typeof item === "string")
+  );
 }
 
 function assertChatCapability(
@@ -176,7 +178,10 @@ async function loadChatProfile(
 
 export async function loadChatDefaultsFromFiles(): Promise<ChatDefaultsFilesBundle | null> {
   try {
-    const chatProfile = await loadChatProfile(KODY_CHAT_CAPABILITY, "capability");
+    const chatProfile = await loadChatProfile(
+      KODY_CHAT_CAPABILITY,
+      "capability",
+    );
 
     if (!chatProfile) return null;
 

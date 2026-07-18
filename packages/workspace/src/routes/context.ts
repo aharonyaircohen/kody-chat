@@ -3,7 +3,7 @@
  * @domain kody
  * @pattern context-api
  * @ai-summary Context API — GET lists context entries
- *   (`context/<slug>.md` in the state repo), POST creates a new one. Entries owned by the
+ *   (`context/<slug>.md` in the Convex), POST creates a new one. Entries owned by the
  *   built-in `kody` agent are injected into the kody-direct chat system
  *   prompt so the agent knows what the company is and does.
  */
@@ -16,10 +16,7 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import {
-  setGitHubContext,
-  clearGitHubContext,
-} from "../github";
+import { setGitHubContext, clearGitHubContext } from "../github";
 import {
   listContextFiles,
   readContextFile,
@@ -96,8 +93,13 @@ export async function POST(req: NextRequest) {
 
   try {
     const payload = await req.json();
-    const { slug: requestedSlug, name, body, agent, actorLogin } =
-      createContextSchema.parse(payload);
+    const {
+      slug: requestedSlug,
+      name,
+      body,
+      agent,
+      actorLogin,
+    } = createContextSchema.parse(payload);
     const slugSource = requestedSlug ?? name;
 
     if (!slugSource) {

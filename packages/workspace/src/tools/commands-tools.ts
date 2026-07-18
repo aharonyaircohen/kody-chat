@@ -2,11 +2,9 @@
  * @fileType util
  * @domain commands
  * @pattern chat-tools
- * @ai-summary In-process chat tools that let Kody manage slash commands
- *   (`commands/<slug>.md` in the state repo) by conversation — list, read, create/update,
- *   delete. Mirrors the implementation-management tools: reads use the module-level GitHub
- *   context the chat route sets; writes pass the per-request octokit. Repo
- *   commands win over activated Store commands and fallback built-ins on slug collision.
+ * @ai-summary Chat tools that manage Convex-backed, repo-scoped slash
+ *   commands. Local commands win over activated Store commands and fallback
+ *   built-ins on slug collision.
  */
 import { tool } from "ai";
 import { z } from "zod";
@@ -86,7 +84,7 @@ export function createCommandTools(ctx: Ctx) {
     }),
 
     create_or_update_command: tool({
-      description: `Create or update a slash command in ${repoRef} (commits commands/<slug>.md in the state repo). The body is the prompt template; use $ARGUMENTS, $0, $1 placeholders for user-supplied arguments. A repo command overrides Store or built-in commands with the same slug.`,
+      description: `Create or update a slash command for ${repoRef} in Convex. The body is the prompt template; use $ARGUMENTS, $0, $1 placeholders for user-supplied arguments. A local command overrides Store or built-in commands with the same slug.`,
       inputSchema: z.object({
         slug: z.string().min(1).max(64),
         description: z.string().default(""),

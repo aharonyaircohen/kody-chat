@@ -71,7 +71,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.loadCmsConfigFromState.mockResolvedValue({
     collections: {
-      orders: { name: "orders", adapter: "mongodb", source: { idField: "_id" } },
+      orders: {
+        name: "orders",
+        adapter: "mongodb",
+        source: { idField: "_id" },
+      },
     },
     adapters: {},
   });
@@ -87,7 +91,7 @@ beforeEach(() => {
 describe("parseCmsBridgeCollection", () => {
   it("parses cms:<collection> and rejects other names", () => {
     expect(parseCmsBridgeCollection("cms:orders")).toBe("orders");
-    expect(parseCmsBridgeCollection("state-repo")).toBeNull();
+    expect(parseCmsBridgeCollection("convex")).toBeNull();
     expect(parseCmsBridgeCollection("cms:")).toBeNull();
   });
 });
@@ -154,7 +158,12 @@ describe("get", () => {
 
 describe("set", () => {
   it("creates a stamped document when none exists", async () => {
-    await cmsBridgeUserStateAdapter.set(ctx, USER, namespace, doc({ total: 1 }));
+    await cmsBridgeUserStateAdapter.set(
+      ctx,
+      USER,
+      namespace,
+      doc({ total: 1 }),
+    );
     expect(h.create).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({
@@ -174,7 +183,12 @@ describe("set", () => {
       limit: 1,
       offset: 0,
     });
-    await cmsBridgeUserStateAdapter.set(ctx, USER, namespace, doc({ total: 2 }));
+    await cmsBridgeUserStateAdapter.set(
+      ctx,
+      USER,
+      namespace,
+      doc({ total: 2 }),
+    );
     expect(h.update).toHaveBeenCalledWith(
       expect.anything(),
       "abc",

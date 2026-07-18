@@ -16,7 +16,7 @@ describe("namespaceSpecSchema", () => {
       fields: [{ name: "score", type: "number" }],
     });
     expect(spec.version).toBe(1);
-    expect(spec.adapter).toBe("state-repo");
+    expect(spec.adapter).toBe("convex");
     expect(spec.merge).toBe("shallow-merge");
     expect(spec.modelWritable).toBe(false);
   });
@@ -62,8 +62,8 @@ describe("compileNamespaceSchema", () => {
     expect(
       schema.safeParse({ email: "a@b.c", tags: ["1", "2", "3", "4"] }).success,
     ).toBe(false);
-    expect(
-      schema.safeParse({ email: "a@b.c", unknown: 1 }).success,
-    ).toBe(false);
+    expect(schema.safeParse({ email: "a@b.c", unknown: 1 }).success).toBe(
+      false,
+    );
   });
 });

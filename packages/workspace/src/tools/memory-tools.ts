@@ -3,10 +3,8 @@
  * @domain kody
  * @pattern ai-sdk-tool
  * @ai-summary Memory tools for the kody-direct chat agent. Persist
- *   facts/feedback/project-context/references as `memory/<id>.md`
- *   files in the state repo. Mirrors the create_or_update_capability tool: each
- *   write commits a markdown file via the GitHub contents API and rebuilds
- *   the sibling `INDEX.md` so the next chat turn can see the new entry.
+ *   facts, feedback, project context, and references as Convex documents.
+ *   The prompt index is derived from current documents on read.
  *
  *   The agent decides when to call `remember` based on the rules in
  *   `AGENT_KODY.systemPrompt`. Tools exposed:
@@ -67,7 +65,7 @@ export function createMemoryTools(ctx: Ctx) {
   return {
     remember: tool({
       description:
-        `Persist a memory in ${repoRef} as state repo \`memory/<id>.md\`. Memories are ` +
+        `Persist a memory for ${repoRef} in Convex. Memories are ` +
         "loaded into every future chat turn (via the INDEX) so the agent does not " +
         "re-learn the same facts.\n\n" +
         "WRITE on signal, not on schedule. Triggers:\n" +
