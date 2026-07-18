@@ -15,10 +15,7 @@ import { listAgentFiles } from "../agent-files";
 import { listRepoCommandFiles } from "@kody-ade/workspace/commands/files";
 import { listContextFiles } from "@kody-ade/workspace/context/files";
 import { readInstructionsFile } from "@kody-ade/workspace/instructions/files";
-import {
-  listCapabilityFiles,
-  readCapabilityFolderFiles,
-} from "../capabilities";
+import { listProjectedCapabilities, getProjectedCapability } from "../backend/repo-projection";
 import { listManagedGoalFiles } from "../managed-goals-files";
 import { getEngineConfig } from "@kody-ade/base/engine/config";
 import {
@@ -34,6 +31,13 @@ import {
 import type { TickFile } from "../ticked/files";
 import type { CommandFile } from "@kody-ade/workspace/commands/files";
 import type { ContextFile } from "@kody-ade/workspace/context/files";
+
+type ExportCapabilityDetail = CompanyCapabilityEntry & {
+  prompt?: string;
+  profileJson?: string;
+  skills?: Array<{ name: string; body: string }>;
+  shellScripts?: Array<{ name: string; content: string }>;
+};
 
 function toAgentEntry(file: TickFile): CompanyAgentEntry {
   return {
@@ -62,10 +66,17 @@ function toContextEntry(file: ContextFile): CompanyContextEntry {
 
 /** Read every capability folder into portable path→content maps. */
 async function buildCapabilityEntries(): Promise<CompanyCapabilityEntry[]> {
-  const summaries = await listCapabilityFiles();
+  const summaries = await listProjectedCapabilities(getOwner(), getRepo(), new Set());
   const entries = await Promise.all(
     summaries.map(async (s) => {
-      const files = await readCapabilityFolderFiles(s.slug);
+      const detail = (await getProjectedCapability(getOwner(), getRepo(), s.slug)) as ExportCapabilityDetail | null;
+      if (!detail) return null;
+      const files: Record<string, string> = {
+        "capability.md": detail.prompt ?? "",
+        "profile.json": detail.profileJson ?? "",
+      };
+      for (const skill of detail.skills ?? []) files[`skills/${skill.name}/SKILL.md`] = skill.body;
+      for (const script of detail.shellScripts ?? []) files[script.name] = script.content;
       return files ? { slug: s.slug, files } : null;
     }),
   );

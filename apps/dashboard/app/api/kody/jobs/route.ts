@@ -22,7 +22,7 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { recordAudit } from "@dashboard/lib/activity/audit";
-import { readResolvedCapabilityFile } from "@dashboard/lib/capabilities";
+import { getProjectedCapability } from "@dashboard/lib/backend/repo-projection";
 import {
   validateKodyJob,
   resolveJobProfile,
@@ -87,9 +87,10 @@ export async function POST(req: NextRequest) {
         { status: 401 },
       );
     }
-    const capability = await readResolvedCapabilityFile(
+    const capability = await getProjectedCapability(
+      headerAuth.owner,
+      headerAuth.repo,
       job.capability!,
-      userOctokit,
     );
     if (!capability) {
       return NextResponse.json(

@@ -26,6 +26,8 @@ const h = vi.hoisted(() => ({
   getProjectedCapability: vi.fn(),
   saveProjectedCapability: vi.fn(),
   recordAudit: vi.fn(),
+  backendQuery: vi.fn(),
+  backendMutation: vi.fn(),
 }));
 
 vi.mock("@kody-ade/base/auth", () => ({
@@ -68,6 +70,12 @@ vi.mock("@dashboard/lib/backend/repo-projection", () => ({
 
 vi.mock("@kody-ade/base/activity/audit", () => ({
   recordAudit: h.recordAudit,
+}));
+vi.mock("@kody-ade/backend/api", () => ({
+  api: { catalog: { get: "catalog:get", remove: "catalog:remove" } },
+}));
+vi.mock("@kody-ade/backend/client", () => ({
+  createBackendClient: () => ({ query: h.backendQuery, mutation: h.backendMutation }),
 }));
 
 import { GET, POST } from "../../app/api/kody/capabilities/route";
@@ -214,10 +222,10 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
     h.getUserOctokit.mockResolvedValue({ rest: {} });
   });
 
-  it("deletes local capability folders through the capability helper", async () => {
-    const octokit = { rest: {} };
-    h.getUserOctokit.mockResolvedValue(octokit);
-    h.readCapabilityFile.mockResolvedValue({
+  it("deletes the Convex capability projection", async () => {
+    h.backendQuery.mockResolvedValue({ doc: { slug: "ship-feature" } });
+    h.backendMutation.mockResolvedValue(undefined);
+    h.getProjectedCapability.mockResolvedValue({
       slug: "ship-feature",
       describe: "Ship feature",
     });
@@ -232,10 +240,7 @@ describe("DELETE /api/kody/capabilities/[slug]", () => {
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ success: true });
-    expect(h.deleteCapabilityFile).toHaveBeenCalledWith(
-      octokit,
-      "ship-feature",
-    );
+    expect(h.backendMutation).toHaveBeenCalled();
     expect(h.writeConfigPatch).not.toHaveBeenCalled();
     expect(h.recordAudit).toHaveBeenCalledWith(
       expect.any(NextRequest),

@@ -3,97 +3,46 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const auth = vi.hoisted(() => ({
   requireKodyAuth: vi.fn(async () => null),
-  getRequestAuth: vi.fn(() => ({
-    token: "ghp_viewer",
-    owner: "acme",
-    repo: "widgets",
-    storeRepoUrl: "https://github.com/acme/kody-state",
-    storeRef: "main",
-  })),
-  getUserOctokit: vi.fn(async () => ({ marker: "viewer-octokit" })),
+  getRequestAuth: vi.fn(() => ({ token: "viewer", owner: "acme", repo: "widgets" })),
 }));
+const backend = vi.hoisted(() => ({ query: vi.fn() }));
+const refs = vi.hoisted(() => ({ workflowGet: Symbol("workflowRuns:get"), repoDocGet: Symbol("repoDocs:get") }));
 
-const stateRepo = vi.hoisted(() => ({
-  normalizeStatePath: vi.fn((path: string) => {
+vi.mock("@kody-ade/base/auth", () => auth);
+vi.mock("@kody-ade/base/state-repo", () => ({
+  normalizeStatePath: (path: string) => {
     const value = path.trim().replace(/^\/+|\/+$/g, "");
     if (value.includes("..")) throw new Error("invalid state path");
     return value;
-  }),
-  readStateText: vi.fn(),
+  },
 }));
-
-const githubClient = vi.hoisted(() => ({
-  clearGitHubContext: vi.fn(),
-  setGitHubContext: vi.fn(),
-}));
-
-vi.mock("@kody-ade/base/auth", () => ({
-  requireKodyAuth: auth.requireKodyAuth,
-  getRequestAuth: auth.getRequestAuth,
-  getUserOctokit: auth.getUserOctokit,
-}));
-
-vi.mock("@kody-ade/base/state-repo", () => ({
-  normalizeStatePath: stateRepo.normalizeStatePath,
-  readStateText: stateRepo.readStateText,
-}));
-
-vi.mock("@dashboard/lib/github-client", () => ({
-  clearGitHubContext: githubClient.clearGitHubContext,
-  setGitHubContext: githubClient.setGitHubContext,
-}));
+vi.mock("@kody-ade/backend/api", () => ({ api: { workflowRuns: { get: refs.workflowGet }, repoDocs: { get: refs.repoDocGet } } }));
+vi.mock("@kody-ade/backend/client", () => ({ createBackendClient: () => backend }));
 
 import { GET } from "../../app/api/kody/state-files/route";
 
 describe("GET /api/kody/state-files", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+  beforeEach(() => vi.clearAllMocks());
 
-  it("reads a runtime state evidence file from the configured state repo", async () => {
-    stateRepo.readStateText.mockResolvedValue({
-      path: "widgets/logs/goals/ci-health/runs/run.jsonl",
-      content: "{\"event\":\"done\"}\n",
-      sha: "abc1234",
-      htmlUrl: "https://github.com/acme/kody-state/blob/main/widgets/logs/goals/ci-health/runs/run.jsonl",
-      size: 17,
-    });
-
-    const res = await GET(
-      new NextRequest(
-        "http://localhost/api/kody/state-files?path=logs/goals/ci-health/runs/run.jsonl",
-      ),
-    );
-
+  it("reads workflow evidence from Convex", async () => {
+    backend.query.mockResolvedValue({ state: { event: "done" } });
+    const res = await GET(new NextRequest("http://localhost/api/kody/state-files?path=logs/goals/ci-health/runs/run.jsonl"));
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toMatchObject({
-      requestedPath: "logs/goals/ci-health/runs/run.jsonl",
-      path: "widgets/logs/goals/ci-health/runs/run.jsonl",
-      content: "{\"event\":\"done\"}\n",
-      sha: "abc1234",
-    });
-    expect(stateRepo.readStateText).toHaveBeenCalledWith(
-      { marker: "viewer-octokit" },
-      "acme",
-      "widgets",
-      "logs/goals/ci-health/runs/run.jsonl",
-    );
-    expect(githubClient.setGitHubContext).toHaveBeenCalledWith(
-      "acme",
-      "widgets",
-      "ghp_viewer",
-      "https://github.com/acme/kody-state",
-      "main",
-    );
-    expect(githubClient.clearGitHubContext).toHaveBeenCalled();
+    await expect(res.json()).resolves.toMatchObject({ path: "logs/goals/ci-health/runs/run.jsonl", content: '{\n  "event": "done"\n}' });
+    expect(backend.query).toHaveBeenCalledWith(refs.workflowGet, { tenantId: "acme/widgets", workflowId: "ci-health", runId: "run" });
   });
 
-  it("rejects unsafe state paths", async () => {
-    const res = await GET(
-      new NextRequest("http://localhost/api/kody/state-files?path=../secret"),
-    );
+  it("reads a projected document from Convex", async () => {
+    backend.query.mockResolvedValue({ doc: { enabled: true } });
+    const res = await GET(new NextRequest("http://localhost/api/kody/state-files?path=user-state/config.json"));
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ path: "user-state/config.json", content: '{\n  "enabled": true\n}' });
+    expect(backend.query).toHaveBeenCalledWith(refs.repoDocGet, { tenantId: "acme/widgets", kind: "user-state/config.json" });
+  });
 
+  it("rejects unsafe paths before any backend read", async () => {
+    const res = await GET(new NextRequest("http://localhost/api/kody/state-files?path=../secret"));
     expect(res.status).toBe(400);
-    expect(stateRepo.readStateText).not.toHaveBeenCalled();
+    expect(backend.query).not.toHaveBeenCalled();
   });
 });

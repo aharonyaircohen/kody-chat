@@ -36,6 +36,9 @@ const h = vi.hoisted(() => ({
   readCapabilityFolderFiles: vi.fn(
     async () => null as Record<string, string> | null,
   ),
+  listProjectedCapabilities: vi.fn(async () => [] as Array<Record<string, unknown>>),
+  getProjectedCapability: vi.fn(async () => null as Record<string, unknown> | null),
+  saveProjectedCapability: vi.fn(),
   writeCapabilityFolderFiles: vi.fn(),
   // managed-goals-files
   listManagedGoalFiles: vi.fn(
@@ -80,6 +83,11 @@ vi.mock("@dashboard/lib/capabilities", () => ({
   listCapabilityFiles: h.listCapabilityFiles,
   readCapabilityFolderFiles: h.readCapabilityFolderFiles,
   writeCapabilityFolderFiles: h.writeCapabilityFolderFiles,
+}));
+vi.mock("@dashboard/lib/backend/repo-projection", () => ({
+  listProjectedCapabilities: h.listProjectedCapabilities,
+  getProjectedCapability: h.getProjectedCapability,
+  saveProjectedCapability: h.saveProjectedCapability,
 }));
 vi.mock("@dashboard/lib/managed-goals-files", () => ({
   listManagedGoalFiles: h.listManagedGoalFiles,
@@ -188,7 +196,7 @@ describe("buildCompanyBundle", () => {
     h.listAgentFiles.mockResolvedValue([
       tickFile({ slug: "cto", title: "CTO" }),
     ]);
-    h.listCapabilityFiles.mockResolvedValue([]);
+    h.listProjectedCapabilities.mockResolvedValue([]);
     h.listContextFiles.mockResolvedValue([
       {
         slug: "reports",
@@ -273,7 +281,7 @@ describe("buildCompanyBundle", () => {
 
   it("emits null instructions when the file is blank/absent", async () => {
     h.listAgentFiles.mockResolvedValue([]);
-    h.listCapabilityFiles.mockResolvedValue([]);
+    h.listProjectedCapabilities.mockResolvedValue([]);
     h.listContextFiles.mockResolvedValue([]);
     h.listRepoCommandFiles.mockResolvedValue({
       commands: [],
@@ -286,20 +294,22 @@ describe("buildCompanyBundle", () => {
 
   it("exports capability folders recursively", async () => {
     h.listAgentFiles.mockResolvedValue([]);
-    h.listCapabilityFiles.mockResolvedValue([]);
+    h.listProjectedCapabilities.mockResolvedValue([]);
     h.listContextFiles.mockResolvedValue([]);
     h.listRepoCommandFiles.mockResolvedValue({
       commands: [],
       builtinsDisabled: false,
     });
     h.readInstructionsFile.mockResolvedValue(null);
-    h.listCapabilityFiles.mockResolvedValue([
+    h.listProjectedCapabilities.mockResolvedValue([
       { slug: "repo-graph", describe: "", landing: "comment" },
     ]);
-    h.readCapabilityFolderFiles.mockResolvedValue({
-      "profile.json": '{"name":"repo-graph"}\n',
-      "capability.md": "# Instructions\n",
-      "skills/repo-graph/SKILL.md": "# Skill\n",
+    h.getProjectedCapability.mockResolvedValue({
+      slug: "repo-graph",
+      prompt: "# Instructions\n",
+      profileJson: '{"name":"repo-graph"}\n',
+      skills: [{ name: "repo-graph", body: "# Skill\n" }],
+      shellScripts: [],
     });
 
     const bundle = await buildCompanyBundle();
@@ -463,8 +473,8 @@ describe("applyCompanyBundle", () => {
       "capability.md": "# Instructions\n",
       "skills/repo-graph/SKILL.md": "# Skill\n",
     };
-    h.readCapabilityFolderFiles.mockResolvedValue(null);
-    h.writeCapabilityFolderFiles.mockResolvedValue(undefined);
+    h.getProjectedCapability.mockResolvedValue(null);
+    h.saveProjectedCapability.mockResolvedValue(undefined);
 
     const result = await applyCompanyBundle(
       octokit,
@@ -481,11 +491,14 @@ describe("applyCompanyBundle", () => {
     );
 
     expect(result.capabilities).toMatchObject({ created: 1, failed: 0 });
-    expect(h.writeCapabilityFolderFiles).toHaveBeenCalledWith({
-      octokit,
-      slug: "repo-graph",
-      files,
-      isUpdate: false,
-    });
+    expect(h.saveProjectedCapability).toHaveBeenCalledWith(
+      "acme",
+      "widgets",
+      expect.objectContaining({
+        slug: "repo-graph",
+        prompt: "# Instructions\n",
+        profileJson: files["profile.json"],
+      }),
+    );
   });
 });
