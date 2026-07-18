@@ -12,7 +12,8 @@ import "server-only";
 import type { Octokit } from "@octokit/rest";
 import { z } from "zod";
 import { logger } from "@kody-ade/base/logger";
-import { readStateText } from "@kody-ade/base/state-repo";
+import { api } from "@kody-ade/backend/api";
+import { createBackendClient } from "@kody-ade/backend/client";
 import { CORE_USER_STATE_NAMESPACES } from "./namespaces/core";
 import {
   compileNamespaceSchema,
@@ -54,8 +55,13 @@ async function loadBrandNamespaces(
 ): Promise<readonly UserStateNamespace[]> {
   let raw: string | null = null;
   try {
-    const file = await readStateText(octokit, owner, repo, USER_STATE_CONFIG_PATH);
-    raw = file?.content ?? null;
+    void octokit;
+    const row = (await createBackendClient().query(api.repoDocs.get, {
+      tenantId: `${owner}/${repo}`,
+      kind: USER_STATE_CONFIG_PATH,
+    })) as { doc?: unknown } | null;
+    const doc = row?.doc as { content?: unknown } | unknown;
+    raw = typeof doc === "string" ? doc : typeof (doc as { content?: unknown })?.content === "string" ? (doc as { content: string }).content : null;
   } catch (error: unknown) {
     if ((error as { status?: number })?.status !== 404) {
       logger.warn({ err: error, owner, repo }, "user-state config read failed");
