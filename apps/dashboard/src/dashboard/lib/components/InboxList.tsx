@@ -36,7 +36,6 @@ import { PageShell } from "./PageShell";
 import { OperatorsWarningBanner } from "./OperatorsWarningBanner";
 import { InboxThreadDialog, resolvableThread } from "./InboxThreadDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { DecisionCard } from "./DecisionCard";
 import { kodyApi } from "../api";
 import { useAuth } from "../auth-context";
 import { useInbox } from "../inbox/useInbox";
@@ -46,7 +45,6 @@ import {
   detectCtoRecommendation,
   type CtoAction,
 } from "../cto/recommendation";
-import { useTrust } from "../cto/useTrust";
 import { useTrustDecisions } from "../cto/useTrustDecisions";
 import { useNotificationStore } from "../notifications/useNotificationStore";
 import { NOTIFICATION_META } from "../notifications/types";
@@ -620,7 +618,6 @@ export function InboxList() {
     remove,
   } = useInbox();
   const { verdictFor, invalidate: refreshDecisions } = useTrustDecisions();
-  const trust = useTrust();
   const [deciding, setDeciding] = useState(false);
 
   /** Decide a capability REQUEST right here (no report exists for it):
@@ -735,35 +732,6 @@ export function InboxList() {
         matchesFilters(e, trimmedQuery, sourceFilter, typeFilter, ctoOnly),
       ),
     [read, trimmedQuery, sourceFilter, typeFilter, ctoOnly],
-  );
-
-  // Pending agent requests render as decision cards in their own pinned
-  // section — pulled OUT of the notification lists so a decision never
-  // hides among FYI rows. Decided requests fall back to the normal lists
-  // (where they show their verdict badge).
-  const isPendingDecision = (entry: InboxEntry) => {
-    if (entry.source !== "request") return false;
-    const rec = detectCtoRecommendation(entry);
-    if (!rec) return false;
-    return (
-      verdictFor(rec.capability, rec.taskNumber, rec.action, entry.sentAt) ===
-      null
-    );
-  };
-  const pendingDecisions = useMemo(
-    () => [...filteredUnread, ...filteredRead].filter(isPendingDecision),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- verdictFor is stable per decisions query
-    [filteredUnread, filteredRead, verdictFor],
-  );
-  const listUnread = useMemo(
-    () => filteredUnread.filter((e) => !isPendingDecision(e)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filteredUnread, verdictFor],
-  );
-  const listRead = useMemo(
-    () => filteredRead.filter((e) => !isPendingDecision(e)),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filteredRead, verdictFor],
   );
 
   // Build the chip options from what's actually in the inbox so we never show
@@ -1023,34 +991,8 @@ export function InboxList() {
         </div>
       )}
 
-      {pendingDecisions.length > 0 && (
-        <div className="mb-6">
-          <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-amber-300/80">
-            Needs your decision ({pendingDecisions.length})
-          </h2>
-          <div className="space-y-3">
-            {pendingDecisions.map((entry) => {
-              const rec = detectCtoRecommendation(entry)!;
-              return (
-                <DecisionCard
-                  key={entry.id}
-                  entry={entry}
-                  rec={rec}
-                  deciding={deciding}
-                  trustStreak={
-                    trust.capabilities[rec.capability]?.consecutiveApprovals ??
-                    null
-                  }
-                  onDecide={(decision) => void decideRequest(rec, decision)}
-                />
-              );
-            })}
-          </div>
-        </div>
-      )}
-
       <Section
-        title={`Unread (${listUnread.length})`}
+        title={`Unread (${filteredUnread.length})`}
         empty={
           isLoading
             ? "Loading…"
@@ -1058,7 +1000,7 @@ export function InboxList() {
               ? "No unread matches your filters."
               : "Nothing unread. New @mentions land here automatically."
         }
-        entries={listUnread}
+        entries={filteredUnread}
         connectedRepo={connectedRepo}
         busyId={busyId}
         onOpen={openEntry}
@@ -1073,12 +1015,12 @@ export function InboxList() {
         deciding={deciding}
       />
 
-      {listRead.length > 0 && (
+      {filteredRead.length > 0 && (
         <div className="mt-6">
           <Section
-            title={`Read (${listRead.length})`}
+            title={`Read (${filteredRead.length})`}
             empty=""
-            entries={listRead}
+            entries={filteredRead}
             connectedRepo={connectedRepo}
             busyId={busyId}
             onOpen={openEntry}
