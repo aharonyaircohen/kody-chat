@@ -10,7 +10,10 @@ function tenantFromEntries(entries: InboxFeedEntry[]): string {
 }
 
 function toInboxEntry(entry: InboxFeedEntry): InboxEntry {
-  return { ...entry, readAt: null };
+  // `login` is routing metadata (stored as its own column) — the entry
+  // validator rejects it as an extra field inside the document.
+  const { login: _login, ...rest } = entry;
+  return { ...rest, readAt: null };
 }
 
 export async function readInboxFeed(): Promise<InboxFeedManifest> {
