@@ -10,13 +10,14 @@
  */
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Database,
   Download,
   FileJson,
   Loader2,
+  Plug,
   Upload,
 } from "lucide-react";
 
@@ -43,6 +44,79 @@ interface DumpSummary {
   tenantId: string;
   tableCount: number;
   docCount: number;
+}
+
+interface BackendInfo {
+  convexHost: string | null;
+  configured: boolean;
+  runtimeEnv: string;
+}
+
+/** Which Convex deployment this dashboard instance talks to, and where it
+ *  runs — so an operator always knows which world they're looking at. */
+function ConnectedBackendCard() {
+  const { auth } = useAuth();
+  const [info, setInfo] = useState<BackendInfo | null | "error">(null);
+
+  useEffect(() => {
+    if (!auth) return;
+    let cancelled = false;
+    fetch("/api/kody/company/backend/info", {
+      headers: buildAuthHeaders(auth),
+      cache: "no-store",
+    })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+      .then((data: BackendInfo) => {
+        if (!cancelled) setInfo(data);
+      })
+      .catch(() => {
+        if (!cancelled) setInfo("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [auth]);
+
+  return (
+    <Card>
+      <CardContent className="p-5 space-y-2">
+        <div className="flex items-center gap-2">
+          <Plug className="w-4 h-4 text-amber-400" />
+          <h2 className="text-sm font-semibold">Connected backend</h2>
+          {info && info !== "error" ? (
+            <span
+              className={
+                "ml-auto text-[11px] uppercase tracking-wide px-2 py-0.5 rounded border " +
+                (info.runtimeEnv === "production"
+                  ? "text-emerald-300 bg-emerald-500/10 border-emerald-500/20"
+                  : "text-amber-300 bg-amber-500/10 border-amber-500/20")
+              }
+            >
+              {info.runtimeEnv}
+            </span>
+          ) : null}
+        </div>
+        {info === null ? (
+          <p className="text-sm text-white/60">Checking…</p>
+        ) : info === "error" ? (
+          <p className="text-sm text-rose-300">
+            Couldn&apos;t read backend info.
+          </p>
+        ) : info.configured ? (
+          <p className="text-sm text-white/60">
+            This dashboard reads and writes{" "}
+            <span className="font-mono text-white/85">{info.convexHost}</span>.
+            Webhooks and engine runs always land on the production deployment —
+            a local dev backend will not see them.
+          </p>
+        ) : (
+          <p className="text-sm text-rose-300">
+            CONVEX_URL is not configured — this instance has no database.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 async function readErrorMessage(res: Response): Promise<string> {
@@ -209,6 +283,7 @@ function BackendManagerInner() {
       subtitle={auth ? `${auth.owner}/${auth.repo}` : undefined}
     >
       <div className="space-y-4 max-w-3xl">
+        <ConnectedBackendCard />
         <Card>
           <CardContent className="p-5 space-y-3">
             <div className="flex items-center gap-2">
