@@ -343,13 +343,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
-        href: "/guided-flows",
-        label: "Guided Flows",
-        icon: Route,
-        description: "Resume and manage step-by-step user flows.",
-        tint: "text-teal-300 bg-teal-500/10",
-      },
-      {
         href: "/capabilities",
         label: "Capabilities",
         icon: Layers,
@@ -389,6 +382,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
   {
     title: "Agent Settings",
     items: [
+      {
+        href: "/guided-flows",
+        label: "Guided Flows",
+        icon: Route,
+        description: "Define chat-guided experiences and their renderers.",
+        tint: "text-teal-300 bg-teal-500/10",
+      },
       {
         href: "/models",
         label: "Chat Models",
@@ -609,7 +609,9 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
     icon: CheckCircle2,
     tint: "text-cyan-300",
     collapsible: true,
-    items: [navItemForHref("/user-journeys")],
+    items: [
+      navItemForHref("/user-journeys"),
+    ],
   },
   {
     title: "Workspace",
@@ -639,6 +641,7 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
     items: [
       navItemForHref("/models"),
       navItemForHref("/commands"),
+      navItemForHref("/guided-flows"),
       navItemForHref("/setup"),
       navItemForHref("/views/renderers"),
       navItemForHref("/instructions"),

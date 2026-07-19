@@ -1,70 +1,541 @@
 /** @fileType page */
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Clock3, Loader2, Play, XCircle } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Eye, Loader2, Pencil, Plus, Route, Trash2 } from "lucide-react";
 import { repoScopedHref } from "@kody-ade/base/routes";
 import { AuthGuard } from "../auth-guard";
 import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
-import { requestGuidedFlowOpen } from "../guided-flows/events";
+import {
+  listAuthoringRendererSlugs,
+  type GuidedFlowDraft,
+  type GuidedFlowDraftStep,
+} from "../guided-flows/authoring";
 import { Button } from "@kody-ade/base/ui/button";
+import { Card, CardContent } from "@kody-ade/base/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@kody-ade/base/ui/dialog";
 import { PageShell } from "../components/PageShell";
-import { EmptyState } from "../components/EmptyState";
+import { ConfirmDialog } from "../components/ConfirmDialog";
 
-type FlowStatus = "active" | "completed" | "cancelled";
-interface FlowRecord {
-  instance: { instanceId: string; currentStepId: string; status: FlowStatus; revision: number };
-  flow: { id: string; title: string; stepIndex: number; stepCount: number };
+interface FlowDefinition {
+  id: string;
+  title: string;
+  description?: string;
+  version?: number;
+  completionRouteId?: string;
+  steps: Array<{
+    id?: string;
+    title?: string;
+    explanation?: string;
+    rendererSlug: string;
+    rendererData?: Record<string, unknown>;
+  }>;
 }
-const START_OPTIONS = [
-  { id: "create-workflow", title: "Create a workflow", description: "Build a workflow from an existing capability." },
-] as const;
 
-function FlowCard({ record, onResume, onCancel, cancelling }: { record: FlowRecord; onResume?: (record: FlowRecord) => void; onCancel?: (record: FlowRecord) => void; cancelling?: boolean }) {
-  const { instance, flow } = record;
-  const progress = Math.min(100, Math.round(((flow.stepIndex + 1) / flow.stepCount) * 100));
-  const status = instance.status === "active" ? "In progress" : instance.status === "completed" ? "Completed" : "Cancelled";
+const BUILTIN_START_OPTIONS: FlowDefinition[] = [
+  {
+    id: "create-workflow",
+    title: "Create a workflow",
+    description: "Build a workflow from an existing capability.",
+    steps: [{ rendererSlug: "guided-form" }],
+  },
+];
+
+function isBuiltinDefinition(definition: FlowDefinition): boolean {
+  return BUILTIN_START_OPTIONS.some(
+    (candidate) => candidate.id === definition.id,
+  );
+}
+
+const RENDERER_LABELS: Record<string, string> = {
+  "approval-card": "Approval card",
+  "guided-form": "Guided form",
+  "selection-list": "Selection list",
+  "multi-select-list": "Multi-select list",
+};
+
+function newDraftStep(): GuidedFlowDraftStep {
+  return {
+    title: "New step",
+    explanation: "Explain what the user should do next.",
+    rendererSlug: "guided-form",
+  };
+}
+
+function draftFromDefinition(definition: FlowDefinition): GuidedFlowDraft {
+  return {
+    title: definition.title,
+    completionRouteId: definition.completionRouteId ?? "",
+    steps: definition.steps.map((step) => ({
+      title: step.title ?? definition.title,
+      explanation:
+        step.explanation ??
+        (typeof step.rendererData?.body === "string"
+          ? step.rendererData.body
+          : "Explain what the user should do next."),
+      rendererSlug: step.rendererSlug,
+    })),
+  };
+}
+
+function FlowBuilder({
+  mode,
+  definition,
+  onSaved,
+  onClose,
+}: {
+  mode: "create" | "edit" | "view";
+  definition?: FlowDefinition;
+  onSaved: (definition: FlowDefinition) => void;
+  onClose: () => void;
+}) {
+  const { auth } = useAuth();
+  const [draft, setDraft] = useState<GuidedFlowDraft>({
+    ...(definition
+      ? draftFromDefinition(definition)
+      : { title: "", completionRouteId: "", steps: [newDraftStep()] }),
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const readOnly = mode === "view";
+
+  function updateStep(index: number, update: Partial<GuidedFlowDraftStep>) {
+    setDraft((current) => ({
+      ...current,
+      steps: current.steps.map((step, stepIndex) =>
+        stepIndex === index ? { ...step, ...update } : step,
+      ),
+    }));
+  }
+
+  async function save() {
+    if (!auth) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/kody/guided-flows", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...buildAuthHeaders(auth),
+        },
+        body: JSON.stringify({
+          action: mode === "edit" ? "update-definition" : "create-definition",
+          ...(mode === "edit" && definition ? { flowId: definition.id } : {}),
+          draft,
+        }),
+      });
+      const payload = (await response.json()) as {
+        definition?: FlowDefinition;
+        error?: string;
+      };
+      if (!response.ok || !payload.definition) {
+        throw new Error(payload.error ?? "Unable to save Guided Flow");
+      }
+      onSaved(payload.definition);
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "Unable to save Guided Flow",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
-    <article className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-4">
-      <div className="flex items-start justify-between gap-4"><div><h2 className="font-medium text-white/90">{flow.title}</h2><p className="mt-1 text-sm text-white/50">{status} · Step {flow.stepIndex + 1} of {flow.stepCount}</p></div><span className="rounded-full border border-white/[0.1] px-2 py-1 text-xs text-white/55">{instance.currentStepId}</span></div>
-      <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.08]" aria-label={`${progress}% complete`}><div className="h-full rounded-full bg-teal-400" style={{ width: `${progress}%` }} /></div>
-      {instance.status === "active" && onCancel ? <div className="mt-4 flex gap-2"><Button size="sm" onClick={() => onResume?.(record)}><Play className="mr-1.5 h-4 w-4" /> Resume in chat</Button><Button variant="ghost" size="sm" onClick={() => onCancel(record)} disabled={cancelling}>{cancelling ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <XCircle className="mr-1.5 h-4 w-4" />} Cancel</Button></div> : null}
-    </article>
+    <Dialog open onOpenChange={(open) => !open && onClose()}>
+      <DialogContent modalSize="wide" className="items-start">
+        <DialogHeader>
+          <DialogTitle>
+            {mode === "create"
+              ? "Create a Guided Flow"
+              : mode === "edit"
+                ? "Edit Guided Flow"
+                : "View Guided Flow"}
+          </DialogTitle>
+          <DialogDescription>
+            Define the steps and renderer Kody should show.
+          </DialogDescription>
+        </DialogHeader>
+        {error ? (
+          <p role="alert" className="mt-4 text-sm text-red-200">
+            {error}
+          </p>
+        ) : null}
+        <div className="mt-5 grid gap-4 md:grid-cols-2">
+          <label className="text-sm text-white/70">
+            Flow name
+            <input
+              aria-label="Flow name"
+              className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
+              value={draft.title}
+              disabled={readOnly}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  title: event.target.value,
+                }))
+              }
+            />
+          </label>
+          <label className="text-sm text-white/70">
+            Completion page (optional)
+            <input
+              aria-label="Completion page"
+              className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
+              placeholder="workflows"
+              value={draft.completionRouteId}
+              disabled={readOnly}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  completionRouteId: event.target.value,
+                }))
+              }
+            />
+          </label>
+        </div>
+        <div className="mt-5 space-y-3">
+          {draft.steps.map((step, index) => (
+            <article
+              key={index}
+              className="rounded-lg border border-white/10 bg-black/20 p-4"
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <h3 className="font-medium text-white/80">Step {index + 1}</h3>
+                {!readOnly && draft.steps.length > 1 ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() =>
+                      setDraft((current) => ({
+                        ...current,
+                        steps: current.steps.filter(
+                          (_, stepIndex) => stepIndex !== index,
+                        ),
+                      }))
+                    }
+                  >
+                    Remove
+                  </Button>
+                ) : null}
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="text-sm text-white/70">
+                  Step title
+                  <input
+                    aria-label={`Step ${index + 1} title`}
+                    className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
+                    value={step.title}
+                    disabled={readOnly}
+                    onChange={(event) =>
+                      updateStep(index, { title: event.target.value })
+                    }
+                  />
+                </label>
+                <label className="text-sm text-white/70">
+                  Renderer
+                  <select
+                    aria-label={`Step ${index + 1} renderer`}
+                    className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
+                    value={step.rendererSlug}
+                    disabled={readOnly}
+                    onChange={(event) =>
+                      updateStep(index, { rendererSlug: event.target.value })
+                    }
+                  >
+                    {listAuthoringRendererSlugs().map((slug) => (
+                      <option key={slug} value={slug}>
+                        {RENDERER_LABELS[slug] ?? slug}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <label className="mt-3 block text-sm text-white/70">
+                Explanation
+                <textarea
+                  aria-label={`Step ${index + 1} explanation`}
+                  className="mt-1 min-h-20 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
+                  value={step.explanation}
+                  disabled={readOnly}
+                  onChange={(event) =>
+                    updateStep(index, { explanation: event.target.value })
+                  }
+                />
+              </label>
+            </article>
+          ))}
+        </div>
+        {!readOnly ? (
+          <Button
+            variant="ghost"
+            className="mt-4 w-full border border-dashed border-border text-muted-foreground hover:text-foreground"
+            onClick={() =>
+              setDraft((current) => ({
+                ...current,
+                steps: [...current.steps, newDraftStep()],
+              }))
+            }
+          >
+            + Add step
+          </Button>
+        ) : null}
+        <div className="mt-4 flex flex-wrap justify-end gap-2 border-t border-border pt-4">
+          <Button variant="ghost" onClick={onClose}>
+            {readOnly ? "Close" : "Cancel"}
+          </Button>
+          {!readOnly ? (
+            <Button
+              size="sm"
+              onClick={() => void save()}
+              disabled={saving || !auth}
+            >
+              {saving ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : null}
+              {saving ? "Saving…" : "Save Guided Flow"}
+            </Button>
+          ) : null}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 function GuidedFlowsManager() {
   const { auth } = useAuth();
-  const [records, setRecords] = useState<FlowRecord[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [starting, setStarting] = useState<string | null>(null);
-  const [cancelling, setCancelling] = useState<string | null>(null);
+  const [definitions, setDefinitions] = useState<FlowDefinition[]>(
+    BUILTIN_START_OPTIONS,
+  );
+  const [editor, setEditor] = useState<{
+    mode: "create" | "edit" | "view";
+    definition?: FlowDefinition;
+  } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<FlowDefinition | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const load = useCallback(async () => {
     if (!auth) return;
     setError(null);
-    try { const response = await fetch("/api/kody/guided-flows", { headers: buildAuthHeaders(auth), cache: "no-store", signal: AbortSignal.timeout(15000) }); const payload = (await response.json()) as { flows?: FlowRecord[]; error?: string }; if (!response.ok) throw new Error(payload.error ?? "Unable to load Guided Flows"); setRecords(payload.flows ?? []); } catch (cause) { setError(cause instanceof DOMException && cause.name === "TimeoutError" ? "Guided Flows took too long to load. Try again." : cause instanceof Error ? cause.message : "Unable to load Guided Flows"); } finally { setLoading(false); }
+    try {
+      const response = await fetch("/api/kody/guided-flows?view=templates", {
+        headers: buildAuthHeaders(auth),
+        cache: "no-store",
+        signal: AbortSignal.timeout(15000),
+      });
+      const payload = (await response.json()) as {
+        definitions?: FlowDefinition[];
+        error?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to load Guided Flows");
+      }
+      setDefinitions(payload.definitions ?? BUILTIN_START_OPTIONS);
+    } catch (cause) {
+      setError(
+        cause instanceof DOMException && cause.name === "TimeoutError"
+          ? "Guided Flows took too long to load. Try again."
+          : cause instanceof Error
+            ? cause.message
+            : "Unable to load Guided Flows",
+      );
+    }
   }, [auth]);
+
+  const deleteDefinition = useCallback(
+    async (definition: FlowDefinition) => {
+      if (!auth) return;
+      setDeleting(true);
+      setError(null);
+      try {
+        const response = await fetch("/api/kody/guided-flows", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...buildAuthHeaders(auth),
+          },
+          body: JSON.stringify({
+            action: "delete-definition",
+            flowId: definition.id,
+          }),
+        });
+        const payload = (await response.json()) as { error?: string };
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Unable to delete Guided Flow");
+        }
+        setDefinitions((current) =>
+          current.filter((candidate) => candidate.id !== definition.id),
+        );
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Unable to delete Guided Flow",
+        );
+      } finally {
+        setDeleting(false);
+      }
+    },
+    [auth],
+  );
   useEffect(() => void load(), [load]);
-  const active = useMemo(() => records.filter((record) => record.instance.status === "active"), [records]);
-  const history = useMemo(() => records.filter((record) => record.instance.status !== "active"), [records]);
-  function resume(record: FlowRecord) {
-    requestGuidedFlowOpen(record.instance.instanceId);
-  }
-  async function start(flowId: string) {
-    if (!auth) return; setStarting(flowId); setError(null);
-    try { const response = await fetch("/api/kody/guided-flows", { method: "POST", headers: { "Content-Type": "application/json", ...buildAuthHeaders(auth) }, body: JSON.stringify({ action: "start", flowId }) }); const payload = (await response.json()) as { instance?: { instanceId: string }; error?: string }; if (!response.ok || !payload.instance) throw new Error(payload.error ?? "Unable to start Guided Flow"); requestGuidedFlowOpen(payload.instance.instanceId, "started"); } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to start Guided Flow"); } finally { setStarting(null); }
-  }
-  async function cancel(record: FlowRecord) {
-    if (!auth) return; setCancelling(record.instance.instanceId); setError(null);
-    try { const response = await fetch("/api/kody/guided-flows", { method: "POST", headers: { "Content-Type": "application/json", ...buildAuthHeaders(auth) }, body: JSON.stringify({ action: "cancel", instanceId: record.instance.instanceId, expectedRevision: record.instance.revision, mutationId: crypto.randomUUID() }) }); if (!response.ok) throw new Error("Unable to cancel Guided Flow"); await load(); } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to cancel Guided Flow"); } finally { setCancelling(null); }
-  }
-  return <PageShell title="Guided Flows" subtitle="Resume or manage step-by-step work." icon={Clock3} iconClassName="text-teal-300" width="wide" backHref={auth ? repoScopedHref(auth, "/") : null}><div className="space-y-8">
-    {error ? <div role="alert" className="flex items-center justify-between gap-3 rounded-lg border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200"><span>{error}</span><Button variant="ghost" size="sm" onClick={() => void load()}>Retry</Button></div> : null}
-    <section><div className="mb-3"><div><h2 className="text-lg font-semibold text-white/90">Start a Guided Flow</h2><p className="mt-1 text-sm text-white/50">Choose a flow and Kody will guide you in the open chat.</p></div></div><div className="grid gap-3 md:grid-cols-2">{START_OPTIONS.map((option) => <article key={option.id} className="flex items-center justify-between gap-4 rounded-xl border border-white/[0.08] bg-white/[0.03] p-4"><div><h3 className="font-medium text-white/90">{option.title}</h3><p className="mt-1 text-sm text-white/50">{option.description}</p></div><Button size="sm" onClick={() => void start(option.id)} disabled={starting !== null || !auth}>{starting === option.id ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Play className="mr-1.5 h-4 w-4" />} Start</Button></article>)}</div></section>
-    <section><h2 className="mb-3 text-lg font-semibold text-white/90">In progress</h2>{loading ? <EmptyState icon={<Loader2 className="animate-spin" />} title="Loading Guided Flows..." /> : active.length === 0 ? <EmptyState icon={<Clock3 />} title="No active Guided Flows" hint="Start one above or ask Kody in chat to guide you." /> : <div className="grid gap-3 md:grid-cols-2">{active.map((record) => <FlowCard key={record.instance.instanceId} record={record} onResume={resume} onCancel={(item) => void cancel(item)} cancelling={cancelling === record.instance.instanceId} />)}</div>}</section>
-    <section><h2 className="mb-3 text-lg font-semibold text-white/90">History</h2>{history.length === 0 ? <EmptyState icon={<CheckCircle2 />} title="No completed flows yet" hint="Completed and cancelled flows will appear here." /> : <div className="grid gap-3 md:grid-cols-2">{history.map((record) => <FlowCard key={record.instance.instanceId} record={record} />)}</div>}</section>
-  </div></PageShell>;
+  return (
+    <PageShell
+      title="Guided Flow Management"
+      subtitle="View and manage the reusable step-by-step experiences available to users."
+      icon={Route}
+      iconClassName="text-teal-300"
+      width="wide"
+      backHref={auth ? repoScopedHref(auth, "/") : null}
+    >
+      <div className="space-y-8">
+        {error ? (
+          <div
+            role="alert"
+            className="flex items-center justify-between gap-3 rounded-lg border border-red-400/20 bg-red-400/10 px-4 py-3 text-sm text-red-200"
+          >
+            <span>{error}</span>
+            <Button variant="ghost" size="sm" onClick={() => void load()}>
+              Retry
+            </Button>
+          </div>
+        ) : null}
+        {editor ? (
+          <FlowBuilder
+            key={`${editor.mode}:${editor.definition?.id ?? "new"}`}
+            mode={editor.mode}
+            definition={editor.definition}
+            onClose={() => setEditor(null)}
+            onSaved={(definition) => {
+              setDefinitions((current) => {
+                const exists = current.some(
+                  (candidate) => candidate.id === definition.id,
+                );
+                return exists
+                  ? current.map((candidate) =>
+                      candidate.id === definition.id ? definition : candidate,
+                    )
+                  : [...current, definition];
+              });
+              setEditor(null);
+            }}
+          />
+        ) : null}
+        <section aria-label="Guided Flow definitions">
+          <div className="mb-3 flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-lg font-semibold text-white/90">
+                Flow definitions
+              </h2>
+              <p className="mt-1 text-sm text-white/50">
+                View, edit, and remove reusable Guided Flow definitions.
+                Built-in definitions are read-only.
+              </p>
+            </div>
+            <Button size="sm" onClick={() => setEditor({ mode: "create" })}>
+              <Plus className="mr-1.5 h-4 w-4" />
+              Add Guided Flow
+            </Button>
+          </div>
+          <ul className="space-y-2">
+            {definitions.map((option) => (
+              <li key={option.id}>
+                <Card
+                role="article"
+                aria-label={option.title}
+                className="border-white/[0.08] bg-white/[0.03]"
+              >
+                <CardContent className="flex items-center justify-between gap-4 p-3">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-medium text-white/90">
+                      {option.title}
+                    </h3>
+                    <span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-white/50">
+                      {isBuiltinDefinition(option) ? "Built-in" : "Custom"}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-sm text-white/50">
+                    {option.description ??
+                      `${option.steps.length} guided step${option.steps.length === 1 ? "" : "s"}.`}
+                  </p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`View ${option.title}`}
+                    onClick={() =>
+                      setEditor({ mode: "view", definition: option })
+                    }
+                  >
+                    <Eye className="mr-1.5 h-4 w-4" />
+                    View
+                  </Button>
+                  {!isBuiltinDefinition(option) ? (
+                    <>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Edit ${option.title}`}
+                        onClick={() =>
+                          setEditor({ mode: "edit", definition: option })
+                        }
+                      >
+                        <Pencil className="mr-1.5 h-4 w-4" />
+                        Edit
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label={`Delete ${option.title}`}
+                        onClick={() => setDeleteTarget(option)}
+                      >
+                        <Trash2 className="mr-1.5 h-4 w-4" />
+                        Delete
+                      </Button>
+                    </>
+                  ) : null}
+                </div>
+                </CardContent>
+              </Card>
+              </li>
+            ))}
+          </ul>
+        </section>
+        <ConfirmDialog
+          open={Boolean(deleteTarget)}
+          title="Delete Guided Flow"
+          description={
+            deleteTarget
+              ? `Delete “${deleteTarget.title}”? New users will no longer be able to start this definition.`
+              : ""
+          }
+          confirmLabel={deleting ? "Deleting…" : "Delete"}
+          variant="destructive"
+          onConfirm={() => {
+            if (deleteTarget) void deleteDefinition(deleteTarget);
+          }}
+          onClose={() => {
+            if (!deleting) setDeleteTarget(null);
+          }}
+        />
+      </div>
+    </PageShell>
+  );
 }
 
-export default function GuidedFlowsPage() { return <AuthGuard><GuidedFlowsManager /></AuthGuard>; }
+export default function GuidedFlowsPage() {
+  return (
+    <AuthGuard>
+      <GuidedFlowsManager />
+    </AuthGuard>
+  );
+}

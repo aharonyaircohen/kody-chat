@@ -367,6 +367,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     title: "Agent Settings",
     items: [
       {
+        href: "/guided-flows",
+        label: "Guided Flows",
+        icon: Route,
+        description: "Define chat-guided experiences and their renderers.",
+        tint: "text-teal-300 bg-teal-500/10",
+      },
+      {
         href: "/models",
         label: "Chat Models",
         icon: Cpu,

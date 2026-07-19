@@ -99,6 +99,7 @@ import {
   type GuidedFlowOpenRequest,
 } from "../guided-flows/events";
 import { buildGuidedFlowStatusView } from "../guided-flows/registry";
+import { guidedFlowActionErrorMessage } from "../guided-flows/errors";
 import { repoScopedHref } from "@kody-ade/base/routes";
 
 function reportValue(value: unknown, max = 1_000): string | null {
@@ -235,9 +236,9 @@ export function KodyChat({
         .then((payload) => {
           const view = payload?.flow?.view;
           if (!isRenderedViewDirective(view)) return;
-          setResumedGuidedFlowMessage({
-            sessionId: activeGuidedFlowSessionIdRef.current,
-            message: {
+          persistGuidedFlowMessageRef.current(
+            activeGuidedFlowSessionIdRef.current,
+            {
               role: "assistant",
               content:
                 message === "started"
@@ -246,7 +247,7 @@ export function KodyChat({
               timestamp: new Date().toISOString(),
               view,
             },
-          });
+          );
         })
         .catch(() => undefined);
     };
@@ -329,6 +330,10 @@ export function KodyChat({
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   const [usedViewIds, setUsedViewIds] = useState<Set<string>>(() => new Set());
   const activeGuidedFlowSessionIdRef = useRef<string | null>(null);
+  const persistedGuidedFlowViewKeysRef = useRef<Set<string>>(new Set());
+  const persistGuidedFlowMessageRef = useRef<
+    (sessionId: string | null, message: Message) => void
+  >(() => undefined);
   // ─── Chat plugin platform (Step 4 mechanics, Step 6 injection) ───
   // One registry PER MOUNT (plan H4: ChatRailShell mounts KodyChat twice;
   // plugin manifests are global pure data, instantiation is per mount).
@@ -897,16 +902,13 @@ export function KodyChat({
       .then((payload) => {
         const view = payload?.flow?.view ?? payload?.view;
         if (cancelled || !isRenderedViewDirective(view)) return;
-        setResumedGuidedFlowMessage({
-          sessionId: activeChatSessionId,
-          message: {
-            role: "assistant",
-            content: guidedFlowInstanceId
-              ? "GuidedFlow resumed. Continue where you stopped."
-              : "GuidedFlow started. Follow the steps below.",
-            timestamp: new Date().toISOString(),
-            view,
-          },
+        persistGuidedFlowMessageRef.current(activeChatSessionId, {
+          role: "assistant",
+          content: guidedFlowInstanceId
+            ? "GuidedFlow resumed. Continue where you stopped."
+            : "GuidedFlow started. Follow the steps below.",
+          timestamp: new Date().toISOString(),
+          view,
         });
       })
       .catch(() => undefined);
@@ -940,6 +942,15 @@ export function KodyChat({
     },
     [sessionHook],
   );
+  persistGuidedFlowMessageRef.current = (sessionId, message) => {
+    if (!sessionId) return;
+    const viewKey = message.view
+      ? `${sessionId}:${message.view.id}`
+      : `${sessionId}:${message.timestamp}`;
+    if (persistedGuidedFlowViewKeysRef.current.has(viewKey)) return;
+    persistedGuidedFlowViewKeysRef.current.add(viewKey);
+    setMessages((prev) => [...prev, message]);
+  };
   const setMessagesForSession = useCallback(
     (
       sessionId: string,
@@ -1469,10 +1480,9 @@ export function KodyChat({
               ...prev,
               {
                 role: "assistant",
-                content:
-                  error instanceof Error
-                    ? `GuidedFlow could not continue: ${error.message}`
-                    : "GuidedFlow could not continue.",
+                content: guidedFlowActionErrorMessage(
+                  error instanceof Error ? error.message : undefined,
+                ),
                 timestamp: new Date().toISOString(),
                 isError: true,
               },

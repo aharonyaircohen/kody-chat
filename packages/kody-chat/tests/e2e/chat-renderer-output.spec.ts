@@ -353,6 +353,7 @@ async function mockChatStream(
   page: Page,
   options: {
     onRequest?: (body: { messages?: Array<{ content?: string }> }) => void;
+    alwaysContent?: string;
   } = {},
 ): Promise<void> {
   let turn = 0;
@@ -364,13 +365,15 @@ async function mockChatStream(
     options.onRequest?.(body);
     const latest = body.messages?.at(-1)?.content ?? "";
     const output =
-      latest.includes("multiple") && latest.includes("reports")
-        ? renderedMultiSelectionView()
-        : latest.includes("reports") && latest.includes("select")
-          ? renderedSelectionView()
-          : turn === 1
-            ? renderedApprovalView()
-            : { content: "Recorded." };
+      options.alwaysContent !== undefined
+        ? { content: options.alwaysContent }
+        : latest.includes("multiple") && latest.includes("reports")
+          ? renderedMultiSelectionView()
+          : latest.includes("reports") && latest.includes("select")
+            ? renderedSelectionView()
+            : turn === 1
+              ? renderedApprovalView()
+              : { content: "Recorded." };
     await route.fulfill({
       status: 200,
       headers: {
@@ -711,7 +714,9 @@ test.describe("Kody chat renderer output", () => {
     await expect(
       page.getByText("You have an unfinished GuidedFlow."),
     ).toBeVisible();
-    await expect(page.getByText("Create a workflow · Step 1 of 2")).toBeVisible();
+    await expect(
+      page.getByText("Create a workflow · Step 1 of 2"),
+    ).toBeVisible();
     await expect(page.getByLabel("Workflow name")).toHaveCount(0);
     const resume = page.getByRole("button", { name: "Resume flow" });
     await expect(resume).toHaveCount(1);
@@ -720,24 +725,36 @@ test.describe("Kody chat renderer output", () => {
     await expect(page).toHaveURL(chatUrlBeforeResume);
     await expect(page.getByLabel("Workflow name")).toBeVisible();
 
+    await page.unroute("**/api/kody/chat/kody");
+    await mockChatStream(page, { alwaysContent: "Recorded." });
+    await sendChatMessage(page, "What does this step mean?");
+    await expect(page.getByText("Recorded.")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Review workflow" }),
+    ).toBeVisible();
+
     await page
       .getByTestId("chat-header-controls")
       .getByRole("button", { name: "New conversation" })
       .click();
-    await expect(page.getByText("You have an unfinished GuidedFlow.")).toBeVisible();
+    await expect(
+      page.getByText("You have an unfinished GuidedFlow."),
+    ).toBeVisible();
     await expect(page.getByLabel("Workflow name")).toHaveCount(0);
     await page.getByRole("button", { name: "Resume flow" }).click();
     await expect(page.getByLabel("Workflow name")).toBeVisible();
     await page.getByRole("button", { name: "Review workflow" }).click();
-    await expect(page.getByRole("alert").filter({ hasText: "Enter a name" })).toContainText(
-      "Enter a name for this workflow.",
-    );
+    await expect(
+      page.getByRole("alert").filter({ hasText: "Enter a name" }),
+    ).toContainText("Enter a name for this workflow.");
     expect(guidedRequests).toHaveLength(0);
     await page.getByLabel("Workflow name").fill("Nightly checks");
     await page.getByLabel("Capability slug").fill("run-tests");
     await page.getByRole("button", { name: "Review workflow" }).click();
 
-    await expect(page.getByText("Review workflow")).toBeVisible();
+    await expect(
+      page.getByText("Review workflow", { exact: true }).last(),
+    ).toBeVisible();
     expect(guidedRequests).toHaveLength(1);
     expect(guidedRequests[0]).toMatchObject({
       action: "submit",
@@ -751,6 +768,68 @@ test.describe("Kody chat renderer output", () => {
       action: "submit",
       actionId: "approve",
     });
+  });
+
+  test("shows safe guidance when GuidedFlow completion fails", async ({
+    page,
+  }) => {
+    await page.route("**/api/kody/guided-flows**", async (route) => {
+      if (route.request().method() === "GET") {
+        if (route.request().url().includes("instanceId=")) {
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              flow: { view: guidedFlowView("review", 1) },
+            }),
+          });
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            flows: [
+              {
+                instance: {
+                  instanceId: "guided-flow-error-e2e",
+                  status: "active",
+                  revision: 1,
+                },
+                flow: {
+                  id: "create-workflow",
+                  title: "Create a workflow",
+                  stepIndex: 1,
+                  stepCount: 2,
+                },
+                view: guidedFlowView("review", 1),
+              },
+            ],
+          }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "guided_flow_action_failed" }),
+      });
+    });
+    await openChat(page);
+    await expect(
+      page.getByText("You have an unfinished GuidedFlow."),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Resume flow" }).click();
+    await expect(
+      page.getByRole("button", { name: "Create workflow" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Create workflow" }).click();
+
+    const safeError = page.getByText(
+      "We couldn't continue this Guided Flow. Your progress is saved; please try again.",
+    );
+    await expect(safeError).toBeVisible();
+    await expect(page.getByText("guided_flow_action_failed")).toHaveCount(0);
   });
 
   test("approval request uses renderer-capable Kody path when a model exists without a saved default", async ({

@@ -5,72 +5,8 @@ const auth = {
   owner: "acme",
   repo: "widgets",
   token: "e2e-token",
-  user: {
-    login: "e2e-test",
-    avatar_url: "https://github.com/github-mark.png",
-    id: 1,
-  },
+  user: { login: "e2e-test", avatar_url: "", id: 1 },
   loggedInAt: Date.now(),
-};
-
-const guidedFlowsPath = "/repo/acme/widgets/guided-flows";
-
-async function expectGuidedFlowsPage(page: import("@playwright/test").Page) {
-  await expect(
-    page.getByRole("heading", { name: "Guided Flows" }),
-  ).toBeVisible({ timeout: 30_000 });
-}
-
-const activeFlow = {
-  instance: {
-    instanceId: "flow-active",
-    flowId: "create-workflow",
-    flowVersion: 1,
-    currentStepId: "choose-capability",
-    status: "active",
-    revision: 0,
-    data: {},
-    history: [],
-  },
-  flow: {
-    id: "create-workflow",
-    title: "Create a workflow",
-    stepIndex: 0,
-    stepCount: 2,
-  },
-};
-
-const cancelledFlow = {
-  ...activeFlow,
-  instance: {
-    ...activeFlow.instance,
-    instanceId: "flow-cancelled",
-    status: "cancelled",
-  },
-};
-
-const guidedFormView = {
-  action: "render_view",
-  view: "renderer",
-  id: "guided-flow-page-e2e",
-  rendererSlug: "guided-form",
-  rendererName: "Guided form",
-  resultTarget: "guided-flow",
-  guidedFlow: {
-    instanceId: "flow-started",
-    stepId: "choose-capability",
-    revision: 0,
-  },
-  ui: {
-    type: "stack",
-    children: [
-      { type: "text", value: "Create a workflow", variant: "title" },
-      { type: "input", name: "workflowName", label: "Workflow name", value: "", readOnly: false },
-      { type: "input", name: "capabilitySlug", label: "Capability slug", value: "", readOnly: false },
-      { type: "submit", label: "Review workflow" },
-    ],
-  },
-  data: {},
 };
 
 async function json(route: Route, body: unknown, status = 200) {
@@ -82,115 +18,190 @@ async function json(route: Route, body: unknown, status = 200) {
 }
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript((value) => {
-    window.localStorage.setItem("kody_auth", JSON.stringify(value));
-  }, auth);
+  await page.addInitScript(
+    (value) => window.localStorage.setItem("kody_auth", JSON.stringify(value)),
+    auth,
+  );
   await page.route("**/api/kody/auth/me", (route) =>
     json(route, {
       authenticated: true,
-      user: { login: "e2e-test", avatar_url: auth.user.avatar_url, githubId: 1 },
+      user: { login: "e2e-test", avatar_url: "", githubId: 1 },
     }),
   );
 });
 
-test("loads active and history, then cancels an active flow", async ({ page }) => {
-  let records = [activeFlow, cancelledFlow];
-  const requests: string[] = [];
-  await page.route("**/api/kody/guided-flows", async (route) => {
-    const request = route.request();
-    requests.push(request.method());
-    if (request.method() === "GET") {
-      await json(route, { flows: records });
-      return;
-    }
-    records = [cancelledFlow];
-    await json(route, { instance: { ...activeFlow.instance, status: "cancelled" } });
+test("shows only GuidedFlow templates", async ({ page }) => {
+  await page.route("**/api/kody/guided-flows**", (route) =>
+    json(route, {
+      definitions: [
+        {
+          id: "create-workflow",
+          title: "Create a workflow",
+          steps: [{ rendererSlug: "guided-form" }],
+        },
+      ],
+    }),
+  );
+  await page.goto("/repo/acme/widgets/guided-flows", {
+    waitUntil: "domcontentloaded",
   });
-
-  await page.goto(guidedFlowsPath, { waitUntil: "domcontentloaded" });
-  await expectGuidedFlowsPage(page);
-  await expect(page.getByRole("heading", { name: "In progress" })).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Create a workflow", exact: true }),
-  ).toHaveCount(3);
-  await expect(page.getByText("Cancelled")).toBeVisible();
-
-  const back = page.getByRole("link", { name: "Back" });
-  await expect(back).toHaveCount(1);
-  expect(await back.getAttribute("href")).toBe("/repo/acme/widgets");
-
-  const cancel = page.getByRole("button", { name: "Cancel" });
-  await expect(cancel).toHaveCount(1);
-  await cancel.click();
-  await expect(page.getByText("No active Guided Flows")).toBeVisible();
-  expect(requests.filter((method) => method === "POST")).toHaveLength(1);
-  expect(requests.at(-1)).toBe("GET");
+    page.getByRole("heading", { name: "Guided Flow Management" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("Create a workflow", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("In progress", { exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "History", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Start" })).toHaveCount(0);
 });
 
-test("starts a flow in the already-open chat without navigating", async ({ page }) => {
-  await page.route("**/api/kody/guided-flows", async (route) => {
-    if (route.request().method() === "GET" && route.request().url().includes("instanceId=")) {
-      await json(route, { flow: { ...activeFlow, view: guidedFormView } });
-      return;
-    }
+test("creates a GuidedFlow template with an explicit renderer", async ({
+  page,
+}) => {
+  const posts: unknown[] = [];
+  await page.route("**/api/kody/guided-flows**", async (route) => {
     if (route.request().method() === "GET") {
-      await json(route, {
-        flows: [
-          {
-            ...activeFlow,
-            instance: { ...activeFlow.instance, instanceId: "flow-started" },
-            view: guidedFormView,
-          },
-        ],
-      });
+      await json(route, { definitions: [] });
       return;
     }
+    posts.push(route.request().postDataJSON());
     await json(
       route,
       {
-        instance: {
-          ...activeFlow.instance,
-          instanceId: "flow-started",
+        definition: {
+          id: "review-release",
+          title: "Review a release",
+          steps: [{ rendererSlug: "approval-card" }],
         },
-        view: {},
       },
       201,
     );
   });
-
-  await page.goto(guidedFlowsPath, { waitUntil: "domcontentloaded" });
-  await expectGuidedFlowsPage(page);
-  await expect(page.getByText("Global chat — not tied to any task", { exact: true })).toBeVisible();
-  const startSection = page
-    .locator("section")
-    .filter({ has: page.getByRole("heading", { name: "Start a Guided Flow" }) });
-  await expect(startSection).toHaveCount(1);
-  const createCard = startSection
-    .locator("article")
-    .filter({ hasText: "Create a workflow" });
-  await expect(createCard).toHaveCount(1);
-  await createCard.getByRole("button", { name: "Start" }).click();
-  await expect(page).toHaveURL(/\/guided-flows$/);
+  await page.goto("/repo/acme/widgets/guided-flows", {
+    waitUntil: "domcontentloaded",
+  });
+  await page.getByRole("button", { name: "Add Guided Flow" }).click();
+  await page.getByRole("button", { name: "+ Add step" }).click();
+  await page.getByLabel("Flow name").fill("Review a release");
+  await page.getByLabel("Step 1 title").fill("Confirm the release");
+  await page
+    .getByLabel("Step 1 explanation")
+    .fill("Check the release details.");
+  await page.getByLabel("Step 1 renderer").selectOption("approval-card");
+  await page.getByRole("button", { name: "Save Guided Flow" }).click();
+  await expect(
+    page.getByText("Review a release", { exact: true }),
+  ).toBeVisible();
+  expect(posts).toContainEqual({
+    action: "create-definition",
+    draft: expect.objectContaining({ title: "Review a release" }),
+  });
 });
 
-test("resumes the selected active flow in the already-open chat without navigating", async ({ page }) => {
-  await page.route("**/api/kody/guided-flows", async (route) => {
-    if (route.request().url().includes("instanceId=")) {
-      await json(route, { flow: { ...activeFlow, view: guidedFormView } });
+test("manages custom GuidedFlow definitions without editing built-ins", async ({
+  page,
+}) => {
+  const posts: unknown[] = [];
+  let customDefinition = {
+    id: "review-release",
+    title: "Review a release",
+    description: "Review the release before publishing.",
+    steps: [
+      {
+        title: "Confirm release",
+        explanation: "Check the details.",
+        rendererSlug: "approval-card",
+      },
+    ],
+  };
+
+  await page.route("**/api/kody/guided-flows**", async (route) => {
+    if (route.request().method() === "GET") {
+      await json(route, {
+        definitions: [
+          {
+            id: "create-workflow",
+            title: "Create a workflow",
+            steps: [{ rendererSlug: "guided-form" }],
+          },
+          customDefinition,
+        ],
+      });
       return;
     }
-    await json(route, { flows: [{ ...activeFlow, view: guidedFormView }] });
+
+    const body = route.request().postDataJSON() as {
+      action: string;
+      draft?: { title: string };
+      flowId?: string;
+    };
+    posts.push(body);
+    if (body.action === "update-definition") {
+      customDefinition = {
+        ...customDefinition,
+        title: body.draft?.title ?? customDefinition.title,
+      };
+      await json(route, { definition: customDefinition });
+      return;
+    }
+    if (body.action === "delete-definition") {
+      await json(route, { deleted: body.flowId });
+      return;
+    }
+    await json(route, { error: "unexpected_action" }, 400);
   });
 
-  await page.goto(guidedFlowsPath, { waitUntil: "domcontentloaded" });
-  await expectGuidedFlowsPage(page);
-  await expect(page.getByText("Global chat — not tied to any task", { exact: true })).toBeVisible();
-  const activeCard = page
-    .locator("article")
-    .filter({ hasText: "In progress · Step 1 of 2" });
-  await expect(activeCard).toHaveCount(1);
-  const resume = activeCard.getByRole("button", { name: "Resume in chat" });
-  await expect(resume).toHaveCount(1);
-  await resume.click();
-  await expect(page).toHaveURL(/\/guided-flows$/);
+  await page.goto("/repo/acme/widgets/guided-flows", {
+    waitUntil: "domcontentloaded",
+  });
+  const builtIn = page.getByRole("article", { name: "Create a workflow" });
+  const custom = page.getByRole("article", { name: "Review a release" });
+  await expect(builtIn).toBeVisible();
+  await expect(custom).toBeVisible();
+  await expect(builtIn.getByRole("button", { name: "Edit" })).toHaveCount(0);
+  await expect(custom.getByRole("button", { name: "Edit" })).toBeVisible();
+
+  await builtIn.getByRole("button", { name: "View" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "View Guided Flow" }),
+  ).toBeVisible();
+  await expect(page.getByRole("dialog").getByLabel("Flow name")).toBeDisabled();
+  await page
+    .getByRole("dialog")
+    .getByRole("button", { name: "Close" })
+    .first()
+    .click();
+
+  await custom.getByRole("button", { name: "Edit" }).click();
+  const editDialog = page.getByRole("dialog", { name: "Edit Guided Flow" });
+  await editDialog.getByLabel("Flow name").fill("Review a production release");
+  await editDialog.getByRole("button", { name: "Save Guided Flow" }).click();
+  await expect(
+    page.getByRole("article", { name: "Review a production release" }),
+  ).toBeVisible();
+  expect(posts).toContainEqual({
+    action: "update-definition",
+    flowId: "review-release",
+    draft: expect.objectContaining({ title: "Review a production release" }),
+  });
+
+  await page
+    .getByRole("article", { name: "Review a production release" })
+    .getByRole("button", { name: "Delete" })
+    .click();
+  const confirmDialog = page.getByRole("dialog", {
+    name: "Delete Guided Flow",
+  });
+  await expect(confirmDialog).toBeVisible();
+  await confirmDialog.getByRole("button", { name: "Delete" }).click();
+  await expect(
+    page.getByRole("article", { name: "Review a production release" }),
+  ).toHaveCount(0);
+  expect(posts).toContainEqual({
+    action: "delete-definition",
+    flowId: "review-release",
+  });
 });
