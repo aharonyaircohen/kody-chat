@@ -1,12 +1,13 @@
 /**
  * Unit tests for the model picker contract.
  *
- * Only configured custom models are shown. Internal Brain/Live runners and
- * unfinished built-in provider connections must not appear in the picker.
+ * Live and Brain are first-class chat backends. Configured custom models are
+ * shown alongside them.
  */
 import { describe, expect, it } from "vitest";
 import {
   buildAgentList,
+  type BrainChatModelEntry,
   type ChatModelEntry,
 } from "@kody-ade/kody-chat/platform/agent-entries";
 import { AGENTS } from "@dashboard/lib/agents";
@@ -23,9 +24,41 @@ const model = (
 });
 
 describe("buildAgentList", () => {
-  it("shows no built-in choice when no custom model is configured", () => {
-    expect(buildAgentList(false, false, false, [])).toEqual([]);
-    expect(buildAgentList(true, true, true, [])).toEqual([]);
+  it("always shows Live when no Brain or custom model is configured", () => {
+    expect(buildAgentList(false, false, false, []).map((e) => e.key)).toEqual([
+      "kody-live",
+    ]);
+  });
+
+  it("shows manual Brain when configured", () => {
+    expect(buildAgentList(true, false, false, []).map((e) => e.key)).toEqual([
+      "kody-live",
+      "brain",
+    ]);
+  });
+
+  it("shows enabled personal Brain models by name", () => {
+    const brainModels: BrainChatModelEntry[] = [
+      { id: "personal", name: "Personal Brain", enabled: true },
+      { id: "disabled", name: "Disabled Brain", enabled: false },
+    ];
+    expect(
+      buildAgentList(false, false, false, [], brainModels).map((e) => e.key),
+    ).toEqual(["kody-live", "brain:personal"]);
+    expect(
+      buildAgentList(false, false, false, [], brainModels)[1],
+    ).toMatchObject({
+      agentId: "brain",
+      modelId: "personal",
+      name: "Personal Brain",
+    });
+  });
+
+  it("prefers Repo Brain when Fly chat is enabled", () => {
+    expect(buildAgentList(true, true, true, []).map((e) => e.key)).toEqual([
+      "kody-live-fly",
+      "brain-fly",
+    ]);
   });
 
   it("maps enabled custom models and drops disabled ones", () => {
@@ -56,13 +89,18 @@ describe("buildAgentList", () => {
       model({ id: "a" }),
       model({ id: "b" }),
     ]);
-    expect(list.map((entry) => entry.key)).toEqual(["kody:a", "kody:b"]);
+    expect(list.map((entry) => entry.key)).toEqual([
+      "kody-live-fly",
+      "brain-fly",
+      "kody:a",
+      "kody:b",
+    ]);
   });
 
   it("does not add a built-in Claude row even when a custom model uses Claude", () => {
     const keys = buildAgentList(true, true, true, [
       model({ id: "claude-y", label: "Claude Y" }),
     ]).map((entry) => entry.key);
-    expect(keys).toEqual(["kody:claude-y"]);
+    expect(keys).toEqual(["kody-live-fly", "brain-fly", "kody:claude-y"]);
   });
 });

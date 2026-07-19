@@ -2,8 +2,8 @@
  * @fileType config
  * @domain kody
  * @pattern chat-entry-list
- * @ai-summary Builds the user-facing list of configured custom chat models.
- *   Internal Brain and Live runners are not model-picker choices.
+ * @ai-summary Builds the selectable chat backend/model entry list shared by
+ *   the chat picker and default-chat settings.
  */
 
 import { AGENTS, type AgentConfig, type AgentId } from "@dashboard/lib/agents";
@@ -27,6 +27,8 @@ export interface ChatDropdownEntry {
    * Surfaced here so the UI never reaches into the raw `ChatModel` list.
    */
   reasoning: ModelReasoning | null;
+  /** Runtime command selected for a personal Brain model. */
+  runtime?: string;
 }
 
 /** A user-managed chat model from /api/kody/models (LLM_MODELS variable). */
@@ -38,11 +40,23 @@ export interface ChatModelEntry {
   default?: boolean;
 }
 
+/** A personal Brain model configured on the /brain page. */
+export interface BrainChatModelEntry {
+  id: string;
+  name: string;
+  runtime?: string;
+  enabled?: boolean;
+  default?: boolean;
+}
+
 /** True when an entry key depends on the async /api/kody/models list. */
 export function isModelBackedEntryKey(
   key: string | null | undefined,
-): key is `kody:${string}` {
-  return typeof key === "string" && key.startsWith("kody:");
+): key is `kody:${string}` | `brain:${string}` {
+  return (
+    typeof key === "string" &&
+    (key.startsWith("kody:") || key.startsWith("brain:"))
+  );
 }
 
 /**
@@ -66,16 +80,64 @@ export function shouldWaitForModelBackedEntryResolution({
 /**
  * Build the ordered list of selectable chat entries.
  *
- * Brain and Live configuration is accepted for compatibility with existing
- * callers, but neither internal runner is exposed as a model choice.
+ * Live is always visible because it is the chat's fallback. Brain is visible
+ * when configured; Repo Brain replaces it when its Fly chat toggle is on.
  */
 export function buildAgentList(
-  _brainConfigured: boolean,
-  _flyConfigured: boolean,
-  _brainFlyChatEnabled: boolean,
+  brainConfigured: boolean,
+  flyConfigured: boolean,
+  brainFlyChatEnabled: boolean,
   models: ChatModelEntry[],
+  brainModels: BrainChatModelEntry[] = [],
 ): ChatDropdownEntry[] {
   const entries: ChatDropdownEntry[] = [];
+  const live = AGENTS[flyConfigured ? "kody-live-fly" : "kody-live"];
+  entries.push({
+    key: live.id,
+    agentId: live.id,
+    modelId: null,
+    name: live.name,
+    description: live.description,
+    icon: live.icon,
+    reasoning: null,
+  });
+
+  const brain =
+    flyConfigured && brainFlyChatEnabled
+      ? AGENTS["brain-fly"]
+      : brainConfigured || brainModels.length > 0
+        ? AGENTS.brain
+        : null;
+  if (brain) {
+    const configuredBrainModels = brainModels.filter(
+      (model) => model.enabled !== false,
+    );
+    if (configuredBrainModels.length > 0) {
+      entries.push(
+        ...configuredBrainModels.map((model) => ({
+          key: `${brain.id}:${model.id}`,
+          agentId: brain.id,
+          modelId: model.id,
+          name: model.name,
+          description: brain.description,
+          icon: brain.icon,
+          reasoning: null,
+          runtime: model.runtime,
+        })),
+      );
+    } else {
+      entries.push({
+        key: brain.id,
+        agentId: brain.id,
+        modelId: null,
+        name: brain.name,
+        description: brain.description,
+        icon: brain.icon,
+        reasoning: null,
+      });
+    }
+  }
+
   // One row per enabled user-managed model. All route through the in-process
   // gateway path (`/api/kody/chat/kody`) with the model id forwarded in the
   // request body.

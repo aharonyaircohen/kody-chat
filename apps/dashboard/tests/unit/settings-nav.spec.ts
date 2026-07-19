@@ -127,6 +127,7 @@ describe("settings navigation", () => {
     expect(SIDEBAR_NAV_SECTIONS.map((section) => section.title)).toEqual([
       "Work",
       "Agency",
+      "Quality",
       "Workspace",
       "Content",
       "Chat",
@@ -148,6 +149,7 @@ describe("settings navigation", () => {
       "/agent-goals",
       "/agent-loops",
       "/workflows",
+      "/guided-flows",
       "/capabilities",
       "/store-catalog",
       "/company",

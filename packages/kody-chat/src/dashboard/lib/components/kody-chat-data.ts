@@ -17,7 +17,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { ChatModelEntry } from "../chat/platform/agent-entries";
+import type {
+  BrainChatModelEntry,
+  ChatModelEntry,
+} from "../chat/platform/agent-entries";
+import { OPENROUTER_FREE_CHAT_MODEL } from "@kody-ade/base/variables/models";
 import { authHeaders } from "../chat/core/kody-chat-live-session";
 
 export interface ChatDataSources {
@@ -28,6 +32,8 @@ export interface ChatDataSources {
    */
   chatModels: ChatModelEntry[];
   chatModelsLoaded: boolean;
+  /** Personal Brain models configured on /brain. */
+  brainModels: BrainChatModelEntry[];
   /**
    * Per-repo opt-in for the "Repo Brain" chat row (backend
    * dashboard.json, default false). Chat-only — does NOT gate Fly task
@@ -50,6 +56,7 @@ export interface ChatDataSources {
 export function useChatDataSources(): ChatDataSources {
   const [chatModels, setChatModels] = useState<ChatModelEntry[]>([]);
   const [chatModelsLoaded, setChatModelsLoaded] = useState(false);
+  const [brainModels, setBrainModels] = useState<BrainChatModelEntry[]>([]);
   const [brainFlyChatEnabled, setBrainFlyChatEnabled] = useState(false);
   const [flyConfigured, setFlyConfigured] = useState(false);
 
@@ -58,19 +65,32 @@ export function useChatDataSources(): ChatDataSources {
   // still works through the engine path.
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/kody/models", { headers: authHeaders() })
-      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
-      .then((json: { models?: ChatModelEntry[] }) => {
+    const request = (path: string) =>
+      fetch(path, { headers: authHeaders() })
+        .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+        .catch(() => ({}));
+    Promise.all([
+      request("/api/kody/models"),
+      request("/api/kody/brain/models"),
+    ]).then(
+      ([modelsJson, brainJson]: [
+        { models?: ChatModelEntry[] },
+        { models?: BrainChatModelEntry[] },
+      ]) => {
         if (cancelled) return;
-        setChatModels(Array.isArray(json.models) ? json.models : []);
+        const configuredModels = Array.isArray(modelsJson.models)
+          ? modelsJson.models
+          : [];
+        setChatModels([
+          OPENROUTER_FREE_CHAT_MODEL,
+          ...configuredModels.filter(
+            (model) => model.id !== OPENROUTER_FREE_CHAT_MODEL.id,
+          ),
+        ]);
+        setBrainModels(Array.isArray(brainJson.models) ? brainJson.models : []);
         setChatModelsLoaded(true);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setChatModels([]);
-          setChatModelsLoaded(true);
-        }
-      });
+      },
+    );
     return () => {
       cancelled = true;
     };
@@ -129,5 +149,11 @@ export function useChatDataSources(): ChatDataSources {
     };
   }, []);
 
-  return { chatModels, chatModelsLoaded, brainFlyChatEnabled, flyConfigured };
+  return {
+    chatModels,
+    chatModelsLoaded,
+    brainModels,
+    brainFlyChatEnabled,
+    flyConfigured,
+  };
 }

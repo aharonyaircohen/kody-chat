@@ -1,7 +1,6 @@
 /**
  * @fileoverview Browser contract for the current chat picker boundary.
- * Brain and Live are internal runners, not user-selectable model entries.
- * Custom gateway models are the only entries exposed by this picker.
+ * Brain and Live are user-selectable chat backends alongside custom models.
  *
  * @testFramework playwright
  * @domain e2e-mocked
@@ -35,7 +34,7 @@ async function seedAuth(page: Page): Promise<void> {
   });
 }
 
-test.describe("Chat picker internal-runner boundary", () => {
+test.describe("Chat picker backend boundary", () => {
   test.beforeEach(async ({ page }) => {
     await page.route("**/api/kody/models", (route) =>
       route.fulfill({
@@ -49,7 +48,7 @@ test.describe("Chat picker internal-runner boundary", () => {
     await seedAuth(page);
   });
 
-  test("keeps Brain and Live out of the picker while exposing custom models", async ({
+  test("shows Brain and Live alongside custom models", async ({
     page,
   }) => {
     await page.goto(`${BASE_URL}/chat`);
@@ -66,9 +65,9 @@ test.describe("Chat picker internal-runner boundary", () => {
     ).toBeVisible();
     await expect(
       menu.locator('button[role="option"]').filter({ hasText: "Kody Brain" }),
-    ).toHaveCount(0);
+    ).toBeVisible();
     await expect(
       menu.locator('button[role="option"]').filter({ hasText: "Kody Live" }),
-    ).toHaveCount(0);
+    ).toBeVisible();
   });
 });

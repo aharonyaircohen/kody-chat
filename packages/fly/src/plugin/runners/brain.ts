@@ -491,11 +491,28 @@ async function ensureApp(
   // locally so callers (and IP allocation) can use it. If Fly rejects
   // (409/422 = name taken, 403 = no write scope, etc.), the error
   // surfaces verbatim for the user to act on.
-  const created = await flyFetch<FlyApp>("/apps", {
-    method: "POST",
-    token: flyToken,
-    body: { app_name: appName, org_slug: orgSlug },
-  });
+  let created: FlyApp | null;
+  try {
+    created = await flyFetch<FlyApp>("/apps", {
+      method: "POST",
+      token: flyToken,
+      body: { app_name: appName, org_slug: orgSlug },
+    });
+  } catch (err) {
+    // The initial lookup can miss an app when its record is stale or Fly
+    // briefly returns an inconsistent result. If creation says the name is
+    // already taken, fetch it once more and reuse it when this token owns it.
+    const status = (err as { status?: number }).status;
+    if (status !== 409 && status !== 422) throw err;
+    const existing = await flyFetch<FlyApp>(
+      `/apps/${encodeURIComponent(appName)}`,
+      { token: flyToken, allow404: true },
+    );
+    if (!existing) throw err;
+    const name = existing.name ?? appName;
+    await allocateIpsIfMissing(flyToken, name);
+    return { ...existing, name };
+  }
   if (!created) {
     throw new Error("brain-fly: create app returned empty");
   }

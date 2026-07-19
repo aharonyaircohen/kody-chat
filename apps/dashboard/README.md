@@ -111,6 +111,17 @@ BRAIN_API_KEY=local-dev-key pnpm brain:local
 pnpm dev
 ```
 
+To use the ChatGPT subscription already logged into Codex on that same
+terminal, start Brain with the Codex driver:
+
+```bash
+BRAIN_DRIVER=codex-app-server BRAIN_API_KEY=local-dev-key pnpm brain:local
+```
+
+Brain starts `codex app-server` locally and uses that personal Codex login.
+No OpenAI API key is used. Keep the dashboard's Brain URL and
+`BRAIN_CHAT_API_KEY` set to the same local Brain address and key.
+
 To restrict the server's working tree, export `BRAIN_REPOS_ROOT=/path/to/repos` in Terminal 1.
 
 ### Project structure

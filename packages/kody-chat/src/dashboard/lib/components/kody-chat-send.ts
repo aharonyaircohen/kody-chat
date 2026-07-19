@@ -744,9 +744,13 @@ async function runSendTextInner(
           });
     // A compacted UI conversation gets a fresh Brain chat id. The user stays
     // in the same visible session; only Brain's hidden runtime context rotates.
+    const brainModelScope = selectedModelId
+      ? `/${effectiveAgentId}/${selectedModelId.replace(/[^a-zA-Z0-9._-]/g, "-")}`
+      : "";
+    const brainConversationKey = `${brainLogicalKeyBase}${brainModelScope}`;
     const brainLogicalKey = conversationContext.checkpoint
-      ? `${brainLogicalKeyBase}/compact-${conversationContext.checkpoint.revision}`
-      : brainLogicalKeyBase;
+      ? `${brainConversationKey}/compact-${conversationContext.checkpoint.revision}`
+      : brainConversationKey;
     // First turn = no chatId pinned yet for this conversation. Must be
     // read *before* stickyBrainChatId (which pins). Used to send the
     // dashboard Context block once — Brain is stateful and keeps it.
@@ -759,6 +763,10 @@ async function runSendTextInner(
       brainFirstTurn && conversationContext.summary
         ? prependConversationSummary(conversationContext.summary, wireContent)
         : wireContent;
+    const selectedBrainEntry = agentList.find(
+      (entry) =>
+        entry.agentId === effectiveAgentId && entry.modelId === selectedModelId,
+    );
 
     // When chatting about a specific task, pass a compact context blob so
     // Brain answers in the context of that issue. Brain's route injects it
@@ -810,6 +818,10 @@ async function runSendTextInner(
       initialBody: {
         chatId: brainChatId,
         message: brainWireContent,
+        ...(selectedModelId ? { modelId: selectedModelId } : {}),
+        ...(selectedBrainEntry?.runtime
+          ? { runtime: selectedBrainEntry.runtime }
+          : {}),
         // Brain has no ambient-context slot either; the route
         // prefixes this onto the forwarded user message.
         ...(currentPageRef.current

@@ -87,6 +87,8 @@ export async function POST(req: NextRequest) {
 
   let body: {
     chatId?: string;
+    modelId?: string;
+    runtime?: string;
     message?: string;
     taskContext?: BrainTaskContext;
     attachments?: BrainAttachment[];
@@ -237,6 +239,8 @@ export async function POST(req: NextRequest) {
       brainUrl: provisioned.url,
       brainKey: provisioned.apiKey,
       chatId,
+      ...(body.modelId ? { modelId: body.modelId } : {}),
+      ...(body.runtime ? { runtime: body.runtime } : {}),
       // Brain has no ambient-context slot; prefix page + standing dashboard
       // Context onto the user message (skip on resume — no new message).
       message: isResume

@@ -29,6 +29,7 @@ import {
 import {
   buildAgentList,
   shouldWaitForModelBackedEntryResolution,
+  type BrainChatModelEntry,
   type ChatDropdownEntry,
   type ChatModelEntry,
 } from "../chat/platform/agent-entries";
@@ -48,7 +49,8 @@ import type { UseChatSessionsResult } from "../chat/core/use-chat-sessions";
  *   1. `defaultChatEntryKey` — Settings → "Default chat" pick.
  *   2. Legacy: a Kody model with `default: true` on the Models page.
  *   3. First configured Kody model.
- *   4. No visible model.
+ *   4. Brain if configured.
+ *   5. First available Live entry.
  *
  * Renderers are part of the in-process Kody chat protocol. If a repo has
  * a Kody model configured but no saved default, default to that renderer-
@@ -60,7 +62,8 @@ export function resolveDefaultAgentEntry(options: {
   brainConfigured: boolean;
   agentList: ChatDropdownEntry[];
 }): ChatDropdownEntry | null {
-  const { defaultChatEntryKey, chatModels, agentList } = options;
+  const { defaultChatEntryKey, chatModels, brainConfigured, agentList } =
+    options;
   if (defaultChatEntryKey) {
     const entry = agentList.find((e) => e.key === defaultChatEntryKey);
     if (entry) return entry;
@@ -74,26 +77,58 @@ export function resolveDefaultAgentEntry(options: {
   }
   const firstKodyModel = agentList.find((e) => e.agentId === "kody");
   if (firstKodyModel) return firstKodyModel;
-  return null;
+  if (
+    brainConfigured ||
+    agentList.some(
+      (entry) => entry.agentId === "brain" || entry.agentId === "brain-fly",
+    )
+  ) {
+    return (
+      agentList.find(
+        (entry) => entry.agentId === "brain" || entry.agentId === "brain-fly",
+      ) ?? null
+    );
+  }
+  return (
+    agentList.find(
+      (entry) =>
+        entry.agentId === "kody-live" || entry.agentId === "kody-live-fly",
+    ) ?? null
+  );
 }
 
 /**
- * Old runner/Brain keys and removed custom models fall back to the first
- * configured custom model. With no custom model, there is no visible choice.
+ * Old runner/Brain keys snap to the matching available backend. Removed
+ * custom models fall back to another custom model, then Live.
  */
 export function familySnapEntry(
   key: string,
   agentList: ChatDropdownEntry[],
 ): ChatDropdownEntry | null {
-  if (
-    key === "kody-live" ||
-    key === "kody-live-fly" ||
-    key === "brain" ||
-    key === "brain-fly" ||
-    key === "claude" ||
-    key.startsWith("kody:")
-  ) {
-    return agentList.find((entry) => entry.agentId === "kody") ?? null;
+  if (key === "kody-live" || key === "kody-live-fly") {
+    return (
+      agentList.find(
+        (entry) =>
+          entry.agentId === "kody-live" || entry.agentId === "kody-live-fly",
+      ) ?? null
+    );
+  }
+  if (key === "brain" || key === "brain-fly") {
+    return (
+      agentList.find(
+        (entry) => entry.agentId === "brain" || entry.agentId === "brain-fly",
+      ) ?? null
+    );
+  }
+  if (key === "claude" || key.startsWith("kody:")) {
+    return (
+      agentList.find((entry) => entry.agentId === "kody") ??
+      agentList.find(
+        (entry) =>
+          entry.agentId === "kody-live" || entry.agentId === "kody-live-fly",
+      ) ??
+      null
+    );
   }
   return null;
 }
@@ -112,6 +147,8 @@ export interface UseAgentSelectionOptions {
   /** User-managed model list + loaded flag (kody-chat-data). */
   chatModels: ChatModelEntry[];
   chatModelsLoaded: boolean;
+  /** Personal Brain model list from /brain. */
+  brainModels: BrainChatModelEntry[];
   /** The global session store — per-session agent picks live on it. */
   sessionHook: UseChatSessionsResult;
 }
@@ -161,6 +198,7 @@ export function useAgentSelection(
     brainFlyChatEnabled,
     chatModels,
     chatModelsLoaded,
+    brainModels,
     sessionHook,
   } = options;
 
@@ -199,6 +237,7 @@ export function useAgentSelection(
     flyConfigured,
     brainFlyChatEnabled,
     chatModels,
+    brainModels,
   );
 
   // What to show in the header — when a gateway model is active, prefer

@@ -215,6 +215,19 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     ],
   },
   {
+    title: "Brain",
+    items: [
+      {
+        href: "/brain",
+        label: "Brain",
+        icon: Brain,
+        exact: true,
+        description: "Manage your personal Brain chat models.",
+        tint: "text-violet-300 bg-violet-500/10",
+      },
+    ],
+  },
+  {
     title: "Fly",
     items: [
       {
@@ -568,6 +581,7 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
   },
   settingsSection("Content"),
   settingsSection("Monitoring"),
+  settingsSection("Brain"),
   settingsSection("Fly"),
   settingsSection("Agent Settings"),
   settingsSection("Engine"),

@@ -231,6 +231,19 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
     ],
   },
   {
+    title: "Brain",
+    items: [
+      {
+        href: "/brain",
+        label: "Brain",
+        icon: Brain,
+        exact: true,
+        description: "Manage your personal Brain chat models.",
+        tint: "text-violet-300 bg-violet-500/10",
+      },
+    ],
+  },
+  {
     title: "Fly",
     items: [
       {
@@ -609,9 +622,7 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
     icon: CheckCircle2,
     tint: "text-cyan-300",
     collapsible: true,
-    items: [
-      navItemForHref("/user-journeys"),
-    ],
+    items: [navItemForHref("/user-journeys")],
   },
   {
     title: "Workspace",
@@ -666,6 +677,7 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
     collapsible: true,
     items: [
       navItemForHref("/activity"),
+      ...settingsSection("Brain").items,
       ...settingsSection("Fly").items,
       navItemForHref("/config"),
       navItemForHref("/secrets"),

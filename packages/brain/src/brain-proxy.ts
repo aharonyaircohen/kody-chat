@@ -61,6 +61,10 @@ export interface BrainChatRequest {
   brainUrl: string;
   brainKey: string;
   chatId: string;
+  /** Personal Brain model selected by the dashboard. */
+  modelId?: string;
+  /** Runtime command belonging to the selected personal Brain model. */
+  runtime?: string;
   message: string;
   taskContext?: BrainTaskContext;
   attachments?: BrainAttachment[];
@@ -336,6 +340,8 @@ export async function streamBrainChat(
         : {
             body: JSON.stringify({
               message: decoratedMessage,
+              ...(input.modelId ? { modelId: input.modelId } : {}),
+              ...(input.runtime ? { runtime: input.runtime } : {}),
               ...(attachments.length > 0 ? { attachments } : {}),
               ...(repo ? { repo } : {}),
               ...(input.repoToken ? { repoToken: input.repoToken } : {}),

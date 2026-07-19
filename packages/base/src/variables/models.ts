@@ -167,6 +167,31 @@ export const ChatModelsSchema = z.array(ChatModelSchema);
 
 export type ChatModel = z.infer<typeof ChatModelSchema>;
 
+/**
+ * Kody Chat's built-in starter model. This stays in memory until the repo
+ * owner adds an OpenRouter key; it is not written into repo variables.
+ */
+export const OPENROUTER_FREE_CHAT_MODEL: Readonly<ChatModel> = Object.freeze({
+  id: "openrouter/free",
+  label: "OpenRouter Free",
+  provider: "openrouter",
+  protocol: "openai",
+  baseURL: PROVIDER_PRESETS.openrouter.baseURL,
+  modelName: "openrouter/free",
+  apiKeySecret: PROVIDER_PRESETS.openrouter.keyHint,
+  enabled: true,
+  default: true,
+  engineDefault: false,
+});
+
+/** Add the built-in model without duplicating a user-managed entry. */
+export function withBuiltInChatModels(models: ChatModel[]): ChatModel[] {
+  return [
+    { ...OPENROUTER_FREE_CHAT_MODEL },
+    ...models.filter((model) => model.id !== OPENROUTER_FREE_CHAT_MODEL.id),
+  ];
+}
+
 export type EngineRuntimeModelConfig = {
   /** The legacy engine model string, kept for older runtime paths. */
   spec: string;

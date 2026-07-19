@@ -63,6 +63,8 @@ export async function POST(req: NextRequest) {
 
   let body: {
     chatId?: string;
+    modelId?: string;
+    runtime?: string;
     message?: string;
     taskContext?: BrainTaskContext;
     attachments?: BrainAttachment[];
@@ -141,6 +143,8 @@ export async function POST(req: NextRequest) {
     storeRepoUrl: headerAuth?.storeRepoUrl,
     storeRef: headerAuth?.storeRef,
     voiceMode: body.voiceMode === true,
+    ...(body.modelId ? { modelId: body.modelId } : {}),
+    ...(body.runtime ? { runtime: body.runtime } : {}),
     ...(body.reasoningEffort ? { reasoningEffort: body.reasoningEffort } : {}),
     ...(isResume
       ? { resumeSince: Number(body.resumeSince), resumeText: body.resumeText }

@@ -53,12 +53,28 @@ describe("POST /api/kody/chat/brain CMS context", () => {
 
     expect(res.status).toBe(200);
     expect(streamBrainChat).toHaveBeenCalledOnce();
-    expect(streamBrainChat.mock.calls[0]![0]).toMatchObject({
+    expect(streamBrainChat.mock.calls.at(-1)![0]).toMatchObject({
       repo: "acme/widgets",
       repoToken: "ghp_ctx_token",
       dashboardUrl: "https://dashboard.example.test",
       storeRepoUrl: "https://github.com/acme/kody-store",
       storeRef: "stable",
+    });
+  });
+
+  it("forwards the selected personal Brain runtime", async () => {
+    await POST(
+      request({
+        chatId: "c1",
+        message: "hello",
+        modelId: "codex",
+        runtime: "codex app-server",
+      }),
+    );
+
+    expect(streamBrainChat.mock.calls.at(-1)![0]).toMatchObject({
+      modelId: "codex",
+      runtime: "codex app-server",
     });
   });
 });

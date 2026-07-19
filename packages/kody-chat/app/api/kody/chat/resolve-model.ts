@@ -170,7 +170,7 @@ export async function resolveChatModel(
   modelId?: string,
   options: ResolveChatModelOptions = {},
 ): Promise<ResolvedChatModel | { error: NextResponse }> {
-  const availableModels = await loadChatModels(req);
+  const availableModels = await loadChatModels(req, { includeBuiltIn: true });
   const requestedModel = modelId
     ? pickModelById(availableModels, modelId)
     : null;

@@ -278,18 +278,19 @@ function ModelsManagerInner() {
           <Card className="border-white/[0.08] bg-white/[0.02]">
             <CardContent className="p-6 text-center space-y-3">
               <Bot className="w-8 h-8 text-white/30 mx-auto" />
-              <p className="text-sm text-white/70">No chat models yet.</p>
+              <p className="text-sm text-white/70">
+                OpenRouter Free is built in.
+              </p>
               <p className="text-sm text-white/55 max-w-md mx-auto">
-                Until you add one, the chat dropdown shows only{" "}
-                <strong className="text-white/70">Kody Live</strong> (GitHub
-                Actions engine). API keys are stored in{" "}
+                Add <code>OPENROUTER_API_KEY</code> in{" "}
                 <RepoScopedLink
                   href="/secrets"
                   className="font-medium text-emerald-300 underline decoration-emerald-300/70 underline-offset-2 hover:text-emerald-200"
                 >
                   Secrets
                 </RepoScopedLink>
-                .
+                to use it from the chat header. Add other providers here if
+                needed.
               </p>
               <Button
                 size="sm"
@@ -297,7 +298,7 @@ function ModelsManagerInner() {
                 className="gap-1"
               >
                 <Plus className="w-4 h-4" />
-                Add your first model
+                Add another model
               </Button>
             </CardContent>
           </Card>

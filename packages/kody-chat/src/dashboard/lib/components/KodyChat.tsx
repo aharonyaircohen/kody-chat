@@ -444,8 +444,13 @@ export function KodyChat({
   const brainConfigured = Boolean(auth?.brain?.url && auth?.brain?.apiKey);
   // Mount-time data loads (phase 1.6c: kody-chat-data.ts) — the chat model
   // list, the Repo Brain chat toggle, and the FLY_API_TOKEN vault probe.
-  const { chatModels, chatModelsLoaded, brainFlyChatEnabled, flyConfigured } =
-    useChatDataSources();
+  const {
+    chatModels,
+    chatModelsLoaded,
+    brainModels,
+    brainFlyChatEnabled,
+    flyConfigured,
+  } = useChatDataSources();
 
   // Use one session bucket for Vibe. The selected task is request context, not
   // a separate visible conversation; otherwise issue creation navigates to an
@@ -492,6 +497,7 @@ export function KodyChat({
     brainFlyChatEnabled,
     chatModels,
     chatModelsLoaded,
+    brainModels,
     sessionHook,
   });
 
