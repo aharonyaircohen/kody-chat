@@ -287,6 +287,8 @@ importers:
         specifier: 4.0.16
         version: 4.0.16(@edge-runtime/vm@5.0.0)(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(tsx@4.23.1)
 
+  packages/chat-model-catalog: {}
+
   packages/agency:
     dependencies:
       "@kody-ade/backend":
@@ -556,6 +558,9 @@ importers:
       "@json-render/core":
         specifier: ^0.19.0
         version: 0.19.0(zod@4.4.3)
+      kody-chat-model-catalog:
+        specifier: workspace:*
+        version: link:../chat-model-catalog
       "@kody-ade/agency":
         specifier: workspace:*
         version: link:../agency

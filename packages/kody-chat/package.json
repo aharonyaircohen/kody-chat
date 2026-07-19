@@ -1,6 +1,6 @@
 {
   "name": "@kody-ade/kody-chat",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "license": "MIT",
   "description": "Kody Chat — multi-tenant branded client chat product and embeddable chat platform",
   "repository": {
@@ -87,6 +87,7 @@
     "vault:init": "node scripts/generate-vault-key.mjs"
   },
   "dependencies": {
+    "kody-chat-model-catalog": "workspace:*",
     "@ai-sdk/anthropic": "^3.0.77",
     "@ai-sdk/mcp": "^1.0.30",
     "@ai-sdk/openai-compatible": "^2.0.47",
