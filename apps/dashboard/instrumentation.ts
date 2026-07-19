@@ -10,7 +10,8 @@
  *   resolver, tracked-branches reader) into its injection hooks.
  */
 export async function register(): Promise<void> {
-  // Server startup dependencies are initialized by server-owned entrypoints.
-  // Keeping this hook dependency-free prevents Next from bundling them into
-  // the browser instrumentation build.
+  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+
+  const { registerBrainHostHooks } = await import("@kody-ade/brain/register");
+  registerBrainHostHooks();
 }
