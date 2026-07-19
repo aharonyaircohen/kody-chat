@@ -28,7 +28,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { PageShell } from "@dashboard/lib/components/PageShell";
-import { PerImplementationModelCard } from "./PerImplementationModelCard";
 import { Button } from "@kody-ade/base/ui/button";
 import { Card, CardContent } from "@kody-ade/base/ui/card";
 import { Input } from "@kody-ade/base/ui/input";
@@ -237,6 +236,17 @@ function ModelsManagerInner() {
       }
     >
       <div className="space-y-3">
+        <p className="text-sm text-white/55">
+          Add an API key in{" "}
+          <RepoScopedLink
+            href="/secrets"
+            className="font-medium text-emerald-300 underline decoration-emerald-300/70 underline-offset-2 hover:text-emerald-200"
+          >
+            Secrets
+          </RepoScopedLink>
+          .
+        </p>
+
         {isLoading && (
           <p className="text-sm text-white/50 flex items-center gap-2">
             <Loader2 className="w-4 h-4 animate-spin" /> Loading models…
@@ -269,15 +279,15 @@ function ModelsManagerInner() {
             <CardContent className="p-6 text-center space-y-3">
               <Bot className="w-8 h-8 text-white/30 mx-auto" />
               <p className="text-sm text-white/70">No chat models yet.</p>
-              <p className="text-xs text-white/40 max-w-md mx-auto">
+              <p className="text-sm text-white/55 max-w-md mx-auto">
                 Until you add one, the chat dropdown shows only{" "}
-                <strong className="text-white/60">Kody Live</strong> (GitHub
-                Actions engine). Each model uses its own API key stored under{" "}
+                <strong className="text-white/70">Kody Live</strong> (GitHub
+                Actions engine). API keys are stored in{" "}
                 <RepoScopedLink
                   href="/secrets"
-                  className="text-white/60 hover:text-white/80 underline"
+                  className="font-medium text-emerald-300 underline decoration-emerald-300/70 underline-offset-2 hover:text-emerald-200"
                 >
-                  /secrets
+                  Secrets
                 </RepoScopedLink>
                 .
               </p>
@@ -359,21 +369,6 @@ function ModelsManagerInner() {
             </li>
           ))}
         </ul>
-
-        <p className="text-[11px] text-white/30 pt-4">
-          Each model uses its own API key under{" "}
-          <RepoScopedLink
-            href="/secrets"
-            className="text-white/60 hover:text-white/80 underline"
-          >
-            /secrets
-          </RepoScopedLink>
-          . With no models or a missing key the chat falls back to{" "}
-          <strong className="text-white/60">Kody Live</strong>.
-        </p>
-
-        {/* Per-capability model overrides (legacy agent.perImplementation config) */}
-        {!isLoading && !error && <PerImplementationModelCard models={models} />}
       </div>
 
       {editing && (
@@ -560,7 +555,7 @@ function ModelEditor({
           </div>
 
           <div>
-            <Label className="text-xs">API key secret</Label>
+            <Label className="text-sm">API key</Label>
             <Input
               value={draft.apiKeySecret}
               onChange={(ev) =>
@@ -572,8 +567,8 @@ function ModelEditor({
               placeholder="ANTHROPIC_API_KEY"
               className="font-mono text-xs"
             />
-            <p className="text-[11px] text-white/40 mt-1">
-              Set this value under{" "}
+            <p className="text-sm text-white/45 mt-1">
+              Store this key in{" "}
               <RepoScopedLink
                 href="/secrets"
                 className="text-white/60 hover:text-white/80 underline"

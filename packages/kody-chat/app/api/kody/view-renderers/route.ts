@@ -47,7 +47,11 @@ function requireRepo(req: NextRequest) {
   return { auth };
 }
 
-function toRow(definition: ViewRendererDefinition, htmlUrl = "") {
+function toRow(
+  definition: ViewRendererDefinition,
+  htmlUrl = "",
+  source: "repo" | "builtin" = "repo",
+) {
   return {
     slug: definition.slug,
     name: definition.name,
@@ -58,7 +62,7 @@ function toRow(definition: ViewRendererDefinition, htmlUrl = "") {
     defaults: definition.defaults ?? {},
     type: definition.type,
     ui: definition.ui,
-    source: "repo" as const,
+    source,
     htmlUrl,
     definition: serializeViewRendererDefinition(definition),
   };
@@ -84,7 +88,7 @@ export async function GET(req: NextRequest) {
       repo: required.auth.repo,
     });
     const rows = files
-      .map((file) => toRow(file.definition, file.htmlUrl))
+      .map((file) => toRow(file.definition, file.htmlUrl, file.source))
       .sort((a, b) => a.slug.localeCompare(b.slug));
     return NextResponse.json(
       { renderers: rows },

@@ -28,6 +28,45 @@ export function hasCheckboxNodes(node: RenderedViewUiNode): boolean {
   return false;
 }
 
+export function validateGuidedFlowInput(
+  ui: RenderedViewUiNode,
+  inputValues: Record<string, string>,
+): string | null {
+  const inputs: Array<{ name: string; label: string; value: string }> = [];
+  const collect = (node: RenderedViewUiNode) => {
+    if (node.type === "input" && node.name && !node.readOnly) {
+      inputs.push({
+        name: node.name,
+        label: node.label ?? node.name,
+        value: (inputValues[node.name] ?? node.value ?? "").trim(),
+      });
+      return;
+    }
+    if (node.type === "stack" || node.type === "row" || node.type === "list") {
+      node.children.forEach(collect);
+    }
+  };
+  collect(ui);
+
+  const workflowName = inputs.find((input) => input.name === "workflowName");
+  if (workflowName && !workflowName.value) {
+    return "Enter a name for this workflow.";
+  }
+  const capabilitySlug = inputs.find(
+    (input) => input.name === "capabilitySlug",
+  );
+  if (capabilitySlug && !capabilitySlug.value) {
+    return "Choose a capability for this workflow.";
+  }
+  if (
+    capabilitySlug &&
+    !/^[a-z0-9][a-z0-9_-]{0,79}$/.test(capabilitySlug.value)
+  ) {
+    return "Choose an available capability from the list.";
+  }
+  return null;
+}
+
 /**
  * The text reply a form submit sends back to the model. Views with
  * checkboxes report the selection ("Selected: …", explicit "none" when
@@ -65,6 +104,7 @@ export function RenderedViewCard({
     Record<string, Array<{ value: string; label: string }>>
   >({});
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
+  const [validationError, setValidationError] = useState<string | null>(null);
   useEffect(() => {
     trackSystemEvent("ui.view.shown", { renderer: view.rendererSlug });
   }, [view.rendererSlug]);
@@ -85,6 +125,14 @@ export function RenderedViewCard({
     });
   };
   const submitForm = (label: string) => {
+    if (view.resultTarget === "guided-flow") {
+      const error = validateGuidedFlowInput(ui, inputValues);
+      if (error) {
+        setValidationError(error);
+        return;
+      }
+    }
+    setValidationError(null);
     const response = buildSubmitResponse(ui, formValues, label);
     trackSystemEvent("ui.form.submitted", {
       viewId: view.rendererSlug,
@@ -272,6 +320,11 @@ export function RenderedViewCard({
   };
   return (
     <div className="mt-3 rounded-md border border-border bg-background/80 p-3 text-sm">
+      {validationError ? (
+        <div role="alert" className="mb-3 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-amber-200">
+          {validationError}
+        </div>
+      ) : null}
       {renderNode(ui, "root")}
     </div>
   );

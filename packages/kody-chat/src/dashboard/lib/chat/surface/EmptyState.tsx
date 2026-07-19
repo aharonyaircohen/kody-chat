@@ -11,11 +11,12 @@
  * the mode flags + scope objects it already derives.
  */
 import type { KodyTask } from "@kody-ade/base/types";
+import type { ReactNode } from "react";
 import { VIBE_TASK_EMPTY_STATE_HINT } from "../plugins/vibe";
 
 interface EmptyStateProps {
   /** Host override for the global-mode welcome (plain chat products). */
-  welcome?: React.ReactNode;
+  welcome?: ReactNode;
   isTaskMode: boolean;
   vibeMode?: boolean;
   selectedTask: KodyTask | null;

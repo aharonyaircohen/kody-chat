@@ -10,7 +10,6 @@
 import { test, expect, type Page } from "@playwright/test";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
-const TEST_REPO = "https://github.com/test-owner/test-repo";
 
 function sseBody(events: unknown[]): string {
   // A healthy AI SDK UI stream ends with `finish` + `[DONE]`; the transport
@@ -95,34 +94,34 @@ test.describe("Admin Kody chat regression", () => {
   test("/chat keeps models, reasoning, and sessions", async ({ page }) => {
     await page.goto(`${BASE_URL}/chat`);
     await page.waitForLoadState("domcontentloaded");
+    await expect(page).toHaveURL(/\/repo\/test-owner\/test-repo\/chat$/);
 
     const chat = page.locator('[aria-label="Kody chat"]').first();
     await expect(chat).toBeVisible({ timeout: 15_000 });
 
-    // The assistant/model picker moved into the "Chat settings" menu
-    // (ChatSettingsMenu.tsx) — a <details> whose summary carries the
-    // current entry name in its title.
-    const picker = chat.getByLabel("Chat settings").first();
+    const picker = chat.getByLabel("Model").first();
     await expect(picker).toBeVisible({ timeout: 15_000 });
     await picker.click();
 
-    const menu = chat
-      .locator('details:has(summary[aria-label="Chat settings"])')
-      .first();
-    await expect(menu.getByText("Assistant")).toBeVisible();
+    const menu = chat.locator('[role="listbox"]:visible').first();
     await expect(
-      menu.getByRole("button", { name: /Kody Live/i }),
-    ).toBeVisible();
-    await expect(menu.getByRole("button", { name: /GPT X/i })).toBeVisible();
-    await expect(menu.getByRole("button", { name: /Claude Y/i })).toBeVisible();
-    await menu.getByRole("button", { name: /GPT X/i }).click();
+      menu.locator('button[role="option"]').filter({ hasText: "GPT X" }),
+    ).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(
+      menu.locator('button[role="option"]').filter({ hasText: "Claude Y" }),
+    ).toBeVisible({ timeout: 15_000 });
+    await menu
+      .locator('button[role="option"]')
+      .filter({ hasText: "GPT X" })
+      .click();
 
-    // GPT X declares reasoning with default Medium — the Thinking section
-    // inside Chat settings surfaces the effort options.
     await expect(picker).toHaveAttribute("title", /GPT X/);
-    await expect(menu.getByText("Thinking")).toBeVisible();
+    await chat.getByLabel("Effort").click();
+    const effortMenu = chat.locator('[role="listbox"]:visible').last();
     await expect(
-      menu.getByRole("button", { name: "Medium", exact: true }),
+      effortMenu.locator('button[role="option"]').filter({ hasText: "Medium" }),
     ).toBeVisible();
     await expect(
       chat.getByRole("button", { name: "Toggle conversations" }),

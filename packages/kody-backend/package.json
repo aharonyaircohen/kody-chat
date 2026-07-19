@@ -16,6 +16,7 @@
     "deploy": "convex deploy",
     "deploy:prod": "convex deploy --yes",
     "codegen": "convex codegen",
+    "test:smoke": "vitest run --project smoke",
     "import:convex": "tsx scripts/import-convex.ts",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

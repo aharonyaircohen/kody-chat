@@ -80,7 +80,6 @@ import { useKodyActionState } from "@dashboard/lib/hooks/useKodyActionState";
 import { useMediaQuery } from "@dashboard/lib/hooks/useMediaQuery";
 import { SessionsPanel } from "../chat/surface/SessionsPanel";
 import { HeaderControls } from "../chat/surface/HeaderControls";
-import { ChatSettingsMenu } from "../chat/surface/ChatSettingsMenu";
 import { MessageList } from "../chat/surface/MessageList";
 import { Composer } from "../chat/surface/Composer";
 import type { StaffMentionTrigger } from "@dashboard/lib/mentions/agent-mentions";
@@ -93,6 +92,13 @@ import type {
   PreviewActDirective,
 } from "@dashboard/lib/chat-ui-actions";
 import { isRenderedViewDirective } from "@dashboard/lib/chat-ui-actions";
+import {
+  consumeGuidedFlowOpenRequest,
+  GUIDED_FLOW_OPEN_EVENT,
+  requestGuidedFlowOpen,
+  type GuidedFlowOpenRequest,
+} from "../guided-flows/events";
+import { buildGuidedFlowStatusView } from "../guided-flows/registry";
 import { repoScopedHref } from "@kody-ade/base/routes";
 
 function reportValue(value: unknown, max = 1_000): string | null {
@@ -212,6 +218,62 @@ export function KodyChat({
   // selection doesn't double-add; a new id adds exactly one chip.
   const lastInjectionIdRef = useRef<string | null>(null);
   useEffect(() => {
+    const openGuidedFlow = (request: {
+      instanceId: string;
+      message: "started" | "resumed";
+    }) => {
+      const { instanceId, message } = request;
+
+      void fetch(
+        `/api/kody/guided-flows?instanceId=${encodeURIComponent(instanceId)}`,
+        { headers: authHeaders() },
+      )
+        .then(async (response) => {
+          if (!response.ok) return null;
+          return (await response.json()) as { flow?: { view?: unknown } };
+        })
+        .then((payload) => {
+          const view = payload?.flow?.view;
+          if (!isRenderedViewDirective(view)) return;
+          setResumedGuidedFlowMessage({
+            sessionId: activeGuidedFlowSessionIdRef.current,
+            message: {
+              role: "assistant",
+              content:
+                message === "started"
+                  ? "GuidedFlow started. Follow the steps below."
+                  : "GuidedFlow resumed. Continue where you stopped.",
+              timestamp: new Date().toISOString(),
+              view,
+            },
+          });
+        })
+        .catch(() => undefined);
+    };
+
+    const handleGuidedFlowOpen = (event: Event) => {
+      const detail = (event as CustomEvent<Partial<GuidedFlowOpenRequest>>)
+        .detail;
+      if (
+        typeof detail?.instanceId !== "string" ||
+        (detail.message !== "started" && detail.message !== "resumed")
+      )
+        return;
+      consumeGuidedFlowOpenRequest();
+      openGuidedFlow({
+        instanceId: detail.instanceId,
+        message: detail.message,
+      });
+    };
+
+    window.addEventListener(GUIDED_FLOW_OPEN_EVENT, handleGuidedFlowOpen);
+    const pendingRequest = consumeGuidedFlowOpenRequest();
+    if (pendingRequest) openGuidedFlow(pendingRequest);
+    return () =>
+      window.removeEventListener(GUIDED_FLOW_OPEN_EVENT, handleGuidedFlowOpen);
+  }, []);
+
+  useEffect(() => {
     if (
       !composerInjection ||
       composerInjection.id === lastInjectionIdRef.current
@@ -266,6 +328,7 @@ export function KodyChat({
   const [, setLoading] = useState(false);
   const [toolCalls, setToolCalls] = useState<ToolCall[]>([]);
   const [usedViewIds, setUsedViewIds] = useState<Set<string>>(() => new Set());
+  const activeGuidedFlowSessionIdRef = useRef<string | null>(null);
   // ─── Chat plugin platform (Step 4 mechanics, Step 6 injection) ───
   // One registry PER MOUNT (plan H4: ChatRailShell mounts KodyChat twice;
   // plugin manifests are global pure data, instantiation is per mount).
@@ -707,11 +770,15 @@ export function KodyChat({
   const messages: Message[] = sessionHook.messages.map(chatToMessage);
   const ensureChatSession = sessionHook.createSession;
   const activeChatSessionId = sessionHook.activeSession?.id;
+  activeGuidedFlowSessionIdRef.current = activeChatSessionId ?? null;
 
-  const [resumedGuidedFlowMessage, setResumedGuidedFlowMessage] =
-    useState<Message | null>(null);
+  const [resumedGuidedFlowMessage, setResumedGuidedFlowMessage] = useState<{
+    sessionId: string | null;
+    message: Message;
+  } | null>(null);
 
   useEffect(() => {
+    if (!sessionHook.hydrated) return;
     const activeSessionId = activeChatSessionId;
     if (lockedAgentSlug || messages.length > 0) {
       setResumedGuidedFlowMessage(null);
@@ -722,24 +789,60 @@ export function KodyChat({
       return;
     }
 
+    const initialParams = new URLSearchParams(window.location.search);
+    if (
+      initialParams.get("guidedFlowInstanceId") ||
+      initialParams.get("guidedFlow")
+    ) {
+      return;
+    }
+
     let cancelled = false;
     void fetch("/api/kody/guided-flows", { headers: authHeaders() })
       .then(async (response) => {
         if (!response.ok) return null;
         return (await response.json()) as {
-          flows?: Array<{ view?: unknown }>;
+          flows?: Array<{
+            view?: unknown;
+            instance?: { instanceId?: unknown };
+            flow?: {
+              title?: unknown;
+              stepIndex?: unknown;
+              stepCount?: unknown;
+            };
+          }>;
         };
       })
       .then((payload) => {
         if (cancelled) return;
-        const view = payload?.flows?.[0]?.view;
+        const activeFlow = payload?.flows?.find(
+          (flow) => flow.view && flow.instance && flow.flow,
+        );
+        const view = activeFlow?.view;
         if (!isRenderedViewDirective(view)) return;
+        const instance = activeFlow?.instance;
+        const flow = activeFlow?.flow;
+        if (
+          typeof instance?.instanceId !== "string" ||
+          typeof flow?.title !== "string" ||
+          typeof flow.stepIndex !== "number" ||
+          typeof flow.stepCount !== "number"
+        )
+          return;
         setResumedGuidedFlowMessage({
-          role: "assistant",
-          content:
-            "You have an unfinished GuidedFlow. Continue where you stopped.",
-          timestamp: new Date().toISOString(),
-          view,
+          sessionId: activeSessionId,
+          message: {
+            role: "assistant",
+            content: "",
+            timestamp: new Date().toISOString(),
+            view: buildGuidedFlowStatusView({
+              instanceId: instance.instanceId,
+              sessionId: activeSessionId,
+              title: flow.title,
+              stepIndex: flow.stepIndex,
+              stepCount: flow.stepCount,
+            }),
+          },
         });
       })
       .catch(() => {
@@ -754,9 +857,11 @@ export function KodyChat({
     lockedAgentSlug,
     messages.length,
     activeChatSessionId,
+    sessionHook.hydrated,
   ]);
 
   useEffect(() => {
+    if (!sessionHook.hydrated) return;
     if (lockedAgentSlug) return;
     if (!activeChatSessionId) {
       ensureChatSession();
@@ -764,27 +869,44 @@ export function KodyChat({
     }
     const params = new URLSearchParams(window.location.search);
     const flowId = params.get("guidedFlow");
+    const guidedFlowInstanceId = params.get("guidedFlowInstanceId");
     const instanceKey = params.get("instanceKey") ?? undefined;
-    if (!flowId) return;
+    if (!flowId && !guidedFlowInstanceId) return;
 
     window.history.replaceState({}, "", window.location.pathname);
     let cancelled = false;
-    void fetch("/api/kody/guided-flows", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() },
-      body: JSON.stringify({ action: "start", flowId, instanceKey }),
-    })
+    const request = guidedFlowInstanceId
+      ? fetch(
+          `/api/kody/guided-flows?instanceId=${encodeURIComponent(guidedFlowInstanceId)}`,
+          { headers: authHeaders() },
+        )
+      : fetch("/api/kody/guided-flows", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify({ action: "start", flowId, instanceKey }),
+        });
+    void request
       .then(async (response) => {
         if (!response.ok) return null;
-        return (await response.json()) as { view?: unknown };
+        return (await response.json()) as {
+          view?: unknown;
+          instance?: unknown;
+          flow?: { view?: unknown };
+        };
       })
       .then((payload) => {
-        if (cancelled || !isRenderedViewDirective(payload?.view)) return;
+        const view = payload?.flow?.view ?? payload?.view;
+        if (cancelled || !isRenderedViewDirective(view)) return;
         setResumedGuidedFlowMessage({
-          role: "assistant",
-          content: "GuidedFlow started. Follow the steps below.",
-          timestamp: new Date().toISOString(),
-          view: payload.view,
+          sessionId: activeChatSessionId,
+          message: {
+            role: "assistant",
+            content: guidedFlowInstanceId
+              ? "GuidedFlow resumed. Continue where you stopped."
+              : "GuidedFlow started. Follow the steps below.",
+            timestamp: new Date().toISOString(),
+            view,
+          },
         });
       })
       .catch(() => undefined);
@@ -792,11 +914,18 @@ export function KodyChat({
     return () => {
       cancelled = true;
     };
-  }, [activeChatSessionId, ensureChatSession, lockedAgentSlug]);
+  }, [
+    activeChatSessionId,
+    ensureChatSession,
+    lockedAgentSlug,
+    pathname,
+    sessionHook.hydrated,
+  ]);
 
   const displayMessages =
-    resumedGuidedFlowMessage && messages.length === 0
-      ? [resumedGuidedFlowMessage]
+    resumedGuidedFlowMessage !== null &&
+    resumedGuidedFlowMessage.sessionId === activeChatSessionId
+      ? [...messages, resumedGuidedFlowMessage.message]
       : messages;
 
   const setMessages = useCallback(
@@ -1265,6 +1394,16 @@ export function KodyChat({
         next.add(view.id);
         return next;
       });
+
+      if (view.rendererSlug === "guided-flow-status") {
+        if (action.id === "resume") {
+          const instanceId = view.data.instanceId;
+          if (typeof instanceId === "string" && instanceId.trim()) {
+            requestGuidedFlowOpen(instanceId);
+          }
+        }
+        return;
+      }
 
       if (view.resultTarget === "guided-flow" && view.guidedFlow) {
         void (async () => {
@@ -1824,22 +1963,6 @@ export function KodyChat({
           plannerGoal={plannerGoal}
           onPlannerExit={onPlannerExit}
           activeSessionTitle={sessionHook.activeSession?.title}
-          chatSettingsControl={
-            <ChatSettingsMenu
-              currentEntry={currentEntry}
-              currentAgent={currentAgent}
-              lockedAgentId={lockedAgentId}
-              hideAgentPicker={hideAgentPicker}
-              agentList={agentList}
-              selectedAgentId={selectedAgentId}
-              selectedModelId={selectedModelId}
-              currentReasoning={currentReasoning}
-              effectiveReasoningEffort={effectiveReasoningEffort}
-              setReasoningEffort={setReasoningEffort}
-              placement="below"
-              onSelectEntry={selectChatEntry}
-            />
-          }
         />
       }
       showKodyWaitingBanner={Boolean(isKodyWaiting && actionState)}

@@ -80,9 +80,12 @@ Each Convex project has two deployments; apps pick one via `CONVEX_URL`:
 Auth: `npx convex dev` login stores a personal access token in
 `~/.convex/config.json`; no other credentials are needed locally.
 
-Tests: smoke and e2e layers auto-skip unless `CONVEX_URL` is set — run
-`export $(grep CONVEX_URL .env.local) && pnpm test` to exercise the live dev
-deployment.
+The live smoke suite is explicit: `pnpm --filter @kody-ade/backend test:smoke`
+requires both `CONVEX_URL` and `KODY_SERVICE_KEY`, and verifies the deployed
+function registry plus a GuidedFlow write/read/update round trip. CI runs it
+when the repository variable `CONVEX_SMOKE_ENABLED` is `true`, using the
+`CONVEX_URL` and `KODY_SERVICE_KEY` secrets. This keeps ordinary unit tests
+fast while making the deployment boundary an intentional release gate.
 
 ## Backups and tenant migration
 

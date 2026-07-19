@@ -7,15 +7,21 @@
  *   with one, the generic WizardRunner walks the declarative steps.
  */
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { headers } from "next/headers";
+import { notFound } from "next/navigation";
 
+import { requestOrigin } from "@kody-ade/base/request-origin";
 import { AuthGuard } from "@dashboard/lib/auth-guard";
 import { PageShell } from "@dashboard/lib/components/PageShell";
+import { WizardRunner } from "@dashboard/lib/components/WizardRunner";
 import {
   PROVIDER_CATALOG,
   providerLabel,
 } from "@dashboard/lib/client-auth/catalog";
-import { CLIENT_SIGNIN_WIZARD_SLUG } from "@dashboard/lib/wizards/client-signin";
+import {
+  clientSigninWizard,
+  CLIENT_SIGNIN_WIZARD_SLUG,
+} from "@dashboard/lib/wizards/client-signin";
 import { getWizardEntry } from "@dashboard/lib/wizards/registry";
 import { buildKodyMetadata } from "../../../metadata";
 
@@ -69,7 +75,19 @@ export default async function WizardPage({
 
   if (!(provider in PROVIDER_CATALOG)) notFound();
 
-  redirect(
-    `/?guidedFlow=client-signin&instanceKey=${encodeURIComponent(provider)}`,
+  const origin = requestOrigin(
+    new Request("http://localhost:3000", { headers: await headers() }),
+  );
+  const definition = clientSigninWizard(provider, origin);
+  if (!definition) notFound();
+
+  return (
+    <AuthGuard>
+      <WizardRunner
+        definition={definition}
+        instanceKey={provider}
+        doneHref="/brands"
+      />
+    </AuthGuard>
   );
 }

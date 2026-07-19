@@ -58,13 +58,11 @@ async function seedLongConversation(page: Page) {
 
 async function selectKodyAgent(page: Page) {
   const chat = page.locator('[aria-label="Kody chat"]');
-  const trigger = chat.getByLabel("Chat settings").first();
+  const trigger = chat.getByLabel("Model").first();
   await trigger.waitFor({ state: "visible", timeout: 10_000 });
   if (/Kody Test/i.test((await trigger.getAttribute("title")) ?? "")) return;
   await trigger.click();
-  const menu = chat
-    .locator('details:has(summary[aria-label="Chat settings"])')
-    .first();
+  const menu = chat.locator('[role="listbox"]').first();
   await menu.getByRole("button", { name: /Kody Test/i }).click();
   await expect(trigger).toHaveAttribute("title", /Kody Test/i);
   await trigger.click();

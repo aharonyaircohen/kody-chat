@@ -36,7 +36,11 @@ function requireRepo(req: NextRequest) {
   return { auth };
 }
 
-function toRow(definition: ViewRendererDefinition, htmlUrl = "") {
+function toRow(
+  definition: ViewRendererDefinition,
+  htmlUrl = "",
+  source: "repo" | "builtin" = "repo",
+) {
   return {
     slug: definition.slug,
     name: definition.name,
@@ -47,7 +51,7 @@ function toRow(definition: ViewRendererDefinition, htmlUrl = "") {
     defaults: definition.defaults ?? {},
     type: definition.type,
     ui: definition.ui,
-    source: "repo" as const,
+    source,
     htmlUrl,
     definition: serializeViewRendererDefinition(definition),
   };
@@ -74,7 +78,7 @@ export async function GET(
     });
     if (existing) {
       return NextResponse.json({
-        renderer: toRow(existing.definition, existing.htmlUrl),
+        renderer: toRow(existing.definition, existing.htmlUrl, existing.source),
       });
     }
     return NextResponse.json({ error: "not_found" }, { status: 404 });

@@ -17,6 +17,7 @@ vi.mock("@kody-ade/backend/api", () => ({
     guidedFlows: {
       get: "get",
       listActive: "listActive",
+      list: "list",
       upsert: "upsert",
       update: "update",
     },
@@ -31,6 +32,12 @@ vi.mock("@kody-ade/backend/client", () => ({
             row.tenantId === args.tenantId &&
             row.actorId === args.actorId &&
             row.status === "active",
+        );
+      }
+      if (operation === "list") {
+        return store.rows.filter(
+          (row) =>
+            row.tenantId === args.tenantId && row.actorId === args.actorId,
         );
       }
       return (
@@ -85,6 +92,34 @@ describe("GuidedFlow route", () => {
     const listed = await GET(request());
     expect(listed.status).toBe(200);
     expect((await listed.json()).flows).toHaveLength(1);
+  });
+
+  it("lists completed flows and loads an exact instance", async () => {
+    const started = await POST(
+      request({ action: "start", flowId: "create-workflow" }),
+    );
+    const instanceId = (await started.json()).instance.instanceId as string;
+    const cancelled = await POST(
+      request({
+        action: "cancel",
+        instanceId,
+        expectedRevision: 0,
+        mutationId: "m-cancel",
+      }),
+    );
+    expect(cancelled.status).toBe(200);
+
+    const listed = await GET(request());
+    expect((await listed.json()).flows[0].instance.status).toBe("cancelled");
+
+    const exact = await GET(
+      new NextRequest(
+        `https://dash.test/api/kody/guided-flows?instanceId=${instanceId}`,
+        { headers: { "x-kody-owner": "acme", "x-kody-repo": "widgets" } },
+      ),
+    );
+    expect(exact.status).toBe(200);
+    expect((await exact.json()).flow.instance.instanceId).toBe(instanceId);
   });
 
   it("rejects stale renderer submissions", async () => {

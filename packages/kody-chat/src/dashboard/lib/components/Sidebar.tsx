@@ -343,7 +343,7 @@ function SidebarContent({
                   onKeyDown={onSearchKeyDown}
                   placeholder="Search…"
                   aria-label="Search navigation"
-                  className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
+                  className="min-w-0 flex-1 bg-transparent outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:appearance-none"
                 />
                 {query && (
                   <button

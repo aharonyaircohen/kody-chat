@@ -84,6 +84,29 @@ describe("view renderers convex store", () => {
     ).toBeNull();
   });
 
+  it("falls back to built-in renderers when the repository has no overrides", async () => {
+    convex.query.mockResolvedValue([]);
+
+    const file = await readViewRendererDefinitionFile({
+      owner: "acme",
+      repo: "widgets",
+      slug: "guided-form",
+    });
+    const files = await listViewRendererDefinitionFiles({
+      owner: "acme",
+      repo: "widgets",
+    });
+
+    expect(file).toMatchObject({ source: "builtin" });
+    expect(files.map((entry) => entry.definition.slug)).toEqual([
+      "approval-card",
+      "selection-list",
+      "multi-select-list",
+      "guided-flow-status",
+      "guided-form",
+    ]);
+  });
+
   it("lists renderers and skips docs that fail schema validation", async () => {
     convex.query.mockResolvedValue([
       { slug: "decision-card", definition: DEFINITION },
@@ -97,6 +120,11 @@ describe("view renderers convex store", () => {
 
     expect(files.map((file) => file.definition.slug)).toEqual([
       "decision-card",
+      "approval-card",
+      "selection-list",
+      "multi-select-list",
+      "guided-flow-status",
+      "guided-form",
     ]);
   });
 

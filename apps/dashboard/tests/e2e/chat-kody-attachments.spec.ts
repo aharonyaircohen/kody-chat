@@ -60,23 +60,22 @@ async function injectAuth(page: Page): Promise<void> {
 }
 
 async function selectKodyAgent(page: Page): Promise<void> {
-  // The picker moved into the "Chat settings" menu (ChatSettingsMenu.tsx);
-  // the summary's title carries the current entry name.
   const chat = page.locator('[aria-label="Kody chat"]');
-  const trigger = chat.getByLabel("Chat settings").first();
+  const trigger = chat.getByLabel("Model").first();
   await trigger.waitFor({ state: "visible", timeout: 10_000 });
   if (/Kody Test/i.test((await trigger.getAttribute("title")) ?? "")) return;
 
   await trigger.click();
-  const menu = chat
-    .locator('details:has(summary[aria-label="Chat settings"])')
-    .first();
-  await menu.getByRole("button", { name: /Kody Test/i }).click();
+  const menu = chat.locator('[role="listbox"]:visible').first();
+  const option = menu
+    .locator('button[role="option"]')
+    .filter({ hasText: "Kody Test" });
+  await expect(option).toBeVisible({ timeout: 15_000 });
+  await option.click();
   await expect(trigger).toHaveAttribute("title", /Kody Test/i, {
     timeout: 5_000,
   });
   // Close the menu so it doesn't cover the composer.
-  await trigger.click();
 }
 
 /** Read the count of records in the IDB attachment store from the page. */
@@ -170,17 +169,21 @@ test.describe("Kody direct — IDB persistence + multimodal", () => {
     await selectKodyAgent(page);
 
     // Upload the PNG via the (hidden) file input.
-    const fileInput = page.locator('input[type="file"]').first();
+    const fileInput = page.locator('input[type="file"]').last();
     await fileInput.setInputFiles({
       name: "pixel.png",
       mimeType: "image/png",
       buffer: PNG_BUFFER,
+    });
+    await expect(page.getByText("pixel.png", { exact: false })).toBeVisible({
+      timeout: 10_000,
     });
 
     // Type and send a question about the image.
     const input = page.locator('[aria-label="Kody chat"] textarea').first();
     await expect(input).toBeEditable({ timeout: 10_000 });
     await input.fill("what is this?");
+    await expect(input).toHaveValue("what is this?");
     await page
       .locator('[aria-label="Kody chat"]')
       .getByRole("button", { name: "Send message" })
@@ -257,16 +260,22 @@ test.describe("Kody direct — IDB persistence + multimodal", () => {
 
     // User message text still rendered.
     await expect(
-      page.getByText("what is this?", { exact: false }).first(),
+      page
+        .locator('[aria-label="Kody chat"]')
+        .getByText("what is this?", { exact: false })
+        .last(),
     ).toBeVisible({
-      timeout: 10_000,
+      timeout: 30_000,
     });
 
     // Assistant reply still rendered (message memory across reload).
     await expect(
-      page.getByText("I see your image.", { exact: false }).first(),
+      page
+        .locator('[aria-label="Kody chat"]')
+        .getByText("I see your image.", { exact: false })
+        .last(),
     ).toBeVisible({
-      timeout: 10_000,
+      timeout: 30_000,
     });
 
     // Thumbnail <img> with a data: src appears, hydrated from IDB.

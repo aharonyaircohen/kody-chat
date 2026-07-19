@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 // Intentionally anyApi: dynamic table-name loops / raw-deployment probes
 // that must not depend on the generated typed api.
 import { anyApi } from "convex/server"
+import { api } from "../../convex/_generated/api"
 import { createBackendClient } from "../../src/client"
 
 // Smoke layer: a handful of real calls against a live deployment. Skipped
@@ -40,6 +41,72 @@ describe.skipIf(!url || !serviceKey)("deployment smoke", () => {
       afterSeq: -1,
     })
     expect(events.length).toBeGreaterThan(0)
+  })
+
+  it("exposes the User Journey registry", async () => {
+    const journeys = await client.query(api.userJourneys.list, {
+      tenantId: `${tenantId}/user-journeys`,
+    })
+    expect(journeys).toEqual([])
+  })
+
+  it("exposes the GuidedFlow registry and persists an instance", async () => {
+    const flowTenant = `${tenantId}/guided-flow`
+    const flowActor = "smoke-user"
+    const instanceId = `smoke-guided-flow-${Date.now()}`
+
+    const activeBefore = await client.query(api.guidedFlows.listActive, {
+      tenantId: flowTenant,
+      actorId: flowActor,
+    })
+    expect(activeBefore).toEqual([])
+
+    await client.mutation(api.guidedFlows.upsert, {
+      tenantId: flowTenant,
+      actorId: flowActor,
+      instanceId,
+      flowId: "create-workflow",
+      flowVersion: 1,
+      currentStepId: "choose-capability",
+      status: "active",
+      revision: 0,
+      data: {},
+      history: [],
+      updatedAt: new Date().toISOString(),
+    })
+
+    const activeAfter = await client.query(api.guidedFlows.listActive, {
+      tenantId: flowTenant,
+      actorId: flowActor,
+    })
+    expect(activeAfter).toHaveLength(1)
+    expect(activeAfter[0]).toMatchObject({
+      instanceId,
+      flowId: "create-workflow",
+      currentStepId: "choose-capability",
+    })
+
+    await client.mutation(api.guidedFlows.update, {
+      tenantId: flowTenant,
+      actorId: flowActor,
+      instanceId,
+      expectedRevision: 0,
+      currentStepId: "review",
+      status: "cancelled",
+      revision: 1,
+      data: {},
+      history: ["choose-capability"],
+      updatedAt: new Date().toISOString(),
+      mutationId: `smoke-cancel-${Date.now()}`,
+    })
+
+    expect(
+      await client.query(api.guidedFlows.get, {
+        tenantId: flowTenant,
+        actorId: flowActor,
+        instanceId,
+      }),
+    ).toMatchObject({ status: "cancelled", revision: 1 })
   })
 
   it("cleans up its own rows", async () => {

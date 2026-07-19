@@ -283,6 +283,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-sky-300 bg-sky-500/10",
       },
       {
+        href: "/user-journeys",
+        label: "User Journeys",
+        icon: CheckCircle2,
+        description: "Monitor and run critical end-to-end user paths.",
+        tint: "text-cyan-300 bg-cyan-500/10",
+      },
+      {
         href: "/agents",
         label: "Agents",
         icon: Users,

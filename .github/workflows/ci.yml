@@ -68,3 +68,31 @@ jobs:
           E2E_GITHUB_REPO: ${{ github.repository }}
           KODY_BOT_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: pnpm --filter kody-dashboard test:e2e:gate
+
+  convex-smoke:
+    if: ${{ vars.CONVEX_SMOKE_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CONVEX_URL: ${{ secrets.CONVEX_URL }}
+      KODY_SERVICE_KEY: ${{ secrets.KODY_SERVICE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify smoke-test credentials
+        run: |
+          test -n "$CONVEX_URL" || { echo "CONVEX_URL secret is required"; exit 1; }
+          test -n "$KODY_SERVICE_KEY" || { echo "KODY_SERVICE_KEY secret is required"; exit 1; }
+
+      - name: Run live Convex smoke tests
+        run: pnpm --filter @kody-ade/backend test:smoke

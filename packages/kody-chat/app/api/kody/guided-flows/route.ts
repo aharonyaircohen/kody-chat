@@ -22,11 +22,6 @@ import {
   getGuidedFlowDefinition,
 } from "@kody-ade/kody-chat/guided-flows/registry";
 import { resolveDashboardNavigationTarget } from "@dashboard/lib/dashboard-navigation";
-import {
-  PROVIDER_CATALOG,
-  credentialNames,
-  isSupportedProviderId,
-} from "@dashboard/lib/client-auth/catalog";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -135,6 +130,17 @@ function responseFor(
 ) {
   return {
     instance,
+    flow: {
+      id: definition.id,
+      title: definition.title,
+      stepIndex: Math.max(
+        0,
+        definition.steps.findIndex(
+          (step) => step.id === instance.currentStepId,
+        ),
+      ),
+      stepCount: definition.steps.length,
+    },
     ...(instance.status === "active"
       ? { view: buildGuidedFlowView(definition, instance) }
       : { navigation: navigationForCompletion(definition) }),
@@ -146,11 +152,7 @@ async function completeGuidedFlowEffect(
   definition: GuidedFlowDefinition,
   instance: GuidedFlowInstance,
   actor: string,
-  rawResult?: Readonly<Record<string, unknown>>,
 ) {
-  if (definition.id === "client-signin") {
-    return completeClientSigninEffect(req, instance, rawResult ?? {}, actor);
-  }
   if (definition.id !== "create-workflow") return undefined;
 
   const input = z
@@ -195,72 +197,6 @@ async function completeGuidedFlowEffect(
   return payload.workflow;
 }
 
-async function completeClientSigninEffect(
-  req: NextRequest,
-  instance: GuidedFlowInstance,
-  rawResult: Readonly<Record<string, unknown>>,
-  actor: string,
-) {
-  const provider = instance.instanceKey?.trim() ?? "";
-  if (!isSupportedProviderId(provider)) {
-    throw new Error("GuidedFlow has incomplete sign-in credentials");
-  }
-  const providerSpec = PROVIDER_CATALOG[provider];
-  const providerCredentials = credentialNames(provider);
-
-  const headers = new Headers(req.headers);
-  headers.set("content-type", "application/json");
-  headers.delete("content-length");
-  const post = async (path: string, body: Record<string, unknown>) => {
-    const response = await fetch(new URL(path, req.url), {
-      method: "POST",
-      headers,
-      body: JSON.stringify({ ...body, actorLogin: actor }),
-    });
-    const payload = (await response.json().catch(() => ({}))) as {
-      error?: string;
-      message?: string;
-    };
-    if (!response.ok) {
-      throw new Error(payload.message ?? payload.error ?? `${path} failed`);
-    }
-  };
-
-  if (Object.keys(rawResult).length > 0) {
-    const input = z
-      .object({
-        clientId: z.string().trim().min(1).max(2_000),
-        clientSecret: z.string().min(1).max(4_000),
-        issuer: z.string().trim().max(2_000).optional(),
-      })
-      .safeParse(rawResult);
-    if (!input.success || (providerSpec.extra && !input.data.issuer)) {
-      throw new Error("GuidedFlow has incomplete sign-in credentials");
-    }
-    await post("/api/kody/variables", {
-      name: providerCredentials.id,
-      value: input.data.clientId,
-    });
-    await post("/api/kody/secrets", {
-      name: providerCredentials.secret,
-      value: input.data.clientSecret,
-    });
-    if (input.data.issuer) {
-      await post("/api/kody/variables", {
-        name: providerSpec.extra?.issuer ?? `${provider.toUpperCase()}_ISSUER`,
-        value: input.data.issuer,
-      });
-    }
-  }
-  if (instance.data.actionId === "approve") {
-    await post("/api/kody/wizards/check", {
-      checkId: "client-signin-credentials",
-      params: { provider },
-    });
-  }
-  return { provider };
-}
-
 export async function GET(req: NextRequest) {
   const authError = await requireKodyAuth(req);
   if (authError) return authError;
@@ -270,13 +206,22 @@ export async function GET(req: NextRequest) {
   if (actor instanceof NextResponse) return actor;
 
   try {
-    const rows = (await getConvexClient().query(
-      backendApi.guidedFlows.listActive,
-      {
+    const instanceId = new URL(req.url).searchParams.get("instanceId");
+    if (instanceId) {
+      const row = (await getConvexClient().query(backendApi.guidedFlows.get, {
         tenantId: tenantIdFor(auth.owner, auth.repo),
         actorId: actor,
-      },
-    )) as GuidedFlowRow[];
+        instanceId,
+      })) as GuidedFlowRow | null;
+      if (!row) return json({ error: "guided_flow_not_found" }, { status: 404 });
+      const definition = definitionForRow(row);
+      return json({ flow: responseFor(definition, toInstance(row)) });
+    }
+
+    const rows = (await getConvexClient().query(backendApi.guidedFlows.list, {
+      tenantId: tenantIdFor(auth.owner, auth.repo),
+      actorId: actor,
+    })) as GuidedFlowRow[];
     const flows = rows.flatMap((row) => {
       try {
         const definition = definitionForRow(row);
@@ -409,22 +354,6 @@ export async function POST(req: NextRequest) {
         );
       }
     }
-    if (parsed.data.action === "submit" && definition.id === "client-signin") {
-      const result = z
-        .object({
-          clientId: z.string().trim().min(1).max(2_000),
-          clientSecret: z.string().min(1).max(4_000),
-          issuer: z.string().trim().max(2_000).optional(),
-        })
-        .safeParse(parsed.data.result);
-      if (!result.success && current.currentStepId === "collect-credentials") {
-        return json(
-          { error: "invalid_guided_flow_input", details: result.error.issues },
-          { status: 400 },
-        );
-      }
-    }
-
     const next =
       parsed.data.action === "back"
         ? goBackGuidedFlow(definition, current)
@@ -438,18 +367,16 @@ export async function POST(req: NextRequest) {
       return json({ error: "guided_flow_data_too_large" }, { status: 413 });
     }
 
-    const workflow =
-      (definition.id === "client-signin" &&
-        current.currentStepId === "collect-credentials") ||
-      next.status === "completed"
-        ? await completeGuidedFlowEffect(
-            req,
-            definition,
-            next,
-            actor,
-            parsed.data.result,
-          )
-        : undefined;
+    const shouldCompleteEffect =
+      parsed.data.action === "submit" && next.status === "completed";
+    const workflow = shouldCompleteEffect
+      ? await completeGuidedFlowEffect(
+          req,
+          definition,
+          next,
+          actor,
+        )
+      : undefined;
 
     await client.mutation(backendApi.guidedFlows.update, {
       tenantId,

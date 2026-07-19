@@ -7,10 +7,8 @@ import { getGuidedFlowStep } from "./controller";
 import { getBuiltinViewRendererDefinition } from "@dashboard/lib/view-renderers/builtin";
 import { buildRenderedViewDirective } from "@dashboard/lib/view-renderers/template";
 import type { RenderedViewDirective } from "@dashboard/lib/chat-ui-actions";
-import { providerLabel } from "@dashboard/lib/client-auth/catalog";
 
 export const CREATE_WORKFLOW_FLOW_ID = "create-workflow";
-export const CLIENT_SIGNIN_FLOW_ID = "client-signin";
 
 const CREATE_WORKFLOW_FLOW: GuidedFlowDefinition = {
   id: CREATE_WORKFLOW_FLOW_ID,
@@ -63,72 +61,7 @@ const CREATE_WORKFLOW_FLOW: GuidedFlowDefinition = {
   ],
 };
 
-const CLIENT_SIGNIN_FLOW: GuidedFlowDefinition = {
-  id: CLIENT_SIGNIN_FLOW_ID,
-  version: 1,
-  title: "Client sign-in setup",
-  completionRouteId: "brands",
-  steps: [
-    {
-      id: "collect-credentials",
-      title: "Enter sign-in credentials",
-      explanation:
-        "Save the provider credentials, then verify that the sign-in configuration resolves.",
-      rendererSlug: "guided-form",
-      rendererData: {
-        title: "Configure client sign-in",
-        body: "Enter the values for this provider.",
-        fields: [
-          { name: "clientId", label: "Client ID", value: "" },
-          {
-            name: "clientSecret",
-            label: "Client secret",
-            value: "",
-            inputType: "password",
-          },
-          {
-            name: "issuer",
-            label: "Issuer (only if required)",
-            value: "",
-          },
-        ],
-        submitLabel: "Review credentials",
-      },
-      transitions: { submit: "review" },
-    },
-    {
-      id: "review",
-      title: "Review sign-in setup",
-      explanation:
-        "Confirm that Kody should save and verify these credentials.",
-      rendererSlug: "approval-card",
-      rendererData: {
-        title: "Save these credentials?",
-        body: "Kody will save the client ID and secret, then run the provider check.",
-        actions: [
-          {
-            id: "approve",
-            label: "Save and verify",
-            response: "approve",
-            variant: "primary",
-          },
-          {
-            id: "cancel",
-            label: "Cancel",
-            response: "cancel",
-            variant: "secondary",
-          },
-        ],
-      },
-      allowedActions: ["approve", "cancel"],
-    },
-  ],
-};
-
-const DEFINITIONS: readonly GuidedFlowDefinition[] = [
-  CREATE_WORKFLOW_FLOW,
-  CLIENT_SIGNIN_FLOW,
-];
+const DEFINITIONS: readonly GuidedFlowDefinition[] = [CREATE_WORKFLOW_FLOW];
 
 export function getGuidedFlowDefinition(
   flowId: string,
@@ -158,12 +91,6 @@ export function buildGuidedFlowView(
     definition: renderer,
     data: {
       ...(step.rendererData ?? {}),
-      ...(definition.id === CLIENT_SIGNIN_FLOW_ID &&
-      step.id === "collect-credentials"
-        ? {
-            body: `Configure ${providerLabel(instance.instanceKey ?? "this provider")} sign-in. ${step.explanation}`,
-          }
-        : {}),
       ...(typeof step.rendererData?.body === "string"
         ? { body: `${step.explanation}\n\n${step.rendererData.body}` }
         : { body: step.explanation }),
@@ -203,4 +130,40 @@ export function buildGuidedFlowView(
       revision: instance.revision,
     },
   };
+}
+
+export function buildGuidedFlowStatusView({
+  instanceId,
+  sessionId,
+  title,
+  stepIndex,
+  stepCount,
+}: {
+  instanceId: string;
+  sessionId: string;
+  title: string;
+  stepIndex: number;
+  stepCount: number;
+}): RenderedViewDirective {
+  const renderer = getBuiltinViewRendererDefinition("guided-flow-status");
+  if (!renderer) throw new Error("GuidedFlow status renderer not found");
+
+  return buildRenderedViewDirective({
+    id: `guided-flow-status-${instanceId}-${sessionId}`,
+    definition: renderer,
+    data: {
+      greeting: "Hi! I can help you with:",
+      title: "You have an unfinished GuidedFlow.",
+      step: `${title} · Step ${stepIndex + 1} of ${stepCount}`,
+      instanceId,
+      actions: [
+        {
+          id: "resume",
+          label: "Resume flow",
+          response: "resume",
+          variant: "primary",
+        },
+      ],
+    },
+  });
 }

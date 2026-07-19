@@ -12,6 +12,7 @@ import { describe, it, expect } from "vitest";
 import {
   buildSubmitResponse,
   hasCheckboxNodes,
+  validateGuidedFlowInput,
 } from "@dashboard/lib/chat/surface/RenderedViewCard";
 import type { RenderedViewUiNode } from "@dashboard/lib/chat-ui-actions";
 
@@ -34,6 +35,14 @@ const checkboxCard: RenderedViewUiNode = {
       ],
     },
     { type: "submit", label: "Submit" },
+  ],
+};
+
+const guidedFlowForm: RenderedViewUiNode = {
+  type: "stack",
+  children: [
+    { type: "input", name: "workflowName", label: "Workflow name", value: "", readOnly: false },
+    { type: "input", name: "capabilitySlug", label: "Capability slug", value: "", readOnly: false },
   ],
 };
 
@@ -73,5 +82,37 @@ describe("hasCheckboxNodes", () => {
   it("finds checkboxes nested in stack/row/list containers", () => {
     expect(hasCheckboxNodes(checkboxCard)).toBe(true);
     expect(hasCheckboxNodes(approvalCard)).toBe(false);
+  });
+});
+
+describe("validateGuidedFlowInput", () => {
+  it("asks for the workflow name when it is empty", () => {
+    expect(
+      validateGuidedFlowInput(guidedFlowForm, { capabilitySlug: "run-tests" }),
+    ).toBe("Enter a name for this workflow.");
+  });
+
+  it("asks for the capability slug when it is empty", () => {
+    expect(
+      validateGuidedFlowInput(guidedFlowForm, { workflowName: "Checks" }),
+    ).toBe("Choose a capability for this workflow.");
+  });
+
+  it("rejects an invalid capability slug with a user-facing message", () => {
+    expect(
+      validateGuidedFlowInput(guidedFlowForm, {
+        workflowName: "Checks",
+        capabilitySlug: "Run Tests",
+      }),
+    ).toBe("Choose an available capability from the list.");
+  });
+
+  it("accepts valid workflow details", () => {
+    expect(
+      validateGuidedFlowInput(guidedFlowForm, {
+        workflowName: "Checks",
+        capabilitySlug: "run-tests",
+      }),
+    ).toBeNull();
   });
 });

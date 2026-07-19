@@ -128,6 +128,36 @@ const BUILTIN_SOURCES: readonly string[] = [
     },
   }),
   JSON.stringify({
+    slug: "guided-flow-status",
+    name: "GuidedFlow status",
+    purpose: "guided-flow-status",
+    description:
+      "Non-blocking greeting and status card for an unfinished GuidedFlow.",
+    rule: "Use this renderer to tell the user about an unfinished GuidedFlow and let them explicitly resume it or open the Guided Flows manager.",
+    data: {
+      greeting: { type: "text", description: "Overall chat greeting." },
+      title: { type: "text", description: "Unfinished flow notice." },
+      step: { type: "text", description: "Current flow progress." },
+      instanceId: { type: "text", description: "Flow instance identifier." },
+      actions: { type: "actions", description: "Resume action." },
+    },
+    type: "layout",
+    ui: {
+      type: "stack",
+      children: [
+        { type: "text", variant: "title", value: "$greeting" },
+        { type: "text", value: "$title" },
+        { type: "text", value: "$step" },
+        {
+          type: "row",
+          for: "$actions",
+          as: "action",
+          item: { type: "button", label: "$action.label", action: "$action" },
+        },
+      ],
+    },
+  }),
+  JSON.stringify({
     slug: "guided-form",
     name: "Guided form",
     purpose: "guided-form",

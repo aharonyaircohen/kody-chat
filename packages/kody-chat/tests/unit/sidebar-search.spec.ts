@@ -16,5 +16,9 @@ describe("sidebar navigation search", () => {
     expect(sidebarSource).toContain('type="search"');
     expect(sidebarSource).toContain('name="kody-navigation-search"');
     expect(sidebarSource).toContain('autoComplete="off"');
+    expect(sidebarSource).toContain('aria-label="Clear search"');
+    expect(sidebarSource).toContain(
+      "[&::-webkit-search-cancel-button]:appearance-none",
+    );
   });
 });

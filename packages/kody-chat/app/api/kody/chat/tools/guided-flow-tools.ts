@@ -59,7 +59,7 @@ export function createGuidedFlowTools(ctx: GuidedFlowToolContext): ToolSet {
       description:
         "Start or resume a GuidedFlow for the user. Use only when the user " +
         "explicitly asks for step-by-step help with a supported task. " +
-        `Supported flow ids: ${knownFlowIds}. For client-signin, instanceKey must be the provider id. The result is the first interactive step.`,
+        `Supported flow ids: ${knownFlowIds}. The result is the first interactive step.`,
       inputSchema: z.object({
         flowId: z.string().trim().min(1).max(80),
         instanceKey: z.string().trim().min(1).max(128).optional(),

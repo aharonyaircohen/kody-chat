@@ -21,7 +21,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { AuthGuard } from "../auth-guard";
-import { buildAuthHeaders, useAuth } from "../auth-context";
+import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
 import { slugifyTitle } from "@kody-ade/base/slug";
 import { cn } from "../utils";
 import { Button } from "@kody-ade/base/ui/button";
@@ -73,7 +73,7 @@ interface RendererRow {
   defaults?: Record<string, unknown>;
   type: "layout";
   ui: unknown;
-  source: "repo";
+  source: "repo" | "builtin";
   htmlUrl: string;
   definition: string;
 }

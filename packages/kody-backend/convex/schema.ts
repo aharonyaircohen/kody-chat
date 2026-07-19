@@ -53,6 +53,57 @@ export default defineSchema({
     .index("by_instance", ["tenantId", "actorId", "instanceId"])
     .index("by_actor_status", ["tenantId", "actorId", "status"]),
 
+  userJourneys: defineTable({
+    tenantId: v.string(),
+    journeyId: v.string(),
+    name: v.string(),
+    goal: v.string(),
+    status: v.union(v.literal("draft"), v.literal("active"), v.literal("archived")),
+    priority: v.union(v.literal("critical"), v.literal("high"), v.literal("normal")),
+    currentVersion: v.number(),
+    updatedAt: v.string(),
+  }).index("by_tenant", ["tenantId", "journeyId"]),
+
+  userJourneyVersions: defineTable({
+    tenantId: v.string(),
+    journeyId: v.string(),
+    version: v.number(),
+    definition: v.any(),
+    createdAt: v.string(),
+  }).index("by_journey", ["tenantId", "journeyId", "version"]),
+
+  userJourneyRuns: defineTable({
+    tenantId: v.string(),
+    journeyId: v.string(),
+    runId: v.string(),
+    version: v.number(),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("running"),
+      v.literal("passed"),
+      v.literal("failed"),
+      v.literal("cancelled"),
+    ),
+    environment: v.string(),
+    commitSha: v.optional(v.string()),
+    runnerVersion: v.optional(v.string()),
+    startedAt: v.optional(v.string()),
+    finishedAt: v.optional(v.string()),
+    error: v.optional(v.string()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_journey", ["tenantId", "journeyId", "createdAt"])
+    .index("by_run", ["tenantId", "runId"]),
+
+  userJourneyRunEvents: defineTable({
+    tenantId: v.string(),
+    runId: v.string(),
+    seq: v.number(),
+    event: v.any(),
+    time: v.string(),
+  }).index("by_run", ["tenantId", "runId", "seq"]),
+
   agencyRuns: defineTable({
     tenantId: v.string(),
     runId: v.string(),

@@ -26,6 +26,8 @@ const ROUTE_FOR: Record<string, string> = {
   "view-renderer-detail": "app/(shell)/views/renderers/[slug]/page.tsx",
   snippets: "app/(shell)/snippets/page.tsx",
   triggers: "app/(shell)/triggers/page.tsx",
+  "guided-flows": "app/(shell)/guided-flows/page.tsx",
+  "user-journeys": "app/(shell)/user-journeys/page.tsx",
 };
 
 const PAGES_DIR = join(process.cwd(), "src/dashboard/lib/pages");

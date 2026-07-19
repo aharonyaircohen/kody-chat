@@ -56,23 +56,22 @@ async function injectAuth(page: Page): Promise<void> {
 }
 
 async function selectKodyAgent(page: Page): Promise<void> {
-  // The picker moved into the "Chat settings" menu (ChatSettingsMenu.tsx);
-  // the summary's title carries the current entry name.
   const chat = page.locator('[aria-label="Kody chat"]');
-  const trigger = chat.getByLabel("Chat settings").first();
+  const trigger = chat.getByLabel("Model").first();
   await trigger.waitFor({ state: "visible", timeout: 10_000 });
   if (/Kody Test/i.test((await trigger.getAttribute("title")) ?? "")) return;
 
   await trigger.click();
-  const menu = chat
-    .locator('details:has(summary[aria-label="Chat settings"])')
-    .first();
-  await menu.getByRole("button", { name: /Kody Test/i }).click();
+  const menu = chat.locator('[role="listbox"]:visible').first();
+  const option = menu
+    .locator('button[role="option"]')
+    .filter({ hasText: "Kody Test" });
+  await expect(option).toBeVisible({ timeout: 15_000 });
+  await option.click();
   await expect(trigger).toHaveAttribute("title", /Kody Test/i, {
     timeout: 5_000,
   });
   // Close the menu so it doesn't cover the composer.
-  await trigger.click();
 }
 
 test.describe("Kody direct agent", () => {

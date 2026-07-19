@@ -19,6 +19,10 @@ import {
   serializeViewRendererDefinition,
   type ViewRendererDefinition,
 } from "./definition";
+import {
+  BUILTIN_VIEW_RENDERER_DEFINITIONS,
+  getBuiltinViewRendererDefinition,
+} from "./builtin";
 import { buildChatViewCatalog } from "./spec/catalog";
 import { buildViewComponentRules } from "./spec/prompt";
 
@@ -41,9 +45,15 @@ export {
 
 export interface ViewRendererDefinitionFile {
   definition: ViewRendererDefinition;
-  source: "repo";
+  source: "repo" | "builtin";
   sha: string;
   htmlUrl: string;
+}
+
+function builtinDefinitionFile(
+  definition: ViewRendererDefinition,
+): ViewRendererDefinitionFile {
+  return { definition, source: "builtin", sha: "", htmlUrl: "" };
 }
 
 export interface ViewRendererPromptContext {
@@ -79,7 +89,9 @@ export async function readViewRendererDefinitionFile({
     tenantId: tenantIdFor(owner, repo),
   })) as ViewRendererDoc[];
   const doc = docs.find((d) => d.slug === slug);
-  return doc ? fileFromDoc(doc) : null;
+  if (doc) return fileFromDoc(doc);
+  const builtin = getBuiltinViewRendererDefinition(slug);
+  return builtin ? builtinDefinitionFile(builtin) : null;
 }
 
 export async function resolveViewRendererDefinition({
@@ -137,7 +149,7 @@ export async function listViewRendererDefinitionFiles({
   const docs = (await getConvexClient().query(backendApi.viewRenderers.list, {
     tenantId: tenantIdFor(owner, repo),
   })) as ViewRendererDoc[];
-  return docs
+  const repoFiles = docs
     .map((doc) => {
       try {
         return fileFromDoc(doc);
@@ -146,6 +158,11 @@ export async function listViewRendererDefinitionFiles({
       }
     })
     .filter((file): file is ViewRendererDefinitionFile => Boolean(file));
+  const repoSlugs = new Set(repoFiles.map((file) => file.definition.slug));
+  const builtins = BUILTIN_VIEW_RENDERER_DEFINITIONS.filter(
+    (definition) => !repoSlugs.has(definition.slug),
+  ).map(builtinDefinitionFile);
+  return [...repoFiles, ...builtins];
 }
 
 export async function writeViewRendererDefinitionFile({

@@ -401,10 +401,10 @@ async function openChat(
   page: Page,
   options: { defaultChatEntry?: string | null } = {},
 ): Promise<void> {
-  await page.goto(`${LOCAL_BASE_URL}/login`);
+  await page.goto(LOCAL_BASE_URL);
   await page.waitForLoadState("domcontentloaded");
   await injectAuth(page, options);
-  await page.goto(LOCAL_BASE_URL);
+  await page.reload();
   await page.waitForLoadState("domcontentloaded");
 
   const viewport = await page.viewportSize();
@@ -656,13 +656,36 @@ test.describe("Kody chat renderer output", () => {
     page,
   }) => {
     const guidedRequests: Array<Record<string, unknown>> = [];
-    await page.route("**/api/kody/guided-flows", async (route) => {
+    await page.route("**/api/kody/guided-flows**", async (route) => {
       if (route.request().method() === "GET") {
+        if (route.request().url().includes("instanceId=")) {
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ flow: { view: guidedFlowView("form", 0) } }),
+          });
+          return;
+        }
         await route.fulfill({
           status: 200,
           contentType: "application/json",
           body: JSON.stringify({
-            flows: [{ view: guidedFlowView("form", 0) }],
+            flows: [
+              {
+                instance: {
+                  instanceId: "guided-flow-e2e",
+                  status: "active",
+                  revision: 0,
+                },
+                flow: {
+                  id: "create-workflow",
+                  title: "Create a workflow",
+                  stepIndex: 0,
+                  stepCount: 2,
+                },
+                view: guidedFlowView("form", 0),
+              },
+            ],
           }),
         });
         return;
@@ -688,6 +711,28 @@ test.describe("Kody chat renderer output", () => {
     await expect(
       page.getByText("You have an unfinished GuidedFlow."),
     ).toBeVisible();
+    await expect(page.getByText("Create a workflow · Step 1 of 2")).toBeVisible();
+    await expect(page.getByLabel("Workflow name")).toHaveCount(0);
+    const resume = page.getByRole("button", { name: "Resume flow" });
+    await expect(resume).toHaveCount(1);
+    const chatUrlBeforeResume = page.url();
+    await resume.click();
+    await expect(page).toHaveURL(chatUrlBeforeResume);
+    await expect(page.getByLabel("Workflow name")).toBeVisible();
+
+    await page
+      .getByTestId("chat-header-controls")
+      .getByRole("button", { name: "New conversation" })
+      .click();
+    await expect(page.getByText("You have an unfinished GuidedFlow.")).toBeVisible();
+    await expect(page.getByLabel("Workflow name")).toHaveCount(0);
+    await page.getByRole("button", { name: "Resume flow" }).click();
+    await expect(page.getByLabel("Workflow name")).toBeVisible();
+    await page.getByRole("button", { name: "Review workflow" }).click();
+    await expect(page.getByRole("alert").filter({ hasText: "Enter a name" })).toContainText(
+      "Enter a name for this workflow.",
+    );
+    expect(guidedRequests).toHaveLength(0);
     await page.getByLabel("Workflow name").fill("Nightly checks");
     await page.getByLabel("Capability slug").fill("run-tests");
     await page.getByRole("button", { name: "Review workflow" }).click();

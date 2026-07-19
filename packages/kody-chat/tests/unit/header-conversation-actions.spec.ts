@@ -10,30 +10,12 @@ const COMPOSER_SOURCE = readFileSync(
   resolve(__dirname, "../../src/dashboard/lib/chat/surface/Composer.tsx"),
   "utf8",
 );
-const SETTINGS_SOURCE = readFileSync(
-  resolve(
-    __dirname,
-    "../../src/dashboard/lib/chat/surface/ChatSettingsMenu.tsx",
-  ),
-  "utf8",
-);
-
 describe("chat conversation actions", () => {
-  it("keeps long model descriptions inside the settings menu", () => {
-    expect(SETTINGS_SOURCE).toContain("max-w-[calc(100vw-2rem)]");
-    expect(SETTINGS_SOURCE).toContain("w-full min-w-0");
-    expect(SETTINGS_SOURCE).toContain("min-w-0 flex-1");
-  });
-
-  it("opens the header settings menu into the viewport", () => {
-    expect(SETTINGS_SOURCE).toContain('placement = "above"');
-    expect(SETTINGS_SOURCE).toContain("right-0");
-    expect(SETTINGS_SOURCE).toContain('"top-full mt-2"');
-  });
-
-  it("keeps model controls by the composer instead of in the header", () => {
-    expect(SOURCE).toContain('<div className="hidden">');
-    expect(SOURCE).toContain("chatSettingsControl");
+  it("keeps model and effort controls beside the chat title", () => {
+    expect(SOURCE).toContain('aria-label="Model"');
+    expect(SOURCE).toContain('aria-label="Effort"');
+    expect(SOURCE).toContain("Add chat model");
+    expect(SOURCE).not.toContain("chatSettingsControl");
     expect(COMPOSER_SOURCE).not.toContain("chatSettingsControl");
   });
 
@@ -50,7 +32,7 @@ describe("chat conversation actions", () => {
     expect(headerRow).not.toContain("messageCount > 0");
   });
 
-  it("places new conversation and conversations beside the chat title", () => {
+  it("places new conversation and conversations in the header", () => {
     const conversationActions = SOURCE.slice(
       SOURCE.indexOf("const conversationActions"),
       SOURCE.indexOf("return ("),
@@ -60,13 +42,12 @@ describe("chat conversation actions", () => {
     );
     const headerActions = SOURCE.slice(
       SOURCE.indexOf("Right: Window and host actions"),
-      SOURCE.indexOf("Context bar:"),
+      SOURCE.indexOf("Title line:"),
     );
 
     expect(conversationActions).toContain('aria-label="New conversation"');
     expect(conversationActions).toContain('aria-label="Toggle conversations"');
-    expect(titleRow).toContain("{conversationActions}");
-    expect(headerActions).not.toContain('aria-label="New conversation"');
-    expect(headerActions).not.toContain('aria-label="Toggle conversations"');
+    expect(headerActions).toContain("{conversationActions}");
+    expect(titleRow).not.toContain("{conversationActions}");
   });
 });

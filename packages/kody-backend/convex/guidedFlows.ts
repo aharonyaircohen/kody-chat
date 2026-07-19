@@ -55,6 +55,19 @@ export const listActive = query({
   },
 });
 
+export const list = query({
+  args: { tenantId: v.string(), actorId: v.string() },
+  handler: async (ctx, { tenantId, actorId }) => {
+    return await ctx.db
+      .query("guidedFlowInstances")
+      .withIndex("by_actor_status", (q) =>
+        q.eq("tenantId", tenantId).eq("actorId", actorId),
+      )
+      .order("desc")
+      .collect();
+  },
+});
+
 export const upsert = mutation({
   args: flowStateArgs,
   handler: async (ctx, args) => {
