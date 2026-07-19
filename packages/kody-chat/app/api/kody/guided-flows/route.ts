@@ -33,6 +33,16 @@ export const revalidate = 0;
 
 const getConvexClient = createBackendClient;
 
+class GuidedFlowActionError extends Error {
+  constructor(
+    readonly code: "guided_flow_workflow_exists" | "guided_flow_invalid_workflow",
+    readonly status: 409 | 422,
+  ) {
+    super(code);
+    this.name = "GuidedFlowActionError";
+  }
+}
+
 function tenantIdFor(owner: string, repo: string): string {
   return `${owner}/${repo}`;
 }
@@ -247,6 +257,12 @@ async function completeGuidedFlowEffect(
     error?: string;
   };
   if (!response.ok) {
+    if (response.status === 409) {
+      throw new GuidedFlowActionError("guided_flow_workflow_exists", 409);
+    }
+    if (response.status === 422) {
+      throw new GuidedFlowActionError("guided_flow_invalid_workflow", 422);
+    }
     throw new Error(
       payload.message ?? payload.error ?? "Workflow creation failed",
     );
@@ -562,6 +578,9 @@ export async function POST(req: NextRequest) {
       ...(workflow ? { workflow } : {}),
     });
   } catch (error) {
+    if (error instanceof GuidedFlowActionError) {
+      return json({ error: error.code }, { status: error.status });
+    }
     const message =
       error instanceof Error ? error.message : "GuidedFlow action failed";
     if (message.includes("not active") || message.includes("already at")) {

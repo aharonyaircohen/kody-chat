@@ -15,4 +15,13 @@ describe("guided flow action errors", () => {
     );
     expect(message).not.toContain("guided_flow_action_failed");
   });
+
+  it("explains known completion failures without exposing backend details", () => {
+    expect(guidedFlowActionErrorMessage("guided_flow_workflow_exists")).toBe(
+      "A workflow with this name already exists. Choose a different name and try again.",
+    );
+    expect(guidedFlowActionErrorMessage("guided_flow_invalid_workflow")).toBe(
+      "This workflow cannot be created with the selected capability. Check the capability and try again.",
+    );
+  });
 });

@@ -832,6 +832,68 @@ test.describe("Kody chat renderer output", () => {
     await expect(page.getByText("guided_flow_action_failed")).toHaveCount(0);
   });
 
+  test("explains duplicate workflow names without exposing backend details", async ({
+    page,
+  }) => {
+    await page.route("**/api/kody/guided-flows**", async (route) => {
+      if (route.request().method() === "GET") {
+        if (route.request().url().includes("instanceId=")) {
+          await route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+              flow: { view: guidedFlowView("review", 1) },
+            }),
+          });
+          return;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            flows: [
+              {
+                instance: {
+                  instanceId: "guided-flow-duplicate-e2e",
+                  status: "active",
+                },
+                flow: {
+                  id: "create-workflow",
+                  title: "Create a workflow",
+                  stepIndex: 1,
+                  stepCount: 2,
+                },
+                view: guidedFlowView("review", 1),
+              },
+            ],
+          }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "guided_flow_workflow_exists" }),
+      });
+    });
+    await openChat(page);
+    await expect(
+      page.getByText("You have an unfinished GuidedFlow."),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Resume flow" }).click();
+    await expect(
+      page.getByRole("button", { name: "Create workflow" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Create workflow" }).click();
+
+    await expect(
+      page.getByText(
+        "A workflow with this name already exists. Choose a different name and try again.",
+      ),
+    ).toBeVisible();
+    await expect(page.getByText("guided_flow_workflow_exists")).toHaveCount(0);
+  });
+
   test("approval request uses renderer-capable Kody path when a model exists without a saved default", async ({
     page,
   }) => {

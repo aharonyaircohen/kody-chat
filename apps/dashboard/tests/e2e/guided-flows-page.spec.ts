@@ -58,6 +58,37 @@ test("shows only GuidedFlow templates", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Start" })).toHaveCount(0);
 });
 
+test("provides step editing controls, preview, and validation", async ({ page }) => {
+  await page.route("**/api/kody/guided-flows**", (route) =>
+    json(route, { definitions: [] }),
+  );
+  await page.goto("/repo/acme/widgets/guided-flows", {
+    waitUntil: "domcontentloaded",
+  });
+  await page.getByRole("button", { name: "Add Guided Flow" }).click();
+
+  await expect(page.getByText("Live preview", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Move step 1 up" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByRole("button", { name: "Delete step 1" }),
+  ).toHaveCount(0);
+
+  await page.getByRole("button", { name: "+ Add step" }).click();
+  await expect(
+    page.getByRole("button", { name: "Move step 2 up" }),
+  ).toBeEnabled();
+  await page.getByRole("button", { name: "Move step 2 up" }).click();
+  await page.getByRole("button", { name: "Duplicate step 1" }).click();
+  await expect(
+    page.getByRole("button", { name: "Delete step 3" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Save Guided Flow" }).click();
+  await expect(page.getByRole("alert")).toContainText("Enter a flow name.");
+});
+
 test("creates a GuidedFlow template with an explicit renderer", async ({
   page,
 }) => {

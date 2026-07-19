@@ -317,6 +317,60 @@ describe("GuidedFlow route", () => {
     }
   });
 
+  it("keeps the flow active and returns a safe code when workflow creation is rejected", async () => {
+    const started = await POST(
+      request({ action: "start", flowId: "create-workflow" }),
+    );
+    const instanceId = (await started.json()).instance.instanceId as string;
+
+    await POST(
+      request({
+        action: "submit",
+        instanceId,
+        stepId: "choose-capability",
+        expectedRevision: 0,
+        actionId: "submit",
+        result: {
+          workflowName: "Existing workflow",
+          capabilitySlug: "run-tests",
+        },
+        mutationId: "m-rejected-form",
+      }),
+    );
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          error: "workflow_exists",
+          message: "Workflow already exists.",
+        }),
+        { status: 409, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const rejected = await POST(
+      request({
+        action: "submit",
+        instanceId,
+        stepId: "review",
+        expectedRevision: 1,
+        actionId: "approve",
+        mutationId: "m-rejected-approve",
+      }),
+    );
+
+    expect(rejected.status).toBe(409);
+    expect(await rejected.json()).toEqual({
+      error: "guided_flow_workflow_exists",
+    });
+    const current = await GET(
+      new NextRequest(
+        `https://dash.test/api/kody/guided-flows?instanceId=${instanceId}`,
+        { headers: { "x-kody-owner": "acme", "x-kody-repo": "widgets" } },
+      ),
+    );
+    expect((await current.json()).flow.instance.status).toBe("active");
+  });
+
   it("does not accept oversized request bodies", async () => {
     const response = await POST(
       new NextRequest("https://dash.test/api/kody/guided-flows", {
