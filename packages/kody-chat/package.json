@@ -1,6 +1,6 @@
 {
   "name": "@kody-ade/kody-chat",
-  "version": "0.1.5",
+  "version": "0.1.6",
   "license": "MIT",
   "description": "Kody Chat — multi-tenant branded client chat product and embeddable chat platform",
   "repository": {
@@ -91,14 +91,6 @@
     "@ai-sdk/mcp": "^1.0.30",
     "@ai-sdk/openai-compatible": "^2.0.47",
     "@json-render/core": "^0.19.0",
-    "@kody-ade/agency": "workspace:*",
-    "@kody-ade/backend": "workspace:*",
-    "@kody-ade/base": "workspace:*",
-    "@kody-ade/brain": "workspace:*",
-    "@kody-ade/cms": "workspace:*",
-    "@kody-ade/fly": "workspace:*",
-    "@kody-ade/terminal": "workspace:*",
-    "@kody-ade/workspace": "workspace:*",
     "@mintplex-labs/piper-tts-web": "^1.0.4",
     "@monaco-editor/react": "^4.7.0",
     "@octokit/plugin-throttling": "^11.0.3",
