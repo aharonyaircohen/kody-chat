@@ -350,13 +350,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-teal-300 bg-teal-500/10",
       },
       {
-        href: "/user-journeys",
-        label: "User Journeys",
-        icon: CheckCircle2,
-        description: "Monitor and run critical end-to-end user paths.",
-        tint: "text-cyan-300 bg-cyan-500/10",
-      },
-      {
         href: "/capabilities",
         label: "Capabilities",
         icon: Layers,
@@ -378,6 +371,18 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         description:
           "Move your AI Agency setup between repos as a portable bundle.",
         tint: "text-emerald-300 bg-emerald-500/10",
+      },
+    ],
+  },
+  {
+    title: "Quality",
+    items: [
+      {
+        href: "/user-journeys",
+        label: "User Journeys",
+        icon: CheckCircle2,
+        description: "Monitor and run critical end-to-end user paths.",
+        tint: "text-cyan-300 bg-cyan-500/10",
       },
     ],
   },
@@ -594,11 +599,17 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
       navItemForHref("/agent-loops"),
       navItemForHref("/workflows"),
       navItemForHref("/guided-flows"),
-      navItemForHref("/user-journeys"),
       navItemForHref("/capabilities"),
       navItemForHref("/store-catalog"),
       navItemForHref("/company"),
     ],
+  },
+  {
+    title: "Quality",
+    icon: CheckCircle2,
+    tint: "text-cyan-300",
+    collapsible: true,
+    items: [navItemForHref("/user-journeys")],
   },
   {
     title: "Workspace",

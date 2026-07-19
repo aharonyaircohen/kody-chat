@@ -283,13 +283,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-sky-300 bg-sky-500/10",
       },
       {
-        href: "/user-journeys",
-        label: "User Journeys",
-        icon: CheckCircle2,
-        description: "Monitor and run critical end-to-end user paths.",
-        tint: "text-cyan-300 bg-cyan-500/10",
-      },
-      {
         href: "/agents",
         label: "Agents",
         icon: Users,
@@ -355,6 +348,18 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         description:
           "Move your AI Agency setup between repos as a portable bundle.",
         tint: "text-emerald-300 bg-emerald-500/10",
+      },
+    ],
+  },
+  {
+    title: "Quality",
+    items: [
+      {
+        href: "/user-journeys",
+        label: "User Journeys",
+        icon: CheckCircle2,
+        description: "Monitor and run critical end-to-end user paths.",
+        tint: "text-cyan-300 bg-cyan-500/10",
       },
     ],
   },
@@ -541,6 +546,7 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
     items: [TASKS_NAV_ITEM, VIBE_NAV_ITEM, PREVIEW_NAV_ITEM],
   },
   settingsSection("AI Agency"),
+  settingsSection("Quality"),
   {
     title: PRIMARY_NAV_TITLE,
     items: [
