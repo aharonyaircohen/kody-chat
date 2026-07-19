@@ -18,6 +18,7 @@ import {
   Plus,
   RefreshCw,
   Route,
+  Trash2,
   Workflow,
 } from "lucide-react";
 import { Button } from "@kody-ade/base/ui/button";
@@ -31,6 +32,7 @@ import { useMediaQuery } from "../hooks/useMediaQuery";
 import { useCapabilities } from "../hooks/useCapabilities";
 import {
   useCreateWorkflowDefinition,
+  useDeleteWorkflowDefinition,
   useRunWorkflowDefinition,
   useStopWorkflowRun,
   useUpdateWorkflowDefinition,
@@ -46,6 +48,7 @@ import { MasterDetailShell } from "./MasterDetailShell";
 import { TrustLevelControl } from "./TrustLevelControl";
 import { WorkflowEditorDialog } from "./WorkflowEditorDialog";
 import { WorkflowGraphCanvas } from "./WorkflowGraphCanvas";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 const BASE_PATH = "/workflows";
 
@@ -85,6 +88,8 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [editingWorkflow, setEditingWorkflow] =
     useState<WorkflowDefinitionRecord | null>(null);
+  const [deletingWorkflow, setDeletingWorkflow] =
+    useState<WorkflowDefinitionRecord | null>(null);
   const [activeRunIds, setActiveRunIds] = useState<Record<string, string>>({});
 
   const {
@@ -97,6 +102,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
   const { data: capabilities = [], isLoading: capabilitiesLoading } =
     useCapabilities();
   const createWorkflow = useCreateWorkflowDefinition();
+  const deleteWorkflow = useDeleteWorkflowDefinition();
   const updateWorkflow = useUpdateWorkflowDefinition(editingWorkflow?.id ?? "");
   const runWorkflow = useRunWorkflowDefinition();
   const stopWorkflow = useStopWorkflowRun();
@@ -225,6 +231,7 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
               }
               stopPending={stopWorkflow.isPending}
               onEdit={() => setEditingWorkflow(selectedWorkflow)}
+              onDelete={() => setDeletingWorkflow(selectedWorkflow)}
             />
           ) : (
             <EmptyState
@@ -279,6 +286,32 @@ export function WorkflowsManager({ selectedId }: WorkflowsManagerProps) {
           const created = await createWorkflow.mutateAsync(payload);
           setCreateOpen(false);
           selectWorkflow(created.id);
+        }}
+      />
+      <ConfirmDialog
+        open={!!deletingWorkflow}
+        title={
+          deletingWorkflow?.source === "store" || deletingWorkflow?.readOnly
+            ? `Remove Store workflow ${deletingWorkflow?.id ?? ""}?`
+            : `Delete workflow ${deletingWorkflow?.id ?? ""}?`
+        }
+        description={
+          deletingWorkflow?.source === "store" || deletingWorkflow?.readOnly
+            ? "This repo will stop using the Store workflow. The Store workflow will not be deleted."
+            : "The workflow definition will be removed from this repository."
+        }
+        confirmLabel={
+          deletingWorkflow?.source === "store" || deletingWorkflow?.readOnly
+            ? "Remove"
+            : "Delete"
+        }
+        variant="destructive"
+        onClose={() => setDeletingWorkflow(null)}
+        onConfirm={() => {
+          if (!deletingWorkflow) return;
+          deleteWorkflow.mutate(deletingWorkflow.id, {
+            onSuccess: () => selectWorkflow(null, true),
+          });
         }}
       />
       <WorkflowEditorDialog
@@ -354,6 +387,7 @@ function WorkflowDetail({
   runPending,
   stopPending,
   onEdit,
+  onDelete,
 }: {
   workflow: WorkflowDefinitionRecord;
   trustLevel: TrustLevel;
@@ -368,6 +402,7 @@ function WorkflowDetail({
   runPending: boolean;
   stopPending: boolean;
   onEdit: () => void;
+  onDelete: () => void;
 }) {
   const storeBacked = workflow.source === "store" || workflow.readOnly === true;
   const runnable = workflow.runnable === true;
@@ -460,6 +495,15 @@ function WorkflowDetail({
               Edit
             </Button>
           ) : null}
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={onDelete}
+            aria-label={`${storeBacked ? "Remove" : "Delete"} workflow ${workflow.id}`}
+          >
+            <Trash2 className="h-4 w-4" />
+            {storeBacked ? "Remove" : "Delete"}
+          </Button>
         </div>
       </div>
 

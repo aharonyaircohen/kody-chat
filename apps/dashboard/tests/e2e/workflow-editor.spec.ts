@@ -234,6 +234,34 @@ test.describe("workflow visual authoring", () => {
     expect(writes[0]?.body.steps).toHaveLength(2);
   });
 
+  test("lets a user delete a workflow after confirmation", async ({ page }) => {
+    let deleted = false;
+    await seedAuth(page);
+    await mockWorkflowApis(page, () => undefined);
+    await page.route(
+      "**/api/kody/company/workflows/release-readiness",
+      async (route) => {
+        if (route.request().method() === "DELETE") {
+          deleted = true;
+          await route.fulfill({
+            contentType: "application/json",
+            body: JSON.stringify({ success: true }),
+          });
+          return;
+        }
+        await route.fallback();
+      },
+    );
+    await page.goto(BASE_URL + "/workflows/release-readiness");
+
+    await page.getByRole("button", { name: "Delete workflow release-readiness" }).click();
+    await expect(page.getByRole("dialog")).toContainText("Delete workflow");
+    await page.getByRole("dialog").getByRole("button", { name: "Delete" }).click();
+
+    await expect.poll(() => deleted).toBe(true);
+    await expect(page.getByText("Select a workflow")).toBeVisible();
+  });
+
   test("keeps an invalid visual workflow unsaved and explains the problem", async ({
     page,
   }) => {
