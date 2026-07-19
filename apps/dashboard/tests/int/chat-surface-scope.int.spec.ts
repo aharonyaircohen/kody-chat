@@ -28,7 +28,7 @@ const h = vi.hoisted(() => ({
   readResolvedAgentFile: vi.fn(),
   getEngineConfig: vi.fn(),
 }));
-vi.mock("../../app/api/kody/chat/resolve-model", () => ({
+vi.mock("../../../../packages/kody-chat/app/api/kody/chat/resolve-model", () => ({
   resolveChatModel: h.resolveChatModel,
 }));
 vi.mock("@kody-ade/base/auth/background-token", () => ({
@@ -76,7 +76,7 @@ vi.mock("@kody-ade/base/engine/config", () => ({
   writeConfigPatch: vi.fn(),
 }));
 
-import { POST as kodyChatPOST } from "../../app/api/kody/chat/kody/route";
+import { POST as kodyChatPOST } from "../../../../packages/kody-chat/app/api/kody/chat/kody/route";
 import { POST as triggerPOST } from "../../app/api/kody/chat/trigger/route";
 import { POST as brainPOST } from "../../app/api/kody/chat/brain/route";
 import {
@@ -177,7 +177,16 @@ describe("surface scoping — kody in-process route", () => {
     });
     h.resolveChatModel.mockResolvedValue({
       model,
-      resolvedModel: { id: "mock/model", modelName: "mock-model" },
+      resolvedModel: {
+        id: "mock/model",
+        label: "Mock model",
+        provider: "openai",
+        protocol: "openai",
+        baseURL: "https://api.example.test/v1",
+        modelName: "mock-model",
+        apiKeySecret: "MOCK_API_KEY",
+        enabled: true,
+      },
     });
 
     const res = await kodyChatPOST(

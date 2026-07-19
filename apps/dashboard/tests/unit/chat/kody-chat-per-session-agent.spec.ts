@@ -206,13 +206,13 @@ describe("KodyChat — writes per-session agent on every change path", () => {
       SELECTION_SOURCE,
       "Per-session agent sync",
     );
-    expect(syncBlock).toMatch(/session\.agentKey/);
+    expect(syncBlock).toMatch(/activeSessionAgentKey/);
     expect(syncBlock).toMatch(/familySnap/);
     expect(syncBlock).toMatch(/defaultAgentEntry/);
     // Writes back when the session has no pick yet (or the resolved
     // target differs from the stored key).
     expect(syncBlock).toMatch(
-      /sessionHook\.setSessionAgent\(\s*session\.id,\s*targetEntry\.key\s*\)/,
+      /setSessionAgent\(activeSessionId,\s*targetEntry\.key\)/,
     );
   });
 

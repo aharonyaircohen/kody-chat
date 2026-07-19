@@ -41,7 +41,7 @@ vi.mock("@kody-ade/base/variables/load-chat-models", () => ({
 
 // Model resolution is mocked so the request gets past the 409 fallback and
 // actually builds the tool map (the code under test).
-vi.mock("../../app/api/kody/chat/resolve-model", () => ({
+vi.mock("../../../../packages/kody-chat/app/api/kody/chat/resolve-model", () => ({
   resolveChatModel: vi.fn(async () => ({
     model: {},
     resolvedModel: {
@@ -125,7 +125,7 @@ vi.mock("ai", async (importOriginal) => {
   };
 });
 
-import { POST as kodyChatPOST } from "../../app/api/kody/chat/kody/route";
+import { POST as kodyChatPOST } from "../../../../packages/kody-chat/app/api/kody/chat/kody/route";
 import { getChatServerToolRegistry } from "@kody-ade/kody-chat/platform/server-tools";
 import type { ChatToolServerContext } from "@kody-ade/kody-chat/platform";
 
@@ -235,7 +235,9 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
 
     // Invalid input is rejected by the registry's zod wrapper BEFORE the
     // handler runs.
-    await expect(fixtureTool.execute({ message: 42 }, {})).rejects.toThrow();
+    await expect(fixtureTool.execute({ message: 42 }, {})).resolves.toMatchObject({
+      error: expect.stringContaining("expected string"),
+    });
     expect(executions).toHaveLength(1);
   });
 

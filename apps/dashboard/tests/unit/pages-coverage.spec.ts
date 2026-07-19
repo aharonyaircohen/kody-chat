@@ -12,6 +12,8 @@ import { describe, expect, it } from "vitest";
 
 /** Canonical page module -> this app's route file. */
 const ROUTE_FOR: Record<string, string> = {
+  brain: "app/(chat-rail)/brain/page.tsx",
+  "guided-flows": "app/(chat-rail)/guided-flows/page.tsx",
   models: "app/(chat-rail)/models/page.tsx",
   secrets: "app/(chat-rail)/secrets/page.tsx",
   settings: "app/(chat-rail)/settings/page.tsx",
@@ -27,6 +29,7 @@ const ROUTE_FOR: Record<string, string> = {
   "view-renderer-detail": "app/(chat-rail)/views/renderers/[slug]/page.tsx",
   snippets: "app/(chat-rail)/snippets/page.tsx",
   triggers: "app/(chat-rail)/triggers/page.tsx",
+  "user-journeys": "app/(chat-rail)/user-journeys/page.tsx",
 };
 
 const PAGES_DIR = join(

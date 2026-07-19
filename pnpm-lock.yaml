@@ -558,6 +558,24 @@ importers:
       "@json-render/core":
         specifier: ^0.19.0
         version: 0.19.0(zod@4.4.3)
+      "@kody-ade/agency":
+        specifier: workspace:*
+        version: link:../agency
+      "@kody-ade/backend":
+        specifier: workspace:*
+        version: link:../kody-backend
+      "@kody-ade/base":
+        specifier: workspace:*
+        version: link:../base
+      "@kody-ade/brain":
+        specifier: workspace:*
+        version: link:../brain
+      "@kody-ade/cms":
+        specifier: workspace:*
+        version: link:../cms
+      "@kody-ade/fly":
+        specifier: workspace:*
+        version: link:../fly
       kody-chat-model-catalog:
         specifier: workspace:*
         version: link:../chat-model-catalog
@@ -612,6 +630,12 @@ importers:
       "@xterm/xterm":
         specifier: ^6.0.0
         version: 6.0.0
+      "@kody-ade/terminal":
+        specifier: workspace:*
+        version: link:../terminal
+      "@kody-ade/workspace":
+        specifier: workspace:*
+        version: link:../workspace
       ai:
         specifier: ^6.0.97
         version: 6.0.224(zod@4.4.3)

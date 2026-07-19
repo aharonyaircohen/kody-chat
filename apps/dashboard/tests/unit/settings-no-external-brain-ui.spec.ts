@@ -28,7 +28,7 @@ describe("Settings external Brain UI", () => {
 
   it("keeps Settings default chat focused on models and Fly Brain", () => {
     expect(defaultChatSource).toContain("Fly Brain");
-    expect(defaultChatSource).toContain("enable Fly Brain");
+    expect(defaultChatSource).toContain("brainFlyChatEnabled");
     expect(defaultChatSource).not.toContain("set a Brain server");
     expect(defaultChatSource).not.toContain("brainConfigured");
   });

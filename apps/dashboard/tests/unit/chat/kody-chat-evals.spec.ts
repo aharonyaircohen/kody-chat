@@ -122,9 +122,13 @@ describe("Kody chat evals", () => {
   });
 
   it("requires a terminal output tool instead of allowing plain prose stops", () => {
-    const route = readFileSync("app/api/kody/chat/kody/route.ts", "utf8");
+    const route = readFileSync(
+      "node_modules/@kody-ade/kody-chat/app/api/kody/chat/kody/route.ts",
+      "utf8",
+    );
 
-    expect(route).toContain('toolChoice: "required"');
+    expect(route).toContain("selectChatOutputToolChoice");
+    expect(route).toContain("supportsRequiredToolChoice");
     expect(route).toContain("CHAT_OUTPUT_TOOL_NAMES");
     expect(route).toContain("shouldRequireViewOutputForTurn");
     expect(route).toContain("shouldAllowPreRenderToolCallsForTurn");
@@ -139,7 +143,10 @@ describe("Kody chat evals", () => {
   });
 
   it("retries a failed show_view a bounded number of times, not forever", () => {
-    const route = readFileSync("app/api/kody/chat/kody/route.ts", "utf8");
+    const route = readFileSync(
+      "node_modules/@kody-ade/kody-chat/app/api/kody/chat/kody/route.ts",
+      "utf8",
+    );
 
     expect(route).toContain("MAX_SHOW_VIEW_ATTEMPTS = 3");
     expect(route).toContain(

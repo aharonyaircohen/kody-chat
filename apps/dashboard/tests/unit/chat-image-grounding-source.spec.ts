@@ -17,7 +17,10 @@ const KODY_CHAT_SOURCE = readFileSync(
   "utf8",
 );
 const KODY_ROUTE_SOURCE = readFileSync(
-  resolve(__dirname, "../../app/api/kody/chat/kody/route.ts"),
+  resolve(
+    __dirname,
+    "../../node_modules/@kody-ade/kody-chat/app/api/kody/chat/kody/route.ts",
+  ),
   "utf8",
 );
 

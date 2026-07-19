@@ -61,7 +61,7 @@ describe("Kody Chat model catalog", () => {
       default: false,
     } satisfies ChatModel;
 
-    const catalog = composeChatModelCatalog(
+    const catalog = composeChatModelCatalog<ChatModel>(
       [configured],
       KODY_OPENROUTER_FREE_CHAT_MODEL,
     );
