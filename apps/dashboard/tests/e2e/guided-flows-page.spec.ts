@@ -58,7 +58,9 @@ test("shows only GuidedFlow templates", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Start" })).toHaveCount(0);
 });
 
-test("provides step editing controls, preview, and validation", async ({ page }) => {
+test("provides step editing controls, preview, and validation", async ({
+  page,
+}) => {
   await page.route("**/api/kody/guided-flows**", (route) =>
     json(route, { definitions: [] }),
   );
@@ -67,15 +69,65 @@ test("provides step editing controls, preview, and validation", async ({ page })
   });
   await page.getByRole("button", { name: "Add Guided Flow" }).click();
 
-  await expect(page.getByText("Live preview", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Preview step 1")).toBeVisible();
+  if ((page.viewportSize()?.width ?? 0) >= 1024) {
+    const stepCardBox = await page.getByLabel("Step 1: New step").boundingBox();
+    const previewCardBox = await page.getByLabel("Preview step 1").boundingBox();
+    const previewBox = await page.getByLabel("Live preview 1").boundingBox();
+    expect(stepCardBox).not.toBeNull();
+    expect(previewCardBox).not.toBeNull();
+    expect(previewBox).not.toBeNull();
+    expect(
+      Math.abs((previewBox?.y ?? 0) - (stepCardBox?.y ?? 0)),
+    ).toBeLessThan(24);
+    expect(
+      Math.abs((previewCardBox?.y ?? 0) - (stepCardBox?.y ?? 0)),
+    ).toBeLessThan(24);
+    expect(previewCardBox?.height ?? 999).toBeLessThan(260);
+  }
+  await page
+    .getByLabel("Step 1 renderer", { exact: true })
+    .selectOption("guided-form");
+  await page
+    .getByLabel("Step 1 instructions")
+    .fill("Ask for the client sign-in details");
+  await expect(
+    page.getByLabel("Preview step 1").getByLabel("Client ID"),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Preview step 1").getByLabel("Client secret"),
+  ).toBeVisible();
+  await page
+    .getByLabel("Step 1 renderer", { exact: true })
+    .selectOption("selection-list");
+  await page.getByLabel("Step 1 instructions").fill("Select course");
+  await expect(
+    page.getByLabel("Preview step 1").getByRole("button", { name: "Course 1" }),
+  ).toBeVisible();
+  await expect(
+    page.getByLabel("Preview step 1").getByRole("button", { name: "Course 2" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Move step 1 up" }),
   ).toBeDisabled();
-  await expect(
-    page.getByRole("button", { name: "Delete step 1" }),
-  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Delete step 1" })).toHaveCount(
+    0,
+  );
 
   await page.getByRole("button", { name: "+ Add step" }).click();
+  await page
+    .getByLabel("Step 2 renderer", { exact: true })
+    .selectOption("approval-card");
+  await page
+    .getByLabel("Step 2 instructions")
+    .fill("Ask user for confirm, decline, edit, redo");
+  for (const action of ["Confirm", "Decline", "Edit", "Redo"]) {
+    await expect(
+      page.getByLabel("Preview step 2").getByRole("button", { name: action }),
+    ).toBeVisible();
+  }
+  await expect(page.getByLabel("Preview step 1")).toBeVisible();
+  await expect(page.getByLabel("Preview step 2")).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Move step 2 up" }),
   ).toBeEnabled();
@@ -119,9 +171,11 @@ test("creates a GuidedFlow template with an explicit renderer", async ({
   await page.getByLabel("Flow name").fill("Review a release");
   await page.getByLabel("Step 1 title").fill("Confirm the release");
   await page
-    .getByLabel("Step 1 explanation")
+    .getByLabel("Step 1 instructions")
     .fill("Check the release details.");
-  await page.getByLabel("Step 1 renderer").selectOption("approval-card");
+  await page
+    .getByLabel("Step 1 renderer", { exact: true })
+    .selectOption("approval-card");
   await page.getByRole("button", { name: "Save Guided Flow" }).click();
   await expect(
     page.getByText("Review a release", { exact: true }),
@@ -139,6 +193,7 @@ test("manages custom GuidedFlow definitions without editing built-ins", async ({
   let customDefinition = {
     id: "review-release",
     title: "Review a release",
+    version: 1,
     description: "Review the release before publishing.",
     steps: [
       {
@@ -174,6 +229,7 @@ test("manages custom GuidedFlow definitions without editing built-ins", async ({
       customDefinition = {
         ...customDefinition,
         title: body.draft?.title ?? customDefinition.title,
+        version: customDefinition.version + 1,
       };
       await json(route, { definition: customDefinition });
       return;
@@ -213,6 +269,11 @@ test("manages custom GuidedFlow definitions without editing built-ins", async ({
   await expect(
     page.getByRole("article", { name: "Review a production release" }),
   ).toBeVisible();
+  await expect(
+    page
+      .getByRole("article", { name: "Review a production release" })
+      .getByText("v2", { exact: true }),
+  ).toBeVisible();
   expect(posts).toContainEqual({
     action: "update-definition",
     flowId: "review-release",
@@ -228,6 +289,7 @@ test("manages custom GuidedFlow definitions without editing built-ins", async ({
   });
   await expect(confirmDialog).toBeVisible();
   await confirmDialog.getByRole("button", { name: "Delete" }).click();
+  await expect(confirmDialog).toHaveCount(0);
   await expect(
     page.getByRole("article", { name: "Review a production release" }),
   ).toHaveCount(0);

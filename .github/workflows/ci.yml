@@ -29,6 +29,12 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Lint
+        run: pnpm lint
+
+      - name: Production build
+        run: pnpm build
+
       - name: Tests with coverage thresholds (dashboard)
         run: pnpm --filter kody-dashboard exec vitest run tests/unit tests/int --coverage
 

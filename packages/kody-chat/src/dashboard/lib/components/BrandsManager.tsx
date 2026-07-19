@@ -464,33 +464,40 @@ function BrandListRow({
         "relative flex items-stretch transition-colors hover:bg-white/[0.04]",
         isActive && "bg-cyan-500/10",
       )}
+      onClick={onSelect}
     >
-      <button
-        type="button"
-        onClick={onSelect}
-        className="min-w-0 flex-1 px-4 py-3 pr-14 text-left"
-      >
+      <div className="min-w-0 flex-1 px-4 py-3 pr-14 text-left">
         <div className="flex items-center gap-2">
           <span
             className="h-3.5 w-3.5 shrink-0 rounded border border-white/20"
             style={{ backgroundColor: brand.accent }}
             aria-hidden="true"
           />
-          <span className="truncate text-sm font-medium text-white/90">
+          <Link
+            href={surfacePath}
+            aria-label={`Open ${brand.name} client surface`}
+            onClick={(event) => event.stopPropagation()}
+            className="truncate text-sm font-medium text-white/90 hover:text-cyan-200"
+          >
             {brand.name}
-          </span>
+          </Link>
           <span className="shrink-0 rounded bg-white/[0.07] px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-white/55">
             {brand.source}
           </span>
         </div>
-        <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
+        <Link
+          href={surfacePath}
+          onClick={(event) => event.stopPropagation()}
+          aria-label={surfacePath}
+          className="mt-1 block truncate font-mono text-xs text-muted-foreground underline decoration-white/20 underline-offset-2 hover:text-cyan-200 hover:decoration-cyan-300"
+        >
           {surfacePath}
-        </p>
+        </Link>
         <p className="mt-1 truncate text-xs text-white/50">
           {brand.accent} · {brand.locale ?? "en"} ·{" "}
           {brand.modelId ?? "default model"}
         </p>
-      </button>
+      </div>
       <Button
         type="button"
         variant="ghost"

@@ -251,7 +251,9 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
 
     // Invalid input is rejected by the registry's zod wrapper BEFORE the
     // handler runs.
-    await expect(fixtureTool.execute({ message: 42 }, {})).rejects.toThrow();
+    await expect(fixtureTool.execute({ message: 42 }, {})).resolves.toEqual({
+      error: expect.stringContaining("Invalid input"),
+    });
     expect(executions).toHaveLength(1);
   });
 

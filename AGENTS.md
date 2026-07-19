@@ -9,3 +9,11 @@
   adapter.
 - Do not call a Convex migration complete while any runtime-state GitHub
   fallback, bootstrap, dual-write, or reader remains.
+
+## Project Behavior
+
+- Read [`docs/project-behavior.md`](docs/project-behavior.md) when changing
+  routes, repository-scoped features, or user-facing dashboard behavior.
+- Keep the detailed rules in that document rather than duplicating them here.
+- Read [`docs/testing-policy.md`](docs/testing-policy.md) for the required
+  verification layers and completion standard for every change.

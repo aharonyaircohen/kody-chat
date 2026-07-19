@@ -124,6 +124,7 @@ describe("GuidedFlow route", () => {
       }),
     );
     expect(created.status).toBe(201);
+
     expect((await created.json()).definition).toMatchObject({
       id: "review-a-release",
       steps: [{ rendererSlug: "approval-card" }],
@@ -136,6 +137,98 @@ describe("GuidedFlow route", () => {
         expect.objectContaining({ id: "review-a-release" }),
       ]),
     );
+  });
+
+  it("ignores malformed stored definitions without hiding valid ones", async () => {
+    store.definitions = [
+      { id: "broken", version: 1, title: "Broken" },
+      {
+        id: "valid-flow",
+        version: 1,
+        title: "Valid flow",
+        steps: [
+          {
+            id: "step-1",
+            title: "Finish",
+            explanation: "Finish.",
+            rendererSlug: "approval-card",
+            allowedActions: ["continue"],
+          },
+        ],
+      },
+    ];
+
+    const listed = await GET(request());
+
+    expect(listed.status).toBe(200);
+    expect((await listed.json()).definitions).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: "valid-flow" })]),
+    );
+  });
+
+  it("rejects an unknown completion page before saving a definition", async () => {
+    const response = await POST(
+      request({
+        action: "create-definition",
+        draft: {
+          title: "Broken destination",
+          completionRouteId: "definitely-not-a-dashboard-route",
+          steps: [
+            {
+              title: "Finish",
+              explanation: "Finish the flow.",
+              rendererSlug: "approval-card",
+            },
+          ],
+        },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: "invalid_completion_route",
+    });
+    expect(store.definitions).toEqual([]);
+  });
+
+  it("completes a legacy flow even when its optional navigation is invalid", async () => {
+    store.definitions = [
+      {
+        id: "legacy-flow",
+        version: 1,
+        title: "Legacy flow",
+        completionRouteId: "removed-dashboard-route",
+        steps: [
+          {
+            id: "step-1",
+            title: "Finish",
+            explanation: "Finish.",
+            rendererSlug: "approval-card",
+            allowedActions: ["continue"],
+          },
+        ],
+      },
+    ];
+    const started = await POST(
+      request({ action: "start", flowId: "legacy-flow" }),
+    );
+    const instanceId = (await started.json()).instance.instanceId as string;
+
+    const completed = await POST(
+      request({
+        action: "submit",
+        instanceId,
+        stepId: "step-1",
+        expectedRevision: 0,
+        actionId: "continue",
+        mutationId: `guided-flow-${instanceId}-0`,
+      }),
+    );
+
+    expect(completed.status).toBe(200);
+    expect(await completed.json()).toMatchObject({
+      instance: { status: "completed" },
+    });
   });
 
   it("updates and deletes a custom flow definition but protects built-ins", async () => {
@@ -155,6 +248,12 @@ describe("GuidedFlow route", () => {
       }),
     );
     expect(created.status).toBe(201);
+
+    const started = await POST(
+      request({ action: "start", flowId: "review-a-release" }),
+    );
+    expect(started.status).toBe(201);
+    const instanceId = (await started.json()).instance.instanceId as string;
 
     const updated = await POST(
       request({
@@ -176,7 +275,56 @@ describe("GuidedFlow route", () => {
     expect((await updated.json()).definition).toMatchObject({
       id: "review-a-release",
       title: "Review the release",
+      version: 2,
       steps: [{ rendererSlug: "guided-form" }],
+    });
+
+    const oldRun = await GET(
+      new NextRequest(
+        `https://dash.test/api/kody/guided-flows?instanceId=${instanceId}`,
+        { headers: { "x-kody-owner": "acme", "x-kody-repo": "widgets" } },
+      ),
+    );
+    expect(oldRun.status).toBe(200);
+    expect(await oldRun.json()).toMatchObject({
+      flow: {
+        instance: { flowVersion: 1 },
+        flow: { title: "Review a release" },
+      },
+    });
+
+    const newRun = await POST(
+      request({
+        action: "start",
+        flowId: "review-a-release",
+        instanceKey: "new-user",
+      }),
+    );
+    expect(newRun.status).toBe(201);
+    const newRunPayload = await newRun.json();
+    expect(newRunPayload.instance.flowVersion).toBe(2);
+
+    const exactNewRun = await GET(
+      new NextRequest(
+        `https://dash.test/api/kody/guided-flows?instanceId=${newRunPayload.instance.instanceId}`,
+        { headers: { "x-kody-owner": "acme", "x-kody-repo": "widgets" } },
+      ),
+    );
+    expect(exactNewRun.status).toBe(200);
+    expect(await exactNewRun.json()).toMatchObject({
+      flow: {
+        instance: { flowVersion: 2 },
+        flow: { title: "Review the release" },
+      },
+    });
+
+    const resumedOldRun = await POST(
+      request({ action: "start", flowId: "review-a-release" }),
+    );
+    expect(resumedOldRun.status).toBe(200);
+    expect(await resumedOldRun.json()).toMatchObject({
+      instance: { instanceId, flowVersion: 1 },
+      flow: { title: "Review a release" },
     });
 
     const protectedBuiltin = await POST(
@@ -207,6 +355,23 @@ describe("GuidedFlow route", () => {
         expect.objectContaining({ id: "review-a-release" }),
       ]),
     });
+
+    const oldRunAfterDelete = await GET(
+      new NextRequest(
+        `https://dash.test/api/kody/guided-flows?instanceId=${instanceId}`,
+        { headers: { "x-kody-owner": "acme", "x-kody-repo": "widgets" } },
+      ),
+    );
+    expect(oldRunAfterDelete.status).toBe(200);
+
+    const startAfterDelete = await POST(
+      request({
+        action: "start",
+        flowId: "review-a-release",
+        instanceKey: "after-delete",
+      }),
+    );
+    expect(startAfterDelete.status).toBe(404);
   });
 
   it("lists completed flows and loads an exact instance", async () => {
@@ -269,6 +434,31 @@ describe("GuidedFlow route", () => {
     );
     expect(stale.status).toBe(409);
     expect((await stale.json()).error).toBe("revision_conflict");
+  });
+
+  it("returns the current state when the same mutation is retried", async () => {
+    const started = await POST(
+      request({ action: "start", flowId: "create-workflow" }),
+    );
+    const instanceId = (await started.json()).instance.instanceId as string;
+    const submission = {
+      action: "submit",
+      instanceId,
+      stepId: "choose-capability",
+      expectedRevision: 0,
+      actionId: "submit",
+      result: { workflowName: "Checks", capabilitySlug: "run-tests" },
+      mutationId: `guided-flow-${instanceId}-0`,
+    };
+
+    const first = await POST(request(submission));
+    const retry = await POST(request(submission));
+
+    expect(first.status).toBe(200);
+    expect(retry.status).toBe(200);
+    expect(await retry.json()).toMatchObject({
+      instance: { revision: 1, currentStepId: "review" },
+    });
   });
 
   it("runs the real workflow writer before completing the flow", async () => {

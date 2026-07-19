@@ -25,6 +25,27 @@ export const TABLES: readonly TableDef[] = [
     upsertIndex: "by_run",
   },
   {
+    table: "guidedFlowInstances",
+    naturalKey: ["actorId", "instanceId"],
+    upsertIndex: "by_instance",
+  },
+  { table: "userJourneys", naturalKey: ["journeyId"], upsertIndex: "by_tenant" },
+  {
+    table: "userJourneyVersions",
+    naturalKey: ["journeyId", "version"],
+    upsertIndex: "by_journey",
+  },
+  {
+    table: "userJourneyRuns",
+    naturalKey: ["runId"],
+    upsertIndex: "by_run",
+  },
+  {
+    table: "userJourneyRunEvents",
+    naturalKey: ["runId", "seq"],
+    upsertIndex: "by_run",
+  },
+  {
     table: "chatSessions",
     naturalKey: ["sessionId"],
     upsertIndex: "by_session",

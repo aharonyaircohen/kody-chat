@@ -1429,7 +1429,7 @@ export function KodyChat({
                 expectedRevision: view.guidedFlow?.revision,
                 ...(action.id === "back" ? {} : { actionId: action.id }),
                 ...(action.result ? { result: action.result } : {}),
-                mutationId: globalThis.crypto.randomUUID(),
+                mutationId: view.id,
               }),
             });
             const payload = (await response.json()) as {

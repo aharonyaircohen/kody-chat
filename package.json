@@ -9,7 +9,8 @@
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "test:unit": "pnpm -r test:unit",
-    "build": "pnpm -r build"
+    "build": "pnpm -r build",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
   },
   "packageManager": "pnpm@9.0.0"
 }

@@ -11,6 +11,12 @@ const GUIDED_FLOW_ERROR_MESSAGES: Record<string, string> = {
     "A workflow with this name already exists. Choose a different name and try again.",
   guided_flow_invalid_workflow:
     "This workflow cannot be created with the selected capability. Check the capability and try again.",
+  guided_flow_auth_failed:
+    "Your repository connection needs attention before this workflow can be created.",
+  guided_flow_rate_limited:
+    "The repository service is temporarily busy. Please try again shortly.",
+  guided_flow_completion_failed:
+    "The workflow could not be created yet. Your Guided Flow is still open; please try again.",
 };
 
 export function guidedFlowActionErrorMessage(errorCode?: string): string {

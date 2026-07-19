@@ -79,7 +79,8 @@ test.describe("Route smoke", () => {
               locale: "en",
               welcomeText: "Welcome to Acme",
               source: "repo",
-              htmlUrl: "https://github.com/test-owner/test-repo/blob/main/brands/acme.json",
+              htmlUrl:
+                "https://github.com/test-owner/test-repo/blob/main/brands/acme.json",
             },
           ],
         }),
@@ -100,10 +101,15 @@ test.describe("Route smoke", () => {
     ).toBeVisible();
     // Client surfaces are repo-scoped now: /client/<owner>/<repo>/<slug>.
     await expect(
-      page.getByText("/client/test-owner/test-repo/acme").first(),
-    ).toBeVisible();
+      page.getByRole("link", {
+        name: "/client/test-owner/test-repo/acme",
+      }),
+    ).toHaveAttribute("href", "/client/test-owner/test-repo/acme");
     await expect(
-      page.getByRole("link", { name: "Open Acme client surface" }),
+      page.getByRole("link", { name: "Open Acme client surface" }).first(),
+    ).toHaveAttribute("href", "/client/test-owner/test-repo/acme");
+    await expect(
+      page.getByRole("link", { name: "Open Acme client surface" }).first(),
     ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Delete Acme", exact: true }),
@@ -116,5 +122,4 @@ test.describe("Route smoke", () => {
       0,
     );
   });
-
 });

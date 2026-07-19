@@ -2,15 +2,33 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Eye, Loader2, Pencil, Plus, Route, Trash2 } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Eye,
+  Loader2,
+  Pencil,
+  Plus,
+  Route,
+  Trash2,
+} from "lucide-react";
 import { repoScopedHref } from "@kody-ade/base/routes";
 import { AuthGuard } from "../auth-guard";
 import { buildAuthHeaders, useAuth } from "@dashboard/lib/auth-context";
 import {
   listAuthoringRendererSlugs,
+  buildGuidedFlowDefinition,
+  validateGuidedFlowDraft,
   type GuidedFlowDraft,
   type GuidedFlowDraftStep,
 } from "../guided-flows/authoring";
+import { listGuidedFlowDefinitions } from "../guided-flows/registry";
+import type { GuidedFlowDefinition } from "../guided-flows/controller";
+import { getBuiltinViewRendererDefinition } from "../view-renderers/builtin";
+import { buildRenderedViewDirective } from "../view-renderers/template";
+import { RenderedViewCard } from "../chat/surface/RenderedViewCard";
+import type { RenderedViewDirective } from "../chat-ui-actions";
 import { Button } from "@kody-ade/base/ui/button";
 import { Card, CardContent } from "@kody-ade/base/ui/card";
 import {
@@ -23,28 +41,10 @@ import {
 import { PageShell } from "../components/PageShell";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 
-interface FlowDefinition {
-  id: string;
-  title: string;
-  description?: string;
-  version?: number;
-  completionRouteId?: string;
-  steps: Array<{
-    id?: string;
-    title?: string;
-    explanation?: string;
-    rendererSlug: string;
-    rendererData?: Record<string, unknown>;
-  }>;
-}
+type FlowDefinition = GuidedFlowDefinition & { description?: string };
 
 const BUILTIN_START_OPTIONS: FlowDefinition[] = [
-  {
-    id: "create-workflow",
-    title: "Create a workflow",
-    description: "Build a workflow from an existing capability.",
-    steps: [{ rendererSlug: "guided-form" }],
-  },
+  ...listGuidedFlowDefinitions(),
 ];
 
 function isBuiltinDefinition(definition: FlowDefinition): boolean {
@@ -80,8 +80,39 @@ function draftFromDefinition(definition: FlowDefinition): GuidedFlowDraft {
           ? step.rendererData.body
           : "Explain what the user should do next."),
       rendererSlug: step.rendererSlug,
+      rendererData: step.rendererData,
     })),
   };
+}
+
+function previewForDraft(
+  draft: GuidedFlowDraft,
+  selectedStepIndex: number,
+): RenderedViewDirective | null {
+  try {
+    const definition = buildGuidedFlowDefinition({
+      ...draft,
+      title: draft.title.trim() || "Preview",
+      steps: draft.steps.map((step) => ({
+        ...step,
+        title: step.title.trim() || "Untitled step",
+        explanation:
+          step.explanation.trim() || "Add instructions for this step.",
+      })),
+    });
+    const step = definition.steps[selectedStepIndex] ?? definition.steps[0];
+    const renderer = step
+      ? getBuiltinViewRendererDefinition(step.rendererSlug)
+      : null;
+    if (!step || !renderer) return null;
+    return buildRenderedViewDirective({
+      id: `guided-flow-preview-${selectedStepIndex}`,
+      definition: renderer,
+      data: step.rendererData ?? {},
+    });
+  } catch {
+    return null;
+  }
 }
 
 function FlowBuilder({
@@ -114,8 +145,46 @@ function FlowBuilder({
     }));
   }
 
+  function moveStep(index: number, direction: -1 | 1) {
+    const nextIndex = index + direction;
+    if (nextIndex < 0 || nextIndex >= draft.steps.length) return;
+    setDraft((current) => {
+      const steps = [...current.steps];
+      [steps[index], steps[nextIndex]] = [steps[nextIndex], steps[index]];
+      return { ...current, steps };
+    });
+  }
+
+  function duplicateStep(index: number) {
+    const copy = {
+      ...draft.steps[index],
+      title: `${draft.steps[index].title} (copy)`,
+    };
+    setDraft((current) => ({
+      ...current,
+      steps: [
+        ...current.steps.slice(0, index + 1),
+        copy,
+        ...current.steps.slice(index + 1),
+      ],
+    }));
+  }
+
+  function deleteStep(index: number) {
+    if (draft.steps.length <= 1) return;
+    setDraft((current) => ({
+      ...current,
+      steps: current.steps.filter((_, stepIndex) => stepIndex !== index),
+    }));
+  }
+
   async function save() {
     if (!auth) return;
+    const validationErrors = validateGuidedFlowDraft(draft);
+    if (Object.keys(validationErrors).length > 0) {
+      setError(Object.values(validationErrors)[0]);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -161,6 +230,9 @@ function FlowBuilder({
           </DialogTitle>
           <DialogDescription>
             Define the steps and renderer Kody should show.
+            {definition
+              ? ` Editing creates a new version; existing runs stay on v${definition.version ?? 1}.`
+              : " This flow will be saved as version 1."}
           </DialogDescription>
         </DialogHeader>
         {error ? (
@@ -176,6 +248,7 @@ function FlowBuilder({
               className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
               value={draft.title}
               disabled={readOnly}
+              aria-invalid={Boolean(error && !draft.title.trim())}
               onChange={(event) =>
                 setDraft((current) => ({
                   ...current,
@@ -201,77 +274,155 @@ function FlowBuilder({
             />
           </label>
         </div>
-        <div className="mt-5 space-y-3">
-          {draft.steps.map((step, index) => (
-            <article
-              key={index}
-              className="rounded-lg border border-white/10 bg-black/20 p-4"
-            >
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="font-medium text-white/80">Step {index + 1}</h3>
-                {!readOnly && draft.steps.length > 1 ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      setDraft((current) => ({
-                        ...current,
-                        steps: current.steps.filter(
-                          (_, stepIndex) => stepIndex !== index,
-                        ),
-                      }))
-                    }
+        <div className="mt-5 space-y-5">
+          <div className="flex items-center justify-between">
+            <h3 className="font-medium text-white/80">Steps</h3>
+            <span className="text-xs text-white/50">
+              {draft.steps.length} total
+            </span>
+          </div>
+          {draft.steps.map((step, index) => {
+            const stepPreview = previewForDraft(draft, index);
+            return (
+              <article
+                key={index}
+                aria-label={`Step ${index + 1}: ${step.title || "Untitled step"}`}
+                className="rounded-xl border border-white/10 bg-black/20 p-4 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(20rem,0.85fr)] lg:gap-x-5"
+              >
+                <div className="mb-3 flex items-start justify-between gap-3 lg:col-start-1">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 text-sm font-semibold text-primary">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-white/90">
+                        {step.title || "Untitled step"}
+                      </p>
+                    </div>
+                  </div>
+                  {!readOnly ? (
+                    <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-white/10 bg-white/[0.03] p-0.5">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        aria-label={`Move step ${index + 1} up`}
+                        disabled={index === 0}
+                        onClick={() => moveStep(index, -1)}
+                      >
+                        <ChevronUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        aria-label={`Move step ${index + 1} down`}
+                        disabled={index === draft.steps.length - 1}
+                        onClick={() => moveStep(index, 1)}
+                      >
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        aria-label={`Duplicate step ${index + 1}`}
+                        onClick={() => duplicateStep(index)}
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      {draft.steps.length > 1 ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          aria-label={`Delete step ${index + 1}`}
+                          onClick={() => deleteStep(index)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+                <div className="lg:col-start-1">
+                  <section aria-label={`Step form ${index + 1}`}>
+                    <div className="space-y-5">
+                      <section>
+                        <div className="mt-3 grid gap-3 md:grid-cols-2">
+                          <input
+                            aria-label={`Step ${index + 1} title`}
+                            placeholder="Step title"
+                            className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
+                            value={step.title}
+                            disabled={readOnly}
+                            onChange={(event) =>
+                              updateStep(index, {
+                                title: event.target.value,
+                              })
+                            }
+                          />
+                          <select
+                            aria-label={`Step ${index + 1} renderer`}
+                            className="w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
+                            value={step.rendererSlug}
+                            disabled={readOnly}
+                            onChange={(event) => {
+                              updateStep(index, {
+                                rendererSlug: event.target.value,
+                                rendererData: undefined,
+                              });
+                            }}
+                          >
+                            {listAuthoringRendererSlugs().map((slug) => (
+                              <option key={slug} value={slug}>
+                                {RENDERER_LABELS[slug] ?? slug}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </section>
+                      <section className="border-t border-white/10 pt-5">
+                        <textarea
+                          aria-label={`Step ${index + 1} instructions`}
+                          className="min-h-20 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
+                          placeholder="What should the user do?"
+                          value={step.explanation}
+                          disabled={readOnly}
+                          onChange={(event) =>
+                            updateStep(index, {
+                              explanation: event.target.value,
+                            })
+                          }
+                        />
+                      </section>
+                    </div>
+                  </section>
+                </div>
+                <aside
+                    aria-label={`Live preview ${index + 1}`}
+                    className="h-fit self-start border-t border-white/10 pt-5 lg:col-start-2 lg:row-start-1 lg:row-span-2 lg:sticky lg:top-0 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0"
                   >
-                    Remove
-                  </Button>
-                ) : null}
-              </div>
-              <div className="grid gap-3 md:grid-cols-2">
-                <label className="text-sm text-white/70">
-                  Step title
-                  <input
-                    aria-label={`Step ${index + 1} title`}
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
-                    value={step.title}
-                    disabled={readOnly}
-                    onChange={(event) =>
-                      updateStep(index, { title: event.target.value })
-                    }
-                  />
-                </label>
-                <label className="text-sm text-white/70">
-                  Renderer
-                  <select
-                    aria-label={`Step ${index + 1} renderer`}
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
-                    value={step.rendererSlug}
-                    disabled={readOnly}
-                    onChange={(event) =>
-                      updateStep(index, { rendererSlug: event.target.value })
-                    }
-                  >
-                    {listAuthoringRendererSlugs().map((slug) => (
-                      <option key={slug} value={slug}>
-                        {RENDERER_LABELS[slug] ?? slug}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-              <label className="mt-3 block text-sm text-white/70">
-                Explanation
-                <textarea
-                  aria-label={`Step ${index + 1} explanation`}
-                  className="mt-1 min-h-20 w-full rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-white"
-                  value={step.explanation}
-                  disabled={readOnly}
-                  onChange={(event) =>
-                    updateStep(index, { explanation: event.target.value })
-                  }
-                />
-              </label>
-            </article>
-          ))}
+                    <div
+                      aria-label={`Preview step ${index + 1}`}
+                      className="rounded-xl bg-black/25 p-3"
+                    >
+                      {stepPreview ? (
+                        <RenderedViewCard
+                          view={stepPreview}
+                          disabled
+                          onAction={() => undefined}
+                        />
+                      ) : (
+                        <p className="py-8 text-center text-sm text-white/50">
+                          Preview will appear here.
+                        </p>
+                      )}
+                    </div>
+                </aside>
+              </article>
+            );
+          })}
         </div>
         {!readOnly ? (
           <Button
@@ -373,6 +524,7 @@ function GuidedFlowsManager() {
         setDefinitions((current) =>
           current.filter((candidate) => candidate.id !== definition.id),
         );
+        setDeleteTarget(null);
       } catch (cause) {
         setError(
           cause instanceof Error
@@ -448,64 +600,67 @@ function GuidedFlowsManager() {
             {definitions.map((option) => (
               <li key={option.id}>
                 <Card
-                role="article"
-                aria-label={option.title}
-                className="border-white/[0.08] bg-white/[0.03]"
-              >
-                <CardContent className="flex items-center justify-between gap-4 p-3">
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-medium text-white/90">
-                      {option.title}
-                    </h3>
-                    <span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-white/50">
-                      {isBuiltinDefinition(option) ? "Built-in" : "Custom"}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-sm text-white/50">
-                    {option.description ??
-                      `${option.steps.length} guided step${option.steps.length === 1 ? "" : "s"}.`}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-label={`View ${option.title}`}
-                    onClick={() =>
-                      setEditor({ mode: "view", definition: option })
-                    }
-                  >
-                    <Eye className="mr-1.5 h-4 w-4" />
-                    View
-                  </Button>
-                  {!isBuiltinDefinition(option) ? (
-                    <>
+                  role="article"
+                  aria-label={option.title}
+                  className="border-white/[0.08] bg-white/[0.03]"
+                >
+                  <CardContent className="flex items-center justify-between gap-4 p-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium text-white/90">
+                          {option.title}
+                        </h3>
+                        <span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-white/50">
+                          {isBuiltinDefinition(option) ? "Built-in" : "Custom"}
+                        </span>
+                        <span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-white/50">
+                          v{option.version ?? 1}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-white/50">
+                        {option.description ??
+                          `${option.steps.length} guided step${option.steps.length === 1 ? "" : "s"}.`}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1">
                       <Button
                         variant="ghost"
                         size="sm"
-                        aria-label={`Edit ${option.title}`}
+                        aria-label={`View ${option.title}`}
                         onClick={() =>
-                          setEditor({ mode: "edit", definition: option })
+                          setEditor({ mode: "view", definition: option })
                         }
                       >
-                        <Pencil className="mr-1.5 h-4 w-4" />
-                        Edit
+                        <Eye className="mr-1.5 h-4 w-4" />
+                        View
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label={`Delete ${option.title}`}
-                        onClick={() => setDeleteTarget(option)}
-                      >
-                        <Trash2 className="mr-1.5 h-4 w-4" />
-                        Delete
-                      </Button>
-                    </>
-                  ) : null}
-                </div>
-                </CardContent>
-              </Card>
+                      {!isBuiltinDefinition(option) ? (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`Edit ${option.title}`}
+                            onClick={() =>
+                              setEditor({ mode: "edit", definition: option })
+                            }
+                          >
+                            <Pencil className="mr-1.5 h-4 w-4" />
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            aria-label={`Delete ${option.title}`}
+                            onClick={() => setDeleteTarget(option)}
+                          >
+                            <Trash2 className="mr-1.5 h-4 w-4" />
+                            Delete
+                          </Button>
+                        </>
+                      ) : null}
+                    </div>
+                  </CardContent>
+                </Card>
               </li>
             ))}
           </ul>

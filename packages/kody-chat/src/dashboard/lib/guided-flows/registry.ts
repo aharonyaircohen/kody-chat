@@ -65,12 +65,31 @@ const DEFINITIONS: readonly GuidedFlowDefinition[] = [CREATE_WORKFLOW_FLOW];
 
 export function getGuidedFlowDefinition(
   flowId: string,
+  version?: number,
 ): GuidedFlowDefinition | null {
-  return DEFINITIONS.find((definition) => definition.id === flowId) ?? null;
+  const matches = DEFINITIONS.filter(
+    (definition) =>
+      definition.id === flowId &&
+      (version === undefined || definition.version === version),
+  );
+  return (
+    matches.reduce<GuidedFlowDefinition | null>(
+      (latest, definition) =>
+        !latest || definition.version > latest.version ? definition : latest,
+      null,
+    ) ?? null
+  );
 }
 
 export function listGuidedFlowDefinitions(): readonly GuidedFlowDefinition[] {
-  return DEFINITIONS;
+  const latestById = new Map<string, GuidedFlowDefinition>();
+  for (const definition of DEFINITIONS) {
+    const latest = latestById.get(definition.id);
+    if (!latest || definition.version > latest.version) {
+      latestById.set(definition.id, definition);
+    }
+  }
+  return [...latestById.values()];
 }
 
 export function buildGuidedFlowView(

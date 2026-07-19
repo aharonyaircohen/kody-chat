@@ -47,6 +47,11 @@ pnpm dev              # kody-chat app (port 3344)
 pnpm dev:dashboard    # dashboard app (port 3333)
 ```
 
+## Documentation
+
+- [UI design principles](docs/ui-design-principles.md) — guidance for keeping
+  dashboard pages simple, clear, and easy to verify.
+
 ## Migration status
 
 Steps 1–9 of `apps/dashboard/docs/package-split-plan.md` are complete.

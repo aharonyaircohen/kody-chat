@@ -1,5 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { buildGuidedFlowStatusView } from "@kody-ade/kody-chat/guided-flows/registry";
+import {
+  buildGuidedFlowStatusView,
+  getGuidedFlowDefinition,
+  listGuidedFlowDefinitions,
+} from "@kody-ade/kody-chat/guided-flows/registry";
+
+describe("guided flow registry", () => {
+  it("supports exact versions while exposing only the latest version per flow", () => {
+    const latest = getGuidedFlowDefinition("create-workflow");
+
+    expect(latest).not.toBeNull();
+    expect(getGuidedFlowDefinition("create-workflow", latest?.version)).toBe(
+      latest,
+    );
+    expect(getGuidedFlowDefinition("create-workflow", 999)).toBeNull();
+    expect(
+      listGuidedFlowDefinitions().filter(
+        (definition) => definition.id === "create-workflow",
+      ),
+    ).toEqual([latest]);
+  });
+});
 
 describe("guided flow status renderer", () => {
   it("renders status and safe navigation actions from data", () => {

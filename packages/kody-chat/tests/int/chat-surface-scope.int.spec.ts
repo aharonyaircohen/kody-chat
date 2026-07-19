@@ -177,7 +177,11 @@ describe("surface scoping — kody in-process route", () => {
     });
     h.resolveChatModel.mockResolvedValue({
       model,
-      resolvedModel: { id: "mock/model", modelName: "mock-model" },
+      resolvedModel: {
+        id: "mock/model",
+        provider: "mock",
+        modelName: "mock-model",
+      },
     });
 
     const res = await kodyChatPOST(
@@ -231,7 +235,11 @@ describe("surface scoping — kody in-process route", () => {
     });
     h.resolveChatModel.mockResolvedValue({
       model,
-      resolvedModel: { id: "mock/model", modelName: "mock-model" },
+      resolvedModel: {
+        id: "mock/model",
+        provider: "mock",
+        modelName: "mock-model",
+      },
     });
 
     const res = await kodyChatPOST(

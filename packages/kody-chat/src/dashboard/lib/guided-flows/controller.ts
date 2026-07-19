@@ -10,6 +10,7 @@ export interface GuidedFlowStepDefinition {
   readonly explanation: string;
   readonly rendererSlug: string;
   readonly rendererData?: Readonly<Record<string, unknown>>;
+  readonly authoringGoal?: string;
   readonly routeId?: string;
   readonly transitions?: GuidedFlowTransitionMap;
   readonly allowedActions?: readonly string[];

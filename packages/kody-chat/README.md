@@ -13,6 +13,11 @@ consumes this package.
 - **Client brand surfaces** — `/client/<slug>` full-page branded chat.
   One deployment serves every brand; brands resolve by slug (repo
   `brands/<slug>.json` with built-in fallbacks). Unknown slugs 404.
+
+## Project docs
+
+- [Project behavior](../../docs/project-behavior.md) — route ownership,
+  repository context, and user-facing verification rules.
 - **Chat backends** — `/api/kody/chat/*` (in-process model, Brain proxy,
   GitHub Actions engine trigger) and `/api/kody/events/*` (ingest + stream).
 - **Chat platform** — `src/dashboard/lib/chat/{core,platform,plugins,surface}`.
