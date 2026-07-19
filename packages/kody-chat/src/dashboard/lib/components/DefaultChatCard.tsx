@@ -2,8 +2,8 @@
  * @fileType component
  * @domain settings
  * @pattern settings-card
- * @ai-summary Settings → "Default chat" picker. Chooses which chat entry (a
- *   user-managed model OR Fly Brain) loads when chat opens, writing the
+ * @ai-summary Settings → "Default chat" picker. Chooses which chat entry (the
+ *   embedded OpenRouter model, a user-managed model, or Fly Brain) loads when chat opens, writing the
  *   per-user, repo-scoped `kody-default-chat-entry` localStorage key that
  *   KodyChat reads on mount. This replaces the old "Set default" star in the
  *   chat dropdown — the default now lives in exactly one place.
@@ -34,6 +34,10 @@ import {
   readDefaultChatEntry,
   writeDefaultChatEntry,
 } from "../chat/platform/default-entry";
+import {
+  composeChatModelCatalog,
+  KODY_OPENROUTER_FREE_CHAT_MODEL,
+} from "../chat/model-catalog";
 
 /** Sentinel select value for "no explicit default" (Radix forbids ""). */
 const AUTO = "__auto__";
@@ -76,10 +80,21 @@ export function DefaultChatCard() {
       .then((res) => (res.ok ? res.json() : Promise.reject(res)))
       .then((json: { models?: ChatModelEntry[] }) => {
         if (!cancelled)
-          setModels(Array.isArray(json.models) ? json.models : []);
+          setModels(
+            composeChatModelCatalog<ChatModelEntry>(
+              Array.isArray(json.models) ? json.models : [],
+              KODY_OPENROUTER_FREE_CHAT_MODEL,
+            ),
+          );
       })
       .catch(() => {
-        if (!cancelled) setModels([]);
+        if (!cancelled)
+          setModels(
+            composeChatModelCatalog<ChatModelEntry>(
+              [],
+              KODY_OPENROUTER_FREE_CHAT_MODEL,
+            ),
+          );
       });
 
     fetch("/api/kody/dashboard-config", { headers })
@@ -144,8 +159,8 @@ export function DefaultChatCard() {
           <h2 className="text-sm font-semibold">Default chat</h2>
         </div>
         <p className="text-xs text-white/50 -mt-2">
-          Which configured model loads when you open chat. Saved per repo,
-          just for you.
+          Which configured model loads when you open chat. Saved per repo, just
+          for you.
         </p>
 
         <div className="space-y-2">

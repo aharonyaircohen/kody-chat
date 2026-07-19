@@ -21,14 +21,17 @@ import type {
   BrainChatModelEntry,
   ChatModelEntry,
 } from "../chat/platform/agent-entries";
-import { OPENROUTER_FREE_CHAT_MODEL } from "@kody-ade/base/variables/models";
 import { authHeaders } from "../chat/core/kody-chat-live-session";
+import {
+  composeChatModelCatalog,
+  KODY_OPENROUTER_FREE_CHAT_MODEL,
+} from "../chat/model-catalog";
 
 export interface ChatDataSources {
   /**
    * User-managed chat models from /api/kody/models (LLM_MODELS variable).
-   * Empty until first load completes; renders only Kody Live (+ Brain) in
-   * the dropdown while empty.
+   * Empty until first load completes; the embedded OpenRouter entry is
+   * composed when the request resolves.
    */
   chatModels: ChatModelEntry[];
   chatModelsLoaded: boolean;
@@ -60,9 +63,8 @@ export function useChatDataSources(): ChatDataSources {
   const [brainFlyChatEnabled, setBrainFlyChatEnabled] = useState(false);
   const [flyConfigured, setFlyConfigured] = useState(false);
 
-  // Load the user-managed model list once on mount. The dropdown stays in
-  // Kody Live-only mode until this resolves; failures are silent — chat
-  // still works through the engine path.
+  // Compose the server-backed model list with the built-in OpenRouter entry.
+  // The built-in entry remains available even when the request fails.
   useEffect(() => {
     let cancelled = false;
     const request = (path: string) =>
@@ -81,12 +83,12 @@ export function useChatDataSources(): ChatDataSources {
         const configuredModels = Array.isArray(modelsJson.models)
           ? modelsJson.models
           : [];
-        setChatModels([
-          OPENROUTER_FREE_CHAT_MODEL,
-          ...configuredModels.filter(
-            (model) => model.id !== OPENROUTER_FREE_CHAT_MODEL.id,
+        setChatModels(
+          composeChatModelCatalog<ChatModelEntry>(
+            configuredModels,
+            KODY_OPENROUTER_FREE_CHAT_MODEL,
           ),
-        ]);
+        );
         setBrainModels(Array.isArray(brainJson.models) ? brainJson.models : []);
         setChatModelsLoaded(true);
       },

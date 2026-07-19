@@ -720,7 +720,7 @@ async function handleKodyDirectPost(
   const trimmedCount = allMessages.length - messages.length;
   const hasImageParts = messagesHaveImageParts(messages);
 
-  // Resolve the model from the user-managed list in Convex variables.json.
+  // Resolve the model from the configured + built-in catalog in Convex variables.json.
   // The client can override per-request via `body.model`, but it must
   // match an enabled entry — we never trust arbitrary ids from the wire.
   // Voice mode does not affect model selection; it's a per-turn prompt

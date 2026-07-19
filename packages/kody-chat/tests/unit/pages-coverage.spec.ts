@@ -12,6 +12,7 @@ import { describe, expect, it } from "vitest";
 /** Canonical page module -> this app's route file. */
 const ROUTE_FOR: Record<string, string> = {
   models: "app/(shell)/models/page.tsx",
+  brain: "app/(shell)/brain/page.tsx",
   secrets: "app/(shell)/secrets/page.tsx",
   settings: "app/(shell)/settings/page.tsx",
   brands: "app/(shell)/brands/page.tsx",
@@ -39,7 +40,10 @@ describe("shared pages route coverage", () => {
 
   it("every canonical page has a route mapping", () => {
     for (const page of pages) {
-      expect(ROUTE_FOR[page], `add a route mapping for pages/${page}`).toBeTruthy();
+      expect(
+        ROUTE_FOR[page],
+        `add a route mapping for pages/${page}`,
+      ).toBeTruthy();
     }
   });
 
@@ -47,9 +51,10 @@ describe("shared pages route coverage", () => {
     for (const [page, route] of Object.entries(ROUTE_FOR)) {
       const abs = join(process.cwd(), route);
       expect(existsSync(abs), `${route} is missing`).toBe(true);
-      expect(readFileSync(abs, "utf8"), `${route} must re-export pages/${page}`).toContain(
-        `lib/pages/${page}"`,
-      );
+      expect(
+        readFileSync(abs, "utf8"),
+        `${route} must re-export pages/${page}`,
+      ).toContain(`lib/pages/${page}"`);
     }
   });
 });

@@ -1,8 +1,8 @@
 /**
  * Unit tests for the model picker contract.
  *
- * Only configured custom models are shown. Internal Brain/Live runners and
- * unfinished built-in provider connections must not appear in the picker.
+ * Configured gateway models are shown alongside the internal Live/Brain
+ * entries that are part of the chat surface.
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -23,9 +23,13 @@ const model = (
 });
 
 describe("buildAgentList", () => {
-  it("shows no built-in choice when no custom model is configured", () => {
-    expect(buildAgentList(false, false, false, [])).toEqual([]);
-    expect(buildAgentList(true, true, true, [])).toEqual([]);
+  it("keeps the Live and Brain entries available without custom models", () => {
+    expect(
+      buildAgentList(false, false, false, []).map((entry) => entry.key),
+    ).toEqual(["kody-live"]);
+    expect(
+      buildAgentList(true, true, true, []).map((entry) => entry.key),
+    ).toEqual(["kody-live-fly", "brain-fly"]);
   });
 
   it("maps enabled custom models and drops disabled ones", () => {
@@ -56,13 +60,18 @@ describe("buildAgentList", () => {
       model({ id: "a" }),
       model({ id: "b" }),
     ]);
-    expect(list.map((entry) => entry.key)).toEqual(["kody:a", "kody:b"]);
+    expect(list.map((entry) => entry.key)).toEqual([
+      "kody-live-fly",
+      "brain-fly",
+      "kody:a",
+      "kody:b",
+    ]);
   });
 
   it("does not add a built-in Claude row even when a custom model uses Claude", () => {
     const keys = buildAgentList(true, true, true, [
       model({ id: "claude-y", label: "Claude Y" }),
     ]).map((entry) => entry.key);
-    expect(keys).toEqual(["kody:claude-y"]);
+    expect(keys).toEqual(["kody-live-fly", "brain-fly", "kody:claude-y"]);
   });
 });

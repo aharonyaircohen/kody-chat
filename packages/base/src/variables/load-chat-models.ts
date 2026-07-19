@@ -14,23 +14,17 @@ import {
   VAR_LLM_MODELS,
   ChatModelsSchema,
   type ChatModel,
-  withBuiltInChatModels,
 } from "./models";
 
-export async function loadChatModels(
-  req: NextRequest,
-  options: { includeBuiltIn?: boolean } = {},
-): Promise<ChatModel[]> {
-  const finalize = (models: ChatModel[]) =>
-    options.includeBuiltIn ? withBuiltInChatModels(models) : models;
+export async function loadChatModels(req: NextRequest): Promise<ChatModel[]> {
   const raw = await getVariable(VAR_LLM_MODELS, { req });
-  if (!raw) return finalize([]);
+  if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
     const result = ChatModelsSchema.safeParse(parsed);
-    if (!result.success) return finalize([]);
-    return finalize(result.data);
+    if (!result.success) return [];
+    return result.data;
   } catch {
-    return finalize([]);
+    return [];
   }
 }

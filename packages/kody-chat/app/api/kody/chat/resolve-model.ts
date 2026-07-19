@@ -3,7 +3,7 @@
  *
  * Both the streaming chat route (`/api/kody/chat/kody`) and lightweight
  * one-shot routes (e.g. `/api/kody/chat/title`) need the same chain:
- * load the user-managed model list → pick one (explicit id or default) →
+ * compose the configured + built-in model catalog → pick one (explicit id or default) →
  * read its per-model API key from the vault → build a Vercel-AI
  * `LanguageModel` for the right wire protocol.
  *
@@ -20,6 +20,10 @@ import { getSecret } from "@kody-ade/base/vault/get-secret";
 import { normalizeOpenAICompatibleRequestBody } from "@kody-ade/kody-chat/core/openai-compatible-request";
 import { supportsVision } from "@kody-ade/kody-chat/core/vision-support";
 import { loadChatModels } from "@kody-ade/base/variables/load-chat-models";
+import {
+  composeChatModelCatalog,
+  KODY_OPENROUTER_FREE_CHAT_MODEL,
+} from "@kody-ade/kody-chat/chat/model-catalog";
 import {
   PROVIDER_PRESETS,
   pickModelById,
@@ -170,7 +174,10 @@ export async function resolveChatModel(
   modelId?: string,
   options: ResolveChatModelOptions = {},
 ): Promise<ResolvedChatModel | { error: NextResponse }> {
-  const availableModels = await loadChatModels(req, { includeBuiltIn: true });
+  const availableModels = composeChatModelCatalog(
+    await loadChatModels(req),
+    KODY_OPENROUTER_FREE_CHAT_MODEL,
+  );
   const requestedModel = modelId
     ? pickModelById(availableModels, modelId)
     : null;
@@ -186,7 +193,9 @@ export async function resolveChatModel(
       ),
     };
   }
-  const chatModels = availableModels.filter((model) => !isEmbeddingModel(model));
+  const chatModels = availableModels.filter(
+    (model) => !isEmbeddingModel(model),
+  );
   const selectedModel =
     requestedModel ??
     pickDefaultModel(chatModels) ??

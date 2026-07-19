@@ -31,7 +31,7 @@ export interface ChatDropdownEntry {
   runtime?: string;
 }
 
-/** A user-managed chat model from /api/kody/models (LLM_MODELS variable). */
+/** A chat model from the configured + embedded catalog. */
 export interface ChatModelEntry {
   id: string;
   label: string;
@@ -49,32 +49,21 @@ export interface BrainChatModelEntry {
   default?: boolean;
 }
 
-/** True when an entry key depends on the async /api/kody/models list. */
-export function isModelBackedEntryKey(
-  key: string | null | undefined,
-): key is `kody:${string}` | `brain:${string}` {
-  return (
-    typeof key === "string" &&
-    (key.startsWith("kody:") || key.startsWith("brain:"))
-  );
-}
-
 /**
- * A saved gateway-model pick cannot be resolved until the async models list
- * finishes loading. Static agent picks can resolve from the built-in entries.
+ * The default cannot be resolved until the async model catalog finishes
+ * loading. Waiting for the catalog prevents the initial Live fallback from
+ * being persisted before the embedded model becomes available.
  */
-export function shouldWaitForModelBackedEntryResolution({
+export function shouldWaitForChatCatalogResolution({
   sessionHydrated,
   chatModelsLoaded,
-  sessionAgentKey,
 }: {
   sessionHydrated: boolean;
   chatModelsLoaded: boolean;
-  sessionAgentKey: string | null | undefined;
 }): boolean {
   if (!sessionHydrated) return true;
-  if (chatModelsLoaded) return false;
-  return !sessionAgentKey || isModelBackedEntryKey(sessionAgentKey);
+  if (!chatModelsLoaded) return true;
+  return false;
 }
 
 /**

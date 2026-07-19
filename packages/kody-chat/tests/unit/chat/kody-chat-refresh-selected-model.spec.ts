@@ -14,10 +14,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  isModelBackedEntryKey,
-  shouldWaitForModelBackedEntryResolution,
-} from "@dashboard/lib/chat/platform/agent-entries";
+import { shouldWaitForChatCatalogResolution } from "@dashboard/lib/chat/platform/agent-entries";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // Phase 1.6c moved the per-session agent sync effect (and the rest of
@@ -31,57 +28,43 @@ const KODY_CHAT_PATH = resolve(
 const KODY_CHAT_SOURCE = readFileSync(KODY_CHAT_PATH, "utf8");
 
 describe("KodyChat refresh selected-model restore", () => {
-  it("identifies model-backed chat entries", () => {
-    expect(isModelBackedEntryKey("kody:claude-sonnet")).toBe(true);
-    expect(isModelBackedEntryKey("kody:gpt-5")).toBe(true);
-    expect(isModelBackedEntryKey("kody-live")).toBe(false);
-    expect(isModelBackedEntryKey("brain")).toBe(false);
-    expect(isModelBackedEntryKey(null)).toBe(false);
-    expect(isModelBackedEntryKey(undefined)).toBe(false);
-  });
-
-  it("waits for model entries before resolving a saved model pick", () => {
+  it("waits for the chat catalog before resolving a saved model pick", () => {
     expect(
-      shouldWaitForModelBackedEntryResolution({
+      shouldWaitForChatCatalogResolution({
         sessionHydrated: false,
         chatModelsLoaded: false,
-        sessionAgentKey: "kody:claude-sonnet",
       }),
     ).toBe(true);
 
     expect(
-      shouldWaitForModelBackedEntryResolution({
+      shouldWaitForChatCatalogResolution({
         sessionHydrated: true,
         chatModelsLoaded: false,
-        sessionAgentKey: "kody:claude-sonnet",
       }),
     ).toBe(true);
 
     expect(
-      shouldWaitForModelBackedEntryResolution({
+      shouldWaitForChatCatalogResolution({
         sessionHydrated: true,
         chatModelsLoaded: true,
-        sessionAgentKey: "kody:claude-sonnet",
       }),
     ).toBe(false);
   });
 
-  it("does not delay static agent restores once sessions are hydrated", () => {
+  it("waits for the catalog before restoring any agent", () => {
     expect(
-      shouldWaitForModelBackedEntryResolution({
+      shouldWaitForChatCatalogResolution({
         sessionHydrated: true,
         chatModelsLoaded: false,
-        sessionAgentKey: "kody-live",
       }),
-    ).toBe(false);
+    ).toBe(true);
 
     expect(
-      shouldWaitForModelBackedEntryResolution({
+      shouldWaitForChatCatalogResolution({
         sessionHydrated: true,
         chatModelsLoaded: false,
-        sessionAgentKey: "brain",
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("wires the restore guard into the per-session sync path", () => {
@@ -89,10 +72,9 @@ describe("KodyChat refresh selected-model restore", () => {
       KODY_CHAT_SOURCE,
       "Per-session agent sync",
     );
-    expect(syncBlock).toMatch(/shouldWaitForModelBackedEntryResolution/);
-    expect(syncBlock).toMatch(/sessionHydrated:\s*sessionHook\.hydrated/);
+    expect(syncBlock).toMatch(/shouldWaitForChatCatalogResolution/);
+    expect(syncBlock).toMatch(/sessionHydrated[,\s]/);
     expect(syncBlock).toMatch(/chatModelsLoaded/);
-    expect(syncBlock).toMatch(/sessionAgentKey:\s*session\?\.agentKey/);
   });
 });
 

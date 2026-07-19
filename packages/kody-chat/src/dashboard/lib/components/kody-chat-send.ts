@@ -1047,8 +1047,8 @@ async function runSendTextInner(
           // chat is hosted on /vibe; the dashboard rail leaves it off.
           // (Wire shape owned by chat/plugins/vibe/turn-context.ts.)
           ...vibeTurnFields(vibeMode),
-          // Forward the user-managed gateway model id when one is
-          // active. The server validates against the LLM_MODELS list,
+          // Forward the active gateway model id when one is active. The
+          // server validates against the configured + built-in catalog,
           // so a stale value falls back to the configured default.
           ...(selectedModelId ? { model: selectedModelId } : {}),
           // Forward the user's picked thinking level. Server translates

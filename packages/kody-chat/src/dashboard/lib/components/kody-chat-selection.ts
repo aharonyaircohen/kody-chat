@@ -28,7 +28,7 @@ import {
 } from "@dashboard/lib/agents";
 import {
   buildAgentList,
-  shouldWaitForModelBackedEntryResolution,
+  shouldWaitForChatCatalogResolution,
   type BrainChatModelEntry,
   type ChatDropdownEntry,
   type ChatModelEntry,
@@ -201,6 +201,13 @@ export function useAgentSelection(
     brainModels,
     sessionHook,
   } = options;
+  const {
+    activeSession,
+    hydrated: sessionHydrated,
+    setSessionAgent,
+  } = sessionHook;
+  const activeSessionId = activeSession?.id;
+  const activeSessionAgentKey = activeSession?.agentKey;
 
   const [selectedAgentId, setSelectedAgentId] = useState<AgentId>(
     lockedAgentId ?? "kody-live",
@@ -325,12 +332,10 @@ export function useAgentSelection(
   //      effect will re-run to capture the pick).
   useEffect(() => {
     if (lockedAgentId) return; // Vibe page owns the agent
-    const session = sessionHook.activeSession;
     if (
-      shouldWaitForModelBackedEntryResolution({
-        sessionHydrated: sessionHook.hydrated,
+      shouldWaitForChatCatalogResolution({
+        sessionHydrated,
         chatModelsLoaded,
-        sessionAgentKey: session?.agentKey,
       })
     ) {
       return;
@@ -338,10 +343,11 @@ export function useAgentSelection(
     if (agentList.length === 0) return; // Wait for the list to load.
 
     let targetEntry: ChatDropdownEntry | null = null;
-    if (session?.agentKey) {
-      targetEntry = agentList.find((e) => e.key === session.agentKey) ?? null;
+    if (activeSessionAgentKey) {
+      targetEntry =
+        agentList.find((e) => e.key === activeSessionAgentKey) ?? null;
       if (!targetEntry) {
-        targetEntry = familySnap(session.agentKey);
+        targetEntry = familySnap(activeSessionAgentKey);
       }
     }
     if (!targetEntry) {
@@ -361,13 +367,13 @@ export function useAgentSelection(
     // switches restore it directly without re-running the fallback
     // chain. Skipped when there's no session (local-state-only
     // adjustment) or when the session already has this key.
-    if (session && session.agentKey !== targetEntry.key) {
-      sessionHook.setSessionAgent(session.id, targetEntry.key);
+    if (activeSessionId && activeSessionAgentKey !== targetEntry.key) {
+      setSessionAgent(activeSessionId, targetEntry.key);
     }
   }, [
-    sessionHook.activeSession?.id,
-    sessionHook.activeSession?.agentKey,
-    sessionHook.hydrated,
+    activeSessionId,
+    activeSessionAgentKey,
+    sessionHydrated,
     agentList,
     defaultAgentEntry,
     familySnap,
@@ -375,7 +381,7 @@ export function useAgentSelection(
     lockedAgentId,
     selectedAgentId,
     selectedModelId,
-    sessionHook.setSessionAgent,
+    setSessionAgent,
   ]);
 
   // UI side effects of a live-session restore. Runs from the live-runner

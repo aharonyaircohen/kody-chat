@@ -7,7 +7,7 @@
  *   essentials surfaced — provider preset auto-fills baseURL/protocol,
  *   "Advanced" reveals internal id + URL + protocol for the `custom`
  *   provider case. The list drives the chat dropdown across the
- *   dashboard and /vibe; both fall back to Kody Live when empty.
+ *   dashboard and /vibe; OpenRouter Free remains available when empty.
  */
 "use client";
 

@@ -82,7 +82,7 @@ describe("resolveDefaultAgentEntry", () => {
       brainConfigured: true,
       agentList,
     });
-    expect(entry).toBeNull();
+    expect(entry?.key).toBe("brain");
   });
 
   it("returns no visible entry when nothing is configured", () => {
@@ -93,7 +93,7 @@ describe("resolveDefaultAgentEntry", () => {
       brainConfigured: false,
       agentList,
     });
-    expect(entry).toBeNull();
+    expect(entry?.key).toBe("kody-live");
   });
 
   it("does not expose an internal Fly runner as a model", () => {
@@ -104,7 +104,7 @@ describe("resolveDefaultAgentEntry", () => {
       brainConfigured: false,
       agentList,
     });
-    expect(entry).toBeNull();
+    expect(entry?.key).toBe("kody-live-fly");
   });
 
   it("ignores a saved pick that no longer resolves to a row", () => {
@@ -115,21 +115,21 @@ describe("resolveDefaultAgentEntry", () => {
       brainConfigured: false,
       agentList,
     });
-    expect(entry).toBeNull();
+    expect(entry?.key).toBe("kody-live");
   });
 });
 
 describe("familySnapEntry", () => {
   it("drops old Live keys when there is no visible custom model", () => {
-    expect(familySnapEntry("kody-live", list({ fly: true }))).toBeNull();
-    expect(familySnapEntry("kody-live-fly", list())).toBeNull();
+    expect(familySnapEntry("kody-live", list({ fly: true }))?.key).toBe(
+      "kody-live-fly",
+    );
+    expect(familySnapEntry("kody-live-fly", list())?.key).toBe("kody-live");
   });
 
   it("migrates old Brain keys to the first custom model", () => {
     const models = list({ models: MODELS });
-    expect(familySnapEntry("brain-fly", models)?.key).toBe(
-      "kody:claude-sonnet",
-    );
+    expect(familySnapEntry("brain-fly", models)).toBeNull();
     expect(familySnapEntry("brain", list())).toBeNull();
   });
 
@@ -140,7 +140,7 @@ describe("familySnapEntry", () => {
     expect(familySnapEntry("kody:removed", withModel)?.key).toBe(
       "kody:claude-sonnet",
     );
-    expect(familySnapEntry("kody:removed", list())).toBeNull();
+    expect(familySnapEntry("kody:removed", list())?.key).toBe("kody-live");
   });
 
   it("returns null for keys outside the known families", () => {

@@ -59,7 +59,7 @@ describe("resolveChatModel", () => {
     vi.mocked(getSecret).mockResolvedValue("provider-key");
   });
 
-  it("falls back to the repo engine model when LLM_MODELS is empty", async () => {
+  it("uses the embedded OpenRouter model when LLM_MODELS is empty", async () => {
     vi.mocked(getEngineConfig).mockResolvedValue({
       sha: "abc123",
       config: {
@@ -73,21 +73,21 @@ describe("resolveChatModel", () => {
     expect("error" in result).toBe(false);
     if ("error" in result) return;
     expect(result.resolvedModel).toMatchObject({
-      id: "engine:minimax/MiniMax-M3",
-      provider: "minimax",
+      id: "openrouter/free",
+      provider: "openrouter",
       protocol: "openai",
-      baseURL: "https://api.minimax.io/v1",
-      modelName: "MiniMax-M3",
-      apiKeySecret: "MINIMAX_API_KEY",
+      baseURL: "https://openrouter.ai/api/v1",
+      modelName: "openrouter/free",
+      apiKeySecret: "OPENROUTER_API_KEY",
     });
-    expect(getSecret).toHaveBeenCalledWith("MINIMAX_API_KEY", {
+    expect(getSecret).toHaveBeenCalledWith("OPENROUTER_API_KEY", {
       req: expect.any(NextRequest),
     });
     expect(createOpenAICompatible).toHaveBeenCalledWith(
       expect.objectContaining({
-        name: "minimax",
+        name: "openrouter",
         apiKey: "provider-key",
-        baseURL: "https://api.minimax.io/v1",
+        baseURL: "https://openrouter.ai/api/v1",
         transformRequestBody: expect.any(Function),
       }),
     );
@@ -108,11 +108,9 @@ describe("resolveChatModel", () => {
       },
     ]);
 
-    const result = await resolveChatModel(
-      request(),
-      "minimax/MiniMax-M3",
-      { preferVision: false },
-    );
+    const result = await resolveChatModel(request(), "minimax/MiniMax-M3", {
+      preferVision: false,
+    });
 
     expect("error" in result).toBe(false);
     if ("error" in result) return;
@@ -163,11 +161,9 @@ describe("resolveChatModel", () => {
       },
     ]);
 
-    const result = await resolveChatModel(
-      request(),
-      "minimax/MiniMax-M2",
-      { preferVision: true },
-    );
+    const result = await resolveChatModel(request(), "minimax/MiniMax-M2", {
+      preferVision: true,
+    });
 
     expect("error" in result).toBe(false);
     if ("error" in result) return;
@@ -195,11 +191,9 @@ describe("resolveChatModel", () => {
       },
     ]);
 
-    const result = await resolveChatModel(
-      request(),
-      "minimax/MiniMax-M2",
-      { preferVision: true },
-    );
+    const result = await resolveChatModel(request(), "minimax/MiniMax-M2", {
+      preferVision: true,
+    });
 
     expect("error" in result).toBe(false);
     if ("error" in result) return;
@@ -245,11 +239,9 @@ describe("resolveChatModel", () => {
       },
     ]);
 
-    const result = await resolveChatModel(
-      request(),
-      "minimax/MiniMax-M2",
-      { preferVision: true },
-    );
+    const result = await resolveChatModel(request(), "minimax/MiniMax-M2", {
+      preferVision: true,
+    });
 
     expect("error" in result).toBe(false);
     if ("error" in result) return;
@@ -288,11 +280,9 @@ describe("resolveChatModel", () => {
       },
     ]);
 
-    const result = await resolveChatModel(
-      request(),
-      "minimax/MiniMax-M2",
-      { preferVision: true },
-    );
+    const result = await resolveChatModel(request(), "minimax/MiniMax-M2", {
+      preferVision: true,
+    });
 
     expect("error" in result).toBe(false);
     if ("error" in result) return;
@@ -301,23 +291,6 @@ describe("resolveChatModel", () => {
       provider: "custom",
       modelName: "MiniMax-M3",
       apiKeySecret: "MINIMAX_API_KEY",
-    });
-  });
-
-  it("still returns no_models_configured when no configured or engine model exists", async () => {
-    vi.mocked(getEngineConfig).mockResolvedValue({
-      sha: "abc123",
-      config: { defaultImplementation: "run" },
-    });
-
-    const result = await resolveChatModel(request());
-
-    expect("error" in result).toBe(true);
-    if (!("error" in result)) return;
-    expect(result.error.status).toBe(409);
-    await expect(result.error.json()).resolves.toMatchObject({
-      error: "no_models_configured",
-      fallback: "kody-live",
     });
   });
 });

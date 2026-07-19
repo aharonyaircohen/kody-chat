@@ -39,6 +39,7 @@ test("shows OpenRouter Free in the chat header model picker", async ({
   const chat = page.locator('[aria-label="Kody chat"]').first();
   const picker = chat.getByLabel("Model").first();
   await expect(picker).toBeVisible({ timeout: 15_000 });
+  await expect(picker).toContainText("OpenRouter Free");
   await picker.click();
 
   const menu = chat.locator('[role="listbox"]:visible').first();
