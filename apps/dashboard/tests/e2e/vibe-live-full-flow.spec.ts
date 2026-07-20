@@ -32,10 +32,9 @@
  *   E2E_GITHUB_REPO    - https://github.com/<owner>/<name> URL of the tester repo
  */
 
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./live-test";
 
-const BASE_URL =
-  process.env.BASE_URL ?? "https://kody-dashboard-aguy.vercel.app";
+const BASE_URL = process.env.BASE_URL ?? "";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
 const TEST_REPO = process.env.E2E_GITHUB_REPO ?? "";
 
@@ -98,8 +97,8 @@ async function ghFetch(path: string): Promise<unknown> {
 
 test.describe("Vibe — LIVE full flow against production", () => {
   test.skip(
-    !TEST_TOKEN || !TEST_REPO,
-    "Requires E2E_GITHUB_TOKEN + E2E_GITHUB_REPO to run live.",
+    !BASE_URL || !TEST_TOKEN || !TEST_REPO,
+    "Requires explicit BASE_URL + E2E_GITHUB_TOKEN + E2E_GITHUB_REPO to run live.",
   );
 
   test("rename welcome text → approve → runner pushes the real diff", async ({

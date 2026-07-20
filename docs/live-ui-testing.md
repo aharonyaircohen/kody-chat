@@ -54,23 +54,23 @@ not prove the feature.
 The matrix is intentionally based on user outcomes rather than source files.
 Each row needs a real live Playwright journey or an explicitly recorded gap.
 
-| Journey | Visible proof | Real-state proof |
-| --- | --- | --- |
-| Authentication and repository selection | User lands in the selected repository without redirect or error | Real identity and repository scope reach the backend |
-| Direct Kody chat | User sends a turn, sees streaming/reasoning behavior, and receives the final answer | Real chat route, configured model, and conversation state succeed |
-| Kody Live / engine chat | Runner becomes ready, accepts a turn, and renders the reply | Real dispatch, runner, event transport, and persisted events succeed |
-| Brain chat | User selects Brain, sends a turn, and receives a reply | Real Brain service and session lifecycle succeed |
-| Conversation persistence | A created conversation and messages survive reload and a new browser context where supported | Real Convex conversation records contain the expected state |
-| Attachments | User uploads, previews, sends, reloads, and reopens an attachment | Real attachment storage and retrieval succeed |
-| Rendered views and approvals | User sees the intended renderer, acts once, and sees the locked result | Real tool output and action persistence succeed |
-| Commands and context | User selects a real command/context source and the sent turn reflects it | Real command/context source is read with the correct scope |
-| Agent and model selection | User changes the selection and completes a turn with it | Backend receives and honors the selected identity/model |
-| Vibe | User requests work, approves it, starts execution, and sees progress/outcome | Real issue, runner, branch/PR, and resulting diff are proven |
-| Terminal | Terminal remains visible, accepts typed input, and shows real output | Real Brain/Fly terminal session remains healthy |
-| Client-branded chat | External/client user signs in and completes a branded chat turn | Real client auth, brand resolution, model, and conversation state succeed |
-| Guided flows | User creates, runs, completes, reloads, and sees the completed flow | Real Convex flow definition and instance state succeed |
-| Navigation and plugin panels | User opens, changes route, returns, and keeps the correct chat/session state | Host navigation/context callbacks preserve scope |
-| Mobile | User completes supported chat, navigation, attachment, and approval journeys on mobile | Requests and persistence match desktop behavior |
+| Journey                                 | Visible proof                                                                                | Real-state proof                                                          |
+| --------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Authentication and repository selection | User lands in the selected repository without redirect or error                              | Real identity and repository scope reach the backend                      |
+| Direct Kody chat                        | User sends a turn, sees streaming/reasoning behavior, and receives the final answer          | Real chat route, configured model, and conversation state succeed         |
+| Kody Live / engine chat                 | Runner becomes ready, accepts a turn, and renders the reply                                  | Real dispatch, runner, event transport, and persisted events succeed      |
+| Brain chat                              | User selects Brain, sends a turn, and receives a reply                                       | Real Brain service and session lifecycle succeed                          |
+| Conversation persistence                | A created conversation and messages survive reload and a new browser context where supported | Real Convex conversation records contain the expected state               |
+| Attachments                             | User uploads, previews, sends, reloads, and reopens an attachment                            | Real attachment storage and retrieval succeed                             |
+| Rendered views and approvals            | User sees the intended renderer, acts once, and sees the locked result                       | Real tool output and action persistence succeed                           |
+| Commands and context                    | User selects a real command/context source and the sent turn reflects it                     | Real command/context source is read with the correct scope                |
+| Agent and model selection               | User changes the selection and completes a turn with it                                      | Backend receives and honors the selected identity/model                   |
+| Vibe                                    | User requests work, approves it, starts execution, and sees progress/outcome                 | Real issue, runner, branch/PR, and resulting diff are proven              |
+| Terminal                                | Terminal remains visible, accepts typed input, and shows real output                         | Real Brain/Fly terminal session remains healthy                           |
+| Client-branded chat                     | External/client user signs in and completes a branded chat turn                              | Real client auth, brand resolution, model, and conversation state succeed |
+| Guided flows                            | User creates, runs, completes, reloads, and sees the completed flow                          | Real Convex flow definition and instance state succeed                    |
+| Navigation and plugin panels            | User opens, changes route, returns, and keeps the correct chat/session state                 | Host navigation/context callbacks preserve scope                          |
+| Mobile                                  | User completes supported chat, navigation, attachment, and approval journeys on mobile       | Requests and persistence match desktop behavior                           |
 
 ## Test Design Rules
 
@@ -116,6 +116,28 @@ Target commit/version:
 External test repository/tenant:
 ```
 
+Run the non-destructive service and target check with:
+
+```bash
+pnpm --filter kody-dashboard test:e2e:live:preflight
+```
+
+Run the registered live journeys with:
+
+```bash
+pnpm --filter kody-dashboard test:e2e:live:gate
+```
+
+Both commands require an explicit `BASE_URL`, `E2E_GITHUB_REPO`, and exact
+matching values for `KODY_LIVE_EXPECTED_BASE_URL`,
+`KODY_LIVE_MUTATION_TARGET`, and `KODY_LIVE_CONFIRM_MUTATIONS`. The target and
+confirmation use the `owner/repository` slug. This prevents a credential from
+silently authorizing writes to the wrong repository.
+
+Failure traces, screenshots, videos, JSON, and HTML reports are stored locally
+under `apps/dashboard/test-results/live-ui-gate/`. Treat these artifacts as
+private because browser traces can contain authenticated application data.
+
 For a required release gate:
 
 - `Skipped` must be zero.
@@ -145,10 +167,13 @@ chat, Vibe, terminal, Guided Flows, and real renderer data. However:
 
 - The canonical `test:e2e:gate` includes many intercepted API paths.
 - Live tests are mostly optional and can skip successfully without credentials.
-- There is no mandatory `test:e2e:live:gate` command.
+- The mandatory live gate now wires the six existing live journeys and fails
+  on skips, failures, flakes, missing manifest entries, browser errors, failed
+  requests, unexpected 5xx responses, and unexpected navigation.
 - Direct Kody, real conversation/attachment persistence, full client chat,
   and supported mobile journeys do not yet have complete mandatory live proof.
-- Failure monitoring is not consistently installed across all Playwright
-  journeys.
+- Authentication/repository selection, full Brain reply, renderer approvals,
+  commands/context, agent/model selection, and navigation/plugin continuity
+  also remain explicit missing journeys, so the complete gate stays red.
 
 Phase 0 of the extraction must close these gaps before architecture work begins.

@@ -17,7 +17,7 @@
  *   E2E_CHAT_MODEL       Optional, e.g. minimax/MiniMax-M3
  */
 
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./live-test";
 
 const BASE_URL = process.env.BASE_URL ?? "";
 const CONVEX_URL =
@@ -58,12 +58,12 @@ test.describe("Real chat flow @real", () => {
   test.beforeAll(() => {
     if (!BASE_URL || !TEST_TOKEN || !TEST_REPO) {
       test.skip(true, "BASE_URL / E2E_GITHUB_TOKEN / E2E_GITHUB_REPO required");
+    }
     if (!CONVEX_URL)
       test.skip(
         true,
         "NEXT_PUBLIC_CONVEX_URL / CONVEX_URL required to read chat events",
       );
-    }
   });
 
   test.beforeEach(async ({ page }) => {

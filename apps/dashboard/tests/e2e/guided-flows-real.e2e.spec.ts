@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./live-test";
 import { anyApi } from "convex/server";
 
 import { createBackendClient } from "@kody-ade/backend/client";
