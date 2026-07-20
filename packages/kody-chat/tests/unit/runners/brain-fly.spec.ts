@@ -40,6 +40,7 @@ function graphType(call: RecordedCall): string | undefined {
 
 function installFetchStub(
   handler: (call: RecordedCall) => { status?: number; json?: unknown },
+  options: { codexVolume?: Record<string, unknown> } = {},
 ): RecordedCall[] {
   const calls: RecordedCall[] = [];
   vi.stubGlobal(
@@ -79,6 +80,26 @@ function installFetchStub(
           status: 200,
           headers: { "content-type": "application/json" },
         });
+      }
+
+      if (call.method === "GET" && /\/apps\/[^/]+\/volumes$/.test(call.url)) {
+        return new Response(
+          JSON.stringify(options.codexVolume ? [options.codexVolume] : []),
+          {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          },
+        );
+      }
+      if (call.method === "POST" && /\/apps\/[^/]+\/volumes$/.test(call.url)) {
+        return new Response(
+          JSON.stringify({
+            id: "vol-codex",
+            name: "codex_auth",
+            region: "fra",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
       }
 
       const r = handler(call);
@@ -178,6 +199,74 @@ describe("flyFetch", () => {
 // ────────────────────────────────────────────────────────────────────────────
 
 describe("provisionBrain", () => {
+  it("creates and mounts a persistent Codex auth volume", async () => {
+    const calls = installFetchStub((call) => {
+      if (
+        call.url.endsWith("/apps/kody-brain-alice") &&
+        call.method === "GET"
+      ) {
+        return { status: 404 };
+      }
+      if (call.url.endsWith("/apps") && call.method === "POST") {
+        return { json: { name: "kody-brain-alice" } };
+      }
+      if (
+        call.url.endsWith("/apps/kody-brain-alice/volumes") &&
+        call.method === "GET"
+      ) {
+        return { json: [] };
+      }
+      if (
+        call.url.endsWith("/apps/kody-brain-alice/volumes") &&
+        call.method === "POST"
+      ) {
+        return { json: { id: "vol-codex", name: "codex_auth", region: "fra" } };
+      }
+      if (
+        call.url.endsWith("/apps/kody-brain-alice/machines") &&
+        call.method === "GET"
+      ) {
+        return { status: 404 };
+      }
+      if (
+        call.url.endsWith("/apps/kody-brain-alice/machines") &&
+        call.method === "POST"
+      ) {
+        return { json: { id: "m123", state: "starting", region: "fra" } };
+      }
+      throw new Error(`unexpected call: ${call.method} ${call.url}`);
+    });
+
+    await provisionBrain({
+      flyToken: TOKEN,
+      account: "alice",
+      githubToken: "gh-pat",
+      apiKeyOverride: "static-key-for-test",
+    });
+
+    const volumeCreate = calls.find(
+      (c) =>
+        c.method === "POST" && c.url.endsWith("/apps/kody-brain-alice/volumes"),
+    );
+    expect(volumeCreate?.body).toEqual({
+      name: "codex_auth",
+      region: "fra",
+      size_gb: 1,
+      encrypted: true,
+    });
+
+    const machineCreate = calls.find(
+      (c) =>
+        c.method === "POST" &&
+        c.url.endsWith("/apps/kody-brain-alice/machines"),
+    )!;
+    expect(
+      (machineCreate.body as { config: { mounts?: unknown[] } }).config.mounts,
+    ).toEqual([
+      { volume: "vol-codex", name: "codex", guest_path: "/root/.codex" },
+    ]);
+  });
+
   it("creates the app and machine when neither exists", async () => {
     const calls = installFetchStub((call) => {
       if (
@@ -301,33 +390,45 @@ describe("provisionBrain", () => {
   });
 
   it("reuses an existing live machine and returns its api key (idempotency)", async () => {
-    installFetchStub((call) => {
-      if (
-        call.url.endsWith("/apps/kody-brain-alice") &&
-        call.method === "GET"
-      ) {
-        return { json: { name: "kody-brain-alice" } };
-      }
-      if (
-        call.url.endsWith("/apps/kody-brain-alice/machines") &&
-        call.method === "GET"
-      ) {
-        return {
-          json: [
-            {
-              id: "m-existing",
-              state: "started",
-              region: "fra",
-              config: { env: { BRAIN_API_KEY: "preexisting-key" } },
-            },
-          ],
-        };
-      }
-      if (call.method === "POST") {
-        throw new Error(`should not create anything on reuse: ${call.url}`);
-      }
-      throw new Error(`unexpected call: ${call.method} ${call.url}`);
-    });
+    installFetchStub(
+      (call) => {
+        if (
+          call.url.endsWith("/apps/kody-brain-alice") &&
+          call.method === "GET"
+        ) {
+          return { json: { name: "kody-brain-alice" } };
+        }
+        if (
+          call.url.endsWith("/apps/kody-brain-alice/machines") &&
+          call.method === "GET"
+        ) {
+          return {
+            json: [
+              {
+                id: "m-existing",
+                state: "started",
+                region: "fra",
+                config: {
+                  env: { BRAIN_API_KEY: "preexisting-key" },
+                  mounts: [
+                    {
+                      volume: "vol-codex",
+                      name: "codex",
+                      guest_path: "/root/.codex",
+                    },
+                  ],
+                },
+              },
+            ],
+          };
+        }
+        if (call.method === "POST") {
+          throw new Error(`should not create anything on reuse: ${call.url}`);
+        }
+        throw new Error(`unexpected call: ${call.method} ${call.url}`);
+      },
+      { codexVolume: { id: "vol-codex", name: "codex_auth", region: "fra" } },
+    );
 
     const out = await provisionBrain({
       flyToken: TOKEN,
@@ -433,6 +534,69 @@ describe("provisionBrain", () => {
         (c) => c.method === "DELETE" && c.url.includes("/machines/m-existing"),
       ),
     ).toBe(true);
+  });
+
+  it("releases the Codex volume before replacing its attached machine", async () => {
+    let machineList: Array<Record<string, unknown>> = [
+      {
+        id: "m-existing",
+        state: "started",
+        region: "fra",
+        config: {
+          image: DEFAULT_IMAGE,
+          env: { BRAIN_API_KEY: "preexisting-key" },
+          mounts: [
+            { volume: "vol-codex", name: "codex", guest_path: "/root/.codex" },
+          ],
+        },
+      },
+    ];
+    const calls = installFetchStub(
+      (call) => {
+        if (
+          call.method === "GET" &&
+          call.url.endsWith("/apps/kody-brain-alice")
+        ) {
+          return { json: { name: "kody-brain-alice" } };
+        }
+        if (call.method === "GET" && call.url.endsWith("/machines")) {
+          return { json: machineList };
+        }
+        if (
+          call.method === "DELETE" &&
+          call.url.includes("/machines/m-existing")
+        ) {
+          machineList = [];
+          return { status: 200, json: { ok: true } };
+        }
+        if (call.method === "POST" && call.url.endsWith("/machines")) {
+          machineList = [
+            { id: "m-fresh", state: "starting", region: "fra", config: {} },
+          ];
+          return { json: { id: "m-fresh", state: "starting", region: "fra" } };
+        }
+        throw new Error(`unexpected call: ${call.method} ${call.url}`);
+      },
+      { codexVolume: { id: "vol-codex", name: "codex_auth", region: "fra" } },
+    );
+
+    const out = await provisionBrain({
+      flyToken: TOKEN,
+      account: "alice",
+      githubToken: "gh-pat",
+      replaceExistingMachine: true,
+    });
+
+    const deleteIndex = calls.findIndex(
+      (call) =>
+        call.method === "DELETE" && call.url.includes("/machines/m-existing"),
+    );
+    const createIndex = calls.findIndex(
+      (call) => call.method === "POST" && call.url.endsWith("/machines"),
+    );
+    expect(deleteIndex).toBeGreaterThanOrEqual(0);
+    expect(createIndex).toBeGreaterThan(deleteIndex);
+    expect(out.machineId).toBe("m-fresh");
   });
 
   it("recreates reused Brain machines when model env changes", async () => {
@@ -1162,27 +1326,42 @@ describe("provisionBrain image-ref healing", () => {
     const savedImageRef = "ghcr.io/alice/kody-brain-snapshot:20260625";
     const runtimeImageRef = "registry.fly.io/kody-brain-alice:20260625";
     const prepareRuntimeImage = vi.fn(async () => undefined);
-    installFetchStub((call) => {
-      if (call.method === "GET" && call.url.endsWith("/apps/kody-brain-alice"))
-        return { json: { name: "kody-brain-alice" } };
-      if (call.method === "GET" && call.url.endsWith("/machines"))
-        return {
-          json: [
-            {
-              id: "m-good",
-              state: "started",
-              region: "fra",
-              config: {
-                image: `${runtimeImageRef}@sha256:fresh`,
-                env: { BRAIN_API_KEY: "live-key" },
+    installFetchStub(
+      (call) => {
+        if (
+          call.method === "GET" &&
+          call.url.endsWith("/apps/kody-brain-alice")
+        )
+          return { json: { name: "kody-brain-alice" } };
+        if (call.method === "GET" && call.url.endsWith("/machines"))
+          return {
+            json: [
+              {
+                id: "m-good",
+                state: "started",
+                region: "fra",
+                config: {
+                  image: `${runtimeImageRef}@sha256:fresh`,
+                  env: { BRAIN_API_KEY: "live-key" },
+                  mounts: [
+                    {
+                      volume: "vol-codex",
+                      name: "codex",
+                      guest_path: "/root/.codex",
+                    },
+                  ],
+                },
               },
-            },
-          ],
-        };
-      if (call.method === "DELETE" || call.method === "POST")
-        throw new Error(`must not mutate on a matching image: ${call.url}`);
-      throw new Error(`unexpected: ${call.method} ${call.url}`);
-    });
+            ],
+          };
+        if (call.method === "DELETE" || call.method === "POST")
+          throw new Error(`must not mutate on a matching image: ${call.url}`);
+        throw new Error(`unexpected: ${call.method} ${call.url}`);
+      },
+      {
+        codexVolume: { id: "vol-codex", name: "codex_auth", region: "fra" },
+      },
+    );
 
     const out = await provisionBrain({
       flyToken: TOKEN,
@@ -1334,27 +1513,42 @@ describe("provisionBrain image-ref healing", () => {
   });
 
   it("reuses (does NOT recreate) when the image already matches, digest aside", async () => {
-    const calls = installFetchStub((call) => {
-      if (call.method === "GET" && call.url.endsWith("/apps/kody-brain-alice"))
-        return { json: { name: "kody-brain-alice" } };
-      if (call.method === "GET" && call.url.endsWith("/machines"))
-        return {
-          json: [
-            {
-              id: "m-good",
-              state: "started",
-              region: "fra",
-              config: {
-                image: `${DEFAULT_IMAGE}@sha256:fresh`,
-                env: { BRAIN_API_KEY: "live-key" },
+    const calls = installFetchStub(
+      (call) => {
+        if (
+          call.method === "GET" &&
+          call.url.endsWith("/apps/kody-brain-alice")
+        )
+          return { json: { name: "kody-brain-alice" } };
+        if (call.method === "GET" && call.url.endsWith("/machines"))
+          return {
+            json: [
+              {
+                id: "m-good",
+                state: "started",
+                region: "fra",
+                config: {
+                  image: `${DEFAULT_IMAGE}@sha256:fresh`,
+                  env: { BRAIN_API_KEY: "live-key" },
+                  mounts: [
+                    {
+                      volume: "vol-codex",
+                      name: "codex",
+                      guest_path: "/root/.codex",
+                    },
+                  ],
+                },
               },
-            },
-          ],
-        };
-      if (call.method === "DELETE" || call.method === "POST")
-        throw new Error(`must not mutate on a matching image: ${call.url}`);
-      throw new Error(`unexpected: ${call.method} ${call.url}`);
-    });
+            ],
+          };
+        if (call.method === "DELETE" || call.method === "POST")
+          throw new Error(`must not mutate on a matching image: ${call.url}`);
+        throw new Error(`unexpected: ${call.method} ${call.url}`);
+      },
+      {
+        codexVolume: { id: "vol-codex", name: "codex_auth", region: "fra" },
+      },
+    );
 
     const out = await provisionBrain({
       flyToken: TOKEN,
@@ -1780,6 +1974,9 @@ describe("destroyBrain", () => {
         call.method === "DELETE" &&
         call.url.includes("/apps/kody-brain-alice")
       ) {
+        return { status: 200, json: { ok: true } };
+      }
+      if (call.method === "DELETE" && call.url.includes("/volumes/")) {
         return { status: 200, json: { ok: true } };
       }
       throw new Error(`unexpected: ${call.method} ${call.url}`);

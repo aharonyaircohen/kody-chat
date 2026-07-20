@@ -84,6 +84,7 @@ export function buildShowViewGuidance(catalog: ChatViewCatalog): string {
       .map((line) => `- ${line}`)
       .join("\n")}`,
     "Buttons and choices send their `response` text back as the user's next message — make responses short, stable tokens (e.g. \"approve\"), not sentences.",
+    "If the user's new message is NOT an answer to the previous card, that card is dismissed — build the new view only for the new message; never re-render or merge the previous card's question into it.",
     "Write all user-visible text (labels, titles) in the user's language.",
     "Every element MUST have a `type` from the lists above and an object `props`. Most interactions need only ONE view component element:",
     `Example (preferred — one view component):\n${SINGLE_COMPONENT_EXAMPLE}`,
