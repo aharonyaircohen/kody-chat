@@ -10,6 +10,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { Upload, Loader2, File, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
 import { cn } from "@dashboard/lib/utils";
 import { uploadFile } from "../lib/repo-files";
 import type { Octokit } from "@octokit/rest";
@@ -174,15 +176,17 @@ export function UploadZone({
         <Upload className="w-4 h-4 text-muted-foreground" />
         <span className="text-sm">Upload files</span>
 
-        <button
+        <Button
+          variant="ghost"
+          size="clear"
           onClick={() => setShowDestinationInput(!showDestinationInput)}
           className={cn(
-            "text-xs px-2 py-1 rounded",
-            "text-muted-foreground hover:text-foreground",
+            "text-xs font-normal px-2 py-1 rounded",
+            "text-muted-foreground hover:bg-transparent hover:text-foreground",
           )}
         >
           {showDestinationInput ? "Hide" : "Set destination"}
-        </button>
+        </Button>
 
         {hasActiveUploads && (
           <Loader2 className="w-4 h-4 animate-spin text-muted-foreground ml-auto" />
@@ -192,14 +196,14 @@ export function UploadZone({
       {/* Destination input */}
       {showDestinationInput && (
         <div className="border-b border-border px-4 py-2">
-          <input
+          <Input
             type="text"
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
             placeholder="Destination directory (optional)"
             className={cn(
-              "w-full rounded border border-input bg-background px-3 py-1.5 text-sm",
-              "text-foreground placeholder:text-muted-foreground outline-none",
+              "h-auto w-full rounded border border-input bg-background px-3 py-1.5 text-sm",
+              "text-foreground placeholder:text-muted-foreground",
             )}
           />
         </div>
@@ -229,26 +233,31 @@ export function UploadZone({
         </p>
         <p className="mb-4 text-xs text-muted-foreground">or</p>
         <div className="flex items-center gap-2">
-          <button
+          <Button
+            variant="secondary"
+            size="clear"
             onClick={handleUploadClick}
             className={cn(
-              "text-sm px-4 py-2 rounded",
+              "text-sm font-normal px-4 py-2 rounded",
               "bg-muted text-foreground hover:bg-muted/80",
             )}
           >
             Browse files
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="secondary"
+            size="clear"
             onClick={handleFolderUploadClick}
             className={cn(
-              "text-sm px-4 py-2 rounded",
+              "text-sm font-normal px-4 py-2 rounded",
               "bg-muted text-foreground hover:bg-muted/80",
             )}
           >
             Browse folder
-          </button>
+          </Button>
         </div>
 
+        {/* eslint-disable-next-line react/forbid-elements -- hidden file input */}
         <input
           ref={fileInputRef}
           type="file"
@@ -256,6 +265,7 @@ export function UploadZone({
           className="hidden"
           onChange={handleFileInputChange}
         />
+        {/* eslint-disable-next-line react/forbid-elements -- hidden file input */}
         <input
           ref={folderInputRef}
           type="file"

@@ -13,6 +13,8 @@ import {
   Undo2,
   X,
 } from "lucide-react";
+import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
 import { cn } from "../utils";
 import type { PickedElement, PreviewEditMutation } from "./protocol";
 
@@ -29,7 +31,7 @@ interface PreviewEditPanelProps {
 }
 
 const inputClass =
-  "h-8 rounded border border-zinc-700 bg-zinc-950 px-2 text-xs text-zinc-100 outline-none focus:border-blue-500 disabled:opacity-50";
+  "h-8 rounded border border-zinc-700 bg-zinc-950 px-2 text-xs text-zinc-100 outline-none focus:border-blue-500 focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-50";
 const actionClass =
   "inline-flex h-8 items-center justify-center gap-1.5 rounded border border-zinc-700 bg-zinc-800 px-2.5 text-xs font-medium text-zinc-300 transition-colors hover:bg-zinc-700 hover:text-white disabled:cursor-not-allowed disabled:opacity-50";
 const controlLabelClass = "text-[11px] font-medium text-zinc-500";
@@ -109,6 +111,7 @@ function ColorControl({
   return (
     <label className="flex items-center gap-2 rounded border border-zinc-800 bg-zinc-900/50 px-2 py-1.5">
       <span className={controlLabelClass}>{label}</span>
+      {/* eslint-disable-next-line react/forbid-elements -- native color swatch input; kit Input styling does not apply to type="color" */}
       <input
         type="color"
         value={hex}
@@ -371,15 +374,17 @@ export function PreviewEditPanel({
               : ""}
           </div>
         </div>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="clear"
           onClick={onClose}
           className="inline-flex h-8 w-8 items-center justify-center rounded text-zinc-400 hover:bg-zinc-800 hover:text-white"
           title="Close editor"
           aria-label="Close editor"
         >
           <X className="h-4 w-4" />
-        </button>
+        </Button>
       </div>
 
       <div className="space-y-3">
@@ -490,14 +495,14 @@ export function PreviewEditPanel({
             </div>
 
             <div className="grid grid-cols-1 gap-2 border-t border-zinc-800 pt-2">
-              <input
+              <Input
                 value={styles.border}
                 onChange={(event) => updateStyle("border", event.target.value)}
                 placeholder="border, e.g. 1px solid #ddd"
                 disabled={busy}
                 className={inputClass}
               />
-              <input
+              <Input
                 value={styles.boxShadow}
                 onChange={(event) =>
                   updateStyle("boxShadow", event.target.value)
@@ -516,32 +521,36 @@ export function PreviewEditPanel({
             Content
           </div>
           <div className="flex gap-2">
-            <input
+            <Input
               value={textValue}
               onChange={(event) => setTextValue(event.target.value)}
               placeholder="text"
               className={cn(inputClass, "min-w-0 flex-1")}
             />
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="clear"
               onClick={() => void onApply({ op: "text", value: textValue })}
               disabled={busy}
               className={actionClass}
             >
               <Type className="h-3.5 w-3.5" />
-            </button>
+            </Button>
           </div>
 
           {hasHref && (
             <div className="flex gap-2">
-              <input
+              <Input
                 value={hrefValue}
                 onChange={(event) => setHrefValue(event.target.value)}
                 placeholder="href"
                 className={cn(inputClass, "min-w-0 flex-1")}
               />
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="clear"
                 onClick={() =>
                   void onApply({
                     op: "attribute",
@@ -553,20 +562,22 @@ export function PreviewEditPanel({
                 className={actionClass}
               >
                 <Link className="h-3.5 w-3.5" />
-              </button>
+              </Button>
             </div>
           )}
 
           {hasSrc && (
             <div className="grid grid-cols-[1fr_auto] gap-2">
-              <input
+              <Input
                 value={srcValue}
                 onChange={(event) => setSrcValue(event.target.value)}
                 placeholder="src"
                 className={inputClass}
               />
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="clear"
                 onClick={() =>
                   void onApply({
                     op: "attribute",
@@ -578,15 +589,17 @@ export function PreviewEditPanel({
                 className={actionClass}
               >
                 <Image className="h-3.5 w-3.5" />
-              </button>
-              <input
+              </Button>
+              <Input
                 value={altValue}
                 onChange={(event) => setAltValue(event.target.value)}
                 placeholder="alt"
                 className={inputClass}
               />
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="clear"
                 onClick={() =>
                   void onApply({
                     op: "attribute",
@@ -598,80 +611,94 @@ export function PreviewEditPanel({
                 className={actionClass}
               >
                 <Image className="h-3.5 w-3.5" />
-              </button>
+              </Button>
             </div>
           )}
         </section>
 
         <section className="grid grid-cols-3 gap-2">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="clear"
             onClick={() => void onApply({ op: "hide" })}
             disabled={busy}
             className={actionClass}
           >
             <EyeOff className="h-3.5 w-3.5" />
             Hide
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="clear"
             onClick={() => void onApply({ op: "duplicate" })}
             disabled={busy}
             className={actionClass}
           >
             <Copy className="h-3.5 w-3.5" />
             Copy
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="clear"
             onClick={() => void onApply({ op: "remove" })}
             disabled={busy}
             className={actionClass}
           >
             <Trash2 className="h-3.5 w-3.5" />
             Remove
-          </button>
+          </Button>
         </section>
 
         <div className="grid grid-cols-3 gap-2 border-t border-zinc-800 pt-3">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="clear"
             onClick={() => void onUndo()}
             disabled={busy || changeCount === 0}
             className={actionClass}
           >
             <Undo2 className="h-3.5 w-3.5" />
             Undo
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="clear"
             onClick={() => void onResetSelected()}
             disabled={busy || changeCount === 0}
             className={actionClass}
           >
             <RotateCcw className="h-3.5 w-3.5" />
             Reset
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="clear"
             onClick={() => void onResetAll()}
             disabled={busy || changeCount === 0}
             className={actionClass}
           >
             <RotateCcw className="h-3.5 w-3.5" />
             All
-          </button>
+          </Button>
         </div>
 
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="clear"
           onClick={() => void onAskKody()}
           disabled={busy || changeCount === 0}
-          className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-3 text-xs font-medium text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-blue-600 px-3 text-xs font-medium text-white transition-colors hover:bg-blue-500 hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Send className="h-3.5 w-3.5" />
           Ask Kody to apply
-        </button>
+        </Button>
       </div>
     </div>
   );

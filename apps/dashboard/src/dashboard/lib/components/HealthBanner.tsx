@@ -125,6 +125,7 @@ export function HealthBanner() {
     <div
       className={cn("mb-4 overflow-hidden rounded-lg border", st.border, st.bg)}
     >
+      {/* eslint-disable-next-line react/forbid-elements -- unstyled banner-toggle row; Button base styles would alter it */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}

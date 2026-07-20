@@ -214,16 +214,18 @@ function TabButton({
   panelId?: string;
 }) {
   return (
-    <button
+    <Button
       role="tab"
       id={tabId}
+      variant="ghost"
+      size="clear"
       aria-selected={active}
       aria-controls={panelId}
       onClick={onClick}
       className={cn(
-        "relative flex items-center gap-1.5 px-3.5 py-2.5 text-[13px] font-medium transition-all duration-200",
+        "relative flex items-center gap-1.5 px-3.5 py-2.5 text-[13px] font-medium transition-all duration-200 hover:bg-transparent",
         active
-          ? "text-foreground"
+          ? "text-foreground hover:text-foreground"
           : "text-muted-foreground/70 hover:text-muted-foreground",
       )}
     >
@@ -245,7 +247,7 @@ function TabButton({
       {active && (
         <span className="absolute bottom-0 left-3 right-3 h-[2px] bg-primary rounded-full" />
       )}
-    </button>
+    </Button>
   );
 }
 
@@ -574,14 +576,16 @@ function OverflowMenu({
                 setOpen(false);
               };
               return (
-                <button
+                <Button
                   key={action.label}
+                  variant="ghost"
+                  size="clear"
                   onClick={handleClick}
                   disabled={isPending}
                   className={cn(
-                    "w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] transition-colors rounded-lg mx-1 w-[calc(100%-8px)]",
+                    "w-full flex items-center justify-start gap-2.5 px-3.5 py-2.5 text-[13px] font-normal transition-colors rounded-lg mx-1 w-[calc(100%-8px)]",
                     action.destructive
-                      ? "text-red-400 hover:bg-red-500/10"
+                      ? "text-red-400 hover:text-red-400 hover:bg-red-500/10"
                       : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
                     isPending && "opacity-50 cursor-not-allowed",
                   )}
@@ -592,7 +596,7 @@ function OverflowMenu({
                     <action.icon className="w-3.5 h-3.5" />
                   )}
                   {isActionPending ? action.pendingLabel : action.label}
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -875,9 +879,11 @@ export function TaskDetail({
   // --- Retry With Context Block ---
   const retryWithContextBlock = task.column === "failed" && (
     <div className="border-t border-orange-500/20 bg-orange-500/5 mt-2">
-      <button
+      <Button
+        variant="ghost"
+        size="clear"
         onClick={() => setShowRetryContext(!showRetryContext)}
-        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-orange-500/10 transition-colors rounded-b-lg"
+        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-orange-500/10 hover:text-foreground transition-colors rounded-b-lg"
       >
         <span className="text-sm font-medium text-orange-400 flex items-center gap-2">
           <RotateCcw className="w-3.5 h-3.5" />
@@ -888,7 +894,7 @@ export function TaskDetail({
         ) : (
           <ChevronDown className="w-4 h-4 text-orange-400" />
         )}
-      </button>
+      </Button>
       {showRetryContext && (
         <div className="px-4 pb-3 space-y-2">
           <textarea
@@ -1132,7 +1138,9 @@ export function TaskDetail({
         />
       )}
       {task.associatedPR && onOpenPreview && (
-        <button
+        <Button
+          variant="ghost"
+          size="clear"
           onClick={(e) => {
             e.stopPropagation();
             onOpenPreview();
@@ -1141,7 +1149,7 @@ export function TaskDetail({
         >
           <Eye className="w-3 h-3" />
           Preview
-        </button>
+        </Button>
       )}
     </>
   );
@@ -1667,9 +1675,11 @@ export function TaskDetail({
     <div className="md:hidden flex-1 flex flex-col min-h-0 overflow-hidden">
       {/* Mobile details panel — expandable */}
       <div className="shrink-0 border-b border-white/10">
-        <button
+        <Button
+          variant="ghost"
+          size="clear"
           onClick={() => setShowMobileExtra(!showMobileExtra)}
-          className="flex items-center justify-between w-full px-4 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors active:bg-muted/50"
+          className="flex items-center justify-between w-full px-4 py-3 text-sm font-normal text-muted-foreground hover:text-foreground hover:bg-muted/30 transition-colors active:bg-muted/50"
         >
           <div className="flex items-center gap-2.5 min-w-0">
             {/* Assignee avatars inline */}
@@ -1706,7 +1716,7 @@ export function TaskDetail({
           ) : (
             <ChevronDown className="w-4 h-4 shrink-0" />
           )}
-        </button>
+        </Button>
 
         {showMobileExtra && (
           <div className="px-4 pb-3 space-y-3 border-t border-border/50">
@@ -1854,16 +1864,18 @@ export function TaskDetail({
           </a>
         )}
         {task.associatedPR && onOpenPreview && (
-          <button
+          <Button
+            variant="ghost"
+            size="clear"
             onClick={(e) => {
               e.stopPropagation();
               onOpenPreview();
             }}
-            className="h-9 inline-flex items-center gap-1.5 px-3 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 hover:bg-emerald-500/20 transition-colors shrink-0 cursor-pointer"
+            className="h-9 inline-flex items-center gap-1.5 px-3 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 hover:text-emerald-400 hover:bg-emerald-500/20 transition-colors shrink-0 cursor-pointer"
           >
             <Eye className="w-3.5 h-3.5" />
             Preview
-          </button>
+          </Button>
         )}
         {task.previewUrl && (
           <a

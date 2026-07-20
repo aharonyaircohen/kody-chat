@@ -404,6 +404,7 @@ export function GoalGroupedView({
           )}
         >
           {handleProps ? (
+            // eslint-disable-next-line react/forbid-elements -- dnd drag handle with custom cursor styling
             <button
               type="button"
               aria-label={`Reorder ${group.goal?.name ?? "group"}`}
@@ -414,6 +415,7 @@ export function GoalGroupedView({
             </button>
           ) : null}
 
+          {/* eslint-disable-next-line react/forbid-elements -- unstyled collapsible-header row; Button base styles would alter it */}
           <button
             type="button"
             onClick={() => toggle(group.key)}
@@ -616,6 +618,7 @@ export function GoalGroupedView({
                 )}
               >
                 {onCreateTaskInGoal ? (
+                  // eslint-disable-next-line react/forbid-elements -- dashed CTA with custom font weight/hover; Button base styles would visibly change it
                   <button
                     type="button"
                     onClick={() => onCreateTaskInGoal(group.goal)}
@@ -631,6 +634,7 @@ export function GoalGroupedView({
                   </button>
                 ) : null}
                 {onReportBugInGoal ? (
+                  // eslint-disable-next-line react/forbid-elements -- dashed CTA with custom font weight/hover; Button base styles would visibly change it
                   <button
                     type="button"
                     onClick={() => onReportBugInGoal(group.goal)}
@@ -676,6 +680,7 @@ export function GoalGroupedView({
       {/* Big dashed "+ New mission" footer */}
       {onCreateGoal ? (
         <div className="p-4 md:p-6">
+          {/* eslint-disable-next-line react/forbid-elements -- dashed CTA with custom font weight/hover; Button base styles would visibly change it */}
           <button
             type="button"
             onClick={onCreateGoal}

@@ -270,6 +270,7 @@ function RuleCard({
   return (
     <Card className="border-white/[0.06] bg-white/[0.02]">
       <CardContent className="p-4 flex items-start gap-4">
+        {/* eslint-disable-next-line react/forbid-elements -- custom toggle-switch control, not a kit button */}
         <button
           type="button"
           onClick={() => update.mutate({ enabled: !rule.enabled })}
@@ -464,6 +465,7 @@ function RuleEditor({
           </div>
 
           <label className="flex items-center gap-2 text-sm cursor-pointer">
+            {/* eslint-disable-next-line react/forbid-elements -- native checkbox; kit Input styling isn't a drop-in */}
             <input
               type="checkbox"
               checked={enabled}

@@ -111,15 +111,17 @@ export function DecisionButtons({
         <X className="w-4 h-4" />
         Reject
       </Button>
-      <button
+      <Button
         type="button"
+        variant="link"
+        size="clear"
         disabled={deciding}
         onClick={() => onDecide("dismiss")}
-        className="text-xs text-white/45 hover:text-white/75 underline-offset-2 hover:underline"
+        className="text-xs font-normal text-white/45 hover:text-white/75 underline-offset-2 hover:underline"
         title="Skip without affecting trust"
       >
         Dismiss
-      </button>
+      </Button>
     </>
   );
 }
@@ -295,8 +297,10 @@ export function InboxCard({
         </div>
 
         <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="clear"
             onClick={() => void copyLink()}
             title="Copy a shareable link to this thread"
             className="p-1 rounded text-white/50 hover:text-white hover:bg-white/[0.06]"
@@ -306,7 +310,7 @@ export function InboxCard({
             ) : (
               <Link2 className="w-3.5 h-3.5" />
             )}
-          </button>
+          </Button>
           <a
             href={entry.url}
             target="_blank"
@@ -316,17 +320,21 @@ export function InboxCard({
           >
             <ExternalLink className="w-3.5 h-3.5" />
           </a>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="clear"
             onClick={onToggleRead}
             title={unread ? "Mark as read" : "Mark as unread"}
             className="p-1 rounded text-white/50 hover:text-white hover:bg-white/[0.06]"
           >
             <CheckCheck className="w-3.5 h-3.5" />
-          </button>
+          </Button>
           {category && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="clear"
               onClick={() => onToggleMute(category)}
               title={
                 muted
@@ -345,16 +353,18 @@ export function InboxCard({
               ) : (
                 <BellOff className="w-3.5 h-3.5" />
               )}
-            </button>
+            </Button>
           )}
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="clear"
             onClick={onDelete}
             title="Remove"
             className="p-1 rounded text-white/50 hover:text-rose-300 hover:bg-rose-500/10"
           >
             <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          </Button>
         </div>
       </div>
 

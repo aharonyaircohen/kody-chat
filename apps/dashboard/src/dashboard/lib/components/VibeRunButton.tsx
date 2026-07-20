@@ -14,6 +14,7 @@ import { useCallback, useState } from "react";
 import { toast } from "sonner";
 import { Loader2, Play } from "lucide-react";
 
+import { Button } from "@kody-ade/base/ui/button";
 import { vibeApi } from "../api";
 import type { KodyTask } from "@kody-ade/base/types";
 
@@ -53,13 +54,15 @@ export function VibeRunButton({
       <span className="text-xs text-fuchsia-200/90 truncate">
         Ready to ship? Hand the plan to the engine.
       </span>
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="clear"
         onClick={handleClick}
         disabled={running}
         title={`Run Kody on issue #${issueNumber}`}
         aria-label="Run Kody on this issue"
-        className="inline-flex items-center gap-1.5 shrink-0 text-xs font-semibold px-2.5 py-1 rounded-md bg-fuchsia-500/25 text-fuchsia-100 hover:bg-fuchsia-500/40 border border-fuchsia-500/40 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+        className="inline-flex items-center gap-1.5 shrink-0 text-xs font-semibold px-2.5 py-1 rounded-md bg-fuchsia-500/25 text-fuchsia-100 hover:text-fuchsia-100 hover:bg-fuchsia-500/40 border border-fuchsia-500/40 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
       >
         {running ? (
           <Loader2 className="w-3 h-3 animate-spin" />
@@ -67,7 +70,7 @@ export function VibeRunButton({
           <Play className="w-3 h-3" />
         )}
         {running ? "Dispatching…" : `Run Kody on #${issueNumber}`}
-      </button>
+      </Button>
     </div>
   );
 }

@@ -817,6 +817,7 @@ export function AttachTasksDialog({
             filtered.map((task) => {
               const isSelected = selected.has(task.issueNumber);
               return (
+                // eslint-disable-next-line react/forbid-elements -- unstyled clickable task row; Button base styles would alter it
                 <button
                   key={task.issueNumber}
                   type="button"
@@ -826,6 +827,7 @@ export function AttachTasksDialog({
                     isSelected && "bg-sky-500/10",
                   )}
                 >
+                  {/* eslint-disable-next-line react/forbid-elements -- presentational readOnly checkbox inside the row button; radix Checkbox is not a drop-in */}
                   <input
                     type="checkbox"
                     checked={isSelected}
@@ -1135,6 +1137,7 @@ function SortableGoalItem({
           selected && "bg-accent/70",
         )}
       >
+        {/* eslint-disable-next-line react/forbid-elements -- dnd drag handle with custom cursor styling */}
         <button
           type="button"
           aria-label={`Reorder ${goal.name}`}
@@ -1144,6 +1147,7 @@ function SortableGoalItem({
         >
           <GripVertical className="w-4 h-4" />
         </button>
+        {/* eslint-disable-next-line react/forbid-elements -- unstyled clickable row; Button base styles would alter it */}
         <button
           type="button"
           onClick={onSelect}

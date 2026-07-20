@@ -366,11 +366,13 @@ export function EditTaskDialog({
                   typeof labelData === "string" ? labelData : labelData.name,
                 );
                 return (
-                  <button
+                  <Button
                     key={
                       typeof labelData === "string" ? labelData : labelData.name
                     }
                     type="button"
+                    size="clear"
+                    variant="ghost"
                     onClick={() =>
                       toggleLabel(
                         typeof labelData === "string"
@@ -381,12 +383,12 @@ export function EditTaskDialog({
                     className={cn(
                       "px-2 py-1 rounded-full text-xs font-medium transition-colors border",
                       isSelected
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-muted text-muted-foreground border-border hover:bg-muted/80",
+                        ? "bg-primary text-primary-foreground border-primary hover:bg-primary hover:text-primary-foreground"
+                        : "bg-muted text-muted-foreground border-border hover:bg-muted/80 hover:text-muted-foreground",
                     )}
                   >
                     {typeof labelData === "string" ? labelData : labelData.name}
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -399,15 +401,17 @@ export function EditTaskDialog({
               {collaborators.slice(0, 10).map((user) => {
                 const isSelected = assignees.includes(user.login);
                 return (
-                  <button
+                  <Button
                     key={user.login}
                     type="button"
+                    size="clear"
+                    variant="ghost"
                     onClick={() => toggleAssignee(user.login)}
                     className={cn(
                       "flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium transition-colors border",
                       isSelected
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-muted text-muted-foreground border-border hover:bg-muted/80",
+                        ? "bg-primary text-primary-foreground border-primary hover:bg-primary hover:text-primary-foreground"
+                        : "bg-muted text-muted-foreground border-border hover:bg-muted/80 hover:text-muted-foreground",
                     )}
                   >
                     <Avatar className="w-4 h-4">
@@ -417,7 +421,7 @@ export function EditTaskDialog({
                       </AvatarFallback>
                     </Avatar>
                     {user.login}
-                  </button>
+                  </Button>
                 );
               })}
             </div>

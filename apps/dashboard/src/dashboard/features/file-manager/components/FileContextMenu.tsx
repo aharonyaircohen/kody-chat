@@ -18,6 +18,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "@dashboard/lib/utils";
 
 interface FileContextMenuProps {
@@ -242,9 +243,11 @@ function MenuItem({
   className?: string;
 }) {
   return (
-    <button
+    <Button
+      variant="ghost"
+      size="clear"
       className={cn(
-        "w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left",
+        "w-full flex items-center justify-start gap-2 rounded-none px-3 py-1.5 text-sm font-normal text-left",
         "text-popover-foreground hover:bg-accent hover:text-accent-foreground",
         className,
       )}
@@ -253,7 +256,7 @@ function MenuItem({
     >
       {icon}
       <span>{label}</span>
-    </button>
+    </Button>
   );
 }
 

@@ -77,23 +77,25 @@ export function AgentsPageTabs() {
             {TABS.map((tab) => {
               const isActive = active === tab.id;
               return (
-                <button
+                <Button
                   key={tab.id}
                   type="button"
+                  variant="ghost"
+                  size="clear"
                   role="tab"
                   aria-selected={isActive}
                   aria-controls={`agent-tab-panel-${tab.id}`}
                   onClick={() => onSelect(tab.id)}
                   className={cn(
-                    "relative px-3 py-2 text-sm font-medium transition-colors",
+                    "relative rounded-none px-3 py-2 text-sm font-medium transition-colors hover:bg-transparent",
                     "border-b-2 -mb-px",
                     isActive
-                      ? "text-foreground border-emerald-500"
+                      ? "text-foreground border-emerald-500 hover:text-foreground"
                       : "text-muted-foreground border-transparent hover:text-foreground",
                   )}
                 >
                   {tab.label}
-                </button>
+                </Button>
               );
             })}
           </div>

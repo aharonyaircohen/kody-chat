@@ -1743,6 +1743,7 @@ export function KodyDashboard({
                   >
                     Retry
                   </Button>
+                  {/* eslint-disable-next-line react/forbid-elements -- bare icon dismiss with no hover surface; Button ghost hover bg would visibly change it */}
                   <button
                     onClick={() => setErrorDismissed(true)}
                     className="text-red-400 hover:text-red-300"
@@ -1839,6 +1840,7 @@ export function KodyDashboard({
                         user can create a task or report a bug without
                         scrolling into a goal section. */}
                     <div className="grid gap-2 grid-cols-2 p-3">
+                      {/* eslint-disable-next-line react/forbid-elements -- dashed CTA with custom font weight/hover; Button base styles would visibly change it */}
                       <button
                         type="button"
                         onClick={handleOpenCreate}
@@ -1847,6 +1849,7 @@ export function KodyDashboard({
                         <Plus className="w-4 h-4" />
                         New task
                       </button>
+                      {/* eslint-disable-next-line react/forbid-elements -- dashed CTA with custom font weight/hover; Button base styles would visibly change it */}
                       <button
                         type="button"
                         onClick={() => handleReportBugInGoal(null)}

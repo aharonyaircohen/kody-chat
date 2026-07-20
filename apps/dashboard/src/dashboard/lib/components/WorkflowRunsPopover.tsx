@@ -16,6 +16,7 @@ import {
   ExternalLink,
   ChevronDown,
 } from "lucide-react";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn, formatRelativeTime } from "../utils";
 import { useWorkflowRuns } from "../hooks";
 import type { WorkflowRun } from "@kody-ade/base/types";
@@ -125,8 +126,10 @@ export function WorkflowRunsPopover({
 
   return (
     <>
-      <button
+      <Button
         ref={btnRef}
+        variant="ghost"
+        size="clear"
         onClick={handleToggle}
         className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/[0.08] text-zinc-300 hover:bg-white/[0.12] hover:text-white transition-all duration-150 shrink-0 border border-white/[0.1]"
       >
@@ -135,7 +138,7 @@ export function WorkflowRunsPopover({
         <ChevronDown
           className={cn("w-3 h-3 transition-transform", open && "rotate-180")}
         />
-      </button>
+      </Button>
 
       {open && (
         <>
@@ -217,15 +220,17 @@ export function WorkflowRunsPopover({
             )}
 
             {skippedCount > 0 && (
-              <button
+              <Button
+                variant="ghost"
+                size="clear"
                 onClick={(e) => {
                   e.stopPropagation();
                   setShowSkipped((s) => !s);
                 }}
-                className="w-full px-3 py-1.5 text-[10px] text-zinc-500 hover:text-zinc-300 border-t border-white/[0.06] mt-0.5 text-left"
+                className="w-full justify-start rounded-none font-normal px-3 py-1.5 text-[10px] text-zinc-500 hover:text-zinc-300 hover:bg-transparent border-t border-white/[0.06] mt-0.5 text-left"
               >
                 {showSkipped ? "Hide" : "Show"} {skippedCount} skipped
-              </button>
+              </Button>
             )}
           </div>
         </>

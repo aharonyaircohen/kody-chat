@@ -8,6 +8,7 @@
 import { useCallback, useRef } from "react";
 import { Mic, MicOff } from "lucide-react";
 import { cn } from "@kody-ade/base/utils/ui";
+import { Button } from "@kody-ade/base/ui/button";
 
 const LONG_PRESS_MS = 500;
 
@@ -67,8 +68,10 @@ export function VoiceButton({
   if (!isSupported) return null;
   const Icon = isActive ? MicOff : Mic;
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="clear"
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerLeave}
@@ -76,7 +79,7 @@ export function VoiceButton({
       className={cn(
         "p-2 rounded-md transition-colors select-none",
         isActive
-          ? "text-primary bg-primary/10 hover:bg-primary/20"
+          ? "text-primary hover:text-primary bg-primary/10 hover:bg-primary/20"
           : "text-muted-foreground hover:text-foreground hover:bg-muted",
         disabled && "opacity-50 cursor-not-allowed",
       )}
@@ -86,6 +89,6 @@ export function VoiceButton({
       aria-label={isActive ? "Stop voice chat" : "Start voice chat"}
     >
       <Icon className="w-5 h-5" />
-    </button>
+    </Button>
   );
 }

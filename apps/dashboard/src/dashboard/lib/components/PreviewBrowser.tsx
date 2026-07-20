@@ -30,6 +30,8 @@ import {
   Tablet,
 } from "lucide-react";
 
+import { Button } from "@kody-ade/base/ui/button";
+
 import { PreviewInspector } from "../picker/PreviewInspector";
 import type {
   AttachmentInjection,
@@ -526,8 +528,10 @@ export function PreviewBrowser({
   const previewControls = activePreviewUrl ? (
     <>
       <div ref={viewportMenuRef} className="relative inline-flex">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="clear"
           onClick={() => setViewportMenuOpen((open) => !open)}
           title={`Viewport: ${activePreviewDevice.label}`}
           aria-label="Switch preview viewport"
@@ -537,7 +541,7 @@ export function PreviewBrowser({
         >
           <ActivePreviewDeviceIcon className="h-4 w-4" />
           <ChevronDown className="h-3.5 w-3.5" />
-        </button>
+        </Button>
 
         <PreviewFloatingMenu
           open={viewportMenuOpen}
@@ -550,9 +554,11 @@ export function PreviewBrowser({
             {PREVIEW_DEVICE_OPTIONS.map(({ id, icon: Icon, label }) => {
               const selected = previewDevice === id;
               return (
-                <button
+                <Button
                   key={id}
                   type="button"
+                  variant="ghost"
+                  size="clear"
                   role="option"
                   aria-selected={selected}
                   onClick={() => {
@@ -560,9 +566,9 @@ export function PreviewBrowser({
                     setViewportMenuOpen(false);
                   }}
                   className={cn(
-                    "flex w-full items-center gap-2.5 px-3 py-2 text-left text-body-xs transition-colors",
+                    "flex w-full items-center justify-start gap-2.5 rounded-none px-3 py-2 text-left text-body-xs font-normal transition-colors",
                     selected
-                      ? "text-zinc-100"
+                      ? "text-zinc-100 hover:bg-transparent hover:text-zinc-100"
                       : "text-zinc-400 hover:bg-zinc-800 hover:text-white",
                   )}
                 >
@@ -574,7 +580,7 @@ export function PreviewBrowser({
                   />
                   <Icon className="h-4 w-4" />
                   <span>{label}</span>
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -592,7 +598,7 @@ export function PreviewBrowser({
 
   return (
     <>
-      <div className="flex h-[55px] shrink-0 items-center bg-[#15161a] shadow-[inset_0_-1px_0_rgba(255,255,255,0.045)]">
+      <div className="flex h-[55px] shrink-0 items-center bg-card shadow-[inset_0_-1px_0_rgba(255,255,255,0.045)]">
         <div className="flex h-full min-w-0 flex-1 items-center gap-3.5">
           {!showBrowserChrome && leadingToolbar}
         </div>
@@ -604,39 +610,45 @@ export function PreviewBrowser({
                 {leadingToolbar}
               </div>
             )}
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="clear"
               onClick={() => moveBrowserHistory("back")}
               disabled={!canGoBack}
               title={canGoBack ? "Go back" : "No previous page"}
               aria-label="Go back in preview"
               className={cn(
-                "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors",
+                "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors disabled:pointer-events-auto disabled:opacity-100",
                 canGoBack
                   ? "text-zinc-400 hover:bg-white/[0.06] hover:text-white"
-                  : "cursor-not-allowed text-zinc-600",
+                  : "cursor-not-allowed text-zinc-600 hover:bg-transparent hover:text-zinc-600",
               )}
             >
               <ArrowLeft className="h-4 w-4" />
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="ghost"
+              size="clear"
               onClick={() => moveBrowserHistory("forward")}
               disabled={!canGoForward}
               title={canGoForward ? "Go forward" : "No next page"}
               aria-label="Go forward in preview"
               className={cn(
-                "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors",
+                "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors disabled:pointer-events-auto disabled:opacity-100",
                 canGoForward
                   ? "text-zinc-400 hover:bg-white/[0.06] hover:text-white"
-                  : "cursor-not-allowed text-zinc-600",
+                  : "cursor-not-allowed text-zinc-600 hover:bg-transparent hover:text-zinc-600",
               )}
             >
               <ArrowRight className="h-4 w-4" />
-            </button>
+            </Button>
             {onSaveCurrentUrl && activePreviewUrl && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="clear"
                 onClick={() => {
                   if (activePreviewUrl)
                     void onSaveCurrentUrl(toBrowserAddress(activePreviewUrl));
@@ -645,9 +657,9 @@ export function PreviewBrowser({
                 title="Save current URL as environment"
                 aria-label="Save current URL as environment"
                 className={cn(
-                  "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors",
+                  "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors disabled:pointer-events-auto disabled:opacity-100",
                   isSavingCurrentUrl
-                    ? "cursor-wait text-zinc-600"
+                    ? "cursor-wait text-zinc-600 hover:bg-transparent hover:text-zinc-600"
                     : "text-zinc-400 hover:bg-white/[0.06] hover:text-white",
                 )}
               >
@@ -656,10 +668,12 @@ export function PreviewBrowser({
                 ) : (
                   <Bookmark className="h-4 w-4" />
                 )}
-              </button>
+              </Button>
             )}
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="clear"
               onClick={() => {
                 void refreshPreview();
               }}
@@ -669,14 +683,15 @@ export function PreviewBrowser({
               }
               aria-label="Refresh preview"
               className={cn(
-                "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors",
+                "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md transition-colors disabled:pointer-events-auto disabled:opacity-100",
                 activePreviewUrl
                   ? "text-zinc-400 hover:bg-white/[0.06] hover:text-white"
-                  : "cursor-not-allowed text-zinc-600",
+                  : "cursor-not-allowed text-zinc-600 hover:bg-transparent hover:text-zinc-600",
               )}
             >
               <RefreshCw className="h-4 w-4" />
-            </button>
+            </Button>
+            {/* eslint-disable-next-line react/forbid-elements -- bare borderless address bar with intentional no focus ring; kit Input's border/bg/focus styling would visibly change it */}
             <input
               aria-label="Current preview URL"
               title={browserUrl}

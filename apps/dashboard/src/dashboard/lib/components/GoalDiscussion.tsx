@@ -467,6 +467,7 @@ function DiscussionCommentEditor({ goalId }: { goalId: string }) {
               <div className="absolute bottom-full left-0 mb-1 z-50 w-72 max-h-48 overflow-y-auto border border-border rounded-md shadow-lg bg-popover">
                 {filteredMentions.length > 0 ? (
                   filteredMentions.map((mention, index) => (
+                    // eslint-disable-next-line react/forbid-elements -- unstyled mention-menu row; Button base styles would alter it
                     <button
                       key={mention.login}
                       type="button"

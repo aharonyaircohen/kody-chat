@@ -123,7 +123,9 @@ export function AssigneePicker({
             <span className="text-xs text-foreground flex-1">
               {assignee.login}
             </span>
-            <button
+            <Button
+              variant="ghost"
+              size="clear"
               onClick={() => handleUnassign(assignee.login)}
               disabled={!!pendingAction}
               className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-destructive/20 hover:text-destructive text-muted-foreground transition-opacity disabled:opacity-50"
@@ -134,7 +136,7 @@ export function AssigneePicker({
               ) : (
                 <X className="w-3 h-3" />
               )}
-            </button>
+            </Button>
           </div>
         );
       })}

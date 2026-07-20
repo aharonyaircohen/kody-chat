@@ -2483,6 +2483,7 @@ function CollectionRail({
               const selected = collection.name === selectedName;
 
               return (
+                // eslint-disable-next-line react/forbid-elements -- custom multi-line clickable list row; Button base styles would alter layout
                 <button
                   key={collection.name}
                   type="button"
@@ -3215,8 +3216,10 @@ function DocumentTable({
                     {label}
                   </span>
                   {sortable ? (
-                    <button
+                    <Button
                       type="button"
+                      size="clear"
+                      variant="ghost"
                       onClick={() => onSortChange(nextSort(sort, field.name))}
                       className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       title={`Sort by ${label}`}
@@ -3229,7 +3232,7 @@ function DocumentTable({
                       ) : (
                         <ArrowUpDown className="h-4 w-4 shrink-0 text-muted-foreground" />
                       )}
-                    </button>
+                    </Button>
                   ) : null}
                 </div>
                 {filter && operator ? (
@@ -3588,6 +3591,7 @@ function ContentFormPage({
           ) : documentField ? (
             <>
               {documentTitleField ? (
+                // eslint-disable-next-line react/forbid-elements -- borderless document-title input; kit Input height/padding would visibly change layout
                 <input
                   className="w-full border-0 bg-transparent text-2xl font-semibold text-foreground outline-none placeholder:text-muted-foreground/60"
                   placeholder="Untitled"
@@ -4010,6 +4014,7 @@ function RelationPicker({
         className="relative h-9 min-w-0 rounded-md border border-input bg-background shadow-sm"
       >
         <div className="flex h-9 min-w-0 items-center">
+          {/* eslint-disable-next-line react/forbid-elements -- custom combobox trigger; Button base font/justify styles would visibly change UI */}
           <button
             type="button"
             role="combobox"
@@ -4032,18 +4037,20 @@ function RelationPicker({
             ) : null}
           </button>
           {selectedIds.length > 0 ? (
-            <button
+            <Button
               type="button"
+              size="clear"
+              variant="ghost"
               aria-label="Clear relation filter"
               onClick={(event) => {
                 event.stopPropagation();
                 onChange(multiple ? [] : "");
                 setQuery("");
               }}
-              className="flex h-9 w-8 shrink-0 items-center justify-center text-muted-foreground hover:bg-muted/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-9 w-8 shrink-0 items-center justify-center rounded-none text-muted-foreground hover:bg-muted/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
             >
               <X className="h-4 w-4" />
-            </button>
+            </Button>
           ) : null}
         </div>
 
@@ -4069,6 +4076,7 @@ function RelationPicker({
             {multiple && selectedIds.length > 0 ? (
               <div className="mt-2 flex flex-wrap gap-1">
                 {selectedIds.map((id) => (
+                  // eslint-disable-next-line react/forbid-elements -- custom selection chip; Button base font/justify styles would visibly change UI
                   <button
                     key={id}
                     type="button"
@@ -4114,6 +4122,7 @@ function RelationPicker({
                   if (!id) return null;
                   const selected = selectedSet.has(id);
                   return (
+                    // eslint-disable-next-line react/forbid-elements -- custom multi-line listbox option row; Button base styles would alter layout
                     <button
                       key={id}
                       type="button"
@@ -4156,6 +4165,7 @@ function RelationPicker({
       <div className="flex flex-wrap gap-1.5">
         {selectedIds.length > 0 ? (
           selectedIds.map((id) => (
+            // eslint-disable-next-line react/forbid-elements -- custom multi-line selection chip; Button base styles would alter layout
             <button
               key={id}
               type="button"
@@ -4230,6 +4240,7 @@ function RelationPicker({
               if (!id) return null;
               const selected = selectedSet.has(id);
               return (
+                // eslint-disable-next-line react/forbid-elements -- custom multi-line listbox option row; Button base styles would alter layout
                 <button
                   key={id}
                   type="button"
@@ -4500,6 +4511,7 @@ function RelationLink({
   }
 
   return (
+    // eslint-disable-next-line react/forbid-elements -- custom multi-line relation chip link; Button base styles would alter layout
     <button
       type="button"
       onClick={(event) => {

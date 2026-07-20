@@ -14,6 +14,8 @@ import {
   useState,
 } from "react";
 import { cn } from "../utils";
+import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
 import { Search, X } from "lucide-react";
 import type { SortField, SortDirection, ViewMode } from "@kody-ade/base/types";
 import { FilterDropdown } from "./FilterDropdown";
@@ -80,43 +82,49 @@ export function ViewToggle({
   if (disableBacklog) return null;
   return (
     <div className="inline-flex items-center rounded-md bg-white/[0.04] p-0.5 gap-0.5">
-      <button
+      <Button
         type="button"
+        size="clear"
+        variant="ghost"
         onClick={() => onViewModeChange("running")}
         className={cn(
           "px-3 py-1 rounded text-xs font-medium transition-colors",
           viewMode === "running"
-            ? "bg-blue-600 text-white shadow-sm"
+            ? "bg-blue-600 text-white shadow-sm hover:bg-blue-600 hover:text-white"
             : "text-muted-foreground hover:text-foreground hover:bg-white/[0.06]",
         )}
       >
         Running ({runningCount})
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        size="clear"
+        variant="ghost"
         onClick={() => onViewModeChange("backlog")}
         className={cn(
           "px-3 py-1 rounded text-xs font-medium transition-colors",
           viewMode === "backlog"
-            ? "bg-zinc-600 text-white shadow-sm"
+            ? "bg-zinc-600 text-white shadow-sm hover:bg-zinc-600 hover:text-white"
             : "text-muted-foreground hover:text-foreground hover:bg-white/[0.06]",
         )}
       >
         Backlog ({backlogCount})
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        size="clear"
+        variant="ghost"
         onClick={() => onViewModeChange("history")}
         className={cn(
           "px-3 py-1 rounded text-xs font-medium transition-colors",
           viewMode === "history"
-            ? "bg-slate-600 text-white shadow-sm"
+            ? "bg-slate-600 text-white shadow-sm hover:bg-slate-600 hover:text-white"
             : "text-muted-foreground hover:text-foreground hover:bg-white/[0.06]",
         )}
       >
         History
         {typeof historyCount === "number" ? ` (${historyCount})` : ""}
-      </button>
+      </Button>
       {/* Queue/unassigned views retired — left in ViewMode type for URL backwards-compat. */}
     </div>
   );
@@ -195,7 +203,7 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(
           (showSearchInput ? (
             <div className="relative flex items-center">
               <Search className="absolute left-2.5 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
-              <input
+              <Input
                 ref={searchInputRef}
                 type="text"
                 value={searchQuery}
@@ -208,29 +216,33 @@ export const FilterBar = forwardRef<FilterBarHandle, FilterBarProps>(
                 className="h-8 pl-8 pr-7 text-xs rounded-md bg-white/[0.04] border border-white/[0.08] text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-white/20 w-40"
               />
               {searchQuery && (
-                <button
+                <Button
                   type="button"
+                  size="clear"
+                  variant="ghost"
                   onClick={() => {
                     onSearchChange("");
                     requestSearch();
                   }}
                   aria-label="Clear search"
-                  className="absolute right-2 flex items-center justify-center text-muted-foreground/60 hover:text-foreground"
+                  className="absolute right-2 flex items-center justify-center text-muted-foreground/60 hover:bg-transparent hover:text-foreground"
                 >
                   <X className="w-3.5 h-3.5" />
-                </button>
+                </Button>
               )}
             </div>
           ) : (
-            <button
+            <Button
               type="button"
+              size="clear"
+              variant="ghost"
               onClick={requestSearch}
               aria-label="Search tasks"
               title="Search ( / )"
               className="inline-flex items-center justify-center h-8 w-8 rounded-md bg-white/[0.04] border border-white/[0.08] text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors shrink-0"
             >
               <Search className="w-3.5 h-3.5" />
-            </button>
+            </Button>
           ))}
 
         {/* Consolidated filter dropdown */}

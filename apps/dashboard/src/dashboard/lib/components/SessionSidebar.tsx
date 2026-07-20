@@ -9,6 +9,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Loader2, Pencil, Pin, PinOff, Plus, Trash2, X } from "lucide-react";
 import { cn } from "@kody-ade/base/utils/ui";
+import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
 import { ConfirmDialog } from "./ConfirmDialog";
 import type { SessionMeta } from "../chat-types";
 
@@ -127,8 +129,10 @@ export function SessionSidebar({
           </div>
           <div className="flex items-center gap-1">
             {onTogglePinnedOpen && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="clear"
                 onClick={onTogglePinnedOpen}
                 className={cn(
                   "-mr-1 p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground",
@@ -146,11 +150,13 @@ export function SessionSidebar({
                 ) : (
                   <Pin className="w-4 h-4" aria-hidden="true" />
                 )}
-              </button>
+              </Button>
             )}
             {onClose && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="clear"
                 onClick={onClose}
                 className={cn(
                   "-mr-1 p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground",
@@ -160,18 +166,19 @@ export function SessionSidebar({
                 title="Close"
               >
                 <X className="w-4 h-4" aria-hidden="true" />
-              </button>
+              </Button>
             )}
           </div>
         </div>
-        <button
+        <Button
+          size="clear"
           onClick={onCreateSession}
           className="p-2 rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
           aria-label="New conversation"
           title="New conversation"
         >
           <Plus className="w-4 h-4" aria-hidden="true" />
-        </button>
+        </Button>
       </div>
 
       {/* Session List */}
@@ -198,14 +205,14 @@ export function SessionSidebar({
                 <div className="p-3">
                   {/* Title */}
                   {editingId === session.id ? (
-                    <input
+                    <Input
                       ref={editInputRef}
                       type="text"
                       value={editTitle}
                       onChange={(e) => setEditTitle(e.target.value)}
                       onBlur={handleSaveEdit}
                       onKeyDown={handleKeyDown}
-                      className="w-full px-2 py-1 text-sm border rounded focus:outline-none focus:ring-2 focus:ring-primary"
+                      className="h-auto w-full px-2 py-1 text-sm border border-border bg-transparent rounded focus:outline-none focus:ring-2 focus:ring-primary"
                       onClick={(e) => e.stopPropagation()}
                     />
                   ) : (
@@ -258,7 +265,9 @@ export function SessionSidebar({
                 {/* Actions (always visible on mobile, hover-only on ≥md) */}
                 <div className="absolute top-1.5 right-1.5 flex gap-0.5 transition-opacity opacity-100 md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
                   {/* Pin button */}
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="clear"
                     onClick={(e) => {
                       e.stopPropagation();
                       onPinSession(session.id);
@@ -274,10 +283,12 @@ export function SessionSidebar({
                     ) : (
                       <Pin className="w-4 h-4" aria-hidden="true" />
                     )}
-                  </button>
+                  </Button>
 
                   {/* Edit button */}
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="clear"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleStartEdit(session);
@@ -287,10 +298,12 @@ export function SessionSidebar({
                     aria-label="Rename conversation"
                   >
                     <Pencil className="w-4 h-4" aria-hidden="true" />
-                  </button>
+                  </Button>
 
                   {/* Delete button */}
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="clear"
                     onClick={(e) => {
                       e.stopPropagation();
                       setDeleteConfirmId(session.id);
@@ -300,7 +313,7 @@ export function SessionSidebar({
                     aria-label="Delete conversation"
                   >
                     <Trash2 className="w-4 h-4" aria-hidden="true" />
-                  </button>
+                  </Button>
                 </div>
               </li>
             ))}

@@ -71,8 +71,10 @@ export function OperatorsCard() {
                     className="flex items-center justify-between gap-2 rounded border border-white/[0.06] bg-white/[0.02] px-2.5 py-1.5 text-sm text-white/80"
                   >
                     <span className="truncate">@{op}</span>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="clear"
                       aria-label={`Remove ${op}`}
                       disabled={saving}
                       onClick={() => {
@@ -80,10 +82,10 @@ export function OperatorsCard() {
                           toast.error("Couldn't save operators"),
                         );
                       }}
-                      className="text-white/30 hover:text-rose-300 disabled:opacity-50"
+                      className="text-white/30 hover:bg-transparent hover:text-rose-300 disabled:opacity-50"
                     >
                       <X className="w-4 h-4" />
-                    </button>
+                    </Button>
                   </li>
                 ))}
               </ul>
@@ -118,14 +120,16 @@ export function OperatorsCard() {
             </div>
 
             {meLogin && !meIncluded && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="clear"
                 disabled={saving}
                 onClick={() => void handleAdd(meLogin)}
-                className="text-xs text-emerald-300/80 hover:text-emerald-200 disabled:opacity-50"
+                className="font-normal text-xs text-emerald-300/80 hover:bg-transparent hover:text-emerald-200 disabled:opacity-50"
               >
                 + Add me (@{meLogin})
-              </button>
+              </Button>
             )}
           </>
         )}

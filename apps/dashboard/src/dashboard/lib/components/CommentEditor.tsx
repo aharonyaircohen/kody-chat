@@ -278,14 +278,16 @@ export function CommentEditor({
           {showEmojiPicker && (
             <div className="absolute z-20 top-full left-0 mt-1 w-48 max-h-40 overflow-y-auto border border-border rounded-md shadow-lg bg-popover p-2 grid grid-cols-6 gap-1">
               {EMOJI_LIST.slice(0, 60).map((emoji, index) => (
-                <button
+                <Button
                   key={index}
                   type="button"
+                  size="clear"
+                  variant="ghost"
                   onClick={() => insertEmoji(emoji)}
                   className="p-1 hover:bg-accent rounded text-lg"
                 >
                   {emoji}
-                </button>
+                </Button>
               ))}
             </div>
           )}
@@ -359,12 +361,14 @@ export function CommentEditor({
                 className="absolute z-10 w-64 max-h-48 overflow-y-auto border border-border rounded-md shadow-lg bg-popover"
               >
                 {filteredMentions.map((mention, index) => (
-                  <button
+                  <Button
                     key={mention.login}
                     type="button"
+                    size="clear"
+                    variant="ghost"
                     onClick={() => selectMention(mention)}
                     className={cn(
-                      "w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-accent",
+                      "w-full flex items-center justify-start gap-2 rounded-none px-3 py-2 text-left font-normal hover:bg-accent hover:text-foreground",
                       index === selectedMentionIndex && "bg-accent",
                     )}
                   >
@@ -376,7 +380,7 @@ export function CommentEditor({
                       className="rounded-full"
                     />
                     <span className="text-sm">{mention.login}</span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             )}

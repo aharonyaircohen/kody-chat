@@ -470,6 +470,7 @@ export function CreateTaskDialog({
                 const meta = CATEGORY_META[cat];
                 const selected = category === cat;
                 return (
+                  // eslint-disable-next-line react/forbid-elements -- card-style toggle tile; Button ghost hover/typography would visibly change the selected state
                   <button
                     key={cat}
                     type="button"
@@ -644,6 +645,7 @@ export function CreateTaskDialog({
           {/* ── Attachments ── */}
           <div className="grid gap-2">
             <Label>Attachments (screenshots, mockups)</Label>
+            {/* eslint-disable-next-line react/forbid-elements -- hidden file input */}
             <input
               ref={fileInputRef}
               type="file"
@@ -672,6 +674,7 @@ export function CreateTaskDialog({
                         </span>
                       </div>
                     )}
+                    {/* eslint-disable-next-line react/forbid-elements -- tiny overlay remove control on thumbnail; Button hover styles would alter it */}
                     <button
                       type="button"
                       onClick={() => removeAttachment(index)}
@@ -707,10 +710,12 @@ export function CreateTaskDialog({
           </div>
 
           {/* ── Advanced section (collapsible) ── */}
-          <button
+          <Button
             type="button"
+            size="clear"
+            variant="ghost"
             onClick={() => setShowAdvanced(!showAdvanced)}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors w-fit"
+            className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground hover:bg-transparent hover:text-foreground transition-colors w-fit"
           >
             {showAdvanced ? (
               <ChevronUp className="w-3.5 h-3.5" />
@@ -725,7 +730,7 @@ export function CreateTaskDialog({
                 configured
               </span>
             )}
-          </button>
+          </Button>
 
           {showAdvanced && (
             <div className="grid gap-4 pl-2 border-l-2 border-border">

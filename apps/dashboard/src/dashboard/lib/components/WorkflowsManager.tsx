@@ -343,6 +343,7 @@ function WorkflowRow({
   onSelect: () => void;
 }) {
   return (
+    // eslint-disable-next-line react/forbid-elements -- unstyled clickable list row; Button's flex centering would break the block layout
     <button
       type="button"
       className={cn(

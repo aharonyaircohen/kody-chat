@@ -713,10 +713,12 @@ export function WorkflowGraphCanvas({
                       {graph.edges
                         .filter((edge) => edge.source === selectedNode.id)
                         .map((edge) => (
-                          <button
+                          <Button
                             key={edge.id}
                             type="button"
-                            className="flex w-full items-center justify-between rounded border border-border bg-background px-3 py-2 text-left text-xs"
+                            variant="ghost"
+                            size="clear"
+                            className="flex w-full items-center justify-between rounded border border-border bg-background px-3 py-2 font-normal text-left text-xs hover:bg-background hover:text-foreground"
                             onClick={() => {
                               setSelectedEdgeId(edge.id);
                               setSelectedNodeId(null);
@@ -728,7 +730,7 @@ export function WorkflowGraphCanvas({
                             <span className="text-muted-foreground">
                               Continue to {displayNodeName(edge.target)}
                             </span>
-                          </button>
+                          </Button>
                         ))}
                     </div>
                   </div>

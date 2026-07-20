@@ -24,6 +24,7 @@ import type {
   KodyStatus,
 } from "@kody-ade/base/task-comment-state";
 import { formatRelativeTime } from "@dashboard/lib/utils";
+import { Button } from "@kody-ade/base/ui/button";
 
 function StatusIcon({ status }: { status?: KodyStatus }) {
   switch (status) {
@@ -83,18 +84,20 @@ export function TaskRunsList({
             </span>
           </h3>
           {onRerun && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="clear"
               onClick={onRerun}
               disabled={rerunPending}
-              className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-white/80 bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-50 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium text-white/80 hover:text-white/80 bg-white/[0.06] hover:bg-white/[0.1] disabled:opacity-50 transition-colors"
               title="Run this task again (mints a fresh job)"
             >
               <RotateCcw
                 className={`w-3.5 h-3.5 ${rerunPending ? "animate-spin" : ""}`}
               />
               {rerunPending ? "Starting…" : "Re-run"}
-            </button>
+            </Button>
           )}
         </div>
 

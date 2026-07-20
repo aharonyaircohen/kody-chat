@@ -690,23 +690,25 @@ export function BrainFlyCard({
                 {BRAIN_SIZE_ORDER.map((tier) => {
                   const active = brainPerf === tier;
                   return (
-                    <button
+                    <Button
                       key={tier}
                       type="button"
+                      size="clear"
+                      variant="ghost"
                       onClick={() =>
                         updateIntegrations({
                           brainPerf: tier === BRAIN_SIZE_DEFAULT ? null : tier,
                         })
                       }
                       title={BRAIN_SIZE_LABELS[tier].hint}
-                      className={`flex-1 rounded-md border px-2 py-1.5 text-xs transition ${
+                      className={`flex-1 rounded-md border px-2 py-1.5 text-xs font-normal transition ${
                         active
-                          ? "border-violet-500/50 bg-violet-500/15 text-violet-200"
-                          : "border-white/10 bg-black/20 text-white/60 hover:text-white/80"
+                          ? "border-violet-500/50 bg-violet-500/15 hover:bg-violet-500/15 text-violet-200 hover:text-violet-200"
+                          : "border-white/10 bg-black/20 hover:bg-black/20 text-white/60 hover:text-white/80"
                       }`}
                     >
                       {BRAIN_SIZE_LABELS[tier].label}
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
@@ -780,6 +782,7 @@ export function BrainFlyCard({
                   <Info className="w-3 h-3 text-white/50 hover:text-white/80 cursor-help" />
                 </SimpleTooltip>
               </label>
+              {/* eslint-disable-next-line react/forbid-elements -- compact mono text input; kit Input's h-11 chrome would visibly change this dense card row */}
               <input
                 id="brain-app-name"
                 type="text"

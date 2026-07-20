@@ -289,17 +289,19 @@ export function OrgManager({ org }: { org: string }) {
         title={org}
         titleContent={
           <div ref={titleMenuRef} className="relative min-w-0">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="clear"
               onClick={() => setTitleMenuOpen((open) => !open)}
               aria-haspopup="listbox"
               aria-expanded={titleMenuOpen}
               aria-label="Change organization"
-              className="group inline-flex min-w-0 items-center gap-1.5 rounded-md px-1.5 py-0.5 -mx-1.5 text-base font-semibold text-foreground transition-colors hover:bg-white/[0.06] md:text-lg"
+              className="group inline-flex min-w-0 items-center justify-start gap-1.5 rounded-md px-1.5 py-0.5 -mx-1.5 text-base font-semibold text-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground md:text-lg"
             >
               <span className="truncate">{org}</span>
               <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-colors group-hover:text-foreground" />
-            </button>
+            </Button>
             {titleMenuOpen && (
               <div
                 role="listbox"
@@ -309,9 +311,11 @@ export function OrgManager({ org }: { org: string }) {
                 {orgOwners.map((owner) => {
                   const selected = owner === org;
                   return (
-                    <button
+                    <Button
                       key={owner}
                       type="button"
+                      variant="ghost"
+                      size="clear"
                       role="option"
                       aria-selected={selected}
                       onClick={() => {
@@ -320,7 +324,7 @@ export function OrgManager({ org }: { org: string }) {
                           router.push(`/org/${encodeURIComponent(owner)}`);
                         }
                       }}
-                      className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-zinc-200 hover:bg-zinc-800/70"
+                      className="flex w-full items-center justify-start gap-2 rounded-none px-3 py-1.5 text-left text-sm font-normal text-zinc-200 hover:bg-zinc-800/70 hover:text-zinc-200"
                     >
                       <Check
                         className={`h-3.5 w-3.5 shrink-0 ${
@@ -328,7 +332,7 @@ export function OrgManager({ org }: { org: string }) {
                         }`}
                       />
                       <span className="min-w-0 truncate">{owner}</span>
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
@@ -548,6 +552,7 @@ export function OrgManager({ org }: { org: string }) {
                   />
                 </div>
                 <label className="flex items-center gap-2 text-sm">
+                  {/* eslint-disable-next-line react/forbid-elements -- native checkbox; kit has no drop-in checkbox */}
                   <input
                     type="checkbox"
                     checked={newRepoPrivate}
@@ -557,6 +562,7 @@ export function OrgManager({ org }: { org: string }) {
                   Private repository
                 </label>
                 <label className="flex items-center gap-2 text-sm">
+                  {/* eslint-disable-next-line react/forbid-elements -- native checkbox; kit has no drop-in checkbox */}
                   <input
                     type="checkbox"
                     checked={newRepoAutoInit}

@@ -360,19 +360,21 @@ function RunnerConfigView({
                     {PERF_ORDER.map((tier) => {
                       const active = flyPerf === tier;
                       return (
-                        <button
+                        <Button
                           key={tier}
                           type="button"
+                          size="clear"
+                          variant="ghost"
                           onClick={() => setFlyPerf(tier)}
                           title={FLY_PERF_LABELS[tier].hint}
-                          className={`flex-1 rounded-md border px-2 py-1.5 text-xs transition ${
+                          className={`flex-1 rounded-md border px-2 py-1.5 text-xs font-normal transition ${
                             active
-                              ? "border-sky-500/50 bg-sky-500/15 text-sky-200"
-                              : "border-white/10 bg-black/20 text-white/60 hover:text-white/80"
+                              ? "border-sky-500/50 bg-sky-500/15 text-sky-200 hover:bg-sky-500/15 hover:text-sky-200"
+                              : "border-white/10 bg-black/20 text-white/60 hover:bg-black/20 hover:text-white/80"
                           }`}
                         >
                           {FLY_PERF_LABELS[tier].label}
-                        </button>
+                        </Button>
                       );
                     })}
                   </div>

@@ -533,6 +533,7 @@ function IntentListItem({
         selected && tone.selectedClass,
       )}
     >
+      {/* eslint-disable-next-line react/forbid-elements -- unstyled multi-line clickable list row; Button base styles would break layout */}
       <button
         type="button"
         onClick={onSelect}

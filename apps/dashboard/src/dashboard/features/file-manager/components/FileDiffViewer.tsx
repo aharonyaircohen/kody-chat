@@ -12,6 +12,7 @@ import dynamic from "next/dynamic";
 import type { DiffEditorProps } from "@monaco-editor/react";
 import { Copy, Loader2 } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "@dashboard/lib/utils";
 import {
   commitsForPath,
@@ -116,25 +117,29 @@ export function FileDiffViewer({
         <span className="text-xs text-white/40">Diff view</span>
 
         <div className="ml-auto flex items-center gap-2">
-          <button
+          <Button
+            variant="ghost"
+            size="clear"
             onClick={handleCopyDiff}
             className={cn(
-              "flex items-center gap-1.5 text-xs px-2 py-1 rounded",
+              "flex items-center gap-1.5 text-xs font-normal px-2 py-1 rounded",
               "text-white/60 hover:text-white/90 hover:bg-white/10",
             )}
           >
             <Copy className="w-3.5 h-3.5" />
             Copy diff
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="ghost"
+            size="clear"
             onClick={onClose}
             className={cn(
-              "text-xs px-2 py-1 rounded",
+              "text-xs font-normal px-2 py-1 rounded",
               "text-white/60 hover:text-white/90 hover:bg-white/10",
             )}
           >
             Close
-          </button>
+          </Button>
         </div>
       </div>
 

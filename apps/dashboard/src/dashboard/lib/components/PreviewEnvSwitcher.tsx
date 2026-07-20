@@ -26,6 +26,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "../utils";
 import {
   daysUntilExpiry,
@@ -328,13 +329,15 @@ export function PreviewEnvSwitcher({
         )}
       >
         <GripVertical className="h-3.5 w-3.5 shrink-0 text-zinc-600 group-hover:text-zinc-400" />
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="clear"
           onClick={() => {
             onSelect(env);
             setMenuOpen(false);
           }}
-          className="flex-1 min-w-0 flex items-center gap-2 text-left"
+          className="flex-1 min-w-0 flex items-center justify-start gap-2 rounded-none text-left font-normal hover:bg-transparent"
         >
           <Check
             className={cn(
@@ -363,41 +366,47 @@ export function PreviewEnvSwitcher({
               {flyBranch ? `${flyBranch.repo} @ ${flyBranch.branch}` : env.url}
             </span>
           </span>
-        </button>
+        </Button>
         {env.staticId && onExtend && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="clear"
             onClick={() => handleExtend(env.id)}
             disabled={extendingId === env.id}
             title="Extend 7 days"
             aria-label={`Extend ${env.label} by 7 days`}
-            className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-emerald-300 hover:bg-zinc-700 transition"
+            className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-emerald-300 hover:bg-zinc-700 transition disabled:pointer-events-auto disabled:opacity-100"
           >
             {extendingId === env.id ? (
               <Loader2 className="w-3 h-3 animate-spin" />
             ) : (
               <Clock className="w-3 h-3" />
             )}
-          </button>
+          </Button>
         )}
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="clear"
           onClick={() => setEditingId(env.id)}
           title="Edit"
           aria-label={`Edit ${env.label}`}
           className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-white hover:bg-zinc-700 transition"
         >
           <Pencil className="w-3 h-3" />
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="ghost"
+          size="clear"
           onClick={() => handleRemove(env.id)}
           title="Remove"
           aria-label={`Remove ${env.label}`}
           className="opacity-0 group-hover:opacity-100 p-1 rounded text-zinc-400 hover:text-red-400 hover:bg-zinc-700 transition"
         >
           <Trash2 className="w-3 h-3" />
-        </button>
+        </Button>
       </div>
     );
   };
@@ -458,6 +467,7 @@ export function PreviewEnvSwitcher({
                 }}
                 className="flex min-w-0 flex-1 items-center gap-1"
               >
+                {/* eslint-disable-next-line react/forbid-elements -- compact borderless inline-rename input; kit Input's h-11 border/bg styling would visibly change the menu row */}
                 <input
                   value={folderEditDraft}
                   onChange={(event) => setFolderEditDraft(event.target.value)}
@@ -472,19 +482,23 @@ export function PreviewEnvSwitcher({
                   autoFocus
                   className="min-w-0 flex-1 rounded bg-zinc-950/80 px-2 py-1 text-sm font-semibold text-white outline-none ring-1 ring-sky-500/50"
                 />
-                <button
+                <Button
                   type="submit"
+                  variant="ghost"
+                  size="clear"
                   disabled={isSaving}
-                  className="rounded px-2 py-1 text-xs font-medium text-sky-200 hover:bg-sky-500/10 disabled:cursor-wait disabled:text-zinc-600"
+                  className="rounded px-2 py-1 text-xs font-medium text-sky-200 hover:bg-sky-500/10 hover:text-sky-200 disabled:pointer-events-auto disabled:opacity-100 disabled:cursor-wait disabled:text-zinc-600"
                 >
                   Save
-                </button>
+                </Button>
               </form>
             ) : (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="clear"
                 onClick={() => toggleFolderCollapsed(folder.id)}
-                className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                className="flex min-w-0 flex-1 items-center justify-start gap-2 rounded-none text-left text-sm font-semibold hover:bg-transparent hover:text-inherit"
                 aria-expanded={!collapsed}
                 aria-label={`${collapsed ? "Expand" : "Collapse"} ${folder.label}`}
               >
@@ -505,7 +519,7 @@ export function PreviewEnvSwitcher({
                 >
                   {items.length}
                 </span>
-              </button>
+              </Button>
             )
           ) : (
             <span className="truncate">{label}</span>
@@ -513,8 +527,10 @@ export function PreviewEnvSwitcher({
           {folder && onSaveFolders && (
             <div className="ml-auto flex items-center gap-1">
               {editingFolderId !== folder.id && (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="clear"
                   onClick={() => {
                     setEditingFolderId(folder.id);
                     setFolderEditDraft(folder.label);
@@ -524,17 +540,19 @@ export function PreviewEnvSwitcher({
                   className="rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-white"
                 >
                   <Pencil className="h-3 w-3" />
-                </button>
+                </Button>
               )}
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="clear"
                 onClick={() => void handleRemoveFolder(folder.id)}
                 title={`Remove ${folder.label}`}
                 aria-label={`Remove ${folder.label}`}
                 className="rounded p-1 text-zinc-500 hover:bg-zinc-800 hover:text-red-400"
               >
                 <Trash2 className="h-3 w-3" />
-              </button>
+              </Button>
             </div>
           )}
         </div>
@@ -552,8 +570,10 @@ export function PreviewEnvSwitcher({
 
   return (
     <div ref={rootRef} className="relative inline-flex">
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="clear"
         onClick={() => setMenuOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={menuOpen}
@@ -580,7 +600,7 @@ export function PreviewEnvSwitcher({
         <ChevronDown
           className={cn(variant === "address" ? "h-4 w-4" : "h-3 w-3")}
         />
-      </button>
+      </Button>
 
       <PreviewFloatingMenu
         open={menuOpen}
@@ -609,6 +629,7 @@ export function PreviewEnvSwitcher({
                 }}
                 className="flex items-center gap-1 border-t border-zinc-800 px-3 py-2"
               >
+                {/* eslint-disable-next-line react/forbid-elements -- compact borderless menu input; kit Input's h-11 border/bg styling would visibly change the menu row */}
                 <input
                   value={folderDraft}
                   onChange={(event) => setFolderDraft(event.target.value)}
@@ -616,15 +637,19 @@ export function PreviewEnvSwitcher({
                   maxLength={40}
                   className="min-w-0 flex-1 rounded bg-zinc-800 px-2 py-1 text-xs text-white placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-sky-500/40"
                 />
-                <button
+                <Button
                   type="submit"
+                  variant="ghost"
+                  size="clear"
                   disabled={isSaving}
-                  className="rounded px-2 py-1 text-xs font-medium text-sky-300 hover:bg-sky-500/10 disabled:cursor-wait disabled:text-zinc-600"
+                  className="rounded px-2 py-1 text-xs font-medium text-sky-300 hover:bg-sky-500/10 hover:text-sky-300 disabled:pointer-events-auto disabled:opacity-100 disabled:cursor-wait disabled:text-zinc-600"
                 >
                   Add
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="clear"
                   onClick={() => {
                     setFolderOpen(false);
                     setFolderDraft("");
@@ -634,17 +659,19 @@ export function PreviewEnvSwitcher({
                   aria-label="Cancel folder"
                 >
                   <X className="h-3.5 w-3.5" />
-                </button>
+                </Button>
               </form>
             ) : (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="clear"
                 onClick={() => setFolderOpen(true)}
-                className="flex w-full items-center gap-2 border-t border-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-400 hover:bg-zinc-800/70 hover:text-white"
+                className="flex w-full items-center justify-start gap-2 rounded-none border-t border-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-400 hover:bg-zinc-800/70 hover:text-white"
               >
                 <FolderPlus className="h-3.5 w-3.5" />
                 New folder
-              </button>
+              </Button>
             ))}
 
           {addOpen ? (
@@ -658,14 +685,16 @@ export function PreviewEnvSwitcher({
             </div>
           ) : (
             <div className="mt-1 flex items-stretch border-t border-zinc-800">
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="clear"
                 onClick={() => setAddOpen(true)}
-                className="flex flex-1 items-center gap-2 px-3 py-1.5 text-xs font-medium text-sky-300 hover:bg-zinc-800/70"
+                className="flex flex-1 items-center justify-start gap-2 rounded-none px-3 py-1.5 text-xs font-medium text-sky-300 hover:bg-zinc-800/70 hover:text-sky-300"
               >
                 <GitBranch className="w-3.5 h-3.5" />
                 Add branch preview
-              </button>
+              </Button>
               {onUpload && (
                 <PreviewFileUploadButton
                   title="Upload static files to state views"

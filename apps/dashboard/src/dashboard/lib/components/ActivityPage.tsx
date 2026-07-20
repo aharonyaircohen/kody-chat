@@ -27,6 +27,7 @@ import {
   Check,
 } from "lucide-react";
 import { Button } from "@kody-ade/base/ui/button";
+import { Input } from "@kody-ade/base/ui/input";
 import { PageShell } from "./PageShell";
 import { HealthBanner } from "./HealthBanner";
 import { useAuth } from "../auth-context";
@@ -168,15 +169,17 @@ function fmtExactTime(iso: string): string {
 function CopyButton({ text }: { text: string }) {
   const [done, setDone] = useState(false);
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="clear"
       onClick={() => {
         void navigator.clipboard?.writeText(text);
         setDone(true);
         setTimeout(() => setDone(false), 1500);
       }}
       title="Copy raw JSON"
-      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] text-white/40 hover:text-white hover:bg-white/[0.06]"
+      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-normal text-white/40 hover:text-white hover:bg-white/[0.06]"
     >
       {done ? (
         <Check className="w-3 h-3 text-emerald-300" />
@@ -184,7 +187,7 @@ function CopyButton({ text }: { text: string }) {
         <Copy className="w-3 h-3" />
       )}
       {done ? "copied" : "copy"}
-    </button>
+    </Button>
   );
 }
 
@@ -193,6 +196,7 @@ function EventItem({ ev }: { ev: FeedEvent }) {
   const raw = JSON.stringify({ event: ev.kind, ...ev.payload }, null, 2);
   return (
     <li className="rounded-md border border-white/[0.05] bg-white/[0.015]">
+      {/* eslint-disable-next-line react/forbid-elements -- unstyled expandable row; Button chrome would change wrapping/layout */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -274,6 +278,7 @@ function SessionCard({ s }: { s: FeedSession }) {
   const [open, setOpen] = useState(false);
   return (
     <li className="rounded-lg border border-white/[0.06] bg-white/[0.02]">
+      {/* eslint-disable-next-line react/forbid-elements -- unstyled expandable row; Button chrome would change wrapping/layout */}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -672,30 +677,32 @@ function FeedView({ active }: { active: boolean }) {
         <div className="flex items-center gap-1">
           {(["all", "live", "vibe", "direct", "test", "other"] as const).map(
             (ov) => (
-              <button
+              <Button
                 key={ov}
                 type="button"
+                variant="ghost"
+                size="clear"
                 onClick={() => setOrigin(ov)}
                 className={cn(
-                  "rounded-md px-2.5 py-1 text-xs capitalize transition-colors",
+                  "rounded-md px-2.5 py-1 text-xs font-normal capitalize transition-colors",
                   origin === ov
-                    ? "bg-white/[0.08] text-white"
+                    ? "bg-white/[0.08] text-white hover:bg-white/[0.08] hover:text-white"
                     : "text-white/50 hover:text-white hover:bg-white/[0.04]",
                 )}
               >
                 {ov}
-              </button>
+              </Button>
             ),
           )}
         </div>
         <div className="relative">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
-          <input
+          <Input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search sessions, initiator, content…"
-            className="w-64 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus:outline-none"
+            className="h-auto w-64 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus-visible:ring-0 focus-visible:ring-offset-0"
           />
         </div>
         <span className="ml-auto text-[10px] text-white/35">
@@ -770,26 +777,28 @@ function AutoView({ active }: { active: boolean }) {
         </div>
       )}
       <div className="mb-2 flex flex-wrap items-center gap-2">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="clear"
           onClick={() => setOnlyFailed((v) => !v)}
           className={cn(
-            "rounded-md px-2.5 py-1 text-xs transition-colors",
+            "rounded-md px-2.5 py-1 text-xs font-normal transition-colors",
             onlyFailed
-              ? "bg-rose-500/15 text-rose-200"
+              ? "bg-rose-500/15 text-rose-200 hover:bg-rose-500/15 hover:text-rose-200"
               : "text-white/50 hover:text-white hover:bg-white/[0.04]",
           )}
         >
           Failed only
-        </button>
+        </Button>
         <div className="relative">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
-          <input
+          <Input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search action, agent, capability..."
-            className="w-64 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus:outline-none"
+            className="h-auto w-64 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus-visible:ring-0 focus-visible:ring-offset-0"
           />
         </div>
         <span className="ml-auto text-[10px] text-white/35">
@@ -921,12 +930,12 @@ function LogView({ active }: { active: boolean }) {
       <div className="mb-2 flex flex-wrap items-center gap-2">
         <div className="relative">
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
-          <input
+          <Input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search actions, target, actor, capability..."
-            className="w-64 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus:outline-none"
+            className="h-auto w-64 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus-visible:ring-0 focus-visible:ring-offset-0"
           />
         </div>
         <select
@@ -1114,14 +1123,16 @@ export function ActivityPage() {
       <div className="mb-4 flex items-center gap-1">
         {(["log", "auto", "runs", "runLogs", "feed"] as ActivityTab[]).map(
           (t) => (
-            <button
+            <Button
               key={t}
               type="button"
+              variant="ghost"
+              size="clear"
               onClick={() => setTab(t)}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
                 tab === t
-                  ? "bg-white/[0.08] text-white"
+                  ? "bg-white/[0.08] text-white hover:bg-white/[0.08] hover:text-white"
                   : "text-white/50 hover:text-white hover:bg-white/[0.04]",
               )}
             >
@@ -1143,7 +1154,7 @@ export function ActivityPage() {
                     : t === "runLogs"
                       ? "Run Logs"
                       : "Feed"}
-            </button>
+            </Button>
           ),
         )}
       </div>
@@ -1236,20 +1247,22 @@ export function ActivityPage() {
               {Object.entries(s.byTrigger)
                 .sort((a, b) => b[1] - a[1])
                 .map(([ev, n]) => (
-                  <button
+                  <Button
                     key={ev}
                     type="button"
+                    variant="outline"
+                    size="clear"
                     onClick={() => setTrigger(ev)}
                     title={`Filter to ${ev}`}
                     className={cn(
-                      "rounded-md border px-2 py-0.5 tabular-nums transition-colors",
+                      "rounded-md border px-2 py-0.5 text-[11px] font-normal tabular-nums transition-colors",
                       n >= 8
-                        ? "border-rose-500/40 bg-rose-500/[0.08] text-rose-200"
-                        : "border-white/[0.08] bg-white/[0.03] text-white/60 hover:bg-white/[0.06]",
+                        ? "border-rose-500/40 bg-rose-500/[0.08] text-rose-200 hover:bg-rose-500/[0.08] hover:text-rose-200"
+                        : "border-white/[0.08] bg-white/[0.03] text-white/60 hover:bg-white/[0.06] hover:text-white/60",
                     )}
                   >
                     {ev} · {n}
-                  </button>
+                  </Button>
                 ))}
             </div>
           )}
@@ -1260,18 +1273,20 @@ export function ActivityPage() {
               {Object.entries(s.byCategory)
                 .sort((a, b) => b[1] - a[1])
                 .map(([cat, n]) => (
-                  <button
+                  <Button
                     key={cat}
                     type="button"
+                    variant="outline"
+                    size="clear"
                     onClick={() => setCategory(cat)}
                     title={`Filter to ${cat}`}
-                    className="rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 tabular-nums text-white/60 transition-colors hover:bg-white/[0.06]"
+                    className="rounded-md border border-white/[0.08] bg-white/[0.03] px-2 py-0.5 text-[11px] font-normal tabular-nums text-white/60 transition-colors hover:bg-white/[0.06] hover:text-white/60"
                   >
                     {ACTIVITY_CATEGORY_LABELS[
                       cat as keyof typeof ACTIVITY_CATEGORY_LABELS
                     ] ?? cat}{" "}
                     · {n}
-                  </button>
+                  </Button>
                 ))}
             </div>
           )}
@@ -1282,15 +1297,17 @@ export function ActivityPage() {
               {Object.entries(s.byAction)
                 .sort((a, b) => b[1] - a[1])
                 .map(([act, n]) => (
-                  <button
+                  <Button
                     key={act}
                     type="button"
+                    variant="outline"
+                    size="clear"
                     onClick={() => setAction(act)}
                     title={`Filter to ${act}`}
-                    className="rounded-md border border-sky-500/25 bg-sky-500/[0.06] px-2 py-0.5 tabular-nums text-sky-200/80 transition-colors hover:bg-sky-500/15"
+                    className="rounded-md border border-sky-500/25 bg-sky-500/[0.06] px-2 py-0.5 text-[11px] font-normal tabular-nums text-sky-200/80 transition-colors hover:bg-sky-500/15 hover:text-sky-200/80"
                   >
                     {act} · {n}
-                  </button>
+                  </Button>
                 ))}
             </div>
           )}
@@ -1298,30 +1315,32 @@ export function ActivityPage() {
           <div className="mt-5 flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1">
               {(["all", "active", "failed"] as RunFilter[]).map((f) => (
-                <button
+                <Button
                   key={f}
                   type="button"
+                  variant="ghost"
+                  size="clear"
                   onClick={() => setFilter(f)}
                   className={cn(
-                    "rounded-md px-2.5 py-1 text-xs capitalize transition-colors",
+                    "rounded-md px-2.5 py-1 text-xs font-normal capitalize transition-colors",
                     filter === f
-                      ? "bg-white/[0.08] text-white"
+                      ? "bg-white/[0.08] text-white hover:bg-white/[0.08] hover:text-white"
                       : "text-white/50 hover:text-white hover:bg-white/[0.04]",
                   )}
                 >
                   {f === "active" ? "Queued / running" : f}
-                </button>
+                </Button>
               ))}
             </div>
 
             <div className="relative">
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-white/30" />
-              <input
+              <Input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search title, branch, actor…"
-                className="w-56 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus:outline-none"
+                className="h-auto w-56 rounded-md border border-white/[0.08] bg-white/[0.02] py-1 pl-7 pr-2 text-xs placeholder:text-white/30 focus:border-white/20 focus-visible:ring-0 focus-visible:ring-offset-0"
               />
             </div>
 
@@ -1375,8 +1394,10 @@ export function ActivityPage() {
               category !== "all" ||
               action !== "all" ||
               filter !== "all") && (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="clear"
                 onClick={() => {
                   setQuery("");
                   setTrigger("all");
@@ -1384,10 +1405,10 @@ export function ActivityPage() {
                   setAction("all");
                   setFilter("all");
                 }}
-                className="text-[11px] text-white/40 hover:text-white"
+                className="text-[11px] font-normal text-white/40 hover:bg-transparent hover:text-white"
               >
                 Clear
-              </button>
+              </Button>
             )}
 
             <span className="ml-auto text-[10px] text-white/35">

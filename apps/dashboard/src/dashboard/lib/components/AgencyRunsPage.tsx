@@ -847,6 +847,7 @@ function RunRow({
     : operatorNext(run, rawEvents, workflowSummary);
   return (
     <article className="border-b border-white/[0.06] last:border-b-0">
+      {/* eslint-disable-next-line react/forbid-elements -- unstyled grid table row; Button's inline-flex chrome would break the column layout */}
       <button
         type="button"
         onClick={onToggle}
@@ -1121,6 +1122,7 @@ export function AgencyRunsPage() {
           const active = selectedKind === tab.kind;
           const count = data?.counts[tab.kind] ?? 0;
           return (
+            // eslint-disable-next-line react/forbid-elements -- custom stat-card tile with block content; Button's inline-flex centering would break it
             <button
               key={tab.kind}
               type="button"

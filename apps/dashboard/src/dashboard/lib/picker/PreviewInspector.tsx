@@ -34,6 +34,7 @@ import {
   ChevronDown,
   Paintbrush,
 } from "lucide-react";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "../utils";
 import { useElementPicker } from "./useElementPicker";
 import { extensionForMimeType, getDataUrlMimeType } from "./screenshot";
@@ -459,8 +460,10 @@ export function PreviewInspector({
   return (
     <>
       <div ref={actionMenuRef} className="relative inline-flex">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="clear"
           onClick={() => {
             setActionMenuOpen((open) => !open);
             setDiagnosticMenuOpen(false);
@@ -472,9 +475,9 @@ export function PreviewInspector({
           className={cn(
             "inline-flex h-10 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors",
             picker.recording
-              ? "border-red-500/50 bg-red-500/20 text-red-300"
+              ? "border-red-500/50 bg-red-500/20 text-red-300 hover:bg-red-500/20 hover:text-red-300"
               : picker.armed || pendingMacroSteps
-                ? "border-blue-400/50 bg-blue-500/20 text-blue-200 hover:bg-blue-500/25"
+                ? "border-blue-400/50 bg-blue-500/20 text-blue-200 hover:bg-blue-500/25 hover:text-blue-200"
                 : "border-blue-500/20 bg-blue-500/10 text-blue-300/80 hover:bg-blue-500/15 hover:text-blue-200",
           )}
         >
@@ -489,7 +492,7 @@ export function PreviewInspector({
             <Puzzle className="h-4 w-4" />
           )}
           <ChevronDown className="h-3.5 w-3.5" />
-        </button>
+        </Button>
 
         <PreviewFloatingMenu
           open={actionMenuOpen}
@@ -499,8 +502,10 @@ export function PreviewInspector({
           className="min-w-52 rounded-md border border-zinc-700 bg-zinc-900 py-1 shadow-lg"
         >
           <div role="menu" aria-label="Inspector actions">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="clear"
               role="menuitem"
               onClick={() => {
                 selectModeRef.current = "context";
@@ -508,9 +513,9 @@ export function PreviewInspector({
                 setActionMenuOpen(false);
               }}
               className={cn(
-                "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors",
+                "flex w-full items-center justify-start gap-2 rounded font-normal px-2 py-1.5 text-left text-xs transition-colors",
                 picker.armed
-                  ? "text-blue-200"
+                  ? "text-blue-200 hover:bg-transparent hover:text-blue-200"
                   : "text-zinc-300 hover:bg-zinc-800 hover:text-white",
               )}
             >
@@ -518,9 +523,11 @@ export function PreviewInspector({
               <span className="flex-1">
                 {picker.armed ? "Cancel picker" : "Pick element"}
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="ghost"
+              size="clear"
               role="menuitem"
               onClick={() => {
                 selectModeRef.current = "edit";
@@ -528,34 +535,38 @@ export function PreviewInspector({
                 setEditPanelOpen(false);
                 setActionMenuOpen(false);
               }}
-              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white"
+              className="flex w-full items-center justify-start gap-2 rounded font-normal px-2 py-1.5 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white"
             >
               <Paintbrush className="h-3 w-3" />
               <span className="flex-1">Edit preview</span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="ghost"
+              size="clear"
               role="menuitem"
               onClick={() => {
                 void sendScreenshot();
                 setActionMenuOpen(false);
               }}
               disabled={busy !== null}
-              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-50"
+              className="flex w-full items-center justify-start gap-2 rounded font-normal px-2 py-1.5 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-50"
             >
               <Camera
                 className={cn("h-3 w-3", busy === "shot" && "animate-pulse")}
               />
               <span className="flex-1">Screenshot</span>
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="ghost"
+              size="clear"
               role="menuitem"
               onClick={() => void toggleRecording()}
               className={cn(
-                "flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs transition-colors",
+                "flex w-full items-center justify-start gap-2 rounded font-normal px-2 py-1.5 text-left text-xs transition-colors",
                 picker.recording
-                  ? "text-red-300 hover:bg-red-500/10"
+                  ? "text-red-300 hover:bg-red-500/10 hover:text-red-300"
                   : "text-zinc-300 hover:bg-zinc-800 hover:text-white",
               )}
             >
@@ -570,7 +581,7 @@ export function PreviewInspector({
               {picker.recording && (
                 <span className="tabular-nums">{picker.recStepCount}</span>
               )}
-            </button>
+            </Button>
             <PreviewMacrosMenu
               owner={owner}
               repo={repo}
@@ -611,8 +622,10 @@ export function PreviewInspector({
       </div>
       {/* Group 2 - DIAGNOSTICS: passive observers of the preview. */}
       <div ref={diagnosticMenuRef} className="relative inline-flex">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="clear"
           onClick={() => {
             setDiagnosticMenuOpen((open) => !open);
             setActionMenuOpen(false);
@@ -624,9 +637,9 @@ export function PreviewInspector({
           className={cn(
             "inline-flex h-10 items-center gap-1.5 rounded-md border px-3 text-xs font-medium transition-colors",
             picker.logCount > 0
-              ? "border-red-500/40 bg-red-500/15 text-red-300 hover:bg-red-500/25"
+              ? "border-red-500/40 bg-red-500/15 text-red-300 hover:bg-red-500/25 hover:text-red-300"
               : picker.networkCount > 0
-                ? "border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25"
+                ? "border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/25 hover:text-amber-300"
                 : "border-amber-500/20 bg-amber-500/10 text-amber-300/70 hover:bg-amber-500/15 hover:text-amber-200",
           )}
         >
@@ -645,7 +658,7 @@ export function PreviewInspector({
             <span className="tabular-nums">{diagnosticCount}</span>
           )}
           <ChevronDown className="h-3.5 w-3.5" />
-        </button>
+        </Button>
         <PreviewFloatingMenu
           open={diagnosticMenuOpen}
           anchorRef={diagnosticMenuRef}
@@ -654,15 +667,17 @@ export function PreviewInspector({
           className="min-w-56 rounded-md border border-zinc-700 bg-zinc-900 py-1 shadow-lg"
         >
           <div role="menu" aria-label="Diagnostics">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="clear"
               role="menuitem"
               onClick={() => {
                 setDiagnosticMenuOpen(false);
                 void sendLogs();
               }}
               disabled={busy !== null}
-              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-50"
+              className="flex w-full items-center justify-start gap-2 rounded font-normal px-2 py-1.5 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-50"
             >
               <Bug
                 className={cn("h-3 w-3", busy === "logs" && "animate-pulse")}
@@ -673,16 +688,18 @@ export function PreviewInspector({
                   {picker.logCount}
                 </span>
               )}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="ghost"
+              size="clear"
               role="menuitem"
               onClick={() => {
                 setDiagnosticMenuOpen(false);
                 void sendNetwork();
               }}
               disabled={busy !== null}
-              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-50"
+              className="flex w-full items-center justify-start gap-2 rounded font-normal px-2 py-1.5 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-50"
             >
               <Activity
                 className={cn("h-3 w-3", busy === "network" && "animate-pulse")}
@@ -693,22 +710,24 @@ export function PreviewInspector({
                   {picker.networkCount}
                 </span>
               )}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="ghost"
+              size="clear"
               role="menuitem"
               onClick={() => {
                 setDiagnosticMenuOpen(false);
                 void sendPerf();
               }}
               disabled={busy !== null}
-              className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-50"
+              className="flex w-full items-center justify-start gap-2 rounded font-normal px-2 py-1.5 text-left text-xs text-zinc-300 transition-colors hover:bg-zinc-800 hover:text-white disabled:opacity-50"
             >
               <Gauge
                 className={cn("h-3 w-3", busy === "perf" && "animate-pulse")}
               />
               <span className="flex-1">Performance snapshot</span>
-            </button>
+            </Button>
           </div>
         </PreviewFloatingMenu>
       </div>
@@ -719,8 +738,10 @@ export function PreviewInspector({
         role="group"
         aria-label="Inspector settings"
       >
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="clear"
           onClick={() => setAutoContext((v) => !v)}
           aria-pressed={autoContext}
           title={
@@ -732,12 +753,12 @@ export function PreviewInspector({
             BTN_BASE,
             "h-10 px-3 py-0",
             autoContext
-              ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/50"
+              ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/50 hover:bg-emerald-500/20 hover:text-emerald-300"
               : "text-emerald-300/60 hover:text-emerald-200 hover:bg-emerald-500/10 border-transparent",
           )}
         >
           <Globe className="w-4 h-4" />
-        </button>
+        </Button>
       </div>
     </>
   );

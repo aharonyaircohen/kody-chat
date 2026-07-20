@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import { cn } from "@kody-ade/base/utils/ui";
+import { Button } from "@kody-ade/base/ui/button";
 import { usePersistedState } from "../hooks/usePersistedState";
 export { parseReasoning, stripReasoning } from "@kody-ade/kody-chat/core/reasoning";
 
@@ -99,9 +100,11 @@ export function ToolCallCard({ toolCall, className }: ToolCallCardProps) {
       )}
     >
       {/* Header - always visible */}
-      <button
+      <Button
+        variant="ghost"
+        size="clear"
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-3 py-2 flex items-center gap-2 text-left hover:bg-black/5 dark:hover:bg-white/5"
+        className="w-full px-3 py-2 flex items-center justify-start gap-2 font-normal text-left hover:bg-black/5 dark:hover:bg-white/5 hover:text-foreground"
       >
         <span className="text-sm">{status.icon}</span>
         <span className="flex-1 min-w-0">
@@ -124,7 +127,7 @@ export function ToolCallCard({ toolCall, className }: ToolCallCardProps) {
         <span className="text-muted-foreground text-xs">
           {isExpanded ? "▼" : "▶"}
         </span>
-      </button>
+      </Button>
 
       {/* Expandable content */}
       {isExpanded && (
@@ -237,15 +240,17 @@ export function ThinkingPanel({
         className,
       )}
     >
-      <button
+      <Button
+        variant="ghost"
+        size="clear"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-2 py-1 flex items-center gap-2 text-left text-xs text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5"
+        className="w-full px-2 py-1 flex items-center justify-start gap-2 font-normal whitespace-normal text-left text-xs text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 hover:text-muted-foreground"
         aria-expanded={isOpen}
       >
         <span>{running ? "⏳" : errored > 0 ? "⚠️" : "🧠"}</span>
         <span className="flex-1 italic">{summary}</span>
         <span>{isOpen ? "▼" : "▶"}</span>
-      </button>
+      </Button>
       {isOpen && (
         <div className="px-2 pb-2">
           <ToolCallList toolCalls={toolCalls} />
@@ -290,15 +295,17 @@ export function ReasoningPanel({
         className,
       )}
     >
-      <button
+      <Button
+        variant="ghost"
+        size="clear"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full px-2 py-1 flex items-center gap-2 text-left text-xs text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5"
+        className="w-full px-2 py-1 flex items-center justify-start gap-2 font-normal whitespace-normal text-left text-xs text-muted-foreground hover:bg-black/5 dark:hover:bg-white/5 hover:text-muted-foreground"
         aria-expanded={isOpen}
       >
         <span>{isStreaming ? "⏳" : "💭"}</span>
         <span className="flex-1 italic">{label}</span>
         <span>{isOpen ? "▼" : "▶"}</span>
-      </button>
+      </Button>
       {isOpen && (
         <div className="px-2 pb-2 text-xs whitespace-pre-wrap break-words text-muted-foreground">
           {trimmed}

@@ -153,6 +153,7 @@ export function InboxThreadDialog({
             </DialogTitle>
             <div className="shrink-0 flex items-center gap-3">
               {target && (
+                // eslint-disable-next-line react/forbid-elements -- bare text link with no hover surface; Button ghost hover bg would visibly change it
                 <button
                   type="button"
                   onClick={copyShareLink}

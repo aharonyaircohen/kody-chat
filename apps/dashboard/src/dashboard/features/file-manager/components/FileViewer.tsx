@@ -21,6 +21,7 @@ import {
   PanelLeft,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "@dashboard/lib/utils";
 import { monacoLanguage } from "../lib/repo-files-lang";
 import { readFile } from "../lib/repo-files";
@@ -136,14 +137,16 @@ export function FileViewer({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               {onShowFilePanel ? (
-                <button
+                <Button
+                  variant="ghost"
+                  size="clear"
                   className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
                   onClick={onShowFilePanel}
                   title="Show file panel"
                   aria-label="Show file panel"
                 >
                   <PanelLeft className="h-4 w-4" />
-                </button>
+                </Button>
               ) : null}
               <h2 className="truncate text-lg font-semibold tracking-tight">
                 {fileName}
@@ -158,35 +161,41 @@ export function FileViewer({
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {isMarkdown && !isBinary ? (
             <div className="mr-2 flex items-center rounded-xl border border-border bg-muted/40 p-1">
-              <button
+              <Button
+                variant="ghost"
+                size="clear"
                 className={cn(
                   "flex items-center rounded-lg px-2 py-1.5",
                   !showSource
-                    ? "bg-background text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
+                    ? "bg-background text-foreground hover:bg-background hover:text-foreground"
+                    : "text-muted-foreground hover:bg-transparent hover:text-foreground",
                 )}
                 onClick={() => setShowSource(false)}
                 title="Preview"
                 aria-label="Preview"
               >
                 <Eye className="h-4 w-4" />
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="clear"
                 className={cn(
                   "flex items-center rounded-lg px-2 py-1.5",
                   showSource
-                    ? "bg-background text-foreground"
-                    : "text-muted-foreground hover:text-foreground",
+                    ? "bg-background text-foreground hover:bg-background hover:text-foreground"
+                    : "text-muted-foreground hover:bg-transparent hover:text-foreground",
                 )}
                 onClick={() => setShowSource(true)}
                 title="Source"
                 aria-label="Source"
               >
                 <Code2 className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
           ) : null}
-          <button
+          <Button
+            variant="ghost"
+            size="clear"
             onClick={handleCopy}
             disabled={isBinary}
             className="flex items-center rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -194,16 +203,18 @@ export function FileViewer({
             aria-label="Copy file content"
           >
             <Copy className="h-4 w-4" />
-          </button>
+          </Button>
           {onViewDiff ? (
-            <button
+            <Button
+              variant="ghost"
+              size="clear"
               onClick={onViewDiff}
               className="flex items-center rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
               title="History"
               aria-label="History"
             >
               <History className="h-4 w-4" />
-            </button>
+            </Button>
           ) : null}
           <span className="ml-1 text-xs text-muted-foreground">
             {formatBytes(fileSize)}

@@ -302,6 +302,7 @@ export function AgentsControlInner({
                   const isActive = selectedSlug === member.slug;
                   return (
                     <li key={member.slug}>
+                      {/* eslint-disable-next-line react/forbid-elements -- unstyled clickable list row with block content; Button's inline-flex centering would break it */}
                       <button
                         type="button"
                         onClick={() => selectAgent(member.slug)}

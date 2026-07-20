@@ -1304,29 +1304,35 @@ export function FilesPage({
           {shouldShowWorkspaceLocation(selectedPathType, viewMode) ? (
             <div className="flex min-h-14 shrink-0 items-center gap-1 border-b border-border px-5">
               {panelState === "hidden" && !selectedFile ? (
-                <button
+                <Button
+                  variant="ghost"
+                  size="clear"
                   className="mr-2 grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
                   onClick={() => setPanelState("split")}
                   title="Show file panel"
                   aria-label="Show file panel"
                 >
                   <PanelLeft className="h-4 w-4" />
-                </button>
+                </Button>
               ) : null}
-              <button
+              <Button
+                variant="ghost"
+                size="clear"
                 className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
                 onClick={() => void openRepoPath("")}
                 title="Open workspace root"
               >
                 <FolderOpen className="h-4 w-4 text-primary" />
                 {workspaceRoot || "Repository"}
-              </button>
+              </Button>
               {breadcrumbs.map((crumb, i) => (
                 <div key={crumb.path} className="flex items-center gap-1">
                   <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="clear"
                     className={cn(
-                      "max-w-[160px] truncate text-sm hover:text-foreground",
+                      "max-w-[160px] truncate text-sm font-normal hover:bg-transparent hover:text-foreground",
                       i === breadcrumbs.length - 1
                         ? "text-foreground"
                         : "text-muted-foreground",
@@ -1334,7 +1340,7 @@ export function FilesPage({
                     onClick={() => void openRepoPath(crumb.path)}
                   >
                     {crumb.label}
-                  </button>
+                  </Button>
                 </div>
               ))}
               <span className="ml-auto rounded-full border border-border bg-muted px-2.5 py-1 text-[0.68rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">

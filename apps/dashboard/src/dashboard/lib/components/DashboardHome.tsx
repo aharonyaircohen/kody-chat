@@ -735,16 +735,18 @@ function ActivityOverview() {
               v === "all" ? "bg-zinc-400" : (ACTOR_TINT[v] ?? "bg-zinc-400");
             const count = v === "all" ? all.length : (counts[v] ?? 0);
             return (
-              <button
+              <Button
                 key={v}
                 type="button"
+                size="clear"
+                variant="ghost"
                 onClick={() => setFilter(v)}
                 aria-pressed={isActive}
                 className={cn(
-                  "rounded-full border px-3 py-1 text-body-xs transition inline-flex items-center gap-1.5",
+                  "rounded-full border px-3 py-1 text-body-xs font-normal transition inline-flex items-center gap-1.5",
                   isActive
-                    ? "border-foreground/30 bg-white/[0.06] text-foreground"
-                    : "border-white/10 bg-white/[0.02] text-muted-foreground hover:text-foreground hover:border-white/20",
+                    ? "border-foreground/30 bg-white/[0.06] text-foreground hover:bg-white/[0.06] hover:text-foreground"
+                    : "border-white/10 bg-white/[0.02] text-muted-foreground hover:bg-white/[0.02] hover:text-foreground hover:border-white/20",
                 )}
               >
                 <span className={cn("w-1.5 h-1.5 rounded-full", dot)} />
@@ -752,7 +754,7 @@ function ActivityOverview() {
                 <span className="text-muted-foreground tabular-nums">
                   {count}
                 </span>
-              </button>
+              </Button>
             );
           })}
         </div>

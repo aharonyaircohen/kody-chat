@@ -45,6 +45,7 @@ export function PreviewFileUploadButton({
         className,
       )}
     >
+      {/* eslint-disable-next-line react/forbid-elements -- hidden file input (sr-only) owns the chooser activation */}
       <input
         type="file"
         multiple={multiple}

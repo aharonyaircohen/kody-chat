@@ -22,6 +22,7 @@ import {
   PanelLeft,
 } from "lucide-react";
 import { toast } from "sonner";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "@dashboard/lib/utils";
 import { monacoLanguage } from "../lib/repo-files-lang";
 import { readFile, writeFile } from "../lib/repo-files";
@@ -271,14 +272,16 @@ export function FileEditor({
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               {onShowFilePanel ? (
-                <button
+                <Button
+                  variant="ghost"
+                  size="clear"
                   className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
                   onClick={onShowFilePanel}
                   title="Show file panel"
                   aria-label="Show file panel"
                 >
                   <PanelLeft className="h-4 w-4" />
-                </button>
+                </Button>
               ) : null}
               <h2 className="truncate text-lg font-semibold tracking-tight">
                 {fileName}
@@ -298,12 +301,14 @@ export function FileEditor({
         <div className="ml-auto flex shrink-0 items-center gap-2">
           {isMarkdown && (
             <div className="mr-2 flex items-center rounded-xl border border-border bg-muted/40 p-1">
-              <button
+              <Button
+                variant="ghost"
+                size="clear"
                 className={cn(
                   "grid h-8 w-8 place-items-center rounded-lg",
                   viewMode === "edit"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
+                    ? "bg-background text-foreground shadow-sm hover:bg-background hover:text-foreground"
+                    : "text-muted-foreground hover:bg-transparent hover:text-foreground",
                 )}
                 onClick={() => setViewMode("edit")}
                 title="Edit mode"
@@ -311,13 +316,15 @@ export function FileEditor({
                 aria-pressed={viewMode === "edit"}
               >
                 <Edit3 className="h-4 w-4" />
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="clear"
                 className={cn(
                   "grid h-8 w-8 place-items-center rounded-lg",
                   viewMode === "preview"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
+                    ? "bg-background text-foreground shadow-sm hover:bg-background hover:text-foreground"
+                    : "text-muted-foreground hover:bg-transparent hover:text-foreground",
                 )}
                 onClick={() => setViewMode("preview")}
                 title="Preview mode"
@@ -325,13 +332,15 @@ export function FileEditor({
                 aria-pressed={viewMode === "preview"}
               >
                 <Eye className="h-4 w-4" />
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="ghost"
+                size="clear"
                 className={cn(
                   "grid h-8 w-8 place-items-center rounded-lg",
                   viewMode === "split"
-                    ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground hover:text-foreground",
+                    ? "bg-background text-foreground shadow-sm hover:bg-background hover:text-foreground"
+                    : "text-muted-foreground hover:bg-transparent hover:text-foreground",
                 )}
                 onClick={() => setViewMode("split")}
                 title="Split mode"
@@ -339,22 +348,26 @@ export function FileEditor({
                 aria-pressed={viewMode === "split"}
               >
                 <Columns className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
           )}
 
           {isDirty ? (
-            <button
+            <Button
+              variant="ghost"
+              size="clear"
               onClick={handleDiscard}
               className="grid h-9 w-9 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
               title="Discard unsaved changes"
               aria-label="Discard unsaved changes"
             >
               <Undo2 className="h-4 w-4" />
-            </button>
+            </Button>
           ) : null}
 
-          <button
+          <Button
+            variant="default"
+            size="clear"
             onClick={() => setShowCommitDialog(true)}
             disabled={!isDirty || saving}
             title="Save changes"
@@ -370,7 +383,7 @@ export function FileEditor({
             ) : (
               <Save className="w-4 h-4" />
             )}
-          </button>
+          </Button>
         </div>
       </div>
 

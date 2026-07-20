@@ -824,6 +824,7 @@ export function VibePage() {
               ESC / X / row-select all close it. */}
           {detailTask && (
             <>
+              {/* eslint-disable-next-line react/forbid-elements -- full-pane invisible backdrop overlay, not a styled button */}
               <button
                 type="button"
                 aria-label="Close issue details"
@@ -834,7 +835,7 @@ export function VibePage() {
                 role="dialog"
                 aria-modal="true"
                 aria-label={`Issue #${detailTask.issueNumber} details`}
-                className="absolute inset-0 z-50 bg-[#0a0a0a] border-l border-white/[0.06] shadow-2xl overflow-hidden flex flex-col animate-in fade-in slide-in-from-right-4 duration-200"
+                className="absolute inset-0 z-50 bg-background border-l border-white/[0.06] shadow-2xl overflow-hidden flex flex-col animate-in fade-in slide-in-from-right-4 duration-200"
               >
                 <TaskDetail
                   task={detailTask}
@@ -864,19 +865,21 @@ export function VibePage() {
         open={showMobileMenu}
         onOpenChange={setShowMobileMenu}
         workspacePrimary={
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="clear"
             onClick={() => {
               setShowMobileMenu(false);
               setMobileIssuesOpen(true);
             }}
-            className="flex items-center gap-3 h-12 w-full px-3 rounded-lg hover:bg-white/[0.04] transition-colors"
+            className="flex items-center justify-start gap-3 h-12 w-full px-3 rounded-lg font-normal hover:bg-white/[0.04] transition-colors"
           >
             <span className="inline-flex h-9 w-9 items-center justify-center rounded-md bg-emerald-500/10">
               <ListChecks className="w-4 h-4 text-emerald-300" />
             </span>
             <span className="text-body-sm font-medium">Open issues</span>
-          </button>
+          </Button>
         }
       />
     </div>

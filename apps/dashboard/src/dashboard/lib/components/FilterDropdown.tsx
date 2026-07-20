@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@kody-ade/base/ui/select";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "../utils";
 import { PRIORITY_LEVELS, PRIORITY_META } from "@kody-ade/base/constants";
 import { Filter, ArrowUp, ArrowDown } from "lucide-react";
@@ -106,8 +107,10 @@ export function FilterDropdown({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button
+        <Button
           type="button"
+          size="clear"
+          variant="ghost"
           aria-label="Filters"
           title="Filters"
           className={cn(
@@ -120,11 +123,11 @@ export function FilterDropdown({
         >
           <Filter className="w-3.5 h-3.5" />
           {activeCount > 0 && (
-            <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold ring-2 ring-[#0a0a0a]">
+            <span className="absolute -top-1 -right-1 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-blue-500 text-white text-[10px] font-bold ring-2 ring-background">
               {activeCount}
             </span>
           )}
-        </button>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="start"
@@ -261,8 +264,10 @@ export function FilterDropdown({
           </Select>
         </div>
         <div className="px-2 pb-2">
-          <button
+          <Button
             type="button"
+            size="clear"
+            variant="ghost"
             onClick={() =>
               onSortDirectionChange?.(sortDirection === "asc" ? "desc" : "asc")
             }
@@ -283,7 +288,7 @@ export function FilterDropdown({
                 Descending
               </>
             )}
-          </button>
+          </Button>
         </div>
       </DropdownMenuContent>
     </DropdownMenu>

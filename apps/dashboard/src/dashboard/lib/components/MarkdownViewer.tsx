@@ -8,6 +8,7 @@
 
 import { Copy, Check } from "lucide-react";
 import { useState } from "react";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "@kody-ade/base/utils/ui";
 import { autoDirProps, rtlAwareMarkdownClassName } from "../text-direction";
 import { MarkdownPreview } from "./MarkdownPreview";
@@ -31,7 +32,9 @@ export function MarkdownViewer({ content, title }: MarkdownViewerProps) {
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 bg-muted/50 border-b border-border">
         <span className="text-sm font-medium">{title || "Document"}</span>
-        <button
+        <Button
+          variant="ghost"
+          size="clear"
           onClick={handleCopy}
           className="p-1 hover:bg-muted rounded"
           title="Copy markdown"
@@ -41,7 +44,7 @@ export function MarkdownViewer({ content, title }: MarkdownViewerProps) {
           ) : (
             <Copy className="w-4 h-4" />
           )}
-        </button>
+        </Button>
       </div>
 
       {/* Content */}

@@ -629,6 +629,7 @@ export function TodoControlInner({
             <div className="sticky top-0 z-10 space-y-2 bg-background/95 backdrop-blur px-3 md:px-4 py-2 md:py-3 border-b border-border">
               <div className="grid grid-cols-3 gap-1 rounded-md border border-white/[0.08] bg-black/30 p-1">
                 {TODO_LIST_FILTERS.map((filter) => (
+                  // eslint-disable-next-line react/forbid-elements -- segmented filter pill with conditional tint; kit ghost hover styles would override the active tint
                   <button
                     key={filter}
                     type="button"
@@ -685,6 +686,7 @@ export function TodoControlInner({
                   list.items.every((item) => item.completed);
                 return (
                   <li key={list.slug}>
+                    {/* eslint-disable-next-line react/forbid-elements -- clickable multi-line list row; kit button base styles (nowrap/centering) would break its layout */}
                     <button
                       type="button"
                       onClick={() => selectList(list.slug)}
@@ -1184,6 +1186,7 @@ function TodoListDetail({
                   const isActive = itemFilter === filter;
                   const count = filterCounts[filter];
                   return (
+                    // eslint-disable-next-line react/forbid-elements -- filter pill with conditional tint; kit ghost hover styles would override the active tint
                     <button
                       key={filter}
                       type="button"
@@ -1328,10 +1331,12 @@ function AddTodoPlaceholder({
   onClick: () => void;
 }) {
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="clear"
       onClick={onClick}
-      className="group flex min-h-40 w-full flex-col items-center justify-center gap-3 rounded-md border border-dashed border-border bg-muted/20 px-4 py-10 text-center transition-colors hover:border-emerald-400/60 hover:bg-emerald-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
+      className="group flex min-h-40 w-full flex-col items-center justify-center gap-3 whitespace-normal font-normal rounded-md border border-dashed border-border bg-muted/20 px-4 py-10 text-center transition-colors hover:border-emerald-400/60 hover:bg-emerald-500/[0.08] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
     >
       <span className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-500 transition-colors group-hover:bg-emerald-500/20 dark:text-emerald-300">
         <Plus className="w-5 h-5" />
@@ -1344,7 +1349,7 @@ function AddTodoPlaceholder({
           {hint}
         </span>
       </span>
-    </button>
+    </Button>
   );
 }
 
@@ -1406,8 +1411,10 @@ function TodoItemCard({
 
   const controlButtons = (
     <>
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="clear"
         disabled={disabled}
         aria-label={`Reorder ${item.title}`}
         title="Drag to reorder"
@@ -1416,15 +1423,17 @@ function TodoItemCard({
         {...listeners}
       >
         <GripVertical className="w-4 h-4" />
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="ghost"
+        size="clear"
         onClick={onToggle}
         disabled={disabled}
         aria-label={item.completed ? "Reopen item" : "Complete item"}
         title={item.completed ? "Reopen item" : "Complete item"}
         className={cn(
-          "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors",
+          "mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-transparent",
           item.completed
             ? "text-emerald-600 hover:text-emerald-700 dark:text-emerald-300 dark:hover:text-emerald-200"
             : "text-muted-foreground hover:text-emerald-600 dark:hover:text-emerald-300",
@@ -1435,9 +1444,11 @@ function TodoItemCard({
         ) : (
           <Circle className="w-5 h-5" />
         )}
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="ghost"
+        size="clear"
         onClick={onToggleExpanded}
         aria-expanded={isExpanded}
         aria-label={isExpanded ? "Collapse item" : "Expand item"}
@@ -1449,7 +1460,7 @@ function TodoItemCard({
         ) : (
           <ChevronRight className="w-4 h-4" />
         )}
-      </button>
+      </Button>
     </>
   );
 
@@ -1834,10 +1845,12 @@ function CreateTodoListDialog({
             </div>
 
             {items.length === 0 ? (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="clear"
                 onClick={addDraftItem}
-                className="group flex min-h-36 w-full flex-col items-center justify-center gap-3 rounded-md border border-dashed border-white/[0.16] bg-white/[0.02] px-4 py-8 text-center transition-colors hover:border-emerald-400/60 hover:bg-emerald-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
+                className="group flex min-h-36 w-full flex-col items-center justify-center gap-3 whitespace-normal font-normal rounded-md border border-dashed border-white/[0.16] bg-white/[0.02] px-4 py-8 text-center transition-colors hover:border-emerald-400/60 hover:bg-emerald-500/[0.08] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70"
               >
                 <span className="flex h-11 w-11 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-300 transition-colors group-hover:bg-emerald-500/20">
                   <Plus className="w-5 h-5" />
@@ -1850,7 +1863,7 @@ function CreateTodoListDialog({
                     Or create the list empty and add todos later.
                   </span>
                 </span>
-              </button>
+              </Button>
             ) : (
               <div className="space-y-3 max-h-[50vh] overflow-y-auto pr-1">
                 {items.map((item, index) => (

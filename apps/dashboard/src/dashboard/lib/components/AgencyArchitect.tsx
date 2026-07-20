@@ -204,6 +204,7 @@ function AgencySetupInner() {
                   "Choose file…"
                 )}
               </Button>
+              {/* eslint-disable-next-line react/forbid-elements -- hidden file input */}
               <input
                 ref={fileInput}
                 type="file"
@@ -219,19 +220,21 @@ function AgencySetupInner() {
             <div className="flex items-center gap-2 text-xs">
               <span className="text-white/40">On collision:</span>
               {(["skip", "overwrite"] as const).map((m) => (
-                <button
+                <Button
                   key={m}
                   type="button"
+                  variant="outline"
+                  size="clear"
                   onClick={() => setMode(m)}
                   className={cn(
-                    "px-2 py-1 rounded border transition-colors",
+                    "px-2 py-1 rounded border text-xs font-normal transition-colors bg-transparent hover:bg-transparent",
                     mode === m
-                      ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200"
+                      ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/10 hover:text-emerald-200"
                       : "border-white/10 text-white/50 hover:text-white/80",
                   )}
                 >
                   {m === "skip" ? "Keep existing (skip)" : "Overwrite"}
-                </button>
+                </Button>
               ))}
             </div>
 

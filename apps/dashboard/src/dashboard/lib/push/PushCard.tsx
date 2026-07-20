@@ -182,18 +182,20 @@ export function PushCard() {
               </div>
               <div className="flex rounded bg-white/[0.06] p-0.5 shrink-0">
                 {(["all", "mentions", "off"] as const).map((opt) => (
-                  <button
+                  <Button
                     key={opt}
                     type="button"
+                    variant="ghost"
+                    size="clear"
                     onClick={() => void setChannelNotify(opt)}
-                    className={`text-[11px] px-2 py-1 rounded capitalize transition-colors ${
+                    className={`font-normal text-[11px] px-2 py-1 rounded capitalize transition-colors ${
                       channelNotify === opt
-                        ? "bg-white/10 text-white"
-                        : "text-white/50 hover:text-white"
+                        ? "bg-white/10 text-white hover:bg-white/10 hover:text-white"
+                        : "text-white/50 hover:text-white hover:bg-transparent"
                     }`}
                   >
                     {opt}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>

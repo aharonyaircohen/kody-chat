@@ -131,15 +131,17 @@ function TriageRow({
           {item.action.label}
         </Button>
       ) : null}
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="clear"
         onClick={onDismiss}
-        className="p-1 text-muted-foreground hover:text-foreground shrink-0"
+        className="p-1 text-muted-foreground hover:text-foreground hover:bg-transparent shrink-0"
         title="Dismiss for 4 hours"
         aria-label="Dismiss triage item"
       >
         <X className="w-3.5 h-3.5" />
-      </button>
+      </Button>
     </li>
   );
 }

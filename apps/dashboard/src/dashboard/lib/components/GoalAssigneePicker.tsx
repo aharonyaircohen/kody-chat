@@ -98,8 +98,10 @@ export function GoalAssigneePicker({
       >
         {current.login}
       </span>
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="clear"
         onClick={handleClear}
         disabled={pending}
         className={
@@ -115,7 +117,7 @@ export function GoalAssigneePicker({
         ) : (
           <X className="w-3 h-3" />
         )}
-      </button>
+      </Button>
     </div>
   ) : null;
 

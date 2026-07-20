@@ -7,6 +7,7 @@
 "use client";
 
 import { cn } from "@kody-ade/base/utils/ui";
+import { Button } from "@kody-ade/base/ui/button";
 import { usePersistedSet } from "../hooks/usePersistedState";
 import type { ChatSession } from "../chat-types";
 
@@ -180,9 +181,11 @@ export function TaskSessionHistory({
               className="hover:bg-muted/30"
             >
               {/* Session Header */}
-              <button
+              <Button
+                variant="ghost"
+                size="clear"
                 onClick={() => toggleExpand(session.stage + session.startedAt)}
-                className="w-full px-3 py-2 flex items-center gap-2 text-left hover:bg-transparent"
+                className="w-full px-3 py-2 flex items-center justify-start gap-2 font-normal text-left hover:bg-transparent hover:text-foreground"
               >
                 <span
                   className={cn(
@@ -210,7 +213,7 @@ export function TaskSessionHistory({
                 <span className="text-muted-foreground text-xs">
                   {isExpanded ? "▼" : "▶"}
                 </span>
-              </button>
+              </Button>
 
               {/* Expanded Content */}
               {isExpanded && (

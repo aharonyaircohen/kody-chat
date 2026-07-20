@@ -350,6 +350,7 @@ function ContentModelWorkspace() {
             ) : (
               <>
                 {isCreating ? (
+                  // eslint-disable-next-line react/forbid-elements -- custom flex-col list row; Button centering/hover would change layout
                   <button
                     type="button"
                     onClick={() => setSelectedName(NEW_RESOURCE_KEY)}
@@ -362,6 +363,7 @@ function ContentModelWorkspace() {
                   </button>
                 ) : null}
                 {filteredCollections.map((collection) => (
+                  // eslint-disable-next-line react/forbid-elements -- custom flex-col list row; Button centering/hover would change layout
                   <button
                     key={collection.name}
                     type="button"

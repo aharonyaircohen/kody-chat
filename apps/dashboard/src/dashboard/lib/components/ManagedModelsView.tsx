@@ -1814,6 +1814,7 @@ function GoalRow({
         isActive && tone.selectedClass,
       )}
     >
+      {/* eslint-disable-next-line react/forbid-elements -- unstyled clickable row; Button base styles would alter it */}
       <button
         type="button"
         onClick={onSelect}

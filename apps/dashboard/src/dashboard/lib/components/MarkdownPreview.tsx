@@ -20,6 +20,7 @@ import {
   Lightbulb,
   ShieldAlert,
 } from "lucide-react";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "@dashboard/lib/utils";
 import {
   detectCalloutKind,
@@ -127,8 +128,10 @@ function CopyButton({ value }: { value: string }) {
   };
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="clear"
       onClick={handleCopy}
       className={cn(
         "inline-flex h-8 w-8 items-center justify-center rounded border border-white/10",
@@ -137,7 +140,7 @@ function CopyButton({ value }: { value: string }) {
       title="Copy code"
     >
       {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-    </button>
+    </Button>
   );
 }
 
@@ -176,7 +179,7 @@ function HighlightedCodeBlock({
   }, [code, language]);
 
   return (
-    <div className="my-4 overflow-hidden rounded-md border border-white/10 bg-[#0d1117]">
+    <div className="my-4 overflow-hidden rounded-md border border-white/10 bg-card">
       <div className="flex h-9 items-center gap-2 border-b border-white/10 px-3">
         <span className="text-label uppercase tracking-normal text-white/45">
           {language ?? "text"}

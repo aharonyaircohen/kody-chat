@@ -19,6 +19,7 @@ import { formatMacroForChat, type Macro } from "../macros";
 import { useAuth, buildAuthHeaders } from "../auth-context";
 import type { PreviewAction, PreviewActResult } from "../picker/protocol";
 import { cn } from "../utils";
+import { Button } from "@kody-ade/base/ui/button";
 
 interface PreviewMacrosMenuProps {
   owner: string;
@@ -236,8 +237,10 @@ export function PreviewMacrosMenu({
       ref={rootRef}
       className={cn("relative inline-flex", variant === "menu" && "w-full")}
     >
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="clear"
         onClick={() => setMenuOpen((v) => !v)}
         title={
           macros.length > 0
@@ -249,12 +252,12 @@ export function PreviewMacrosMenu({
         className={cn(
           "inline-flex items-center gap-1 text-xs font-medium transition-colors",
           variant === "menu"
-            ? "w-full rounded px-2 py-1.5 text-left"
+            ? "w-full justify-start rounded px-2 py-1.5 text-left"
             : "px-2 py-1.5 rounded-md border",
           macros.length > 0 || pendingSteps
             ? variant === "menu"
-              ? "text-blue-200 hover:bg-blue-500/15"
-              : "text-blue-200 bg-blue-500/15 border-blue-400/40 hover:bg-blue-500/25"
+              ? "text-blue-200 hover:bg-blue-500/15 hover:text-blue-200"
+              : "text-blue-200 bg-blue-500/15 border-blue-400/40 hover:bg-blue-500/25 hover:text-blue-200"
             : variant === "menu"
               ? "text-zinc-300 hover:bg-zinc-800 hover:text-white"
               : "text-blue-300/80 hover:text-blue-200 hover:bg-blue-500/15 border-transparent",
@@ -265,7 +268,7 @@ export function PreviewMacrosMenu({
         {macros.length > 0 && (
           <span className="tabular-nums">{macros.length}</span>
         )}
-      </button>
+      </Button>
 
       {menuOpen && (
         <div
@@ -287,6 +290,7 @@ export function PreviewMacrosMenu({
                 {pendingSteps.length === 1 ? "" : "s"}
               </div>
               <div className="flex items-center gap-1">
+                {/* eslint-disable-next-line react/forbid-elements -- compact bare inline input; kit Input's h-11/bg-form styling would visibly change it */}
                 <input
                   ref={nameInputRef}
                   value={nameDraft}
@@ -295,22 +299,26 @@ export function PreviewMacrosMenu({
                   maxLength={64}
                   className="flex-1 bg-zinc-900 text-xs text-white placeholder-zinc-500 rounded px-1.5 py-0.5 border border-zinc-700 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
                 />
-                <button
+                <Button
                   type="submit"
+                  variant="ghost"
+                  size="clear"
                   disabled={saving}
-                  className="text-xs text-emerald-400 hover:text-emerald-300 px-1 disabled:opacity-50"
+                  className="text-xs font-normal text-emerald-400 hover:bg-transparent hover:text-emerald-300 px-1 disabled:opacity-50"
                   title="Save"
                 >
                   {saving ? "Saving…" : "Save"}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="clear"
                   onClick={handleDiscardRecording}
-                  className="text-xs text-zinc-500 hover:text-zinc-300 px-1"
+                  className="text-xs text-zinc-500 hover:bg-transparent hover:text-zinc-300 px-1"
                   title="Discard recording"
                 >
                   <X className="w-3 h-3" />
-                </button>
+                </Button>
               </div>
             </form>
           )}
@@ -337,36 +345,42 @@ export function PreviewMacrosMenu({
                     {macro.steps.length === 1 ? "" : "s"}
                   </div>
                 </div>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="clear"
                   onClick={() => handleReplay(macro)}
                   disabled={replaying || !pickerAvailable}
                   title="Replay in the preview"
                   aria-label={`Replay ${macro.name}`}
-                  className="text-emerald-300 hover:text-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed p-1"
+                  className="text-emerald-300 hover:bg-transparent hover:text-emerald-200 disabled:opacity-40 disabled:pointer-events-auto disabled:cursor-not-allowed p-1"
                 >
                   <Play
                     className={cn("w-3 h-3", replaying && "animate-pulse")}
                   />
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="clear"
                   onClick={() => handleSendToChat(macro)}
                   title="Send macro to chat (model will run each step)"
                   aria-label={`Send ${macro.name} to chat`}
-                  className="text-blue-300 hover:text-blue-200 p-1"
+                  className="text-blue-300 hover:bg-transparent hover:text-blue-200 p-1"
                 >
                   <Send className="w-3 h-3" />
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="clear"
                   onClick={() => void handleRemove(macro.id)}
                   title="Delete macro"
                   aria-label={`Delete ${macro.name}`}
-                  className="text-zinc-500 hover:text-red-400 p-1 opacity-0 group-hover:opacity-100"
+                  className="text-zinc-500 hover:bg-transparent hover:text-red-400 p-1 opacity-0 group-hover:opacity-100"
                 >
                   <Trash2 className="w-3 h-3" />
-                </button>
+                </Button>
               </div>
             );
           })}

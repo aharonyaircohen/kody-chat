@@ -282,6 +282,43 @@ export default [
     },
   })),
   {
+    // UI consistency: dashboard components must use the shared kit
+    // (@kody-ade/base/ui/*) instead of raw elements, and theme tokens
+    // instead of hardcoded hex colors in className. Genuinely custom
+    // interactive elements may keep a raw element with an inline
+    // eslint-disable comment stating why.
+    name: "ui-kit-consistency",
+    files: ["src/dashboard/**/*.tsx"],
+    rules: {
+      "react/forbid-elements": [
+        "error",
+        {
+          forbid: [
+            {
+              element: "button",
+              message:
+                "Use Button/IconButton from @kody-ade/base/ui instead of raw <button>",
+            },
+            {
+              element: "input",
+              message:
+                "Use Input/Checkbox from @kody-ade/base/ui instead of raw <input>",
+            },
+          ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector:
+            "JSXAttribute[name.name='className'] Literal[value=/#[0-9a-fA-F]{3}/]",
+          message:
+            "No hardcoded hex colors in className — use theme tokens (bg-background, bg-card, ring-background, ...)",
+        },
+      ],
+    },
+  },
+  {
     // Playwright e2e specs are not React. Its fixture API names callbacks
     // `use` (`await use(ctx)`), which the react-hooks plugin mistakes for
     // React's `use()` hook and flags as a rules-of-hooks violation. Turn the

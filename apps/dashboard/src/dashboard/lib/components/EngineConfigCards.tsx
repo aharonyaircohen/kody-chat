@@ -211,20 +211,22 @@ function AccessGateCard({ cfg }: { cfg: UseEngineConfig }) {
               {ASSOCIATIONS.map((a) => {
                 const on = selected.has(a);
                 return (
-                  <button
+                  <Button
                     key={a}
                     type="button"
+                    size="clear"
+                    variant="ghost"
                     disabled={saving}
                     onClick={() => void toggle(a)}
                     className={cn(
-                      "px-2 py-1 rounded border text-xs transition-colors disabled:opacity-50",
+                      "px-2 py-1 rounded border text-xs font-normal transition-colors disabled:opacity-50",
                       on
-                        ? "border-amber-500/50 bg-amber-500/10 text-amber-200"
-                        : "border-white/10 text-white/50 hover:text-white/80",
+                        ? "border-amber-500/50 bg-amber-500/10 text-amber-200 hover:bg-amber-500/10 hover:text-amber-200"
+                        : "border-white/10 text-white/50 hover:bg-transparent hover:text-white/80",
                     )}
                   >
                     {a}
-                  </button>
+                  </Button>
                 );
               })}
             </div>
@@ -372,15 +374,17 @@ function AliasesCard({ cfg }: { cfg: UseEngineConfig }) {
                     <span className="truncate font-mono">
                       {key} <span className="text-white/30">→</span> {val}
                     </span>
-                    <button
+                    <Button
                       type="button"
+                      size="clear"
+                      variant="ghost"
                       aria-label={`Remove alias ${key}`}
                       disabled={saving}
                       onClick={() => void handleRemove(key)}
-                      className="text-white/30 hover:text-rose-300 disabled:opacity-50"
+                      className="text-white/30 hover:bg-transparent hover:text-rose-300 disabled:opacity-50"
                     >
                       <X className="w-4 h-4" />
-                    </button>
+                    </Button>
                   </li>
                 ))}
               </ul>

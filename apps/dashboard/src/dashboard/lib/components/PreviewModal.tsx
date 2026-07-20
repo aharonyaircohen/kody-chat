@@ -264,19 +264,21 @@ export function PreviewModal({
         </span>
 
         <div className="ml-auto flex items-center gap-2">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="clear"
             onClick={handleRefreshAll}
             disabled={refreshing}
             title="Refresh PR details, changes, and comments"
             aria-label="Refresh PR details"
-            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-md bg-zinc-800 text-zinc-300 hover:bg-zinc-700 hover:text-white border border-zinc-700 transition-colors disabled:opacity-60 disabled:pointer-events-auto disabled:cursor-not-allowed"
           >
             <RefreshCw
               className={cn("w-3 h-3", refreshing && "animate-spin")}
             />
             Refresh
-          </button>
+          </Button>
           <a
             href={pr.html_url}
             target="_blank"
@@ -302,8 +304,10 @@ export function PreviewModal({
             className="shrink-0 flex border-b border-zinc-800 bg-zinc-950/50"
           >
             {tabs.map(({ key, label, icon: Icon, count }) => (
-              <button
+              <Button
                 key={key}
+                variant="ghost"
+                size="clear"
                 role="tab"
                 id={`preview-tab-${key}`}
                 aria-selected={activeTab === key}
@@ -315,9 +319,9 @@ export function PreviewModal({
                   window.history.pushState(null, "", path);
                 }}
                 className={cn(
-                  "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2",
+                  "flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium transition-colors border-b-2 rounded-none hover:bg-transparent",
                   activeTab === key
-                    ? "text-white border-blue-500"
+                    ? "text-white border-blue-500 hover:text-white"
                     : "text-zinc-500 border-transparent hover:text-zinc-300 hover:border-zinc-700",
                 )}
               >
@@ -340,7 +344,7 @@ export function PreviewModal({
                     {count}
                   </span>
                 )}
-              </button>
+              </Button>
             ))}
           </div>
 
@@ -402,16 +406,18 @@ export function PreviewModal({
                       <AlertCircle className="w-4 h-4 shrink-0" />
                       {loadError}
                     </div>
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="clear"
                       onClick={() => {
                         setLoadError(null);
                         setActiveTab("changes");
                       }}
-                      className="inline-flex items-center gap-1 text-xs text-red-400 hover:text-red-300"
+                      className="inline-flex items-center gap-1 text-xs font-normal text-red-400 hover:bg-transparent hover:text-red-300"
                     >
                       <RefreshCw className="w-3 h-3" />
                       Retry
-                    </button>
+                    </Button>
                   </div>
                 ) : loading ? (
                   <div className="flex items-center justify-center py-8">
@@ -435,7 +441,9 @@ export function PreviewModal({
                             -{totalDeletions}
                           </span>
                         </span>
-                        <button
+                        <Button
+                          variant="ghost"
+                          size="clear"
                           onClick={() => {
                             if (expandedFiles.size === changes.length) {
                               setExpandedFiles(new Set());
@@ -445,12 +453,12 @@ export function PreviewModal({
                               );
                             }
                           }}
-                          className="text-xs text-zinc-500 hover:text-zinc-300"
+                          className="text-xs font-normal text-zinc-500 hover:bg-transparent hover:text-zinc-300"
                         >
                           {expandedFiles.size === changes.length
                             ? "Collapse all"
                             : "Expand all"}
-                        </button>
+                        </Button>
                       </div>
                       <a
                         href={prFilesUrl}
@@ -471,6 +479,7 @@ export function PreviewModal({
                             key={file.filename}
                             className="border border-zinc-800 rounded overflow-hidden"
                           >
+                            {/* eslint-disable-next-line react/forbid-elements -- unstyled clickable file row with a nested link; kit Button styling would alter layout */}
                             <button
                               onClick={() => {
                                 setExpandedFiles((prev) => {
@@ -590,14 +599,16 @@ export function PreviewModal({
                       </span>
                     )}
                   </h3>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="clear"
                     onClick={() => setShowCommentDialog(true)}
                     className="group inline-flex items-center gap-1.5 rounded-md border border-zinc-700/60 bg-zinc-900/60 px-3 py-1.5 text-xs font-medium text-zinc-300 transition-all hover:border-blue-500/50 hover:bg-blue-500/10 hover:text-blue-200 active:scale-[0.97]"
                   >
                     <MessageSquare className="w-3.5 h-3.5 text-zinc-500 transition-colors group-hover:text-blue-300" />
                     Add comment
-                  </button>
+                  </Button>
                 </div>
                 <PRCommentList
                   key={`${pr.number}-${commentsKey}`}

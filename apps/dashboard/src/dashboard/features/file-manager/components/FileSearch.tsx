@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Search, Loader2, FileCode2, X } from "lucide-react";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "@dashboard/lib/utils";
 import { searchCode, type SearchResult } from "../lib/repo-files";
 import type { Octokit } from "@octokit/rest";
@@ -102,6 +103,7 @@ export function FileSearch({
       {/* Search bar */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 shrink-0">
         <Search className="w-4 h-4 text-white/40 shrink-0" />
+        {/* eslint-disable-next-line react/forbid-elements -- borderless inline search field; kit Input's chrome would change the composed search bar */}
         <input
           ref={inputRef}
           type="text"
@@ -114,12 +116,14 @@ export function FileSearch({
           <Loader2 className="w-4 h-4 animate-spin text-white/40 shrink-0" />
         )}
         {query && !loading && (
-          <button
+          <Button
+            variant="ghost"
+            size="clear"
             onClick={handleClear}
             className="p-1 rounded hover:bg-white/10 text-white/40"
           >
             <X className="w-4 h-4" />
-          </button>
+          </Button>
         )}
       </div>
 
@@ -157,20 +161,24 @@ export function FileSearch({
               <div key={filePath} className="border-b border-white/5">
                 <div className="flex items-center gap-2 px-4 py-1.5 bg-white/5">
                   <FileCode2 className="w-3.5 h-3.5 text-white/40 shrink-0" />
-                  <button
-                    className="text-xs text-white/70 hover:text-white/90 truncate"
+                  <Button
+                    variant="ghost"
+                    size="clear"
+                    className="text-xs font-normal text-white/70 hover:bg-transparent hover:text-white/90 truncate"
                     onClick={() => onResultClick(filePath)}
                   >
                     {filePath}
-                  </button>
+                  </Button>
                 </div>
 
                 {fileResults.map((result, i) => (
-                  <button
+                  <Button
                     key={i}
+                    variant="ghost"
+                    size="clear"
                     className={cn(
-                      "w-full text-left px-4 py-1.5 pl-10 text-xs",
-                      "hover:bg-white/5",
+                      "block w-full text-left rounded-none px-4 py-1.5 pl-10 text-xs font-normal",
+                      "hover:bg-white/5 hover:text-inherit",
                       "font-mono whitespace-pre-wrap break-all",
                     )}
                     onClick={() =>
@@ -186,7 +194,7 @@ export function FileSearch({
                       </span>
                     )}
                     <span className="text-white/60">{result.snippet}</span>
-                  </button>
+                  </Button>
                 ))}
               </div>
             ))}

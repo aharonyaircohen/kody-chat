@@ -549,6 +549,7 @@ function MessageComposer({
             <div className="absolute bottom-full left-1 mb-2 z-50 w-72 max-h-48 overflow-y-auto rounded-xl border border-border bg-popover shadow-dropdown p-1">
               {filteredMentions.length > 0 ? (
                 filteredMentions.map((mention, index) => (
+                  // eslint-disable-next-line react/forbid-elements -- unstyled autocomplete option row; kit base classes (justify-center, font-medium, ghost hover) would alter it
                   <button
                     key={mention.login}
                     type="button"
@@ -647,19 +648,23 @@ function ChannelThread({
       <div className="flex items-center justify-between gap-2 border-b border-border bg-card/40 px-4 py-3">
         <div className="flex items-center gap-2.5 min-w-0">
           {onBack ? (
-            <button
+            <Button
+              type="button"
+              variant="ghost"
+              size="clear"
               onClick={onBack}
-              className="md:hidden -ml-1 p-1 text-muted-foreground hover:text-foreground"
+              className="md:hidden -ml-1 p-1 text-muted-foreground hover:bg-transparent hover:text-foreground"
               title="Back"
               aria-label="Back"
             >
               <ChevronLeft className="w-5 h-5" />
-            </button>
+            </Button>
           ) : null}
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary shrink-0">
             <Hash className="w-4 h-4" />
           </div>
           {/* Desktop: plain label. Mobile: tap-to-switch channel button. */}
+          {/* eslint-disable-next-line react/forbid-elements -- looks like a plain label while disabled on desktop; kit's disabled:opacity-50 would fade it */}
           <button
             type="button"
             onClick={onOpenChannels}
@@ -691,8 +696,10 @@ function ChannelThread({
             <ExternalLink className="w-4 h-4" />
             <span className="hidden sm:inline">GitHub</span>
           </a>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="clear"
             onClick={handleDelete}
             disabled={deleting}
             className="inline-flex items-center justify-center h-8 w-8 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
@@ -704,7 +711,7 @@ function ChannelThread({
             ) : (
               <Trash2 className="w-4 h-4" />
             )}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -846,6 +853,7 @@ function ChannelListPanel({
             const active = c.number === selected;
             const hasUnread = !active && !!unread?.has(c.number);
             return (
+              // eslint-disable-next-line react/forbid-elements -- styled nav row; kit base classes (justify-center, font-medium, ghost hover) would alter it
               <button
                 key={c.number}
                 onClick={() => onSelect(c.number)}
@@ -1042,14 +1050,17 @@ export function MessagesView({
             {/* Mobile header with back + channels switcher even when no
                 channel is active, so the user is never stranded. */}
             <div className="flex md:hidden items-center gap-1 border-b border-border bg-card/40 px-3 py-3">
-              <button
+              <Button
+                type="button"
+                variant="ghost"
+                size="clear"
                 onClick={goBack}
-                className="-ml-1 p-1 text-muted-foreground hover:text-foreground"
+                className="-ml-1 p-1 text-muted-foreground hover:bg-transparent hover:text-foreground"
                 title="Back"
                 aria-label="Back"
               >
                 <ChevronLeft className="w-5 h-5" />
-              </button>
+              </Button>
               <span className="text-[15px] font-semibold">Messages</span>
             </div>
             <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center px-6">

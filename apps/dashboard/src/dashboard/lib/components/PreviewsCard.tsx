@@ -320,21 +320,23 @@ export function PreviewsCard({
                   const p = SIZE_PRESETS[key];
                   const active = selectedSize === key;
                   return (
-                    <button
+                    <Button
                       key={key}
                       type="button"
+                      size="clear"
+                      variant="ghost"
                       onClick={() =>
                         patch({ cpus: p.cpus, memoryMb: p.memoryMb })
                       }
-                      className={`flex-1 rounded-md border px-2 py-1.5 text-xs transition ${
+                      className={`flex-1 rounded-md border px-2 py-1.5 text-xs font-normal transition ${
                         active
-                          ? "border-sky-500/50 bg-sky-500/15 text-sky-200"
-                          : "border-white/10 bg-black/20 text-white/60 hover:text-white/80"
+                          ? "border-sky-500/50 bg-sky-500/15 text-sky-200 hover:bg-sky-500/15 hover:text-sky-200"
+                          : "border-white/10 bg-black/20 text-white/60 hover:bg-black/20 hover:text-white/80"
                       }`}
                       title={p.hint}
                     >
                       {p.label}
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
@@ -358,24 +360,26 @@ export function PreviewsCard({
                   const p = BUILDER_SIZE_PRESETS[key];
                   const active = selectedBuilderSize === key;
                   return (
-                    <button
+                    <Button
                       key={key}
                       type="button"
+                      size="clear"
+                      variant="ghost"
                       onClick={() =>
                         patch({
                           builderCpus: p.builderCpus,
                           builderMemoryMb: p.builderMemoryMb,
                         })
                       }
-                      className={`flex-1 rounded-md border px-2 py-1.5 text-xs transition ${
+                      className={`flex-1 rounded-md border px-2 py-1.5 text-xs font-normal transition ${
                         active
-                          ? "border-sky-500/50 bg-sky-500/15 text-sky-200"
-                          : "border-white/10 bg-black/20 text-white/60 hover:text-white/80"
+                          ? "border-sky-500/50 bg-sky-500/15 text-sky-200 hover:bg-sky-500/15 hover:text-sky-200"
+                          : "border-white/10 bg-black/20 text-white/60 hover:bg-black/20 hover:text-white/80"
                       }`}
                       title={p.hint}
                     >
                       {p.label}
-                    </button>
+                    </Button>
                   );
                 })}
               </div>
@@ -447,10 +451,12 @@ export function PreviewsCard({
 
             {/* Advanced */}
             <div className="pt-1 border-t border-white/[0.06]">
-              <button
+              <Button
                 type="button"
+                size="clear"
+                variant="ghost"
                 onClick={() => setShowAdvanced((s) => !s)}
-                className="flex items-center gap-1 text-[11px] text-white/45 hover:text-white/70 pt-2"
+                className="flex items-center gap-1 text-[11px] font-normal text-white/45 hover:bg-transparent hover:text-white/70 pt-2"
               >
                 {showAdvanced ? (
                   <ChevronDown className="w-3 h-3" />
@@ -458,7 +464,7 @@ export function PreviewsCard({
                   <ChevronRight className="w-3 h-3" />
                 )}
                 Advanced
-              </button>
+              </Button>
 
               {showAdvanced && (
                 <div className="space-y-4 pt-3">

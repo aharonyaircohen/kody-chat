@@ -8,6 +8,7 @@
 
 import { useState } from "react";
 import { Check, Copy, Pencil, RotateCw, Trash2 } from "lucide-react";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "@kody-ade/base/utils/ui";
 import { ConfirmDialog } from "./ConfirmDialog";
 
@@ -82,7 +83,9 @@ export function MessageActions({
         )}
       >
         {/* Copy button */}
-        <button
+        <Button
+          variant="ghost"
+          size="clear"
           onClick={handleCopy}
           className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
           title={copied ? "Copied!" : "Copy"}
@@ -92,39 +95,45 @@ export function MessageActions({
           ) : (
             <Copy className="w-3.5 h-3.5" />
           )}
-        </button>
+        </Button>
 
         {/* Retry button (only for last assistant message) */}
         {canRetry && (
-          <button
+          <Button
+            variant="ghost"
+            size="clear"
             onClick={onRetry}
             className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
             title="Regenerate response"
           >
             <RotateCw className="w-3.5 h-3.5" />
-          </button>
+          </Button>
         )}
 
         {/* Edit button (only for user messages) */}
         {canEdit && (
-          <button
+          <Button
+            variant="ghost"
+            size="clear"
             onClick={handleStartEdit}
             className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-foreground"
             title="Edit and resend"
           >
             <Pencil className="w-3.5 h-3.5" />
-          </button>
+          </Button>
         )}
 
         {/* Delete button */}
         {canDelete && (
-          <button
+          <Button
+            variant="ghost"
+            size="clear"
             onClick={() => setShowDeleteConfirm(true)}
             className="p-1 rounded hover:bg-muted text-muted-foreground hover:text-destructive"
             title="Delete message"
           >
             <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          </Button>
         )}
       </div>
 
@@ -140,18 +149,21 @@ export function MessageActions({
               autoFocus
             />
             <div className="flex justify-end gap-2 mt-2">
-              <button
+              <Button
+                variant="ghost"
+                size="clear"
                 onClick={handleCancelEdit}
-                className="px-3 py-1 text-sm rounded hover:bg-muted"
+                className="px-3 py-1 text-sm font-normal rounded hover:bg-muted"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                size="clear"
                 onClick={handleSaveEdit}
-                className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90"
+                className="px-3 py-1 text-sm font-normal rounded"
               >
                 Send
-              </button>
+              </Button>
             </div>
           </div>
         </div>

@@ -30,6 +30,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@kody-ade/base/ui/sheet";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "@kody-ade/base/utils/ui";
 import { SETTINGS_NAV_SECTIONS, isNavItemActive } from "./settings-nav";
 import { InboxBadge } from "./InboxBadge";
@@ -154,8 +155,10 @@ function SettingsDrawer({ isOpen, onOpenChange }: SettingsDrawerProps) {
 export function SettingsDrawerTrigger({ className }: { className?: string }) {
   const { open } = useSettingsDrawer();
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="clear"
       onClick={open}
       aria-label="Open settings"
       className={cn(
@@ -165,6 +168,6 @@ export function SettingsDrawerTrigger({ className }: { className?: string }) {
       )}
     >
       <MoreVertical className="h-5 w-5" />
-    </button>
+    </Button>
   );
 }

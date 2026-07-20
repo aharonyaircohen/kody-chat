@@ -597,6 +597,7 @@ export function StoreCatalogManager({
             const Icon = filter.icon;
             const colors = KIND_COLORS[filter.id];
             return (
+              // eslint-disable-next-line react/forbid-elements -- tab pill styled by dynamic per-kind tint classes; kit ghost hover styles would override the active tint
               <button
                 key={filter.id}
                 type="button"
@@ -694,6 +695,7 @@ function CatalogCard({
   const colors = displayKindColor(item);
   const uninstallBlocked = (item.uninstallBlockedBy ?? []).length > 0;
   return (
+    // eslint-disable-next-line react/forbid-elements -- clickable multi-line card row; kit button base styles (nowrap/centering) would break its layout
     <button
       type="button"
       onClick={onSelect}

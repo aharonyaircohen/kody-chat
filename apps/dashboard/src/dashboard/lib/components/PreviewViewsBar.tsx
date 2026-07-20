@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "../utils";
+import { Button } from "@kody-ade/base/ui/button";
 import {
   addPreviewView,
   readPreviewViews,
@@ -117,8 +118,10 @@ export function PreviewViewsBar({
 
   return (
     <div ref={rootRef} className="relative inline-flex">
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="clear"
         onClick={() => setMenuOpen((v) => !v)}
         aria-haspopup="listbox"
         aria-expanded={menuOpen}
@@ -127,7 +130,7 @@ export function PreviewViewsBar({
           "inline-flex items-center gap-1 text-xs font-medium transition-colors",
           variant === "address"
             ? "h-10 rounded-md px-2.5 text-zinc-300 hover:bg-white/[0.06] hover:text-white"
-            : "rounded-md border border-emerald-500/20 bg-emerald-500/15 px-2.5 py-1 text-emerald-400 hover:bg-emerald-500/25",
+            : "rounded-md border border-emerald-500/20 bg-emerald-500/15 px-2.5 py-1 text-emerald-400 hover:bg-emerald-500/25 hover:text-emerald-400",
         )}
       >
         <span
@@ -139,7 +142,7 @@ export function PreviewViewsBar({
           {active ? active.name : "View"}
         </span>
         <ChevronDown className="w-3 h-3" />
-      </button>
+      </Button>
 
       <PreviewFloatingMenu
         open={menuOpen}
@@ -186,18 +189,20 @@ export function PreviewViewsBar({
                   {view.path}
                 </span>
                 {views.length > 1 && (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="clear"
                     onClick={(e) => {
                       e.stopPropagation();
                       handleRemove(view.id);
                     }}
                     title={`Remove ${view.name}`}
                     aria-label={`Remove ${view.name}`}
-                    className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:text-red-400"
+                    className="opacity-0 group-hover:opacity-100 text-zinc-500 hover:bg-transparent hover:text-red-400"
                   >
                     <X className="w-3 h-3" />
-                  </button>
+                  </Button>
                 )}
               </div>
             );
@@ -209,21 +214,25 @@ export function PreviewViewsBar({
                 read iframe.contentWindow.location from the dashboard. */}
             {picker.available && !addOpen && (
               <>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="clear"
                   onClick={async () => {
                     const path = await resolveCurrentPath();
                     setPathDraft(path ?? "/");
                     setNameDraft("");
                     setAddOpen(true);
                   }}
-                  className="flex items-center gap-1.5 w-full px-2 py-1.5 text-xs text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 rounded"
+                  className="flex items-center justify-start gap-1.5 w-full px-2 py-1.5 text-xs font-normal text-emerald-300 hover:text-emerald-200 hover:bg-emerald-500/10 rounded"
                 >
                   <Bookmark className="w-3 h-3" />
                   Save current view
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="clear"
                   onClick={async () => {
                     const info = await picker.collectPage(400);
                     const url = info?.url;
@@ -239,11 +248,11 @@ export function PreviewViewsBar({
                     }
                     setMenuOpen(false);
                   }}
-                  className="flex items-center gap-1.5 w-full px-2 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-800 rounded"
+                  className="flex items-center justify-start gap-1.5 w-full px-2 py-1.5 text-xs font-normal text-zinc-300 hover:text-white hover:bg-zinc-800 rounded"
                 >
                   <LinkIcon className="w-3 h-3" />
                   Copy current URL
-                </button>
+                </Button>
               </>
             )}
             {addOpen ? (
@@ -254,6 +263,7 @@ export function PreviewViewsBar({
                 }}
                 className="flex items-center gap-1 px-1 py-1"
               >
+                {/* eslint-disable-next-line react/forbid-elements -- compact bare inline input; kit Input's h-11/bg-form styling would visibly change it */}
                 <input
                   ref={nameInputRef}
                   value={nameDraft}
@@ -262,6 +272,7 @@ export function PreviewViewsBar({
                   maxLength={32}
                   className="w-20 bg-zinc-800 text-xs text-white placeholder-zinc-500 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
                 />
+                {/* eslint-disable-next-line react/forbid-elements -- compact bare inline input; kit Input's h-11/bg-form styling would visibly change it */}
                 <input
                   value={pathDraft}
                   onChange={(e) => setPathDraft(e.target.value)}
@@ -269,35 +280,41 @@ export function PreviewViewsBar({
                   maxLength={120}
                   className="flex-1 bg-zinc-800 text-xs text-white placeholder-zinc-500 rounded px-1.5 py-0.5 focus:outline-none focus:ring-1 focus:ring-emerald-500/40"
                 />
-                <button
+                <Button
                   type="submit"
-                  className="text-xs text-emerald-400 hover:text-emerald-300 px-1"
+                  variant="ghost"
+                  size="clear"
+                  className="text-xs font-normal text-emerald-400 hover:bg-transparent hover:text-emerald-300 px-1"
                   title="Add view"
                 >
                   Add
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="clear"
                   onClick={() => {
                     setAddOpen(false);
                     setNameDraft("");
                     setPathDraft("/");
                   }}
-                  className="text-xs text-zinc-500 hover:text-zinc-300 px-1"
+                  className="text-xs text-zinc-500 hover:bg-transparent hover:text-zinc-300 px-1"
                   title="Cancel"
                 >
                   <X className="w-3 h-3" />
-                </button>
+                </Button>
               </form>
             ) : (
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="clear"
                 onClick={() => setAddOpen(true)}
-                className="flex items-center gap-1.5 w-full px-2 py-1.5 text-xs text-zinc-400 hover:text-white hover:bg-zinc-800 rounded"
+                className="flex items-center justify-start gap-1.5 w-full px-2 py-1.5 text-xs font-normal text-zinc-400 hover:text-white hover:bg-zinc-800 rounded"
               >
                 <Plus className="w-3 h-3" />
                 Add view
-              </button>
+              </Button>
             )}
           </div>
         </div>

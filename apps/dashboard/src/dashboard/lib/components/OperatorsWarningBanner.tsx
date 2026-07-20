@@ -11,6 +11,7 @@
  */
 "use client";
 
+import { Button } from "@kody-ade/base/ui/button";
 import { RepoScopedLink } from "./RepoScopedLink";
 import { toast } from "sonner";
 import { AlertTriangle } from "lucide-react";
@@ -36,18 +37,20 @@ export function OperatorsWarningBanner() {
             .
           </p>
           {meLogin && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="clear"
               disabled={saving}
               onClick={() => {
                 void add(meLogin).catch(() =>
                   toast.error("Couldn't save operators"),
                 );
               }}
-              className="mt-2 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-100 hover:bg-amber-500/20 disabled:opacity-50"
+              className="mt-2 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-normal text-amber-100 hover:bg-amber-500/20 hover:text-amber-100 disabled:opacity-50"
             >
               {saving ? "Saving…" : `Set me (@${meLogin}) as operator`}
-            </button>
+            </Button>
           )}
         </div>
       </div>

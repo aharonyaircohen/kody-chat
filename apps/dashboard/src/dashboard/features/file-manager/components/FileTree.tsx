@@ -18,6 +18,7 @@ import {
   FolderTree,
   PanelLeftClose,
 } from "lucide-react";
+import { Button } from "@kody-ade/base/ui/button";
 import { cn } from "@dashboard/lib/utils";
 import { listDir, type FileEntry } from "../lib/repo-files";
 import { useFilesTransport } from "../lib/transport";
@@ -725,23 +726,27 @@ export function FileTree({
             ) : null}
           </div>
         </div>
-        <button
+        <Button
+          variant="ghost"
+          size="clear"
           onClick={onRefresh}
           className="ml-auto grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
           title="Refresh"
           aria-label="Refresh files"
         >
           <RefreshCw className="h-4 w-4" />
-        </button>
+        </Button>
         {onCollapse && (
-          <button
+          <Button
+            variant="ghost"
+            size="clear"
             onClick={onCollapse}
             className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
             title="Hide file panel"
             aria-label="Hide file panel"
           >
             <PanelLeftClose className="h-4 w-4" />
-          </button>
+          </Button>
         )}
       </div>
 
@@ -781,16 +786,18 @@ export function FileTree({
               {treeError ??
                 `Could not load ${fileTreeHeaderLabel(normalizedRootPath)}`}
             </span>
-            <button
+            <Button
               type="button"
-              className="rounded-md border border-border px-2.5 py-1 text-xs text-foreground hover:bg-muted"
+              variant="outline"
+              size="clear"
+              className="rounded-md border border-border px-2.5 py-1 text-xs font-normal text-foreground hover:bg-muted"
               onClick={() => {
                 setTreeError(null);
                 onRefresh();
               }}
             >
               Try again
-            </button>
+            </Button>
           </div>
         ) : rootNodes.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-base text-muted-foreground">

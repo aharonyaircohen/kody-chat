@@ -151,6 +151,7 @@ function FilterChip({
   children: ReactNode;
 }) {
   return (
+    // eslint-disable-next-line react/forbid-elements -- stateful pill chip; Button base font/hover styles would visibly change it
     <button
       type="button"
       onClick={onClick}
@@ -548,6 +549,7 @@ export function InboxList() {
           )}
 
           {filtersActive && (
+            // eslint-disable-next-line react/forbid-elements -- bare text link with no hover surface; Button ghost hover bg would visibly change it
             <button
               type="button"
               onClick={clearFilters}

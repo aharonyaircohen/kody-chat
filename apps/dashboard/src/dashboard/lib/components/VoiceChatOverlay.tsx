@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, MicOff, PhoneOff, Loader2, Volume2 } from "lucide-react";
 import { cn } from "@kody-ade/base/utils/ui";
+import { Button } from "@kody-ade/base/ui/button";
 import type { VoiceChatState } from "../hooks/useVoiceChat";
 import { stripReasoning } from "@kody-ade/kody-chat/core/reasoning";
 
@@ -258,13 +259,15 @@ export function VoiceChatOverlay({
 
       {/* Controls */}
       <div className="flex items-center justify-center gap-4 pb-3 shrink-0">
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="clear"
           onClick={onToggleMute}
           className={cn(
             "flex items-center justify-center w-10 h-10 rounded-full transition-colors",
             isMuted
-              ? "bg-amber-500/20 text-amber-500 hover:bg-amber-500/30"
+              ? "bg-amber-500/20 text-amber-500 hover:text-amber-500 hover:bg-amber-500/30"
               : "bg-muted text-muted-foreground hover:bg-muted/80 hover:text-foreground",
           )}
           aria-label={isMuted ? "Unmute microphone" : "Mute microphone"}
@@ -274,16 +277,18 @@ export function VoiceChatOverlay({
           ) : (
             <Mic className="w-4 h-4" />
           )}
-        </button>
+        </Button>
 
-        <button
+        <Button
           type="button"
+          variant="destructive"
+          size="clear"
           onClick={onStop}
           className="flex items-center justify-center w-12 h-12 rounded-full bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
           aria-label="End voice chat"
         >
           <PhoneOff className="w-5 h-5" />
-        </button>
+        </Button>
       </div>
 
       {/* Footer */}

@@ -336,6 +336,7 @@ function BackendManagerInner() {
               be configured on the server.
             </p>
 
+            {/* eslint-disable-next-line react/forbid-elements -- hidden file input triggered by the kit Button */}
             <input
               ref={fileInputRef}
               type="file"
