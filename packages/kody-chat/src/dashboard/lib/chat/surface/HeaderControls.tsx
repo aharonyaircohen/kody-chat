@@ -12,7 +12,13 @@
  */
 "use client";
 
-import type { Dispatch, SetStateAction } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 import {
   Brain,
   Globe,
@@ -62,6 +68,9 @@ interface HeaderControlsProps {
   agentList: ChatDropdownEntry[];
   selectedAgentId: AgentId;
   selectedModelId: string | null;
+  agencyAgents: ReadonlyArray<{ slug: string; title: string }>;
+  selectedAgencyAgentSlug: string;
+  onSelectAgencyAgent: (slug: string) => void;
   /**
    * Picker row click. The host mutates agent/model selection AND the
    * per-session agent pick (setSessionAgent) — that logic is pinned to
@@ -123,6 +132,9 @@ export function HeaderControls({
   agentList,
   selectedAgentId,
   selectedModelId,
+  agencyAgents,
+  selectedAgencyAgentSlug,
+  onSelectAgencyAgent,
   onSelectEntry,
   remoteStatus,
   onNewConversation,
@@ -142,6 +154,43 @@ export function HeaderControls({
   onPlannerExit,
   activeSessionTitle,
 }: HeaderControlsProps) {
+  const [agencyAgentMenuOpen, setAgencyAgentMenuOpen] = useState(false);
+  const agencyAgentMenuRef = useRef<HTMLDivElement>(null);
+  const modelMenuRef = useRef<HTMLDivElement>(null);
+  const reasoningMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!agencyAgentMenuOpen && !agentMenuOpen && !reasoningMenuOpen) return;
+
+    const closeMenusOutsideTarget = (event: PointerEvent) => {
+      if (!(event.target instanceof Node)) return;
+      if (
+        agencyAgentMenuOpen &&
+        !agencyAgentMenuRef.current?.contains(event.target)
+      ) {
+        setAgencyAgentMenuOpen(false);
+      }
+      if (agentMenuOpen && !modelMenuRef.current?.contains(event.target)) {
+        setAgentMenuOpen(false);
+      }
+      if (
+        reasoningMenuOpen &&
+        !reasoningMenuRef.current?.contains(event.target)
+      ) {
+        setReasoningMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", closeMenusOutsideTarget);
+    return () =>
+      document.removeEventListener("pointerdown", closeMenusOutsideTarget);
+  }, [
+    agencyAgentMenuOpen,
+    agentMenuOpen,
+    reasoningMenuOpen,
+    setAgentMenuOpen,
+    setReasoningMenuOpen,
+  ]);
   const headerClassName = compact
     ? "border-b bg-gradient-to-r from-muted/80 to-muted/40 px-3 py-1.5 sm:px-4"
     : "border-b bg-gradient-to-r from-muted/80 to-muted/40 px-3 py-2.5 sm:px-5 sm:py-4";
@@ -161,6 +210,69 @@ export function HeaderControls({
       <span className="shrink-0 rounded-full bg-primary/10 px-2 py-1 text-body-xs text-primary">
         {messageCount}
       </span>
+    ) : null;
+  const agencyAgentEntries = [
+    { slug: "kody", title: "Kody" },
+    ...agencyAgents.filter((agent) => agent.slug !== "kody"),
+  ];
+  const selectedAgencyAgent =
+    agencyAgentEntries.find(
+      (agent) => agent.slug === selectedAgencyAgentSlug,
+    ) ?? agencyAgentEntries[0];
+  const agencyAgentPicker =
+    !lockedAgentId &&
+    !hideAgentPicker &&
+    selectedAgencyAgent &&
+    agencyAgentEntries.length > 0 ? (
+      <div ref={agencyAgentMenuRef} className="relative shrink-0">
+        <button
+          type="button"
+          onClick={() => {
+            setAgencyAgentMenuOpen((value) => !value);
+            setAgentMenuOpen(false);
+          }}
+          className="inline-flex max-w-[150px] items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-0.5 font-medium text-emerald-400 hover:bg-emerald-500/25 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+          aria-haspopup="listbox"
+          aria-expanded={agencyAgentMenuOpen}
+          aria-label="Agency agent"
+          title="Choose AI Agency agent"
+        >
+          <Target className="h-3 w-3 shrink-0" aria-hidden="true" />
+          <span className="truncate">{selectedAgencyAgent.slug}</span>
+        </button>
+        {agencyAgentMenuOpen && (
+          <div className="absolute start-0 top-full z-50 mt-1 min-w-[240px] rounded-md border bg-popover p-1 shadow-md">
+            <ul role="listbox">
+              {agencyAgentEntries.map((agent) => {
+                const selected = agent.slug === selectedAgencyAgentSlug;
+                return (
+                  <li key={agent.slug}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelectAgencyAgent(agent.slug);
+                        setAgencyAgentMenuOpen(false);
+                      }}
+                      className={`flex w-full items-start gap-2 rounded px-2 py-1.5 text-start text-sm hover:bg-accent ${selected ? "bg-accent/50" : ""}`}
+                      role="option"
+                      aria-selected={selected}
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">
+                          {agent.title}
+                        </span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {agent.slug}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        )}
+      </div>
     ) : null;
   const conversationActions = (
     <div className="ml-auto flex shrink-0 items-center gap-1">
@@ -246,7 +358,7 @@ export function HeaderControls({
   const selectionControls = !hideAgentPicker ? (
     <div className="flex shrink-0 items-center gap-1">
       {!lockedAgentId ? (
-        <div className="relative">
+        <div ref={modelMenuRef} className="relative">
           <button
             type="button"
             onClick={() => {
@@ -315,7 +427,7 @@ export function HeaderControls({
         </div>
       ) : null}
 
-      <div className="relative">
+      <div ref={reasoningMenuRef} className="relative">
         <button
           type="button"
           onClick={() => {
@@ -656,66 +768,76 @@ export function HeaderControls({
           data-testid="chat-context-bar"
           className="border-b bg-background/80 px-3 py-0.5 sm:px-5"
         >
-          {isTaskMode && selectedTask ? (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="px-1.5 py-0.5 bg-primary text-primary-foreground rounded font-medium">
-                #{selectedTask.issueNumber}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                {selectedTask.title}
-              </span>
-              {messageCountBadge}
-            </div>
-          ) : isCapabilityMode && selectedCapability ? (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="px-1.5 py-0.5 bg-emerald-500/15 text-emerald-400 rounded font-medium inline-flex items-center gap-1">
-                <Target className="w-3 h-3" />
-                {selectedCapability.slug}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-muted-foreground">
-                {selectedCapability.title}
-              </span>
-              {messageCountBadge}
-            </div>
-          ) : isPlannerMode && plannerGoal ? (
-            <div className="flex items-center gap-2 text-sm">
-              <span className="px-1.5 py-0.5 bg-sky-500/15 text-sky-400 rounded font-medium inline-flex items-center gap-1">
-                Planning
-              </span>
-              <span className="truncate text-muted-foreground flex-1 min-w-0">
-                {plannerGoal.name}
-              </span>
-              {messageCountBadge}
-              {onPlannerExit ? (
-                <button
-                  type="button"
-                  onClick={onPlannerExit}
-                  className="shrink-0 text-muted-foreground hover:text-foreground p-0.5 rounded hover:bg-accent"
-                  aria-label="Stop planning this goal"
-                  title="Stop planning"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              ) : null}
-            </div>
-          ) : (
-            (() => {
-              const sessionTitle = activeSessionTitle;
-              const hasRealTitle =
-                !!sessionTitle && sessionTitle !== "New conversation";
-              return (
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-                  <Globe className="w-3 h-3 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate">
-                    {hasRealTitle
-                      ? sessionTitle
-                      : "Global chat — not tied to any task"}
+          <div className="flex min-w-0 items-center gap-2">
+            {agencyAgentPicker}
+            <div className="min-w-0 flex-1">
+              {isTaskMode && selectedTask ? (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="px-1.5 py-0.5 bg-primary text-primary-foreground rounded font-medium">
+                    #{selectedTask.issueNumber}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-muted-foreground">
+                    {selectedTask.title}
                   </span>
                   {messageCountBadge}
                 </div>
-              );
-            })()
-          )}
+              ) : isCapabilityMode && selectedCapability ? (
+                <div className="flex items-center gap-2 text-sm">
+                  {selectedCapability.slug !== selectedAgencyAgentSlug ? (
+                    <span className="inline-flex items-center gap-1 rounded bg-emerald-500/15 px-1.5 py-0.5 font-medium text-emerald-400">
+                      <Target className="h-3 w-3" aria-hidden="true" />
+                      {selectedCapability.slug}
+                    </span>
+                  ) : null}
+                  <span
+                    data-testid="chat-context-title"
+                    className="min-w-0 flex-1 truncate text-muted-foreground"
+                  >
+                    {selectedCapability.title}
+                  </span>
+                  {messageCountBadge}
+                </div>
+              ) : isPlannerMode && plannerGoal ? (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="px-1.5 py-0.5 bg-sky-500/15 text-sky-400 rounded font-medium inline-flex items-center gap-1">
+                    Planning
+                  </span>
+                  <span className="truncate text-muted-foreground flex-1 min-w-0">
+                    {plannerGoal.name}
+                  </span>
+                  {messageCountBadge}
+                  {onPlannerExit ? (
+                    <button
+                      type="button"
+                      onClick={onPlannerExit}
+                      className="shrink-0 text-muted-foreground hover:text-foreground p-0.5 rounded hover:bg-accent"
+                      aria-label="Stop planning this goal"
+                      title="Stop planning"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  ) : null}
+                </div>
+              ) : (
+                (() => {
+                  const sessionTitle = activeSessionTitle;
+                  const hasRealTitle =
+                    !!sessionTitle && sessionTitle !== "New conversation";
+                  return (
+                    <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <Globe className="w-3 h-3 shrink-0" />
+                      <span className="min-w-0 flex-1 truncate">
+                        {hasRealTitle
+                          ? sessionTitle
+                          : "Global chat — not tied to any task"}
+                      </span>
+                      {messageCountBadge}
+                    </div>
+                  );
+                })()
+              )}
+            </div>
+          </div>
         </div>
       ) : null}
     </>

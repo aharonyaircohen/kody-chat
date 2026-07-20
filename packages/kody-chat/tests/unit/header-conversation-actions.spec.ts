@@ -11,9 +11,16 @@ const COMPOSER_SOURCE = readFileSync(
   "utf8",
 );
 describe("chat conversation actions", () => {
-  it("keeps model and effort controls beside the chat title", () => {
+  it("keeps model and effort controls separate from the agency selector", () => {
+    expect(SOURCE).toContain('aria-label="Agency agent"');
     expect(SOURCE).toContain('aria-label="Model"');
     expect(SOURCE).toContain('aria-label="Effort"');
+    expect(SOURCE).toContain("const agencyAgentEntries");
+    expect(SOURCE).not.toContain(">Agent:</span>");
+    expect(SOURCE).not.toContain("agencyAgentControl");
+    expect(SOURCE.match(/\{agencyAgentPicker\}/g)).toHaveLength(1);
+    expect(SOURCE).toContain("{agentList.map((entry) => {");
+    expect(SOURCE).not.toContain("const modelEntries");
     expect(SOURCE).toContain("Add chat model");
     expect(SOURCE).not.toContain("chatSettingsControl");
     expect(COMPOSER_SOURCE).not.toContain("chatSettingsControl");
@@ -35,7 +42,7 @@ describe("chat conversation actions", () => {
   it("places new conversation and conversations in the header", () => {
     const conversationActions = SOURCE.slice(
       SOURCE.indexOf("const conversationActions"),
-      SOURCE.indexOf("return ("),
+      SOURCE.indexOf("return (", SOURCE.indexOf("const conversationActions")),
     );
     const titleRow = SOURCE.slice(
       SOURCE.indexOf('data-testid="chat-context-bar"'),
@@ -49,5 +56,17 @@ describe("chat conversation actions", () => {
     expect(conversationActions).toContain('aria-label="Toggle conversations"');
     expect(headerActions).toContain("{conversationActions}");
     expect(titleRow).not.toContain("{conversationActions}");
+    expect(SOURCE.indexOf("{agencyAgentPicker}")).toBeGreaterThan(
+      SOURCE.indexOf("Title line:"),
+    );
+  });
+
+  it("closes each header dropdown on an outside pointer press", () => {
+    expect(SOURCE).toContain(
+      'document.addEventListener("pointerdown", closeMenusOutsideTarget)',
+    );
+    expect(SOURCE).toContain("agencyAgentMenuRef.current?.contains");
+    expect(SOURCE).toContain("modelMenuRef.current?.contains");
+    expect(SOURCE).toContain("reasoningMenuRef.current?.contains");
   });
 });

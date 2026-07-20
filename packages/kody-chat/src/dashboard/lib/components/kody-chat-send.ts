@@ -390,6 +390,7 @@ export interface SendTextDeps {
   context: KodyChatProps["context"];
   actorLogin: KodyChatProps["actorLogin"];
   repoAgentSlugs: string[];
+  selectedAgencyAgentSlug: string;
   agentList: ChatDropdownEntry[];
   lockedAgentSlug?: string;
   kodyDirectHeaders?: Record<string, string>;
@@ -489,6 +490,7 @@ async function runSendTextInner(
     context,
     actorLogin,
     repoAgentSlugs,
+    selectedAgencyAgentSlug,
     agentList,
     sessionHook,
     messages,
@@ -1034,8 +1036,15 @@ async function runSendTextInner(
           task: kodyTaskContext,
           agentId:
             directAgentSlug || deps.lockedAgentSlug ? "kody" : effectiveAgentId,
-          ...(directAgentSlug || deps.lockedAgentSlug
-            ? { agentSlug: directAgentSlug ?? deps.lockedAgentSlug }
+          ...(directAgentSlug ||
+          deps.lockedAgentSlug ||
+          selectedAgencyAgentSlug !== "kody"
+            ? {
+                agentSlug:
+                  directAgentSlug ??
+                  deps.lockedAgentSlug ??
+                  selectedAgencyAgentSlug,
+              }
             : {}),
           // Voice modality flag. When true the server appends the
           // voice overlay (no markdown, short sentences, etc.) to

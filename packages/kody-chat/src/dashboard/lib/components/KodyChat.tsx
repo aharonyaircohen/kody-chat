@@ -627,6 +627,8 @@ export function KodyChat({
     [auth, router],
   );
   const { data: repoAgents = [] } = useAgents();
+  const [selectedAgencyAgentSlug, setSelectedAgencyAgentSlug] =
+    useState("kody");
   const repoAgentSlugs = useMemo(
     () => repoAgents.map((agent) => agent.slug),
     [repoAgents],
@@ -1343,6 +1345,7 @@ export function KodyChat({
           context,
           actorLogin,
           repoAgentSlugs,
+          selectedAgencyAgentSlug,
           agentList,
           lockedAgentSlug,
           kodyDirectHeaders,
@@ -1386,6 +1389,7 @@ export function KodyChat({
       setMessagesForSession,
       messages,
       repoAgentSlugs,
+      selectedAgencyAgentSlug,
       selectedAgentId,
       selectedModelId,
       effectiveReasoningEffort,
@@ -1949,6 +1953,9 @@ export function KodyChat({
           agentList={agentList}
           selectedAgentId={selectedAgentId}
           selectedModelId={selectedModelId}
+          agencyAgents={repoAgents}
+          selectedAgencyAgentSlug={selectedAgencyAgentSlug}
+          onSelectAgencyAgent={setSelectedAgencyAgentSlug}
           onSelectEntry={selectChatEntry}
           remoteStatus={remoteStatus}
           onNewConversation={() => {
