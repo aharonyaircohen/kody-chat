@@ -825,9 +825,16 @@ async function createReplacementMachine(
     attempt += 1
   ) {
     try {
-      return await createMachine(flyToken, appName, input, apiKey, codexVolumeId, {
-        replacement: true,
-      });
+      return await createMachine(
+        flyToken,
+        appName,
+        input,
+        apiKey,
+        codexVolumeId,
+        {
+          replacement: true,
+        },
+      );
     } catch (error) {
       lastError = error;
       logger.warn(
@@ -1017,12 +1024,12 @@ function alignBrainMachineConfig(
       ...(next ?? {}),
       mounts: [
         ...(next?.mounts ?? []).filter(
-          (mount) => mount.guest_path !== CODEX_AUTH_VOLUME_GUEST_PATH,
+          (mount) => mount.path !== CODEX_AUTH_VOLUME_GUEST_PATH,
         ),
         {
           volume: codexVolumeId,
           name: "codex",
-          guest_path: CODEX_AUTH_VOLUME_GUEST_PATH,
+          path: CODEX_AUTH_VOLUME_GUEST_PATH,
         },
       ],
     };
@@ -1096,7 +1103,7 @@ function hasCodexAuthVolume(
     config?.mounts?.some(
       (mount) =>
         mount.volume === volumeId &&
-        mount.guest_path === CODEX_AUTH_VOLUME_GUEST_PATH,
+        mount.path === CODEX_AUTH_VOLUME_GUEST_PATH,
     ),
   );
 }
@@ -1165,7 +1172,7 @@ async function createMachine(
         {
           volume: codexVolumeId,
           name: "codex",
-          guest_path: CODEX_AUTH_VOLUME_GUEST_PATH,
+          path: CODEX_AUTH_VOLUME_GUEST_PATH,
         },
       ],
       auto_destroy: false,
