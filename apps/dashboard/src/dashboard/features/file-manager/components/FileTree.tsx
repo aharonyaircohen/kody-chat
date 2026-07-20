@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { cn } from "@dashboard/lib/utils";
 import { listDir, type FileEntry } from "../lib/repo-files";
+import { useFilesTransport } from "../lib/transport";
 import { getFileIcon, getFileIconColor } from "../lib/repo-files-icons";
 import type { Octokit } from "@octokit/rest";
 import { FileContextMenu } from "./FileContextMenu";
@@ -435,6 +436,15 @@ export function FileTree({
   variant = "classic",
 }: FileTreeProps) {
   const normalizedRootPath = normalizeTreePath(rootPath);
+  const transport = useFilesTransport();
+  const canLoad = transport ? true : Boolean(octokit);
+  const loadDir = useCallback(
+    (path: string) =>
+      transport
+        ? transport.listDir(path)
+        : listDir(octokit!, owner, repo, path),
+    [transport, octokit, owner, repo],
+  );
   const protectedPathSet = useMemo(
     () => new Set(protectedPaths.map(normalizeTreePath)),
     [protectedPaths],
@@ -465,9 +475,16 @@ export function FileTree({
     isLoading: rootLoading,
     error: rootError,
   } = useQuery({
-    queryKey: ["files-tree", owner, repo, normalizedRootPath, refreshKey],
-    queryFn: () => listDir(octokit!, owner, repo, normalizedRootPath),
-    enabled: !!octokit,
+    queryKey: [
+      "files-tree",
+      owner,
+      repo,
+      normalizedRootPath,
+      refreshKey,
+      transport ? (transport.cacheKey ?? "transport") : "github",
+    ],
+    queryFn: () => loadDir(normalizedRootPath),
+    enabled: canLoad,
     staleTime: 30_000,
   });
 
@@ -482,7 +499,7 @@ export function FileTree({
   }, [owner, repo, refreshKey]);
 
   useEffect(() => {
-    if (!octokit || !selectedPath) return;
+    if (!canLoad || !selectedPath) return;
 
     const pathsToOpen =
       selectedPathType === "dir"
@@ -501,7 +518,7 @@ export function FileTree({
 
         setLoadingPaths((prev) => new Set(prev).add(path));
         try {
-          const entries = (await listDir(octokit, owner, repo, path)).filter(
+          const entries = (await loadDir(path)).filter(
             (entry) => !entryFilter || entryFilter(entry),
           );
           if (cancelled) return;
@@ -530,7 +547,8 @@ export function FileTree({
     };
   }, [
     entryFilter,
-    octokit,
+    canLoad,
+    loadDir,
     owner,
     repo,
     refreshKey,
@@ -553,7 +571,7 @@ export function FileTree({
           setLoadingPaths((prev) => new Set(prev).add(path));
           setTreeError(null);
           try {
-            const entries = (await listDir(octokit!, owner, repo, path)).filter(
+            const entries = (await loadDir(path)).filter(
               (entry) => !entryFilter || entryFilter(entry),
             );
             setChildrenMap((prev) => ({ ...prev, [path]: entries }));
@@ -571,7 +589,7 @@ export function FileTree({
         setOpenPaths((prev) => new Set(prev).add(path));
       }
     },
-    [openPaths, childrenMap, octokit, owner, repo, entryFilter],
+    [openPaths, childrenMap, loadDir, entryFilter],
   );
 
   const handleSelect = useCallback(

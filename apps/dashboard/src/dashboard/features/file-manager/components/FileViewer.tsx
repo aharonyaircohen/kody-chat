@@ -24,6 +24,7 @@ import { toast } from "sonner";
 import { cn } from "@dashboard/lib/utils";
 import { monacoLanguage } from "../lib/repo-files-lang";
 import { readFile } from "../lib/repo-files";
+import { useFilesTransport } from "../lib/transport";
 import type { Octokit } from "@octokit/rest";
 import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
 import {
@@ -80,14 +81,17 @@ export function FileViewer({
   const [isBinary, setIsBinary] = useState(false);
   const [fileSize, setFileSize] = useState(0);
   const requestGuard = useMemo(() => createLatestRequestGuard(), []);
+  const transport = useFilesTransport();
 
   const loadContent = useCallback(async () => {
-    if (!octokit || !path) return;
+    if ((!transport && !octokit) || !path) return;
     const requestId = requestGuard.next();
     setLoading(true);
     setError(null);
     try {
-      const file = await readFile(octokit, owner, repo, path);
+      const file = transport
+        ? await transport.readFile(path)
+        : await readFile(octokit!, owner, repo, path);
       if (!requestGuard.isCurrent(requestId)) return;
       if (!file) {
         setError("File not found");
@@ -102,7 +106,7 @@ export function FileViewer({
     } finally {
       if (requestGuard.isCurrent(requestId)) setLoading(false);
     }
-  }, [octokit, owner, repo, path, requestGuard]);
+  }, [transport, octokit, owner, repo, path, requestGuard]);
 
   useEffect(() => {
     void loadContent();
@@ -156,46 +160,49 @@ export function FileViewer({
             <div className="mr-2 flex items-center rounded-xl border border-border bg-muted/40 p-1">
               <button
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs",
+                  "flex items-center rounded-lg px-2 py-1.5",
                   !showSource
                     ? "bg-background text-foreground"
                     : "text-muted-foreground hover:text-foreground",
                 )}
                 onClick={() => setShowSource(false)}
+                title="Preview"
+                aria-label="Preview"
               >
-                <Eye className="h-3.5 w-3.5" />
-                Preview
+                <Eye className="h-4 w-4" />
               </button>
               <button
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs",
+                  "flex items-center rounded-lg px-2 py-1.5",
                   showSource
                     ? "bg-background text-foreground"
                     : "text-muted-foreground hover:text-foreground",
                 )}
                 onClick={() => setShowSource(true)}
+                title="Source"
+                aria-label="Source"
               >
-                <Code2 className="h-3.5 w-3.5" />
-                Source
+                <Code2 className="h-4 w-4" />
               </button>
             </div>
           ) : null}
           <button
             onClick={handleCopy}
             disabled={isBinary}
-            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="flex items-center rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
             title="Copy file content"
+            aria-label="Copy file content"
           >
             <Copy className="h-4 w-4" />
-            Copy
           </button>
           {onViewDiff ? (
             <button
               onClick={onViewDiff}
-              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+              className="flex items-center rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+              title="History"
+              aria-label="History"
             >
               <History className="h-4 w-4" />
-              History
             </button>
           ) : null}
           <span className="ml-1 text-xs text-muted-foreground">

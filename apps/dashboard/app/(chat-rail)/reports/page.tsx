@@ -1,18 +1,20 @@
 /**
  * @fileType page
- * @domain kody
- * @pattern reports-page
- * @ai-summary Reports has its own page (the Capabilities page no longer has tabs).
- *   Renders the standalone ReportsView.
+ * @domain reports
+ * @pattern reports-files-page
+ * @ai-summary Reports page — the generic file-manager workspace over the
+ *   reports store (families as folders, runs as markdown files).
  */
-import { ReportsView } from "@dashboard/lib/components/ReportsView";
+import type { Metadata } from "next";
+import { ReportsFilesView } from "@dashboard/lib/components/ReportsFilesView";
+import { buildKodyMetadata } from "../../metadata";
 
-export default async function ReportsPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ type?: string | string[] }>;
-}) {
-  const query = await searchParams;
-  const type = Array.isArray(query.type) ? query.type[0] : query.type;
-  return <ReportsView reportType={type} />;
+export const metadata: Metadata = buildKodyMetadata({
+  title: "Reports — Kody Operations Dashboard",
+  description: "Browse report families and runs.",
+  path: "/reports",
+});
+
+export default function ReportsPage() {
+  return <ReportsFilesView />;
 }

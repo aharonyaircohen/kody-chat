@@ -137,6 +137,7 @@ describe("builtin commands", () => {
     expect(meeting).toBeDefined();
     expect(meeting?.body).toContain("$ARGUMENTS");
     expect(meeting?.body).toContain("publish_report");
+    expect(meeting?.body).toContain("cms_list_documents");
     expect(meeting?.body).toContain("meeting-notes");
     expect(meeting?.body).toContain("Action items");
   });

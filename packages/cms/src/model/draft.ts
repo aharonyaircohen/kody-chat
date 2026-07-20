@@ -198,9 +198,23 @@ export function cmsCollectionFromModelDraft(
           .filter((field) => !field.hidden && !field.readOnly)
           .map((field) => ({ name: field.name })),
       },
+      ...documentViewForFields(fields),
     },
     filters: inferCmsModelFilters(fields),
   };
+}
+
+/**
+ * A model with a long-text field is a writing-first collection: entries
+ * open as a full-page document editor on that field.
+ */
+export function documentViewForFields(
+  fields: CmsFieldConfig[],
+): { document: { field: string } } | Record<string, never> {
+  const body = fields.find(
+    (field) => field.type === "textarea" && !field.hidden && !field.readOnly,
+  );
+  return body ? { document: { field: body.name } } : {};
 }
 
 export function cmsFieldConfigFromModelDraft(

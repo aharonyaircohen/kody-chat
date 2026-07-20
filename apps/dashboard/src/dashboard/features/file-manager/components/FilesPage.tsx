@@ -15,7 +15,12 @@ import {
   useEffect,
   useRef,
   type DragEvent,
+  type ReactNode,
 } from "react";
+import {
+  FilesTransportProvider,
+  type FilesTransport,
+} from "../lib/transport";
 import { Octokit } from "@octokit/rest";
 import { useRouter } from "next/navigation";
 import {
@@ -130,6 +135,17 @@ interface FilesPageProps {
   showSearch?: boolean;
   showUpload?: boolean;
   defaultMarkdownViewMode?: FileEditorViewMode;
+  /**
+   * Custom read-only storage backing this workspace. Default (unset)
+   * is the connected repo via the GitHub Contents API. Custom
+   * transports disable all write UI.
+   */
+  transport?: FilesTransport;
+  /** Extra host-page actions rendered in the workspace header. */
+  headerActions?: (ctx: {
+    selectedPath: string | null;
+    isFile: boolean;
+  }) => ReactNode;
 }
 
 export function FilesPage({
@@ -146,6 +162,8 @@ export function FilesPage({
   showSearch = true,
   showUpload = true,
   defaultMarkdownViewMode = "edit",
+  transport,
+  headerActions,
 }: FilesPageProps) {
   const { auth } = useAuth();
   const router = useRouter();
@@ -190,7 +208,7 @@ export function FilesPage({
 
   // GitHub remains the authority for each write. Permission metadata is not
   // consistently present for every token type, so it must not hide controls.
-  const writeable = Boolean(octokit && auth);
+  const writeable = Boolean(octokit && auth) && !transport;
 
   useEffect(() => {
     setTreeOverlay(emptyTreeOverlay());
@@ -279,15 +297,12 @@ export function FilesPage({
         updateFileHref(normalizedPath, { replace: options.replace });
       }
 
-      if (!octokit || !auth) return;
+      if (!transport && (!octokit || !auth)) return;
 
       try {
-        const file = await readFile(
-          octokit,
-          auth.owner,
-          auth.repo,
-          normalizedPath,
-        );
+        const file = transport
+          ? await transport.readFile(normalizedPath)
+          : await readFile(octokit!, auth!.owner, auth!.repo, normalizedPath);
         if (requestId !== openRequestRef.current) return;
 
         if (file) {
@@ -301,7 +316,11 @@ export function FilesPage({
           return;
         }
 
-        await listDir(octokit, auth.owner, auth.repo, normalizedPath);
+        if (transport) {
+          await transport.listDir(normalizedPath);
+        } else {
+          await listDir(octokit!, auth!.owner, auth!.repo, normalizedPath);
+        }
         if (requestId !== openRequestRef.current) return;
         setSelectedFile(null);
         setViewMode("viewer");
@@ -323,12 +342,12 @@ export function FilesPage({
         setViewMode("viewer");
       }
     },
-    [octokit, auth, updateFileHref, writeable],
+    [transport, octokit, auth, updateFileHref, writeable],
   );
 
   useEffect(() => {
-    if (!octokit || !auth) return;
-    const initialOpenKey = `${auth.owner}/${auth.repo}:${initialRepoPath}`;
+    if (!transport && (!octokit || !auth)) return;
+    const initialOpenKey = `${auth?.owner}/${auth?.repo}:${initialRepoPath}`;
 
     if (!initialRepoPath) {
       openedInitialPathRef.current = initialOpenKey;
@@ -341,7 +360,7 @@ export function FilesPage({
     if (openedInitialPathRef.current === initialOpenKey) return;
     openedInitialPathRef.current = initialOpenKey;
     void openRepoPath(initialRepoPath, { updateRoute: false });
-  }, [auth, initialRepoPath, octokit, openRepoPath]);
+  }, [auth, initialRepoPath, octokit, openRepoPath, transport]);
 
   useEffect(() => {
     if (writeable && selectedFile && viewMode === "viewer") {
@@ -875,6 +894,11 @@ export function FilesPage({
 
   const handleOpenOnGitHub = useCallback(
     (path: string, pathType: RepoPathType) => {
+      if (transport) {
+        const url = transport.externalUrl?.(path, pathType);
+        if (url) window.open(url, "_blank", "noopener,noreferrer");
+        return;
+      }
       if (!auth) return;
       window.open(
         githubFileUrl(auth.owner, auth.repo, path, pathType),
@@ -882,8 +906,9 @@ export function FilesPage({
         "noopener,noreferrer",
       );
     },
-    [auth],
+    [auth, transport],
   );
+  const canOpenExternally = transport ? Boolean(transport.externalUrl) : true;
 
   const handleCopyPath = useCallback((path: string) => {
     navigator.clipboard.writeText(path).then(() => {
@@ -1075,6 +1100,10 @@ export function FilesPage({
 
   const actions = (
     <div className="flex items-center gap-2.5">
+      {headerActions?.({
+        selectedPath,
+        isFile: Boolean(selectedFile),
+      })}
       {writeable || hasSecondaryHeaderActions ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -1109,7 +1138,7 @@ export function FilesPage({
                 Search
               </DropdownMenuItem>
             ) : null}
-            {selectedPath && selectedPathType ? (
+            {canOpenExternally && selectedPath && selectedPathType ? (
               <DropdownMenuItem
                 onClick={() =>
                   handleOpenOnGitHub(selectedPath, selectedPathType)
@@ -1172,6 +1201,7 @@ export function FilesPage({
   );
 
   return (
+    <FilesTransportProvider value={transport ?? null}>
     <PageShell
       title={title}
       titleContent={
@@ -1472,5 +1502,6 @@ export function FilesPage({
         </Dialog>
       )}
     </PageShell>
+    </FilesTransportProvider>
   );
 }

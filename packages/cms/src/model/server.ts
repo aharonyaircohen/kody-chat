@@ -14,6 +14,7 @@ import { readRepoDocFile } from "../repo-docs";
 import {
   cmsModelOptionsFromText,
   cmsModelStorageForField,
+  documentViewForFields,
   inferCmsModelDefaultSort,
   inferCmsModelFilters,
   inferCmsModelListFields,
@@ -107,6 +108,7 @@ export function sanitizeCmsModelCollectionPayload(
           .filter((field) => !field.hidden && !field.readOnly)
           .map((field) => ({ name: field.name })),
       },
+      ...documentViewForFields(fields),
     },
     filters: inferCmsModelFilters(fields),
   };

@@ -138,9 +138,16 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
   {
     slug: "meeting-summary",
     description: "Summarize meeting notes into a saved report",
-    argumentHint: "<paste raw meeting notes>",
+    argumentHint: "[note title, or paste raw notes]",
     body:
-      "Summarize these meeting notes: $ARGUMENTS.\n\n" +
+      "Summarize meeting notes. Input: $ARGUMENTS.\n\n" +
+      "Finding the notes:\n" +
+      "- If the input is raw meeting notes, summarize the input directly.\n" +
+      "- Otherwise, use `cms_list_documents` on the `meeting-notes` " +
+      "collection: if the input names a note, summarize the matching " +
+      "entry (via `cms_get_document`); if the input is empty, summarize " +
+      "the most recent entry. If the collection is missing or empty, say " +
+      "so and stop.\n\n" +
       "Produce a concise summary with these sections (omit empty ones):\n" +
       "- **Summary** — 2–4 sentences on what the meeting covered.\n" +
       "- **Decisions** — bullet list of decisions made.\n" +

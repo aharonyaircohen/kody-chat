@@ -949,6 +949,19 @@ function normalizeViews(
   );
   if (form.length > 0) views.form = { fields: form };
 
+  const rawDocument = isRecord(raw.document) ? raw.document : undefined;
+  if (rawDocument) {
+    const documentField =
+      typeof rawDocument.field === "string" ? rawDocument.field : "";
+    if (fields.some((field) => field.name === documentField)) {
+      views.document = { field: documentField };
+    } else {
+      errors.push(
+        `${label}.document.field must name an existing field`,
+      );
+    }
+  }
+
   return Object.keys(views).length > 0 ? views : undefined;
 }
 

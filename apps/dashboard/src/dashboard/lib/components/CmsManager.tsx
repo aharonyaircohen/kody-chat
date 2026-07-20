@@ -3475,6 +3475,18 @@ function ContentDetailPage({
               onSubmit={onSubmit}
               onCancel={onCancelEdit}
             />
+          ) : collection.views?.document ? (
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 lg:p-6">
+              <div className="mx-auto w-full max-w-3xl whitespace-pre-wrap text-base leading-relaxed text-foreground">
+                {String(
+                  document[collection.views.document.field] ?? "",
+                ).trim() || (
+                  <span className="text-muted-foreground">
+                    This document is empty. Use Edit to start writing.
+                  </span>
+                )}
+              </div>
+            </div>
           ) : (
             <div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto p-4 lg:grid-cols-2 lg:p-6 2xl:grid-cols-3">
               {fields.map(({ field, view }) => (
@@ -3527,6 +3539,27 @@ function ContentFormPage({
     setError(null);
   }, [document, fields]);
 
+  // Document mode: a full-page writing surface (title + body) instead of
+  // the generic field grid. Enabled by `views.document` on the collection.
+  const documentFieldName = collection.views?.document?.field ?? null;
+  const documentField = documentFieldName
+    ? (fields.find(({ field }) => field.name === documentFieldName) ?? null)
+    : null;
+  const documentTitleField = documentField
+    ? (fields.find(
+        ({ field }) =>
+          field.name === (collection.titleField ?? "") &&
+          field.name !== documentFieldName,
+      ) ?? null)
+    : null;
+  const documentRestFields = documentField
+    ? fields.filter(
+        ({ field }) =>
+          field.name !== documentFieldName &&
+          field.name !== documentTitleField?.field.name,
+      )
+    : [];
+
   return (
     <form
       className="flex min-h-0 flex-1 flex-col overflow-hidden"
@@ -3546,12 +3579,57 @@ function ContentFormPage({
       }}
     >
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 lg:px-6">
-        <div className="mx-auto w-full max-w-5xl space-y-4">
+        <div className="mx-auto flex min-h-full w-full max-w-5xl flex-col space-y-4">
           {fields.length === 0 ? (
             <EmptyState
               title="No editable fields"
               detail="This collection has no writable fields in the form view."
             />
+          ) : documentField ? (
+            <>
+              {documentTitleField ? (
+                <input
+                  className="w-full border-0 bg-transparent text-2xl font-semibold text-foreground outline-none placeholder:text-muted-foreground/60"
+                  placeholder="Untitled"
+                  value={String(values[documentTitleField.field.name] ?? "")}
+                  onChange={(event) =>
+                    setValues((current) => ({
+                      ...current,
+                      [documentTitleField.field.name]: event.target.value,
+                    }))
+                  }
+                />
+              ) : null}
+              <Textarea
+                className="min-h-[55vh] flex-1 resize-none border-0 bg-transparent px-0 text-base leading-relaxed shadow-none focus-visible:ring-0"
+                placeholder="Start writing…"
+                value={String(values[documentField.field.name] ?? "")}
+                onChange={(event) =>
+                  setValues((current) => ({
+                    ...current,
+                    [documentField.field.name]: event.target.value,
+                  }))
+                }
+              />
+              {documentRestFields.length > 0 ? (
+                <div className="grid grid-cols-1 gap-4 border-t border-border pt-4 lg:grid-cols-2">
+                  {documentRestFields.map(({ field, view }) => (
+                    <FormFieldControl
+                      key={field.name}
+                      field={field}
+                      view={view}
+                      value={values[field.name] ?? ""}
+                      onChange={(value) =>
+                        setValues((current) => ({
+                          ...current,
+                          [field.name]: value,
+                        }))
+                      }
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </>
           ) : (
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               {fields.map(({ field, view }) => (

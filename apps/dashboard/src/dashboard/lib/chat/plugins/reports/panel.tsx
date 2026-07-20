@@ -10,7 +10,7 @@
  */
 "use client";
 
-import { ReportsView } from "../../../components/ReportsView";
+import { ReportsFilesView } from "../../../components/ReportsFilesView";
 import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
 
 export const REPORTS_PANEL_TESTID = "chat-panel-reports";
@@ -18,7 +18,7 @@ export const REPORTS_PANEL_TESTID = "chat-panel-reports";
 export function ReportsPanelView(_props: ChatPanelViewProps) {
   return (
     <div className="contents" data-testid={REPORTS_PANEL_TESTID}>
-      <ReportsView />
+      <ReportsFilesView />
     </div>
   );
 }
