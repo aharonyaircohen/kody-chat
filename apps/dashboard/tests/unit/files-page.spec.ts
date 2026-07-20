@@ -14,7 +14,7 @@ import {
   parentRepoPath,
   replacePathPrefix,
   shouldShowWorkspaceLocation,
-} from "@dashboard/components/files/FilesPage";
+} from "@dashboard/features/file-manager/components/FilesPage";
 
 describe("buildBreadcrumbs", () => {
   it("returns empty array for empty path", () => {

@@ -18,11 +18,12 @@ import {
   FileText,
   History,
   Loader2,
+  PanelLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@dashboard/lib/utils";
-import { monacoLanguage } from "@dashboard/lib/repo-files-lang";
-import { readFile } from "@dashboard/lib/repo-files";
+import { monacoLanguage } from "../lib/repo-files-lang";
+import { readFile } from "../lib/repo-files";
 import type { Octokit } from "@octokit/rest";
 import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
 import {
@@ -50,6 +51,7 @@ interface FileViewerProps {
   owner: string;
   repo: string;
   onViewDiff?: () => void;
+  onShowFilePanel?: () => void;
 }
 
 function formatBytes(bytes: number): string {
@@ -67,6 +69,7 @@ export function FileViewer({
   owner,
   repo,
   onViewDiff,
+  onShowFilePanel,
 }: FileViewerProps) {
   const { theme } = useTheme();
   const [content, setContent] = useState<string | null>(null);
@@ -117,9 +120,21 @@ export function FileViewer({
             <FileText className="h-5 w-5 text-primary" />
           </div>
           <div className="min-w-0">
-            <h2 className="truncate text-lg font-semibold tracking-tight">
-              {fileName}
-            </h2>
+            <div className="flex items-center gap-2">
+              {onShowFilePanel ? (
+                <button
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                  onClick={onShowFilePanel}
+                  title="Show file panel"
+                  aria-label="Show file panel"
+                >
+                  <PanelLeft className="h-4 w-4" />
+                </button>
+              ) : null}
+              <h2 className="truncate text-lg font-semibold tracking-tight">
+                {fileName}
+              </h2>
+            </div>
             <p className="truncate text-xs text-muted-foreground">
               {parentPath}
             </p>

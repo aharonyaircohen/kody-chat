@@ -16,7 +16,7 @@ import { Button } from "@kody-ade/base/ui/button";
 import { buildKodyAuthHeaders } from "@kody-ade/base/auth-headers";
 import { useAuth } from "../auth-context";
 import { ApiError, handleResponse } from "../api";
-import { monacoLanguage } from "../repo-files-lang";
+import { monacoLanguage } from "@dashboard/features/file-manager";
 import { PageShell } from "./PageShell";
 
 const MonacoEditor = dynamic(

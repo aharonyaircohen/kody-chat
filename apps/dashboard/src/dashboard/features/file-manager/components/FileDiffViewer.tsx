@@ -17,7 +17,7 @@ import {
   commitsForPath,
   getFileAtRef,
   type CommitInfo,
-} from "@dashboard/lib/repo-files";
+} from "../lib/repo-files";
 import type { Octokit } from "@octokit/rest";
 
 const DiffEditor = dynamic(

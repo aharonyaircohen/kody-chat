@@ -3,7 +3,10 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const FILE_EDITOR_SOURCE = readFileSync(
-  resolve(process.cwd(), "src/dashboard/components/files/FileEditor.tsx"),
+  resolve(
+    process.cwd(),
+    "src/dashboard/features/file-manager/components/FileEditor.tsx",
+  ),
   "utf8",
 );
 const MARKDOWN_VIEWER_SOURCE = readFileSync(

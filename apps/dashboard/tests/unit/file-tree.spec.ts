@@ -21,8 +21,8 @@ import {
   buildTree,
   fileTreeHeaderLabel,
   pathAndAncestorPaths,
-} from "@dashboard/components/files/FileTree";
-import type { FileEntry } from "@dashboard/lib/repo-files";
+} from "@dashboard/features/file-manager/components/FileTree";
+import type { FileEntry } from "@dashboard/features/file-manager/lib/repo-files";
 
 function file(name: string, path: string, size = 10): FileEntry {
   return { name, path, type: "file", size, sha: `sha-${name}` };

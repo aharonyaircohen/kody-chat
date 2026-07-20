@@ -11,7 +11,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Search, Loader2, FileCode2, X } from "lucide-react";
 import { cn } from "@dashboard/lib/utils";
-import { searchCode, type SearchResult } from "@dashboard/lib/repo-files";
+import { searchCode, type SearchResult } from "../lib/repo-files";
 import type { Octokit } from "@octokit/rest";
 
 interface FileSearchProps {

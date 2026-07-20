@@ -8,14 +8,29 @@
  */
 "use client";
 
-import React, { useState, useCallback, useEffect, useRef } from "react";
+import React, {
+  useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import dynamic from "next/dynamic";
 import type { EditorProps } from "@monaco-editor/react";
-import { Save, X, Loader2, Eye, Edit3, Columns, FileText } from "lucide-react";
+import {
+  Save,
+  Undo2,
+  Loader2,
+  Eye,
+  Edit3,
+  Columns,
+  FileText,
+  PanelLeft,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@dashboard/lib/utils";
-import { monacoLanguage } from "@dashboard/lib/repo-files-lang";
-import { readFile, writeFile } from "@dashboard/lib/repo-files";
+import { monacoLanguage } from "../lib/repo-files-lang";
+import { readFile, writeFile } from "../lib/repo-files";
 import type { Octokit } from "@octokit/rest";
 import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
 import {
@@ -45,8 +60,8 @@ interface FileEditorProps {
   octokit: Octokit | null;
   owner: string;
   repo: string;
-  onCancel: () => void;
   onSaved: () => void;
+  onShowFilePanel?: () => void;
   defaultMarkdownViewMode?: FileEditorViewMode;
 }
 
@@ -56,8 +71,8 @@ export function FileEditor({
   octokit,
   owner,
   repo,
-  onCancel,
   onSaved,
+  onShowFilePanel,
   defaultMarkdownViewMode = "edit",
 }: FileEditorProps) {
   const { theme } = useTheme();
@@ -71,9 +86,14 @@ export function FileEditor({
   );
   const [showCommitDialog, setShowCommitDialog] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [draftReady, setDraftReady] = useState(false);
   const editorRef = useRef<unknown>(null);
 
   const isMarkdown = path.endsWith(".md") || path.endsWith(".mdx");
+  const draftStorageKey = useMemo(
+    () => `kody:file-draft:${owner}/${repo}/${path}`,
+    [owner, repo, path],
+  );
 
   // Load file content on mount
   useEffect(() => {
@@ -81,6 +101,7 @@ export function FileEditor({
 
     const load = async () => {
       setLoading(true);
+      setDraftReady(false);
       setError(null);
       try {
         const file = await readFile(octokit, owner, repo, path);
@@ -89,7 +110,21 @@ export function FileEditor({
           return;
         }
         setOriginalContent(file.content);
-        setContent(file.content);
+        const storedDraft = localStorage.getItem(draftStorageKey);
+        if (storedDraft) {
+          try {
+            const draft = JSON.parse(storedDraft) as { content?: unknown };
+            setContent(
+              typeof draft.content === "string" ? draft.content : file.content,
+            );
+          } catch {
+            localStorage.removeItem(draftStorageKey);
+            setContent(file.content);
+          }
+        } else {
+          setContent(file.content);
+        }
+        setDraftReady(true);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load file");
       } finally {
@@ -97,12 +132,34 @@ export function FileEditor({
       }
     };
     load();
-  }, [octokit, owner, repo, path]);
+  }, [octokit, owner, repo, path, draftStorageKey]);
 
   // Track dirty state
   useEffect(() => {
     setIsDirty(content !== originalContent);
   }, [content, originalContent]);
+
+  useEffect(() => {
+    if (!draftReady) return;
+
+    if (content === originalContent) {
+      localStorage.removeItem(draftStorageKey);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      try {
+        localStorage.setItem(
+          draftStorageKey,
+          JSON.stringify({ content, updatedAt: Date.now() }),
+        );
+      } catch {
+        // Editing must continue even if browser storage is unavailable.
+      }
+    }, 300);
+
+    return () => window.clearTimeout(timeout);
+  }, [content, draftReady, draftStorageKey, originalContent]);
 
   // Keyboard shortcut: Ctrl+S / Cmd+S to save
   useEffect(() => {
@@ -132,6 +189,7 @@ export function FileEditor({
       setSaving(true);
       try {
         await writeFile(octokit, owner, repo, path, content, message, sha);
+        localStorage.removeItem(draftStorageKey);
         setOriginalContent(content);
         setIsDirty(false);
         toast.success("File saved");
@@ -143,20 +201,19 @@ export function FileEditor({
         setSaving(false);
       }
     },
-    [octokit, owner, repo, path, content, sha, onSaved],
+    [octokit, owner, repo, path, content, sha, onSaved, draftStorageKey],
   );
 
-  const handleCancel = useCallback(() => {
-    if (isDirty) {
-      const confirmed = window.confirm(
-        "Discard unsaved changes? This cannot be undone.",
-      );
-      if (!confirmed) return;
-    }
+  const handleDiscard = useCallback(() => {
+    const confirmed = window.confirm(
+      "Discard unsaved changes? This cannot be undone.",
+    );
+    if (!confirmed) return;
+
+    localStorage.removeItem(draftStorageKey);
     setContent(originalContent);
     setIsDirty(false);
-    onCancel();
-  }, [isDirty, originalContent, onCancel]);
+  }, [draftStorageKey, originalContent]);
 
   const fileName = path.split("/").pop() ?? path;
   const parentPath = path.includes("/")
@@ -172,6 +229,16 @@ export function FileEditor({
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
+              {onShowFilePanel ? (
+                <button
+                  className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                  onClick={onShowFilePanel}
+                  title="Show file panel"
+                  aria-label="Show file panel"
+                >
+                  <PanelLeft className="h-4 w-4" />
+                </button>
+              ) : null}
               <h2 className="truncate text-lg font-semibold tracking-tight">
                 {fileName}
               </h2>
@@ -192,62 +259,67 @@ export function FileEditor({
             <div className="mr-2 flex items-center rounded-xl border border-border bg-muted/40 p-1">
               <button
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs",
+                  "grid h-8 w-8 place-items-center rounded-lg",
                   viewMode === "edit"
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground",
                 )}
                 onClick={() => setViewMode("edit")}
                 title="Edit mode"
+                aria-label="Edit mode"
+                aria-pressed={viewMode === "edit"}
               >
-                <Edit3 className="h-3.5 w-3.5" />
-                Edit
+                <Edit3 className="h-4 w-4" />
               </button>
               <button
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs",
+                  "grid h-8 w-8 place-items-center rounded-lg",
                   viewMode === "preview"
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground",
                 )}
                 onClick={() => setViewMode("preview")}
                 title="Preview mode"
+                aria-label="Preview mode"
+                aria-pressed={viewMode === "preview"}
               >
-                <Eye className="h-3.5 w-3.5" />
-                Preview
+                <Eye className="h-4 w-4" />
               </button>
               <button
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs",
+                  "grid h-8 w-8 place-items-center rounded-lg",
                   viewMode === "split"
                     ? "bg-background text-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground",
                 )}
                 onClick={() => setViewMode("split")}
                 title="Split mode"
+                aria-label="Split mode"
+                aria-pressed={viewMode === "split"}
               >
-                <Columns className="h-3.5 w-3.5" />
-                Split
+                <Columns className="h-4 w-4" />
               </button>
             </div>
           )}
 
-          <button
-            onClick={handleCancel}
-            className={cn(
-              "flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm",
-              "text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            <X className="h-4 w-4" />
-            Close
-          </button>
+          {isDirty ? (
+            <button
+              onClick={handleDiscard}
+              className="grid h-9 w-9 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+              title="Discard unsaved changes"
+              aria-label="Discard unsaved changes"
+            >
+              <Undo2 className="h-4 w-4" />
+            </button>
+          ) : null}
 
           <button
             onClick={() => setShowCommitDialog(true)}
             disabled={!isDirty || saving}
+            title="Save changes"
+            aria-label="Save changes"
             className={cn(
-              "flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90",
+              "grid h-9 w-9 place-items-center rounded-lg bg-primary text-primary-foreground hover:bg-primary/90",
               (!isDirty || saving) &&
                 "cursor-not-allowed bg-muted text-muted-foreground hover:bg-muted",
             )}
@@ -257,7 +329,6 @@ export function FileEditor({
             ) : (
               <Save className="w-4 h-4" />
             )}
-            Save
           </button>
         </div>
       </div>

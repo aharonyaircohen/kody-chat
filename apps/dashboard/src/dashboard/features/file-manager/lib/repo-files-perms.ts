@@ -9,7 +9,7 @@
 "use client";
 
 import type { Octokit } from "@octokit/rest";
-import type { KodyAuth } from "./auth-context";
+import type { KodyAuth } from "@dashboard/lib/auth-context";
 
 export type FilePermission = "read" | "write";
 

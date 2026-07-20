@@ -11,7 +11,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { Upload, Loader2, File, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@dashboard/lib/utils";
-import { uploadFile } from "@dashboard/lib/repo-files";
+import { uploadFile } from "../lib/repo-files";
 import type { Octokit } from "@octokit/rest";
 
 interface UploadZoneProps {

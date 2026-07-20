@@ -7,8 +7,7 @@
  */
 "use client";
 
-import { FilesPage } from "@dashboard/components/files/FilesPage";
-import type { FileEntry } from "@dashboard/lib/repo-files";
+import { FilesPage, type FileEntry } from "@dashboard/features/file-manager";
 
 interface DocsViewProps {
   selectedPath?: string | null;

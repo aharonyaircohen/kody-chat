@@ -7,7 +7,7 @@ import {
   base64ToString,
   stringToBase64,
   lineIndexFromFragment,
-} from "@dashboard/lib/repo-files";
+} from "@dashboard/features/file-manager/lib/repo-files";
 
 // ─── base64 helpers ────────────────────────────────────────────────────────────
 

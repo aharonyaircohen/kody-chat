@@ -19,8 +19,8 @@ import {
   PanelLeftClose,
 } from "lucide-react";
 import { cn } from "@dashboard/lib/utils";
-import { listDir, type FileEntry } from "@dashboard/lib/repo-files";
-import { getFileIcon, getFileIconColor } from "@dashboard/lib/repo-files-icons";
+import { listDir, type FileEntry } from "../lib/repo-files";
+import { getFileIcon, getFileIconColor } from "../lib/repo-files-icons";
 import type { Octokit } from "@octokit/rest";
 import { FileContextMenu } from "./FileContextMenu";
 

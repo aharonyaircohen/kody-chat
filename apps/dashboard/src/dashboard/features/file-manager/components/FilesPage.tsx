@@ -45,7 +45,7 @@ import {
   type FileContent,
   type FileEntry,
   getHttpStatus,
-} from "@dashboard/lib/repo-files";
+} from "../lib/repo-files";
 import { useRepoScopedHref } from "@dashboard/lib/hooks/useRepoScopedHref";
 import { FileTree, type FileTreeOverlay } from "./FileTree";
 import { FileViewer } from "./FileViewer";
@@ -72,7 +72,7 @@ import {
 } from "@kody-ade/base/ui/dropdown-menu";
 
 type ViewMode = "viewer" | "editor" | "diff" | "search" | "upload";
-type PanelState = "tree" | "split" | "hidden";
+type PanelState = "split" | "hidden";
 
 interface SelectedFile {
   path: string;
@@ -501,10 +501,6 @@ export function FilesPage({
       openRepoPath(selectedFile.path, { updateRoute: false });
     }
   }, [selectedFile, openRepoPath]);
-
-  const handleCancel = useCallback(() => {
-    setViewMode("viewer");
-  }, []);
 
   const handleRefresh = useCallback(() => {
     setRefreshKey((k) => k + 1);
@@ -1154,8 +1150,10 @@ export function FilesPage({
           octokit={octokit}
           owner={auth?.owner ?? ""}
           repo={auth?.repo ?? ""}
-          onCancel={handleCancel}
           onSaved={handleSaved}
+          onShowFilePanel={
+            panelState === "hidden" ? () => setPanelState("split") : undefined
+          }
           defaultMarkdownViewMode={defaultMarkdownViewMode}
         />
       );
@@ -1170,6 +1168,9 @@ export function FilesPage({
           owner={auth?.owner ?? ""}
           repo={auth?.repo ?? ""}
           onViewDiff={handleViewDiff}
+          onShowFilePanel={
+            panelState === "hidden" ? () => setPanelState("split") : undefined
+          }
         />
       );
     }
@@ -1403,65 +1404,54 @@ export function FilesPage({
         onDrop={handleDrop}
       >
         {/* Left panel - file tree */}
-        {panelState !== "hidden" && (
-          <div
-            className={cn(
-              "h-full shrink-0 border-r border-border bg-card/30",
-              panelState === "split" ? "w-80 xl:w-[22rem]" : "w-full",
-            )}
-          >
-            {panelState === "split" ? (
-              <FileTree
-                onFileSelect={(path) =>
-                  openRepoPath(path, { typeHint: "file" })
-                }
-                onFolderSelect={(path) =>
-                  openRepoPath(path, { typeHint: "dir" })
-                }
-                selectedPath={selectedPath}
-                selectedPathType={selectedPathType}
-                octokit={octokit}
-                owner={auth?.owner ?? ""}
-                repo={auth?.repo ?? ""}
-                refreshKey={refreshKey}
-                onRefresh={handleRefresh}
-                onDelete={writeable ? handleDelete : undefined}
-                onRename={writeable ? handleRename : undefined}
-                onDuplicate={writeable ? handleDuplicate : undefined}
-                onDownload={handleDownload}
-                onOpenOnGitHub={handleOpenOnGitHub}
-                onNewFile={writeable ? handleNewFile : undefined}
-                onNewFolder={writeable ? handleNewFolder : undefined}
-                onCopyPath={handleCopyPath}
-                onCreateSymlink={writeable ? handleCreateSymlink : undefined}
-                onMove={writeable ? handleMoveToFolder : undefined}
-                onCollapse={() => setPanelState("hidden")}
-                treeOverlay={treeOverlay}
-                rootPath={workspaceRoot}
-                pinnedEntries={pinnedEntries}
-                protectedPaths={protectedPaths}
-                entryFilter={entryFilter}
-                variant="focused"
-              />
-            ) : null}
+        {panelState !== "hidden" ? (
+          <div className="h-full w-80 shrink-0 border-r border-border bg-card/30 xl:w-[22rem]">
+            <FileTree
+              onFileSelect={(path) => openRepoPath(path, { typeHint: "file" })}
+              onFolderSelect={(path) => openRepoPath(path, { typeHint: "dir" })}
+              selectedPath={selectedPath}
+              selectedPathType={selectedPathType}
+              octokit={octokit}
+              owner={auth?.owner ?? ""}
+              repo={auth?.repo ?? ""}
+              refreshKey={refreshKey}
+              onRefresh={handleRefresh}
+              onDelete={writeable ? handleDelete : undefined}
+              onRename={writeable ? handleRename : undefined}
+              onDuplicate={writeable ? handleDuplicate : undefined}
+              onDownload={handleDownload}
+              onOpenOnGitHub={handleOpenOnGitHub}
+              onNewFile={writeable ? handleNewFile : undefined}
+              onNewFolder={writeable ? handleNewFolder : undefined}
+              onCopyPath={handleCopyPath}
+              onCreateSymlink={writeable ? handleCreateSymlink : undefined}
+              onMove={writeable ? handleMoveToFolder : undefined}
+              onCollapse={() => setPanelState("hidden")}
+              treeOverlay={treeOverlay}
+              rootPath={workspaceRoot}
+              pinnedEntries={pinnedEntries}
+              protectedPaths={protectedPaths}
+              entryFilter={entryFilter}
+              variant="focused"
+            />
           </div>
-        )}
+        ) : null}
 
         {/* Right panel - content */}
         <div className="flex h-full min-w-0 flex-1 flex-col bg-background">
           {/* Breadcrumb */}
           {shouldShowWorkspaceLocation(selectedPathType, viewMode) ? (
             <div className="flex min-h-14 shrink-0 items-center gap-1 border-b border-border px-5">
-              {panelState === "hidden" && (
+              {panelState === "hidden" && !selectedFile ? (
                 <button
-                  className="mr-2 rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+                  className="mr-2 grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
                   onClick={() => setPanelState("split")}
                   title="Show file panel"
                   aria-label="Show file panel"
                 >
-                  <PanelLeft className="w-4 h-4" />
+                  <PanelLeft className="h-4 w-4" />
                 </button>
-              )}
+              ) : null}
               <button
                 className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
                 onClick={() => void openRepoPath("")}

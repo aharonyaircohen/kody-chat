@@ -8,7 +8,11 @@ describe("file workspace themes", () => {
   it("uses shared theme colors instead of fixed dark surfaces", () => {
     for (const file of CORE_FILE_SURFACES) {
       const source = readFileSync(
-        resolve(process.cwd(), "src/dashboard/components/files", file),
+        resolve(
+          process.cwd(),
+          "src/dashboard/features/file-manager/components",
+          file,
+        ),
         "utf8",
       );
 
@@ -20,10 +24,58 @@ describe("file workspace themes", () => {
 
   it("fills the shared page content area without generic page padding", () => {
     const source = readFileSync(
-      resolve(process.cwd(), "src/dashboard/components/files/FilesPage.tsx"),
+      resolve(
+        process.cwd(),
+        "src/dashboard/features/file-manager/components/FilesPage.tsx",
+      ),
       "utf8",
     );
 
     expect(source).toContain('contentClassName="!p-0"');
+  });
+
+  it("shows compact editor actions only when they can do something", () => {
+    const source = readFileSync(
+      resolve(
+        process.cwd(),
+        "src/dashboard/features/file-manager/components/FileEditor.tsx",
+      ),
+      "utf8",
+    );
+
+    expect(source).toContain('aria-label="Save changes"');
+    expect(source).toContain('title="Discard unsaved changes"');
+    expect(source).toContain('aria-label="Edit mode"');
+    expect(source).toContain('aria-label="Preview mode"');
+    expect(source).toContain('aria-label="Split mode"');
+    expect(source).not.toMatch(/<Edit3[^>]*\/>\s*Edit/);
+    expect(source).not.toMatch(/<Eye[^>]*\/>\s*Preview/);
+    expect(source).not.toMatch(/<Columns[^>]*\/>\s*Split/);
+    expect(source).toContain("{isDirty ? (");
+    expect(source).not.toContain("Close");
+  });
+
+  it("recovers local drafts and always leaves a file-panel restore control", () => {
+    const editorSource = readFileSync(
+      resolve(
+        process.cwd(),
+        "src/dashboard/features/file-manager/components/FileEditor.tsx",
+      ),
+      "utf8",
+    );
+    const pageSource = readFileSync(
+      resolve(
+        process.cwd(),
+        "src/dashboard/features/file-manager/components/FilesPage.tsx",
+      ),
+      "utf8",
+    );
+
+    expect(editorSource).toContain("localStorage.getItem(draftStorageKey)");
+    expect(editorSource).toMatch(/localStorage\.setItem\(\s*draftStorageKey/);
+    expect(editorSource).toContain("localStorage.removeItem(draftStorageKey)");
+    expect(pageSource).toContain('aria-label="Show file panel"');
+    expect(editorSource).toContain("onShowFilePanel");
+    expect(pageSource).not.toContain('panelState === "hidden" ? "w-12"');
   });
 });
