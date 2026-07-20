@@ -80,6 +80,7 @@ import {
 } from "./kody-chat-types";
 import type { AttachmentRef, ChatContext } from "@dashboard/lib/chat-types";
 import type { useChatSessions } from "../chat/core/use-chat-sessions";
+import { latestAgentHandoff } from "../chat/core/agent-handoff";
 import type { useLiveRunner } from "./kody-chat-live-runner";
 import { parseReasoning, stripReasoning } from "../chat/core/reasoning";
 import {
@@ -623,6 +624,9 @@ async function runSendTextInner(
       content: m.content,
       timestamp: m.timestamp ?? timestamp,
     }));
+  const agentHandoff = latestAgentHandoff(
+    sessionHook.activeSession?.agentHandoffs ?? [],
+  );
 
   const previousCheckpoint =
     sessionHook.activeSession?.id === uiSessionId
@@ -1046,6 +1050,7 @@ async function runSendTextInner(
                   selectedAgencyAgentSlug,
               }
             : {}),
+          ...(agentHandoff ? { agentHandoff } : {}),
           // Voice modality flag. When true the server appends the
           // voice overlay (no markdown, short sentences, etc.) to
           // the selected agent's system prompt and prefers the

@@ -8,7 +8,11 @@
  *   tool names the in-process chat path watches for.
  */
 
-import type { AttachmentRef, ChatContext, ChatMessage } from "@dashboard/lib/chat-types";
+import type {
+  AttachmentRef,
+  ChatContext,
+  ChatMessage,
+} from "@dashboard/lib/chat-types";
 import type { AgentId } from "@dashboard/lib/agents";
 import type { GoalRef } from "../chat/plugins/goals";
 import type { ChatViewDirective } from "@dashboard/lib/chat-ui-actions";

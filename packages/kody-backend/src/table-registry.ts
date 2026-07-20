@@ -83,6 +83,12 @@ export const TABLES: readonly TableDef[] = [
     upsertIndex: "by_user",
   },
   {
+    table: "userPreferences",
+    naturalKey: ["namespace", "userKey"],
+    upsertIndex: "by_user",
+    global: true,
+  },
+  {
     table: "agencyRecords",
     naturalKey: ["kind", "recordId"],
     upsertIndex: "by_tenant",

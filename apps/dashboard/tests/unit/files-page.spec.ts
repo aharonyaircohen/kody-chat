@@ -8,6 +8,7 @@ import {
   currentFolderPath,
   duplicatePath,
   githubFileUrl,
+  isExpectedDeletedPath,
   joinRepoPath,
   normalizeRepoPath,
   parentRepoPath,
@@ -179,5 +180,17 @@ describe("buildFileHref", () => {
     expect(buildFileHref("docs/What now?.md")).toBe(
       "/files/docs/What%20now%3F.md",
     );
+  });
+});
+
+describe("isExpectedDeletedPath", () => {
+  it("matches a deleted file and stale reads below a deleted folder", () => {
+    const deletedPaths = new Set(["docs/old.md", "docs/old-folder"]);
+
+    expect(isExpectedDeletedPath("docs/old.md", deletedPaths)).toBe(true);
+    expect(
+      isExpectedDeletedPath("docs/old-folder/nested.md", deletedPaths),
+    ).toBe(true);
+    expect(isExpectedDeletedPath("docs/current.md", deletedPaths)).toBe(false);
   });
 });

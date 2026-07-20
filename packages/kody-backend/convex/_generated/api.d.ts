@@ -36,6 +36,7 @@ import type * as reports from "../reports.js";
 import type * as runEvents from "../runEvents.js";
 import type * as taskState from "../taskState.js";
 import type * as userJourneys from "../userJourneys.js";
+import type * as userPreferences from "../userPreferences.js";
 import type * as userState from "../userState.js";
 import type * as validators from "../validators.js";
 import type * as viewRenderers from "../viewRenderers.js";
@@ -77,6 +78,7 @@ declare const fullApi: ApiFromModules<{
   runEvents: typeof runEvents;
   taskState: typeof taskState;
   userJourneys: typeof userJourneys;
+  userPreferences: typeof userPreferences;
   userState: typeof userState;
   validators: typeof validators;
   viewRenderers: typeof viewRenderers;

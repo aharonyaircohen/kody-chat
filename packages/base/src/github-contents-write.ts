@@ -95,7 +95,15 @@ export function isGitHubContentsShaConflict(err: unknown): boolean {
   const message = [record.message, responseMessage]
     .filter((value): value is string => typeof value === "string")
     .join(" ");
-  return record.status === 409 || message.includes("does not match");
+  const missingShaForExistingFile =
+    record.status === 422 &&
+    message.toLowerCase().includes("sha") &&
+    message.includes("wasn't supplied");
+  return (
+    record.status === 409 ||
+    message.includes("does not match") ||
+    missingShaForExistingFile
+  );
 }
 
 function normalizeSnapshot(data: unknown): GitHubFileSnapshot | null {

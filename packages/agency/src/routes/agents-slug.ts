@@ -19,7 +19,7 @@ import {
 import { setGitHubContext, clearGitHubContext } from "../github";
 import {
   readAgentFile,
-  readResolvedAgentFile,
+  listResolvedAgentFiles,
   writeAgentFile,
   deleteAgentFile,
   isValidSlug,
@@ -52,7 +52,9 @@ export async function GET(
     if (!isValidSlug(slug)) {
       return NextResponse.json({ error: "invalid_slug" }, { status: 400 });
     }
-    const agentMember = await readResolvedAgentFile(slug);
+    const agentMember = (await listResolvedAgentFiles()).find(
+      (candidate) => candidate.slug === slug,
+    );
     if (!agentMember) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
@@ -103,7 +105,9 @@ export async function PATCH(
 
     // Store-linked agents are editable too: the first save publishes a local
     // backend definition, which then becomes the active version.
-    const existing = await readResolvedAgentFile(slug);
+    const existing = (await listResolvedAgentFiles()).find(
+      (candidate) => candidate.slug === slug,
+    );
     if (!existing) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }

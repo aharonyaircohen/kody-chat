@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const DOCS_VIEW_SOURCE = readFileSync(
-  resolve(process.cwd(), "src/dashboard/lib/components/DocsView.tsx"),
+const FILE_EDITOR_SOURCE = readFileSync(
+  resolve(process.cwd(), "src/dashboard/components/files/FileEditor.tsx"),
   "utf8",
 );
 const MARKDOWN_VIEWER_SOURCE = readFileSync(
@@ -13,14 +13,11 @@ const MARKDOWN_VIEWER_SOURCE = readFileSync(
 
 describe("docs RTL rendering", () => {
   it("renders selected docs with automatic markdown direction", () => {
-    expect(DOCS_VIEW_SOURCE).toContain(
-      'import { autoDirProps, rtlAwareMarkdownClassName } from "../text-direction";',
-    );
-    expect(DOCS_VIEW_SOURCE).toContain("<MarkdownPreview");
-    expect(DOCS_VIEW_SOURCE).toContain("{...autoDirProps}");
-    expect(DOCS_VIEW_SOURCE).toContain("text-start");
-    expect(DOCS_VIEW_SOURCE).toContain("rtlAwareMarkdownClassName");
-    expect(DOCS_VIEW_SOURCE).toContain("md:prose-base break-words");
+    expect(FILE_EDITOR_SOURCE).toContain("<MarkdownPreview");
+    expect(FILE_EDITOR_SOURCE).toContain("{...autoDirProps}");
+    expect(FILE_EDITOR_SOURCE).toContain("text-start");
+    expect(FILE_EDITOR_SOURCE).toContain("rtlAwareMarkdownClassName");
+    expect(FILE_EDITOR_SOURCE).toContain("md:prose-base break-words");
   });
 
   it("keeps standalone markdown docs RTL-aware too", () => {

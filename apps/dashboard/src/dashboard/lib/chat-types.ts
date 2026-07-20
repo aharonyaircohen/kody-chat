@@ -8,6 +8,19 @@
 import type { ChatViewDirective } from "./chat-ui-actions";
 import type { ConversationCheckpoint } from "@kody-ade/kody-chat/core/conversation-compaction";
 
+export interface AgentHandoff {
+  fromSlug: string;
+  fromTitle: string;
+  toSlug: string;
+  toTitle: string;
+  switchedAt: string;
+}
+
+export interface AgencyAgentIdentity {
+  slug: string;
+  title: string;
+}
+
 /**
  * Reference to an attachment blob stored in IndexedDB.
  * Lives on a ChatMessage; the binary itself is in the `kody-attachments`
@@ -53,6 +66,8 @@ export interface ChatMessage {
   hidden?: boolean;
   /** Optional structured UI rendered under an assistant chat message. */
   view?: ChatViewDirective;
+  /** @deprecated Migrated into SessionMeta.agentHandoffs when the store loads. */
+  agentHandoff?: AgentHandoff;
 }
 
 /**
@@ -124,6 +139,10 @@ export interface SessionMeta {
    * user picks an agent in that session, the field is populated.
    */
   agentKey?: string;
+  /** Server-validated AI Agency identity currently active in this session. */
+  agencyAgent?: AgencyAgentIdentity;
+  /** Ordered conversation events; kept outside the user/assistant transcript. */
+  agentHandoffs?: AgentHandoff[];
   /** Derived model memory for long conversations; never replaces the transcript. */
   contextCheckpoint?: ConversationCheckpoint;
   /** Ephemeral UI status derived from the stored messages */

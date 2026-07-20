@@ -105,6 +105,7 @@ built-ins for cold-start and unavailable-Store cases.
 | `/goal`       | Draft new goal.                                            |
 | `/init`       | Install Kody engine in connected repo.                     |
 | `/issue`      | Research, draft, create issue, then offer to run Kody.     |
+| `/meeting-summary` | Summarize pasted meeting notes into a saved report.   |
 | `/mission`    | Draft a mission task group.                                |
 | `/plan`       | Plan change without writing code yet.                      |
 | `/research`   | Investigate topic; summary only, no edits.                 |

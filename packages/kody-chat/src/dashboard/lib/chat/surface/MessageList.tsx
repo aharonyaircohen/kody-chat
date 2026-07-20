@@ -47,6 +47,7 @@ import {
   textIsolationStyle,
 } from "@dashboard/lib/text-direction";
 import type { CompactionStatus } from "../../components/kody-chat-compaction";
+import type { AgentHandoff } from "../../chat-types";
 
 export function getMessageDirection(text: string) {
   return resolveTextDirection(text);
@@ -84,6 +85,8 @@ interface MessageListProps {
   terminalSurfaces: ReactNode;
   /** Role alignment policy. Defaults to dashboard chat behavior. */
   roleLayout?: "dashboard" | "client";
+  /** Non-message conversation events rendered in transcript order. */
+  agentHandoffs?: AgentHandoff[];
 }
 
 export function messageJustifyClass(
@@ -109,10 +112,25 @@ export function MessageList({
   emptyState,
   terminalSurfaces,
   roleLayout = "dashboard",
+  agentHandoffs = [],
 }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const timeline = [
+    ...messages.map((message, messageIndex) => ({
+      kind: "message" as const,
+      message,
+      messageIndex,
+      timestamp: message.timestamp ?? "",
+    })),
+    ...agentHandoffs.map((handoff, handoffIndex) => ({
+      kind: "handoff" as const,
+      handoff,
+      handoffIndex,
+      timestamp: handoff.switchedAt,
+    })),
+  ].sort((left, right) => left.timestamp.localeCompare(right.timestamp));
 
   const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -173,7 +191,24 @@ export function MessageList({
         {terminalSurfaces}
 
         {chatMode === "ai" &&
-          messages.map((msg, i) => {
+          timeline.map((item) => {
+            if (item.kind === "handoff") {
+              return (
+                <div
+                  key={`handoff-${item.handoff.switchedAt}-${item.handoffIndex}`}
+                  data-testid="agent-handoff"
+                  className="flex items-center gap-3 py-1 text-xs text-muted-foreground"
+                >
+                  <span className="h-px flex-1 bg-border" />
+                  <span>
+                    {item.handoff.fromTitle} → {item.handoff.toTitle}
+                  </span>
+                  <span className="h-px flex-1 bg-border" />
+                </div>
+              );
+            }
+            const msg = item.message;
+            const i = item.messageIndex;
             if (msg.hidden) return null;
 
             const parsedAssistant =
@@ -307,9 +342,9 @@ export function MessageList({
                                   role="alert"
                                   className="mt-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-500"
                                 >
-                                  The model wrote a tool call as plain text —
-                                  it did NOT execute. Any result or id it
-                                  reported for that call is unverified.
+                                  The model wrote a tool call as plain text — it
+                                  did NOT execute. Any result or id it reported
+                                  for that call is unverified.
                                 </div>
                               )}
                             {msg.view && isRenderedViewDirective(msg.view) && (

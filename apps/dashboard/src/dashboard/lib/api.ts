@@ -22,7 +22,6 @@ export * from "./api/reports";
 export * from "./api/goals";
 export * from "./api/notifications";
 export * from "./api/changelog";
-export * from "./api/docs";
 export * from "./api/vibe";
 export * from "./api/cto";
 export * from "./api/activity";
@@ -47,7 +46,6 @@ import { reportsApi } from "./api/reports";
 import { goalsApi } from "./api/goals";
 import { notificationsApi } from "./api/notifications";
 import { changelogApi } from "./api/changelog";
-import { docsApi } from "./api/docs";
 import { vibeApi } from "./api/vibe";
 import { ctoApi } from "./api/cto";
 import { activityApi, agencyRunsApi } from "./api/activity";
@@ -84,7 +82,6 @@ export const kodyApi = {
   messages: messagesApi,
   notifications: notificationsApi,
   changelog: changelogApi,
-  docs: docsApi,
   vibe: vibeApi,
   cto: ctoApi,
   activity: activityApi,

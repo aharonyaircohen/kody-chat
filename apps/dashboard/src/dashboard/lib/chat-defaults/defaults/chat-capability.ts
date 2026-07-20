@@ -127,6 +127,7 @@ export const DEFAULT_CHAT_CAPABILITY: ChatCapabilityEntry = {
     // ── Reports (repo-gated) ───────────────────────────────────────────────
     "list_reports",
     "read_report",
+    "publish_report",
     // ── Goals (repo-gated) ─────────────────────────────────────────────────
     "get_goal",
     "list_goals",

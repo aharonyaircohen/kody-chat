@@ -136,6 +136,22 @@ export const BUILTIN_COMMANDS: readonly BuiltinCommand[] = [
       "Capture motivation, success metric, and rough first milestone. Keep it tight — one paragraph each, no fluff.",
   },
   {
+    slug: "meeting-summary",
+    description: "Summarize meeting notes into a saved report",
+    argumentHint: "<paste raw meeting notes>",
+    body:
+      "Summarize these meeting notes: $ARGUMENTS.\n\n" +
+      "Produce a concise summary with these sections (omit empty ones):\n" +
+      "- **Summary** — 2–4 sentences on what the meeting covered.\n" +
+      "- **Decisions** — bullet list of decisions made.\n" +
+      "- **Action items** — bullet list as `owner — task (due date if given)`.\n" +
+      "- **Open questions** — unresolved points needing follow-up.\n\n" +
+      "Then call `publish_report` with slug `meeting-notes`, a title of the " +
+      'form "Meeting — <topic> (<date>)", and the summary as the markdown ' +
+      "body. Show the summary in chat and confirm it was saved to Reports. " +
+      "Do not create issues, goals, or tasks unless I ask.",
+  },
+  {
     slug: "analyze",
     description: "Analyze the current issue/PR/run on this page",
     body:

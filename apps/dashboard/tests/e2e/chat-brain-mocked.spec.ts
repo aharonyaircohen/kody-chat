@@ -8,7 +8,14 @@
 
 import { test, expect, type Page } from "@playwright/test";
 
-const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
+const BASE_URL = process.env.PW_LOCAL
+  ? "http://127.0.0.1:3333"
+  : (process.env.BASE_URL ?? "http://127.0.0.1:3333");
+const CHAT_URL = `${BASE_URL}/repo/test-owner/test-repo/chat`;
+
+function sseBody(events: unknown[]): string {
+  return events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
+}
 
 async function seedAuth(page: Page): Promise<void> {
   await page.goto(`${BASE_URL}/login`);
@@ -49,10 +56,54 @@ test.describe("Chat picker backend boundary", () => {
               updatedAt: "",
               htmlUrl: "",
             },
+            {
+              slug: "ux",
+              title: "UX",
+              body: "UX agent",
+              updatedAt: "",
+              htmlUrl: "",
+            },
+            {
+              slug: "ceo",
+              title: "CEO",
+              body: "CEO agent",
+              updatedAt: "",
+              htmlUrl: "",
+            },
           ],
         }),
       }),
     );
+    await page.route(/\/api\/kody\/agents\/[^/?]+(?:\?.*)?$/, async (route) => {
+      const slug = route.request().url().split("/").pop();
+      const known = {
+        research: "Research",
+        ux: "UX",
+        ceo: "CEO",
+      } as const;
+      const title = known[slug as keyof typeof known];
+      if (!title) {
+        await route.fulfill({
+          status: 404,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "not_found" }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          agentMember: {
+            slug,
+            title,
+            body: `${title} agent`,
+            updatedAt: "",
+            htmlUrl: "",
+          },
+        }),
+      });
+    });
     await page.route("**/api/kody/models", (route) =>
       route.fulfill({
         status: 200,
@@ -66,8 +117,8 @@ test.describe("Chat picker backend boundary", () => {
   });
 
   test("keeps agency and model selection separate", async ({ page }) => {
-    await page.goto(`${BASE_URL}/chat`);
-    await expect(page).toHaveURL(/\/repo\/test-owner\/test-repo\/chat$/);
+    await page.goto(CHAT_URL);
+    await expect(page).toHaveURL(CHAT_URL);
 
     const chat = page.locator('[aria-label="Kody chat"]').first();
     const title = chat.getByTestId("chat-context-bar");
@@ -131,5 +182,133 @@ test.describe("Chat picker backend boundary", () => {
     await expect(effortMenu).toBeVisible();
     await page.locator("body").click({ position: { x: 4, y: 4 } });
     await expect(effortMenu).toBeHidden();
+  });
+
+  test("persists an agent handoff and sends it as identity context", async ({
+    page,
+  }) => {
+    const requestBodies: Array<Record<string, unknown>> = [];
+    await page.route("**/api/kody/chat/kody", async (route) => {
+      requestBodies.push(route.request().postDataJSON());
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "content-type": "text/event-stream; charset=utf-8",
+          "cache-control": "no-cache",
+        },
+        body: sseBody([
+          { type: "text-delta", delta: "Agent reply" },
+          { type: "finish" },
+        ]),
+      });
+    });
+
+    await page.goto(CHAT_URL);
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    const agentPicker = chat.getByLabel("Agency agent").first();
+    await expect(agentPicker).toBeVisible({ timeout: 15_000 });
+
+    const modelPicker = chat.getByLabel("Model").first();
+    await modelPicker.click();
+    await chat
+      .locator('[role="listbox"]:visible')
+      .first()
+      .locator('button[role="option"]')
+      .filter({ hasText: "Kody Test" })
+      .click();
+
+    await agentPicker.click();
+    await chat
+      .locator('[role="listbox"]:visible')
+      .first()
+      .locator('button[role="option"]')
+      .filter({ hasText: "UX" })
+      .click();
+
+    const composer = chat.locator("textarea").first();
+    await composer.fill("Who are you?");
+    await chat.getByRole("button", { name: "Send message" }).click();
+    await expect(chat.getByText("Agent reply")).toBeVisible();
+
+    await agentPicker.click();
+    await chat
+      .locator('[role="listbox"]:visible')
+      .first()
+      .locator('button[role="option"]')
+      .filter({ hasText: "CEO" })
+      .click();
+    await expect(chat.getByTestId("agent-handoff")).toHaveText("UX → CEO");
+
+    await composer.fill("Who are you now?");
+    await chat.getByRole("button", { name: "Send message" }).click();
+    await expect.poll(() => requestBodies.length).toBe(2);
+
+    expect(requestBodies[1]?.agentSlug).toBe("ceo");
+    expect(requestBodies[1]?.agentHandoff).toEqual({
+      fromSlug: "ux",
+      fromTitle: "UX",
+      toSlug: "ceo",
+      toTitle: "CEO",
+      switchedAt: expect.any(String),
+    });
+    expect(requestBodies[1]?.messages).toEqual([
+      expect.objectContaining({ role: "user", content: "Who are you?" }),
+      expect.objectContaining({ role: "assistant", content: "Agent reply" }),
+      expect.objectContaining({ role: "user", content: "Who are you now?" }),
+    ]);
+
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          localStorage
+            .getItem("kody-sessions-v3:test-owner/test-repo")
+            ?.includes('"toSlug":"ceo"'),
+        ),
+      )
+      .toBe(true);
+    const persisted = await page.evaluate(() =>
+      JSON.parse(
+        localStorage.getItem("kody-sessions-v3:test-owner/test-repo") ?? "{}",
+      ),
+    );
+    const activeSession = persisted.sessions.find(
+      (session: { id: string }) => session.id === persisted.activeSessionId,
+    );
+    expect(activeSession.agencyAgent).toEqual({ slug: "ceo", title: "CEO" });
+    expect(
+      persisted.messages[persisted.activeSessionId].some(
+        (message: { agentHandoff?: unknown }) => message.agentHandoff,
+      ),
+    ).toBe(false);
+    await page.reload();
+    await expect(chat.getByTestId("agent-handoff")).toHaveText("UX → CEO");
+    await expect(agentPicker).toContainText("ceo");
+  });
+
+  test("keeps the current agent when server validation fails", async ({
+    page,
+  }) => {
+    await page.route("**/api/kody/agents/ceo", (route) =>
+      route.fulfill({
+        status: 404,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "not_found" }),
+      }),
+    );
+    await page.goto(CHAT_URL);
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    const agentPicker = chat.getByLabel("Agency agent").first();
+
+    await agentPicker.click();
+    await chat
+      .locator('[role="listbox"]:visible')
+      .first()
+      .locator('button[role="option"]')
+      .filter({ hasText: "CEO" })
+      .click();
+
+    await expect(agentPicker).toContainText("kody");
+    await expect(chat.getByTestId("agent-handoff")).toHaveCount(0);
+    await expect(page.getByText("Could not switch to CEO")).toBeVisible();
   });
 });

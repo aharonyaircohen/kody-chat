@@ -266,10 +266,7 @@ describe("storage keys", () => {
     // pulling the React tree into a node-env test) — pin the literal at the
     // source level so a rename breaks this test.
     const src = readFileSync(
-      resolve(
-        __dirname,
-        "../../src/dashboard/lib/components/KodyChat.tsx",
-      ),
+      resolve(__dirname, "../../src/dashboard/lib/components/KodyChat.tsx"),
       "utf8",
     );
     expect(src).toContain('"kody-chat:sessions-panel-pinned"');
@@ -358,9 +355,7 @@ describe("loadStore", () => {
     store.setItem(LEGACY_KEY, JSON.stringify(V3_FIXTURE));
     const { loadStore } = await loadModule();
     expect(loadStore(SCOPED_KEY, "global")).toEqual(V3_FIXTURE);
-    expect(JSON.parse(store.getItem(SCOPED_KEY) as string)).toEqual(
-      V3_FIXTURE,
-    );
+    expect(JSON.parse(store.getItem(SCOPED_KEY) as string)).toEqual(V3_FIXTURE);
     expect(store.getItem(LEGACY_KEY)).toBeNull(); // one-time move
   });
 
@@ -426,6 +421,45 @@ describe("loadStore", () => {
 // ─── serialize → parse round-trip (schema snapshot) ──────────────────────────
 
 describe("v3 schema round-trip", () => {
+  it("migrates legacy synthetic handoff messages into session events", async () => {
+    const { migrateLegacyAgentHandoffs } = await loadModule();
+    const legacyStore = {
+      ...V3_FIXTURE,
+      sessions: [{ ...V3_FIXTURE.sessions[0], messageCount: 3 }],
+      messages: {
+        [V3_FIXTURE.sessions[0].id]: [
+          ...V3_FIXTURE.messages[V3_FIXTURE.sessions[0].id],
+          {
+            role: "assistant",
+            text: "",
+            timestamp: "2026-01-01T10:06:00.000Z",
+            agentHandoff: {
+              fromSlug: "ux",
+              fromTitle: "UX",
+              toSlug: "ceo",
+              toTitle: "CEO",
+            },
+          },
+        ],
+      },
+      activeSessionId: V3_FIXTURE.sessions[0].id,
+    } as unknown as Parameters<typeof migrateLegacyAgentHandoffs>[0];
+    const migrated = migrateLegacyAgentHandoffs(legacyStore);
+
+    expect(migrated.messages[V3_FIXTURE.sessions[0].id]).toHaveLength(2);
+    expect(migrated.sessions[0]).toMatchObject({
+      messageCount: 2,
+      agencyAgent: { slug: "ceo", title: "CEO" },
+      agentHandoffs: [
+        {
+          fromSlug: "ux",
+          toSlug: "ceo",
+          switchedAt: "2026-01-01T10:06:00.000Z",
+        },
+      ],
+    });
+  });
+
   it("saveStore + flushSave serializes the exact v3 schema and loadStore round-trips it", async () => {
     const store = installStorage(AUTH);
     const { saveStore, flushSave, loadStore } = await loadModule();

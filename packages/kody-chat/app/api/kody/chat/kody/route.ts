@@ -156,12 +156,17 @@ import { buildExplicitMemoryDraft } from "./explicit-memory";
 import { ensureKodyRuntimeInitialized } from "./runtime-init";
 import {
   isValidSlug as isValidAgentSlug,
-  readResolvedAgentFile,
+  listResolvedAgentFiles,
 } from "@dashboard/lib/agent-files";
 import {
   appendAgentChatSpeakerOverride,
   buildAgentChatIdentity,
 } from "@dashboard/lib/agent-chat-identity";
+import {
+  buildAgentHandoffPrompt,
+  resolveAgentHandoffForPrompt,
+} from "../../../../../src/dashboard/lib/chat/core/agent-handoff";
+import type { AgentHandoff } from "../../../../../src/dashboard/lib/chat-types";
 import {
   buildExplicitViewRequestInstruction,
   parseExplicitViewRequest,
@@ -635,6 +640,8 @@ async function handleKodyDirectPost(
      * a prompt identity swap for this in-process turn, not a runner dispatch.
      */
     agentSlug?: string;
+    /** Latest persisted agent switch for this conversation. */
+    agentHandoff?: AgentHandoff;
     /**
      * Voice modality. When true the server appends `VOICE_OVERLAY_PROMPT`
      * to the resolved agent's base prompt (no markdown, short sentences,
@@ -957,8 +964,8 @@ async function handleKodyDirectPost(
       ? body.agentSlug.trim()
       : "";
   let activeAgentIdentity = chatBundle.agentIdentity;
-  let addressedAgentMember: Awaited<ReturnType<typeof readResolvedAgentFile>> =
-    null;
+  let addressedAgentMember:
+    Awaited<ReturnType<typeof listResolvedAgentFiles>>[number] | null = null;
   if (agentSlug) {
     if (!isValidAgentSlug(agentSlug)) {
       clearGitHubContext();
@@ -972,9 +979,11 @@ async function handleKodyDirectPost(
     }
     let agentMember;
     try {
-      agentMember = await readResolvedAgentFile(
-        agentSlug,
-        createUserOctokit(repo.token),
+      // Resolve from the same merged list that powers the AI Agency picker.
+      // A separate point lookup allowed the picker and chat to disagree,
+      // surfacing a selectable agent as `agent_not_found` only after send.
+      agentMember = (await listResolvedAgentFiles()).find(
+        (candidate) => candidate.slug === agentSlug,
       );
     } catch (err) {
       clearGitHubContext();
@@ -994,7 +1003,6 @@ async function handleKodyDirectPost(
   // bundle filter). Best-effort — a missing capability is skipped.
   let capabilityToolNames: string[] = [];
   if (repo && addressedAgentMember?.capabilities?.length) {
-    const octokit = createUserOctokit(repo.token);
     const caps = (
       await Promise.all(
         addressedAgentMember.capabilities.map((slug) =>
@@ -1479,6 +1487,18 @@ async function handleKodyDirectPost(
     promptWithReminders,
     addressedAgentMember,
   );
+  const verifiedAgentHandoff = resolveAgentHandoffForPrompt(
+    body.agentHandoff,
+    addressedAgentMember
+      ? {
+          slug: addressedAgentMember.slug,
+          title: addressedAgentMember.title,
+        }
+      : { slug: "kody", title: "Kody" },
+  );
+  const promptWithAgentHandoff = verifiedAgentHandoff
+    ? `${promptWithSpeakerOverride}\n\n${buildAgentHandoffPrompt(verifiedAgentHandoff)}`
+    : promptWithSpeakerOverride;
 
   // Voice modality is layered onto the FULLY-ASSEMBLED prompt, appended
   // LAST so its rules ("no markdown, short sentences, symbols-as-words")
@@ -1486,7 +1506,7 @@ async function handleKodyDirectPost(
   // which otherwise teach the model to reply in bullet-heavy markdown.
   // The agent's brain and tools are untouched — the user picks the brain
   // in the dropdown; only the output shape changes.
-  const systemPrompt = applyVoiceOverlay(promptWithSpeakerOverride, voiceMode);
+  const systemPrompt = applyVoiceOverlay(promptWithAgentHandoff, voiceMode);
   const groundedSystemPrompt = hasImageParts
     ? `${systemPrompt}
 

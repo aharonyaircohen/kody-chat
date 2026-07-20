@@ -99,11 +99,11 @@ export function FileViewer({
       {/* Metadata bar */}
       <div className="flex items-center gap-4 px-4 py-2 border-b border-white/10 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-sm font-medium truncate">{fileName}</span>
-          <span className="text-xs text-white/40 truncate">{path}</span>
+          <span className="text-base font-medium truncate">{fileName}</span>
+          <span className="text-sm text-white/40 truncate">{path}</span>
         </div>
 
-        <div className="ml-auto flex items-center gap-3 text-xs text-white/40 shrink-0">
+        <div className="ml-auto flex items-center gap-3 text-sm text-white/40 shrink-0">
           {sha && <span className="font-mono">{sha.slice(0, 7)}</span>}
           <span className="flex items-center gap-1">
             <FileQuestion className="w-3 h-3" />
@@ -117,7 +117,7 @@ export function FileViewer({
         <button
           onClick={handleCopy}
           className={cn(
-            "flex items-center gap-1.5 text-xs px-2 py-1 rounded",
+            "flex items-center gap-1.5 text-sm px-2 py-1 rounded",
             "text-white/60 hover:text-white/90 hover:bg-white/10",
           )}
           title="Copy file content"
@@ -130,7 +130,7 @@ export function FileViewer({
           <button
             onClick={onViewDiff}
             className={cn(
-              "flex items-center gap-1.5 text-xs px-2 py-1 rounded",
+              "flex items-center gap-1.5 text-sm px-2 py-1 rounded",
               "text-white/60 hover:text-white/90 hover:bg-white/10",
             )}
           >

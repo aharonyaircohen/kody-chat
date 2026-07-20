@@ -2,8 +2,8 @@
  * @fileType util
  * @domain reports
  * @pattern chat-tools
- * @ai-summary Read-only chat tools for goal/loop report families in the
- *   configured Kody backend — list and read.
+ * @ai-summary Chat tools for goal/loop report families in the configured
+ *   Kody backend — list, read, and publish a timestamped run.
  *   Reports are the Dashboard-facing summaries produced after goals/loops apply evidence.
  */
 import { tool } from "ai";
@@ -11,8 +11,9 @@ import { z } from "zod";
 import {
   listReportFiles,
   readReportFile,
+  writeReportRun,
   isValidSlug,
-} from "../../../../../tests/fixtures/chat-business-fixtures";
+} from "@dashboard/lib/reports-files";
 
 export function createReportTools(opts: { owner: string; repo: string }) {
   const repoRef = `${opts.owner}/${opts.repo}`;
@@ -48,6 +49,32 @@ export function createReportTools(opts: { owner: string; repo: string }) {
           const report = await readReportFile(slug);
           if (!report) return { error: `report "${slug}" not found` };
           return { report };
+        } catch (err) {
+          return { error: err instanceof Error ? err.message : String(err) };
+        }
+      },
+    }),
+
+    publish_report: tool({
+      description:
+        `Publish a markdown report run in ${repoRef} (backend reports/). ` +
+        `Appends a timestamped run under the given report family slug ` +
+        `(e.g. "meeting-notes") so it shows on the Reports page.`,
+      inputSchema: z.object({
+        slug: z.string().min(1).max(64),
+        title: z.string().min(1).max(200),
+        body: z.string().min(1).max(50_000),
+      }),
+      execute: async ({ slug, title, body }) => {
+        if (!isValidSlug(slug)) return { error: `invalid slug "${slug}"` };
+        try {
+          const run = await writeReportRun({
+            slug,
+            title,
+            body,
+            generatedAt: new Date().toISOString(),
+          });
+          return { published: true, slug, ...run };
         } catch (err) {
           return { error: err instanceof Error ? err.message : String(err) };
         }

@@ -301,6 +301,40 @@ export async function listReportFiles(): Promise<ReportFile[]> {
 }
 
 /**
+ * Publish a new run under a report family. Returns the created run id.
+ */
+export async function writeReportRun(input: {
+  slug: string;
+  title: string;
+  body: string;
+  generatedAt: string;
+}): Promise<{ runId: string; path: string }> {
+  if (!isValidSlug(input.slug)) {
+    throw new Error(`invalid report slug "${input.slug}"`);
+  }
+  const runId = input.generatedAt
+    .replace(/\.\d{3}Z$/, "Z")
+    .replace(/:/g, "-");
+  if (!isValidRunId(runId)) {
+    throw new Error(`invalid generatedAt "${input.generatedAt}"`);
+  }
+  const raw = `---\ngeneratedAt: ${input.generatedAt}\n---\n# ${input.title}\n\n${input.body.replace(/\n*$/, "\n")}`;
+  await getConvexClient().mutation(backendApi.reports.save, {
+    tenantId: tenantIdFor(getOwner(), getRepo()),
+    slug: input.slug,
+    runId,
+    title: input.title,
+    body: raw,
+    meta: {},
+    updatedAt: input.generatedAt,
+  });
+  return {
+    runId,
+    path: `${REPORTS_DIR}/${input.slug}/${RUNS_DIR}/${runId}.md`,
+  };
+}
+
+/**
  * Read a single report by slug (optionally a specific run). Returns `null`
  * when it does not exist.
  */

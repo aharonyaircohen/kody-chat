@@ -59,6 +59,10 @@ interface FileTreeProps {
   ) => void;
   onCollapse?: () => void;
   treeOverlay?: FileTreeOverlay;
+  rootPath?: string;
+  pinnedEntries?: FileEntry[];
+  entryFilter?: (entry: FileEntry) => boolean;
+  protectedPaths?: string[];
 }
 
 export interface FileTreeOverlay {
@@ -228,6 +232,7 @@ interface TreeNodeRowProps {
   onDragOverFolder?: (path: string) => boolean;
   onDropOnFolder?: (path: string) => void;
   dropTargetPath?: string | null;
+  protectedPaths: Set<string>;
 }
 
 function TreeNodeRow({
@@ -247,12 +252,14 @@ function TreeNodeRow({
   onDragOverFolder,
   onDropOnFolder,
   dropTargetPath,
+  protectedPaths,
 }: TreeNodeRowProps) {
   const { entry, isOpen, isLoading } = node;
   const paddingLeft = depth * 16 + 8;
   const isSelected = selectedPath === entry.path;
   const isDir = entry.type === "dir";
   const isDropTarget = isDir && dropTargetPath === entry.path;
+  const isProtected = protectedPaths.has(entry.path);
 
   const Icon = getFileIcon(entry.path, isOpen, entry.type === "symlink", isDir);
   const iconColor = getFileIconColor(
@@ -266,7 +273,7 @@ function TreeNodeRow({
     <>
       <div
         className={cn(
-          "flex items-center gap-1.5 px-2 py-1 cursor-pointer rounded text-sm select-none",
+          "flex items-center gap-2 px-2 py-2 cursor-pointer rounded text-base select-none",
           "hover:bg-white/5",
           isSelected && "bg-accent text-accent-foreground",
           isDropTarget && "bg-emerald-500/15 ring-1 ring-emerald-400/40",
@@ -280,8 +287,10 @@ function TreeNodeRow({
             onSelect(entry.path);
           }
         }}
-        onContextMenu={(e) => onContextMenu(e, entry.path, entry.type)}
-        draggable={Boolean(onDragStartMove)}
+        onContextMenu={(e) => {
+          if (!isProtected) onContextMenu(e, entry.path, entry.type);
+        }}
+        draggable={Boolean(onDragStartMove) && !isProtected}
         onDragStart={(e) => {
           if (!onDragStartMove) return;
           e.stopPropagation();
@@ -322,7 +331,7 @@ function TreeNodeRow({
           <Loader2 className="w-3 h-3 animate-spin shrink-0 ml-auto" />
         )}
         {!isLoading && !isDir && (
-          <span className="ml-auto text-[10px] text-white/30 shrink-0">
+          <span className="ml-auto text-xs text-white/40 shrink-0">
             {formatBytes(entry.size)}
           </span>
         )}
@@ -346,6 +355,7 @@ function TreeNodeRow({
           onDragOverFolder={onDragOverFolder}
           onDropOnFolder={onDropOnFolder}
           dropTargetPath={dropTargetPath}
+          protectedPaths={protectedPaths}
         />
       ))}
     </>
@@ -374,7 +384,16 @@ export function FileTree({
   onMove,
   onCollapse,
   treeOverlay = EMPTY_TREE_OVERLAY,
+  rootPath = "",
+  pinnedEntries = [],
+  entryFilter,
+  protectedPaths = [],
 }: FileTreeProps) {
+  const normalizedRootPath = normalizeTreePath(rootPath);
+  const protectedPathSet = useMemo(
+    () => new Set(protectedPaths.map(normalizeTreePath)),
+    [protectedPaths],
+  );
   const [openPaths, setOpenPaths] = useState<Set<string>>(new Set());
   const [childrenMap, setChildrenMap] = useState<Record<string, FileEntry[]>>(
     {},
@@ -396,8 +415,8 @@ export function FileTree({
 
   // Load root directory
   const { data: rootEntries, isLoading: rootLoading } = useQuery({
-    queryKey: ["files-tree", owner, repo, "", refreshKey],
-    queryFn: () => listDir(octokit!, owner, repo, ""),
+    queryKey: ["files-tree", owner, repo, normalizedRootPath, refreshKey],
+    queryFn: () => listDir(octokit!, owner, repo, normalizedRootPath),
     enabled: !!octokit,
     staleTime: 30_000,
   });
@@ -431,7 +450,9 @@ export function FileTree({
 
         setLoadingPaths((prev) => new Set(prev).add(path));
         try {
-          const entries = await listDir(octokit, owner, repo, path);
+          const entries = (await listDir(octokit, owner, repo, path)).filter(
+            (entry) => !entryFilter || entryFilter(entry),
+          );
           if (cancelled) return;
           setChildrenMap((prev) => {
             if (prev[path]) return prev;
@@ -456,7 +477,15 @@ export function FileTree({
     return () => {
       cancelled = true;
     };
-  }, [octokit, owner, repo, refreshKey, selectedPath, selectedPathType]);
+  }, [
+    entryFilter,
+    octokit,
+    owner,
+    repo,
+    refreshKey,
+    selectedPath,
+    selectedPathType,
+  ]);
 
   const handleToggle = useCallback(
     async (path: string) => {
@@ -472,7 +501,9 @@ export function FileTree({
         if (!childrenMap[path]) {
           setLoadingPaths((prev) => new Set(prev).add(path));
           try {
-            const entries = await listDir(octokit!, owner, repo, path);
+            const entries = (await listDir(octokit!, owner, repo, path)).filter(
+              (entry) => !entryFilter || entryFilter(entry),
+            );
             setChildrenMap((prev) => ({ ...prev, [path]: entries }));
           } finally {
             setLoadingPaths((prev) => {
@@ -485,7 +516,7 @@ export function FileTree({
         setOpenPaths((prev) => new Set(prev).add(path));
       }
     },
-    [openPaths, childrenMap, octokit, owner, repo],
+    [openPaths, childrenMap, octokit, owner, repo, entryFilter],
   );
 
   const handleSelect = useCallback(
@@ -564,12 +595,30 @@ export function FileTree({
 
   // Build tree nodes from open paths
   const displayRootEntries = useMemo(
-    () => applyTreeOverlay(rootEntries ?? [], "", treeOverlay),
-    [rootEntries, treeOverlay],
+    () =>
+      applyTreeOverlay(
+        [
+          ...pinnedEntries,
+          ...(rootEntries ?? []).filter(
+            (entry) => !entryFilter || entryFilter(entry),
+          ),
+        ],
+        normalizedRootPath,
+        treeOverlay,
+      ),
+    [entryFilter, normalizedRootPath, pinnedEntries, rootEntries, treeOverlay],
   );
   const displayChildrenMap = useMemo(
-    () => applyTreeOverlayToChildrenMap(childrenMap, treeOverlay),
-    [childrenMap, treeOverlay],
+    () =>
+      Object.fromEntries(
+        Object.entries(
+          applyTreeOverlayToChildrenMap(childrenMap, treeOverlay),
+        ).map(([path, entries]) => [
+          path,
+          entries.filter((entry) => !entryFilter || entryFilter(entry)),
+        ]),
+      ),
+    [childrenMap, entryFilter, treeOverlay],
   );
   const rootNodes: TreeNode[] = buildTree(
     displayRootEntries,
@@ -588,7 +637,7 @@ export function FileTree({
       <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10 shrink-0">
         <button
           className={cn(
-            "flex items-center gap-1 text-xs px-2 py-1 rounded",
+            "flex items-center gap-1 text-sm px-2 py-1.5 rounded",
             sortKey === "name"
               ? "bg-white/10 text-white"
               : "text-white/50 hover:text-white/70",
@@ -600,7 +649,7 @@ export function FileTree({
         </button>
         <button
           className={cn(
-            "flex items-center gap-1 text-xs px-2 py-1 rounded",
+            "flex items-center gap-1 text-sm px-2 py-1.5 rounded",
             sortKey === "size"
               ? "bg-white/10 text-white"
               : "text-white/50 hover:text-white/70",
@@ -613,7 +662,7 @@ export function FileTree({
         <button
           onClick={() => setSortKey("lastModified")}
           className={cn(
-            "flex items-center gap-1 text-xs px-2 py-1 rounded",
+            "flex items-center gap-1 text-sm px-2 py-1.5 rounded",
             sortKey === "lastModified"
               ? "bg-white/10 text-white"
               : "text-white/50 hover:text-white/70",
@@ -650,20 +699,20 @@ export function FileTree({
       <div
         className={cn(
           "flex-1 overflow-y-auto py-1",
-          dropTargetPath === "" && "bg-emerald-500/10",
+          dropTargetPath === normalizedRootPath && "bg-emerald-500/10",
         )}
         role="tree"
         tabIndex={0}
         onDragOver={(e) => {
-          if (!canDropOnFolder("")) return;
+          if (!canDropOnFolder(normalizedRootPath)) return;
           e.preventDefault();
           e.dataTransfer.dropEffect = "move";
-          setDropTargetPath("");
+          setDropTargetPath(normalizedRootPath);
         }}
         onDrop={(e) => {
-          if (!draggedEntry || !canDropOnFolder("")) return;
+          if (!draggedEntry || !canDropOnFolder(normalizedRootPath)) return;
           e.preventDefault();
-          onMove?.(draggedEntry.path, draggedEntry.type, "");
+          onMove?.(draggedEntry.path, draggedEntry.type, normalizedRootPath);
           setDraggedEntry(null);
           setDropTargetPath(null);
         }}
@@ -673,7 +722,7 @@ export function FileTree({
             <Loader2 className="w-5 h-5 animate-spin text-white/40" />
           </div>
         ) : rootNodes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-white/40 text-sm">
+          <div className="flex flex-col items-center justify-center py-8 text-white/40 text-base">
             <FileQuestion className="w-8 h-8 mb-2" />
             <span>This folder is empty</span>
           </div>
@@ -697,6 +746,7 @@ export function FileTree({
               onDragOverFolder={handleDragOverFolder}
               onDropOnFolder={handleDropOnFolder}
               dropTargetPath={dropTargetPath}
+              protectedPaths={protectedPathSet}
             />
           ))
         )}

@@ -31,6 +31,26 @@ describe("Sidebar navigation items", () => {
     expect(SOURCE).toContain('item.href === "/messages"');
     expect(SOURCE).toContain('item.href === "/reports"');
   });
+
+  it("shows an always-expanded favorites section above grouped navigation", () => {
+    expect(SOURCE).toContain('aria-label="Favorite pages"');
+    expect(SOURCE).not.toMatch(/>\s*Favorites\s*</);
+    expect(SOURCE).toContain("favoriteItems.map");
+    expect(SOURCE).toContain("filteredSections.map");
+    expect(SOURCE.indexOf("favoriteItems.map")).toBeLessThan(
+      SOURCE.indexOf("filteredSections.map"),
+    );
+  });
+
+  it("lets users favorite and unfavorite regular navigation items", () => {
+    expect(SOURCE).toContain("`Add ${item.label} to favorites`");
+    expect(SOURCE).toContain("`Remove ${item.label} from favorites`");
+    expect(SOURCE).toContain("toggleFavorite(item.href)");
+  });
+
+  it("does not render an empty favorites section", () => {
+    expect(SOURCE).toContain("favoriteItems.length > 0");
+  });
 });
 
 describe("Sidebar active state", () => {

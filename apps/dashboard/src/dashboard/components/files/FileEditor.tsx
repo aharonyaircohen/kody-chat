@@ -18,6 +18,10 @@ import { monacoLanguage } from "@dashboard/lib/repo-files-lang";
 import { readFile, writeFile } from "@dashboard/lib/repo-files";
 import type { Octokit } from "@octokit/rest";
 import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
+import {
+  autoDirProps,
+  rtlAwareMarkdownClassName,
+} from "@dashboard/lib/text-direction";
 import { CommitMessageDialog } from "./CommitMessageDialog";
 
 const MonacoEditor = dynamic(
@@ -32,7 +36,7 @@ const MonacoEditor = dynamic(
   },
 ) as React.ComponentType<EditorProps>;
 
-type ViewMode = "edit" | "preview" | "split";
+export type FileEditorViewMode = "edit" | "preview" | "split";
 
 interface FileEditorProps {
   path: string;
@@ -42,6 +46,7 @@ interface FileEditorProps {
   repo: string;
   onCancel: () => void;
   onSaved: () => void;
+  defaultMarkdownViewMode?: FileEditorViewMode;
 }
 
 export function FileEditor({
@@ -52,13 +57,16 @@ export function FileEditor({
   repo,
   onCancel,
   onSaved,
+  defaultMarkdownViewMode = "edit",
 }: FileEditorProps) {
   const [originalContent, setOriginalContent] = useState<string>("");
   const [content, setContent] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>("edit");
+  const [viewMode, setViewMode] = useState<FileEditorViewMode>(
+    defaultMarkdownViewMode,
+  );
   const [showCommitDialog, setShowCommitDialog] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const editorRef = useRef<unknown>(null);
@@ -155,10 +163,10 @@ export function FileEditor({
       {/* Metadata bar */}
       <div className="flex items-center gap-4 px-4 py-3 border-b border-white/10 shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-body-sm font-medium truncate">{fileName}</span>
-          <span className="text-body-xs text-white/40 truncate">{path}</span>
+          <span className="text-base font-medium truncate">{fileName}</span>
+          <span className="text-sm text-white/40 truncate">{path}</span>
           {isDirty && (
-            <span className="text-body-xs px-2 py-1 rounded bg-amber-500/20 text-amber-400">
+            <span className="text-sm px-2 py-1 rounded bg-amber-500/20 text-amber-400">
               Unsaved
             </span>
           )}
@@ -209,7 +217,7 @@ export function FileEditor({
           <button
             onClick={handleCancel}
             className={cn(
-              "flex items-center gap-1.5 text-body-xs px-3 py-2 rounded",
+              "flex items-center gap-1.5 text-sm px-3 py-2 rounded",
               "text-white/60 hover:text-white/90 hover:bg-white/10",
             )}
           >
@@ -221,7 +229,7 @@ export function FileEditor({
             onClick={() => setShowCommitDialog(true)}
             disabled={!isDirty || saving}
             className={cn(
-              "flex items-center gap-1.5 text-body-xs px-3 py-2 rounded",
+              "flex items-center gap-1.5 text-sm px-3 py-2 rounded",
               "bg-emerald-600/80 hover:bg-emerald-600 text-white",
               (!isDirty || saving) && "opacity-50 cursor-not-allowed",
             )}
@@ -272,7 +280,14 @@ export function FileEditor({
 
         {viewMode === "preview" && (
           <div className="flex-1 min-h-0 overflow-y-auto p-4">
-            <MarkdownPreview content={content} />
+            <MarkdownPreview
+              {...autoDirProps}
+              content={content}
+              className={cn(
+                "md:prose-base break-words text-start",
+                rtlAwareMarkdownClassName,
+              )}
+            />
           </div>
         )}
 
@@ -280,7 +295,14 @@ export function FileEditor({
 
         {viewMode === "split" && (
           <div className="w-1/2 min-h-0 overflow-y-auto p-4">
-            <MarkdownPreview content={content} />
+            <MarkdownPreview
+              {...autoDirProps}
+              content={content}
+              className={cn(
+                "md:prose-base break-words text-start",
+                rtlAwareMarkdownClassName,
+              )}
+            />
           </div>
         )}
       </div>

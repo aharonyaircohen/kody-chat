@@ -44,10 +44,11 @@ import {
   type FileEntry,
   getHttpStatus,
 } from "@dashboard/lib/repo-files";
-import { getFilePermission } from "@dashboard/lib/repo-files-perms";
+import { useRepoScopedHref } from "@dashboard/lib/hooks/useRepoScopedHref";
 import { FileTree, type FileTreeOverlay } from "./FileTree";
 import { FileViewer } from "./FileViewer";
 import { FileEditor } from "./FileEditor";
+import type { FileEditorViewMode } from "./FileEditor";
 import { FileDiffViewer } from "./FileDiffViewer";
 import { FileSearch } from "./FileSearch";
 import { UploadZone } from "./UploadZone";
@@ -139,6 +140,18 @@ export function replacePathPrefix(
   );
 }
 
+export function isExpectedDeletedPath(
+  path: string,
+  deletedPaths: ReadonlySet<string>,
+): boolean {
+  const normalizedPath = normalizeRepoPath(path);
+  return [...deletedPaths].some(
+    (deletedPath) =>
+      normalizedPath === deletedPath ||
+      normalizedPath.startsWith(`${deletedPath}/`),
+  );
+}
+
 export function duplicatePath(path: string, pathType: RepoPathType): string {
   const normalized = normalizeRepoPath(path);
   const parent = parentRepoPath(normalized);
@@ -210,10 +223,37 @@ function treeEntryForPath(
 
 interface FilesPageProps {
   initialPath?: string;
+  title?: string;
+  rootPath?: string;
+  routeBase?: string;
+  pinnedEntries?: FileEntry[];
+  protectedPaths?: string[];
+  entryFilter?: (entry: FileEntry) => boolean;
+  newFileExtension?: string;
+  newFilePlaceholder?: string;
+  newFileNameOnly?: boolean;
+  showSearch?: boolean;
+  showUpload?: boolean;
+  defaultMarkdownViewMode?: FileEditorViewMode;
 }
 
-export function FilesPage({ initialPath = "" }: FilesPageProps) {
+export function FilesPage({
+  initialPath = "",
+  title = "Files",
+  rootPath = "",
+  routeBase = "/files",
+  pinnedEntries = [],
+  protectedPaths = [],
+  entryFilter,
+  newFileExtension = "",
+  newFilePlaceholder = "filename.txt or nested/path.txt",
+  newFileNameOnly = false,
+  showSearch = true,
+  showUpload = true,
+  defaultMarkdownViewMode = "edit",
+}: FilesPageProps) {
   const { auth } = useAuth();
+  const scopedHref = useRepoScopedHref();
   const octokit = useMemo(
     () => (auth?.token ? new Octokit({ auth: auth.token }) : null),
     [auth?.token],
@@ -223,6 +263,7 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
     () => normalizeRepoPath(initialPath),
     [initialPath],
   );
+  const workspaceRoot = useMemo(() => normalizeRepoPath(rootPath), [rootPath]);
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(
     initialRepoPath || null,
@@ -245,22 +286,15 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [treeOverlay, setTreeOverlay] =
     useState<FileTreeOverlay>(emptyTreeOverlay);
-  const [writeable, setWriteable] = useState(false);
   const [isDraggingFiles, setIsDraggingFiles] = useState(false);
   const openRequestRef = useRef(0);
   const openedInitialPathRef = useRef<string | null>(null);
   const dragDepthRef = useRef(0);
+  const deletedPathsRef = useRef<Set<string>>(new Set());
 
-  // Check write permission on mount / auth change
-  useEffect(() => {
-    if (!octokit || !auth) {
-      setWriteable(false);
-      return;
-    }
-    getFilePermission(octokit, auth.owner, auth.repo).then((p) =>
-      setWriteable(p === "write"),
-    );
-  }, [octokit, auth]);
+  // GitHub remains the authority for each write. Permission metadata is not
+  // consistently present for every token type, so it must not hide controls.
+  const writeable = Boolean(octokit && auth);
 
   useEffect(() => {
     setTreeOverlay(emptyTreeOverlay());
@@ -277,17 +311,37 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
     : selectedPath
       ? "dir"
       : null;
-
-  const currentFolder = useMemo(
-    () => currentFolderPath(selectedPath, selectedPathType),
-    [selectedPath, selectedPathType],
+  const isSelectedProtected = Boolean(
+    selectedPath &&
+    protectedPaths
+      .map(normalizeRepoPath)
+      .includes(normalizeRepoPath(selectedPath)),
   );
+
+  const currentFolder = useMemo(() => {
+    const selectedFolder = currentFolderPath(selectedPath, selectedPathType);
+    return selectedFolder === workspaceRoot ||
+      selectedFolder.startsWith(`${workspaceRoot}/`)
+      ? selectedFolder
+      : workspaceRoot;
+  }, [selectedPath, selectedPathType, workspaceRoot]);
 
   const updateFileHref = useCallback(
     (path: string, options: { replace?: boolean } = {}) => {
       if (typeof window === "undefined") return;
 
-      const href = buildFileHref(path);
+      const normalizedPath = normalizeRepoPath(path);
+      const relativePath =
+        workspaceRoot && normalizedPath.startsWith(`${workspaceRoot}/`)
+          ? normalizedPath.slice(workspaceRoot.length + 1)
+          : normalizedPath;
+      const workspaceHref = relativePath
+        ? `${routeBase}/${relativePath
+            .split("/")
+            .map(encodeURIComponent)
+            .join("/")}`
+        : routeBase;
+      const href = scopedHref(workspaceHref);
       if (window.location.pathname === href) return;
 
       if (options.replace) {
@@ -296,7 +350,7 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
         window.history.pushState(null, "", href);
       }
     },
-    [],
+    [routeBase, scopedHref, workspaceRoot],
   );
 
   const openRepoPath = useCallback(
@@ -352,6 +406,16 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
         setSelectedFile(null);
         setViewMode("viewer");
       } catch (err) {
+        if (
+          getHttpStatus(err) === 404 &&
+          isExpectedDeletedPath(normalizedPath, deletedPathsRef.current)
+        ) {
+          if (requestId !== openRequestRef.current) return;
+          setSelectedPath(null);
+          setSelectedFile(null);
+          setViewMode("viewer");
+          return;
+        }
         toast.error(err instanceof Error ? err.message : "Failed to open file");
         if (requestId !== openRequestRef.current) return;
         setSelectedPath(null);
@@ -387,14 +451,26 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
 
   useEffect(() => {
     const handlePopState = () => {
-      void openRepoPath(filePathFromHref(window.location.pathname), {
+      const routeMarker = `${routeBase}/`;
+      const markerIndex = window.location.pathname.lastIndexOf(routeMarker);
+      const routePath =
+        markerIndex >= 0
+          ? normalizeRepoPath(
+              window.location.pathname.slice(markerIndex + routeMarker.length),
+            )
+          : "";
+      const repoPath =
+        routePath === "README.md"
+          ? routePath
+          : joinRepoPath(workspaceRoot, routePath);
+      void openRepoPath(repoPath, {
         updateRoute: false,
       });
     };
 
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
-  }, [openRepoPath]);
+  }, [openRepoPath, routeBase, workspaceRoot]);
 
   const handleViewDiff = useCallback(() => {
     setViewMode("diff");
@@ -540,47 +616,47 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
 
   const handleDragEnter = useCallback(
     (e: DragEvent) => {
-      if (!writeable || !isFileDrag(e)) return;
+      if (!writeable || !showUpload || !isFileDrag(e)) return;
       e.preventDefault();
       e.stopPropagation();
       dragDepthRef.current += 1;
       setIsDraggingFiles(true);
     },
-    [writeable],
+    [showUpload, writeable],
   );
 
   const handleDragOver = useCallback(
     (e: DragEvent) => {
-      if (!writeable || !isFileDrag(e)) return;
+      if (!writeable || !showUpload || !isFileDrag(e)) return;
       e.preventDefault();
       e.stopPropagation();
       e.dataTransfer.dropEffect = "copy";
       setIsDraggingFiles(true);
     },
-    [writeable],
+    [showUpload, writeable],
   );
 
   const handleDragLeave = useCallback(
     (e: DragEvent) => {
-      if (!writeable || !isFileDrag(e)) return;
+      if (!writeable || !showUpload || !isFileDrag(e)) return;
       e.preventDefault();
       e.stopPropagation();
       dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
       if (dragDepthRef.current === 0) setIsDraggingFiles(false);
     },
-    [writeable],
+    [showUpload, writeable],
   );
 
   const handleDrop = useCallback(
     (e: DragEvent) => {
-      if (!writeable || !isFileDrag(e)) return;
+      if (!writeable || !showUpload || !isFileDrag(e)) return;
       e.preventDefault();
       e.stopPropagation();
       dragDepthRef.current = 0;
       setIsDraggingFiles(false);
       void handleUploadFiles(e.dataTransfer.files);
     },
-    [handleUploadFiles, writeable],
+    [handleUploadFiles, showUpload, writeable],
   );
 
   const handleNewFile = useCallback((dirPath: string) => {
@@ -596,7 +672,20 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
   const handleCreateFile = useCallback(
     async (name: string) => {
       if (!octokit || !auth) return;
-      const path = joinRepoPath(newItemPath, name);
+      const trimmedName = name.trim();
+      if (
+        newFileNameOnly &&
+        (trimmedName.includes("/") || trimmedName.includes("\\"))
+      ) {
+        toast.error("Enter a file name without folders");
+        return;
+      }
+      const fileName =
+        newFileExtension &&
+        !trimmedName.toLowerCase().endsWith(newFileExtension.toLowerCase())
+          ? `${trimmedName}${newFileExtension}`
+          : trimmedName;
+      const path = joinRepoPath(newItemPath || workspaceRoot, fileName);
       if (!path) return;
       try {
         const result = await writeFile(
@@ -608,6 +697,7 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
           `chore: create ${path}`,
         );
         upsertTreeEntry(treeEntryForPath(path, "file", { sha: result.sha }));
+        deletedPathsRef.current.delete(path);
         toast.success(`Created ${path}`);
         setShowNewFileDialog(false);
         setNewItemPath("");
@@ -630,6 +720,9 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
       writeable,
       updateFileHref,
       handleRefresh,
+      newFileExtension,
+      newFileNameOnly,
+      workspaceRoot,
     ],
   );
 
@@ -654,6 +747,7 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
         upsertTreeEntry(
           treeEntryForPath(gitkeepPath, "file", { sha: result.sha }),
         );
+        deletedPathsRef.current.delete(folderPath);
         toast.success(`Created ${folderPath}/`);
         setShowNewFolderDialog(false);
         setNewItemPath("");
@@ -717,6 +811,8 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
         }
       }
       toast.success(`Deleted ${path}`);
+      deletedPathsRef.current.add(normalizeRepoPath(path));
+      openRequestRef.current += 1;
       removeTreePath(path);
       if (selectedPath === path || selectedPath?.startsWith(`${path}/`)) {
         setSelectedFile(null);
@@ -1041,6 +1137,7 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
           repo={auth?.repo ?? ""}
           onCancel={handleCancel}
           onSaved={handleSaved}
+          defaultMarkdownViewMode={defaultMarkdownViewMode}
         />
       );
     }
@@ -1062,7 +1159,7 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
       return (
         <div className="flex flex-col items-center justify-center h-full text-white/40">
           <FolderOpen className="w-12 h-12 mb-4" />
-          <p className="text-sm">/{selectedPath}</p>
+          <p className="text-base">/{selectedPath}</p>
         </div>
       );
     }
@@ -1070,7 +1167,7 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-white/40">
         <FolderOpen className="w-12 h-12 mb-4" />
-        <p className="text-sm">Select a file to view</p>
+        <p className="text-base">Select a file to view</p>
       </div>
     );
   };
@@ -1078,19 +1175,21 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
   const actionButtonClass = "h-9 w-9 p-0";
   const actions = (
     <div className="flex items-center gap-2">
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={() => setViewMode("search")}
-        className={cn(
-          actionButtonClass,
-          viewMode === "search" && "bg-white/10",
-        )}
-        title="Search"
-        aria-label="Search files"
-      >
-        <Search className="w-4 h-4" />
-      </Button>
+      {showSearch ? (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setViewMode("search")}
+          className={cn(
+            actionButtonClass,
+            viewMode === "search" && "bg-white/10",
+          )}
+          title="Search"
+          aria-label="Search files"
+        >
+          <Search className="w-4 h-4" />
+        </Button>
+      ) : null}
 
       {writeable && (
         <Button
@@ -1131,49 +1230,58 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
         </Button>
       )}
 
-      {writeable && selectedPath && selectedPathType && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => handleRename(selectedPath, selectedPathType)}
-          className={actionButtonClass}
-          disabled={busyAction !== null}
-          title="Rename or move"
-          aria-label="Rename or move"
-        >
-          <Pencil className="w-4 h-4" />
-        </Button>
-      )}
+      {writeable &&
+        selectedPath &&
+        selectedPathType &&
+        !isSelectedProtected && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => handleRename(selectedPath, selectedPathType)}
+            className={actionButtonClass}
+            disabled={busyAction !== null}
+            title="Rename or move"
+            aria-label="Rename or move"
+          >
+            <Pencil className="w-4 h-4" />
+          </Button>
+        )}
 
-      {writeable && selectedPath && selectedPathType && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => handleDuplicate(selectedPath, selectedPathType)}
-          className={actionButtonClass}
-          disabled={busyAction !== null}
-          title="Duplicate"
-          aria-label="Duplicate"
-        >
-          <Copy className="w-4 h-4" />
-        </Button>
-      )}
+      {writeable &&
+        selectedPath &&
+        selectedPathType &&
+        !isSelectedProtected && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => handleDuplicate(selectedPath, selectedPathType)}
+            className={actionButtonClass}
+            disabled={busyAction !== null}
+            title="Duplicate"
+            aria-label="Duplicate"
+          >
+            <Copy className="w-4 h-4" />
+          </Button>
+        )}
 
-      {writeable && selectedPath && selectedPathType && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => handleDelete(selectedPath, selectedPathType)}
-          className={cn(actionButtonClass, "text-red-400 hover:text-red-300")}
-          disabled={busyAction !== null}
-          title={selectedPathType === "dir" ? "Delete folder" : "Delete file"}
-          aria-label={
-            selectedPathType === "dir" ? "Delete folder" : "Delete file"
-          }
-        >
-          <Trash2 className="w-4 h-4" />
-        </Button>
-      )}
+      {writeable &&
+        selectedPath &&
+        selectedPathType &&
+        !isSelectedProtected && (
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => handleDelete(selectedPath, selectedPathType)}
+            className={cn(actionButtonClass, "text-red-400 hover:text-red-300")}
+            disabled={busyAction !== null}
+            title={selectedPathType === "dir" ? "Delete folder" : "Delete file"}
+            aria-label={
+              selectedPathType === "dir" ? "Delete folder" : "Delete file"
+            }
+          >
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        )}
 
       {writeable && (
         <Button
@@ -1188,7 +1296,7 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
         </Button>
       )}
 
-      {writeable && (
+      {writeable && showUpload && (
         <Button
           variant="ghost"
           size="icon"
@@ -1208,7 +1316,7 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
 
   return (
     <PageShell
-      title="Files"
+      title={title}
       icon={FolderOpen}
       subtitle={selectedPath ? `/${selectedPath}` : undefined}
       backHref={null}
@@ -1258,6 +1366,10 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
                 onMove={writeable ? handleMoveToFolder : undefined}
                 onCollapse={() => setPanelState("hidden")}
                 treeOverlay={treeOverlay}
+                rootPath={workspaceRoot}
+                pinnedEntries={pinnedEntries}
+                protectedPaths={protectedPaths}
+                entryFilter={entryFilter}
               />
             )}
           </div>
@@ -1267,7 +1379,7 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
         <div className="flex-1 min-w-0 h-full flex flex-col">
           {/* Breadcrumb */}
           {(breadcrumbs.length > 0 || panelState === "hidden") && (
-            <div className="flex items-center gap-1 px-4 py-2 border-b border-white/5 text-sm shrink-0">
+            <div className="flex items-center gap-1 px-4 py-2 border-b border-white/5 text-base shrink-0">
               {panelState === "hidden" && (
                 <button
                   className="mr-2 rounded p-1 text-white/50 hover:bg-white/10 hover:text-white/80"
@@ -1295,7 +1407,7 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
                   <ChevronRight className="w-3 h-3 text-white/30" />
                   <button
                     className={cn(
-                      "text-xs hover:text-white/80 truncate max-w-[120px]",
+                      "text-sm hover:text-white/80 truncate max-w-[160px]",
                       i === breadcrumbs.length - 1
                         ? "text-white/90"
                         : "text-white/50",
@@ -1356,7 +1468,7 @@ export function FilesPage({ initialPath = "" }: FilesPageProps) {
               </p>
               <Input
                 name="filename"
-                placeholder="filename.txt or nested/path.txt"
+                placeholder={newFilePlaceholder}
                 autoFocus
               />
               <div className="flex justify-end gap-2">

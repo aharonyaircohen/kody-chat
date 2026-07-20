@@ -8,10 +8,13 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { createEmptyGlobalStore } from "@dashboard/lib/chat-types";
 import { readActiveRepoScope } from "@kody-ade/base/active-repo";
 import type {
+  AgencyAgentIdentity,
+  AgentHandoff,
   ChatMessage,
   GlobalChatStore,
   SessionMeta,
 } from "@dashboard/lib/chat-types";
+import { createAgentHandoff } from "./agent-handoff";
 import type { ConversationCheckpoint } from "./conversation-compaction";
 
 const STORAGE_KEY_BASE = "kody-sessions-v3";
@@ -145,7 +148,13 @@ export function loadStore(
     const raw = localStorage.getItem(storageKey);
     if (raw) {
       const parsed = JSON.parse(raw) as GlobalChatStore;
-      if (parsed.version === 3) return parsed;
+      if (parsed.version === 3) {
+        const migrated = migrateLegacyAgentHandoffs(parsed);
+        if (migrated !== parsed) {
+          localStorage.setItem(storageKey, JSON.stringify(migrated));
+        }
+        return migrated;
+      }
       if (parsed.version === 2) {
         const migrated = migrateFromV2(parsed);
         localStorage.setItem(storageKey, JSON.stringify(migrated));
@@ -161,7 +170,8 @@ export function loadStore(
       if (legacyRaw) {
         const legacyParsed = JSON.parse(legacyRaw) as GlobalChatStore;
         let adopted: GlobalChatStore | null = null;
-        if (legacyParsed.version === 3) adopted = legacyParsed;
+        if (legacyParsed.version === 3)
+          adopted = migrateLegacyAgentHandoffs(legacyParsed);
         else if (legacyParsed.version === 2)
           adopted = migrateFromV2(legacyParsed);
         if (adopted) {
@@ -177,6 +187,48 @@ export function loadStore(
   }
 
   return createEmptyGlobalStore();
+}
+
+export function migrateLegacyAgentHandoffs(
+  store: GlobalChatStore,
+): GlobalChatStore {
+  let changed = false;
+  const messages = { ...store.messages };
+  const sessions = store.sessions.map((session) => {
+    const legacy = (messages[session.id] ?? []).filter(
+      (message) => message.agentHandoff,
+    );
+    if (legacy.length === 0) return session;
+    changed = true;
+    messages[session.id] = (messages[session.id] ?? []).filter(
+      (message) => !message.agentHandoff,
+    );
+    const migrated = legacy
+      .map((message) =>
+        message.agentHandoff
+          ? {
+              ...message.agentHandoff,
+              switchedAt: message.agentHandoff.switchedAt ?? message.timestamp,
+            }
+          : null,
+      )
+      .filter((handoff): handoff is AgentHandoff => handoff !== null);
+    const latest = migrated.at(-1);
+    return {
+      ...session,
+      messageCount: messages[session.id]?.length ?? 0,
+      agentHandoffs: [...(session.agentHandoffs ?? []), ...migrated],
+      ...(latest
+        ? {
+            agencyAgent: {
+              slug: latest.toSlug,
+              title: latest.toTitle,
+            },
+          }
+        : {}),
+    };
+  });
+  return changed ? { ...store, sessions, messages } : store;
 }
 
 /**
@@ -282,6 +334,11 @@ export interface UseChatSessionsResult {
    * for that conversation.
    */
   setSessionAgent: (sessionId: string, agentKey: string) => void;
+  /** Atomically persist the validated agency identity and optional handoff. */
+  setSessionAgencyAgent: (
+    sessionId: string,
+    agent: AgencyAgentIdentity,
+  ) => void;
   /** Save derived compact memory for a session without changing its transcript. */
   setSessionCheckpoint: (
     sessionId: string,
@@ -541,6 +598,39 @@ export function useChatSessions(
     [storageKey],
   );
 
+  const setSessionAgencyAgent = useCallback(
+    (sessionId: string, agent: AgencyAgentIdentity) => {
+      setStore((prev) => {
+        if (!prev) return prev;
+        const session = prev.sessions.find((item) => item.id === sessionId);
+        if (!session) return prev;
+        const current = session.agencyAgent ?? { slug: "kody", title: "Kody" };
+        if (current.slug === agent.slug) return prev;
+        const handoff =
+          session.messageCount > 0 ? createAgentHandoff(current, agent) : null;
+        const newStore: GlobalChatStore = {
+          ...prev,
+          sessions: prev.sessions.map((item) =>
+            item.id === sessionId
+              ? {
+                  ...item,
+                  agencyAgent: agent,
+                  ...(handoff
+                    ? {
+                        agentHandoffs: [...(item.agentHandoffs ?? []), handoff],
+                      }
+                    : {}),
+                }
+              : item,
+          ),
+        };
+        saveStore(newStore, storageKey);
+        return newStore;
+      });
+    },
+    [storageKey],
+  );
+
   const setSessionCheckpoint = useCallback(
     (sessionId: string, checkpoint: ConversationCheckpoint) => {
       setStore((prev) => {
@@ -724,6 +814,7 @@ export function useChatSessions(
     pinSession,
     clearActiveSession,
     setSessionAgent,
+    setSessionAgencyAgent,
     setSessionCheckpoint,
   };
 }

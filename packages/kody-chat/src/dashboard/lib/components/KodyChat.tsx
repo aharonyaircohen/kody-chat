@@ -70,6 +70,7 @@ import {
 } from "@dashboard/lib/components/ChatIssueReportDialog";
 import { useRemoteStatus } from "@dashboard/lib/hooks/useRemoteStatus";
 import { useAgents } from "@dashboard/lib/hooks/useAgents";
+import { kodyApi } from "@dashboard/lib/api";
 import { useChatDataSources } from "./kody-chat-data";
 import { useAgentSelection } from "./kody-chat-selection";
 import { useVoiceOrchestration } from "./kody-chat-voice";
@@ -627,8 +628,9 @@ export function KodyChat({
     [auth, router],
   );
   const { data: repoAgents = [] } = useAgents();
-  const [selectedAgencyAgentSlug, setSelectedAgencyAgentSlug] =
-    useState("kody");
+  const { createSession, setSessionAgencyAgent } = sessionHook;
+  const selectedAgencyAgentSlug =
+    sessionHook.activeSession?.agencyAgent?.slug ?? "kody";
   const repoAgentSlugs = useMemo(
     () => repoAgents.map((agent) => agent.slug),
     [repoAgents],
@@ -641,6 +643,37 @@ export function KodyChat({
       )
       .slice(0, 6);
   }, [agentMentionTrigger, repoAgents]);
+  const selectAgencyAgent = useCallback(
+    async (nextSlug: string) => {
+      if (nextSlug === selectedAgencyAgentSlug) return;
+      const listedAgent = repoAgents.find(
+        (candidate) => candidate.slug === nextSlug,
+      );
+      try {
+        const resolvedAgent =
+          nextSlug === "kody"
+            ? { slug: "kody", title: "Kody" }
+            : await kodyApi.agent.get(nextSlug);
+        const activeSessionId =
+          sessionHook.activeSession?.id ?? createSession();
+        setSessionAgencyAgent(activeSessionId, {
+          slug: resolvedAgent.slug,
+          title: resolvedAgent.title,
+        });
+      } catch {
+        toast.error(`Could not switch to ${listedAgent?.title ?? nextSlug}`, {
+          description: "The agent is not available for this repository.",
+        });
+      }
+    },
+    [
+      repoAgents,
+      selectedAgencyAgentSlug,
+      sessionHook.activeSession?.id,
+      createSession,
+      setSessionAgencyAgent,
+    ],
+  );
   // Generic switch-agent auto-kickoff queue lives in the live-session reducer.
   // Vibe execution does not use this path; it is owned by the Vibe page's
   // `/api/kody/vibe/execute` workflow.
@@ -1955,7 +1988,7 @@ export function KodyChat({
           selectedModelId={selectedModelId}
           agencyAgents={repoAgents}
           selectedAgencyAgentSlug={selectedAgencyAgentSlug}
-          onSelectAgencyAgent={setSelectedAgencyAgentSlug}
+          onSelectAgencyAgent={selectAgencyAgent}
           onSelectEntry={selectChatEntry}
           remoteStatus={remoteStatus}
           onNewConversation={() => {
@@ -2005,6 +2038,7 @@ export function KodyChat({
           usedViewIds={usedViewIds}
           onRenderedViewAction={handleRenderedViewAction}
           roleLayout={messageRoleLayout}
+          agentHandoffs={sessionHook.activeSession?.agentHandoffs}
           emptyState={
             <EmptyState
               welcome={emptyStateWelcome}

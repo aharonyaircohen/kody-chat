@@ -283,6 +283,13 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_user", ["tenantId", "namespace", "userKey"]),
 
+  userPreferences: defineTable({
+    namespace: v.string(),
+    userKey: v.string(),
+    data: v.any(),
+    updatedAt: v.string(),
+  }).index("by_user", ["namespace", "userKey"]),
+
   notificationPrefs: defineTable({
     tenantId: v.string(),
     login: v.string(),

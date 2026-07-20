@@ -25,7 +25,7 @@ const h = vi.hoisted(() => ({
   loadInstructionsForPrompt: vi.fn(),
   loadContextForPrompt: vi.fn(),
   loadViewRendererContextForPrompt: vi.fn(),
-  readResolvedAgentFile: vi.fn(),
+  listResolvedAgentFiles: vi.fn(),
   getEngineConfig: vi.fn(),
 }));
 vi.mock("../../app/api/kody/chat/resolve-model", () => ({
@@ -67,7 +67,7 @@ vi.mock("@dashboard/lib/view-renderers/renderers", () => ({
 }));
 vi.mock("@dashboard/lib/agent-files", () => ({
   isValidSlug: (slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug),
-  readResolvedAgentFile: h.readResolvedAgentFile,
+  listResolvedAgentFiles: h.listResolvedAgentFiles,
 }));
 vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: h.getEngineConfig,
@@ -102,13 +102,15 @@ beforeEach(() => {
     rules: null,
     definitions: [],
   });
-  h.readResolvedAgentFile.mockResolvedValue({
-    slug: "support-agent",
-    title: "Support Agent",
-    body: "You answer as support.",
-    updatedAt: "",
-    htmlUrl: "",
-  });
+  h.listResolvedAgentFiles.mockResolvedValue([
+    {
+      slug: "support-agent",
+      title: "Support Agent",
+      body: "You answer as support.",
+      updatedAt: "",
+      htmlUrl: "",
+    },
+  ]);
   h.getEngineConfig.mockResolvedValue({ config: {} });
 });
 
@@ -151,7 +153,12 @@ function mockModel(): MockLanguageModelV3 {
             type: "finish",
             finishReason: { unified: "tool-calls", raw: "tool-calls" },
             usage: {
-              inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+              inputTokens: {
+                total: 1,
+                noCache: 1,
+                cacheRead: 0,
+                cacheWrite: 0,
+              },
               outputTokens: { total: 1, text: 1, reasoning: 0 },
             },
           },
@@ -191,16 +198,19 @@ describe("surface scoping — kody in-process route", () => {
     // Drain the stream so onFinish/cleanup runs.
     await res.text();
 
-    expect(h.resolveBackgroundToken).toHaveBeenCalledWith(
-      "acme-co",
-      "widgets",
-    );
+    expect(h.resolveBackgroundToken).toHaveBeenCalledWith("acme-co", "widgets");
 
     expect(h.resolveChatModel).toHaveBeenCalledWith(
       expect.any(NextRequest),
       "brand-model",
       expect.any(Object),
     );
+    expect(h.listResolvedAgentFiles).toHaveBeenCalledOnce();
+    const modelInput = JSON.stringify(model.doStreamCalls[0]);
+    expect(modelInput).toContain(
+      "The assistant speaker for this turn is Support Agent",
+    );
+    expect(modelInput).toContain("You answer as support.");
 
     const sentTools = (model.doStreamCalls[0]?.tools ?? []).map((t) => t.name);
     expect(sentTools.length).toBeGreaterThan(0);
@@ -223,6 +233,38 @@ describe("surface scoping — kody in-process route", () => {
     ]) {
       expect(sentTools).not.toContain(forbidden);
     }
+  });
+
+  it("fails closed before model execution when the selected agent is unavailable", async () => {
+    const model = mockModel();
+    h.resolveBackgroundToken.mockResolvedValue({
+      token: "ghs_installation",
+      source: "app",
+    });
+    h.resolveClientBrand.mockResolvedValue({
+      slug: "acme",
+      name: "Acme",
+      accent: "#7c3aed",
+      modelId: "brand-model",
+      agentSlug: "missing-agent",
+    });
+    h.resolveChatModel.mockResolvedValue({
+      model,
+      resolvedModel: {
+        id: "mock/model",
+        provider: "mock",
+        modelName: "mock-model",
+      },
+    });
+    h.listResolvedAgentFiles.mockResolvedValue([]);
+
+    const res = await kodyChatPOST(
+      makeRequest("/api/kody/chat/kody", chatBody, ticketHeaders()),
+    );
+
+    expect(res.status).toBe(404);
+    await expect(res.json()).resolves.toEqual({ error: "agent_not_found" });
+    expect(model.doStreamCalls).toHaveLength(0);
   });
 
   it("keeps required-view gating alive on client-surface turns via builtin renderers (regression: brand chat never rendered cards)", async () => {

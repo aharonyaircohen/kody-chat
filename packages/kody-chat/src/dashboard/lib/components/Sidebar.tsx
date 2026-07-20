@@ -23,6 +23,7 @@ import {
   LogOut,
   Moon,
   Search,
+  Star,
   Sun,
   X,
 } from "lucide-react";
@@ -37,6 +38,8 @@ import {
 } from "@dashboard/lib/github-background-polling";
 import { useAuth } from "@dashboard/lib/auth-context";
 import { useGitHubIdentity } from "@dashboard/lib/hooks/useGitHubIdentity";
+import { useNavigationFavorites } from "@dashboard/lib/hooks/useNavigationFavorites";
+import { resolveFavoriteItems } from "@dashboard/lib/navigation-favorites";
 import { repoScopedHref } from "@kody-ade/base/routes";
 import { SimpleTooltip } from "@dashboard/lib/components/SimpleTooltip";
 import { InboxBadge } from "@dashboard/lib/components/InboxBadge";
@@ -135,6 +138,21 @@ function SidebarContent({
   const [hydrated, setHydrated] = useState<boolean>(false);
   const [query, setQuery] = useState<string>("");
   const baseSections = hostSections ?? SIDEBAR_NAV_SECTIONS;
+  const availableFavoriteItems = useMemo(() => {
+    const items = new Map<string, SettingsNavItem>();
+    for (const section of baseSections) {
+      for (const item of section.items) {
+        items.set(item.href, item);
+      }
+    }
+    return [...items.values()];
+  }, [baseSections]);
+  const { favoriteHrefs, toggleFavorite, message: favoritesMessage } =
+    useNavigationFavorites(auth, availableFavoriteItems);
+  const favoriteItems = useMemo(
+    () => resolveFavoriteItems(favoriteHrefs, availableFavoriteItems),
+    [availableFavoriteItems, favoriteHrefs],
+  );
   const activeCollapsibleSectionTitle = useMemo(
     () => activeCollapsibleNavSectionTitle(baseSections, pathname, search),
     [baseSections, pathname, search],
@@ -209,9 +227,15 @@ function SidebarContent({
   const isCollapsed = mobile ? false : collapsed;
   const width = isCollapsed ? "w-[72px]" : "w-[248px]";
 
-  const renderLink = (item: NavItem, nested = false) => {
+  const renderLink = (
+    item: NavItem,
+    nested = false,
+    favoritePlacement = false,
+    favoriteable = true,
+  ) => {
     const Icon = item.icon;
     const active = isNavItemActive(pathname, search, item);
+    const favorite = favoriteHrefs.includes(item.href);
     const link = (
       <Link
         href={scopedHref(item.href)}
@@ -219,7 +243,7 @@ function SidebarContent({
         aria-current={active ? "page" : undefined}
         aria-label={item.label}
         className={cn(
-          "relative flex items-center gap-3.5 rounded-md text-body-sm transition-colors",
+          "relative flex min-w-0 flex-1 items-center gap-3.5 rounded-md text-body-sm transition-colors",
           "h-10 px-3.5",
           nested && "px-3",
           isCollapsed && "justify-center px-0",
@@ -250,12 +274,49 @@ function SidebarContent({
         )}
       </Link>
     );
-    return isCollapsed ? (
-      <SimpleTooltip key={item.href} content={item.label} side="right">
+    if (isCollapsed) {
+      return (
+        <SimpleTooltip key={item.href} content={item.label} side="right">
+          {link}
+        </SimpleTooltip>
+      );
+    }
+
+    return (
+      <div key={item.href} className="group flex min-w-0 items-center">
         {link}
-      </SimpleTooltip>
-    ) : (
-      <div key={item.href}>{link}</div>
+        {favoriteable && (
+          <button
+            type="button"
+            onClick={() => toggleFavorite(item.href)}
+            aria-label={
+              favorite
+                ? `Remove ${item.label} from favorites`
+                : `Add ${item.label} to favorites`
+            }
+            title={
+              favorite
+                ? `Remove ${item.label} from favorites`
+                : `Add ${item.label} to favorites`
+            }
+            className={cn(
+              "ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition",
+              "hover:bg-accent hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              favorite || favoritePlacement
+                ? "opacity-100"
+                : "opacity-0 group-hover:opacity-100",
+            )}
+          >
+            <Star
+              className={cn(
+                "h-4 w-4",
+                favorite && "fill-amber-400 text-amber-400",
+              )}
+              aria-hidden="true"
+            />
+          </button>
+        )}
+      </div>
     );
   };
 
@@ -315,7 +376,11 @@ function SidebarContent({
           data-sidebar-fixed-controls="true"
           className="shrink-0 space-y-1.5 px-2.5"
         >
-          {pinnedItem && <div className="pb-2">{renderLink(pinnedItem)}</div>}
+          {pinnedItem && (
+            <div className="pb-2">
+              {renderLink(pinnedItem, false, false, false)}
+            </div>
+          )}
 
           {/* Inline search — filters the rail's own items as you type. Collapsed
               mode shows an icon that expands the rail so there's room to type. */}
@@ -368,6 +433,23 @@ function SidebarContent({
           data-sidebar-scroll-list="true"
           className="min-h-0 flex-1 space-y-1 overflow-y-auto px-2.5 pb-4"
         >
+          {!query.trim() && favoriteItems.length > 0 && (
+            <section aria-label="Favorite pages" className="space-y-1 pb-2">
+              <div className="space-y-1">
+                {favoriteItems.map((item) =>
+                  renderLink(item, false, true),
+                )}
+              </div>
+            </section>
+          )}
+          {favoritesMessage && !isCollapsed && (
+            <p
+              role="status"
+              className="px-3.5 pb-2 text-body-xs text-muted-foreground"
+            >
+              {favoritesMessage}
+            </p>
+          )}
           {/* Nav sections — ordered by the main work loop, sourced from the
               shared settings-nav so new pages appear here automatically. Filtered
               live by the inline search; section headings show only when expanded,

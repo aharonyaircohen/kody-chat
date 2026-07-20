@@ -27,27 +27,8 @@ import type {
 } from "@dashboard/lib/company/types";
 import { COMPANY_BUNDLE_VERSION } from "@dashboard/lib/company/types";
 
-// ─── Report fixtures (reports-files lived in apps/dashboard) ────────────────
-
-export interface FixtureReportRun {
-  id: string;
-  path: string;
-  generatedAt: string | null;
-  htmlUrl: string;
-  size: number;
-}
-
-export interface FixtureReport {
-  slug: string;
-  path: string;
-  runId: string | null;
-  runs: FixtureReportRun[];
-  title: string;
-  body: string;
-  updatedAt: string;
-  htmlUrl: string;
-  size: number;
-}
+// Report fixtures moved to src/dashboard/lib/reports-files.ts — the
+// @dashboard shim the report tools resolve against in the harness.
 
 // ─── Managed-goal fixtures ───────────────────────────────────────────────────
 
@@ -73,7 +54,6 @@ interface FixtureState {
   managedGoals: FixtureManagedGoal[];
   inbox: InboxManifest;
   notifications: NotificationsManifest;
-  reports: FixtureReport[];
   dashboardConfig: FixtureDashboardConfig;
   registeredWebhooks: Array<{ owner: string; repo: string; hookUrl: string }>;
   importedBundles: ParsedCompanyBundle[];
@@ -129,27 +109,6 @@ function seedState(): FixtureState {
       ],
     } as InboxManifest,
     notifications: { version: 1, rules: [] } as NotificationsManifest,
-    reports: [
-      {
-        slug: "weekly-loop",
-        path: "reports/weekly-loop/runs/run-1.md",
-        runId: "run-1",
-        runs: [
-          {
-            id: "run-1",
-            path: "reports/weekly-loop/runs/run-1.md",
-            generatedAt: now,
-            htmlUrl: "https://github.com/acme/widgets/blob/main/reports/weekly-loop/runs/run-1.md",
-            size: 64,
-          },
-        ],
-        title: "Weekly loop",
-        body: "Everything green in the fixture universe.",
-        updatedAt: now,
-        htmlUrl: "https://github.com/acme/widgets/blob/main/reports/weekly-loop/runs/run-1.md",
-        size: 64,
-      },
-    ],
     dashboardConfig: { version: 1 },
     registeredWebhooks: [],
     importedBundles: [],
@@ -280,22 +239,6 @@ export async function mutateNotificationsManifest<T>(
   const { next, result } = mutator(state.notifications);
   state = { ...state, notifications: next };
   return { result };
-}
-
-// ─── Reports ─────────────────────────────────────────────────────────────────
-
-export function isValidSlug(slug: string): boolean {
-  return /^[a-z0-9][a-z0-9-]{0,63}$/.test(slug);
-}
-
-export async function listReportFiles(): Promise<FixtureReport[]> {
-  return state.reports;
-}
-
-export async function readReportFile(
-  slug: string,
-): Promise<FixtureReport | null> {
-  return state.reports.find((r) => r.slug === slug) ?? null;
 }
 
 // ─── Webhooks ────────────────────────────────────────────────────────────────
