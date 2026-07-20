@@ -27,7 +27,7 @@ import { resolve, dirname } from "node:path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PREVIEW_ACTIONS_PATH = resolve(
   __dirname,
-  "../../src/dashboard/lib/components/PreviewActions.tsx",
+  "../../src/dashboard/features/previews/components/PreviewActions.tsx",
 );
 
 const SOURCE = readFileSync(PREVIEW_ACTIONS_PATH, "utf8");
@@ -39,7 +39,7 @@ describe("PreviewActions — manual Merge button (issue #111)", () => {
     // below, so a missing import would surface as a TypeScript error
     // first — this assertion exists to keep the contract explicit.
     expect(SOURCE).toMatch(
-      /import\s*\{\s*MergeButton\s*\}\s*from\s*["']\.\/MergeButton["']/,
+      /import\s*\{\s*MergeButton\s*\}\s*from\s*["'](?:\.\/|@dashboard\/lib\/components\/)MergeButton["']/,
     );
   });
 

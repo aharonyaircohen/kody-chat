@@ -7,7 +7,7 @@
  *   the issue from the list (it closes server-side).
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { VibePage } from "@dashboard/lib/components/VibePage";
+import { VibePage } from "@dashboard/features/vibe/components/VibePage";
 import { buildKodyMetadata } from "../metadata";
 
 export const dynamic = "force-static";

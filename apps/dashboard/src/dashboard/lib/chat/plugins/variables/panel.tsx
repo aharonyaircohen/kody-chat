@@ -10,7 +10,7 @@
  */
 "use client";
 
-import { VariablesManager } from "../../../components/VariablesManager";
+import { VariablesManager } from "@dashboard/features/admin/components/VariablesManager";
 import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
 
 export const VARIABLES_PANEL_TESTID = "chat-panel-variables";

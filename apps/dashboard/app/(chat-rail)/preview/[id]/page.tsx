@@ -5,7 +5,7 @@
  * @ai-summary Selected Preview environment route. Keeps environment selection
  * addressable at `/preview/<id>`.
  */
-import { PreviewWorkspace } from "@dashboard/lib/components/PreviewWorkspace";
+import { PreviewWorkspace } from "@dashboard/features/previews/components/PreviewWorkspace";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-dynamic";

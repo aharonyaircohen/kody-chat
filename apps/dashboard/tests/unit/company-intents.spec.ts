@@ -187,7 +187,7 @@ describe("company intents", () => {
     const view = readFileSync(
       resolve(
         process.cwd(),
-        "src/dashboard/lib/components/CompanyIntentsView.tsx",
+        "src/dashboard/features/admin/components/CompanyIntentsView.tsx",
       ),
       "utf8",
     );

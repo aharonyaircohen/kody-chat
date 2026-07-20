@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/components/FlyMachinesTable.tsx"),
+  resolve(__dirname, "../../src/dashboard/features/previews/components/FlyMachinesTable.tsx"),
   "utf8",
 );
 

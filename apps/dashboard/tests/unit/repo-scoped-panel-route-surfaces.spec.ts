@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -13,10 +13,17 @@ const PACKAGE_COMPONENTS = new Set([
   "BrandsManager.tsx",
   "InstructionsManager.tsx",
 ]);
-const componentsRoot = (file: string) =>
-  PACKAGE_COMPONENTS.has(file)
-    ? "node_modules/@kody-ade/kody-chat/src/dashboard/lib/components"
-    : "src/dashboard/lib/components";
+const FEATURE_ROOTS = readdirSync(join(process.cwd(), "src/dashboard/features")).map(
+  (f) => join("src/dashboard/features", f, "components"),
+);
+const componentsRoot = (file: string) => {
+  if (PACKAGE_COMPONENTS.has(file))
+    return "node_modules/@kody-ade/kody-chat/src/dashboard/lib/components";
+  for (const dir of ["src/dashboard/lib/components", ...FEATURE_ROOTS]) {
+    if (existsSync(join(process.cwd(), dir, file))) return dir;
+  }
+  return "src/dashboard/lib/components";
+};
 const component = (file: string) => read(join(componentsRoot(file), file));
 const sourceFile = (file: string) =>
   read(

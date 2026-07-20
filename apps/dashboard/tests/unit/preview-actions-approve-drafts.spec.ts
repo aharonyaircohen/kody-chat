@@ -30,7 +30,7 @@ import { resolve, dirname } from "node:path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PREVIEW_ACTIONS_PATH = resolve(
   __dirname,
-  "../../src/dashboard/lib/components/PreviewActions.tsx",
+  "../../src/dashboard/features/previews/components/PreviewActions.tsx",
 );
 const MERGE_APPROVAL_DIALOG_PATH = resolve(
   __dirname,

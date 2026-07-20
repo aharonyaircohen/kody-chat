@@ -11,7 +11,7 @@
 "use client";
 
 import { AuthGuard } from "../../../auth-guard";
-import { TodoControl } from "../../../components/TodoControl";
+import { TodoControl } from "@dashboard/features/tasks/components/TodoControl";
 import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
 
 export const TODOS_PANEL_TESTID = "chat-panel-todos";

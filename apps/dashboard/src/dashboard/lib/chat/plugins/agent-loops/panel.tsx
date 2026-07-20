@@ -10,7 +10,7 @@
  */
 "use client";
 
-import { ManagedModelsView } from "../../../components/ManagedModelsView";
+import { ManagedModelsView } from "@dashboard/features/admin/components/ManagedModelsView";
 import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
 
 export const AGENT_LOOPS_PANEL_TESTID = "chat-panel-agent-loops";

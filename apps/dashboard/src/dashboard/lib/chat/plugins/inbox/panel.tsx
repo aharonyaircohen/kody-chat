@@ -10,7 +10,7 @@
  */
 "use client";
 
-import { InboxList } from "../../../components/InboxList";
+import { InboxList } from "@dashboard/features/inbox/components/InboxList";
 import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
 
 export const INBOX_PANEL_TESTID = "chat-panel-inbox";

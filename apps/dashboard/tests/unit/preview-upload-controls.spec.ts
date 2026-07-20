@@ -13,15 +13,15 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PREVIEW_WORKSPACE_PATH = resolve(
   __dirname,
-  "../../src/dashboard/lib/components/PreviewWorkspace.tsx",
+  "../../src/dashboard/features/previews/components/PreviewWorkspace.tsx",
 );
 const PREVIEW_ENV_SWITCHER_PATH = resolve(
   __dirname,
-  "../../src/dashboard/lib/components/PreviewEnvSwitcher.tsx",
+  "../../src/dashboard/features/previews/components/PreviewEnvSwitcher.tsx",
 );
 const PREVIEW_UPLOAD_BUTTON_PATH = resolve(
   __dirname,
-  "../../src/dashboard/lib/components/PreviewFileUploadButton.tsx",
+  "../../src/dashboard/features/previews/components/PreviewFileUploadButton.tsx",
 );
 const WORKSPACE_SOURCE = readFileSync(PREVIEW_WORKSPACE_PATH, "utf8");
 const SWITCHER_SOURCE = readFileSync(PREVIEW_ENV_SWITCHER_PATH, "utf8");

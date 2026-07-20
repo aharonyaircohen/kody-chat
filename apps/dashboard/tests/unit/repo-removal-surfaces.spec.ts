@@ -5,7 +5,18 @@
  * repo intentionally does not carry a DOM testing setup. This follows the
  * existing source assertion pattern for hook-heavy UI components.
  */
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+const FEATURE_ROOTS = readdirSync(join(process.cwd(), "src/dashboard/features")).map(
+  (f) => join("src/dashboard/features", f, "components"),
+);
+const componentDir = (file: string) => {
+  for (const dir of ["src/dashboard/lib/components", ...FEATURE_ROOTS]) {
+    if (existsSync(join(process.cwd(), dir, file))) return dir;
+  }
+  return "src/dashboard/lib/components";
+};
+
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -15,7 +26,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 function readComponent(name: string): string {
   return readFileSync(
-    resolve(__dirname, `../../src/dashboard/lib/components/${name}.tsx`),
+    resolve(__dirname, "../..", componentDir(`${name}.tsx`), `${name}.tsx`),
     "utf8",
   );
 }

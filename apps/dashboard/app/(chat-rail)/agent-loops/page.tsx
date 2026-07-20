@@ -5,7 +5,7 @@
  * @ai-summary AgentLoop page for ongoing schedule/health operating models.
  */
 
-import { ManagedModelsView } from "@dashboard/lib/components/ManagedModelsView";
+import { ManagedModelsView } from "@dashboard/features/admin/components/ManagedModelsView";
 import { buildKodyMetadata } from "../../metadata";
 
 export const metadata = buildKodyMetadata({

@@ -4,7 +4,7 @@
  * @pattern fly-history-page
  * @ai-summary Fly history page: machine activity snapshots and cost estimates.
  */
-import { RunnerManager } from "@dashboard/lib/components/RunnerManager";
+import { RunnerManager } from "@dashboard/features/admin/components/RunnerManager";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-static";

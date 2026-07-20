@@ -21,8 +21,8 @@ import {
 import { AuthGuard } from "../auth-guard";
 import { useReports } from "../hooks/useReports";
 import { reportsApi, type Report } from "../api/reports";
-import { CreateTaskDialog } from "./CreateTaskDialog";
-import { CreateGoalDialog } from "./GoalControl";
+import { CreateTaskDialog } from "@dashboard/features/tasks/components/CreateTaskDialog";
+import { CreateGoalDialog } from "@dashboard/features/goals/components/GoalControl";
 
 function reportSourceMarkdown(report: Report): string {
   return `> Generated from report \`${report.slug}\` (${report.updatedAt}).`;

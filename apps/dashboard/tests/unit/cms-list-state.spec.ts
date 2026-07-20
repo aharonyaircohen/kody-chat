@@ -4,7 +4,7 @@ import {
   buildCmsPageNumbers,
   parseCmsListState,
   serializeCmsListState,
-} from "@dashboard/lib/components/cms/list-state";
+} from "@dashboard/features/admin/components/cms/list-state";
 
 describe("CMS list state query persistence", () => {
   it("parses persisted collection search, filters, sort, and pagination", () => {

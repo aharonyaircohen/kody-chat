@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const TODO_CONTROL_SOURCE = readFileSync(
-  resolve(process.cwd(), "src/dashboard/lib/components/TodoControl.tsx"),
+  resolve(process.cwd(), "src/dashboard/features/tasks/components/TodoControl.tsx"),
   "utf8",
 );
 
@@ -48,7 +48,7 @@ describe("todo item cards", () => {
 
     expect(selectItemBlock).toBeTruthy();
     expect(TODO_CONTROL_SOURCE).toContain(
-      'import { useScrollRestoration } from "../hooks/useScrollRestoration";',
+      'import { useScrollRestoration } from "@dashboard/lib/hooks/useScrollRestoration";',
     );
     expect(TODO_CONTROL_SOURCE).toContain(
       "const detailScrollRef = useScrollRestoration(",

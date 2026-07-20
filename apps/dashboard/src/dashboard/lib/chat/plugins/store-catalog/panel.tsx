@@ -11,7 +11,7 @@
 "use client";
 
 import { AuthGuard } from "../../../auth-guard";
-import { StoreCatalogManager } from "../../../components/StoreCatalogManager";
+import { StoreCatalogManager } from "@dashboard/features/admin/components/StoreCatalogManager";
 import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
 
 export const STORE_CATALOG_PANEL_TESTID = "chat-panel-store-catalog";

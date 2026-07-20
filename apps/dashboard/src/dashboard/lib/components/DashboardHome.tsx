@@ -46,8 +46,8 @@ import {
 } from "../hooks/useDashboardActions";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useAuth } from "../auth-context";
-import { CreateTaskDialog } from "./CreateTaskDialog";
-import { CreateGoalDialog } from "./GoalControl";
+import { CreateTaskDialog } from "@dashboard/features/tasks/components/CreateTaskDialog";
+import { CreateGoalDialog } from "@dashboard/features/goals/components/GoalControl";
 import { RepoManager } from "./RepoManager";
 import { RepoScopedLink } from "./RepoScopedLink";
 import { cn } from "../utils";

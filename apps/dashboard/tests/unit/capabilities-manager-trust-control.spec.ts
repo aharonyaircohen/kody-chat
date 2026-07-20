@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const source = readFileSync(
-  "src/dashboard/lib/components/CapabilitiesManager.tsx",
+  "src/dashboard/features/admin/components/CapabilitiesManager.tsx",
   "utf8",
 );
 

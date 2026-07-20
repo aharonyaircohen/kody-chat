@@ -10,16 +10,16 @@ import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { KodyTask, SortField } from "@kody-ade/base/types";
 import { filterTasksByView, getViewModeCounts, sortTasks } from "../utils";
 import { cn } from "../utils";
-import { TaskList } from "./TaskList";
-import { GoalGroupedView, useGoalCollapse } from "./GoalGroupedView";
-import { CreateGoalDialog, EditGoalDialog } from "./GoalControl";
-import { GoalDiscussionDialog } from "./GoalDiscussionDialog";
+import { TaskList } from "@dashboard/features/tasks/components/TaskList";
+import { GoalGroupedView, useGoalCollapse } from "@dashboard/features/goals/components/GoalGroupedView";
+import { CreateGoalDialog, EditGoalDialog } from "@dashboard/features/goals/components/GoalControl";
+import { GoalDiscussionDialog } from "@dashboard/features/goals/components/GoalDiscussionDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { useGoals, useDeleteGoal, goalQueryKeys } from "../hooks/useGoals";
 import type { Goal } from "../api";
 
-import { CreateTaskDialog } from "./CreateTaskDialog";
-import { EditTaskDialog } from "./EditTaskDialog";
+import { CreateTaskDialog } from "@dashboard/features/tasks/components/CreateTaskDialog";
+import { EditTaskDialog } from "@dashboard/features/tasks/components/EditTaskDialog";
 import { BugReportDialog } from "./BugReportDialog";
 import { KodyBugReportDialog } from "./KodyBugReportDialog";
 import { KeyboardShortcutsDialog } from "./KeyboardShortcutsDialog";
@@ -33,8 +33,8 @@ import {
   STATUS_FILTERS,
   type ViewMode,
 } from "./FilterBar";
-import { TaskDetail } from "./TaskDetail";
-import { PreviewModal } from "./PreviewModal";
+import { TaskDetail } from "@dashboard/features/tasks/components/TaskDetail";
+import { PreviewModal } from "@dashboard/features/previews/components/PreviewModal";
 import { Button } from "@kody-ade/base/ui/button";
 import {
   Select,

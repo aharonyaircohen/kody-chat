@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const ORG_MANAGER_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/components/OrgManager.tsx"),
+  resolve(__dirname, "../../src/dashboard/features/admin/components/OrgManager.tsx"),
   "utf8",
 );
 const AUTH_CONTEXT_SOURCE = readFileSync(

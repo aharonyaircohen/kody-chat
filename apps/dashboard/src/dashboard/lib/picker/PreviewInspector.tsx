@@ -56,8 +56,8 @@ import {
   type PreviewAction,
 } from "./protocol";
 import { recordedStepToAction } from "../macros";
-import { PreviewMacrosMenu } from "../components/PreviewMacrosMenu";
-import { PreviewFloatingMenu } from "../components/PreviewFloatingMenu";
+import { PreviewMacrosMenu } from "@dashboard/features/previews/components/PreviewMacrosMenu";
+import { PreviewFloatingMenu } from "@dashboard/features/previews/components/PreviewFloatingMenu";
 import { PreviewEditPanel } from "./PreviewEditPanel";
 
 export interface ComposerChip {

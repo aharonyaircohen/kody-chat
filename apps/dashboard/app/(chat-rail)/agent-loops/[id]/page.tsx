@@ -5,7 +5,7 @@
  * @ai-summary Selected Loop route. Keeps loop selection addressable at
  * `/agent-loops/<id>`.
  */
-import { ManagedModelsView } from "@dashboard/lib/components/ManagedModelsView";
+import { ManagedModelsView } from "@dashboard/features/admin/components/ManagedModelsView";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-dynamic";

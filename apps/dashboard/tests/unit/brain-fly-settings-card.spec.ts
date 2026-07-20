@@ -10,7 +10,7 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const BRAIN_CARD_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/components/BrainFlyCard.tsx"),
+  resolve(__dirname, "../../src/dashboard/features/admin/components/BrainFlyCard.tsx"),
   "utf8",
 );
 

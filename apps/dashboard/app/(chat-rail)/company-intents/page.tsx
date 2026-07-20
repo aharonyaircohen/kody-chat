@@ -4,7 +4,7 @@
  * @pattern companyIntents
  * @ai-summary AI Agency intents page for CTO manager guidance.
  */
-import { CompanyIntentsView } from "@dashboard/lib/components/CompanyIntentsView";
+import { CompanyIntentsView } from "@dashboard/features/admin/components/CompanyIntentsView";
 import { buildKodyMetadata } from "../../metadata";
 
 export const metadata = buildKodyMetadata({

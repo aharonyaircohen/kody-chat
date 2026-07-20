@@ -13,13 +13,13 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const WORKFLOWS_MANAGER_PATH = resolve(
   __dirname,
-  "../../src/dashboard/lib/components/WorkflowsManager.tsx",
+  "../../src/dashboard/features/workflows/components/WorkflowsManager.tsx",
 );
 const SOURCE = readFileSync(WORKFLOWS_MANAGER_PATH, "utf8");
 const WORKFLOW_EDITOR_SOURCE = readFileSync(
   resolve(
     __dirname,
-    "../../src/dashboard/lib/components/WorkflowEditorDialog.tsx",
+    "../../src/dashboard/features/workflows/components/WorkflowEditorDialog.tsx",
   ),
   "utf8",
 );

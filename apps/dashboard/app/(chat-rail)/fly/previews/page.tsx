@@ -5,7 +5,7 @@
  * @ai-summary Fly previews page: live preview URLs, machine details, PR
  * preview settings, cleanup, and manual branch previews.
  */
-import { RunnerManager } from "@dashboard/lib/components/RunnerManager";
+import { RunnerManager } from "@dashboard/features/admin/components/RunnerManager";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-static";

@@ -9,13 +9,13 @@ function source(path: string): string {
 describe("rate limit polling guardrails", () => {
   it("keeps the first six hot internal pages on slower or cached paths", () => {
     expect(
-      source("src/dashboard/lib/components/FlyPreviewsList.tsx"),
+      source("src/dashboard/features/previews/components/FlyPreviewsList.tsx"),
     ).toContain("const REFRESH_MS = 60_000");
     expect(
       source("node_modules/@kody-ade/kody-chat/src/dashboard/lib/chat/plugins/terminal/use-brain-image-save.ts"),
     ).toContain("const BRAIN_IMAGE_SAVE_POLL_INTERVAL_MS = 10_000");
     expect(
-      source("src/dashboard/lib/components/BrainImagesManager.tsx"),
+      source("src/dashboard/features/admin/components/BrainImagesManager.tsx"),
     ).toContain("/api/kody/brain/image?jobId=");
     expect(
       source(

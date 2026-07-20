@@ -5,7 +5,7 @@
  * @ai-summary Selected Messages channel route. Keeps channel selection
  * addressable at `/messages/<channel>`.
  */
-import { MessagesView } from "@dashboard/lib/components/MessagesView";
+import { MessagesView } from "@dashboard/features/messages/components/MessagesView";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-dynamic";

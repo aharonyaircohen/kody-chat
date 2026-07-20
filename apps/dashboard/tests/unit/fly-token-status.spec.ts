@@ -9,11 +9,11 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const managerSource = readFileSync(
-  resolve(root, "src/dashboard/lib/components/RunnerManager.tsx"),
+  resolve(root, "src/dashboard/features/admin/components/RunnerManager.tsx"),
   "utf8",
 );
 const brainImagesSource = readFileSync(
-  resolve(root, "src/dashboard/lib/components/BrainImagesManager.tsx"),
+  resolve(root, "src/dashboard/features/admin/components/BrainImagesManager.tsx"),
   "utf8",
 );
 const hookSource = readFileSync(

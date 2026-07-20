@@ -20,7 +20,7 @@ const SETTINGS_NAV_SOURCE = readFileSync(
   "utf8",
 );
 const ORG_MANAGER_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/components/OrgManager.tsx"),
+  resolve(__dirname, "../../src/dashboard/features/admin/components/OrgManager.tsx"),
   "utf8",
 );
 

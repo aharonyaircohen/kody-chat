@@ -6,7 +6,7 @@
  */
 
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { StoreCatalogManager } from "@dashboard/lib/components/StoreCatalogManager";
+import { StoreCatalogManager } from "@dashboard/features/admin/components/StoreCatalogManager";
 import { buildKodyMetadata } from "../metadata";
 
 export const dynamic = "force-static";

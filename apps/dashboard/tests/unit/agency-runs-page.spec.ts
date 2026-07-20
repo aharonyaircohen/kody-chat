@@ -9,11 +9,11 @@ import {
   operatorRunFactLines,
   runEvidenceViewTarget,
   shouldWaitForRunStory,
-} from "../../src/dashboard/lib/components/AgencyRunsPage";
+} from "@dashboard/features/agency/components/AgencyRunsPage";
 import type { AgencyRunSummary } from "../../src/dashboard/lib/agency-runs";
 
 const pageSource = readFileSync(
-  "src/dashboard/lib/components/AgencyRunsPage.tsx",
+  "src/dashboard/features/agency/components/AgencyRunsPage.tsx",
   "utf8",
 );
 const navSource = readFileSync(

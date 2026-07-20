@@ -5,7 +5,7 @@
  * @ai-summary Selected AI Agency Intent route. Keeps intent selection
  * addressable at `/company-intents/<id>`.
  */
-import { CompanyIntentsView } from "@dashboard/lib/components/CompanyIntentsView";
+import { CompanyIntentsView } from "@dashboard/features/admin/components/CompanyIntentsView";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-dynamic";

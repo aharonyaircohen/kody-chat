@@ -15,7 +15,7 @@ describe("todo item route surfaces", () => {
   });
 
   it("keeps todo list and todo item navigation repo-scoped", () => {
-    const source = read("src/dashboard/lib/components/TodoControl.tsx");
+    const source = read("src/dashboard/features/tasks/components/TodoControl.tsx");
 
     expect(source).toContain("selectedItemId");
     expect(source).toContain("useRepoScopedHref");

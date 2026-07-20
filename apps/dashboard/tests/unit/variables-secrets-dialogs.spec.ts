@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const VARIABLES_SOURCE = readFileSync(
-  "src/dashboard/lib/components/VariablesManager.tsx",
+  "src/dashboard/features/admin/components/VariablesManager.tsx",
   "utf8",
 );
 const SECRETS_SOURCE = readFileSync(

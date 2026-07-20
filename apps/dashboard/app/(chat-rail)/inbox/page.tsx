@@ -5,7 +5,7 @@
  * @ai-summary Inbox entry point. Renders the per-repo mention list inside
  *   the shared chat-rail layout so the assistant stays available.
  */
-import { InboxList } from "@dashboard/lib/components/InboxList";
+import { InboxList } from "@dashboard/features/inbox/components/InboxList";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";

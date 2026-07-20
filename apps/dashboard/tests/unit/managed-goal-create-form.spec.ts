@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const source = readFileSync(
-  "src/dashboard/lib/components/ManagedModelsView.tsx",
+  "src/dashboard/features/admin/components/ManagedModelsView.tsx",
   "utf8",
 );
 

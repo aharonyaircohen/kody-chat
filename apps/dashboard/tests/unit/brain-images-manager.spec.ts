@@ -12,7 +12,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const SOURCE = readFileSync(
   resolve(
     __dirname,
-    "../../src/dashboard/lib/components/BrainImagesManager.tsx",
+    "../../src/dashboard/features/admin/components/BrainImagesManager.tsx",
   ),
   "utf8",
 );
@@ -38,7 +38,7 @@ describe("BrainImagesManager", () => {
 
   it("requires confirmation before permanently deleting an image", () => {
     expect(SOURCE).toContain(
-      'import { ConfirmDialog } from "./ConfirmDialog";',
+      'import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";',
     );
     expect(SOURCE).toContain("const [pendingDeleteRef, setPendingDeleteRef]");
     expect(SOURCE).toContain(

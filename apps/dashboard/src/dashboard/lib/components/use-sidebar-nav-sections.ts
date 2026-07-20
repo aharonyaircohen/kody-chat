@@ -13,7 +13,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Database } from "lucide-react";
 import { buildAuthHeaders, useAuth } from "../auth-context";
-import { fetchCmsConfig } from "./cms/client";
+import { fetchCmsConfig } from "@dashboard/features/admin/components/cms/client";
 import {
   SIDEBAR_NAV_SECTIONS,
   type SettingsNavItem,

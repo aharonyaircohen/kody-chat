@@ -36,6 +36,11 @@ const chatLayerZones = [
     from: "./src/dashboard/lib/components",
     message: "core must not import components",
   },
+  {
+    target: `${CHAT}/core`,
+    from: "./src/dashboard/features",
+    message: "core must not import feature components",
+  },
   // platform sits above core only.
   {
     target: `${CHAT}/platform`,
@@ -51,6 +56,11 @@ const chatLayerZones = [
     target: `${CHAT}/platform`,
     from: "./src/dashboard/lib/components",
     message: "platform must not import components",
+  },
+  {
+    target: `${CHAT}/platform`,
+    from: "./src/dashboard/features",
+    message: "platform must not import feature components",
   },
   // plugins may use platform + core utilities — but never the stream
   // reducer. Lifecycle needs (message start/end, thinking, stream events)
@@ -205,6 +215,8 @@ export default [
               group: [
                 "@dashboard/lib/components*",
                 "@/dashboard/lib/components*",
+                "@dashboard/features*",
+                "@/dashboard/features*",
               ],
               message: "core must not import components",
             },
@@ -242,6 +254,8 @@ export default [
               group: [
                 "@dashboard/lib/components*",
                 "@/dashboard/lib/components*",
+                "@dashboard/features*",
+                "@/dashboard/features*",
               ],
               message: "platform must not import components",
             },

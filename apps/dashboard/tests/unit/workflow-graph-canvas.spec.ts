@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 const SOURCE_PATH = path.resolve(
   process.cwd(),
-  "src/dashboard/lib/components/WorkflowGraphCanvas.tsx",
+  "src/dashboard/features/workflows/components/WorkflowGraphCanvas.tsx",
 );
 
 describe("WorkflowGraphCanvas", () => {

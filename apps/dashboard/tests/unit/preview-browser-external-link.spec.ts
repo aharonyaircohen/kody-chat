@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PREVIEW_BROWSER_PATH = resolve(
   __dirname,
-  "../../src/dashboard/lib/components/PreviewBrowser.tsx",
+  "../../src/dashboard/features/previews/components/PreviewBrowser.tsx",
 );
 
 const SOURCE = readFileSync(PREVIEW_BROWSER_PATH, "utf8");

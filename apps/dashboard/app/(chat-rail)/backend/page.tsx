@@ -6,7 +6,7 @@
  *   and import it into the Convex backend. Renders inside the shared
  *   PageWithChat shell so the assistant is always available.
  */
-import { BackendManager } from "@dashboard/lib/components/BackendManager";
+import { BackendManager } from "@dashboard/features/admin/components/BackendManager";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";

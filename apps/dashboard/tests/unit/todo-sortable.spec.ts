@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const TODO_CONTROL_SOURCE = readFileSync(
-  resolve(process.cwd(), "src/dashboard/lib/components/TodoControl.tsx"),
+  resolve(process.cwd(), "src/dashboard/features/tasks/components/TodoControl.tsx"),
   "utf8",
 );
 

@@ -29,7 +29,7 @@ import { resolve, dirname } from "node:path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PREVIEW_MODAL_PATH = resolve(
   __dirname,
-  "../../src/dashboard/lib/components/PreviewModal.tsx",
+  "../../src/dashboard/features/previews/components/PreviewModal.tsx",
 );
 
 const SOURCE = readFileSync(PREVIEW_MODAL_PATH, "utf8");

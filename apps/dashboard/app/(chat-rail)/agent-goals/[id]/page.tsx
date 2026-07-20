@@ -5,7 +5,7 @@
  * @ai-summary Selected Goal route. Keeps goal selection addressable at
  * `/agent-goals/<id>`.
  */
-import { ManagedModelsView } from "@dashboard/lib/components/ManagedModelsView";
+import { ManagedModelsView } from "@dashboard/features/admin/components/ManagedModelsView";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-dynamic";

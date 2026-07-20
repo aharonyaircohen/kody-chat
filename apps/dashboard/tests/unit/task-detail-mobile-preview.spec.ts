@@ -34,7 +34,7 @@ import { resolve, dirname } from "node:path";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const TASK_DETAIL_PATH = resolve(
   __dirname,
-  "../../src/dashboard/lib/components/TaskDetail.tsx",
+  "../../src/dashboard/features/tasks/components/TaskDetail.tsx",
 );
 
 const SOURCE = readFileSync(TASK_DETAIL_PATH, "utf8");
@@ -46,7 +46,7 @@ describe("TaskDetail — mobile preview button (issue #150)", () => {
     // Match the conditional render block and assert it does NOT require
     // the column to be review/done.
     const desktopChip = SOURCE.match(
-      /\{[\s\S]{0,200}?task\.associatedPR[\s\S]{0,200}?onOpenPreview[\s\S]{0,400}?Preview[\s\S]{0,80}?<\/button>\s*\)\s*\}/,
+      /\{[\s\S]{0,200}?task\.associatedPR[\s\S]{0,200}?onOpenPreview[\s\S]{0,400}?Preview[\s\S]{0,80}?<\/[Bb]utton>\s*\)\s*\}/,
     );
     expect(
       desktopChip,
@@ -70,7 +70,7 @@ describe("TaskDetail — mobile preview button (issue #150)", () => {
     // Locate the mobile bottom toolbar Preview button by its distinct
     // tailwind classes (rounded-full pill, h-9) and assert the gate.
     const mobileButtonBlock = SOURCE.match(
-      /\{[\s\S]{0,200}?task\.associatedPR[\s\S]{0,200}?onOpenPreview[\s\S]{0,400}?rounded-full[\s\S]{0,200}?Preview[\s\S]{0,80}?<\/button>\s*\)\s*\}/,
+      /\{[\s\S]{0,200}?task\.associatedPR[\s\S]{0,200}?onOpenPreview[\s\S]{0,400}?rounded-full[\s\S]{0,280}?Preview[\s\S]{0,80}?<\/[Bb]utton>\s*\)\s*\}/,
     );
     expect(
       mobileButtonBlock,
@@ -94,7 +94,7 @@ describe("TaskDetail — mobile preview button (issue #150)", () => {
     // column gate.
     const allBlocks =
       SOURCE.match(
-        /\{[\s\S]{0,80}?task\.associatedPR[\s\S]{0,200}?onOpenPreview[\s\S]{0,400}?Preview[\s\S]{0,80}?<\/button>\s*\)\s*\}/g,
+        /\{[\s\S]{0,80}?task\.associatedPR[\s\S]{0,200}?onOpenPreview[\s\S]{0,400}?Preview[\s\S]{0,80}?<\/[Bb]utton>\s*\)\s*\}/g,
       ) ?? [];
     expect(
       allBlocks.length,

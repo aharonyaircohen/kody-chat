@@ -1,10 +1,20 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+const FEATURE_ROOTS = readdirSync(join(process.cwd(), "src/dashboard/features")).map(
+  (f) => join("src/dashboard/features", f, "components"),
+);
+const componentDir = (file: string) => {
+  for (const dir of ["src/dashboard/lib/components", ...FEATURE_ROOTS]) {
+    if (existsSync(join(process.cwd(), dir, file))) return dir;
+  }
+  return "src/dashboard/lib/components";
+};
+
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const readComponent = (name: string) =>
   readFileSync(
-    join(process.cwd(), "src/dashboard/lib/components", name),
+    join(process.cwd(), componentDir(name), name),
     "utf8",
   );
 

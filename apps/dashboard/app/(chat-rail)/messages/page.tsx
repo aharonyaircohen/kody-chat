@@ -7,7 +7,7 @@
  *   group layout). Channels are GitHub Discussions; messages fan out to
  *   push/Slack/inbox via the existing mention-dispatch path.
  */
-import { MessagesView } from "@dashboard/lib/components/MessagesView";
+import { MessagesView } from "@dashboard/features/messages/components/MessagesView";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";

@@ -5,7 +5,7 @@
  * @ai-summary Variables management entry point. Renders inside the shared
  *   PageWithChat shell so the assistant is always available.
  */
-import { VariablesManager } from "@dashboard/lib/components/VariablesManager";
+import { VariablesManager } from "@dashboard/features/admin/components/VariablesManager";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-static";

@@ -12,7 +12,7 @@ function readRepoFile(path: string): string {
 describe("Content Model layout", () => {
   it("uses the builder layout instead of the old tabbed field cards", () => {
     const source = readRepoFile(
-      "src/dashboard/lib/components/ContentModelManager.tsx",
+      "src/dashboard/features/admin/components/ContentModelManager.tsx",
     );
 
     expect(source).toContain("function ResourceSettingsBar");
@@ -25,7 +25,7 @@ describe("Content Model layout", () => {
 
   it("saves the latest dirty draft instead of a refetched resource snapshot", () => {
     const source = readRepoFile(
-      "src/dashboard/lib/components/ContentModelManager.tsx",
+      "src/dashboard/features/admin/components/ContentModelManager.tsx",
     );
 
     expect(source).toContain("const draftRef = useRef(draft);");

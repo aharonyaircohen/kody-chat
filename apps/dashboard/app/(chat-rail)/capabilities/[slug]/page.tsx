@@ -5,7 +5,7 @@
  * @ai-summary Selected capability route backed by backend capabilities storage.
  */
 import { AuthGuard } from "@dashboard/lib/auth-guard";
-import { CapabilitiesManager } from "@dashboard/lib/components/CapabilitiesManager";
+import { CapabilitiesManager } from "@dashboard/features/admin/components/CapabilitiesManager";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-dynamic";
