@@ -21,6 +21,7 @@ import {
   buildTree,
   fileTreeHeaderLabel,
   pathAndAncestorPaths,
+  treeItemKeyAction,
 } from "@dashboard/features/file-manager/components/FileTree";
 import type { FileEntry } from "@dashboard/features/file-manager/lib/repo-files";
 
@@ -210,5 +211,21 @@ describe("path helpers", () => {
 
   it("returns no parents for a root file", () => {
     expect(ancestorPaths("README.md")).toEqual([]);
+  });
+});
+
+describe("treeItemKeyAction", () => {
+  it("activates files and folders with Enter or Space", () => {
+    expect(treeItemKeyAction("Enter", false, false)).toBe("select");
+    expect(treeItemKeyAction(" ", true, false)).toBe("select");
+  });
+
+  it("expands and collapses folders with arrow keys", () => {
+    expect(treeItemKeyAction("ArrowRight", true, false)).toBe("expand");
+    expect(treeItemKeyAction("ArrowLeft", true, true)).toBe("collapse");
+  });
+
+  it("ignores folder-only keys for files", () => {
+    expect(treeItemKeyAction("ArrowRight", false, false)).toBeNull();
   });
 });

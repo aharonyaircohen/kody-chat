@@ -51,7 +51,6 @@ interface FileTreeProps {
   onNewFile?: (dirPath: string) => void;
   onNewFolder?: (dirPath: string) => void;
   onCopyPath?: (path: string) => void;
-  onCreateSymlink?: (path: string) => void;
   onMove?: (
     path: string,
     pathType: FileEntry["type"],
@@ -88,6 +87,20 @@ export function ancestorPaths(path: string): string[] {
 export function pathAndAncestorPaths(path: string): string[] {
   const parts = path.split("/").filter(Boolean);
   return parts.map((_, index) => parts.slice(0, index + 1).join("/"));
+}
+
+export type TreeItemKeyAction = "select" | "expand" | "collapse";
+
+export function treeItemKeyAction(
+  key: string,
+  isDirectory: boolean,
+  isOpen: boolean,
+): TreeItemKeyAction | null {
+  if (key === "Enter" || key === " ") return "select";
+  if (!isDirectory) return null;
+  if (key === "ArrowRight" && !isOpen) return "expand";
+  if (key === "ArrowLeft" && isOpen) return "collapse";
+  return null;
 }
 
 function normalizeTreePath(path: string): string {
@@ -301,6 +314,23 @@ function TreeNodeRow({
             onSelect(entry.path);
           }
         }}
+        onKeyDown={(event) => {
+          const action = treeItemKeyAction(event.key, isDir, isOpen);
+          if (!action) return;
+          event.preventDefault();
+
+          if (action === "select") {
+            if (isDir) {
+              onFolderSelect?.(entry.path);
+              onToggle(entry.path);
+            } else {
+              onSelect(entry.path);
+            }
+            return;
+          }
+
+          onToggle(entry.path);
+        }}
         onContextMenu={(e) => {
           if (!isProtected) onContextMenu(e, entry.path, entry.type);
         }}
@@ -395,7 +425,6 @@ export function FileTree({
   onNewFile,
   onNewFolder,
   onCopyPath,
-  onCreateSymlink,
   onMove,
   onCollapse,
   treeOverlay = EMPTY_TREE_OVERLAY,
@@ -416,6 +445,7 @@ export function FileTree({
   );
   const childrenMapRef = useRef(childrenMap);
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
+  const [treeError, setTreeError] = useState<string | null>(null);
   const sortKey: SortKey = "name";
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -430,7 +460,11 @@ export function FileTree({
   const [dropTargetPath, setDropTargetPath] = useState<string | null>(null);
 
   // Load root directory
-  const { data: rootEntries, isLoading: rootLoading } = useQuery({
+  const {
+    data: rootEntries,
+    isLoading: rootLoading,
+    error: rootError,
+  } = useQuery({
     queryKey: ["files-tree", owner, repo, normalizedRootPath, refreshKey],
     queryFn: () => listDir(octokit!, owner, repo, normalizedRootPath),
     enabled: !!octokit,
@@ -444,6 +478,7 @@ export function FileTree({
   useEffect(() => {
     setChildrenMap({});
     childrenMapRef.current = {};
+    setTreeError(null);
   }, [owner, repo, refreshKey]);
 
   useEffect(() => {
@@ -516,11 +551,15 @@ export function FileTree({
         // Open — load children if not cached
         if (!childrenMap[path]) {
           setLoadingPaths((prev) => new Set(prev).add(path));
+          setTreeError(null);
           try {
             const entries = (await listDir(octokit!, owner, repo, path)).filter(
               (entry) => !entryFilter || entryFilter(entry),
             );
             setChildrenMap((prev) => ({ ...prev, [path]: entries }));
+          } catch {
+            setTreeError(`Could not load ${path}`);
+            return;
           } finally {
             setLoadingPaths((prev) => {
               const next = new Set(prev);
@@ -668,27 +707,24 @@ export function FileTree({
             ) : null}
           </div>
         </div>
+        <button
+          onClick={onRefresh}
+          className="ml-auto grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+          title="Refresh"
+          aria-label="Refresh files"
+        >
+          <RefreshCw className="h-4 w-4" />
+        </button>
         {onCollapse && (
           <button
             onClick={onCollapse}
-            className="ml-auto grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+            className="grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
             title="Hide file panel"
             aria-label="Hide file panel"
           >
             <PanelLeftClose className="h-4 w-4" />
           </button>
         )}
-        <button
-          onClick={onRefresh}
-          className={cn(
-            "grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground",
-            !onCollapse && "ml-auto",
-          )}
-          title="Refresh"
-          aria-label="Refresh files"
-        >
-          <RefreshCw className="h-4 w-4" />
-        </button>
       </div>
 
       {/* Tree */}
@@ -716,6 +752,27 @@ export function FileTree({
         {rootLoading ? (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+          </div>
+        ) : rootError || treeError ? (
+          <div
+            className="flex flex-col items-center justify-center gap-2 px-4 py-8 text-center text-sm text-destructive"
+            role="alert"
+          >
+            <FileQuestion className="h-8 w-8" />
+            <span>
+              {treeError ??
+                `Could not load ${fileTreeHeaderLabel(normalizedRootPath)}`}
+            </span>
+            <button
+              type="button"
+              className="rounded-md border border-border px-2.5 py-1 text-xs text-foreground hover:bg-muted"
+              onClick={() => {
+                setTreeError(null);
+                onRefresh();
+              }}
+            >
+              Try again
+            </button>
           </div>
         ) : rootNodes.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-8 text-base text-muted-foreground">
@@ -765,14 +822,8 @@ export function FileTree({
           onNewFile={onNewFile}
           onNewFolder={onNewFolder}
           onCopyPath={onCopyPath}
-          onCreateSymlink={onCreateSymlink}
           writeable={Boolean(
-            onDelete ||
-            onRename ||
-            onDuplicate ||
-            onNewFile ||
-            onNewFolder ||
-            onCreateSymlink,
+            onDelete || onRename || onDuplicate || onNewFile || onNewFolder,
           )}
         />
       )}

@@ -170,36 +170,36 @@ export function UploadZone({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center gap-4 px-4 py-2 border-b border-white/10 shrink-0">
-        <Upload className="w-4 h-4 text-white/40" />
+      <div className="flex items-center gap-4 border-b border-border px-4 py-2 shrink-0">
+        <Upload className="w-4 h-4 text-muted-foreground" />
         <span className="text-sm">Upload files</span>
 
         <button
           onClick={() => setShowDestinationInput(!showDestinationInput)}
           className={cn(
             "text-xs px-2 py-1 rounded",
-            "text-white/50 hover:text-white/70",
+            "text-muted-foreground hover:text-foreground",
           )}
         >
           {showDestinationInput ? "Hide" : "Set destination"}
         </button>
 
         {hasActiveUploads && (
-          <Loader2 className="w-4 h-4 animate-spin text-white/40 ml-auto" />
+          <Loader2 className="w-4 h-4 animate-spin text-muted-foreground ml-auto" />
         )}
       </div>
 
       {/* Destination input */}
       {showDestinationInput && (
-        <div className="px-4 py-2 border-b border-white/5">
+        <div className="border-b border-border px-4 py-2">
           <input
             type="text"
             value={destination}
             onChange={(e) => setDestination(e.target.value)}
             placeholder="Destination directory (optional)"
             className={cn(
-              "w-full text-sm bg-white/5 border border-white/10 rounded px-3 py-1.5",
-              "text-white/90 placeholder:text-white/30 outline-none",
+              "w-full rounded border border-input bg-background px-3 py-1.5 text-sm",
+              "text-foreground placeholder:text-muted-foreground outline-none",
             )}
           />
         </div>
@@ -212,7 +212,7 @@ export function UploadZone({
           "border-2 border-dashed rounded-xl transition-colors",
           isDragging
             ? "border-emerald-500/50 bg-emerald-500/5"
-            : "border-white/10 hover:border-white/20",
+            : "border-border hover:border-muted-foreground/40",
         )}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -221,19 +221,19 @@ export function UploadZone({
         <Upload
           className={cn(
             "w-10 h-10 mb-4",
-            isDragging ? "text-emerald-400" : "text-white/30",
+            isDragging ? "text-emerald-400" : "text-muted-foreground",
           )}
         />
-        <p className="text-sm text-white/60 mb-1">
+        <p className="mb-1 text-sm text-foreground">
           {isDragging ? "Drop files here" : "Drag and drop files here"}
         </p>
-        <p className="text-xs text-white/30 mb-4">or</p>
+        <p className="mb-4 text-xs text-muted-foreground">or</p>
         <div className="flex items-center gap-2">
           <button
             onClick={handleUploadClick}
             className={cn(
               "text-sm px-4 py-2 rounded",
-              "bg-white/10 hover:bg-white/15 text-white/80",
+              "bg-muted text-foreground hover:bg-muted/80",
             )}
           >
             Browse files
@@ -242,7 +242,7 @@ export function UploadZone({
             onClick={handleFolderUploadClick}
             className={cn(
               "text-sm px-4 py-2 rounded",
-              "bg-white/10 hover:bg-white/15 text-white/80",
+              "bg-muted text-foreground hover:bg-muted/80",
             )}
           >
             Browse folder
@@ -267,15 +267,15 @@ export function UploadZone({
 
       {/* Uploading files list */}
       {uploading.length > 0 && (
-        <div className="border-t border-white/10 shrink-0 max-h-40 overflow-y-auto">
+        <div className="max-h-40 shrink-0 overflow-y-auto border-t border-border">
           {uploading.map((uploadingFile, i) => (
             <div
               key={i}
-              className="flex items-center gap-3 px-4 py-2 border-b border-white/5"
+              className="flex items-center gap-3 border-b border-border px-4 py-2"
             >
-              <File className="w-4 h-4 text-white/40 shrink-0" />
+              <File className="w-4 h-4 text-muted-foreground shrink-0" />
               <div className="flex-1 min-w-0">
-                <div className="text-xs text-white/70 truncate">
+                <div className="truncate text-xs text-foreground">
                   {uploadingFile.file.name}
                 </div>
                 {uploadingFile.error && (
@@ -286,7 +286,7 @@ export function UploadZone({
                 )}
               </div>
               {uploadingFile.progress < 100 && !uploadingFile.error && (
-                <Loader2 className="w-4 h-4 animate-spin text-white/40 shrink-0" />
+                <Loader2 className="w-4 h-4 animate-spin text-muted-foreground shrink-0" />
               )}
               {uploadingFile.progress === 100 && (
                 <span className="text-xs text-emerald-400">Done</span>

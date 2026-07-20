@@ -7,7 +7,7 @@
  */
 "use client";
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import type { EditorProps } from "@monaco-editor/react";
 import {
@@ -31,6 +31,7 @@ import {
   rtlAwareMarkdownClassName,
 } from "@dashboard/lib/text-direction";
 import { useTheme } from "@dashboard/providers/Theme";
+import { createLatestRequestGuard } from "../lib/latest-request";
 
 const MonacoEditor = dynamic(
   () => import("@monaco-editor/react").then((mod) => mod.Editor),
@@ -76,28 +77,37 @@ export function FileViewer({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSource, setShowSource] = useState(false);
+  const [isBinary, setIsBinary] = useState(false);
+  const [fileSize, setFileSize] = useState(0);
+  const requestGuard = useMemo(() => createLatestRequestGuard(), []);
 
   const loadContent = useCallback(async () => {
     if (!octokit || !path) return;
+    const requestId = requestGuard.next();
     setLoading(true);
     setError(null);
     try {
       const file = await readFile(octokit, owner, repo, path);
+      if (!requestGuard.isCurrent(requestId)) return;
       if (!file) {
         setError("File not found");
         return;
       }
+      setIsBinary(file.isBinary);
+      setFileSize(file.size);
       setContent(file.content);
     } catch (err) {
+      if (!requestGuard.isCurrent(requestId)) return;
       setError(err instanceof Error ? err.message : "Failed to load file");
     } finally {
-      setLoading(false);
+      if (requestGuard.isCurrent(requestId)) setLoading(false);
     }
-  }, [octokit, owner, repo, path]);
+  }, [octokit, owner, repo, path, requestGuard]);
 
   useEffect(() => {
     void loadContent();
-  }, [loadContent]);
+    return () => requestGuard.invalidate();
+  }, [loadContent, requestGuard]);
 
   const handleCopy = () => {
     if (!content) return;
@@ -142,7 +152,7 @@ export function FileViewer({
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-2">
-          {isMarkdown ? (
+          {isMarkdown && !isBinary ? (
             <div className="mr-2 flex items-center rounded-xl border border-border bg-muted/40 p-1">
               <button
                 className={cn(
@@ -172,6 +182,7 @@ export function FileViewer({
           ) : null}
           <button
             onClick={handleCopy}
+            disabled={isBinary}
             className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
             title="Copy file content"
           >
@@ -188,7 +199,7 @@ export function FileViewer({
             </button>
           ) : null}
           <span className="ml-1 text-xs text-muted-foreground">
-            {formatBytes(content?.length ?? 0)}
+            {formatBytes(fileSize)}
             {sha ? ` · ${sha.slice(0, 7)}` : ""}
           </span>
         </div>
@@ -203,6 +214,11 @@ export function FileViewer({
           <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
             <FileQuestion className="mb-2 h-8 w-8" />
             <span>{error}</span>
+          </div>
+        ) : isBinary ? (
+          <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
+            <FileQuestion className="mb-2 h-8 w-8" />
+            <span>Binary files can be downloaded but not edited here.</span>
           </div>
         ) : content && isMarkdown && !showSource ? (
           <div className="h-full overflow-y-auto rounded-xl border border-border bg-card">

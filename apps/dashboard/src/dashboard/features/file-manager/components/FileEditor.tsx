@@ -8,13 +8,7 @@
  */
 "use client";
 
-import React, {
-  useState,
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-} from "react";
+import React, { useState, useCallback, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import type { EditorProps } from "@monaco-editor/react";
 import {
@@ -39,6 +33,12 @@ import {
 } from "@dashboard/lib/text-direction";
 import { CommitMessageDialog } from "./CommitMessageDialog";
 import { useTheme } from "@dashboard/providers/Theme";
+import { createLatestRequestGuard } from "../lib/latest-request";
+import {
+  fileDraftStorageKey,
+  parseFileDraft,
+  serializeFileDraft,
+} from "../lib/file-drafts";
 
 const MonacoEditor = dynamic(
   () => import("@monaco-editor/react").then((mod) => mod.Editor),
@@ -87,17 +87,19 @@ export function FileEditor({
   const [showCommitDialog, setShowCommitDialog] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
-  const editorRef = useRef<unknown>(null);
+  const [loadedSha, setLoadedSha] = useState(sha);
+  const requestGuard = useMemo(() => createLatestRequestGuard(), []);
 
   const isMarkdown = path.endsWith(".md") || path.endsWith(".mdx");
   const draftStorageKey = useMemo(
-    () => `kody:file-draft:${owner}/${repo}/${path}`,
+    () => fileDraftStorageKey(owner, repo, path),
     [owner, repo, path],
   );
 
   // Load file content on mount
   useEffect(() => {
     if (!octokit || !path) return;
+    const requestId = requestGuard.next();
 
     const load = async () => {
       setLoading(true);
@@ -105,34 +107,48 @@ export function FileEditor({
       setError(null);
       try {
         const file = await readFile(octokit, owner, repo, path);
+        if (!requestGuard.isCurrent(requestId)) return;
         if (!file) {
           setError("File not found");
           return;
         }
+        if (file.isBinary) {
+          setError("Binary files cannot be edited");
+          return;
+        }
+        setLoadedSha(file.sha);
         setOriginalContent(file.content);
         const storedDraft = localStorage.getItem(draftStorageKey);
         if (storedDraft) {
-          try {
-            const draft = JSON.parse(storedDraft) as { content?: unknown };
-            setContent(
-              typeof draft.content === "string" ? draft.content : file.content,
-            );
-          } catch {
+          const draft = parseFileDraft(storedDraft);
+          if (!draft) {
             localStorage.removeItem(draftStorageKey);
             setContent(file.content);
+          } else {
+            setContent(draft.content);
+            if (draft.baseSha !== file.sha) {
+              toast.info(
+                "Recovered a local draft based on an older file revision.",
+              );
+            }
           }
         } else {
           setContent(file.content);
         }
         setDraftReady(true);
       } catch (err) {
+        if (!requestGuard.isCurrent(requestId)) return;
         setError(err instanceof Error ? err.message : "Failed to load file");
       } finally {
-        setLoading(false);
+        if (requestGuard.isCurrent(requestId)) setLoading(false);
       }
     };
-    load();
-  }, [octokit, owner, repo, path, draftStorageKey]);
+    void load();
+
+    return () => {
+      if (requestGuard.isCurrent(requestId)) requestGuard.invalidate();
+    };
+  }, [octokit, owner, repo, path, draftStorageKey, requestGuard]);
 
   // Track dirty state
   useEffect(() => {
@@ -147,19 +163,29 @@ export function FileEditor({
       return;
     }
 
-    const timeout = window.setTimeout(() => {
+    const persistDraft = () => {
       try {
         localStorage.setItem(
           draftStorageKey,
-          JSON.stringify({ content, updatedAt: Date.now() }),
+          serializeFileDraft({
+            content,
+            baseSha: loadedSha,
+            updatedAt: Date.now(),
+          }),
         );
       } catch {
         // Editing must continue even if browser storage is unavailable.
       }
-    }, 300);
+    };
+    const timeout = window.setTimeout(persistDraft, 300);
+    window.addEventListener("beforeunload", persistDraft);
 
-    return () => window.clearTimeout(timeout);
-  }, [content, draftReady, draftStorageKey, originalContent]);
+    return () => {
+      window.clearTimeout(timeout);
+      window.removeEventListener("beforeunload", persistDraft);
+      persistDraft();
+    };
+  }, [content, draftReady, draftStorageKey, loadedSha, originalContent]);
 
   // Keyboard shortcut: Ctrl+S / Cmd+S to save
   useEffect(() => {
@@ -179,17 +205,22 @@ export function FileEditor({
     setContent(value ?? "");
   }, []);
 
-  const handleEditorMount = useCallback((editor: unknown) => {
-    editorRef.current = editor;
-  }, []);
-
   const handleSave = useCallback(
     async (message: string) => {
       if (!octokit) return;
       setSaving(true);
       try {
-        await writeFile(octokit, owner, repo, path, content, message, sha);
+        const result = await writeFile(
+          octokit,
+          owner,
+          repo,
+          path,
+          content,
+          message,
+          loadedSha,
+        );
         localStorage.removeItem(draftStorageKey);
+        setLoadedSha(result.sha);
         setOriginalContent(content);
         setIsDirty(false);
         toast.success("File saved");
@@ -201,7 +232,7 @@ export function FileEditor({
         setSaving(false);
       }
     },
-    [octokit, owner, repo, path, content, sha, onSaved, draftStorageKey],
+    [octokit, owner, repo, path, content, loadedSha, onSaved, draftStorageKey],
   );
 
   const handleDiscard = useCallback(() => {
@@ -355,7 +386,6 @@ export function FileEditor({
               value={content}
               theme={theme === "light" ? "light" : "vs-dark"}
               onChange={handleEditorChange}
-              onMount={handleEditorMount}
               options={{
                 readOnly: false,
                 minimap: { enabled: false },

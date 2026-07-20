@@ -16,7 +16,6 @@ import {
   Copy,
   Download,
   ExternalLink,
-  Link2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@dashboard/lib/utils";
@@ -35,7 +34,6 @@ interface FileContextMenuProps {
   onNewFile?: (dirPath: string) => void;
   onNewFolder?: (dirPath: string) => void;
   onCopyPath?: (path: string) => void;
-  onCreateSymlink?: (path: string) => void;
   writeable?: boolean;
 }
 
@@ -53,7 +51,6 @@ export function FileContextMenu({
   onNewFile,
   onNewFolder,
   onCopyPath,
-  onCreateSymlink,
   writeable = false,
 }: FileContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -79,6 +76,7 @@ export function FileContextMenu({
         menuRef.current.style.top = `${y - rect.height}px`;
       }
     }
+    menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
   }, [x, y]);
 
   const handleCopyPath = () => {
@@ -123,20 +121,39 @@ export function FileContextMenu({
     onClose();
   };
 
-  const handleCreateSymlink = () => {
-    if (onCreateSymlink) onCreateSymlink(path);
-    onClose();
-  };
-
   return (
     <div
       ref={menuRef}
       className={cn(
-        "fixed z-50 min-w-[160px] py-1 rounded-lg border border-white/10",
-        "bg-zinc-900/95 backdrop-blur shadow-xl",
+        "fixed z-50 min-w-[160px] rounded-lg border border-border bg-popover py-1 text-popover-foreground shadow-xl",
       )}
       style={{ top: y, left: x }}
       onClick={(e) => e.stopPropagation()}
+      role="menu"
+      tabIndex={-1}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          onClose();
+          return;
+        }
+        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+
+        event.preventDefault();
+        const items = Array.from(
+          menuRef.current?.querySelectorAll<HTMLButtonElement>(
+            '[role="menuitem"]',
+          ) ?? [],
+        );
+        if (items.length === 0) return;
+        const currentIndex = items.indexOf(
+          document.activeElement as HTMLButtonElement,
+        );
+        const direction = event.key === "ArrowDown" ? 1 : -1;
+        const nextIndex =
+          (currentIndex + direction + items.length) % items.length;
+        items[nextIndex]?.focus();
+      }}
     >
       {onCopyPath && (
         <MenuItem
@@ -198,14 +215,6 @@ export function FileContextMenu({
         />
       )}
 
-      {writeable && onCreateSymlink && (
-        <MenuItem
-          icon={<Link2 className="w-3.5 h-3.5" />}
-          label="New symlink..."
-          onClick={handleCreateSymlink}
-        />
-      )}
-
       {writeable && onDelete && (
         <>
           <MenuDivider />
@@ -236,10 +245,11 @@ function MenuItem({
     <button
       className={cn(
         "w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left",
-        "hover:bg-white/10 text-white/80",
+        "text-popover-foreground hover:bg-accent hover:text-accent-foreground",
         className,
       )}
       onClick={onClick}
+      role="menuitem"
     >
       {icon}
       <span>{label}</span>
@@ -248,5 +258,5 @@ function MenuItem({
 }
 
 function MenuDivider() {
-  return <div className="my-1 border-t border-white/10" />;
+  return <div className="my-1 border-t border-border" role="separator" />;
 }

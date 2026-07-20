@@ -5,6 +5,7 @@
 import { describe, it, expect } from "vitest";
 import {
   base64ToString,
+  isBinaryBytes,
   stringToBase64,
   lineIndexFromFragment,
 } from "@dashboard/features/file-manager/lib/repo-files";
@@ -123,5 +124,23 @@ describe("lineIndexFromFragment", () => {
     // Match is inside "return x + y" which is line 4
     const idx = fragment.indexOf("return");
     expect(lineIndexFromFragment(fragment, idx)).toBe(4);
+  });
+});
+
+describe("isBinaryBytes", () => {
+  it("keeps UTF-8 text editable", () => {
+    expect(isBinaryBytes(new TextEncoder().encode("שלום world 😀"))).toBe(
+      false,
+    );
+  });
+
+  it("rejects content containing null bytes", () => {
+    expect(isBinaryBytes(Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0]))).toBe(
+      true,
+    );
+  });
+
+  it("rejects invalid UTF-8", () => {
+    expect(isBinaryBytes(Uint8Array.from([0xff, 0xfe, 0xfd]))).toBe(true);
   });
 });

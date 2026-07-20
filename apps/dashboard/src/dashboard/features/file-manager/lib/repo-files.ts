@@ -16,9 +16,24 @@ import { writeGitHubFileWithRetry } from "@kody-ade/base/github-contents-write";
 
 /** Decode a base64 string to a UTF-8 string without latin1 corruption. */
 export function base64ToString(base64: string): string {
-  const binary = atob(base64);
-  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  const bytes = base64ToBytes(base64);
   return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+}
+
+export function base64ToBytes(base64: string): Uint8Array {
+  const binary = atob(base64.replace(/\s/g, ""));
+  return Uint8Array.from(binary, (c) => c.charCodeAt(0));
+}
+
+export function isBinaryBytes(bytes: Uint8Array): boolean {
+  if (bytes.includes(0)) return true;
+
+  try {
+    new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return false;
+  } catch {
+    return true;
+  }
 }
 
 /** Encode a string to base64 using UTF-8, without btoa's latin1 restriction. */
@@ -94,6 +109,8 @@ export interface FileContent {
   sha: string;
   size: number;
   content: string;
+  base64Content: string;
+  isBinary: boolean;
   encoding: "base64" | "utf-8";
   lastCommit?: {
     author: string | null;
@@ -175,21 +192,43 @@ export async function readFile(
     }
 
     const encoding = data.encoding === "base64" ? "base64" : "utf-8";
-    const content =
+    const base64Content =
       encoding === "base64"
-        ? base64ToString(data.content ?? "")
-        : (data.content ?? "");
+        ? (data.content ?? "").replace(/\s/g, "")
+        : stringToBase64(data.content ?? "");
+    const bytes = base64ToBytes(base64Content);
+    const isBinary = isBinaryBytes(bytes);
+    const content = isBinary
+      ? ""
+      : new TextDecoder("utf-8", { fatal: true }).decode(bytes);
 
     return {
       path: data.path ?? path,
       sha: data.sha ?? "",
       size: data.size ?? content.length,
       content,
+      base64Content,
+      isBinary,
       encoding,
     };
   } catch (err) {
     if (getHttpStatus(err) === 404) return null;
     throw err;
+  }
+}
+
+export async function repoPathExists(
+  octokit: Octokit,
+  owner: string,
+  repo: string,
+  path: string,
+): Promise<boolean> {
+  try {
+    await octokit.rest.repos.getContent({ owner, repo, path });
+    return true;
+  } catch (error) {
+    if (getHttpStatus(error) === 404) return false;
+    throw error;
   }
 }
 

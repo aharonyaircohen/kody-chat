@@ -2,7 +2,13 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const CORE_FILE_SURFACES = ["FileEditor.tsx", "FileViewer.tsx", "FileTree.tsx"];
+const CORE_FILE_SURFACES = [
+  "FileContextMenu.tsx",
+  "FileEditor.tsx",
+  "FileTree.tsx",
+  "FileViewer.tsx",
+  "UploadZone.tsx",
+];
 
 describe("file workspace themes", () => {
   it("uses shared theme colors instead of fixed dark surfaces", () => {
@@ -77,5 +83,49 @@ describe("file workspace themes", () => {
     expect(pageSource).toContain('aria-label="Show file panel"');
     expect(editorSource).toContain("onShowFilePanel");
     expect(pageSource).not.toContain('panelState === "hidden" ? "w-12"');
+  });
+
+  it("does not expose unfinished file actions", () => {
+    const pageSource = readFileSync(
+      resolve(
+        process.cwd(),
+        "src/dashboard/features/file-manager/components/FilesPage.tsx",
+      ),
+      "utf8",
+    );
+
+    expect(pageSource).not.toContain("handleCreateSymlink");
+    expect(pageSource).not.toContain("onCreateSymlink=");
+  });
+
+  it("keeps creation actions in the page menu and refresh before collapse", () => {
+    const pageSource = readFileSync(
+      resolve(
+        process.cwd(),
+        "src/dashboard/features/file-manager/components/FilesPage.tsx",
+      ),
+      "utf8",
+    );
+    const treeSource = readFileSync(
+      resolve(
+        process.cwd(),
+        "src/dashboard/features/file-manager/components/FileTree.tsx",
+      ),
+      "utf8",
+    );
+
+    const actionsStart = pageSource.indexOf("const actions =");
+    const actionsEnd = pageSource.indexOf("return (", actionsStart);
+    const headerActions = pageSource.slice(actionsStart, actionsEnd);
+
+    expect(headerActions).toContain('aria-label="More file actions"');
+    expect(headerActions).toContain("handleNewFile(currentFolder)");
+    expect(headerActions).toContain("handleNewFolder(currentFolder)");
+    expect(headerActions.indexOf("<DropdownMenu>")).toBeLessThan(
+      headerActions.indexOf("handleNewFile(currentFolder)"),
+    );
+    expect(treeSource.indexOf('aria-label="Refresh files"')).toBeLessThan(
+      treeSource.indexOf('aria-label="Hide file panel"'),
+    );
   });
 });
