@@ -40,6 +40,12 @@ vi.mock("@kody-ade/agency/github", () => ({
 vi.mock("@kody-ade/agency/agent-files", () => ({
   readAgentFile: h.readAgentFile,
   readResolvedAgentFile: h.readResolvedAgentFile,
+  // The route now lists all resolved agents and picks by slug; derive the
+  // list from the same per-slug mock so existing test setups keep working.
+  listResolvedAgentFiles: async () => {
+    const agent = await h.readResolvedAgentFile("kody");
+    return agent ? [agent] : [];
+  },
   writeAgentFile: h.writeAgentFile,
   deleteAgentFile: h.deleteAgentFile,
   isValidSlug: (slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug),

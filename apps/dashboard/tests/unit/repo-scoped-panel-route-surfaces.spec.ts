@@ -24,7 +24,8 @@ const componentsRoot = (file: string) => {
   }
   return "src/dashboard/lib/components";
 };
-const component = (file: string) => read(join(componentsRoot(file), file));
+const component = (file: string) =>
+  read(file.startsWith("src/") ? file : join(componentsRoot(file), file));
 const sourceFile = (file: string) =>
   read(
     file.startsWith("src/") || file.startsWith("node_modules/")
@@ -82,7 +83,9 @@ describe("repo-scoped panel route surfaces", () => {
       "MemoryManager.tsx",
       "AgentsControl.tsx",
       "ContextControl.tsx",
-      "DocsView.tsx",
+      // DocsView is now a thin wrapper around the file-manager FilesPage,
+      // which owns the repo-scoped navigation.
+      "src/dashboard/features/file-manager/components/FilesPage.tsx",
       "CompanyIntentsView.tsx",
       "PreviewWorkspace.tsx",
       "MessagesView.tsx",
