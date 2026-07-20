@@ -5,8 +5,7 @@
  *
  * GET /api/kody/chat/history?taskId=xxx
  *
- * Fetches the chat session history from the Convex transcript record
- * (chatSessions/chatTurns).
+ * Fetches the shared Convex conversation timeline.
  * Used when reopening a task's chat to restore full conversation context.
  */
 
@@ -46,9 +45,26 @@ function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
   };
 }
 
-function isChatMessage(value: unknown): value is ChatMessage {
-  const v = value as ChatMessage | null;
-  return !!v && typeof v === "object" && typeof v.role === "string";
+function toChatMessage(value: unknown): ChatMessage | null {
+  const entry = value as {
+    kind?: unknown;
+    role?: unknown;
+    content?: unknown;
+    createdAt?: unknown;
+  };
+  if (
+    entry?.kind !== "message" ||
+    (entry.role !== "user" && entry.role !== "assistant") ||
+    typeof entry.content !== "string" ||
+    typeof entry.createdAt !== "string"
+  ) {
+    return null;
+  }
+  return {
+    role: entry.role,
+    content: entry.content,
+    timestamp: entry.createdAt,
+  };
 }
 
 async function readConvexMessages(
@@ -56,15 +72,17 @@ async function readConvexMessages(
   repo: string,
   sessionId: string,
 ): Promise<ChatMessage[] | null> {
-  const turns = (await getConvexClient().query(backendApi.chatTurns.list, {
+  const detail = (await getConvexClient().query(backendApi.conversations.get, {
     tenantId: tenantIdFor(owner, repo),
-    sessionId,
-  })) as Array<{ seq: number; turn: unknown }>;
-  if (turns.length === 0) return null;
-  return [...turns]
+    conversationId: sessionId,
+  })) as {
+    entries: Array<{ seq: number; entry: unknown }>;
+  } | null;
+  if (!detail) return null;
+  return [...detail.entries]
     .sort((a, b) => a.seq - b.seq)
-    .map((doc) => doc.turn)
-    .filter(isChatMessage);
+    .map((doc) => toChatMessage(doc.entry))
+    .filter((message): message is ChatMessage => message !== null);
 }
 
 export async function GET(req: NextRequest) {

@@ -176,4 +176,12 @@ describe("settings navigation", () => {
       activeCollapsibleNavSectionTitle(SIDEBAR_NAV_SECTIONS, "/tasks", ""),
     ).toBe("Work");
   });
+
+  it("does not expose the redundant settings page", () => {
+    expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "System")).not.toContain(
+      "/settings",
+    );
+    expect(exposedHrefs()).not.toContain("/settings");
+    expect(navLabelForPath("/settings")).toBeNull();
+  });
 });

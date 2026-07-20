@@ -32,7 +32,6 @@ import {
   Palette,
   Route,
   ScrollText,
-  Settings as SettingsIcon,
   Settings2,
   SlidersHorizontal,
   Sparkles,
@@ -546,13 +545,6 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         description: "What shipped, version by version.",
         tint: "text-fuchsia-300 bg-fuchsia-500/10",
       },
-      {
-        href: "/settings",
-        label: "Settings",
-        icon: SettingsIcon,
-        description: "Dashboard-wide preferences.",
-        tint: "text-sky-300 bg-sky-500/10",
-      },
     ],
   },
 ] as const;
@@ -684,7 +676,6 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
       navItemForHref("/variables"),
       navItemForHref("/backend"),
       navItemForHref("/notifications"),
-      navItemForHref("/settings"),
     ],
   },
 ];

@@ -29,6 +29,7 @@ import {
   getToolErrorMessage,
   isFinalAnswerOutput,
 } from "@dashboard/lib/chat-output-tools";
+import { compilePreparedTurnPayload } from "../conversation/prepared-turn-payload";
 
 /** `error` ChatEvent code emitted when the stream drops mid-turn. */
 export const KODY_DIRECT_ERROR_CODE_DROPPED = "kody-direct-dropped";
@@ -62,7 +63,11 @@ async function readHttpError(res: Response): Promise<string> {
   if (!text) return `HTTP ${res.status}`;
 
   try {
-    const body = JSON.parse(text) as { error?: unknown; message?: unknown; traceId?: unknown };
+    const body = JSON.parse(text) as {
+      error?: unknown;
+      message?: unknown;
+      traceId?: unknown;
+    };
     const message =
       typeof body.error === "string"
         ? body.error
@@ -325,6 +330,28 @@ export const kodyDirectTransport: ChatTransport = {
         "kodyDirectTransport.send requires a KodyDirectTurnConfig in input.context",
       );
     }
-    await sendKodyDirectTurn(input.context, ctx);
+    const prepared = compilePreparedTurnPayload(input.preparedTurn);
+    const configured = input.context.body.messages;
+    const configuredMessages = Array.isArray(configured) ? configured : [];
+    const current = configuredMessages.at(-1) ?? {
+      role: "user",
+      content: prepared.currentMessage,
+    };
+    await sendKodyDirectTurn(
+      {
+        ...input.context,
+        body: {
+          ...input.context.body,
+          messages: [...prepared.messages.slice(0, -1), current],
+          conversationSummary: prepared.summary ?? undefined,
+          agentHandoffContext: prepared.previousAgentContext ?? undefined,
+          agentSlug: prepared.speaker.slug,
+          conversationId: input.sessionId,
+          turnId: input.turnId,
+          conversationAgent: prepared.speaker,
+        },
+      },
+      ctx,
+    );
   },
 };

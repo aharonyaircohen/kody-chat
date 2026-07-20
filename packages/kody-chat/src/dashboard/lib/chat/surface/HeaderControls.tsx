@@ -51,6 +51,8 @@ interface HeaderControlsProps {
   lockedAgentId?: AgentId;
   /** Presentation-only lock for surfaces that pin chat defaults elsewhere. */
   hideAgentPicker?: boolean;
+  /** Agency identity is independent from the model picker lock. */
+  showAgencyAgentPicker: boolean;
   /** Shorter one-row header for standalone surfaces that keep shared controls. */
   compact?: boolean;
   agentMenuOpen: boolean;
@@ -120,6 +122,7 @@ export function HeaderControls({
   currentAgent,
   lockedAgentId,
   hideAgentPicker,
+  showAgencyAgentPicker,
   compact,
   agentMenuOpen,
   setAgentMenuOpen,
@@ -200,11 +203,9 @@ export function HeaderControls({
   const quietIconButtonClassName = compact
     ? "p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all"
     : "p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-background border border-transparent hover:border-border transition-all";
-  const showContextBar =
-    !compact ||
-    (isTaskMode && selectedTask) ||
-    (isCapabilityMode && selectedCapability) ||
-    (isPlannerMode && plannerGoal);
+  // The existing green agency-agent label lives in this row, so the row must
+  // remain present in compact global chat as well as scoped chat modes.
+  const showContextBar = true;
   const messageCountBadge =
     messageCount > 0 ? (
       <span className="shrink-0 rounded-full bg-primary/10 px-2 py-1 text-body-xs text-primary">
@@ -220,8 +221,7 @@ export function HeaderControls({
       (agent) => agent.slug === selectedAgencyAgentSlug,
     ) ?? agencyAgentEntries[0];
   const agencyAgentPicker =
-    !lockedAgentId &&
-    !hideAgentPicker &&
+    showAgencyAgentPicker &&
     selectedAgencyAgent &&
     agencyAgentEntries.length > 0 ? (
       <div ref={agencyAgentMenuRef} className="relative shrink-0">

@@ -10,6 +10,7 @@
  */
 
 import { describe, it, expect, afterEach } from "vitest";
+import { preparedTurnFixture } from "../../../fixtures/prepared-turn";
 import {
   sendKodyDirectTurn,
   kodyDirectTransport,
@@ -98,7 +99,7 @@ describe("sendKodyDirectTurn", () => {
             toolCallId: "call-1",
             output: { ok: true },
           }),
-         "data: [DONE]\n\n",
+          "data: [DONE]\n\n",
         ]),
     ]);
     restoreFetch = restore;
@@ -141,7 +142,7 @@ describe("sendKodyDirectTurn", () => {
             toolCallId: "fa-1",
             output: { content: "Final." },
           }),
-         "data: [DONE]\n\n",
+          "data: [DONE]\n\n",
         ]),
     ]);
     restoreFetch = restore;
@@ -171,7 +172,7 @@ describe("sendKodyDirectTurn", () => {
             toolCallId: "c1",
             output: { error: "renderer exploded" },
           }),
-         "data: [DONE]\n\n",
+          "data: [DONE]\n\n",
         ]),
     ]);
     restoreFetch = restore;
@@ -208,7 +209,7 @@ describe("sendKodyDirectTurn", () => {
             toolCallId: "c9",
             errorText: "timed out",
           }),
-         "data: [DONE]\n\n",
+          "data: [DONE]\n\n",
         ]),
     ]);
     restoreFetch = restore;
@@ -272,7 +273,7 @@ describe("sendKodyDirectTurn", () => {
             toolCallId: "c2",
             output: switchAgent,
           }),
-         "data: [DONE]\n\n",
+          "data: [DONE]\n\n",
         ]),
     ]);
     restoreFetch = restore;
@@ -305,9 +306,9 @@ describe("sendKodyDirectTurn", () => {
   it("detects dashboard_navigate and preview_act directives", async () => {
     const navigate = {
       action: "dashboard_navigate",
-      routeId: "settings",
-      href: "/settings",
-      label: "Settings",
+      routeId: "models",
+      href: "/models",
+      label: "Chat Models",
       reason: "user asked",
     };
     const act = {
@@ -340,7 +341,7 @@ describe("sendKodyDirectTurn", () => {
             toolCallId: "p1",
             output: act,
           }),
-         "data: [DONE]\n\n",
+          "data: [DONE]\n\n",
         ]),
     ]);
     restoreFetch = restore;
@@ -471,11 +472,42 @@ describe("sendKodyDirectTurn", () => {
 });
 
 describe("kodyDirectTransport (ChatTransport wrapper)", () => {
+  it("sends the canonical conversation and durable turn identity", async () => {
+    const { calls, restore } = installScriptedFetch([
+      () => sseResponse(["data: [DONE]\n\n"]),
+    ]);
+    restoreFetch = restore;
+    const sink = eventSink();
+
+    await kodyDirectTransport.send(
+      {
+        preparedTurn: preparedTurnFixture,
+        sessionId: "conversation-7",
+        turnId: "turn-9",
+        text: "hi",
+        agentId: "kody",
+        context: { ...CONFIG },
+      },
+      { authHeaders: {}, emit: sink.emit },
+    );
+
+    expect(calls[0].body).toMatchObject({
+      conversationId: "conversation-7",
+      turnId: "turn-9",
+      conversationAgent: preparedTurnFixture.speaker,
+    });
+  });
+
   it("rejects when input.context is not a KodyDirectTurnConfig", async () => {
     const sink = eventSink();
     await expect(
       kodyDirectTransport.send(
-        { sessionId: "s", text: "hi", agentId: "kody" },
+        {
+          preparedTurn: preparedTurnFixture,
+          sessionId: "s",
+          text: "hi",
+          agentId: "kody",
+        },
         { authHeaders: {}, emit: sink.emit },
       ),
     ).rejects.toThrow(/KodyDirectTurnConfig/);

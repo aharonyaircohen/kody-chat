@@ -69,7 +69,7 @@ function seedState(): FixtureState {
         name: "Open settings",
         createdAt: nowMs,
         steps: [
-          { op: "navigate", url: "/settings" } as unknown as PreviewAction,
+    { op: "navigate", url: "/models" } as unknown as PreviewAction,
           { op: "click", selector: "#save" } as unknown as PreviewAction,
         ],
       },

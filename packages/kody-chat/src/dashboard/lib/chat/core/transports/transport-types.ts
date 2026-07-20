@@ -17,6 +17,7 @@ import type {
   RenderedViewDirective,
   SwitchAgentDirective,
 } from "@dashboard/lib/chat-ui-actions";
+import type { PreparedConversationTurn } from "../conversation/prepare-turn";
 
 /**
  * Directives the surface interprets (never executed inside core). Each
@@ -31,11 +32,7 @@ export type ChatDirective =
   | { kind: "rendered-view"; payload: RenderedViewDirective };
 
 export type ChatTransportStatus =
-  | "idle"
-  | "connecting"
-  | "streaming"
-  | "waiting-runner"
-  | "restoring";
+  "idle" | "connecting" | "streaming" | "waiting-runner" | "restoring";
 
 /**
  * The event union every transport emits. One shape for all three protocol
@@ -103,7 +100,10 @@ export interface ChatAttachmentRef {
 }
 
 export interface ChatTurnInput {
+  preparedTurn: PreparedConversationTurn;
   sessionId: string;
+  /** Stable id shared by the client lifecycle and durable server record. */
+  turnId?: string;
   text: string;
   agentId: string;
   modelId?: string;

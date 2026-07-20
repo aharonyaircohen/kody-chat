@@ -15,6 +15,7 @@
  */
 
 import type { ChatTransport, ChatTransportContext } from "./transport-types";
+import { compilePreparedTurnPayload } from "../conversation/prepared-turn-payload";
 
 export const KODY_LIVE_APPEND_ENDPOINT = "/api/kody/chat/interactive/append";
 export const KODY_LIVE_TRIGGER_ENDPOINT = "/api/kody/chat/trigger";
@@ -94,6 +95,37 @@ export const kodyLiveTransport: ChatTransport = {
         "kodyLiveTransport.send requires a KodyLiveTurnConfig in input.context",
       );
     }
-    await sendKodyLiveTurn(input.context, ctx);
+    const prepared = compilePreparedTurnPayload(input.preparedTurn);
+    const configuredMessages = Array.isArray(input.context.body.messages)
+      ? input.context.body.messages
+      : [];
+    const current = configuredMessages.at(-1);
+    await sendKodyLiveTurn(
+      {
+        ...input.context,
+        body: {
+          ...input.context.body,
+          ...(input.context.kind === "trigger"
+            ? {
+                messages: [
+                  ...prepared.messages.slice(0, -1),
+                  current ?? {
+                    role: "user",
+                    content: prepared.currentMessage,
+                    timestamp: input.preparedTurn.currentMessage.createdAt,
+                  },
+                ],
+              }
+            : {}),
+          agentHandoffContext: prepared.previousAgentContext ?? undefined,
+          conversationSummary: prepared.summary ?? undefined,
+          agentSlug: prepared.speaker.slug,
+          conversationId: input.sessionId,
+          turnId: input.turnId,
+          conversationAgent: prepared.speaker,
+        },
+      },
+      ctx,
+    );
   },
 };

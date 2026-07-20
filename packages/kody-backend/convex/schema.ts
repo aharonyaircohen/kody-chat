@@ -10,6 +10,13 @@ import {
   workflowRunnerValidator,
   guidedFlowStatusValidator,
 } from "./validators";
+import {
+  agentIdentityValidator,
+  conversationAttachmentValidator,
+  conversationEntryValidator,
+  conversationRuntimeValidator,
+  conversationScopeValidator,
+} from "./conversationValidators";
 
 // Every table is partitioned by `tenantId` ("owner/name" of the connected consumer
 // tenantId) — the same scope the GitHub backend serves today. Per-user rows add
@@ -58,8 +65,16 @@ export default defineSchema({
     journeyId: v.string(),
     name: v.string(),
     goal: v.string(),
-    status: v.union(v.literal("draft"), v.literal("active"), v.literal("archived")),
-    priority: v.union(v.literal("critical"), v.literal("high"), v.literal("normal")),
+    status: v.union(
+      v.literal("draft"),
+      v.literal("active"),
+      v.literal("archived"),
+    ),
+    priority: v.union(
+      v.literal("critical"),
+      v.literal("high"),
+      v.literal("normal"),
+    ),
     currentVersion: v.number(),
     updatedAt: v.string(),
   }).index("by_tenant", ["tenantId", "journeyId"]),
@@ -137,20 +152,6 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_kind", ["tenantId", "kind"]),
 
-  chatSessions: defineTable({
-    tenantId: v.string(),
-    sessionId: v.string(),
-    meta: v.any(), // SessionMeta (mode, createdAt, checkpoint, title…)
-    updatedAt: v.string(),
-  }).index("by_session", ["tenantId", "sessionId"]),
-
-  chatTurns: defineTable({
-    tenantId: v.string(),
-    sessionId: v.string(),
-    seq: v.number(),
-    turn: v.any(), // ChatTurn / ChatMessage
-  }).index("by_session", ["tenantId", "sessionId", "seq"]),
-
   chatEvents: defineTable({
     tenantId: v.string(),
     sessionId: v.string(),
@@ -161,6 +162,101 @@ export default defineSchema({
     // Tenant-wide newest-first scans (Activity feed's recent-session list) —
     // the implicit _creationTime suffix orders events by arrival.
     .index("by_tenant", ["tenantId"]),
+
+  conversations: defineTable({
+    tenantId: v.string(),
+    conversationId: v.string(),
+    surface: v.optional(
+      v.union(v.literal("global"), v.literal("vibe-default")),
+    ),
+    scope: conversationScopeValidator,
+    title: v.string(),
+    preview: v.optional(v.string()),
+    pinned: v.boolean(),
+    activeAgent: agentIdentityValidator,
+    runtime: conversationRuntimeValidator,
+    createdBy: v.string(),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  })
+    .index("by_conversation", ["tenantId", "conversationId"])
+    .index("by_tenant_updated", ["tenantId", "updatedAt"]),
+
+  conversationEntries: defineTable({
+    tenantId: v.string(),
+    conversationId: v.string(),
+    entryId: v.string(),
+    idempotencyKey: v.string(),
+    seq: v.number(),
+    entry: conversationEntryValidator,
+    updatedAt: v.string(),
+  })
+    .index("by_conversation", ["tenantId", "conversationId", "seq"])
+    .index("by_entry", ["tenantId", "conversationId", "entryId"])
+    .index("by_idempotency", ["tenantId", "conversationId", "idempotencyKey"]),
+
+  conversationTurns: defineTable({
+    tenantId: v.string(),
+    conversationId: v.string(),
+    turnId: v.string(),
+    backend: v.union(
+      v.literal("direct"),
+      v.literal("brain"),
+      v.literal("engine"),
+      v.literal("live"),
+    ),
+    agent: agentIdentityValidator,
+    status: v.union(
+      v.literal("running"),
+      v.literal("completed"),
+      v.literal("failed"),
+    ),
+    assistantEntryId: v.optional(v.string()),
+    errorCode: v.optional(v.string()),
+    startedAt: v.string(),
+    completedAt: v.optional(v.string()),
+    updatedAt: v.string(),
+  })
+    .index("by_turn", ["tenantId", "conversationId", "turnId"])
+    .index("by_conversation", ["tenantId", "conversationId", "startedAt"]),
+
+  conversationCheckpoints: defineTable({
+    tenantId: v.string(),
+    conversationId: v.string(),
+    version: v.number(),
+    throughSeq: v.number(),
+    agentEpochId: v.string(),
+    summary: v.string(),
+    sourceHash: v.string(),
+    createdAt: v.string(),
+  }).index("by_conversation", ["tenantId", "conversationId", "version"]),
+
+  conversationRuntimeBindings: defineTable({
+    tenantId: v.string(),
+    conversationId: v.string(),
+    runtimeKind: v.union(
+      v.literal("direct"),
+      v.literal("brain"),
+      v.literal("engine"),
+      v.literal("live"),
+    ),
+    runtime: conversationRuntimeValidator,
+    remoteConversationId: v.string(),
+    updatedAt: v.string(),
+  }).index("by_conversation_runtime", [
+    "tenantId",
+    "conversationId",
+    "runtimeKind",
+  ]),
+
+  conversationAttachments: defineTable({
+    tenantId: v.string(),
+    conversationId: v.string(),
+    attachmentId: v.string(),
+    attachment: conversationAttachmentValidator,
+  })
+    .index("by_conversation", ["tenantId", "conversationId"])
+    .index("by_attachment", ["tenantId", "conversationId", "attachmentId"]),
 
   intents: defineTable({
     tenantId: v.string(),

@@ -1,8 +1,7 @@
 /**
  * Unit tests for the Convex transcript record in
- * src/dashboard/lib/interactive-session.ts: session start upserts
- * chatSessions (+ initial turn), appended turns land in chatTurns, reads go
- * through chatSessions.get, and a Convex outage fails closed.
+ * src/dashboard/lib/interactive-session.ts: all runner modes use the shared
+ * conversation timeline, and a Convex outage fails closed.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Octokit } from "@octokit/rest";
@@ -58,24 +57,28 @@ beforeEach(() => {
   _resetConvexClient();
   process.env.CONVEX_URL = "https://example.convex.cloud";
   convex.mutation.mockResolvedValue("id");
+  convex.query.mockResolvedValue(null);
 });
 
 describe("writeSessionMeta convex record", () => {
-  it("upserts the session meta under the owner/repo tenant", async () => {
+  it("creates a canonical conversation under the owner/repo tenant", async () => {
     await writeSessionMeta(makeOctokit(), "acme", "widgets", "s1", META);
 
     expect(convex.mutation).toHaveBeenCalledTimes(1);
     const [ref, args] = convex.mutation.mock.calls[0]!;
-    expect(getFunctionName(ref)).toBe("chatSessions:upsert");
+    expect(getFunctionName(ref)).toBe("conversations:create");
     expect(args).toMatchObject({
       tenantId: "acme/widgets",
-      sessionId: "s1",
-      meta: META,
+      conversationId: "s1",
+      scope: { kind: "repository", owner: "acme", repo: "widgets" },
+      runtime: { kind: "live", profileId: "kody-live" },
     });
-    expect(typeof args.updatedAt).toBe("string");
   });
 
   it("records the initial turn in the same start", async () => {
+    convex.query.mockResolvedValueOnce(null).mockResolvedValueOnce({
+      conversation: { activeAgent: { slug: "kody", title: "Kody" } },
+    });
     await writeSessionMeta(
       makeOctokit(),
       "acme",
@@ -89,24 +92,37 @@ describe("writeSessionMeta convex record", () => {
 
     expect(convex.mutation).toHaveBeenCalledTimes(2);
     const [ref, args] = convex.mutation.mock.calls[1]!;
-    expect(getFunctionName(ref)).toBe("chatTurns:append");
-    expect(args).toEqual({
+    expect(getFunctionName(ref)).toBe("conversations:appendEntry");
+    expect(args).toMatchObject({
       tenantId: "acme/widgets",
-      sessionId: "s1",
-      turn: { ...TURN, toolCalls: [] },
+      conversationId: "s1",
+      entry: {
+        kind: "message",
+        role: "user",
+        content: "hello",
+      },
     });
   });
 
   it("fails closed when Convex is down", async () => {
+    convex.query.mockResolvedValue(null);
     convex.mutation.mockRejectedValue(new Error("convex down"));
 
-    await expect(writeSessionMeta(makeOctokit(), "acme", "widgets", "s1", META)).rejects.toThrow("convex down");
+    await expect(
+      writeSessionMeta(makeOctokit(), "acme", "widgets", "s1", META),
+    ).rejects.toThrow("convex down");
   });
 });
 
 describe("appendUserTurn convex record", () => {
-  it("appends the turn to chatTurns", async () => {
-    convex.query.mockResolvedValue([{ seq: 0, turn: TURN }]);
+  it("appends the turn to the canonical timeline", async () => {
+    convex.query
+      .mockResolvedValueOnce({
+        conversation: { activeAgent: { slug: "kody", title: "Kody" } },
+      })
+      .mockResolvedValueOnce({
+        entries: [{ entry: { kind: "message" } }],
+      });
     const result = await appendUserTurn(
       makeOctokit(),
       "acme",
@@ -117,27 +133,49 @@ describe("appendUserTurn convex record", () => {
 
     expect(result.turnCount).toBe(1);
     const [ref, args] = convex.mutation.mock.calls[0]!;
-    expect(getFunctionName(ref)).toBe("chatTurns:append");
-    expect(args.turn).toEqual({ ...TURN, toolCalls: [] });
+    expect(getFunctionName(ref)).toBe("conversations:appendEntry");
+    expect(args.entry).toMatchObject({
+      kind: "message",
+      role: "user",
+      content: "hello",
+    });
   });
 });
 
 describe("readSessionTranscript", () => {
   it("returns meta plus turns ordered by seq", async () => {
     convex.query.mockResolvedValue({
-      session: { meta: META },
-      turns: [
-        { seq: 1, turn: { ...TURN, content: "second" } },
-        { seq: 0, turn: TURN },
+      entries: [
+        {
+          seq: 1,
+          entry: {
+            kind: "message",
+            role: "user",
+            content: "second",
+            createdAt: TURN.timestamp,
+          },
+        },
+        {
+          seq: 0,
+          entry: {
+            kind: "message",
+            role: "user",
+            content: "hello",
+            createdAt: TURN.timestamp,
+          },
+        },
       ],
     });
 
     const result = await readSessionTranscript("acme", "widgets", "s1");
 
     const [ref, args] = convex.query.mock.calls[0]!;
-    expect(getFunctionName(ref)).toBe("chatSessions:get");
-    expect(args).toEqual({ tenantId: "acme/widgets", sessionId: "s1" });
-    expect(result?.meta).toEqual(META);
+    expect(getFunctionName(ref)).toBe("conversations:get");
+    expect(args).toEqual({
+      tenantId: "acme/widgets",
+      conversationId: "s1",
+    });
+    expect(result?.meta.mode).toBe("interactive");
     expect(result?.turns.map((t) => t.content)).toEqual(["hello", "second"]);
   });
 

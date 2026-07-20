@@ -383,10 +383,10 @@ Who owns what (phase-1 end state — update when phase 1.6 moves a row):
 
 | State                                              | Owner                                                                          | Persistence                                                                   |
 | -------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
-| Sessions (list, active id, per-session agent)      | `chat/core/use-chat-sessions.ts`                                               | `kody-sessions-v3:<owner>/<repo>`                                             |
+| Sessions, messages, handoffs, runtime and files    | `chat/core/conversation/use-conversation-sessions.ts`                          | typed Convex conversation tables                                              |
 | Live-runner lifecycle (booting/ready/awaiting)     | reducer `chat/core/kody-chat-reducer.ts`, orchestrated by KodyChat             | `kody-live-sessions:<owner>/<repo>` via `chat/core/kody-chat-live-session.ts` |
 | Rehydration ordering                               | `chat/core/rehydration.ts` (pure), effects in KodyChat                         | —                                                                             |
-| Messages / streaming buffers                       | per-turn handler `components/kody-chat-transport-events.ts`, state in KodyChat | in the session store                                                          |
+| Optimistic messages / streaming buffers            | per-turn handler `components/kody-chat-transport-events.ts`, state in KodyChat | reconciled into the canonical conversation                                    |
 | Plugin registry (slots, middleware, modes, theme)  | per-mount, created by KodyChat from host-supplied lists                        | —                                                                             |
 | Display mode (ai/terminal)                         | registry arbitration; vibe forces "ai" (host mode by decision M2)              | terminal plugin session state                                                 |
 | Composer input, slash/mention menus, attachments   | KodyChat (host), rendered by `chat/surface/Composer`                           | —                                                                             |

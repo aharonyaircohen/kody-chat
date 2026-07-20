@@ -4,9 +4,8 @@
  * @pattern interactive-session
  *
  * Server-side helpers for the long-lived "interactive runner" chat mode.
- * The mode is gated by a meta line at the top of the session JSONL — see
- * kody2/src/chat/session.ts (readMeta). The runner enters a poll loop
- * instead of replying once and exiting.
+ * Interactive runners and the browser share the canonical Convex
+ * conversation timeline. GitHub dispatch only starts the runner.
  *
  * Why this lives in its own module: the existing trigger route does
  * dispatch-per-turn and assumes one workflow run = one reply. Interactive
@@ -80,8 +79,8 @@ export async function writeSessionMeta(
   repo: string,
   sessionId: string,
   meta: SessionMeta,
-  branch: string = DEFAULT_BRANCH,
-  maxRetries = 4,
+  _branch: string = DEFAULT_BRANCH,
+  _maxRetries = 4,
   initialTurn?: ChatTurn,
 ): Promise<void> {
   await recordSessionStart(owner, repo, sessionId, meta, initialTurn);
@@ -98,32 +97,126 @@ export async function appendUserTurn(
   repo: string,
   sessionId: string,
   turn: ChatTurn,
-  branch: string = DEFAULT_BRANCH,
-  maxRetries = 3,
+  _branch: string = DEFAULT_BRANCH,
+  _maxRetries = 3,
 ): Promise<{ turnCount: number }> {
   await recordTurn(owner, repo, sessionId, turn);
-  const turns = await createBackendClient().query(backendApi.chatTurns.list, {
-    tenantId: `${owner}/${repo}`,
-    sessionId,
-  });
-  return { turnCount: (turns as unknown[]).length };
+  const detail = await createBackendClient().query(
+    backendApi.conversations.get,
+    {
+      tenantId: `${owner}/${repo}`,
+      conversationId: sessionId,
+    },
+  );
+  return {
+    turnCount: (
+      (detail as { entries?: Array<{ entry: { kind: string } }> } | null)
+        ?.entries ?? []
+    ).filter((entry) => entry.entry.kind === "message").length,
+  };
 }
 
-export async function readSessionTranscript(owner: string, repo: string, sessionId: string) {
-  const result = await createBackendClient().query(backendApi.chatSessions.get, {
-    tenantId: `${owner}/${repo}`,
-    sessionId,
-  }) as { session: { meta: SessionMeta }; turns: Array<{ seq: number; turn: ChatTurn }> } | null;
+export async function readSessionTranscript(
+  owner: string,
+  repo: string,
+  sessionId: string,
+) {
+  const result = (await createBackendClient().query(
+    backendApi.conversations.get,
+    {
+      tenantId: `${owner}/${repo}`,
+      conversationId: sessionId,
+    },
+  )) as {
+    entries: Array<{
+      seq: number;
+      entry: {
+        kind: string;
+        role?: "user" | "assistant";
+        content?: string;
+        createdAt: string;
+      };
+    }>;
+  } | null;
   if (!result) return null;
-  return { meta: result.session.meta, turns: result.turns.sort((a, b) => a.seq - b.seq).map((entry) => entry.turn) };
+  return {
+    meta: buildMetaLine(),
+    turns: result.entries
+      .sort((a, b) => a.seq - b.seq)
+      .filter(
+        (item) =>
+          item.entry.kind === "message" &&
+          item.entry.role &&
+          item.entry.content !== undefined,
+      )
+      .map((item) => ({
+        role: item.entry.role!,
+        content: item.entry.content!,
+        timestamp: item.entry.createdAt,
+      })),
+  };
 }
 
-export async function recordSessionStart(owner: string, repo: string, sessionId: string, meta: SessionMeta, initialTurn?: ChatTurn): Promise<void> {
+export async function recordSessionStart(
+  owner: string,
+  repo: string,
+  sessionId: string,
+  meta: SessionMeta,
+  initialTurn?: ChatTurn,
+): Promise<void> {
   const client = createBackendClient();
-  await client.mutation(backendApi.chatSessions.upsert, { tenantId: `${owner}/${repo}`, sessionId, meta, updatedAt: new Date().toISOString() });
+  const tenantId = `${owner}/${repo}`;
+  const existing = await client.query(backendApi.conversations.get, {
+    tenantId,
+    conversationId: sessionId,
+  });
+  if (!existing) {
+    await client.mutation(backendApi.conversations.create, {
+      tenantId,
+      conversationId: sessionId,
+      surface: "global",
+      scope: { kind: "repository", owner, repo },
+      title: "New conversation",
+      pinned: false,
+      activeAgent: { slug: "kody", title: "Kody" },
+      runtime: { kind: "live", profileId: "kody-live" },
+      createdBy: "system:interactive-runner",
+      createdAt: meta.createdAt,
+      updatedAt: meta.createdAt,
+    });
+  }
   if (initialTurn) await recordTurn(owner, repo, sessionId, initialTurn);
 }
 
-export async function recordTurn(owner: string, repo: string, sessionId: string, turn: ChatTurn): Promise<void> {
-  await createBackendClient().mutation(backendApi.chatTurns.append, { tenantId: `${owner}/${repo}`, sessionId, turn: { ...turn, toolCalls: turn.toolCalls ?? [] } });
+export async function recordTurn(
+  owner: string,
+  repo: string,
+  sessionId: string,
+  turn: ChatTurn,
+): Promise<void> {
+  const client = createBackendClient();
+  const tenantId = `${owner}/${repo}`;
+  const detail = (await client.query(backendApi.conversations.get, {
+    tenantId,
+    conversationId: sessionId,
+  })) as { conversation: { activeAgent: { slug: string; title: string } } };
+  const entryId = `${sessionId}:${turn.role}:${turn.timestamp}`;
+  await client.mutation(backendApi.conversations.appendEntry, {
+    tenantId,
+    conversationId: sessionId,
+    entryId,
+    idempotencyKey: entryId,
+    entry: {
+      kind: "message",
+      role: turn.role,
+      author:
+        turn.role === "user"
+          ? { kind: "user", actorId: "system:interactive-runner" }
+          : { kind: "agent", ...detail.conversation.activeAgent },
+      content: turn.content,
+      status: "committed",
+      turnId: entryId,
+      createdAt: turn.timestamp,
+    },
+  });
 }

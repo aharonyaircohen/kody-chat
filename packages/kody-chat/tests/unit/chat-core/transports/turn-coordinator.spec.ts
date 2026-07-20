@@ -8,8 +8,14 @@ import type {
   ChatEvent,
   ChatTransport,
 } from "@dashboard/lib/chat/core/transports/transport-types";
+import { preparedTurnFixture } from "../../../fixtures/prepared-turn";
 
-const INPUT = { sessionId: "session-1", text: "hello", agentId: "kody" };
+const INPUT = {
+  preparedTurn: preparedTurnFixture,
+  sessionId: "session-1",
+  text: "hello",
+  agentId: "kody",
+};
 
 afterEach(() => {
   vi.useRealTimers();
@@ -67,7 +73,11 @@ describe("runChatTurn", () => {
     const transport: ChatTransport = {
       id: "test",
       async send(_input, ctx) {
-        ctx.emit({ type: "error", message: "provider failed", recoverable: false });
+        ctx.emit({
+          type: "error",
+          message: "provider failed",
+          recoverable: false,
+        });
         ctx.emit({ type: "token", text: "ignored after failure" });
       },
     };

@@ -36,7 +36,7 @@ import {
 import { readDefaultChatEntry } from "../chat/platform/default-entry";
 import { readReasoningEffort } from "../chat/core/reasoning-pref";
 import type { ModelReasoning } from "../chat/core/reasoning-adapter";
-import type { UseChatSessionsResult } from "../chat/core/use-chat-sessions";
+import type { UseConversationSessionsResult } from "../chat/core/conversation/use-conversation-sessions";
 
 /**
  * Resolve the global default agent entry — the value a session with
@@ -150,7 +150,7 @@ export interface UseAgentSelectionOptions {
   /** Personal Brain model list from /brain. */
   brainModels: BrainChatModelEntry[];
   /** The global session store — per-session agent picks live on it. */
-  sessionHook: UseChatSessionsResult;
+  sessionHook: UseConversationSessionsResult;
 }
 
 export interface UseAgentSelectionResult {

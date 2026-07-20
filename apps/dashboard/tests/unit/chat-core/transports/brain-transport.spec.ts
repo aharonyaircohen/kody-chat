@@ -23,6 +23,7 @@ import {
   installScriptedFetch,
   eventSink,
 } from "./stream-helpers";
+import { preparedTurnFixture } from "../../../fixtures/prepared-turn";
 
 const CONFIG: BrainTurnConfig = {
   endpoint: "/api/kody/chat/brain",
@@ -281,7 +282,12 @@ describe("brainTransport (ChatTransport wrapper)", () => {
     const sink = eventSink();
     await expect(
       brainTransport.send(
-        { sessionId: "s", text: "hi", agentId: "brain" },
+        {
+          sessionId: "s",
+          text: "hi",
+          agentId: "brain",
+          preparedTurn: preparedTurnFixture,
+        },
         { authHeaders: {}, emit: sink.emit },
       ),
     ).rejects.toThrow(/BrainTurnConfig/);
@@ -299,6 +305,7 @@ describe("brainTransport (ChatTransport wrapper)", () => {
         sessionId: "s",
         text: "hi",
         agentId: "brain",
+        preparedTurn: preparedTurnFixture,
         context: CONFIG as unknown as Record<string, unknown>,
       },
       { authHeaders: {}, emit: sink.emit },

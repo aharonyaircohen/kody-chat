@@ -3,8 +3,8 @@
  * @domain kody
  * @pattern message-attachments
  * @ai-summary Renders attachment chips (image preview for images, file icon
- *   otherwise) inside a user message bubble. Pulls the blob bytes from
- *   IndexedDB on mount so reload-from-history still shows the picture.
+ *   otherwise) inside a user message bubble. Resolves image bytes from the
+ *   pending attachment cache or canonical conversation storage.
  */
 
 "use client";

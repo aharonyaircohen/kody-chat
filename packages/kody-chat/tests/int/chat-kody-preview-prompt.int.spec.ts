@@ -193,6 +193,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     });
     streamTextMock.mockReturnValue({
       toUIMessageStream: vi.fn(() => ({})),
+      consumeStream: vi.fn(() => Promise.resolve()),
     });
     loadInstructionsForPromptMock.mockResolvedValue(null);
     createUIMessageStreamResponseMock.mockReturnValue(
@@ -213,6 +214,9 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
 
     expect(res.status).toBe(200);
     expect(streamTextMock).toHaveBeenCalledTimes(1);
+    expect(
+      streamTextMock.mock.results[0]?.value.consumeStream,
+    ).toHaveBeenCalledTimes(1);
     const system = streamTextMock.mock.calls[0]?.[0]?.system;
     expect(system).toContain("## Current preview reference");
     expect(system).toContain('"make this page"');
@@ -364,6 +368,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
   it("retries up to twice in the same stream when a required-view turn stays silent", async () => {
     const silentResult = () => ({
       toUIMessageStream: vi.fn(() => ({})),
+      consumeStream: vi.fn(() => Promise.resolve()),
       steps: Promise.resolve([
         { toolResults: [], text: "<think>planning only, no call</think>" },
       ]),
@@ -407,6 +412,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
   it("does not retry when the turn produced a rendered view", async () => {
     const viewResult = {
       toUIMessageStream: vi.fn(() => ({})),
+      consumeStream: vi.fn(() => Promise.resolve()),
       steps: Promise.resolve([
         {
           toolResults: [

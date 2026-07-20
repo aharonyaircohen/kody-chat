@@ -127,10 +127,6 @@ import { previewChatPlugin, PREVIEW_PANEL_ID } from "../chat/plugins/preview";
 import { reportsChatPlugin, REPORTS_PANEL_ID } from "../chat/plugins/reports";
 import { secretsChatPlugin, SECRETS_PANEL_ID } from "@kody-ade/kody-chat/plugins/secrets";
 import {
-  settingsChatPlugin,
-  SETTINGS_PANEL_ID,
-} from "@kody-ade/kody-chat/plugins/settings";
-import {
   storeCatalogChatPlugin,
   STORE_CATALOG_PANEL_ID,
 } from "../chat/plugins/store-catalog";
@@ -188,7 +184,6 @@ const ADMIN_CHAT_PLUGINS = [
   { plugin: previewChatPlugin },
   { plugin: reportsChatPlugin },
   { plugin: secretsChatPlugin },
-  { plugin: settingsChatPlugin },
   { plugin: storeCatalogChatPlugin },
   { plugin: todosChatPlugin },
   { plugin: variablesChatPlugin },
@@ -234,7 +229,6 @@ const ROUTE_PANEL_IDS: Readonly<Record<string, string>> = {
   "/preview": PREVIEW_PANEL_ID,
   "/reports": REPORTS_PANEL_ID,
   "/secrets": SECRETS_PANEL_ID,
-  "/settings": SETTINGS_PANEL_ID,
   "/store-catalog": STORE_CATALOG_PANEL_ID,
   "/todos": TODOS_PANEL_ID,
   "/variables": VARIABLES_PANEL_ID,

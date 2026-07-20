@@ -106,4 +106,9 @@ describe("settings navigation", () => {
     expect(previewItem?.exact).toBeUndefined();
     expect(navLabelForPath("/preview/dev-4ojw")).toBe("Views");
   });
+
+  it("does not expose the redundant settings page", () => {
+    expect(exposedHrefs()).not.toContain("/settings");
+    expect(navLabelForPath("/settings")).toBeNull();
+  });
 });

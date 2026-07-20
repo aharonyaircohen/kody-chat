@@ -130,12 +130,6 @@ test.describe("Chat-first layout (beta toggle)", () => {
     const panel = page.locator('[data-testid="chat-first-panel"]');
     await expect(panel).toBeVisible({ timeout: 15_000 });
 
-    await page.goto(`${BASE_URL}/settings`);
-    // The chat-first toggle card is gone from Settings (sidebar mode toggle
-    // removed) — the page heading proves the raw route rendered in the panel.
-    await expect(panel.getByRole("heading", { name: "Settings" })).toBeVisible({
-      timeout: 15_000,
-    });
     // Non-mapped routes keep raw route-content rendering — the tasks
     // plugin panel only substitutes on /tasks (step 3 pilot scope).
     await expect(page.locator('[data-testid="chat-panel-tasks"]')).toHaveCount(
@@ -231,7 +225,6 @@ test.describe("Chat-first layout (beta toggle)", () => {
       ["/preview", "preview"],
       ["/reports", "reports"],
       ["/secrets", "secrets"],
-      ["/settings", "settings"],
       ["/store-catalog", "store-catalog"],
       ["/todos", "todos"],
       ["/variables", "variables"],

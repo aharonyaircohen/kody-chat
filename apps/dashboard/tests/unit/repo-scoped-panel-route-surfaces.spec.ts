@@ -5,11 +5,9 @@ import { describe, expect, it } from "vitest";
 const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
 // Panels that moved to @kody-ade/kody-chat are read from the package copy.
 const PACKAGE_COMPONENTS = new Set([
-  "DefaultChatCard.tsx",
   "SecretsManager.tsx",
   "CommandsManager.tsx",
   "ModelsManager.tsx",
-  "SettingsManager.tsx",
   "MemoryManager.tsx",
   "ContextControl.tsx",
   "BrandsManager.tsx",
@@ -55,13 +53,11 @@ describe("repo-scoped panel route surfaces", () => {
     for (const file of [
       "DashboardHome.tsx",
       "InboxList.tsx",
-      "DefaultChatCard.tsx",
       "VaultLockedBanner.tsx",
       "src/dashboard/lib/push/PushCard.tsx",
       "SecretsManager.tsx",
       "CommandsManager.tsx",
       "ModelsManager.tsx",
-      "SettingsManager.tsx",
       "CompanyIntentsView.tsx",
       "VariablesManager.tsx",
       "node_modules/@kody-ade/kody-chat/src/dashboard/lib/chat/plugins/commands/SlashCommandMenu.tsx",

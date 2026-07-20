@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { existsSync } from "node:fs";
 // Intentionally anyApi: dynamic table-name loops / raw-deployment probes
 // that must not depend on the generated typed api.
 import { anyApi } from "convex/server";
@@ -10,6 +11,7 @@ import { createBackendClient } from "../../src/client";
 // project). Mutations require the deployment's service key, so also set
 // KODY_SERVICE_KEY (see .env.local).
 // Run: CONVEX_URL=… KODY_SERVICE_KEY=… pnpm vitest --project smoke
+if (existsSync(".env.local")) process.loadEnvFile(".env.local");
 const url = process.env.CONVEX_URL;
 const serviceKey = process.env.KODY_SERVICE_KEY;
 
@@ -110,6 +112,74 @@ describe.skipIf(!url || !serviceKey)("deployment smoke", () => {
         instanceId,
       }),
     ).toMatchObject({ status: "cancelled", revision: 1 });
+  });
+
+  it("persists a canonical conversation through the deployed API", async () => {
+    const conversationId = `smoke-conversation-${Date.now()}`;
+    const createdAt = new Date().toISOString();
+
+    await client.mutation(api.conversations.create, {
+      tenantId,
+      conversationId,
+      surface: "global",
+      scope: { kind: "global" },
+      title: "Smoke conversation",
+      pinned: false,
+      activeAgent: { slug: "kody", title: "Kody" },
+      runtime: { kind: "direct", modelId: "smoke" },
+      createdBy: "smoke-test",
+      createdAt,
+      updatedAt: createdAt,
+    });
+    await client.mutation(api.conversations.appendEntry, {
+      tenantId,
+      conversationId,
+      entryId: "user-1",
+      idempotencyKey: "user-1",
+      entry: {
+        kind: "message",
+        role: "user",
+        author: { kind: "user", actorId: "smoke-test" },
+        content: "storage smoke test",
+        status: "committed",
+        turnId: "turn-1",
+        createdAt,
+      },
+    });
+    await client.mutation(api.conversationTurns.start, {
+      tenantId,
+      conversationId,
+      turnId: "turn-1",
+      backend: "direct",
+      agent: { slug: "kody", title: "Kody" },
+      startedAt: createdAt,
+    });
+    await client.mutation(api.conversationTurns.complete, {
+      tenantId,
+      conversationId,
+      turnId: "turn-1",
+      content: "durable reply",
+      completedAt: new Date().toISOString(),
+    });
+
+    const stored = await client.query(api.conversations.get, {
+      tenantId,
+      conversationId,
+    });
+    expect(stored?.conversation.activeAgent.slug).toBe("kody");
+    expect(stored?.entries).toHaveLength(2);
+    expect(stored?.turns).toHaveLength(1);
+    expect(stored?.turns[0]).toMatchObject({ status: "completed" });
+    expect(stored?.entries[0]?.entry).toMatchObject({
+      kind: "message",
+      role: "user",
+      content: "storage smoke test",
+    });
+    expect(stored?.entries[1]?.entry).toMatchObject({
+      kind: "message",
+      role: "assistant",
+      content: "durable reply",
+    });
   });
 
   it("cleans up its own rows", async () => {

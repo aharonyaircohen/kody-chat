@@ -21,6 +21,7 @@ import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
 import { rejectSurfaceScopedRequest } from "@dashboard/lib/chat/platform/surface-scope";
 import {
   streamBrainChat,
+  type BrainAgentIdentity,
   type BrainAttachment,
   type BrainCapabilityContext,
   type BrainTaskContext,
@@ -31,6 +32,7 @@ import {
 } from "@dashboard/lib/chat/core/page-context";
 import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
 import { requestOrigin } from "@kody-ade/base/request-origin";
+import { readResolvedAgentFile } from "@dashboard/lib/agent-files";
 
 export const runtime = "nodejs";
 // Hold the proxy open up to Vercel's ceiling; the proxy itself closes ~30s
@@ -87,6 +89,7 @@ export async function POST(req: NextRequest) {
      * translate it to the upstream provider's wire shape.
      */
     reasoningEffort?: string;
+    agentSlug?: string;
   };
   try {
     body = await req.json();
@@ -121,6 +124,17 @@ export async function POST(req: NextRequest) {
   // audience. Cached 60s in-process; `null` when the repo has none.
   const dashboardContext =
     !isResume && body.includeContext ? await loadContextForPrompt() : null;
+  let agentIdentity: BrainAgentIdentity | undefined;
+  if (!isResume && body.agentSlug) {
+    const agent = await readResolvedAgentFile(body.agentSlug).catch(() => null);
+    if (agent?.body.trim()) {
+      agentIdentity = {
+        slug: agent.slug,
+        title: agent.title,
+        body: agent.body,
+      };
+    }
+  }
 
   return streamBrainChat({
     brainUrl,
@@ -140,6 +154,7 @@ export async function POST(req: NextRequest) {
     repo,
     repoToken,
     dashboardUrl,
+    ...(agentIdentity ? { agentIdentity } : {}),
     storeRepoUrl: headerAuth?.storeRepoUrl,
     storeRef: headerAuth?.storeRef,
     voiceMode: body.voiceMode === true,

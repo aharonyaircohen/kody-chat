@@ -68,6 +68,9 @@ vi.mock("@dashboard/lib/view-renderers/renderers", () => ({
 vi.mock("@dashboard/lib/agent-files", () => ({
   isValidSlug: (slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug),
   readResolvedAgentFile: h.readResolvedAgentFile,
+  listResolvedAgentFiles: vi.fn(async () => [
+    await h.readResolvedAgentFile(),
+  ]),
 }));
 vi.mock("@kody-ade/base/engine/config", () => ({
   getEngineConfig: h.getEngineConfig,

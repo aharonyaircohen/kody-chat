@@ -3,7 +3,7 @@
  * @domain chat-harness
  * @pattern repo-config
  * @ai-summary Fixture-backed dashboard-config endpoint for the chat harness.
- *   Chat surfaces (DefaultChatCard, kody-chat-data) GET/PUT per-repo config —
+ *   Chat surfaces (kody-chat-data) GET/PUT per-repo config —
  *   in this dev harness it round-trips through the in-memory fixture store
  *   instead of the dashboard's GitHub-backed `dashboard.json` store.
  */

@@ -130,7 +130,7 @@ beforeEach(() => {
   backend.query.mockResolvedValue([]);
   process.env.CONVEX_URL = "https://example.convex.cloud";
   convex.mutation.mockResolvedValue(undefined);
-  convex.query.mockResolvedValue([]);
+  convex.query.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -159,10 +159,10 @@ describe("POST /api/kody/chat/interactive/start-fly — atomic initial turn", ()
 
     const mutationArgs = convex.mutation.mock.calls.map((call) => call[1]);
     expect(mutationArgs[0]).toMatchObject({
-      sessionId: "vibe-77-fly",
-      meta: { type: "meta", mode: "interactive" },
+      conversationId: "vibe-77-fly",
+      runtime: { kind: "live" },
     });
-    const userTurn = mutationArgs.find((args) => args.turn)?.turn;
+    const userTurn = mutationArgs.find((args) => args.entry)?.entry;
     expect(
       userTurn,
       "start-fly must persist the first user turn atomically with meta — " +
@@ -185,8 +185,8 @@ describe("POST /api/kody/chat/interactive/start-fly — atomic initial turn", ()
     const mutationArgs = convex.mutation.mock.calls.map((call) => call[1]);
     expect(mutationArgs).toHaveLength(1);
     expect(mutationArgs[0]).toMatchObject({
-      sessionId: "plain-fly",
-      meta: { type: "meta", mode: "interactive" },
+      conversationId: "plain-fly",
+      runtime: { kind: "live" },
     });
   });
 });

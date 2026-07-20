@@ -79,11 +79,13 @@ import {
   type KodyChatProps,
 } from "./kody-chat-types";
 import type { AttachmentRef, ChatContext } from "@dashboard/lib/chat-types";
-import type { useChatSessions } from "../chat/core/use-chat-sessions";
+import type { useConversationSessions } from "../chat/core/conversation/use-conversation-sessions";
+import { persistPendingAttachment } from "@dashboard/lib/attachment-store";
+import { prepareUiConversationTurn } from "../chat/core/conversation/prepare-ui-turn";
+import type { ConversationRuntime } from "../chat/core/conversation/prepare-turn";
 import {
   buildAgentHandoffContext,
   latestAgentHandoff,
-  splitMessagesAtAgentHandoff,
 } from "../chat/core/agent-handoff";
 import type { useLiveRunner } from "./kody-chat-live-runner";
 import { parseReasoning, stripReasoning } from "../chat/core/reasoning";
@@ -351,7 +353,7 @@ export function finalizeKodyDirectTurn(params: {
 // wrappers so staleness semantics match the pre-extraction closures.
 // ─────────────────────────────────────────────────────────────────────
 
-type SessionHook = ReturnType<typeof useChatSessions>;
+type SessionHook = ReturnType<typeof useConversationSessions>;
 type LiveRunner = ReturnType<typeof useLiveRunner>;
 type PluginRegistry = ReturnType<typeof createChatPluginRegistry>;
 type MiddlewareContext = Parameters<PluginRegistry["runSendMiddleware"]>[1];
@@ -402,7 +404,11 @@ export interface SendTextDeps {
   // Session store
   sessionHook: SessionHook;
   messages: Message[];
-  setMessagesForSession: (sessionId: string, updater: MessagesUpdater) => void;
+  setMessagesForSession: (
+    sessionId: string,
+    updater: MessagesUpdater,
+    options?: { persist?: boolean },
+  ) => void;
   setLoading: (loading: boolean) => void;
   setToolCalls: (toolCalls: ToolCall[]) => void;
   setSelectedAgentId: (id: AgentId) => void;
@@ -482,7 +488,6 @@ async function runSendTextInner(
     selectedModelId,
     effectiveReasoningEffort,
     selectedTask,
-    capabilitySlug,
     selectedCapability,
     selectedOrg,
     selectedReport,
@@ -545,24 +550,88 @@ async function runSendTextInner(
   const effectiveAgent = AGENTS[effectiveAgentId] ?? AGENT_KODY;
 
   const timestamp = new Date().toISOString();
+  const currentMessageId = crypto.randomUUID();
+  const uiSessionId =
+    sessionHook.activeSession?.id ?? sessionHook.createSession();
+  const setMessages = (
+    updater: Message[] | ((prev: Message[]) => Message[]),
+  ) => {
+    setMessagesForSession(uiSessionId, updater);
+  };
+  const displayContent = options.displayContent ?? messageContent;
+  const optimisticAttachmentRefs: AttachmentRef[] = currentAttachments.map(
+    (attachment) => ({
+      id: attachment.id,
+      name: attachment.name,
+      mimeType: attachment.mimeType,
+      size: attachment.size,
+    }),
+  );
 
-  // Attachment refs (id + metadata) for the persisted message. The blob
-  // itself lives in IDB; the data URL stays in `currentAttachments` for
-  // this turn's outgoing request only.
-  const attachmentRefs: AttachmentRef[] = currentAttachments.map((a) => ({
-    id: a.id,
-    name: a.name,
-    mimeType: a.mimeType,
-    size: a.size,
-  }));
+  // A send must feel immediate. Storage, context collection, compaction, and
+  // attachment upload can take seconds, so render the user's bubble before
+  // awaiting any of them.
+  setMessagesForSession(
+    uiSessionId,
+    (prev) => [
+      ...prev,
+      {
+        id: currentMessageId,
+        role: "user",
+        content: displayContent,
+        timestamp,
+        attachments:
+          optimisticAttachmentRefs.length > 0
+            ? optimisticAttachmentRefs
+            : undefined,
+        ...(options.hidden ? { hidden: true } : {}),
+      },
+    ],
+    { persist: false },
+  );
+
+  // Upload pending attachment blobs to the conversation store before the
+  // message is committed. Only the canonical attachment ids and metadata
+  // remain in UI state; the data URL is used for this outgoing turn only.
+  const attachmentRefs: AttachmentRef[] = await Promise.all(
+    currentAttachments.map((attachment) =>
+      persistPendingAttachment(uiSessionId, {
+        id: attachment.id,
+        name: attachment.name,
+        mimeType: attachment.mimeType,
+        size: attachment.size,
+      }),
+    ),
+  );
+  if (attachmentRefs.length > 0) {
+    setMessages((previous) =>
+      previous.map((message) =>
+        message.id === currentMessageId
+          ? { ...message, attachments: attachmentRefs }
+          : message,
+      ),
+    );
+  }
+
+  // Persistence is intentionally not on the model's critical path. The
+  // conversation client still serializes create -> append operations, while
+  // the hook reports any failure through the visible persistence banner.
+  void sessionHook
+    .persistUserMessage(uiSessionId, {
+      id: currentMessageId,
+      role: "user",
+      text: displayContent,
+      timestamp,
+      attachments: attachmentRefs.length > 0 ? attachmentRefs : undefined,
+      ...(options.hidden ? { hidden: true } : {}),
+    })
+    .catch(() => undefined);
 
   // The user's bubble shows just the typed text — the attachment chips
   // are rendered separately from `attachments`. No base64 in the text.
   // Callers can override via `options.displayContent` when the model
   // should see something different (e.g. an expanded slash-command
   // prompt — the user bubble still shows the typed input).
-  const displayContent = options.displayContent ?? messageContent;
-
   // Preview page context is invisible in the UI. Kody-direct receives it
   // as a separate context field so renderer/tool routing sees only the
   // user's real words; text-only backends still need it appended. Image
@@ -582,18 +651,10 @@ async function runSendTextInner(
     previewContext,
     backend: effectiveAgent.backend,
   });
-  const uiSessionId =
-    sessionHook.activeSession?.id ?? sessionHook.createSession();
   const turnMessages =
     sessionHook.activeSession?.id === uiSessionId
       ? messages
       : sessionHook.getSessionMessages(uiSessionId).map(chatToMessage);
-  const setMessages = (
-    updater: Message[] | ((prev: Message[]) => Message[]),
-  ) => {
-    setMessagesForSession(uiSessionId, updater);
-  };
-
   // Build the prior-conversation transcript for the Kody backend. It
   // gets the cleaned-up text only; older attachments are referenced by
   // ref count only (not re-uploaded) — Kody's stateless route only
@@ -613,7 +674,7 @@ async function runSendTextInner(
   //    They come from aborted turns or turns where the model only
   //    produced reasoning. Sending them back makes the model "continue
   //    from nothing" and often regress into apologies.
-  const priorMessages = turnMessages
+  const cleanedTurnMessages = turnMessages
     .map((m) => {
       if (m.role !== "assistant") return m;
       if (m.isError) return null;
@@ -622,17 +683,55 @@ async function runSendTextInner(
       if (!cleaned) return null;
       return { ...m, content: cleaned };
     })
-    .filter((m): m is Message => m !== null)
-    .map((m) => ({
-      role: m.role,
-      content: m.content,
-      timestamp: m.timestamp ?? timestamp,
-    }));
+    .filter((m): m is Message => m !== null);
+  const priorMessages = cleanedTurnMessages.map((m) => ({
+    role: m.role,
+    content: m.content,
+    timestamp: m.timestamp ?? timestamp,
+  }));
+  const runtime: ConversationRuntime =
+    effectiveAgent.backend === "brain"
+      ? { kind: "brain", brainId: effectiveAgentId }
+      : effectiveAgent.backend === "kody-live"
+        ? effectiveAgentId === "kody-live"
+          ? { kind: "live", profileId: effectiveAgentId }
+          : { kind: "engine", profileId: effectiveAgentId }
+        : { kind: "direct", modelId: selectedModelId ?? "default" };
+  const preparedTurn = prepareUiConversationTurn({
+    session: sessionHook.activeSession ?? {
+      id: uiSessionId,
+      title: "New conversation",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      messageCount: cleanedTurnMessages.length,
+      agencyAgent: {
+        slug: selectedAgencyAgentSlug,
+        title: selectedAgencyAgentSlug,
+      },
+    },
+    messages: cleanedTurnMessages,
+    current: {
+      id: currentMessageId,
+      content: wireContent,
+      timestamp,
+    },
+    runtime,
+  });
   const agentHandoff = latestAgentHandoff(
     sessionHook.activeSession?.agentHandoffs ?? [],
   );
-  const { previousAgentMessages, activeAgentMessages } =
-    splitMessagesAtAgentHandoff(priorMessages, agentHandoff);
+  const previousAgentMessages = preparedTurn.previousAgentContext.map(
+    (message) => ({
+      role: message.role,
+      content: message.content,
+      timestamp: message.createdAt,
+    }),
+  );
+  const activeAgentMessages = preparedTurn.activeHistory.map((message) => ({
+    role: message.role,
+    content: message.content,
+    timestamp: message.createdAt,
+  }));
   const agentHandoffContext = buildAgentHandoffContext(previousAgentMessages);
 
   const previousCheckpoint =
@@ -651,20 +750,6 @@ async function runSendTextInner(
   });
   const conversationContext = compaction.context;
 
-  setMessages((prev) => [
-    ...prev,
-    {
-      role: "user",
-      content: displayContent,
-      timestamp,
-      attachments: attachmentRefs.length > 0 ? attachmentRefs : undefined,
-      // Hidden synthetic turns (preview-act follow-ups) ride the wire so
-      // the model observes new state, but the renderer skips them — the
-      // user only sees their own prompts + assistant replies.
-      ...(options.hidden ? { hidden: true } : {}),
-    },
-  ]);
-
   const directAgentSlug =
     !options.hidden && !voiceMode && !options.forceAgentId
       ? extractFirstStaffMentionCandidate(displayContent, repoAgentSlugs)
@@ -678,18 +763,19 @@ async function runSendTextInner(
   // a stale closure and reads as null, tripping createSession() into
   // splitting user/assistant across two sessions.
   const resolveSessionId = (): string => {
-    if (selectedTask) return selectedTask.id;
-    if (capabilitySlug != null) return `capability-${capabilitySlug}`;
     return uiSessionId;
   };
 
   setLoading(true);
   setToolCalls([]);
+  const durableTurnId = crypto.randomUUID();
 
   // Placeholder assistant message — will be replaced by SSE events
   setMessages((prev) => [
     ...prev,
     {
+      id: `assistant:${durableTurnId}`,
+      turnId: durableTurnId,
       role: "assistant",
       content: "",
       isLoading: true,
@@ -761,9 +847,10 @@ async function runSendTextInner(
       ? `/${effectiveAgentId}/${selectedModelId.replace(/[^a-zA-Z0-9._-]/g, "-")}`
       : "";
     const brainConversationKey = `${brainLogicalKeyBase}${brainModelScope}`;
+    const brainEpochKey = `${brainConversationKey}/epoch-${preparedTurn.agentEpochId.replace(/[^a-zA-Z0-9._-]/g, "-")}`;
     const brainLogicalKey = conversationContext.checkpoint
-      ? `${brainConversationKey}/compact-${conversationContext.checkpoint.revision}`
-      : brainConversationKey;
+      ? `${brainEpochKey}/compact-${conversationContext.checkpoint.revision}`
+      : brainEpochKey;
     // First turn = no chatId pinned yet for this conversation. Must be
     // read *before* stickyBrainChatId (which pins). Used to send the
     // dashboard Context block once — Brain is stateful and keeps it.
@@ -887,6 +974,7 @@ async function runSendTextInner(
       await runChatTurn({
         transport: brainTransport,
         input: {
+          preparedTurn,
           sessionId: uiSessionId,
           text: brainWireContent,
           agentId: effectiveAgentId,
@@ -901,6 +989,7 @@ async function runSendTextInner(
           emit: brainTurn.handleEvent,
         },
         inactivityMs: BRAIN_INACTIVITY_MS,
+        turnId: durableTurnId,
       });
 
       // Reconnect budget ran out — the handler already surfaced the
@@ -1132,6 +1221,7 @@ async function runSendTextInner(
       await runChatTurn({
         transport: kodyDirectTransport,
         input: {
+          preparedTurn,
           sessionId: uiSessionId,
           text: wireContent,
           agentId:
@@ -1148,6 +1238,7 @@ async function runSendTextInner(
           emit: kodyTurn.handleEvent,
         },
         inactivityMs: KODY_DIRECT_INACTIVITY_MS,
+        turnId: durableTurnId,
       });
 
       // Per-turn results accumulated by the event handler. Pending UI
@@ -1398,7 +1489,9 @@ async function runSendTextInner(
     try {
       await kodyLiveTransport.send(
         {
+          preparedTurn,
           sessionId: liveSessionId,
+          turnId: durableTurnId,
           text: liveUserContent,
           agentId: effectiveAgentId,
           context: {
@@ -1464,7 +1557,9 @@ async function runSendTextInner(
   try {
     await kodyLiveTransport.send(
       {
+        preparedTurn,
         sessionId,
+        turnId: durableTurnId,
         text: engineUserContent,
         agentId: effectiveAgentId,
         context: {

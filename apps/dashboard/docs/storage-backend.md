@@ -62,10 +62,11 @@ for large tenants.
 
 ## Engine (kody2) chat transcript reads
 
-The engine's chat runner (kody2 `src/chat/session-store.ts`) now reads the
-session transcript from Convex (`chatTurns.list`) and appends its own turns
-via `chatSessions.upsert` + `chatTurns.append`, falling back to the legacy
-backend `sessions/<id>.jsonl` git-pull loop when Convex is not configured.
+The engine's chat runner (kody2 `src/chat/session-store.ts`) reads and writes
+the same typed Convex conversation timeline as Direct, Brain, and Live
+(`conversations.get` + `conversations.appendEntry`). It fails closed when
+canonical storage is unavailable; there is no JSONL transcript fallback or
+dual write.
 
 For the engine to use the Convex path, the repo that runs `kody.yml` needs
 two **GitHub Actions secrets** (the workflow forwards all secrets to the
@@ -81,26 +82,5 @@ needed):
 The tenant scope is derived from `GITHUB_REPOSITORY` (`owner/repo`), which
 matches the dashboard's `tenantIdFor(owner, repo)`.
 
-**Dual-write retirement:** the dashboard still writes `sessions/<id>.jsonl`
-to the backend (see `app/api/kody/chat/trigger/route.ts` and
-`src/dashboard/lib/interactive-session.ts`) solely because engines without
-the two secrets above still git-pull it. Once every engine repo has
-`CONVEX_URL` + `KODY_SERVICE_KEY` set, delete the backend JSONL writes
-and Convex becomes the sole transcript store.
-
-### `KODY_LEGACY_SESSION_WRITE` flag
-
-The legacy backend JSONL write is gated by the dashboard env var
-`KODY_LEGACY_SESSION_WRITE` (helper:
-`src/dashboard/lib/legacy-session-write.ts`):
-
-- **What it gates:** only the GitHub `sessions/<id>.jsonl` dual-write in
-  `app/api/kody/chat/trigger/route.ts` and
-  `src/dashboard/lib/interactive-session.ts`. The Convex write path is
-  unconditional and unaffected.
-- **Default:** on — the legacy write happens unless the var is exactly `"0"`.
-- **When it's safe to set `"0"`:** once every engine repo runs
-  `@kody-ade/kody-engine` >= 0.4.381 with the `CONVEX_URL` +
-  `KODY_SERVICE_KEY` Actions secrets set, so no runner git-pulls the JSONL.
-  Flipping the var retires the dual-write without a deploy; deleting the
-  gated code is the final cleanup step.
+The workflow dispatch carries only the conversation id and current request;
+the engine retrieves the active agent epoch from Convex.

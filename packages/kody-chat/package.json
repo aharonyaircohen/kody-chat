@@ -35,6 +35,7 @@
     "./components/kody-chat-types": "./src/dashboard/lib/components/kody-chat-types.ts",
     "./components/kody-chat-send": "./src/dashboard/lib/components/kody-chat-send.ts",
     "./components/kody-chat-selection": "./src/dashboard/lib/components/kody-chat-selection.ts",
+    "./attachment-store": "./src/dashboard/lib/attachment-store.ts",
     "./components/kody-chat-transport-events": "./src/dashboard/lib/components/kody-chat-transport-events.ts",
     "./components/*": "./src/dashboard/lib/components/*.tsx",
     "./components/ChatShell": "./src/dashboard/lib/components/ChatShell.tsx",

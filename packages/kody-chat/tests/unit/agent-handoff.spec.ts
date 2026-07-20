@@ -19,6 +19,7 @@ describe("agent handoff", () => {
         switchedAt,
       ),
     ).toEqual({
+      id: expect.any(String),
       fromSlug: "ux",
       fromTitle: "UX",
       toSlug: "ceo",
@@ -106,6 +107,7 @@ describe("agent handoff", () => {
         { slug: "ceo", title: "Chief Executive Officer" },
       ),
     ).toEqual({
+      id: "handoff:ux:ceo:unknown",
       fromSlug: "ux",
       fromTitle: "ux",
       toSlug: "ceo",

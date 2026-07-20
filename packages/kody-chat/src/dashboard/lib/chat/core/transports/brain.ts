@@ -14,6 +14,7 @@
 
 import { parseBrainWireEvent } from "./envelope";
 import type { ChatTransport, ChatTransportContext } from "./transport-types";
+import { compilePreparedTurnPayload } from "../conversation/prepared-turn-payload";
 
 /** `error` ChatEvent codes this adapter emits. */
 export const BRAIN_ERROR_CODE_TURN = "brain-turn-error";
@@ -268,6 +269,45 @@ export const brainTransport: ChatTransport = {
         "brainTransport.send requires a BrainTurnConfig in input.context",
       );
     }
-    await sendBrainTurn(input.context, ctx);
+    const prepared = compilePreparedTurnPayload(input.preparedTurn);
+    const configuredMessage =
+      typeof input.context.initialBody.message === "string"
+        ? input.context.initialBody.message
+        : prepared.currentMessage;
+    const firstTurnContext =
+      input.context.initialBody.includeContext === true
+        ? [
+            prepared.previousAgentContext,
+            prepared.messages.length > 1
+              ? [
+                  "Active conversation history:",
+                  ...prepared.messages
+                    .slice(0, -1)
+                    .map((message) => `${message.role}: ${message.content}`),
+                ].join("\n")
+              : null,
+          ]
+            .filter(Boolean)
+            .join("\n\n")
+        : "";
+    await sendBrainTurn(
+      {
+        ...input.context,
+        initialBody: {
+          ...input.context.initialBody,
+          message: firstTurnContext
+            ? `${firstTurnContext}\n\nCurrent user message:\n${configuredMessage}`
+            : configuredMessage,
+          conversationSummary: prepared.summary ?? undefined,
+          agentHandoffContext: prepared.previousAgentContext ?? undefined,
+          activeHistory: prepared.messages.slice(0, -1),
+          agentSlug: prepared.speaker.slug,
+          conversationId: input.sessionId,
+          turnId: input.turnId,
+          conversationAgent: prepared.speaker,
+        },
+      },
+      ctx,
+    );
   },
 };

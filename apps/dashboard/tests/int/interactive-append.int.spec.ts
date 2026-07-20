@@ -75,8 +75,8 @@ function capturedAppendedTurn(): {
 } {
   const args = convex.mutation.mock.calls
     .map((call) => call[1])
-    .find((value) => value?.turn);
-  return args?.turn;
+    .find((value) => value?.entry);
+  return args?.entry;
 }
 
 beforeAll(() => {
@@ -93,7 +93,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   process.env.CONVEX_URL = "https://example.convex.cloud";
   convex.mutation.mockResolvedValue(undefined);
-  convex.query.mockResolvedValue([]);
+  convex.query.mockResolvedValue({
+    conversation: { activeAgent: { slug: "kody", title: "Kody" } },
+    entries: [],
+  });
   mockRepoConfig404();
 });
 

@@ -17,8 +17,10 @@ export function createAgentHandoff(
   from: AgentIdentity,
   to: AgentIdentity,
   switchedAt = new Date().toISOString(),
+  id = crypto.randomUUID(),
 ): AgentHandoff {
   return {
+    id,
     fromSlug: from.slug,
     fromTitle: from.title,
     toSlug: to.slug,
@@ -126,6 +128,10 @@ export function resolveAgentHandoffForPrompt(
   if (!fromSlug || !toSlug) return null;
 
   return {
+    id:
+      typeof candidate.id === "string" && candidate.id
+        ? candidate.id
+        : `handoff:${fromSlug}:${toSlug}:${candidate.switchedAt ?? "unknown"}`,
     fromSlug,
     // The previous title is client-supplied, so use its validated slug in the
     // system prompt. The active title comes from the server-resolved profile.

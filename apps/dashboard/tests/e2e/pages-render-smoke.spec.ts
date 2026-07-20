@@ -44,7 +44,6 @@ const ROUTES = [
   "/agent-loops",
   "/scenario",
   "/secrets",
-  "/settings",
   "/tasks",
   "/jobs",
   "/triggers",

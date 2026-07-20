@@ -29,7 +29,11 @@ export const TABLES: readonly TableDef[] = [
     naturalKey: ["actorId", "instanceId"],
     upsertIndex: "by_instance",
   },
-  { table: "userJourneys", naturalKey: ["journeyId"], upsertIndex: "by_tenant" },
+  {
+    table: "userJourneys",
+    naturalKey: ["journeyId"],
+    upsertIndex: "by_tenant",
+  },
   {
     table: "userJourneyVersions",
     naturalKey: ["journeyId", "version"],
@@ -46,19 +50,39 @@ export const TABLES: readonly TableDef[] = [
     upsertIndex: "by_run",
   },
   {
-    table: "chatSessions",
-    naturalKey: ["sessionId"],
-    upsertIndex: "by_session",
-  },
-  {
-    table: "chatTurns",
-    naturalKey: ["sessionId", "seq"],
-    upsertIndex: "by_session",
-  },
-  {
     table: "chatEvents",
     naturalKey: ["sessionId", "seq"],
     upsertIndex: "by_session",
+  },
+  {
+    table: "conversations",
+    naturalKey: ["conversationId"],
+    upsertIndex: "by_conversation",
+  },
+  {
+    table: "conversationEntries",
+    naturalKey: ["conversationId", "entryId"],
+    upsertIndex: "by_entry",
+  },
+  {
+    table: "conversationTurns",
+    naturalKey: ["conversationId", "turnId"],
+    upsertIndex: "by_turn",
+  },
+  {
+    table: "conversationCheckpoints",
+    naturalKey: ["conversationId", "version"],
+    upsertIndex: "by_conversation",
+  },
+  {
+    table: "conversationRuntimeBindings",
+    naturalKey: ["conversationId", "runtimeKind"],
+    upsertIndex: "by_conversation_runtime",
+  },
+  {
+    table: "conversationAttachments",
+    naturalKey: ["conversationId", "attachmentId"],
+    upsertIndex: "by_attachment",
   },
   { table: "intents", naturalKey: ["intentId"], upsertIndex: "by_tenant" },
   {

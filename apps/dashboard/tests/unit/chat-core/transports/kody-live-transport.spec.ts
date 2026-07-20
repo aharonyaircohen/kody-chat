@@ -21,6 +21,7 @@ import {
   installScriptedFetch,
   eventSink,
 } from "./stream-helpers";
+import { preparedTurnFixture } from "../../../fixtures/prepared-turn";
 
 const APPEND: KodyLiveTurnConfig = {
   kind: "append",
@@ -138,7 +139,12 @@ describe("kodyLiveTransport (ChatTransport wrapper)", () => {
     const sink = eventSink();
     await expect(
       kodyLiveTransport.send(
-        { sessionId: "s", text: "hi", agentId: "kody-live" },
+        {
+          sessionId: "s",
+          text: "hi",
+          agentId: "kody-live",
+          preparedTurn: preparedTurnFixture,
+        },
         { authHeaders: {}, emit: sink.emit },
       ),
     ).rejects.toThrow(/KodyLiveTurnConfig/);
@@ -156,6 +162,7 @@ describe("kodyLiveTransport (ChatTransport wrapper)", () => {
         sessionId: "s",
         text: "hi",
         agentId: "kody-live",
+        preparedTurn: preparedTurnFixture,
         context: APPEND as unknown as Record<string, unknown>,
       },
       { authHeaders: {}, emit: sink.emit },

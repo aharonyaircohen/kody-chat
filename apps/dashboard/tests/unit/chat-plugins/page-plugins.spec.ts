@@ -42,7 +42,6 @@ import { notificationsChatPlugin } from "@dashboard/lib/chat/plugins/notificatio
 import { previewChatPlugin } from "@dashboard/lib/chat/plugins/preview";
 import { reportsChatPlugin } from "@dashboard/lib/chat/plugins/reports";
 import { secretsChatPlugin } from "@kody-ade/kody-chat/plugins/secrets";
-import { settingsChatPlugin } from "@kody-ade/kody-chat/plugins/settings";
 import { storeCatalogChatPlugin } from "@dashboard/lib/chat/plugins/store-catalog";
 import { todosChatPlugin } from "@dashboard/lib/chat/plugins/todos";
 import { variablesChatPlugin } from "@dashboard/lib/chat/plugins/variables";
@@ -95,7 +94,6 @@ const PAGE_PLUGINS: readonly PagePluginCase[] = [
   { slug: "preview", title: "Views", plugin: previewChatPlugin },
   { slug: "reports", title: "Reports", plugin: reportsChatPlugin },
   { slug: "secrets", title: "Secrets", plugin: secretsChatPlugin },
-  { slug: "settings", title: "Settings", plugin: settingsChatPlugin },
   {
     slug: "store-catalog",
     title: "Store Catalog",

@@ -158,7 +158,8 @@ export function ClientChatSurface({
           allowSessionSidebarPin={false}
           autoOpenSessionSidebar={false}
           lockedModelId={brand.modelId}
-          lockedAgentSlug={brand.agentSlug}
+      lockedAgentSlug={brand.agentSlug}
+      allowAgencyAgentSelection={false}
           kodyDirectHeaders={kodyDirectHeaders}
           messageRoleLayout="client"
           railFullscreen

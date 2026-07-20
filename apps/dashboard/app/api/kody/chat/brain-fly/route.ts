@@ -100,6 +100,7 @@ export async function POST(req: NextRequest) {
     includeContext?: boolean;
     /** User-picked thinking level. Forwarded verbatim to Brain. */
     reasoningEffort?: string;
+    agentSlug?: string;
   };
   try {
     body = await req.json();
@@ -217,7 +218,9 @@ export async function POST(req: NextRequest) {
     let agentIdentity: BrainAgentIdentity | undefined;
     if (!isResume) {
       try {
-        const repoBrain = await readResolvedAgentFile(REPO_BRAIN_AGENT_SLUG);
+        const repoBrain = await readResolvedAgentFile(
+          body.agentSlug || REPO_BRAIN_AGENT_SLUG,
+        );
         if (repoBrain?.body.trim()) {
           agentIdentity = {
             slug: repoBrain.slug,

@@ -13,8 +13,8 @@
   },
   "scripts": {
     "dev": "convex dev",
-    "deploy": "convex deploy",
-    "deploy:prod": "convex deploy --yes",
+    "deploy": "convex deploy && vitest run --project smoke",
+    "deploy:prod": "convex deploy --yes && vitest run --project smoke",
     "codegen": "convex codegen",
     "test:smoke": "vitest run --project smoke",
     "import:convex": "tsx scripts/import-convex.ts",

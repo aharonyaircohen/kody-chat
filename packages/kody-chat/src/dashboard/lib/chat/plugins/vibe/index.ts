@@ -17,7 +17,7 @@
  *   HOST/CORE by decision (do NOT move here):
  *   - Mode activation: route-derived `vibeMode` in ChatRailShell, passed
  *     down as a KodyChat prop (frozen ChatRailApi contract, plan H4).
- *   - `ChatSessionScope = 'vibe-default'` (chat/core/use-chat-sessions.ts)
+ *   - `ChatSessionScope = 'vibe-default'` (canonical conversation surface)
  *     and the live-runner scope keys `vibe-<issue>`/`vibe-default`
  *     (chat/core/kody-chat-live-session.ts `getLiveScopeKey`).
  *   - Display mode: the host FORCES "ai" while in vibe (platform

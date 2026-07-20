@@ -18,7 +18,6 @@ import {
   LayoutGrid,
   MessageSquare,
   Palette,
-  Settings,
   SlashSquare,
 } from "lucide-react";
 import { AuthGuard } from "@dashboard/lib/auth-guard";
@@ -54,12 +53,6 @@ const BUILTIN_SECTIONS: readonly SettingsNavSection[] = [
         label: "Secrets",
         icon: KeyRound,
         tint: "text-rose-300 bg-rose-500/10",
-      },
-      {
-        href: "/settings",
-        label: "Settings",
-        icon: Settings,
-        tint: "text-sky-300 bg-sky-500/10",
       },
       {
         href: "/brands",

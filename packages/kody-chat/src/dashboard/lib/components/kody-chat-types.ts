@@ -19,6 +19,7 @@ import type { ChatViewDirective } from "@dashboard/lib/chat-ui-actions";
 import type { ChatCapabilityGrant, ChatPlugin } from "../chat/platform";
 
 export interface Message {
+  id?: string;
   role: "user" | "assistant";
   content: string;
   isLoading?: boolean;
@@ -40,7 +41,7 @@ export interface Message {
      */
     description?: string;
   }>;
-  /** Attachment refs (blobs live in IndexedDB). */
+  /** Attachment refs backed by pending memory or canonical conversation storage. */
   attachments?: AttachmentRef[];
   /**
    * Marks a synthetic "Error: …" message produced by the chat client when
@@ -67,6 +68,7 @@ export interface Message {
  */
 export function chatToMessage(chat: ChatMessage): Message {
   return {
+    id: chat.id,
     role: chat.role,
     content: chat.text,
     timestamp: chat.timestamp,
@@ -83,6 +85,7 @@ export function chatToMessage(chat: ChatMessage): Message {
  */
 export function messageToChat(msg: Message): ChatMessage {
   return {
+    id: msg.id,
     role: msg.role,
     text: msg.content,
     timestamp: msg.timestamp || new Date().toISOString(),
@@ -112,7 +115,7 @@ export interface ToolCall {
 }
 
 export interface Attachment {
-  /** IndexedDB record id — used to look up the blob on send/render. */
+  /** Pending or canonical attachment id used to resolve the blob. */
   id: string;
   name: string;
   type: string;
@@ -161,6 +164,7 @@ export interface KodyChatProps {
   lockedModelId?: string;
   /** Prompt identity slug for the in-process route. Used by client brands. */
   lockedAgentSlug?: string;
+  allowAgencyAgentSelection?: boolean;
   /** Hide the agent/model picker for surfaces where selection is configured elsewhere. */
   hideAgentPicker?: boolean;
   /** Use a shorter header row while keeping the shared chat header controls. */

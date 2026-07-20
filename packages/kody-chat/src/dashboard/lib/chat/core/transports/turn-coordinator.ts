@@ -95,8 +95,9 @@ export async function runChatTurn(
   }
 
   const startedAt = Date.now();
+  const turnId = options.turnId ?? input.turnId ?? createTurnId();
   let turn: ChatTurnSnapshot = {
-    turnId: options.turnId ?? createTurnId(),
+    turnId,
     sessionId: input.sessionId,
     transportId: transport.id,
     phase: "connecting",
@@ -157,7 +158,7 @@ export async function runChatTurn(
 
   armInactivityDeadline();
   const transportRun = transport
-    .send(input, {
+    .send({ ...input, turnId }, {
       authHeaders: context.authHeaders,
       signal: controller.signal,
       emit,

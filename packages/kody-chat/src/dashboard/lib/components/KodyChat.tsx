@@ -61,7 +61,6 @@ import type { ChatMessage } from "@dashboard/lib/chat-types";
 import {
   putAttachment,
   deleteAttachment,
-  purgeOrphans,
 } from "@dashboard/lib/attachment-store";
 import { ConfirmDialog } from "@dashboard/lib/components/ConfirmDialog";
 import {
@@ -76,7 +75,7 @@ import { useAgentSelection } from "./kody-chat-selection";
 import { useVoiceOrchestration } from "./kody-chat-voice";
 import { PIPER_VOICES } from "@dashboard/lib/voice/voices";
 import { VoiceChatOverlay } from "@dashboard/lib/components/VoiceChatOverlay";
-import { useChatSessions } from "../chat/core/use-chat-sessions";
+import { useConversationSessions } from "../chat/core/conversation/use-conversation-sessions";
 import { useKodyActionState } from "@dashboard/lib/hooks/useKodyActionState";
 import { useMediaQuery } from "@dashboard/lib/hooks/useMediaQuery";
 import { SessionsPanel } from "../chat/surface/SessionsPanel";
@@ -144,6 +143,7 @@ export function KodyChat({
   lockedAgentId,
   lockedModelId,
   lockedAgentSlug,
+  allowAgencyAgentSelection = true,
   hideAgentPicker,
   compactHeader,
   allowSessionSidebarPin = true,
@@ -309,8 +309,9 @@ export function KodyChat({
         const ref = await putAttachment({ name, mimeType, size, blob });
         storedId = ref.id;
       } catch (err) {
-        // IDB/convert failed — fall back to a transient, non-rehydratable id.
         console.error("Screenshot attachment failed to persist:", err);
+        toast.error("Could not attach the screenshot");
+        return;
       }
       setAttachments((prev) => [
         ...prev,
@@ -456,19 +457,19 @@ export function KodyChat({
   // Use one session bucket for Vibe. The selected task is request context, not
   // a separate visible conversation; otherwise issue creation navigates to an
   // empty task chat and hides the message that created the issue.
-  const desiredSessionScope: import("../chat/core/use-chat-sessions").ChatSessionScope =
+  const desiredSessionScope: import("../chat/core/conversation/use-conversation-sessions").ChatSessionScope =
     vibeMode ? "vibe-default" : "global";
   // Commit scope changes only after they settle. A transient context flip
   // (parent re-render / task refetch momentarily dropping the selection)
-  // would otherwise swap useChatSessions to the empty `vibe-default` bucket
+  // would otherwise swap to the empty `vibe-default` conversation surface
   // and wipe the visible history until a manual refresh. A short settle
   // window absorbs flickers (they revert within the same tick) while real
   // user-driven task select/clear persists well past it.
   const [sessionStoreScope, setSessionStoreScope] =
-    useState<import("../chat/core/use-chat-sessions").ChatSessionScope>(
-      desiredSessionScope,
-    );
-  const sessionHook = useChatSessions(sessionStoreScope);
+    useState<
+      import("../chat/core/conversation/use-conversation-sessions").ChatSessionScope
+    >(desiredSessionScope);
+  const sessionHook = useConversationSessions(sessionStoreScope);
   const createChatSession = sessionHook.createSession;
 
   // Agent/model selection (phase 1.6c: kody-chat-selection.ts) — selected
@@ -996,14 +997,19 @@ export function KodyChat({
     (
       sessionId: string,
       updater: Message[] | ((prev: Message[]) => Message[]),
+      options?: { persist?: boolean },
     ) => {
-      sessionHook.setSessionMessages(sessionId, (prevChat: ChatMessage[]) => {
-        const newMessages =
-          typeof updater === "function"
-            ? updater(prevChat.map(chatToMessage))
-            : updater;
-        return newMessages.map(messageToChat);
-      });
+      sessionHook.setSessionMessages(
+        sessionId,
+        (prevChat: ChatMessage[]) => {
+          const newMessages =
+            typeof updater === "function"
+              ? updater(prevChat.map(chatToMessage))
+              : updater;
+          return newMessages.map(messageToChat);
+        },
+        options,
+      );
     },
     [sessionHook],
   );
@@ -1013,7 +1019,7 @@ export function KodyChat({
   );
 
   // Kody Live runner lifecycle — reducer orchestration, event poll, SSE,
-  // localStorage persistence + scope rehydration, and the zombie watchdog
+  // runner-state persistence + scope rehydration, and the zombie watchdog
   // all live in the useLiveRunner hook (extracted phase 1.6a; see
   // kody-chat-live-runner.ts). This component keeps the send paths, the
   // auto-kickoff firing effect below, and all UI wiring.
@@ -1180,28 +1186,10 @@ export function KodyChat({
     return () => onIssueReportReady?.(null);
   }, [onIssueReportReady, openIssueReport]);
 
-  // Unified thread: the global session store (useChatSessions) owns the
+  // Unified thread: the canonical conversation store owns the
   // message list. Per-page scope (task / capability / planner / report) flows
   // through the per-turn system-prompt blocks, not separate stores. The
   // "New conversation" button is the only way to reset the thread.
-
-  // Garbage-collect IDB attachment blobs that no message references any
-  // more. Runs once on mount across all stored sessions — cheap, since the
-  // cursor only reads keys.
-  useEffect(() => {
-    const referenced = new Set<string>();
-    for (const m of sessionHook.messages) {
-      m.attachments?.forEach((a) => referenced.add(a.id));
-    }
-    // Pending composer attachments (not yet sent)
-    attachments.forEach((a) => referenced.add(a.id));
-    purgeOrphans(referenced).catch((err) =>
-      console.error("IDB purgeOrphans failed:", err),
-    );
-    // We intentionally only run this on mount — running on every message
-    // change would race with in-flight uploads.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const executeClearHistory = () => {
     // Unified thread: the global session store owns the messages. Clearing
@@ -1221,12 +1209,14 @@ export function KodyChat({
   };
 
   // Process incoming files (from picker or drag-and-drop). Reads each file,
-  // persists the blob to IndexedDB, and appends a chip to the composer.
+  // uploads the blob to conversation storage and appends a composer chip.
   const addFiles = async (files: FileList | File[]) => {
     const list = Array.from(files);
     if (list.length === 0) return;
 
     const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+    const conversationId =
+      sessionHook.activeSession?.id ?? sessionHook.createSession();
     const newAttachments: Attachment[] = [];
 
     for (const file of list) {
@@ -1243,9 +1233,8 @@ export function KodyChat({
           reader.readAsDataURL(file);
         });
 
-        // Persist the blob in IndexedDB so it survives reload and we can
-        // re-render the chip from history without keeping base64 in
-        // localStorage. The returned `id` is the canonical attachment id.
+        // Persist the blob in canonical storage. The returned id is durable
+        // and the message stores metadata rather than inline base64.
         let storedId: string;
         try {
           const ref = await putAttachment({
@@ -1253,14 +1242,13 @@ export function KodyChat({
             mimeType: file.type,
             size: file.size,
             blob: file,
+            conversationId,
           });
           storedId = ref.id;
-        } catch (idbErr) {
-          // IDB unavailable (private mode, quota, etc.) — fall back to
-          // a transient id; the message just won't be re-renderable
-          // after reload.
-          console.error("IDB putAttachment failed:", idbErr);
-          storedId = `mem-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+        } catch (error) {
+          console.error("Attachment upload failed:", error);
+          toast.error(`Could not attach ${file.name}`);
+          continue;
         }
 
         newAttachments.push({
@@ -1346,10 +1334,9 @@ export function KodyChat({
 
   const removeAttachment = (id: string) => {
     setAttachments((prev) => prev.filter((a) => a.id !== id));
-    // Drop the IDB blob too — the user removed it before sending, so
-    // nothing references it any more.
+    // Delete the pending or canonical blob because no message references it.
     deleteAttachment(id).catch((err) =>
-      console.error("IDB deleteAttachment failed:", err),
+      console.error("Attachment delete failed:", err),
     );
   };
 
@@ -1974,6 +1961,7 @@ export function KodyChat({
           currentAgent={currentAgent}
           lockedAgentId={lockedAgentId}
           hideAgentPicker={hideAgentPicker}
+          showAgencyAgentPicker={allowAgencyAgentSelection}
           compact={compactHeader}
           agentMenuOpen={agentMenuOpen}
           setAgentMenuOpen={setAgentMenuOpen}
@@ -2024,35 +2012,46 @@ export function KodyChat({
       showKodyWaitingBanner={Boolean(isKodyWaiting && actionState)}
       kodyWaitingStep={actionState?.step}
       messageList={
-        <MessageList
-          chatMode={chatMode}
-          messages={displayMessages}
-          setMessages={setMessages}
-          onResend={(content) => {
-            void sendText(content, []);
-          }}
-          activeLoading={activeLoading}
-          compactionStatus={compactionStatus}
-          activeSessionId={sessionHook.activeSession?.id}
-          toolCalls={toolCalls}
-          usedViewIds={usedViewIds}
-          onRenderedViewAction={handleRenderedViewAction}
-          roleLayout={messageRoleLayout}
-          agentHandoffs={sessionHook.activeSession?.agentHandoffs}
-          emptyState={
-            <EmptyState
-              welcome={emptyStateWelcome}
-              isTaskMode={isTaskMode}
-              vibeMode={vibeMode}
-              selectedTask={selectedTask}
-              isCapabilityMode={isCapabilityMode}
-              selectedCapability={selectedCapability}
-              isPlannerMode={isPlannerMode}
-              plannerGoal={plannerGoal}
-            />
-          }
-          terminalSurfaces={terminalSurfaces}
-        />
+        <>
+          {sessionHook.persistenceError ? (
+            <div
+              role="alert"
+              className="mx-4 mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+            >
+              Conversation could not be saved. Check your connection and try
+              again.
+            </div>
+          ) : null}
+          <MessageList
+            chatMode={chatMode}
+            messages={displayMessages}
+            setMessages={setMessages}
+            onResend={(content) => {
+              void sendText(content, []);
+            }}
+            activeLoading={activeLoading}
+            compactionStatus={compactionStatus}
+            activeSessionId={sessionHook.activeSession?.id}
+            toolCalls={toolCalls}
+            usedViewIds={usedViewIds}
+            onRenderedViewAction={handleRenderedViewAction}
+            roleLayout={messageRoleLayout}
+            agentHandoffs={sessionHook.activeSession?.agentHandoffs}
+            emptyState={
+              <EmptyState
+                welcome={emptyStateWelcome}
+                isTaskMode={isTaskMode}
+                vibeMode={vibeMode}
+                selectedTask={selectedTask}
+                isCapabilityMode={isCapabilityMode}
+                selectedCapability={selectedCapability}
+                isPlannerMode={isPlannerMode}
+                plannerGoal={plannerGoal}
+              />
+            }
+            terminalSurfaces={terminalSurfaces}
+          />
+        </>
       }
       composer={
         // Composer — extracted to chat/surface/Composer (Step 3). All

@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { cn } from "@dashboard/lib/utils";
 import { monacoLanguage } from "../lib/repo-files-lang";
 import { readFile, writeFile } from "../lib/repo-files";
+import { useFilesTransport } from "../lib/transport";
 import type { Octokit } from "@octokit/rest";
 import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
 import {
@@ -89,6 +90,7 @@ export function FileEditor({
   const [draftReady, setDraftReady] = useState(false);
   const [loadedSha, setLoadedSha] = useState(sha);
   const requestGuard = useMemo(() => createLatestRequestGuard(), []);
+  const transport = useFilesTransport();
 
   const isMarkdown = path.endsWith(".md") || path.endsWith(".mdx");
   const draftStorageKey = useMemo(
@@ -98,7 +100,7 @@ export function FileEditor({
 
   // Load file content on mount
   useEffect(() => {
-    if (!octokit || !path) return;
+    if ((!transport && !octokit) || !path) return;
     const requestId = requestGuard.next();
 
     const load = async () => {
@@ -106,7 +108,9 @@ export function FileEditor({
       setDraftReady(false);
       setError(null);
       try {
-        const file = await readFile(octokit, owner, repo, path);
+        const file = transport
+          ? await transport.readFile(path)
+          : await readFile(octokit!, owner, repo, path);
         if (!requestGuard.isCurrent(requestId)) return;
         if (!file) {
           setError("File not found");
@@ -148,7 +152,7 @@ export function FileEditor({
     return () => {
       if (requestGuard.isCurrent(requestId)) requestGuard.invalidate();
     };
-  }, [octokit, owner, repo, path, draftStorageKey, requestGuard]);
+  }, [transport, octokit, owner, repo, path, draftStorageKey, requestGuard]);
 
   // Track dirty state
   useEffect(() => {
@@ -207,20 +211,26 @@ export function FileEditor({
 
   const handleSave = useCallback(
     async (message: string) => {
-      if (!octokit) return;
+      if (transport ? !transport.writeFile : !octokit) return;
       setSaving(true);
       try {
-        const result = await writeFile(
-          octokit,
-          owner,
-          repo,
-          path,
-          content,
-          message,
-          loadedSha,
-        );
+        let nextSha = loadedSha;
+        if (transport) {
+          await transport.writeFile!(path, content);
+        } else {
+          const result = await writeFile(
+            octokit!,
+            owner,
+            repo,
+            path,
+            content,
+            message,
+            loadedSha,
+          );
+          nextSha = result.sha;
+        }
         localStorage.removeItem(draftStorageKey);
-        setLoadedSha(result.sha);
+        setLoadedSha(nextSha);
         setOriginalContent(content);
         setIsDirty(false);
         toast.success("File saved");
@@ -232,7 +242,7 @@ export function FileEditor({
         setSaving(false);
       }
     },
-    [octokit, owner, repo, path, content, loadedSha, onSaved, draftStorageKey],
+    [transport, octokit, owner, repo, path, content, loadedSha, onSaved, draftStorageKey],
   );
 
   const handleDiscard = useCallback(() => {

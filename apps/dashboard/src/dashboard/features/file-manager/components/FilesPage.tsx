@@ -208,7 +208,13 @@ export function FilesPage({
 
   // GitHub remains the authority for each write. Permission metadata is not
   // consistently present for every token type, so it must not hide controls.
-  const writeable = Boolean(octokit && auth) && !transport;
+  // Custom transports are writeable only when they implement writeFile;
+  // structural git operations (folders, rename, upload) stay GitHub-only.
+  const writeable = transport
+    ? Boolean(transport.writeFile)
+    : Boolean(octokit && auth);
+  const fullFs = !transport;
+  const canDelete = transport ? Boolean(transport.deleteFile) : writeable;
 
   useEffect(() => {
     setTreeOverlay(emptyTreeOverlay());
@@ -498,7 +504,7 @@ export function FilesPage({
 
   const handleDragEnter = useCallback(
     (e: DragEvent) => {
-      if (!writeable || !showUpload || !isFileDrag(e)) return;
+      if (!writeable || !fullFs || !showUpload || !isFileDrag(e)) return;
       e.preventDefault();
       e.stopPropagation();
       dragDepthRef.current += 1;
@@ -509,7 +515,7 @@ export function FilesPage({
 
   const handleDragOver = useCallback(
     (e: DragEvent) => {
-      if (!writeable || !showUpload || !isFileDrag(e)) return;
+      if (!writeable || !fullFs || !showUpload || !isFileDrag(e)) return;
       e.preventDefault();
       e.stopPropagation();
       e.dataTransfer.dropEffect = "copy";
@@ -520,7 +526,7 @@ export function FilesPage({
 
   const handleDragLeave = useCallback(
     (e: DragEvent) => {
-      if (!writeable || !showUpload || !isFileDrag(e)) return;
+      if (!writeable || !fullFs || !showUpload || !isFileDrag(e)) return;
       e.preventDefault();
       e.stopPropagation();
       dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
@@ -531,7 +537,7 @@ export function FilesPage({
 
   const handleDrop = useCallback(
     (e: DragEvent) => {
-      if (!writeable || !showUpload || !isFileDrag(e)) return;
+      if (!writeable || !fullFs || !showUpload || !isFileDrag(e)) return;
       e.preventDefault();
       e.stopPropagation();
       dragDepthRef.current = 0;
@@ -553,7 +559,7 @@ export function FilesPage({
 
   const handleCreateFile = useCallback(
     async (name: string) => {
-      if (!octokit || !auth) return;
+      if (!transport && (!octokit || !auth)) return;
       const trimmedName = name.trim();
       if (
         newFileNameOnly &&
@@ -570,21 +576,28 @@ export function FilesPage({
       const path = joinRepoPath(newItemPath || workspaceRoot, fileName);
       if (!path) return;
       try {
-        const result = await writeFile(
-          octokit,
-          auth.owner,
-          auth.repo,
-          path,
-          "",
-          `chore: create ${path}`,
-        );
-        upsertTreeEntry(treeEntryForPath(path, "file", { sha: result.sha }));
+        let sha = "";
+        if (transport) {
+          if (!transport.writeFile) return;
+          await transport.writeFile(path, "");
+        } else {
+          const result = await writeFile(
+            octokit!,
+            auth!.owner,
+            auth!.repo,
+            path,
+            "",
+            `chore: create ${path}`,
+          );
+          sha = result.sha;
+        }
+        upsertTreeEntry(treeEntryForPath(path, "file", { sha }));
         deletedPathsRef.current.delete(path);
         toast.success(`Created ${path}`);
         setShowNewFileDialog(false);
         setNewItemPath("");
         setSelectedPath(path);
-        setSelectedFile({ path, sha: result.sha, isBinary: false });
+        setSelectedFile({ path, sha, isBinary: false });
         setViewMode(writeable ? "editor" : "viewer");
         updateFileHref(path);
         handleRefresh();
@@ -597,6 +610,7 @@ export function FilesPage({
     [
       octokit,
       auth,
+      transport,
       newItemPath,
       upsertTreeEntry,
       writeable,
@@ -663,17 +677,22 @@ export function FilesPage({
   );
 
   const handleConfirmDelete = useCallback(async () => {
-    if (!octokit || !auth || !showDeleteConfirm) return;
+    if ((!transport && (!octokit || !auth)) || !showDeleteConfirm) return;
     const { path, pathType } = showDeleteConfirm;
     setBusyAction("Deleting...");
     try {
-      await deleteRepositoryPath(
-        octokit,
-        auth.owner,
-        auth.repo,
-        path,
-        pathType,
-      );
+      if (transport) {
+        if (!transport.deleteFile) return;
+        await transport.deleteFile(path);
+      } else {
+        await deleteRepositoryPath(
+          octokit!,
+          auth!.owner,
+          auth!.repo,
+          path,
+          pathType,
+        );
+      }
       toast.success(`Deleted ${path}`);
       deletedPathsRef.current.add(normalizeRepoPath(path));
       openRequestRef.current += 1;
@@ -692,6 +711,7 @@ export function FilesPage({
       setBusyAction(null);
     }
   }, [
+    transport,
     octokit,
     auth,
     showDeleteConfirm,
@@ -1030,15 +1050,17 @@ export function FilesPage({
                     <FilePlus className="h-4 w-4" />
                     New file
                   </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleNewFolder(selectedPath)}
-                    className="gap-2"
-                  >
-                    <FolderPlus className="h-4 w-4" />
-                    New folder
-                  </Button>
+                  {fullFs ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => handleNewFolder(selectedPath)}
+                      className="gap-2"
+                    >
+                      <FolderPlus className="h-4 w-4" />
+                      New folder
+                    </Button>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -1079,15 +1101,17 @@ export function FilesPage({
                 <FilePlus className="h-4 w-4" />
                 New file
               </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => handleNewFolder(currentFolder)}
-                className="gap-2"
-              >
-                <FolderPlus className="h-4 w-4" />
-                New folder
-              </Button>
+              {fullFs ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => handleNewFolder(currentFolder)}
+                  className="gap-2"
+                >
+                  <FolderPlus className="h-4 w-4" />
+                  New folder
+                </Button>
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -1123,12 +1147,14 @@ export function FilesPage({
                   <FilePlus className="h-4 w-4" />
                   New file
                 </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => handleNewFolder(currentFolder)}
-                >
-                  <FolderPlus className="h-4 w-4" />
-                  New folder
-                </DropdownMenuItem>
+                {fullFs ? (
+                  <DropdownMenuItem
+                    onClick={() => handleNewFolder(currentFolder)}
+                  >
+                    <FolderPlus className="h-4 w-4" />
+                    New folder
+                  </DropdownMenuItem>
+                ) : null}
                 {hasSecondaryHeaderActions ? <DropdownMenuSeparator /> : null}
               </>
             ) : null}
@@ -1156,36 +1182,46 @@ export function FilesPage({
                 Download
               </DropdownMenuItem>
             ) : null}
-            {writeable &&
+            {(canDelete || (writeable && fullFs)) &&
             selectedPath &&
             selectedPathType &&
             !isSelectedProtected ? (
               <>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => handleRename(selectedPath, selectedPathType)}
-                >
-                  <Pencil className="h-4 w-4" />
-                  Rename or move
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() =>
-                    handleDuplicate(selectedPath, selectedPathType)
-                  }
-                >
-                  <Copy className="h-4 w-4" />
-                  Duplicate
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="text-red-300 focus:text-red-200"
-                  onClick={() => handleDelete(selectedPath, selectedPathType)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                  Delete
-                </DropdownMenuItem>
+                {writeable && fullFs ? (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() =>
+                        handleRename(selectedPath, selectedPathType)
+                      }
+                    >
+                      <Pencil className="h-4 w-4" />
+                      Rename or move
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() =>
+                        handleDuplicate(selectedPath, selectedPathType)
+                      }
+                    >
+                      <Copy className="h-4 w-4" />
+                      Duplicate
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
+                {canDelete ? (
+                  <DropdownMenuItem
+                    className="text-red-300 focus:text-red-200"
+                    onClick={() =>
+                      handleDelete(selectedPath, selectedPathType)
+                    }
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Delete
+                  </DropdownMenuItem>
+                ) : null}
               </>
             ) : null}
-            {writeable && showUpload ? (
+            {writeable && fullFs && showUpload ? (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => setViewMode("upload")}>
@@ -1242,15 +1278,15 @@ export function FilesPage({
               repo={auth?.repo ?? ""}
               refreshKey={refreshKey}
               onRefresh={handleRefresh}
-              onDelete={writeable ? handleDelete : undefined}
-              onRename={writeable ? handleRename : undefined}
-              onDuplicate={writeable ? handleDuplicate : undefined}
+              onDelete={canDelete ? handleDelete : undefined}
+              onRename={writeable && fullFs ? handleRename : undefined}
+              onDuplicate={writeable && fullFs ? handleDuplicate : undefined}
               onDownload={handleDownload}
-              onOpenOnGitHub={handleOpenOnGitHub}
+              onOpenOnGitHub={canOpenExternally ? handleOpenOnGitHub : undefined}
               onNewFile={writeable ? handleNewFile : undefined}
-              onNewFolder={writeable ? handleNewFolder : undefined}
+              onNewFolder={writeable && fullFs ? handleNewFolder : undefined}
               onCopyPath={handleCopyPath}
-              onMove={writeable ? handleMoveToFolder : undefined}
+              onMove={writeable && fullFs ? handleMoveToFolder : undefined}
               onCollapse={() => setPanelState("hidden")}
               treeOverlay={treeOverlay}
               rootPath={workspaceRoot}

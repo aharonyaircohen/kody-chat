@@ -13,7 +13,7 @@ const messageListSource = readFileSync(
 const sessionSource = readFileSync(
   resolve(
     __dirname,
-    "../../../src/dashboard/lib/chat/core/use-chat-sessions.ts",
+    "../../../src/dashboard/lib/chat/core/conversation/use-conversation-sessions.ts",
   ),
   "utf8",
 );
@@ -26,7 +26,9 @@ describe("automatic compaction integration", () => {
   it("stores compact memory separately from the visible transcript", () => {
     expect(sessionSource).toContain("setSessionCheckpoint");
     expect(sessionSource).toContain("contextCheckpoint: checkpoint");
-    expect(sessionSource).toContain("sessions: prev.sessions.map");
+    expect(sessionSource).toContain(
+      "conversationClient.command(sessionId,",
+    );
   });
 
   it("feeds compact memory through Direct, Brain, and Live boundaries", () => {

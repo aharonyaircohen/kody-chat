@@ -50,7 +50,6 @@ describe("repo-scoped route contract", () => {
   it("leaves global routes outside the repo workspace", () => {
     expect(routes.orgHome()).toBe("/org");
     expect(routes.org("A-Guy-educ")).toBe("/org/A-Guy-educ");
-    expect(routes.globalSettings()).toBe("/settings");
   });
 
   it("builds generic repo-scoped child paths safely", () => {
@@ -71,7 +70,6 @@ describe("repo-scoped route contract", () => {
       "/repo/A-Guy-educ/A-Guy-Web/operations",
     );
     expect(repoScopedHref(repo, "/org")).toBe("/org");
-    expect(repoScopedHref(repo, "/settings")).toBe("/settings");
     expect(repoScopedHref(repo, "/repo/A-Guy-educ/A-Guy-Web/tasks")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/tasks",
     );
@@ -139,7 +137,6 @@ describe("repo-scoped route contract", () => {
   it("does not redirect global or already repo-scoped routes", () => {
     expect(legacyRepoRedirectPath(repo, "/org")).toBeNull();
     expect(legacyRepoRedirectPath(repo, "/org/A-Guy-educ")).toBeNull();
-    expect(legacyRepoRedirectPath(repo, "/settings")).toBeNull();
     expect(
       legacyRepoRedirectPath(repo, "/repo/A-Guy-educ/A-Guy-Web/tasks"),
     ).toBeNull();

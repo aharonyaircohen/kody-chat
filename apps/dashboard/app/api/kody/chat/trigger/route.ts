@@ -37,11 +37,6 @@ import {
 } from "@dashboard/lib/vibe/primer";
 import { applyPageContextToLastUser } from "@kody-ade/kody-chat/core/page-context";
 import { recordDispatchFailure } from "@dashboard/lib/health/dispatch-failures";
-import {
-  backendApi,
-  getConvexClient,
-  tenantIdFor,
-} from "@dashboard/lib/backend/convex-backend";
 
 export const runtime = "nodejs";
 
@@ -89,58 +84,6 @@ interface ChatMessage {
 // Primer logic now lives in @dashboard/lib/vibe/primer so the long-lived
 // runner path (/interactive/append) and this one-shot dispatch path share
 // the same wording.
-
-/**
- * Mirror the session transcript into Convex (chatSessions/chatTurns) so the
- * history route reads it without touching GitHub. The backend JSONL write
- * below stays — the engine runner git-pulls `sessions/<id>.jsonl` (see
- * kody2/src/chat/session.ts), so it is a functional dependency, not a
- * duplicate.
- * TODO(dual-write retirement): the engine now reads Convex directly when its
- * Actions secrets (CONVEX_URL, KODY_SERVICE_KEY) are set — see kody2
- * src/chat/session-store.ts and docs/storage-backend.md ("Engine chat
- * transcript reads"). Once every engine repo has those secrets, delete the
- * backend JSONL write and keep only this Convex path.
- * Only messages beyond the already-recorded turn count are
- * appended (the dispatch body carries the full history each time).
- * Failures are logged, never thrown — a Convex hiccup must not block chat.
- */
-async function mirrorSessionToConvex(
-  owner: string,
-  repo: string,
-  sessionId: string,
-  messages: ChatMessage[],
-): Promise<void> {
-  try {
-    const client = getConvexClient();
-    const tenantId = tenantIdFor(owner, repo);
-    await client.mutation(backendApi.chatSessions.upsert, {
-      tenantId,
-      sessionId,
-      meta: { type: "meta", mode: "one-shot" },
-      updatedAt: new Date().toISOString(),
-    });
-    const existing = (await client.query(backendApi.chatTurns.list, {
-      tenantId,
-      sessionId,
-    })) as Array<{ seq: number }>;
-    for (const m of messages.slice(existing.length)) {
-      await client.mutation(backendApi.chatTurns.append, {
-        tenantId,
-        sessionId,
-        turn: {
-          role: m.role,
-          content: m.content,
-          timestamp: m.timestamp,
-          toolCalls: m.toolCalls ?? [],
-        },
-      });
-    }
-  } catch (err) {
-    logger.error({ err, sessionId }, "chat: convex transcript mirror failed");
-    throw err;
-  }
-}
 
 export async function POST(req: NextRequest) {
   // Surface tickets (phase 2 step 6) are limited to the in-process kody
@@ -223,8 +166,6 @@ export async function POST(req: NextRequest) {
       { taskId, owner, repo, messageCount: messages.length },
       "chat: writing session file",
     );
-
-    await mirrorSessionToConvex(owner, repo, taskId, messages);
 
     logger.info({ taskId, owner, repo }, "chat: triggering workflow");
 

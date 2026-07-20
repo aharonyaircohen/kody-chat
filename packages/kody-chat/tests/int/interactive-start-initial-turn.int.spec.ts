@@ -81,7 +81,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockRepoConfig404();
   backend.mutation.mockResolvedValue(undefined);
-  backend.query.mockResolvedValue([]);
+  backend.query.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -104,10 +104,10 @@ describe("POST /api/kody/chat/interactive/start — atomic initial turn", () => 
 
     const mutationArgs = backend.mutation.mock.calls.map((call) => call[1]);
     expect(mutationArgs[0]).toMatchObject({
-      sessionId: "vibe-42-abc",
-      meta: { type: "meta", mode: "interactive" },
+      conversationId: "vibe-42-abc",
+      runtime: { kind: "live" },
     });
-    const userTurn = mutationArgs.find((args) => args.turn)?.turn;
+    const userTurn = mutationArgs.find((args) => args.entry)?.entry;
     expect(
       userTurn,
       "start must persist the first user turn atomically with meta — " +
@@ -130,8 +130,8 @@ describe("POST /api/kody/chat/interactive/start — atomic initial turn", () => 
     const mutationArgs = backend.mutation.mock.calls.map((call) => call[1]);
     expect(mutationArgs).toHaveLength(1);
     expect(mutationArgs[0]).toMatchObject({
-      sessionId: "plain-1",
-      meta: { type: "meta", mode: "interactive" },
+      conversationId: "plain-1",
+      runtime: { kind: "live" },
     });
   });
 });

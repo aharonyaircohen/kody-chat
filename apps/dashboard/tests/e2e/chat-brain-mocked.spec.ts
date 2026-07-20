@@ -113,6 +113,34 @@ test.describe("Chat picker backend boundary", () => {
         }),
       }),
     );
+    await page.route("**/api/kody/chat/conversations**", async (route) => {
+      const request = route.request();
+      const pathname = new URL(request.url()).pathname;
+      const isCollection = pathname.endsWith("/conversations");
+      if (request.method() === "GET" && isCollection) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ conversations: [] }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: request.method() === "POST" && isCollection ? 201 : 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          request.method() === "GET"
+            ? {
+                conversation: null,
+                entries: [],
+                checkpoints: [],
+                runtimeBindings: [],
+                attachments: [],
+              }
+            : { ok: true },
+        ),
+      });
+    });
     await seedAuth(page);
   });
 
@@ -123,7 +151,9 @@ test.describe("Chat picker backend boundary", () => {
     const chat = page.locator('[aria-label="Kody chat"]').first();
     const title = chat.getByTestId("chat-context-bar");
     await expect(title).toContainText("Global chat — not tied to any task");
-    const agentPicker = chat.getByLabel("Agency agent").first();
+    const agentPickers = chat.getByLabel("Agency agent");
+    await expect(agentPickers).toHaveCount(1);
+    const agentPicker = agentPickers.first();
     await expect(agentPicker).toBeVisible({ timeout: 15_000 });
     await agentPicker.click();
 
@@ -184,10 +214,220 @@ test.describe("Chat picker backend boundary", () => {
     await expect(effortMenu).toBeHidden();
   });
 
+  test("shows the message and starts the model before storage responds", async ({
+    page,
+  }) => {
+    let releaseSave!: () => void;
+    const saveBlocked = new Promise<void>((resolve) => {
+      releaseSave = resolve;
+    });
+    await page.route(
+      /\/api\/kody\/chat\/conversations\/[^/]+\/commands$/,
+      async (route) => {
+        const command = route.request().postDataJSON();
+        if (command.kind === "append-message" && command.role === "user") {
+          await saveBlocked;
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true }),
+        });
+      },
+    );
+    await page.route("**/api/kody/chat/kody", (route) =>
+      route.fulfill({
+        status: 200,
+        headers: { "content-type": "text/event-stream; charset=utf-8" },
+        body: sseBody([
+          { type: "text-delta", delta: "Saved reply" },
+          { type: "finish" },
+        ]),
+      }),
+    );
+
+    await page.goto(CHAT_URL);
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    const modelPicker = chat.getByLabel("Model").first();
+    await modelPicker.click();
+    await chat
+      .locator('[role="listbox"]:visible')
+      .first()
+      .locator('button[role="option"]')
+      .filter({ hasText: "Kody Test" })
+      .click();
+
+    const composer = chat.locator("textarea").first();
+    await composer.fill("Immediate user bubble");
+    await chat.getByRole("button", { name: "Send message" }).click();
+
+    await expect(
+      chat.getByText("Immediate user bubble", { exact: true }),
+    ).toBeVisible({ timeout: 1_000 });
+    await expect(chat.getByText("Saved reply")).toBeVisible({
+      timeout: 1_000,
+    });
+
+    releaseSave();
+  });
+
+  test("keeps the model response visible when storage fails", async ({
+    page,
+  }) => {
+    await page.route(
+      /\/api\/kody\/chat\/conversations\/[^/]+\/commands$/,
+      async (route) => {
+        const command = route.request().postDataJSON();
+        await route.fulfill({
+          status:
+            command.kind === "append-message" && command.role === "user"
+              ? 500
+              : 200,
+          contentType: "application/json",
+          body: JSON.stringify(
+            command.kind === "append-message" && command.role === "user"
+              ? { error: "storage_failed" }
+              : { ok: true },
+          ),
+        });
+      },
+    );
+    await page.route("**/api/kody/chat/kody", (route) =>
+      route.fulfill({
+        status: 200,
+        headers: { "content-type": "text/event-stream; charset=utf-8" },
+        body: sseBody([
+          { type: "text-delta", delta: "Reply despite save failure" },
+          { type: "finish" },
+        ]),
+      }),
+    );
+
+    await page.goto(CHAT_URL);
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    const modelPicker = chat.getByLabel("Model").first();
+    await modelPicker.click();
+    await chat
+      .locator('[role="listbox"]:visible')
+      .first()
+      .locator('button[role="option"]')
+      .filter({ hasText: "Kody Test" })
+      .click();
+
+    const composer = chat.locator("textarea").first();
+    await composer.fill("Storage may fail");
+    await chat.getByRole("button", { name: "Send message" }).click();
+
+    await expect(chat.getByText("Reply despite save failure")).toBeVisible();
+    await expect(
+      chat.getByText(
+        "Conversation could not be saved. Check your connection and try again.",
+      ),
+    ).toBeVisible();
+  });
+
   test("persists an agent handoff and sends it as identity context", async ({
     page,
   }) => {
     const requestBodies: Array<Record<string, unknown>> = [];
+    const stored = {
+      conversation: null as null | Record<string, unknown>,
+      entries: [] as Array<{
+        entryId: string;
+        seq: number;
+        entry: Record<string, unknown>;
+      }>,
+    };
+    await page.route("**/api/kody/chat/conversations**", async (route) => {
+      const request = route.request();
+      const url = new URL(request.url());
+      const commandRoute = url.pathname.endsWith("/commands");
+      const baseRoute = url.pathname.endsWith("/conversations");
+      if (request.method() === "GET" && baseRoute) {
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            conversations: stored.conversation ? [stored.conversation] : [],
+          }),
+        });
+        return;
+      }
+      if (request.method() === "POST" && baseRoute) {
+        const input = request.postDataJSON();
+        const now = new Date().toISOString();
+        stored.conversation = {
+          conversationId: input.conversationId,
+          title: input.title,
+          pinned: false,
+          activeAgent: input.activeAgent,
+          runtime: input.runtime,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await route.fulfill({
+          status: 201,
+          contentType: "application/json",
+          body: JSON.stringify({ conversationId: input.conversationId }),
+        });
+        return;
+      }
+      if (request.method() === "POST" && commandRoute) {
+        const command = request.postDataJSON();
+        if (command.kind === "set-agent" && stored.conversation) {
+          stored.conversation.activeAgent = command.agent;
+        } else if (command.kind === "handoff" && stored.conversation) {
+          stored.entries.push({
+            entryId: command.entryId,
+            seq: stored.entries.length,
+            entry: {
+              kind: "agent-handoff",
+              from: command.from,
+              to: command.to,
+              createdAt: command.createdAt,
+            },
+          });
+          stored.conversation.activeAgent = command.to;
+        } else if (command.kind === "append-message") {
+          stored.entries.push({
+            entryId: command.entryId,
+            seq: stored.entries.length,
+            entry: {
+              kind: "message",
+              role: command.role,
+              content: command.content,
+              status: command.status,
+              createdAt: command.createdAt,
+            },
+          });
+        } else if (command.kind === "update-message") {
+          const entry = stored.entries.find(
+            (item) => item.entryId === command.entryId,
+          );
+          if (entry) {
+            entry.entry.content = command.content;
+            entry.entry.status = command.status;
+          }
+        }
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ ok: true }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          conversation: stored.conversation,
+          entries: stored.entries,
+          checkpoints: [],
+          runtimeBindings: [],
+          attachments: [],
+        }),
+      });
+    });
     await page.route("**/api/kody/chat/kody", async (route) => {
       requestBodies.push(route.request().postDataJSON());
       await route.fulfill({
@@ -245,6 +485,7 @@ test.describe("Chat picker backend boundary", () => {
 
     expect(requestBodies[1]?.agentSlug).toBe("ceo");
     expect(requestBodies[1]?.agentHandoff).toEqual({
+      id: expect.any(String),
       fromSlug: "ux",
       fromTitle: "UX",
       toSlug: "ceo",
@@ -255,35 +496,23 @@ test.describe("Chat picker backend boundary", () => {
       expect.objectContaining({ role: "user", content: "Who are you now?" }),
     ]);
     expect(requestBodies[1]?.agentHandoffContext).toContain(
-      "User: Who are you?",
+      "user: Who are you?",
     );
     expect(requestBodies[1]?.agentHandoffContext).toContain(
-      "Previous agent: Agent reply",
+      "assistant: Agent reply",
     );
 
     await expect
-      .poll(() =>
-        page.evaluate(() =>
-          localStorage
-            .getItem("kody-sessions-v3:test-owner/test-repo")
-            ?.includes('"toSlug":"ceo"'),
-        ),
-      )
-      .toBe(true);
-    const persisted = await page.evaluate(() =>
-      JSON.parse(
-        localStorage.getItem("kody-sessions-v3:test-owner/test-repo") ?? "{}",
-      ),
+      .poll(() => stored.conversation?.activeAgent)
+      .toEqual({ slug: "ceo", title: "CEO" });
+    expect(stored.entries).toContainEqual(
+      expect.objectContaining({
+        entry: expect.objectContaining({
+          kind: "agent-handoff",
+          to: { slug: "ceo", title: "CEO" },
+        }),
+      }),
     );
-    const activeSession = persisted.sessions.find(
-      (session: { id: string }) => session.id === persisted.activeSessionId,
-    );
-    expect(activeSession.agencyAgent).toEqual({ slug: "ceo", title: "CEO" });
-    expect(
-      persisted.messages[persisted.activeSessionId].some(
-        (message: { agentHandoff?: unknown }) => message.agentHandoff,
-      ),
-    ).toBe(false);
     await page.reload();
     await expect(chat.getByTestId("agent-handoff")).toHaveText("UX → CEO");
     await expect(agentPicker).toContainText("ceo");

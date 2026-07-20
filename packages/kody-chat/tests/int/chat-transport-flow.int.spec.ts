@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect, afterEach, vi } from "vitest";
+import { preparedTurnFixture } from "../fixtures/prepared-turn";
 import {
   kodyDirectTransport,
   sendKodyDirectTurn,
@@ -118,6 +119,7 @@ describe("kody-direct send→stream→persist", () => {
     const turn = runChatTurn({
       transport: kodyDirectTransport,
       input: {
+        preparedTurn: preparedTurnFixture,
         sessionId: "session-1",
         text: "hello?",
         agentId: "kody",
@@ -143,7 +145,8 @@ describe("kody-direct send→stream→persist", () => {
       role: "assistant",
       isLoading: false,
       isError: true,
-      content: "Error: Reply stalled after 5 seconds without activity. Please retry.",
+      content:
+        "Error: Reply stalled after 5 seconds without activity. Please retry.",
     });
   });
 
@@ -169,7 +172,7 @@ describe("kody-direct send→stream→persist", () => {
         }),
         d({ type: "text-delta", delta: "Issue #7 " }),
         d({ type: "text-delta", delta: "is a bug report." }),
-       d({ type: "finish" }),
+        d({ type: "finish" }),
       ]),
     ]);
 
@@ -243,7 +246,7 @@ describe("kody-direct send→stream→persist", () => {
           output: switchAgent,
         }),
         d({ type: "text-delta", delta: "Created #42, handing off." }),
-       d({ type: "finish" }),
+        d({ type: "finish" }),
       ]),
     ]);
 
@@ -282,7 +285,7 @@ describe("kody-direct send→stream→persist", () => {
           toolCallId: "c1",
           output: { error: "renderer failed" },
         }),
-       d({ type: "finish" }),
+        d({ type: "finish" }),
       ]),
     ]);
 
@@ -333,6 +336,7 @@ describe("brain send→stream→persist", () => {
     const turn = runChatTurn({
       transport: brainTransport,
       input: {
+        preparedTurn: preparedTurnFixture,
         sessionId: "s1",
         text: "hello brain",
         agentId: "brain",

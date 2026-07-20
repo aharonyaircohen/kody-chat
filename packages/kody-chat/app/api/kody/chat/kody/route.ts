@@ -106,6 +106,7 @@ import {
   CHAT_OUTPUT_TOOL_NAMES,
   FINAL_ANSWER_TOOL,
   SHOW_VIEW_TOOL,
+  isFinalAnswerOutput,
   isFinalAnswerRequiresViewOutput,
   isToolErrorOutput,
   selectChatOutputActiveTools,
@@ -172,6 +173,7 @@ import {
   buildExplicitViewRequestInstruction,
   parseExplicitViewRequest,
 } from "./view-request";
+import { startDurableTurn, type DurableTurn } from "../durable-turn";
 
 export const runtime = "nodejs";
 // Research turns can chain up to ~10 tool rounds (search → read → blame → …)
@@ -670,6 +672,9 @@ async function handleKodyDirectPost(
      * no reasoning config — `applyReasoning` then returns `{}`.
      */
     reasoningEffort?: string;
+    conversationId?: string;
+    turnId?: string;
+    conversationAgent?: { slug: string; title: string };
   };
   try {
     body = (await req.json()) as typeof body;
@@ -773,6 +778,34 @@ async function handleKodyDirectPost(
     ? messages
     : inlineImagePartsForTextModel(messages);
   const repo = getRequestAuth(repoScopedReq);
+  const durableIdentity =
+    repo &&
+    typeof body.conversationId === "string" &&
+    body.conversationId.trim() &&
+    typeof body.turnId === "string" &&
+    body.turnId.trim() &&
+    body.conversationAgent &&
+    typeof body.conversationAgent.slug === "string" &&
+    typeof body.conversationAgent.title === "string"
+      ? {
+          tenantId: `${repo.owner}/${repo.repo}`,
+          conversationId: body.conversationId.trim(),
+          turnId: body.turnId.trim(),
+          backend: "direct" as const,
+          agent: {
+            slug: body.conversationAgent.slug.trim(),
+            title: body.conversationAgent.title.trim(),
+          },
+          createIfMissing: {
+            owner: repo.owner,
+            repo: repo.repo,
+            modelId,
+            createdBy: verifiedActorLogin
+              ? `operator:${verifiedActorLogin.toLowerCase()}`
+              : "server",
+          },
+        }
+      : null;
   const goalPlannerActive = body.goalPlanner === true && !!body.goal;
   ensureTriggerStateWriter();
   const eventUserId = verifiedActorLogin
@@ -1007,6 +1040,16 @@ async function handleKodyDirectPost(
     }
     activeAgentIdentity = buildAgentChatIdentity(agentMember);
     addressedAgentMember = agentMember;
+  }
+  if (
+    durableIdentity &&
+    durableIdentity.agent.slug !== (addressedAgentMember?.slug ?? "kody")
+  ) {
+    clearGitHubContext();
+    return NextResponse.json(
+      { error: "conversation_agent_mismatch" },
+      { status: 400 },
+    );
   }
 
   // Capabilities attached to the agent: load each one's prompt (folded into
@@ -1581,6 +1624,18 @@ This turn includes an image from the user. For questions about what is visible i
     heartbeats.length = 0;
   };
 
+  let durableTurn: DurableTurn | null = null;
+  if (durableIdentity) {
+    try {
+      durableTurn = startDurableTurn(durableIdentity);
+    } catch (error) {
+      traceError(
+        { traceId, err: formatProviderError(error) },
+        "kody-direct: durable turn setup failed",
+      );
+    }
+  }
+
   try {
     traceLog(
       {
@@ -1750,6 +1805,14 @@ This turn includes an image from the user. For questions about what is visible i
         },
         onError: ({ error }) => {
           clearHeartbeats();
+          if (durableTurn) {
+            void durableTurn.fail("provider_error").catch((persistenceError) => {
+              traceError(
+                { traceId, err: formatProviderError(persistenceError) },
+                "kody-direct: durable turn failure write failed",
+              );
+            });
+          }
           // Server-side log of stream errors. We *also* surface the message
           // to the UI via the `onError` arg to toUIMessageStreamResponse
           // below, so the user sees what happened instead of a silent hang.
@@ -1763,9 +1826,31 @@ This turn includes an image from the user. For questions about what is visible i
             "kody-direct: stream onError",
           );
         },
-        onFinish: (event) => {
+        onFinish: async (event) => {
           clearHeartbeats();
           clearGitHubContext();
+          if (durableTurn) {
+            const finalToolAnswer = event.steps
+              .flatMap((step) => step.toolResults)
+              .find(
+                (result) =>
+                  result.toolName === FINAL_ANSWER_TOOL &&
+                  isFinalAnswerOutput(result.output),
+              );
+            const content =
+              finalToolAnswer && isFinalAnswerOutput(finalToolAnswer.output)
+                ? finalToolAnswer.output.content
+                : event.text.trim();
+            try {
+              if (content) await durableTurn.complete(content);
+              else await durableTurn.fail("empty_response");
+            } catch (error) {
+              traceError(
+                { traceId, err: formatProviderError(error) },
+                "kody-direct: durable turn completion failed",
+              );
+            }
+          }
           traceLog(
             {
               traceId,
@@ -1779,6 +1864,14 @@ This turn includes an image from the user. For questions about what is visible i
         },
       });
     const result = runModelTurn(modelMessages);
+    void result.consumeStream({
+      onError: (error) => {
+        traceError(
+          { traceId, err: formatProviderError(error) },
+          "kody-direct: detached stream consumption failed",
+        );
+      },
+    });
     // Prepend a single `data-tools-index` event to the UI stream so the
     // client can hydrate a name→description lookup for the thinking panel.
     // One event for the whole turn (not one per tool call) — see the

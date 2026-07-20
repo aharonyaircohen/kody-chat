@@ -9,6 +9,7 @@
  */
 
 import { describe, it, expect, afterEach } from "vitest";
+import { preparedTurnFixture } from "../../../fixtures/prepared-turn";
 import {
   sendKodyLiveTurn,
   kodyLiveTransport,
@@ -138,7 +139,12 @@ describe("kodyLiveTransport (ChatTransport wrapper)", () => {
     const sink = eventSink();
     await expect(
       kodyLiveTransport.send(
-        { sessionId: "s", text: "hi", agentId: "kody-live" },
+        {
+          preparedTurn: preparedTurnFixture,
+          sessionId: "s",
+          text: "hi",
+          agentId: "kody-live",
+        },
         { authHeaders: {}, emit: sink.emit },
       ),
     ).rejects.toThrow(/KodyLiveTurnConfig/);
@@ -153,6 +159,7 @@ describe("kodyLiveTransport (ChatTransport wrapper)", () => {
 
     await kodyLiveTransport.send(
       {
+        preparedTurn: preparedTurnFixture,
         sessionId: "s",
         text: "hi",
         agentId: "kody-live",

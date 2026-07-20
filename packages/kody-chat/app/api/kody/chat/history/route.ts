@@ -18,13 +18,6 @@ import { readSessionTranscript } from "@dashboard/lib/interactive-session";
 
 export const runtime = "nodejs";
 
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
-  timestamp: string;
-  toolCalls?: unknown[];
-}
-
 // The engine repo is determined from auth headers (client's repo).
 function getEngineRepo(req: NextRequest): { owner: string; repo: string } {
   const headerAuth = getRequestAuth(req);

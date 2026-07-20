@@ -9,6 +9,7 @@ import type { ChatViewDirective } from "./chat-ui-actions";
 import type { ConversationCheckpoint } from "./chat/core/conversation-compaction";
 
 export interface AgentHandoff {
+  id: string;
   fromSlug: string;
   fromTitle: string;
   toSlug: string;
@@ -22,9 +23,8 @@ export interface AgencyAgentIdentity {
 }
 
 /**
- * Reference to an attachment blob stored in IndexedDB.
- * Lives on a ChatMessage; the binary itself is in the `kody-attachments`
- * IDB store keyed by `id`. Cheap to round-trip through localStorage.
+ * Reference to an attachment stored by the canonical conversation service.
+ * The message stores only durable metadata and the storage-backed id.
  */
 export interface AttachmentRef {
   id: string;
@@ -38,11 +38,17 @@ export interface AttachmentRef {
  * Used for both dashboard chat and pipeline agent sessions.
  */
 export interface ChatMessage {
+  /** Stable canonical entry id used by Convex persistence. */
+  id?: string;
+  /** Stable lifecycle id shared with the server-owned durable turn. */
+  turnId?: string;
   role: "user" | "assistant";
   text: string;
   tools?: string[];
   timestamp: string;
   model?: string;
+  /** Agent that authored an assistant message. */
+  agent?: AgencyAgentIdentity;
   /** Tool calls associated with this message (for tool visibility feature) */
   toolCalls?: Array<{
     name: string;
@@ -51,7 +57,7 @@ export interface ChatMessage {
     status: "running" | "success" | "error";
     durationMs?: number;
   }>;
-  /** Attachments uploaded with this user message (blobs in IndexedDB). */
+  /** Attachments uploaded with this message (binaries in Convex storage). */
   attachments?: AttachmentRef[];
   /**
    * True while a reply is being streamed into this message. Persisted so the
@@ -105,7 +111,7 @@ export interface ChatHistory {
 
 /**
  * Lightweight session metadata for the session list UI.
- * Stored in localStorage alongside messages.
+ * Stored as a typed conversation checkpoint.
  */
 export interface SessionMeta {
   /** Unique session identifier */
@@ -150,7 +156,7 @@ export interface SessionMeta {
 }
 
 /**
- * localStorage structure for global (non-task) chat sessions.
+ * UI projection of a canonical conversation.
  * Replaces the v1 format (simple Message[] per agent).
  */
 export interface GlobalChatStore {

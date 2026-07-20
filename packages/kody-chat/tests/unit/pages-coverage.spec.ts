@@ -14,7 +14,6 @@ const ROUTE_FOR: Record<string, string> = {
   models: "app/(shell)/models/page.tsx",
   brain: "app/(shell)/brain/page.tsx",
   secrets: "app/(shell)/secrets/page.tsx",
-  settings: "app/(shell)/settings/page.tsx",
   brands: "app/(shell)/brands/page.tsx",
   "brand-detail": "app/(shell)/brands/[slug]/page.tsx",
   commands: "app/(shell)/commands/page.tsx",

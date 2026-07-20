@@ -23,7 +23,7 @@ const convex = vi.hoisted(() => ({
 vi.mock("@kody-ade/base/auth", () => auth);
 vi.mock("@dashboard/lib/backend/convex-backend", () => ({
   getConvexClient: () => convex,
-  backendApi: { chatTurns: { list: "chatTurns.list" } },
+  backendApi: { conversations: { get: "conversations.get" } },
   tenantIdFor: (owner: string, repo: string) => `${owner}/${repo}`,
 }));
 
@@ -41,18 +41,33 @@ beforeEach(() => {
     repo: "widgets",
     token: "ghp_test",
   });
-  convex.query.mockResolvedValue([]);
+  convex.query.mockResolvedValue(null);
 });
 
 describe("GET /api/kody/chat/history", () => {
   it("returns Convex turns sorted by sequence", async () => {
-    convex.query.mockResolvedValue([
-      {
-        seq: 2,
-        turn: { role: "assistant", content: "hi there", timestamp: "t2" },
-      },
-      { seq: 1, turn: { role: "user", content: "hello", timestamp: "t1" } },
-    ]);
+    convex.query.mockResolvedValue({
+      entries: [
+        {
+          seq: 2,
+          entry: {
+            kind: "message",
+            role: "assistant",
+            content: "hi there",
+            createdAt: "t2",
+          },
+        },
+        {
+          seq: 1,
+          entry: {
+            kind: "message",
+            role: "user",
+            content: "hello",
+            createdAt: "t1",
+          },
+        },
+      ],
+    });
 
     const res = await GET(makeReq("taskId=task-1"));
 
@@ -63,9 +78,9 @@ describe("GET /api/kody/chat/history", () => {
         { role: "assistant", content: "hi there", timestamp: "t2" },
       ],
     });
-    expect(convex.query).toHaveBeenCalledWith("chatTurns.list", {
+    expect(convex.query).toHaveBeenCalledWith("conversations.get", {
       tenantId: "acme/widgets",
-      sessionId: "task-1",
+      conversationId: "task-1",
     });
     expect(convex.query).toHaveBeenCalledTimes(1);
   });

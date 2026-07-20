@@ -4,14 +4,13 @@
  * @pattern interactive-session
  *
  * Server-side helpers for the long-lived "interactive runner" chat mode.
- * The mode is gated by a meta line at the top of the session JSONL — see
- * kody2/src/chat/session.ts (readMeta). The runner enters a poll loop
- * instead of replying once and exiting.
+ * Interactive runners and the browser share the canonical Convex
+ * conversation timeline. GitHub dispatch only starts the runner.
  *
  * Why this lives in its own module: the existing trigger route does
  * dispatch-per-turn and assumes one workflow run = one reply. Interactive
  * mode breaks that — start() dispatches once, then append() writes to the
- * Convex transcript without triggering anything new.
+ * shared conversation without triggering anything new.
  *
  * Auth model is the same inline HMAC token as one-shot chat — see
  * chat-token.ts. The runner verifies the token on ingest POSTs so we
@@ -90,8 +89,8 @@ export async function writeSessionMeta(
   repo: string,
   sessionId: string,
   meta: SessionMeta,
-  branch: string = DEFAULT_BRANCH,
-  maxRetries = 4,
+  _branch: string = DEFAULT_BRANCH,
+  _maxRetries = 4,
   initialTurn?: ChatTurn,
 ): Promise<void> {
   await recordSessionStart(owner, repo, sessionId, meta, initialTurn);
@@ -111,8 +110,8 @@ export async function appendUserTurn(
   repo: string,
   sessionId: string,
   turn: ChatTurn,
-  branch: string = DEFAULT_BRANCH,
-  maxRetries = 3,
+  _branch: string = DEFAULT_BRANCH,
+  _maxRetries = 3,
 ): Promise<{ turnCount: number }> {
   await recordTurn(owner, repo, sessionId, turn);
   return { turnCount: await convexTurnCount(owner, repo, sessionId) };
@@ -120,27 +119,43 @@ export async function appendUserTurn(
 
 /**
  * Read a session's transcript from the Convex record
- * (chatSessions.get → { session, turns }). Returns null when the session
- * was never recorded (pre-migration sessions live only in the backend).
+ * Returns null when the canonical conversation does not exist.
  */
 export async function readSessionTranscript(
   owner: string,
   repo: string,
   sessionId: string,
 ): Promise<{ meta: SessionMeta; turns: ChatTurn[] } | null> {
-  const result = (await getConvexClient().query(backendApi.chatSessions.get, {
+  const result = (await getConvexClient().query(backendApi.conversations.get, {
     tenantId: tenantIdFor(owner, repo),
-    sessionId,
+    conversationId: sessionId,
   })) as {
-    session: { meta: SessionMeta };
-    turns: Array<{ seq: number; turn: ChatTurn }>;
+    entries: Array<{
+      seq: number;
+      entry: {
+        kind: string;
+        role?: "user" | "assistant";
+        content?: string;
+        createdAt: string;
+      };
+    }>;
   } | null;
   if (!result) return null;
   return {
-    meta: result.session.meta,
-    turns: [...result.turns]
+    meta: buildMetaLine(),
+    turns: [...result.entries]
       .sort((a, b) => a.seq - b.seq)
-      .map((doc) => doc.turn),
+      .filter(
+        (doc) =>
+          doc.entry.kind === "message" &&
+          doc.entry.role &&
+          doc.entry.content !== undefined,
+      )
+      .map((doc) => ({
+        role: doc.entry.role!,
+        content: doc.entry.content!,
+        timestamp: doc.entry.createdAt,
+      })),
   };
 }
 
@@ -158,18 +173,27 @@ export async function recordSessionStart(
   try {
     const client = getConvexClient();
     const tenantId = tenantIdFor(owner, repo);
-    await client.mutation(backendApi.chatSessions.upsert, {
+    const existing = await client.query(backendApi.conversations.get, {
       tenantId,
-      sessionId,
-      meta,
-      updatedAt: new Date().toISOString(),
+      conversationId: sessionId,
     });
-    if (initialTurn) {
-      await client.mutation(backendApi.chatTurns.append, {
+    if (!existing) {
+      await client.mutation(backendApi.conversations.create, {
         tenantId,
-        sessionId,
-        turn: normalizeTurn(initialTurn),
+        conversationId: sessionId,
+        surface: "global",
+        scope: { kind: "repository", owner, repo },
+        title: "New conversation",
+        pinned: false,
+        activeAgent: { slug: "kody", title: "Kody" },
+        runtime: { kind: "live", profileId: "kody-live" },
+        createdBy: "system:interactive-runner",
+        createdAt: meta.createdAt,
+        updatedAt: meta.createdAt,
       });
+    }
+    if (initialTurn) {
+      await recordTurn(owner, repo, sessionId, initialTurn);
     }
   } catch (err) {
     logger.error(
@@ -187,10 +211,31 @@ export async function recordTurn(
   turn: ChatTurn,
 ): Promise<void> {
   try {
-    await getConvexClient().mutation(backendApi.chatTurns.append, {
-      tenantId: tenantIdFor(owner, repo),
-      sessionId,
-      turn: normalizeTurn(turn),
+    const client = getConvexClient();
+    const tenantId = tenantIdFor(owner, repo);
+    const detail = (await client.query(backendApi.conversations.get, {
+      tenantId,
+      conversationId: sessionId,
+    })) as { conversation: { activeAgent: { slug: string; title: string } } };
+    const normalized = normalizeTurn(turn);
+    const entryId = `${sessionId}:${turn.role}:${turn.timestamp}`;
+    await client.mutation(backendApi.conversations.appendEntry, {
+      tenantId,
+      conversationId: sessionId,
+      entryId,
+      idempotencyKey: entryId,
+      entry: {
+        kind: "message",
+        role: normalized.role,
+        author:
+          normalized.role === "user"
+            ? { kind: "user", actorId: "system:interactive-runner" }
+            : { kind: "agent", ...detail.conversation.activeAgent },
+        content: normalized.content,
+        status: "committed",
+        turnId: entryId,
+        createdAt: normalized.timestamp,
+      },
     });
   } catch (err) {
     logger.error(
@@ -208,11 +253,17 @@ async function convexTurnCount(
   sessionId: string,
 ): Promise<number> {
   try {
-    const turns = (await getConvexClient().query(backendApi.chatTurns.list, {
-      tenantId: tenantIdFor(owner, repo),
-      sessionId,
-    })) as unknown[];
-    return turns.length;
+    const detail = (await getConvexClient().query(
+      backendApi.conversations.get,
+      {
+        tenantId: tenantIdFor(owner, repo),
+        conversationId: sessionId,
+      },
+    )) as { entries: Array<{ entry: { kind: string } }> } | null;
+    return (
+      detail?.entries.filter((entry) => entry.entry.kind === "message")
+        .length ?? 0
+    );
   } catch (err) {
     logger.error(
       { err, sessionId },

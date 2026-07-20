@@ -16,12 +16,9 @@ const ROUTE_FOR: Record<string, string> = {
   "guided-flows": "app/(chat-rail)/guided-flows/page.tsx",
   models: "app/(chat-rail)/models/page.tsx",
   secrets: "app/(chat-rail)/secrets/page.tsx",
-  settings: "app/(chat-rail)/settings/page.tsx",
   brands: "app/(chat-rail)/brands/page.tsx",
   "brand-detail": "app/(chat-rail)/brands/[slug]/page.tsx",
   commands: "app/(chat-rail)/commands/page.tsx",
-  context: "app/(chat-rail)/context/page.tsx",
-  "context-detail": "app/(chat-rail)/context/[slug]/page.tsx",
   memory: "app/(chat-rail)/memory/page.tsx",
   "memory-detail": "app/(chat-rail)/memory/[id]/page.tsx",
   instructions: "app/(chat-rail)/instructions/page.tsx",
@@ -37,6 +34,16 @@ const PAGES_DIR = join(
   "node_modules/@kody-ade/kody-chat/src/dashboard/lib/pages",
 );
 
+/**
+ * Package pages the dashboard intentionally serves with its OWN
+ * implementation instead of the canonical re-export (the package page
+ * remains for the standalone harness). Route must still exist.
+ */
+const DASH_OWNED_OVERRIDES: Record<string, string> = {
+  context: "app/(chat-rail)/context/page.tsx",
+  "context-detail": "app/(chat-rail)/context/[...path]/page.tsx",
+};
+
 describe("shared pages route coverage", () => {
   const pages = readdirSync(PAGES_DIR)
     .filter((f) => f.endsWith(".tsx"))
@@ -44,7 +51,18 @@ describe("shared pages route coverage", () => {
 
   it("every canonical package page has a dash route mapping", () => {
     for (const page of pages) {
-      expect(ROUTE_FOR[page], `add a dash route mapping for pages/${page}`).toBeTruthy();
+      expect(
+        ROUTE_FOR[page] ?? DASH_OWNED_OVERRIDES[page],
+        `add a dash route mapping for pages/${page}`,
+      ).toBeTruthy();
+    }
+  });
+
+  it("every dash-owned override route exists", () => {
+    for (const route of Object.values(DASH_OWNED_OVERRIDES)) {
+      expect(existsSync(join(process.cwd(), route)), `${route} is missing`).toBe(
+        true,
+      );
     }
   });
 

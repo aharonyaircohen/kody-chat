@@ -27,7 +27,10 @@ const KODY_CHAT_SOURCE =
     "utf8",
   );
 const USE_CHAT_SESSIONS_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/chat/core/use-chat-sessions.ts"),
+  resolve(
+    __dirname,
+    "../../src/dashboard/lib/chat/core/conversation/use-conversation-sessions.ts",
+  ),
   "utf8",
 );
 const SYSTEM_PROMPT_SOURCE = readFileSync(
@@ -51,7 +54,7 @@ describe("KodyChat org scope", () => {
   });
 
   it("does not make org selection a chat session boundary", () => {
-    expect(USE_CHAT_SESSIONS_SOURCE).not.toMatch(/`org:${string}`/);
+    expect(USE_CHAT_SESSIONS_SOURCE).not.toMatch(/org:/);
     expect(KODY_CHAT_SOURCE).not.toMatch(/`org:${selectedOrg/);
   });
 

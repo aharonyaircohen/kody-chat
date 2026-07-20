@@ -45,7 +45,7 @@ describe("resolveActiveRepo", () => {
   });
 
   it("falls back to the stored flat selection on repo-less pages", () => {
-    const active = resolveActiveRepo(auth, "/settings");
+    const active = resolveActiveRepo(auth, "/org");
     expect(active).toMatchObject({ owner: "a", repo: "one", index: 0 });
   });
 

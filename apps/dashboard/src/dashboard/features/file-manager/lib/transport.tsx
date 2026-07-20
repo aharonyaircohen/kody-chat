@@ -23,6 +23,13 @@ export interface FilesTransport {
   listDir(path: string): Promise<FileEntry[]>;
   /** Read one file, or null when the path is not a file. */
   readFile(path: string): Promise<FileContent | null>;
+  /**
+   * Optional write: create or replace a file. When absent the workspace
+   * is read-only and all write UI stays hidden.
+   */
+  writeFile?: (path: string, content: string) => Promise<void>;
+  /** Optional delete. Only offered when defined. */
+  deleteFile?: (path: string) => Promise<void>;
   /** Optional external link for the "Open on …" action. */
   externalUrl?: (path: string, type: FileEntry["type"]) => string | null;
 }

@@ -125,7 +125,6 @@ export const routes = {
   home: () => "/",
   orgHome: () => "/org",
   org: (org: string) => joinPath("org", org),
-  globalSettings: () => "/settings",
 
   repoHome: (ref: RepoRef) => repoBasePath(ref),
   repoDashboard: (ref: RepoRef) => repoBasePath(ref),
