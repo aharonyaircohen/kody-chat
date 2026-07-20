@@ -17,4 +17,13 @@ describe("file workspace themes", () => {
       expect(source, file).not.toContain("text-white/");
     }
   });
+
+  it("fills the shared page content area without generic page padding", () => {
+    const source = readFileSync(
+      resolve(process.cwd(), "src/dashboard/components/files/FilesPage.tsx"),
+      "utf8",
+    );
+
+    expect(source).toContain('contentClassName="!p-0"');
+  });
 });

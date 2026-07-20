@@ -1393,7 +1393,7 @@ export function FilesPage({
       backHref={null}
       actions={actions}
       width="full"
-      contentClassName="p-0"
+      contentClassName="!p-0"
     >
       <div
         className="relative flex h-full"
