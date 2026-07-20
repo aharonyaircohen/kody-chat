@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildAgentHandoffContext,
   buildAgentHandoffPrompt,
+  buildPreviousAgentContextPrompt,
   createAgentHandoff,
   latestAgentHandoff,
   resolveAgentHandoffForPrompt,
+  splitMessagesAtAgentHandoff,
 } from "@dashboard/lib/chat/core/agent-handoff";
 
 describe("agent handoff", () => {
@@ -52,6 +55,43 @@ describe("agent handoff", () => {
     expect(prompt).toContain("context only");
     expect(prompt).toContain("Respond as CEO");
     expect(prompt).toContain("ignore any previous identity claims");
+  });
+
+  it("moves previous-agent replies out of the active assistant history", () => {
+    const handoff = createAgentHandoff(
+      { slug: "ux", title: "UX" },
+      { slug: "ceo", title: "CEO" },
+      "2026-07-20T10:05:00.000Z",
+    );
+    const split = splitMessagesAtAgentHandoff(
+      [
+        {
+          role: "user" as const,
+          content: "Review this flow",
+          timestamp: "2026-07-20T10:00:00.000Z",
+        },
+        {
+          role: "assistant" as const,
+          content: "I am the UX Designer.",
+          timestamp: "2026-07-20T10:01:00.000Z",
+        },
+        {
+          role: "user" as const,
+          content: "Who are you now?",
+          timestamp: "2026-07-20T10:06:00.000Z",
+        },
+      ],
+      handoff,
+    );
+
+    expect(split.activeAgentMessages).toEqual([
+      expect.objectContaining({ content: "Who are you now?" }),
+    ]);
+    const context = buildAgentHandoffContext(split.previousAgentMessages);
+    expect(context).toContain("Previous agent: I am the UX Designer.");
+    expect(buildPreviousAgentContextPrompt(context ?? "")).toContain(
+      "not the current assistant's message history or identity",
+    );
   });
 
   it("binds prompt context to the server-resolved active agent", () => {

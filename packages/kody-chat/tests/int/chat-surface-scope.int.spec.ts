@@ -235,6 +235,66 @@ describe("surface scoping — kody in-process route", () => {
     }
   });
 
+  it("keeps prior-agent conversation as context, not active assistant history", async () => {
+    const model = mockModel();
+    h.resolveBackgroundToken.mockResolvedValue({
+      token: "ghs_installation",
+      source: "app",
+    });
+    h.resolveClientBrand.mockResolvedValue({
+      slug: "acme",
+      name: "Acme",
+      accent: "#7c3aed",
+      modelId: "brand-model",
+      agentSlug: "support-agent",
+    });
+    h.resolveChatModel.mockResolvedValue({
+      model,
+      resolvedModel: {
+        id: "mock/model",
+        provider: "mock",
+        modelName: "mock-model",
+      },
+    });
+
+    const res = await kodyChatPOST(
+      makeRequest(
+        "/api/kody/chat/kody",
+        {
+          messages: [{ role: "user", content: "Who are you now?" }],
+          agentHandoff: {
+            fromSlug: "kody",
+            fromTitle: "Kody",
+            toSlug: "support-agent",
+            toTitle: "Support Agent",
+            switchedAt: "2026-07-20T10:00:00.000Z",
+          },
+          agentHandoffContext:
+            "User: Who are you?\n\nPrevious agent: I am Kody.",
+        },
+        ticketHeaders(),
+      ),
+    );
+    expect(res.status).toBe(200);
+    await res.text();
+
+    const modelCall = model.doStreamCalls[0];
+    expect(modelCall?.prompt.map((message) => message.role)).toEqual([
+      "system",
+      "user",
+    ]);
+    const modelInput = JSON.stringify(modelCall);
+    expect(modelInput).toContain("Who are you now?");
+    expect(modelInput).not.toContain('"role":"assistant"');
+    expect(modelInput).toContain(
+      "not the current assistant's message history or identity",
+    );
+    expect(modelInput).toContain("Previous agent: I am Kody.");
+    expect(modelInput).toContain(
+      "The assistant speaker for this turn is Support Agent",
+    );
+  });
+
   it("fails closed before model execution when the selected agent is unavailable", async () => {
     const model = mockModel();
     h.resolveBackgroundToken.mockResolvedValue({

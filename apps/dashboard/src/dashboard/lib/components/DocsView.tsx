@@ -25,7 +25,7 @@ const README_ENTRY: FileEntry = {
 function isDocsEntry(entry: FileEntry): boolean {
   return (
     entry.type === "dir" ||
-    (entry.type === "file" && entry.name.toLowerCase().endsWith(".md"))
+    (entry.type === "file" && entry.path.toLowerCase().endsWith(".md"))
   );
 }
 

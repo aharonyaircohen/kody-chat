@@ -14,8 +14,8 @@ import {
   ChevronDown,
   Loader2,
   RefreshCw,
-  SortAsc,
   FileQuestion,
+  FolderTree,
   PanelLeftClose,
 } from "lucide-react";
 import { cn } from "@dashboard/lib/utils";
@@ -63,6 +63,7 @@ interface FileTreeProps {
   pinnedEntries?: FileEntry[];
   entryFilter?: (entry: FileEntry) => boolean;
   protectedPaths?: string[];
+  variant?: "focused" | "classic";
 }
 
 export interface FileTreeOverlay {
@@ -91,6 +92,13 @@ export function pathAndAncestorPaths(path: string): string[] {
 
 function normalizeTreePath(path: string): string {
   return path.replace(/^\/+|\/+$/g, "").replace(/\/{2,}/g, "/");
+}
+
+export function fileTreeHeaderLabel(rootPath: string): string {
+  const normalized = normalizeTreePath(rootPath);
+  if (!normalized) return "Repository";
+  if (normalized === "docs") return "Documents";
+  return normalized.split("/").pop() ?? normalized;
 }
 
 function parentTreePath(path: string): string {
@@ -233,6 +241,7 @@ interface TreeNodeRowProps {
   onDropOnFolder?: (path: string) => void;
   dropTargetPath?: string | null;
   protectedPaths: Set<string>;
+  variant: "focused" | "classic";
 }
 
 function TreeNodeRow({
@@ -253,6 +262,7 @@ function TreeNodeRow({
   onDropOnFolder,
   dropTargetPath,
   protectedPaths,
+  variant,
 }: TreeNodeRowProps) {
   const { entry, isOpen, isLoading } = node;
   const paddingLeft = depth * 16 + 8;
@@ -273,9 +283,13 @@ function TreeNodeRow({
     <>
       <div
         className={cn(
-          "flex items-center gap-2 px-2 py-2 cursor-pointer rounded text-base select-none",
-          "hover:bg-white/5",
-          isSelected && "bg-accent text-accent-foreground",
+          "flex items-center gap-2 px-2 cursor-pointer text-base select-none",
+          variant === "focused" ? "py-2.5 rounded-lg" : "py-2 rounded",
+          "hover:bg-muted",
+          isSelected &&
+            (variant === "focused"
+              ? "bg-primary/10 text-foreground ring-1 ring-primary/20"
+              : "bg-accent text-accent-foreground"),
           isDropTarget && "bg-emerald-500/15 ring-1 ring-emerald-400/40",
         )}
         style={{ paddingLeft }}
@@ -318,9 +332,9 @@ function TreeNodeRow({
       >
         {isDir ? (
           isOpen ? (
-            <ChevronDown className="w-3.5 h-3.5 text-white/50 shrink-0" />
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           ) : (
-            <ChevronRight className="w-3.5 h-3.5 text-white/50 shrink-0" />
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           )
         ) : (
           <span className="w-3.5 shrink-0" />
@@ -331,7 +345,7 @@ function TreeNodeRow({
           <Loader2 className="w-3 h-3 animate-spin shrink-0 ml-auto" />
         )}
         {!isLoading && !isDir && (
-          <span className="ml-auto text-xs text-white/40 shrink-0">
+          <span className="ml-auto shrink-0 text-xs text-muted-foreground">
             {formatBytes(entry.size)}
           </span>
         )}
@@ -356,6 +370,7 @@ function TreeNodeRow({
           onDropOnFolder={onDropOnFolder}
           dropTargetPath={dropTargetPath}
           protectedPaths={protectedPaths}
+          variant={variant}
         />
       ))}
     </>
@@ -388,6 +403,7 @@ export function FileTree({
   pinnedEntries = [],
   entryFilter,
   protectedPaths = [],
+  variant = "classic",
 }: FileTreeProps) {
   const normalizedRootPath = normalizeTreePath(rootPath);
   const protectedPathSet = useMemo(
@@ -400,7 +416,7 @@ export function FileTree({
   );
   const childrenMapRef = useRef(childrenMap);
   const [loadingPaths, setLoadingPaths] = useState<Set<string>>(new Set());
-  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const sortKey: SortKey = "name";
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
@@ -633,72 +649,52 @@ export function FileTree({
       className="flex flex-col h-full"
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-white/10 shrink-0">
-        <button
-          className={cn(
-            "flex items-center gap-1 text-sm px-2 py-1.5 rounded",
-            sortKey === "name"
-              ? "bg-white/10 text-white"
-              : "text-white/50 hover:text-white/70",
-          )}
-          onClick={() => setSortKey("name")}
-          title="Sort by name"
-        >
-          Name
-        </button>
-        <button
-          className={cn(
-            "flex items-center gap-1 text-sm px-2 py-1.5 rounded",
-            sortKey === "size"
-              ? "bg-white/10 text-white"
-              : "text-white/50 hover:text-white/70",
-          )}
-          onClick={() => setSortKey("size")}
-          title="Sort by size"
-        >
-          Size
-        </button>
-        <button
-          onClick={() => setSortKey("lastModified")}
-          className={cn(
-            "flex items-center gap-1 text-sm px-2 py-1.5 rounded",
-            sortKey === "lastModified"
-              ? "bg-white/10 text-white"
-              : "text-white/50 hover:text-white/70",
-          )}
-          title="Sort by last modified"
-        >
-          <SortAsc className="w-3 h-3" />
-          Date
-        </button>
+      <div className="flex min-h-[4.75rem] shrink-0 items-center gap-3 border-b border-border px-4">
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-primary/15 bg-primary/10">
+          <FolderTree className="h-[1.1rem] w-[1.1rem] text-primary" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-[0.62rem] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+            Navigation
+          </p>
+          <div className="flex items-center gap-2">
+            <h2 className="truncate text-sm font-semibold tracking-tight text-foreground">
+              {fileTreeHeaderLabel(normalizedRootPath)}
+            </h2>
+            {!rootLoading ? (
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[0.62rem] text-muted-foreground">
+                {rootNodes.length}
+              </span>
+            ) : null}
+          </div>
+        </div>
         {onCollapse && (
           <button
             onClick={onCollapse}
-            className="ml-auto p-1 rounded hover:bg-white/10 text-white/50 hover:text-white"
+            className="ml-auto grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
             title="Hide file panel"
             aria-label="Hide file panel"
           >
-            <PanelLeftClose className="w-3.5 h-3.5" />
+            <PanelLeftClose className="h-4 w-4" />
           </button>
         )}
         <button
           onClick={onRefresh}
           className={cn(
-            "p-1 rounded hover:bg-white/10 text-white/50 hover:text-white",
+            "grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground",
             !onCollapse && "ml-auto",
           )}
           title="Refresh"
           aria-label="Refresh files"
         >
-          <RefreshCw className="w-3.5 h-3.5" />
+          <RefreshCw className="h-4 w-4" />
         </button>
       </div>
 
       {/* Tree */}
       <div
         className={cn(
-          "flex-1 overflow-y-auto py-1",
+          "flex-1 overflow-y-auto px-2 py-3",
           dropTargetPath === normalizedRootPath && "bg-emerald-500/10",
         )}
         role="tree"
@@ -719,10 +715,10 @@ export function FileTree({
       >
         {rootLoading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-5 h-5 animate-spin text-white/40" />
+            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
           </div>
         ) : rootNodes.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-8 text-white/40 text-base">
+          <div className="flex flex-col items-center justify-center py-8 text-base text-muted-foreground">
             <FileQuestion className="w-8 h-8 mb-2" />
             <span>This folder is empty</span>
           </div>
@@ -747,6 +743,7 @@ export function FileTree({
               onDropOnFolder={handleDropOnFolder}
               dropTargetPath={dropTargetPath}
               protectedPaths={protectedPathSet}
+              variant={variant}
             />
           ))
         )}

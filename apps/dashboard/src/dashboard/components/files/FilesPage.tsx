@@ -17,6 +17,7 @@ import {
   type DragEvent,
 } from "react";
 import { Octokit } from "@octokit/rest";
+import { useRouter } from "next/navigation";
 import {
   Copy,
   Download,
@@ -28,6 +29,7 @@ import {
   Upload,
   ChevronRight,
   PanelLeft,
+  MoreHorizontal,
   Pencil,
   Trash2,
 } from "lucide-react";
@@ -61,6 +63,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@kody-ade/base/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@kody-ade/base/ui/dropdown-menu";
 
 type ViewMode = "viewer" | "editor" | "diff" | "search" | "upload";
 type PanelState = "tree" | "split" | "hidden";
@@ -149,6 +158,15 @@ export function isExpectedDeletedPath(
     (deletedPath) =>
       normalizedPath === deletedPath ||
       normalizedPath.startsWith(`${deletedPath}/`),
+  );
+}
+
+export function shouldShowWorkspaceLocation(
+  selectedPathType: RepoPathType | null,
+  viewMode: ViewMode,
+): boolean {
+  return (
+    selectedPathType !== "file" || !["viewer", "editor"].includes(viewMode)
   );
 }
 
@@ -253,6 +271,7 @@ export function FilesPage({
   defaultMarkdownViewMode = "edit",
 }: FilesPageProps) {
   const { auth } = useAuth();
+  const router = useRouter();
   const scopedHref = useRepoScopedHref();
   const octokit = useMemo(
     () => (auth?.token ? new Octokit({ auth: auth.token }) : null),
@@ -328,8 +347,6 @@ export function FilesPage({
 
   const updateFileHref = useCallback(
     (path: string, options: { replace?: boolean } = {}) => {
-      if (typeof window === "undefined") return;
-
       const normalizedPath = normalizeRepoPath(path);
       const relativePath =
         workspaceRoot && normalizedPath.startsWith(`${workspaceRoot}/`)
@@ -342,15 +359,17 @@ export function FilesPage({
             .join("/")}`
         : routeBase;
       const href = scopedHref(workspaceHref);
-      if (window.location.pathname === href) return;
+      if (typeof window !== "undefined" && window.location.pathname === href) {
+        return;
+      }
 
       if (options.replace) {
-        window.history.replaceState(null, "", href);
+        router.replace(href);
       } else {
-        window.history.pushState(null, "", href);
+        router.push(href);
       }
     },
-    [routeBase, scopedHref, workspaceRoot],
+    [routeBase, router, scopedHref, workspaceRoot],
   );
 
   const openRepoPath = useCallback(
@@ -1156,8 +1175,51 @@ export function FilesPage({
     }
 
     if (selectedPath) {
+      if (selectedPathType === "dir") {
+        const folderName = selectedPath.split("/").pop() ?? selectedPath;
+        return (
+          <div className="flex h-full items-center justify-center p-8">
+            <div className="w-full max-w-xl rounded-3xl border border-border bg-card p-8">
+              <div className="grid h-14 w-14 place-items-center rounded-2xl border border-primary/15 bg-primary/10">
+                <FolderOpen className="h-7 w-7 text-primary" />
+              </div>
+              <p className="mt-6 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                Current space
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
+                {folderName}
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Choose an item from the tree, create something new, or drag
+                files between folders to reorganize them.
+              </p>
+              {writeable ? (
+                <div className="mt-6 flex flex-wrap gap-3">
+                  <Button
+                    type="button"
+                    onClick={() => handleNewFile(selectedPath)}
+                    className="gap-2"
+                  >
+                    <FilePlus className="h-4 w-4" />
+                    New file
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => handleNewFolder(selectedPath)}
+                    className="gap-2"
+                  >
+                    <FolderPlus className="h-4 w-4" />
+                    New folder
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        );
+      }
       return (
-        <div className="flex flex-col items-center justify-center h-full text-white/40">
+        <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
           <FolderOpen className="w-12 h-12 mb-4" />
           <p className="text-base">/{selectedPath}</p>
         </div>
@@ -1165,160 +1227,169 @@ export function FilesPage({
     }
 
     return (
-      <div className="flex flex-col items-center justify-center h-full text-white/40">
-        <FolderOpen className="w-12 h-12 mb-4" />
-        <p className="text-base">Select a file to view</p>
+      <div className="flex h-full items-center justify-center p-8">
+        <div className="w-full max-w-xl rounded-3xl border border-border bg-card p-8 shadow-sm">
+          <div className="grid h-14 w-14 place-items-center rounded-2xl border border-primary/15 bg-primary/10">
+            <FolderOpen className="h-7 w-7 text-primary" />
+          </div>
+          <p className="mt-6 text-xs uppercase tracking-[0.18em] text-muted-foreground">
+            Repository workspace
+          </p>
+          <h2 className="mt-2 text-2xl font-semibold tracking-tight text-foreground">
+            Choose what you want to work on
+          </h2>
+          <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
+            Browse the repository tree, open a file, or create something new.
+            Drag items between folders to reorganize them.
+          </p>
+          {writeable ? (
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Button
+                type="button"
+                onClick={() => handleNewFile(currentFolder)}
+                className="gap-2"
+              >
+                <FilePlus className="h-4 w-4" />
+                New file
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleNewFolder(currentFolder)}
+                className="gap-2"
+              >
+                <FolderPlus className="h-4 w-4" />
+                New folder
+              </Button>
+            </div>
+          ) : null}
+        </div>
       </div>
     );
   };
 
-  const actionButtonClass = "h-9 w-9 p-0";
   const actions = (
-    <div className="flex items-center gap-2">
-      {showSearch ? (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setViewMode("search")}
-          className={cn(
-            actionButtonClass,
-            viewMode === "search" && "bg-white/10",
-          )}
-          title="Search"
-          aria-label="Search files"
-        >
-          <Search className="w-4 h-4" />
-        </Button>
-      ) : null}
-
+    <div className="flex items-center gap-2.5">
       {writeable && (
         <Button
-          variant="ghost"
-          size="icon"
+          size="sm"
           onClick={() => handleNewFile(currentFolder)}
-          className={actionButtonClass}
-          title="New file"
-          aria-label="New file"
+          className="gap-2"
         >
-          <FilePlus className="w-4 h-4" />
+          <FilePlus className="h-4 w-4" />
+          <span className="hidden sm:inline">New file</span>
         </Button>
       )}
-
-      {selectedPath && selectedPathType && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => handleOpenOnGitHub(selectedPath, selectedPathType)}
-          className={actionButtonClass}
-          title="Open on GitHub"
-          aria-label="Open on GitHub"
-        >
-          <ExternalLink className="w-4 h-4" />
-        </Button>
-      )}
-
-      {selectedFile && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => handleDownload(selectedFile.path, "file")}
-          className={actionButtonClass}
-          title="Download"
-          aria-label="Download file"
-        >
-          <Download className="w-4 h-4" />
-        </Button>
-      )}
-
-      {writeable &&
-        selectedPath &&
-        selectedPathType &&
-        !isSelectedProtected && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => handleRename(selectedPath, selectedPathType)}
-            className={actionButtonClass}
-            disabled={busyAction !== null}
-            title="Rename or move"
-            aria-label="Rename or move"
-          >
-            <Pencil className="w-4 h-4" />
-          </Button>
-        )}
-
-      {writeable &&
-        selectedPath &&
-        selectedPathType &&
-        !isSelectedProtected && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => handleDuplicate(selectedPath, selectedPathType)}
-            className={actionButtonClass}
-            disabled={busyAction !== null}
-            title="Duplicate"
-            aria-label="Duplicate"
-          >
-            <Copy className="w-4 h-4" />
-          </Button>
-        )}
-
-      {writeable &&
-        selectedPath &&
-        selectedPathType &&
-        !isSelectedProtected && (
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => handleDelete(selectedPath, selectedPathType)}
-            className={cn(actionButtonClass, "text-red-400 hover:text-red-300")}
-            disabled={busyAction !== null}
-            title={selectedPathType === "dir" ? "Delete folder" : "Delete file"}
-            aria-label={
-              selectedPathType === "dir" ? "Delete folder" : "Delete file"
-            }
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        )}
 
       {writeable && (
         <Button
-          variant="ghost"
-          size="icon"
+          variant="outline"
+          size="sm"
           onClick={() => handleNewFolder(currentFolder)}
-          className={actionButtonClass}
-          title="New folder"
-          aria-label="New folder"
+          className="gap-2"
         >
-          <FolderPlus className="w-4 h-4" />
+          <FolderPlus className="h-4 w-4" />
+          <span className="hidden sm:inline">New folder</span>
         </Button>
       )}
 
-      {writeable && showUpload && (
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => setViewMode("upload")}
-          className={cn(
-            actionButtonClass,
-            viewMode === "upload" && "bg-white/10",
-          )}
-          title="Upload"
-          aria-label="Upload files"
-        >
-          <Upload className="w-4 h-4" />
-        </Button>
-      )}
+      {showSearch || selectedPath || (writeable && showUpload) ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              title="More file actions"
+              aria-label="More file actions"
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-52">
+            {showSearch ? (
+              <DropdownMenuItem onClick={() => setViewMode("search")}>
+                <Search className="h-4 w-4" />
+                Search
+              </DropdownMenuItem>
+            ) : null}
+            {selectedPath && selectedPathType ? (
+              <DropdownMenuItem
+                onClick={() =>
+                  handleOpenOnGitHub(selectedPath, selectedPathType)
+                }
+              >
+                <ExternalLink className="h-4 w-4" />
+                Open on GitHub
+              </DropdownMenuItem>
+            ) : null}
+            {selectedFile ? (
+              <DropdownMenuItem
+                onClick={() => handleDownload(selectedFile.path, "file")}
+              >
+                <Download className="h-4 w-4" />
+                Download
+              </DropdownMenuItem>
+            ) : null}
+            {writeable &&
+            selectedPath &&
+            selectedPathType &&
+            !isSelectedProtected ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => handleRename(selectedPath, selectedPathType)}
+                >
+                  <Pencil className="h-4 w-4" />
+                  Rename or move
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() =>
+                    handleDuplicate(selectedPath, selectedPathType)
+                  }
+                >
+                  <Copy className="h-4 w-4" />
+                  Duplicate
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  className="text-red-300 focus:text-red-200"
+                  onClick={() => handleDelete(selectedPath, selectedPathType)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Delete
+                </DropdownMenuItem>
+              </>
+            ) : null}
+            {writeable && showUpload ? (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setViewMode("upload")}>
+                  <Upload className="h-4 w-4" />
+                  Upload
+                </DropdownMenuItem>
+              </>
+            ) : null}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
     </div>
   );
 
   return (
     <PageShell
       title={title}
-      icon={FolderOpen}
-      subtitle={selectedPath ? `/${selectedPath}` : undefined}
+      titleContent={
+        <div className="min-w-0">
+          <p className="text-[0.68rem] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+            Repository workspace
+          </p>
+          <h1 className="truncate text-heading-md font-semibold tracking-tight md:text-heading-lg">
+            {title}
+          </h1>
+        </div>
+      }
+      subtitle={
+        auth ? `${auth.owner}/${auth.repo}` : "Browse and edit repository files"
+      }
       backHref={null}
       actions={actions}
       width="full"
@@ -1335,11 +1406,11 @@ export function FilesPage({
         {panelState !== "hidden" && (
           <div
             className={cn(
-              "h-full border-r border-white/10 shrink-0",
-              panelState === "split" ? "w-72" : "w-full",
+              "h-full shrink-0 border-r border-border bg-card/30",
+              panelState === "split" ? "w-80 xl:w-[22rem]" : "w-full",
             )}
           >
-            {panelState === "split" && (
+            {panelState === "split" ? (
               <FileTree
                 onFileSelect={(path) =>
                   openRepoPath(path, { typeHint: "file" })
@@ -1370,19 +1441,20 @@ export function FilesPage({
                 pinnedEntries={pinnedEntries}
                 protectedPaths={protectedPaths}
                 entryFilter={entryFilter}
+                variant="focused"
               />
-            )}
+            ) : null}
           </div>
         )}
 
         {/* Right panel - content */}
-        <div className="flex-1 min-w-0 h-full flex flex-col">
+        <div className="flex h-full min-w-0 flex-1 flex-col bg-background">
           {/* Breadcrumb */}
-          {(breadcrumbs.length > 0 || panelState === "hidden") && (
-            <div className="flex items-center gap-1 px-4 py-2 border-b border-white/5 text-base shrink-0">
+          {shouldShowWorkspaceLocation(selectedPathType, viewMode) ? (
+            <div className="flex min-h-14 shrink-0 items-center gap-1 border-b border-border px-5">
               {panelState === "hidden" && (
                 <button
-                  className="mr-2 rounded p-1 text-white/50 hover:bg-white/10 hover:text-white/80"
+                  className="mr-2 rounded-lg p-2 text-muted-foreground hover:bg-muted hover:text-foreground"
                   onClick={() => setPanelState("split")}
                   title="Show file panel"
                   aria-label="Show file panel"
@@ -1390,27 +1462,23 @@ export function FilesPage({
                   <PanelLeft className="w-4 h-4" />
                 </button>
               )}
-              {breadcrumbs.length > 0 && (
-                <button
-                  className="text-white/50 hover:text-white/80"
-                  onClick={() => {
-                    void openRepoPath("");
-                  }}
-                  title="Open files root"
-                  aria-label="Open files root"
-                >
-                  <FolderOpen className="w-4 h-4" />
-                </button>
-              )}
+              <button
+                className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                onClick={() => void openRepoPath("")}
+                title="Open workspace root"
+              >
+                <FolderOpen className="h-4 w-4 text-primary" />
+                {workspaceRoot || "Repository"}
+              </button>
               {breadcrumbs.map((crumb, i) => (
                 <div key={crumb.path} className="flex items-center gap-1">
-                  <ChevronRight className="w-3 h-3 text-white/30" />
+                  <ChevronRight className="h-3 w-3 text-muted-foreground" />
                   <button
                     className={cn(
-                      "text-sm hover:text-white/80 truncate max-w-[160px]",
+                      "max-w-[160px] truncate text-sm hover:text-foreground",
                       i === breadcrumbs.length - 1
-                        ? "text-white/90"
-                        : "text-white/50",
+                        ? "text-foreground"
+                        : "text-muted-foreground",
                     )}
                     onClick={() => void openRepoPath(crumb.path)}
                   >
@@ -1418,8 +1486,15 @@ export function FilesPage({
                   </button>
                 </div>
               ))}
+              <span className="ml-auto rounded-full border border-border bg-muted px-2.5 py-1 text-[0.68rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                {selectedPathType === "file"
+                  ? "File"
+                  : selectedPathType === "dir"
+                    ? "Folder"
+                    : "Workspace"}
+              </span>
             </div>
-          )}
+          ) : null}
 
           {/* Main content area */}
           <div className="flex-1 min-h-0">{renderMainContent()}</div>
@@ -1585,9 +1660,9 @@ export function FilesPage({
                 {showDeleteConfirm.pathType === "dir" ? "folder" : "file"}
               </DialogTitle>
             </DialogHeader>
-            <p className="text-sm text-white/70">
+            <p className="text-sm text-muted-foreground">
               Delete{" "}
-              <code className="text-white/90">{showDeleteConfirm.path}</code>?
+              <code className="text-foreground">{showDeleteConfirm.path}</code>?
               This cannot be undone.
             </p>
             <div className="flex justify-end gap-2 mt-4">

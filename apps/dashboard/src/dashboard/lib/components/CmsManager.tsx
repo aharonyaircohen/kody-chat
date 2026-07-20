@@ -106,6 +106,7 @@ import {
   CONTENT_ENTRIES_PATH,
   CONTENT_SETTINGS_PATH,
   cmsCollectionPath,
+  cmsCreatePath,
   cmsDocumentEditPath,
   cmsDocumentPath,
 } from "./cms/paths";
@@ -557,6 +558,12 @@ function CmsListPage({
     [cmsConfigured, cmsQuery.data?.collections],
   );
   const cmsLoaded = cmsQuery.data !== undefined;
+  const actorRole =
+    cmsQuery.data?.configured === true
+      ? (cmsQuery.data.actorRole ?? "viewer")
+      : "viewer";
+  const cmsPermissions =
+    cmsQuery.data?.configured === true ? cmsQuery.data.permissions : undefined;
   const adapters =
     adaptersQuery.data && adaptersQuery.data.length > 0
       ? adaptersQuery.data
@@ -821,6 +828,17 @@ function CmsListPage({
                 );
               }}
               adapterLabel={selectedCollectionAdapterLabel}
+              actorRole={actorRole}
+              permissions={cmsPermissions}
+              onCreateDocument={() => {
+                if (!selectedCollection) return;
+                router.push(
+                  withSearchString(
+                    cmsCreatePath(selectedCollection.name),
+                    serializeCurrentListState(),
+                  ),
+                );
+              }}
               onOpenConfig={() => router.push(CONTENT_SETTINGS_PATH)}
               onPageChange={setOffset}
               onPageSizeChange={(nextPageSize) => {
@@ -2509,6 +2527,9 @@ function CollectionWorkspace({
   onSortChange,
   onOpenDocument,
   adapterLabel,
+  actorRole,
+  permissions,
+  onCreateDocument,
   onOpenConfig,
   onPageChange,
   onPageSizeChange,
@@ -2527,6 +2548,9 @@ function CollectionWorkspace({
   onSortChange: (next: CmsSortEntry[]) => void;
   onOpenDocument: (id: string) => void;
   adapterLabel: string;
+  actorRole: CmsRole;
+  permissions?: CmsPermissionsConfig;
+  onCreateDocument: () => void;
   onOpenConfig: () => void;
   onPageChange: (offset: number) => void;
   onPageSizeChange: (pageSize: number) => void;
@@ -2573,6 +2597,12 @@ function CollectionWorkspace({
               >
                 <X className="mr-2 h-4 w-4" />
                 Clear
+              </Button>
+            ) : null}
+            {canWriteOperation(collection, "create", actorRole, permissions) ? (
+              <Button type="button" size="sm" onClick={onCreateDocument}>
+                <Plus className="mr-2 h-4 w-4" />
+                New {collection.label}
               </Button>
             ) : null}
           </div>

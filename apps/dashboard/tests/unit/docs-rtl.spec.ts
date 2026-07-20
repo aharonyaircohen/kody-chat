@@ -17,7 +17,7 @@ describe("docs RTL rendering", () => {
     expect(FILE_EDITOR_SOURCE).toContain("{...autoDirProps}");
     expect(FILE_EDITOR_SOURCE).toContain("text-start");
     expect(FILE_EDITOR_SOURCE).toContain("rtlAwareMarkdownClassName");
-    expect(FILE_EDITOR_SOURCE).toContain("md:prose-base break-words");
+    expect(FILE_EDITOR_SOURCE).toContain("break-words text-start md:prose-lg");
   });
 
   it("keeps standalone markdown docs RTL-aware too", () => {

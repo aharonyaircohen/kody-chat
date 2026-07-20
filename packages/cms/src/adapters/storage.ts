@@ -63,7 +63,13 @@ export function createStorageCmsAdapter({
 
     async create(context, data) {
       const collection = context.collection;
-      const id = getDocumentId(collection, data);
+      const idField = getCollectionIdField(collection);
+      const providedId = data[idField] ?? data.id;
+      const id =
+        providedId == null || String(providedId).trim() === ""
+          ? crypto.randomUUID()
+          : String(providedId);
+      const doc = { ...data, [idField]: id };
       const transport = getTransport(context);
       const existing = await readDoc(transport, collection, id).catch((error) => {
         if (isMissing(error)) return null;
@@ -72,7 +78,7 @@ export function createStorageCmsAdapter({
       if (existing) {
         throw new CmsConfigError([`${collection.name}/${id} already exists`]);
       }
-      await transport.writeFile(docPath(collection, id), formatDocument(data), {
+      await transport.writeFile(docPath(collection, id), formatDocument(doc), {
         message: `cms: create ${collection.name}/${id}`,
       });
       return readDoc(transport, collection, id);
@@ -234,18 +240,6 @@ function compare(left: unknown, right: unknown): number {
     return left - right;
   }
   return String(left ?? "").localeCompare(String(right ?? ""));
-}
-
-function getDocumentId(
-  collection: CmsCollectionConfig,
-  data: CmsDocument,
-): string {
-  const idField = getCollectionIdField(collection);
-  const id = data[idField] ?? data.id;
-  if (id == null || String(id).trim() === "") {
-    throw new CmsConfigError([`${collection.name} create requires an id`]);
-  }
-  return String(id);
 }
 
 function docPath(collection: CmsCollectionConfig, id: string): string {

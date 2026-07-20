@@ -164,6 +164,7 @@ import {
 } from "@dashboard/lib/agent-chat-identity";
 import {
   buildAgentHandoffPrompt,
+  buildPreviousAgentContextPrompt,
   resolveAgentHandoffForPrompt,
 } from "../../../../../src/dashboard/lib/chat/core/agent-handoff";
 import type { AgentHandoff } from "../../../../../src/dashboard/lib/chat-types";
@@ -642,6 +643,8 @@ async function handleKodyDirectPost(
     agentSlug?: string;
     /** Latest persisted agent switch for this conversation. */
     agentHandoff?: AgentHandoff;
+    /** Prior agent epoch, relabeled as background rather than assistant history. */
+    agentHandoffContext?: string;
     /**
      * Voice modality. When true the server appends `VOICE_OVERLAY_PROMPT`
      * to the resolved agent's base prompt (no markdown, short sentences,
@@ -679,6 +682,15 @@ async function handleKodyDirectPost(
   ) {
     return NextResponse.json(
       { error: "conversationSummary too large" },
+      { status: 400 },
+    );
+  }
+  if (
+    typeof body.agentHandoffContext === "string" &&
+    body.agentHandoffContext.length > 8_000
+  ) {
+    return NextResponse.json(
+      { error: "agentHandoffContext too large" },
       { status: 400 },
     );
   }
@@ -1497,7 +1509,16 @@ async function handleKodyDirectPost(
       : { slug: "kody", title: "Kody" },
   );
   const promptWithAgentHandoff = verifiedAgentHandoff
-    ? `${promptWithSpeakerOverride}\n\n${buildAgentHandoffPrompt(verifiedAgentHandoff)}`
+    ? [
+        promptWithSpeakerOverride,
+        buildAgentHandoffPrompt(verifiedAgentHandoff),
+        typeof body.agentHandoffContext === "string" &&
+        body.agentHandoffContext.trim()
+          ? buildPreviousAgentContextPrompt(body.agentHandoffContext.trim())
+          : null,
+      ]
+        .filter((section): section is string => Boolean(section))
+        .join("\n\n")
     : promptWithSpeakerOverride;
 
   // Voice modality is layered onto the FULLY-ASSEMBLED prompt, appended

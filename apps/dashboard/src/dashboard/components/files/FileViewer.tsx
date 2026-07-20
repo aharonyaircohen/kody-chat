@@ -2,29 +2,42 @@
  * @fileType component
  * @domain files
  * @pattern file-viewer
- * @ai-summary Read-only Monaco Editor viewer for the /files page.
- *   Displays file content with syntax highlighting, line numbers, and
- *   a metadata bar showing path, size, and last commit info.
+ * @ai-summary Polished read-only file workspace with Markdown preview,
+ *   source view, metadata, copy, and history actions.
  */
 "use client";
 
 import React, { useState, useCallback, useEffect } from "react";
 import dynamic from "next/dynamic";
 import type { EditorProps } from "@monaco-editor/react";
-import { Copy, Loader2, FileQuestion } from "lucide-react";
+import {
+  Code2,
+  Copy,
+  Eye,
+  FileQuestion,
+  FileText,
+  History,
+  Loader2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@dashboard/lib/utils";
 import { monacoLanguage } from "@dashboard/lib/repo-files-lang";
 import { readFile } from "@dashboard/lib/repo-files";
 import type { Octokit } from "@octokit/rest";
+import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
+import {
+  autoDirProps,
+  rtlAwareMarkdownClassName,
+} from "@dashboard/lib/text-direction";
+import { useTheme } from "@dashboard/providers/Theme";
 
 const MonacoEditor = dynamic(
   () => import("@monaco-editor/react").then((mod) => mod.Editor),
   {
     ssr: false,
     loading: () => (
-      <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-6 h-6 animate-spin text-white/40" />
+      <div className="flex h-full items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     ),
   },
@@ -55,11 +68,12 @@ export function FileViewer({
   repo,
   onViewDiff,
 }: FileViewerProps) {
+  const { theme } = useTheme();
   const [content, setContent] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSource, setShowSource] = useState(false);
 
-  // Load file content
   const loadContent = useCallback(async () => {
     if (!octokit || !path) return;
     setLoading(true);
@@ -78,94 +92,139 @@ export function FileViewer({
     }
   }, [octokit, owner, repo, path]);
 
-  // Load on mount or path change
   useEffect(() => {
-    loadContent();
+    void loadContent();
   }, [loadContent]);
 
   const handleCopy = () => {
-    if (content) {
-      navigator.clipboard.writeText(content).then(() => {
-        toast.success("Copied to clipboard");
-      });
-    }
+    if (!content) return;
+    void navigator.clipboard.writeText(content).then(() => {
+      toast.success("Copied to clipboard");
+    });
   };
 
   const fileName = path.split("/").pop() ?? path;
-  const lang = monacoLanguage(path);
+  const parentPath = path.includes("/")
+    ? path.slice(0, path.lastIndexOf("/"))
+    : "Repository root";
+  const isMarkdown = path.endsWith(".md") || path.endsWith(".mdx");
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Metadata bar */}
-      <div className="flex items-center gap-4 px-4 py-2 border-b border-white/10 shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-base font-medium truncate">{fileName}</span>
-          <span className="text-sm text-white/40 truncate">{path}</span>
+    <div className="flex h-full flex-col bg-background text-foreground">
+      <div className="flex min-h-[4.75rem] shrink-0 items-center gap-5 border-b border-border px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-primary/15 bg-primary/10">
+            <FileText className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <h2 className="truncate text-lg font-semibold tracking-tight">
+              {fileName}
+            </h2>
+            <p className="truncate text-xs text-muted-foreground">
+              {parentPath}
+            </p>
+          </div>
         </div>
 
-        <div className="ml-auto flex items-center gap-3 text-sm text-white/40 shrink-0">
-          {sha && <span className="font-mono">{sha.slice(0, 7)}</span>}
-          <span className="flex items-center gap-1">
-            <FileQuestion className="w-3 h-3" />
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {isMarkdown ? (
+            <div className="mr-2 flex items-center rounded-xl border border-border bg-muted/40 p-1">
+              <button
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs",
+                  !showSource
+                    ? "bg-background text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+                onClick={() => setShowSource(false)}
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Preview
+              </button>
+              <button
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs",
+                  showSource
+                    ? "bg-background text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+                onClick={() => setShowSource(true)}
+              >
+                <Code2 className="h-3.5 w-3.5" />
+                Source
+              </button>
+            </div>
+          ) : null}
+          <button
+            onClick={handleCopy}
+            className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+            title="Copy file content"
+          >
+            <Copy className="h-4 w-4" />
+            Copy
+          </button>
+          {onViewDiff ? (
+            <button
+              onClick={onViewDiff}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <History className="h-4 w-4" />
+              History
+            </button>
+          ) : null}
+          <span className="ml-1 text-xs text-muted-foreground">
             {formatBytes(content?.length ?? 0)}
+            {sha ? ` · ${sha.slice(0, 7)}` : ""}
           </span>
         </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 px-4 py-1.5 border-b border-white/5 shrink-0">
-        <button
-          onClick={handleCopy}
-          className={cn(
-            "flex items-center gap-1.5 text-sm px-2 py-1 rounded",
-            "text-white/60 hover:text-white/90 hover:bg-white/10",
-          )}
-          title="Copy file content"
-        >
-          <Copy className="w-3.5 h-3.5" />
-          Copy
-        </button>
-
-        {onViewDiff && (
-          <button
-            onClick={onViewDiff}
-            className={cn(
-              "flex items-center gap-1.5 text-sm px-2 py-1 rounded",
-              "text-white/60 hover:text-white/90 hover:bg-white/10",
-            )}
-          >
-            History / Diff
-          </button>
-        )}
-      </div>
-
-      {/* Editor */}
-      <div className="flex-1 min-h-0">
+      <div className="min-h-0 flex-1 bg-muted/20 p-3">
         {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <Loader2 className="w-6 h-6 animate-spin text-white/40" />
+          <div className="flex h-full items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center h-full text-white/40">
-            <FileQuestion className="w-8 h-8 mb-2" />
+          <div className="flex h-full flex-col items-center justify-center text-muted-foreground">
+            <FileQuestion className="mb-2 h-8 w-8" />
             <span>{error}</span>
           </div>
+        ) : content && isMarkdown && !showSource ? (
+          <div className="h-full overflow-y-auto rounded-xl border border-border bg-card">
+            <div className="mx-auto max-w-4xl px-10 py-12 lg:px-16">
+              <MarkdownPreview
+                {...autoDirProps}
+                content={content}
+                className={cn(
+                  "break-words text-start md:prose-lg",
+                  rtlAwareMarkdownClassName,
+                )}
+              />
+            </div>
+          </div>
         ) : content ? (
-          <MonacoEditor
-            height="100%"
-            language={lang}
-            value={content}
-            theme="vs-dark"
-            options={{
-              readOnly: true,
-              minimap: { enabled: true },
-              lineNumbers: "on",
-              scrollBeyondLastLine: false,
-              fontSize: 13,
-              wordWrap: "on",
-              automaticLayout: true,
-            }}
-          />
+          <div className="h-full overflow-hidden rounded-xl border border-border bg-card">
+            <MonacoEditor
+              height="100%"
+              language={monacoLanguage(path)}
+              value={content}
+              theme={theme === "light" ? "light" : "vs-dark"}
+              options={{
+                readOnly: true,
+                minimap: { enabled: false },
+                lineNumbers: "on",
+                scrollBeyondLastLine: false,
+                fontSize: 15,
+                lineHeight: 24,
+                padding: { top: 24, bottom: 24 },
+                renderLineHighlight: "none",
+                overviewRulerBorder: false,
+                hideCursorInOverviewRuler: true,
+                wordWrap: "on",
+                automaticLayout: true,
+              }}
+            />
+          </div>
         ) : null}
       </div>
     </div>

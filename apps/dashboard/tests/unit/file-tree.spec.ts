@@ -19,6 +19,7 @@ import {
   ancestorPaths,
   applyTreeOverlay,
   buildTree,
+  fileTreeHeaderLabel,
   pathAndAncestorPaths,
 } from "@dashboard/components/files/FileTree";
 import type { FileEntry } from "@dashboard/lib/repo-files";
@@ -187,6 +188,12 @@ describe("applyTreeOverlay", () => {
 });
 
 describe("path helpers", () => {
+  it("uses a clear navigation label for repository and scoped trees", () => {
+    expect(fileTreeHeaderLabel("")).toBe("Repository");
+    expect(fileTreeHeaderLabel("docs")).toBe("Documents");
+    expect(fileTreeHeaderLabel("src/components")).toBe("components");
+  });
+
   it("returns only parent folders for a file path", () => {
     expect(ancestorPaths("src/components/Button.tsx")).toEqual([
       "src",

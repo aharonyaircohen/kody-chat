@@ -615,6 +615,7 @@ export function useChatSessions(
               ? {
                   ...item,
                   agencyAgent: agent,
+                  contextCheckpoint: undefined,
                   ...(handoff
                     ? {
                         agentHandoffs: [...(item.agentHandoffs ?? []), handoff],

@@ -252,10 +252,14 @@ test.describe("Chat picker backend boundary", () => {
       switchedAt: expect.any(String),
     });
     expect(requestBodies[1]?.messages).toEqual([
-      expect.objectContaining({ role: "user", content: "Who are you?" }),
-      expect.objectContaining({ role: "assistant", content: "Agent reply" }),
       expect.objectContaining({ role: "user", content: "Who are you now?" }),
     ]);
+    expect(requestBodies[1]?.agentHandoffContext).toContain(
+      "User: Who are you?",
+    );
+    expect(requestBodies[1]?.agentHandoffContext).toContain(
+      "Previous agent: Agent reply",
+    );
 
     await expect
       .poll(() =>

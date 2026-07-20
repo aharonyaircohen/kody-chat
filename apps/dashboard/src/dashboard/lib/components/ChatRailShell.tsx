@@ -36,7 +36,7 @@ import { KodyChat } from "@kody-ade/kody-chat/components/KodyChat";
 import { AppHeader } from "./AppHeader";
 import { ChatShell } from "@kody-ade/kody-chat/components/ChatShell";
 import { SidebarNotifications } from "./SidebarChrome";
-import { SIDEBAR_NAV_SECTIONS } from "./settings-nav";
+import { useSidebarNavSections } from "./use-sidebar-nav-sections";
 import { RepoManager } from "./RepoManager";
 import { CommandPalette } from "./CommandPalette";
 import { SettingsDrawerProvider } from "./SettingsDrawer";
@@ -340,6 +340,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
   const publicRoute = isPublicRoute(pathname);
   const { auth, loading } = useAuth();
   const { githubUser } = useGitHubIdentity();
+  const navSections = useSidebarNavSections();
   const [scope, setScope] = useState<ChatContext | null>(null);
   // Mobile "chat open" — persisted per-device (same as the desktop expand
   // state) so opening chat survives a reload / navigation, not just the
@@ -631,7 +632,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
               Preview included), so the old Vibe/Engineer toggle is gone. */}
           <ChatShell
             title="Kody"
-            sections={SIDEBAR_NAV_SECTIONS}
+            sections={navSections}
             sidebarBrandExtra={<SidebarNotifications />}
             chat={chatPane}
             onReportIssue={openIssueReport}

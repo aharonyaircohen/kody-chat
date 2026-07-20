@@ -11,7 +11,7 @@
 import React, { useState, useCallback, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import type { EditorProps } from "@monaco-editor/react";
-import { Save, X, Loader2, Eye, Edit3, Columns } from "lucide-react";
+import { Save, X, Loader2, Eye, Edit3, Columns, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@dashboard/lib/utils";
 import { monacoLanguage } from "@dashboard/lib/repo-files-lang";
@@ -23,6 +23,7 @@ import {
   rtlAwareMarkdownClassName,
 } from "@dashboard/lib/text-direction";
 import { CommitMessageDialog } from "./CommitMessageDialog";
+import { useTheme } from "@dashboard/providers/Theme";
 
 const MonacoEditor = dynamic(
   () => import("@monaco-editor/react").then((mod) => mod.Editor),
@@ -30,7 +31,7 @@ const MonacoEditor = dynamic(
     ssr: false,
     loading: () => (
       <div className="flex items-center justify-center h-full">
-        <Loader2 className="w-6 h-6 animate-spin text-white/40" />
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     ),
   },
@@ -59,6 +60,7 @@ export function FileEditor({
   onSaved,
   defaultMarkdownViewMode = "edit",
 }: FileEditorProps) {
+  const { theme } = useTheme();
   const [originalContent, setOriginalContent] = useState<string>("");
   const [content, setContent] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -157,59 +159,75 @@ export function FileEditor({
   }, [isDirty, originalContent, onCancel]);
 
   const fileName = path.split("/").pop() ?? path;
+  const parentPath = path.includes("/")
+    ? path.slice(0, path.lastIndexOf("/"))
+    : "Repository root";
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Metadata bar */}
-      <div className="flex items-center gap-4 px-4 py-3 border-b border-white/10 shrink-0">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-base font-medium truncate">{fileName}</span>
-          <span className="text-sm text-white/40 truncate">{path}</span>
-          {isDirty && (
-            <span className="text-sm px-2 py-1 rounded bg-amber-500/20 text-amber-400">
-              Unsaved
-            </span>
-          )}
+    <div className="flex h-full flex-col bg-background text-foreground">
+      <div className="flex min-h-[4.75rem] shrink-0 items-center gap-5 border-b border-border px-6">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-primary/15 bg-primary/10">
+            <FileText className="h-5 w-5 text-primary" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <h2 className="truncate text-lg font-semibold tracking-tight">
+                {fileName}
+              </h2>
+              {isDirty && (
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[0.68rem] font-medium uppercase tracking-wider text-primary">
+                  Unsaved
+                </span>
+              )}
+            </div>
+            <p className="truncate text-xs text-muted-foreground">
+              {parentPath}
+            </p>
+          </div>
         </div>
 
-        <div className="ml-auto flex items-center gap-2 shrink-0">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           {isMarkdown && (
-            <div className="flex items-center gap-1 mr-2 border border-white/10 rounded">
+            <div className="mr-2 flex items-center rounded-xl border border-border bg-muted/40 p-1">
               <button
                 className={cn(
-                  "p-2 rounded-l text-body-xs",
+                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs",
                   viewMode === "edit"
-                    ? "bg-white/10 text-white"
-                    : "text-white/50 hover:text-white/70",
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
                 onClick={() => setViewMode("edit")}
                 title="Edit mode"
               >
-                <Edit3 className="w-4 h-4" />
+                <Edit3 className="h-3.5 w-3.5" />
+                Edit
               </button>
               <button
                 className={cn(
-                  "p-2 text-body-xs",
+                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs",
                   viewMode === "preview"
-                    ? "bg-white/10 text-white"
-                    : "text-white/50 hover:text-white/70",
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
                 onClick={() => setViewMode("preview")}
                 title="Preview mode"
               >
-                <Eye className="w-4 h-4" />
+                <Eye className="h-3.5 w-3.5" />
+                Preview
               </button>
               <button
                 className={cn(
-                  "p-2 rounded-r text-body-xs",
+                  "flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs",
                   viewMode === "split"
-                    ? "bg-white/10 text-white"
-                    : "text-white/50 hover:text-white/70",
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
                 onClick={() => setViewMode("split")}
                 title="Split mode"
               >
-                <Columns className="w-4 h-4" />
+                <Columns className="h-3.5 w-3.5" />
+                Split
               </button>
             </div>
           )}
@@ -217,21 +235,21 @@ export function FileEditor({
           <button
             onClick={handleCancel}
             className={cn(
-              "flex items-center gap-1.5 text-sm px-3 py-2 rounded",
-              "text-white/60 hover:text-white/90 hover:bg-white/10",
+              "flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm",
+              "text-muted-foreground hover:bg-muted hover:text-foreground",
             )}
           >
-            <X className="w-4 h-4" />
-            Cancel
+            <X className="h-4 w-4" />
+            Close
           </button>
 
           <button
             onClick={() => setShowCommitDialog(true)}
             disabled={!isDirty || saving}
             className={cn(
-              "flex items-center gap-1.5 text-sm px-3 py-2 rounded",
-              "bg-emerald-600/80 hover:bg-emerald-600 text-white",
-              (!isDirty || saving) && "opacity-50 cursor-not-allowed",
+              "flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90",
+              (!isDirty || saving) &&
+                "cursor-not-allowed bg-muted text-muted-foreground hover:bg-muted",
             )}
           >
             {saving ? (
@@ -244,33 +262,40 @@ export function FileEditor({
         </div>
       </div>
 
-      {/* Editor / Preview area */}
-      <div className="flex-1 min-h-0 flex">
+      <div className="flex min-h-0 flex-1 bg-muted/20 p-3">
         {loading ? (
           <div className="flex items-center justify-center w-full">
-            <Loader2 className="w-6 h-6 animate-spin text-white/40" />
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
         ) : error ? (
-          <div className="flex flex-col items-center justify-center w-full text-white/40">
+          <div className="flex w-full flex-col items-center justify-center text-muted-foreground">
             <span>{error}</span>
           </div>
         ) : viewMode === "edit" || viewMode === "split" ? (
           <div
-            className={cn("flex-1 min-h-0", viewMode === "split" && "w-1/2")}
+            className={cn(
+              "min-h-0 flex-1 overflow-hidden rounded-xl border border-border bg-card shadow-sm",
+              viewMode === "split" && "w-1/2 rounded-r-none",
+            )}
           >
             <MonacoEditor
               height="100%"
               language={monacoLanguage(path)}
               value={content}
-              theme="vs-dark"
+              theme={theme === "light" ? "light" : "vs-dark"}
               onChange={handleEditorChange}
               onMount={handleEditorMount}
               options={{
                 readOnly: false,
-                minimap: { enabled: true },
+                minimap: { enabled: false },
                 lineNumbers: "on",
                 scrollBeyondLastLine: false,
                 fontSize: 15,
+                lineHeight: 24,
+                padding: { top: 24, bottom: 24 },
+                renderLineHighlight: "none",
+                overviewRulerBorder: false,
+                hideCursorInOverviewRuler: true,
                 wordWrap: "on",
                 automaticLayout: true,
               }}
@@ -279,35 +304,38 @@ export function FileEditor({
         ) : null}
 
         {viewMode === "preview" && (
-          <div className="flex-1 min-h-0 overflow-y-auto p-4">
-            <MarkdownPreview
-              {...autoDirProps}
-              content={content}
-              className={cn(
-                "md:prose-base break-words text-start",
-                rtlAwareMarkdownClassName,
-              )}
-            />
+          <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-border bg-card">
+            <div className="mx-auto max-w-4xl px-10 py-12 lg:px-16">
+              <MarkdownPreview
+                {...autoDirProps}
+                content={content}
+                className={cn(
+                  "break-words text-start md:prose-lg",
+                  rtlAwareMarkdownClassName,
+                )}
+              />
+            </div>
           </div>
         )}
 
-        {viewMode === "split" && <div className="w-px bg-white/10" />}
+        {viewMode === "split" && <div className="w-2" />}
 
         {viewMode === "split" && (
-          <div className="w-1/2 min-h-0 overflow-y-auto p-4">
-            <MarkdownPreview
-              {...autoDirProps}
-              content={content}
-              className={cn(
-                "md:prose-base break-words text-start",
-                rtlAwareMarkdownClassName,
-              )}
-            />
+          <div className="min-h-0 w-1/2 overflow-y-auto rounded-r-xl border border-border bg-card">
+            <div className="mx-auto max-w-3xl px-8 py-10">
+              <MarkdownPreview
+                {...autoDirProps}
+                content={content}
+                className={cn(
+                  "break-words text-start md:prose-base",
+                  rtlAwareMarkdownClassName,
+                )}
+              />
+            </div>
           </div>
         )}
       </div>
 
-      {/* Commit dialog */}
       {showCommitDialog && (
         <CommitMessageDialog
           onConfirm={handleSave}

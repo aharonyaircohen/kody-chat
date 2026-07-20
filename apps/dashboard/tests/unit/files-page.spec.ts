@@ -13,6 +13,7 @@ import {
   normalizeRepoPath,
   parentRepoPath,
   replacePathPrefix,
+  shouldShowWorkspaceLocation,
 } from "@dashboard/components/files/FilesPage";
 
 describe("buildBreadcrumbs", () => {
@@ -106,6 +107,22 @@ describe("currentFolderPath", () => {
 
   it("uses root when nothing is selected", () => {
     expect(currentFolderPath(null, null)).toBe("");
+  });
+});
+
+describe("shouldShowWorkspaceLocation", () => {
+  it("keeps folder context visible", () => {
+    expect(shouldShowWorkspaceLocation("dir", "viewer")).toBe(true);
+  });
+
+  it("lets the document own the header while viewing or editing a file", () => {
+    expect(shouldShowWorkspaceLocation("file", "viewer")).toBe(false);
+    expect(shouldShowWorkspaceLocation("file", "editor")).toBe(false);
+  });
+
+  it("keeps navigation available for search and upload modes", () => {
+    expect(shouldShowWorkspaceLocation("file", "search")).toBe(true);
+    expect(shouldShowWorkspaceLocation("file", "upload")).toBe(true);
   });
 });
 
