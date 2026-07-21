@@ -33,6 +33,9 @@ import {
   type StoredGuidedFlowDefinition,
 } from "@kody-ade/kody-chat/guided-flows/stored";
 import { resolveDashboardNavigationTarget } from "@dashboard/lib/dashboard-navigation";
+import { getBuiltinViewRendererDefinition } from "@dashboard/lib/view-renderers/builtin";
+import { readViewRendererDefinitionFile } from "@dashboard/lib/view-renderers/renderers";
+import type { ViewRendererDefinition } from "@dashboard/lib/view-renderers/definition";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -226,6 +229,31 @@ function latestStoredDefinition(
   );
 }
 
+/**
+ * Custom (non-builtin) renderers referenced by a definition's steps, loaded
+ * from the tenant's view-renderer store so flows can display them.
+ */
+async function customRenderersFor(
+  owner: string,
+  repo: string,
+  definitions: readonly GuidedFlowDefinition[],
+): Promise<Record<string, ViewRendererDefinition>> {
+  const slugs = [
+    ...new Set(
+      definitions
+        .flatMap((definition) => definition.steps)
+        .map((step) => step.rendererSlug)
+        .filter((slug) => !getBuiltinViewRendererDefinition(slug)),
+    ),
+  ];
+  const out: Record<string, ViewRendererDefinition> = {};
+  for (const slug of slugs) {
+    const file = await readViewRendererDefinitionFile({ owner, repo, slug });
+    if (file) out[slug] = file.definition;
+  }
+  return out;
+}
+
 function navigationForCompletion(definition: GuidedFlowDefinition) {
   if (!definition.completionRouteId) return undefined;
   const resolved = resolveDashboardNavigationTarget({
@@ -253,6 +281,7 @@ function hasValidCompletionRoute(definition: GuidedFlowDefinition): boolean {
 function responseFor(
   definition: GuidedFlowDefinition,
   instance: GuidedFlowInstance,
+  customRenderers?: Readonly<Record<string, ViewRendererDefinition>>,
 ) {
   return {
     instance,
@@ -268,7 +297,7 @@ function responseFor(
       stepCount: definition.steps.length,
     },
     ...(instance.status === "active"
-      ? { view: buildGuidedFlowView(definition, instance) }
+      ? { view: buildGuidedFlowView(definition, instance, customRenderers) }
       : { navigation: navigationForCompletion(definition) }),
   };
 }
@@ -381,17 +410,36 @@ export async function GET(req: NextRequest) {
       if (!row)
         return json({ error: "guided_flow_not_found" }, { status: 404 });
       const definition = definitionForRow(row, customDefinitions);
-      return json({ flow: responseFor(definition, toInstance(row)) });
+      return json({
+        flow: responseFor(
+          definition,
+          toInstance(row),
+          await customRenderersFor(auth.owner, auth.repo, [definition]),
+        ),
+      });
     }
 
     const rows = (await getConvexClient().query(backendApi.guidedFlows.list, {
       tenantId: tenantIdFor(auth.owner, auth.repo),
       actorId: actor,
     })) as GuidedFlowRow[];
+    const listRenderers = await customRenderersFor(
+      auth.owner,
+      auth.repo,
+      rows.flatMap((row) => {
+        try {
+          return [definitionForRow(row, customDefinitions)];
+        } catch {
+          return [];
+        }
+      }),
+    );
     const flows = rows.flatMap((row) => {
       try {
         const definition = definitionForRow(row, customDefinitions);
-        return [responseFor(definition, toInstance(row))];
+        return [
+          responseFor(definition, toInstance(row), listRenderers),
+        ];
       } catch {
         return [];
       }
@@ -554,6 +602,7 @@ export async function POST(req: NextRequest) {
           responseFor(
             definitionForRow(existing, customDefinitions),
             toInstance(existing),
+            await customRenderersFor(auth.owner, auth.repo, [definition]),
           ),
         );
       }
@@ -577,7 +626,14 @@ export async function POST(req: NextRequest) {
         history: [...instance.history],
         updatedAt: new Date().toISOString(),
       });
-      return json(responseFor(definition, instance), { status: 201 });
+      return json(
+        responseFor(
+          definition,
+          instance,
+          await customRenderersFor(auth.owner, auth.repo, [definition]),
+        ),
+        { status: 201 },
+      );
     }
 
     const instanceRow = (await client.query(backendApi.guidedFlows.get, {
@@ -593,7 +649,13 @@ export async function POST(req: NextRequest) {
     );
     const current = toInstance(instanceRow);
     if (instanceRow.mutationId === parsed.data.mutationId) {
-      return json(responseFor(definition, current));
+      return json(
+        responseFor(
+          definition,
+          current,
+          await customRenderersFor(auth.owner, auth.repo, [definition]),
+        ),
+      );
     }
     if (current.revision !== parsed.data.expectedRevision) {
       return json({ error: "revision_conflict" }, { status: 409 });
@@ -666,7 +728,11 @@ export async function POST(req: NextRequest) {
       );
     }
     return json({
-      ...responseFor(definition, next),
+      ...responseFor(
+        definition,
+        next,
+        await customRenderersFor(auth.owner, auth.repo, [definition]),
+      ),
       ...(workflow ? { workflow } : {}),
     });
   } catch (error) {

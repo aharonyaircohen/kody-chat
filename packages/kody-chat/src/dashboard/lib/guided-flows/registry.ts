@@ -95,12 +95,17 @@ export function listGuidedFlowDefinitions(): readonly GuidedFlowDefinition[] {
 export function buildGuidedFlowView(
   definition: GuidedFlowDefinition,
   instance: GuidedFlowInstance,
+  customRenderers?: Readonly<
+    Record<string, import("@dashboard/lib/view-renderers/definition").ViewRendererDefinition>
+  >,
 ): RenderedViewDirective {
   const step: GuidedFlowStepDefinition = getGuidedFlowStep(
     definition,
     instance,
   );
-  const renderer = getBuiltinViewRendererDefinition(step.rendererSlug);
+  const renderer =
+    customRenderers?.[step.rendererSlug] ??
+    getBuiltinViewRendererDefinition(step.rendererSlug);
   if (!renderer) {
     throw new Error(`GuidedFlow renderer not found: ${step.rendererSlug}`);
   }
