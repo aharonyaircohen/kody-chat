@@ -104,6 +104,11 @@ export const TABLES: readonly TableDef[] = [
   { table: "reports", naturalKey: ["slug", "runId"], upsertIndex: "by_slug" },
   { table: "agents", naturalKey: ["slug"], upsertIndex: "by_tenant" },
   { table: "viewRenderers", naturalKey: ["slug"], upsertIndex: "by_tenant" },
+  {
+    table: "widgets",
+    naturalKey: ["slug", "version"],
+    upsertIndex: "by_widget",
+  },
   { table: "macros", naturalKey: ["macroId"], upsertIndex: "by_tenant" },
   { table: "repoDocs", naturalKey: ["kind"], upsertIndex: "by_kind" },
   {

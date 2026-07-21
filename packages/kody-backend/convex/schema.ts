@@ -60,6 +60,18 @@ export default defineSchema({
     .index("by_instance", ["tenantId", "actorId", "instanceId"])
     .index("by_actor_status", ["tenantId", "actorId", "status"]),
 
+  // Tenant widget bundles — precompiled browser components published from
+  // the tenant repo (source/review in GitHub, serving copy here). One row
+  // per published version; latest non-null wins.
+  widgets: defineTable({
+    tenantId: v.string(),
+    slug: v.string(),
+    version: v.number(),
+    bundle: v.string(),
+    commitSha: v.optional(v.string()),
+    updatedAt: v.string(),
+  }).index("by_widget", ["tenantId", "slug", "version"]),
+
   // Custom GuidedFlow definitions — one row per flow version (append-only;
   // deletes append an archived tombstone version). Replaces the former
   // userState "guided-flow-definitions" blob array.
