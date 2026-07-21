@@ -1,9 +1,20 @@
 export type ChatRole = "user" | "assistant" | "system";
 
+export interface ChatAttachment {
+  id: string;
+  name: string;
+  mediaType?: string;
+  size?: number;
+  url?: string;
+}
+
+export type ChatContext = Readonly<Record<string, unknown>>;
+
 export interface ChatMessage {
   id: string;
   role: ChatRole;
   content: string;
+  attachments?: readonly ChatAttachment[];
   status?: "streaming" | "complete" | "cancelled" | "error";
 }
 
@@ -11,6 +22,7 @@ export interface ChatTurnInput {
   conversationId: string;
   message: ChatMessage & { role: "user" };
   history: readonly ChatMessage[];
+  context?: ChatContext;
 }
 
 export type ChatEvent =
@@ -18,7 +30,8 @@ export type ChatEvent =
   | { type: "text-replace"; text: string }
   | { type: "error"; message: string }
   | { type: "navigate"; href: string }
-  | { type: "done" };
+  | { type: "done" }
+  | { type: string; [key: string]: unknown };
 
 export interface ChatTransportContext {
   signal: AbortSignal;
@@ -28,6 +41,11 @@ export interface ChatTransportContext {
 export interface ChatTransport {
   send(input: ChatTurnInput, context: ChatTransportContext): Promise<void>;
   cancel?(conversationId: string): void;
+}
+
+export interface ChatPlugin {
+  id: string;
+  onEvent?: (event: ChatEvent, context: { conversationId: string }) => void;
 }
 
 export interface KodyChatHost {
@@ -40,6 +58,12 @@ export interface KodyChatHost {
     conversationId: string,
     messages: readonly ChatMessage[],
   ) => Promise<void>;
+  getContext?: () => ChatContext | Promise<ChatContext>;
+  uploadAttachment?: (
+    file: File,
+    context: { signal: AbortSignal; conversationId: string },
+  ) => Promise<ChatAttachment>;
+  plugins?: readonly ChatPlugin[];
   navigate?: (href: string) => void;
   onError?: (error: Error) => void;
 }
@@ -53,12 +77,15 @@ export function applyChatEvent(
 
   return messages.map((message) => {
     if (message.id !== assistantMessageId) return message;
-    if (event.type === "text-delta") {
+    if (event.type === "text-delta" && typeof event.text === "string") {
       return { ...message, content: message.content + event.text };
     }
-    if (event.type === "text-replace") {
+    if (event.type === "text-replace" && typeof event.text === "string") {
       return { ...message, content: event.text };
     }
-    return { ...message, content: event.message, status: "error" };
+    if (event.type === "error" && typeof event.message === "string") {
+      return { ...message, content: event.message, status: "error" };
+    }
+    return message;
   });
 }

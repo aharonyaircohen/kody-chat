@@ -12,6 +12,7 @@ import {
 import {
   applyChatEvent,
   type ChatEvent,
+  type ChatAttachment,
   type ChatMessage,
   type KodyChatHost,
 } from "./core";
@@ -47,6 +48,8 @@ export function KodyChat({
   const [isHydrated, setIsHydrated] = useState(!host.loadConversation);
   const [draft, setDraft] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
@@ -105,6 +108,7 @@ export function KodyChat({
       id: createId(),
       role: "user",
       content: text,
+      ...(attachments.length > 0 ? { attachments } : {}),
       status: "complete",
     };
     const assistantMessage: ChatMessage = {
@@ -116,12 +120,16 @@ export function KodyChat({
     const history = [...messages];
     setMessages([...history, userMessage, assistantMessage]);
     setDraft("");
+    setAttachments([]);
     setIsSending(true);
 
     const controller = new AbortController();
     abortRef.current = controller;
     const emit = (event: ChatEvent) => {
-      if (event.type === "navigate") {
+      for (const plugin of host.plugins ?? []) {
+        plugin.onEvent?.(event, { conversationId });
+      }
+      if (event.type === "navigate" && typeof event.href === "string") {
         host.navigate?.(event.href);
         return;
       }
@@ -131,8 +139,9 @@ export function KodyChat({
     };
 
     try {
+      const context = await host.getContext?.();
       await host.transport.send(
-        { conversationId, message: userMessage, history },
+        { conversationId, message: userMessage, history, context },
         { signal: controller.signal, emit },
       );
       setMessages((current) =>
@@ -152,7 +161,27 @@ export function KodyChat({
       if (abortRef.current === controller) abortRef.current = null;
       setIsSending(false);
     }
-  }, [conversationId, draft, host, isSending, messages]);
+  }, [attachments, conversationId, draft, host, isSending, messages]);
+
+  const attach = useCallback(
+    async (file: File) => {
+      if (!host.uploadAttachment) return;
+      const controller = new AbortController();
+      setIsUploading(true);
+      try {
+        const uploaded = await host.uploadAttachment(file, {
+          signal: controller.signal,
+          conversationId,
+        });
+        setAttachments((current) => [...current, uploaded]);
+      } catch (error: unknown) {
+        host.onError?.(toError(error));
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [conversationId, host],
+  );
 
   const submit = (event: FormEvent) => {
     event.preventDefault();
@@ -192,12 +221,34 @@ export function KodyChat({
           rows={2}
           value={draft}
         />
+        {host.uploadAttachment ? (
+          <label className="kody-chat__attach">
+            <span>Attach file</span>
+            <input
+              aria-label="Attach file"
+              disabled={isSending || isUploading}
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                if (file) void attach(file);
+                event.currentTarget.value = "";
+              }}
+              type="file"
+            />
+          </label>
+        ) : null}
+        {attachments.length > 0 ? (
+          <div className="kody-chat__attachments">
+            {attachments.map((attachment) => (
+              <span key={attachment.id}>{attachment.name}</span>
+            ))}
+          </div>
+        ) : null}
         {isSending ? (
           <button onClick={cancel} type="button">
             Stop
           </button>
         ) : (
-          <button disabled={!draft.trim()} type="submit">
+          <button disabled={!draft.trim() || isUploading} type="submit">
             Send
           </button>
         )}

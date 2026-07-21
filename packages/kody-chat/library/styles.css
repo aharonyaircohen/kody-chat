@@ -7,7 +7,11 @@
   background: #fff;
   border: 1px solid #e5e5e5;
   border-radius: 0.75rem;
-  font: 400 0.95rem/1.5 system-ui, sans-serif;
+  width: 100%;
+  max-width: 100%;
+  font:
+    400 0.95rem/1.5 system-ui,
+    sans-serif;
 }
 
 .kody-chat__header {
@@ -53,6 +57,44 @@
   gap: 0.5rem;
   padding: 0.75rem;
   border-top: 1px solid #e5e5e5;
+}
+
+.kody-chat__attach {
+  align-self: end;
+  cursor: pointer;
+}
+
+.kody-chat__attach input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.kody-chat__attachments {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.kody-chat__attachments span {
+  padding: 0.25rem 0.5rem;
+  background: #f5f5f5;
+  border-radius: 999px;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 40rem) {
+  .kody-chat {
+    min-height: 100dvh;
+    border-radius: 0;
+  }
+
+  .kody-chat__message {
+    max-width: 90%;
+  }
 }
 
 .kody-chat__label {

@@ -38,4 +38,13 @@ describe("public chat event contract", () => {
       status: "error",
     });
   });
+
+  it("ignores newer transport events that this package version does not understand", () => {
+    const messages = applyChatEvent([assistantMessage], "assistant-1", {
+      type: "future-event",
+      payload: { value: true },
+    });
+
+    expect(messages).toEqual([assistantMessage]);
+  });
 });

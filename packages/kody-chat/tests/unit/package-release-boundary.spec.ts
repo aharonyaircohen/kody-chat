@@ -16,13 +16,34 @@ describe("external package boundary", () => {
       exports: Record<string, unknown>;
     };
 
-    expect(manifest.files).toEqual(["dist", "styles.css", "README.md"]);
+    expect(manifest.files).toEqual([
+      "dist",
+      "styles.css",
+      "README.md",
+      "LICENSE",
+    ]);
     expect(Object.keys(manifest.exports)).toEqual([
       ".",
       "./react",
       "./core",
       "./styles.css",
     ]);
+  });
+
+  it("declares public release metadata and React compatibility", () => {
+    const manifest = JSON.parse(readReleaseFile("package.json")) as {
+      license: string;
+      peerDependencies: Record<string, string>;
+      publishConfig: { access: string };
+    };
+
+    expect(manifest.license).toBe("MIT");
+    expect(manifest.publishConfig.access).toBe("public");
+    expect(manifest.peerDependencies).toEqual({
+      react: ">=18 <20",
+      "react-dom": ">=18 <20",
+    });
+    expect(readReleaseFile("LICENSE")).toContain("MIT License");
   });
 
   it("has no workspace or unpublished Kody runtime dependencies", () => {

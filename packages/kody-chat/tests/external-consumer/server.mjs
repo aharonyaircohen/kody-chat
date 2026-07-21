@@ -10,6 +10,12 @@ const contentTypes = {
 };
 
 createServer((request, response) => {
+  if (request.url === "/api/private") {
+    response.statusCode = 401;
+    response.setHeader("content-type", "text/plain");
+    response.end("Unauthorized server action");
+    return;
+  }
   const pathname = request.url === "/" ? "/index.html" : request.url;
   const file = join(root, pathname ?? "/index.html");
   response.setHeader(

@@ -75,6 +75,8 @@
     "build:library": "tsc -p library/tsconfig.json",
     "pack:library": "pnpm build:library && npm pack ./library",
     "test:external-package": "pnpm build:library && node scripts/verify-external-package.mjs",
+    "publish:library:next": "pnpm test:external-package && npm publish ./library --tag next --access public",
+    "publish:library:latest": "pnpm test:external-package && npm publish ./library --tag latest --access public",
     "start": "next start -p 3344",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
