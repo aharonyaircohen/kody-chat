@@ -191,6 +191,17 @@ export async function recordSessionStart(
         createdAt: meta.createdAt,
         updatedAt: meta.createdAt,
       });
+    } else {
+      // The chat UI creates the conversation before the user can select the
+      // live model. Reusing that conversation without changing its runtime
+      // makes the engine take the one-shot path and reject an empty warm-up
+      // with "nothing to reply to" instead of emitting chat.ready.
+      await client.mutation(backendApi.conversations.updateRuntime, {
+        tenantId,
+        conversationId: sessionId,
+        runtime: { kind: "live", profileId: "kody-live" },
+        updatedAt: meta.createdAt,
+      });
     }
     if (initialTurn) {
       await recordTurn(owner, repo, sessionId, initialTurn);

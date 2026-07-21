@@ -104,6 +104,25 @@ describe("writeSessionMeta convex record", () => {
     });
   });
 
+  it("promotes an existing direct conversation to the live runtime", async () => {
+    convex.query.mockResolvedValue({
+      conversation: {
+        runtime: { kind: "direct", modelId: "kody-live-fly" },
+      },
+    });
+
+    await writeSessionMeta(makeOctokit(), "acme", "widgets", "s1", META);
+
+    expect(convex.mutation).toHaveBeenCalledTimes(1);
+    const [ref, args] = convex.mutation.mock.calls[0]!;
+    expect(getFunctionName(ref)).toBe("conversations:updateRuntime");
+    expect(args).toMatchObject({
+      tenantId: "acme/widgets",
+      conversationId: "s1",
+      runtime: { kind: "live", profileId: "kody-live" },
+    });
+  });
+
   it("fails closed when Convex is down", async () => {
     convex.query.mockResolvedValue(null);
     convex.mutation.mockRejectedValue(new Error("convex down"));

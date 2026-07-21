@@ -184,6 +184,16 @@ export async function recordSessionStart(
       createdAt: meta.createdAt,
       updatedAt: meta.createdAt,
     });
+  } else {
+    // The host may create the conversation before the user selects the live
+    // model. Promote that existing direct record so the engine boots its
+    // interactive loop and emits chat.ready even before the first message.
+    await client.mutation(backendApi.conversations.updateRuntime, {
+      tenantId,
+      conversationId: sessionId,
+      runtime: { kind: "live", profileId: "kody-live" },
+      updatedAt: meta.createdAt,
+    });
   }
   if (initialTurn) await recordTurn(owner, repo, sessionId, initialTurn);
 }

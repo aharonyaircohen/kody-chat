@@ -44,6 +44,23 @@ describe("Convex-backed interactive sessions", () => {
     });
   });
 
+  it("promotes an existing direct conversation to the live runtime", async () => {
+    query.mockResolvedValue({
+      conversation: {
+        runtime: { kind: "direct", modelId: "kody-live-fly" },
+      },
+    });
+
+    await writeSessionMeta({} as never, "o", "r", "sess-1", META);
+
+    expect(mutation).toHaveBeenCalledTimes(1);
+    expect(mutation.mock.calls[0]?.[1]).toMatchObject({
+      tenantId: "o/r",
+      conversationId: "sess-1",
+      runtime: { kind: "live", profileId: "kody-live" },
+    });
+  });
+
   it("appends a turn and returns the Convex turn count", async () => {
     query
       .mockResolvedValueOnce({
