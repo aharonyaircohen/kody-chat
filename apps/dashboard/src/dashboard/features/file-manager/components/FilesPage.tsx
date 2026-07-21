@@ -17,10 +17,7 @@ import {
   type DragEvent,
   type ReactNode,
 } from "react";
-import {
-  FilesTransportProvider,
-  type FilesTransport,
-} from "../lib/transport";
+import { FilesTransportProvider, type FilesTransport } from "../lib/transport";
 import { Octokit } from "@octokit/rest";
 import { useRouter } from "next/navigation";
 import {
@@ -99,6 +96,7 @@ type PanelState = "split" | "hidden";
 interface SelectedFile {
   path: string;
   sha: string;
+  size: number;
   isBinary: boolean;
 }
 
@@ -238,6 +236,21 @@ export function FilesPage({
       .includes(normalizeRepoPath(selectedPath)),
   );
 
+  // The route can update before GitHub's directory listing reflects a new
+  // commit. Keep the file we have already opened visible in the tree so a
+  // route transition or reload cannot temporarily make it disappear.
+  const visibleTreeOverlay = useMemo<FileTreeOverlay>(() => {
+    if (!selectedFile) return treeOverlay;
+    const entry = treeEntryForPath(selectedFile.path, "file", {
+      sha: selectedFile.sha,
+      size: selectedFile.size,
+    });
+    return {
+      ...treeOverlay,
+      upserts: { ...treeOverlay.upserts, [entry.path]: entry },
+    };
+  }, [selectedFile, treeOverlay]);
+
   const currentFolder = useMemo(() => {
     const selectedFolder = currentFolderPath(selectedPath, selectedPathType);
     return selectedFolder === workspaceRoot ||
@@ -264,11 +277,8 @@ export function FilesPage({
         return;
       }
 
-      if (options.replace) {
-        router.replace(href);
-      } else {
-        router.push(href);
-      }
+      if (options.replace) router.replace(href);
+      else router.push(href);
     },
     [routeBase, router, scopedHref, workspaceRoot],
   );
@@ -316,6 +326,7 @@ export function FilesPage({
           setSelectedFile({
             path: file.path,
             sha: file.sha,
+            size: file.size,
             isBinary: file.isBinary,
           });
           setViewMode(writeable && !file.isBinary ? "editor" : "viewer");
@@ -597,7 +608,7 @@ export function FilesPage({
         setShowNewFileDialog(false);
         setNewItemPath("");
         setSelectedPath(path);
-        setSelectedFile({ path, sha, isBinary: false });
+        setSelectedFile({ path, sha, size: 0, isBinary: false });
         setViewMode(writeable ? "editor" : "viewer");
         updateFileHref(path);
         handleRefresh();
@@ -774,6 +785,7 @@ export function FilesPage({
         setSelectedFile({
           path: target,
           sha: result.fileShas[target] ?? "",
+          size: movedFile.size,
           isBinary: movedFile.isBinary,
         });
         setViewMode(writeable && !movedFile.isBinary ? "editor" : "viewer");
@@ -1211,9 +1223,7 @@ export function FilesPage({
                 {canDelete ? (
                   <DropdownMenuItem
                     className="text-red-300 focus:text-red-200"
-                    onClick={() =>
-                      handleDelete(selectedPath, selectedPathType)
-                    }
+                    onClick={() => handleDelete(selectedPath, selectedPathType)}
                   >
                     <Trash2 className="h-4 w-4" />
                     Delete
@@ -1238,312 +1248,322 @@ export function FilesPage({
 
   return (
     <FilesTransportProvider value={transport ?? null}>
-    <PageShell
-      title={title}
-      titleContent={
-        <div className="min-w-0">
-          <p className="text-[0.68rem] font-medium uppercase tracking-[0.2em] text-muted-foreground">
-            Repository workspace
-          </p>
-          <h1 className="truncate text-heading-md font-semibold tracking-tight md:text-heading-lg">
-            {title}
-          </h1>
-        </div>
-      }
-      subtitle={
-        auth ? `${auth.owner}/${auth.repo}` : "Browse and edit repository files"
-      }
-      backHref={null}
-      actions={actions}
-      width="full"
-      contentClassName="!p-0"
-    >
-      <div
-        className="relative flex h-full"
-        onDragEnter={handleDragEnter}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-      >
-        {/* Left panel - file tree */}
-        {panelState !== "hidden" ? (
-          <div className="h-full w-80 shrink-0 border-r border-border bg-card/30 xl:w-[22rem]">
-            <FileTree
-              onFileSelect={(path) => openRepoPath(path, { typeHint: "file" })}
-              onFolderSelect={(path) => openRepoPath(path, { typeHint: "dir" })}
-              selectedPath={selectedPath}
-              selectedPathType={selectedPathType}
-              octokit={octokit}
-              owner={auth?.owner ?? ""}
-              repo={auth?.repo ?? ""}
-              refreshKey={refreshKey}
-              onRefresh={handleRefresh}
-              onDelete={canDelete ? handleDelete : undefined}
-              onRename={writeable && fullFs ? handleRename : undefined}
-              onDuplicate={writeable && fullFs ? handleDuplicate : undefined}
-              onDownload={handleDownload}
-              onOpenOnGitHub={canOpenExternally ? handleOpenOnGitHub : undefined}
-              onNewFile={writeable ? handleNewFile : undefined}
-              onNewFolder={writeable && fullFs ? handleNewFolder : undefined}
-              onCopyPath={handleCopyPath}
-              onMove={writeable && fullFs ? handleMoveToFolder : undefined}
-              onCollapse={() => setPanelState("hidden")}
-              treeOverlay={treeOverlay}
-              rootPath={workspaceRoot}
-              pinnedEntries={pinnedEntries}
-              protectedPaths={protectedPaths}
-              entryFilter={entryFilter}
-              variant="focused"
-            />
+      <PageShell
+        title={title}
+        titleContent={
+          <div className="min-w-0">
+            <p className="text-[0.68rem] font-medium uppercase tracking-[0.2em] text-muted-foreground">
+              Repository workspace
+            </p>
+            <h1 className="truncate text-heading-md font-semibold tracking-tight md:text-heading-lg">
+              {title}
+            </h1>
           </div>
-        ) : null}
-
-        {/* Right panel - content */}
-        <div className="flex h-full min-w-0 flex-1 flex-col bg-background">
-          {/* Breadcrumb */}
-          {shouldShowWorkspaceLocation(selectedPathType, viewMode) ? (
-            <div className="flex min-h-14 shrink-0 items-center gap-1 border-b border-border px-5">
-              {panelState === "hidden" && !selectedFile ? (
-                <Button
-                  variant="ghost"
-                  size="clear"
-                  className="mr-2 grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
-                  onClick={() => setPanelState("split")}
-                  title="Show file panel"
-                  aria-label="Show file panel"
-                >
-                  <PanelLeft className="h-4 w-4" />
-                </Button>
-              ) : null}
-              <Button
-                variant="ghost"
-                size="clear"
-                className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
-                onClick={() => void openRepoPath("")}
-                title="Open workspace root"
-              >
-                <FolderOpen className="h-4 w-4 text-primary" />
-                {workspaceRoot || "Repository"}
-              </Button>
-              {breadcrumbs.map((crumb, i) => (
-                <div key={crumb.path} className="flex items-center gap-1">
-                  <ChevronRight className="h-3 w-3 text-muted-foreground" />
-                  <Button
-                    variant="ghost"
-                    size="clear"
-                    className={cn(
-                      "max-w-[160px] truncate text-sm font-normal hover:bg-transparent hover:text-foreground",
-                      i === breadcrumbs.length - 1
-                        ? "text-foreground"
-                        : "text-muted-foreground",
-                    )}
-                    onClick={() => void openRepoPath(crumb.path)}
-                  >
-                    {crumb.label}
-                  </Button>
-                </div>
-              ))}
-              <span className="ml-auto rounded-full border border-border bg-muted px-2.5 py-1 text-[0.68rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">
-                {selectedPathType === "file"
-                  ? "File"
-                  : selectedPathType === "dir"
-                    ? "Folder"
-                    : "Workspace"}
-              </span>
+        }
+        subtitle={
+          auth
+            ? `${auth.owner}/${auth.repo}`
+            : "Browse and edit repository files"
+        }
+        backHref={null}
+        actions={actions}
+        width="full"
+        contentClassName="!p-0"
+      >
+        <div
+          className="relative flex h-full"
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {/* Left panel - file tree */}
+          {panelState !== "hidden" ? (
+            <div className="h-full w-80 shrink-0 border-r border-border bg-card/30 xl:w-[22rem]">
+              <FileTree
+                onFileSelect={(path) =>
+                  openRepoPath(path, { typeHint: "file" })
+                }
+                onFolderSelect={(path) =>
+                  openRepoPath(path, { typeHint: "dir" })
+                }
+                selectedPath={selectedPath}
+                selectedPathType={selectedPathType}
+                octokit={octokit}
+                owner={auth?.owner ?? ""}
+                repo={auth?.repo ?? ""}
+                refreshKey={refreshKey}
+                onRefresh={handleRefresh}
+                onDelete={canDelete ? handleDelete : undefined}
+                onRename={writeable && fullFs ? handleRename : undefined}
+                onDuplicate={writeable && fullFs ? handleDuplicate : undefined}
+                onDownload={handleDownload}
+                onOpenOnGitHub={
+                  canOpenExternally ? handleOpenOnGitHub : undefined
+                }
+                onNewFile={writeable ? handleNewFile : undefined}
+                onNewFolder={writeable && fullFs ? handleNewFolder : undefined}
+                onCopyPath={handleCopyPath}
+                onMove={writeable && fullFs ? handleMoveToFolder : undefined}
+                onCollapse={() => setPanelState("hidden")}
+                treeOverlay={visibleTreeOverlay}
+                rootPath={workspaceRoot}
+                pinnedEntries={pinnedEntries}
+                protectedPaths={protectedPaths}
+                entryFilter={entryFilter}
+                variant="focused"
+              />
             </div>
           ) : null}
 
-          {/* Main content area */}
-          <div className="flex-1 min-h-0">{renderMainContent()}</div>
+          {/* Right panel - content */}
+          <div className="flex h-full min-w-0 flex-1 flex-col bg-background">
+            {/* Breadcrumb */}
+            {shouldShowWorkspaceLocation(selectedPathType, viewMode) ? (
+              <div className="flex min-h-14 shrink-0 items-center gap-1 border-b border-border px-5">
+                {panelState === "hidden" && !selectedFile ? (
+                  <Button
+                    variant="ghost"
+                    size="clear"
+                    className="mr-2 grid h-8 w-8 place-items-center rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
+                    onClick={() => setPanelState("split")}
+                    title="Show file panel"
+                    aria-label="Show file panel"
+                  >
+                    <PanelLeft className="h-4 w-4" />
+                  </Button>
+                ) : null}
+                <Button
+                  variant="ghost"
+                  size="clear"
+                  className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+                  onClick={() => void openRepoPath("")}
+                  title="Open workspace root"
+                >
+                  <FolderOpen className="h-4 w-4 text-primary" />
+                  {workspaceRoot || "Repository"}
+                </Button>
+                {breadcrumbs.map((crumb, i) => (
+                  <div key={crumb.path} className="flex items-center gap-1">
+                    <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                    <Button
+                      variant="ghost"
+                      size="clear"
+                      className={cn(
+                        "max-w-[160px] truncate text-sm font-normal hover:bg-transparent hover:text-foreground",
+                        i === breadcrumbs.length - 1
+                          ? "text-foreground"
+                          : "text-muted-foreground",
+                      )}
+                      onClick={() => void openRepoPath(crumb.path)}
+                    >
+                      {crumb.label}
+                    </Button>
+                  </div>
+                ))}
+                <span className="ml-auto rounded-full border border-border bg-muted px-2.5 py-1 text-[0.68rem] font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                  {selectedPathType === "file"
+                    ? "File"
+                    : selectedPathType === "dir"
+                      ? "Folder"
+                      : "Workspace"}
+                </span>
+              </div>
+            ) : null}
+
+            {/* Main content area */}
+            <div className="flex-1 min-h-0">{renderMainContent()}</div>
+          </div>
+
+          {writeable && isDraggingFiles ? (
+            <div className="absolute inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+              <div className="rounded-lg border-2 border-dashed border-emerald-400/60 bg-emerald-500/10 px-8 py-6 text-center">
+                <Upload className="mx-auto mb-3 h-8 w-8 text-emerald-300" />
+                <p className="text-sm font-medium text-foreground">
+                  Drop files to upload
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {currentFolder ? `/${currentFolder}` : "/"}
+                </p>
+              </div>
+            </div>
+          ) : null}
         </div>
 
-        {writeable && isDraggingFiles ? (
-          <div className="absolute inset-0 z-40 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-            <div className="rounded-lg border-2 border-dashed border-emerald-400/60 bg-emerald-500/10 px-8 py-6 text-center">
-              <Upload className="mx-auto mb-3 h-8 w-8 text-emerald-300" />
-              <p className="text-sm font-medium text-foreground">
-                Drop files to upload
-              </p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {currentFolder ? `/${currentFolder}` : "/"}
-              </p>
-            </div>
-          </div>
-        ) : null}
-      </div>
+        {/* New file dialog */}
+        {showNewFileDialog && (
+          <Dialog
+            open
+            onOpenChange={(open) => !open && setShowNewFileDialog(false)}
+          >
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>New file</DialogTitle>
+              </DialogHeader>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  const input = form.elements.namedItem(
+                    "filename",
+                  ) as HTMLInputElement;
+                  if (input?.value?.trim()) {
+                    handleCreateFile(input.value.trim());
+                  }
+                }}
+                className="space-y-4"
+              >
+                <p className="text-xs text-muted-foreground">
+                  Creates in {newItemPath ? `/${newItemPath}` : "/"}.
+                </p>
+                <Input
+                  name="filename"
+                  placeholder={newFilePlaceholder}
+                  autoFocus
+                />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setShowNewFileDialog(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit">Create</Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
 
-      {/* New file dialog */}
-      {showNewFileDialog && (
-        <Dialog
-          open
-          onOpenChange={(open) => !open && setShowNewFileDialog(false)}
-        >
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>New file</DialogTitle>
-            </DialogHeader>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const form = e.currentTarget;
-                const input = form.elements.namedItem(
-                  "filename",
-                ) as HTMLInputElement;
-                if (input?.value?.trim()) {
-                  handleCreateFile(input.value.trim());
-                }
-              }}
-              className="space-y-4"
-            >
-              <p className="text-xs text-muted-foreground">
-                Creates in {newItemPath ? `/${newItemPath}` : "/"}.
+        {/* New folder dialog */}
+        {showNewFolderDialog && (
+          <Dialog
+            open
+            onOpenChange={(open) => !open && setShowNewFolderDialog(false)}
+          >
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>New folder</DialogTitle>
+              </DialogHeader>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  const input = form.elements.namedItem(
+                    "foldername",
+                  ) as HTMLInputElement;
+                  if (input?.value?.trim()) {
+                    handleCreateFolder(input.value.trim());
+                  }
+                }}
+                className="space-y-4"
+              >
+                <p className="text-xs text-muted-foreground">
+                  Creates in {newItemPath ? `/${newItemPath}` : "/"}.
+                </p>
+                <Input
+                  name="foldername"
+                  placeholder="folder-name or nested/path"
+                  autoFocus
+                />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setShowNewFolderDialog(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit">Create</Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Rename / move dialog */}
+        {pendingMove && (
+          <Dialog open onOpenChange={(open) => !open && setPendingMove(null)}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>Rename or move</DialogTitle>
+              </DialogHeader>
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void handleConfirmMove();
+                }}
+                className="space-y-4"
+              >
+                <p className="text-xs text-muted-foreground">
+                  Enter the full new repository path.
+                </p>
+                <Input
+                  value={moveTarget}
+                  onChange={(e) => setMoveTarget(e.target.value)}
+                  autoFocus
+                />
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setPendingMove(null)}
+                    disabled={busyAction !== null}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={busyAction !== null}>
+                    {busyAction ?? "Move"}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Delete confirmation dialog */}
+        {showDeleteConfirm && (
+          <Dialog
+            open
+            onOpenChange={(open) => !open && setShowDeleteConfirm(null)}
+          >
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>
+                  Delete{" "}
+                  {showDeleteConfirm.pathType === "dir" ? "folder" : "file"}
+                </DialogTitle>
+              </DialogHeader>
+              <p className="text-sm text-muted-foreground">
+                Delete{" "}
+                <code className="text-foreground">
+                  {showDeleteConfirm.path}
+                </code>
+                ? This cannot be undone.
               </p>
-              <Input
-                name="filename"
-                placeholder={newFilePlaceholder}
-                autoFocus
-              />
-              <div className="flex justify-end gap-2">
+              <div className="flex justify-end gap-2 mt-4">
                 <Button
                   type="button"
                   variant="ghost"
-                  onClick={() => setShowNewFileDialog(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit">Create</Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* New folder dialog */}
-      {showNewFolderDialog && (
-        <Dialog
-          open
-          onOpenChange={(open) => !open && setShowNewFolderDialog(false)}
-        >
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>New folder</DialogTitle>
-            </DialogHeader>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const form = e.currentTarget;
-                const input = form.elements.namedItem(
-                  "foldername",
-                ) as HTMLInputElement;
-                if (input?.value?.trim()) {
-                  handleCreateFolder(input.value.trim());
-                }
-              }}
-              className="space-y-4"
-            >
-              <p className="text-xs text-muted-foreground">
-                Creates in {newItemPath ? `/${newItemPath}` : "/"}.
-              </p>
-              <Input
-                name="foldername"
-                placeholder="folder-name or nested/path"
-                autoFocus
-              />
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setShowNewFolderDialog(false)}
-                >
-                  Cancel
-                </Button>
-                <Button type="submit">Create</Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Rename / move dialog */}
-      {pendingMove && (
-        <Dialog open onOpenChange={(open) => !open && setPendingMove(null)}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Rename or move</DialogTitle>
-            </DialogHeader>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                void handleConfirmMove();
-              }}
-              className="space-y-4"
-            >
-              <p className="text-xs text-muted-foreground">
-                Enter the full new repository path.
-              </p>
-              <Input
-                value={moveTarget}
-                onChange={(e) => setMoveTarget(e.target.value)}
-                autoFocus
-              />
-              <div className="flex justify-end gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => setPendingMove(null)}
+                  onClick={() => setShowDeleteConfirm(null)}
                   disabled={busyAction !== null}
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={busyAction !== null}>
-                  {busyAction ?? "Move"}
+                <Button
+                  type="button"
+                  variant="destructive"
+                  onClick={handleConfirmDelete}
+                  disabled={busyAction !== null}
+                >
+                  {busyAction ?? "Delete"}
                 </Button>
               </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Delete confirmation dialog */}
-      {showDeleteConfirm && (
-        <Dialog
-          open
-          onOpenChange={(open) => !open && setShowDeleteConfirm(null)}
-        >
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>
-                Delete{" "}
-                {showDeleteConfirm.pathType === "dir" ? "folder" : "file"}
-              </DialogTitle>
-            </DialogHeader>
-            <p className="text-sm text-muted-foreground">
-              Delete{" "}
-              <code className="text-foreground">{showDeleteConfirm.path}</code>?
-              This cannot be undone.
-            </p>
-            <div className="flex justify-end gap-2 mt-4">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => setShowDeleteConfirm(null)}
-                disabled={busyAction !== null}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                variant="destructive"
-                onClick={handleConfirmDelete}
-                disabled={busyAction !== null}
-              >
-                {busyAction ?? "Delete"}
-              </Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-    </PageShell>
+            </DialogContent>
+          </Dialog>
+        )}
+      </PageShell>
     </FilesTransportProvider>
   );
 }

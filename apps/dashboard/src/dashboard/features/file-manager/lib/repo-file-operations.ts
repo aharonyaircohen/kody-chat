@@ -90,6 +90,13 @@ export async function deleteRepositoryPath(
   path: string,
   pathType: RepoPathType,
 ): Promise<FileContent[]> {
+  if (pathType === "file") {
+    await commitFileChanges(octokit, owner, repo, `chore: delete ${path}`, [
+      { type: "delete", path },
+    ]);
+    return [];
+  }
+
   let files: FileContent[];
   try {
     files = await collectRepositoryFiles(octokit, owner, repo, path, pathType);

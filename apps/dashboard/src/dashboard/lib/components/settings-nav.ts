@@ -532,6 +532,14 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-amber-300 bg-amber-500/10",
       },
       {
+        href: "/file-spaces",
+        label: "File spaces",
+        icon: Layers,
+        exact: true,
+        description: "Create and manage focused repository file workspaces.",
+        tint: "text-amber-300 bg-amber-500/10",
+      },
+      {
         href: "/docs",
         label: "Docs",
         icon: FileText,
@@ -623,6 +631,7 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
     collapsible: true,
     items: [
       navItemForHref("/org"),
+      navItemForHref("/file-spaces"),
       navItemForHref("/messages"),
       navItemForHref("/reports"),
       navItemForHref("/files"),

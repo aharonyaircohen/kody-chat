@@ -88,4 +88,34 @@ describe("commitFileChanges", () => {
 
     expect(createBlob).not.toHaveBeenCalled();
   });
+
+  it("rebuilds the commit on the latest head after a non-fast-forward race", async () => {
+    const { octokit, createBlob, createTree, createCommit, updateRef } =
+      createOctokitMock();
+    const git = octokit.rest.git;
+    vi.mocked(git.getRef)
+      .mockResolvedValueOnce({
+        data: { object: { sha: "commit-base" } },
+      } as never)
+      .mockResolvedValueOnce({
+        data: { object: { sha: "commit-new-head" } },
+      } as never);
+    updateRef
+      .mockRejectedValueOnce({
+        status: 422,
+        message: "Update is not a fast forward",
+      })
+      .mockResolvedValueOnce({ data: {} });
+
+    await expect(
+      commitFileChanges(octokit, "acme", "repo", "delete folder", [
+        { type: "delete", path: "notes/archive/.gitkeep" },
+      ]),
+    ).resolves.toMatchObject({ commitSha: "commit-next" });
+
+    expect(createBlob).not.toHaveBeenCalled();
+    expect(createTree).toHaveBeenCalledTimes(2);
+    expect(createCommit).toHaveBeenCalledTimes(2);
+    expect(updateRef).toHaveBeenCalledTimes(2);
+  });
 });

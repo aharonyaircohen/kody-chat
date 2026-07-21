@@ -7,7 +7,8 @@
  */
 "use client";
 
-import { FilesPage, type FileEntry } from "@dashboard/features/file-manager";
+import type { FileEntry } from "@dashboard/features/file-manager";
+import { RepositoryFileSpace } from "@dashboard/features/file-spaces/RepositoryFileSpace";
 
 interface DocsViewProps {
   selectedPath?: string | null;
@@ -21,13 +22,6 @@ const README_ENTRY: FileEntry = {
   sha: "",
 };
 
-function isDocsEntry(entry: FileEntry): boolean {
-  return (
-    entry.type === "dir" ||
-    (entry.type === "file" && entry.path.toLowerCase().endsWith(".md"))
-  );
-}
-
 function selectedRepoPath(selectedPath: string | null | undefined): string {
   if (!selectedPath) return "";
   if (selectedPath === "README.md" || selectedPath.startsWith("docs/")) {
@@ -38,20 +32,13 @@ function selectedRepoPath(selectedPath: string | null | undefined): string {
 
 export function DocsView({ selectedPath = null }: DocsViewProps = {}) {
   return (
-    <FilesPage
+    <RepositoryFileSpace
       title="Docs"
       rootPath="docs"
       routeBase="/docs"
       initialPath={selectedRepoPath(selectedPath)}
       pinnedEntries={[README_ENTRY]}
       protectedPaths={["README.md"]}
-      entryFilter={isDocsEntry}
-      newFileExtension=".md"
-      newFilePlaceholder="Document title"
-      newFileNameOnly
-      showSearch={false}
-      showUpload={false}
-      defaultMarkdownViewMode="preview"
     />
   );
 }

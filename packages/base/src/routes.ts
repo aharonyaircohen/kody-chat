@@ -42,6 +42,7 @@ const REPO_OWNED_LEGACY_PREFIXES = [
   "/content/settings",
   "/context",
   "/docs",
+  "/file-spaces",
   "/files",
   "/fly",
   "/guided-flows",

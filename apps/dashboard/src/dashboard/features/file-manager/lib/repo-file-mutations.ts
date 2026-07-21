@@ -17,6 +17,16 @@ export interface RepositoryMutationResult {
   fileShas: Record<string, string>;
 }
 
+const MAX_COMMIT_ATTEMPTS = 3;
+
+function isNonFastForward(error: unknown): boolean {
+  const candidate = error as { status?: number; message?: string };
+  return (
+    candidate.status === 422 &&
+    /not a fast forward|non-fast-forward/i.test(candidate.message ?? "")
+  );
+}
+
 function assertUniquePaths(changes: RepositoryFileChange[]): void {
   const paths = new Set<string>();
   for (const change of changes) {
@@ -41,18 +51,6 @@ export async function commitFileChanges(
 
   const repository = await octokit.rest.repos.get({ owner, repo });
   const branch = repository.data.default_branch;
-  const currentRef = await octokit.rest.git.getRef({
-    owner,
-    repo,
-    ref: `heads/${branch}`,
-  });
-  const parentSha = currentRef.data.object.sha;
-  const parentCommit = await octokit.rest.git.getCommit({
-    owner,
-    repo,
-    commit_sha: parentSha,
-  });
-
   const fileShas: Record<string, string> = {};
   const tree = await Promise.all(
     changes.map(async (change) => {
@@ -81,29 +79,46 @@ export async function commitFileChanges(
     }),
   );
 
-  const nextTree = await octokit.rest.git.createTree({
-    owner,
-    repo,
-    base_tree: parentCommit.data.tree.sha,
-    tree,
-  });
-  const nextCommit = await octokit.rest.git.createCommit({
-    owner,
-    repo,
-    message,
-    tree: nextTree.data.sha,
-    parents: [parentSha],
-  });
-  await octokit.rest.git.updateRef({
-    owner,
-    repo,
-    ref: `heads/${branch}`,
-    sha: nextCommit.data.sha,
-    force: false,
-  });
+  for (let attempt = 1; attempt <= MAX_COMMIT_ATTEMPTS; attempt += 1) {
+    const currentRef = await octokit.rest.git.getRef({
+      owner,
+      repo,
+      ref: `heads/${branch}`,
+    });
+    const parentSha = currentRef.data.object.sha;
+    const parentCommit = await octokit.rest.git.getCommit({
+      owner,
+      repo,
+      commit_sha: parentSha,
+    });
+    const nextTree = await octokit.rest.git.createTree({
+      owner,
+      repo,
+      base_tree: parentCommit.data.tree.sha,
+      tree,
+    });
+    const nextCommit = await octokit.rest.git.createCommit({
+      owner,
+      repo,
+      message,
+      tree: nextTree.data.sha,
+      parents: [parentSha],
+    });
+    try {
+      await octokit.rest.git.updateRef({
+        owner,
+        repo,
+        ref: `heads/${branch}`,
+        sha: nextCommit.data.sha,
+        force: false,
+      });
+      return { commitSha: nextCommit.data.sha, fileShas };
+    } catch (error) {
+      if (attempt === MAX_COMMIT_ATTEMPTS || !isNonFastForward(error)) {
+        throw error;
+      }
+    }
+  }
 
-  return {
-    commitSha: nextCommit.data.sha,
-    fileShas,
-  };
+  throw new Error("Repository commit retry exhausted");
 }

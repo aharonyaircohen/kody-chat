@@ -11,7 +11,7 @@
 
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Database } from "lucide-react";
+import { Database, FileText } from "lucide-react";
 import { buildAuthHeaders, useAuth } from "../auth-context";
 import { fetchCmsConfig } from "@dashboard/features/admin/components/cms/client";
 import {
@@ -19,6 +19,7 @@ import {
   type SettingsNavItem,
   type SettingsNavSection,
 } from "./settings-nav";
+import { useFileSpaces } from "@dashboard/features/file-spaces/use-file-spaces";
 
 const CONTENT_SECTION_TITLE = "Content";
 
@@ -26,6 +27,7 @@ export function useSidebarNavSections(): readonly SettingsNavSection[] {
   const { auth } = useAuth();
   const headers = useMemo(() => buildAuthHeaders(auth), [auth]);
   const scope = `${auth?.owner ?? ""}/${auth?.repo ?? ""}`;
+  const fileSpacesQuery = useFileSpaces();
 
   const cmsQuery = useQuery({
     queryKey: ["cms-config", scope] as const,
@@ -37,10 +39,7 @@ export function useSidebarNavSections(): readonly SettingsNavSection[] {
 
   return useMemo(() => {
     const cms = cmsQuery.data;
-    if (!cms || !cms.configured || cms.collections.length === 0) {
-      return SIDEBAR_NAV_SECTIONS;
-    }
-    const collectionItems: SettingsNavItem[] = cms.collections.map(
+    const collectionItems: SettingsNavItem[] = (cms?.configured ? cms.collections : []).map(
       (collection) => ({
         href: `/content/entries/${encodeURIComponent(collection.name)}`,
         label: collection.label,
@@ -49,10 +48,23 @@ export function useSidebarNavSections(): readonly SettingsNavSection[] {
         tint: "text-emerald-300 bg-emerald-500/10",
       }),
     );
-    return SIDEBAR_NAV_SECTIONS.map((section) =>
-      section.title === CONTENT_SECTION_TITLE
-        ? { ...section, items: [...section.items, ...collectionItems] }
-        : section,
-    );
-  }, [cmsQuery.data]);
+    const customSpaceItems: SettingsNavItem[] = (fileSpacesQuery.data?.spaces ?? [])
+      .filter((space) => !space.builtIn)
+      .map((space) => ({
+        href: `/file-spaces/${space.slug}`,
+        label: space.title,
+        icon: FileText,
+        description: `Markdown files from /${space.rootPath}.`,
+        tint: "text-amber-300 bg-amber-500/10",
+      }));
+    return SIDEBAR_NAV_SECTIONS.map((section) => {
+      if (section.title === CONTENT_SECTION_TITLE && collectionItems.length) {
+        return { ...section, items: [...section.items, ...collectionItems] };
+      }
+      if (section.title === "Workspace" && customSpaceItems.length) {
+        return { ...section, items: [...section.items, ...customSpaceItems] };
+      }
+      return section;
+    });
+  }, [cmsQuery.data, fileSpacesQuery.data]);
 }

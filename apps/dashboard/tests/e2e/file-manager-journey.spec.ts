@@ -45,7 +45,7 @@ async function installFileManagerHarness(page: Page) {
           token: "e2e-token",
           user: {
             login: "file-manager-e2e",
-            avatar_url: "https://github.com/github.png",
+            avatar_url: "",
             id: 1,
           },
           loggedInAt: Date.now(),
@@ -59,7 +59,7 @@ async function installFileManagerHarness(page: Page) {
               isLogin: true,
               user: {
                 login: "file-manager-e2e",
-                avatar_url: "https://github.com/github.png",
+                avatar_url: "",
                 id: 1,
               },
             },
@@ -76,7 +76,7 @@ async function installFileManagerHarness(page: Page) {
       authenticated: true,
       user: {
         login: "file-manager-e2e",
-        avatar_url: "https://github.com/github.png",
+        avatar_url: "",
         githubId: 1,
       },
       owner: OWNER,
@@ -365,6 +365,7 @@ test.describe("repository file manager", () => {
       )
       .toContain("Unsaved browser draft");
 
+    await page.evaluate(() => document.fonts.ready);
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.getByRole("treeitem", { name: "notes.md 16 B" }).click();
     await expect(

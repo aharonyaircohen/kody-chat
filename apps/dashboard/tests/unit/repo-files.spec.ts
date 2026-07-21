@@ -2,13 +2,40 @@
  * Unit tests for repo-files helpers: base64 encoding/decoding (byte-safe UTF-8)
  * and search result line-index mapping.
  */
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   base64ToString,
   isBinaryBytes,
   stringToBase64,
   lineIndexFromFragment,
+  repoPathExists,
 } from "@dashboard/features/file-manager/lib/repo-files";
+
+describe("repoPathExists", () => {
+  it("checks the parent listing without probing a missing target path", async () => {
+    const getContent = vi.fn().mockResolvedValue({
+      data: [
+        {
+          name: "other.md",
+          path: "notes/other.md",
+          type: "file",
+          size: 0,
+          sha: "other",
+        },
+      ],
+    });
+    const octokit = { rest: { repos: { getContent } } };
+
+    await expect(
+      repoPathExists(octokit as never, "acme", "repo", "notes/test.md"),
+    ).resolves.toBe(false);
+    expect(getContent).toHaveBeenCalledWith({
+      owner: "acme",
+      repo: "repo",
+      path: "notes",
+    });
+  });
+});
 
 // ─── base64 helpers ────────────────────────────────────────────────────────────
 

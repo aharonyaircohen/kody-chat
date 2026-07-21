@@ -224,7 +224,8 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
       favoriteHrefs: ["/tasks"],
     });
 
-  await page.reload();
+  await page.waitForLoadState("networkidle");
+  await page.reload({ waitUntil: "networkidle" });
   await expect(
     navigation.getByRole("region", { name: "Favorite pages" }),
   ).toBeVisible();

@@ -25,6 +25,8 @@ const DASHBOARD_CONFIG_KIND = "dashboard-config";
 
 export interface DashboardConfig {
   version: 1;
+  /** Repository-backed workspaces shown as first-class navigation pages. */
+  fileSpaces?: import("@dashboard/features/file-spaces/model").StoredFileSpace[];
   /**
    * Legacy single preview URL shown in Vibe pane when no issue is selected.
    * Superseded by `namedPreviews` (migrated on read), kept so existing repos

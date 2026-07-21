@@ -486,7 +486,11 @@ export function FileTree({
     ],
     queryFn: () => loadDir(normalizedRootPath),
     enabled: canLoad,
-    staleTime: 30_000,
+    // File mutations navigate between routes and can remount the tree. Always
+    // verify the root listing on mount so a pre-mutation cache cannot restore
+    // files or folders that were just moved or deleted.
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   useEffect(() => {

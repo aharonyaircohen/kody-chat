@@ -64,7 +64,7 @@ describe("user-state convex adapter", () => {
       userId: USER_ID,
       updatedAt: "2026-07-01T00:00:00.000Z",
       data: { locale: "he" },
-      revision: null,
+      revision: "2026-07-01T00:00:00.000Z",
     });
     const [ref, args] = convex.query.mock.calls[0]!;
     expect(getFunctionName(ref)).toBe("userState:get");

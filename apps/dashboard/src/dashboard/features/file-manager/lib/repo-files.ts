@@ -223,9 +223,12 @@ export async function repoPathExists(
   repo: string,
   path: string,
 ): Promise<boolean> {
+  const normalizedPath = path.replace(/^\/+|\/+$/g, "");
+  const separator = normalizedPath.lastIndexOf("/");
+  const parentPath = separator === -1 ? "" : normalizedPath.slice(0, separator);
   try {
-    await octokit.rest.repos.getContent({ owner, repo, path });
-    return true;
+    const entries = await listDir(octokit, owner, repo, parentPath);
+    return entries.some((entry) => entry.path === normalizedPath);
   } catch (error) {
     if (getHttpStatus(error) === 404) return false;
     throw error;
