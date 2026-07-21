@@ -72,6 +72,9 @@
   "scripts": {
     "dev": "next dev --turbopack -p 3344",
     "build": "next build",
+    "build:library": "tsc -p library/tsconfig.json",
+    "pack:library": "pnpm build:library && npm pack ./library",
+    "test:external-package": "pnpm build:library && node scripts/verify-external-package.mjs",
     "start": "next start -p 3344",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",

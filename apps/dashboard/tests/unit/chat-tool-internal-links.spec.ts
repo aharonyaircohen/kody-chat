@@ -43,7 +43,13 @@ function makeCtx() {
     owner: "acme",
     repo: "app",
     actorLogin: "alice",
-    octokit: {} as never,
+    octokit: {
+      rest: {
+        issues: {
+          listForRepo: vi.fn().mockResolvedValue({ data: [] }),
+        },
+      },
+    } as never,
   };
 }
 
@@ -106,6 +112,42 @@ describe("chat issue-creation tools", () => {
         ),
       }),
     );
+  });
+
+  it("reuses an identical open issue when an approved tool call is retried", async () => {
+    const listForRepo = vi.fn().mockResolvedValue({ data: [] });
+    const ctx = {
+      ...makeCtx(),
+      octokit: { rest: { issues: { listForRepo } } } as never,
+    };
+    const tools = createTaskTools(ctx) as unknown as {
+      create_enhancement: TestTool;
+    };
+    const input = {
+      title: "Keep one issue",
+      summary: "The approved action may be retried.",
+      requirements: "Do not create a duplicate GitHub issue.",
+    };
+
+    await tools.create_enhancement.execute(input);
+    const createdBody = createIssueWithBestEffortMetadata.mock.calls[0]?.[1]
+      ?.body as string;
+    listForRepo.mockResolvedValueOnce({
+      data: [
+        {
+          number: 77,
+          title: input.title,
+          body: createdBody,
+          html_url: "https://github.com/acme/app/issues/77",
+          assignees: [{ login: "alice" }],
+        },
+      ],
+    });
+
+    const retried = await tools.create_enhancement.execute(input);
+
+    expect(createIssueWithBestEffortMetadata).toHaveBeenCalledTimes(1);
+    expect(retried).toMatchObject({ number: 77, url: "/repo/acme/app/77" });
   });
 
   it("returns the dashboard task URL for bug reports", async () => {

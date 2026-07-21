@@ -213,13 +213,56 @@ test.describe("Brain terminal live UI", () => {
     await chat
       .locator("textarea")
       .fill(`Reply with exactly ${marker} and no other text.`);
+    const brainResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith("/api/kody/chat/brain"),
+    );
     await chat.getByRole("button", { name: "Send message" }).click();
-    await expect(chat.getByText(marker, { exact: false }).last()).toBeVisible({
-      timeout: 300_000,
-    });
+    const brainResponse = await brainResponsePromise;
+    expect(brainResponse.status(), "real Brain chat route must succeed").toBe(
+      200,
+    );
+    await expect(
+      chat
+        .locator('[data-role="assistant"]')
+        .filter({ hasText: marker })
+        .last(),
+    ).toBeVisible({ timeout: 300_000 });
     await expect.poll(() => conversationId, { timeout: 30_000 }).not.toBe("");
 
     if (conversationId) {
+      await expect
+        .poll(
+          async () => {
+            const persistedResponse = await page.request.get(
+              `${BASE_URL}/api/kody/chat/conversations/${conversationId}`,
+              {
+                headers: {
+                  "x-kody-token": TEST_TOKEN,
+                  "x-kody-owner": repo!.owner,
+                  "x-kody-repo": repo!.repo,
+                },
+              },
+            );
+            if (!persistedResponse.ok()) return false;
+            const persisted = (await persistedResponse.json()) as {
+              entries?: Array<{
+                entry?: { kind?: string; role?: string; content?: string };
+              }>;
+            };
+            return Boolean(
+              persisted.entries?.some(
+                ({ entry }) =>
+                  entry?.kind === "message" &&
+                  entry.role === "assistant" &&
+                  entry.content?.includes(marker),
+              ),
+            );
+          },
+          { timeout: 30_000, intervals: [250, 500, 1000] },
+        )
+        .toBe(true);
       const cleanup = await page.request.delete(
         `${BASE_URL}/api/kody/chat/conversations/${conversationId}`,
         {

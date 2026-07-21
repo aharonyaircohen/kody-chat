@@ -219,9 +219,10 @@ test.describe("Direct Kody chat — real model and persistence", () => {
           `${BASE_URL}/api/kody/chat/conversations/${conversationId}`,
           { headers },
         );
-        expect(cleanup.ok(), "live conversation cleanup must succeed").toBe(
-          true,
-        );
+        expect(
+          cleanup.ok(),
+          `live conversation cleanup must succeed (HTTP ${cleanup.status()}: ${await cleanup.text()})`,
+        ).toBe(true);
       }
     }
   });

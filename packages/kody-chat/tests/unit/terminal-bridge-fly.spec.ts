@@ -179,6 +179,24 @@ describe("ensureTerminalBridge", () => {
       "const READY_PROBE_INTERVAL_MS = 2500;",
     );
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("readyProbeTimer");
+    expect(consoleSession).toContain("ready: false");
+    expect(consoleSession).not.toContain(
+      "ready: Boolean(tmuxName && !tmuxState?.created)",
+    );
+    expect(consoleSession).toContain("function armReadinessChecks()");
+    expect(consoleSession).toContain("session.ready = false");
+    expect(consoleSession).toContain("session.startAttempts = 0");
+    const attachStart = TERMINAL_BRIDGE_SCRIPT.indexOf(
+      "function attachSocketToSession",
+    );
+    expect(
+      TERMINAL_BRIDGE_SCRIPT.indexOf(
+        "session.sockets.add(socket)",
+        attachStart,
+      ),
+    ).toBeLessThan(
+      TERMINAL_BRIDGE_SCRIPT.indexOf("session.restartChild()", attachStart),
+    );
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
       "const SSH_START_RETRY_DELAY_MS = 2000;",
     );
@@ -186,9 +204,7 @@ describe("ensureTerminalBridge", () => {
       "const MAX_SSH_START_RETRY_DELAY_MS = 10000;",
     );
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("summarizeFlySshStartupFailure");
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
-      "temporary upstream HTML error",
-    );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("temporary upstream HTML error");
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain(
       "isRetryableFlySshStartupFailure",
     );
@@ -280,9 +296,13 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
       "const MAX_REPLAY_CHARS = 120000;",
     );
-    expect(attachSession).toContain("restoreStartMessage(session.outputBuffer || \"\")");
+    expect(attachSession).toContain(
+      'restoreStartMessage(session.outputBuffer || "")',
+    );
     expect(attachSession).toContain("restoreCompleteMessage()");
-    expect(attachSession).not.toContain("session.pendingOutput");
+    expect(attachSession).toContain("if (detached) return");
+    expect(attachSession).toContain("session.restoring = session.ready");
+    expect(attachSession).toContain('session.pendingOutput = ""');
     expect(attachSession).not.toContain("Reattached terminal session.");
     expect(attachSession).toContain("session.restartChild()");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("session.sockets.size > 0");
@@ -319,14 +339,17 @@ describe("ensureTerminalBridge", () => {
     );
   });
 
-  it("does not mirror typed input when the wrapped process enables PTY echo", { timeout: 30_000 }, async () => {
-    const dir = mkdtempSync(join(tmpdir(), "kody-pty-relay-"));
-    const relayPath = join(dir, "relay.py");
-    const childPath = join(dir, "child.py");
-    writeFileSync(relayPath, TERMINAL_BRIDGE_PTY_RELAY_SCRIPT);
-    writeFileSync(
-      childPath,
-      String.raw`#!/usr/bin/env python3
+  it(
+    "does not mirror typed input when the wrapped process enables PTY echo",
+    { timeout: 30_000 },
+    async () => {
+      const dir = mkdtempSync(join(tmpdir(), "kody-pty-relay-"));
+      const relayPath = join(dir, "relay.py");
+      const childPath = join(dir, "child.py");
+      writeFileSync(relayPath, TERMINAL_BRIDGE_PTY_RELAY_SCRIPT);
+      writeFileSync(
+        childPath,
+        String.raw`#!/usr/bin/env python3
 import os
 import sys
 import termios
@@ -338,44 +361,45 @@ termios.tcsetattr(fd, termios.TCSANOW, attrs)
 data = os.read(fd, 1024)
 os.write(sys.stdout.fileno(), b"REMOTE:" + data)
 `,
-    );
-
-    try {
-      const child = spawn("python3", [relayPath, "python3", childPath], {
-        stdio: ["pipe", "pipe", "pipe"],
-      });
-      let stdout = "";
-      let stderr = "";
-      child.stdout.setEncoding("utf8");
-      child.stderr.setEncoding("utf8");
-      child.stdout.on("data", (chunk) => {
-        stdout += chunk;
-      });
-      child.stderr.on("data", (chunk) => {
-        stderr += chunk;
-      });
-      const closePromise = new Promise<number | null>((resolve) => {
-        child.on("close", resolve);
-      });
-
-      child.stdin.write("abc\n");
-      await waitForOutput(
-        () => stdout,
-        "REMOTE:abc",
-        () => stderr,
       );
-      child.stdin.end();
-      const code = await closePromise;
 
-      expect(stderr).toBe("");
-      expect(code).toBe(0);
-      expect(stdout).toContain("REMOTE:abc");
-      expect(stdout).not.toContain("abc\r\nREMOTE:");
-      expect(stdout).not.toContain("abc\nREMOTE:");
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
+      try {
+        const child = spawn("python3", [relayPath, "python3", childPath], {
+          stdio: ["pipe", "pipe", "pipe"],
+        });
+        let stdout = "";
+        let stderr = "";
+        child.stdout.setEncoding("utf8");
+        child.stderr.setEncoding("utf8");
+        child.stdout.on("data", (chunk) => {
+          stdout += chunk;
+        });
+        child.stderr.on("data", (chunk) => {
+          stderr += chunk;
+        });
+        const closePromise = new Promise<number | null>((resolve) => {
+          child.on("close", resolve);
+        });
+
+        child.stdin.write("abc\n");
+        await waitForOutput(
+          () => stdout,
+          "REMOTE:abc",
+          () => stderr,
+        );
+        child.stdin.end();
+        const code = await closePromise;
+
+        expect(stderr).toBe("");
+        expect(code).toBe(0);
+        expect(stdout).toContain("REMOTE:abc");
+        expect(stdout).not.toContain("abc\r\nREMOTE:");
+        expect(stdout).not.toContain("abc\nREMOTE:");
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("ships syntactically valid bridge JavaScript", () => {
     const source = ts.createSourceFile(

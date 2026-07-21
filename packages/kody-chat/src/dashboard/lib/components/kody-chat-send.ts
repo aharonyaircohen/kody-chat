@@ -917,6 +917,9 @@ async function runSendTextInner(
       chatId: brainChatId,
       initialBody: {
         chatId: brainChatId,
+        // Brain's private chat id rotates for model/agent/compaction epochs;
+        // persistence must continue writing to the visible Dashboard thread.
+        conversationId: brainSessionId,
         message: brainWireContent,
         ...(selectedModelId ? { modelId: selectedModelId } : {}),
         ...(selectedBrainEntry?.runtime

@@ -1,0 +1,87 @@
+.kody-chat {
+  display: grid;
+  min-height: 24rem;
+  grid-template-rows: auto 1fr auto;
+  overflow: hidden;
+  color: #171717;
+  background: #fff;
+  border: 1px solid #e5e5e5;
+  border-radius: 0.75rem;
+  font: 400 0.95rem/1.5 system-ui, sans-serif;
+}
+
+.kody-chat__header {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid #e5e5e5;
+  font-weight: 600;
+}
+
+.kody-chat__messages {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+.kody-chat__message {
+  max-width: 80%;
+  padding: 0.625rem 0.75rem;
+  white-space: pre-wrap;
+  border-radius: 0.75rem;
+}
+
+.kody-chat__message--user {
+  align-self: end;
+  color: #fff;
+  background: #171717;
+}
+
+.kody-chat__message--assistant {
+  align-self: start;
+  background: #f5f5f5;
+}
+
+.kody-chat__message[data-status="error"] {
+  color: #991b1b;
+  background: #fef2f2;
+}
+
+.kody-chat__composer {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-top: 1px solid #e5e5e5;
+}
+
+.kody-chat__label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+
+.kody-chat__composer textarea {
+  resize: vertical;
+  padding: 0.625rem;
+  border: 1px solid #d4d4d4;
+  border-radius: 0.5rem;
+  font: inherit;
+}
+
+.kody-chat__composer button {
+  align-self: end;
+  padding: 0.625rem 0.875rem;
+  color: #fff;
+  background: #171717;
+  border: 0;
+  border-radius: 0.5rem;
+  font: inherit;
+}
+
+.kody-chat__composer button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}

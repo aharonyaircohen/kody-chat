@@ -10,7 +10,7 @@ export default defineConfig({
     environment: "node",
     include: ["tests/**/*.spec.ts"],
     // Playwright specs live under tests/e2e — vitest must not load them.
-    exclude: ["node_modules/**", "tests/e2e/**"],
+    exclude: ["node_modules/**", "tests/e2e/**", "tests/external-consumer/**"],
     coverage: {
       reporter: ["text", "json", "html"],
       // Ratchet: set just below current coverage so it can only go up.

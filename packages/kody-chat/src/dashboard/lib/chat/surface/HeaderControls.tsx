@@ -89,6 +89,7 @@ interface HeaderControlsProps {
   /** Disables the new-conversation button while a turn is streaming. */
   activeLoading: boolean;
   showSessionSidebar: boolean;
+  sessionSidebarReady: boolean;
   onToggleSessionSidebar: () => void;
   /** Fullscreen / restore (desktop rail only). */
   onToggleFullscreen?: () => void;
@@ -143,6 +144,7 @@ export function HeaderControls({
   onNewConversation,
   activeLoading,
   showSessionSidebar,
+  sessionSidebarReady,
   onToggleSessionSidebar,
   onToggleFullscreen,
   railFullscreen,
@@ -291,11 +293,13 @@ export function HeaderControls({
       <button
         type="button"
         onClick={onToggleSessionSidebar}
+        disabled={!sessionSidebarReady}
+        aria-expanded={showSessionSidebar}
         className={`${mainIconButtonClassName} ${
           showSessionSidebar
             ? "bg-primary text-primary-foreground border-primary"
             : "text-muted-foreground hover:text-foreground hover:bg-background border-transparent hover:border-border"
-        }`}
+        } disabled:cursor-wait disabled:opacity-50`}
         title="Conversations"
         aria-label="Toggle conversations"
       >

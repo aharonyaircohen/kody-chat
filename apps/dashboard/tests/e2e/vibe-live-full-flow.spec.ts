@@ -108,11 +108,19 @@ let cleanupTarget: {
   owner: string;
   repo: string;
   issueNumber?: number;
+  issueNumbers?: number[];
 } | null = null;
 
 async function cleanupFailedVibeRun(): Promise<void> {
-  if (!cleanupTarget?.issueNumber) return;
-  const { owner, repo, issueNumber } = cleanupTarget;
+  if (!cleanupTarget) return;
+  const { owner, repo } = cleanupTarget;
+  const issueNumbers = Array.from(
+    new Set([
+      ...(cleanupTarget.issueNumbers ?? []),
+      ...(cleanupTarget.issueNumber ? [cleanupTarget.issueNumber] : []),
+    ]),
+  );
+  if (issueNumbers.length === 0) return;
   const headers = {
     Authorization: `Bearer ${TEST_TOKEN}`,
     Accept: "application/vnd.github+json",
@@ -120,42 +128,44 @@ async function cleanupFailedVibeRun(): Promise<void> {
     "Content-Type": "application/json",
   };
 
-  try {
-    const search = (await ghFetch(
-      `/search/issues?q=${encodeURIComponent(
-        `repo:${owner}/${repo} is:pr in:body "Closes #${issueNumber}"`,
-      )}`,
-    )) as { items: Array<{ number: number }> };
-    for (const item of search.items) {
-      const pr = (await ghFetch(
-        `/repos/${owner}/${repo}/pulls/${item.number}`,
-      )) as { merged: boolean; state: string; head: { ref: string } };
-      if (!pr.merged && pr.state === "open") {
-        await fetch(
-          `https://api.github.com/repos/${owner}/${repo}/pulls/${item.number}`,
-          {
-            method: "PATCH",
-            headers,
-            body: JSON.stringify({ state: "closed" }),
-          },
-        );
+  for (const issueNumber of issueNumbers) {
+    try {
+      const search = (await ghFetch(
+        `/search/issues?q=${encodeURIComponent(
+          `repo:${owner}/${repo} is:pr in:body "Closes #${issueNumber}"`,
+        )}`,
+      )) as { items: Array<{ number: number }> };
+      for (const item of search.items) {
+        const pr = (await ghFetch(
+          `/repos/${owner}/${repo}/pulls/${item.number}`,
+        )) as { merged: boolean; state: string; head: { ref: string } };
+        if (!pr.merged && pr.state === "open") {
+          await fetch(
+            `https://api.github.com/repos/${owner}/${repo}/pulls/${item.number}`,
+            {
+              method: "PATCH",
+              headers,
+              body: JSON.stringify({ state: "closed" }),
+            },
+          );
+        }
+        if (!pr.merged && pr.head.ref) {
+          await fetch(
+            `https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(pr.head.ref)}`,
+            { method: "DELETE", headers },
+          );
+        }
       }
-      if (!pr.merged && pr.head.ref) {
-        await fetch(
-          `https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(pr.head.ref)}`,
-          { method: "DELETE", headers },
-        );
-      }
+      await fetch(
+        `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`,
+        { method: "PATCH", headers, body: JSON.stringify({ state: "closed" }) },
+      );
+    } catch (error) {
+      // Preserve the original Playwright failure while making cleanup trouble
+      // visible in the artifact log.
+      // eslint-disable-next-line no-console
+      console.error("[live-e2e] failed to clean Vibe mutation", error);
     }
-    await fetch(
-      `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`,
-      { method: "PATCH", headers, body: JSON.stringify({ state: "closed" }) },
-    );
-  } catch (error) {
-    // Preserve the original Playwright failure while making cleanup trouble
-    // visible in the artifact log.
-    // eslint-disable-next-line no-console
-    console.error("[live-e2e] failed to clean Vibe mutation", error);
   }
 }
 
@@ -274,13 +284,28 @@ test.describe("Vibe — LIVE full flow against production", () => {
     // Use a value that's unique per run so the agent has to actually edit
     // the page and its user-facing regression assertion (no "already done"
     // short-circuit). Keeping the test aligned is required for a clean gate.
-    const newWelcomeText = `Welcome from kody — verify run ${Date.now()}`;
+    const runMarker = Date.now();
+    const newWelcomeText = `Welcome from kody — verify run ${runMarker}`;
     await input.fill(
       `Update the homepage welcome text in src/app/(frontend)/page.tsx ` +
         `to "${newWelcomeText}". Update the matching assertion in ` +
         `tests/e2e/frontend.e2e.spec.ts and run the relevant verification.`,
     );
     await chat.getByRole("button", { name: "Send message" }).click();
+    const submittedRequest = chat
+      .locator('[data-role="user"]')
+      .filter({ hasText: newWelcomeText })
+      .last();
+    await expect(submittedRequest).toBeVisible({ timeout: 10_000 });
+    await page.waitForTimeout(5_000);
+    await expect(
+      modelPicker,
+      "an explicit direct-model choice must survive delayed chat hydration",
+    ).not.toContainText(/Kody Live|Brain/i);
+    await expect(
+      submittedRequest,
+      "the submitted Vibe request must remain in the active conversation",
+    ).toBeVisible();
 
     // ── 3. Wait for the agent to ask for approval. ─────────────────────
     // The fixed prompt SHOULD make the agent stop after asking, but the
@@ -374,6 +399,25 @@ test.describe("Vibe — LIVE full flow against production", () => {
     );
     expect(issueNumber, "created issue number").toBeGreaterThan(0);
     cleanupTarget = { owner, repo, issueNumber };
+    const recentIssues = (await ghFetch(
+      `/repos/${owner}/${repo}/issues?state=all&sort=created&direction=desc&per_page=100`,
+    )) as Array<{
+      number: number;
+      title: string;
+      body?: string | null;
+      pull_request?: unknown;
+    }>;
+    const matchingIssues = recentIssues.filter(
+      (issue) =>
+        !issue.pull_request &&
+        (issue.title.includes(String(runMarker)) ||
+          issue.body?.includes(String(runMarker))),
+    );
+    cleanupTarget.issueNumbers = matchingIssues.map((issue) => issue.number);
+    expect(
+      matchingIssues.map((issue) => issue.number),
+      "one approval must create exactly one GitHub issue",
+    ).toEqual([issueNumber]);
 
     const runButton = page.getByRole("button", {
       name: /run kody on this issue/i,

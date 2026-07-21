@@ -54,6 +54,8 @@ describe("chat conversation actions", () => {
 
     expect(conversationActions).toContain('aria-label="New conversation"');
     expect(conversationActions).toContain('aria-label="Toggle conversations"');
+    expect(conversationActions).toContain("disabled={!sessionSidebarReady}");
+    expect(conversationActions).toContain("aria-expanded={showSessionSidebar}");
     expect(headerActions).toContain("{conversationActions}");
     expect(titleRow).not.toContain("{conversationActions}");
     expect(SOURCE.indexOf("{agencyAgentPicker}")).toBeGreaterThan(

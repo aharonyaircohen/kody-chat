@@ -289,6 +289,21 @@ describe("streamBrainChat — SSE translation", () => {
     expect(body.repo).toBe("alice/widgets");
   });
 
+  it("forwards the visible conversation id separately from Brain runtime state", async () => {
+    const { calls } = installFetchStub({ events: [{ type: "done" }] });
+    await streamBrainChat({
+      brainUrl: "https://b.example.com",
+      brainKey: "k",
+      chatId: "runtime-chat/epoch-2",
+      conversationId: "visible-conversation",
+      message: "hi",
+    });
+    const body = JSON.parse(calls[0]!.init!.body as string) as {
+      conversationId?: string;
+    };
+    expect(body.conversationId).toBe("visible-conversation");
+  });
+
   it("forwards Repo Brain scope as the upstream repo and store target", async () => {
     const { calls } = installFetchStub({ events: [{ type: "done" }] });
     await streamBrainChat({

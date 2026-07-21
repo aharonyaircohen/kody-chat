@@ -61,6 +61,8 @@ export interface BrainChatRequest {
   brainUrl: string;
   brainKey: string;
   chatId: string;
+  /** User-visible conversation persisted by the host; distinct from chatId. */
+  conversationId?: string;
   /** Personal Brain model selected by the dashboard. */
   modelId?: string;
   /** Runtime command belonging to the selected personal Brain model. */
@@ -340,6 +342,9 @@ export async function streamBrainChat(
         : {
             body: JSON.stringify({
               message: decoratedMessage,
+              ...(input.conversationId
+                ? { conversationId: input.conversationId }
+                : {}),
               ...(input.modelId ? { modelId: input.modelId } : {}),
               ...(input.runtime ? { runtime: input.runtime } : {}),
               ...(attachments.length > 0 ? { attachments } : {}),

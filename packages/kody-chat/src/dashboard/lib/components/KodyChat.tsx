@@ -493,7 +493,6 @@ export function KodyChat({
     currentEntry,
     currentReasoning,
     effectiveReasoningEffort,
-    onRehydrateRestored,
   } = useAgentSelection({
     lockedAgentId: lockedAgentId ?? (lockedModelId ? "kody" : undefined),
     lockedModelId,
@@ -700,6 +699,8 @@ export function KodyChat({
 
   // Session sidebar state (for session management feature)
   const [showSessionSidebar, setShowSessionSidebar] = useState(false);
+  const [sessionSidebarReady, setSessionSidebarReady] = useState(false);
+  useEffect(() => setSessionSidebarReady(true), []);
   const previousRailFullscreenRef = useRef(railFullscreen);
   const [sessionSidebarPinned, setSessionSidebarPinned] = useState(() => {
     if (!allowSessionSidebarPin) return false;
@@ -1050,7 +1051,6 @@ export function KodyChat({
     setLoading,
     setMessages,
     setMessagesForSession,
-    onRehydrateRestored,
   });
 
   // Render aliases — kept named to minimise churn at JSX read sites.
@@ -1663,14 +1663,11 @@ export function KodyChat({
       brainAbortRef.current?.abort();
     }
     setLoading(false);
-    setMessages((prev) => {
-      const newMessages = [...prev];
-      const lastMsg = newMessages[newMessages.length - 1];
-      if (lastMsg?.role === "assistant") {
-        lastMsg.isLoading = false;
-      }
-      return newMessages;
-    });
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.isLoading ? { ...message, isLoading: false } : message,
+      ),
+    );
   };
 
   // Composer key/slash/mention handlers (phase 1.6d) — extracted to the
@@ -1995,8 +1992,9 @@ export function KodyChat({
           }}
           activeLoading={activeLoading}
           showSessionSidebar={showSessionSidebar}
+          sessionSidebarReady={sessionSidebarReady}
           onToggleSessionSidebar={() =>
-            setShowSessionSidebar(!showSessionSidebar)
+            setShowSessionSidebar((visible) => !visible)
           }
           onToggleFullscreen={onToggleFullscreen}
           railFullscreen={railFullscreen}

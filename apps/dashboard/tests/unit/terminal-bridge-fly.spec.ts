@@ -183,9 +183,7 @@ describe("ensureTerminalBridge", () => {
       "const MAX_SSH_START_RETRY_DELAY_MS = 10000;",
     );
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("summarizeFlySshStartupFailure");
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
-      "temporary upstream HTML error",
-    );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("temporary upstream HTML error");
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain(
       "isRetryableFlySshStartupFailure",
     );
@@ -277,9 +275,13 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
       "const MAX_REPLAY_CHARS = 120000;",
     );
-    expect(attachSession).toContain("restoreStartMessage(session.outputBuffer || \"\")");
+    expect(attachSession).toContain(
+      'restoreStartMessage(session.outputBuffer || "")',
+    );
     expect(attachSession).toContain("restoreCompleteMessage()");
-    expect(attachSession).not.toContain("session.pendingOutput");
+    expect(attachSession).toContain("if (detached) return");
+    expect(attachSession).toContain("session.restoring = session.ready");
+    expect(attachSession).toContain('session.pendingOutput = ""');
     expect(attachSession).not.toContain("Reattached terminal session.");
     expect(attachSession).toContain("session.restartChild()");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("session.sockets.size > 0");

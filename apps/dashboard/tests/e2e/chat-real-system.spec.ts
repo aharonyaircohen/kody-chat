@@ -110,16 +110,16 @@ test.describe("Real chat flow @real", () => {
     await newConversation.click();
 
     // A new conversation restores the configured default model. Select the
-    // live runner afterwards so the test exercises the user's actual choice.
+    // live Fly runner afterwards so the test exercises the option available
+    // to users in the current model catalog.
     const modelPicker = chat.getByRole("button", { name: "Model" }).first();
     await modelPicker.click();
     await chat
       .locator('[role="listbox"]:visible')
       .first()
-      .locator('button[role="option"]')
-      .filter({ hasText: "Kody Live" })
+      .getByRole("option", { name: /^Kody Live \(Fly\)/ })
       .click();
-    await expect(modelPicker).toContainText("Kody Live");
+    await expect(modelPicker).toContainText("Kody Live (Fly)");
 
     const input = chat.locator("textarea").first();
     await expect(input).toBeVisible({ timeout: 15_000 });
@@ -128,7 +128,7 @@ test.describe("Real chat flow @real", () => {
     const marker = `RE2E-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
     const startPromise = page.waitForRequest(
-      "**/api/kody/chat/interactive/start",
+      "**/api/kody/chat/interactive/start-fly",
     );
     const bootRunner = chat.getByRole("button", { name: "Boot runner" });
     await expect(bootRunner).toBeVisible({ timeout: 20_000 });
@@ -140,7 +140,7 @@ test.describe("Real chat flow @real", () => {
     const sessionId = startBody.taskId;
     expect(
       sessionId,
-      "UI must send a taskId to /interactive/start",
+      "UI must send a taskId to /interactive/start-fly",
     ).toBeTruthy();
 
     await expect(

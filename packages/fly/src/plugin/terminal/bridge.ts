@@ -970,7 +970,7 @@ function createFlyConsoleSession(claims, key) {
   };
   const readyMarker = "__KR_" + crypto.randomBytes(4).toString("hex") + "__";
   const tmuxName = key ? tmuxSessionName(claims) : null;
-  const tmuxState = tmuxName ? ensureTmuxSession(claims, tmuxName, env) : null;
+  if (tmuxName) ensureTmuxSession(claims, tmuxName, env);
   const command = tmuxName
     ? ["tmux", "attach-session", "-t", tmuxName]
     : directFlySshCommand(claims);
@@ -981,7 +981,12 @@ function createFlyConsoleSession(claims, key) {
     key,
     tmuxSessionName: tmuxName,
     readyMarker,
-    ready: Boolean(tmuxName && !tmuxState?.created),
+    // A live tmux pane only proves the local wrapper still exists. The
+    // underlying Fly SSH session may still be connecting or may have exited,
+    // so every newly reconstructed bridge session must pass the keyboard
+    // self-test before the browser is told it is ready.
+    ready: false,
+    restoring: false,
     timedOut: false,
     detaching: false,
     startAttempts: 0,
@@ -997,31 +1002,32 @@ function createFlyConsoleSession(claims, key) {
     resizeControl: null,
     restartChild: null,
   };
-  const statusTimer = setInterval(() => {
-    if (!session.ready) {
+  function armReadinessChecks() {
+    clearInterval(session.statusTimer);
+    clearTimeout(session.readyTimer);
+    session.statusTimer = setInterval(() => {
+      if (!session.ready) {
+        sendToSession(session, {
+          type: "output",
+          data: "Still opening real terminal...\r\n",
+        });
+      }
+    }, SSH_STATUS_INTERVAL_MS);
+    session.readyTimer = setTimeout(() => {
+      if (session.ready) return;
+      if (session.pendingOutput) {
+        rememberOutput(session, session.pendingOutput);
+        sendToSession(session, { type: "output", data: session.pendingOutput });
+        session.pendingOutput = "";
+      }
       sendToSession(session, {
-        type: "output",
-        data: "Still opening real terminal...\r\n",
+        type: "error",
+        message: "Terminal did not answer the keyboard self-test.",
       });
-    }
-  }, SSH_STATUS_INTERVAL_MS);
-  if (session.ready) clearInterval(statusTimer);
-  const readyTimer = setTimeout(() => {
-    if (session.ready) return;
-    if (session.pendingOutput) {
-      rememberOutput(session, session.pendingOutput);
-      sendToSession(session, { type: "output", data: session.pendingOutput });
-      session.pendingOutput = "";
-    }
-    sendToSession(session, {
-      type: "error",
-      message: "Terminal did not answer the keyboard self-test.",
-    });
-    session.timedOut = true;
-    session.child?.kill("SIGTERM");
-  }, READY_TIMEOUT_MS);
-  session.statusTimer = statusTimer;
-  session.readyTimer = readyTimer;
+      session.timedOut = true;
+      session.child?.kill("SIGTERM");
+    }, READY_TIMEOUT_MS);
+  }
 
   function findReadyProof(output) {
     const ttyPattern = /\/dev\/(?:pts\/[0-9]+|tty[^\s\r\n]*)/g;
@@ -1029,7 +1035,7 @@ function createFlyConsoleSession(claims, key) {
     while ((match = ttyPattern.exec(output)) !== null) {
       const markerIndex = output.indexOf(readyMarker, match.index + match[0].length);
       if (markerIndex !== -1) {
-        return { tty: match[0], markerIndex };
+        return { tty: match[0], ttyIndex: match.index, markerIndex };
       }
     }
     return null;
@@ -1041,6 +1047,17 @@ function createFlyConsoleSession(claims, key) {
       .replace(/^[^\r\n]*(\r\n|\n|\r)?/, "");
   }
 
+  function outputBeforeReady(output, ttyIndex) {
+    return output
+      .slice(0, ttyIndex)
+      .split(/(?<=\r\n|\n|\r)/)
+      .filter(
+        (line) =>
+          !line.includes(readyMarker) && !line.includes("tty; printf"),
+      )
+      .join("");
+  }
+
   function handleOutput(chunk) {
     const text = chunk.toString("utf8");
     session.lastTouched = Date.now();
@@ -1049,14 +1066,19 @@ function createFlyConsoleSession(claims, key) {
       const proof = findReadyProof(session.pendingOutput);
       if (!proof) return;
       session.ready = true;
-      clearInterval(statusTimer);
+      clearInterval(session.statusTimer);
+      session.statusTimer = null;
       clearInterval(session.readyProbeTimer);
       session.readyProbeTimer = null;
-      clearTimeout(readyTimer);
-      const cleanOutput = outputAfterReady(
-        session.pendingOutput,
-        proof.markerIndex,
-      );
+      clearTimeout(session.readyTimer);
+      session.readyTimer = null;
+      const restoredOutput = session.restoring
+        ? outputBeforeReady(session.pendingOutput, proof.ttyIndex)
+        : "";
+      const cleanOutput =
+        restoredOutput +
+        outputAfterReady(session.pendingOutput, proof.markerIndex);
+      session.restoring = false;
       session.pendingOutput = "";
       sendToSession(session, { type: "ready" });
       if (cleanOutput) {
@@ -1085,6 +1107,7 @@ function createFlyConsoleSession(claims, key) {
         return;
       }
     }
+    if (!session.ready) armReadinessChecks();
     session.startAttempts += 1;
     const child = spawn("python3", args, {
       env: { ...env, KODY_PTY_CONTROL_FD: "3" },
@@ -1120,6 +1143,10 @@ function createFlyConsoleSession(claims, key) {
       session.resizeControl = null;
       if (session.detaching) {
         session.detaching = false;
+        session.ready = false;
+        session.timedOut = false;
+        session.startAttempts = 0;
+        session.pendingOutput = "";
         if (
           session.key &&
           session.sockets.size > 0 &&
@@ -1190,17 +1217,25 @@ function createFlyConsoleSession(claims, key) {
 }
 
 function attachSocketToSession(socket, session) {
+  session.sockets.add(socket);
   if (session.key && !session.child && typeof session.restartChild === "function") {
     session.restartChild();
   }
-  session.sockets.add(socket);
   session.lastTouched = Date.now();
 
+  let detached = false;
   function detach() {
+    if (detached) return;
+    detached = true;
     session.sockets.delete(socket);
     session.lastTouched = Date.now();
     if (session.key && session.sockets.size === 0) {
       session.detaching = true;
+      session.restoring = session.ready;
+      session.ready = false;
+      session.timedOut = false;
+      session.startAttempts = 0;
+      session.pendingOutput = "";
       try {
         session.child?.kill("SIGTERM");
       } catch {}

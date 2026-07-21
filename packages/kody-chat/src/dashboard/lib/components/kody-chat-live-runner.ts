@@ -78,13 +78,6 @@ export interface UseLiveRunnerOptions {
   setMessages: (updater: MessagesUpdater) => void;
   /** Write messages into a SPECIFIC session (turns outlive session switches). */
   setMessagesForSession: (sessionId: string, updater: MessagesUpdater) => void;
-  /**
-   * UI side effects after a saved live session is restored for a scope —
-   * KodyChat flips the picker to the Live agent and mirrors the pick onto
-   * the active session. Read through a ref so callback identity churn in
-   * the host can't destabilize `rehydrateForScope`.
-   */
-  onRehydrateRestored: (scopeKey: LiveScopeKey) => void;
 }
 
 export interface UseLiveRunnerResult {
@@ -180,12 +173,12 @@ export function useLiveRunner({
   setLoading,
   setMessages,
   setMessagesForSession,
-  onRehydrateRestored,
 }: UseLiveRunnerOptions): UseLiveRunnerResult {
   // Restore an in-progress Kody Live session after a page refresh. Reads
-  // localStorage on mount; if a non-stale session exists, switches to the
-  // live agent, restores state, and reconnects the SSE so chat.ready /
-  // chat.message / chat.exit continue to flow. Runs once.
+  // localStorage on mount; if a non-stale session exists, restores runner
+  // state and reconnects the SSE so chat.ready / chat.message / chat.exit
+  // continue to flow. The conversation's agentKey remains the picker source
+  // of truth, so a delayed restore cannot override a user's explicit choice.
   const liveRestoreAttemptedRef = useRef(false);
   const eventSourceRef = useRef<{ close: () => void } | null>(null);
   // Consecutive inconclusive watchdog probes (see the watchdog effect at
@@ -217,10 +210,6 @@ export function useLiveRunner({
     null,
   );
   const currentScopeKeyRef = useRef<LiveScopeKey>("global");
-
-  // Host UI side effects read through a ref — see the option's doc comment.
-  const onRehydrateRestoredRef = useRef(onRehydrateRestored);
-  onRehydrateRestoredRef.current = onRehydrateRestored;
 
   // Boot-elapsed ticker — drives the banner countdown while booting.
   const [bootElapsed, setBootElapsed] = useState(0);
@@ -829,9 +818,6 @@ export function useLiveRunner({
         return;
       }
       dispatchLive(buildRehydrateAction(scopeKey, saved));
-      // Host UI side effects: KodyChat flips the picker to the Live agent
-      // and mirrors the pick onto the active session.
-      onRehydrateRestoredRef.current(scopeKey);
       startInteractivePoll(saved.sessionId);
     },
     [startInteractivePoll, stopInteractivePoll, dispatchLive],

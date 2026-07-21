@@ -173,12 +173,6 @@ export interface UseAgentSelectionResult {
   currentReasoning: ModelReasoning | null;
   /** Resolved effort — session pick > stored pref > model default. */
   effectiveReasoningEffort: string | null;
-  /**
-   * UI side effects of a live-session restore — flips the picker to the
-   * Live agent and mirrors it onto the active session. Passed to
-   * useLiveRunner's onRehydrateRestored.
-   */
-  onRehydrateRestored: () => void;
 }
 
 /**
@@ -384,12 +378,6 @@ export function useAgentSelection(
     setSessionAgent,
   ]);
 
-  // UI side effects of a live-session restore. Runs from the live-runner
-  // hook's rehydrateForScope when a saved record exists for the scope.
-  const onRehydrateRestored = useCallback(() => {
-    setSelectedAgentId("kody-live");
-  }, []);
-
   return {
     selectedAgentId,
     setSelectedAgentId,
@@ -405,6 +393,5 @@ export function useAgentSelection(
     currentEntry,
     currentReasoning,
     effectiveReasoningEffort,
-    onRehydrateRestored,
   };
 }

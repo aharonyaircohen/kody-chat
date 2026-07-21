@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
 
   let body: {
     chatId?: string;
+    conversationId?: string;
     modelId?: string;
     runtime?: string;
     message?: string;
@@ -140,6 +141,7 @@ export async function POST(req: NextRequest) {
     brainUrl,
     brainKey,
     chatId,
+    ...(body.conversationId ? { conversationId: body.conversationId } : {}),
     // Brain has no ambient-context slot; prefix the page + standing dashboard
     // Context onto the user message (skip on resume, which has no new message).
     message: isResume

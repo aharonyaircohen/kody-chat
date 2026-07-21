@@ -44,7 +44,7 @@ function monitorPage(page: Page, diagnostics: string[]) {
     );
   });
   page.on("response", (response) => {
-    if (response.status() >= 500) {
+    if (response.status() === 429 || response.status() >= 500) {
       record(
         `[response:${response.status()}] ${response.request().method()} ${sanitizeDiagnosticUrl(response.url())}`,
       );

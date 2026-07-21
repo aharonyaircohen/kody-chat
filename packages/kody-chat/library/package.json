@@ -1,0 +1,35 @@
+{
+  "name": "@kody-ade/kody-chat",
+  "version": "0.2.0-next.0",
+  "description": "Embeddable React chat with host-owned transport and persistence",
+  "license": "MIT",
+  "type": "module",
+  "files": [
+    "dist",
+    "styles.css",
+    "README.md"
+  ],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.js"
+    },
+    "./core": {
+      "types": "./dist/core.d.ts",
+      "import": "./dist/core.js"
+    },
+    "./styles.css": "./styles.css"
+  },
+  "peerDependencies": {
+    "react": ">=18 <20",
+    "react-dom": ">=18 <20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aharonyaircohen/kody-chat.git"
+  }
+}

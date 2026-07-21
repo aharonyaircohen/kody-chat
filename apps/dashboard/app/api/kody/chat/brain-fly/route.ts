@@ -85,6 +85,7 @@ export async function POST(req: NextRequest) {
 
   let body: {
     chatId?: string;
+    conversationId?: string;
     modelId?: string;
     runtime?: string;
     message?: string;
@@ -240,6 +241,7 @@ export async function POST(req: NextRequest) {
       brainUrl: provisioned.url,
       brainKey: provisioned.apiKey,
       chatId,
+      ...(body.conversationId ? { conversationId: body.conversationId } : {}),
       ...(body.modelId ? { modelId: body.modelId } : {}),
       ...(body.runtime ? { runtime: body.runtime } : {}),
       // Brain has no ambient-context slot; prefix page + standing dashboard
