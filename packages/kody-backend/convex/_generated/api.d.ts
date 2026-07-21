@@ -41,6 +41,7 @@ import type * as userPreferences from "../userPreferences.js";
 import type * as userState from "../userState.js";
 import type * as validators from "../validators.js";
 import type * as viewRenderers from "../viewRenderers.js";
+import type * as widgets from "../widgets.js";
 import type * as workflowRuns from "../workflowRuns.js";
 import type * as workflows from "../workflows.js";
 
@@ -84,6 +85,7 @@ declare const fullApi: ApiFromModules<{
   userState: typeof userState;
   validators: typeof validators;
   viewRenderers: typeof viewRenderers;
+  widgets: typeof widgets;
   workflowRuns: typeof workflowRuns;
   workflows: typeof workflows;
 }>;

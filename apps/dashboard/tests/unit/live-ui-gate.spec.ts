@@ -322,6 +322,7 @@ describe("live UI gate manifest", () => {
   it("wires every implemented live journey into the gate", () => {
     expect(LIVE_UI_SPECS).toEqual([
       "tests/e2e/file-manager-real.e2e.spec.ts",
+      "tests/e2e/agent-guidance-real.e2e.spec.ts",
       "tests/e2e/direct-chat-real.e2e.spec.ts",
       "tests/e2e/chat-real-system.spec.ts",
       "tests/e2e/chat-terminal-live-ui.spec.ts",
@@ -330,10 +331,10 @@ describe("live UI gate manifest", () => {
       "tests/e2e/view-renderers-real.e2e.spec.ts",
       "tests/e2e/master-journeys-real.e2e.spec.ts",
     ]);
-    expect(EXPECTED_LIVE_UI_TESTS).toBe(18);
-    expect(LIVE_UI_JOURNEYS).toHaveLength(18);
+    expect(EXPECTED_LIVE_UI_TESTS).toBe(19);
+    expect(LIVE_UI_JOURNEYS).toHaveLength(19);
     expect(new Set(LIVE_UI_JOURNEYS.map((journey) => journey.id)).size).toBe(
-      18,
+      19,
     );
   });
 

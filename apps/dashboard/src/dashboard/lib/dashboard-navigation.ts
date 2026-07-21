@@ -61,6 +61,14 @@ const ROUTE_RULES_BY_HREF: Readonly<Record<string, RouteRule>> = {
     aliases: ["context", "curated context", "project notes"],
     when: "Use when the user asks to manage curated context files.",
   },
+  "/constraints": {
+    aliases: ["constraints", "hard limits", "guardrails"],
+    when: "Use when the user asks to manage non-negotiable agent limits.",
+  },
+  "/policies": {
+    aliases: ["policies", "decision rules", "operating rules"],
+    when: "Use when the user asks to manage agent decision rules.",
+  },
   "/memory": {
     aliases: ["memory", "remembered facts", "feedback"],
     when: "Use when the user asks to inspect or manage Kody memory.",

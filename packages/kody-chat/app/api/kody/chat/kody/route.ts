@@ -154,6 +154,7 @@ import {
 } from "@dashboard/lib/view-renderers/renderers";
 import { loadInstructionsForPrompt } from "@kody-ade/workspace/instructions/files";
 import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
+import { loadGuidanceForPrompt } from "@kody-ade/workspace/guidance/files";
 import { buildExplicitMemoryDraft } from "./explicit-memory";
 import { ensureKodyRuntimeInitialized } from "./runtime-init";
 import {
@@ -844,9 +845,17 @@ async function handleKodyDirectPost(
   // Set the context here, before buildSystemPrompt, and rely on the
   // existing onFinish / catch paths to clear it. Per-request octokits
   // for GitHub tools are still created separately below to avoid races.
+  const guidanceAgentSlug =
+    !clientSurface &&
+    typeof body.agentSlug === "string" &&
+    body.agentSlug.trim()
+      ? body.agentSlug.trim()
+      : "kody";
   let memoryIndex: string | null = null;
   let userInstructions: string | null = null;
   let context: string | null = null;
+  let constraints: string | null = null;
+  let policies: string | null = null;
   let viewRendererRules: string | null = null;
   let viewRendererDefinitions: ViewRendererDefinition[] = [];
   if (repo && clientSurface) {
@@ -903,6 +912,17 @@ async function handleKodyDirectPost(
       traceWarn(
         { traceId, err: err instanceof Error ? err.message : String(err) },
         "kody-direct: context load failed (continuing without it)",
+      );
+    }
+    try {
+      [constraints, policies] = await Promise.all([
+        loadGuidanceForPrompt("constraint", guidanceAgentSlug),
+        loadGuidanceForPrompt("policy", guidanceAgentSlug),
+      ]);
+    } catch (err) {
+      traceWarn(
+        { traceId, err: err instanceof Error ? err.message : String(err) },
+        "kody-direct: agent guidance load failed (continuing without it)",
       );
     }
     try {
@@ -1544,6 +1564,8 @@ async function handleKodyDirectPost(
       flyConfigured,
       userInstructions: null,
       context,
+      constraints,
+      policies,
       viewRendererRules,
     },
   );
@@ -1901,6 +1923,8 @@ This turn includes an image from the user. For questions about what is visible i
         );
       },
     });
+    const formatUIStreamError = (error: unknown): string =>
+      `[trace ${traceId}] ${formatProviderError(error)}`;
     // Prepend a single `data-tools-index` event to the UI stream so the
     // client can hydrate a name→description lookup for the thinking panel.
     // One event for the whole turn (not one per tool call) — see the
@@ -1922,7 +1946,12 @@ This turn includes an image from the user. For questions about what is visible i
             errorText: `Some tools failed to load this turn and are unavailable: ${failedToolFamilies.join(", ")}. Related actions cannot run right now.`,
           });
         }
-        writer.merge(result.toUIMessageStream({ sendReasoning: true }));
+        writer.merge(
+          result.toUIMessageStream({
+            sendReasoning: true,
+            onError: formatUIStreamError,
+          }),
+        );
         // Silent-turn retry: some providers (observed: MiniMax-M3)
         // intermittently burn the whole turn inside thinking and finish
         // with no tool call and no visible text — even with a pinned
@@ -1967,7 +1996,12 @@ This turn includes an image from the user. For questions about what is visible i
                   : "Your previous attempt produced no visible reply. Finish NOW with a `show_view` call if the reply asks the user to choose or approve, otherwise a `final_answer` call with your reply.",
               },
             ]);
-            writer.merge(attempt.toUIMessageStream({ sendReasoning: true }));
+            writer.merge(
+              attempt.toUIMessageStream({
+                sendReasoning: true,
+                onError: formatUIStreamError,
+              }),
+            );
           }
         } catch {
           // The primary stream already reported its own error state.
@@ -1980,7 +2014,7 @@ This turn includes an image from the user. For questions about what is visible i
           { traceId, err: msg, ...extractProviderErrorMeta(error) },
           "kody-direct: ui-stream onError",
         );
-        return `[trace ${traceId}] ${msg}`;
+        return formatUIStreamError(error);
       },
     });
     return createUIMessageStreamResponse({ stream: uiStream });

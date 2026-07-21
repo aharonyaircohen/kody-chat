@@ -14,6 +14,10 @@ import {
 } from "@dashboard/lib/chat-output-tools";
 
 const streamTextMock = vi.hoisted(() => vi.fn());
+const toUIMessageStreamMock = vi.hoisted(() =>
+  vi.fn((_options?: unknown) => ({})),
+);
+const createUIMessageStreamMock = vi.hoisted(() => vi.fn());
 const createUIMessageStreamResponseMock = vi.hoisted(() => vi.fn());
 const loadViewRendererContextForPromptMock = vi.hoisted(() => vi.fn());
 const loadInstructionsForPromptMock = vi.hoisted(() => vi.fn());
@@ -26,7 +30,7 @@ vi.mock("ai", () => ({
   }),
   streamText: streamTextMock,
   stepCountIs: vi.fn(() => vi.fn()),
-  createUIMessageStream: vi.fn((config: unknown) => config),
+  createUIMessageStream: createUIMessageStreamMock,
   createUIMessageStreamResponse: createUIMessageStreamResponseMock,
 }));
 
@@ -192,12 +196,38 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
       definitions: [approvalRendererDefinition],
     });
     streamTextMock.mockReturnValue({
-      toUIMessageStream: vi.fn(() => ({})),
+      toUIMessageStream: toUIMessageStreamMock,
       consumeStream: vi.fn(() => Promise.resolve()),
     });
+    createUIMessageStreamMock.mockImplementation((config: unknown) => config);
     loadInstructionsForPromptMock.mockResolvedValue(null);
     createUIMessageStreamResponseMock.mockReturnValue(
       new Response("ok", { status: 200 }),
+    );
+  });
+
+  it("surfaces the provider error and trace id in the model UI stream", async () => {
+    const { POST } = await import("../../app/api/kody/chat/kody/route");
+
+    const res = await POST(
+      makeRequest({ messages: [{ role: "user", content: "plan this change" }] }),
+    );
+
+    expect(res.status).toBe(200);
+    const streamConfig = createUIMessageStreamMock.mock.calls[0]?.[0] as {
+      execute: (args: {
+        writer: { write: (value: unknown) => void; merge: (value: unknown) => void };
+      }) => Promise<void>;
+    };
+    await streamConfig.execute({
+      writer: { write: vi.fn(), merge: vi.fn() },
+    });
+    const streamOptions = toUIMessageStreamMock.mock.calls[0]?.[0] as
+      | { onError?: (error: unknown) => string }
+      | undefined;
+    expect(streamOptions?.onError).toBeTypeOf("function");
+    expect(streamOptions?.onError?.(new Error("provider unavailable"))).toMatch(
+      /^\[trace [a-f0-9]+\] provider unavailable$/,
     );
   });
 

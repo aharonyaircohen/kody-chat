@@ -157,6 +157,23 @@ describe("POST /api/kody/chat/kody", () => {
     expect(prompt).not.toContain("## Connected repository");
   });
 
+  it("keeps facts, hard limits, and decision rules in distinct prompt sections", async () => {
+    const { buildSystemPrompt } =
+      await import("../../app/api/kody/chat/kody/system-prompt");
+    const prompt = buildSystemPrompt("base", null, undefined, {
+      context: "Kody builds developer tools.",
+      constraints: "Never force push.",
+      policies: "Require review before release.",
+    });
+
+    expect(prompt).toContain("## Context — your default frame");
+    expect(prompt).toContain("## Constraints — hard limits");
+    expect(prompt).toContain("## Policies — decision rules");
+    expect(prompt.indexOf("## Constraints — hard limits")).toBeLessThan(
+      prompt.indexOf("## Policies — decision rules"),
+    );
+  });
+
   it("allows explicit issue execution handoff in vibe mode", async () => {
     const { buildSystemPrompt } =
       await import("../../app/api/kody/chat/kody/system-prompt");

@@ -145,6 +145,10 @@ export function buildSystemPrompt(
      * `userInstructions` which is appended LAST as a behavioral override.
      */
     context?: string | null;
+    /** Hard, agent-scoped limits that must not be violated. */
+    constraints?: string | null;
+    /** Agent-scoped decision rules for choosing among allowed actions. */
+    policies?: string | null;
     /**
      * User-managed renderer rules compiled from backend view renderers.
      * These tell the agent when to call `show_view` and which data keys matter.
@@ -244,6 +248,20 @@ You are this AI Agency's in-house assistant, not a general-purpose chatbot. The 
 
 ${opts.context.trim()}`,
     );
+  }
+  if (opts?.constraints && opts.constraints.trim().length > 0) {
+    sections.push(`## Constraints — hard limits
+
+The following rules are non-negotiable limits for this agent. Never violate them. If a user request conflicts with one, explain the conflict and ask for a safe alternative.
+
+${opts.constraints.trim()}`);
+  }
+  if (opts?.policies && opts.policies.trim().length > 0) {
+    sections.push(`## Policies — decision rules
+
+Use the following rules when choosing how to act within the allowed constraints. A direct user instruction may override a policy, but never a constraint or a higher-priority system rule.
+
+${opts.policies.trim()}`);
   }
   if (repo) {
     sections.push(

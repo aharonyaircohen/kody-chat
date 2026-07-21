@@ -5,6 +5,11 @@ export const LIVE_UI_JOURNEYS = Object.freeze([
     title: "creates, moves, deletes, and cleans up real repository files",
   },
   {
+    id: "agent-guidance-real-persistence",
+    file: "tests/e2e/agent-guidance-real.e2e.spec.ts",
+    title: "creates, persists, and deletes real agent constraints and policies",
+  },
+  {
     id: "direct-kody-chat",
     file: "tests/e2e/direct-chat-real.e2e.spec.ts",
     title:

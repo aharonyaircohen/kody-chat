@@ -327,7 +327,7 @@ test.describe("Vibe — LIVE full flow against production", () => {
       .last();
     const errorBubble = chat
       .locator(".prose")
-      .filter({ hasText: /^Error:/i })
+      .filter({ hasText: /^(?:\[Error\]|Error:)/i })
       .last();
     const approvalAction = chat
       .locator("button:enabled")
@@ -341,6 +341,7 @@ test.describe("Vibe — LIVE full flow against production", () => {
     // transcript disabled, so only the current enabled action is clicked.
     const approvalStartedAt = Date.now();
     const approvalDeadline = approvalStartedAt + 480_000;
+    let approvalSubmitted = false;
     let sentTextApproval = false;
     let sentMissingActionRecovery = false;
     while (
@@ -350,21 +351,28 @@ test.describe("Vibe — LIVE full flow against production", () => {
       if (await errorBubble.isVisible()) {
         throw new Error(`Vibe chat failed: ${await errorBubble.innerText()}`);
       }
-      if (await approvalAction.isVisible()) {
+      if (!approvalSubmitted && (await approvalAction.isVisible())) {
         await approvalAction.click();
+        approvalSubmitted = true;
         await page.waitForTimeout(500);
         continue;
       }
-      if (!sentTextApproval && (await approvalPrompt.isVisible())) {
+      if (
+        !approvalSubmitted &&
+        !sentTextApproval &&
+        (await approvalPrompt.isVisible())
+      ) {
         await input.fill("approve");
         await chat.getByRole("button", { name: "Send message" }).click();
         sentTextApproval = true;
+        approvalSubmitted = true;
         continue;
       }
       // A provider can occasionally finish its planning tool calls without
       // rendering either prose or an approval card. Exercise the real user
       // recovery instead of waiting on a UI action that does not exist.
       if (
+        !approvalSubmitted &&
         !sentMissingActionRecovery &&
         Date.now() - approvalStartedAt >= 30_000 &&
         (await input.isEnabled())
@@ -374,6 +382,7 @@ test.describe("Vibe — LIVE full flow against production", () => {
         );
         await chat.getByRole("button", { name: "Send message" }).click();
         sentMissingActionRecovery = true;
+        approvalSubmitted = true;
         continue;
       }
       await Promise.race([

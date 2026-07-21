@@ -74,6 +74,7 @@ export function WidgetHost({
         if (cancelled) return;
         const mount = resolveWidgetMount(module);
         if (!mount) {
+          // eslint-disable-next-line no-console -- widget bundle failures need browser diagnostics.
           console.error(
             `[WidgetHost] bundle for "${slug}" has no default mount(element, props) export`,
           );
@@ -93,6 +94,7 @@ export function WidgetHost({
       })
       .catch((error: unknown) => {
         if (cancelled) return;
+        // eslint-disable-next-line no-console -- widget bundle failures need browser diagnostics.
         console.error(`[WidgetHost] failed to load widget "${slug}"`, error);
         setStatus("error");
       });
@@ -101,6 +103,7 @@ export function WidgetHost({
       try {
         cleanup?.();
       } catch (error) {
+        // eslint-disable-next-line no-console -- third-party cleanup failures need browser diagnostics.
         console.error(`[WidgetHost] cleanup failed for "${slug}"`, error);
       }
       element.replaceChildren();

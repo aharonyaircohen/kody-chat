@@ -98,6 +98,12 @@ describe("repo-scoped route contract", () => {
       "/tasks",
     );
     expect(
+      repoPathForNavMatching("/repo/A-Guy-educ/A-Guy-Web/constraints"),
+    ).toBe("/constraints");
+    expect(repoPathForNavMatching("/repo/A-Guy-educ/A-Guy-Web/policies")).toBe(
+      "/policies",
+    );
+    expect(
       repoPathForNavMatching("/repo/A-Guy-educ/A-Guy-Web/123/preview/docs"),
     ).toBe("/123/preview/docs");
     expect(repoPathForNavMatching("/org/A-Guy-educ")).toBe("/org/A-Guy-educ");
