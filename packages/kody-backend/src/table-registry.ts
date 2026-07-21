@@ -30,6 +30,11 @@ export const TABLES: readonly TableDef[] = [
     upsertIndex: "by_instance",
   },
   {
+    table: "guidedFlowCompletions",
+    naturalKey: ["actorId", "instanceId"],
+    upsertIndex: "by_completion",
+  },
+  {
     table: "userJourneys",
     naturalKey: ["journeyId"],
     upsertIndex: "by_tenant",

@@ -113,4 +113,61 @@ describe("guidedFlows", () => {
       }),
     ).toBeNull();
   });
+
+  const COMPLETION = {
+    tenantId: TENANT,
+    actorId: ACTOR,
+    instanceId: "flow-instance-1",
+    flowId: "create-workflow",
+    flowVersion: 1,
+    completedAt: NOW,
+    data: { actionId: "finish", score: 9 },
+  };
+
+  it("records completions append-only per actor, newest first", async () => {
+    const t = setup();
+    await t.mutation(api.guidedFlows.recordCompletion, COMPLETION);
+    await t.mutation(api.guidedFlows.recordCompletion, {
+      ...COMPLETION,
+      instanceId: "flow-instance-2",
+      completedAt: "2026-07-19T00:00:00.000Z",
+    });
+
+    const completions = await t.query(api.guidedFlows.listCompletions, {
+      tenantId: TENANT,
+      actorId: ACTOR,
+    });
+
+    expect(completions).toHaveLength(2);
+    expect(completions[0]).toMatchObject({ instanceId: "flow-instance-2" });
+    expect(completions[1]).toMatchObject({
+      instanceId: "flow-instance-1",
+      data: { actionId: "finish", score: 9 },
+    });
+  });
+
+  it("keeps one completion per instance and none across tenants or actors", async () => {
+    const t = setup();
+    await t.mutation(api.guidedFlows.recordCompletion, COMPLETION);
+    await t.mutation(api.guidedFlows.recordCompletion, COMPLETION);
+
+    expect(
+      await t.query(api.guidedFlows.listCompletions, {
+        tenantId: TENANT,
+        actorId: ACTOR,
+      }),
+    ).toHaveLength(1);
+    expect(
+      await t.query(api.guidedFlows.listCompletions, {
+        tenantId: "other/tenant",
+        actorId: ACTOR,
+      }),
+    ).toHaveLength(0);
+    expect(
+      await t.query(api.guidedFlows.listCompletions, {
+        tenantId: TENANT,
+        actorId: "user-2",
+      }),
+    ).toHaveLength(0);
+  });
 });

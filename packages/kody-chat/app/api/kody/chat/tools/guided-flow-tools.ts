@@ -13,6 +13,12 @@ import {
   getGuidedFlowDefinition,
   listGuidedFlowDefinitions,
 } from "@kody-ade/kody-chat/guided-flows/registry";
+import {
+  GUIDED_FLOW_DEFINITIONS_NAMESPACE,
+  latestAvailableGuidedFlowDefinitions,
+  parseStoredGuidedFlowDefinitions,
+} from "@kody-ade/kody-chat/guided-flows/stored";
+import type { GuidedFlowDefinition } from "@kody-ade/kody-chat/guided-flows/controller";
 import type { RenderedViewDirective } from "@dashboard/lib/chat-ui-actions";
 
 interface GuidedFlowToolContext {
@@ -49,6 +55,22 @@ function toInstance(row: GuidedFlowRow): GuidedFlowInstance {
   };
 }
 
+/** Custom flows live in userState — the same source the guided-flows route uses. */
+async function customGuidedFlowDefinition(
+  client: ReturnType<typeof createBackendClient>,
+  ctx: GuidedFlowToolContext,
+  flowId: string,
+): Promise<GuidedFlowDefinition | undefined> {
+  const row = (await client.query(backendApi.userState.get, {
+    tenantId: ctx.tenantId,
+    namespace: GUIDED_FLOW_DEFINITIONS_NAMESPACE,
+    userKey: ctx.actorId,
+  })) as { data?: unknown } | null;
+  return latestAvailableGuidedFlowDefinitions(
+    parseStoredGuidedFlowDefinitions(row?.data),
+  ).find((definition) => definition.id === flowId);
+}
+
 export function createGuidedFlowTools(ctx: GuidedFlowToolContext): ToolSet {
   const knownFlowIds = listGuidedFlowDefinitions()
     .map((definition) => definition.id)
@@ -59,7 +81,8 @@ export function createGuidedFlowTools(ctx: GuidedFlowToolContext): ToolSet {
       description:
         "Start or resume a GuidedFlow for the user. Use only when the user " +
         "explicitly asks for step-by-step help with a supported task. " +
-        `Supported flow ids: ${knownFlowIds}. The result is the first interactive step.`,
+        `Built-in flow ids: ${knownFlowIds}. Custom flows defined in this ` +
+        "repo can also be started by id. The result is the first interactive step.",
       inputSchema: z.object({
         flowId: z.string().trim().min(1).max(80),
         instanceKey: z.string().trim().min(1).max(128).optional(),
@@ -68,10 +91,12 @@ export function createGuidedFlowTools(ctx: GuidedFlowToolContext): ToolSet {
         flowId,
         instanceKey,
       }): Promise<RenderedViewDirective | { error: string }> => {
-        const definition = getGuidedFlowDefinition(flowId);
+        const client = createBackendClient();
+        const definition =
+          getGuidedFlowDefinition(flowId) ??
+          (await customGuidedFlowDefinition(client, ctx, flowId));
         if (!definition) return { error: `Unknown GuidedFlow "${flowId}"` };
 
-        const client = createBackendClient();
         const active = (await client.query(backendApi.guidedFlows.listActive, {
           tenantId: ctx.tenantId,
           actorId: ctx.actorId,

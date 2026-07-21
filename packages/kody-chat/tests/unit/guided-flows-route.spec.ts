@@ -10,6 +10,10 @@ const auth = vi.hoisted(() => ({
 const store = vi.hoisted(() => ({
   rows: [] as Array<Record<string, unknown>>,
   definitions: [] as Array<Record<string, unknown>>,
+  userState: {} as Record<string, unknown>,
+  failUserStateSaves: [] as string[],
+  completions: [] as Array<Record<string, unknown>>,
+  failCompletionWrites: false,
 }));
 
 vi.mock("@kody-ade/base/auth", () => auth);
@@ -21,6 +25,7 @@ vi.mock("@kody-ade/backend/api", () => ({
       list: "list",
       upsert: "upsert",
       update: "update",
+      recordCompletion: "recordCompletion",
     },
     userState: {
       get: "userState.get",
@@ -32,7 +37,11 @@ vi.mock("@kody-ade/backend/client", () => ({
   createBackendClient: () => ({
     query: async (operation: string, args: Record<string, unknown>) => {
       if (operation === "userState.get") {
-        return store.definitions.length ? { data: store.definitions } : null;
+        if (args.namespace === "guided-flow-definitions") {
+          return store.definitions.length ? { data: store.definitions } : null;
+        }
+        const data = store.userState[String(args.namespace)];
+        return data === undefined ? null : { data };
       }
       if (operation === "listActive") {
         return store.rows.filter(
@@ -58,8 +67,22 @@ vi.mock("@kody-ade/backend/client", () => ({
       );
     },
     mutation: async (operation: string, args: Record<string, unknown>) => {
+      if (operation === "recordCompletion") {
+        if (store.failCompletionWrites) {
+          throw new Error("completions unavailable");
+        }
+        store.completions.push({ ...args });
+        return;
+      }
       if (operation === "userState.save") {
-        store.definitions = args.data as Array<Record<string, unknown>>;
+        if (store.failUserStateSaves.includes(String(args.namespace))) {
+          throw new Error("userState save unavailable");
+        }
+        if (args.namespace === "guided-flow-definitions") {
+          store.definitions = args.data as Array<Record<string, unknown>>;
+          return;
+        }
+        store.userState[String(args.namespace)] = args.data;
         return;
       }
       if (operation === "upsert") {
@@ -92,6 +115,10 @@ describe("GuidedFlow route", () => {
   beforeEach(() => {
     store.rows = [];
     store.definitions = [];
+    store.userState = {};
+    store.failUserStateSaves = [];
+    store.completions = [];
+    store.failCompletionWrites = false;
     vi.clearAllMocks();
   });
 
@@ -559,6 +586,93 @@ describe("GuidedFlow route", () => {
       ),
     );
     expect((await current.json()).flow.instance.status).toBe("active");
+  });
+
+  it("records a completion ledger entry when any flow completes", async () => {
+    store.definitions = [
+      {
+        id: "legacy-flow",
+        version: 1,
+        title: "Legacy flow",
+        steps: [
+          {
+            id: "step-1",
+            title: "Finish",
+            explanation: "Finish.",
+            rendererSlug: "approval-card",
+            allowedActions: ["continue"],
+          },
+        ],
+      },
+    ];
+    const started = await POST(
+      request({ action: "start", flowId: "legacy-flow" }),
+    );
+    const instanceId = (await started.json()).instance.instanceId as string;
+
+    const completed = await POST(
+      request({
+        action: "submit",
+        instanceId,
+        stepId: "step-1",
+        expectedRevision: 0,
+        actionId: "continue",
+        result: { score: 9 },
+        mutationId: "m-ledger",
+      }),
+    );
+
+    expect(completed.status).toBe(200);
+    expect(store.completions).toEqual([
+      expect.objectContaining({
+        flowId: "legacy-flow",
+        flowVersion: 1,
+        actorId: "alice",
+        instanceId,
+        completedAt: expect.any(String),
+        data: expect.objectContaining({ actionId: "continue", score: 9 }),
+      }),
+    ]);
+  });
+
+  it("still completes the flow when the completion ledger write fails", async () => {
+    store.failCompletionWrites = true;
+    store.definitions = [
+      {
+        id: "legacy-flow",
+        version: 1,
+        title: "Legacy flow",
+        steps: [
+          {
+            id: "step-1",
+            title: "Finish",
+            explanation: "Finish.",
+            rendererSlug: "approval-card",
+            allowedActions: ["continue"],
+          },
+        ],
+      },
+    ];
+    const started = await POST(
+      request({ action: "start", flowId: "legacy-flow" }),
+    );
+    const instanceId = (await started.json()).instance.instanceId as string;
+
+    const completed = await POST(
+      request({
+        action: "submit",
+        instanceId,
+        stepId: "step-1",
+        expectedRevision: 0,
+        actionId: "continue",
+        mutationId: "m-ledger-fail",
+      }),
+    );
+
+    expect(completed.status).toBe(200);
+    expect(await completed.json()).toMatchObject({
+      instance: { status: "completed" },
+    });
   });
 
   it("does not accept oversized request bodies", async () => {

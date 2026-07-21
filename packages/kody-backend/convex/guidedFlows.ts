@@ -150,3 +150,45 @@ export const update = mutation({
     return existing._id;
   },
 });
+
+export const recordCompletion = mutation({
+  args: {
+    tenantId: v.string(),
+    actorId: v.string(),
+    instanceId: v.string(),
+    flowId: v.string(),
+    flowVersion: v.number(),
+    completedAt: v.string(),
+    data: v.any(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("guidedFlowCompletions")
+      .withIndex("by_completion", (q) =>
+        q
+          .eq("tenantId", args.tenantId)
+          .eq("actorId", args.actorId)
+          .eq("instanceId", args.instanceId),
+      )
+      .unique();
+    if (existing) return existing._id;
+    return await ctx.db.insert("guidedFlowCompletions", args);
+  },
+});
+
+export const listCompletions = query({
+  args: {
+    tenantId: v.string(),
+    actorId: v.string(),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, { tenantId, actorId, limit }) => {
+    return await ctx.db
+      .query("guidedFlowCompletions")
+      .withIndex("by_actor", (q) =>
+        q.eq("tenantId", tenantId).eq("actorId", actorId),
+      )
+      .order("desc")
+      .take(Math.min(Math.max(limit ?? 100, 1), 500));
+  },
+});

@@ -60,6 +60,21 @@ export default defineSchema({
     .index("by_instance", ["tenantId", "actorId", "instanceId"])
     .index("by_actor_status", ["tenantId", "actorId", "status"]),
 
+  // Append-only ledger of finished guided flows — one row per completed
+  // instance, the per-user progress record (e.g. lesson completions).
+  guidedFlowCompletions: defineTable({
+    tenantId: v.string(),
+    actorId: v.string(),
+    instanceId: v.string(),
+    flowId: v.string(),
+    flowVersion: v.number(),
+    completedAt: v.string(),
+    data: v.any(),
+  })
+    .index("by_completion", ["tenantId", "actorId", "instanceId"])
+    .index("by_actor", ["tenantId", "actorId", "completedAt"])
+    .index("by_flow", ["tenantId", "flowId", "completedAt"]),
+
   userJourneys: defineTable({
     tenantId: v.string(),
     journeyId: v.string(),
