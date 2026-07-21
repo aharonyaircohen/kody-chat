@@ -54,7 +54,11 @@ if [ "$need_apt" = "1" ]; then
 fi
 
 if ! command -v flyctl >/dev/null 2>&1; then
-  curl -L https://fly.io/install.sh | sh
+  # v0.4.72 can report a running Machines app as having no started VMs when
+  # invoked from another Fly machine, which makes every nested SSH pane exit.
+  # Keep the bridge on the version proven against this machine-to-machine path
+  # until a newer release is verified by the live Brain terminal journey.
+  curl -fsSL https://fly.io/install.sh | sh -s -- v0.4.50 --non-interactive
   cp /root/.fly/bin/flyctl /usr/local/bin/flyctl
 fi
 

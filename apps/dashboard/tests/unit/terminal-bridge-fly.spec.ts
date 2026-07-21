@@ -113,6 +113,15 @@ describe("terminalBridgeAppName", () => {
 });
 
 describe("terminal bridge deployment identity", () => {
+  it("pins the flyctl version proven for nested machine SSH", () => {
+    expect(TERMINAL_BRIDGE_START_SCRIPT).toContain(
+      "sh -s -- v0.4.50 --non-interactive",
+    );
+    expect(TERMINAL_BRIDGE_START_SCRIPT).not.toContain(
+      "https://fly.io/install.sh | sh\n",
+    );
+  });
+
   it("changes whenever any shipped bridge program changes", () => {
     const programs = {
       startScript: TERMINAL_BRIDGE_START_SCRIPT,
