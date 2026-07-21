@@ -13,9 +13,15 @@ interactive components without any change to kody's code or deployment.
 ## What a widget is
 
 A **widget** is a tenant-authored, precompiled JS bundle that kody's hosted
-app renders inside a **sandboxed frame** within a chat card (or any rendered
-view). Kody never compiles or trusts tenant code; it hosts it behind a fixed
-message contract.
+app loads **in-page** and renders as a real component inside a chat card (or
+any rendered view). Kody never compiles tenant code; it hosts it behind a
+fixed props/callbacks contract.
+
+Trust model: widgets render only on the tenant's own surfaces, so the widget
+author, site owner, and data owner are the same party — in-page execution is
+acceptable. If widgets ever render on shared surfaces (kody's own dashboard,
+a multi-tenant host), an isolated (iframe) tier is added behind the same
+contract; widgets need no rewrite.
 
 - One kody host serves all tenants; widgets are **per-tenant data**, stored
   and versioned like view renderers (upload via platform UI — no file editing).
@@ -52,8 +58,11 @@ in the contract is invisible to the widget — sandboxing (iframe +
   chat, the engine writes the widget in the tenant repo and opens a PR; on
   merge, CI builds the bundle and publishes it to the tenant's widget store.
   Bundles are build artifacts — never committed to the repo.
-- Storage: per-tenant table (slug, version, bundle ref, updatedAt), same
-  registry/governance pattern as `viewRenderers`.
+- Storage is hybrid, like a package registry: GitHub is the source of truth
+  and review gate (source + CI build per PR); on merge the built bundle is
+  published into kody's backend store (per-tenant, versioned, stamped with
+  the commit sha) which is what the runtime serves — fast, rate-limit-free,
+  instant rollback. Runtime never fetches from GitHub.
 
 ## Non-goals
 
