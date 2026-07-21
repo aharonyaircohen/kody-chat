@@ -1003,11 +1003,15 @@ async function handleKodyDirectPost(
   // Agent identity swaps (@slug) are admin-only from the request body.
   // Client-surface turns can only use the agent configured on the resolved
   // brand, which is loaded server-side from the ticket's repo scope.
-  const agentSlug = clientSurface
+  const requestedAgentSlug = clientSurface
     ? (surfaceBrand?.agentSlug ?? "")
     : typeof body.agentSlug === "string"
       ? body.agentSlug.trim()
       : "";
+  // `kody` names the built-in identity already supplied by chat defaults. It
+  // is not an external AI-agency member and must keep working when that
+  // optional catalog is unavailable.
+  const agentSlug = requestedAgentSlug === "kody" ? "" : requestedAgentSlug;
   let activeAgentIdentity = chatBundle.agentIdentity;
   let addressedAgentMember:
     Awaited<ReturnType<typeof listResolvedAgentFiles>>[number] | null = null;

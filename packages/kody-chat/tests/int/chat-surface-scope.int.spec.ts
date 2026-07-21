@@ -327,6 +327,39 @@ describe("surface scoping — kody in-process route", () => {
     expect(model.doStreamCalls).toHaveLength(0);
   });
 
+  it("uses the built-in Kody identity without consulting the external agent catalog", async () => {
+    const model = mockModel();
+    h.resolveBackgroundToken.mockResolvedValue({
+      token: "ghs_installation",
+      source: "app",
+    });
+    h.resolveClientBrand.mockResolvedValue({
+      slug: "acme",
+      name: "Acme",
+      accent: "#7c3aed",
+      modelId: "brand-model",
+      agentSlug: "kody",
+    });
+    h.resolveChatModel.mockResolvedValue({
+      model,
+      resolvedModel: {
+        id: "mock/model",
+        provider: "mock",
+        modelName: "mock-model",
+      },
+    });
+    h.listResolvedAgentFiles.mockResolvedValue([]);
+
+    const res = await kodyChatPOST(
+      makeRequest("/api/kody/chat/kody", chatBody, ticketHeaders()),
+    );
+
+    expect(res.status).toBe(200);
+    await res.text();
+    expect(h.listResolvedAgentFiles).not.toHaveBeenCalled();
+    expect(model.doStreamCalls).toHaveLength(1);
+  });
+
   it("keeps required-view gating alive on client-surface turns via builtin renderers (regression: brand chat never rendered cards)", async () => {
     const model = mockModel();
     h.resolveClientBrand.mockResolvedValue({
