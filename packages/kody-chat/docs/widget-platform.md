@@ -26,11 +26,11 @@ contract; widgets need no rewrite.
 - One kody host serves all tenants; widgets are **per-tenant data**, stored
   and versioned like view renderers (upload via platform UI — no file editing).
 - A rendered-view node type `widget` references a widget slug; the card
-  renders the tenant's bundle for that slug in an iframe sandbox.
+  loads the tenant's bundle for that slug and mounts its component.
 - Widgets compose with guided flows: a flow step's renderer may embed a
   widget; the widget decides when the step is complete.
 
-## Message contract (host ⇄ widget, postMessage)
+## Contract v1 (host ⇄ widget, props and callbacks)
 
 Host → widget:
 - `init { data, locale, theme, actor }` — the step/view's rendererData.
@@ -66,7 +66,7 @@ in the contract is invisible to the widget — sandboxing (iframe +
 
 ## Non-goals
 
-- No tenant code runs in kody's origin or server. Ever.
+- No tenant code runs on kody's server. Ever — widgets are browser-only.
 - No business-domain concepts in kody (lessons, exercises, etc. remain
   tenant-side vocabulary inside widget data).
 - Built-in atoms stay the default for simple views; widgets are for
