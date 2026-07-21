@@ -251,6 +251,15 @@ describe("ensureTerminalBridge", () => {
     );
   });
 
+  it("binds Fly credentials to each tmux session instead of the shared tmux server", () => {
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      '"-e", "FLY_API_TOKEN=" + claims.flyToken',
+    );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      '"-e", "FLY_ACCESS_TOKEN=" + claims.flyToken',
+    );
+  });
+
   it("keeps the local Fly wrapper from echoing browser input", () => {
     expect(TERMINAL_BRIDGE_PTY_RELAY_SCRIPT).toContain("def disable_echo(fd):");
     expect(TERMINAL_BRIDGE_PTY_RELAY_SCRIPT).toContain("termios.ECHO");

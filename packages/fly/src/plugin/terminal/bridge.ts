@@ -866,7 +866,17 @@ function ensureTmuxSession(claims, sessionName, env) {
   }
   const result = spawnSync(
     "tmux",
-    ["new-session", "-d", "-s", sessionName, tmuxPaneCommand(claims)],
+    [
+      "new-session",
+      "-d",
+      "-s",
+      sessionName,
+      "-e",
+      "FLY_API_TOKEN=" + claims.flyToken,
+      "-e",
+      "FLY_ACCESS_TOKEN=" + claims.flyToken,
+      tmuxPaneCommand(claims),
+    ],
     { env, stdio: "ignore" },
   );
   if (result.status !== 0) {
