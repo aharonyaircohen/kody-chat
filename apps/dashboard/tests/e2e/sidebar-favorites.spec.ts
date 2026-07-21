@@ -164,6 +164,34 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
       body: JSON.stringify({ tasks: [], counts: {} }),
     }),
   );
+  await page.route("**/api/kody/collaborators", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ collaborators: [] }),
+    }),
+  );
+  await page.route("**/api/kody/ci/**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ runs: [] }),
+    }),
+  );
+  await page.route("**/api/kody/boards", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ boards: [] }),
+    }),
+  );
+  await page.route("**/api/kody/goals", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ goals: [] }),
+    }),
+  );
 
   await page.goto(CANONICAL_TASKS_URL);
   const navigation = page.getByRole("complementary", {
