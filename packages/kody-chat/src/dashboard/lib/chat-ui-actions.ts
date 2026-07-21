@@ -128,6 +128,16 @@ export type RenderedViewUiNode =
   | {
       type: "submit";
       label: string;
+    }
+  | {
+      /**
+       * Tenant-authored widget: the chat surface dynamic-imports the
+       * tenant's published bundle for `widget` (a slug) and mounts it with
+       * `data` plus the host contract (theme + complete callback).
+       */
+      type: "widget";
+      widget: string;
+      data?: unknown;
     };
 
 export interface RenderedViewDirective {
@@ -261,6 +271,9 @@ function isRenderedViewUiNode(value: unknown): value is RenderedViewUiNode {
   }
   if (node.type === "submit") {
     return typeof node.label === "string";
+  }
+  if (node.type === "widget") {
+    return typeof node.widget === "string" && node.widget.length > 0;
   }
   return false;
 }

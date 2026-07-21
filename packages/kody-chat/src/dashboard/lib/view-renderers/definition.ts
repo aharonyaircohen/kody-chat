@@ -80,6 +80,12 @@ export type RendererUiTemplateNode =
   | {
       type: "submit";
       label: string;
+    }
+  | {
+      type: "widget";
+      widget: string;
+      /** Inline value or a `$key` reference into the renderer data. */
+      data?: unknown;
     };
 
 const RendererUiTemplateNodeSchema: z.ZodType<RendererUiTemplateNode> = z.lazy(
@@ -123,6 +129,11 @@ const RendererUiTemplateNodeSchema: z.ZodType<RendererUiTemplateNode> = z.lazy(
       z.object({
         type: z.literal("submit"),
         label: z.string().trim().min(1).max(80),
+      }),
+      z.object({
+        type: z.literal("widget"),
+        widget: z.string().regex(VIEW_RENDERER_SLUG_RE),
+        data: z.unknown().optional(),
       }),
     ]),
 );
@@ -268,6 +279,10 @@ function collectRendererUiDataReferences(
   }
   if (node.type === "submit") {
     collectStringDataReferences(node.label, locals, refs);
+    return;
+  }
+  if (node.type === "widget" && typeof node.data === "string") {
+    collectStringDataReferences(node.data, locals, refs);
   }
 }
 

@@ -16,6 +16,7 @@
     "./platform/lazy-panel": "./src/dashboard/lib/chat/platform/lazy-panel.tsx",
     "./chat/model-catalog": "./src/dashboard/lib/chat/model-catalog.ts",
     "./routes/guided-flows": "./app/api/kody/guided-flows/route.ts",
+    "./routes/kody/widgets-detail": "./app/api/kody/widgets/[slug]/route.ts",
     "./routes/user-journeys": "./app/api/kody/user-journeys/route.ts",
     "./pages/user-journeys": "./src/dashboard/lib/pages/user-journeys.tsx",
     "./user-journeys/contracts": "./src/dashboard/lib/user-journeys/contracts.ts",

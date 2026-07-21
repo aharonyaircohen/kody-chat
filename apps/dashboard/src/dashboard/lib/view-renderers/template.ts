@@ -219,6 +219,17 @@ function resolveRendererUiTemplate(
       label: resolveTemplateString(template.label, scope) || "Submit",
     };
   }
+  if (template.type === "widget") {
+    const data =
+      typeof template.data === "string"
+        ? resolveTemplateValue(template.data, scope)
+        : template.data;
+    return {
+      type: "widget",
+      widget: template.widget,
+      ...(data !== undefined ? { data } : {}),
+    };
+  }
   return null;
 }
 
