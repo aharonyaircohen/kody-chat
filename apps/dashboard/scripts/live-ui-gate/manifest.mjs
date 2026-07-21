@@ -1,5 +1,10 @@
 export const LIVE_UI_JOURNEYS = Object.freeze([
   {
+    id: "file-manager-real-mutations",
+    file: "tests/e2e/file-manager-real.e2e.spec.ts",
+    title: "creates, moves, deletes, and cleans up real repository files",
+  },
+  {
     id: "direct-kody-chat",
     file: "tests/e2e/direct-chat-real.e2e.spec.ts",
     title:

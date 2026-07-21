@@ -1,46 +1,35 @@
-import { describe, expect, it } from "vitest";
-import {
-  buildDuplicateChanges,
-  buildMoveChanges,
-} from "../../src/dashboard/features/file-manager/lib/repo-file-operations";
-import type { FileContent } from "../../src/dashboard/features/file-manager/lib/repo-files";
+import type { Octokit } from "@octokit/rest";
+import { describe, expect, it, vi } from "vitest";
 
-const binaryFile: FileContent = {
-  path: "assets/logo.png",
-  content: "",
-  base64Content: "iVBORw0KGgo=",
-  isBinary: true,
-  encoding: "base64",
-  sha: "old-sha",
-  size: 8,
-};
+import { deleteRepositoryPath } from "@dashboard/features/file-manager/lib/repo-file-operations";
 
-describe("repository file operation plans", () => {
-  it("moves binary files without decoding their bytes", () => {
-    expect(buildMoveChanges([binaryFile], "assets", "dir", "archive")).toEqual([
-      {
-        type: "write",
-        path: "archive/logo.png",
-        base64Content: "iVBORw0KGgo=",
+describe("deleteRepositoryPath", () => {
+  it("deletes a single file through the GitHub Contents API using its current sha", async () => {
+    const getContent = vi.fn().mockResolvedValue({
+      data: {
+        type: "file",
+        path: "moved.md",
+        sha: "blob-current",
+        size: 0,
+        encoding: "base64",
+        content: "",
       },
-      { type: "delete", path: "assets/logo.png" },
-    ]);
-  });
+    });
+    const deleteFile = vi.fn().mockResolvedValue({ data: {} });
+    const octokit = {
+      rest: { repos: { getContent, deleteFile } },
+    } as unknown as Octokit;
 
-  it("duplicates a file without changing its base64 content", () => {
-    expect(
-      buildDuplicateChanges(
-        [binaryFile],
-        "assets/logo.png",
-        "file",
-        "assets/logo-copy.png",
-      ),
-    ).toEqual([
-      {
-        type: "write",
-        path: "assets/logo-copy.png",
-        base64Content: "iVBORw0KGgo=",
-      },
-    ]);
+    await expect(
+      deleteRepositoryPath(octokit, "acme", "repo", "moved.md", "file"),
+    ).resolves.toEqual([]);
+
+    expect(deleteFile).toHaveBeenCalledWith({
+      owner: "acme",
+      repo: "repo",
+      path: "moved.md",
+      sha: "blob-current",
+      message: "chore: delete moved.md",
+    });
   });
 });

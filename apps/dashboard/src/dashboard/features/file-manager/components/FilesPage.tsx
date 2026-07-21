@@ -61,6 +61,7 @@ import {
   normalizeRepoPath,
   replacePathPrefix,
   shouldShowWorkspaceLocation,
+  visibleAncestorDirectories,
   type BreadcrumbItem,
   type FileWorkspaceViewMode,
   type RepoPathType,
@@ -240,16 +241,27 @@ export function FilesPage({
   // commit. Keep the file we have already opened visible in the tree so a
   // route transition or reload cannot temporarily make it disappear.
   const visibleTreeOverlay = useMemo<FileTreeOverlay>(() => {
-    if (!selectedFile) return treeOverlay;
-    const entry = treeEntryForPath(selectedFile.path, "file", {
-      sha: selectedFile.sha,
-      size: selectedFile.size,
-    });
+    if (!selectedPath || !selectedPathType) return treeOverlay;
+    const upserts = { ...treeOverlay.upserts };
+    for (const directory of visibleAncestorDirectories(
+      selectedPath,
+      selectedPathType,
+      workspaceRoot,
+    )) {
+      upserts[directory] ??= treeEntryForPath(directory, "dir");
+    }
+    if (selectedFile) {
+      const entry = treeEntryForPath(selectedFile.path, "file", {
+        sha: selectedFile.sha,
+        size: selectedFile.size,
+      });
+      upserts[entry.path] = entry;
+    }
     return {
       ...treeOverlay,
-      upserts: { ...treeOverlay.upserts, [entry.path]: entry },
+      upserts,
     };
-  }, [selectedFile, treeOverlay]);
+  }, [selectedFile, selectedPath, selectedPathType, treeOverlay, workspaceRoot]);
 
   const currentFolder = useMemo(() => {
     const selectedFolder = currentFolderPath(selectedPath, selectedPathType);
@@ -442,6 +454,19 @@ export function FilesPage({
     });
   }, []);
 
+  const upsertTreeAncestors = useCallback(
+    (path: string, pathType: RepoPathType) => {
+      for (const directory of visibleAncestorDirectories(
+        path,
+        pathType,
+        workspaceRoot,
+      )) {
+        upsertTreeEntry(treeEntryForPath(directory, "dir"));
+      }
+    },
+    [upsertTreeEntry, workspaceRoot],
+  );
+
   const removeTreePath = useCallback((path: string) => {
     const normalizedPath = normalizeRepoPath(path);
     setTreeOverlay((prev) => {
@@ -603,6 +628,7 @@ export function FilesPage({
           sha = result.sha;
         }
         upsertTreeEntry(treeEntryForPath(path, "file", { sha }));
+        upsertTreeAncestors(path, "file");
         deletedPathsRef.current.delete(path);
         toast.success(`Created ${path}`);
         setShowNewFileDialog(false);
@@ -624,6 +650,7 @@ export function FilesPage({
       transport,
       newItemPath,
       upsertTreeEntry,
+      upsertTreeAncestors,
       writeable,
       updateFileHref,
       handleRefresh,
@@ -651,6 +678,7 @@ export function FilesPage({
           `chore: create ${folderPath}/`,
         );
         upsertTreeEntry(treeEntryForPath(folderPath, "dir"));
+        upsertTreeAncestors(folderPath, "dir");
         upsertTreeEntry(
           treeEntryForPath(gitkeepPath, "file", { sha: result.sha }),
         );
@@ -674,6 +702,7 @@ export function FilesPage({
       auth,
       newItemPath,
       upsertTreeEntry,
+      upsertTreeAncestors,
       updateFileHref,
       handleRefresh,
     ],
@@ -758,6 +787,8 @@ export function FilesPage({
       );
       const files = result.files;
 
+      upsertTreeAncestors(source, pathType);
+
       if (pathType === "dir") {
         upsertTreeEntry(treeEntryForPath(target, "dir"));
       }
@@ -798,6 +829,7 @@ export function FilesPage({
       octokit,
       auth,
       upsertTreeEntry,
+      upsertTreeAncestors,
       removeTreePath,
       writeable,
       updateFileHref,

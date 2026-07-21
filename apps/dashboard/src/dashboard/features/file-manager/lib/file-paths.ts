@@ -34,6 +34,28 @@ export function currentFolderPath(
   return "";
 }
 
+export function visibleAncestorDirectories(
+  path: string,
+  pathType: RepoPathType,
+  rootPath: string,
+): string[] {
+  const normalizedPath = normalizeRepoPath(path);
+  const normalizedRoot = normalizeRepoPath(rootPath);
+  const directoryPath =
+    pathType === "dir" ? normalizedPath : parentRepoPath(normalizedPath);
+  if (!directoryPath) return [];
+
+  const segments = directoryPath.split("/");
+  const directories = segments.map((_, index) =>
+    segments.slice(0, index + 1).join("/"),
+  );
+  return directories.filter(
+    (directory) =>
+      directory !== normalizedRoot &&
+      (!normalizedRoot || directory.startsWith(`${normalizedRoot}/`)),
+  );
+}
+
 export function joinRepoPath(base: string, child: string): string {
   return normalizeRepoPath(
     [normalizeRepoPath(base), normalizeRepoPath(child)]

@@ -18,12 +18,15 @@ export interface RepositoryMutationResult {
 }
 
 const MAX_COMMIT_ATTEMPTS = 3;
+const COMMIT_RETRY_DELAY_MS = 1_000;
 
-function isNonFastForward(error: unknown): boolean {
+function isRetryableCommitRace(error: unknown): boolean {
   const candidate = error as { status?: number; message?: string };
   return (
     candidate.status === 422 &&
-    /not a fast forward|non-fast-forward/i.test(candidate.message ?? "")
+    /not a fast forward|non-fast-forward|GitRPC::BadObjectState/i.test(
+      candidate.message ?? "",
+    )
   );
 }
 
@@ -80,31 +83,31 @@ export async function commitFileChanges(
   );
 
   for (let attempt = 1; attempt <= MAX_COMMIT_ATTEMPTS; attempt += 1) {
-    const currentRef = await octokit.rest.git.getRef({
-      owner,
-      repo,
-      ref: `heads/${branch}`,
-    });
-    const parentSha = currentRef.data.object.sha;
-    const parentCommit = await octokit.rest.git.getCommit({
-      owner,
-      repo,
-      commit_sha: parentSha,
-    });
-    const nextTree = await octokit.rest.git.createTree({
-      owner,
-      repo,
-      base_tree: parentCommit.data.tree.sha,
-      tree,
-    });
-    const nextCommit = await octokit.rest.git.createCommit({
-      owner,
-      repo,
-      message,
-      tree: nextTree.data.sha,
-      parents: [parentSha],
-    });
     try {
+      const currentRef = await octokit.rest.git.getRef({
+        owner,
+        repo,
+        ref: `heads/${branch}`,
+      });
+      const parentSha = currentRef.data.object.sha;
+      const parentCommit = await octokit.rest.git.getCommit({
+        owner,
+        repo,
+        commit_sha: parentSha,
+      });
+      const nextTree = await octokit.rest.git.createTree({
+        owner,
+        repo,
+        base_tree: parentCommit.data.tree.sha,
+        tree,
+      });
+      const nextCommit = await octokit.rest.git.createCommit({
+        owner,
+        repo,
+        message,
+        tree: nextTree.data.sha,
+        parents: [parentSha],
+      });
       await octokit.rest.git.updateRef({
         owner,
         repo,
@@ -114,9 +117,12 @@ export async function commitFileChanges(
       });
       return { commitSha: nextCommit.data.sha, fileShas };
     } catch (error) {
-      if (attempt === MAX_COMMIT_ATTEMPTS || !isNonFastForward(error)) {
+      if (attempt === MAX_COMMIT_ATTEMPTS || !isRetryableCommitRace(error)) {
         throw error;
       }
+      await new Promise((resolve) =>
+        setTimeout(resolve, COMMIT_RETRY_DELAY_MS * attempt),
+      );
     }
   }
 

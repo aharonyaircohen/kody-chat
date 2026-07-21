@@ -14,6 +14,7 @@ import {
   parentRepoPath,
   replacePathPrefix,
   shouldShowWorkspaceLocation,
+  visibleAncestorDirectories,
 } from "@dashboard/features/file-manager/lib/file-paths";
 
 describe("buildBreadcrumbs", () => {
@@ -107,6 +108,20 @@ describe("currentFolderPath", () => {
 
   it("uses root when nothing is selected", () => {
     expect(currentFolderPath(null, null)).toBe("");
+  });
+});
+
+describe("visibleAncestorDirectories", () => {
+  it("keeps missing ancestors visible for a newly opened file", () => {
+    expect(
+      visibleAncestorDirectories("notes/archive/test.md", "file", ""),
+    ).toEqual(["notes", "notes/archive"]);
+  });
+
+  it("includes a newly opened folder but not the workspace root", () => {
+    expect(
+      visibleAncestorDirectories("docs/notes/archive", "dir", "docs"),
+    ).toEqual(["docs/notes", "docs/notes/archive"]);
   });
 });
 

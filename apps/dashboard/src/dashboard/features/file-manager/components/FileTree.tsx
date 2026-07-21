@@ -464,7 +464,7 @@ export function FileTree({
     path: string;
     type: FileEntry["type"];
   } | null>(null);
-  const [draggedEntry, setDraggedEntry] = useState<{
+  const draggedEntryRef = useRef<{
     path: string;
     type: FileEntry["type"];
   } | null>(null);
@@ -618,28 +618,30 @@ export function FileTree({
 
   const canDropOnFolder = useCallback(
     (targetDir: string) => {
-      if (!draggedEntry || !onMove) return false;
-      if (draggedEntry.path === targetDir) return false;
+      const activeEntry = draggedEntryRef.current;
+      if (!activeEntry || !onMove) return false;
+      if (activeEntry.path === targetDir) return false;
       if (
-        draggedEntry.type === "dir" &&
-        targetDir.startsWith(`${draggedEntry.path}/`)
+        activeEntry.type === "dir" &&
+        targetDir.startsWith(`${activeEntry.path}/`)
       ) {
         return false;
       }
       return true;
     },
-    [draggedEntry, onMove],
+    [onMove],
   );
 
   const handleDragStartMove = useCallback(
     (path: string, type: FileEntry["type"]) => {
-      setDraggedEntry({ path, type });
+      const entry = { path, type };
+      draggedEntryRef.current = entry;
     },
     [],
   );
 
   const handleDragEndMove = useCallback(() => {
-    setDraggedEntry(null);
+    draggedEntryRef.current = null;
     setDropTargetPath(null);
   }, []);
 
@@ -654,13 +656,36 @@ export function FileTree({
 
   const handleDropOnFolder = useCallback(
     (targetDir: string) => {
-      if (draggedEntry && canDropOnFolder(targetDir)) {
-        onMove?.(draggedEntry.path, draggedEntry.type, targetDir);
+      const activeEntry = draggedEntryRef.current;
+      if (activeEntry && canDropOnFolder(targetDir)) {
+        onMove?.(activeEntry.path, activeEntry.type, targetDir);
       }
-      setDraggedEntry(null);
+      draggedEntryRef.current = null;
       setDropTargetPath(null);
     },
-    [canDropOnFolder, draggedEntry, onMove],
+    [canDropOnFolder, onMove],
+  );
+
+  const handleDragOverRoot = useCallback(
+    (event: React.DragEvent) => {
+      if (!canDropOnFolder(normalizedRootPath)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "move";
+      setDropTargetPath(normalizedRootPath);
+    },
+    [canDropOnFolder, normalizedRootPath],
+  );
+
+  const handleDropOnRoot = useCallback(
+    (event: React.DragEvent) => {
+      const activeEntry = draggedEntryRef.current;
+      if (!activeEntry || !canDropOnFolder(normalizedRootPath)) return;
+      event.preventDefault();
+      onMove?.(activeEntry.path, activeEntry.type, normalizedRootPath);
+      draggedEntryRef.current = null;
+      setDropTargetPath(null);
+    },
+    [canDropOnFolder, normalizedRootPath, onMove],
   );
 
   useEffect(() => {
@@ -711,7 +736,15 @@ export function FileTree({
       className="flex flex-col h-full"
       onContextMenu={(e) => e.preventDefault()}
     >
-      <div className="flex min-h-[4.75rem] shrink-0 items-center gap-3 border-b border-border px-4">
+      <div
+        className={cn(
+          "flex min-h-[4.75rem] shrink-0 items-center gap-3 border-b border-border px-4",
+          dropTargetPath === normalizedRootPath && "bg-emerald-500/10",
+        )}
+        data-testid="file-tree-root-drop-target"
+        onDragOver={handleDragOverRoot}
+        onDrop={handleDropOnRoot}
+      >
         <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-primary/15 bg-primary/10">
           <FolderTree className="h-[1.1rem] w-[1.1rem] text-primary" />
         </div>
@@ -762,19 +795,8 @@ export function FileTree({
         )}
         role="tree"
         tabIndex={0}
-        onDragOver={(e) => {
-          if (!canDropOnFolder(normalizedRootPath)) return;
-          e.preventDefault();
-          e.dataTransfer.dropEffect = "move";
-          setDropTargetPath(normalizedRootPath);
-        }}
-        onDrop={(e) => {
-          if (!draggedEntry || !canDropOnFolder(normalizedRootPath)) return;
-          e.preventDefault();
-          onMove?.(draggedEntry.path, draggedEntry.type, normalizedRootPath);
-          setDraggedEntry(null);
-          setDropTargetPath(null);
-        }}
+        onDragOver={handleDragOverRoot}
+        onDrop={handleDropOnRoot}
       >
         {rootLoading ? (
           <div className="flex items-center justify-center py-8">

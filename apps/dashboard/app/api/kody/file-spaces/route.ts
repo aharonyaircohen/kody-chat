@@ -132,14 +132,23 @@ export async function PUT(req: NextRequest): Promise<NextResponse> {
   }
   const { auth } = resolved;
   const { doc } = await readDashboardConfig(auth.owner, auth.repo, { force: true });
+  let fileSpaces: StoredFileSpace[];
   try {
-    const fileSpaces = reorderFileSpaces(customSpaces(doc.fileSpaces), parsed.data.ids);
-    await writeDashboardConfig(auth.owner, auth.repo, { ...doc, version: 1, fileSpaces });
-    return NextResponse.json({ spaces: normalizeFileSpaces(fileSpaces) });
+    fileSpaces = reorderFileSpaces(customSpaces(doc.fileSpaces), parsed.data.ids);
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "Invalid file space order" },
       { status: 400 },
+    );
+  }
+  try {
+    await writeDashboardConfig(auth.owner, auth.repo, { ...doc, version: 1, fileSpaces });
+    return NextResponse.json({ spaces: normalizeFileSpaces(fileSpaces) });
+  } catch (error) {
+    logger.error({ error, owner: auth.owner, repo: auth.repo }, "file-spaces: reorder failed");
+    return NextResponse.json(
+      { message: "Failed to save file space order" },
+      { status: 500 },
     );
   }
 }

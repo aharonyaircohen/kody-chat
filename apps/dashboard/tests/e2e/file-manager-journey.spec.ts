@@ -175,6 +175,11 @@ async function installFileManagerHarness(page: Page) {
         );
       }
 
+      if (method === "DELETE" && files.has(path)) {
+        files.delete(path);
+        return json(route, { content: null, commit: { sha: `commit-${sequence++}` } });
+      }
+
       if (method === "GET" && files.has(path)) {
         const file = files.get(path)!;
         return json(route, {

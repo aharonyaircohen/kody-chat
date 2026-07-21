@@ -184,6 +184,21 @@ test("user creates a file space, moves and deletes a markdown file, then deletes
     if (
       testFilePath !== null &&
       pathname.endsWith(`/contents/${testFilePath}`) &&
+      method === "DELETE"
+    ) {
+      testFilePath = null;
+      return json(route, { content: null, commit: { sha: "delete-commit-sha" } });
+    }
+    if (
+      pathname.endsWith("/contents/team-notes/Archive/.gitkeep") &&
+      method === "DELETE"
+    ) {
+      archiveExists = false;
+      return json(route, { content: null, commit: { sha: "delete-folder-commit-sha" } });
+    }
+    if (
+      testFilePath !== null &&
+      pathname.endsWith(`/contents/${testFilePath}`) &&
       method === "GET" &&
       testFilePath !== null
     ) {
@@ -278,8 +293,11 @@ test("user creates a file space, moves and deletes a markdown file, then deletes
   await rootFile.dragTo(archiveFolder);
   await expect.poll(() => testFilePath).toBe("team-notes/Archive/Test.md");
   await archiveFolder.press("ArrowRight");
-  const nestedFile = page.getByRole("treeitem").filter({ hasText: "Test.md" });
-  await nestedFile.dragTo(page.getByRole("tree"));
+  const nestedFile = page
+    .getByRole("treeitem")
+    .filter({ hasText: "Test.md" })
+    .last();
+  await nestedFile.dragTo(page.getByTestId("file-tree-root-drop-target"));
   await expect.poll(() => testFilePath).toBe("team-notes/Test.md");
 
   await page.getByRole("button", { name: "More file actions" }).click();

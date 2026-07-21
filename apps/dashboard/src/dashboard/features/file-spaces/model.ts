@@ -1,11 +1,7 @@
 import { slugifyTitle } from "@kody-ade/base/slug";
+import type { StoredFileSpaceConfig } from "@dashboard/lib/dashboard-config/types";
 
-export interface StoredFileSpace {
-  id: string;
-  title: string;
-  slug: string;
-  rootPath: string;
-}
+export type StoredFileSpace = StoredFileSpaceConfig;
 
 export interface FileSpace extends StoredFileSpace {
   builtIn?: boolean;
@@ -29,6 +25,18 @@ function slugForTitle(title: string): string {
   });
 }
 
+function isSafeFileSpaceSegment(value: string): boolean {
+  return (
+    value.length > 0 &&
+    value.length <= 48 &&
+    value !== "." &&
+    value !== ".." &&
+    !value.includes("/") &&
+    !value.includes("\\") &&
+    slugForTitle(value) === value
+  );
+}
+
 export function normalizeFileSpaces(value: unknown): FileSpace[] {
   if (!Array.isArray(value)) return [DOCS_FILE_SPACE];
   const custom = value.filter((item): item is StoredFileSpace => {
@@ -39,6 +47,9 @@ export function normalizeFileSpaces(value: unknown): FileSpace[] {
       typeof candidate.title === "string" &&
       typeof candidate.slug === "string" &&
       typeof candidate.rootPath === "string" &&
+      candidate.id === candidate.slug &&
+      candidate.rootPath === candidate.slug &&
+      isSafeFileSpaceSegment(candidate.slug) &&
       !RESERVED_SLUGS.has(candidate.slug)
     );
   });

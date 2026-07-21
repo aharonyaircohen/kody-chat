@@ -177,4 +177,29 @@ describe("/api/kody/file-spaces", () => {
       }),
     );
   });
+
+  it("reports storage failures as server errors when reordering", async () => {
+    store.readDashboardConfig.mockResolvedValueOnce({
+      doc: {
+        version: 1,
+        fileSpaces: [
+          { id: "notes", title: "Notes", slug: "notes", rootPath: "notes" },
+        ],
+      },
+      sha: null,
+    });
+    store.writeDashboardConfig.mockRejectedValueOnce(new Error("Convex unavailable"));
+
+    const response = await PUT(
+      new NextRequest("http://localhost/api/kody/file-spaces", {
+        method: "PUT",
+        body: JSON.stringify({ ids: ["notes"] }),
+      }),
+    );
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      message: "Failed to save file space order",
+    });
+  });
 });

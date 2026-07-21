@@ -38,6 +38,19 @@ describe("file spaces", () => {
     ).toThrow("already exists");
   });
 
+  it("drops persisted spaces with unsafe routes or repository paths", () => {
+    expect(
+      normalizeFileSpaces([
+        { id: "safe", title: "Safe", slug: "safe", rootPath: "safe" },
+        { id: "escape", title: "Escape", slug: "escape", rootPath: "../secrets" },
+        { id: "nested", title: "Nested", slug: "nested/path", rootPath: "nested/path" },
+      ]),
+    ).toEqual([
+      expect.objectContaining({ id: "docs" }),
+      expect.objectContaining({ id: "safe" }),
+    ]);
+  });
+
   it("renames only the display title so links and folders stay stable", () => {
     const original = createFileSpace("Notes", []);
 

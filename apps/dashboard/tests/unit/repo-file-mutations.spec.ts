@@ -118,4 +118,24 @@ describe("commitFileChanges", () => {
     expect(createCommit).toHaveBeenCalledTimes(2);
     expect(updateRef).toHaveBeenCalledTimes(2);
   });
+
+  it("rebuilds a deletion when GitHub briefly returns a stale tree", async () => {
+    const { octokit, createTree, createCommit, updateRef } = createOctokitMock();
+    createTree
+      .mockRejectedValueOnce({
+        status: 422,
+        message: "GitRPC::BadObjectState",
+      })
+      .mockResolvedValueOnce({ data: { sha: "tree-next" } });
+
+    await expect(
+      commitFileChanges(octokit, "acme", "repo", "delete moved file", [
+        { type: "delete", path: "moved.md" },
+      ]),
+    ).resolves.toMatchObject({ commitSha: "commit-next" });
+
+    expect(createTree).toHaveBeenCalledTimes(2);
+    expect(createCommit).toHaveBeenCalledOnce();
+    expect(updateRef).toHaveBeenCalledOnce();
+  });
 });

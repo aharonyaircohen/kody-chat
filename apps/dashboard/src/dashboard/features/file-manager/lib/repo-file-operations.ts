@@ -1,5 +1,6 @@
 import type { Octokit } from "@octokit/rest";
 import {
+  deleteFile,
   getHttpStatus,
   listDir,
   readFile,
@@ -91,9 +92,16 @@ export async function deleteRepositoryPath(
   pathType: RepoPathType,
 ): Promise<FileContent[]> {
   if (pathType === "file") {
-    await commitFileChanges(octokit, owner, repo, `chore: delete ${path}`, [
-      { type: "delete", path },
-    ]);
+    const file = await readFile(octokit, owner, repo, path);
+    if (!file) return [];
+    await deleteFile(
+      octokit,
+      owner,
+      repo,
+      path,
+      file.sha,
+      `chore: delete ${path}`,
+    );
     return [];
   }
 
@@ -106,13 +114,16 @@ export async function deleteRepositoryPath(
   }
   if (files.length === 0) return files;
 
-  await commitFileChanges(
-    octokit,
-    owner,
-    repo,
-    `chore: delete ${path}`,
-    files.map((file) => ({ type: "delete", path: file.path })),
-  );
+  for (const file of files) {
+    await deleteFile(
+      octokit,
+      owner,
+      repo,
+      file.path,
+      file.sha,
+      `chore: delete ${path}`,
+    );
+  }
   return files;
 }
 
