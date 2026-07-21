@@ -27,8 +27,21 @@ export const append = mutation({
     goalId: v.optional(v.string()),
     event: v.any(),
     time: v.string(),
+    idempotencyKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    if (args.idempotencyKey) {
+      const existing = await ctx.db
+        .query("runEvents")
+        .withIndex("by_idempotency", (q) =>
+          q
+            .eq("tenantId", args.tenantId)
+            .eq("runId", args.runId)
+            .eq("idempotencyKey", args.idempotencyKey),
+        )
+        .unique()
+      if (existing) return existing._id
+    }
     const last = await ctx.db
       .query("runEvents")
       .withIndex("by_run", (q) => q.eq("tenantId", args.tenantId).eq("runId", args.runId))

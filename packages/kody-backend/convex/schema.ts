@@ -60,6 +60,21 @@ export default defineSchema({
     .index("by_instance", ["tenantId", "actorId", "instanceId"])
     .index("by_actor_status", ["tenantId", "actorId", "status"]),
 
+  // Custom GuidedFlow definitions — one row per flow version (append-only;
+  // deletes append an archived tombstone version). Replaces the former
+  // userState "guided-flow-definitions" blob array.
+  guidedFlowDefinitions: defineTable({
+    tenantId: v.string(),
+    actorId: v.string(),
+    flowId: v.string(),
+    version: v.number(),
+    archived: v.optional(v.boolean()),
+    definition: v.any(),
+    updatedAt: v.string(),
+  })
+    .index("by_flow", ["tenantId", "actorId", "flowId", "version"])
+    .index("by_actor", ["tenantId", "actorId"]),
+
   // Append-only ledger of finished guided flows — one row per completed
   // instance, the per-user progress record (e.g. lesson completions).
   guidedFlowCompletions: defineTable({
@@ -132,7 +147,10 @@ export default defineSchema({
     seq: v.number(),
     event: v.any(),
     time: v.string(),
-  }).index("by_run", ["tenantId", "runId", "seq"]),
+    idempotencyKey: v.optional(v.string()),
+  })
+    .index("by_run", ["tenantId", "runId", "seq"])
+    .index("by_idempotency", ["tenantId", "runId", "idempotencyKey"]),
 
   agencyRuns: defineTable({
     tenantId: v.string(),
@@ -156,9 +174,11 @@ export default defineSchema({
     seq: v.number(),
     event: v.any(),
     time: v.string(),
+    idempotencyKey: v.optional(v.string()),
   })
     .index("by_run", ["tenantId", "runId", "seq"])
-    .index("by_goal", ["tenantId", "goalId", "time"]),
+    .index("by_goal", ["tenantId", "goalId", "time"])
+    .index("by_idempotency", ["tenantId", "runId", "idempotencyKey"]),
 
   manifests: defineTable({
     tenantId: v.string(),
@@ -172,11 +192,13 @@ export default defineSchema({
     sessionId: v.string(),
     seq: v.number(),
     event: v.any(),
+    idempotencyKey: v.optional(v.string()),
   })
     .index("by_session", ["tenantId", "sessionId", "seq"])
     // Tenant-wide newest-first scans (Activity feed's recent-session list) —
     // the implicit _creationTime suffix orders events by arrival.
-    .index("by_tenant", ["tenantId"]),
+    .index("by_tenant", ["tenantId"])
+    .index("by_idempotency", ["tenantId", "sessionId", "idempotencyKey"]),
 
   conversations: defineTable({
     tenantId: v.string(),
@@ -285,7 +307,10 @@ export default defineSchema({
     intentId: v.string(),
     seq: v.number(),
     decision: intentDecisionValidator,
-  }).index("by_intent", ["tenantId", "intentId", "seq"]),
+    idempotencyKey: v.optional(v.string()),
+  })
+    .index("by_intent", ["tenantId", "intentId", "seq"])
+    .index("by_idempotency", ["tenantId", "intentId", "idempotencyKey"]),
 
   goals: defineTable({
     tenantId: v.string(),
@@ -464,7 +489,10 @@ export default defineSchema({
     date: v.string(), // YYYY-MM-DD
     seq: v.number(),
     entry: v.any(),
-  }).index("by_stream", ["tenantId", "stream", "date", "seq"]),
+    idempotencyKey: v.optional(v.string()),
+  })
+    .index("by_stream", ["tenantId", "stream", "date", "seq"])
+    .index("by_idempotency", ["tenantId", "stream", "date", "idempotencyKey"]),
 
   // Global (cross-repo) Kody engine store — replaces the Kody-Dashboard repo
   // action-state.json / event-log.jsonl.

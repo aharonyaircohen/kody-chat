@@ -109,7 +109,11 @@ export async function setUserState(
       break;
     } catch (error: unknown) {
       const status = (error as { status?: number })?.status;
-      const conflict = status === 409 || status === 422;
+      const message = error instanceof Error ? error.message : "";
+      const conflict =
+        status === 409 ||
+        status === 422 ||
+        message.includes("changed since it was read");
       if (!conflict || attempt === MAX_MERGE_ATTEMPTS) throw error;
     }
   }

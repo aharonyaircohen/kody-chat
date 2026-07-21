@@ -27,10 +27,9 @@ import {
   type GuidedFlowDraft,
 } from "@kody-ade/kody-chat/guided-flows/authoring";
 import {
-  GUIDED_FLOW_DEFINITIONS_NAMESPACE,
   latestAvailableGuidedFlowDefinitions,
   latestStoredGuidedFlowDefinitions,
-  parseStoredGuidedFlowDefinitions,
+  parseGuidedFlowDefinitionRows,
   type StoredGuidedFlowDefinition,
 } from "@kody-ade/kody-chat/guided-flows/stored";
 import { resolveDashboardNavigationTarget } from "@dashboard/lib/dashboard-navigation";
@@ -208,12 +207,11 @@ async function customDefinitionsFor(
   tenantId: string,
   actor: string,
 ): Promise<StoredGuidedFlowDefinition[]> {
-  const row = (await client.query(backendApi.userState.get, {
+  const rows = await client.query(backendApi.guidedFlows.listDefinitions, {
     tenantId,
-    namespace: GUIDED_FLOW_DEFINITIONS_NAMESPACE,
-    userKey: actor,
-  })) as { data?: unknown } | null;
-  return parseStoredGuidedFlowDefinitions(row?.data);
+    actorId: actor,
+  });
+  return parseGuidedFlowDefinitionRows(rows);
 }
 
 const latestStoredDefinitions = latestStoredGuidedFlowDefinitions;
@@ -462,69 +460,39 @@ export async function POST(req: NextRequest) {
       const input = parsed.data;
       const flowId =
         input.action === "update-definition" ? input.flowId : undefined;
-      const definitions = await customDefinitionsFor(client, tenantId, actor);
-      const latestStored = latestStoredDefinitions(definitions);
-      const latestDefinitions = latestStored.filter(
-        (definition) => !definition.archived,
-      );
       const draft = input.draft as GuidedFlowDraft;
       const candidateDefinition = buildGuidedFlowDefinition(draft, flowId);
-      const currentVersion =
-        latestStoredDefinition(definitions, candidateDefinition.id)?.version ??
-        0;
-      const definition = buildGuidedFlowDefinition(
-        draft,
-        flowId,
-        currentVersion + 1,
-      );
-      if (!hasValidCompletionRoute(definition)) {
+      if (!hasValidCompletionRoute(candidateDefinition)) {
         return json({ error: "invalid_completion_route" }, { status: 400 });
       }
-      if (flowId) {
-        if (
-          listGuidedFlowDefinitions().some(
-            (candidate) => candidate.id === flowId,
-          )
-        ) {
-          return json(
-            { error: "builtin_guided_flow_read_only" },
-            { status: 403 },
-          );
-        }
-        if (!latestDefinitions.some((candidate) => candidate.id === flowId)) {
-          return json({ error: "guided_flow_not_found" }, { status: 404 });
-        }
-        if (
-          definition.id !== flowId &&
-          latestDefinitions.some((candidate) => candidate.id === definition.id)
-        ) {
-          return json({ error: "guided_flow_already_exists" }, { status: 409 });
-        }
-        await client.mutation(backendApi.userState.save, {
-          tenantId,
-          namespace: GUIDED_FLOW_DEFINITIONS_NAMESPACE,
-          userKey: actor,
-          data: [...definitions, definition],
-          updatedAt: new Date().toISOString(),
-        });
-        return json({ definition });
+      if (
+        flowId &&
+        listGuidedFlowDefinitions().some((candidate) => candidate.id === flowId)
+      ) {
+        return json({ error: "builtin_guided_flow_read_only" }, { status: 403 });
       }
       if (
         listGuidedFlowDefinitions().some(
-          (candidate) => candidate.id === definition.id,
-        ) ||
-        latestDefinitions.some((candidate) => candidate.id === definition.id)
+          (candidate) => candidate.id === candidateDefinition.id,
+        )
       ) {
         return json({ error: "guided_flow_already_exists" }, { status: 409 });
       }
-      await client.mutation(backendApi.userState.save, {
-        tenantId,
-        namespace: GUIDED_FLOW_DEFINITIONS_NAMESPACE,
-        userKey: actor,
-        data: [...definitions, definition],
-        updatedAt: new Date().toISOString(),
-      });
-      return json({ definition }, { status: 201 });
+      // Version bump and existence checks run atomically in the backend.
+      const version = (await client.mutation(
+        backendApi.guidedFlows.saveDefinition,
+        {
+          tenantId,
+          actorId: actor,
+          flowId: candidateDefinition.id,
+          mode:
+            flowId && candidateDefinition.id === flowId ? "update" : "create",
+          definition: candidateDefinition,
+          updatedAt: new Date().toISOString(),
+        },
+      )) as number;
+      const definition = { ...candidateDefinition, version };
+      return json({ definition }, { status: flowId ? 200 : 201 });
     }
 
     if (parsed.data.action === "delete-definition") {
@@ -547,18 +515,12 @@ export async function POST(req: NextRequest) {
       if (!latestDefinition || latestDefinition.archived) {
         return json({ error: "guided_flow_not_found" }, { status: 404 });
       }
-      await client.mutation(backendApi.userState.save, {
+      await client.mutation(backendApi.guidedFlows.saveDefinition, {
         tenantId,
-        namespace: GUIDED_FLOW_DEFINITIONS_NAMESPACE,
-        userKey: actor,
-        data: [
-          ...definitions,
-          {
-            ...latestDefinition,
-            version: latestDefinition.version + 1,
-            archived: true,
-          },
-        ],
+        actorId: actor,
+        flowId: input.flowId,
+        mode: "archive",
+        definition: latestDefinition,
         updatedAt: new Date().toISOString(),
       });
       return json({ deleted: input.flowId });
@@ -713,6 +675,12 @@ export async function POST(req: NextRequest) {
     }
     const message =
       error instanceof Error ? error.message : "GuidedFlow action failed";
+    if (message.includes("guided_flow_already_exists")) {
+      return json({ error: "guided_flow_already_exists" }, { status: 409 });
+    }
+    if (message.includes("guided_flow_not_found")) {
+      return json({ error: "guided_flow_not_found" }, { status: 404 });
+    }
     if (message.includes("not active") || message.includes("already at")) {
       return json({ error: "invalid_guided_flow_transition" }, { status: 409 });
     }

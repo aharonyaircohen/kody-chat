@@ -3,15 +3,35 @@ import { v } from "convex/values"
 import { serviceMutation, serviceQuery } from "./lib/auth"
 
 export const append = serviceMutation({
-  args: { tenantId: v.string(), sessionId: v.string(), event: v.any() },
-  handler: async (ctx, { tenantId, sessionId, event }) => {
+  args: {
+    tenantId: v.string(),
+    sessionId: v.string(),
+    event: v.any(),
+    idempotencyKey: v.optional(v.string()),
+  },
+  handler: async (ctx, { tenantId, sessionId, event, idempotencyKey }) => {
+    if (idempotencyKey) {
+      const existing = await ctx.db
+        .query("chatEvents")
+        .withIndex("by_idempotency", (q) =>
+          q.eq("tenantId", tenantId).eq("sessionId", sessionId).eq("idempotencyKey", idempotencyKey),
+        )
+        .unique()
+      if (existing) return existing._id
+    }
     const last = await ctx.db
       .query("chatEvents")
       .withIndex("by_session", (q) => q.eq("tenantId", tenantId).eq("sessionId", sessionId))
       .order("desc")
       .first()
     const seq = (last?.seq ?? -1) + 1
-    return await ctx.db.insert("chatEvents", { tenantId, sessionId, seq, event })
+    return await ctx.db.insert("chatEvents", {
+      tenantId,
+      sessionId,
+      seq,
+      event,
+      ...(idempotencyKey ? { idempotencyKey } : {}),
+    })
   },
 })
 

@@ -58,6 +58,35 @@ export function parseStoredGuidedFlowDefinitions(
   });
 }
 
+/**
+ * Map guidedFlowDefinitions table rows to stored definitions. The row's
+ * version/archived are authoritative; the payload carries the flow shape.
+ */
+export function parseGuidedFlowDefinitionRows(
+  rows: unknown,
+): StoredGuidedFlowDefinition[] {
+  if (!Array.isArray(rows)) return [];
+  return parseStoredGuidedFlowDefinitions(
+    rows.flatMap((row) => {
+      const record = row as {
+        version?: number;
+        archived?: boolean;
+        definition?: unknown;
+      } | null;
+      if (!record?.definition || typeof record.definition !== "object") {
+        return [];
+      }
+      return [
+        {
+          ...(record.definition as Record<string, unknown>),
+          version: record.version,
+          ...(record.archived ? { archived: true } : {}),
+        },
+      ];
+    }),
+  );
+}
+
 /** Latest version per flow id, including archived tombstones. */
 export function latestStoredGuidedFlowDefinitions(
   definitions: readonly StoredGuidedFlowDefinition[],

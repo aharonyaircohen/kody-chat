@@ -10,6 +10,7 @@ vi.mock("@kody-ade/backend/api", () => ({
     guidedFlows: {
       listActive: "guidedFlows.listActive",
       upsert: "guidedFlows.upsert",
+      listDefinitions: "guidedFlows.listDefinitions",
     },
     userState: { get: "userState.get" },
   },
@@ -20,6 +21,17 @@ vi.mock("@kody-ade/backend/client", () => ({
       if (operation === "userState.get") {
         const data = backend.userState[String(args.namespace)];
         return data === undefined ? null : { data };
+      }
+      if (operation === "guidedFlows.listDefinitions") {
+        const definitions = backend.userState["guided-flow-definitions"];
+        return Array.isArray(definitions)
+          ? definitions.map((definition) => ({
+              flowId: (definition as { id: string }).id,
+              version: (definition as { version?: number }).version ?? 1,
+              archived: (definition as { archived?: boolean }).archived,
+              definition,
+            }))
+          : [];
       }
       if (operation === "guidedFlows.listActive") {
         return backend.rows.filter((row) => row.status === "active");

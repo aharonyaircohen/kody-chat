@@ -14,9 +14,8 @@ import {
   listGuidedFlowDefinitions,
 } from "@kody-ade/kody-chat/guided-flows/registry";
 import {
-  GUIDED_FLOW_DEFINITIONS_NAMESPACE,
   latestAvailableGuidedFlowDefinitions,
-  parseStoredGuidedFlowDefinitions,
+  parseGuidedFlowDefinitionRows,
 } from "@kody-ade/kody-chat/guided-flows/stored";
 import type { GuidedFlowDefinition } from "@kody-ade/kody-chat/guided-flows/controller";
 import type { RenderedViewDirective } from "@dashboard/lib/chat-ui-actions";
@@ -61,13 +60,12 @@ async function customGuidedFlowDefinition(
   ctx: GuidedFlowToolContext,
   flowId: string,
 ): Promise<GuidedFlowDefinition | undefined> {
-  const row = (await client.query(backendApi.userState.get, {
+  const rows = await client.query(backendApi.guidedFlows.listDefinitions, {
     tenantId: ctx.tenantId,
-    namespace: GUIDED_FLOW_DEFINITIONS_NAMESPACE,
-    userKey: ctx.actorId,
-  })) as { data?: unknown } | null;
+    actorId: ctx.actorId,
+  });
   return latestAvailableGuidedFlowDefinitions(
-    parseStoredGuidedFlowDefinitions(row?.data),
+    parseGuidedFlowDefinitionRows(rows),
   ).find((definition) => definition.id === flowId);
 }
 

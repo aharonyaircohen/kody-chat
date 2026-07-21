@@ -26,6 +26,8 @@ vi.mock("@kody-ade/backend/api", () => ({
       upsert: "upsert",
       update: "update",
       recordCompletion: "recordCompletion",
+      saveDefinition: "saveDefinition",
+      listDefinitions: "listDefinitions",
     },
     userState: {
       get: "userState.get",
@@ -37,11 +39,18 @@ vi.mock("@kody-ade/backend/client", () => ({
   createBackendClient: () => ({
     query: async (operation: string, args: Record<string, unknown>) => {
       if (operation === "userState.get") {
-        if (args.namespace === "guided-flow-definitions") {
-          return store.definitions.length ? { data: store.definitions } : null;
-        }
         const data = store.userState[String(args.namespace)];
         return data === undefined ? null : { data };
+      }
+      if (operation === "listDefinitions") {
+        return store.definitions.map((definition) => ({
+          tenantId: args.tenantId,
+          actorId: args.actorId,
+          flowId: definition.id,
+          version: definition.version ?? 1,
+          archived: definition.archived,
+          definition,
+        }));
       }
       if (operation === "listActive") {
         return store.rows.filter(
@@ -78,12 +87,34 @@ vi.mock("@kody-ade/backend/client", () => ({
         if (store.failUserStateSaves.includes(String(args.namespace))) {
           throw new Error("userState save unavailable");
         }
-        if (args.namespace === "guided-flow-definitions") {
-          store.definitions = args.data as Array<Record<string, unknown>>;
-          return;
-        }
         store.userState[String(args.namespace)] = args.data;
         return;
+      }
+      if (operation === "saveDefinition") {
+        const latest = store.definitions
+          .filter((definition) => definition.id === args.flowId)
+          .reduce<Record<string, unknown> | null>(
+            (best, definition) =>
+              !best ||
+              Number(definition.version ?? 1) > Number(best.version ?? 1)
+                ? definition
+                : best,
+            null,
+          );
+        const available = latest !== null && latest.archived !== true;
+        if (args.mode === "create" && available) {
+          throw new Error("guided_flow_already_exists");
+        }
+        if (args.mode !== "create" && !available) {
+          throw new Error("guided_flow_not_found");
+        }
+        const version = Number(latest?.version ?? 0) + 1;
+        store.definitions.push({
+          ...(args.definition as Record<string, unknown>),
+          version,
+          ...(args.mode === "archive" ? { archived: true } : {}),
+        });
+        return version;
       }
       if (operation === "upsert") {
         store.rows.push({ ...args });

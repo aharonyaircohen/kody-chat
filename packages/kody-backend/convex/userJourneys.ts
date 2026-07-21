@@ -122,12 +122,20 @@ export const createRun = mutation({
     runnerVersion: v.optional(v.string()),
     createdAt: v.string(),
   },
-  handler: async (ctx, args) =>
-    ctx.db.insert("userJourneyRuns", {
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("userJourneyRuns")
+      .withIndex("by_run", (q) =>
+        q.eq("tenantId", args.tenantId).eq("runId", args.runId),
+      )
+      .unique();
+    if (existing) return existing._id;
+    return ctx.db.insert("userJourneyRuns", {
       ...args,
       status: "queued",
       updatedAt: args.createdAt,
-    }),
+    });
+  },
 });
 
 export const updateRun = mutation({
@@ -165,8 +173,21 @@ export const appendRunEvent = mutation({
     runId: v.string(),
     event: v.any(),
     time: v.string(),
+    idempotencyKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    if (args.idempotencyKey) {
+      const existing = await ctx.db
+        .query("userJourneyRunEvents")
+        .withIndex("by_idempotency", (q) =>
+          q
+            .eq("tenantId", args.tenantId)
+            .eq("runId", args.runId)
+            .eq("idempotencyKey", args.idempotencyKey),
+        )
+        .unique();
+      if (existing) return existing._id;
+    }
     const last = await ctx.db
       .query("userJourneyRunEvents")
       .withIndex("by_run", (q) => q.eq("tenantId", args.tenantId).eq("runId", args.runId))

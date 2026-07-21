@@ -80,14 +80,14 @@ export const convexUserStateAdapter: UserStateAdapter = {
             userId,
             updatedAt: record.updatedAt,
             data: record.data as Record<string, unknown>,
-            revision: null,
+            revision: record.updatedAt ?? null,
           }
         : null;
     cache.set(key, { doc, expires: Date.now() + CACHE_TTL_MS });
     return doc;
   },
 
-  async set(ctx, userId, namespace: UserStateNamespace, doc: UserStateDoc) {
+  async set(ctx, userId, namespace: UserStateNamespace, doc: UserStateDoc, opts) {
     const userKey = userFileKey(userId);
     cache.delete(cacheKey(ctx, namespace.name, userKey));
 
@@ -97,6 +97,11 @@ export const convexUserStateAdapter: UserStateAdapter = {
       userKey,
       data: doc.data,
       updatedAt: doc.updatedAt,
+      // CAS token from the read this write was merged from; undefined keeps
+      // legacy last-write-wins behaviour for callers without a prior read.
+      ...(opts?.expectedRevision !== undefined
+        ? { expectedUpdatedAt: opts.expectedRevision }
+        : {}),
     });
   },
 };

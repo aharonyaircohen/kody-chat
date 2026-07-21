@@ -20,6 +20,9 @@ export const save = mutation({
     userKey: v.string(),
     data: v.any(),
     updatedAt: v.string(),
+    // Concurrency token: the updatedAt of the read this write was merged
+    // from; null means "the row must not exist yet". Omitted = last-write-wins.
+    expectedUpdatedAt: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const existing = await ctx.db
@@ -28,10 +31,22 @@ export const save = mutation({
         q.eq("tenantId", args.tenantId).eq("namespace", args.namespace).eq("userKey", args.userKey),
       )
       .unique()
+    if (
+      args.expectedUpdatedAt !== undefined &&
+      (existing?.updatedAt ?? null) !== args.expectedUpdatedAt
+    ) {
+      throw new Error("User state changed since it was read")
+    }
     if (existing) {
       await ctx.db.patch(existing._id, { data: args.data, updatedAt: args.updatedAt })
       return existing._id
     }
-    return await ctx.db.insert("userState", args)
+    return await ctx.db.insert("userState", {
+      tenantId: args.tenantId,
+      namespace: args.namespace,
+      userKey: args.userKey,
+      data: args.data,
+      updatedAt: args.updatedAt,
+    })
   },
 })

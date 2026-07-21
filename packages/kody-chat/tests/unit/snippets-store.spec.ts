@@ -31,4 +31,24 @@ describe("Convex snippets store", () => {
     expect(result).toEqual([snippet])
     expect(backend.mutation).toHaveBeenCalledWith("save", expect.objectContaining({ kind: "snippets/config.json" }))
   })
+
+  it("passes the read timestamp as the CAS token", async () => {
+    backend.query.mockResolvedValue({ doc: { version: 1, snippets: [snippet] }, updatedAt: "t-1" })
+    await mutateSnippets({} as never, "acme", "shop", (items) => items)
+    expect(backend.mutation).toHaveBeenCalledWith("save", expect.objectContaining({ expectedUpdatedAt: "t-1" }))
+  })
+
+  it("re-reads and retries when the document changed since it was read", async () => {
+    backend.query
+      .mockResolvedValueOnce({ doc: { version: 1, snippets: [] }, updatedAt: "t-1" })
+      .mockResolvedValueOnce({ doc: { version: 1, snippets: [snippet] }, updatedAt: "t-2" })
+    backend.mutation
+      .mockRejectedValueOnce(new Error("Repository document changed since it was read"))
+      .mockResolvedValueOnce("doc-id")
+
+    const result = await mutateSnippets({} as never, "acme", "shop", (items) => items)
+
+    expect(result).toEqual([snippet])
+    expect(backend.mutation).toHaveBeenLastCalledWith("save", expect.objectContaining({ expectedUpdatedAt: "t-2" }))
+  })
 })

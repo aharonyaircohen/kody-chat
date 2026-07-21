@@ -146,6 +146,60 @@ describe("guidedFlows", () => {
     });
   });
 
+  it("versions custom definitions atomically with create/update/archive modes", async () => {
+    const t = setup();
+    const base = {
+      tenantId: TENANT,
+      actorId: ACTOR,
+      flowId: "lesson-1",
+      definition: { id: "lesson-1", title: "Lesson", steps: [] },
+      updatedAt: NOW,
+    };
+    expect(
+      await t.mutation(api.guidedFlows.saveDefinition, {
+        ...base,
+        mode: "create",
+      }),
+    ).toBe(1);
+    await expect(
+      t.mutation(api.guidedFlows.saveDefinition, { ...base, mode: "create" }),
+    ).rejects.toThrow(/guided_flow_already_exists/);
+    expect(
+      await t.mutation(api.guidedFlows.saveDefinition, {
+        ...base,
+        mode: "update",
+      }),
+    ).toBe(2);
+    expect(
+      await t.mutation(api.guidedFlows.saveDefinition, {
+        ...base,
+        mode: "archive",
+      }),
+    ).toBe(3);
+    await expect(
+      t.mutation(api.guidedFlows.saveDefinition, { ...base, mode: "update" }),
+    ).rejects.toThrow(/guided_flow_not_found/);
+    // create after archive is allowed and continues the version chain
+    expect(
+      await t.mutation(api.guidedFlows.saveDefinition, {
+        ...base,
+        mode: "create",
+      }),
+    ).toBe(4);
+
+    const rows = await t.query(api.guidedFlows.listDefinitions, {
+      tenantId: TENANT,
+      actorId: ACTOR,
+    });
+    expect(rows).toHaveLength(4);
+    expect(
+      await t.query(api.guidedFlows.listDefinitions, {
+        tenantId: "other/tenant",
+        actorId: ACTOR,
+      }),
+    ).toHaveLength(0);
+  });
+
   it("keeps one completion per instance and none across tenants or actors", async () => {
     const t = setup();
     await t.mutation(api.guidedFlows.recordCompletion, COMPLETION);

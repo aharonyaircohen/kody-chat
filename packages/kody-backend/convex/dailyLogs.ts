@@ -40,8 +40,22 @@ export const append = mutation({
     stream: streamValidator,
     date: v.string(),
     entry: v.any(),
+    idempotencyKey: v.optional(v.string()),
   },
-  handler: async (ctx, { tenantId, stream, date, entry }) => {
+  handler: async (ctx, { tenantId, stream, date, entry, idempotencyKey }) => {
+    if (idempotencyKey) {
+      const existing = await ctx.db
+        .query("dailyLogs")
+        .withIndex("by_idempotency", (q) =>
+          q
+            .eq("tenantId", tenantId)
+            .eq("stream", stream)
+            .eq("date", date)
+            .eq("idempotencyKey", idempotencyKey),
+        )
+        .unique()
+      if (existing) return existing._id
+    }
     const last = await ctx.db
       .query("dailyLogs")
       .withIndex("by_stream", (q) =>
@@ -50,6 +64,13 @@ export const append = mutation({
       .order("desc")
       .first()
     const seq = (last?.seq ?? -1) + 1
-    return await ctx.db.insert("dailyLogs", { tenantId, stream, date, seq, entry })
+    return await ctx.db.insert("dailyLogs", {
+      tenantId,
+      stream,
+      date,
+      seq,
+      entry,
+      ...(idempotencyKey ? { idempotencyKey } : {}),
+    })
   },
 })

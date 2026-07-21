@@ -81,7 +81,7 @@ describe("convexUserStateAdapter", () => {
       namespace: "selections",
       userId: USER,
       data: { theme: "dark" },
-      revision: null,
+      revision: "2026-07-11T00:00:00.000Z",
     });
     expect(h.query).toHaveBeenCalledWith("userState:get", {
       tenantId: "acme/shop",
@@ -134,5 +134,22 @@ describe("convexUserStateAdapter", () => {
       data: { theme: "dark" },
       updatedAt: "2026-07-11T00:00:00.000Z",
     });
+  });
+
+  it("forwards the CAS token when the caller passes an expected revision", async () => {
+    h.mutation.mockResolvedValue(undefined);
+
+    await convexUserStateAdapter.set(
+      ctx,
+      USER,
+      selections,
+      doc({ theme: "dark" }),
+      { expectedRevision: "rev-1" },
+    );
+
+    expect(h.mutation).toHaveBeenCalledWith(
+      "userState:save",
+      expect.objectContaining({ expectedUpdatedAt: "rev-1" }),
+    );
   });
 });

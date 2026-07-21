@@ -192,3 +192,65 @@ export const listCompletions = query({
       .take(Math.min(Math.max(limit ?? 100, 1), 500));
   },
 });
+
+/**
+ * Publish a new version of a custom flow definition — the version bump and
+ * existence checks happen inside one transaction, so concurrent editors
+ * cannot lose each other's writes.
+ */
+export const saveDefinition = mutation({
+  args: {
+    tenantId: v.string(),
+    actorId: v.string(),
+    flowId: v.string(),
+    mode: v.union(
+      v.literal("create"),
+      v.literal("update"),
+      v.literal("archive"),
+    ),
+    definition: v.any(),
+    updatedAt: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const latest = await ctx.db
+      .query("guidedFlowDefinitions")
+      .withIndex("by_flow", (q) =>
+        q
+          .eq("tenantId", args.tenantId)
+          .eq("actorId", args.actorId)
+          .eq("flowId", args.flowId),
+      )
+      .order("desc")
+      .first();
+    const available = latest !== null && latest.archived !== true;
+    if (args.mode === "create" && available) {
+      throw new Error("guided_flow_already_exists");
+    }
+    if (args.mode !== "create" && !available) {
+      throw new Error("guided_flow_not_found");
+    }
+    const version = (latest?.version ?? 0) + 1;
+    await ctx.db.insert("guidedFlowDefinitions", {
+      tenantId: args.tenantId,
+      actorId: args.actorId,
+      flowId: args.flowId,
+      version,
+      ...(args.mode === "archive" ? { archived: true } : {}),
+      definition: args.definition,
+      updatedAt: args.updatedAt,
+    });
+    return version;
+  },
+});
+
+/** Every stored definition version for an actor (includes archived rows). */
+export const listDefinitions = query({
+  args: { tenantId: v.string(), actorId: v.string() },
+  handler: async (ctx, { tenantId, actorId }) =>
+    await ctx.db
+      .query("guidedFlowDefinitions")
+      .withIndex("by_actor", (q) =>
+        q.eq("tenantId", tenantId).eq("actorId", actorId),
+      )
+      .collect(),
+});

@@ -68,14 +68,34 @@ export const listDecisions = query({
 })
 
 export const appendDecision = mutation({
-  args: { tenantId: v.string(), intentId: v.string(), decision: intentDecisionValidator },
-  handler: async (ctx, { tenantId, intentId, decision }) => {
+  args: {
+    tenantId: v.string(),
+    intentId: v.string(),
+    decision: intentDecisionValidator,
+    idempotencyKey: v.optional(v.string()),
+  },
+  handler: async (ctx, { tenantId, intentId, decision, idempotencyKey }) => {
+    if (idempotencyKey) {
+      const existing = await ctx.db
+        .query("intentDecisions")
+        .withIndex("by_idempotency", (q) =>
+          q.eq("tenantId", tenantId).eq("intentId", intentId).eq("idempotencyKey", idempotencyKey),
+        )
+        .unique()
+      if (existing) return existing._id
+    }
     const last = await ctx.db
       .query("intentDecisions")
       .withIndex("by_intent", (q) => q.eq("tenantId", tenantId).eq("intentId", intentId))
       .order("desc")
       .first()
     const seq = (last?.seq ?? -1) + 1
-    return await ctx.db.insert("intentDecisions", { tenantId, intentId, seq, decision })
+    return await ctx.db.insert("intentDecisions", {
+      tenantId,
+      intentId,
+      seq,
+      decision,
+      ...(idempotencyKey ? { idempotencyKey } : {}),
+    })
   },
 })

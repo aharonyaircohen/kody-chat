@@ -106,18 +106,22 @@ export async function mutateSnippets(
     const file: SnippetsFile = { version: 1, snippets: [...next] };
     try {
       void octokit;
-      void sha;
       await createBackendClient().mutation(api.repoDocs.save, {
         tenantId: `${owner}/${repo}`,
         kind: SNIPPETS_CONFIG_PATH,
         doc: file,
         updatedAt: new Date().toISOString(),
+        ...(sha !== undefined ? { expectedUpdatedAt: sha } : {}),
       });
       cache.delete(cacheKey(owner, repo));
       return next;
     } catch (error: unknown) {
       const status = (error as { status?: number })?.status;
-      const conflict = status === 409 || status === 422;
+      const message = error instanceof Error ? error.message : "";
+      const conflict =
+        status === 409 ||
+        status === 422 ||
+        message.includes("changed since it was read");
       if (!conflict || attempt === MAX_ATTEMPTS) throw error;
     }
   }
