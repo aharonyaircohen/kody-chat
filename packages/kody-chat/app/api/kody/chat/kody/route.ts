@@ -112,6 +112,7 @@ import {
   selectChatOutputActiveTools,
   selectChatOutputToolChoice,
 } from "@dashboard/lib/chat-output-tools";
+import { isRenderedViewDirective } from "@dashboard/lib/chat-ui-actions";
 import { parseReasoning } from "@kody-ade/kody-chat/core/reasoning";
 import { getChatProviderCapabilities } from "@kody-ade/kody-chat/core/provider-capabilities";
 import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "@dashboard/lib/view-renderers/builtin";
@@ -276,6 +277,22 @@ function successfulToolResult(toolName: string): StopCondition<ToolSet> {
     steps[steps.length - 1]?.toolResults?.some(
       (result) =>
         result.toolName === toolName && !isToolErrorOutput(result.output),
+    ) ?? false;
+}
+
+/**
+ * Stop once ANY tool result already IS a rendered-view directive —
+ * matched by shape, not tool name, so guided_flow_start (and any future
+ * card-producing tool) ends the turn exactly like show_view does. The
+ * directive streams to the client as the visible output; letting the
+ * model keep going only makes it re-render the same card via show_view
+ * as a chat-target echo WITHOUT the guided-flow submit wiring, which
+ * then clobbers the working card in the UI.
+ */
+function successfulRenderedViewResult(): StopCondition<ToolSet> {
+  return ({ steps }) =>
+    steps[steps.length - 1]?.toolResults?.some((result) =>
+      isRenderedViewDirective(result.output),
     ) ?? false;
 }
 
@@ -1745,6 +1762,7 @@ This turn includes an image from the user. For questions about what is visible i
         stopWhen: [
           settledToolAttempts(SHOW_VIEW_TOOL, MAX_SHOW_VIEW_ATTEMPTS),
           successfulToolResult(FINAL_ANSWER_TOOL),
+          successfulRenderedViewResult(),
           stepCountIs(resolvedModel.maxSteps ?? DEFAULT_MAX_STEPS),
         ],
         // Per-provider thinking config so reasoning-delta chunks actually
@@ -1922,9 +1940,13 @@ This turn includes an image from the user. For questions about what is visible i
             const producedOutputTool = steps.some((step) =>
               step.toolResults.some(
                 (stepResult) =>
-                  (stepResult.toolName === SHOW_VIEW_TOOL ||
+                  // A rendered-view directive from ANY tool (e.g.
+                  // guided_flow_start) is the turn's visible output —
+                  // do not treat such turns as silent.
+                  isRenderedViewDirective(stepResult.output) ||
+                  ((stepResult.toolName === SHOW_VIEW_TOOL ||
                     stepResult.toolName === FINAL_ANSWER_TOOL) &&
-                  !isToolErrorOutput(stepResult.output),
+                    !isToolErrorOutput(stepResult.output)),
               ),
             );
             const visibleAnswer = parseReasoning(

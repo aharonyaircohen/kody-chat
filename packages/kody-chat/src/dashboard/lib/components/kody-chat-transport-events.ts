@@ -293,6 +293,18 @@ export function createTransportTurnHandler(
             state.pendingPreviewAct = directive.payload;
             return;
           case "rendered-view": {
+            // A guided-flow step card carries the submit wiring
+            // (instanceId/stepId/revision). If the model re-renders the
+            // same step via show_view later in the turn, that echo is a
+            // chat-target view without the wiring — letting it overwrite
+            // the guided-flow card would turn its buttons into plain chat
+            // replies and the flow would never advance.
+            if (
+              state.pendingView?.resultTarget === "guided-flow" &&
+              directive.payload.resultTarget !== "guided-flow"
+            ) {
+              return;
+            }
             // Unlike the others, the view attaches to the in-flight
             // bubble immediately and supersedes streamed text.
             state.pendingView = directive.payload;
