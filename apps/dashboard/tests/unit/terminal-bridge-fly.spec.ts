@@ -252,11 +252,17 @@ describe("ensureTerminalBridge", () => {
   });
 
   it("binds Fly credentials to each tmux session instead of the shared tmux server", () => {
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
-      '"-e", "FLY_API_TOKEN=" + claims.flyToken',
+    const tmuxSession = TERMINAL_BRIDGE_SCRIPT.match(
+      /function ensureTmuxSession[\s\S]*?\n}\n\nfunction rememberOutput/,
+    )?.[0];
+
+    expect(tmuxSession).toBeTruthy();
+    expect(tmuxSession).toContain('"new-session"');
+    expect(tmuxSession).toMatch(
+      /"-e",\s*"FLY_API_TOKEN=" \+ claims\.flyToken/,
     );
-    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
-      '"-e", "FLY_ACCESS_TOKEN=" + claims.flyToken',
+    expect(tmuxSession).toMatch(
+      /"-e",\s*"FLY_ACCESS_TOKEN=" \+ claims\.flyToken/,
     );
   });
 
