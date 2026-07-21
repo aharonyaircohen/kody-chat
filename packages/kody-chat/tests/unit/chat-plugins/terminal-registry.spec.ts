@@ -14,6 +14,7 @@ import {
   BRAIN_TERMINAL_TRANSPORT,
   LOCAL_TERMINAL_TRANSPORT,
   canUseChatTerminalFlyMachine,
+  defaultTerminalTransport,
   findMountedBrainTerminal,
   isBrainTerminalTransport,
   loadPersistedTerminalRegistry,
@@ -64,6 +65,23 @@ afterEach(() => {
 });
 
 describe("chat terminal registry Brain sessions", () => {
+  it("defaults to Brain when the live inventory exposes a Brain machine", () => {
+    const brainMachine: FlyMachineRow = {
+      app: "kody-brain-alice",
+      machineId: "brain-1",
+      state: "started",
+      region: "fra",
+      label: "Brain",
+      sizeLabel: "shared 1x · 1 GB",
+      feature: "brain",
+    };
+
+    expect(defaultTerminalTransport([brainMachine])).toEqual(
+      BRAIN_TERMINAL_TRANSPORT,
+    );
+    expect(defaultTerminalTransport([])).toEqual(LOCAL_TERMINAL_TRANSPORT);
+  });
+
   it("filters Fly terminal choices to Brain machines only", () => {
     const baseMachine = {
       app: "kody-runner",
@@ -231,15 +249,15 @@ describe("chat terminal registry Brain sessions", () => {
       sizeLabel: "perf 1x · 2 GB",
       feature: "runner",
     } satisfies FlyMachineRow;
-    expect(
-      resolveTerminalTargetSelection("runner-app:m-9", [machine]),
-    ).toEqual({
-      type: "fly",
-      app: "runner-app",
-      machineId: "m-9",
-      label: "runner",
-      feature: "runner",
-    });
+    expect(resolveTerminalTargetSelection("runner-app:m-9", [machine])).toEqual(
+      {
+        type: "fly",
+        app: "runner-app",
+        machineId: "m-9",
+        label: "runner",
+        feature: "runner",
+      },
+    );
   });
 
   it("finds the most recent mounted Brain terminal", () => {
@@ -295,9 +313,9 @@ describe("chat terminal registry refresh persistence", () => {
     expect(pruneSessionKeyedRecord(modes, known)).toBe(modes);
     const connections = { "chat-2::local": "connected" as const };
     expect(pruneInstanceKeyedRecord(connections, known)).toBe(connections);
-    expect(
-      pruneInstanceKeyedRecord(connections, new Set(["chat-1"])),
-    ).toEqual({});
+    expect(pruneInstanceKeyedRecord(connections, new Set(["chat-1"]))).toEqual(
+      {},
+    );
   });
 
   it("refreshes status for local terminals by chat session only", () => {
@@ -309,9 +327,10 @@ describe("chat terminal registry refresh persistence", () => {
   });
 
   it("probes remote terminals by semantic Brain target or Fly machine", () => {
-    expect(
-      remoteTerminalStatusRequest({ type: "brain" }, "chat-1"),
-    ).toEqual({ target: "brain", chatSessionId: "chat-1" });
+    expect(remoteTerminalStatusRequest({ type: "brain" }, "chat-1")).toEqual({
+      target: "brain",
+      chatSessionId: "chat-1",
+    });
     expect(
       remoteTerminalStatusRequest(
         { type: "fly", app: "runner-app", machineId: "m-1", feature: "runner" },

@@ -85,6 +85,34 @@ function sseBody(events: unknown[]): string {
 }
 
 async function mockShellApis(page: Page): Promise<void> {
+  await page.route("**/api/kody/chat/conversations**", async (route) => {
+    const request = route.request();
+    const pathname = new URL(request.url()).pathname;
+    const isCollection = pathname.endsWith("/conversations");
+    if (request.method() === "GET" && isCollection) {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ conversations: [] }),
+      });
+      return;
+    }
+    await route.fulfill({
+      status: request.method() === "POST" && isCollection ? 201 : 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        request.method() === "GET"
+          ? {
+              conversation: null,
+              entries: [],
+              checkpoints: [],
+              runtimeBindings: [],
+              attachments: [],
+            }
+          : { ok: true },
+      ),
+    });
+  });
   await page.route("**/api/kody/tasks*", (route) =>
     route.fulfill({
       status: 200,
@@ -723,7 +751,7 @@ test.describe("Kody chat renderer output", () => {
     await page.getByRole("button", { name: /thought/i }).click();
     await expect(page.getByText("Looking now.")).toBeVisible();
     await expect(
-      page.getByText(/invoke|github_list_tree|minimax|<path>/i),
+      chatRail(page).getByText(/invoke|github_list_tree|minimax|<path>/i),
     ).toHaveCount(0);
   });
 

@@ -1,0 +1,270 @@
+import { expect, resolveLiveGitHubUser, test, type Page } from "./live-test";
+
+const BASE_URL = process.env.BASE_URL ?? "";
+const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
+const TEST_REPO = process.env.E2E_GITHUB_REPO ?? "";
+
+function parseRepo(value: string): { owner: string; repo: string } {
+  try {
+    const path = value.includes("://") ? new URL(value).pathname : value;
+    const [owner = "", repo = ""] = path.replace(/^\//, "").split("/");
+    return { owner, repo };
+  } catch {
+    return { owner: "", repo: "" };
+  }
+}
+
+function apiHeaders(owner: string, repo: string) {
+  return {
+    "x-kody-token": TEST_TOKEN,
+    "x-kody-owner": owner,
+    "x-kody-repo": repo,
+  };
+}
+
+function defaultChatEntryKey(owner: string, repo: string) {
+  return `kody-default-chat-entry:${owner.toLowerCase()}/${repo.toLowerCase()}`;
+}
+
+async function installAuth(
+  page: Page,
+  owner: string,
+  repo: string,
+  extra: Record<string, unknown> = {},
+) {
+  const user = await resolveLiveGitHubUser(
+    page,
+    BASE_URL,
+    apiHeaders(owner, repo),
+  );
+  await page.context().addInitScript(
+    ({ auth, storage }) => {
+      localStorage.clear();
+      localStorage.setItem("kody_auth", JSON.stringify(auth));
+      for (const [key, value] of Object.entries(storage)) {
+        localStorage.setItem(key, String(value));
+      }
+    },
+    {
+      auth: {
+        repoUrl: TEST_REPO,
+        owner,
+        repo,
+        token: TEST_TOKEN,
+        user,
+        loggedInAt: Date.now(),
+        ...extra,
+      },
+      storage: {},
+    },
+  );
+}
+
+async function configuredModel(page: Page, owner: string, repo: string) {
+  const headers = apiHeaders(owner, repo);
+  const [modelsResponse, secretsResponse] = await Promise.all([
+    page.request.get(`${BASE_URL}/api/kody/models`, { headers }),
+    page.request.get(`${BASE_URL}/api/kody/secrets`, { headers }),
+  ]);
+  expect(modelsResponse.ok()).toBe(true);
+  expect(secretsResponse.ok()).toBe(true);
+  const models = (await modelsResponse.json()) as {
+    models?: Array<{
+      id: string;
+      label: string;
+      apiKeySecret: string;
+      enabled?: boolean;
+    }>;
+  };
+  const secrets = (await secretsResponse.json()) as {
+    secrets?: Array<{ name: string }>;
+  };
+  const names = new Set((secrets.secrets ?? []).map(({ name }) => name));
+  const model = (models.models ?? []).find(
+    (candidate) =>
+      candidate.enabled !== false && names.has(candidate.apiKeySecret),
+  );
+  expect(model, "an enabled model must have a vault secret").toBeTruthy();
+  return model!;
+}
+
+async function startNewClientConversation(page: Page) {
+  const chat = page.locator('[aria-label="Kody chat"]').first();
+  await chat.getByRole("button", { name: "Toggle conversations" }).click();
+  const sidebar = page.locator('[data-testid="session-sidebar"]');
+  await expect(sidebar).toBeVisible();
+  await sidebar.getByRole("button", { name: "New conversation" }).click();
+  await sidebar.getByRole("button", { name: "Close conversations" }).click();
+  await expect(sidebar).toBeHidden();
+  await expect(chat.locator("textarea")).toBeEditable({ timeout: 30_000 });
+}
+
+test.describe("Master live user journeys", () => {
+  test.skip(
+    !BASE_URL || !TEST_TOKEN || !TEST_REPO,
+    "Requires explicit live target and repository credentials",
+  );
+
+  test("connects a real repository and restores the authenticated selection", async ({
+    page,
+  }) => {
+    test.setTimeout(180_000);
+    const { owner, repo } = parseRepo(TEST_REPO);
+    await page.goto(`${BASE_URL}/tasks`, { waitUntil: "domcontentloaded" });
+    await page.evaluate(() => localStorage.clear());
+    await page.reload({ waitUntil: "domcontentloaded" });
+
+    await expect(
+      page.getByRole("heading", { name: /connect a repository/i }),
+    ).toBeVisible();
+    await page.getByLabel(/^repository$/i).fill(TEST_REPO);
+    await page.getByLabel(/personal access token/i).fill(TEST_TOKEN);
+    await page.getByRole("button", { name: /connect repository/i }).click();
+
+    await expect(page).toHaveURL(new RegExp(`/repo/${owner}/${repo}(?:/|$)`), {
+      timeout: 120_000,
+    });
+    expect(
+      await page.evaluate(() => {
+        const raw = localStorage.getItem("kody_auth");
+        if (!raw) return null;
+        const auth = JSON.parse(raw) as { owner?: string; repo?: string };
+        return { owner: auth.owner, repo: auth.repo };
+      }),
+    ).toEqual({ owner, repo });
+
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("button", { name: repo })).toBeVisible({
+      timeout: 30_000,
+    });
+  });
+
+  test("opens real Commands, Context, and Brands plugin panels", async ({
+    page,
+  }) => {
+    const { owner, repo } = parseRepo(TEST_REPO);
+    await installAuth(page, owner, repo);
+
+    for (const [path, title] of [
+      ["commands", "Commands"],
+      ["context", "Context"],
+      ["brands", "Brands"],
+    ] as const) {
+      await page.goto(`${BASE_URL}/repo/${owner}/${repo}/${path}`, {
+        waitUntil: "domcontentloaded",
+      });
+      await expect(page.getByText(title, { exact: true }).first()).toBeVisible({
+        timeout: 30_000,
+      });
+    }
+  });
+
+  test("uses the real branded client chat and restores its reply", async ({
+    page,
+  }) => {
+    test.setTimeout(360_000);
+    const { owner, repo } = parseRepo(TEST_REPO);
+    const model = await configuredModel(page, owner, repo);
+    await installAuth(page, owner, repo);
+    await page
+      .context()
+      .addInitScript(({ key, value }) => localStorage.setItem(key, value), {
+        key: defaultChatEntryKey(owner, repo),
+        value: `kody:${model.id}`,
+      });
+
+    let conversationId = "";
+    page.on("response", async (response) => {
+      if (
+        response.request().method() === "POST" &&
+        response.url().endsWith("/api/kody/chat/conversations") &&
+        response.status() === 201
+      ) {
+        const body = (await response.json().catch(() => ({}))) as {
+          conversationId?: string;
+        };
+        conversationId = body.conversationId ?? conversationId;
+      }
+    });
+
+    await page.goto(`${BASE_URL}/client/acme`, {
+      waitUntil: "domcontentloaded",
+    });
+    const surface = page.locator('[data-testid="client-chat-surface"]');
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    await expect(surface).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('[data-testid="client-brand-name"]')).toHaveText(
+      "Acme",
+    );
+    await expect(page.locator('[aria-label="Kody chat"]')).toHaveCount(1);
+    await startNewClientConversation(page);
+
+    const marker = `CLIENT_E2E_${Date.now()}`;
+    await chat
+      .locator("textarea")
+      .fill(`Reply with exactly ${marker} and no other text.`);
+    const chatResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === "POST" &&
+        response.url().endsWith("/api/kody/chat/kody"),
+    );
+    await chat.getByRole("button", { name: "Send message" }).click();
+    expect((await chatResponse).status()).toBe(200);
+    await expect(chat.getByText(marker, { exact: false }).last()).toBeVisible({
+      timeout: 240_000,
+    });
+    await expect.poll(() => conversationId, { timeout: 30_000 }).not.toBe("");
+
+    try {
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await expect(chat.getByText(marker, { exact: false }).last()).toBeVisible(
+        {
+          timeout: 30_000,
+        },
+      );
+    } finally {
+      if (conversationId) {
+        const cleanup = await page.request.delete(
+          `${BASE_URL}/api/kody/chat/conversations/${conversationId}`,
+          { headers: apiHeaders(owner, repo) },
+        );
+        expect(cleanup.ok()).toBe(true);
+      }
+    }
+  });
+
+  test("keeps the real client chat usable on mobile", async ({ page }) => {
+    const { owner, repo } = parseRepo(TEST_REPO);
+    const model = await configuredModel(page, owner, repo);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await installAuth(page, owner, repo);
+    await page
+      .context()
+      .addInitScript(({ key, value }) => localStorage.setItem(key, value), {
+        key: defaultChatEntryKey(owner, repo),
+        value: `kody:${model.id}`,
+      });
+    await page.goto(`${BASE_URL}/client/acme`, {
+      waitUntil: "domcontentloaded",
+    });
+
+    const surface = page.locator('[data-testid="client-chat-surface"]');
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    await expect(surface).toBeVisible({ timeout: 30_000 });
+    await startNewClientConversation(page);
+    await chat.getByRole("button", { name: "Toggle conversations" }).click();
+    const sidebar = page.locator('[data-testid="session-sidebar"]');
+    await expect(sidebar).toBeVisible();
+    await expect(async () => {
+      const [surfaceBox, sidebarBox] = await Promise.all([
+        surface.boundingBox(),
+        sidebar.boundingBox(),
+      ]);
+      expect(surfaceBox).not.toBeNull();
+      expect(sidebarBox).not.toBeNull();
+      expect(sidebarBox!.width).toBeLessThan(surfaceBox!.width);
+    }).toPass();
+    await sidebar.getByRole("button", { name: "Close conversations" }).click();
+    await expect(chat.locator("textarea")).toBeEditable();
+  });
+});

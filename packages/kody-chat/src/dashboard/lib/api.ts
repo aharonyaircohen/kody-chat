@@ -157,7 +157,7 @@ interface ApiAuthContext {
   storeRef?: string;
 }
 
-function buildHeaders(
+export function buildHeaders(
   extra: Record<string, string> = {},
   authOverride?: ApiAuthContext | null,
 ): Record<string, string> {

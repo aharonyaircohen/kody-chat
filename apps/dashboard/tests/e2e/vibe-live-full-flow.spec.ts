@@ -32,7 +32,7 @@
  *   E2E_GITHUB_REPO    - https://github.com/<owner>/<name> URL of the tester repo
  */
 
-import { test, expect, type Page } from "./live-test";
+import { expect, resolveLiveGitHubUser, test, type Page } from "./live-test";
 
 const BASE_URL = process.env.BASE_URL ?? "";
 const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
@@ -56,14 +56,23 @@ async function injectAuth(
   owner: string,
   repo: string,
 ): Promise<void> {
-  await page.evaluate(
-    (auth) => localStorage.setItem("kody_auth", JSON.stringify(auth)),
+  const user = await resolveLiveGitHubUser(page, BASE_URL, {
+    "x-kody-token": TEST_TOKEN,
+    "x-kody-owner": owner,
+    "x-kody-repo": repo,
+  });
+  await page.context().addInitScript(
+    (auth) => {
+      localStorage.clear();
+      localStorage.setItem("kody_auth", JSON.stringify(auth));
+    },
     {
       repoUrl: TEST_REPO,
       owner,
       repo,
       token: TEST_TOKEN,
-      user: { login: "live-e2e", avatar_url: "", id: 1 },
+      flyPerf: "high",
+      user,
       loggedInAt: Date.now(),
     },
   );
@@ -95,107 +104,183 @@ async function ghFetch(path: string): Promise<unknown> {
   return res.json();
 }
 
+let cleanupTarget: {
+  owner: string;
+  repo: string;
+  issueNumber?: number;
+} | null = null;
+
+async function cleanupFailedVibeRun(): Promise<void> {
+  if (!cleanupTarget?.issueNumber) return;
+  const { owner, repo, issueNumber } = cleanupTarget;
+  const headers = {
+    Authorization: `Bearer ${TEST_TOKEN}`,
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "Content-Type": "application/json",
+  };
+
+  try {
+    const search = (await ghFetch(
+      `/search/issues?q=${encodeURIComponent(
+        `repo:${owner}/${repo} is:pr in:body "Closes #${issueNumber}"`,
+      )}`,
+    )) as { items: Array<{ number: number }> };
+    for (const item of search.items) {
+      const pr = (await ghFetch(
+        `/repos/${owner}/${repo}/pulls/${item.number}`,
+      )) as { merged: boolean; state: string; head: { ref: string } };
+      if (!pr.merged && pr.state === "open") {
+        await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/pulls/${item.number}`,
+          {
+            method: "PATCH",
+            headers,
+            body: JSON.stringify({ state: "closed" }),
+          },
+        );
+      }
+      if (!pr.merged && pr.head.ref) {
+        await fetch(
+          `https://api.github.com/repos/${owner}/${repo}/git/refs/heads/${encodeURIComponent(pr.head.ref)}`,
+          { method: "DELETE", headers },
+        );
+      }
+    }
+    await fetch(
+      `https://api.github.com/repos/${owner}/${repo}/issues/${issueNumber}`,
+      { method: "PATCH", headers, body: JSON.stringify({ state: "closed" }) },
+    );
+  } catch (error) {
+    // Preserve the original Playwright failure while making cleanup trouble
+    // visible in the artifact log.
+    // eslint-disable-next-line no-console
+    console.error("[live-e2e] failed to clean Vibe mutation", error);
+  }
+}
+
 test.describe("Vibe — LIVE full flow against production", () => {
   test.skip(
     !BASE_URL || !TEST_TOKEN || !TEST_REPO,
     "Requires explicit BASE_URL + E2E_GITHUB_TOKEN + E2E_GITHUB_REPO to run live.",
   );
 
+  test.beforeEach(() => {
+    cleanupTarget = null;
+  });
+
+  test.afterEach(async ({}, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+      await cleanupFailedVibeRun();
+    }
+    cleanupTarget = null;
+  });
+
   test("rename welcome text → approve → runner pushes the real diff", async ({
     page,
   }, testInfo) => {
-    testInfo.setTimeout(1_800_000); // 30 min hard cap (create + run + CI wait + merge).
+    testInfo.setTimeout(2_700_000); // 45 min hard cap (cold runner + verification + CI + merge).
     const { owner, repo } = parseRepo(TEST_REPO);
     expect(owner, "E2E_GITHUB_REPO must parse to owner/repo").toBeTruthy();
     expect(repo).toBeTruthy();
+    cleanupTarget = { owner, repo };
 
     // Capture browser console for the temporary [vibe-debug] traces in
     // node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/KodyChat.tsx. Dump everything on
     // failure so we can see exactly where the kickoff flow halts.
-    const consoleLines: string[] = [];
-    page.on("console", (msg) => {
-      const text = msg.text();
-      if (text.includes("[vibe-debug]") || msg.type() === "error") {
-        const line = `[${msg.type()}] ${text}`;
-        consoleLines.push(line);
-        // Also echo to test stdout so we see it live.
-        // eslint-disable-next-line no-console
-        console.log(`BROWSER ${line}`);
-      }
-    });
-    page.on("requestfailed", (req) => {
-      const line = `[reqfail] ${req.method()} ${req.url()} — ${req.failure()?.errorText ?? "?"}`;
-      consoleLines.push(line);
-      // eslint-disable-next-line no-console
-      console.log(`BROWSER ${line}`);
-    });
-
     // ── 1. Land on /vibe with auth injected. ────────────────────────────
-    await page.goto(`${BASE_URL}/login`);
-    await page.waitForLoadState("domcontentloaded");
     await injectAuth(page, owner, repo);
-    await page.goto(`${BASE_URL}/vibe`);
+    await page.goto(`${BASE_URL}/repo/${owner}/${repo}/vibe`);
     await page.waitForLoadState("domcontentloaded");
 
     // Skip on mobile — the chat rail is hidden.
     const viewport = await page.viewportSize();
     test.skip((viewport?.width ?? 1280) < 768, "chat rail hidden on mobile");
 
-    // ── Capture Vibe execution network calls for assertion 5. ───────────
-    let vibeExecuteCalled = false;
-    page.on("request", (req) => {
-      if (
-        req.url().includes("/api/kody/vibe/execute") &&
-        req.method() === "POST"
-      ) {
-        vibeExecuteCalled = true;
-      }
-    });
-
     // ── 2. Switch to the in-process chat agent. ─────────────────────────
     // /vibe defaults to "Kody Live" which is the long-lived RUNNER. The
     // dashboard agent that drafts the plan + creates the issue lives on
     // the kody-direct (in-process chat) backend; we have to pick it from
     // the dropdown explicitly.
-    const agentTrigger = page
-      .locator("button")
-      .filter({ hasText: /Kody Live|Kody Live \(Fly\)|Kody|Brain/i })
-      .first();
-    await agentTrigger.click();
-    const listbox = page.getByRole("listbox");
+    const chat = page.locator('[aria-label="Kody chat"]');
+    const stop = chat.getByRole("button", { name: "Stop run" });
+    if (await stop.isVisible()) await stop.click();
+    const newConversation = page.getByRole("button", {
+      name: "New conversation",
+    });
+    await expect(newConversation).toBeEnabled({ timeout: 15_000 });
+    await newConversation.click();
+
+    // Creating a conversation restores the surface default (Kody Live on
+    // Vibe), so choose the direct model only after the reset.
+    const modelPicker = chat.getByRole("button", { name: "Model" }).first();
+    const authHeaders = {
+      "x-kody-token": TEST_TOKEN,
+      "x-kody-owner": owner,
+      "x-kody-repo": repo,
+    };
+    const [modelsResponse, secretsResponse] = await Promise.all([
+      page.request.get(`${BASE_URL}/api/kody/models`, {
+        headers: authHeaders,
+      }),
+      page.request.get(`${BASE_URL}/api/kody/secrets`, {
+        headers: authHeaders,
+      }),
+    ]);
+    expect(modelsResponse.ok(), "model metadata must load").toBe(true);
+    expect(secretsResponse.ok(), "secret metadata must load").toBe(true);
+    const modelPayload = (await modelsResponse.json()) as {
+      models?: Array<{
+        label: string;
+        apiKeySecret: string;
+        enabled?: boolean;
+      }>;
+    };
+    const secretPayload = (await secretsResponse.json()) as {
+      secrets?: Array<{ name: string }>;
+    };
+    const configuredSecrets = new Set(
+      (secretPayload.secrets ?? []).map((secret) => secret.name),
+    );
+    const configuredModel = (modelPayload.models ?? []).find(
+      (model) =>
+        model.enabled !== false && configuredSecrets.has(model.apiKeySecret),
+    );
+    expect(
+      configuredModel,
+      "tester repo must have an enabled model with configured secret metadata",
+    ).toBeTruthy();
+
+    await modelPicker.click();
+    const listbox = chat.locator('[role="listbox"]:visible').first();
     await listbox.waitFor({ state: "visible", timeout: 5_000 });
-    // Pick the first user-configured chat-model option that isn't the
-    // long-lived Kody Live runner or the external Brain — that's the
-    // kody-direct in-process chat agent the planner workflow needs.
     const chatOption = listbox
-      .locator('[role="option"]')
-      .filter({ hasNotText: /Kody Live|Brain/i })
+      .locator('button[role="option"]')
+      .filter({ hasText: configuredModel!.label })
       .first();
     await expect(
       chatOption,
       "tester repo must have a chat model configured",
     ).toBeVisible({ timeout: 5_000 });
     await chatOption.click();
+    await expect(modelPicker).not.toContainText(/Kody Live|Brain/i);
 
     // ── 3. Send the user's request. ─────────────────────────────────────
     // Once kody-direct is selected, the composer placeholder changes from
     // "Click Start to warm up the runner." to "Ask Kody...".
-    const input = page
-      .getByPlaceholder(/ask kody|kody is waiting|ask about/i)
-      .first();
-    await input.waitFor({ state: "visible", timeout: 30_000 });
+    const input = chat.locator("textarea").first();
+    await expect(input).toBeVisible({ timeout: 30_000 });
+    await expect(input).toBeEnabled();
     // Use a value that's unique per run so the agent has to actually edit
-    // the file (no "already done" short-circuit). Touches src/app/(frontend)/page.tsx,
-    // which the tester repo's homepage uses.
+    // the page and its user-facing regression assertion (no "already done"
+    // short-circuit). Keeping the test aligned is required for a clean gate.
     const newWelcomeText = `Welcome from kody — verify run ${Date.now()}`;
     await input.fill(
       `Update the homepage welcome text in src/app/(frontend)/page.tsx ` +
-        `to "${newWelcomeText}". One-line change. Skip the e2e test update.`,
+        `to "${newWelcomeText}". Update the matching assertion in ` +
+        `tests/e2e/frontend.e2e.spec.ts and run the relevant verification.`,
     );
-    await page
-      .locator('[aria-label="Kody chat"]')
-      .getByRole("button", { name: "Send message" })
-      .click();
+    await chat.getByRole("button", { name: "Send message" }).click();
 
     // ── 3. Wait for the agent to ask for approval. ─────────────────────
     // The fixed prompt SHOULD make the agent stop after asking, but the
@@ -212,44 +297,127 @@ test.describe("Vibe — LIVE full flow against production", () => {
       .locator(".prose")
       .filter({
         hasText:
-          /approve|ship it|want me to|should i|shall i|proceed|ready (?:for|to)|go ahead|confirm/i,
+          /approve|approval|ship it|want me to|should i|shall i|proceed|ready (?:for|to)|go ahead|confirm/i,
       })
       .last();
-    await Promise.race([
-      approvalPrompt.waitFor({ state: "visible", timeout: 240_000 }),
-      page.waitForURL(/\/vibe\?issue=\d+/, { timeout: 240_000 }),
-    ]);
-
-    // If the agent still hasn't created the issue, send "approve" so it
-    // proceeds. If the gate was violated and ?issue=N is already set,
-    // skip this — the agent already went ahead.
-    if (!new URL(page.url()).searchParams.get("issue")) {
-      await input.fill("approve");
-      await page
-        .locator('[aria-label="Kody chat"]')
-        .getByRole("button", { name: "Send message" })
-        .click();
+    const errorBubble = chat
+      .locator(".prose")
+      .filter({ hasText: /^Error:/i })
+      .last();
+    const approvalAction = chat
+      .locator("button:enabled")
+      .filter({
+        hasText: /^(?:file issue only|approve|confirm|proceed|create issue)/i,
+      })
+      .last();
+    // Follow the real approval UI until issue creation. Models may render a
+    // generic "Approve" card, an "Approve & create issue" card, or plain
+    // approval prose followed by a second card. Historical cards stay in the
+    // transcript disabled, so only the current enabled action is clicked.
+    const approvalStartedAt = Date.now();
+    const approvalDeadline = approvalStartedAt + 480_000;
+    let sentTextApproval = false;
+    let sentMissingActionRecovery = false;
+    while (
+      !new URL(page.url()).searchParams.get("issue") &&
+      Date.now() < approvalDeadline
+    ) {
+      if (await errorBubble.isVisible()) {
+        throw new Error(`Vibe chat failed: ${await errorBubble.innerText()}`);
+      }
+      if (await approvalAction.isVisible()) {
+        await approvalAction.click();
+        await page.waitForTimeout(500);
+        continue;
+      }
+      if (!sentTextApproval && (await approvalPrompt.isVisible())) {
+        await input.fill("approve");
+        await chat.getByRole("button", { name: "Send message" }).click();
+        sentTextApproval = true;
+        continue;
+      }
+      // A provider can occasionally finish its planning tool calls without
+      // rendering either prose or an approval card. Exercise the real user
+      // recovery instead of waiting on a UI action that does not exist.
+      if (
+        !sentMissingActionRecovery &&
+        Date.now() - approvalStartedAt >= 30_000 &&
+        (await input.isEnabled())
+      ) {
+        await input.fill(
+          "The plan is approved. File the GitHub issue now, but do not run it yet.",
+        );
+        await chat.getByRole("button", { name: "Send message" }).click();
+        sentMissingActionRecovery = true;
+        continue;
+      }
+      await Promise.race([
+        page
+          .waitForURL(/\/vibe\?issue=\d+/, { timeout: 5_000 })
+          .catch(() => {}),
+        approvalAction
+          .waitFor({ state: "visible", timeout: 5_000 })
+          .catch(() => {}),
+        errorBubble
+          .waitFor({ state: "visible", timeout: 5_000 })
+          .catch(() => {}),
+      ]);
     }
-
-    // Wait for navigation to ?issue=N — proxy for create_* + onIssueCreated.
-    // Generous timeout because the model with a full tool-call chain
-    // (research → create_*) can take 2-3 min.
-    await page.waitForURL(/\/vibe\?issue=\d+/, { timeout: 300_000 });
+    expect(
+      new URL(page.url()).searchParams.get("issue"),
+      "Vibe approval must create and navigate to an issue within 8 minutes",
+    ).toBeTruthy();
     const issueUrl = new URL(page.url());
     const issueNumber = Number.parseInt(
       issueUrl.searchParams.get("issue") ?? "0",
       10,
     );
     expect(issueNumber, "created issue number").toBeGreaterThan(0);
+    cleanupTarget = { owner, repo, issueNumber };
 
     const runButton = page.getByRole("button", {
       name: /run kody on this issue/i,
     });
     await expect(runButton).toBeVisible({ timeout: 60_000 });
+    const executeResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/kody/vibe/execute") &&
+        response.request().method() === "POST",
+      { timeout: 60_000 },
+    );
     await runButton.click();
 
-    // ── 5. Verify /vibe/execute was hit (kickoff dispatched). ──────────
-    await expect.poll(() => vibeExecuteCalled, { timeout: 60_000 }).toBe(true);
+    // ── 5. Verify /vibe/execute accepted the kickoff. ──────────────────
+    // A request alone is not proof of dispatch: Fly auth/provisioning errors
+    // return 500 and surface as a toast while no PR can ever be created.
+    const executeResponse = await executeResponsePromise;
+    const executeBody = await executeResponse.text();
+    expect(
+      executeResponse.ok(),
+      `Vibe dispatch must succeed (${executeResponse.status()}): ${executeBody}`,
+    ).toBe(true);
+    const executePayload = JSON.parse(executeBody) as {
+      ok?: boolean;
+      machineId?: string;
+      sessionId?: string;
+    };
+    expect(executePayload.ok, "Vibe dispatch response").toBe(true);
+    expect(executePayload.machineId, "Vibe runner machine id").toBeTruthy();
+    expect(executePayload.sessionId, "Vibe runner session id").toBeTruthy();
+    await testInfo.attach("vibe-dispatch.json", {
+      body: Buffer.from(
+        JSON.stringify(
+          {
+            issueNumber,
+            machineId: executePayload.machineId,
+            sessionId: executePayload.sessionId,
+          },
+          null,
+          2,
+        ),
+      ),
+      contentType: "application/json",
+    });
 
     // ── 6. Find the PR for this issue and poll for a real commit. ──────
     type PrSummary = {
@@ -270,12 +438,31 @@ test.describe("Vibe — LIVE full flow against production", () => {
     };
 
     let pr: PrSummary | null = null;
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 300; i++) {
       pr = await findPr();
       if (pr) break;
+      const issue = (await ghFetch(
+        `/repos/${owner}/${repo}/issues/${issueNumber}`,
+      )) as { body?: string };
+      const comments = (await ghFetch(
+        `/repos/${owner}/${repo}/issues/${issueNumber}/comments?per_page=100`,
+      )) as Array<{ body?: string }>;
+      const terminalFailure = [issue.body, ...comments.map((item) => item.body)]
+        .filter(Boolean)
+        .find((text) =>
+          /(?:⚠️|kody preflight failed|kody run failed)/i.test(text!),
+        );
+      if (terminalFailure) {
+        throw new Error(
+          `Vibe runner failed before opening a PR: ${terminalFailure}`,
+        );
+      }
       await page.waitForTimeout(5_000);
     }
-    expect(pr, "PR for the new issue must exist").toBeTruthy();
+    expect(
+      pr,
+      "PR for the new issue must exist within 25 minutes",
+    ).toBeTruthy();
     const prNumber = pr!.number;
 
     // Poll for commits BEYOND the initial "vibe: start session" placeholder.
@@ -325,6 +512,10 @@ test.describe("Vibe — LIVE full flow against production", () => {
       srcChange?.additions ?? 0,
       "src change must add at least one line",
     ).toBeGreaterThan(0);
+    expect(
+      files.find((file) => file.filename === "tests/e2e/frontend.e2e.spec.ts"),
+      "PR must update the matching browser assertion",
+    ).toBeTruthy();
 
     // ── 8. Composer follow-up.
     //

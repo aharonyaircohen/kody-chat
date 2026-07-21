@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { buildHeaders } from "../api";
 
 export type ActionStatus = "running" | "waiting" | "complete" | "cancelled";
 
@@ -55,6 +56,7 @@ export function useKodyActionState(
     try {
       const res = await fetch(
         `/api/kody/action/state/${encodeURIComponent(runId)}`,
+        { headers: buildHeaders() },
       );
       // 404 = no active action for this runId — stop polling to avoid log spam
       if (res.status === 404) {

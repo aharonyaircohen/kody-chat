@@ -163,3 +163,10 @@ export class ConversationClient {
 }
 
 export const conversationClient = new ConversationClient();
+
+export function createConversationClient(
+  headers: Record<string, string>,
+  fetcher: typeof fetch = browserFetch,
+): ConversationClient {
+  return new ConversationClient(fetcher, () => headers);
+}

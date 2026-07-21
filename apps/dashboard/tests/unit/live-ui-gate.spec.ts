@@ -6,6 +6,7 @@ import {
   assertLiveJourneyCoverage,
   buildPlaywrightArguments,
   buildLiveGateMetadata,
+  isExpectedBrowserAbort,
   redactDiagnosticText,
   runLiveServicePreflight,
   sanitizeDiagnosticUrl,
@@ -182,7 +183,8 @@ describe("live UI gate report", () => {
 
   it("matches Playwright JSON reports that use spec basenames", () => {
     const report = reportWithStatuses("expected");
-    report.suites[0].specs[0].file = "chat-real-system.spec.ts";
+    report.suites[0].specs[0].file =
+      LIVE_UI_JOURNEYS[0].file.split("/").at(-1) ?? "";
 
     expect(() =>
       assertLiveGateReport(report, [LIVE_UI_JOURNEYS[0]]),
@@ -229,6 +231,26 @@ describe("live UI service preflight", () => {
           { status: 200 },
         );
       }
+      if (url.endsWith("/api/kody/models")) {
+        return new Response(
+          JSON.stringify({
+            models: [
+              {
+                id: "minimax/MiniMax-M3",
+                enabled: true,
+                apiKeySecret: "MINIMAX_API_KEY",
+              },
+            ],
+          }),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/api/kody/secrets")) {
+        return new Response(
+          JSON.stringify({ secrets: [{ name: "MINIMAX_API_KEY" }] }),
+          { status: 200 },
+        );
+      }
       if (url.includes("api.github.com/repos/")) {
         return new Response(
           JSON.stringify({ full_name: "example/kody-e2e-tester" }),
@@ -246,10 +268,12 @@ describe("live UI service preflight", () => {
       runLiveServicePreflight(validEnvironment(), fetchImpl),
     ).resolves.toEqual([
       { name: "dashboard-auth", ok: true },
+      { name: "dashboard-model-config", ok: true },
+      { name: "dashboard-model-secret", ok: true },
       { name: "github-repository", ok: true },
       { name: "convex-service-auth", ok: true },
     ]);
-    expect(requests).toHaveLength(3);
+    expect(requests).toHaveLength(5);
     expect(JSON.stringify(requests)).toContain("x-kody-token");
     expect(JSON.stringify(requests)).toContain("serviceKey");
   });
@@ -261,7 +285,7 @@ describe("live UI service preflight", () => {
     await expect(
       runLiveServicePreflight(validEnvironment(), fetchImpl),
     ).rejects.toThrow(
-      "Live service preflight failed: dashboard-auth, github-repository, convex-service-auth",
+      "Live service preflight failed: dashboard-auth, dashboard-model-config, dashboard-model-secret, github-repository, convex-service-auth",
     );
     await expect(
       runLiveServicePreflight(validEnvironment(), fetchImpl),
@@ -286,36 +310,37 @@ describe("live UI diagnostic redaction", () => {
       ]),
     ).toBe("failed with [REDACTED] and [REDACTED]");
   });
+
+  it("distinguishes navigation cancellation from real network failure", () => {
+    expect(isExpectedBrowserAbort("net::ERR_ABORTED")).toBe(true);
+    expect(isExpectedBrowserAbort("net::ERR_CONNECTION_REFUSED")).toBe(false);
+    expect(isExpectedBrowserAbort("net::ERR_NAME_NOT_RESOLVED")).toBe(false);
+  });
 });
 
 describe("live UI gate manifest", () => {
-  it("wires the five existing spec files that contain six live journeys", () => {
+  it("wires every implemented live journey into the gate", () => {
     expect(LIVE_UI_SPECS).toEqual([
+      "tests/e2e/direct-chat-real.e2e.spec.ts",
       "tests/e2e/chat-real-system.spec.ts",
       "tests/e2e/chat-terminal-live-ui.spec.ts",
       "tests/e2e/guided-flows-real.e2e.spec.ts",
       "tests/e2e/vibe-live-full-flow.spec.ts",
       "tests/e2e/view-renderers-real.e2e.spec.ts",
+      "tests/e2e/master-journeys-real.e2e.spec.ts",
     ]);
-    expect(EXPECTED_LIVE_UI_TESTS).toBe(6);
-    expect(LIVE_UI_JOURNEYS).toHaveLength(6);
-    expect(new Set(LIVE_UI_JOURNEYS.map((journey) => journey.id)).size).toBe(6);
+    expect(EXPECTED_LIVE_UI_TESTS).toBe(17);
+    expect(LIVE_UI_JOURNEYS).toHaveLength(17);
+    expect(new Set(LIVE_UI_JOURNEYS.map((journey) => journey.id)).size).toBe(
+      17,
+    );
   });
 
-  it("keeps the complete gate red while required user journeys are missing", () => {
-    expect(MISSING_LIVE_UI_JOURNEYS).toEqual(
-      expect.arrayContaining([
-        "authentication-and-repository-selection",
-        "direct-kody-chat",
-        "conversation-persistence",
-        "attachments",
-        "client-branded-chat",
-        "mobile",
-      ]),
-    );
-    expect(() => assertLiveJourneyCoverage(MISSING_LIVE_UI_JOURNEYS)).toThrow(
-      "Required live UI journeys not implemented",
-    );
+  it("has no unimplemented master-plan journeys", () => {
+    expect(MISSING_LIVE_UI_JOURNEYS).toEqual([]);
+    expect(() =>
+      assertLiveJourneyCoverage(MISSING_LIVE_UI_JOURNEYS),
+    ).not.toThrow();
   });
 
   it("runs serially with list, JSON, and HTML evidence", () => {

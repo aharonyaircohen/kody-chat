@@ -51,6 +51,21 @@ async function injectAuth(page: Page): Promise<void> {
 }
 
 async function loadDashboardAuthenticated(page: Page): Promise<void> {
+  await page.route("**/api/kody/chat/conversations**", (route) => {
+    const request = route.request();
+    const isCollection = new URL(request.url()).pathname.endsWith(
+      "/conversations",
+    );
+    return route.fulfill({
+      status: request.method() === "POST" && isCollection ? 201 : 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        request.method() === "GET" && isCollection
+          ? { conversations: [] }
+          : { ok: true },
+      ),
+    });
+  });
   await page.goto(`${BASE_URL}/login`);
   await page.waitForLoadState("domcontentloaded");
   if (!TEST_TOKEN) {

@@ -248,7 +248,9 @@ interface MountOptions {
 function mountRegistry(options: MountOptions = {}) {
   const props = {
     activeSessionId:
-      options.activeSessionId !== undefined ? options.activeSessionId : "chat-1",
+      options.activeSessionId !== undefined
+        ? options.activeSessionId
+        : "chat-1",
     createSession: options.createSession ?? (() => "created-session"),
     sessions: options.sessions ?? [session("chat-1")],
     sessionsHydrated: options.sessionsHydrated ?? true,
@@ -279,7 +281,11 @@ const BRAIN_MACHINE = {
   sizeLabel: "shared 2x · 4 GB",
   feature: "brain",
 };
-const RUNNER_MACHINE = { ...BRAIN_MACHINE, machineId: "runner-machine", feature: "runner" };
+const RUNNER_MACHINE = {
+  ...BRAIN_MACHINE,
+  machineId: "runner-machine",
+  feature: "runner",
+};
 
 beforeEach(() => {
   localStore.clear();
@@ -330,24 +336,31 @@ describe("useChatTerminalRegistry registration", () => {
     const registry = result.current as Registry;
     expect(registry.mode).toBe("terminal");
     expect(registry.mountedTerminals).toEqual([
-      { id: "chat-1::local", sessionId: "chat-1", transport: { type: "local" } },
+      {
+        id: "chat-1::local",
+        sessionId: "chat-1",
+        transport: { type: "local" },
+      },
     ]);
     expect(registry.modeBySessionId).toEqual({ "chat-1": "terminal" });
   });
 
-  it("openTerminalMode creates a session when none is active", () => {
+  it("openTerminalMode creates a session when none is active", async () => {
     const createSession = vi.fn(() => "fresh-session");
-    const { result } = mountRegistry({
+    const view = mountRegistry({
       activeSessionId: null,
       sessions: [session("fresh-session")],
       createSession,
     });
 
-    const opened = (result.current as Registry).openTerminalMode();
+    const opened = (view.result.current as Registry).openTerminalMode();
+
+    view.rerenderWith({ activeSessionId: "fresh-session" });
+    await flushMicrotasks();
 
     expect(createSession).toHaveBeenCalledTimes(1);
     expect(opened).toBe("fresh-session");
-    expect((result.current as Registry).mountedTerminals).toEqual([
+    expect((view.result.current as Registry).mountedTerminals).toEqual([
       {
         id: "fresh-session::local",
         sessionId: "fresh-session",
@@ -483,11 +496,16 @@ describe("useChatTerminalRegistry pruning", () => {
     // Restore with an EMPTY, un-hydrated session list: nothing pruned.
     const view = mountRegistry({ sessions: [], sessionsHydrated: false });
     expect(
-      (view.result.current as Registry).mountedTerminals.map((t) => t.sessionId),
+      (view.result.current as Registry).mountedTerminals.map(
+        (t) => t.sessionId,
+      ),
     ).toEqual(["chat-1", "chat-gone"]);
 
     // Hydration lands with only chat-1 known: chat-gone entries drop.
-    view.rerenderWith({ sessions: [session("chat-1")], sessionsHydrated: true });
+    view.rerenderWith({
+      sessions: [session("chat-1")],
+      sessionsHydrated: true,
+    });
     const registry = view.result.current as Registry;
     expect(registry.mountedTerminals.map((t) => t.sessionId)).toEqual([
       "chat-1",
@@ -539,7 +557,10 @@ describe("useChatTerminalRegistry Fly inventory", () => {
       { ok: false, status: 503, json: async () => ({}) },
       { ok: false, status: 500, json: async () => ({ message: "boom" }) },
     ];
-    vi.stubGlobal("fetch", vi.fn(async () => responses.shift()!));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => responses.shift()!),
+    );
     const { result } = mountRegistry();
 
     await (result.current as Registry).refreshFlyMachines();

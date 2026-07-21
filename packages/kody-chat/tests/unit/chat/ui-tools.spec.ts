@@ -208,6 +208,39 @@ describe("ui tools", () => {
     });
   });
 
+  it("rejects non-actionable views when the turn requires a user decision", async () => {
+    const tools = createUiTools({
+      viewRendererDefinitions: [decisionRenderer],
+      requireInteractiveAction: true,
+    }) as Record<string, unknown>;
+    const showView = tools.show_view as {
+      execute: (value: Record<string, unknown>) => Promise<{ error?: string }>;
+    };
+
+    await expect(
+      showView.execute({
+        root: "status",
+        elements: {
+          status: { type: "Text", props: { value: "loading" } },
+        },
+      }),
+    ).resolves.toEqual({
+      error: expect.stringContaining("interactive control"),
+    });
+
+    await expect(
+      showView.execute({
+        root: "decision",
+        elements: {
+          decision: {
+            type: "DecisionCard",
+            props: { title: "Create the issue?", body: "One-line change." },
+          },
+        },
+      }),
+    ).resolves.toMatchObject({ action: "render_view" });
+  });
+
   it("rejects invalid specs with the offending element and prop", async () => {
     const tools = createUiTools({
       viewRendererDefinitions: [decisionRenderer],

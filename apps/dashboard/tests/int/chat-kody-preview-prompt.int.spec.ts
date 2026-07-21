@@ -80,27 +80,33 @@ vi.mock("@dashboard/lib/view-renderers/renderers", async (importOriginal) => {
   };
 });
 
-vi.mock("../../../../packages/kody-chat/app/api/kody/chat/resolve-model", () => ({
-  resolveChatModel: vi.fn(async () => ({
-    model: { modelId: "test-model" },
-    apiKey: "test-key",
-    resolvedModel: {
-      id: "test-model",
-      label: "Test model",
-      provider: "openai",
-      protocol: "openai-compatible",
-      baseURL: "https://models.test/v1",
-      modelName: "test-model",
-      apiKeySecret: "TEST_MODEL_API_KEY",
-      enabled: true,
-      default: true,
-    },
-  })),
-}));
+vi.mock(
+  "../../../../packages/kody-chat/app/api/kody/chat/resolve-model",
+  () => ({
+    resolveChatModel: vi.fn(async () => ({
+      model: { modelId: "test-model" },
+      apiKey: "test-key",
+      resolvedModel: {
+        id: "test-model",
+        label: "Test model",
+        provider: "openai",
+        protocol: "openai-compatible",
+        baseURL: "https://models.test/v1",
+        modelName: "test-model",
+        apiKeySecret: "TEST_MODEL_API_KEY",
+        enabled: true,
+        default: true,
+      },
+    })),
+  }),
+);
 
-vi.mock("../../../../packages/kody-chat/app/api/kody/chat/tools/cms-tools", () => ({
-  createCmsTools: vi.fn(async () => ({})),
-}));
+vi.mock(
+  "../../../../packages/kody-chat/app/api/kody/chat/tools/cms-tools",
+  () => ({
+    createCmsTools: vi.fn(async () => ({})),
+  }),
+);
 
 function makeRequest(body: unknown): NextRequest {
   return new NextRequest("https://dash.test/api/kody/chat/kody", {
@@ -192,6 +198,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
       definitions: [approvalRendererDefinition],
     });
     streamTextMock.mockReturnValue({
+      consumeStream: vi.fn(async () => undefined),
       toUIMessageStream: vi.fn(() => ({})),
     });
     loadInstructionsForPromptMock.mockResolvedValue(null);
@@ -364,6 +371,7 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
   it("retries up to twice in the same stream when a required-view turn stays silent", async () => {
     const silentResult = () => ({
       toUIMessageStream: vi.fn(() => ({})),
+      consumeStream: vi.fn(() => Promise.resolve()),
       steps: Promise.resolve([
         { toolResults: [], text: "<think>planning only, no call</think>" },
       ]),
@@ -398,15 +406,14 @@ describe("POST /api/kody/chat/kody preview prompt", () => {
     // Two corrective re-runs after the silent original, then give up.
     expect(streamTextMock).toHaveBeenCalledTimes(3);
     const retryMessages = streamTextMock.mock.calls[1]?.[0]?.messages;
-    expect(JSON.stringify(retryMessages)).toContain(
-      "Call `show_view` NOW",
-    );
+    expect(JSON.stringify(retryMessages)).toContain("Call `show_view` NOW");
     expect(writer.merge).toHaveBeenCalledTimes(3);
   });
 
   it("does not retry when the turn produced a rendered view", async () => {
     const viewResult = {
       toUIMessageStream: vi.fn(() => ({})),
+      consumeStream: vi.fn(() => Promise.resolve()),
       steps: Promise.resolve([
         {
           toolResults: [

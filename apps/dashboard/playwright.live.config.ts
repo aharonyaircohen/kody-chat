@@ -11,7 +11,10 @@ export default defineConfig({
   expect: { timeout: 30_000 },
   use: {
     baseURL,
-    trace: "retain-on-failure",
+    // Playwright traces persist raw request headers. Live journeys use real
+    // repository credentials, so retain visual and sanitized text artifacts
+    // without writing reusable secrets into a trace archive.
+    trace: "off",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
   },

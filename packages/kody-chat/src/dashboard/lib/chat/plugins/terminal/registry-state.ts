@@ -29,6 +29,14 @@ export const BRAIN_TERMINAL_TRANSPORT: ChatTerminalTransport = {
   label: "Brain terminal",
 };
 
+export function defaultTerminalTransport(
+  terminalMachines: ServerProviderMachineRow[],
+): ChatTerminalTransport {
+  return terminalMachines.some((machine) => machine.feature === "brain")
+    ? BRAIN_TERMINAL_TRANSPORT
+    : LOCAL_TERMINAL_TRANSPORT;
+}
+
 /** Window event that forces a Fly machine inventory refresh (image apply). */
 export const FLY_MACHINES_REFRESH_EVENT = "kody:fly-machines-refresh";
 
@@ -247,7 +255,9 @@ export function savePersistedTerminalRegistry(
   }
 }
 
-export function canUseChatTerminalFlyMachine(machine: ServerProviderMachineRow): boolean {
+export function canUseChatTerminalFlyMachine(
+  machine: ServerProviderMachineRow,
+): boolean {
   return isFlyTerminalCapable(machine.feature);
 }
 

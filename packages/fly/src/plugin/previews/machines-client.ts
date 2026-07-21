@@ -61,6 +61,7 @@ export interface CreatePreviewMachineInput {
 
 export interface MachineInfo {
   id: string;
+  privateAddress?: string;
   state: string;
   region: string;
   /** ISO timestamp Fly reports as the machine's creation time. Used by the
@@ -335,6 +336,7 @@ export async function listMachines(
   await assertOk(res, "listMachines");
   const data = (await res.json()) as Array<{
     id: string;
+    private_ip?: string;
     name?: string;
     state: string;
     region: string;
@@ -343,6 +345,7 @@ export async function listMachines(
   }>;
   return data.map((m) => ({
     id: m.id,
+    privateAddress: m.private_ip,
     name: m.name,
     state: m.state,
     region: m.region,
@@ -372,6 +375,7 @@ async function getMachine(
   await assertOk(res, "getMachine");
   const data = (await res.json()) as {
     id: string;
+    private_ip?: string;
     name?: string;
     state: string;
     region: string;
@@ -380,6 +384,7 @@ async function getMachine(
   };
   return {
     id: data.id,
+    privateAddress: data.private_ip,
     name: data.name,
     state: data.state,
     region: data.region,
@@ -422,8 +427,7 @@ export type AlignPreviewMachineSleepResult =
   | { changed: false; skipped: true; reason: string };
 
 export type SleepPreviewMachineResult =
-  | { slept: true; mode: "suspend" | "stop" }
-  | { slept: false; reason: string };
+  { slept: true; mode: "suspend" | "stop" } | { slept: false; reason: string };
 
 export function alignPreviewMachineSleepConfig(
   config: MachineConfig | undefined,

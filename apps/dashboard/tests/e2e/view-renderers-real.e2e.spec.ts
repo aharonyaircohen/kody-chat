@@ -31,7 +31,9 @@ test("shows built-in renderers in the real management page", async ({
       loggedInAt: Date.now(),
     },
   );
-  await page.goto("/views/renderers", { waitUntil: "domcontentloaded" });
+  await page.goto(`/repo/${repoParts?.[1]}/${repoParts?.[2]}/views/renderers`, {
+    waitUntil: "domcontentloaded",
+  });
 
   await expect(
     page.getByRole("heading", { name: "View Renderers" }),

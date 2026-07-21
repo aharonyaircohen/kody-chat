@@ -129,9 +129,13 @@ test.describe("Chat-first layout (beta toggle)", () => {
     await page.goto(`${BASE_URL}/tasks`);
     const panel = page.locator('[data-testid="chat-first-panel"]');
     await expect(panel).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator('[data-testid="chat-panel-tasks"]')).toBeAttached(
+      { timeout: 15_000 },
+    );
 
     // Non-mapped routes keep raw route-content rendering — the tasks
     // plugin panel only substitutes on /tasks (step 3 pilot scope).
+    await page.goto(`${BASE_URL}/activity`);
     await expect(page.locator('[data-testid="chat-panel-tasks"]')).toHaveCount(
       0,
     );

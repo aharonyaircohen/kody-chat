@@ -22,6 +22,7 @@ import {
   chatTerminalInstanceId,
   chatTerminalTransportKey,
   chatTerminalTransportsEqual,
+  defaultTerminalTransport,
   loadPersistedTerminalRegistry,
   localTerminalStatusPath,
   mountedChatTerminalListsEqual,
@@ -95,13 +96,13 @@ export function useChatTerminalRegistry({
   >(initialRegistryState.transportBySessionId);
   const [connectionStateByInstanceId, setConnectionStateByInstanceId] =
     useState<Record<string, ChatTerminalConnectionState>>({});
-  const [flyInventory, setServerProviderInventory] = useState<TerminalServerProviderInventory | null>(
-    null,
-  );
-  const [flyInventoryLoading, setServerProviderInventoryLoading] = useState(false);
-  const [flyInventoryError, setServerProviderInventoryError] = useState<string | null>(
-    null,
-  );
+  const [flyInventory, setServerProviderInventory] =
+    useState<TerminalServerProviderInventory | null>(null);
+  const [flyInventoryLoading, setServerProviderInventoryLoading] =
+    useState(false);
+  const [flyInventoryError, setServerProviderInventoryError] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     const persisted = loadPersistedTerminalRegistry(storageKey);
@@ -133,7 +134,8 @@ export function useChatTerminalRegistry({
     [flyInventory],
   );
   const activeTransportBase = activeSessionId
-    ? (transportBySessionId[activeSessionId] ?? LOCAL_TERMINAL_TRANSPORT)
+    ? (transportBySessionId[activeSessionId] ??
+      defaultTerminalTransport(terminalMachines))
     : LOCAL_TERMINAL_TRANSPORT;
   const activeTransport = normalizeTerminalTransport(
     activeTransportBase,
@@ -199,20 +201,34 @@ export function useChatTerminalRegistry({
 
   useEffect(() => {
     if (mode !== "terminal" || !activeSessionId) return;
+    if (
+      flyInventory === null &&
+      transportBySessionId[activeSessionId] === undefined
+    ) {
+      return;
+    }
     mountTerminal(activeSessionId, activeTransport);
-  }, [activeSessionId, activeTransport, mode, mountTerminal]);
+  }, [
+    activeSessionId,
+    activeTransport,
+    flyInventory,
+    mode,
+    mountTerminal,
+    transportBySessionId,
+  ]);
 
   const openTerminalMode = useCallback(
     (transport?: ChatTerminalTransport) => {
       const sessionId = activeSessionId ?? createSession();
+      const explicitTransport = transport ?? transportBySessionId[sessionId];
       const terminalTransport = normalizeTerminalTransport(
-        transport ??
-          transportBySessionId[sessionId] ??
-          LOCAL_TERMINAL_TRANSPORT,
+        explicitTransport ?? defaultTerminalTransport(terminalMachines),
         terminalMachines,
         { inventoryLoaded: flyInventory !== null },
       );
-      mountTerminal(sessionId, terminalTransport);
+      if (explicitTransport || flyInventory !== null) {
+        mountTerminal(sessionId, terminalTransport);
+      }
       if (transport) {
         setTransportBySessionId((prev) =>
           chatTerminalTransportKey(
@@ -259,7 +275,9 @@ export function useChatTerminalRegistry({
         };
         throw new Error(body.message ?? body.error ?? `HTTP ${res.status}`);
       }
-      setServerProviderInventory((await res.json()) as TerminalServerProviderInventory);
+      setServerProviderInventory(
+        (await res.json()) as TerminalServerProviderInventory,
+      );
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Failed to load Fly machines";
@@ -327,20 +345,12 @@ export function useChatTerminalRegistry({
           : { ...prev, [activeSessionId]: nextTransport },
       );
     },
-    [
-      activeSessionId,
-      flyInventory,
-      mountTerminal,
-      terminalMachines,
-    ],
+    [activeSessionId, flyInventory, mountTerminal, terminalMachines],
   );
 
   const selectTarget = useCallback(
     (value: string) => {
-      const transport = resolveTerminalTargetSelection(
-        value,
-        terminalMachines,
-      );
+      const transport = resolveTerminalTargetSelection(value, terminalMachines);
       if (!transport) return;
       setActiveTransport(transport);
     },

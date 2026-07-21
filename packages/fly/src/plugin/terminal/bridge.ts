@@ -327,6 +327,12 @@ function verifyTerminalToken(token) {
   ) {
     throw new Error("terminal token machine invalid");
   }
+  if (
+    claims.privateAddress !== undefined &&
+    !/^[0-9A-Fa-f:]{2,64}$/.test(claims.privateAddress)
+  ) {
+    throw new Error("terminal token private address invalid");
+  }
   if (claims.localExec !== true && !claims.machineId) {
     throw new Error("terminal token machine required");
   }
@@ -775,6 +781,7 @@ function directFlySshCommand(claims) {
     "--app",
     claims.app,
     ...flyctlOrgArgs(claims.orgSlug),
+    ...(claims.privateAddress ? ["--address", claims.privateAddress] : []),
     "--machine",
     claims.machineId,
     "--pty",
@@ -812,6 +819,19 @@ function hasTmuxSession(sessionName) {
   return result.status === 0;
 }
 
+function tmuxSessionHasLivePane(sessionName) {
+  if (!sessionName) return false;
+  const result = spawnSync(
+    "tmux",
+    ["list-panes", "-t", sessionName, "-F", "#{pane_dead}"],
+    { encoding: "utf8" },
+  );
+  if (result.status !== 0) return false;
+  return String(result.stdout || "")
+    .split(/\r?\n/)
+    .some((value) => value.trim() === "0");
+}
+
 function configureTmuxSession(sessionName) {
   const options = [
     ["status", "off"],
@@ -826,12 +846,23 @@ function configureTmuxSession(sessionName) {
       throw new Error("failed to configure terminal tmux session");
     }
   }
+  const remainOnExit = spawnSync(
+    "tmux",
+    ["set-option", "-w", "-t", sessionName, "remain-on-exit", "off"],
+    { stdio: "ignore" },
+  );
+  if (remainOnExit.status !== 0) {
+    throw new Error("failed to configure terminal tmux session");
+  }
 }
 
 function ensureTmuxSession(claims, sessionName, env) {
   if (hasTmuxSession(sessionName)) {
-    configureTmuxSession(sessionName);
-    return { created: false };
+    if (tmuxSessionHasLivePane(sessionName)) {
+      configureTmuxSession(sessionName);
+      return { created: false };
+    }
+    killTmuxSession(sessionName);
   }
   const result = spawnSync(
     "tmux",

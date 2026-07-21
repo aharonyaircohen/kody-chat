@@ -76,6 +76,21 @@ async function selectKodyAgent(page: Page): Promise<void> {
 
 test.describe("Kody direct agent", () => {
   test.beforeEach(async ({ page }) => {
+    await page.route("**/api/kody/chat/conversations**", (route) => {
+      const request = route.request();
+      const isCollection = new URL(request.url()).pathname.endsWith(
+        "/conversations",
+      );
+      return route.fulfill({
+        status: request.method() === "POST" && isCollection ? 201 : 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          request.method() === "GET" && isCollection
+            ? { conversations: [] }
+            : { ok: true },
+        ),
+      });
+    });
     // The in-process "Kody" agent only appears in the picker when at least
     // one enabled model is configured (one dropdown row per model, named by
     // its label). Mock the model list so the option exists — labelled
@@ -106,6 +121,7 @@ test.describe("Kody direct agent", () => {
         headers: { "content-type": "text/event-stream" },
         body:
           'data: {"type":"text-delta","delta":"Hello from Kody direct!"}\n\n' +
+          'data: {"type":"finish"}\n\n' +
           "data: [DONE]\n\n",
       }),
     );

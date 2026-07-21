@@ -199,6 +199,17 @@ export async function resolveFlyContext(
 
   const allSecrets = await buildAllSecretsFromVault(octokit, owner, repo);
 
+  // Fly runs outside GitHub Actions, so it cannot receive the dashboard's
+  // canonical conversation-store credentials through `toJSON(secrets)`.
+  // Server-owned values override vault entries so all dashboard runners use
+  // the same backend as the UI that launched them.
+  const convexUrl =
+    process.env.CONVEX_URL?.trim() ||
+    process.env.NEXT_PUBLIC_CONVEX_URL?.trim();
+  const serviceKey = process.env.KODY_SERVICE_KEY?.trim();
+  if (convexUrl) allSecrets.CONVEX_URL = convexUrl;
+  if (serviceKey) allSecrets.KODY_SERVICE_KEY = serviceKey;
+
   // Fly Machines API token. The connected repo vault is the only authority:
   // a server-wide token must never expose another Fly account to this repo.
   const vaultFlyToken = allSecrets.FLY_API_TOKEN?.trim() || undefined;

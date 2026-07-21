@@ -262,9 +262,7 @@ describe("provisionBrain", () => {
     )!;
     expect(
       (machineCreate.body as { config: { mounts?: unknown[] } }).config.mounts,
-    ).toEqual([
-      { volume: "vol-codex", name: "codex", guest_path: "/root/.codex" },
-    ]);
+    ).toEqual([{ volume: "vol-codex", name: "codex", path: "/root/.codex" }]);
   });
 
   it("creates the app and machine when neither exists", async () => {
@@ -414,7 +412,7 @@ describe("provisionBrain", () => {
                     {
                       volume: "vol-codex",
                       name: "codex",
-                      guest_path: "/root/.codex",
+                      path: "/root/.codex",
                     },
                   ],
                 },
@@ -546,7 +544,7 @@ describe("provisionBrain", () => {
           image: DEFAULT_IMAGE,
           env: { BRAIN_API_KEY: "preexisting-key" },
           mounts: [
-            { volume: "vol-codex", name: "codex", guest_path: "/root/.codex" },
+            { volume: "vol-codex", name: "codex", path: "/root/.codex" },
           ],
         },
       },
@@ -1347,7 +1345,7 @@ describe("provisionBrain image-ref healing", () => {
                     {
                       volume: "vol-codex",
                       name: "codex",
-                      guest_path: "/root/.codex",
+                      path: "/root/.codex",
                     },
                   ],
                 },
@@ -1534,7 +1532,7 @@ describe("provisionBrain image-ref healing", () => {
                     {
                       volume: "vol-codex",
                       name: "codex",
-                      guest_path: "/root/.codex",
+                      path: "/root/.codex",
                     },
                   ],
                 },

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ConversationClient,
+  createConversationClient,
   type ConversationCommand,
 } from "@dashboard/lib/chat/core/conversation/conversation-client";
 
@@ -41,6 +42,27 @@ describe("ConversationClient", () => {
     } finally {
       vi.stubGlobal("fetch", original);
     }
+  });
+
+  it("applies client-surface headers to every conversation request", async () => {
+    fetcher.mockResolvedValue(
+      new Response(JSON.stringify({ conversations: [] })),
+    );
+    const surfaceClient = createConversationClient(
+      { "x-kody-surface-ticket": "signed-ticket" },
+      fetcher,
+    );
+
+    await surfaceClient.list();
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "/api/kody/chat/conversations?surface=global",
+      expect.objectContaining({
+        headers: expect.objectContaining({
+          "x-kody-surface-ticket": "signed-ticket",
+        }),
+      }),
+    );
   });
 
   it("serializes commands for one conversation", async () => {

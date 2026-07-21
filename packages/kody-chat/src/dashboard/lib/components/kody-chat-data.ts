@@ -51,6 +51,21 @@ export interface ChatDataSources {
   flyConfigured: boolean;
 }
 
+export function hasSecretMetadata(
+  payload: unknown,
+  secretName: string,
+): boolean {
+  if (!payload || typeof payload !== "object") return false;
+  const secrets = (payload as { secrets?: unknown }).secrets;
+  if (!Array.isArray(secrets)) return false;
+  return secrets.some(
+    (entry) =>
+      entry !== null &&
+      typeof entry === "object" &&
+      (entry as { name?: unknown }).name === secretName,
+  );
+}
+
 /**
  * KodyChat's mount-time data loads. Each fetch runs once per mount and
  * is independently silent on failure (the corresponding feature just
@@ -123,9 +138,8 @@ export function useChatDataSources(): ChatDataSources {
     };
   }, []);
 
-  // Probe the per-repo vault for FLY_API_TOKEN so the dropdown can hide the
-  // Fly row when no token is configured. Silent on any error — the row just
-  // stays hidden, matching the "not configured" state.
+  // Read secret metadata only. The chat needs to know whether FLY_API_TOKEN
+  // exists, never its decrypted value.
   useEffect(() => {
     let cancelled = false;
     const headers = authHeaders();
@@ -133,15 +147,15 @@ export function useChatDataSources(): ChatDataSources {
       setFlyConfigured(false);
       return;
     }
-    fetch("/api/kody/secrets/FLY_API_TOKEN/value", { headers })
+    fetch("/api/kody/secrets", { headers })
       .then(async (res) => {
         if (cancelled) return;
         if (!res.ok) {
           setFlyConfigured(false);
           return;
         }
-        const body = (await res.json().catch(() => ({}))) as { value?: string };
-        setFlyConfigured(Boolean(body.value && body.value.trim().length > 0));
+        const body = await res.json().catch(() => ({}));
+        setFlyConfigured(hasSecretMetadata(body, "FLY_API_TOKEN"));
       })
       .catch(() => {
         if (!cancelled) setFlyConfigured(false);

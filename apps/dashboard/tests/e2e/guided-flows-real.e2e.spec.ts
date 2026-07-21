@@ -63,12 +63,32 @@ test("creates, completes, persists, and cleans up a real custom flow", async ({
     (value) => localStorage.setItem("kody_auth", JSON.stringify(value)),
     authFor(owner, repo),
   );
+  // This journey deliberately uses an isolated Convex tenant that is not a
+  // GitHub repository. The chat rail's Fly-availability probe is unrelated
+  // to Guided Flows, so return empty vault metadata instead of asking GitHub
+  // for a repository that must not exist.
+  await page.route("**/api/kody/secrets", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: '{"secrets":[]}',
+    }),
+  );
+  await page.route("**/api/kody/system-events", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: '{"ok":true}',
+    }),
+  );
 
   try {
     await page.goto(`/repo/${owner}/${repo}/guided-flows`, {
       waitUntil: "domcontentloaded",
     });
-    await page.getByRole("button", { name: "Add Guided Flow" }).click();
+    await page
+      .getByRole("button", { name: "Add Guided Flow", exact: true })
+      .click();
     await page.getByLabel("Flow name").fill(flowTitle);
     await page
       .getByLabel("Step 1 renderer", { exact: true })
@@ -77,7 +97,7 @@ test("creates, completes, persists, and cleans up a real custom flow", async ({
     await expect(page.getByRole("article", { name: flowTitle })).toBeVisible();
 
     await page.goto(
-      `/repo/${owner}/${repo}/?guidedFlow=${flowId}&instanceKey=${suffix}`,
+      `/repo/${owner}/${repo}/guided-flows?guidedFlow=${flowId}&instanceKey=${suffix}`,
       { waitUntil: "domcontentloaded" },
     );
     const openChat = page.getByRole("button", { name: "Open chat" });

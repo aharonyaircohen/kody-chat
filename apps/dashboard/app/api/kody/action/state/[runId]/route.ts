@@ -72,8 +72,8 @@ export async function GET(
     );
   }
 
-  if (!state)
-    return NextResponse.json({ error: "Action not found" }, { status: 404 });
-
-  return NextResponse.json({ state });
+  // A task can be visible before its runner has written action state. This is
+  // an expected polling result, not a missing HTTP resource; returning 404
+  // makes browsers surface a console error during every normal task start.
+  return NextResponse.json({ state: state ?? null });
 }

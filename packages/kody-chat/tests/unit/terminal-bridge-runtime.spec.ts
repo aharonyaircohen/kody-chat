@@ -5,7 +5,13 @@
  */
 import { spawn, type ChildProcess } from "node:child_process";
 import crypto from "node:crypto";
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import net from "node:net";
@@ -58,7 +64,10 @@ async function waitForHttpOk(url: string): Promise<void> {
 }
 
 async function startBridge(
-  options: { coldBootFailures?: number; suppressReadyProof?: boolean } = {},
+  options: {
+    coldBootFailures?: number;
+    suppressReadyProof?: boolean;
+  } = {},
 ): Promise<{ port: number; dir: string }> {
   const port = await freePort();
   const dir = mkdtempSync(join(tmpdir(), "kody-terminal-bridge-"));
@@ -154,7 +163,7 @@ function readState(name) {
   try {
     return JSON.parse(fs.readFileSync(sessionFile(name), "utf8"));
   } catch {
-    return { marker: "", attachCount: 0, statusOff: false, mouseOn: false, historyLimit: "", exitsOnAttach: false };
+    return { marker: "", attachCount: 0, statusOff: false, mouseOn: false, historyLimit: "", exitsOnAttach: false, paneDead: false, paneCommand: "" };
   }
 }
 function writeState(name, state) {
@@ -167,6 +176,12 @@ if (args[0] === "kill-session") {
   fs.rmSync(sessionFile(sessionName()), { force: true });
   process.exit(0);
 }
+if (args[0] === "list-panes") {
+  const name = sessionName();
+  if (!fs.existsSync(sessionFile(name))) process.exit(1);
+  process.stdout.write(readState(name).paneDead ? "1\\n" : "0\\n");
+  process.exit(0);
+}
 if (args[0] === "new-session") {
   const name = args[args.indexOf("-s") + 1];
   writeState(name, {
@@ -176,6 +191,8 @@ if (args[0] === "new-session") {
     mouseOn: false,
     historyLimit: "",
     exitsOnAttach: args.slice(args.indexOf("-s") + 2).join(" ").includes("--command"),
+    paneDead: false,
+    paneCommand: args.slice(args.indexOf("-s") + 2).join(" "),
   });
   process.exit(0);
 }
@@ -284,12 +301,25 @@ function terminalToken(): string {
     app: "kody-brain-alice",
     orgSlug: "personal",
     machineId: "brain-1",
+    privateAddress: "fdaa:74:e7fe:a7b::2",
     chatSessionId: "brain:acme:widgets:kody-brain-alice:brain-1",
     flyToken: "fly-token",
     cols: 100,
     rows: 30,
     secret: BRIDGE_SECRET,
   });
+}
+
+function terminalTmuxSessionName(): string {
+  const key = [
+    "acme",
+    "widgets",
+    "personal",
+    "kody-brain-alice",
+    "brain-1",
+    "brain:acme:widgets:kody-brain-alice:brain-1",
+  ].join("::");
+  return `kody_${crypto.createHash("sha256").update(key).digest("hex").slice(0, 32)}`;
 }
 
 interface RuntimeSocket {
@@ -569,6 +599,7 @@ describe("terminal bridge runtime restore", () => {
           message.type === "output" &&
           typeof message.data === "string" &&
           message.data.includes("Retrying terminal tunnel (2/5)"),
+        15_000,
       );
       await socket.waitFor((message) => message.type === "ready");
       expect(
@@ -580,6 +611,51 @@ describe("terminal bridge runtime restore", () => {
         ),
       ).toBe(false);
       expect(socket.events).not.toContain("close");
+      socket.close(1000, "done");
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "replaces a persistent tmux session whose only pane has exited",
+    async () => {
+      const { port, dir } = await startBridge();
+      writeFileSync(
+        join(dir, `tmux-${terminalTmuxSessionName()}.json`),
+        JSON.stringify({
+          marker: "STALE_DEAD_PANE",
+          attachCount: 1,
+          statusOff: true,
+          mouseOn: false,
+          historyLimit: "50000",
+          exitsOnAttach: true,
+          paneDead: true,
+        }),
+      );
+      const socket = await openSocket(port, terminalToken());
+
+      await socket.waitFor((message) => message.type === "ready");
+      await expectNoOutputContaining(socket, "STALE_DEAD_PANE");
+      expect(socket.events).not.toContain("close");
+      socket.close(1000, "done");
+    },
+    TEST_TIMEOUT_MS,
+  );
+
+  it(
+    "connects to the target machine over its private provider address",
+    async () => {
+      const { port, dir } = await startBridge();
+      const socket = await openSocket(port, terminalToken());
+      await socket.waitFor((message) => message.type === "ready");
+
+      const state = JSON.parse(
+        readFileSync(
+          join(dir, `tmux-${terminalTmuxSessionName()}.json`),
+          "utf8",
+        ),
+      ) as { paneCommand?: string };
+      expect(state.paneCommand).toContain("--address fdaa:74:e7fe:a7b::2");
       socket.close(1000, "done");
     },
     TEST_TIMEOUT_MS,

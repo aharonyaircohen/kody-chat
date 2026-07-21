@@ -1079,13 +1079,22 @@ async function handleKodyDirectPost(
   // improvements) — the model picks the right tool from the descriptions,
   // not by guessing from names. Tool building requires repo + actor
   // resolution done above.
-  let uiToolSet = createUiTools();
+  const requireInteractiveAction =
+    !explicitViewRequest &&
+    shouldRequireViewOutputForTurn({
+      userText: latestUserText,
+      definitions: viewRendererDefinitions,
+    });
+  let uiToolSet = createUiTools({ requireInteractiveAction });
   let extraTools: Record<string, unknown> = {};
   if (repo && !clientSurface) {
     // Per-request Octokit (no shared singleton) so the GitHub tools
     // don't race other concurrent /api/kody/chat/kody requests.
     const octokit = createUserOctokit(repo.token);
-    uiToolSet = createUiTools({ viewRendererDefinitions });
+    uiToolSet = createUiTools({
+      viewRendererDefinitions,
+      requireInteractiveAction,
+    });
     extraTools = {
       ...extraTools,
       ...createGitHubTools({ octokit, owner: repo.owner, repo: repo.repo }),
@@ -1429,11 +1438,7 @@ async function handleKodyDirectPost(
   }
   const tools = allowlistedTools as Parameters<typeof streamText>[0]["tools"];
   const requireViewOutput =
-    !explicitViewRequest &&
-    shouldRequireViewOutputForTurn({
-      userText: latestUserText,
-      definitions: viewRendererDefinitions,
-    }) &&
+    requireInteractiveAction &&
     Object.prototype.hasOwnProperty.call(allowlistedTools, SHOW_VIEW_TOOL);
   const allActiveTools = Object.keys(allowlistedTools) as Array<
     keyof NonNullable<typeof tools>
@@ -1806,12 +1811,14 @@ This turn includes an image from the user. For questions about what is visible i
         onError: ({ error }) => {
           clearHeartbeats();
           if (durableTurn) {
-            void durableTurn.fail("provider_error").catch((persistenceError) => {
-              traceError(
-                { traceId, err: formatProviderError(persistenceError) },
-                "kody-direct: durable turn failure write failed",
-              );
-            });
+            void durableTurn
+              .fail("provider_error")
+              .catch((persistenceError) => {
+                traceError(
+                  { traceId, err: formatProviderError(persistenceError) },
+                  "kody-direct: durable turn failure write failed",
+                );
+              });
           }
           // Server-side log of stream errors. We *also* surface the message
           // to the UI via the `onError` arg to toUIMessageStreamResponse

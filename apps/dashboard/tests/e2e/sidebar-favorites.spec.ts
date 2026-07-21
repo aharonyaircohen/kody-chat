@@ -35,6 +35,12 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
     }
   });
   page.on("requestfailed", (request) => {
+    if (
+      request.method() === "PUT" &&
+      request.url().endsWith("/api/kody/navigation-favorites")
+    ) {
+      return;
+    }
     failedRequests.push(`${request.method()} ${request.url()}`);
   });
   page.on("response", (response) => {
@@ -118,13 +124,39 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
       body: JSON.stringify({ config: {} }),
     }),
   );
-  await page.route("**/api/kody/secrets/FLY_API_TOKEN/value", (route) =>
+  await page.route("**/api/kody/secrets**", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ exists: false }),
+      body: JSON.stringify(
+        new URL(route.request().url()).pathname.endsWith("/FLY_API_TOKEN/value")
+          ? { exists: false }
+          : { secrets: [] },
+      ),
     }),
   );
+  await page.route("**/api/kody/cms**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ collections: [] }),
+    }),
+  );
+  await page.route("**/api/kody/chat/conversations**", (route) => {
+    const request = route.request();
+    const isCollection = new URL(request.url()).pathname.endsWith(
+      "/conversations",
+    );
+    return route.fulfill({
+      status: request.method() === "POST" && isCollection ? 201 : 200,
+      contentType: "application/json",
+      body: JSON.stringify(
+        request.method() === "GET" && isCollection
+          ? { conversations: [] }
+          : { ok: true },
+      ),
+    });
+  });
   await page.route("**/api/kody/tasks**", (route) =>
     route.fulfill({
       status: 200,
@@ -139,9 +171,16 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
   });
   await expect(navigation).toBeVisible();
 
+  const saveFavorite = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/kody/navigation-favorites") &&
+      response.request().method() === "PUT" &&
+      response.status() === 200,
+  );
   await navigation
     .getByRole("button", { name: "Add Tasks to favorites" })
     .click();
+  await saveFavorite;
 
   const favorites = navigation.getByRole("region", {
     name: "Favorite pages",
@@ -151,22 +190,33 @@ test("user can favorite a page and keep it after reload", async ({ page }) => {
     0,
   );
   await expect(favorites.getByRole("link", { name: "Tasks" })).toBeVisible();
-  await expect.poll(() => completedSavedBodies).toContainEqual({
-    favoriteHrefs: ["/tasks"],
-  });
+  await expect
+    .poll(() => completedSavedBodies)
+    .toContainEqual({
+      favoriteHrefs: ["/tasks"],
+    });
 
   await page.reload();
   await expect(
     navigation.getByRole("region", { name: "Favorite pages" }),
   ).toBeVisible();
 
+  const removeFavorite = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/kody/navigation-favorites") &&
+      response.request().method() === "PUT" &&
+      response.status() === 200,
+  );
   await favorites
     .getByRole("button", { name: "Remove Tasks from favorites" })
     .click();
+  await removeFavorite;
   await expect(favorites).toHaveCount(0);
-  await expect.poll(() => completedSavedBodies).toContainEqual({
-    favoriteHrefs: [],
-  });
+  await expect
+    .poll(() => completedSavedBodies)
+    .toContainEqual({
+      favoriteHrefs: [],
+    });
 
   expect(pageErrors).toEqual([]);
   expect(consoleErrors).toEqual([]);

@@ -154,7 +154,7 @@ function readState(name) {
   try {
     return JSON.parse(fs.readFileSync(sessionFile(name), "utf8"));
   } catch {
-    return { marker: "", attachCount: 0, statusOff: false, mouseOn: false, historyLimit: "", exitsOnAttach: false };
+    return { marker: "", attachCount: 0, statusOff: false, mouseOn: false, historyLimit: "", exitsOnAttach: false, paneDead: false, paneCommand: "" };
   }
 }
 function writeState(name, state) {
@@ -167,6 +167,12 @@ if (args[0] === "kill-session") {
   fs.rmSync(sessionFile(sessionName()), { force: true });
   process.exit(0);
 }
+if (args[0] === "list-panes") {
+  const name = sessionName();
+  if (!fs.existsSync(sessionFile(name))) process.exit(1);
+  process.stdout.write(readState(name).paneDead ? "1\\n" : "0\\n");
+  process.exit(0);
+}
 if (args[0] === "new-session") {
   const name = args[args.indexOf("-s") + 1];
   writeState(name, {
@@ -176,6 +182,8 @@ if (args[0] === "new-session") {
     mouseOn: false,
     historyLimit: "",
     exitsOnAttach: args.slice(args.indexOf("-s") + 2).join(" ").includes("--command"),
+    paneDead: false,
+    paneCommand: args.slice(args.indexOf("-s") + 2).join(" "),
   });
   process.exit(0);
 }

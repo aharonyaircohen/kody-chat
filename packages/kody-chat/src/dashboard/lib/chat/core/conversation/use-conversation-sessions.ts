@@ -7,7 +7,8 @@ import type {
 } from "@dashboard/lib/chat-types";
 import type { ConversationCheckpoint } from "../conversation-compaction";
 import {
-  conversationClient,
+  conversationClient as defaultConversationClient,
+  createConversationClient,
   type ConversationCommand,
 } from "./conversation-client";
 import {
@@ -76,6 +77,24 @@ function storedAttachmentId(id: string): string {
   return id.includes("::") ? id.slice(id.indexOf("::") + 2) : id;
 }
 
+export function mergeHydratedSessions(
+  loaded: SessionMeta[],
+  locallyCreated: SessionMeta[],
+): SessionMeta[] {
+  const loadedIds = new Set(loaded.map((session) => session.id));
+  return [
+    ...locallyCreated.filter((session) => !loadedIds.has(session.id)),
+    ...loaded,
+  ];
+}
+
+export function preserveActiveSessionId(
+  currentSessionId: string,
+  firstLoadedSessionId: string,
+): string {
+  return currentSessionId || firstLoadedSessionId;
+}
+
 function sessionFromList(value: Record<string, unknown>): SessionMeta {
   return {
     id: String(value.conversationId),
@@ -94,7 +113,15 @@ function sessionFromList(value: Record<string, unknown>): SessionMeta {
 
 export function useConversationSessions(
   scope: ChatSessionScope = "global",
+  requestHeaders?: Record<string, string>,
 ): UseConversationSessionsResult {
+  const conversationClient = useMemo(
+    () =>
+      requestHeaders
+        ? createConversationClient(requestHeaders)
+        : defaultConversationClient,
+    [requestHeaders],
+  );
   const [hydrated, setHydrated] = useState(false);
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const sessionsRef = useRef<SessionMeta[]>([]);
@@ -103,18 +130,18 @@ export function useConversationSessions(
   >({});
   const [activeSessionId, setActiveSessionId] = useState("");
   const [persistenceError, setPersistenceError] = useState<string | null>(null);
+  const locallyCreatedSessionIdsRef = useRef(new Set<string>());
 
   useEffect(() => {
     sessionsRef.current = sessions;
   }, [sessions]);
 
   const persist = useCallback((operation: Promise<unknown>) => {
-    void operation
-      .catch((error: unknown) =>
-        setPersistenceError(
-          error instanceof Error ? error.message : "Conversation save failed",
-        ),
-      );
+    void operation.catch((error: unknown) =>
+      setPersistenceError(
+        error instanceof Error ? error.message : "Conversation save failed",
+      ),
+    );
   }, []);
 
   const loadDetail = useCallback(async (conversationId: string) => {
@@ -134,14 +161,25 @@ export function useConversationSessions(
 
   useEffect(() => {
     let cancelled = false;
+    locallyCreatedSessionIdsRef.current = new Set();
+    setActiveSessionId("");
     void conversationClient
       .list(scope)
       .then(async (records) => {
         if (cancelled) return;
         const loaded = records.map(sessionFromList);
-        setSessions(loaded);
+        setSessions((previous) => {
+          const locallyCreated = previous.filter((session) =>
+            locallyCreatedSessionIdsRef.current.has(session.id),
+          );
+          const merged = mergeHydratedSessions(loaded, locallyCreated);
+          sessionsRef.current = merged;
+          return merged;
+        });
         const firstId = loaded[0]?.id ?? "";
-        setActiveSessionId(firstId);
+        setActiveSessionId((current) =>
+          preserveActiveSessionId(current, firstId),
+        );
         if (firstId) await loadDetail(firstId);
       })
       .catch((error: unknown) => {
@@ -178,6 +216,7 @@ export function useConversationSessions(
   const createSession = useCallback(
     (opts?: { agentKey?: string }) => {
       const id = crypto.randomUUID();
+      locallyCreatedSessionIdsRef.current.add(id);
       const now = new Date().toISOString();
       const login = actorLogin();
       const session: SessionMeta = {

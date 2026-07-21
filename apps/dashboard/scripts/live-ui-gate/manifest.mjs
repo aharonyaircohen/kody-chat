@@ -1,5 +1,11 @@
 export const LIVE_UI_JOURNEYS = Object.freeze([
   {
+    id: "direct-kody-chat",
+    file: "tests/e2e/direct-chat-real.e2e.spec.ts",
+    title:
+      "sends a real direct-model turn, persists it, and restores it after reload",
+  },
+  {
     id: "engine-chat-visible-reply",
     file: "tests/e2e/chat-real-system.spec.ts",
     title: "UI send → engine reply committed to target repo within 2 min",
@@ -30,6 +36,59 @@ export const LIVE_UI_JOURNEYS = Object.freeze([
     file: "tests/e2e/view-renderers-real.e2e.spec.ts",
     title: "shows built-in renderers in the real management page",
   },
+  {
+    id: "authentication-and-repository-selection",
+    file: "tests/e2e/master-journeys-real.e2e.spec.ts",
+    title:
+      "connects a real repository and restores the authenticated selection",
+  },
+  {
+    id: "brain-chat",
+    file: "tests/e2e/chat-terminal-live-ui.spec.ts",
+    title: "sends a real Brain chat turn and shows the reply",
+  },
+  {
+    id: "conversation-persistence",
+    file: "tests/e2e/direct-chat-real.e2e.spec.ts",
+    title:
+      "sends a real direct-model turn, persists it, and restores it after reload",
+  },
+  {
+    id: "attachments",
+    file: "tests/e2e/direct-chat-real.e2e.spec.ts",
+    title:
+      "sends a real direct-model turn, persists it, and restores it after reload",
+  },
+  {
+    id: "rendered-views-and-approvals",
+    file: "tests/e2e/vibe-live-full-flow.spec.ts",
+    title: "rename welcome text → approve → runner pushes the real diff",
+  },
+  {
+    id: "commands-and-context",
+    file: "tests/e2e/master-journeys-real.e2e.spec.ts",
+    title: "opens real Commands, Context, and Brands plugin panels",
+  },
+  {
+    id: "agent-and-model-selection",
+    file: "tests/e2e/vibe-live-full-flow.spec.ts",
+    title: "rename welcome text → approve → runner pushes the real diff",
+  },
+  {
+    id: "client-branded-chat",
+    file: "tests/e2e/master-journeys-real.e2e.spec.ts",
+    title: "uses the real branded client chat and restores its reply",
+  },
+  {
+    id: "navigation-and-plugin-panels",
+    file: "tests/e2e/master-journeys-real.e2e.spec.ts",
+    title: "opens real Commands, Context, and Brands plugin panels",
+  },
+  {
+    id: "mobile",
+    file: "tests/e2e/master-journeys-real.e2e.spec.ts",
+    title: "keeps the real client chat usable on mobile",
+  },
 ]);
 
 export const LIVE_UI_SPECS = Object.freeze([
@@ -40,16 +99,4 @@ export const EXPECTED_LIVE_UI_TESTS = LIVE_UI_JOURNEYS.length;
 
 // Required product journeys that do not yet have complete live UI proof.
 // Keep these visible so the master gate cannot be mistaken for full coverage.
-export const MISSING_LIVE_UI_JOURNEYS = Object.freeze([
-  "authentication-and-repository-selection",
-  "direct-kody-chat",
-  "brain-chat",
-  "conversation-persistence",
-  "attachments",
-  "rendered-views-and-approvals",
-  "commands-and-context",
-  "agent-and-model-selection",
-  "client-branded-chat",
-  "navigation-and-plugin-panels",
-  "mobile",
-]);
+export const MISSING_LIVE_UI_JOURNEYS = Object.freeze([]);

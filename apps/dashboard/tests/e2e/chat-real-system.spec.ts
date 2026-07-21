@@ -17,7 +17,7 @@
  *   E2E_CHAT_MODEL       Optional, e.g. minimax/MiniMax-M3
  */
 
-import { test, expect, type Page } from "./live-test";
+import { expect, resolveLiveGitHubUser, test, type Page } from "./live-test";
 
 const BASE_URL = process.env.BASE_URL ?? "";
 const CONVEX_URL =
@@ -38,14 +38,22 @@ function parseRepo(url: string): { owner: string; repo: string } {
 
 async function injectAuth(page: Page): Promise<void> {
   const { owner, repo } = parseRepo(TEST_REPO);
-  await page.evaluate(
-    (auth) => localStorage.setItem("kody_auth", JSON.stringify(auth)),
+  const user = await resolveLiveGitHubUser(page, BASE_URL, {
+    "x-kody-token": TEST_TOKEN,
+    "x-kody-owner": owner,
+    "x-kody-repo": repo,
+  });
+  await page.context().addInitScript(
+    (auth) => {
+      localStorage.clear();
+      localStorage.setItem("kody_auth", JSON.stringify(auth));
+    },
     {
       repoUrl: TEST_REPO,
       owner,
       repo,
       token: TEST_TOKEN,
-      user: { login: "real-e2e-test", avatar_url: "", id: 1 },
+      user,
       loggedInAt: Date.now(),
     },
   );
@@ -53,7 +61,7 @@ async function injectAuth(page: Page): Promise<void> {
 
 test.describe("Real chat flow @real", () => {
   test.skip(!RUN_REAL, "set RUN_REAL_E2E=1 to enable real-system chat e2e");
-  test.setTimeout(180_000); // 3 min per test — accounts for runner boot + LLM call
+  test.setTimeout(360_000);
 
   test.beforeAll(() => {
     if (!BASE_URL || !TEST_TOKEN || !TEST_REPO) {
@@ -67,15 +75,14 @@ test.describe("Real chat flow @real", () => {
   });
 
   test.beforeEach(async ({ page }) => {
-    await page.goto(`${BASE_URL}/login`);
-    await page.waitForLoadState("domcontentloaded");
     await injectAuth(page);
   });
 
   test("UI send → engine reply committed to target repo within 2 min", async ({
     page,
   }) => {
-    await page.goto(BASE_URL);
+    const { owner, repo } = parseRepo(TEST_REPO);
+    await page.goto(`${BASE_URL}/repo/${owner}/${repo}`);
     await page.waitForLoadState("domcontentloaded");
 
     const viewport = await page.viewportSize();
@@ -93,23 +100,60 @@ test.describe("Real chat flow @real", () => {
       if (ws.url().includes("convex")) liveSockets.push(ws.url());
     });
 
-    const input = page.getByPlaceholder(/ask kody|kody is waiting/i).first();
-    await input.waitFor({ state: "visible", timeout: 15_000 });
+    const chat = page.locator('[aria-label="Kody chat"]');
+    const stop = chat.getByRole("button", { name: "Stop run" });
+    if (await stop.isVisible()) await stop.click();
+    const newConversation = page.getByRole("button", {
+      name: "New conversation",
+    });
+    await expect(newConversation).toBeEnabled({ timeout: 15_000 });
+    await newConversation.click();
+
+    // A new conversation restores the configured default model. Select the
+    // live runner afterwards so the test exercises the user's actual choice.
+    const modelPicker = chat.getByRole("button", { name: "Model" }).first();
+    await modelPicker.click();
+    await chat
+      .locator('[role="listbox"]:visible')
+      .first()
+      .locator('button[role="option"]')
+      .filter({ hasText: "Kody Live" })
+      .click();
+    await expect(modelPicker).toContainText("Kody Live");
+
+    const input = chat.locator("textarea").first();
+    await expect(input).toBeVisible({ timeout: 15_000 });
+    await expect(input).toBeDisabled();
 
     const marker = `RE2E-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 
-    const triggerPromise = page.waitForRequest("**/api/kody/chat/trigger");
-    await input.fill(`Reply with exactly "pong ${marker}" and nothing else.`);
-    await page
-      .locator('[aria-label="Kody chat"]')
-      .getByRole("button", { name: "Send message" })
-      .click();
-    const triggerReq = await triggerPromise;
-    const triggerBody = JSON.parse(triggerReq.postData() ?? "{}") as {
+    const startPromise = page.waitForRequest(
+      "**/api/kody/chat/interactive/start",
+    );
+    const bootRunner = chat.getByRole("button", { name: "Boot runner" });
+    await expect(bootRunner).toBeVisible({ timeout: 20_000 });
+    await bootRunner.click();
+    const startReq = await startPromise;
+    const startBody = JSON.parse(startReq.postData() ?? "{}") as {
       taskId?: string;
     };
-    const sessionId = triggerBody.taskId;
-    expect(sessionId, "UI must send a taskId to /chat/trigger").toBeTruthy();
+    const sessionId = startBody.taskId;
+    expect(
+      sessionId,
+      "UI must send a taskId to /interactive/start",
+    ).toBeTruthy();
+
+    await expect(
+      page.getByLabel("Live runner: ready"),
+      "runner must visibly become ready",
+    ).toBeVisible({ timeout: 180_000 });
+    await expect(input).toBeEnabled();
+    await input.fill(`Reply with exactly "pong ${marker}" and nothing else.`);
+    const appendPromise = page.waitForRequest(
+      "**/api/kody/chat/interactive/append",
+    );
+    await chat.getByRole("button", { name: "Send message" }).click();
+    await appendPromise;
 
     // Phase 1 — engine-side ground truth: read the session's chat events
     // straight from Convex (chatEvents.since, the deliberately-public query

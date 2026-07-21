@@ -7,6 +7,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 
+import { buildHeaders } from "../api/client";
 import { useActionStateLiveStamp } from "./useConvexLive";
 
 export type ActionStatus = "running" | "waiting" | "complete" | "cancelled";
@@ -57,6 +58,7 @@ export function useKodyActionState(
     try {
       const res = await fetch(
         `/api/kody/action/state/${encodeURIComponent(runId)}`,
+        { headers: buildHeaders() },
       );
       // 404 = no active action for this runId — stop polling to avoid log spam
       if (res.status === 404) {
@@ -65,8 +67,11 @@ export function useKodyActionState(
       }
       if (!res.ok) return;
 
-      const data = (await res.json()) as { state: ActionState };
-      if (!data.state) return;
+      const data = (await res.json()) as { state: ActionState | null };
+      if (!data.state) {
+        notFoundRef.current = true;
+        return;
+      }
 
       const newState = data.state;
       setState(newState);

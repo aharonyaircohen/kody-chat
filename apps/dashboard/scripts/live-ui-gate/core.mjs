@@ -294,6 +294,10 @@ export function redactDiagnosticText(value, secrets) {
   return redacted;
 }
 
+export function isExpectedBrowserAbort(errorText) {
+  return errorText === "net::ERR_ABORTED";
+}
+
 async function checkedJson(fetchImpl, url, init, validate) {
   try {
     const response = await fetchImpl(url, {
@@ -308,6 +312,19 @@ async function checkedJson(fetchImpl, url, init, validate) {
   }
 }
 
+async function readCheckedJson(fetchImpl, url, init) {
+  try {
+    const response = await fetchImpl(url, {
+      ...init,
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
 export async function runLiveServicePreflight(environment, fetchImpl = fetch) {
   const baseUrl = exactValue(environment.BASE_URL).replace(/\/$/, "");
   const repoSlug = repositorySlug(exactValue(environment.E2E_GITHUB_REPO));
@@ -317,6 +334,27 @@ export async function runLiveServicePreflight(environment, fetchImpl = fetch) {
     environment.CONVEX_URL || environment.NEXT_PUBLIC_CONVEX_URL,
   ).replace(/\/$/, "");
   const serviceKey = exactValue(environment.KODY_SERVICE_KEY);
+  const dashboardHeaders = {
+    "x-kody-token": token,
+    "x-kody-owner": owner,
+    "x-kody-repo": repo,
+  };
+  const [modelPayload, secretPayload] = await Promise.all([
+    readCheckedJson(fetchImpl, `${baseUrl}/api/kody/models`, {
+      headers: dashboardHeaders,
+    }),
+    readCheckedJson(fetchImpl, `${baseUrl}/api/kody/secrets`, {
+      headers: dashboardHeaders,
+    }),
+  ]);
+  const enabledModels = Array.isArray(modelPayload?.models)
+    ? modelPayload.models.filter((model) => model?.enabled !== false)
+    : [];
+  const secretNames = new Set(
+    Array.isArray(secretPayload?.secrets)
+      ? secretPayload.secrets.map((secret) => secret?.name).filter(present)
+      : [],
+  );
 
   const checks = [
     {
@@ -325,17 +363,26 @@ export async function runLiveServicePreflight(environment, fetchImpl = fetch) {
         fetchImpl,
         `${baseUrl}/api/kody/auth/me`,
         {
-          headers: {
-            "x-kody-token": token,
-            "x-kody-owner": owner,
-            "x-kody-repo": repo,
-          },
+          headers: dashboardHeaders,
         },
         (data) =>
           data?.authenticated === true &&
           data?.owner === owner &&
           data?.repo === repo,
       ),
+    },
+    {
+      name: "dashboard-model-config",
+      ok: enabledModels.length > 0,
+    },
+    {
+      name: "dashboard-model-secret",
+      ok:
+        enabledModels.length > 0 &&
+        enabledModels.some(
+          (model) =>
+            present(model?.apiKeySecret) && secretNames.has(model.apiKeySecret),
+        ),
     },
     {
       name: "github-repository",

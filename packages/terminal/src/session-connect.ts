@@ -301,6 +301,7 @@ export async function startTerminalSession(input: {
     app: selected.machine.app,
     orgSlug: selectedCfg.orgSlug,
     machineId: selected.machine.machineId,
+    privateAddress: selected.machine.privateAddress,
     chatSessionId: bridgeSessionId,
     resetSession: data.resetSession,
     ...(activityLimitMs !== undefined ? { activityLimitMs } : {}),

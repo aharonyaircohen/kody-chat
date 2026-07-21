@@ -110,7 +110,7 @@ describe("POST /api/kody/chat/title", () => {
     expect(resolveChatModelMock).not.toHaveBeenCalled();
   });
 
-  it("propagates model-resolution errors", async () => {
+  it("falls back cleanly when model resolution fails", async () => {
     const { NextResponse } = await import("next/server");
     resolveChatModelMock.mockResolvedValue({
       error: NextResponse.json({ error: "no_model" }, { status: 503 }),
@@ -120,11 +120,12 @@ describe("POST /api/kody/chat/title", () => {
       makeReq({ messages: [{ role: "user", content: "hello" }] }),
     );
 
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ title: null });
     expect(generateTextMock).not.toHaveBeenCalled();
   });
 
-  it("returns 502 when the model emits reasoning instead of a title", async () => {
+  it("falls back cleanly when the model emits reasoning instead of a title", async () => {
     generateTextMock.mockResolvedValue({
       text: "The user just said hi so I should think about what title fits",
     });
@@ -133,21 +134,18 @@ describe("POST /api/kody/chat/title", () => {
       makeReq({ messages: [{ role: "user", content: "hi" }] }),
     );
 
-    expect(res.status).toBe(502);
-    await expect(res.json()).resolves.toEqual({ error: "unusable_title" });
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ title: null });
   });
 
-  it("returns 502 when title generation throws", async () => {
+  it("falls back cleanly when title generation throws", async () => {
     generateTextMock.mockRejectedValue(new Error("provider down"));
 
     const res = await POST(
       makeReq({ messages: [{ role: "user", content: "hi" }] }),
     );
 
-    expect(res.status).toBe(502);
-    expect(await res.json()).toMatchObject({
-      error: "title_generation_failed",
-      message: "provider down",
-    });
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ title: null });
   });
 });

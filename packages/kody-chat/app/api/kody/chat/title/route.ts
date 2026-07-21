@@ -66,7 +66,9 @@ export async function POST(req: NextRequest) {
   }
 
   const resolution = await resolveChatModel(req, body.model);
-  if ("error" in resolution) return resolution.error;
+  if ("error" in resolution) {
+    return NextResponse.json({ title: null });
+  }
 
   try {
     const { text } = await generateText({
@@ -96,18 +98,12 @@ export async function POST(req: NextRequest) {
     const looksLikeReasoning =
       wordCount > 9 || /\b(the user|i need|let me|i should)\b/i.test(cleaned);
     if (!cleaned || looksLikeReasoning) {
-      return NextResponse.json({ error: "unusable_title" }, { status: 502 });
+      return NextResponse.json({ title: null });
     }
 
     const title = cleaned.slice(0, MAX_TITLE_LEN).trim();
     return NextResponse.json({ title });
-  } catch (err) {
-    return NextResponse.json(
-      {
-        error: "title_generation_failed",
-        message: err instanceof Error ? err.message : String(err),
-      },
-      { status: 502 },
-    );
+  } catch {
+    return NextResponse.json({ title: null });
   }
 }

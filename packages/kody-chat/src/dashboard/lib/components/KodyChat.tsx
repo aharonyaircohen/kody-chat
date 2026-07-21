@@ -469,7 +469,10 @@ export function KodyChat({
     useState<
       import("../chat/core/conversation/use-conversation-sessions").ChatSessionScope
     >(desiredSessionScope);
-  const sessionHook = useConversationSessions(sessionStoreScope);
+  const sessionHook = useConversationSessions(
+    sessionStoreScope,
+    kodyDirectHeaders,
+  );
   const createChatSession = sessionHook.createSession;
 
   // Agent/model selection (phase 1.6c: kody-chat-selection.ts) — selected

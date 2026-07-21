@@ -41,20 +41,23 @@ vi.mock("@kody-ade/base/variables/load-chat-models", () => ({
 
 // Model resolution is mocked so the request gets past the 409 fallback and
 // actually builds the tool map (the code under test).
-vi.mock("../../../../packages/kody-chat/app/api/kody/chat/resolve-model", () => ({
-  resolveChatModel: vi.fn(async () => ({
-    model: {},
-    resolvedModel: {
-      id: "test/plugin-model",
-      modelName: "plugin-model",
-      provider: "test",
-      protocol: "openai",
-      apiKeySecret: "TEST_KEY",
-      enabled: true,
-    },
-    apiKey: "test-key",
-  })),
-}));
+vi.mock(
+  "../../../../packages/kody-chat/app/api/kody/chat/resolve-model",
+  () => ({
+    resolveChatModel: vi.fn(async () => ({
+      model: {},
+      resolvedModel: {
+        id: "test/plugin-model",
+        modelName: "plugin-model",
+        provider: "test",
+        protocol: "openai",
+        apiKeySecret: "TEST_KEY",
+        enabled: true,
+      },
+      apiKey: "test-key",
+    })),
+  }),
+);
 
 // Actor verification normally resolves the token via GitHub — keep the test
 // hermetic. The rest of @dashboard/lib/auth (requireKodyAuth, getRequestAuth)
@@ -114,6 +117,7 @@ vi.mock("ai", async (importOriginal) => {
     streamText: vi.fn((options: Record<string, unknown>) => {
       streamTextCalls.push(options);
       return {
+        consumeStream: vi.fn(async () => undefined),
         toUIMessageStream: () =>
           new ReadableStream({
             start(controller) {
@@ -176,7 +180,9 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
   });
 
   it("continues the chat when optional CMS tools cannot be loaded", async () => {
-    createCmsToolsMock.mockRejectedValueOnce(new Error("CMS config unavailable"));
+    createCmsToolsMock.mockRejectedValueOnce(
+      new Error("CMS config unavailable"),
+    );
 
     const { status, toolNames } = await postAndCaptureToolNames();
 
@@ -235,7 +241,9 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
 
     // Invalid input is rejected by the registry's zod wrapper BEFORE the
     // handler runs.
-    await expect(fixtureTool.execute({ message: 42 }, {})).resolves.toMatchObject({
+    await expect(
+      fixtureTool.execute({ message: 42 }, {}),
+    ).resolves.toMatchObject({
       error: expect.stringContaining("expected string"),
     });
     expect(executions).toHaveLength(1);

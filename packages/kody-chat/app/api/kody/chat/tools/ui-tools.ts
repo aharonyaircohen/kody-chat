@@ -17,6 +17,7 @@ import {
   SWITCH_AGENT_DIRECTIVE,
   type DashboardNavigateDirective,
   type PreviewActDirective,
+  type RenderedViewUiNode,
   type SwitchAgentDirective,
   type SwitchAgentTargetId,
 } from "@dashboard/lib/chat-ui-actions";
@@ -47,6 +48,22 @@ const SELECTABLE_AGENT_IDS = Object.values(AGENTS).map(
 interface UiToolsCtx {
   /** Brand renderer definitions; built-ins are used when empty/omitted. */
   viewRendererDefinitions?: ViewRendererDefinition[];
+  /** Decision turns must render at least one control the user can operate. */
+  requireInteractiveAction?: boolean;
+}
+
+function hasInteractiveControl(node: RenderedViewUiNode): boolean {
+  if (
+    node.type === "button" ||
+    node.type === "submit" ||
+    node.type === "checkbox" ||
+    (node.type === "input" && node.readOnly !== true)
+  ) {
+    return true;
+  }
+  return "children" in node
+    ? node.children.some((child) => hasInteractiveControl(child))
+    : false;
 }
 
 export const switchAgentTool = tool({
@@ -278,11 +295,21 @@ export function createUiTools(ctx: UiToolsCtx = {}) {
           return { error: validated.error };
         }
         try {
-          return buildChatViewDirective({
+          const directive = buildChatViewDirective({
             id: `view-${randomUUID()}`,
             catalog,
             spec: validated.spec,
           });
+          if (
+            ctx.requireInteractiveAction &&
+            !hasInteractiveControl(directive.ui)
+          ) {
+            return {
+              error:
+                "This turn asks the user to decide, but the view has no interactive control. Render an approval, selection, button, checkbox, or editable form control instead of placeholder/status text.",
+            };
+          }
+          return directive;
         } catch (err) {
           return {
             error: err instanceof Error ? err.message : String(err),

@@ -1,6 +1,7 @@
 import { expect, test as base, type Page } from "@playwright/test";
 
 import {
+  isExpectedBrowserAbort,
   redactDiagnosticText,
   sanitizeDiagnosticUrl,
 } from "../../scripts/live-ui-gate/core.mjs";
@@ -36,8 +37,10 @@ function monitorPage(page: Page, diagnostics: string[]) {
     }
   });
   page.on("requestfailed", (request) => {
+    const errorText = request.failure()?.errorText ?? "unknown";
+    if (isExpectedBrowserAbort(errorText)) return;
     record(
-      `[requestfailed] ${request.method()} ${sanitizeDiagnosticUrl(request.url())} ${request.failure()?.errorText ?? "unknown"}`,
+      `[requestfailed] ${request.method()} ${sanitizeDiagnosticUrl(request.url())} ${errorText}`,
     );
   });
   page.on("response", (response) => {
@@ -78,7 +81,7 @@ export const test = base.extend<{ livePageMonitoring: void }>({
 
       if (testInfo.errors.length === 0) {
         throw new Error(
-          `Live browser monitoring found ${diagnostics.length} unexpected error${diagnostics.length === 1 ? "" : "s"}`,
+          `Live browser monitoring found ${diagnostics.length} unexpected error${diagnostics.length === 1 ? "" : "s"}:\n${diagnostics.join("\n")}`,
         );
       }
     },
@@ -86,5 +89,29 @@ export const test = base.extend<{ livePageMonitoring: void }>({
   ],
 });
 
+export async function resolveLiveGitHubUser(
+  page: Page,
+  baseUrl: string,
+  headers: Record<string, string>,
+): Promise<{ login: string; avatar_url: string; id: number }> {
+  const response = await page.request.get(`${baseUrl}/api/kody/auth/me`, {
+    headers,
+  });
+  const body = (await response.json().catch(() => null)) as {
+    authenticated?: boolean;
+    user?: { login?: string; avatar_url?: string; githubId?: number };
+  } | null;
+  if (!response.ok() || !body?.authenticated || !body.user?.login) {
+    throw new Error(
+      `Unable to resolve the live GitHub actor (${response.status()})`,
+    );
+  }
+  return {
+    login: body.user.login,
+    avatar_url: body.user.avatar_url ?? "",
+    id: body.user.githubId ?? 0,
+  };
+}
+
 export { expect };
-export type { Page } from "@playwright/test";
+export type { Page, Request } from "@playwright/test";

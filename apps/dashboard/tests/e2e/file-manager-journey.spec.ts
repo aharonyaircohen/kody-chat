@@ -98,8 +98,13 @@ async function installFileManagerHarness(page: Page) {
   await page.route("**/api/kody/guided-flows", (route) =>
     json(route, { flows: [] }),
   );
-  await page.route("**/api/kody/secrets/FLY_API_TOKEN/value", (route) =>
-    json(route, { value: null }),
+  await page.route("**/api/kody/secrets**", (route) =>
+    json(
+      route,
+      new URL(route.request().url()).pathname.endsWith("/FLY_API_TOKEN/value")
+        ? { value: null }
+        : { secrets: [] },
+    ),
   );
 
   await page.route("https://api.github.com/**", async (route) => {

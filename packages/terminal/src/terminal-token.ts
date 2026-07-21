@@ -19,6 +19,7 @@ export interface TerminalBridgeClaims {
   app: string;
   orgSlug?: string;
   machineId?: string;
+  privateAddress?: string;
   chatSessionId?: string;
   resetSession?: boolean;
   activityLimitMs?: number | null;
@@ -37,6 +38,7 @@ export interface MintTerminalBridgeTokenInput {
   app: string;
   orgSlug?: string;
   machineId?: string;
+  privateAddress?: string;
   chatSessionId?: string;
   resetSession?: boolean;
   activityLimitMs?: number | null;
@@ -109,6 +111,7 @@ export function mintTerminalBridgeToken(
     app: input.app,
     orgSlug: input.orgSlug,
     machineId: input.machineId,
+    privateAddress: input.privateAddress,
     chatSessionId: input.chatSessionId,
     resetSession: input.resetSession,
     activityLimitMs: input.activityLimitMs,

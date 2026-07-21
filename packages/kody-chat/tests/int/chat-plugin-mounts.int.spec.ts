@@ -117,6 +117,7 @@ vi.mock("ai", async (importOriginal) => {
       const chunks = nextUiMessageChunks;
       nextUiMessageChunks = null;
       return {
+        consumeStream: vi.fn(async () => undefined),
         toUIMessageStream: () =>
           new ReadableStream({
             start(controller) {
@@ -186,7 +187,9 @@ describe("kody route × chat plugin server tools (Step 4)", () => {
   });
 
   it("continues the chat when optional CMS tools cannot be loaded", async () => {
-    createCmsToolsMock.mockRejectedValueOnce(new Error("CMS config unavailable"));
+    createCmsToolsMock.mockRejectedValueOnce(
+      new Error("CMS config unavailable"),
+    );
     nextUiMessageChunks = [
       { type: "text-start", id: "reply" },
       { type: "text-delta", id: "reply", delta: "Still responding." },

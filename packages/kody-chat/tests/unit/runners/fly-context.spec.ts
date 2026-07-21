@@ -57,6 +57,9 @@ function vault(secrets: Record<string, string>) {
 beforeEach(() => {
   vi.stubEnv("FLY_API_TOKEN", "");
   vi.stubEnv("FLY_IO_TOKEN", "");
+  vi.stubEnv("CONVEX_URL", "");
+  vi.stubEnv("NEXT_PUBLIC_CONVEX_URL", "");
+  vi.stubEnv("KODY_SERVICE_KEY", "");
   getRequestAuth.mockReturnValue({
     token: "ghp_user",
     owner: "acme",
@@ -111,6 +114,29 @@ describe("resolveFlyContext", () => {
     if (!result.ok) return;
     expect(result.context.flyToken).toBeUndefined();
     expect(result.context.providerTokenSource).toBeNull();
+  });
+
+  it("forwards canonical dashboard storage credentials to spawned runners", async () => {
+    vi.stubEnv("CONVEX_URL", "https://canonical.convex.cloud");
+    vi.stubEnv("KODY_SERVICE_KEY", "service-key");
+    readVault.mockResolvedValue(
+      vault({
+        FLY_API_TOKEN: "fly_vault",
+        MINIMAX_API_KEY: "mini",
+        CONVEX_URL: "https://wrong.convex.cloud",
+        KODY_SERVICE_KEY: "wrong-key",
+      }),
+    );
+
+    const result = await resolveFlyContext(req());
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.context.allSecrets).toEqual({
+      MINIMAX_API_KEY: "mini",
+      CONVEX_URL: "https://canonical.convex.cloud",
+      KODY_SERVICE_KEY: "service-key",
+    });
   });
 
   it("prefers the dashboard model registry for Brain model runtime config", async () => {
