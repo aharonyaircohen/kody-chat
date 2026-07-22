@@ -91,17 +91,35 @@ interface PrCommit {
 }
 
 async function ghFetch(path: string): Promise<unknown> {
-  const res = await fetch(`https://api.github.com${path}`, {
-    headers: {
-      Authorization: `Bearer ${TEST_TOKEN}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-    },
-  });
-  if (!res.ok) {
-    throw new Error(`GitHub ${path} → ${res.status} ${await res.text()}`);
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    try {
+      const res = await fetch(`https://api.github.com${path}`, {
+        headers: {
+          Authorization: `Bearer ${TEST_TOKEN}`,
+          Accept: "application/vnd.github+json",
+          "X-GitHub-Api-Version": "2022-11-28",
+        },
+      });
+      if (res.ok) return res.json();
+      const body = await res.text();
+      const retryable = res.status === 429 || res.status >= 500;
+      if (!retryable) {
+        throw new Error(`GitHub ${path} → ${res.status} ${body}`);
+      }
+      lastError = new Error(`GitHub ${path} → ${res.status} ${body}`);
+    } catch (error) {
+      lastError = error;
+    }
+    if (attempt < 5) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, 1_000 * 2 ** attempt),
+      );
+    }
   }
-  return res.json();
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`GitHub ${path} request failed`);
 }
 
 let cleanupTarget: {
@@ -332,7 +350,8 @@ test.describe("Vibe — LIVE full flow against production", () => {
     const approvalAction = chat
       .locator("button:enabled")
       .filter({
-        hasText: /^(?:file issue only|approve|confirm|proceed|create issue)/i,
+        hasText:
+          /^(?:yes\b|file issue only|approve|confirm|proceed|create issue)/i,
       })
       .last();
     // Follow the real approval UI until issue creation. Models may render a
