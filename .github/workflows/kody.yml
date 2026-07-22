@@ -63,6 +63,8 @@ jobs:
         with:
           python-version: "3.12"
 
+      - uses: astral-sh/setup-uv@v6
+
       - name: Hydrate Kody Store definitions
         uses: actions/checkout@v4
         with:
