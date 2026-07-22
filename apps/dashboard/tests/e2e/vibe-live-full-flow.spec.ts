@@ -351,7 +351,10 @@ test.describe("Vibe — LIVE full flow against production", () => {
       if (await errorBubble.isVisible()) {
         throw new Error(`Vibe chat failed: ${await errorBubble.innerText()}`);
       }
-      if (!approvalSubmitted && (await approvalAction.isVisible())) {
+      // Approval can be multi-stage: the first action approves the proposal,
+      // then a fresh enabled action approves issue creation/execution. Keep
+      // following the current enabled action; completed cards are disabled.
+      if (await approvalAction.isVisible()) {
         await approvalAction.click();
         approvalSubmitted = true;
         await page.waitForTimeout(500);
@@ -408,25 +411,36 @@ test.describe("Vibe — LIVE full flow against production", () => {
     );
     expect(issueNumber, "created issue number").toBeGreaterThan(0);
     cleanupTarget = { owner, repo, issueNumber };
-    const recentIssues = (await ghFetch(
-      `/repos/${owner}/${repo}/issues?state=all&sort=created&direction=desc&per_page=100`,
-    )) as Array<{
-      number: number;
-      title: string;
-      body?: string | null;
-      pull_request?: unknown;
-    }>;
-    const matchingIssues = recentIssues.filter(
-      (issue) =>
-        !issue.pull_request &&
-        (issue.title.includes(String(runMarker)) ||
-          issue.body?.includes(String(runMarker))),
-    );
-    cleanupTarget.issueNumbers = matchingIssues.map((issue) => issue.number);
-    expect(
-      matchingIssues.map((issue) => issue.number),
-      "one approval must create exactly one GitHub issue",
-    ).toEqual([issueNumber]);
+    let matchingIssueNumbers: number[] = [];
+    await expect
+      .poll(
+        async () => {
+          const recentIssues = (await ghFetch(
+            `/repos/${owner}/${repo}/issues?state=all&sort=created&direction=desc&per_page=100`,
+          )) as Array<{
+            number: number;
+            title: string;
+            body?: string | null;
+            pull_request?: unknown;
+          }>;
+          matchingIssueNumbers = recentIssues
+            .filter(
+              (issue) =>
+                !issue.pull_request &&
+                (issue.title.includes(String(runMarker)) ||
+                  issue.body?.includes(String(runMarker))),
+            )
+            .map((issue) => issue.number);
+          cleanupTarget!.issueNumbers = matchingIssueNumbers;
+          return matchingIssueNumbers;
+        },
+        {
+          message: "one approval must create exactly one GitHub issue",
+          timeout: 30_000,
+          intervals: [500, 1_000, 2_500],
+        },
+      )
+      .toEqual([issueNumber]);
 
     const runButton = page.getByRole("button", {
       name: /run kody on this issue/i,
