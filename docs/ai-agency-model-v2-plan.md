@@ -1,5 +1,15 @@
 # AI Agency Model V2 Plan
 
+## Implementation status
+
+The approved graph-system pilot is complete in production. The shared domain
+contracts, persistence adapters, dispatcher, runtime safeguards, Store-owned
+graph workflow, Dashboard views, consumer migration, and golden end-to-end
+journey are implemented and verified.
+
+Event, webhook, and condition Triggers remain later rollout phases as stated in
+Phase 4. They are not compatibility gaps in the schedule/manual pilot.
+
 ## Purpose
 
 Fix the AI Agency model boundaries without replacing the working execution
