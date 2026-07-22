@@ -43,6 +43,9 @@ export interface WorkflowStep {
   id: string;
   capabilityRef: DefinitionRef & { kind: "capability" };
   dependsOn: string[];
+  input?: Readonly<Record<string, unknown>>;
+  condition?: string;
+  retry?: { maxAttempts: number; backoffSeconds: number };
 }
 export interface WorkflowDefinition {
   id: string;
@@ -271,7 +274,30 @@ export function createWorkflowDefinition(value: unknown): WorkflowDefinition {
     throw new Error("WorkflowDefinition steps are required");
   const steps = input.steps.map((value) => {
     const step = record(value, "WorkflowStep");
-    exact(step, ["id", "capabilityRef", "dependsOn"], "WorkflowStep");
+    exact(
+      step,
+      ["id", "capabilityRef", "dependsOn", "input", "condition", "retry"],
+      "WorkflowStep",
+    );
+    const retry =
+      step.retry === undefined
+        ? undefined
+        : record(step.retry, "WorkflowStep retry");
+    if (retry) {
+      exact(retry, ["maxAttempts", "backoffSeconds"], "WorkflowStep retry");
+      if (
+        !Number.isInteger(retry.maxAttempts) ||
+        (retry.maxAttempts as number) < 1
+      ) {
+        throw new Error("WorkflowStep retry maxAttempts is invalid");
+      }
+      if (
+        typeof retry.backoffSeconds !== "number" ||
+        retry.backoffSeconds < 0
+      ) {
+        throw new Error("WorkflowStep retry backoffSeconds is invalid");
+      }
+    }
     return {
       id: identifier(step.id, "WorkflowStep id"),
       capabilityRef: reference(
@@ -283,6 +309,24 @@ export function createWorkflowDefinition(value: unknown): WorkflowDefinition {
         step.dependsOn === undefined
           ? []
           : strings(step.dependsOn, "WorkflowStep dependsOn"),
+      ...(step.input !== undefined
+        ? {
+            input: Object.freeze({
+              ...record(step.input, "WorkflowStep input"),
+            }),
+          }
+        : {}),
+      ...(step.condition !== undefined
+        ? { condition: text(step.condition, "WorkflowStep condition") }
+        : {}),
+      ...(retry
+        ? {
+            retry: {
+              maxAttempts: retry.maxAttempts as number,
+              backoffSeconds: retry.backoffSeconds as number,
+            },
+          }
+        : {}),
     };
   });
   const ids = new Set(steps.map((step) => step.id));
