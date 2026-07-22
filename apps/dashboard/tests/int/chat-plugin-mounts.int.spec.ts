@@ -42,7 +42,7 @@ vi.mock("@kody-ade/base/variables/load-chat-models", () => ({
 // Model resolution is mocked so the request gets past the 409 fallback and
 // actually builds the tool map (the code under test).
 vi.mock(
-  "../../../../packages/kody-chat/app/api/kody/chat/resolve-model",
+  "../../../../packages/kody-chat-dashboard/app/api/kody/chat/resolve-model",
   () => ({
     resolveChatModel: vi.fn(async () => ({
       model: {},
@@ -129,9 +129,9 @@ vi.mock("ai", async (importOriginal) => {
   };
 });
 
-import { POST as kodyChatPOST } from "../../../../packages/kody-chat/app/api/kody/chat/kody/route";
-import { getChatServerToolRegistry } from "@kody-ade/kody-chat/platform/server-tools";
-import type { ChatToolServerContext } from "@kody-ade/kody-chat/platform";
+import { POST as kodyChatPOST } from "../../../../packages/kody-chat-dashboard/app/api/kody/chat/kody/route";
+import { getChatServerToolRegistry } from "@kody-ade/kody-chat-dashboard/platform/server-tools";
+import type { ChatToolServerContext } from "@kody-ade/kody-chat-dashboard/platform";
 
 function makeRequest(): NextRequest {
   return new NextRequest("https://dash.test/api/kody/chat/kody", {

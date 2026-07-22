@@ -10,7 +10,7 @@ import { useState } from "react";
 import { cn } from "@kody-ade/base/utils/ui";
 import { Button } from "@kody-ade/base/ui/button";
 import { usePersistedState } from "../hooks/usePersistedState";
-export { parseReasoning, stripReasoning } from "@kody-ade/kody-chat/core/reasoning";
+export { parseReasoning, stripReasoning } from "@kody-ade/kody-chat-dashboard/core/reasoning";
 
 interface ToolCall {
   name: string;

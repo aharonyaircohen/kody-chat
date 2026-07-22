@@ -1,4 +1,4 @@
-import type { PreparedConversationTurn } from "@kody-ade/kody-chat/core/conversation/prepare-turn";
+import type { PreparedConversationTurn } from "@kody-ade/kody-chat-dashboard/core/conversation/prepare-turn";
 
 export const preparedTurnFixture: PreparedConversationTurn = {
   conversationId: "conversation-1",

@@ -47,13 +47,13 @@ const nextConfig = {
   // exits and every route that logs an error crashes with a 500. Leaving them
   // external means the worker loads from the real node_modules path.
   serverExternalPackages: ["pino", "thread-stream", "pino-pretty", "node-pty"],
-  // The chat core/platform layers ship as TS source from @kody-ade/kody-chat;
+  // The chat core/platform layers ship as TS source from @kody-ade/kody-chat-dashboard;
   // Next must compile them like project code. The package imports its shared
   // host libs via the `@dashboard` alias — the resolveAlias entries below make
   // those resolve to THIS repo's src/dashboard so there is exactly one module
   // instance (github-client context, active-repo state, React contexts).
   transpilePackages: [
-    "@kody-ade/kody-chat",
+    "@kody-ade/kody-chat-dashboard",
     "@kody-ade/base",
     "@kody-ade/workspace",
     "@kody-ade/fly",
@@ -84,7 +84,7 @@ const nextConfig = {
       ignored: ["**/src/engine/**"],
     };
     // tsconfig paths don't apply to files inside node_modules — the
-    // @kody-ade/kody-chat sources need @dashboard/@/ resolved explicitly.
+    // @kody-ade/kody-chat-dashboard sources need @dashboard/@/ resolved explicitly.
     config.resolve.alias = {
       ...config.resolve.alias,
       "@dashboard": new URL("./src/dashboard", import.meta.url).pathname,

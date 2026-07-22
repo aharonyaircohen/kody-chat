@@ -6,4 +6,4 @@
 export {
   GET,
   POST,
-} from "@kody-ade/kody-chat/routes/guided-flows";
+} from "@kody-ade/kody-chat-dashboard/routes/guided-flows";

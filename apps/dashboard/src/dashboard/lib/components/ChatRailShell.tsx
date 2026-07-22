@@ -32,9 +32,9 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { KodyChat } from "@kody-ade/kody-chat/components/KodyChat";
+import { KodyChat } from "@kody-ade/kody-chat-dashboard/components/KodyChat";
 import { AppHeader } from "./AppHeader";
-import { ChatShell } from "@kody-ade/kody-chat/components/ChatShell";
+import { ChatShell } from "@kody-ade/kody-chat-dashboard/components/ChatShell";
 import { SidebarNotifications } from "./SidebarChrome";
 import { useSidebarNavSections } from "./use-sidebar-nav-sections";
 import { RepoManager } from "./RepoManager";
@@ -42,13 +42,13 @@ import { CommandPalette } from "./CommandPalette";
 import { SettingsDrawerProvider } from "./SettingsDrawer";
 import { NotificationsProvider } from "../notifications/NotificationsProvider";
 import { useAuth } from "../auth-context";
-import { KodyAuthBridgeProvider } from "@kody-ade/kody-chat/auth-context";
-import { KodyThemeBridgeProvider } from "@kody-ade/kody-chat/theme";
+import { KodyAuthBridgeProvider } from "@kody-ade/kody-chat-dashboard/auth-context";
+import { KodyThemeBridgeProvider } from "@kody-ade/kody-chat-dashboard/theme";
 import { useTheme } from "../../providers/Theme";
 import { shouldPollChatGoalsForRoute } from "../github-background-polling";
 import { useGitHubIdentity } from "../hooks/useGitHubIdentity";
 import { useChatFirstLayout } from "../hooks/use-chat-first-layout";
-import { trace } from "@kody-ade/kody-chat/platform";
+import { trace } from "@kody-ade/kody-chat-dashboard/platform";
 import { useGoals } from "../hooks/useGoals";
 import type { ChatContext } from "../chat-types";
 import {
@@ -62,10 +62,10 @@ import { routeOwnsAppHeader } from "./header-ownership";
 // barrel statically reaches ChatTerminalSurface/TerminalControls, which
 // must only ever load through KodyChat's React.lazy chunks — a static path
 // here would drag them into the shared sync chunks /client also loads.
-import { terminalChatPlugin } from "@kody-ade/kody-chat/plugins/terminal/plugin";
-import { commandsChatPlugin } from "@kody-ade/kody-chat/plugins/commands";
-import { vibeChatPlugin } from "@kody-ade/kody-chat/plugins/vibe";
-import { goalsChatPlugin } from "@kody-ade/kody-chat/plugins/goals";
+import { terminalChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/terminal/plugin";
+import { commandsChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/commands";
+import { vibeChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/vibe";
+import { goalsChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/goals";
 import { tasksChatPlugin, TASKS_PANEL_ID } from "../chat/plugins/tasks";
 // Phase 2 step 4 — remaining admin pages migrated to page-plugins via the
 // tasks-pilot recipe (panels-only manifests; routes unchanged, so the
@@ -90,8 +90,8 @@ import { agentsChatPlugin, AGENTS_PANEL_ID } from "../chat/plugins/agents";
 import {
   brandsChatPlugin,
   BRANDS_PANEL_ID,
-} from "@kody-ade/kody-chat/plugins/brands";
-import { PACKAGE_ADMIN_PAGES } from "@kody-ade/kody-chat/admin-pages";
+} from "@kody-ade/kody-chat-dashboard/plugins/brands";
+import { PACKAGE_ADMIN_PAGES } from "@kody-ade/kody-chat-dashboard/admin-pages";
 import {
   capabilitiesChatPlugin,
   CAPABILITIES_PANEL_ID,
@@ -103,7 +103,7 @@ import {
 import {
   commandsPageChatPlugin,
   COMMANDS_PAGE_PANEL_ID,
-} from "@kody-ade/kody-chat/plugins/commands-page";
+} from "@kody-ade/kody-chat-dashboard/plugins/commands-page";
 import { companyChatPlugin, COMPANY_PANEL_ID } from "../chat/plugins/company";
 import {
   companyIntentsChatPlugin,
@@ -113,7 +113,7 @@ import { configChatPlugin, CONFIG_PANEL_ID } from "../chat/plugins/config";
 import {
   contextChatPlugin,
   CONTEXT_PANEL_ID,
-} from "@kody-ade/kody-chat/plugins/context";
+} from "@kody-ade/kody-chat-dashboard/plugins/context";
 import { docsChatPlugin, DOCS_PANEL_ID } from "../chat/plugins/docs";
 import { filesChatPlugin, FILES_PANEL_ID } from "../chat/plugins/files";
 import { inboxChatPlugin, INBOX_PANEL_ID } from "../chat/plugins/inbox";
@@ -121,11 +121,11 @@ import { liveEventsChatPlugin } from "../chat/plugins/live-events";
 import {
   instructionsChatPlugin,
   INSTRUCTIONS_PANEL_ID,
-} from "@kody-ade/kody-chat/plugins/instructions";
+} from "@kody-ade/kody-chat-dashboard/plugins/instructions";
 import {
   memoryChatPlugin,
   MEMORY_PANEL_ID,
-} from "@kody-ade/kody-chat/plugins/memory";
+} from "@kody-ade/kody-chat-dashboard/plugins/memory";
 import {
   messagesChatPlugin,
   MESSAGES_PANEL_ID,
@@ -133,7 +133,7 @@ import {
 import {
   modelsChatPlugin,
   MODELS_PANEL_ID,
-} from "@kody-ade/kody-chat/plugins/models";
+} from "@kody-ade/kody-chat-dashboard/plugins/models";
 import {
   notificationsChatPlugin,
   NOTIFICATIONS_PANEL_ID,
@@ -143,7 +143,7 @@ import { reportsChatPlugin, REPORTS_PANEL_ID } from "../chat/plugins/reports";
 import {
   secretsChatPlugin,
   SECRETS_PANEL_ID,
-} from "@kody-ade/kody-chat/plugins/secrets";
+} from "@kody-ade/kody-chat-dashboard/plugins/secrets";
 import {
   storeCatalogChatPlugin,
   STORE_CATALOG_PANEL_ID,
@@ -643,7 +643,7 @@ export function ChatRailShell({ children }: { children: ReactNode }) {
               {/* The shared shell owns the layout (nav | chat | page) — this
               wrapper only supplies the dashboard-specific chat pane, header,
               and page content. Shell chrome (repo switcher in the sidepanel,
-              rail resize) is inherited from @kody-ade/kody-chat. */}
+              rail resize) is inherited from @kody-ade/kody-chat-dashboard. */}
               {/* Explicit sections: the Engineer list is the superset (Vibe and
               Preview included), so the old Vibe/Engineer toggle is gone. */}
               <ChatShell

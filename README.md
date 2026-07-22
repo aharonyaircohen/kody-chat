@@ -1,15 +1,16 @@
 # Kody Monorepo
 
-Kody platform monorepo: the `@kody-ade/kody-chat` product plus its layered
-feature packages and host apps. Migrated from the separate Kody-Dashboard
-repo (imported here with full history under `apps/dashboard`).
+Kody platform monorepo containing the independently installable Kody Chat
+library, the private Kody Dashboard chat adapter, feature packages, and host
+apps.
 
 ## Layout
 
-| Path                 | Package               | Role                                                                                                                                                                |
-| -------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `packages/base`      | `@kody-ade/base`      | Platform layer: GitHub data layer (cache/ETag/rate-limit rules), auth, vault, storage, backend transport, events, infrastructure contracts/registry, UI kit, logger |
-| `packages/kody-chat` | `@kody-ade/kody-chat` | Chat product: core, platform, plugins, shared pages/components; also a standalone Next.js host app                                                                  |
+| Path                           | Package                         | Role                                                                                                                                                                |
+| ------------------------------ | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/base`                | `@kody-ade/base`                | Platform layer: GitHub data layer (cache/ETag/rate-limit rules), auth, vault, storage, backend transport, events, infrastructure contracts/registry, UI kit, logger |
+| `packages/kody-chat`           | `@kody-ade/kody-chat`           | Public embeddable React chat: generic contracts, frame, transport, host adapters, conversations, attachments, plugins, and styles                                   |
+| `packages/kody-chat-dashboard` | `@kody-ade/kody-chat-dashboard` | Private Kody Dashboard integration: product agents, tools, routes, pages, persistence adapters, and Dashboard composition                                           |
 | `packages/workspace` | `@kody-ade/workspace` | Content features: commands, context, instructions, brands, memory, todos (stores, chat tools, route handlers)                                                       |
 | `packages/fly`       | `@kody-ade/fly`       | Fly.io surface: previews, runners, fly provider plugin, server orchestration, one-shot builder                                                                      |
 | `packages/terminal`  | `@kody-ade/terminal`  | Terminal: local PTY sessions, remote bridge protocol/tokens, checkpoints                                                                                            |
@@ -21,15 +22,20 @@ repo (imported here with full history under `apps/dashboard`).
 ## Dependency rules (lint-enforced by review; keep the DAG)
 
 ```
-base ← kody-chat ← (hosts)
-base ← workspace ← kody-chat
+public kody-chat ← dashboard adapter ← dashboard host
+base, workspace, agency, cms, fly, terminal, brain ← dashboard adapter
 base ← fly ← terminal ← brain
 base ← agency, cms
 ```
 
 - `packages/base` never imports feature or app code.
-- Feature packages never import host apps or `@kody-ade/kody-chat`
-  (exception: none today — the workspace cycle was broken).
+- The public `packages/kody-chat` package never imports Dashboard code, Kody
+  feature packages, workspace dependencies, routes, secrets, or storage
+  implementations.
+- Dashboard-only behavior imports the private
+  `@kody-ade/kody-chat-dashboard` adapter. The Dashboard and the public package
+  share the same `KodyChatFrame`, so extraction cannot silently fork the base
+  surface.
 - Host-owned collaborators are injected via startup hooks in each host's
   `instrumentation.ts` (`setEventFlushScheduler`, `setTrackedBranchesReader`,
   `setBrainServiceResolver` + `registerBrainHostHooks`).
@@ -43,7 +49,7 @@ base ← agency, cms
 pnpm install
 pnpm typecheck        # all packages
 pnpm test:unit        # all packages
-pnpm dev              # kody-chat app (port 3344)
+pnpm dev              # private Dashboard chat integration app (port 3344)
 pnpm dev:dashboard    # dashboard app (port 3333)
 ```
 
@@ -54,9 +60,8 @@ pnpm dev:dashboard    # dashboard app (port 3333)
 
 ## Migration status
 
-Steps 1–9 of `apps/dashboard/docs/package-split-plan.md` are complete.
-Remaining: shrink `apps/dashboard` further (host components/hooks/api
-client), then archive the old Kody-Dashboard repo. Known debt: `next`
-peer dependency in base (`auth.ts` uses NextRequest values), env-driven
-BRAIN_*/bridge config reads, host-side fork copies of pure host glue
-(company, inbox, activity feed).
+The public package boundary is represented directly by the filesystem:
+`packages/kody-chat` is releasable, while product-specific code is isolated in
+the private `packages/kody-chat-dashboard` adapter and `apps/dashboard` host.
+Release publication and registry installation remain separate steps from this
+source extraction.

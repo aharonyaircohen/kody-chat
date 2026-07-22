@@ -26,6 +26,18 @@ describe("terminal session wake wait", () => {
     expect(USE_CASE_SOURCE).toContain("Brain machine did not become ready in time");
   });
 
+  it("uses the public Brain health edge to wake a machine before polling", () => {
+    expect(USE_CASE_SOURCE).toContain("serverProviderHostname");
+    expect(USE_CASE_SOURCE).toContain("globalThis.fetch");
+    expect(USE_CASE_SOURCE).toContain("/healthz");
+    expect(USE_CASE_SOURCE).toContain("EDGE_WAKE_TIMEOUT_MS");
+    expect(
+      USE_CASE_SOURCE.indexOf(
+        "await wakeServerProviderMachineThroughEdge(requested.app)",
+      ),
+    ).toBeLessThan(USE_CASE_SOURCE.indexOf("for (let attempt = 0;"));
+  });
+
   it("does not report Brain Fly authorization failures as missing machines", () => {
     expect(USE_CASE_SOURCE).toContain("fly_access_denied");
     expect(USE_CASE_SOURCE).toContain(

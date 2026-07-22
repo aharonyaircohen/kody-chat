@@ -196,7 +196,7 @@ test.describe("Vibe — LIVE full flow against production", () => {
     cleanupTarget = { owner, repo };
 
     // Capture browser console for the temporary [vibe-debug] traces in
-    // node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/KodyChat.tsx. Dump everything on
+    // node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/KodyChat.tsx. Dump everything on
     // failure so we can see exactly where the kickoff flow halts.
     // ── 1. Land on /vibe with auth injected. ────────────────────────────
     await injectAuth(page, owner, repo);

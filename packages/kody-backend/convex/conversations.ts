@@ -419,6 +419,7 @@ export const updateMessage = mutation({
     conversationId: v.string(),
     entryId: v.string(),
     content: v.string(),
+    view: v.optional(v.any()),
     status: v.union(
       v.literal("pending"),
       v.literal("committed"),
@@ -442,7 +443,12 @@ export const updateMessage = mutation({
       throw new Error("Conversation message not found");
     }
     await ctx.db.patch(stored._id, {
-      entry: { ...stored.entry, content: args.content, status: args.status },
+      entry: {
+        ...stored.entry,
+        content: args.content,
+        status: args.status,
+        ...(args.view === undefined ? {} : { view: args.view }),
+      },
       updatedAt: args.updatedAt,
     });
     return stored._id;

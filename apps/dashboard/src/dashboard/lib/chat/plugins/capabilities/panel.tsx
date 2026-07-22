@@ -12,7 +12,7 @@
 
 import { AuthGuard } from "../../../auth-guard";
 import { CapabilitiesManager } from "@dashboard/features/admin/components/CapabilitiesManager";
-import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat-dashboard/platform";
 
 export const CAPABILITIES_PANEL_TESTID = "chat-panel-capabilities";
 

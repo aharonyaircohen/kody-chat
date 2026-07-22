@@ -6,7 +6,7 @@ const VARIABLES_SOURCE = readFileSync(
   "utf8",
 );
 const SECRETS_SOURCE = readFileSync(
-  "node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/SecretsManager.tsx",
+  "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/SecretsManager.tsx",
   "utf8",
 );
 

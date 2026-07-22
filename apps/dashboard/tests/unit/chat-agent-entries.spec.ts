@@ -9,12 +9,12 @@ import {
   buildAgentList,
   type BrainChatModelEntry,
   type ChatModelEntry,
-} from "@kody-ade/kody-chat/platform/agent-entries";
+} from "@kody-ade/kody-chat-dashboard/platform/agent-entries";
 import { AGENTS } from "@dashboard/lib/agents";
 import {
   FALLBACK_REASONING,
   resolveReasoning,
-} from "@kody-ade/kody-chat/core/reasoning-adapter";
+} from "@kody-ade/kody-chat-dashboard/core/reasoning-adapter";
 
 const model = (
   over: Partial<ChatModelEntry> & { id: string },

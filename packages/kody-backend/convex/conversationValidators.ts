@@ -36,6 +36,7 @@ export const conversationEntryValidator = v.union(
     role: v.union(v.literal("user"), v.literal("assistant")),
     author: conversationAuthorValidator,
     content: v.string(),
+    view: v.optional(v.any()),
     status: v.union(
       v.literal("pending"),
       v.literal("committed"),

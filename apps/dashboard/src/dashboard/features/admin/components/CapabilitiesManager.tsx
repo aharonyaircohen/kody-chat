@@ -70,7 +70,7 @@ import {
   type McpServerSpec,
   type PermissionMode,
 } from "@dashboard/lib/capabilities/profile";
-import type { ChatModelEntry } from "@kody-ade/kody-chat/platform/agent-entries";
+import type { ChatModelEntry } from "@kody-ade/kody-chat-dashboard/platform/agent-entries";
 
 /** One-line explanation per tool, shown beside its checkbox. */
 const TOOL_DESCRIPTIONS: Record<string, string> = {

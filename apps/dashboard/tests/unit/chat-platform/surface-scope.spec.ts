@@ -20,9 +20,9 @@ import {
   SURFACE_TICKET_HEADER,
   SURFACE_TICKET_TTL_SEC,
   verifySurfaceTicket,
-} from "@kody-ade/kody-chat/platform/surface-scope";
+} from "@kody-ade/kody-chat-dashboard/platform/surface-scope";
 import { mintSessionToken } from "@dashboard/lib/chat-token";
-import { mintPluginToolsToken } from "@kody-ade/kody-chat/platform/plugin-tools-config";
+import { mintPluginToolsToken } from "@kody-ade/kody-chat-dashboard/platform/plugin-tools-config";
 
 beforeAll(() => {
   process.env.KODY_MASTER_KEY = "test-secret-for-surface-scope-hmac";

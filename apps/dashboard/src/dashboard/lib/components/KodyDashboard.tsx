@@ -103,7 +103,7 @@ import { RepoManager } from "./RepoManager";
 import { Avatar, AvatarFallback, AvatarImage } from "@kody-ade/base/ui/avatar";
 import { KodyHeader } from "./KodyHeader";
 import { HeaderOverflowMenu } from "./HeaderOverflowMenu";
-import { MobileMenu } from "@kody-ade/kody-chat/components/MobileMenu";
+import { MobileMenu } from "@kody-ade/kody-chat-dashboard/components/MobileMenu";
 import {
   HIDDEN_TASK_LABEL,
   KODY_BACKLOG_LABEL,

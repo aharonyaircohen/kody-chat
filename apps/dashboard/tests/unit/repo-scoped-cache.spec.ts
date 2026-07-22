@@ -6,11 +6,11 @@ import {
   reportsApi,
   staffApi,
 } from "@dashboard/lib/api";
-import { commandsQueryKeys } from "@kody-ade/kody-chat/components/CommandsManager";
+import { commandsQueryKeys } from "@kody-ade/kody-chat-dashboard/components/CommandsManager";
 import { capabilityQueryKeys } from "@dashboard/features/admin/components/CapabilitiesManager";
-import { instructionsQueryKeys } from "@kody-ade/kody-chat/components/InstructionsManager";
-import { modelsQueryKeys } from "@kody-ade/kody-chat/components/ModelsManager";
-import { secretsQueryKeys } from "@kody-ade/kody-chat/components/SecretsManager";
+import { instructionsQueryKeys } from "@kody-ade/kody-chat-dashboard/components/InstructionsManager";
+import { modelsQueryKeys } from "@kody-ade/kody-chat-dashboard/components/ModelsManager";
+import { secretsQueryKeys } from "@kody-ade/kody-chat-dashboard/components/SecretsManager";
 import { variablesQueryKeys } from "@dashboard/features/admin/components/VariablesManager";
 import { contextQueryKeys } from "@dashboard/lib/hooks/useContextEntries";
 import { memoryQueryKeys } from "@dashboard/lib/hooks/useMemory";

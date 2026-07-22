@@ -51,6 +51,9 @@ importers:
       "@kody-ade/kody-chat":
         specifier: workspace:*
         version: link:../../packages/kody-chat
+      "@kody-ade/kody-chat-dashboard":
+        specifier: workspace:*
+        version: link:../../packages/kody-chat-dashboard
       "@kody-ade/terminal":
         specifier: workspace:*
         version: link:../../packages/terminal
@@ -287,8 +290,6 @@ importers:
         specifier: 4.0.16
         version: 4.0.16(@edge-runtime/vm@5.0.0)(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(tsx@4.23.1)
 
-  packages/chat-model-catalog: {}
-
   packages/agency:
     dependencies:
       "@kody-ade/backend":
@@ -451,6 +452,8 @@ importers:
         specifier: ^4.0.16
         version: 4.0.16(@edge-runtime/vm@5.0.0)(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(tsx@4.23.1)
 
+  packages/chat-model-catalog: {}
+
   packages/cms:
     dependencies:
       "@kody-ade/backend":
@@ -545,6 +548,24 @@ importers:
         version: 4.0.16(@edge-runtime/vm@5.0.0)(@opentelemetry/api@1.9.1)(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(terser@5.49.0)(tsx@4.23.1)
 
   packages/kody-chat:
+    devDependencies:
+      "@types/react":
+        specifier: ^19.2.17
+        version: 19.2.17
+      "@types/react-dom":
+        specifier: ^19.2.3
+        version: 19.2.3(@types/react@19.2.17)
+      react:
+        specifier: 19.2.7
+        version: 19.2.7
+      react-dom:
+        specifier: 19.2.7
+        version: 19.2.7(react@19.2.7)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+
+  packages/kody-chat-dashboard:
     dependencies:
       "@ai-sdk/anthropic":
         specifier: ^3.0.77
@@ -576,9 +597,15 @@ importers:
       "@kody-ade/fly":
         specifier: workspace:*
         version: link:../fly
-      kody-chat-model-catalog:
+      "@kody-ade/kody-chat":
         specifier: workspace:*
-        version: link:../chat-model-catalog
+        version: link:../kody-chat
+      "@kody-ade/terminal":
+        specifier: workspace:*
+        version: link:../terminal
+      "@kody-ade/workspace":
+        specifier: workspace:*
+        version: link:../workspace
       "@mintplex-labs/piper-tts-web":
         specifier: ^1.0.4
         version: 1.0.4(onnxruntime-web@1.27.0)
@@ -630,12 +657,6 @@ importers:
       "@xterm/xterm":
         specifier: ^6.0.0
         version: 6.0.0
-      "@kody-ade/terminal":
-        specifier: workspace:*
-        version: link:../terminal
-      "@kody-ade/workspace":
-        specifier: workspace:*
-        version: link:../workspace
       ai:
         specifier: ^6.0.97
         version: 6.0.224(zod@4.4.3)
@@ -660,6 +681,9 @@ importers:
       jose:
         specifier: ^6.1.3
         version: 6.2.3
+      kody-chat-model-catalog:
+        specifier: workspace:*
+        version: link:../chat-model-catalog
       libsodium-wrappers:
         specifier: ^0.8.4
         version: 0.8.4
@@ -8858,6 +8882,7 @@ packages:
         integrity: sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw==,
       }
     engines: { node: ">=14.17" }
+    hasBin: true
 
   unbox-primitive@1.1.0:
     resolution:

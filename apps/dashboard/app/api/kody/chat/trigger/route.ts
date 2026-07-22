@@ -24,18 +24,18 @@ import {
   getUserOctokit,
   getRequestAuth,
 } from "@kody-ade/base/auth";
-import { rejectSurfaceScopedRequest } from "@kody-ade/kody-chat/platform/surface-scope";
+import { rejectSurfaceScopedRequest } from "@kody-ade/kody-chat-dashboard/platform/surface-scope";
 import { emitSystemEvent } from "@kody-ade/base/events";
 import { createUserOctokit } from "@kody-ade/base/github/core";
-import { ensureTriggerStateWriter } from "@kody-ade/kody-chat/user-state";
+import { ensureTriggerStateWriter } from "@kody-ade/kody-chat-dashboard/user-state";
 import { logger } from "@kody-ade/base/logger";
 import { mintSessionToken } from "@dashboard/lib/chat-token";
-import { maybeAppendPluginToolsToken } from "@kody-ade/kody-chat/platform/plugin-tools-config";
+import { maybeAppendPluginToolsToken } from "@kody-ade/kody-chat-dashboard/platform/plugin-tools-config";
 import {
   applyVibePrimerToMessages,
   type VibeTaskContext,
 } from "@dashboard/lib/vibe/primer";
-import { applyPageContextToLastUser } from "@kody-ade/kody-chat/core/page-context";
+import { applyPageContextToLastUser } from "@kody-ade/kody-chat-dashboard/core/page-context";
 import { recordDispatchFailure } from "@dashboard/lib/health/dispatch-failures";
 
 export const runtime = "nodejs";

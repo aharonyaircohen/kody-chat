@@ -18,7 +18,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
-import { rejectSurfaceScopedRequest } from "@kody-ade/kody-chat/platform/surface-scope";
+import { rejectSurfaceScopedRequest } from "@kody-ade/kody-chat-dashboard/platform/surface-scope";
 import {
   streamBrainChat,
   type BrainAgentIdentity,
@@ -29,7 +29,7 @@ import {
 import {
   withPageContext,
   withDashboardContext,
-} from "@kody-ade/kody-chat/core/page-context";
+} from "@kody-ade/kody-chat-dashboard/core/page-context";
 import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
 import { requestOrigin } from "@kody-ade/base/request-origin";
 import { readResolvedAgentFile } from "@dashboard/lib/agent-files";

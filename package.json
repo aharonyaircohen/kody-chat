@@ -3,7 +3,7 @@
   "private": true,
   "description": "Kody platform monorepo — kody-chat core package plus feature packages and host apps",
   "scripts": {
-    "dev": "pnpm --filter @kody-ade/kody-chat dev",
+    "dev": "pnpm --filter @kody-ade/kody-chat-dashboard dev",
     "dev:dashboard": "pnpm --filter kody-dashboard dev",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",

@@ -9,7 +9,7 @@ function readSidebar(): string {
   return readFileSync(
     resolve(
       root,
-      "node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/Sidebar.tsx",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/Sidebar.tsx",
     ),
     "utf8",
   );

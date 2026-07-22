@@ -6,4 +6,4 @@
  *   package routes that import `@dashboard/lib/auth/unified-actor` resolve
  *   on this host.
  */
-export * from "@kody-ade/kody-chat/auth/unified-actor";
+export * from "@kody-ade/kody-chat-dashboard/auth/unified-actor";

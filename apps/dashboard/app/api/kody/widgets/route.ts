@@ -3,6 +3,6 @@
  * @domain widgets
  * @pattern backend-crud-api
  * @ai-summary Widgets admin API (list + publish) — thin re-export of the
- *   package-owned handlers (@kody-ade/kody-chat).
+ *   package-owned handlers (@kody-ade/kody-chat-dashboard).
  */
-export { GET, POST } from "@kody-ade/kody-chat/routes/kody/widgets";
+export { GET, POST } from "@kody-ade/kody-chat-dashboard/routes/kody/widgets";

@@ -14,12 +14,12 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { shouldWaitForChatCatalogResolution } from "@kody-ade/kody-chat/platform/agent-entries";
+import { shouldWaitForChatCatalogResolution } from "@kody-ade/kody-chat-dashboard/platform/agent-entries";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const KODY_CHAT_PATH = resolve(
   __dirname,
-  "../../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/kody-chat-selection.ts",
+  "../../../node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/kody-chat-selection.ts",
 );
 const KODY_CHAT_SOURCE = readFileSync(KODY_CHAT_PATH, "utf8");
 

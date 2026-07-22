@@ -34,7 +34,7 @@ export const CHAT_PLUGIN_DIRS = Object.freeze([
   "reports",
   "store-catalog",
   // brands, commands-page, context, instructions, memory, models, secrets,
-  // and settings ship from @kody-ade/kody-chat — see that repo's plugins/.
+  // and settings ship from @kody-ade/kody-chat-dashboard — see that repo's plugins/.
   "todos",
   "variables",
   "workflows",

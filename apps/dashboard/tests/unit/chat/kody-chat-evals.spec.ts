@@ -12,7 +12,7 @@ import {
   loadChatDefaults,
   composeBasePrompt,
 } from "@dashboard/lib/chat-defaults";
-import { getCreatedIssueNumberFromToolOutput } from "@kody-ade/kody-chat/components/kody-chat-types";
+import { getCreatedIssueNumberFromToolOutput } from "@kody-ade/kody-chat-dashboard/components/kody-chat-types";
 
 const prompt = buildSystemPrompt(
   composeBasePrompt(await loadChatDefaults("acme", "repo")),
@@ -123,7 +123,7 @@ describe("Kody chat evals", () => {
 
   it("requires a terminal output tool instead of allowing plain prose stops", () => {
     const route = readFileSync(
-      "node_modules/@kody-ade/kody-chat/app/api/kody/chat/kody/route.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/kody/route.ts",
       "utf8",
     );
 
@@ -144,7 +144,7 @@ describe("Kody chat evals", () => {
 
   it("retries a failed show_view a bounded number of times, not forever", () => {
     const route = readFileSync(
-      "node_modules/@kody-ade/kody-chat/app/api/kody/chat/kody/route.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/kody/route.ts",
       "utf8",
     );
 

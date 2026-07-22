@@ -13,7 +13,7 @@ export default defineConfig({
     exclude: ["node_modules/**", "tests/e2e/**"],
     server: {
       deps: {
-        // @kody-ade/kody-chat ships TS source — vitest must transform it
+        // @kody-ade/kody-chat-dashboard ships TS source — vitest must transform it
         // instead of treating it as a prebuilt external. Its @dashboard
         // imports then resolve via the aliases below, back into this repo
         // (single module instance for shared libs).
@@ -32,7 +32,7 @@ export default defineConfig({
       "@dashboard": resolve(__dirname, "./src/dashboard"),
       "@kody-chat": resolve(
         __dirname,
-        "./node_modules/@kody-ade/kody-chat/src/dashboard/lib",
+        "./node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib",
       ),
       // `server-only` throws outside an RSC build — stub it so server-only
       // utilities remain unit-testable.

@@ -77,7 +77,7 @@ export const LIVE_UI_JOURNEYS = Object.freeze([
   {
     id: "commands-and-context",
     file: "tests/e2e/master-journeys-real.e2e.spec.ts",
-    title: "opens real Commands, Context, and Brands plugin panels",
+    title: "fully loads the extracted admin pages",
   },
   {
     id: "agent-and-model-selection",
@@ -92,7 +92,7 @@ export const LIVE_UI_JOURNEYS = Object.freeze([
   {
     id: "navigation-and-plugin-panels",
     file: "tests/e2e/master-journeys-real.e2e.spec.ts",
-    title: "opens real Commands, Context, and Brands plugin panels",
+    title: "fully loads the extracted admin pages",
   },
   {
     id: "mobile",

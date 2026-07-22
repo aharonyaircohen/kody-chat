@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const read = (path: string) => readFileSync(join(process.cwd(), path), "utf8");
-// Panels that moved to @kody-ade/kody-chat are read from the package copy.
+// Panels that moved to @kody-ade/kody-chat-dashboard are read from the package copy.
 const PACKAGE_COMPONENTS = new Set([
   "SecretsManager.tsx",
   "CommandsManager.tsx",
@@ -18,7 +18,7 @@ const FEATURE_ROOTS = readdirSync(join(process.cwd(), "src/dashboard/features"))
 );
 const componentsRoot = (file: string) => {
   if (PACKAGE_COMPONENTS.has(file))
-    return "node_modules/@kody-ade/kody-chat/src/dashboard/lib/components";
+    return "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components";
   for (const dir of ["src/dashboard/lib/components", ...FEATURE_ROOTS]) {
     if (existsSync(join(process.cwd(), dir, file))) return dir;
   }
@@ -68,7 +68,7 @@ describe("repo-scoped panel route surfaces", () => {
       "ModelsManager.tsx",
       "CompanyIntentsView.tsx",
       "VariablesManager.tsx",
-      "node_modules/@kody-ade/kody-chat/src/dashboard/lib/chat/plugins/commands/SlashCommandMenu.tsx",
+      "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/chat/plugins/commands/SlashCommandMenu.tsx",
       "OperatorsWarningBanner.tsx",
       "RunnerManager.tsx",
       "NotificationsManager.tsx",

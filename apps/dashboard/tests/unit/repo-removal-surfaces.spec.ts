@@ -34,14 +34,14 @@ function readComponent(name: string): string {
 const REPO_SWITCHER = readFileSync(
   resolve(
     __dirname,
-    "../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/RepoSwitcher.tsx",
+    "../../node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/RepoSwitcher.tsx",
   ),
   "utf8",
 );
 const MOBILE_MENU = readFileSync(
   resolve(
     __dirname,
-    "../../node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/MobileMenu.tsx",
+    "../../node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/MobileMenu.tsx",
   ),
   "utf8",
 );

@@ -29,7 +29,7 @@ const h = vi.hoisted(() => ({
   getEngineConfig: vi.fn(),
 }));
 vi.mock(
-  "../../../../packages/kody-chat/app/api/kody/chat/resolve-model",
+  "../../../../packages/kody-chat-dashboard/app/api/kody/chat/resolve-model",
   () => ({
     resolveChatModel: h.resolveChatModel,
   }),
@@ -38,17 +38,17 @@ vi.mock("@kody-ade/base/auth/background-token", () => ({
   resolveBackgroundToken: h.resolveBackgroundToken,
 }));
 vi.mock(
-  "../../../../packages/kody-chat/src/dashboard/lib/client-brand",
+  "../../../../packages/kody-chat-dashboard/src/dashboard/lib/client-brand",
   () => ({
     resolveClientBrand: h.resolveClientBrand,
   }),
 );
 vi.mock(
-  "../../../../packages/kody-chat/src/dashboard/lib/chat-defaults",
+  "../../../../packages/kody-chat-dashboard/src/dashboard/lib/chat-defaults",
   async (importOriginal) => {
     const actual =
       await importOriginal<
-        typeof import("../../../../packages/kody-chat/src/dashboard/lib/chat-defaults")
+        typeof import("../../../../packages/kody-chat-dashboard/src/dashboard/lib/chat-defaults")
       >();
     return {
       ...actual,
@@ -74,12 +74,12 @@ vi.mock("@kody-ade/workspace/context/files", () => ({
   loadContextForPrompt: h.loadContextForPrompt,
 }));
 vi.mock(
-  "../../../../packages/kody-chat/src/dashboard/lib/view-renderers/renderers",
+  "../../../../packages/kody-chat-dashboard/src/dashboard/lib/view-renderers/renderers",
   () => ({
     loadViewRendererContextForPrompt: h.loadViewRendererContextForPrompt,
   }),
 );
-vi.mock("../../../../packages/kody-chat/src/dashboard/lib/agent-files", () => ({
+vi.mock("../../../../packages/kody-chat-dashboard/src/dashboard/lib/agent-files", () => ({
   isValidSlug: (slug: string) => /^[a-z0-9][a-z0-9_-]{0,63}$/.test(slug),
   readResolvedAgentFile: h.readResolvedAgentFile,
   listResolvedAgentFiles: vi.fn(async () => [await h.readResolvedAgentFile()]),
@@ -91,14 +91,14 @@ vi.mock("@kody-ade/base/engine/config", () => ({
   writeConfigPatch: vi.fn(),
 }));
 
-import { POST as kodyChatPOST } from "../../../../packages/kody-chat/app/api/kody/chat/kody/route";
+import { POST as kodyChatPOST } from "../../../../packages/kody-chat-dashboard/app/api/kody/chat/kody/route";
 import { POST as triggerPOST } from "../../app/api/kody/chat/trigger/route";
 import { POST as brainPOST } from "../../app/api/kody/chat/brain/route";
 import {
   CLIENT_SURFACE_TOOL_ALLOWLIST,
   mintClientSurfaceTicket,
   SURFACE_TICKET_HEADER,
-} from "@kody-ade/kody-chat/platform/surface-scope";
+} from "@kody-ade/kody-chat-dashboard/platform/surface-scope";
 import {
   CHAT_OUTPUT_TOOL_NAMES,
   FINAL_ANSWER_TOOL,

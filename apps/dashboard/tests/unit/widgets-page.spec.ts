@@ -13,10 +13,10 @@ describe("widgets management page", () => {
       "app/(chat-rail)/views/widgets/page.tsx",
       "utf8",
     );
-    expect(listPage).toContain("@kody-ade/kody-chat/pages/widgets");
+    expect(listPage).toContain("@kody-ade/kody-chat-dashboard/pages/widgets");
 
     const adminRoute = readFileSync("app/api/kody/widgets/route.ts", "utf8");
-    expect(adminRoute).toContain("@kody-ade/kody-chat/routes/kody/widgets");
+    expect(adminRoute).toContain("@kody-ade/kody-chat-dashboard/routes/kody/widgets");
     expect(existsSync("app/api/kody/widgets/[slug]/route.ts")).toBe(true);
 
     // Canonical implementation lives in the package, not this host.

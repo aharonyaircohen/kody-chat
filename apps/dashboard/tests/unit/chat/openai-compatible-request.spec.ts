@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeOpenAICompatibleRequestBody } from "@kody-ade/kody-chat/core/openai-compatible-request";
+import { normalizeOpenAICompatibleRequestBody } from "@kody-ade/kody-chat-dashboard/core/openai-compatible-request";
 
 describe("normalizeOpenAICompatibleRequestBody", () => {
   it("strips validation-only JSON Schema keywords from tool parameters", () => {

@@ -15,7 +15,7 @@ import {
   BRAIN_ERROR_CODE_TURN,
   BRAIN_EXHAUSTED_MESSAGE,
   type BrainTurnConfig,
-} from "@kody-ade/kody-chat/core/transports/brain";
+} from "@kody-ade/kody-chat-dashboard/core/transports/brain";
 import {
   sseResponse,
   abortingResponse,

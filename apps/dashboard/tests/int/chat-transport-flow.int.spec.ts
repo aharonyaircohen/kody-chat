@@ -11,13 +11,13 @@
  */
 
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { sendKodyDirectTurn } from "@kody-ade/kody-chat/core/transports/kody-direct";
-import { sendBrainTurn } from "@kody-ade/kody-chat/core/transports/brain";
+import { sendKodyDirectTurn } from "@kody-ade/kody-chat-dashboard/core/transports/kody-direct";
+import { sendBrainTurn } from "@kody-ade/kody-chat-dashboard/core/transports/brain";
 import {
   createTransportTurnHandler,
   type TransportTurnHandler,
-} from "@kody-ade/kody-chat/components/kody-chat-transport-events";
-import type { Message } from "@kody-ade/kody-chat/components/kody-chat-types";
+} from "@kody-ade/kody-chat-dashboard/components/kody-chat-transport-events";
+import type { Message } from "@kody-ade/kody-chat-dashboard/components/kody-chat-types";
 
 /** In-memory stand-in for KodyChat's session-scoped message store. */
 function messageStore(seed: Message[]) {

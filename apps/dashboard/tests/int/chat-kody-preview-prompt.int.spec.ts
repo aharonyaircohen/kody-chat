@@ -44,11 +44,11 @@ vi.mock("@kody-ade/base/auth", () => ({
 }));
 
 vi.mock(
-  "../../../../packages/kody-chat/src/dashboard/lib/github-client",
+  "../../../../packages/kody-chat-dashboard/src/dashboard/lib/github-client",
   async (importOriginal) => {
     const actual =
       await importOriginal<
-        typeof import("../../../../packages/kody-chat/src/dashboard/lib/github-client")
+        typeof import("../../../../packages/kody-chat-dashboard/src/dashboard/lib/github-client")
       >();
     return {
       ...actual,
@@ -75,11 +75,11 @@ vi.mock("@kody-ade/workspace/context/files", () => ({
 }));
 
 vi.mock(
-  "../../../../packages/kody-chat/src/dashboard/lib/view-renderers/renderers",
+  "../../../../packages/kody-chat-dashboard/src/dashboard/lib/view-renderers/renderers",
   async (importOriginal) => {
     const actual =
       await importOriginal<
-        typeof import("../../../../packages/kody-chat/src/dashboard/lib/view-renderers/renderers")
+        typeof import("../../../../packages/kody-chat-dashboard/src/dashboard/lib/view-renderers/renderers")
       >();
     return {
       ...actual,
@@ -89,7 +89,7 @@ vi.mock(
 );
 
 vi.mock(
-  "../../../../packages/kody-chat/app/api/kody/chat/resolve-model",
+  "../../../../packages/kody-chat-dashboard/app/api/kody/chat/resolve-model",
   () => ({
     resolveChatModel: vi.fn(async () => ({
       model: { modelId: "test-model" },
@@ -110,7 +110,7 @@ vi.mock(
 );
 
 vi.mock(
-  "../../../../packages/kody-chat/app/api/kody/chat/tools/cms-tools",
+  "../../../../packages/kody-chat-dashboard/app/api/kody/chat/tools/cms-tools",
   () => ({
     createCmsTools: vi.fn(async () => ({})),
   }),

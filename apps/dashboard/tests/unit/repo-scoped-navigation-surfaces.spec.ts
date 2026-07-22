@@ -10,11 +10,11 @@ const source = (file: string) =>
 
 describe("repo-scoped navigation surfaces", () => {
   it("scopes desktop sidebar links through the route model", () => {
-    // Sidebar ships from @kody-ade/kody-chat — dash consumes, never forks.
+    // Sidebar ships from @kody-ade/kody-chat-dashboard — dash consumes, never forks.
     const sidebar = readFileSync(
       join(
         process.cwd(),
-        "node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/Sidebar.tsx",
+        "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/Sidebar.tsx",
       ),
       "utf8",
     );
@@ -27,7 +27,7 @@ describe("repo-scoped navigation surfaces", () => {
     const mobileMenu = readFileSync(
       join(
         process.cwd(),
-        "node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/MobileMenu.tsx",
+        "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/MobileMenu.tsx",
       ),
       "utf8",
     );

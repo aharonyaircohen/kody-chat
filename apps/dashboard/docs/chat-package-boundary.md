@@ -2,7 +2,7 @@
 
 Date: 2026-07-16. Phase 2 of the legacy consolidation (see `docs/legacy-audit.md`).
 
-Enumerates every module `apps/dashboard` imports from `@kody-ade/kody-chat`, across all
+Enumerates every module `apps/dashboard` imports from `@kody-ade/kody-chat-dashboard`, across all
 three alias forms, and classifies each: **CORE** (stays in the package — chat
 core/platform/plugins/product surface) vs **DASHBOARD-OWNED** (moves back into
 `apps/dashboard/src/dashboard/lib`).
@@ -11,9 +11,9 @@ core/platform/plugins/product surface) vs **DASHBOARD-OWNED** (moves back into
 
 | Form         | Definition                                                                                                                                                   | Example                                                   |
 | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
-| Export map   | `node_modules/@kody-ade/kody-chat/package.json` `exports`                                                                                                    | `@kody-ade/kody-chat/platform`                            |
-| Deep alias   | `tsconfig.json` `@kody-chat/* → node_modules/@kody-ade/kody-chat/src/dashboard/lib/*` (mirrored in `next.config.mjs` turbopack/webpack + `vitest.config.ts`) | `@kody-chat/user-state`                                   |
-| Raw src path | literal `node_modules/@kody-ade/kody-chat/src/...` strings                                                                                                   | source-text assertions in `tests/unit/*surfaces*.spec.ts` |
+| Export map   | `node_modules/@kody-ade/kody-chat-dashboard/package.json` `exports`                                                                                                    | `@kody-ade/kody-chat-dashboard/platform`                            |
+| Deep alias   | `tsconfig.json` `@kody-chat/* → node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/*` (mirrored in `next.config.mjs` turbopack/webpack + `vitest.config.ts`) | `@kody-chat/user-state`                                   |
+| Raw src path | literal `node_modules/@kody-ade/kody-chat-dashboard/src/...` strings                                                                                                   | source-text assertions in `tests/unit/*surfaces*.spec.ts` |
 
 ## Finding
 
@@ -28,9 +28,9 @@ package's own exported routes/pages (verified by grep inside `packages/kody-chat
 
 Nothing the dashboard imports is dashboard-domain code stranded in the package, so
 **Phase 3 is a repoint, not a move**: give the handful of deep-alias targets proper
-export-map subpaths, rewrite `@kody-chat/*` imports to `@kody-ade/kody-chat/*`, and
+export-map subpaths, rewrite `@kody-chat/*` imports to `@kody-ade/kody-chat-dashboard/*`, and
 delete the deep alias from tsconfig/next.config/vitest. The dashboard-domain
-_duplicates_ inside `packages/kody-chat/src/dashboard/lib` (gist-store, macros-files,
+_duplicates_ inside `packages/kody-chat-dashboard/src/dashboard/lib` (gist-store, macros-files,
 kody-store, …) are imported by **nobody** in the dashboard — they are Phase 5
 deletion candidates, not moves.
 
@@ -40,30 +40,30 @@ Counts are import-site occurrences across `app/`, `src/`, `tests/`.
 
 | Specifier                                                                                                                                                                                                      | Sites       |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `@kody-ade/kody-chat/platform`                                                                                                                                                                                 | 55          |
-| `@kody-ade/kody-chat/platform/server-tools`                                                                                                                                                                    | 7           |
-| `@kody-ade/kody-chat/platform/plugin-tools-config`                                                                                                                                                             | 6           |
-| `@kody-ade/kody-chat/core/reasoning`                                                                                                                                                                           | 6           |
-| `@kody-ade/kody-chat/plugins/commands`                                                                                                                                                                         | 5           |
-| `@kody-ade/kody-chat/platform/surface-scope`                                                                                                                                                                   | 5           |
-| `@kody-ade/kody-chat/core/page-context`                                                                                                                                                                        | 5           |
-| `@kody-ade/kody-chat/platform/registry`                                                                                                                                                                        | 4           |
-| `@kody-ade/kody-chat/platform/agent-entries`                                                                                                                                                                   | 4           |
-| `@kody-ade/kody-chat/core/kody-chat-live-session`                                                                                                                                                              | 4           |
-| `@kody-ade/kody-chat/plugins/goals`                                                                                                                                                                            | 3           |
-| `@kody-ade/kody-chat/platform/capabilities`                                                                                                                                                                    | 3           |
-| `@kody-ade/kody-chat/core/vision-support`                                                                                                                                                                      | 3           |
-| `@kody-ade/kody-chat/core/preview-context`                                                                                                                                                                     | 3           |
-| `@kody-ade/kody-chat/components/MobileMenu`                                                                                                                                                                    | 3           |
-| `@kody-ade/kody-chat/plugins/{vibe,settings,secrets,models,memory,instructions,context,commands-page,brands,branding}`                                                                                         | 2 or 1 each |
-| `@kody-ade/kody-chat/platform/{tools,default-entry,types,trace,i18n}`                                                                                                                                          | 2 or 1 each |
-| `@kody-ade/kody-chat/core/transports/{kody-direct,brain,kody-live,envelope,transport-types}`                                                                                                                   | 1–2 each    |
-| `@kody-ade/kody-chat/core/{tool-call-strip,reasoning-adapter,openai-compatible-request,kody-chat-reducer,attachment-text,user-message-format,use-chat-sessions,rehydration,conversation-compaction}`           | 1–2 each    |
-| `@kody-ade/kody-chat/components/{LanguagesManager,KodyChat,SecretsManager,ModelsManager,InstructionsManager,CommandsManager,ChatShell}`                                                                        | 1–2 each    |
-| `@kody-ade/kody-chat/pages/{view-renderers,view-renderer-detail,triggers,snippets,settings,secrets,models,memory,memory-detail,instructions,context,context-detail,commands,client-brand,brands,brand-detail}` | 1 each      |
-| `@kody-ade/kody-chat/routes/kody/{user-state,user-state-detail,triggers,triggers-detail,system-events,snippets,snippets-detail,languages,languages-detail}` + `routes/client-auth-start`                       | 1 each      |
-| `@kody-ade/kody-chat/chat-tools/{user-state,position}`                                                                                                                                                         | 1 each      |
-| `@kody-ade/kody-chat/{agents,admin-pages}`                                                                                                                                                                     | 1 each      |
+| `@kody-ade/kody-chat-dashboard/platform`                                                                                                                                                                                 | 55          |
+| `@kody-ade/kody-chat-dashboard/platform/server-tools`                                                                                                                                                                    | 7           |
+| `@kody-ade/kody-chat-dashboard/platform/plugin-tools-config`                                                                                                                                                             | 6           |
+| `@kody-ade/kody-chat-dashboard/core/reasoning`                                                                                                                                                                           | 6           |
+| `@kody-ade/kody-chat-dashboard/plugins/commands`                                                                                                                                                                         | 5           |
+| `@kody-ade/kody-chat-dashboard/platform/surface-scope`                                                                                                                                                                   | 5           |
+| `@kody-ade/kody-chat-dashboard/core/page-context`                                                                                                                                                                        | 5           |
+| `@kody-ade/kody-chat-dashboard/platform/registry`                                                                                                                                                                        | 4           |
+| `@kody-ade/kody-chat-dashboard/platform/agent-entries`                                                                                                                                                                   | 4           |
+| `@kody-ade/kody-chat-dashboard/core/kody-chat-live-session`                                                                                                                                                              | 4           |
+| `@kody-ade/kody-chat-dashboard/plugins/goals`                                                                                                                                                                            | 3           |
+| `@kody-ade/kody-chat-dashboard/platform/capabilities`                                                                                                                                                                    | 3           |
+| `@kody-ade/kody-chat-dashboard/core/vision-support`                                                                                                                                                                      | 3           |
+| `@kody-ade/kody-chat-dashboard/core/preview-context`                                                                                                                                                                     | 3           |
+| `@kody-ade/kody-chat-dashboard/components/MobileMenu`                                                                                                                                                                    | 3           |
+| `@kody-ade/kody-chat-dashboard/plugins/{vibe,settings,secrets,models,memory,instructions,context,commands-page,brands,branding}`                                                                                         | 2 or 1 each |
+| `@kody-ade/kody-chat-dashboard/platform/{tools,default-entry,types,trace,i18n}`                                                                                                                                          | 2 or 1 each |
+| `@kody-ade/kody-chat-dashboard/core/transports/{kody-direct,brain,kody-live,envelope,transport-types}`                                                                                                                   | 1–2 each    |
+| `@kody-ade/kody-chat-dashboard/core/{tool-call-strip,reasoning-adapter,openai-compatible-request,kody-chat-reducer,attachment-text,user-message-format,use-chat-sessions,rehydration,conversation-compaction}`           | 1–2 each    |
+| `@kody-ade/kody-chat-dashboard/components/{LanguagesManager,KodyChat,SecretsManager,ModelsManager,InstructionsManager,CommandsManager,ChatShell}`                                                                        | 1–2 each    |
+| `@kody-ade/kody-chat-dashboard/pages/{view-renderers,view-renderer-detail,triggers,snippets,settings,secrets,models,memory,memory-detail,instructions,context,context-detail,commands,client-brand,brands,brand-detail}` | 1 each      |
+| `@kody-ade/kody-chat-dashboard/routes/kody/{user-state,user-state-detail,triggers,triggers-detail,system-events,snippets,snippets-detail,languages,languages-detail}` + `routes/client-auth-start`                       | 1 each      |
+| `@kody-ade/kody-chat-dashboard/chat-tools/{user-state,position}`                                                                                                                                                         | 1 each      |
+| `@kody-ade/kody-chat-dashboard/{agents,admin-pages}`                                                                                                                                                                     | 1 each      |
 
 ## Deep-alias (`@kody-chat/*`) imports — all CORE, to be repointed in Phase 3
 
@@ -83,7 +83,7 @@ useChatTerminalRegistry, index), `chat/plugins/vibe/{turn-context,recent-issue}`
 `chat/surface/MessageList`, `components/kody-chat-{types,helpers,selection,send,
 transport-events}`, `user-state/{types,user-key,adapters/backend}`.
 
-## Raw `node_modules/@kody-ade/kody-chat/src/...` path references (tests)
+## Raw `node_modules/@kody-ade/kody-chat-dashboard/src/...` path references (tests)
 
 Source-text characterization specs that read files (not imports):
 `settings-no-external-brain-ui`, `context-control-dialog`,
@@ -94,7 +94,7 @@ sources and stay as-is (they pin package UI invariants from the host).
 ## DASHBOARD-OWNED
 
 None found. The drifted dashboard-domain duplicates inside
-`packages/kody-chat/src/dashboard/lib/**` (inbox gist-store, macros-files,
+`packages/kody-chat-dashboard/src/dashboard/lib/**` (inbox gist-store, macros-files,
 reports-files, managed-goals-files, kody-store, dashboard-config store, events
 reader/store, …) have zero dashboard importers — they exist only to feed the
 package's port-3344 dev harness and are handled by Phases 4–5 (slim harness,
@@ -103,7 +103,7 @@ reachability-trace deletion), not by a move.
 ## Phase 5 reachability trace result (2026-07-16)
 
 Strict trace from the export map + remaining harness `app/**` + `tests/**` +
-`scripts/**` + the dashboard's raw `node_modules/@kody-ade/kody-chat/src/...`
+`scripts/**` + the dashboard's raw `node_modules/@kody-ade/kody-chat-dashboard/src/...`
 references, with a string-mention safety pass for dynamic imports:
 **350 lib files, 0 deletable.** The only two files outside the import graph
 (`chat/plugins/plugin-dirs.mjs`, `empty-module.js`) are consumed by the

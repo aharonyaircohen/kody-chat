@@ -22,7 +22,7 @@ vi.mock("convex/browser", () => ({
 }));
 
 import { createConvexChatLiveTransport } from "@/dashboard/lib/chat/plugins/live-events/convex-live-transport";
-import type { ChatLiveTransportEvent } from "@kody-ade/kody-chat/platform";
+import type { ChatLiveTransportEvent } from "@kody-ade/kody-chat-dashboard/platform";
 
 type UpdateCb = (docs: unknown) => void;
 

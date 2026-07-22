@@ -39,13 +39,13 @@ jobs:
         run: pnpm --filter kody-dashboard exec vitest run tests/unit tests/int --coverage
 
       - name: Tests with coverage thresholds (kody-chat)
-        run: pnpm --filter @kody-ade/kody-chat exec vitest run tests/unit tests/int --coverage
+        run: pnpm --filter @kody-ade/kody-chat-dashboard exec vitest run tests/unit tests/int --coverage
 
       - name: Tests with coverage thresholds (brain)
         run: pnpm --filter @kody-ade/brain exec vitest run --coverage
 
       - name: Remaining package tests
-        run: pnpm -r --filter '!kody-dashboard' --filter '!@kody-ade/kody-chat' --filter '!@kody-ade/brain' --if-present test
+        run: pnpm -r --filter '!kody-dashboard' --filter '!@kody-ade/kody-chat-dashboard' --filter '!@kody-ade/brain' --if-present test
 
   e2e:
     runs-on: ubuntu-latest

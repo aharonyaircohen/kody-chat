@@ -17,7 +17,7 @@ import {
   FULL_GRANT,
   createChatPluginRegistry,
   type ChatHostEffect,
-} from "@kody-ade/kody-chat/platform";
+} from "@kody-ade/kody-chat-dashboard/platform";
 import {
   SLASH_COMMANDS_HOST_KEY,
   SLASH_EXPANSION_EFFECT,
@@ -25,12 +25,12 @@ import {
   commandsChatPlugin,
   readSlashExpansionEffect,
   type SlashCommand,
-} from "@kody-ade/kody-chat/plugins/commands";
+} from "@kody-ade/kody-chat-dashboard/plugins/commands";
 import {
   TERMINAL_INTENT_MIDDLEWARE_ID,
   readTerminalIntentEffect,
   terminalChatPlugin,
-} from "@kody-ade/kody-chat/plugins/terminal";
+} from "@kody-ade/kody-chat-dashboard/plugins/terminal";
 import { buildKodyTerminalPrompt } from "@kody-ade/terminal/kody-terminal-directive";
 
 const COMMANDS: SlashCommand[] = [

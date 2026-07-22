@@ -196,15 +196,15 @@ vi.mock("react", () => ({ ...harness.React, default: harness.React }));
 
 // authHeaders gates every network path in the hook; swap per test.
 const auth = vi.hoisted(() => ({ headers: {} as Record<string, string> }));
-vi.mock("@kody-ade/kody-chat/kody-chat-live-session", () => ({
+vi.mock("@kody-ade/kody-chat-dashboard/kody-chat-live-session", () => ({
   authHeaders: () => auth.headers,
 }));
 
 import {
   BRAIN_TERMINAL_TRANSPORT,
   useChatTerminalRegistry,
-} from "@kody-ade/kody-chat/plugins/terminal/useChatTerminalRegistry";
-import { FLY_MACHINES_REFRESH_EVENT } from "@kody-ade/kody-chat/plugins/terminal/registry-state";
+} from "@kody-ade/kody-chat-dashboard/plugins/terminal/useChatTerminalRegistry";
+import { FLY_MACHINES_REFRESH_EVENT } from "@kody-ade/kody-chat-dashboard/plugins/terminal/registry-state";
 import type { SessionMeta } from "@dashboard/lib/chat-types";
 
 // ─── Environment stubs ──────────────────────────────────────────────────────

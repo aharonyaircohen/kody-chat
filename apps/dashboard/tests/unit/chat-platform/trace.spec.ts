@@ -13,7 +13,7 @@ import {
   createChatTraceBuffer,
   readChatTrace,
   trace,
-} from "@kody-ade/kody-chat/platform/trace";
+} from "@kody-ade/kody-chat-dashboard/platform/trace";
 
 describe("chat trace ring buffer", () => {
   it("records events oldest → newest with monotonic seq", () => {

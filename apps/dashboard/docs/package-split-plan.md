@@ -1,5 +1,9 @@
 # Package Split Plan — kody-chat as the platform, dashboard deprecated
 
+> Historical consolidation plan. The current release boundary is
+> `packages/kody-chat` (`@kody-ade/kody-chat`) for the public generic library
+> and `packages/kody-chat-dashboard` for the private product integration.
+
 Goal: kody-chat becomes the product base; every dashboard feature ships as a
 package on top of it; Kody-Dashboard shrinks to a disposable shell and is then
 deleted. Based on a five-way dependency audit (base layer, terminal, Fly,
@@ -10,7 +14,7 @@ agency, workspace) run 2026-07-11.
 | Package               | Contents                                                                                                                                                                                                                                                         | Depends on                 |
 | --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------- |
 | `@kody-ade/base`      | github-client (core transport only), auth (framework-agnostic), vault, backend + engine/config, storage, variables, logger, utils, active-repo + routes, github-contents-write, events (injected scheduler), infrastructure contracts/registry/server-\*, ui kit | —                          |
-| `@kody-ade/kody-chat` | chat core + platform (already a package)                                                                                                                                                                                                                         | base                       |
+| `@kody-ade/kody-chat-dashboard` | chat core + platform (already a package)                                                                                                                                                                                                                         | base                       |
 | `@kody-ade/workspace` | context, commands, instructions, brands, todos, memory + their chat tools                                                                                                                                                                                        | base, kody-chat (tools)    |
 | `@kody-ade/cms`       | cms/ (5.7k LOC, own Mongo transport + MCP), content/content-model routes                                                                                                                                                                                         | base                       |
 | `@kody-ade/fly`       | infrastructure/plugins/fly, previews/, runners/, preview-token, preview-environments, builder/ (already standalone), fly pages + API                                                                                                                             | base                       |

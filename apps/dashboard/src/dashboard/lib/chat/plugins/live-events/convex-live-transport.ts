@@ -18,7 +18,7 @@ import { deepUnescapeKeys } from "@kody-ade/backend/escape-keys";
 import type {
   ChatLiveTransport,
   ChatLiveTransportEvent,
-} from "@kody-ade/kody-chat/platform";
+} from "@kody-ade/kody-chat-dashboard/platform";
 
 /** Chat events live under a single global tenant — see chat-events-store.ts. */
 const CHAT_EVENTS_TENANT = "global";

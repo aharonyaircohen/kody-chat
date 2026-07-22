@@ -181,6 +181,51 @@ describe("chat conversations route", () => {
     );
   });
 
+  it("persists a validated rendered assistant answer", async () => {
+    mocks.mutation.mockResolvedValue("entry-id");
+    const view = {
+      action: "render_view",
+      view: "renderer",
+      id: "view-1",
+      rendererSlug: "summary",
+      rendererName: "Summary",
+      resultTarget: "chat",
+      ui: { type: "text", value: "Persisted result" },
+      data: { status: "ready" },
+    };
+    const request = new NextRequest(
+      "http://localhost/api/kody/chat/conversations/conversation-1/commands",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          kind: "append-message",
+          actorLogin: "alice",
+          entryId: "message-1",
+          idempotencyKey: "message-1",
+          role: "assistant",
+          agent: { slug: "kody", title: "Kody" },
+          content: "",
+          view,
+          status: "committed",
+          turnId: "turn-1",
+          createdAt: "2026-07-20T10:00:00.000Z",
+        }),
+      },
+    );
+
+    const response = await POST_COMMAND(request, {
+      params: Promise.resolve({ conversationId: "conversation-1" }),
+    });
+
+    expect(response.status).toBe(200);
+    expect(mocks.mutation).toHaveBeenCalledWith(
+      "conversations.appendEntry",
+      expect.objectContaining({
+        entry: expect.objectContaining({ view }),
+      }),
+    );
+  });
+
   it("rejects an assistant message without a validated agent identity", async () => {
     const request = new NextRequest(
       "http://localhost/api/kody/chat/conversations/conversation-1/commands",

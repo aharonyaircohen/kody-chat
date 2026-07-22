@@ -5,7 +5,7 @@
  * @ai-summary Client language registry entry point. Manages language JSON
  *   documents stored in Convex.
  */
-import { LanguagesManager } from "@kody-ade/kody-chat/components/LanguagesManager";
+import { LanguagesManager } from "@kody-ade/kody-chat-dashboard/components/LanguagesManager";
 import { buildKodyMetadata } from "../../metadata";
 
 export const dynamic = "force-dynamic";

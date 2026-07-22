@@ -11,7 +11,7 @@
 "use client";
 
 import { NotificationsManager } from "@dashboard/features/admin/components/NotificationsManager";
-import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat-dashboard/platform";
 
 export const NOTIFICATIONS_PANEL_TESTID = "chat-panel-notifications";
 

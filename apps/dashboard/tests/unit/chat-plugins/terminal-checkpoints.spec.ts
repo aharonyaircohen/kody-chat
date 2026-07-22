@@ -14,7 +14,7 @@ import {
   shouldLoadTerminalCheckpoint,
   terminalCheckpointLoadKey,
   terminalCheckpointSearchParams,
-} from "@kody-ade/kody-chat/plugins/terminal/checkpoints";
+} from "@kody-ade/kody-chat-dashboard/plugins/terminal/checkpoints";
 
 describe("checkpoint transport shims", () => {
   it("maps chat transports onto checkpoint transports", () => {

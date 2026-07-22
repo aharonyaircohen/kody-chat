@@ -7,6 +7,7 @@ import {
 } from "@dashboard/lib/backend/convex-backend";
 import { logger } from "@kody-ade/base/logger";
 import { invalidBody, requireConversationContext } from "../../_shared";
+import { isRenderedViewDirective } from "@dashboard/lib/chat-ui-actions";
 
 const agentSchema = z.object({
   slug: z.string().trim().min(1).max(80),
@@ -31,6 +32,7 @@ const commandSchema = z.discriminatedUnion("kind", [
     role: z.enum(["user", "assistant"]),
     agent: agentSchema.optional(),
     content: z.string().max(1_000_000),
+    view: z.unknown().optional(),
     status: statusSchema,
     turnId: z.string().min(1).max(120),
     attachmentIds: z.array(z.string().min(1).max(300)).max(20).optional(),
@@ -41,6 +43,7 @@ const commandSchema = z.discriminatedUnion("kind", [
     actorLogin: z.string().min(1).max(100),
     entryId: z.string().min(1).max(120),
     content: z.string().max(1_000_000),
+    view: z.unknown().optional(),
     status: statusSchema,
     updatedAt: z.string().datetime(),
   }),
@@ -93,6 +96,14 @@ export async function POST(
   if (context instanceof NextResponse) return context;
   const parsed = commandSchema.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return invalidBody(parsed.error.issues);
+  if (
+    (parsed.data.kind === "append-message" ||
+      parsed.data.kind === "update-message") &&
+    parsed.data.view !== undefined &&
+    !isRenderedViewDirective(parsed.data.view)
+  ) {
+    return invalidBody("Invalid rendered view");
+  }
   const actor = await verifyActorLogin(req, parsed.data.actorLogin);
   if (actor instanceof NextResponse) return actor;
   const { conversationId } = await route.params;
@@ -120,6 +131,7 @@ export async function POST(
                   }
                 : { kind: "agent", ...parsed.data.agent! },
             content: parsed.data.content,
+            view: parsed.data.view,
             status: parsed.data.status,
             turnId: parsed.data.turnId,
             attachmentIds: parsed.data.attachmentIds,
@@ -134,6 +146,7 @@ export async function POST(
           conversationId,
           entryId: parsed.data.entryId,
           content: parsed.data.content,
+          view: parsed.data.view,
           status: parsed.data.status,
           updatedAt: parsed.data.updatedAt,
         });

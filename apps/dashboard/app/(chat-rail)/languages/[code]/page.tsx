@@ -5,7 +5,7 @@
  * @ai-summary Selected Language route. Keeps language selection addressable
  *   at `/languages/<code>`.
  */
-import { LanguagesManager } from "@kody-ade/kody-chat/components/LanguagesManager";
+import { LanguagesManager } from "@kody-ade/kody-chat-dashboard/components/LanguagesManager";
 import { buildKodyMetadata } from "../../../metadata";
 
 export const dynamic = "force-dynamic";

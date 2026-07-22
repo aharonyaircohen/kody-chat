@@ -31,7 +31,7 @@ vi.mock("@kody-ade/base/variables/load-chat-models", () => ({
 }));
 
 import { POST as kodyChatPOST } from "../../app/api/kody/chat/kody/route";
-import { DEFAULT_MAX_STEPS } from "../../../../packages/kody-chat/app/api/kody/chat/kody/route";
+import { DEFAULT_MAX_STEPS } from "../../../../packages/kody-chat-dashboard/app/api/kody/chat/kody/route";
 
 function makeRequest(body: unknown): NextRequest {
   return new NextRequest("https://dash.test/api/kody/chat/kody", {

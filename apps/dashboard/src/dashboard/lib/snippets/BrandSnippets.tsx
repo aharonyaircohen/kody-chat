@@ -6,4 +6,4 @@
  *   package pages that import `@dashboard/lib/snippets/BrandSnippets`
  *   resolve on this host.
  */
-export * from "@kody-ade/kody-chat/snippets/BrandSnippets";
+export * from "@kody-ade/kody-chat-dashboard/snippets/BrandSnippets";

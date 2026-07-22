@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateText, type ModelMessage } from "ai";
 import { z } from "zod";
 import { requireKodyAuth } from "@kody-ade/base/auth";
-import { stripReasoning } from "@kody-ade/kody-chat/core/reasoning";
+import { stripReasoning } from "@kody-ade/kody-chat-dashboard/core/reasoning";
 import { resolveChatModel } from "../resolve-model";
 
 export const runtime = "nodejs";

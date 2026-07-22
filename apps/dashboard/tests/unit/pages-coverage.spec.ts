@@ -1,5 +1,5 @@
 /**
- * @fileoverview Every canonical shared page shipped by @kody-ade/kody-chat
+ * @fileoverview Every canonical shared page shipped by @kody-ade/kody-chat-dashboard
  * (pages/*) must be served by this app via a route file that re-exports it.
  * Adding a page to the package without registering a dash route fails here
  * with the missing path.
@@ -32,7 +32,7 @@ const ROUTE_FOR: Record<string, string> = {
 
 const PAGES_DIR = join(
   process.cwd(),
-  "node_modules/@kody-ade/kody-chat/src/dashboard/lib/pages",
+  "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/pages",
 );
 
 /**
@@ -73,8 +73,8 @@ describe("shared pages route coverage", () => {
       expect(existsSync(abs), `${route} is missing`).toBe(true);
       expect(
         readFileSync(abs, "utf8"),
-        `${route} must re-export @kody-ade/kody-chat/pages/${page}`,
-      ).toContain(`@kody-ade/kody-chat/pages/${page}"`);
+        `${route} must re-export @kody-ade/kody-chat-dashboard/pages/${page}`,
+      ).toContain(`@kody-ade/kody-chat-dashboard/pages/${page}"`);
     }
   });
 });

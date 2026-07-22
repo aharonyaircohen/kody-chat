@@ -10,4 +10,4 @@ export const dynamic = "force-static";
 export const revalidate = false;
 export const fetchCache = "force-cache";
 
-export { default } from "@kody-ade/kody-chat/pages/brain";
+export { default } from "@kody-ade/kody-chat-dashboard/pages/brain";

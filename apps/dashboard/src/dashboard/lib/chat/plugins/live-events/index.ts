@@ -13,7 +13,7 @@
 import type {
   ChatLiveTransport,
   ChatPlugin,
-} from "@kody-ade/kody-chat/platform";
+} from "@kody-ade/kody-chat-dashboard/platform";
 import { createConvexChatLiveTransport } from "./convex-live-transport";
 
 /** Build-time constant — identical for every render of this deployment. */

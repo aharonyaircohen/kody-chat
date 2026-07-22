@@ -1,0 +1,2031 @@
+/**
+ * @fileType api-endpoint
+ * @domain kody
+ * @pattern direct-llm-stream
+ *
+ * POST /api/kody/chat/kody
+ *
+ * In-process chat endpoint for the "Kody" agent. Streams replies directly
+ * from the configured chat model using the Vercel AI SDK.
+ * No GitHub Actions, no VPS, no runner cold start — the request goes
+ * straight from the Vercel function to the model and back.
+ *
+ * Body: {
+ *   messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
+ *   model?: string   // optional provider-specific model id override
+ * }
+ *
+ * Response: text/plain stream of the assistant reply (AI SDK text stream
+ * protocol — client accumulates chunks into the assistant bubble).
+ */
+
+import { randomBytes } from "node:crypto";
+import { NextRequest, NextResponse } from "next/server";
+import {
+  streamText,
+  stepCountIs,
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  tool,
+  type ModelMessage,
+  type StopCondition,
+  type ToolSet,
+} from "ai";
+import { getChatServerToolRegistry } from "@kody-ade/kody-chat-dashboard/platform/server-tools";
+import {
+  resolveSurfaceScope,
+  CLIENT_SURFACE_TOOL_ALLOWLIST,
+} from "@kody-ade/kody-chat-dashboard/platform/surface-scope";
+import type {
+  ChatPluginToolDefinition,
+  ChatToolServerContext,
+} from "@kody-ade/kody-chat-dashboard/platform";
+import {
+  getAgent,
+  isValidAgentId,
+  type AgentConfig,
+  type AgentId,
+} from "../../../../../src/dashboard/lib/agents";
+import { applyVoiceOverlay } from "../../../../../src/dashboard/lib/voice/overlay";
+import {
+  requireKodyAuth,
+  getRequestAuth,
+  verifyActorLogin,
+  type RequestAuth,
+} from "@kody-ade/base/auth";
+import { buildKodyAuthHeaders } from "@kody-ade/base/auth-headers";
+import {
+  createUserOctokit,
+  setGitHubContext,
+  clearGitHubContext,
+} from "../../../../../src/dashboard/lib/github-client";
+import { getSecret } from "@kody-ade/base/vault/get-secret";
+import { emitSystemEvent } from "@kody-ade/base/events";
+import { ensureTriggerStateWriter } from "@kody-ade/kody-chat-dashboard/user-state";
+import { resolveBackgroundToken } from "@kody-ade/base/auth/background-token";
+import {
+  resolveClientBrand,
+  type ClientBrand,
+} from "../../../../../src/dashboard/lib/client-brand";
+import { resolveChatModel } from "../resolve-model";
+import { supportsVision } from "@kody-ade/kody-chat-dashboard/core/vision-support";
+import { formatAttachmentForTextBackend } from "@kody-ade/kody-chat-dashboard/core/attachment-text";
+import {
+  buildSystemPrompt,
+  formatUserInstructionsPromptSection,
+  type GoalContext,
+  type CapabilityContext,
+  type TaskContext,
+  type OrgContext,
+} from "./system-prompt";
+import {
+  loadChatDefaults,
+  composeBasePrompt,
+  filterToolsByAllowlist,
+  buildToolIndex,
+  CRITICAL_REMINDERS_MD,
+} from "../../../../../src/dashboard/lib/chat-defaults";
+import { createGitHubTools } from "../tools/github-tools";
+import { createPipelineTools } from "../tools/pipeline-tools";
+import { createRemoteTools } from "../tools/remote-tools";
+import { createBugTools } from "../tools/bug-tools";
+import { createTaskTools } from "../tools/task-tools";
+import { createGoalTools } from "../tools/goal-tools";
+import { createAgentTools } from "../tools/agent-tools";
+import { createMemoryTools } from "../tools/memory-tools";
+import { createCapabilityTools } from "../tools/capability-tools";
+import { createPlannerTools } from "../tools/planner-tools";
+import { createReleaseTools } from "../tools/release-tools";
+import { createKodyTools } from "../tools/kody-tools";
+import { applyVibeToolPolicy } from "./vibe-tool-policy";
+import { fetchUrlTool } from "../tools/fetch-url";
+import { featureTools } from "../tools/feature-tools";
+import { createUiTools } from "../tools/ui-tools";
+import { createGuidedFlowTools } from "../tools/guided-flow-tools";
+import {
+  CHAT_OUTPUT_TOOL_NAMES,
+  FINAL_ANSWER_TOOL,
+  SHOW_VIEW_TOOL,
+  isFinalAnswerOutput,
+  isFinalAnswerRequiresViewOutput,
+  isToolErrorOutput,
+  selectChatOutputActiveTools,
+  selectChatOutputToolChoice,
+} from "../../../../../src/dashboard/lib/chat-output-tools";
+import { isRenderedViewDirective } from "../../../../../src/dashboard/lib/chat-ui-actions";
+import { parseReasoning } from "@kody-ade/kody-chat-dashboard/core/reasoning";
+import { getChatProviderCapabilities } from "@kody-ade/kody-chat-dashboard/core/provider-capabilities";
+import { BUILTIN_VIEW_RENDERER_DEFINITIONS } from "../../../../../src/dashboard/lib/view-renderers/builtin";
+import { buildChatViewCatalog } from "../../../../../src/dashboard/lib/view-renderers/spec/catalog";
+import { buildViewComponentRules } from "../../../../../src/dashboard/lib/view-renderers/spec/prompt";
+import {
+  shouldAllowPreRenderToolCallsForTurn,
+  shouldRequireViewOutputForTurn,
+} from "../../../../../src/dashboard/lib/view-renderers/chat-intent";
+import { createCommandTools } from "../tools/commands-tools";
+import { createContextTools } from "../tools/context-tools";
+import { createTodoTools } from "../tools/todo-tools";
+import { createInstructionsTools } from "../tools/instructions-tools";
+import { createVariableTools } from "../tools/variables-tools";
+import { createSecretTools } from "../tools/secrets-tools";
+import { createModelTools } from "../tools/models-tools";
+import { createReportTools } from "../tools/reports-tools";
+import { createWebhookTools } from "../tools/webhooks-tools";
+import { createNotificationTools } from "../tools/notifications-tools";
+import { createCompanyTools } from "../tools/company-tools";
+import { createInboxTools } from "../tools/inbox-tools";
+import { createCmsTools } from "../tools/cms-tools";
+import { createUserStateTools } from "../tools/user-state-tools";
+import { createPositionTools } from "../tools/position-tools";
+import { applyReasoning } from "@kody-ade/kody-chat-dashboard/core/reasoning-adapter";
+import { containsToolCallMarkup } from "@kody-ade/kody-chat-dashboard/core/tool-call-strip";
+import { createAgentAdminTools } from "../tools/agent-admin-tools";
+import { readCapabilityFile } from "@kody-ade/agency/capabilities";
+import { createMacroTools } from "../tools/macros-tools";
+import {
+  invalidateMemoryIndexPromptCache,
+  loadMemoryIndexForPrompt,
+  readMemoryFile,
+  writeMemoryFile,
+} from "@kody-ade/workspace/memory/files";
+import {
+  loadViewRendererContextForPrompt,
+  type ViewRendererDefinition,
+} from "../../../../../src/dashboard/lib/view-renderers/renderers";
+import { loadInstructionsForPrompt } from "@kody-ade/workspace/instructions/files";
+import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
+import { loadGuidanceForPrompt } from "@kody-ade/workspace/guidance/files";
+import { buildExplicitMemoryDraft } from "./explicit-memory";
+import { ensureKodyRuntimeInitialized } from "./runtime-init";
+import {
+  isValidSlug as isValidAgentSlug,
+  listResolvedAgentFiles,
+} from "../../../../../src/dashboard/lib/agent-files";
+import {
+  appendAgentChatSpeakerOverride,
+  buildAgentChatIdentity,
+} from "../../../../../src/dashboard/lib/agent-chat-identity";
+import {
+  buildAgentHandoffPrompt,
+  buildPreviousAgentContextPrompt,
+  resolveAgentHandoffForPrompt,
+} from "../../../../../src/dashboard/lib/chat/core/agent-handoff";
+import type { AgentHandoff } from "../../../../../src/dashboard/lib/chat-types";
+import {
+  buildExplicitViewRequestInstruction,
+  parseExplicitViewRequest,
+} from "./view-request";
+import { startDurableTurn, type DurableTurn } from "../durable-turn";
+
+export const runtime = "nodejs";
+// Research turns can chain up to ~10 tool rounds (search → read → blame → …)
+// each with its own LLM round-trip. 60s would cut us off mid-stream and the
+// UI would hang. 300s is the Vercel Pro ceiling and gives plenty of slack.
+export const maxDuration = 300;
+
+// Provider/model are managed entirely from the dashboard. The
+// `LLM_MODELS` variable lists user-curated models; each entry binds a
+// model to its own `apiKeySecret`, `baseURL`, and wire `protocol`.
+// At request time we read the matching secret from the vault and pick
+// the SDK based on protocol — `anthropic` for Claude's native Messages
+// API (prompt caching + thinking control), `openai` for OpenAI-compat
+// endpoints (covers most OpenAI-compatible providers — Groq, OpenRouter,
+// Mistral, DeepSeek, xAI, self-hosted LiteLLM, etc).
+//
+// If no model resolves or the key is missing, the route returns 409
+// with `fallback: "kody-live"` so the client routes the same turn
+// through the GitHub Actions engine.
+
+interface IncomingTextPart {
+  type: "text";
+  text: string;
+}
+interface IncomingImagePart {
+  type: "image";
+  /** base64 data URL (data:<mime>;base64,<...>) or raw http(s) URL */
+  image: string;
+  mimeType?: string;
+}
+interface IncomingFilePart {
+  type: "file";
+  data: string;
+  mediaType: string;
+  filename?: string;
+}
+type IncomingPart = IncomingTextPart | IncomingImagePart | IncomingFilePart;
+
+interface IncomingMessage {
+  role: "user" | "assistant" | "system";
+  content: string | IncomingPart[];
+}
+
+function isPartsArray(c: unknown): c is IncomingPart[] {
+  return (
+    Array.isArray(c) &&
+    c.every((p) => p && typeof p === "object" && "type" in p)
+  );
+}
+
+/**
+ * The Vercel AI SDK accepts an `image` part as either a URL or raw
+ * base64-encoded bytes. If we pass a `data:` URL string, it tries to
+ * resolve it as a URL and rejects the `data:` scheme. Strip the
+ * `data:<mime>;base64,` prefix and recover the mime type from it.
+ */
+function parseImageData(
+  image: string,
+  fallbackMime?: string,
+): { data: string; mediaType?: string } {
+  const m = /^data:([^;,]+);base64,(.*)$/s.exec(image);
+  if (m) return { data: m[2], mediaType: m[1] || fallbackMime };
+  return { data: image, mediaType: fallbackMime };
+}
+
+function parseFileData(
+  data: string,
+  fallbackMime: string,
+): { data: string; mediaType: string } {
+  const m = /^data:([^;,]+);base64,(.*)$/s.exec(data);
+  if (m) return { data: m[2], mediaType: m[1] || fallbackMime };
+  return { data, mediaType: fallbackMime };
+}
+
+// Cap on the number of prior turns we resend to the model. Long histories
+// inflate the first round-trip dramatically (especially with thinking
+// enabled and 20+ tool schemas), and older messages rarely change the
+// next answer. The user-visible chat keeps its full transcript — only
+// the request to the model is trimmed.
+const MAX_HISTORY_MESSAGES = 50;
+
+/**
+ * Default cap on tool-calling rounds per turn. Optimized for deep analysis:
+ * the model can run a real research loop (search → read → blame → commits
+ * → re-search → …) without the prompt's "no fixed budget" rule getting cut
+ * off by the code. The `maxDuration: 300` Vercel ceiling still bounds
+ * wall-clock time, and a long turn that runs out of wall-clock is a
+ * better failure mode than a mid-investigation cut-off.
+ *
+ * Per-model override: `maxSteps` on the LLM_MODELS entry wins over this
+ * default, so a model that runs longer research chains (e.g. reasoning
+ * models that branch more) can be lifted individually without raising the
+ * cap for every other model. Pass `null` to disable the cap for a model
+ * (rely on `maxDuration` alone).
+ */
+export const DEFAULT_MAX_STEPS = 100;
+
+function successfulToolResult(toolName: string): StopCondition<ToolSet> {
+  return ({ steps }) =>
+    steps[steps.length - 1]?.toolResults?.some(
+      (result) =>
+        result.toolName === toolName && !isToolErrorOutput(result.output),
+    ) ?? false;
+}
+
+/**
+ * Stop once ANY tool result already IS a rendered-view directive —
+ * matched by shape, not tool name, so guided_flow_start (and any future
+ * card-producing tool) ends the turn exactly like show_view does. The
+ * directive streams to the client as the visible output; letting the
+ * model keep going only makes it re-render the same card via show_view
+ * as a chat-target echo WITHOUT the guided-flow submit wiring, which
+ * then clobbers the working card in the UI.
+ */
+function successfulRenderedViewResult(): StopCondition<ToolSet> {
+  return ({ steps }) =>
+    steps[steps.length - 1]?.toolResults?.some((result) =>
+      isRenderedViewDirective(result.output),
+    ) ?? false;
+}
+
+/**
+ * Cap on `show_view` attempts per turn. A failed call returns its
+ * validation error as the tool result so the model can fix the spec and
+ * retry; the cap stops a model that keeps producing invalid specs.
+ */
+export const MAX_SHOW_VIEW_ATTEMPTS = 3;
+
+/**
+ * Cap on corrective re-runs after a turn ends with no visible output at
+ * all (no output tool, no answer text). See the silent-turn retry block.
+ */
+export const MAX_SILENT_TURN_RETRIES = 2;
+
+/**
+ * Stop once the tool succeeds, or once it has been attempted `maxAttempts`
+ * times (successful or not) — whichever comes first.
+ */
+function settledToolAttempts(
+  toolName: string,
+  maxAttempts: number,
+): StopCondition<ToolSet> {
+  return ({ steps }) => {
+    const lastStep = steps[steps.length - 1];
+    const succeeded =
+      lastStep?.toolResults?.some(
+        (result) =>
+          result.toolName === toolName && !isToolErrorOutput(result.output),
+      ) ?? false;
+    if (succeeded) return true;
+    const attempts = steps.reduce(
+      (count, step) =>
+        count +
+        (step.toolCalls?.filter((call) => call.toolName === toolName).length ??
+          0),
+      0,
+    );
+    return attempts >= maxAttempts;
+  };
+}
+
+// Stream tracing uses console.* (not the pino `logger`) on purpose: pino
+// buffers writes asynchronously, and Vercel functions can be killed or
+// suspended mid-stream — losing the trail. console.* is line-flushed on
+// Vercel's runtime so we always see the events that fired before death.
+function traceLog(data: object, msg: string): void {
+  console.log(JSON.stringify({ level: "info", msg, ...data }));
+}
+function traceWarn(data: object, msg: string): void {
+  console.warn(JSON.stringify({ level: "warn", msg, ...data }));
+}
+function traceError(data: object, msg: string): void {
+  console.error(JSON.stringify({ level: "error", msg, ...data }));
+}
+
+/**
+ * Pull the provider's response body out of an AI SDK error. The SDK wraps
+ * HTTP errors as `APICallError` with a `responseBody` (raw text) and a
+ * `data` field (parsed JSON when available). Without this, a provider 400
+ * surfaces as a useless "Bad Request" — with it, the user sees the
+ * specific validation message ("tools[7].function.parameters: ...").
+ */
+interface ProviderErrorLike {
+  message?: string;
+  name?: string;
+  statusCode?: number;
+  responseBody?: string;
+  url?: string;
+  data?: unknown;
+  cause?: unknown;
+}
+
+function asProviderErrorLike(e: unknown): ProviderErrorLike | null {
+  if (!e || typeof e !== "object") return null;
+  return e as ProviderErrorLike;
+}
+
+function formatProviderError(error: unknown): string {
+  const e = asProviderErrorLike(error);
+  if (!e) return String(error);
+  // Prefer a parsed Google/OpenAI-style { error: { message } } payload.
+  const data = e.data as { error?: { message?: string } } | undefined;
+  if (data && typeof data === "object") {
+    const inner = data.error?.message;
+    if (typeof inner === "string" && inner.length > 0) {
+      return e.statusCode ? `[${e.statusCode}] ${inner}` : inner;
+    }
+  }
+  // Fall back to the raw response body — clipped so a giant HTML page
+  // doesn't poison the UI bubble.
+  if (typeof e.responseBody === "string" && e.responseBody.length > 0) {
+    const clipped =
+      e.responseBody.length > 600
+        ? `${e.responseBody.slice(0, 600)}…`
+        : e.responseBody;
+    return e.statusCode ? `[${e.statusCode}] ${clipped}` : clipped;
+  }
+  if (typeof e.message === "string" && e.message.length > 0) return e.message;
+  return String(error);
+}
+
+function extractProviderErrorMeta(error: unknown): Record<string, unknown> {
+  const e = asProviderErrorLike(error);
+  if (!e) return {};
+  const meta: Record<string, unknown> = {};
+  if (typeof e.name === "string") meta.errName = e.name;
+  if (typeof e.statusCode === "number") meta.statusCode = e.statusCode;
+  if (typeof e.url === "string") meta.url = e.url;
+  if (typeof e.responseBody === "string") {
+    meta.responseBody =
+      e.responseBody.length > 1200
+        ? `${e.responseBody.slice(0, 1200)}…`
+        : e.responseBody;
+  }
+  return meta;
+}
+
+function trimToRecent(messages: ModelMessage[]): ModelMessage[] {
+  if (messages.length <= MAX_HISTORY_MESSAGES) return messages;
+  const trimmed = messages.slice(-MAX_HISTORY_MESSAGES);
+  // Some models reject histories that don't start with a user message. Skip
+  // any leading assistant/system messages in the trimmed slice.
+  const firstUserIdx = trimmed.findIndex((m) => m.role === "user");
+  return firstUserIdx <= 0 ? trimmed : trimmed.slice(firstUserIdx);
+}
+
+/**
+ * Collapse multimodal user turns into plain text for a text-only model.
+ * A model with no vision (e.g. MiniMax) either rejects an image part or
+ * silently drops it. Keep small attachments inline, but omit oversized raw
+ * data so screenshots do not explode the provider context window. Vision
+ * models skip this and keep real image parts. Assistant/system turns are
+ * already strings.
+ */
+function inlineImagePartsForTextModel(
+  messages: ModelMessage[],
+): ModelMessage[] {
+  return messages.map((m) => {
+    if (typeof m.content === "string" || !Array.isArray(m.content)) return m;
+    const text = m.content
+      .map((p) => {
+        if (p.type === "text") return p.text;
+        if (p.type === "image") {
+          const img = typeof p.image === "string" ? p.image : "";
+          return img
+            ? formatAttachmentForTextBackend({
+                kind: "image",
+                data: img,
+                mimeType: p.mediaType,
+              })
+            : "";
+        }
+        if (p.type === "file") {
+          const data = typeof p.data === "string" ? p.data : "";
+          return data
+            ? formatAttachmentForTextBackend({
+                kind: "file",
+                data,
+                mimeType: p.mediaType,
+                name: p.filename,
+              })
+            : "";
+        }
+        return "";
+      })
+      .filter((t) => t !== "")
+      .join("\n\n");
+    return { ...m, content: text } as ModelMessage;
+  });
+}
+
+function messagesHaveImageParts(messages: ModelMessage[]): boolean {
+  return messages.some(
+    (m) =>
+      Array.isArray(m.content) &&
+      m.content.some((part) => part.type === "image"),
+  );
+}
+
+function normalizeMessages(raw: IncomingMessage[]): ModelMessage[] {
+  const out: ModelMessage[] = [];
+  for (const m of raw) {
+    if (
+      !m ||
+      (m.role !== "user" && m.role !== "assistant" && m.role !== "system")
+    )
+      continue;
+
+    if (typeof m.content === "string") {
+      if (m.content.trim() === "") continue;
+      out.push({ role: m.role, content: m.content } as ModelMessage);
+      continue;
+    }
+
+    if (!isPartsArray(m.content)) continue;
+
+    // Multimodal parts are only valid on a user message in the SDK shape.
+    // Strip empty text parts; drop the message if nothing remains.
+    const parts = m.content
+      .map((p) => {
+        if (p.type === "text") {
+          return p.text.trim() === ""
+            ? null
+            : { type: "text" as const, text: p.text };
+        }
+        if (p.type === "image") {
+          const parsed = parseImageData(p.image, p.mimeType);
+          return {
+            type: "image" as const,
+            image: parsed.data,
+            ...(parsed.mediaType ? { mediaType: parsed.mediaType } : {}),
+          };
+        }
+        if (p.type === "file") {
+          const parsed = parseFileData(p.data, p.mediaType);
+          return {
+            type: "file" as const,
+            data: parsed.data,
+            mediaType: parsed.mediaType,
+            ...(p.filename ? { filename: p.filename } : {}),
+          };
+        }
+        return null;
+      })
+      .filter((p): p is NonNullable<typeof p> => p !== null);
+
+    if (parts.length === 0) continue;
+    if (m.role === "user") {
+      out.push({ role: "user", content: parts });
+    } else {
+      // assistant/system can't carry image parts — collapse to text only.
+      const text = parts
+        .filter((p): p is { type: "text"; text: string } => p.type === "text")
+        .map((p) => p.text)
+        .join("\n");
+      if (text.trim() === "") continue;
+      out.push({ role: m.role, content: text } as ModelMessage);
+    }
+  }
+  return out;
+}
+
+function getLatestUserText(messages: ModelMessage[]): string | null {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (message.role !== "user") continue;
+    if (typeof message.content === "string") return message.content;
+    if (!Array.isArray(message.content)) continue;
+    const text = message.content
+      .map((part) => (part.type === "text" ? part.text : ""))
+      .filter(Boolean)
+      .join("\n\n")
+      .trim();
+    if (text.length > 0) return text;
+  }
+  return null;
+}
+
+function requestWithAuth(req: NextRequest, auth: RequestAuth): NextRequest {
+  const headers = new Headers(req.headers);
+  for (const [key, value] of Object.entries(buildKodyAuthHeaders(auth))) {
+    headers.set(key, value);
+  }
+  return new NextRequest(req.url, {
+    method: req.method,
+    headers,
+  });
+}
+
+export async function POST(req: NextRequest) {
+  // Short trace ID lets us follow a single chat request through every log
+  // line (start, per-tool start/finish, per-step finish, errors, finish).
+  // Grep `vercel logs` for the ID to see one session's full trace.
+  const traceId = randomBytes(4).toString("hex");
+  const reqStartedAt = Date.now();
+
+  try {
+    return await handleKodyDirectPost(req, traceId, reqStartedAt);
+  } catch (err) {
+    clearGitHubContext();
+    traceError(
+      {
+        traceId,
+        err: formatProviderError(err),
+        ...extractProviderErrorMeta(err),
+      },
+      "kody-direct: request setup failed",
+    );
+    return NextResponse.json(
+      { error: "Chat setup failed", traceId },
+      { status: 500 },
+    );
+  }
+}
+
+async function handleKodyDirectPost(
+  req: NextRequest,
+  traceId: string,
+  reqStartedAt: number,
+) {
+  // Surface scoping (phase 2 step 6). Admin PAT headers → full scope,
+  // byte-identical to before. A valid surface ticket without a PAT →
+  // restricted client scope (agent forced, tools filtered below). Neither →
+  // today's 401 via requireKodyAuth, unchanged.
+  const surfaceScope = resolveSurfaceScope(req.headers);
+  if (surfaceScope.kind === "none") {
+    const authError = await requireKodyAuth(req);
+    if (authError) return authError;
+  }
+  await ensureKodyRuntimeInitialized();
+  const clientSurface = surfaceScope.kind === "client";
+
+  // Key resolution is per-model: each LLM_MODELS entry names which secret
+  // to read at request time. We defer the actual lookup until after we
+  // resolve the model below, so a missing key on model X never blocks
+  // model Y.
+
+  let body: {
+    messages?: IncomingMessage[];
+    /** Derived memory from older visible messages after automatic compaction. */
+    conversationSummary?: string;
+    model?: string;
+    task?: TaskContext;
+    /** GitHub login of the requester — gates remote_* tools. Optional. */
+    actorLogin?: string;
+    /** Current capability context — scopes the chat to a specific capability folder. */
+    capability?: CapabilityContext;
+    /**
+     * When true, append the mission-planning block to the system prompt and
+     * wire the planner tools (`create_task_for_goal`). `goal` must be set.
+     */
+    goalPlanner?: boolean;
+    /** The goal this planner session is scoped to. */
+    goal?: GoalContext;
+    /** Currently-viewed report on /reports — scopes the chat to advise on it. */
+    report?: { slug: string; title: string; body: string; path?: string };
+    /** Org workspace scope from /org/:org. */
+    org?: OrgContext;
+    /**
+     * The dashboard page the user is currently viewing, as a noun phrase
+     * (e.g. "the Variables page (/variables)"). Surfaced as a `## Current
+     * page` system section so "what am I looking at?" resolves.
+     */
+    currentPage?: string;
+    /**
+     * Preview/page evidence collected by the dashboard for this turn. Task
+     * creation tools append it to issue bodies so the runner sees the same
+     * view example the chat saw.
+     */
+    previewContext?: string;
+    /**
+     * Which agentIdentity to use for the system prompt. Defaults to `kody`.
+     * Any agent whose backend is `kody-direct` is served natively here;
+     * agents whose backend is the engine, brain, or kody-live don't have
+     * their prompts proxied through this route, so the route falls back to
+     * `AGENT_KODY`'s prompt for those (the dashboard reaches this route in
+     * voice mode regardless of selected agent — voice is a modality, not a
+     * backend swap).
+     */
+    agentId?: AgentId;
+    /**
+     * Repo/store agent identity slug addressed with `@slug` in chat. This is
+     * a prompt identity swap for this in-process turn, not a runner dispatch.
+     */
+    agentSlug?: string;
+    /** Latest persisted agent switch for this conversation. */
+    agentHandoff?: AgentHandoff;
+    /** Prior agent epoch, relabeled as background rather than assistant history. */
+    agentHandoffContext?: string;
+    /**
+     * Voice modality. When true the server appends `VOICE_OVERLAY_PROMPT`
+     * to the resolved agent's base prompt (no markdown, short sentences,
+     * symbols read aloud as words), disables thinking/reasoning streaming,
+     * and prefers a model flagged `speech: true` in `LLM_MODELS` when the
+     * client hasn't pinned a model explicitly. The chosen agent's brain
+     * and tools stay in charge — only the output shape changes.
+     */
+    voiceMode?: boolean;
+    /**
+    /**
+     * Vibe mode. True when chat is scoped to the Vibe workspace. Kody chat
+     * may research, plan, and create issues, but implementation-start tools
+     * are stripped so it cannot open PRs, start runners, or dispatch @kody.
+     */
+    vibeMode?: boolean;
+    /**
+     * User-picked thinking level for the resolved model. Validated against
+     * the model's declared `reasoning.efforts` — unknown values fall back
+     * to `reasoning.default`. Translated to the provider's wire shape
+     * (anthropic_budget, openai_effort, …) by `applyReasoning()` before
+     * being merged into `streamText` options. Omitted when the model has
+     * no reasoning config — `applyReasoning` then returns `{}`.
+     */
+    reasoningEffort?: string;
+    conversationId?: string;
+    turnId?: string;
+    conversationAgent?: { slug: string; title: string };
+  };
+  try {
+    body = (await req.json()) as typeof body;
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  if (
+    typeof body.conversationSummary === "string" &&
+    body.conversationSummary.length > 20_000
+  ) {
+    return NextResponse.json(
+      { error: "conversationSummary too large" },
+      { status: 400 },
+    );
+  }
+  if (
+    typeof body.agentHandoffContext === "string" &&
+    body.agentHandoffContext.length > 8_000
+  ) {
+    return NextResponse.json(
+      { error: "agentHandoffContext too large" },
+      { status: 400 },
+    );
+  }
+
+  let repoScopedReq = req;
+  let surfaceBrand: ClientBrand | null = null;
+  if (surfaceScope.kind === "client") {
+    const background = await resolveBackgroundToken(
+      surfaceScope.owner,
+      surfaceScope.repo,
+    );
+    if (!background) {
+      return NextResponse.json(
+        {
+          error: "client_surface_not_configured",
+          message:
+            "This client chat surface is not configured with a repo token.",
+        },
+        { status: 401 },
+      );
+    }
+    const auth: RequestAuth = {
+      token: background.token,
+      owner: surfaceScope.owner,
+      repo: surfaceScope.repo,
+    };
+    repoScopedReq = requestWithAuth(req, auth);
+    surfaceBrand = await resolveClientBrand(surfaceScope.brandSlug, auth);
+    if (!surfaceBrand) {
+      return NextResponse.json({ error: "brand_not_found" }, { status: 404 });
+    }
+  }
+
+  const allMessages = normalizeMessages(body.messages ?? []);
+  if (allMessages.length === 0) {
+    return NextResponse.json(
+      { error: "messages required (non-empty)" },
+      { status: 400 },
+    );
+  }
+  const messages = body.conversationSummary
+    ? allMessages
+    : trimToRecent(allMessages);
+  const latestUserText = getLatestUserText(messages);
+  const explicitViewRequest = parseExplicitViewRequest(latestUserText);
+  const trimmedCount = allMessages.length - messages.length;
+  const hasImageParts = messagesHaveImageParts(messages);
+
+  // Resolve the model from the configured + built-in catalog in Convex variables.json.
+  // The client can override per-request via `body.model`, but it must
+  // match an enabled entry — we never trust arbitrary ids from the wire.
+  // Voice mode does not affect model selection; it's a per-turn prompt
+  // overlay only (see system-prompt builder).
+  const voiceMode = body.voiceMode === true;
+  // Model resolution (list → pick → key → SDK) is shared with the title
+  // route via resolveChatModel so the two can't drift. Voice mode does
+  // not affect model selection; it's a per-turn prompt overlay only.
+  const modelOverride = clientSurface ? surfaceBrand?.modelId : body.model;
+  const resolution = await resolveChatModel(repoScopedReq, modelOverride, {
+    preferVision: hasImageParts,
+  });
+  if ("error" in resolution) return resolution.error;
+  const { model, resolvedModel } = resolution;
+  const providerCapabilities = getChatProviderCapabilities(resolvedModel);
+  const modelId = resolvedModel.id;
+  // Client-surface turns carry no PAT, so there is no GitHub identity to
+  // verify — actor-gated tools (remote_*) simply stay off (null login).
+  let verifiedActorLogin: string | null = null;
+  if (!clientSurface) {
+    const actorResult = await verifyActorLogin(repoScopedReq, body.actorLogin);
+    if (actorResult instanceof NextResponse) return actorResult;
+    verifiedActorLogin = actorResult.identity.login;
+  }
+  // Only vision-capable models get real image parts. For text-only models
+  // (looked up from LiteLLM's supports_vision data) inline the image as text
+  // so the attachment still rides along instead of being dropped/rejected.
+  const modelIsVision =
+    supportsVision(resolvedModel.id) || supportsVision(resolvedModel.modelName);
+  let modelMessages = modelIsVision
+    ? messages
+    : inlineImagePartsForTextModel(messages);
+  const repo = getRequestAuth(repoScopedReq);
+  const durableIdentity =
+    repo &&
+    typeof body.conversationId === "string" &&
+    body.conversationId.trim() &&
+    typeof body.turnId === "string" &&
+    body.turnId.trim() &&
+    body.conversationAgent &&
+    typeof body.conversationAgent.slug === "string" &&
+    typeof body.conversationAgent.title === "string"
+      ? {
+          tenantId: `${repo.owner}/${repo.repo}`,
+          conversationId: body.conversationId.trim(),
+          turnId: body.turnId.trim(),
+          backend: "direct" as const,
+          agent: {
+            slug: body.conversationAgent.slug.trim(),
+            title: body.conversationAgent.title.trim(),
+          },
+          createIfMissing: {
+            owner: repo.owner,
+            repo: repo.repo,
+            modelId,
+            createdBy: verifiedActorLogin
+              ? `operator:${verifiedActorLogin.toLowerCase()}`
+              : "server",
+          },
+        }
+      : null;
+  const goalPlannerActive = body.goalPlanner === true && !!body.goal;
+  ensureTriggerStateWriter();
+  const eventUserId = verifiedActorLogin
+    ? `operator:${verifiedActorLogin.toLowerCase()}`
+    : null;
+  emitSystemEvent(
+    "chat.message.sent",
+    { transport: "direct" },
+    {
+      userId: eventUserId,
+      brand: repo ? { owner: repo.owner, repo: repo.repo } : null,
+      source: "server",
+      octokit: repo ? createUserOctokit(repo.token) : null,
+    },
+  );
+
+  // Memory index injection requires the github-client module-level context
+  // (the cached loader uses `getOctokit()` / `getOwner()` / `getRepo()`).
+  // Set the context here, before buildSystemPrompt, and rely on the
+  // existing onFinish / catch paths to clear it. Per-request octokits
+  // for GitHub tools are still created separately below to avoid races.
+  const guidanceAgentSlug =
+    !clientSurface &&
+    typeof body.agentSlug === "string" &&
+    body.agentSlug.trim()
+      ? body.agentSlug.trim()
+      : "kody";
+  let memoryIndex: string | null = null;
+  let userInstructions: string | null = null;
+  let context: string | null = null;
+  let constraints: string | null = null;
+  let policies: string | null = null;
+  let viewRendererRules: string | null = null;
+  let viewRendererDefinitions: ViewRendererDefinition[] = [];
+  if (repo && clientSurface) {
+    // Client-surface turns still need the module github context for
+    // repo-scoped reads (e.g. the brand's agent file) — but skip the
+    // admin-only prompt extras (memory/instructions/context) below.
+    setGitHubContext(
+      repo.owner,
+      repo.repo,
+      repo.token,
+      repo.storeRepoUrl,
+      repo.storeRef,
+    );
+    // Client chats render with the packaged built-in renderers (the tool
+    // catalog already falls back to them). The gating that forces a card
+    // for interactive turns must see the same definitions — with an empty
+    // list, brand chats never pinned show_view and interactive turns
+    // could end with prose or nothing.
+    viewRendererDefinitions = [...BUILTIN_VIEW_RENDERER_DEFINITIONS];
+    viewRendererRules = buildViewComponentRules(
+      buildChatViewCatalog(viewRendererDefinitions),
+    );
+  }
+  if (repo && !clientSurface) {
+    setGitHubContext(
+      repo.owner,
+      repo.repo,
+      repo.token,
+      repo.storeRepoUrl,
+      repo.storeRef,
+    );
+    try {
+      memoryIndex = await loadMemoryIndexForPrompt();
+    } catch (err) {
+      // Memory is best-effort; never block the chat. Log and continue.
+      traceWarn(
+        { traceId, err: err instanceof Error ? err.message : String(err) },
+        "kody-direct: memory index load failed (continuing without it)",
+      );
+    }
+    try {
+      userInstructions = await loadInstructionsForPrompt();
+    } catch (err) {
+      // Instructions are best-effort; never block the chat. Log and continue.
+      traceWarn(
+        { traceId, err: err instanceof Error ? err.message : String(err) },
+        "kody-direct: user instructions load failed (continuing without them)",
+      );
+    }
+    try {
+      context = await loadContextForPrompt();
+    } catch (err) {
+      // Context is best-effort; never block the chat. Log and continue.
+      traceWarn(
+        { traceId, err: err instanceof Error ? err.message : String(err) },
+        "kody-direct: context load failed (continuing without it)",
+      );
+    }
+    try {
+      [constraints, policies] = await Promise.all([
+        loadGuidanceForPrompt("constraint", guidanceAgentSlug),
+        loadGuidanceForPrompt("policy", guidanceAgentSlug),
+      ]);
+    } catch (err) {
+      traceWarn(
+        { traceId, err: err instanceof Error ? err.message : String(err) },
+        "kody-direct: agent guidance load failed (continuing without it)",
+      );
+    }
+    try {
+      const viewRendererContext = await loadViewRendererContextForPrompt({
+        owner: repo.owner,
+        repo: repo.repo,
+      });
+      viewRendererRules = viewRendererContext.rules;
+      viewRendererDefinitions = viewRendererContext.definitions;
+    } catch (err) {
+      traceWarn(
+        { traceId, err: err instanceof Error ? err.message : String(err) },
+        "kody-direct: view renderer rules load failed (continuing without them)",
+      );
+    }
+  }
+  // Pick the agentIdentity. Agents whose backend is `kody-direct` are
+  // served natively here; the rest (engine, brain, kody-live) don't have
+  // a usable in-process prompt to swap in.
+  //
+  // For text turns we fall back to AGENT_KODY for non-direct agents so
+  // older clients keep working (the dashboard UI never routes a brain or
+  // engine TEXT turn here, but defense-in-depth).
+  //
+  // For VOICE turns we refuse the request instead of silently falling
+  // back. Voice was the source of an actual user-visible bug: the
+  // dropdown said "brain-fly" while the mic produced an in-process
+  // chat answer. The mic is also gated client-side now (see KodyChat
+  // VoiceButton), so a voice turn with a non-direct agent is either a
+  // stale client or someone calling the API directly — neither should
+  // be answered as Kody.
+  // Client-surface scope forces the brand's default in-process agent —
+  // an external user must not be able to pick an arbitrary agent id.
+  const requestedAgentId =
+    !clientSurface && body.agentId && isValidAgentId(body.agentId)
+      ? body.agentId
+      : "kody";
+  const requestedAgent: AgentConfig = getAgent(requestedAgentId);
+  if (voiceMode && requestedAgent.backend !== "kody-direct") {
+    return NextResponse.json(
+      {
+        error: "voice_not_supported_for_agent",
+        message: `Voice mode requires a kody-direct agent. "${requestedAgent.name}" runs on ${requestedAgent.backend}; the voice overlay can't be applied there. Switch to a Kody (in-process) agent in the dropdown to use the mic.`,
+      },
+      { status: 400 },
+    );
+  }
+
+  const explicitMemoryDraft = buildExplicitMemoryDraft(latestUserText ?? "");
+  if (repo && explicitMemoryDraft) {
+    try {
+      const octokit = createUserOctokit(repo.token);
+      const existing = await readMemoryFile(explicitMemoryDraft.id);
+      const file = await writeMemoryFile({
+        octokit,
+        id: explicitMemoryDraft.id,
+        sha: existing?.sha,
+        meta: {
+          name: explicitMemoryDraft.name,
+          description: explicitMemoryDraft.description,
+          type: explicitMemoryDraft.type,
+          created: existing?.meta.created ?? new Date().toISOString(),
+        },
+        body: explicitMemoryDraft.body,
+        message: `chore(memory): ${existing ? "update" : "add"} ${
+          explicitMemoryDraft.id
+        }${verifiedActorLogin ? ` (via chat by @${verifiedActorLogin})` : ""}`,
+      });
+      invalidateMemoryIndexPromptCache();
+      modelMessages = [
+        ...modelMessages,
+        {
+          role: "system",
+          content:
+            `Explicit memory request already persisted to Convex memory/${file.id}.md ` +
+            `as ${file.meta.type}. Do not call remember/update_memory again. ` +
+            "Briefly confirm it was saved.",
+        },
+      ];
+    } catch (err) {
+      modelMessages = [
+        ...modelMessages,
+        {
+          role: "system",
+          content:
+            "Explicit memory request could not be persisted before response. " +
+            `Tell the user it failed and include this error: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+        },
+      ];
+    }
+  }
+  const vibeMode = body.vibeMode === true;
+
+  // In vibe mode the agent decides Fly vs. Live without asking. Probe
+  // the vault for FLY_API_TOKEN so the prompt can tell the agent which
+  // runner is actually configured for THIS user — Fly is opt-in, not
+  // default. Outside vibe mode this signal isn't used, so skip the
+  // vault read on the hot path.
+  let flyConfigured = false;
+  if (vibeMode) {
+    try {
+      const flyToken = await getSecret("FLY_API_TOKEN", { req });
+      flyConfigured = Boolean(flyToken && flyToken.trim().length > 0);
+    } catch {
+      flyConfigured = false;
+    }
+  }
+
+  // Load the chat defaults bundle — agentIdentity + chat capability + workflows + skills.
+  // The bundle is the source of truth for the chat's prompt base + tool
+  // allowlist. Repo-stored with a TS fallback; step 1 returns TS defaults.
+  const chatBundle = await loadChatDefaults(repo?.owner, repo?.repo);
+  // Agent identity swaps (@slug) are admin-only from the request body.
+  // Client-surface turns can only use the agent configured on the resolved
+  // brand, which is loaded server-side from the ticket's repo scope.
+  const requestedAgentSlug = clientSurface
+    ? (surfaceBrand?.agentSlug ?? "")
+    : typeof body.agentSlug === "string"
+      ? body.agentSlug.trim()
+      : "";
+  // `kody` names the built-in identity already supplied by chat defaults. It
+  // is not an external AI-agency member and must keep working when that
+  // optional catalog is unavailable.
+  const agentSlug = requestedAgentSlug === "kody" ? "" : requestedAgentSlug;
+  let activeAgentIdentity = chatBundle.agentIdentity;
+  let addressedAgentMember:
+    Awaited<ReturnType<typeof listResolvedAgentFiles>>[number] | null = null;
+  if (agentSlug) {
+    if (!isValidAgentSlug(agentSlug)) {
+      clearGitHubContext();
+      return NextResponse.json(
+        { error: "invalid_agent_slug" },
+        { status: 400 },
+      );
+    }
+    if (!repo) {
+      return NextResponse.json({ error: "no_repo_context" }, { status: 400 });
+    }
+    let agentMember;
+    try {
+      // Resolve from the same merged list that powers the AI Agency picker.
+      // A separate point lookup allowed the picker and chat to disagree,
+      // surfacing a selectable agent as `agent_not_found` only after send.
+      agentMember = (await listResolvedAgentFiles()).find(
+        (candidate) => candidate.slug === agentSlug,
+      );
+    } catch (err) {
+      clearGitHubContext();
+      throw err;
+    }
+    if (!agentMember) {
+      clearGitHubContext();
+      return NextResponse.json({ error: "agent_not_found" }, { status: 404 });
+    }
+    activeAgentIdentity = buildAgentChatIdentity(agentMember);
+    addressedAgentMember = agentMember;
+  }
+  if (
+    durableIdentity &&
+    durableIdentity.agent.slug !== (addressedAgentMember?.slug ?? "kody")
+  ) {
+    clearGitHubContext();
+    return NextResponse.json(
+      { error: "conversation_agent_mismatch" },
+      { status: 400 },
+    );
+  }
+
+  // Capabilities attached to the agent: load each one's prompt (folded into
+  // the agent identity so the model follows it) and its tool names (unioned
+  // into the tool allowlist below so the capability's tools survive the
+  // bundle filter). Best-effort — a missing capability is skipped.
+  let capabilityToolNames: string[] = [];
+  if (repo && addressedAgentMember?.capabilities?.length) {
+    const caps = (
+      await Promise.all(
+        addressedAgentMember.capabilities.map((slug) =>
+          readCapabilityFile(slug).catch(() => null),
+        ),
+      )
+    ).filter((cap): cap is NonNullable<typeof cap> => cap !== null);
+    const capPrompts = caps
+      .map((cap) => cap.prompt?.trim())
+      .filter((p): p is string => !!p);
+    if (capPrompts.length > 0) {
+      activeAgentIdentity = `${activeAgentIdentity}\n\n${capPrompts.join("\n\n")}`;
+    }
+    capabilityToolNames = caps.flatMap((cap) => cap.tools ?? []);
+  }
+
+  // Build the per-request tool set FIRST. The tool list feeds into the
+  // system prompt as a `## Tool index` block (item 1 of the accuracy
+  // improvements) — the model picks the right tool from the descriptions,
+  // not by guessing from names. Tool building requires repo + actor
+  // resolution done above.
+  const requireInteractiveAction =
+    !explicitViewRequest &&
+    shouldRequireViewOutputForTurn({
+      userText: latestUserText,
+      definitions: viewRendererDefinitions,
+    });
+  let uiToolSet = createUiTools({ requireInteractiveAction });
+  let extraTools: Record<string, unknown> = {};
+  if (repo && !clientSurface) {
+    // Per-request Octokit (no shared singleton) so the GitHub tools
+    // don't race other concurrent /api/kody/chat/kody requests.
+    const octokit = createUserOctokit(repo.token);
+    uiToolSet = createUiTools({
+      viewRendererDefinitions,
+      requireInteractiveAction,
+    });
+    extraTools = {
+      ...extraTools,
+      ...createGitHubTools({ octokit, owner: repo.owner, repo: repo.repo }),
+      ...createBugTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: verifiedActorLogin,
+      }),
+      ...createTaskTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: verifiedActorLogin,
+        previewContext:
+          typeof body.previewContext === "string" ? body.previewContext : null,
+      }),
+      ...createGoalTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+      }),
+      ...createAgentTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: verifiedActorLogin,
+      }),
+      ...createMemoryTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: verifiedActorLogin,
+      }),
+      ...createReleaseTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: verifiedActorLogin,
+      }),
+      ...createKodyTools({ octokit, owner: repo.owner, repo: repo.repo }),
+      ...createCapabilityTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: verifiedActorLogin,
+      }),
+      // Dashboard-management tools: let chat manage every dashboard feature
+      // (config files, settings, infra) the same way the pages do. Reads use
+      // the module-level GitHub context set above; writes pass this octokit.
+      ...createCommandTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: verifiedActorLogin,
+      }),
+      ...createContextTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: verifiedActorLogin,
+      }),
+      ...createTodoTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: verifiedActorLogin,
+      }),
+      ...createInstructionsTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: verifiedActorLogin,
+      }),
+      ...createVariableTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: verifiedActorLogin,
+      }),
+      ...createSecretTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: verifiedActorLogin,
+      }),
+      ...createModelTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: verifiedActorLogin,
+      }),
+      ...createReportTools({ owner: repo.owner, repo: repo.repo }),
+      ...createNotificationTools({ owner: repo.owner, repo: repo.repo }),
+      ...createCompanyTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: verifiedActorLogin,
+      }),
+      ...createWebhookTools({
+        token: repo.token,
+        owner: repo.owner,
+        repo: repo.repo,
+      }),
+      ...createInboxTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+      }),
+      ...createAgentAdminTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: verifiedActorLogin,
+      }),
+      ...createMacroTools({
+        octokit,
+        owner: repo.owner,
+        repo: repo.repo,
+        actorLogin: verifiedActorLogin,
+      }),
+      ...(goalPlannerActive && body.goal
+        ? createPlannerTools({
+            octokit,
+            owner: repo.owner,
+            repo: repo.repo,
+            actorLogin: verifiedActorLogin,
+            goalId: body.goal.id,
+            previewContext:
+              typeof body.previewContext === "string"
+                ? body.previewContext
+                : null,
+          })
+        : {}),
+    };
+    // Pipeline tools currently use github-client's module-level context
+    // (already set above for the memory index loader) — they do *not* take
+    // the per-request octokit. Concurrent requests can race that state;
+    // we accept the existing risk to reuse cached helpers.
+    extraTools = {
+      ...extraTools,
+      ...createPipelineTools({ owner: repo.owner, repo: repo.repo }),
+    };
+  }
+  extraTools = {
+    ...extraTools,
+    ...createRemoteTools(verifiedActorLogin),
+    ...(repo && !clientSurface && verifiedActorLogin
+      ? createGuidedFlowTools({
+          tenantId: `${repo.owner}/${repo.repo}`,
+          actorId: verifiedActorLogin,
+        })
+      : {}),
+  };
+  // Optional tool families that failed to load this turn. The model MUST
+  // be told about these: a chat that silently lacks its cms/user-state
+  // tools invites the model to simulate the calls and report fabricated
+  // success (real incident: "saved to CMS with id X" and nothing existed).
+  const failedToolFamilies: string[] = [];
+  if (repo && !clientSurface) {
+    const octokit = createUserOctokit(repo.token);
+    // These tool families discover optional configuration through GitHub.
+    // A transient GitHub failure must not block the core chat response.
+    const loadOptionalTools = async (
+      toolFamily: string,
+      load: () => Promise<Record<string, unknown>>,
+    ): Promise<Record<string, unknown>> => {
+      try {
+        return await load();
+      } catch (err) {
+        failedToolFamilies.push(toolFamily);
+        traceWarn(
+          {
+            traceId,
+            toolFamily,
+            err: err instanceof Error ? err.message : String(err),
+          },
+          "kody-direct: optional tools unavailable (continuing without them)",
+        );
+        return {};
+      }
+    };
+    const [cmsTools, userStateTools] = await Promise.all([
+      loadOptionalTools("cms", () =>
+        createCmsTools({
+          req,
+          octokit,
+          owner: repo.owner,
+          repo: repo.repo,
+        }),
+      ),
+      eventUserId
+        ? loadOptionalTools("user-state", () =>
+            createUserStateTools({
+              octokit,
+              owner: repo.owner,
+              repo: repo.repo,
+              userId: eventUserId,
+            }),
+          )
+        : Promise.resolve({}),
+    ]);
+    extraTools = {
+      ...extraTools,
+      ...cmsTools,
+      ...userStateTools,
+      ...(eventUserId
+        ? createPositionTools({
+            octokit,
+            owner: repo.owner,
+            repo: repo.repo,
+            userId: eventUserId,
+          })
+        : {}),
+    };
+  }
+  const baseTools: Record<string, unknown> = {
+    fetch_url: fetchUrlTool,
+    ...featureTools,
+    ...uiToolSet,
+  };
+  // Kody chat tool policy (see vibe-tool-policy.ts): strips implementation
+  // starters from this endpoint, and strips issue-creation tools in vibe mode
+  // once a task is scoped so the model can't file a duplicate.
+  const mergedTools = applyVibeToolPolicy(
+    { ...baseTools, ...extraTools },
+    { vibeMode, hasCurrentTask: body.task?.issueNumber != null },
+  );
+  // Bundle allowlist controls domain tools. Core output tools are preserved
+  // below because they are the chat protocol, not repo capability surface.
+  // Tools declared by the agent's attached capabilities are unioned in so a
+  // capability's tools survive the bundle filter (no effect when the bundle
+  // list is empty — that already allows all).
+  const bundleFilteredTools = filterToolsByAllowlist(
+    mergedTools,
+    chatBundle.capability.tools.length > 0
+      ? [...chatBundle.capability.tools, ...capabilityToolNames]
+      : chatBundle.capability.tools,
+  );
+  // Client-surface scope hard-caps the result at the conservative surface
+  // subset (read-only feature discovery + fetch_url). Applied AFTER the
+  // bundle allowlist (an empty bundle list means "allow all", so a plain
+  // intersection would fail open). Core output tools are re-added below
+  // regardless — they are the chat protocol, not capability surface.
+  const filteredTools = clientSurface
+    ? Object.fromEntries(
+        Object.entries(bundleFilteredTools).filter(([name]) =>
+          CLIENT_SURFACE_TOOL_ALLOWLIST.includes(name),
+        ),
+      )
+    : bundleFilteredTools;
+  const allowlistedTools: Record<string, unknown> = { ...filteredTools };
+  for (const name of CHAT_OUTPUT_TOOL_NAMES) {
+    if (Object.prototype.hasOwnProperty.call(mergedTools, name)) {
+      allowlistedTools[name] = mergedTools[name];
+    }
+  }
+  // Plugin server tools (platform Step 4). Plugins registered in the
+  // server-only registry contribute tools ON TOP of the built-in map —
+  // never instead of it. With zero plugins registered `collect()` returns
+  // {} and the tool map is byte-identical to the built-in set. A plugin
+  // tool whose name collides with any built-in (or another plugin — the
+  // registry throws at collect time) is a deploy-time bug: fail the
+  // request loudly with a 500 instead of silently overriding. Tools are
+  // repo-scoped (ChatToolServerContext), so repo-less requests skip them.
+  if (repo) {
+    const pluginToolCtx: ChatToolServerContext = {
+      owner: repo.owner,
+      repo: repo.repo,
+      token: repo.token,
+    };
+    let pluginTools: Record<string, ChatPluginToolDefinition>;
+    try {
+      pluginTools = getChatServerToolRegistry().collect(pluginToolCtx);
+    } catch (err) {
+      clearGitHubContext();
+      const msg = err instanceof Error ? err.message : String(err);
+      traceError(
+        { traceId, err: msg },
+        "kody-direct: chat plugin tool collect failed",
+      );
+      return NextResponse.json(
+        { error: `chat_plugin_tools_failed: ${msg}` },
+        { status: 500 },
+      );
+    }
+    for (const [name, def] of Object.entries(pluginTools)) {
+      if (
+        Object.prototype.hasOwnProperty.call(mergedTools, name) ||
+        Object.prototype.hasOwnProperty.call(allowlistedTools, name)
+      ) {
+        clearGitHubContext();
+        traceError(
+          { traceId, tool: name },
+          "kody-direct: chat plugin tool collides with a built-in tool",
+        );
+        return NextResponse.json(
+          {
+            error: `chat_plugin_tool_collision: plugin tool "${name}" collides with a built-in chat tool`,
+          },
+          { status: 500 },
+        );
+      }
+      // Adapt the plugin contract to the AI SDK tool shape. Input is
+      // zod-validated inside the registry's execute wrapper (collect()
+      // parses through the plugin's schema before the handler runs).
+      allowlistedTools[name] = tool({
+        description: def.description,
+        inputSchema: def.inputSchema,
+        execute: async (input: unknown) => def.execute(input, pluginToolCtx),
+      });
+    }
+  }
+  // Tool failures must become tool results, not stream-level failures. The
+  // client can then show the real reason and the model can correct its input
+  // instead of every provider collapsing the error to "An error occurred."
+  for (const [name, candidate] of Object.entries(allowlistedTools)) {
+    if (!candidate || typeof candidate !== "object") continue;
+    const executable = candidate as {
+      execute?: (input: unknown) => Promise<unknown>;
+    };
+    if (!executable.execute) continue;
+    const execute = executable.execute;
+    allowlistedTools[name] = {
+      ...executable,
+      execute: async (input: unknown) => {
+        try {
+          return await execute(input);
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : String(error);
+          traceError(
+            { traceId, tool: name, err: message },
+            "kody-direct: tool execution failed",
+          );
+          return { error: message || "Tool execution failed" };
+        }
+      },
+    };
+  }
+  const tools = allowlistedTools as Parameters<typeof streamText>[0]["tools"];
+  const requireViewOutput =
+    requireInteractiveAction &&
+    Object.prototype.hasOwnProperty.call(allowlistedTools, SHOW_VIEW_TOOL);
+  const allActiveTools = Object.keys(allowlistedTools) as Array<
+    keyof NonNullable<typeof tools>
+  >;
+  const shouldAllowPreRenderTools =
+    requireViewOutput &&
+    shouldAllowPreRenderToolCallsForTurn({
+      userText: latestUserText,
+      toolNames: Object.keys(allowlistedTools),
+    });
+  const forceShowViewTool =
+    Boolean(explicitViewRequest) &&
+    Object.prototype.hasOwnProperty.call(allowlistedTools, SHOW_VIEW_TOOL);
+  if (explicitViewRequest && !forceShowViewTool) {
+    modelMessages = [
+      ...modelMessages,
+      {
+        role: "system",
+        content:
+          "The latest user message asks to render a UI card, but `show_view` is not available in this chat's tool set. Tell the user the UI tool is unavailable; do not claim the card was rendered.",
+      },
+    ];
+  } else if (explicitViewRequest) {
+    modelMessages = [
+      ...modelMessages,
+      {
+        role: "system",
+        content: buildExplicitViewRequestInstruction(explicitViewRequest),
+      },
+    ];
+  } else if (requireViewOutput) {
+    modelMessages = [
+      ...modelMessages,
+      {
+        role: "system",
+        content:
+          "The latest user message asks for an interactive response that matches the available renderer rules. Use read/list tools first if needed, then finish this turn with `show_view`. Do not finish with `final_answer`.",
+      },
+    ];
+  }
+  if (failedToolFamilies.length > 0) {
+    modelMessages = [
+      ...modelMessages,
+      {
+        role: "system",
+        content:
+          `Tool families UNAVAILABLE this turn (their configuration failed to load): ${failedToolFamilies.join(", ")}. ` +
+          "If the user asks for a related action, state plainly that the tools are unavailable right now and suggest retrying. " +
+          "NEVER simulate these tool calls, never invent ids or results, and never claim data was read or written.",
+      },
+    ];
+  }
+
+  // Build the system prompt. The tool index (name + description) is
+  // computed from the FINAL allowlisted tools and injected into the
+  // bundle's base prompt — the model sees a `## Tool index` block
+  // listing every callable with a one-sentence description, so it
+  // picks the right tool instead of guessing by name.
+  const toolIndex = buildToolIndex(allowlistedTools);
+
+  const basePrompt = composeBasePrompt(
+    { ...chatBundle, agentIdentity: activeAgentIdentity },
+    { toolIndex },
+  );
+  const assembledPrompt = buildSystemPrompt(
+    basePrompt,
+    repo ? { owner: repo.owner, repo: repo.repo } : null,
+    body.task,
+    {
+      capability: body.capability,
+      goalPlanner: goalPlannerActive,
+      goal: goalPlannerActive ? body.goal : undefined,
+      report: body.report,
+      org: body.org,
+      currentPage: body.currentPage,
+      previewContext:
+        typeof body.previewContext === "string"
+          ? body.previewContext
+          : undefined,
+      memoryIndex,
+      vibeMode,
+      flyConfigured,
+      userInstructions: null,
+      context,
+      constraints,
+      policies,
+      viewRendererRules,
+    },
+  );
+
+  // Critical reminders stay near the end for recency, but repo instructions
+  // come after them so per-repo tone/audience rules still win. The voice
+  // overlay remains the final modality-specific override.
+  const userInstructionsSection =
+    formatUserInstructionsPromptSection(userInstructions);
+  const conversationSummarySection = body.conversationSummary?.trim()
+    ? `## Earlier conversation memory\n\n${body.conversationSummary.trim()}`
+    : null;
+  const promptWithReminders = [
+    assembledPrompt,
+    conversationSummarySection,
+    voiceMode ? null : CRITICAL_REMINDERS_MD,
+    userInstructionsSection,
+  ]
+    .filter((section): section is string => Boolean(section))
+    .join("\n\n");
+  const promptWithSpeakerOverride = appendAgentChatSpeakerOverride(
+    promptWithReminders,
+    addressedAgentMember,
+  );
+  const verifiedAgentHandoff = resolveAgentHandoffForPrompt(
+    body.agentHandoff,
+    addressedAgentMember
+      ? {
+          slug: addressedAgentMember.slug,
+          title: addressedAgentMember.title,
+        }
+      : { slug: "kody", title: "Kody" },
+  );
+  const promptWithAgentHandoff = verifiedAgentHandoff
+    ? [
+        promptWithSpeakerOverride,
+        buildAgentHandoffPrompt(verifiedAgentHandoff),
+        typeof body.agentHandoffContext === "string" &&
+        body.agentHandoffContext.trim()
+          ? buildPreviousAgentContextPrompt(body.agentHandoffContext.trim())
+          : null,
+      ]
+        .filter((section): section is string => Boolean(section))
+        .join("\n\n")
+    : promptWithSpeakerOverride;
+
+  // Voice modality is layered onto the FULLY-ASSEMBLED prompt, appended
+  // LAST so its rules ("no markdown, short sentences, symbols-as-words")
+  // win by recency over the research/issue-creation/memory blocks above
+  // which otherwise teach the model to reply in bullet-heavy markdown.
+  // The agent's brain and tools are untouched — the user picks the brain
+  // in the dropdown; only the output shape changes.
+  const systemPrompt = applyVoiceOverlay(promptWithAgentHandoff, voiceMode);
+  const groundedSystemPrompt = hasImageParts
+    ? `${systemPrompt}
+
+## Image input rule
+
+This turn includes an image from the user. For questions about what is visible in the image, answer from the attached image itself. Do not substitute current page context, task context, memory, or prior turns when they conflict with the image. If the image is unreadable or unavailable, say that instead of guessing.`
+    : systemPrompt;
+
+  // Build a tool-name → description map from the merged tool set. Every
+  // tool in this repo calls `tool({ description, inputSchema, execute })`
+  // from the AI SDK, which returns a runtime object with `description` as
+  // a first-class field. We ship the map to the client as a single
+  // `data-tools-index` event at the start of the stream so the thinking
+  // panel can render the tool description (the same string the model uses
+  // to decide whether to call a tool) as a muted one-liner under the tool
+  // name. One event for the whole turn, not one per call — see issue #321.
+  // Brain/Engine chats don't populate this; the client field is optional
+  // and the card gracefully omits the line when missing.
+  const toolDescriptionByName: Record<string, string> = {};
+  for (const [name, t] of Object.entries(tools ?? {})) {
+    const desc =
+      t && typeof t === "object" && "description" in t
+        ? (t as { description?: unknown }).description
+        : undefined;
+    if (typeof desc === "string" && desc.trim().length > 0) {
+      toolDescriptionByName[name] = desc;
+    }
+  }
+
+  let stepNum = 0;
+
+  // Heartbeat warnings. If no step has finished by T+30s/T+60s, log a
+  // warning so we can spot first-step stalls (the model taking forever before
+  // any tokens / tool calls). Cleared at first step finish, completion, or
+  // any error path. Declared outside the try so the catch can clear them.
+  const heartbeats: NodeJS.Timeout[] = [];
+  const armHeartbeat = (ms: number) => {
+    heartbeats.push(
+      setTimeout(() => {
+        if (stepNum === 0) {
+          traceWarn(
+            { traceId, elapsedMs: ms, messageCount: messages.length, modelId },
+            "kody-direct: no step finished yet (model may be stuck before first token)",
+          );
+        }
+      }, ms),
+    );
+  };
+  const clearHeartbeats = () => {
+    for (const h of heartbeats) clearTimeout(h);
+    heartbeats.length = 0;
+  };
+
+  let durableTurn: DurableTurn | null = null;
+  if (durableIdentity) {
+    try {
+      durableTurn = startDurableTurn(durableIdentity);
+    } catch (error) {
+      traceError(
+        { traceId, err: formatProviderError(error) },
+        "kody-direct: durable turn setup failed",
+      );
+    }
+  }
+
+  try {
+    traceLog(
+      {
+        traceId,
+        modelId,
+        messageCount: messages.length,
+        trimmedFromHistory: trimmedCount,
+        repo: repo ? `${repo.owner}/${repo.repo}` : null,
+        task: body.task?.issueNumber ?? null,
+        toolCount: Object.keys(tools ?? {}).length,
+      },
+      "kody-direct: streaming",
+    );
+    armHeartbeat(30_000);
+    armHeartbeat(60_000);
+    const runModelTurn = (turnMessages: typeof modelMessages) =>
+      streamText({
+        model,
+        system: groundedSystemPrompt,
+        messages: turnMessages,
+        tools,
+        ...(forceShowViewTool
+          ? {
+              toolChoice: selectChatOutputToolChoice(
+                [SHOW_VIEW_TOOL],
+                providerCapabilities,
+              ),
+            }
+          : {
+              toolChoice: providerCapabilities.supportsRequiredToolChoice
+                ? ("required" as const)
+                : ("auto" as const),
+            }),
+        ...(!forceShowViewTool
+          ? {
+              prepareStep: ({ steps, messages: stepMessages }) => {
+                const finalAnswerNeedsView = steps.some((step) =>
+                  step.toolResults.some(
+                    (result) =>
+                      result.toolName === FINAL_ANSWER_TOOL &&
+                      isFinalAnswerRequiresViewOutput(result.output),
+                  ),
+                );
+                const hasPreRenderToolResult = steps.some((step) =>
+                  step.toolResults.some(
+                    (result) =>
+                      result.toolName !== SHOW_VIEW_TOOL &&
+                      result.toolName !== FINAL_ANSWER_TOOL,
+                  ),
+                );
+                // Some models (observed: MiniMax-M3) write tool calls as
+                // literal text instead of API tool calls — nothing executes,
+                // then they report fabricated results. Bounce it immediately:
+                // the next step starts with a corrective system message.
+                const lastStepText = steps[steps.length - 1]?.text ?? "";
+                const fabricatedToolCall = containsToolCallMarkup(lastStepText);
+                if (fabricatedToolCall) {
+                  traceWarn(
+                    { traceId, step: steps.length },
+                    "kody-direct: textual tool-call markup detected (bouncing)",
+                  );
+                }
+                const stepActiveTools = selectChatOutputActiveTools({
+                  toolNames: allActiveTools,
+                  requireViewOutput,
+                  allowPreRenderTools:
+                    shouldAllowPreRenderTools && !hasPreRenderToolResult,
+                  finalAnswerNeedsView,
+                });
+                return {
+                  activeTools: stepActiveTools,
+                  // Pin show_view by name when it is the only allowed tool —
+                  // some providers ignore the generic "required" and finish
+                  // with prose, ending the turn with nothing visible.
+                  toolChoice: selectChatOutputToolChoice(
+                    stepActiveTools,
+                    providerCapabilities,
+                  ),
+                  ...(fabricatedToolCall
+                    ? {
+                        messages: [
+                          ...stepMessages,
+                          {
+                            role: "system" as const,
+                            content:
+                              "Your previous message wrote a tool invocation as PLAIN TEXT. It did NOT execute — no tool ran, no data was read or written, and any id you produced is fabricated. Retract any claimed result and re-issue the operation as a REAL tool call through the API, or tell the user it could not be performed.",
+                          },
+                        ],
+                      }
+                    : {}),
+                };
+              },
+            }
+          : {}),
+        // Optimized for deep analysis: see DEFAULT_MAX_STEPS for the cap
+        // rationale and the per-model override path. The constant lives at
+        // module level so tests can assert the value.
+        stopWhen: [
+          settledToolAttempts(SHOW_VIEW_TOOL, MAX_SHOW_VIEW_ATTEMPTS),
+          successfulToolResult(FINAL_ANSWER_TOOL),
+          successfulRenderedViewResult(),
+          stepCountIs(resolvedModel.maxSteps ?? DEFAULT_MAX_STEPS),
+        ],
+        // Per-provider thinking config so reasoning-delta chunks actually
+        // reach the client. Without this, `sendReasoning: true` below has
+        // nothing to stream and the chat looks idle until the final answer.
+        // Voice mode skips reasoning entirely — the voice overlay forbids
+        // reading anything other than the final answer, and the chat client
+        // also drops reasoning chunks defensively in this mode.
+        // `applyReasoning` is the single source of truth for the
+        // effort→wire-shape translation; the user-picked level is forwarded
+        // as `body.reasoningEffort` and validated against the model's
+        // declared `efforts` list. Returns `{}` for models that don't
+        // reason, so non-reasoning providers stay untouched.
+        ...(voiceMode
+          ? {}
+          : applyReasoning(resolvedModel, body.reasoningEffort)),
+        // Per-tool tracing. `experimental_onToolCallStart` fires before the
+        // tool's `execute` is invoked; `experimental_onToolCallFinish`
+        // afterward with the SDK-measured `durationMs` and a success flag.
+        // Together with onStepFinish they give us a per-step, per-tool view
+        // of where time goes.
+        experimental_onToolCallStart: ({ toolCall }) => {
+          traceLog(
+            {
+              traceId,
+              tool: toolCall.toolName,
+              toolCallId: toolCall.toolCallId,
+            },
+            "kody-direct: tool start",
+          );
+        },
+        experimental_onToolCallFinish: (event) => {
+          const base = {
+            traceId,
+            tool: event.toolCall.toolName,
+            toolCallId: event.toolCall.toolCallId,
+            durationMs: event.durationMs,
+          };
+          if (event.success) {
+            traceLog(base, "kody-direct: tool ok");
+          } else {
+            traceWarn(
+              {
+                ...base,
+                err:
+                  event.error instanceof Error
+                    ? event.error.message
+                    : String(event.error),
+              },
+              "kody-direct: tool error",
+            );
+          }
+        },
+        onStepFinish: (step) => {
+          stepNum++;
+          if (stepNum === 1) clearHeartbeats();
+          traceLog(
+            {
+              traceId,
+              step: stepNum,
+              finishReason: step.finishReason,
+              toolCalls: step.toolCalls?.map((c) => c.toolName) ?? [],
+              usage: step.usage,
+            },
+            "kody-direct: step finish",
+          );
+        },
+        onError: ({ error }) => {
+          clearHeartbeats();
+          if (durableTurn) {
+            void durableTurn
+              .fail("provider_error")
+              .catch((persistenceError) => {
+                traceError(
+                  { traceId, err: formatProviderError(persistenceError) },
+                  "kody-direct: durable turn failure write failed",
+                );
+              });
+          }
+          // Server-side log of stream errors. We *also* surface the message
+          // to the UI via the `onError` arg to toUIMessageStreamResponse
+          // below, so the user sees what happened instead of a silent hang.
+          traceError(
+            {
+              traceId,
+              modelId,
+              err: formatProviderError(error),
+              ...extractProviderErrorMeta(error),
+            },
+            "kody-direct: stream onError",
+          );
+        },
+        onFinish: async (event) => {
+          clearHeartbeats();
+          clearGitHubContext();
+          if (durableTurn) {
+            const finalToolAnswer = event.steps
+              .flatMap((step) => step.toolResults)
+              .find(
+                (result) =>
+                  result.toolName === FINAL_ANSWER_TOOL &&
+                  isFinalAnswerOutput(result.output),
+              );
+            const content =
+              finalToolAnswer && isFinalAnswerOutput(finalToolAnswer.output)
+                ? finalToolAnswer.output.content
+                : event.text.trim();
+            try {
+              if (content) await durableTurn.complete(content);
+              else await durableTurn.fail("empty_response");
+            } catch (error) {
+              traceError(
+                { traceId, err: formatProviderError(error) },
+                "kody-direct: durable turn completion failed",
+              );
+            }
+          }
+          traceLog(
+            {
+              traceId,
+              steps: stepNum,
+              finishReason: event.finishReason,
+              totalDuration: Date.now() - reqStartedAt,
+              usage: event.usage,
+            },
+            "kody-direct: finish",
+          );
+        },
+      });
+    const result = runModelTurn(modelMessages);
+    void result.consumeStream({
+      onError: (error) => {
+        traceError(
+          { traceId, err: formatProviderError(error) },
+          "kody-direct: detached stream consumption failed",
+        );
+      },
+    });
+    const formatUIStreamError = (error: unknown): string =>
+      `[trace ${traceId}] ${formatProviderError(error)}`;
+    // Prepend a single `data-tools-index` event to the UI stream so the
+    // client can hydrate a name→description lookup for the thinking panel.
+    // One event for the whole turn (not one per tool call) — see the
+    // `toolDescriptionByName` build above for the why. We do this through
+    // `createUIMessageStream` so the description map is the first chunk the
+    // client sees; the rest of the stream is the same `result.toUIMessageStream`
+    // the SDK would have produced on its own.
+    const uiStream = createUIMessageStream({
+      execute: async ({ writer }) => {
+        writer.write({
+          type: "data-tools-index",
+          data: toolDescriptionByName,
+        });
+        if (failedToolFamilies.length > 0) {
+          // Visible warning line — without it a fabricated "saved!" reply
+          // is indistinguishable from a real one for the user.
+          writer.write({
+            type: "error",
+            errorText: `Some tools failed to load this turn and are unavailable: ${failedToolFamilies.join(", ")}. Related actions cannot run right now.`,
+          });
+        }
+        writer.merge(
+          result.toUIMessageStream({
+            sendReasoning: true,
+            onError: formatUIStreamError,
+          }),
+        );
+        // Silent-turn retry: some providers (observed: MiniMax-M3)
+        // intermittently burn the whole turn inside thinking and finish
+        // with no tool call and no visible text — even with a pinned
+        // tool choice (confirmed at the wire level). Each attempt is an
+        // independent sample, so up to two corrective follow-up turns
+        // are merged into the same UI stream before giving up.
+        try {
+          let attempt = result;
+          for (
+            let retryCount = 0;
+            retryCount <= MAX_SILENT_TURN_RETRIES;
+            retryCount += 1
+          ) {
+            const steps = await attempt.steps;
+            const producedOutputTool = steps.some((step) =>
+              step.toolResults.some(
+                (stepResult) =>
+                  // A rendered-view directive from ANY tool (e.g.
+                  // guided_flow_start) is the turn's visible output —
+                  // do not treat such turns as silent.
+                  isRenderedViewDirective(stepResult.output) ||
+                  ((stepResult.toolName === SHOW_VIEW_TOOL ||
+                    stepResult.toolName === FINAL_ANSWER_TOOL) &&
+                    !isToolErrorOutput(stepResult.output)),
+              ),
+            );
+            const visibleAnswer = parseReasoning(
+              steps.map((step) => step.text ?? "").join(""),
+            ).answer.trim();
+            if (producedOutputTool || visibleAnswer) return;
+            if (retryCount === MAX_SILENT_TURN_RETRIES) return;
+            traceWarn(
+              { traceId, retry: retryCount + 1, requireViewOutput },
+              "kody-direct: turn ended silent (retrying)",
+            );
+            attempt = runModelTurn([
+              ...modelMessages,
+              {
+                role: "system",
+                content: requireViewOutput
+                  ? "Your previous attempt ended WITHOUT the required `show_view` tool call and produced no visible reply. Call `show_view` NOW with a valid spec for this interaction. Do not answer in prose."
+                  : "Your previous attempt produced no visible reply. Finish NOW with a `show_view` call if the reply asks the user to choose or approve, otherwise a `final_answer` call with your reply.",
+              },
+            ]);
+            writer.merge(
+              attempt.toUIMessageStream({
+                sendReasoning: true,
+                onError: formatUIStreamError,
+              }),
+            );
+          }
+        } catch {
+          // The primary stream already reported its own error state.
+        }
+      },
+      onError: (error) => {
+        clearHeartbeats();
+        const msg = formatProviderError(error);
+        traceError(
+          { traceId, err: msg, ...extractProviderErrorMeta(error) },
+          "kody-direct: ui-stream onError",
+        );
+        return formatUIStreamError(error);
+      },
+    });
+    return createUIMessageStreamResponse({ stream: uiStream });
+  } catch (err) {
+    clearHeartbeats();
+    clearGitHubContext();
+    const msg = formatProviderError(err);
+    traceError(
+      { traceId, err: msg, ...extractProviderErrorMeta(err) },
+      "kody-direct: stream failed",
+    );
+    return NextResponse.json({ error: msg, traceId }, { status: 500 });
+  }
+}

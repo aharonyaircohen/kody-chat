@@ -10,11 +10,11 @@ import { describe, expect, it } from "vitest";
 import {
   buildAgentList,
   type ChatModelEntry,
-} from "@kody-ade/kody-chat/platform/agent-entries";
+} from "@kody-ade/kody-chat-dashboard/platform/agent-entries";
 import {
   familySnapEntry,
   resolveDefaultAgentEntry,
-} from "@kody-ade/kody-chat/components/kody-chat-selection";
+} from "@kody-ade/kody-chat-dashboard/components/kody-chat-selection";
 
 const MODELS: ChatModelEntry[] = [
   { id: "claude-sonnet", label: "Claude Sonnet" },

@@ -11,7 +11,7 @@
 "use client";
 
 import { InboxList } from "@dashboard/features/inbox/components/InboxList";
-import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat-dashboard/platform";
 
 export const INBOX_PANEL_TESTID = "chat-panel-inbox";
 

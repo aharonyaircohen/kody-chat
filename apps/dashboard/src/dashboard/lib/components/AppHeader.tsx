@@ -16,7 +16,7 @@
 import { useState } from "react";
 
 import { KodyHeader } from "./KodyHeader";
-import { MobileMenu } from "@kody-ade/kody-chat/components/MobileMenu";
+import { MobileMenu } from "@kody-ade/kody-chat-dashboard/components/MobileMenu";
 
 export function AppHeader() {
   const [navOpen, setNavOpen] = useState(false);

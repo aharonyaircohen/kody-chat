@@ -12,7 +12,7 @@ describe("dashboard Kody chat route boundary", () => {
     const source = readFileSync(routePath, "utf8");
 
     expect(source).toContain(
-      'from "@kody-ade/kody-chat/routes/kody/chat-kody"',
+      'from "@kody-ade/kody-chat-dashboard/routes/kody/chat-kody"',
     );
     expect(source).toContain("export { POST }");
     expect(source.split("\n").length).toBeLessThan(30);

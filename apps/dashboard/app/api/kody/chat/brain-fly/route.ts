@@ -48,7 +48,7 @@ import { requestOrigin } from "@kody-ade/base/request-origin";
 import {
   withPageContext,
   withDashboardContext,
-} from "@kody-ade/kody-chat/core/page-context";
+} from "@kody-ade/kody-chat-dashboard/core/page-context";
 import { loadContextForPrompt } from "@kody-ade/workspace/context/files";
 import { createRepoBrainScope } from "@kody-ade/brain/repo-scope";
 import { readResolvedAgentFile } from "@dashboard/lib/agent-files";

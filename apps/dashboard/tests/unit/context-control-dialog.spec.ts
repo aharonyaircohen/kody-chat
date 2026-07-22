@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const SOURCE = readFileSync(
-  "node_modules/@kody-ade/kody-chat/src/dashboard/lib/components/ContextControl.tsx",
+  "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/ContextControl.tsx",
   "utf8",
 );
 

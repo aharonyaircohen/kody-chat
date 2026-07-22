@@ -11,37 +11,37 @@
  */
 import { describe, expect, it } from "vitest";
 
-import type { ChatPlugin } from "@kody-ade/kody-chat/platform";
-import { FULL_GRANT } from "@kody-ade/kody-chat/platform/capabilities";
+import type { ChatPlugin } from "@kody-ade/kody-chat-dashboard/platform";
+import { FULL_GRANT } from "@kody-ade/kody-chat-dashboard/platform/capabilities";
 import {
   ChatPluginRegistrationError,
   createChatPluginRegistry,
-} from "@kody-ade/kody-chat/platform/registry";
+} from "@kody-ade/kody-chat-dashboard/platform/registry";
 
 import { activityChatPlugin } from "@dashboard/lib/chat/plugins/activity";
 import { agencyRunsChatPlugin } from "@dashboard/lib/chat/plugins/agency-runs";
 import { agentGoalsChatPlugin } from "@dashboard/lib/chat/plugins/agent-goals";
 import { agentLoopsChatPlugin } from "@dashboard/lib/chat/plugins/agent-loops";
 import { agentsChatPlugin } from "@dashboard/lib/chat/plugins/agents";
-import { brandsChatPlugin } from "@kody-ade/kody-chat/plugins/brands";
+import { brandsChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/brands";
 import { capabilitiesChatPlugin } from "@dashboard/lib/chat/plugins/capabilities";
 import { changelogChatPlugin } from "@dashboard/lib/chat/plugins/changelog";
-import { commandsPageChatPlugin } from "@kody-ade/kody-chat/plugins/commands-page";
+import { commandsPageChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/commands-page";
 import { companyChatPlugin } from "@dashboard/lib/chat/plugins/company";
 import { companyIntentsChatPlugin } from "@dashboard/lib/chat/plugins/company-intents";
 import { configChatPlugin } from "@dashboard/lib/chat/plugins/config";
-import { contextChatPlugin } from "@kody-ade/kody-chat/plugins/context";
+import { contextChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/context";
 import { docsChatPlugin } from "@dashboard/lib/chat/plugins/docs";
 import { filesChatPlugin } from "@dashboard/lib/chat/plugins/files";
 import { inboxChatPlugin } from "@dashboard/lib/chat/plugins/inbox";
-import { instructionsChatPlugin } from "@kody-ade/kody-chat/plugins/instructions";
-import { memoryChatPlugin } from "@kody-ade/kody-chat/plugins/memory";
+import { instructionsChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/instructions";
+import { memoryChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/memory";
 import { messagesChatPlugin } from "@dashboard/lib/chat/plugins/messages";
-import { modelsChatPlugin } from "@kody-ade/kody-chat/plugins/models";
+import { modelsChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/models";
 import { notificationsChatPlugin } from "@dashboard/lib/chat/plugins/notifications";
 import { previewChatPlugin } from "@dashboard/lib/chat/plugins/preview";
 import { reportsChatPlugin } from "@dashboard/lib/chat/plugins/reports";
-import { secretsChatPlugin } from "@kody-ade/kody-chat/plugins/secrets";
+import { secretsChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/secrets";
 import { storeCatalogChatPlugin } from "@dashboard/lib/chat/plugins/store-catalog";
 import { todosChatPlugin } from "@dashboard/lib/chat/plugins/todos";
 import { variablesChatPlugin } from "@dashboard/lib/chat/plugins/variables";

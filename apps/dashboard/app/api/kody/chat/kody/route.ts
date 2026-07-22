@@ -3,7 +3,7 @@
  *
  * Keep Next.js segment settings here because they cannot be re-exported.
  */
-export { POST } from "@kody-ade/kody-chat/routes/kody/chat-kody";
+export { POST } from "@kody-ade/kody-chat-dashboard/routes/kody/chat-kody";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;

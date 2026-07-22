@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { runJourneyScenario, type JourneyBrowserPage } from "@kody-ade/kody-chat/user-journeys/runner";
-import type { JourneyScenario } from "@kody-ade/kody-chat/user-journeys/contracts";
+import { runJourneyScenario, type JourneyBrowserPage } from "@kody-ade/kody-chat-dashboard/user-journeys/runner";
+import type { JourneyScenario } from "@kody-ade/kody-chat-dashboard/user-journeys/contracts";
 
 const auth = {
   repoUrl: "https://github.com/acme/widgets",

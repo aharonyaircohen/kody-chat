@@ -225,6 +225,13 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"history-limit"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("TERMINAL_TMUX_HISTORY_LIMIT");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("function tmuxPaneCommand");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      'shellQuote(machineBaseUrl + "/start")',
+    );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("wait?state=started&timeout=60");
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      '"Authorization: Bearer $FLY_API_TOKEN"',
+    );
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('"attach-session"');
     expect(TERMINAL_BRIDGE_SCRIPT).not.toContain(
       "Reattached terminal session.",
@@ -237,6 +244,13 @@ describe("ensureTerminalBridge", () => {
     expect(TERMINAL_BRIDGE_SCRIPT).toContain(
       "Terminal did not answer the keyboard self-test.",
     );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      "armReadinessChecks({ reusedTmux: !tmuxState.created })",
+    );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain(
+      "if (reusedTmux && session.startAttempts < MAX_SSH_START_ATTEMPTS)",
+    );
+    expect(TERMINAL_BRIDGE_SCRIPT).toContain("killTmuxSession(tmuxName)");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain('type: "ready"');
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("findReadyProof");
     expect(TERMINAL_BRIDGE_SCRIPT).toContain("\\/dev\\/(?:pts\\/[0-9]+|tty");

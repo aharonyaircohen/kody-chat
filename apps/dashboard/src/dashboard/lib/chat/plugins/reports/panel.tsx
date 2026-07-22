@@ -11,7 +11,7 @@
 "use client";
 
 import { ReportsFilesView } from "../../../components/ReportsFilesView";
-import type { ChatPanelViewProps } from "@kody-ade/kody-chat/platform";
+import type { ChatPanelViewProps } from "@kody-ade/kody-chat-dashboard/platform";
 
 export const REPORTS_PANEL_TESTID = "chat-panel-reports";
 

@@ -62,7 +62,7 @@ import { VibeDefaultPreviewField } from "@dashboard/features/vibe/components/Vib
 import { PreviewActions } from "@dashboard/features/previews/components/PreviewActions";
 import { CIStatusBadge } from "@dashboard/lib/components/CIStatusBadge";
 import { KodyHeader } from "@dashboard/lib/components/KodyHeader";
-import { MobileMenu } from "@kody-ade/kody-chat/components/MobileMenu";
+import { MobileMenu } from "@kody-ade/kody-chat-dashboard/components/MobileMenu";
 import { SimpleTooltip } from "@dashboard/lib/components/SimpleTooltip";
 import { TaskDetail } from "@dashboard/features/tasks/components/TaskDetail";
 import { VibeRunButton } from "@dashboard/features/vibe/components/VibeRunButton";

@@ -78,12 +78,12 @@ import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
 import { TaskList } from "@dashboard/features/tasks/components/TaskList";
 import { GoalDiscussion } from "@dashboard/features/goals/components/GoalDiscussion";
 import { GoalAssigneePicker } from "@dashboard/features/goals/components/GoalAssigneePicker";
-import { KodyChat } from "@kody-ade/kody-chat/components/KodyChat";
+import { KodyChat } from "@kody-ade/kody-chat-dashboard/components/KodyChat";
 // Leaf manifest import on purpose (Step 7 bundle check) — see
 // chat/plugins/terminal/plugin.ts.
-import { terminalChatPlugin } from "@kody-ade/kody-chat/plugins/terminal/plugin";
-import { commandsChatPlugin } from "@kody-ade/kody-chat/plugins/commands";
-import { vibeChatPlugin } from "@kody-ade/kody-chat/plugins/vibe";
+import { terminalChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/terminal/plugin";
+import { commandsChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/commands";
+import { vibeChatPlugin } from "@kody-ade/kody-chat-dashboard/plugins/vibe";
 
 // Planner-dialog plugin composition (Step 6 / M6: the host owns the plugin
 // list). Matches the pre-Step-6 built-ins for this mount: terminal +

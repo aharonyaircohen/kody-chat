@@ -6,4 +6,4 @@ export const metadata = buildKodyMetadata({
   path: "/guided-flows",
 });
 
-export { default } from "@kody-ade/kody-chat/pages/guided-flows";
+export { default } from "@kody-ade/kody-chat-dashboard/pages/guided-flows";

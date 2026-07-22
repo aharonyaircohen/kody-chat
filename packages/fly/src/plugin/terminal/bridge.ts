@@ -237,6 +237,7 @@ import { spawn, spawnSync } from "node:child_process";
 const TOKEN_VERSION = "kody-terminal-v1";
 const SSH_STATUS_INTERVAL_MS = 10000;
 const READY_TIMEOUT_MS = 75000;
+const REUSED_TMUX_READY_TIMEOUT_MS = 15000;
 const READY_PROBE_INTERVAL_MS = 2500;
 const MAX_SSH_START_ATTEMPTS = 5;
 const SSH_START_RETRY_DELAY_MS = 2000;
@@ -799,7 +800,24 @@ function shellQuote(value) {
 }
 
 function tmuxPaneCommand(claims) {
-  return directFlySshCommand(claims).map(shellQuote).join(" ");
+  const machineBaseUrl =
+    "https://api.machines.dev/v1/apps/" +
+    claims.app +
+    "/machines/" +
+    claims.machineId;
+  const wakeAndConnect = [
+    "curl -fsS --retry 2 --retry-delay 1 -X POST",
+    '-H "Authorization: Bearer $FLY_API_TOKEN"',
+    shellQuote(machineBaseUrl + "/start"),
+    ">/dev/null 2>&1 || true;",
+    "curl -fsS --retry 2 --retry-delay 1",
+    '-H "Authorization: Bearer $FLY_API_TOKEN"',
+    shellQuote(machineBaseUrl + "/wait?state=started&timeout=60"),
+    ">/dev/null;",
+    "exec",
+    directFlySshCommand(claims).map(shellQuote).join(" "),
+  ].join(" ");
+  return ["sh", "-lc", wakeAndConnect].map(shellQuote).join(" ");
 }
 
 function tmuxSessionName(claims) {
@@ -984,7 +1002,6 @@ function createFlyConsoleSession(claims, key) {
   };
   const readyMarker = "__KR_" + crypto.randomBytes(4).toString("hex") + "__";
   const tmuxName = key ? tmuxSessionName(claims) : null;
-  if (tmuxName) ensureTmuxSession(claims, tmuxName, env);
   const command = tmuxName
     ? ["tmux", "attach-session", "-t", tmuxName]
     : directFlySshCommand(claims);
@@ -1016,7 +1033,7 @@ function createFlyConsoleSession(claims, key) {
     resizeControl: null,
     restartChild: null,
   };
-  function armReadinessChecks() {
+  function armReadinessChecks({ reusedTmux }) {
     clearInterval(session.statusTimer);
     clearTimeout(session.readyTimer);
     session.statusTimer = setInterval(() => {
@@ -1029,6 +1046,16 @@ function createFlyConsoleSession(claims, key) {
     }, SSH_STATUS_INTERVAL_MS);
     session.readyTimer = setTimeout(() => {
       if (session.ready) return;
+      if (reusedTmux && session.startAttempts < MAX_SSH_START_ATTEMPTS) {
+        session.pendingOutput = "";
+        sendToSession(session, {
+          type: "output",
+          data: "Replacing stale terminal session...\r\n",
+        });
+        killTmuxSession(tmuxName);
+        session.child?.kill("SIGTERM");
+        return;
+      }
       if (session.pendingOutput) {
         rememberOutput(session, session.pendingOutput);
         sendToSession(session, { type: "output", data: session.pendingOutput });
@@ -1040,7 +1067,7 @@ function createFlyConsoleSession(claims, key) {
       });
       session.timedOut = true;
       session.child?.kill("SIGTERM");
-    }, READY_TIMEOUT_MS);
+    }, reusedTmux ? REUSED_TMUX_READY_TIMEOUT_MS : READY_TIMEOUT_MS);
   }
 
   function findReadyProof(output) {
@@ -1107,9 +1134,10 @@ function createFlyConsoleSession(claims, key) {
 
   function startChild() {
     if (session.child) return;
+    let tmuxState = { created: true };
     if (tmuxName) {
       try {
-        ensureTmuxSession(claims, tmuxName, env);
+        tmuxState = ensureTmuxSession(claims, tmuxName, env);
       } catch (err) {
         cleanupSession(session);
         sendToSession(session, {
@@ -1121,7 +1149,9 @@ function createFlyConsoleSession(claims, key) {
         return;
       }
     }
-    if (!session.ready) armReadinessChecks();
+    if (!session.ready) {
+      armReadinessChecks({ reusedTmux: !tmuxState.created });
+    }
     session.startAttempts += 1;
     const child = spawn("python3", args, {
       env: { ...env, KODY_PTY_CONTROL_FD: "3" },

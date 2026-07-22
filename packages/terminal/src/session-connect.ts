@@ -11,7 +11,10 @@ import "server-only";
 import type { NextRequest } from "next/server";
 
 import { logger } from "@kody-ade/base/logger";
-import { startServerProviderMachine } from "@kody-ade/fly/infrastructure/server-machines";
+import {
+  serverProviderHostname,
+  startServerProviderMachine,
+} from "@kody-ade/fly/infrastructure/server-machines";
 import {
   serverProviderConfigFromContext,
   type ServerProviderContext,
@@ -84,9 +87,21 @@ const TARGET_MESSAGE: Record<string, string> = {
 
 const WAKE_POLL_ATTEMPTS = 60;
 const WAKE_POLL_INTERVAL_MS = 1000;
+const EDGE_WAKE_TIMEOUT_MS = 15_000;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function wakeServerProviderMachineThroughEdge(app: string): Promise<void> {
+  try {
+    await globalThis.fetch(`https://${serverProviderHostname(app)}/healthz`, {
+      redirect: "manual",
+      signal: AbortSignal.timeout(EDGE_WAKE_TIMEOUT_MS),
+    });
+  } catch (err) {
+    logger.warn({ err, app }, "terminal: edge wake did not answer");
+  }
 }
 
 function isFlyBridgeAuthError(err: unknown): boolean {
@@ -246,6 +261,7 @@ export async function startTerminalSession(input: {
         "terminal: waiting for machine transition",
       );
     }
+    await wakeServerProviderMachineThroughEdge(requested.app);
     const selectedInput = {
       app: requested.app,
       machineId: requested.machineId,

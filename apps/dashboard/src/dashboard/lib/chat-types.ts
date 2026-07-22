@@ -6,7 +6,7 @@
  */
 
 import type { ChatViewDirective } from "./chat-ui-actions";
-import type { ConversationCheckpoint } from "@kody-ade/kody-chat/core/conversation-compaction";
+import type { ConversationCheckpoint } from "@kody-ade/kody-chat-dashboard/core/conversation-compaction";
 
 export interface AgentHandoff {
   id: string;

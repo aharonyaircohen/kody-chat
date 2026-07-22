@@ -10,7 +10,7 @@ import { Mic, MicOff, PhoneOff, Loader2, Volume2 } from "lucide-react";
 import { cn } from "@kody-ade/base/utils/ui";
 import { Button } from "@kody-ade/base/ui/button";
 import type { VoiceChatState } from "../hooks/useVoiceChat";
-import { stripReasoning } from "@kody-ade/kody-chat/core/reasoning";
+import { stripReasoning } from "@kody-ade/kody-chat-dashboard/core/reasoning";
 
 interface VoiceChatOverlayProps {
   state: VoiceChatState;

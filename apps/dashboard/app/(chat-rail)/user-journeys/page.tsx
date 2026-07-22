@@ -6,4 +6,4 @@ export const metadata = buildKodyMetadata({
   path: "/user-journeys",
 });
 
-export { default } from "@kody-ade/kody-chat/pages/user-journeys";
+export { default } from "@kody-ade/kody-chat-dashboard/pages/user-journeys";

@@ -14,7 +14,7 @@ import {
   containsToolCallMarkup,
   parseAssistantContent,
   stripToolCallMarkup,
-} from "@kody-ade/kody-chat/core/tool-call-strip";
+} from "@kody-ade/kody-chat-dashboard/core/tool-call-strip";
 
 describe("stripToolCallMarkup", () => {
   it("removes a complete tool_call JSON block", () => {

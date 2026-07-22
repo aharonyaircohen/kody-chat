@@ -29,8 +29,8 @@ jobs:
           cache: pnpm
           registry-url: https://registry.npmjs.org
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @kody-ade/kody-chat test:external-package
-      - run: npm publish ./packages/kody-chat/library --tag "${{ inputs.tag }}" --access public --provenance
+      - run: pnpm --filter @kody-ade/kody-chat-dashboard test:external-package
+      - run: npm publish ./packages/kody-chat --tag "${{ inputs.tag }}" --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - run: pnpm --filter @kody-ade/kody-chat test:external-package:registry
+      - run: pnpm --filter @kody-ade/kody-chat-dashboard test:external-package:registry

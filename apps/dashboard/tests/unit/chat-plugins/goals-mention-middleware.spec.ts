@@ -19,13 +19,13 @@ import {
   FULL_GRANT,
   createChatPluginRegistry,
   type ChatHostEffect,
-} from "@kody-ade/kody-chat/platform";
+} from "@kody-ade/kody-chat-dashboard/platform";
 import {
   SLASH_COMMANDS_HOST_KEY,
   SLASH_EXPANSION_MIDDLEWARE_ID,
   commandsChatPlugin,
   type SlashCommand,
-} from "@kody-ade/kody-chat/plugins/commands";
+} from "@kody-ade/kody-chat-dashboard/plugins/commands";
 import {
   GOALS_DIRECT_EFFECT,
   GOAL_MENTION_MIDDLEWARE_ID,
@@ -35,11 +35,11 @@ import {
   readGoalDirectEffect,
   readHostKnownGoals,
   type GoalRef,
-} from "@kody-ade/kody-chat/plugins/goals";
+} from "@kody-ade/kody-chat-dashboard/plugins/goals";
 import {
   TERMINAL_INTENT_MIDDLEWARE_ID,
   terminalChatPlugin,
-} from "@kody-ade/kody-chat/plugins/terminal";
+} from "@kody-ade/kody-chat-dashboard/plugins/terminal";
 
 const GOALS: GoalRef[] = [
   { id: "q4-roadmap", discussionNumber: 12 },
