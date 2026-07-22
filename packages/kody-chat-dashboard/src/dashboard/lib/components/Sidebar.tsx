@@ -344,6 +344,7 @@ function SidebarContent({
         >
           <Link
             href={scopedHref("/")}
+            prefetch={false}
             onClick={onNavigate}
             className="flex items-center gap-2 text-foreground hover:text-foreground/80"
             aria-label={

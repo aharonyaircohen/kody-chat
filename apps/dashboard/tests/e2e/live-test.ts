@@ -44,9 +44,27 @@ function monitorPage(page: Page, diagnostics: string[]) {
     );
   });
   page.on("response", (response) => {
-    if (response.status() === 429 || response.status() >= 500) {
+    if (
+      response.status() === 401 ||
+      response.status() === 403 ||
+      response.status() === 404 ||
+      response.status() === 429 ||
+      response.status() >= 500
+    ) {
+      const request = response.request();
+      const headers = request.headers();
+      const requestContext = [
+        `type=${request.resourceType()}`,
+        headers.rsc === "1" ? "rsc=1" : "",
+        headers["next-router-prefetch"] === "1" ? "prefetch=1" : "",
+        headers["next-router-state-tree"]
+          ? `tree=${headers["next-router-state-tree"].slice(0, 500)}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
       record(
-        `[response:${response.status()}] ${response.request().method()} ${sanitizeDiagnosticUrl(response.url())}`,
+        `[response:${response.status()}] ${request.method()} ${sanitizeDiagnosticUrl(response.url())} ${requestContext}`,
       );
     }
   });
