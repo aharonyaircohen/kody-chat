@@ -52,6 +52,7 @@ const REPO_OWNED_LEGACY_PREFIXES = [
   "/inbox",
   "/instructions",
   "/jobs",
+  "/knowledge-system",
   "/memory",
   "/messages",
   "/models",
@@ -148,6 +149,8 @@ export const routes = {
     repoSelectionPath(ref, "docs", path),
   repoReports: (ref: RepoRef, slug?: string | null) =>
     repoSelectionPath(ref, "reports", slug),
+  repoKnowledgeSystem: (ref: RepoRef) =>
+    repoSelectionPath(ref, "knowledge-system"),
   repoTodos: (ref: RepoRef) => repoSelectionPath(ref, "todos"),
   repoTodoList: (ref: RepoRef, slug: string) =>
     repoSelectionPath(ref, "todos", slug),

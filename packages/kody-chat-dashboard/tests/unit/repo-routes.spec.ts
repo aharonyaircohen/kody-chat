@@ -36,6 +36,9 @@ describe("repo-scoped route contract", () => {
     expect(routes.repoReports(repo, "release-health")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/reports/release-health",
     );
+    expect(routes.repoKnowledgeSystem(repo)).toBe(
+      "/repo/A-Guy-educ/A-Guy-Web/knowledge-system",
+    );
     expect(routes.repoTodos(repo)).toBe("/repo/A-Guy-educ/A-Guy-Web/todos");
     expect(routes.repoTodoList(repo, "launch-plan")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/todos/launch-plan",

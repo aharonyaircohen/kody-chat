@@ -112,6 +112,11 @@ export const TABLES: readonly TableDef[] = [
   { table: "macros", naturalKey: ["macroId"], upsertIndex: "by_tenant" },
   { table: "repoDocs", naturalKey: ["kind"], upsertIndex: "by_kind" },
   {
+    table: "knowledgeGraphs",
+    naturalKey: ["tenantId"],
+    upsertIndex: "by_tenant",
+  },
+  {
     table: "notificationPrefs",
     naturalKey: ["login"],
     upsertIndex: "by_login",

@@ -29,6 +29,7 @@ import {
   LayoutGrid,
   MessageSquare,
   MonitorPlay,
+  Network,
   Package,
   Palette,
   Route,
@@ -312,6 +313,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         icon: Route,
         description: "Kody runs for goals, loops, and workflows.",
         tint: "text-sky-300 bg-sky-500/10",
+      },
+      {
+        href: "/knowledge-system",
+        label: "Knowledge System",
+        icon: Network,
+        description: "Explore this repository's connected knowledge graph.",
+        tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
         href: "/agents",
@@ -621,6 +629,7 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
       TODOS_NAV_ITEM,
       navItemForHref("/inbox"),
       navItemForHref("/agency-runs"),
+      navItemForHref("/knowledge-system"),
     ],
   },
   {

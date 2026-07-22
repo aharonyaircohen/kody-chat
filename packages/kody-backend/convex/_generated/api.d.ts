@@ -28,6 +28,7 @@ import type * as guidedFlows from "../guidedFlows.js";
 import type * as importExport from "../importExport.js";
 import type * as inbox from "../inbox.js";
 import type * as intents from "../intents.js";
+import type * as knowledgeGraphs from "../knowledgeGraphs.js";
 import type * as lib_auth from "../lib/auth.js";
 import type * as macros from "../macros.js";
 import type * as manifests from "../manifests.js";
@@ -72,6 +73,7 @@ declare const fullApi: ApiFromModules<{
   importExport: typeof importExport;
   inbox: typeof inbox;
   intents: typeof intents;
+  knowledgeGraphs: typeof knowledgeGraphs;
   "lib/auth": typeof lib_auth;
   macros: typeof macros;
   manifests: typeof manifests;

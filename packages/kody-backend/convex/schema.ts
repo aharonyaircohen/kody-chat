@@ -423,6 +423,22 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_kind", ["tenantId", "kind"]),
 
+  // One generated Knowledge System bundle per consumer repository. Large
+  // Graphify artifacts live in Convex file storage; this row owns their
+  // tenant boundary, provenance, and replacement lifecycle.
+  knowledgeGraphs: defineTable({
+    tenantId: v.string(),
+    graphStorageId: v.id("_storage"),
+    reportStorageId: v.optional(v.id("_storage")),
+    htmlStorageId: v.optional(v.id("_storage")),
+    generatedAt: v.string(),
+    sourceRevision: v.optional(v.string()),
+    nodeCount: v.number(),
+    edgeCount: v.number(),
+    schemaVersion: v.number(),
+    updatedAt: v.string(),
+  }).index("by_tenant", ["tenantId"]),
+
   userState: defineTable({
     tenantId: v.string(),
     namespace: v.string(),
