@@ -32,6 +32,18 @@ const operations = {
   "dailyLogs.append": { kind: "mutation", fn: backendApi.dailyLogs.append },
   "chatEvents.append": { kind: "mutation", fn: backendApi.chatEvents.append },
   "agencyRuns.save": { kind: "mutation", fn: backendApi.agencyRuns.save },
+  "agencyModel.listDefinitions": {
+    kind: "query",
+    fn: backendApi.agencyModel.listDefinitions,
+  },
+  "agencyModel.getState": {
+    kind: "query",
+    fn: backendApi.agencyModel.getState,
+  },
+  "agencyModel.putState": {
+    kind: "mutation",
+    fn: backendApi.agencyModel.putState,
+  },
   "runEvents.append": { kind: "mutation", fn: backendApi.runEvents.append },
   "manifests.get": { kind: "query", fn: backendApi.manifests.get },
   "reports.save": { kind: "mutation", fn: backendApi.reports.save },

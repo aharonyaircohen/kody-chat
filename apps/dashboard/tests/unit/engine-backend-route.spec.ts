@@ -68,4 +68,21 @@ describe("POST /api/kody/engine/backend", () => {
     expect(response.status).toBe(400);
     expect(backend.mutation).not.toHaveBeenCalled();
   });
+
+  it("allows the Engine to read repository-scoped Agency Definitions", async () => {
+    backend.query.mockResolvedValue([]);
+
+    const response = await POST(
+      request({
+        kind: "query",
+        operation: "agencyModel.listDefinitions",
+        args: { tenantId: "attacker/repo" },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(backend.query).toHaveBeenCalledWith(expect.anything(), {
+      tenantId: "trusted/repo",
+    });
+  });
 });
