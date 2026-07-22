@@ -138,6 +138,7 @@ test("shows the migrated V2 ownership and execution model from the real backend"
     waitUntil: "domcontentloaded",
   });
   await expect(page.getByRole("heading", { name: "Agency Runs" })).toBeVisible();
-  await expect(page.getByText("refresh-knowledge-system").first()).toBeVisible();
-  await expect(page.getByText("succeeded").first()).toBeVisible();
+  await page.getByRole("button").filter({ hasText: "Workflows" }).click();
+  await expect(page.getByText("Refresh Knowledge System").first()).toBeVisible();
+  await expect(page.getByText("success", { exact: true }).first()).toBeVisible();
 });
