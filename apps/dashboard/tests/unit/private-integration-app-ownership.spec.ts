@@ -5,6 +5,11 @@ import { describe, expect, it } from "vitest";
 const repositoryRoot = resolve(process.cwd(), "../..");
 const dashboardApp = join(repositoryRoot, "apps/dashboard/app");
 const integrationApp = join(repositoryRoot, "packages/kody-chat-dashboard/app");
+const dashboardTests = join(repositoryRoot, "apps/dashboard/tests");
+const integrationTests = join(
+  repositoryRoot,
+  "packages/kody-chat-dashboard/tests",
+);
 
 function files(root: string): string[] {
   return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
@@ -22,6 +27,24 @@ describe("private integration app ownership", () => {
           return (
             readFileSync(join(dashboardApp, path), "utf8") ===
             readFileSync(join(integrationApp, path), "utf8")
+          );
+        } catch {
+          return false;
+        }
+      });
+
+    expect(duplicated).toEqual([]);
+  });
+
+  it("does not run byte-identical tests in both workspaces", () => {
+    const duplicated = files(integrationTests)
+      .map((path) => relative(integrationTests, path))
+      .filter((path) => /\.(?:int\.)?spec\.ts$/.test(path))
+      .filter((path) => {
+        try {
+          return (
+            readFileSync(join(dashboardTests, path), "utf8") ===
+            readFileSync(join(integrationTests, path), "utf8")
           );
         } catch {
           return false;
