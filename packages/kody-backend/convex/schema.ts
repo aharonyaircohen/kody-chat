@@ -356,6 +356,16 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_tenant", ["tenantId", "definitionId"]),
 
+  agencyOutputs: defineTable({
+    tenantId: v.string(),
+    recordId: v.string(),
+    schemaVersion: v.number(),
+    runId: v.string(),
+    data: v.any(),
+  })
+    .index("by_tenant_record", ["tenantId", "recordId"])
+    .index("by_tenant_run", ["tenantId", "runId"]),
+
   reports: defineTable({
     tenantId: v.string(),
     slug: v.string(),

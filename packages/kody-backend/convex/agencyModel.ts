@@ -5,6 +5,9 @@ import {
   createIntentDefinition,
   createLoopDefinition,
   createOperationDefinition,
+  createGoalState,
+  createLoopState,
+  createRunOutput,
   createWorkflowDefinition,
 } from "@kody-ade/agency-domain";
 import { mutation, query } from "./_generated/server";
@@ -79,6 +82,13 @@ export const putState = mutation({
   },
   handler: async (ctx, args) => {
     const { serviceKey: _serviceKey, ...state } = args;
+    const data =
+      args.kind === "goal"
+        ? createGoalState(args.data)
+        : createLoopState(args.data);
+    if (data.definitionId !== args.definitionId) {
+      throw new Error("Agency State does not match Definition");
+    }
     const existing = await ctx.db
       .query("agencyStates")
       .withIndex("by_tenant", (q) =>
@@ -86,10 +96,61 @@ export const putState = mutation({
       )
       .unique();
     if (existing) {
-      await ctx.db.patch(existing._id, state);
+      await ctx.db.patch(existing._id, { ...state, data });
       return existing._id;
     }
-    return ctx.db.insert("agencyStates", state);
+    return ctx.db.insert("agencyStates", { ...state, data });
+  },
+});
+
+export const appendOutput = mutation({
+  args: {
+    serviceKey: v.optional(v.string()),
+    tenantId: v.string(),
+    envelope: v.object({
+      schemaVersion: v.number(),
+      recordId: v.string(),
+      data: v.any(),
+    }),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("agencyOutputs")
+      .withIndex("by_tenant_record", (q) =>
+        q.eq("tenantId", args.tenantId).eq("recordId", args.envelope.recordId),
+      )
+      .unique();
+    if (existing) throw new Error("Agency Outputs are append-only");
+    const data = createRunOutput(args.envelope.data);
+    return ctx.db.insert("agencyOutputs", {
+      tenantId: args.tenantId,
+      ...args.envelope,
+      runId: data.runId,
+      data,
+    });
+  },
+});
+
+export const listOutputs = query({
+  args: {
+    serviceKey: v.optional(v.string()),
+    tenantId: v.string(),
+    runId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const runId = args.runId;
+    if (runId) {
+      return ctx.db
+        .query("agencyOutputs")
+        .withIndex("by_tenant_run", (q) =>
+          q.eq("tenantId", args.tenantId).eq("runId", runId),
+        )
+        .collect();
+    }
+    return ctx.db
+      .query("agencyOutputs")
+      .withIndex("by_tenant_record", (q) => q.eq("tenantId", args.tenantId))
+      .collect();
   },
 });
 

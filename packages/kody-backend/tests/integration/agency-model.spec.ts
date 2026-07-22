@@ -45,7 +45,13 @@ describe("agency model persistence", () => {
       definitionId: "refresh-graph",
       kind: "goal",
       schemaVersion: 1,
-      data: { lifecycle: "active", progress: 0, blockers: [] },
+      data: {
+        definitionId: "refresh-graph",
+        lifecycle: "active",
+        progress: 0,
+        blockers: [],
+        updatedAt: now,
+      },
       updatedAt: now,
     });
     await t.mutation(api.agencyModel.putState, {
@@ -53,7 +59,13 @@ describe("agency model persistence", () => {
       definitionId: "refresh-graph",
       kind: "goal",
       schemaVersion: 1,
-      data: { lifecycle: "active", progress: 1, blockers: [] },
+      data: {
+        definitionId: "refresh-graph",
+        lifecycle: "active",
+        progress: 1,
+        blockers: [],
+        updatedAt: "2026-07-22T00:01:00.000Z",
+      },
       updatedAt: "2026-07-22T00:01:00.000Z",
     });
     expect(
@@ -62,5 +74,30 @@ describe("agency model persistence", () => {
         definitionId: "refresh-graph",
       }),
     ).toMatchObject({ data: { progress: 1 } });
+  });
+
+  it("stores Run outputs once and queries them by Run", async () => {
+    const t = setup();
+    const output = {
+      kind: "evidence" as const,
+      key: "published",
+      value: true,
+      runId: "run-1",
+      producer: { kind: "capability" as const, id: "build-knowledge-graph" },
+      contract: "knowledge-graph",
+      createdAt: now,
+    };
+    await t.mutation(api.agencyModel.appendOutput, {
+      tenantId,
+      envelope: { schemaVersion: 1, recordId: "output-1", data: output },
+    });
+
+    await expect(
+      t.mutation(api.agencyModel.appendOutput, {
+        tenantId,
+        envelope: { schemaVersion: 1, recordId: "output-1", data: output },
+      }),
+    ).rejects.toThrow(/append-only/i);
+    expect(await t.query(api.agencyModel.listOutputs, { tenantId, runId: "run-1" })).toHaveLength(1);
   });
 });

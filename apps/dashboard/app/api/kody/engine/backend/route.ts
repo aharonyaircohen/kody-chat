@@ -44,6 +44,14 @@ const operations = {
     kind: "mutation",
     fn: backendApi.agencyModel.putState,
   },
+  "agencyModel.appendOutput": {
+    kind: "mutation",
+    fn: backendApi.agencyModel.appendOutput,
+  },
+  "agencyModel.listOutputs": {
+    kind: "query",
+    fn: backendApi.agencyModel.listOutputs,
+  },
   "runEvents.append": { kind: "mutation", fn: backendApi.runEvents.append },
   "manifests.get": { kind: "query", fn: backendApi.manifests.get },
   "reports.save": { kind: "mutation", fn: backendApi.reports.save },
