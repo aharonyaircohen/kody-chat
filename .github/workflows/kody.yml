@@ -82,5 +82,6 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: |
           test -f .kody-engine/definitions/capabilities/dispatch-due-loops/profile.json
+          test -f .kody-engine/definitions/capabilities/dispatch-due-loops/capability.md
           npx -y -p @kody-ade/kody-engine@latest kody-engine version
           npx -y -p @kody-ade/kody-engine@latest kody-engine ci --cwd "$GITHUB_WORKSPACE"
