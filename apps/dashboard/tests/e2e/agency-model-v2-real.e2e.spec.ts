@@ -102,4 +102,42 @@ test("shows the migrated V2 ownership and execution model from the real backend"
     await activated;
     await expect(page.getByRole("button", { name: "Pause" })).toBeVisible();
   }
+
+  await page.goto(
+    `${BASE_URL}/repo/${owner}/${repo}/agent-goals/knowledge-system-current`,
+    { waitUntil: "domcontentloaded" },
+  );
+  await expect(
+    page.getByRole("heading", { name: "knowledge-system-current" }),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Current state" })).toBeVisible();
+  await expect(page.getByText("progress", { exact: true })).toBeVisible();
+
+  const bundleResponse = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/kody/knowledge-system") &&
+      response.status() === 200,
+  );
+  await page.goto(
+    `${BASE_URL}/repo/${owner}/${repo}/knowledge-system`,
+    { waitUntil: "domcontentloaded" },
+  );
+  await bundleResponse;
+  await expect(
+    page.getByRole("heading", { name: "Knowledge System" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "Repository knowledge graph" }),
+  ).toBeVisible();
+  await expect(page.getByText("No graph published yet")).toHaveCount(0);
+  await expect(page.locator(".react-flow__node").first()).toBeVisible({
+    timeout: 30_000,
+  });
+
+  await page.goto(`${BASE_URL}/repo/${owner}/${repo}/agency-runs`, {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(page.getByRole("heading", { name: "Agency Runs" })).toBeVisible();
+  await expect(page.getByText("refresh-knowledge-system").first()).toBeVisible();
+  await expect(page.getByText("succeeded").first()).toBeVisible();
 });

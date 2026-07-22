@@ -132,11 +132,17 @@ function DefinitionDetail({
   const data = record.data;
   const operationId = "operationId" in data ? data.operationId : null;
   const operation = operations.find((item) => item.data.id === operationId)?.data;
+  const targetGoal =
+    "targetRef" in data && data.targetRef.kind === "goal"
+      ? goals.find((item) => item.data.id === data.targetRef.id)?.data
+      : null;
   const workflowId =
     "executionRef" in data && data.executionRef.kind === "workflow"
       ? data.executionRef.id
       : "targetRef" in data && data.targetRef.kind === "workflow"
         ? data.targetRef.id
+        : targetGoal?.executionRef.kind === "workflow"
+          ? targetGoal.executionRef.id
         : null;
   const workflow = workflows.find((item) => item.data.id === workflowId)?.data;
   const ownedOperations =
