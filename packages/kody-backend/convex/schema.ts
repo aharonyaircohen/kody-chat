@@ -380,6 +380,7 @@ export default defineSchema({
       v.literal("waiting-capacity"),
       v.literal("dispatched"),
       v.literal("failed"),
+      v.literal("dead-letter"),
     ),
     leaseUntil: v.optional(v.string()),
     reservationId: v.optional(v.string()),

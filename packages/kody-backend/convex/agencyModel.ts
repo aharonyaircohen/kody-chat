@@ -385,7 +385,11 @@ export const finishDispatch = mutation({
     tenantId: v.string(),
     idempotencyKey: v.string(),
     reservationId: v.string(),
-    status: v.union(v.literal("dispatched"), v.literal("failed")),
+    status: v.union(
+      v.literal("dispatched"),
+      v.literal("failed"),
+      v.literal("dead-letter"),
+    ),
     runId: v.optional(v.string()),
     now: v.string(),
   },
