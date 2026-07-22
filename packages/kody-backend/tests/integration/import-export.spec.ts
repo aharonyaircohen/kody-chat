@@ -73,6 +73,36 @@ describe("importExport", () => {
     expect(await t.query(api.importExport.exportTable, { table: "goals" })).toHaveLength(2)
   })
 
+  it("upserts a tenant-singleton table by tenantId alone", async () => {
+    const t = setup()
+    const graphStorageId = await t.run(async (ctx) =>
+      ctx.storage.store(new Blob(['{"nodes":[],"edges":[]}'], { type: "application/json" })),
+    )
+    const base = {
+      tenantId: REPO,
+      graphStorageId,
+      generatedAt: NOW,
+      nodeCount: 0,
+      edgeCount: 0,
+      schemaVersion: 1,
+      updatedAt: NOW,
+    }
+
+    await t.mutation(api.importExport.importChunk, { table: "knowledgeGraphs", docs: [base] })
+    const second = await t.mutation(api.importExport.importChunk, {
+      table: "knowledgeGraphs",
+      docs: [{ ...base, nodeCount: 3 }],
+    })
+
+    expect(second).toEqual({ inserted: 0, updated: 1 })
+    expect(
+      await t.query(api.importExport.exportTable, {
+        table: "knowledgeGraphs",
+        tenantId: REPO,
+      }),
+    ).toEqual([{ ...base, nodeCount: 3 }])
+  })
+
   it("upserts global tables by their natural key (eventLog, unindexed fallback)", async () => {
     const t = setup()
     const doc = { entryId: "e1", runId: "r", event: "tick", payload: { n: 1 }, emittedAt: NOW }

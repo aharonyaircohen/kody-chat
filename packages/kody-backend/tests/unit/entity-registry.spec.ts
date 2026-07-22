@@ -18,12 +18,25 @@ describe("entity registry drift", () => {
     expect(new Set(tables).size).toBe(tables.length);
   });
 
-  it("every entity declares a non-empty natural key of schema fields", () => {
+  it("every entity declares a natural key or an explicit tenant-singleton contract", () => {
     for (const entity of TABLES) {
-      expect(
-        entity.naturalKey.length,
-        `${entity.table} has no naturalKey`,
-      ).toBeGreaterThan(0);
+      const tenantSingleton =
+        "tenantSingleton" in entity && entity.tenantSingleton === true;
+      if (tenantSingleton) {
+        expect(
+          entity.global,
+          `${entity.table} singleton cannot be global`,
+        ).not.toBe(true);
+        expect(
+          entity.naturalKey,
+          `${entity.table} singleton must use tenantId as its complete identity`,
+        ).toEqual([]);
+      } else {
+        expect(
+          entity.naturalKey.length,
+          `${entity.table} has no naturalKey`,
+        ).toBeGreaterThan(0);
+      }
       const table = (schema.tables as Record<string, unknown>)[
         entity.table
       ] as {

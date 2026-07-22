@@ -4,6 +4,8 @@ export interface TableDef {
   naturalKey: string[];
   upsertIndex?: string;
   global?: boolean;
+  /** Exactly one row may exist per tenant; tenantId is the complete identity. */
+  tenantSingleton?: boolean;
 }
 
 export const TABLES: readonly TableDef[] = [
@@ -113,8 +115,9 @@ export const TABLES: readonly TableDef[] = [
   { table: "repoDocs", naturalKey: ["kind"], upsertIndex: "by_kind" },
   {
     table: "knowledgeGraphs",
-    naturalKey: ["tenantId"],
+    naturalKey: [],
     upsertIndex: "by_tenant",
+    tenantSingleton: true,
   },
   {
     table: "notificationPrefs",

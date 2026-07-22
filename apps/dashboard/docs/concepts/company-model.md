@@ -8,14 +8,83 @@ The short rule:
 Intent = why
 Operation = delegated responsibility
 Goal = what
-Loop = when
+Loop = what must stay true and when to check
 Agent = who
 Capability = how
 Workflow = composed how
 Context = background facts
 Instructions = chat behavior
 State = what happened
+Run = one execution attempt
 ```
+
+Objective and Trigger are shared value contracts, not additional agency
+entities:
+
+```text
+Objective = desired state + evidence + scope
+Trigger = when activation happens
+GoalDefinition = finite Objective + execution reference
+LoopDefinition = continuous Objective + Trigger + target + reconciliation policy
+```
+
+Goal and Loop are separate persisted models. Each has a versioned Definition
+and separate runtime State. Objective and Trigger have no id, lifecycle,
+storage record, or Dashboard page.
+
+## System map
+
+The complete model has four connected layers:
+
+```text
+Purpose and ownership
+Intent -> Operation -> Goal / Loop
+
+Execution
+Goal -> Workflow -> Capability
+Loop -> Goal | Workflow | Capability
+Any execution -> Run
+
+Decision and control
+Agent + Policy + Constraints + Scope
+
+Knowledge
+Run -> Facts + Evidence + Artifacts
+Those outputs -> Knowledge Graph
+```
+
+The arrows show responsibility and data flow, not storage ownership. A Loop
+wakes its target; it is not an execution step. A Run may record a Workflow or
+Capability execution. Policy is inherited from Intent, and the Knowledge Graph
+is always a derived view rather than a source of truth.
+
+The Trigger dispatcher and Loop controller are application services. They read
+LoopDefinition, update LoopState, and create Runs; they are not AI Agency
+entities.
+
+## Clean architecture rules
+
+```text
+Pure domain contracts
+    <- application services
+        <- Engine, Dashboard, Store, Convex, GitHub, and migration adapters
+```
+
+- Domain contracts contain no UI, Engine, database, GitHub, Convex, or Store
+  dependencies.
+- Definitions are versioned and portable. State is mutable and scoped to one
+  consumer repository.
+- Goal and Loop are aggregate boundaries. Their Definition and State are
+  separate contracts updated through application services.
+- Objective and Trigger are value objects with no independent identity.
+- Capability owns one executable action. Workflow alone owns multi-step
+  orchestration. Loop alone owns recurring activation.
+- Runs may change while active, become immutable when terminal, and emit
+  append-only events and outputs.
+- Facts, Evidence, and Artifacts record their source Run, producer, schema
+  version, and creation time.
+- Pause, retire, archive, restore, deletion, and reference protection are part
+  of each model contract.
 
 Agency Director is a responsibility, not a new agency model:
 
@@ -26,10 +95,9 @@ Agency Director = COO identity + management capability + management loop
 If a new agency file mixes two rows, stop and split it before adding more
 behavior.
 
-Operation is the target management model. It is not implemented in the current
-storage or runtime yet; current Intent files still link directly to goals,
-loops, and capabilities. Documenting the boundary first prevents the future
-implementation from becoming another overlapping container.
+Operation is the management boundary. Its contract and Dashboard APIs exist,
+while current Intent portfolio links remain compatibility paths during the
+model migration. Those direct links must not become a second ownership model.
 
 ## Intent-led company growth
 
@@ -214,8 +282,8 @@ Use these terms when explaining the agency model to humans or coding agents:
 | ---------- | ----------------------------------- | --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
 | Intent     | Why the company should change       | Company outcome, reason, priority, principles, success measures, and hard constraints         | Operating portfolio, runtime limits, or execution steps           |
 | Operation  | Where responsibility is grouped     | Bounded responsibility, Intent links, owned Goals and Loops, lifecycle, and derived health    | Agent identity, shared asset definitions, policy, or execution    |
-| Goal       | What should become true             | The result to reach, evidence, current progress, blockers                                     | Detailed worker identity or low-level method                      |
-| Loop       | When to check                       | Cadence, heartbeat, and which goal, workflow, or capability to wake                           | The detailed implementation of each capability                    |
+| Goal       | What should become true             | A finite Objective and its lifecycle                                                          | Schedule, detailed worker identity, or low-level method           |
+| Loop       | What must stay true                 | A continuous Objective, Trigger, target, reconciliation policy, and health                    | Target implementation or multi-step orchestration                 |
 | Agent      | Who is acting                       | Identity, judgment style, values, role voice                                                  | A job, schedule, tool recipe, or output contract                  |
 | Capability | How the agency can produce a result | A reusable ability, its kind, inputs, outputs, tools/data/instructions, and execution binding | Agency direction, long-term progress, or agent identity           |
 | Workflow   | How capabilities are chained        | Ordered capability steps for one run, shared step results, final output                       | Agency direction, long-term progress, schedule, or agent identity |
@@ -242,14 +310,17 @@ Capability = contract + implementation
 
 This table is kept only to make the storage split explicit:
 
-| Storage name   | Owns                                                                                                            | Must not own                                                       |
-| -------------- | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Capability     | Capability contract: public action name, kind, owner, cadence, safety, inputs, outputs, and implementation link | Long identity prompt or low-level implementation                   |
-| Workflow       | Ordered capability steps for one run                                                                            | Business progress, schedule, identity, or implementation internals |
-| Implementation | Prompt glue, skills, scripts, tools, landing, output contract                                                   | Agency direction, cadence, public ownership, or long-term progress |
-| Context        | Facts Kody should know while reasoning                                                                          | Source-of-truth policy or scheduled work                           |
-| Instructions   | Chat response behavior such as tone, length, and format                                                         | Agency facts or agency structure                                   |
-| State          | Runtime facts: last run, pending work, outcome, logs                                                            | Authoring rules or portable agency doctrine                        |
+| Storage name   | Owns                                                                                                   | Must not own                                                       |
+| -------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Capability     | Capability contract: public action name, kind, owner, safety, inputs, outputs, and implementation link | Schedule, workflow, long identity prompt, or business progress     |
+| Workflow       | Ordered capability steps for one run                                                                   | Business progress, schedule, identity, or implementation internals |
+| Implementation | Prompt glue, skills, scripts, tools, landing, output contract                                          | Agency direction, cadence, public ownership, or long-term progress |
+| Context        | Facts Kody should know while reasoning                                                                 | Source-of-truth policy or scheduled work                           |
+| Instructions   | Chat response behavior such as tone, length, and format                                                | Agency facts or agency structure                                   |
+| Definition     | Versioned portable Goal, Loop, Workflow, Capability, Agent, Intent, or Operation contract              | Runtime progress, health, or execution history                     |
+| State          | Mutable runtime progress, health, and scheduler position                                               | Authoring rules or portable agency doctrine                        |
+| Run            | One execution attempt; mutable while active and frozen when terminal                                   | Durable definitions or business ownership                          |
+| Run event      | Append-only transition, fact, evidence, or artifact provenance                                         | Mutable current state                                              |
 
 ## Where rules live
 

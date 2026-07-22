@@ -94,6 +94,7 @@ describe("settings navigation", () => {
       "/todos",
       "/inbox",
       "/agency-runs",
+      "/knowledge-system",
     ]);
   });
 
@@ -141,6 +142,7 @@ describe("settings navigation", () => {
       "/todos",
       "/inbox",
       "/agency-runs",
+      "/knowledge-system",
     ]);
     expect(sectionHrefs(SIDEBAR_NAV_SECTIONS, "Agency")).toEqual([
       "/agents",
