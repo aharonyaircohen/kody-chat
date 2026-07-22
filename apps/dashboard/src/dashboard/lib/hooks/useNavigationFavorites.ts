@@ -1,1 +1,1 @@
-export * from "@kody-chat/hooks/useNavigationFavorites";
+export * from "@kody-ade/kody-chat-dashboard/hooks/useNavigationFavorites";

@@ -8,8 +8,8 @@
  * @domain kody-chat
  */
 import { describe, expect, it } from "vitest";
-import { finalizeKodyDirectTurn } from "@kody-chat/components/kody-chat-send";
-import type { Message } from "@kody-chat/components/kody-chat-types";
+import { finalizeKodyDirectTurn } from "@kody-ade/kody-chat-dashboard/components/kody-chat-send";
+import type { Message } from "@kody-ade/kody-chat-dashboard/components/kody-chat-types";
 
 function turnState(overrides: Record<string, unknown> = {}) {
   return {

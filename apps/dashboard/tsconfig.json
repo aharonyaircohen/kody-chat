@@ -16,8 +16,7 @@
     "plugins": [{ "name": "next" }],
     "paths": {
       "@/*": ["./src/*"],
-      "@dashboard/*": ["./src/dashboard/*"],
-      "@kody-chat/*": ["./node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/*"]
+      "@dashboard/*": ["./src/dashboard/*"]
     },
     "baseUrl": "."
   },

@@ -60,6 +60,8 @@
     "./auth/*": "./src/dashboard/lib/auth/*.ts",
     "./user-state": "./src/dashboard/lib/user-state/index.ts",
     "./user-state/*": "./src/dashboard/lib/user-state/*.ts",
+    "./navigation-favorites": "./src/dashboard/lib/navigation-favorites.ts",
+    "./hooks/useNavigationFavorites": "./src/dashboard/lib/hooks/useNavigationFavorites.ts",
     "./snippets/BrandSnippets": "./src/dashboard/lib/snippets/BrandSnippets.tsx",
     "./snippets/*": "./src/dashboard/lib/snippets/*.ts",
     "./client-auth/*": "./src/dashboard/lib/client-auth/*.ts",

@@ -10,7 +10,7 @@ import { z } from "zod";
 import { api as backendApi } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 import { resolveUnifiedActor } from "@dashboard/lib/auth/unified-actor";
-import { userFileKey } from "@kody-chat/user-state/user-key";
+import { userFileKey } from "@kody-ade/kody-chat-dashboard/user-state/user-key";
 import {
   MAX_NAVIGATION_FAVORITES,
   normalizeFavoriteHrefs,
