@@ -15,6 +15,15 @@ const libraryRoot = join(packageRoot, "library");
 const fixtureRoot = join(packageRoot, "tests/external-consumer");
 const temporaryRoot = await mkdtemp(join(tmpdir(), "kody-chat-consumer-"));
 const packageSpec = process.env.KODY_CHAT_PACKAGE_SPEC?.trim();
+const libraryPackage = JSON.parse(
+  await readFile(join(libraryRoot, "package.json"), "utf8"),
+);
+const resolvedPackageSpec =
+  packageSpec === "registry"
+    ? libraryPackage.version
+    : packageSpec?.startsWith(`${libraryPackage.name}@`)
+      ? packageSpec.slice(`${libraryPackage.name}@`.length)
+      : packageSpec;
 
 function run(command, args, options = {}) {
   return new Promise((resolvePromise, reject) => {
@@ -37,20 +46,17 @@ await cp(
   join(temporaryRoot, "index.html"),
   join(temporaryRoot, "public/index.html"),
 );
-if (packageSpec) {
+if (resolvedPackageSpec) {
   const fixturePackagePath = join(temporaryRoot, "package.json");
   const fixturePackage = JSON.parse(await readFile(fixturePackagePath, "utf8"));
-  fixturePackage.dependencies["@kody-ade/kody-chat"] = packageSpec;
+  fixturePackage.dependencies[libraryPackage.name] = resolvedPackageSpec;
   await writeFile(
     fixturePackagePath,
     `${JSON.stringify(fixturePackage, null, 2)}\n`,
   );
 } else {
   await run("npm", ["pack", libraryRoot, "--pack-destination", temporaryRoot]);
-  const tarballName = `kody-ade-kody-chat-${
-    JSON.parse(await readFile(join(libraryRoot, "package.json"), "utf8"))
-      .version
-  }.tgz`;
+  const tarballName = `kody-ade-kody-chat-${libraryPackage.version}.tgz`;
   await rename(
     join(temporaryRoot, basename(tarballName)),
     join(temporaryRoot, "kody-chat.tgz"),
@@ -58,10 +64,7 @@ if (packageSpec) {
 }
 await run("npm", ["install", "--no-audit", "--no-fund"]);
 await cp(
-  join(
-    temporaryRoot,
-    "node_modules/@kody-ade/kody-chat/styles.css",
-  ),
+  join(temporaryRoot, "node_modules/@kody-ade/kody-chat/styles.css"),
   join(temporaryRoot, "public/styles.css"),
 );
 await run("npm", ["run", "build"]);

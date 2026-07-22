@@ -10,7 +10,6 @@ on:
         type: choice
         options:
           - next
-          - latest
 
 permissions:
   contents: read
@@ -34,3 +33,4 @@ jobs:
       - run: npm publish ./packages/kody-chat/library --tag "${{ inputs.tag }}" --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      - run: pnpm --filter @kody-ade/kody-chat test:external-package:registry
