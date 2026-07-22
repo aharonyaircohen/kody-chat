@@ -1,99 +1,115 @@
 /**
- * @fileoverview E2E for the issue/task detail flow — the primary task surface.
- * @testFramework playwright
- * @domain e2e
- *
- * The board (`/`) links each card to `/[issueNumber]`; that detail page (and
- * its comments/preview children) had zero e2e coverage. This spec navigates
- * from the board to the first card's detail page and asserts it mounts, then
- * visits the comments sub-route. Skips when no live data (no token, empty
- * board) — same gate as dashboard-smoke.
+ * @fileoverview Deterministic browser journeys for the primary task-detail
+ * surface. The canonical gate must not depend on a particular live repository
+ * happening to contain a visible issue.
  */
 
-import { test, expect, type Page } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 const BASE_URL = process.env.BASE_URL ?? "http://localhost:3333";
-const TEST_TOKEN = process.env.E2E_GITHUB_TOKEN ?? "";
-const TEST_REPO =
-  process.env.E2E_GITHUB_REPO ??
-  "https://github.com/aharonyaircohen/Kody-Dashboard";
+const OWNER = "test-owner";
+const REPO = "test-repo";
+const ISSUE_NUMBER = 4242;
+const ISSUE_TITLE = "E2E task detail fixture";
 
-function parseRepo(url: string): { owner: string; repo: string } {
-  try {
-    const u = new URL(url);
-    const parts = u.pathname.replace(/^\//, "").split("/").filter(Boolean);
-    return { owner: parts[0] ?? "", repo: parts[1] ?? "" };
-  } catch {
-    return { owner: "aharonyaircohen", repo: "Kody-Dashboard" };
-  }
-}
+const task = {
+  id: String(ISSUE_NUMBER),
+  issueNumber: ISSUE_NUMBER,
+  title: ISSUE_TITLE,
+  body: "A deterministic issue used by the browser gate.",
+  state: "open",
+  labels: [],
+  column: "open",
+  kodyPhase: null,
+  kodyFlow: null,
+  createdAt: "2026-07-22T00:00:00.000Z",
+  updatedAt: "2026-07-22T00:00:00.000Z",
+};
 
-async function injectAuth(page: Page): Promise<void> {
-  const { owner, repo } = parseRepo(TEST_REPO);
+async function seedAuthenticatedFixture(page: Page): Promise<void> {
+  await page.route("**/api/kody/tasks/issue-4242**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ task, assignees: [], comments: [] }),
+    }),
+  );
+  await page.route("**/api/kody/tasks**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ tasks: [task], counts: { open: 1 } }),
+    }),
+  );
+  await page.route("**/api/kody/chat/conversations**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ conversations: [] }),
+    }),
+  );
+  await page.route("**/api/kody/auth/me", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        authenticated: true,
+        owner: OWNER,
+        repo: REPO,
+        user: { login: "issue-detail-e2e", avatar_url: "", id: 1 },
+      }),
+    }),
+  );
+
+  await page.goto(`${BASE_URL}/login`);
   await page.evaluate(
-    (auth) => localStorage.setItem("kody_auth", JSON.stringify(auth)),
-    {
-      repoUrl: TEST_REPO,
-      owner,
-      repo,
-      token: TEST_TOKEN,
-      user: {
-        login: "e2e-test",
-        avatar_url: "https://github.com/github-mark.png",
-        id: 1,
-      },
-      loggedInAt: Date.now(),
+    ({ owner, repo }) => {
+      localStorage.setItem(
+        "kody_auth",
+        JSON.stringify({
+          repoUrl: `https://github.com/${owner}/${repo}`,
+          owner,
+          repo,
+          token: "ghp_placeholder",
+          user: { login: "issue-detail-e2e", avatar_url: "", id: 1 },
+          loggedInAt: Date.now(),
+        }),
+      );
     },
+    { owner: OWNER, repo: REPO },
   );
 }
 
-async function openFirstIssueDetail(page: Page): Promise<number | null> {
-  await page.goto(`${BASE_URL}/login`);
-  await page.waitForLoadState("domcontentloaded");
-  await injectAuth(page);
-  await page.goto(`${BASE_URL}/`);
-  await page.waitForLoadState("domcontentloaded");
-
-  // Board cards link to /<issueNumber> — grab the first numeric link.
-  const hrefs = await page
-    .locator("a[href]")
-    .evaluateAll((as) =>
-      as
-        .map((a) => a.getAttribute("href") ?? "")
-        .filter((h) => /^\/\d+$/.test(h)),
-    );
-  if (hrefs.length === 0) return null;
-  const issueNumber = Number(hrefs[0].slice(1));
-  await page.goto(`${BASE_URL}/${issueNumber}`);
-  await page.waitForLoadState("domcontentloaded");
-  return issueNumber;
-}
-
 test.describe("Issue detail flow", () => {
-  test.skip(!TEST_TOKEN, "E2E_GITHUB_TOKEN not set");
+  test.beforeEach(async ({ page }) => seedAuthenticatedFixture(page));
 
   test("board card opens the issue detail page", async ({ page }) => {
-    const errors: string[] = [];
-    page.on("pageerror", (err) => errors.push(err.message));
+    await page.goto(`${BASE_URL}/repo/${OWNER}/${REPO}/tasks`);
 
-    const issueNumber = await openFirstIssueDetail(page);
-    test.skip(issueNumber === null, "board has no issue cards");
+    const taskCard = page.getByText(ISSUE_TITLE, { exact: true });
+    await expect(taskCard).toBeVisible({ timeout: 15_000 });
+    await taskCard.click();
 
-    // Detail page mounted: shell visible, no client crash.
-    await expect(page.locator("body")).toBeVisible();
-    expect(errors, `page errors:\n${errors.join("\n")}`).toHaveLength(0);
+    await expect(page).toHaveURL(new RegExp(`/${ISSUE_NUMBER}$`));
+    await expect(
+      page.getByText(ISSUE_TITLE, { exact: true }).first(),
+    ).toBeVisible();
   });
 
   test("issue comments sub-route renders", async ({ page }) => {
-    const errors: string[] = [];
-    page.on("pageerror", (err) => errors.push(err.message));
+    await page.goto(
+      `${BASE_URL}/repo/${OWNER}/${REPO}/${ISSUE_NUMBER}/comments`,
+    );
 
-    const issueNumber = await openFirstIssueDetail(page);
-    test.skip(issueNumber === null, "board has no issue cards");
-
-    await page.goto(`${BASE_URL}/${issueNumber}/comments`);
-    await page.waitForLoadState("domcontentloaded");
-    await expect(page.locator("body")).toBeVisible();
-    expect(errors, `page errors:\n${errors.join("\n")}`).toHaveLength(0);
+    await expect(
+      page.getByText(ISSUE_TITLE, { exact: true }).first(),
+    ).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByRole("tab", { name: /Comments/ })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(page.locator("#task-panel-comments:visible")).toBeVisible();
   });
 });
