@@ -12,7 +12,10 @@ import {
   createRun,
   createWorkflowDefinition,
 } from "@kody-ade/agency-domain";
-import { mutation, query } from "./_generated/server";
+import {
+  serviceMutation as mutation,
+  serviceQuery as query,
+} from "./lib/auth";
 
 const definitionKind = v.union(
   v.literal("intent"),

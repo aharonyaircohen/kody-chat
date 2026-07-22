@@ -18,6 +18,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@kody-ade/agency-domain": "workspace:*",
     "@kody-ade/base": "workspace:*",
     "@kody-ade/backend": "workspace:*",
     "@octokit/rest": "^22.0.1",

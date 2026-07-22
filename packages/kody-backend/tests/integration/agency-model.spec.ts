@@ -1,11 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { api } from "../../convex/_generated/api";
-import { setup } from "./helpers";
+import { setup, setupWithoutKey } from "./helpers";
 
 const tenantId = "acme/app";
 const now = "2026-07-22T00:00:00.000Z";
 
 describe("agency model persistence", () => {
+  it("rejects direct access without the backend service key", async () => {
+    const t = setupWithoutKey();
+    await expect(
+      t.query(api.agencyModel.listDefinitions, { tenantId }),
+    ).rejects.toThrow(/Unauthorized/i);
+  });
+
   it("keeps definitions immutable and state independently mutable", async () => {
     const t = setup();
     await t.mutation(api.agencyModel.createDefinition, {
