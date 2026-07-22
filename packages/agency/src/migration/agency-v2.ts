@@ -195,7 +195,11 @@ export function planAgencyV2Migration(
             ? { type: "manual" }
             : { type: "schedule", every: work.schedule },
         targetRef,
-        reconciliationPolicy: { overlap: "skip", missed: "coalesce" },
+      reconciliationPolicy: {
+        overlap: "skip",
+        missed: "coalesce",
+        failure: { maxAttempts: 3, backoffSeconds: 30, timeoutSeconds: 900 },
+      },
       }),
     );
   }

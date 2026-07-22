@@ -57,7 +57,11 @@ describe("clean AI Agency domain", () => {
         objective,
         trigger: { type: "schedule", every: "1h" },
         targetRef: { kind: "workflow", id: "refresh-knowledge" },
-        reconciliationPolicy: { overlap: "skip", missed: "coalesce" },
+      reconciliationPolicy: {
+        overlap: "skip",
+        missed: "coalesce",
+        failure: { maxAttempts: 3, backoffSeconds: 30, timeoutSeconds: 900 },
+      },
       }),
     ).toMatchObject({ id: "knowledge-refresh" });
   });

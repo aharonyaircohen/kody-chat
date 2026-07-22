@@ -59,6 +59,11 @@ export interface LoopDefinition {
   reconciliationPolicy: {
     overlap: "skip" | "queue";
     missed: "skip" | "replay" | "coalesce";
+    failure: {
+      maxAttempts: number;
+      backoffSeconds: number;
+      timeoutSeconds: number;
+    };
   };
 }
 export interface CapabilityDefinition {
@@ -129,6 +134,11 @@ export interface Run {
   correlationId: string;
   startedAt: string;
   finishedAt?: string;
+  usage?: {
+    tokens: number;
+    costUsd: number;
+    durationSeconds: number;
+  };
 }
 export interface RunOutput {
   kind: "fact" | "evidence" | "artifact";
@@ -374,7 +384,7 @@ export function createLoopDefinition(value: unknown): LoopDefinition {
     "LoopDefinition",
   );
   const policy = record(input.reconciliationPolicy, "ReconciliationPolicy");
-  exact(policy, ["overlap", "missed"], "ReconciliationPolicy");
+  exact(policy, ["overlap", "missed", "failure"], "ReconciliationPolicy");
   if (policy.overlap !== "skip" && policy.overlap !== "queue")
     throw new Error("ReconciliationPolicy overlap is invalid");
   if (
@@ -387,6 +397,18 @@ export function createLoopDefinition(value: unknown): LoopDefinition {
     policy.overlap as LoopDefinition["reconciliationPolicy"]["overlap"];
   const missed =
     policy.missed as LoopDefinition["reconciliationPolicy"]["missed"];
+  const failure = record(policy.failure, "ReconciliationPolicy failure");
+  exact(
+    failure,
+    ["maxAttempts", "backoffSeconds", "timeoutSeconds"],
+    "ReconciliationPolicy failure",
+  );
+  if (!Number.isInteger(failure.maxAttempts) || (failure.maxAttempts as number) < 1)
+    throw new Error("ReconciliationPolicy failure maxAttempts is invalid");
+  if (typeof failure.backoffSeconds !== "number" || failure.backoffSeconds < 0)
+    throw new Error("ReconciliationPolicy failure backoffSeconds is invalid");
+  if (typeof failure.timeoutSeconds !== "number" || failure.timeoutSeconds <= 0)
+    throw new Error("ReconciliationPolicy failure timeoutSeconds is invalid");
   return Object.freeze({
     id: identifier(input.id, "LoopDefinition id"),
     operationId: identifier(input.operationId, "LoopDefinition operationId"),
@@ -397,7 +419,15 @@ export function createLoopDefinition(value: unknown): LoopDefinition {
       ["goal", "workflow", "capability"],
       "LoopDefinition targetRef",
     ) as LoopDefinition["targetRef"],
-    reconciliationPolicy: { overlap, missed },
+    reconciliationPolicy: {
+      overlap,
+      missed,
+      failure: {
+        maxAttempts: failure.maxAttempts as number,
+        backoffSeconds: failure.backoffSeconds as number,
+        timeoutSeconds: failure.timeoutSeconds as number,
+      },
+    },
   });
 }
 
@@ -660,6 +690,7 @@ export function createRun(value: unknown): Run {
       "correlationId",
       "startedAt",
       "finishedAt",
+      "usage",
     ],
     "Run",
   );
@@ -685,6 +716,16 @@ export function createRun(value: unknown): Run {
     throw new Error("Active Run cannot have finishedAt");
   if (!Array.isArray(input.trace) || input.trace.length === 0)
     throw new Error("Run trace is required");
+  if (input.usage !== undefined && !terminal)
+    throw new Error("Only a terminal Run can record usage");
+  const usage = input.usage === undefined ? undefined : record(input.usage, "Run usage");
+  if (usage) {
+    exact(usage, ["tokens", "costUsd", "durationSeconds"], "Run usage");
+    for (const field of ["tokens", "costUsd", "durationSeconds"] as const) {
+      if (typeof usage[field] !== "number" || usage[field] < 0 || !Number.isFinite(usage[field]))
+        throw new Error(`Run usage ${field} is invalid`);
+    }
+  }
   const effectivePolicy = record(input.effectivePolicy, "Run effectivePolicy");
   exact(
     effectivePolicy,
@@ -719,6 +760,15 @@ export function createRun(value: unknown): Run {
     startedAt: timestamp(input.startedAt, "Run startedAt"),
     ...(input.finishedAt
       ? { finishedAt: timestamp(input.finishedAt, "Run finishedAt") }
+      : {}),
+    ...(usage
+      ? {
+          usage: {
+            tokens: usage.tokens as number,
+            costUsd: usage.costUsd as number,
+            durationSeconds: usage.durationSeconds as number,
+          },
+        }
       : {}),
   };
   return terminal ? Object.freeze(run) : run;
