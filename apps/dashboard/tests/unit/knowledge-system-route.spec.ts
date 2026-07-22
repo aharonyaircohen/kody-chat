@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const auth = vi.hoisted(() => ({
-  requireKodyAuth: vi.fn(async () => null),
+  requireKodyAuth: vi.fn<() => Promise<NextResponse | null>>(async () => null),
   getRequestAuth: vi.fn(() => ({
     token: "ghp_viewer",
     owner: "acme",

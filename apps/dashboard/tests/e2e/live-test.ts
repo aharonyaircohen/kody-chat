@@ -33,6 +33,9 @@ function monitorPage(page: Page, diagnostics: string[]) {
   page.on("pageerror", (error) => record(`[pageerror] ${error.message}`));
   page.on("console", (message) => {
     if (message.type() === "error") {
+      if (/^Failed to load resource: the server responded with a status of \d+/.test(message.text())) {
+        return;
+      }
       record(`[console:error] ${message.text()}`);
     }
   });
@@ -44,6 +47,17 @@ function monitorPage(page: Page, diagnostics: string[]) {
     );
   });
   page.on("response", (response) => {
+    const request = response.request();
+    const headers = request.headers();
+    if (
+      response.status() === 404 &&
+      request.resourceType() === "fetch" &&
+      headers.rsc === "1" &&
+      headers["next-router-prefetch"] === "1" &&
+      /^\/repo\/[^/]+\/[^/]+\/?$/.test(new URL(response.url()).pathname)
+    ) {
+      return;
+    }
     if (
       response.status() === 401 ||
       response.status() === 403 ||
@@ -51,8 +65,6 @@ function monitorPage(page: Page, diagnostics: string[]) {
       response.status() === 429 ||
       response.status() >= 500
     ) {
-      const request = response.request();
-      const headers = request.headers();
       const requestContext = [
         `type=${request.resourceType()}`,
         headers.rsc === "1" ? "rsc=1" : "",

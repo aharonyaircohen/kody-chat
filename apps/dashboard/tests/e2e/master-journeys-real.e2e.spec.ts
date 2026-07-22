@@ -334,6 +334,29 @@ test.describe("Master live user journeys", () => {
       timeout: 240_000,
     });
     await expect.poll(() => conversationId, { timeout: 30_000 }).not.toBe("");
+    await expect
+      .poll(
+        async () => {
+          const response = await page.request.get(
+            `${BASE_URL}/api/kody/chat/conversations/${conversationId}`,
+            { headers: apiHeaders(owner, repo) },
+          );
+          if (!response.ok()) return false;
+          const body = (await response.json()) as {
+            entries?: Array<{
+              entry?: { role?: string; content?: string };
+            }>;
+          };
+          return Boolean(
+            body.entries?.some(
+              ({ entry }) =>
+                entry?.role === "assistant" && entry.content?.includes(marker),
+            ),
+          );
+        },
+        { timeout: 30_000, intervals: [250, 500, 1000] },
+      )
+      .toBe(true);
 
     try {
       await page.reload({ waitUntil: "domcontentloaded" });
