@@ -25,6 +25,12 @@ describe("terminal bridge protocol", () => {
     ).toEqual({ type: "exit", code: 0 });
   });
 
+  it("parses heartbeat replies", () => {
+    expect(
+      parseTerminalBridgeServerMessage(JSON.stringify({ type: "pong" })),
+    ).toEqual({ type: "pong" });
+  });
+
   it("parses restore lifecycle messages", () => {
     expect(
       parseTerminalBridgeServerMessage(

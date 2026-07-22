@@ -32,6 +32,7 @@ export const TERMINAL_START_TIMEOUT_MS = 20_000;
 export const FLY_CONNECT_TIMEOUT_MS = 75_000;
 export const FLY_RECONNECT_DELAY_MS = 750;
 export const FLY_RECONNECT_MAX_ATTEMPTS = 3;
+export const FLY_HEARTBEAT_INTERVAL_MS = 25_000;
 
 const NON_RETRYABLE_SESSION_ERRORS = new Set([
   "fly_access_denied",
@@ -469,6 +470,13 @@ export async function connectFly(
       return;
     }
     ref.current.flySocketRef.current = ws;
+    let heartbeatTimer: number | null = null;
+    const clearHeartbeat = () => {
+      if (heartbeatTimer !== null) {
+        window.clearInterval(heartbeatTimer);
+        heartbeatTimer = null;
+      }
+    };
 
     ws.onopen = () => {
       const live = ref.current;
@@ -481,6 +489,12 @@ export async function connectFly(
         };
         ws.send(JSON.stringify(message));
       }
+      heartbeatTimer = window.setInterval(() => {
+        if (ws.readyState === WebSocket.OPEN) {
+          const message: TerminalBridgeClientMessage = { type: "ping" };
+          ws.send(JSON.stringify(message));
+        }
+      }, FLY_HEARTBEAT_INTERVAL_MS);
     };
     ws.onmessage = async (event) => {
       const live = ref.current;
@@ -495,6 +509,7 @@ export async function connectFly(
         live.terminalRef.current?.write(raw);
         return;
       }
+      if (message.type === "pong") return;
       if (message.type === "output" && typeof message.data === "string") {
         live.appendCapturedOutput(message.data);
         live.terminalRef.current?.write(message.data);
@@ -532,6 +547,7 @@ export async function connectFly(
         return;
       }
       if (message.type === "exit") {
+        clearHeartbeat();
         live.notifyTerminalSessionEnded();
         live.flySocketRef.current = null;
         updateFlyConnectionState(ref, "closed");
@@ -541,6 +557,7 @@ export async function connectFly(
       }
     };
     ws.onclose = (event) => {
+      clearHeartbeat();
       const live = ref.current;
       if (live.flySocketRef.current !== ws || !isCurrentFlyConnect()) return;
       live.flySocketRef.current = null;

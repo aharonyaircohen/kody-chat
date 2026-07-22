@@ -1,5 +1,8 @@
 export type TerminalBridgeClientMessage =
   | {
+      type: "ping";
+    }
+  | {
       type: "input";
       id?: number;
       data: string;
@@ -11,6 +14,9 @@ export type TerminalBridgeClientMessage =
     };
 
 export type TerminalBridgeServerMessage =
+  | {
+      type: "pong";
+    }
   | {
       type: "output";
       data: string;
@@ -64,6 +70,8 @@ export function parseTerminalBridgeServerMessage(
     replayBytes?: unknown;
   };
   switch (message.type) {
+    case "pong":
+      return { type: "pong" };
     case "output":
       return typeof message.data === "string"
         ? { type: "output", data: message.data }

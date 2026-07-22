@@ -1304,6 +1304,10 @@ function attachSocketToSession(socket, session) {
     } catch {
       return;
     }
+    if (msg.type === "ping") {
+      sendJson(socket, { type: "pong" });
+      return;
+    }
     if (msg.type === "input" && typeof msg.data === "string") {
       const inputData = stripTerminalMouseInput(msg.data);
       session.inputBytes += Buffer.byteLength(inputData);
