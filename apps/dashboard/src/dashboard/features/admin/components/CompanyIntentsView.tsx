@@ -15,6 +15,7 @@ import {
   type SetStateAction,
 } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import {
   AlertCircle,
   Archive,
@@ -35,6 +36,7 @@ import {
 
 import { Badge } from "@kody-ade/base/ui/badge";
 import { Button } from "@kody-ade/base/ui/button";
+import { Checkbox } from "@kody-ade/base/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -78,6 +80,11 @@ import { MarkdownEditor } from "@dashboard/lib/components/MarkdownEditor";
 import { MarkdownPreview } from "@dashboard/lib/components/MarkdownPreview";
 import { MasterDetailShell } from "@dashboard/lib/components/MasterDetailShell";
 import { RepoScopedLink } from "@dashboard/lib/components/RepoScopedLink";
+import { useAuth } from "@dashboard/lib/auth-context";
+import {
+  createGuidanceApi,
+  type GuidanceEntry,
+} from "@dashboard/lib/api/guidance";
 
 type IntentFormState = {
   id: string;
@@ -90,6 +97,7 @@ type IntentFormState = {
   areas: string;
   principles: string;
   metrics: string;
+  policyRefs: string[];
   releaseCadence: ReleaseCadence;
   qaDepth: "light" | "standard" | "strict";
   blockerLevel: "low" | "standard" | "strict";
@@ -159,12 +167,20 @@ export function CompanyIntentsView({
   selectedId?: string | null;
 } = {}) {
   const router = useRouter();
+  const { auth } = useAuth();
   const scopedHref = useRepoScopedHref();
   const autoSelectFirst = useMediaQuery("(min-width: 768px)");
   const { data, error, isFetching, isLoading, refetch } = useCompanyIntents();
   const createIntent = useCreateCompanyIntent();
   const updateIntent = useUpdateCompanyIntent();
   const runIntent = useRunCompanyIntent();
+  const policiesApi = useMemo(() => createGuidanceApi("policies"), []);
+  const policiesQuery = useQuery({
+    queryKey: ["intent-policies", auth?.owner, auth?.repo],
+    queryFn: policiesApi.list,
+    enabled: Boolean(auth),
+    staleTime: 30_000,
+  });
   const [query, setQuery] = useState("");
   const [formMode, setFormMode] = useState<"create" | "edit" | null>(null);
   const [form, setForm] = useState<IntentFormState>(emptyForm());
@@ -398,6 +414,7 @@ export function CompanyIntentsView({
               <IntentSimpleFields
                 form={form}
                 setForm={setForm}
+                policies={policiesQuery.data ?? []}
                 formIdValid={formIdValid}
                 autoSlug={formMode === "create"}
               />
@@ -433,11 +450,13 @@ function IntentSimpleFields({
   setForm,
   formIdValid,
   autoSlug,
+  policies,
 }: {
   form: IntentFormState;
   setForm: IntentFormSetter;
   formIdValid: boolean;
   autoSlug: boolean;
+  policies: GuidanceEntry[];
 }) {
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)]">
@@ -491,6 +510,49 @@ function IntentSimpleFields({
               ))}
             </SelectContent>
           </Select>
+        </Field>
+
+        <Field label="Reusable policies">
+          {policies.length ? (
+            <div className="space-y-2 rounded-lg border border-border p-3">
+              {policies.map((policy) => {
+                const selected = form.policyRefs.includes(policy.slug);
+                return (
+                  <label
+                    key={policy.slug}
+                    className="flex cursor-pointer items-start gap-3 rounded-md p-2 hover:bg-muted/40"
+                  >
+                    <Checkbox
+                      checked={selected}
+                      onCheckedChange={() =>
+                        setForm((prev) => ({
+                          ...prev,
+                          policyRefs: selected
+                            ? prev.policyRefs.filter(
+                                (slug) => slug !== policy.slug,
+                              )
+                            : [...prev.policyRefs, policy.slug],
+                        }))
+                      }
+                      className="mt-0.5"
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium">
+                        {policy.slug}
+                      </span>
+                      <span className="line-clamp-2 text-xs text-muted-foreground">
+                        {policy.body.trim() || "Empty policy"}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              No reusable policies yet. Add them from Policies.
+            </p>
+          )}
         </Field>
       </div>
 
@@ -769,8 +831,20 @@ function IntentDetail({
             ) : null}
 
             <Block
-              title="Policy"
-              subtitle="Behavior limits created by the selected mode"
+              title="Reusable policies"
+              subtitle="Decision guidance selected for this intent"
+              icon={ShieldCheck}
+              count={intent.policyRefs.length}
+            >
+              <ChipGroup
+                title="Policies"
+                items={intent.policyRefs}
+              />
+            </Block>
+
+            <Block
+              title="Controls"
+              subtitle="Machine-enforced limits created by the selected mode"
               icon={ShieldCheck}
             >
               <PolicyGrid intent={intent} />
@@ -856,8 +930,8 @@ function intentWorkSummary(intent: CompanyIntent): string {
 }
 
 function PolicyGrid({ intent }: { intent: CompanyIntent }) {
-  const release = intent.policy.release;
-  const automation = intent.policy.automation;
+  const release = intent.controls.release;
+  const automation = intent.controls.automation;
   return (
     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
       <PolicyItem label="Release cadence" value={release?.cadence} />
@@ -1146,6 +1220,7 @@ function emptyForm(): IntentFormState {
     areas: "",
     principles: "",
     metrics: "",
+    policyRefs: [],
     releaseCadence: "manual",
     qaDepth: "standard",
     blockerLevel: "standard",
@@ -1200,13 +1275,14 @@ function recordToForm(record: CompanyIntentRecord): IntentFormState {
     areas: intent.scope.areas.join("\n"),
     principles: intent.principles.join("\n"),
     metrics: intent.metrics.join("\n"),
-    releaseCadence: intent.policy.release?.cadence ?? "manual",
-    qaDepth: intent.policy.release?.qaDepth ?? "standard",
-    blockerLevel: intent.policy.release?.blockerLevel ?? "standard",
-    approval: intent.policy.release?.approval ?? "before-risky-actions",
-    maxConcurrentGoals: String(intent.policy.automation.maxConcurrentGoals),
-    maxDailyActions: String(intent.policy.automation.maxDailyActions),
-    requiresHumanFor: intent.policy.automation.requiresHumanFor.join("\n"),
+    policyRefs: intent.policyRefs,
+    releaseCadence: intent.controls.release?.cadence ?? "manual",
+    qaDepth: intent.controls.release?.qaDepth ?? "standard",
+    blockerLevel: intent.controls.release?.blockerLevel ?? "standard",
+    approval: intent.controls.release?.approval ?? "before-risky-actions",
+    maxConcurrentGoals: String(intent.controls.automation.maxConcurrentGoals),
+    maxDailyActions: String(intent.controls.automation.maxDailyActions),
+    requiresHumanFor: intent.controls.automation.requiresHumanFor.join("\n"),
     goals: intent.portfolio.goals.join("\n"),
     loops: intent.portfolio.loops.join("\n"),
     capabilities: intent.portfolio.capabilities.join("\n"),
@@ -1227,7 +1303,8 @@ function formToInput(form: IntentFormState): CompanyIntentInput {
     },
     principles: parseLines(form.principles),
     metrics: parseLines(form.metrics),
-    policy: {
+    policyRefs: form.policyRefs,
+    controls: {
       release: {
         cadence: form.releaseCadence,
         qaDepth: form.qaDepth,

@@ -37,7 +37,7 @@ function intentInput(id: string, priority = 100) {
     scope: { repos: [], areas: [] },
     principles: [],
     metrics: ["mrr"],
-    policy: {
+    controls: {
       automation: {
         authority: "full-auto" as const,
         maxConcurrentGoals: 1,

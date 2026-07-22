@@ -27,7 +27,8 @@ export interface CompanyIntent {
   };
   principles: string[];
   metrics: string[];
-  policy: {
+  policyRefs: string[];
+  controls: {
     release?: {
       cadence?: ReleaseCadence;
       qaDepth?: "light" | "standard" | "strict";
@@ -80,7 +81,8 @@ export interface CompanyIntentInput {
   };
   principles: string[];
   metrics: string[];
-  policy: CompanyIntent["policy"];
+  policyRefs?: string[];
+  controls: CompanyIntent["controls"];
   portfolio: CompanyIntent["portfolio"];
   status?: CompanyIntentStatus;
 }
@@ -127,7 +129,8 @@ export function buildCompanyIntent(
     scope: input.scope,
     principles: input.principles,
     metrics: input.metrics,
-    policy: input.policy,
+    policyRefs: input.policyRefs ?? [],
+    controls: input.controls,
     portfolio: input.portfolio,
     createdAt: now,
     updatedAt: now,
@@ -152,7 +155,7 @@ export function normalizeCompanyIntent(
   const createdAt = stringField(input.createdAt) || now;
   const updatedAt = stringField(input.updatedAt) || createdAt;
   const description = stringField(input.description);
-  const policy = recordField(input.policy);
+  const controls = recordField(input.controls) ?? recordField(input.policy);
 
   return {
     version: 1,
@@ -165,9 +168,10 @@ export function normalizeCompanyIntent(
     scope: normalizeScope(input.scope),
     principles: stringArray(input.principles),
     metrics: stringArray(input.metrics),
-    policy: {
-      release: normalizeReleasePolicy(policy?.release),
-      automation: normalizeAutomationPolicy(policy?.automation),
+    policyRefs: normalizePolicyRefs(input.policyRefs),
+    controls: {
+      release: normalizeReleaseControls(controls?.release),
+      automation: normalizeAutomationControls(controls?.automation),
     },
     portfolio: normalizePortfolio(input.portfolio),
     createdAt,
@@ -211,6 +215,19 @@ export function companyIntentWarnings(intent: CompanyIntent): string[] {
   return warnings;
 }
 
+export function formatSelectedPolicyGuidance(
+  policyRefs: string[],
+  policies: Array<{ slug: string; body: string }>,
+  maxLength = 12_000,
+): string {
+  const selected = new Set(policyRefs);
+  return policies
+    .filter((policy) => selected.has(policy.slug))
+    .map((policy) => `### ${policy.slug}\n\n${policy.body.trim()}`)
+    .join("\n\n")
+    .slice(0, maxLength);
+}
+
 function idFromPath(path: string): string {
   const match = path.match(/(?:^|\/)intents\/([^/]+)\/intent\.json$/);
   return match?.[1] ?? "";
@@ -233,9 +250,9 @@ function normalizePortfolio(value: unknown): CompanyIntent["portfolio"] {
   };
 }
 
-function normalizeReleasePolicy(
+function normalizeReleaseControls(
   value: unknown,
-): CompanyIntent["policy"]["release"] {
+): CompanyIntent["controls"]["release"] {
   const input = recordField(value);
   if (!input) return undefined;
 
@@ -251,9 +268,9 @@ function normalizeReleasePolicy(
   };
 }
 
-function normalizeAutomationPolicy(
+function normalizeAutomationControls(
   value: unknown,
-): CompanyIntent["policy"]["automation"] {
+): CompanyIntent["controls"]["automation"] {
   const input = recordField(value);
   return {
     authority: "full-auto",
@@ -261,6 +278,12 @@ function normalizeAutomationPolicy(
     maxDailyActions: numberField(input?.maxDailyActions, 5),
     requiresHumanFor: stringArray(input?.requiresHumanFor),
   };
+}
+
+function normalizePolicyRefs(value: unknown): string[] {
+  return [...new Set(stringArray(value))].filter((ref) =>
+    /^[a-z0-9][a-z0-9_-]{0,63}$/.test(ref),
+  );
 }
 
 function normalizeDecisionLog(value: unknown): CompanyIntentDecisionLog | null {

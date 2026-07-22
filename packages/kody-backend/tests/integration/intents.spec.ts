@@ -53,6 +53,21 @@ describe("intents", () => {
 })
 
 describe("intents schema enforcement", () => {
+  it("accepts reusable policy references with enforced controls", async () => {
+    const t = setup()
+    await t.mutation(api.intents.save, {
+      tenantId: TENANT,
+      intentId: "i1",
+      intent: validIntent({ policyRefs: ["release-safety"] }),
+      updatedAt: NOW,
+    })
+    const intent = await t.query(api.intents.get, {
+      tenantId: TENANT,
+      intentId: "i1",
+    })
+    expect(intent?.intent.policyRefs).toEqual(["release-safety"])
+  })
+
   it("rejects an intent with an invalid status", async () => {
     const t = setup()
     await expect(

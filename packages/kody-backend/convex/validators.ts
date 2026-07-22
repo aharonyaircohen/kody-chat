@@ -108,7 +108,8 @@ export const companyIntentValidator = v.object({
   ),
   principles: v.array(v.string()),
   metrics: v.array(v.string()),
-  policy: v.object({
+  policyRefs: v.array(v.string()),
+  controls: v.object({
     release: v.optional(
       v.object({
         cadence: v.optional(releaseCadenceValidator),

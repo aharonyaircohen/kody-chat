@@ -47,7 +47,7 @@ const intentPostureSchema = z.enum([
   "balanced",
 ]);
 const stringListSchema = z.array(z.string().trim().min(1).max(160)).default([]);
-const releasePolicySchema = z
+const releaseControlsSchema = z
   .object({
     cadence: z.enum(RELEASE_CADENCES).optional(),
     qaDepth: z.enum(["light", "standard", "strict"]).optional(),
@@ -72,9 +72,12 @@ const intentPayloadSchema = z.object({
     .default({ repos: [], areas: [] }),
   principles: stringListSchema,
   metrics: stringListSchema,
-  policy: z
+  policyRefs: z
+    .array(z.string().trim().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/))
+    .default([]),
+  controls: z
     .object({
-      release: releasePolicySchema,
+      release: releaseControlsSchema,
       automation: z
         .object({
           authority: z.literal("full-auto").default("full-auto"),
@@ -140,7 +143,8 @@ function normalizeIntentInput(
     scope: data.scope,
     principles: data.principles,
     metrics: data.metrics,
-    policy: data.policy,
+    policyRefs: data.policyRefs,
+    controls: data.controls,
     portfolio: {
       goals: data.portfolio.goals.filter(isCompanyIntentId),
       loops: data.portfolio.loops.filter(isCompanyIntentId),

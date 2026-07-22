@@ -21,8 +21,12 @@ import {
   setGitHubContext,
 } from "@dashboard/lib/github-client";
 import { buildKodyWorkflowDispatchInputs } from "@dashboard/lib/kody-workflow-dispatch";
-import { isCompanyIntentId } from "@dashboard/lib/company-intents";
+import {
+  formatSelectedPolicyGuidance,
+  isCompanyIntentId,
+} from "@dashboard/lib/company-intents";
 import { readCompanyIntentRecord } from "@dashboard/lib/company-intents-store";
+import { listGuidanceFiles } from "@kody-ade/workspace/guidance/files";
 
 const runSchema = z.object({
   actorLogin: z.string().trim().optional(),
@@ -82,12 +86,24 @@ export async function POST(
       repo: headerAuth.repo,
     });
     const ref = repoMeta.data.default_branch || "main";
+    const policies = await listGuidanceFiles("policy");
+    const selectedPolicyGuidance = formatSelectedPolicyGuidance(
+      existing.intent.policyRefs,
+      policies,
+    );
     const inputs = await buildKodyWorkflowDispatchInputs(octokit, {
       owner: headerAuth.owner,
       repo: headerAuth.repo,
       ref,
       action: "agency-portfolio-management",
-      message: `Review company intent ${id}`,
+      message: [
+        `Review company intent ${id}`,
+        selectedPolicyGuidance
+          ? `Selected reusable policies:\n\n${selectedPolicyGuidance}`
+          : "",
+      ]
+        .filter(Boolean)
+        .join("\n\n"),
     });
 
     await octokit.rest.actions.createWorkflowDispatch({

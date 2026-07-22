@@ -13,7 +13,8 @@ export function validIntent(overrides: Record<string, unknown> = {}) {
     scope: { repos: [], areas: [] },
     principles: [],
     metrics: [],
-    policy: {
+    policyRefs: [],
+    controls: {
       automation: {
         authority: "full-auto",
         maxConcurrentGoals: 1,

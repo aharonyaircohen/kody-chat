@@ -55,7 +55,10 @@ const patchSchema = z.object({
     .optional(),
   principles: stringListSchema.optional(),
   metrics: stringListSchema.optional(),
-  policy: z
+  policyRefs: z
+    .array(z.string().trim().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/))
+    .optional(),
+  controls: z
     .object({
       release: z
         .object({
@@ -124,12 +127,14 @@ function mergeIntent(
     scope: patch.scope ?? current.scope,
     principles: patch.principles ?? current.principles,
     metrics: patch.metrics ?? current.metrics,
-    policy: {
+    policyRefs: patch.policyRefs ?? current.policyRefs,
+    controls: {
       release:
-        patch.policy?.release !== undefined
-          ? patch.policy.release
-          : current.policy.release,
-      automation: patch.policy?.automation ?? current.policy.automation,
+        patch.controls?.release !== undefined
+          ? patch.controls.release
+          : current.controls.release,
+      automation:
+        patch.controls?.automation ?? current.controls.automation,
     },
     portfolio: patch.portfolio
       ? {

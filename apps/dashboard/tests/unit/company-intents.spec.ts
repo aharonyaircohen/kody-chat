@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import {
   buildCompanyIntent,
   companyIntentWarnings,
+  formatSelectedPolicyGuidance,
   parseCompanyIntent,
   parseCompanyIntentDecisionLog,
   slugifyCompanyIntentId,
@@ -63,8 +64,10 @@ describe("company intents", () => {
       "Use this to prove Agency Architect understands deeper operator context.",
     );
     expect(intent).not.toHaveProperty("manager");
-    expect(intent.policy.release?.qaDepth).toBe("strict");
-    expect(intent.policy.automation.maxConcurrentGoals).toBe(1);
+    expect(intent.policyRefs).toEqual([]);
+    expect(intent.controls.release?.qaDepth).toBe("strict");
+    expect(intent.controls.automation.maxConcurrentGoals).toBe(1);
+    expect(intent).not.toHaveProperty("policy");
   });
 
   it("preserves 15-minute release cadence", () => {
@@ -78,7 +81,16 @@ describe("company intents", () => {
       manager: { agent: "cto" },
     });
 
-    expect(intent.policy.release?.cadence).toBe("15m");
+    expect(intent.controls.release?.cadence).toBe("15m");
+  });
+
+  it("formats only the reusable policies selected by an intent", () => {
+    expect(
+      formatSelectedPolicyGuidance(["release-safety"], [
+        { slug: "release-safety", body: "Require release evidence." },
+        { slug: "unselected", body: "Do not include this." },
+      ]),
+    ).toBe("### release-safety\n\nRequire release evidence.");
   });
 
   it("parses decision jsonl and ignores malformed rows", () => {
@@ -138,7 +150,8 @@ describe("company intents", () => {
         scope: { repos: ["A-Guy-educ/Kody-Engine-Tester"], areas: [] },
         principles: ["Prefer small checks."],
         metrics: ["Release has validation evidence."],
-        policy: {
+        policyRefs: ["release-safety", "release-safety", "Invalid policy"],
+        controls: {
           release: {
             cadence: "manual",
             qaDepth: "standard",
@@ -162,6 +175,9 @@ describe("company intents", () => {
     );
 
     expect(intent).not.toHaveProperty("manager");
+    expect(intent).not.toHaveProperty("policy");
+    expect(intent.policyRefs).toEqual(["release-safety"]);
+    expect(intent.controls.release?.qaDepth).toBe("standard");
     expect(intent.createdAt).toBe("2026-06-24T00:00:00.000Z");
     expect(intent.description).toBe(
       "Prefer boring release flow with evidence before action.",
@@ -210,6 +226,8 @@ describe("company intents", () => {
     expect(view).toContain('className="h-8 w-8 px-0"');
     expect(view).toContain("What should Kody care about?");
     expect(view).toContain("More context");
+    expect(view).toContain("Reusable policies");
+    expect(view).toContain("Controls");
     expect(view).toContain("MarkdownEditor");
     expect(view).toContain("max-w-5xl");
     expect(view).toContain('label: "Cautious"');
@@ -225,6 +243,7 @@ describe("company intents", () => {
     );
     expect(detailRoute).toContain("export async function PATCH");
     expect(runRoute).toContain('action: "agency-portfolio-management"');
+    expect(runRoute).toContain("selectedPolicyGuidance");
     expect(runRoute).not.toContain('action: "agency-architect"');
   });
 });
