@@ -15,6 +15,7 @@ export interface Scope {
 export interface Constraint {
   id: string;
   rule: string;
+  actions: string[];
   effect: "deny" | "require-approval";
 }
 export interface Policy {
@@ -212,12 +213,13 @@ function parseConstraints(value: unknown, label: string): Constraint[] {
   if (!Array.isArray(value)) throw new Error(`${label} must be an array`);
   const constraints = value.map((item) => {
     const input = record(item, "Constraint");
-    exact(input, ["id", "rule", "effect"], "Constraint");
+    exact(input, ["id", "rule", "actions", "effect"], "Constraint");
     if (input.effect !== "deny" && input.effect !== "require-approval")
       throw new Error("Constraint effect is invalid");
     return Object.freeze({
       id: identifier(input.id, "Constraint id"),
       rule: text(input.rule, "Constraint rule"),
+      actions: strings(input.actions, "Constraint actions"),
       effect: input.effect,
     });
   });

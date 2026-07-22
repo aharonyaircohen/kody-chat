@@ -82,7 +82,12 @@ describe("domain responsibility boundaries", () => {
         role: "Implement approved work",
         permissions: ["code.write"],
         constraints: [
-          { id: "protect-main", rule: "Do not force-push", effect: "deny" },
+          {
+            id: "protect-main",
+            rule: "Do not force-push",
+            actions: ["git.force-push"],
+            effect: "deny",
+          },
         ],
       }),
     ).toMatchObject({ id: "developer", permissions: ["code.write"] });
