@@ -10,6 +10,7 @@
 import {
   Activity,
   Bell,
+  Blocks,
   Bot,
   Brain,
   Building2,
@@ -425,6 +426,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         label: "View Renderers",
         icon: LayoutGrid,
         description: "Renderer JSON for structured chat UI.",
+        tint: "text-cyan-300 bg-cyan-500/10",
+      },
+      {
+        href: "/views/widgets",
+        label: "Widgets",
+        icon: Blocks,
+        description: "Per-tenant widget bundles for chat surfaces.",
         tint: "text-cyan-300 bg-cyan-500/10",
       },
       {

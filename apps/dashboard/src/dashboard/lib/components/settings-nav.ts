@@ -10,6 +10,7 @@
 import {
   Activity,
   Bell,
+  Blocks,
   Bot,
   Brain,
   Building2,
@@ -446,6 +447,13 @@ export const SETTINGS_NAV_SECTIONS: readonly SettingsNavSection[] = [
         tint: "text-cyan-300 bg-cyan-500/10",
       },
       {
+        href: "/views/widgets",
+        label: "Widgets",
+        icon: Blocks,
+        description: "Per-tenant widget bundles for chat surfaces.",
+        tint: "text-cyan-300 bg-cyan-500/10",
+      },
+      {
         href: "/instructions",
         label: "Instructions",
         icon: ScrollText,
@@ -672,6 +680,7 @@ export const SIDEBAR_NAV_SECTIONS: readonly SettingsNavSection[] = [
       navItemForHref("/guided-flows"),
       navItemForHref("/setup"),
       navItemForHref("/views/renderers"),
+      navItemForHref("/views/widgets"),
       navItemForHref("/instructions"),
       navItemForHref("/context"),
       navItemForHref("/constraints"),
