@@ -239,6 +239,7 @@ function SidebarContent({
     const link = (
       <Link
         href={scopedHref(item.href)}
+        prefetch={item.href === "/" ? false : undefined}
         onClick={onNavigate}
         aria-current={active ? "page" : undefined}
         aria-label={item.label}
