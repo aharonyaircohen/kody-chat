@@ -1,12 +1,16 @@
 import {
   createGoalDefinition,
+  createGoalState,
   createIntentDefinition,
   createLoopDefinition,
+  createLoopState,
   createOperationDefinition,
   createWorkflowDefinition,
   type GoalDefinition,
+  type GoalState,
   type IntentDefinition,
   type LoopDefinition,
+  type LoopState,
   type OperationDefinition,
   type WorkflowDefinition,
 } from "@kody-ade/agency-domain";
@@ -47,6 +51,17 @@ type LegacyManagedWork = {
   schedule?: string;
   workflowRef?: { id: string };
   loopTarget?: { type: "goal" | "workflow" | "capability"; id: string };
+  state?: "inactive" | "active" | "paused" | "done";
+  facts?: Record<string, unknown>;
+  blockers?: string[];
+  updatedAt?: string;
+  scheduleState?: {
+    lastGoalTickAt?: string;
+    capabilities?: Record<
+      string,
+      { lastFiredAt?: string; nextEligibleAt?: string }
+    >;
+  };
 };
 
 type LegacyWorkflow = {
@@ -81,6 +96,7 @@ export type AgencyV2MigrationPlan = {
     loops: LoopDefinition[];
     workflows: WorkflowDefinition[];
   };
+  states: { goals: GoalState[]; loops: LoopState[] };
   requiredCapabilityIds: string[];
   issues: string[];
 };
@@ -128,6 +144,8 @@ export function planAgencyV2Migration(
   const workflows: WorkflowDefinition[] = [];
   const goals: GoalDefinition[] = [];
   const loops: LoopDefinition[] = [];
+  const goalStates: GoalState[] = [];
+  const loopStates: LoopState[] = [];
   const capabilityIds = new Set<string>();
 
   for (const workflow of input.workflows ?? []) {
@@ -169,6 +187,7 @@ export function planAgencyV2Migration(
           executionRef,
         }),
       );
+      goalStates.push(migrateGoalState(work));
       continue;
     }
     const targetRef = work.loopTarget
@@ -202,6 +221,7 @@ export function planAgencyV2Migration(
       },
       }),
     );
+    loopStates.push(migrateLoopState(work));
   }
 
   const workflowIds = new Set(workflows.map((workflow) => workflow.id));
@@ -222,9 +242,71 @@ export function planAgencyV2Migration(
 
   return {
     definitions: { intents, operations, goals, loops, workflows },
+    states: { goals: goalStates, loops: loopStates },
     requiredCapabilityIds: [...capabilityIds].sort(),
     issues,
   };
+}
+
+function migrateGoalState(work: LegacyManagedWork): GoalState {
+  const evidence = work.destination.evidence;
+  const satisfied = evidence.filter((key) => work.facts?.[key] === true).length;
+  return createGoalState({
+    definitionId: work.id,
+    lifecycle: legacyLifecycle(work.state),
+    progress: evidence.length === 0 ? 1 : satisfied / evidence.length,
+    blockers: work.blockers ?? [],
+    updatedAt: validTimestamp(work.updatedAt),
+  });
+}
+
+function migrateLoopState(work: LegacyManagedWork): LoopState {
+  const capabilityStates = Object.values(work.scheduleState?.capabilities ?? {});
+  const lastFiredAt = latestTimestamp([
+    work.scheduleState?.lastGoalTickAt,
+    ...capabilityStates.map((state) => state.lastFiredAt),
+  ]);
+  const nextEligibleAt = earliestTimestamp(
+    capabilityStates.map((state) => state.nextEligibleAt),
+  );
+  const blockers = work.blockers ?? [];
+  return createLoopState({
+    definitionId: work.id,
+    lifecycle: legacyLifecycle(work.state),
+    health: blockers.length > 0 ? "failing" : "unknown",
+    failures: blockers.length > 0 ? 1 : 0,
+    ...(lastFiredAt ? { lastFiredAt } : {}),
+    ...(nextEligibleAt ? { nextEligibleAt } : {}),
+    updatedAt: validTimestamp(work.updatedAt),
+  });
+}
+
+function legacyLifecycle(state: LegacyManagedWork["state"]) {
+  if (state === "active") return "active" as const;
+  if (state === "paused") return "paused" as const;
+  if (state === "done") return "retired" as const;
+  return "draft" as const;
+}
+
+function validTimestamp(value?: string): string {
+  return value && !Number.isNaN(Date.parse(value))
+    ? new Date(value).toISOString()
+    : new Date().toISOString();
+}
+
+function latestTimestamp(values: Array<string | undefined>): string | undefined {
+  return sortedTimestamps(values).at(-1);
+}
+
+function earliestTimestamp(values: Array<string | undefined>): string | undefined {
+  return sortedTimestamps(values)[0];
+}
+
+function sortedTimestamps(values: Array<string | undefined>): string[] {
+  return values
+    .filter((value): value is string => !!value && !Number.isNaN(Date.parse(value)))
+    .map((value) => new Date(value).toISOString())
+    .sort();
 }
 
 function migrateWorkflow(

@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   agencyDefinitionRecordId,
   createStoredAgencyDefinition,
+  putStoredAgencyState,
   type AgencyDefinitionKind,
 } from "@kody-ade/agency/backend/agency-model-store";
 import { listCapabilityFiles } from "@kody-ade/agency/capabilities";
@@ -98,6 +99,13 @@ async function buildSnapshot(req: NextRequest) {
         ...(record.state.schedule ? { schedule: record.state.schedule } : {}),
         ...(record.state.workflowRef ? { workflowRef: { id: record.state.workflowRef.id } } : {}),
         ...(record.state.loopTarget ? { loopTarget: record.state.loopTarget } : {}),
+        state: record.state.state,
+        facts: record.state.facts,
+        blockers: record.state.blockers,
+        ...(record.updatedAt ? { updatedAt: record.updatedAt } : {}),
+        ...(record.state.scheduleState
+          ? { scheduleState: record.state.scheduleState }
+          : {}),
       })),
       capabilities,
       workflows: [
@@ -220,6 +228,24 @@ export async function POST(req: NextRequest) {
           }
         }
       }
+    }
+    for (const state of result.plan.states.goals) {
+      await putStoredAgencyState({
+        owner: result.access.auth.owner,
+        repo: result.access.auth.repo,
+        kind: "goal",
+        data: state,
+        updatedAt: state.updatedAt,
+      });
+    }
+    for (const state of result.plan.states.loops) {
+      await putStoredAgencyState({
+        owner: result.access.auth.owner,
+        repo: result.access.auth.repo,
+        kind: "loop",
+        data: state,
+        updatedAt: state.updatedAt,
+      });
     }
     return NextResponse.json({ ok: true, migrationId, created, reused }, { status: 201 });
   } catch (error) {

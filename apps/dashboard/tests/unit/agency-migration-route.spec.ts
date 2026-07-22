@@ -4,6 +4,7 @@ import { NextRequest } from "next/server";
 const writes = vi.hoisted(() => ({
   backup: vi.fn(async () => undefined),
   create: vi.fn(async () => undefined),
+  putState: vi.fn(async () => undefined),
 }));
 
 vi.mock("@kody-ade/agency/routes/repo-write-access", () => ({
@@ -85,6 +86,7 @@ vi.mock("@kody-ade/agency/backend/agency-model-store", async (importOriginal) =>
     typeof import("@kody-ade/agency/backend/agency-model-store")
   >()),
   createStoredAgencyDefinition: writes.create,
+  putStoredAgencyState: writes.putState,
 }));
 
 import { GET, POST } from "../../app/api/kody/agency-migration/route";
@@ -109,6 +111,7 @@ describe("agency V2 migration route", () => {
     expect(response.status).toBe(201);
     expect(writes.backup).toHaveBeenCalledOnce();
     expect(writes.create).toHaveBeenCalled();
+    expect(writes.putState).toHaveBeenCalled();
     expect(writes.backup.mock.invocationCallOrder[0]).toBeLessThan(
       writes.create.mock.invocationCallOrder[0]!,
     );

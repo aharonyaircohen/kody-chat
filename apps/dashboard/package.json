@@ -47,6 +47,7 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@json-render/core": "^0.19.0",
     "@kody-ade/agency": "workspace:*",
+    "@kody-ade/agency-domain": "workspace:*",
     "@kody-ade/backend": "workspace:*",
     "@kody-ade/base": "workspace:*",
     "@kody-ade/brain": "workspace:*",

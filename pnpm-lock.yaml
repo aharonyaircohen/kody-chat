@@ -33,6 +33,9 @@ importers:
       "@kody-ade/agency":
         specifier: workspace:*
         version: link:../../packages/agency
+      "@kody-ade/agency-domain":
+        specifier: workspace:*
+        version: link:../../packages/agency-domain
       "@kody-ade/backend":
         specifier: workspace:*
         version: link:../../packages/kody-backend

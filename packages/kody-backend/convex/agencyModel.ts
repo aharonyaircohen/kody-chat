@@ -607,3 +607,12 @@ export const getState = query({
       )
       .unique(),
 });
+
+export const listStates = query({
+  args: { serviceKey: v.optional(v.string()), tenantId: v.string() },
+  handler: (ctx, args) =>
+    ctx.db
+      .query("agencyStates")
+      .withIndex("by_tenant", (q) => q.eq("tenantId", args.tenantId))
+      .collect(),
+});

@@ -5,7 +5,7 @@
  * @ai-summary AgentGoal page for finite, evidence-driven operating models.
  */
 
-import { ManagedModelsView } from "@dashboard/features/admin/components/ManagedModelsView";
+import { AgencyDefinitionsView } from "@dashboard/features/admin/components/AgencyDefinitionsView";
 import { buildKodyMetadata } from "../../metadata";
 
 export const metadata = buildKodyMetadata({
@@ -15,5 +15,5 @@ export const metadata = buildKodyMetadata({
 });
 
 export default function AgentGoalsPage() {
-  return <ManagedModelsView model="agentGoal" />;
+  return <AgencyDefinitionsView kind="goal" />;
 }

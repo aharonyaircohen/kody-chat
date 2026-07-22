@@ -21,6 +21,14 @@ export type StoredAgencyDefinition = {
   createdAt: string;
 };
 
+export type StoredAgencyState = {
+  definitionId: string;
+  kind: "goal" | "loop";
+  schemaVersion: number;
+  data: Record<string, unknown>;
+  updatedAt: string;
+};
+
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
   if (value && typeof value === "object") {
@@ -74,5 +82,31 @@ export async function createStoredAgencyDefinition(input: {
       data: input.data,
     },
     createdAt: input.createdAt,
+  });
+}
+
+export async function listStoredAgencyStates(
+  owner: string,
+  repo: string,
+): Promise<StoredAgencyState[]> {
+  return (await createBackendClient().query(backendApi.agencyModel.listStates, {
+    tenantId: tenantIdFor(owner, repo),
+  })) as StoredAgencyState[];
+}
+
+export async function putStoredAgencyState(input: {
+  owner: string;
+  repo: string;
+  kind: "goal" | "loop";
+  data: { definitionId: string };
+  updatedAt: string;
+}): Promise<void> {
+  await createBackendClient().mutation(backendApi.agencyModel.putState, {
+    tenantId: tenantIdFor(input.owner, input.repo),
+    definitionId: input.data.definitionId,
+    kind: input.kind,
+    schemaVersion: 1,
+    data: input.data,
+    updatedAt: input.updatedAt,
   });
 }
