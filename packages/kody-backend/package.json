@@ -23,6 +23,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@kody-ade/agency-domain": "workspace:*",
     "convex": "^1.17.0"
   },
   "devDependencies": {

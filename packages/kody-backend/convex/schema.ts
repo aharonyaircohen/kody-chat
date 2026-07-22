@@ -331,6 +331,31 @@ export default defineSchema({
     updatedAt: v.string(),
   }).index("by_tenant", ["tenantId", "goalId"]),
 
+  agencyDefinitions: defineTable({
+    tenantId: v.string(),
+    recordId: v.string(),
+    kind: v.union(
+      v.literal("intent"),
+      v.literal("operation"),
+      v.literal("goal"),
+      v.literal("loop"),
+      v.literal("workflow"),
+      v.literal("capability"),
+    ),
+    schemaVersion: v.number(),
+    data: v.any(),
+    createdAt: v.string(),
+  }).index("by_tenant", ["tenantId", "recordId"]),
+
+  agencyStates: defineTable({
+    tenantId: v.string(),
+    definitionId: v.string(),
+    kind: v.union(v.literal("goal"), v.literal("loop")),
+    schemaVersion: v.number(),
+    data: v.any(),
+    updatedAt: v.string(),
+  }).index("by_tenant", ["tenantId", "definitionId"]),
+
   reports: defineTable({
     tenantId: v.string(),
     slug: v.string(),

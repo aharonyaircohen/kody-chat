@@ -28,7 +28,7 @@ GoalDefinition = finite Objective + execution reference
 LoopDefinition = continuous Objective + Trigger + target + reconciliation policy
 ```
 
-Goal and Loop are separate persisted models. Each has a versioned Definition
+Goal and Loop are separate persisted models. Each has an immutable Definition
 and separate runtime State. Objective and Trigger have no id, lifecycle,
 storage record, or Dashboard page.
 
@@ -65,15 +65,21 @@ entities.
 ## Clean architecture rules
 
 ```text
-Pure domain contracts
+Pure domain model
     <- application services
-        <- Engine, Dashboard, Store, Convex, GitHub, and migration adapters
+        <- persistence codecs and adapters
+            <- Engine, Dashboard, Store, Convex, GitHub, and migration tools
 ```
 
 - Domain contracts contain no UI, Engine, database, GitHub, Convex, or Store
   dependencies.
-- Definitions are versioned and portable. State is mutable and scoped to one
-  consumer repository.
+- Domain entities contain no schema version, storage path, content hash,
+  migration flag, or transport metadata.
+- Persistence envelopes own schema versions and immutable record references;
+  codecs translate them to and from the domain model.
+- Definitions are immutable and portable. State is mutable and scoped to one
+  consumer repository. Storage format versions belong to adapter envelopes,
+  never domain entities.
 - Goal and Loop are aggregate boundaries. Their Definition and State are
   separate contracts updated through application services.
 - Objective and Trigger are value objects with no independent identity.
@@ -81,8 +87,8 @@ Pure domain contracts
   orchestration. Loop alone owns recurring activation.
 - Runs may change while active, become immutable when terminal, and emit
   append-only events and outputs.
-- Facts, Evidence, and Artifacts record their source Run, producer, schema
-  version, and creation time.
+- Facts, Evidence, and Artifacts record their source Run, producer, contract
+  identity, and creation time.
 - Pause, retire, archive, restore, deletion, and reference protection are part
   of each model contract.
 
@@ -317,7 +323,7 @@ This table is kept only to make the storage split explicit:
 | Implementation | Prompt glue, skills, scripts, tools, landing, output contract                                          | Agency direction, cadence, public ownership, or long-term progress |
 | Context        | Facts Kody should know while reasoning                                                                 | Source-of-truth policy or scheduled work                           |
 | Instructions   | Chat response behavior such as tone, length, and format                                                | Agency facts or agency structure                                   |
-| Definition     | Versioned portable Goal, Loop, Workflow, Capability, Agent, Intent, or Operation contract              | Runtime progress, health, or execution history                     |
+| Definition     | Immutable portable Goal, Loop, Workflow, Capability, Agent, Intent, or Operation contract              | Runtime progress, health, persistence format, or execution history |
 | State          | Mutable runtime progress, health, and scheduler position                                               | Authoring rules or portable agency doctrine                        |
 | Run            | One execution attempt; mutable while active and frozen when terminal                                   | Durable definitions or business ownership                          |
 | Run event      | Append-only transition, fact, evidence, or artifact provenance                                         | Mutable current state                                              |

@@ -103,6 +103,16 @@ export const TABLES: readonly TableDef[] = [
     upsertIndex: "by_intent",
   },
   { table: "goals", naturalKey: ["goalId"], upsertIndex: "by_tenant" },
+  {
+    table: "agencyDefinitions",
+    naturalKey: ["recordId"],
+    upsertIndex: "by_tenant",
+  },
+  {
+    table: "agencyStates",
+    naturalKey: ["definitionId"],
+    upsertIndex: "by_tenant",
+  },
   { table: "reports", naturalKey: ["slug", "runId"], upsertIndex: "by_slug" },
   { table: "agents", naturalKey: ["slug"], upsertIndex: "by_tenant" },
   { table: "viewRenderers", naturalKey: ["slug"], upsertIndex: "by_tenant" },
