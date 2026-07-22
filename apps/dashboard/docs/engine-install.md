@@ -16,9 +16,9 @@ auth headers):
    - File present and matches latest → no commit.
    - File present and differs → update (`chore(kody): sync engine workflow to latest template`).
    - `force: true` always commits.
-3. **Writes `KODY_TOKEN`** as a repo Actions secret, set to the caller's
-   PAT. Without this the engine has no GitHub auth at runtime — labels,
-   comments, and PR updates would fail.
+3. **Writes `KODY_TOKEN`** as a compatibility secret when the caller's PAT
+   can manage Actions secrets. It is optional: the engine falls back through
+   PAT, GitHub App credentials, and finally GitHub's built-in token.
 4. **Makes repo vault secrets available to workflows.** Reads
    `backend vault record`, decrypts it with the dashboard's
    `KODY_MASTER_KEY`, and writes each entry as a repo Actions secret.
@@ -44,15 +44,15 @@ Headers: x-kody-token, x-kody-owner, x-kody-repo
 Body:    { "force"?: boolean }
 ```
 
-`x-kody-token` must be a fine-grained PAT with at least:
+`x-kody-token` authorizes the installer itself and must be a fine-grained PAT
+with at least:
 
 - `repo` (contents:write — to commit the workflow file)
-- `repo:secrets:write` (to set `KODY_TOKEN` and mirror the vault)
+- `repo:secrets:write` (optional, to set the compatibility `KODY_TOKEN` and mirror the vault)
 - `admin:repo_hook` (for the webhook step)
 
-If `repo:secrets:write` is missing, the workflow commit still lands but
-both `KODY_TOKEN` and vault-mirroring fail — `nextSteps` will tell the
-user to re-mint the PAT or set the secrets by hand.
+If `repo:secrets:write` is missing, the workflow still lands and can use the
+built-in GitHub token. Vault mirroring will be skipped.
 
 ## Outputs
 
@@ -81,12 +81,10 @@ Re-run `/init` (or POST with `force: true`) whenever:
 
 ## Vault runtime access
 
-The engine runs inside the consumer repo's GitHub Actions runner. It
-can read the configured backend with `KODY_TOKEN` and decrypt
-`secrets.enc` with `KODY_MASTER_KEY`. QA auth uses that vault-first path, so
-`LOGIN_PASSWORD` does not need a separate repo Actions secret. Mirrored
-Actions secrets remain a compatibility path for engine code that still reads
-from `toJSON(secrets)`.
+The engine runs inside the consumer repo's GitHub Actions runner. GitHub OIDC
+identifies the repo to Kody's backend, so consumer repos do not need a database
+key. `LOGIN_PASSWORD` also does not need a separate Actions secret. Mirrored
+Actions secrets remain a compatibility path for older engine code.
 
 ## Files
 
