@@ -49,8 +49,9 @@ vi.mock("@dashboard/lib/operation-files", () => ({
 vi.mock("@dashboard/lib/managed-goals-files", () => ({
   listManagedGoalFiles: vi.fn(async () => [
     {
-      id: "release",
+      id: "release-revision-a1b2c3",
       state: {
+        id: "release",
         destination: { outcome: "Release ships", evidence: ["deployed"] },
         route: [],
         workflowRef: { id: "release-workflow" },

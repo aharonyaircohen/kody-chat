@@ -87,7 +87,12 @@ async function buildSnapshot(req: NextRequest) {
       intents: intentRecords.map((record) => record.intent),
       operations: operationRecords.map((record) => record.operation),
       managedWork: managedRecords.map((record) => ({
-        id: record.id,
+        // The record id identifies an immutable storage revision. Agency
+        // ownership and runtime state use the stable managed-work identity.
+        id:
+          typeof record.state.id === "string" && record.state.id.trim()
+            ? record.state.id
+            : record.id,
         model: managedGoalModel(record) === "agentLoop" ? ("loop" as const) : ("goal" as const),
         destination: record.state.destination,
         route: record.state.route.map((step) => ({
