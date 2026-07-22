@@ -41,92 +41,8 @@ import { writeEngineModel } from "@kody-ade/base/engine/config";
 export const KODY_TOKEN_SECRET = "KODY_TOKEN";
 
 export const WORKFLOW_TEMPLATE_SOURCE =
-  "dashboard:kody-chat-compatible-workflow";
+  "https://unpkg.com/@kody-ade/kody-engine@latest/templates/kody.yml";
 export const WORKFLOW_PATH = ".github/workflows/kody.yml";
-
-const WORKFLOW_TEMPLATE = `# Drop this file at .github/workflows/kody.yml in your repo.
-#
-# Triggers forward every relevant event to kody; the engine decides what
-# to do. The workflow stays thin so engine fixes ship through npm.
-#
-# Required repo secrets: at least one model provider key, such as
-# MINIMAX_API_KEY or ANTHROPIC_API_KEY. Kody reads *_API_KEY secrets
-# automatically through ALL_SECRETS.
-#
-# Recommended: KODY_TOKEN secret with repo, read:org, and workflow scopes.
-
-name: kody
-
-on:
-  workflow_dispatch:
-    inputs:
-      capability:
-        description: "Capability name (e.g. ui-review, run, fix)"
-        type: string
-        default: ""
-      issue_number:
-        description: "GitHub issue number (agent mode)"
-        type: string
-        default: ""
-      sessionId:
-        description: "Chat session ID (chat mode, from Kody-Dashboard)"
-        type: string
-        default: ""
-      message:
-        description: "Initial chat message (optional)"
-        type: string
-        default: ""
-      model:
-        description: "Model override (optional, e.g. anthropic/claude-haiku-4-5-20251001)"
-        type: string
-        default: ""
-      dashboardUrl:
-        description: "Dashboard event ingest URL with inline ?token=... (chat mode)"
-        type: string
-        default: ""
-  issue_comment:
-    types: [created]
-  pull_request:
-    types: [closed]
-  schedule:
-    - cron: "*/15 * * * *"
-
-jobs:
-  run:
-    if: \${{ github.event_name != 'pull_request' || github.event.pull_request.merged == true }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 360
-    concurrency:
-      group: kody-\${{ inputs.sessionId || inputs.issue_number || github.event.issue.number || github.sha }}
-      cancel-in-progress: false
-    permissions:
-      issues: write
-      pull-requests: write
-      contents: write
-      actions: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: \${{ github.event.pull_request.base.ref || github.ref }}
-          token: \${{ secrets.KODY_TOKEN || github.token }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - env:
-          ALL_SECRETS: \${{ toJSON(secrets) }}
-          SESSION_ID: \${{ inputs.sessionId }}
-          INIT_MESSAGE: \${{ inputs.message }}
-          MODEL: \${{ inputs.model }}
-          DASHBOARD_URL: \${{ inputs.dashboardUrl }}
-        run: npx -y -p @kody-ade/kody-engine@latest kody-engine
-`;
 
 export interface InstallEngineInput {
   octokit: Octokit;
@@ -182,15 +98,26 @@ export interface InstallEngineFailure {
   error: string;
 }
 
-function loadWorkflowTemplate(): { content: string; source: string } {
-  const body = WORKFLOW_TEMPLATE;
+async function loadWorkflowTemplate(): Promise<{
+  content: string;
+  source: string;
+}> {
+  const response = await fetch(WORKFLOW_TEMPLATE_SOURCE, {
+    cache: "no-store",
+  });
+  if (!response.ok) {
+    throw new Error(
+      `Could not load Kody workflow template (${response.status} ${response.statusText}).`,
+    );
+  }
+  const body = await response.text();
   if (
     (!body.trim().startsWith("#") && !body.includes("name: kody")) ||
     !body.includes("sessionId:") ||
     !body.includes("DASHBOARD_URL:")
   ) {
     throw new Error(
-      `Bundled workflow template did not look like chat-compatible kody.yml (got ${body.length} chars).`,
+      `Kody workflow template did not look like chat-compatible kody.yml (got ${body.length} chars).`,
     );
   }
   return { content: body, source: WORKFLOW_TEMPLATE_SOURCE };
@@ -363,7 +290,7 @@ export async function installEngine(
 
   try {
     const { content: template, source: templateSource } =
-      loadWorkflowTemplate();
+      await loadWorkflowTemplate();
     const existing = await readExisting(octokit, owner, repo);
 
     let workflowAction: WorkflowAction = "unchanged";
