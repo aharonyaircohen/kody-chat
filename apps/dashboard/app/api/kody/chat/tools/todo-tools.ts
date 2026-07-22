@@ -1,2 +1,1 @@
-/** Tool re-export — implementation lives in @kody-ade/workspace. */
-export * from "@kody-ade/workspace/tools/todo-tools";
+export * from "@kody-ade/kody-chat-dashboard/chat-tools/todo";

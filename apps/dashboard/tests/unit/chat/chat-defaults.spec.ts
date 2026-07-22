@@ -116,9 +116,9 @@ describe("chat-defaults bundle", () => {
       "node_modules/@kody-ade/workspace/src/tools/context-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/todo-tools.ts",
       "node_modules/@kody-ade/workspace/src/tools/instructions-tools.ts",
-      "app/api/kody/chat/tools/variables-tools.ts",
-      "app/api/kody/chat/tools/secrets-tools.ts",
-      "app/api/kody/chat/tools/models-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/variables-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/secrets-tools.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/models-tools.ts",
       "app/api/kody/chat/tools/reports-tools.ts",
       "app/api/kody/chat/tools/notifications-tools.ts",
       "app/api/kody/chat/tools/company-tools.ts",
@@ -132,7 +132,7 @@ describe("chat-defaults bundle", () => {
       "app/api/kody/chat/tools/feature-tools.ts",
       "app/api/kody/chat/tools/ui-tools.ts",
       "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/guided-flow-tools.ts",
-      "app/api/kody/chat/tools/fetch-url.ts",
+      "node_modules/@kody-ade/kody-chat-dashboard/app/api/kody/chat/tools/fetch-url.ts",
     ];
     // Two registries: tools declared inline as `tool({` in a file
     // (the common shape), and tools grouped in a map like
