@@ -154,6 +154,100 @@ export const listOutputs = query({
   },
 });
 
+const dispatchDecision = v.object({
+  kind: v.union(v.literal("fire"), v.literal("skip")),
+  reason: v.string(),
+  scheduledAt: v.optional(v.string()),
+  nextEligibleAt: v.optional(v.string()),
+});
+
+export const reserveDispatch = mutation({
+  args: {
+    serviceKey: v.optional(v.string()),
+    tenantId: v.string(),
+    idempotencyKey: v.string(),
+    loopId: v.string(),
+    decision: dispatchDecision,
+    leaseUntil: v.string(),
+    now: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("agencyDispatches")
+      .withIndex("by_tenant_key", (q) =>
+        q.eq("tenantId", args.tenantId).eq("idempotencyKey", args.idempotencyKey),
+      )
+      .unique();
+    if (existing) return { acquired: false, dispatchId: existing._id };
+    const dispatchId = await ctx.db.insert("agencyDispatches", {
+      tenantId: args.tenantId,
+      idempotencyKey: args.idempotencyKey,
+      loopId: args.loopId,
+      decision: args.decision,
+      status: "reserved",
+      leaseUntil: args.leaseUntil,
+      createdAt: args.now,
+      updatedAt: args.now,
+    });
+    return { acquired: true, dispatchId };
+  },
+});
+
+export const recordSkippedDispatch = mutation({
+  args: {
+    serviceKey: v.optional(v.string()),
+    tenantId: v.string(),
+    idempotencyKey: v.string(),
+    loopId: v.string(),
+    decision: dispatchDecision,
+    now: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("agencyDispatches")
+      .withIndex("by_tenant_key", (q) =>
+        q.eq("tenantId", args.tenantId).eq("idempotencyKey", args.idempotencyKey),
+      )
+      .unique();
+    if (existing) return existing._id;
+    return ctx.db.insert("agencyDispatches", {
+      tenantId: args.tenantId,
+      idempotencyKey: args.idempotencyKey,
+      loopId: args.loopId,
+      decision: args.decision,
+      status: "skipped",
+      createdAt: args.now,
+      updatedAt: args.now,
+    });
+  },
+});
+
+export const finishDispatch = mutation({
+  args: {
+    serviceKey: v.optional(v.string()),
+    tenantId: v.string(),
+    idempotencyKey: v.string(),
+    status: v.union(v.literal("dispatched"), v.literal("failed")),
+    runId: v.optional(v.string()),
+    now: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const existing = await ctx.db
+      .query("agencyDispatches")
+      .withIndex("by_tenant_key", (q) =>
+        q.eq("tenantId", args.tenantId).eq("idempotencyKey", args.idempotencyKey),
+      )
+      .unique();
+    if (!existing) throw new Error("Agency Dispatch reservation not found");
+    if (existing.status !== "reserved") throw new Error("Agency Dispatch is already terminal");
+    await ctx.db.patch(existing._id, {
+      status: args.status,
+      ...(args.runId ? { runId: args.runId } : {}),
+      updatedAt: args.now,
+    });
+  },
+});
+
 export const getState = query({
   args: {
     serviceKey: v.optional(v.string()),

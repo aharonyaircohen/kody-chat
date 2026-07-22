@@ -366,6 +366,23 @@ export default defineSchema({
     .index("by_tenant_record", ["tenantId", "recordId"])
     .index("by_tenant_run", ["tenantId", "runId"]),
 
+  agencyDispatches: defineTable({
+    tenantId: v.string(),
+    idempotencyKey: v.string(),
+    loopId: v.string(),
+    decision: v.any(),
+    status: v.union(
+      v.literal("skipped"),
+      v.literal("reserved"),
+      v.literal("dispatched"),
+      v.literal("failed"),
+    ),
+    leaseUntil: v.optional(v.string()),
+    runId: v.optional(v.string()),
+    createdAt: v.string(),
+    updatedAt: v.string(),
+  }).index("by_tenant_key", ["tenantId", "idempotencyKey"]),
+
   reports: defineTable({
     tenantId: v.string(),
     slug: v.string(),

@@ -100,4 +100,38 @@ describe("agency model persistence", () => {
     ).rejects.toThrow(/append-only/i);
     expect(await t.query(api.agencyModel.listOutputs, { tenantId, runId: "run-1" })).toHaveLength(1);
   });
+
+  it("reserves each Trigger firing only once", async () => {
+    const t = setup();
+    const input = {
+      tenantId,
+      idempotencyKey: "refresh-graph:schedule:2026-07-22T01:00:00.000Z",
+      loopId: "refresh-graph",
+      decision: {
+        kind: "fire" as const,
+        reason: "scheduled trigger is due",
+        scheduledAt: "2026-07-22T01:00:00.000Z",
+      },
+      leaseUntil: "2026-07-22T01:15:00.000Z",
+      now,
+    };
+
+    await expect(t.mutation(api.agencyModel.reserveDispatch, input)).resolves.toMatchObject({ acquired: true });
+    await expect(t.mutation(api.agencyModel.reserveDispatch, input)).resolves.toMatchObject({ acquired: false });
+    await t.mutation(api.agencyModel.finishDispatch, {
+      tenantId,
+      idempotencyKey: input.idempotencyKey,
+      status: "dispatched",
+      runId: "run-1",
+      now: "2026-07-22T00:02:00.000Z",
+    });
+    await expect(
+      t.mutation(api.agencyModel.finishDispatch, {
+        tenantId,
+        idempotencyKey: input.idempotencyKey,
+        status: "failed",
+        now: "2026-07-22T00:03:00.000Z",
+      }),
+    ).rejects.toThrow(/terminal/i);
+  });
 });

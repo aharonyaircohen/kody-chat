@@ -52,6 +52,18 @@ const operations = {
     kind: "query",
     fn: backendApi.agencyModel.listOutputs,
   },
+  "agencyModel.reserveDispatch": {
+    kind: "mutation",
+    fn: backendApi.agencyModel.reserveDispatch,
+  },
+  "agencyModel.recordSkippedDispatch": {
+    kind: "mutation",
+    fn: backendApi.agencyModel.recordSkippedDispatch,
+  },
+  "agencyModel.finishDispatch": {
+    kind: "mutation",
+    fn: backendApi.agencyModel.finishDispatch,
+  },
   "runEvents.append": { kind: "mutation", fn: backendApi.runEvents.append },
   "manifests.get": { kind: "query", fn: backendApi.manifests.get },
   "reports.save": { kind: "mutation", fn: backendApi.reports.save },
