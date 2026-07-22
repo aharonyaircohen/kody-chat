@@ -5,6 +5,9 @@ export interface DefinitionRef {
   kind: ReferenceKind;
   id: string;
 }
+export interface PinnedDefinitionRef extends DefinitionRef {
+  revision: string;
+}
 export interface Scope {
   include: Readonly<Record<string, readonly string[]>>;
   exclude: Readonly<Record<string, readonly string[]>>;
@@ -114,8 +117,14 @@ export interface LoopState {
 export interface Run {
   id: string;
   status: "queued" | "running" | "succeeded" | "failed" | "cancelled";
-  origin: DefinitionRef;
-  target: DefinitionRef;
+  origin: PinnedDefinitionRef;
+  target: PinnedDefinitionRef;
+  trace: PinnedDefinitionRef[];
+  effectivePolicy: {
+    hash: string;
+    policy: Policy;
+    constraints: Constraint[];
+  };
   correlationId: string;
   startedAt: string;
   finishedAt?: string;
@@ -276,6 +285,23 @@ function reference(
     kind: input.kind as ReferenceKind,
     id: identifier(input.id, `${label}.id`),
   };
+}
+function pinnedReference(
+  value: unknown,
+  kinds: readonly ReferenceKind[],
+  label: string,
+): PinnedDefinitionRef {
+  const input = record(value, label);
+  exact(input, ["kind", "id", "revision"], label);
+  const base = reference(
+    { kind: input.kind, id: input.id },
+    kinds,
+    label,
+  );
+  return Object.freeze({
+    ...base,
+    revision: text(input.revision, `${label}.revision`),
+  });
 }
 function parseObjective(value: unknown): Objective {
   const input = record(value, "Objective");
@@ -627,6 +653,8 @@ export function createRun(value: unknown): Run {
       "status",
       "origin",
       "target",
+      "trace",
+      "effectivePolicy",
       "correlationId",
       "startedAt",
       "finishedAt",
@@ -653,15 +681,38 @@ export function createRun(value: unknown): Run {
     throw new Error("Terminal Run requires finishedAt");
   if (!terminal && input.finishedAt)
     throw new Error("Active Run cannot have finishedAt");
+  if (!Array.isArray(input.trace) || input.trace.length === 0)
+    throw new Error("Run trace is required");
+  const effectivePolicy = record(input.effectivePolicy, "Run effectivePolicy");
+  exact(
+    effectivePolicy,
+    ["hash", "policy", "constraints"],
+    "Run effectivePolicy",
+  );
   const run: Run = {
     id: identifier(input.id, "Run id"),
     status: input.status as Run["status"],
-    origin: reference(input.origin, ["goal", "loop"], "Run origin"),
-    target: reference(
+    origin: pinnedReference(input.origin, ["goal", "loop"], "Run origin"),
+    target: pinnedReference(
       input.target,
       ["goal", "workflow", "capability"],
       "Run target",
     ),
+    trace: input.trace.map((item) =>
+      pinnedReference(
+        item,
+        ["goal", "loop", "workflow", "capability", "agent"],
+        "Run trace item",
+      ),
+    ),
+    effectivePolicy: Object.freeze({
+      hash: text(effectivePolicy.hash, "Run effectivePolicy hash"),
+      policy: createPolicy(effectivePolicy.policy),
+      constraints: parseConstraints(
+        effectivePolicy.constraints,
+        "Run effectivePolicy constraints",
+      ),
+    }),
     correlationId: identifier(input.correlationId, "Run correlationId"),
     startedAt: timestamp(input.startedAt, "Run startedAt"),
     ...(input.finishedAt

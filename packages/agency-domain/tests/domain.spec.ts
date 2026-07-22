@@ -88,8 +88,28 @@ describe("clean AI Agency domain", () => {
     const run = createRun({
       id: "run-1",
       status: "succeeded",
-      origin: { kind: "loop", id: "knowledge-refresh" },
-      target: { kind: "workflow", id: "refresh-knowledge" },
+      origin: { kind: "loop", id: "knowledge-refresh", revision: "loop-ref" },
+      target: { kind: "workflow", id: "refresh-knowledge", revision: "workflow-ref" },
+      trace: [
+        { kind: "loop", id: "knowledge-refresh", revision: "loop-ref" },
+        { kind: "workflow", id: "refresh-knowledge", revision: "workflow-ref" },
+      ],
+      effectivePolicy: {
+        hash: "policy-hash",
+        policy: {
+          approval: "none",
+          authority: { allow: ["refresh-knowledge"], deny: [] },
+          budget: {
+            maxRuns: 1,
+            maxTokens: 1000,
+            maxCostUsd: 10,
+            maxDurationSeconds: 300,
+          },
+          maxConcurrentRuns: 1,
+          riskyActions: [],
+        },
+        constraints: [],
+      },
       correlationId: "corr-1",
       startedAt: "2026-07-22T00:00:00.000Z",
       finishedAt: "2026-07-22T00:01:00.000Z",
