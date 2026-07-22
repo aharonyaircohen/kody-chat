@@ -17,6 +17,8 @@ test("external host completes the supported chat integration journey", async ({
     page.getByRole("banner").or(page.getByText("External Kody Chat")),
   ).toBeVisible();
   await expect(page.getByTestId("kody-chat-frame")).toBeVisible();
+  await expect(page.getByLabel("Message")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send" })).toBeVisible();
 
   await page.getByRole("button", { name: "New conversation" }).click();
   await expect(page.getByLabel("Conversation title")).toHaveValue(
@@ -92,8 +94,36 @@ test("external host completes the supported chat integration journey", async ({
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(page.locator(".kody-chat")).toBeVisible();
+  await expect(page.getByLabel("Message")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Delete conversation" }),
+  ).toBeVisible();
   const mobileBox = await page.locator(".kody-chat").boundingBox();
   expect(mobileBox?.width).toBeLessThanOrEqual(390);
+  const mobileLayout = await page.locator(".kody-chat").evaluate((root) => {
+    const sessions = root.querySelector<HTMLElement>(".kody-chat__sessions");
+    const composer = root.querySelector<HTMLElement>(".kody-chat__composer");
+    const rootRect = root.getBoundingClientRect();
+    const composerRect = composer?.getBoundingClientRect();
+    return {
+      rootScrollWidth: root.scrollWidth,
+      rootClientWidth: root.clientWidth,
+      sessionsScrollWidth: sessions?.scrollWidth ?? 0,
+      sessionsClientWidth: sessions?.clientWidth ?? 0,
+      composerInsideRoot:
+        Boolean(composerRect) &&
+        composerRect!.left >= rootRect.left &&
+        composerRect!.right <= rootRect.right &&
+        composerRect!.bottom <= rootRect.bottom,
+    };
+  });
+  expect(mobileLayout.rootScrollWidth).toBeLessThanOrEqual(
+    mobileLayout.rootClientWidth,
+  );
+  expect(mobileLayout.sessionsScrollWidth).toBeLessThanOrEqual(
+    mobileLayout.sessionsClientWidth,
+  );
+  expect(mobileLayout.composerInsideRoot).toBe(true);
 
   await page.reload();
   await page
