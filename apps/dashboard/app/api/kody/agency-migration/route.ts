@@ -19,7 +19,10 @@ import {
 } from "@dashboard/lib/github-client";
 import { listCompanyIntentRecords } from "@dashboard/lib/company-intents-store";
 import { listManagedGoalFiles } from "@dashboard/lib/managed-goals-files";
-import { managedGoalModel } from "@dashboard/lib/managed-goals";
+import {
+  collapseManagedGoalRecordsForList,
+  managedGoalModel,
+} from "@dashboard/lib/managed-goals";
 import { listOperationFiles } from "@dashboard/lib/operation-files";
 import {
   listCompanyStoreWorkflowDefinitionFiles,
@@ -81,18 +84,14 @@ async function buildSnapshot(req: NextRequest) {
         ),
       )
     ).filter((record) => record !== null);
+    const managedWork = collapseManagedGoalRecordsForList(managedRecords);
     const snapshot = {
       tenantId: tenantIdFor(auth.owner, auth.repo),
       capturedAt: new Date().toISOString(),
       intents: intentRecords.map((record) => record.intent),
       operations: operationRecords.map((record) => record.operation),
-      managedWork: managedRecords.map((record) => ({
-        // The record id identifies an immutable storage revision. Agency
-        // ownership and runtime state use the stable managed-work identity.
-        id:
-          typeof record.state.id === "string" && record.state.id.trim()
-            ? record.state.id
-            : record.id,
+      managedWork: managedWork.map((record) => ({
+        id: record.id,
         model: managedGoalModel(record) === "agentLoop" ? ("loop" as const) : ("goal" as const),
         destination: record.state.destination,
         route: record.state.route.map((step) => ({

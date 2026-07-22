@@ -49,9 +49,10 @@ vi.mock("@dashboard/lib/operation-files", () => ({
 vi.mock("@dashboard/lib/managed-goals-files", () => ({
   listManagedGoalFiles: vi.fn(async () => [
     {
-      id: "release-revision-a1b2c3",
+      id: "release-2026-07-22",
       state: {
-        id: "release",
+        id: "release-2026-07-22",
+        sourceTemplate: "release",
         destination: { outcome: "Release ships", evidence: ["deployed"] },
         route: [],
         workflowRef: { id: "release-workflow" },
@@ -59,7 +60,10 @@ vi.mock("@dashboard/lib/managed-goals-files", () => ({
     },
   ]),
 }));
-vi.mock("@dashboard/lib/managed-goals", () => ({
+vi.mock("@dashboard/lib/managed-goals", async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import("@dashboard/lib/managed-goals")
+  >()),
   managedGoalModel: vi.fn(() => "agentGoal"),
 }));
 vi.mock("@dashboard/lib/workflow-definition-files", () => ({
