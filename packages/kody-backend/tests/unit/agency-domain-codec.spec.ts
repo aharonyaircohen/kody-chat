@@ -12,7 +12,7 @@ describe("agency domain persistence codec", () => {
       objective: {
         desiredState: "The graph is current",
         requiredEvidence: ["graph-published"],
-        scope: { repository: "acme/app" },
+          scope: { include: { repository: ["acme/app"] }, exclude: {} },
       },
       executionRef: { kind: "workflow", id: "refresh-knowledge" },
     });

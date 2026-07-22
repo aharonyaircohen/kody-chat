@@ -20,7 +20,7 @@ describe("agency model persistence", () => {
           objective: {
             desiredState: "Graph is current",
             requiredEvidence: ["published"],
-            scope: { repository: tenantId },
+          scope: { include: { repository: [tenantId] }, exclude: {} },
           },
           executionRef: { kind: "workflow", id: "refresh-knowledge" },
         },

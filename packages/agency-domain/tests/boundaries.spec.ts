@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   assertLifecycleTransition,
+  createAgentDefinition,
+  createPolicy,
   deletionIssues,
   createIntentDefinition,
   createOperationDefinition,
@@ -52,7 +54,8 @@ describe("domain responsibility boundaries", () => {
         id: "quality",
         direction: "Keep delivery trustworthy",
         priorities: ["evidence"],
-        policyRefs: [],
+        policy: policy(),
+        constraints: [],
         goals: ["refresh-graph"],
       }),
     ).toThrow(/goals/);
@@ -65,6 +68,34 @@ describe("domain responsibility boundaries", () => {
         goals: ["refresh-graph"],
       }),
     ).toThrow(/goals/);
+  });
+
+  it("keeps policy and agent judgment typed without execution ownership", () => {
+    expect(createPolicy(policy())).toMatchObject({
+      approval: "risky-actions",
+      maxConcurrentRuns: 2,
+    });
+    expect(
+      createAgentDefinition({
+        id: "developer",
+        name: "Developer",
+        role: "Implement approved work",
+        permissions: ["code.write"],
+        constraints: [
+          { id: "protect-main", rule: "Do not force-push", effect: "deny" },
+        ],
+      }),
+    ).toMatchObject({ id: "developer", permissions: ["code.write"] });
+    expect(() =>
+      createAgentDefinition({
+        id: "developer",
+        name: "Developer",
+        role: "Implement approved work",
+        permissions: ["code.write"],
+        constraints: [],
+        workflow: "release",
+      }),
+    ).toThrow(/workflow/);
   });
 
   it("allows only explicit lifecycle transitions", () => {
@@ -85,3 +116,18 @@ describe("domain responsibility boundaries", () => {
     ).toEqual(['Referenced by Goal "refresh-graph" through executionRef']);
   });
 });
+
+function policy() {
+  return {
+    approval: "risky-actions",
+    authority: { allow: ["code.write"], deny: ["production.delete"] },
+    budget: {
+      maxRuns: 10,
+      maxTokens: 100000,
+      maxCostUsd: 100,
+      maxDurationSeconds: 3600,
+    },
+    maxConcurrentRuns: 2,
+    riskyActions: ["production.deploy"],
+  };
+}

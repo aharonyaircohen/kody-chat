@@ -5,10 +5,34 @@ export interface DefinitionRef {
   kind: ReferenceKind;
   id: string;
 }
+export interface Scope {
+  include: Readonly<Record<string, readonly string[]>>;
+  exclude: Readonly<Record<string, readonly string[]>>;
+}
+export interface Constraint {
+  id: string;
+  rule: string;
+  effect: "deny" | "require-approval";
+}
+export interface Policy {
+  approval: "none" | "risky-actions" | "all-actions";
+  authority: {
+    allow: string[];
+    deny: string[];
+  };
+  budget: {
+    maxRuns: number;
+    maxTokens: number;
+    maxCostUsd: number;
+    maxDurationSeconds: number;
+  };
+  maxConcurrentRuns: number;
+  riskyActions: string[];
+}
 export interface Objective {
   desiredState: string;
   requiredEvidence: string[];
-  scope: Readonly<Record<string, unknown>>;
+  scope: Scope;
 }
 export type Trigger =
   | { type: "manual" }
@@ -55,13 +79,21 @@ export interface IntentDefinition {
   id: string;
   direction: string;
   priorities: string[];
-  policyRefs: string[];
+  policy: Policy;
+  constraints: Constraint[];
 }
 export interface OperationDefinition {
   id: string;
   name: string;
   responsibility: string;
   intentIds: string[];
+}
+export interface AgentDefinition {
+  id: string;
+  name: string;
+  role: string;
+  permissions: string[];
+  constraints: Constraint[];
 }
 export interface GoalState {
   definitionId: string;
@@ -140,6 +172,93 @@ function strings(value: unknown, label: string): string[] {
   }
   return [...new Set(value.map((item) => item.trim()))];
 }
+function positiveNumber(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0)
+    throw new Error(`${label} must be a positive number`);
+  return value;
+}
+function scopeDimensions(
+  value: unknown,
+  label: string,
+): Readonly<Record<string, readonly string[]>> {
+  const input = record(value, label);
+  return Object.freeze(
+    Object.fromEntries(
+      Object.entries(input).map(([dimension, members]) => [
+        identifier(dimension, `${label} dimension`),
+        Object.freeze(strings(members, `${label}.${dimension}`)),
+      ]),
+    ),
+  );
+}
+function parseScope(value: unknown): Scope {
+  const input = record(value, "Scope");
+  exact(input, ["include", "exclude"], "Scope");
+  return Object.freeze({
+    include: scopeDimensions(input.include ?? {}, "Scope include"),
+    exclude: scopeDimensions(input.exclude ?? {}, "Scope exclude"),
+  });
+}
+function parseConstraints(value: unknown, label: string): Constraint[] {
+  if (!Array.isArray(value)) throw new Error(`${label} must be an array`);
+  const constraints = value.map((item) => {
+    const input = record(item, "Constraint");
+    exact(input, ["id", "rule", "effect"], "Constraint");
+    if (input.effect !== "deny" && input.effect !== "require-approval")
+      throw new Error("Constraint effect is invalid");
+    return Object.freeze({
+      id: identifier(input.id, "Constraint id"),
+      rule: text(input.rule, "Constraint rule"),
+      effect: input.effect,
+    });
+  });
+  if (new Set(constraints.map(({ id }) => id)).size !== constraints.length)
+    throw new Error(`${label} ids must be unique`);
+  return constraints;
+}
+export function createPolicy(value: unknown): Policy {
+  const input = record(value, "Policy");
+  exact(
+    input,
+    ["approval", "authority", "budget", "maxConcurrentRuns", "riskyActions"],
+    "Policy",
+  );
+  if (
+    input.approval !== "none" &&
+    input.approval !== "risky-actions" &&
+    input.approval !== "all-actions"
+  )
+    throw new Error("Policy approval is invalid");
+  const authority = record(input.authority, "Policy authority");
+  exact(authority, ["allow", "deny"], "Policy authority");
+  const budget = record(input.budget, "Policy budget");
+  exact(
+    budget,
+    ["maxRuns", "maxTokens", "maxCostUsd", "maxDurationSeconds"],
+    "Policy budget",
+  );
+  return Object.freeze({
+    approval: input.approval,
+    authority: Object.freeze({
+      allow: strings(authority.allow, "Policy authority allow"),
+      deny: strings(authority.deny, "Policy authority deny"),
+    }),
+    budget: Object.freeze({
+      maxRuns: positiveNumber(budget.maxRuns, "Policy budget maxRuns"),
+      maxTokens: positiveNumber(budget.maxTokens, "Policy budget maxTokens"),
+      maxCostUsd: positiveNumber(budget.maxCostUsd, "Policy budget maxCostUsd"),
+      maxDurationSeconds: positiveNumber(
+        budget.maxDurationSeconds,
+        "Policy budget maxDurationSeconds",
+      ),
+    }),
+    maxConcurrentRuns: positiveNumber(
+      input.maxConcurrentRuns,
+      "Policy maxConcurrentRuns",
+    ),
+    riskyActions: strings(input.riskyActions, "Policy riskyActions"),
+  });
+}
 function reference(
   value: unknown,
   kinds: readonly ReferenceKind[],
@@ -167,7 +286,7 @@ function parseObjective(value: unknown): Objective {
       input.requiredEvidence,
       "Objective requiredEvidence",
     ),
-    scope: Object.freeze({ ...record(input.scope, "Objective scope") }),
+    scope: parseScope(input.scope),
   };
 }
 
@@ -349,14 +468,37 @@ export function createIntentDefinition(value: unknown): IntentDefinition {
   const input = record(value, "IntentDefinition");
   exact(
     input,
-    ["id", "direction", "priorities", "policyRefs"],
+    ["id", "direction", "priorities", "policy", "constraints"],
     "IntentDefinition",
   );
   return Object.freeze({
     id: identifier(input.id, "IntentDefinition id"),
     direction: text(input.direction, "IntentDefinition direction"),
     priorities: strings(input.priorities, "IntentDefinition priorities"),
-    policyRefs: strings(input.policyRefs, "IntentDefinition policyRefs"),
+    policy: createPolicy(input.policy),
+    constraints: parseConstraints(
+      input.constraints,
+      "IntentDefinition constraints",
+    ),
+  });
+}
+
+export function createAgentDefinition(value: unknown): AgentDefinition {
+  const input = record(value, "AgentDefinition");
+  exact(
+    input,
+    ["id", "name", "role", "permissions", "constraints"],
+    "AgentDefinition",
+  );
+  return Object.freeze({
+    id: identifier(input.id, "AgentDefinition id"),
+    name: text(input.name, "AgentDefinition name"),
+    role: text(input.role, "AgentDefinition role"),
+    permissions: strings(input.permissions, "AgentDefinition permissions"),
+    constraints: parseConstraints(
+      input.constraints,
+      "AgentDefinition constraints",
+    ),
   });
 }
 

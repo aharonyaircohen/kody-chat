@@ -12,7 +12,7 @@ import {
 const objective = {
   desiredState: "The knowledge graph is current",
   requiredEvidence: ["graph-published"],
-  scope: { repository: "acme/app" },
+  scope: { include: { repository: ["acme/app"] }, exclude: {} },
 };
 
 describe("clean AI Agency domain", () => {
@@ -122,5 +122,19 @@ describe("clean AI Agency domain", () => {
       'Missing Operation "missing-operation"',
       'Missing Workflow "missing-workflow"',
     ]);
+  });
+
+  it("uses typed scope and rejects unbounded arbitrary fields", () => {
+    expect(() =>
+      createGoalDefinition({
+        id: "refresh-graph",
+        operationId: "knowledge",
+        objective: {
+          ...objective,
+          scope: { repository: "acme/app" },
+        },
+        executionRef: { kind: "workflow", id: "refresh-knowledge" },
+      }),
+    ).toThrow(/unknown field "repository"/i);
   });
 });

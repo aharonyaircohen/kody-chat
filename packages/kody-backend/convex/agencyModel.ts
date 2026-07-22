@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import {
+  createAgentDefinition,
   createCapabilityDefinition,
   createGoalDefinition,
   createIntentDefinition,
@@ -19,6 +20,7 @@ const definitionKind = v.union(
   v.literal("loop"),
   v.literal("workflow"),
   v.literal("capability"),
+  v.literal("agent"),
 );
 
 function validateDefinition(kind: string, data: unknown) {
@@ -28,6 +30,7 @@ function validateDefinition(kind: string, data: unknown) {
   if (kind === "loop") return createLoopDefinition(data);
   if (kind === "workflow") return createWorkflowDefinition(data);
   if (kind === "capability") return createCapabilityDefinition(data);
+  if (kind === "agent") return createAgentDefinition(data);
   throw new Error("Unsupported Agency Definition kind");
 }
 

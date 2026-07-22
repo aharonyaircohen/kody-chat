@@ -341,6 +341,7 @@ export default defineSchema({
       v.literal("loop"),
       v.literal("workflow"),
       v.literal("capability"),
+      v.literal("agent"),
     ),
     schemaVersion: v.number(),
     data: v.any(),
