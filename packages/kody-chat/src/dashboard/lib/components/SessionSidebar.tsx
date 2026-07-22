@@ -25,11 +25,8 @@ interface SessionSidebarProps {
   onTogglePinnedOpen?: () => void;
   onClose?: () => void;
   className?: string;
-  /** True when the chat is in /chat fullscreen mode. Keeps the close (X)
-   *  button visible on desktop too — in full mode there's no overlay
-   *  click-to-close, and the chat's own "Conversations" toggle can be
-   *  hidden if the layout glitches. The X is the always-reachable
-   *  fallback. */
+  /** True when the chat is in /chat fullscreen mode. Exposed on the root for
+   *  host styling and layout diagnostics. */
   fullscreen?: boolean;
 }
 
@@ -114,6 +111,7 @@ export function SessionSidebar({
   return (
     <div
       data-testid="session-sidebar"
+      data-fullscreen={fullscreen || undefined}
       className={cn("flex flex-col h-full bg-background border-r", className)}
     >
       {/* Header */}
@@ -152,10 +150,7 @@ export function SessionSidebar({
               <button
                 type="button"
                 onClick={onClose}
-                className={cn(
-                  "-mr-1 p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground",
-                  !fullscreen && "md:hidden",
-                )}
+                className="-mr-1 p-2 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground"
                 aria-label="Close conversations"
                 title="Close"
               >

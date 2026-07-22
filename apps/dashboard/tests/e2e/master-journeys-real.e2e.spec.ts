@@ -94,7 +94,9 @@ async function startNewClientConversation(page: Page) {
   const sidebar = page.locator('[data-testid="session-sidebar"]');
   await expect(sidebar).toBeVisible();
   await sidebar.getByRole("button", { name: "New conversation" }).click();
-  await sidebar.getByRole("button", { name: "Close conversations" }).click();
+  await sidebar
+    .getByRole("button", { name: "Close conversations" })
+    .click({ timeout: 10_000 });
   await expect(sidebar).toBeHidden();
   await expect(chat.locator("textarea")).toBeEditable({ timeout: 30_000 });
 }
@@ -139,23 +141,141 @@ test.describe("Master live user journeys", () => {
     });
   });
 
-  test("opens real Commands, Context, and Brands plugin panels", async ({
+  test("fully loads the extracted admin pages", async ({
     page,
   }) => {
     const { owner, repo } = parseRepo(TEST_REPO);
     await installAuth(page, owner, repo);
 
-    for (const [path, title] of [
-      ["commands", "Commands"],
-      ["context", "Context"],
-      ["brands", "Brands"],
-    ] as const) {
-      await page.goto(`${BASE_URL}/repo/${owner}/${repo}/${path}`, {
+    const journeys = [
+      {
+        url: `${BASE_URL}/repo/${owner}/${repo}/commands`,
+        title: "Commands",
+        loadedText: "/analyze",
+        loadingText: "Loading commands…",
+      },
+      {
+        url: `${BASE_URL}/repo/${owner}/${repo}/memory`,
+        title: "Memory",
+        loadedButton: "New memory",
+      },
+      {
+        url: `${BASE_URL}/repo/${owner}/${repo}/guided-flows`,
+        title: "Guided Flow Management",
+        loadedButton: "Add Guided Flow",
+      },
+      {
+        url: `${BASE_URL}/repo/${owner}/${repo}/context`,
+        title: "Context",
+        loadedButton: "New entry",
+      },
+      {
+        url: `${BASE_URL}/repo/${owner}/${repo}/brands`,
+        title: "Brands",
+        loadedButton: "New brand",
+      },
+      {
+        url: `${BASE_URL}/views/widgets`,
+        title: "Widgets",
+        loadedButton: "Upload widget",
+      },
+    ] as const;
+
+    for (const journey of journeys) {
+      await page.goto(journey.url, {
         waitUntil: "domcontentloaded",
       });
-      await expect(page.getByText(title, { exact: true }).first()).toBeVisible({
+      await expect(
+        page.getByRole("heading", { name: journey.title, exact: true }),
+      ).toBeVisible({
         timeout: 30_000,
       });
+      const loadedSignal =
+        "loadedButton" in journey
+          ? page.getByRole("button", {
+              name: journey.loadedButton,
+              exact: true,
+            })
+          : page.getByText(journey.loadedText, { exact: false }).first();
+      await expect(loadedSignal).toBeVisible({ timeout: 30_000 });
+      if ("loadingText" in journey) {
+        await expect(page.getByText(journey.loadingText)).toBeHidden();
+      }
+
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await expect(loadedSignal).toBeVisible({ timeout: 30_000 });
+    }
+  });
+
+  test("saves and restores a real dashboard chat conversation", async ({
+    page,
+  }) => {
+    test.setTimeout(240_000);
+    const { owner, repo } = parseRepo(TEST_REPO);
+    await installAuth(page, owner, repo);
+
+    let conversationId = "";
+    let messagePersistStatus = 0;
+    page.on("response", async (response) => {
+      if (
+        response.request().method() === "POST" &&
+        response.url().endsWith("/api/kody/chat/conversations") &&
+        response.status() === 201
+      ) {
+        const body = (await response.json().catch(() => ({}))) as {
+          conversationId?: string;
+        };
+        conversationId = body.conversationId ?? conversationId;
+      }
+      if (
+        response.request().method() === "POST" &&
+        response.url().includes("/api/kody/chat/conversations/") &&
+        response.url().endsWith("/commands")
+      ) {
+        messagePersistStatus = response.status();
+      }
+    });
+
+    await page.goto(`${BASE_URL}/repo/${owner}/${repo}/memory`, {
+      waitUntil: "domcontentloaded",
+    });
+    const chat = page.locator('[aria-label="Kody chat"]').first();
+    await expect(chat).toBeVisible({ timeout: 30_000 });
+    await startNewClientConversation(page);
+
+    const marker = `DASHBOARD_SAVE_E2E_${Date.now()}`;
+    await chat.locator("textarea").fill(marker);
+    await chat.getByRole("button", { name: "Send message" }).click();
+    await expect
+      .poll(() => conversationId, { timeout: 30_000 })
+      .not.toBe("");
+    await expect
+      .poll(() => messagePersistStatus, { timeout: 30_000 })
+      .toBe(200);
+    await expect(
+      chat.getByRole("alert").filter({
+        hasText: "Conversation could not be saved",
+      }),
+    ).toHaveCount(0);
+
+    try {
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await expect(chat.getByText(marker, { exact: true })).toBeVisible({
+        timeout: 30_000,
+      });
+      await expect(
+        chat.getByRole("alert").filter({
+          hasText: "Conversation could not be saved",
+        }),
+      ).toHaveCount(0);
+    } finally {
+      if (conversationId) {
+        const cleanup = await page.request.delete(
+          `${BASE_URL}/api/kody/chat/conversations/${conversationId}`,
+          { headers: apiHeaders(owner, repo) },
+        );
+        expect(cleanup.ok()).toBe(true);
+      }
     }
   });
 
