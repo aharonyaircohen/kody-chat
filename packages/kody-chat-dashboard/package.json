@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.7",
   "license": "MIT",
-  "description": "Kody Chat — multi-tenant branded client chat product and embeddable chat platform",
+  "description": "Private Kody Dashboard chat integration and development harness",
   "repository": {
     "type": "git",
     "url": "https://github.com/aharonyaircohen/kody-chat.git"
