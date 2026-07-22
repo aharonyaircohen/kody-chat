@@ -1,6 +1,5 @@
 import "server-only";
 
-import { getOctokit, getOwner, getRepo } from "./github";
 import {
   readBackendDoc,
   writeBackendDoc,
@@ -17,12 +16,13 @@ function modelsPath(login: string): string {
 
 export async function readBrainChatModels(
   login: string,
-  _token: string,
+  owner: string,
+  repo: string,
 ): Promise<BrainChatModel[]> {
   const doc = await readBackendDoc(
-    getOctokit(),
-    getOwner(),
-    getRepo(),
+    undefined,
+    owner,
+    repo,
     modelsPath(login),
   );
   if (!doc) return [];
@@ -36,18 +36,16 @@ export async function readBrainChatModels(
 
 export async function writeBrainChatModels(
   login: string,
-  _token: string,
+  owner: string,
+  repo: string,
   models: BrainChatModel[],
 ): Promise<BrainChatModel[]> {
   const normalized = normalizeBrainChatModels(
     BrainChatModelsSchema.parse(models),
   );
-  const owner = getOwner();
-  const repo = getRepo();
   const path = modelsPath(login);
-  const current = await readBackendDoc(getOctokit(), owner, repo, path);
+  const current = await readBackendDoc(undefined, owner, repo, path);
   await writeBackendDoc({
-    octokit: getOctokit(),
     owner,
     repo,
     path,

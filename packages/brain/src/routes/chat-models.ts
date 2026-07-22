@@ -7,7 +7,6 @@ import {
   normalizeBrainChatModels,
 } from "../chat-models";
 import { readBrainChatModels, writeBrainChatModels } from "../chat-model-store";
-import { clearGitHubContext, setGitHubContext } from "../github";
 
 const PutSchema = z.object({ models: BrainChatModelsSchema });
 
@@ -23,52 +22,39 @@ async function contextFor(req: NextRequest) {
       response: NextResponse.json({ error: ctx.error }, { status: ctx.status }),
     } as const;
   }
-  setGitHubContext(
-    ctx.context.owner,
-    ctx.context.repo,
-    ctx.context.githubToken,
-    ctx.context.storeRepoUrl,
-    ctx.context.storeRef,
-  );
   return { ctx } as const;
 }
 
 export async function GET(req: NextRequest) {
   const result = await contextFor(req);
   if ("response" in result) return result.response;
-  try {
-    const models = await readBrainChatModels(
-      result.ctx.context.account,
-      result.ctx.context.githubToken,
-    );
-    return NextResponse.json(
-      { models },
-      { headers: { "Cache-Control": "no-store" } },
-    );
-  } finally {
-    clearGitHubContext();
-  }
+  const models = await readBrainChatModels(
+    result.ctx.context.account,
+    result.ctx.context.owner,
+    result.ctx.context.repo,
+  );
+  return NextResponse.json(
+    { models },
+    { headers: { "Cache-Control": "no-store" } },
+  );
 }
 
 export async function PUT(req: NextRequest) {
   const result = await contextFor(req);
   if ("response" in result) return result.response;
-  try {
-    const body = await req.json().catch(() => null);
-    const parsed = PutSchema.safeParse(body);
-    if (!parsed.success) {
-      return NextResponse.json(
-        { error: "validation_error", details: parsed.error.format() },
-        { status: 400 },
-      );
-    }
-    const models = await writeBrainChatModels(
-      result.ctx.context.account,
-      result.ctx.context.githubToken,
-      normalizeBrainChatModels(parsed.data.models),
+  const body = await req.json().catch(() => null);
+  const parsed = PutSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: "validation_error", details: parsed.error.format() },
+      { status: 400 },
     );
-    return NextResponse.json({ ok: true, models });
-  } finally {
-    clearGitHubContext();
   }
+  const models = await writeBrainChatModels(
+    result.ctx.context.account,
+    result.ctx.context.owner,
+    result.ctx.context.repo,
+    normalizeBrainChatModels(parsed.data.models),
+  );
+  return NextResponse.json({ ok: true, models });
 }
