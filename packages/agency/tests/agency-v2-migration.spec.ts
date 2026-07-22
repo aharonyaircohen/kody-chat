@@ -48,6 +48,12 @@ describe("Agency V2 migration planner", () => {
           loopTarget: { type: "workflow", id: "health-check" },
         },
       ],
+      workflows: [
+        {
+          id: "health-check",
+          capabilities: ["observe", "report"],
+        },
+      ],
     });
 
     expect(plan.issues).toEqual([]);
@@ -63,6 +69,11 @@ describe("Agency V2 migration planner", () => {
       executionRef: { kind: "workflow", id: "ship-release-workflow" },
     });
     expect(plan.definitions.workflows[0]?.steps).toHaveLength(2);
+    expect(plan.definitions.workflows).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: "health-check" }),
+      ]),
+    );
     expect(plan.definitions.loops[0]).toMatchObject({
       id: "health-watch",
       operationId: "delivery",
@@ -86,6 +97,7 @@ describe("Agency V2 migration planner", () => {
           route: [{ stage: "run", capability: "fix" }],
         },
       ],
+      workflows: [],
     });
 
     expect(plan.issues).toEqual(

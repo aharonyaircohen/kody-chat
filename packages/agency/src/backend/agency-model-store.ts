@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { api as backendApi } from "@kody-ade/backend/api";
 import { createBackendClient } from "@kody-ade/backend/client";
 
@@ -19,6 +20,25 @@ export type StoredAgencyDefinition = {
   data: { id: string } & Record<string, unknown>;
   createdAt: string;
 };
+
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value && typeof value === "object") {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
+      .join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+export function agencyDefinitionRecordId(
+  kind: AgencyDefinitionKind,
+  definition: { id: string },
+): string {
+  const hash = createHash("sha256").update(canonical(definition)).digest("hex");
+  return `${kind}:${definition.id}:${hash}`;
+}
 
 function tenantIdFor(owner: string, repo: string): string {
   const tenantId = `${owner.trim()}/${repo.trim()}`;

@@ -43,9 +43,26 @@ type LegacyManagedWork = {
     capability: string;
     args?: Record<string, unknown>;
   }>;
+  capabilities?: string[];
   schedule?: string;
   workflowRef?: { id: string };
   loopTarget?: { type: "goal" | "workflow" | "capability"; id: string };
+};
+
+type LegacyWorkflow = {
+  id: string;
+  capabilities: string[];
+  steps?: Array<{
+    id: string;
+    capability: string;
+    inputs?: Record<string, { from: string }>;
+    next?: Array<{
+      to: string;
+      when?: Record<string, unknown>;
+      default?: boolean;
+      maxIterations?: number;
+    }>;
+  }>;
 };
 
 export type AgencyV2MigrationInput = {
@@ -53,6 +70,7 @@ export type AgencyV2MigrationInput = {
   intents: LegacyIntent[];
   operations: LegacyOperation[];
   managedWork: LegacyManagedWork[];
+  workflows?: LegacyWorkflow[];
 };
 
 export type AgencyV2MigrationPlan = {
@@ -112,13 +130,20 @@ export function planAgencyV2Migration(
   const loops: LoopDefinition[] = [];
   const capabilityIds = new Set<string>();
 
+  for (const workflow of input.workflows ?? []) {
+    const migrated = migrateWorkflow(workflow, issues);
+    if (!migrated) continue;
+    workflows.push(migrated);
+    for (const step of migrated.steps) capabilityIds.add(step.capabilityRef.id);
+  }
+
   for (const work of input.managedWork) {
     const operationId = owners.get(`${work.model}:${work.id}`);
     if (!operationId) {
       issues.push(`${label(work.model)} "${work.id}" has no Operation owner`);
       continue;
     }
-    const generatedWorkflow = workflowFromRoute(work);
+    const generatedWorkflow = workflowFromLegacyWork(work);
     if (generatedWorkflow) {
       workflows.push(generatedWorkflow);
       for (const step of generatedWorkflow.steps) capabilityIds.add(step.capabilityRef.id);
@@ -128,11 +153,14 @@ export function planAgencyV2Migration(
         ? { kind: "workflow" as const, id: work.workflowRef.id }
         : generatedWorkflow
           ? { kind: "workflow" as const, id: generatedWorkflow.id }
+          : (work.capabilities ?? []).length === 1
+            ? { kind: "capability" as const, id: work.capabilities![0]! }
           : undefined;
       if (!executionRef) {
         issues.push(`Goal "${work.id}" has no Workflow or Capability execution target`);
         continue;
       }
+      if (executionRef.kind === "capability") capabilityIds.add(executionRef.id);
       goals.push(
         createGoalDefinition({
           id: work.id,
@@ -149,6 +177,8 @@ export function planAgencyV2Migration(
         ? { kind: "workflow" as const, id: work.workflowRef.id }
         : generatedWorkflow
           ? { kind: "workflow" as const, id: generatedWorkflow.id }
+          : (work.capabilities ?? []).length === 1
+            ? { kind: "capability" as const, id: work.capabilities![0]! }
           : undefined;
     if (!targetRef) {
       issues.push(`Loop "${work.id}" has no Goal, Workflow, or Capability target`);
@@ -170,11 +200,105 @@ export function planAgencyV2Migration(
     );
   }
 
+  const workflowIds = new Set(workflows.map((workflow) => workflow.id));
+  for (const goal of goals) {
+    if (goal.executionRef.kind === "workflow" && !workflowIds.has(goal.executionRef.id)) {
+      issues.push(
+        `Goal "${goal.id}" references missing Workflow "${goal.executionRef.id}"`,
+      );
+    }
+  }
+  for (const loop of loops) {
+    if (loop.targetRef.kind === "workflow" && !workflowIds.has(loop.targetRef.id)) {
+      issues.push(
+        `Loop "${loop.id}" references missing Workflow "${loop.targetRef.id}"`,
+      );
+    }
+  }
+
   return {
     definitions: { intents, operations, goals, loops, workflows },
     requiredCapabilityIds: [...capabilityIds].sort(),
     issues,
   };
+}
+
+function migrateWorkflow(
+  workflow: LegacyWorkflow,
+  issues: string[],
+): WorkflowDefinition | undefined {
+  const sourceSteps: NonNullable<LegacyWorkflow["steps"]> =
+    workflow.steps && workflow.steps.length > 0
+      ? workflow.steps
+      : workflow.capabilities.map((capability, index) => ({
+          id: `step-${index + 1}`,
+          capability,
+          next:
+            index + 1 < workflow.capabilities.length
+              ? [{ to: `step-${index + 2}`, default: true }]
+              : [],
+        }));
+  const ids = new Set(sourceSteps.map((step) => step.id));
+  const dependencies = new Map(sourceSteps.map((step) => [step.id, [] as string[]]));
+  const hasExplicitTransitions = sourceSteps.some(
+    (step) => (step.next ?? []).length > 0,
+  );
+  if (!hasExplicitTransitions) {
+    for (let index = 1; index < sourceSteps.length; index += 1) {
+      dependencies.get(sourceSteps[index]!.id)!.push(sourceSteps[index - 1]!.id);
+    }
+  }
+  for (const step of sourceSteps) {
+    for (const transition of step.next ?? []) {
+      if (!ids.has(transition.to)) {
+        issues.push(
+          `Workflow "${workflow.id}" step "${step.id}" targets missing step "${transition.to}"`,
+        );
+        return undefined;
+      }
+      if (transition.maxIterations !== undefined) {
+        issues.push(
+          `Workflow "${workflow.id}" contains a loop and requires manual V2 redesign`,
+        );
+        return undefined;
+      }
+      dependencies.get(transition.to)!.push(step.id);
+    }
+  }
+  if (hasCycle(sourceSteps.map((step) => step.id), dependencies)) {
+    issues.push(`Workflow "${workflow.id}" contains a cycle and requires manual V2 redesign`);
+    return undefined;
+  }
+  return createWorkflowDefinition({
+    id: workflow.id,
+    steps: sourceSteps.map((step) => ({
+      id: step.id,
+      capabilityRef: { kind: "capability", id: step.capability },
+      dependsOn: dependencies.get(step.id) ?? [],
+      ...(step.inputs
+        ? {
+            input: Object.fromEntries(
+              Object.entries(step.inputs).map(([key, value]) => [key, { from: value.from }]),
+            ),
+          }
+        : {}),
+    })),
+  });
+}
+
+function hasCycle(ids: string[], dependencies: Map<string, string[]>): boolean {
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const visit = (id: string): boolean => {
+    if (visiting.has(id)) return true;
+    if (visited.has(id)) return false;
+    visiting.add(id);
+    if ((dependencies.get(id) ?? []).some(visit)) return true;
+    visiting.delete(id);
+    visited.add(id);
+    return false;
+  };
+  return ids.some(visit);
 }
 
 function legacyPolicy(intent: LegacyIntent) {
@@ -221,16 +345,25 @@ function ownershipMap(operations: LegacyOperation[], issues: string[]) {
   return owners;
 }
 
-function workflowFromRoute(work: LegacyManagedWork) {
-  if (work.route.length === 0) return undefined;
+function workflowFromLegacyWork(work: LegacyManagedWork) {
+  const route: LegacyManagedWork["route"] =
+    work.route.length > 0
+      ? work.route
+      : (work.capabilities ?? []).length > 1
+        ? (work.capabilities ?? []).map((capability, index) => ({
+            stage: `step-${index + 1}`,
+            capability,
+          }))
+        : [];
+  if (route.length === 0) return undefined;
   const id = `${work.id}-workflow`;
   return createWorkflowDefinition({
     id,
-    steps: work.route.map((route, index) => ({
-      id: route.stage,
-      capabilityRef: { kind: "capability", id: route.capability },
-      dependsOn: index === 0 ? [] : [work.route[index - 1]!.stage],
-      ...(route.args ? { input: route.args } : {}),
+    steps: route.map((routeStep, index) => ({
+      id: routeStep.stage,
+      capabilityRef: { kind: "capability", id: routeStep.capability },
+      dependsOn: index === 0 ? [] : [route[index - 1]!.stage],
+      ...(routeStep.args ? { input: routeStep.args } : {}),
     })),
   });
 }

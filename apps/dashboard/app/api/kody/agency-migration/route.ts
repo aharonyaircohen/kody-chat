@@ -1,0 +1,231 @@
+/**
+ * Preview or apply the repository's AI Agency V2 migration.
+ * POST is fail-closed: unresolved ownership prevents every write; a complete
+ * legacy snapshot is persisted before immutable V2 definitions are created.
+ */
+import { NextRequest, NextResponse } from "next/server";
+import {
+  agencyDefinitionRecordId,
+  createStoredAgencyDefinition,
+  type AgencyDefinitionKind,
+} from "@kody-ade/agency/backend/agency-model-store";
+import { listCapabilityFiles } from "@kody-ade/agency/capabilities";
+import { planAgencyV2Migration } from "@kody-ade/agency/migration/agency-v2";
+import { verifyRepoWriteAccess } from "@kody-ade/agency/routes/repo-write-access";
+import {
+  clearGitHubContext,
+  setGitHubContext,
+} from "@dashboard/lib/github-client";
+import { listCompanyIntentRecords } from "@dashboard/lib/company-intents-store";
+import { listManagedGoalFiles } from "@dashboard/lib/managed-goals-files";
+import { managedGoalModel } from "@dashboard/lib/managed-goals";
+import { listOperationFiles } from "@dashboard/lib/operation-files";
+import {
+  listCompanyStoreWorkflowDefinitionFiles,
+  listWorkflowDefinitionFiles,
+  readCompanyStoreWorkflowDefinitionFile,
+} from "@dashboard/lib/workflow-definition-files";
+import {
+  backendApi,
+  getConvexClient,
+  tenantIdFor,
+} from "@dashboard/lib/backend/convex-backend";
+
+async function buildSnapshot(req: NextRequest) {
+  const access = await verifyRepoWriteAccess(req);
+  if (access instanceof NextResponse) return access;
+  const { auth } = access;
+  setGitHubContext(
+    auth.owner,
+    auth.repo,
+    auth.token,
+    auth.storeRepoUrl,
+    auth.storeRef,
+  );
+  try {
+    const octokit = (await import("@kody-ade/base/auth")).getUserOctokit;
+    const client = await octokit(req);
+    if (!client) {
+      return NextResponse.json({ error: "request_auth_required" }, { status: 401 });
+    }
+    const [
+      intentRecords,
+      operationRecords,
+      managedRecords,
+      capabilities,
+      localWorkflows,
+      storeWorkflows,
+    ] =
+      await Promise.all([
+        listCompanyIntentRecords(auth.owner, auth.repo),
+        listOperationFiles(client, auth.owner, auth.repo),
+        listManagedGoalFiles(client, auth.owner, auth.repo),
+        listCapabilityFiles(),
+        listWorkflowDefinitionFiles(auth.owner, auth.repo),
+        listCompanyStoreWorkflowDefinitionFiles(client),
+      ]);
+    const referencedWorkflowIds = new Set(
+      managedRecords.flatMap((record) => {
+        const target = record.state.loopTarget;
+        return [
+          ...(record.state.workflowRef ? [record.state.workflowRef.id] : []),
+          ...(target?.type === "workflow" ? [target.id] : []),
+        ];
+      }),
+    );
+    const directlyReferencedStoreWorkflows = (
+      await Promise.all(
+        [...referencedWorkflowIds].map((id) =>
+          readCompanyStoreWorkflowDefinitionFile(id, client),
+        ),
+      )
+    ).filter((record) => record !== null);
+    const snapshot = {
+      tenantId: tenantIdFor(auth.owner, auth.repo),
+      capturedAt: new Date().toISOString(),
+      intents: intentRecords.map((record) => record.intent),
+      operations: operationRecords.map((record) => record.operation),
+      managedWork: managedRecords.map((record) => ({
+        id: record.id,
+        model: managedGoalModel(record) === "agentLoop" ? ("loop" as const) : ("goal" as const),
+        destination: record.state.destination,
+        route: record.state.route.map((step) => ({
+          stage: step.stage,
+          capability: step.capability,
+          ...(step.args ? { args: step.args } : {}),
+        })),
+        capabilities: record.state.capabilities,
+        ...(record.state.schedule ? { schedule: record.state.schedule } : {}),
+        ...(record.state.workflowRef ? { workflowRef: { id: record.state.workflowRef.id } } : {}),
+        ...(record.state.loopTarget ? { loopTarget: record.state.loopTarget } : {}),
+      })),
+      capabilities,
+      workflows: [
+        ...localWorkflows,
+        ...storeWorkflows,
+        ...directlyReferencedStoreWorkflows,
+      ]
+        .filter(
+          (record, index, records) =>
+            records.findIndex((candidate) => candidate.id === record.id) === index,
+        )
+        .map((record) => ({
+          id: record.id,
+          capabilities: record.workflow.capabilities,
+          ...(record.workflow.steps ? { steps: record.workflow.steps } : {}),
+        })),
+    };
+    return { access, snapshot };
+  } finally {
+    clearGitHubContext();
+  }
+}
+
+function capabilityDefinitions(
+  requiredIds: string[],
+  capabilities: Array<{ slug: string; describe: string; landing: string }>,
+): {
+  definitions: Array<{ id: string; action: string; input: string; output: string }>;
+  missing: string[];
+} {
+  const byId = new Map(capabilities.map((capability) => [capability.slug, capability]));
+  const missing = requiredIds.filter((id) => !byId.has(id));
+  return {
+    definitions: requiredIds.flatMap((id) => {
+      const capability = byId.get(id);
+      if (!capability) return [];
+      return [
+        {
+          id,
+          action: capability.describe || id,
+          input: "JSON object",
+          output: capability.landing === "pr" ? "Pull request" : "Execution result",
+        },
+      ];
+    }),
+    missing,
+  };
+}
+
+async function preview(req: NextRequest) {
+  const built = await buildSnapshot(req);
+  if (built instanceof NextResponse) return built;
+  const plan = planAgencyV2Migration(built.snapshot);
+  const capabilities = capabilityDefinitions(
+    plan.requiredCapabilityIds,
+    built.snapshot.capabilities,
+  );
+  return { ...built, plan, capabilityDefinitions: capabilities.definitions, missingCapabilities: capabilities.missing };
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    const result = await preview(req);
+    if (result instanceof NextResponse) return result;
+    return NextResponse.json({
+      plan: result.plan,
+      missingCapabilities: result.missingCapabilities,
+      canApply: result.plan.issues.length === 0 && result.missingCapabilities.length === 0,
+    });
+  } catch {
+    return NextResponse.json({ error: "migration_preview_failed" }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const result = await preview(req);
+    if (result instanceof NextResponse) return result;
+    const issues = [
+      ...result.plan.issues,
+      ...result.missingCapabilities.map((id) => `Missing Capability "${id}"`),
+    ];
+    if (issues.length > 0) {
+      return NextResponse.json({ error: "migration_blocked", issues }, { status: 409 });
+    }
+    const migrationId = `agency-v2-${Date.now()}`;
+    await getConvexClient().mutation(backendApi.repoDocs.save, {
+      tenantId: result.snapshot.tenantId,
+      kind: `agency-v2-backup:${migrationId}`,
+      doc: result.snapshot,
+      updatedAt: result.snapshot.capturedAt,
+    });
+    const groups: Array<[AgencyDefinitionKind, Array<{ id: string }>]> = [
+      ["intent", result.plan.definitions.intents],
+      ["operation", result.plan.definitions.operations],
+      ["workflow", result.plan.definitions.workflows],
+      ["capability", result.capabilityDefinitions],
+      ["goal", result.plan.definitions.goals],
+      ["loop", result.plan.definitions.loops],
+    ];
+    let created = 0;
+    let reused = 0;
+    for (const [kind, definitions] of groups) {
+      for (const definition of definitions) {
+        try {
+          await createStoredAgencyDefinition({
+            owner: result.access.auth.owner,
+            repo: result.access.auth.repo,
+            recordId: agencyDefinitionRecordId(kind, definition),
+            kind,
+            data: definition,
+            createdAt: result.snapshot.capturedAt,
+          });
+          created += 1;
+        } catch (error) {
+          if (error instanceof Error && /immutable|already exists/i.test(error.message)) {
+            reused += 1;
+          } else {
+            throw error;
+          }
+        }
+      }
+    }
+    return NextResponse.json({ ok: true, migrationId, created, reused }, { status: 201 });
+  } catch (error) {
+    return NextResponse.json(
+      { error: "migration_apply_failed", message: error instanceof Error ? error.message : "Migration failed" },
+      { status: 500 },
+    );
+  }
+}

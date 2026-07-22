@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
@@ -12,6 +11,7 @@ import {
 } from "@kody-ade/agency-domain";
 import {
   AGENCY_DEFINITION_KINDS,
+  agencyDefinitionRecordId,
   createStoredAgencyDefinition,
   listStoredAgencyDefinitions,
   type AgencyDefinitionKind,
@@ -30,22 +30,6 @@ function validate(kind: AgencyDefinitionKind, definition: unknown) {
   if (kind === "workflow") return createWorkflowDefinition(definition);
   if (kind === "capability") return createCapabilityDefinition(definition);
   return createAgentDefinition(definition);
-}
-
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value && typeof value === "object") {
-    return `{${Object.entries(value as Record<string, unknown>)
-      .sort(([left], [right]) => left.localeCompare(right))
-      .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`)
-      .join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
-
-function immutableRecordId(kind: AgencyDefinitionKind, definition: { id: string }) {
-  const hash = createHash("sha256").update(canonical(definition)).digest("hex");
-  return `${kind}:${definition.id}:${hash}`;
 }
 
 function latestByDomainId(records: StoredAgencyDefinition[]) {
@@ -92,7 +76,7 @@ export async function POST(req: NextRequest) {
       { status: 400 },
     );
   }
-  const recordId = immutableRecordId(parsed.data.kind, definition);
+  const recordId = agencyDefinitionRecordId(parsed.data.kind, definition);
   const createdAt = new Date().toISOString();
   try {
     await createStoredAgencyDefinition({
