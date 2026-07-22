@@ -37,6 +37,7 @@
       "observe-agency-flow",
       "operate-findings",
       "dev-ci-health",
+      "knowledge-system-refresh",
       "ceo-performance-review"
     ],
     "activeGoals": [
@@ -55,6 +56,10 @@
       {
         "template": "agency-supervision-loop",
         "every": "1h"
+      },
+      {
+        "template": "knowledge-system-refresh",
+        "every": "1d"
       }
     ]
   },
