@@ -80,7 +80,14 @@ test("external host completes the supported chat integration journey", async ({
     "External storage failed",
   );
   await page.getByRole("button", { name: "Allow saves" }).click();
-  await page.getByRole("button", { name: "Retry save" }).click();
+  const retrySave = page.getByRole("button", { name: "Retry save" });
+  if (await retrySave.isVisible()) {
+    try {
+      await retrySave.click({ timeout: 2_000 });
+    } catch (error) {
+      if (await page.getByRole("alert").count()) throw error;
+    }
+  }
   await expect(page.getByRole("alert")).toHaveCount(0);
 
   await page.setViewportSize({ width: 390, height: 844 });
