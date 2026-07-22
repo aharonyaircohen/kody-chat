@@ -134,4 +134,58 @@ describe("agency model persistence", () => {
       }),
     ).rejects.toThrow(/terminal/i);
   });
+
+  it("freezes Run provenance when an active Run becomes terminal", async () => {
+    const t = setup();
+    const activeRun = {
+      id: "run-1",
+      status: "running" as const,
+      origin: { kind: "loop" as const, id: "refresh-loop", revision: "loop-rev" },
+      target: { kind: "workflow" as const, id: "refresh-knowledge", revision: "workflow-rev" },
+      trace: [
+        { kind: "loop" as const, id: "refresh-loop", revision: "loop-rev" },
+        { kind: "workflow" as const, id: "refresh-knowledge", revision: "workflow-rev" },
+      ],
+      effectivePolicy: {
+        hash: "policy-hash",
+        policy: {
+          approval: "none" as const,
+          authority: { allow: ["refresh-knowledge"], deny: [] },
+          budget: { maxRuns: 1, maxTokens: 1000, maxCostUsd: 10, maxDurationSeconds: 300 },
+          maxConcurrentRuns: 1,
+          riskyActions: [],
+        },
+        constraints: [],
+      },
+      correlationId: "corr-1",
+      startedAt: now,
+    };
+    await t.mutation(api.agencyModel.createRunRecord, {
+      tenantId,
+      subjectType: "workflow",
+      subjectId: "refresh-knowledge",
+      run: activeRun,
+      now,
+    });
+    await t.mutation(api.agencyModel.finishRunRecord, {
+      tenantId,
+      run: {
+        ...activeRun,
+        status: "succeeded",
+        finishedAt: "2026-07-22T00:01:00.000Z",
+      },
+      now: "2026-07-22T00:01:00.000Z",
+    });
+    await expect(
+      t.mutation(api.agencyModel.finishRunRecord, {
+        tenantId,
+        run: {
+          ...activeRun,
+          status: "failed",
+          finishedAt: "2026-07-22T00:02:00.000Z",
+        },
+        now: "2026-07-22T00:02:00.000Z",
+      }),
+    ).rejects.toThrow(/already terminal/i);
+  });
 });

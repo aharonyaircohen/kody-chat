@@ -9,6 +9,7 @@ import {
   createGoalState,
   createLoopState,
   createRunOutput,
+  createRun,
   createWorkflowDefinition,
 } from "@kody-ade/agency-domain";
 import { mutation, query } from "./_generated/server";
@@ -250,6 +251,93 @@ export const finishDispatch = mutation({
     });
   },
 });
+
+export const createRunRecord = mutation({
+  args: {
+    serviceKey: v.optional(v.string()),
+    tenantId: v.string(),
+    subjectType: v.union(
+      v.literal("goal"),
+      v.literal("loop"),
+      v.literal("workflow"),
+      v.literal("capability"),
+    ),
+    subjectId: v.string(),
+    run: v.any(),
+    now: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const run = createRun(args.run);
+    if (run.status !== "queued" && run.status !== "running") {
+      throw new Error("Agency Run must start active");
+    }
+    const existing = await ctx.db
+      .query("agencyRuns")
+      .withIndex("by_run", (q) =>
+        q.eq("tenantId", args.tenantId).eq("runId", run.id),
+      )
+      .unique();
+    if (existing) throw new Error("Agency Run already exists");
+    return ctx.db.insert("agencyRuns", {
+      tenantId: args.tenantId,
+      runId: run.id,
+      subjectType: args.subjectType,
+      subjectId: args.subjectId,
+      run,
+      updatedAt: args.now,
+    });
+  },
+});
+
+export const finishRunRecord = mutation({
+  args: {
+    serviceKey: v.optional(v.string()),
+    tenantId: v.string(),
+    run: v.any(),
+    now: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const run = createRun(args.run);
+    if (
+      run.status !== "succeeded" &&
+      run.status !== "failed" &&
+      run.status !== "cancelled"
+    ) {
+      throw new Error("Agency Run must finish terminal");
+    }
+    const existing = await ctx.db
+      .query("agencyRuns")
+      .withIndex("by_run", (q) =>
+        q.eq("tenantId", args.tenantId).eq("runId", run.id),
+      )
+      .unique();
+    if (!existing) throw new Error("Agency Run not found");
+    const previous = createRun(existing.run);
+    if (previous.status !== "queued" && previous.status !== "running") {
+      throw new Error("Agency Run is already terminal");
+    }
+    assertSameRunIdentity(previous, run);
+    await ctx.db.patch(existing._id, { run, updatedAt: args.now });
+  },
+});
+
+function assertSameRunIdentity(
+  previous: ReturnType<typeof createRun>,
+  next: ReturnType<typeof createRun>,
+) {
+  const stable = (value: unknown) => JSON.stringify(value);
+  if (
+    previous.id !== next.id ||
+    previous.correlationId !== next.correlationId ||
+    previous.startedAt !== next.startedAt ||
+    stable(previous.origin) !== stable(next.origin) ||
+    stable(previous.target) !== stable(next.target) ||
+    stable(previous.trace) !== stable(next.trace) ||
+    stable(previous.effectivePolicy) !== stable(next.effectivePolicy)
+  ) {
+    throw new Error("Agency Run immutable context changed");
+  }
+}
 
 export const getState = query({
   args: {

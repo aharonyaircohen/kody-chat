@@ -64,6 +64,14 @@ const operations = {
     kind: "mutation",
     fn: backendApi.agencyModel.finishDispatch,
   },
+  "agencyModel.createRunRecord": {
+    kind: "mutation",
+    fn: backendApi.agencyModel.createRunRecord,
+  },
+  "agencyModel.finishRunRecord": {
+    kind: "mutation",
+    fn: backendApi.agencyModel.finishRunRecord,
+  },
   "runEvents.append": { kind: "mutation", fn: backendApi.runEvents.append },
   "manifests.get": { kind: "query", fn: backendApi.manifests.get },
   "reports.save": { kind: "mutation", fn: backendApi.reports.save },

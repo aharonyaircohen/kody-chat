@@ -171,6 +171,7 @@ export default defineSchema({
       v.literal("goal"),
       v.literal("loop"),
       v.literal("workflow"),
+      v.literal("capability"),
     ),
     subjectId: v.string(),
     run: v.any(),
