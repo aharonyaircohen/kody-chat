@@ -376,14 +376,50 @@ export default defineSchema({
     status: v.union(
       v.literal("skipped"),
       v.literal("reserved"),
+      v.literal("waiting-approval"),
+      v.literal("waiting-capacity"),
       v.literal("dispatched"),
       v.literal("failed"),
     ),
     leaseUntil: v.optional(v.string()),
+    reservationId: v.optional(v.string()),
+    correlationId: v.optional(v.string()),
+    policyHash: v.optional(v.string()),
+    effectivePolicy: v.optional(v.any()),
+    definitionRefs: v.optional(v.array(v.any())),
+    approvalId: v.optional(v.string()),
     runId: v.optional(v.string()),
     createdAt: v.string(),
     updatedAt: v.string(),
-  }).index("by_tenant_key", ["tenantId", "idempotencyKey"]),
+  })
+    .index("by_tenant_key", ["tenantId", "idempotencyKey"])
+    .index("by_policy_status", ["tenantId", "policyHash", "status"]),
+
+  agencyApprovals: defineTable({
+    tenantId: v.string(),
+    approvalId: v.string(),
+    scopeKind: v.union(
+      v.literal("loop"),
+      v.literal("goal"),
+      v.literal("workflow"),
+      v.literal("capability"),
+    ),
+    scopeId: v.string(),
+    action: v.string(),
+    status: v.union(
+      v.literal("available"),
+      v.literal("consumed"),
+      v.literal("revoked"),
+    ),
+    approvedBy: v.string(),
+    approvedAt: v.string(),
+    expiresAt: v.optional(v.string()),
+    consumedAt: v.optional(v.string()),
+    dispatchKey: v.optional(v.string()),
+  })
+    .index("by_approval_id", ["tenantId", "approvalId"])
+    .index("by_scope", ["tenantId", "scopeKind", "scopeId", "status"])
+    .index("by_tenant", ["tenantId", "approvedAt"]),
 
   reports: defineTable({
     tenantId: v.string(),

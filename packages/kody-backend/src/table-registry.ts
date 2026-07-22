@@ -123,6 +123,11 @@ export const TABLES: readonly TableDef[] = [
     naturalKey: ["idempotencyKey"],
     upsertIndex: "by_tenant_key",
   },
+  {
+    table: "agencyApprovals",
+    naturalKey: ["approvalId"],
+    upsertIndex: "by_approval_id",
+  },
   { table: "reports", naturalKey: ["slug", "runId"], upsertIndex: "by_slug" },
   { table: "agents", naturalKey: ["slug"], upsertIndex: "by_tenant" },
   { table: "viewRenderers", naturalKey: ["slug"], upsertIndex: "by_tenant" },

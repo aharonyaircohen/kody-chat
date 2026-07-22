@@ -113,6 +113,16 @@ describe("agency model persistence", () => {
         scheduledAt: "2026-07-22T01:00:00.000Z",
       },
       leaseUntil: "2026-07-22T01:15:00.000Z",
+      reservationId: "reservation-1",
+      correlationId: "correlation-1",
+      policyHash: "policy-1",
+      effectivePolicy: { approval: "none" },
+      definitionRefs: [{ kind: "loop", id: "refresh-graph", revision: "loop-1" }],
+      maxConcurrentRuns: 1,
+      requiresApproval: false,
+      approvalScopeKind: "loop" as const,
+      approvalScopeId: "refresh-graph",
+      approvalAction: "workflow:refresh-knowledge",
       now,
     };
 
@@ -121,6 +131,7 @@ describe("agency model persistence", () => {
     await t.mutation(api.agencyModel.finishDispatch, {
       tenantId,
       idempotencyKey: input.idempotencyKey,
+      reservationId: input.reservationId,
       status: "dispatched",
       runId: "run-1",
       now: "2026-07-22T00:02:00.000Z",
@@ -129,10 +140,106 @@ describe("agency model persistence", () => {
       t.mutation(api.agencyModel.finishDispatch, {
         tenantId,
         idempotencyKey: input.idempotencyKey,
+        reservationId: input.reservationId,
         status: "failed",
         now: "2026-07-22T00:03:00.000Z",
       }),
     ).rejects.toThrow(/terminal/i);
+  });
+
+  it("enforces policy concurrency and fences reclaimed leases", async () => {
+    const t = setup();
+    const base = {
+      tenantId,
+      decision: { kind: "fire" as const, reason: "due", scheduledAt: now },
+      correlationId: "correlation-1",
+      policyHash: "shared-policy",
+      effectivePolicy: { approval: "none" },
+      definitionRefs: [],
+      maxConcurrentRuns: 1,
+      requiresApproval: false,
+      approvalScopeKind: "loop" as const,
+      approvalScopeId: "loop-1",
+      approvalAction: "workflow:refresh-knowledge",
+      now,
+    };
+    await expect(
+      t.mutation(api.agencyModel.reserveDispatch, {
+        ...base,
+        idempotencyKey: "loop-1:fire-1",
+        loopId: "loop-1",
+        reservationId: "reservation-1",
+        leaseUntil: "2026-07-22T00:10:00.000Z",
+      }),
+    ).resolves.toMatchObject({ acquired: true });
+    await expect(
+      t.mutation(api.agencyModel.reserveDispatch, {
+        ...base,
+        idempotencyKey: "loop-2:fire-1",
+        loopId: "loop-2",
+        reservationId: "reservation-2",
+        leaseUntil: "2026-07-22T00:10:00.000Z",
+      }),
+    ).resolves.toEqual({ acquired: false, reason: "concurrency-limit" });
+    await expect(
+      t.mutation(api.agencyModel.reserveDispatch, {
+        ...base,
+        idempotencyKey: "loop-1:fire-1",
+        loopId: "loop-1",
+        reservationId: "reservation-reclaimed",
+        leaseUntil: "2026-07-22T00:20:00.000Z",
+        now: "2026-07-22T00:11:00.000Z",
+      }),
+    ).resolves.toMatchObject({ acquired: true, reclaimed: true });
+    await expect(
+      t.mutation(api.agencyModel.finishDispatch, {
+        tenantId,
+        idempotencyKey: "loop-1:fire-1",
+        reservationId: "reservation-1",
+        status: "failed",
+        now: "2026-07-22T00:12:00.000Z",
+      }),
+    ).rejects.toThrow(/stale/i);
+  });
+
+  it("consumes required approval atomically with reservation", async () => {
+    const t = setup();
+    const reservation = {
+      tenantId,
+      idempotencyKey: "approved-loop:fire-1",
+      loopId: "approved-loop",
+      decision: { kind: "fire" as const, reason: "due", scheduledAt: now },
+      leaseUntil: "2026-07-22T00:10:00.000Z",
+      reservationId: "reservation-approved",
+      correlationId: "correlation-approved",
+      policyHash: "approval-policy",
+      effectivePolicy: { approval: "all-actions" },
+      definitionRefs: [],
+      maxConcurrentRuns: 1,
+      requiresApproval: true,
+      approvalScopeKind: "loop" as const,
+      approvalScopeId: "approved-loop",
+      approvalAction: "workflow:refresh-knowledge",
+      now,
+    };
+    await expect(t.mutation(api.agencyModel.reserveDispatch, reservation)).resolves.toEqual({
+      acquired: false,
+      reason: "approval-required",
+    });
+    await t.mutation(api.agencyModel.grantApproval, {
+      tenantId,
+      approvalId: "approval-reservation",
+      scopeKind: "loop",
+      scopeId: "approved-loop",
+      action: "workflow:refresh-knowledge",
+      approvedBy: "operator",
+      approvedAt: now,
+    });
+    await expect(t.mutation(api.agencyModel.reserveDispatch, reservation)).resolves.toMatchObject({ acquired: true });
+    await expect(t.mutation(api.agencyModel.reserveDispatch, reservation)).resolves.toMatchObject({
+      acquired: false,
+      reason: "duplicate",
+    });
   });
 
   it("freezes Run provenance when an active Run becomes terminal", async () => {
