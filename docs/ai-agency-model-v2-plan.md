@@ -268,6 +268,23 @@ For each consumer repository:
 
 ## Phase 9: Verification and cleanup
 
+### Golden end-to-end journey
+
+Use one journey as the final proof for the whole model:
+
+```text
+Loop triggers
+-> Workflow runs
+-> Capability produces evidence
+-> Goal and Loop state update
+-> Knowledge Graph refreshes
+-> Dashboard shows the connected result
+```
+
+The journey passes only when every step completes once, the Run trace connects
+the full chain, and the Dashboard shows the same final state stored by the
+backend.
+
 Required proof:
 
 - Shared contract tests pass in all repositories.
