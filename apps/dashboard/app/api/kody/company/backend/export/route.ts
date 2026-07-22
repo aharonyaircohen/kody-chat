@@ -14,7 +14,7 @@ import { api as backendApi } from "@kody-ade/backend/api";
 
 import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
 import { withEscapedKeys } from "@kody-ade/backend/client";
-import { IMPORTABLE_TABLES } from "@kody-ade/backend/table-registry";
+import { REPO_SCOPED_TABLES } from "@kody-ade/backend/table-registry";
 
 export interface BackendExportDump {
   version: 1;
@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
 
     const tables: Array<[string, Array<Record<string, unknown>>]> = [];
     const failures: string[] = [];
-    for (const table of IMPORTABLE_TABLES) {
+    for (const table of REPO_SCOPED_TABLES) {
       try {
         const docs = (await client.query(backendApi.importExport.exportTable, {
           table,

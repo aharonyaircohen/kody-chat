@@ -45,6 +45,9 @@ describe("repo-scoped route contract", () => {
     );
     expect(routes.repoSecrets(repo)).toBe("/repo/A-Guy-educ/A-Guy-Web/secrets");
     expect(routes.repoConfig(repo)).toBe("/repo/A-Guy-educ/A-Guy-Web/config");
+    expect(routes.repoBackend(repo)).toBe(
+      "/repo/A-Guy-educ/A-Guy-Web/backend",
+    );
   });
 
   it("leaves global routes outside the repo workspace", () => {
@@ -134,6 +137,9 @@ describe("repo-scoped route contract", () => {
     );
     expect(legacyRepoRedirectPath(repo, "/files/src/app.tsx")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/files/src/app.tsx",
+    );
+    expect(legacyRepoRedirectPath(repo, "/backend")).toBe(
+      "/repo/A-Guy-educ/A-Guy-Web/backend",
     );
     expect(legacyRepoRedirectPath(repo, "/content/entries/blog/post-1")).toBe(
       "/repo/A-Guy-educ/A-Guy-Web/content/entries/blog/post-1",

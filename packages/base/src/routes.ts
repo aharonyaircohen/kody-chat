@@ -29,6 +29,7 @@ const REPO_OWNED_LEGACY_PREFIXES = [
   "/agent-loops",
   "/agents",
   "/brands",
+  "/backend",
   ...PACKAGE_ADMIN_PAGE_META.map((page) => page.href),
   "/capabilities",
   "/changelog",
@@ -154,6 +155,7 @@ export const routes = {
     repoSelectionPath(ref, "todos", slug, itemId),
   repoSecrets: (ref: RepoRef) => repoSelectionPath(ref, "secrets"),
   repoConfig: (ref: RepoRef) => repoSelectionPath(ref, "config"),
+  repoBackend: (ref: RepoRef) => repoSelectionPath(ref, "backend"),
   repoContext: (ref: RepoRef, slug?: string | null) =>
     repoSelectionPath(ref, "context", slug),
   repoMemory: (ref: RepoRef, id?: string | null) =>

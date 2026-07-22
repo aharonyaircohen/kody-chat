@@ -164,3 +164,8 @@ export const TABLES: readonly TableDef[] = [
 export const IMPORTABLE_TABLES: readonly string[] = TABLES.map(
   (entry) => entry.table,
 );
+
+/** Tables whose rows belong to one repository and are safe to back up or restore there. */
+export const REPO_SCOPED_TABLES: readonly string[] = TABLES.filter(
+  (entry) => !entry.global,
+).map((entry) => entry.table);

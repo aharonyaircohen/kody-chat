@@ -13,6 +13,7 @@ import { api as backendApi } from "@kody-ade/backend/api";
 
 import { getRequestAuth, requireKodyAuth } from "@kody-ade/base/auth";
 import { withEscapedKeys } from "@kody-ade/backend/client";
+import { REPO_SCOPED_TABLES } from "@kody-ade/backend/table-registry";
 
 const CHUNK_SIZE = 50;
 const MAX_RETRIES = 5;
@@ -81,7 +82,17 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { tenantId, tables, clearFirst } = parsed.data;
+  const { tables, clearFirst } = parsed.data;
+  const tenantId = `${headerAuth.owner}/${headerAuth.repo}`;
+  const nonRepoTables = Object.keys(tables).filter(
+    (table) => !REPO_SCOPED_TABLES.includes(table),
+  );
+  if (nonRepoTables.length > 0) {
+    return NextResponse.json(
+      { error: "non_repo_table", tables: nonRepoTables },
+      { status: 400 },
+    );
+  }
 
   try {
     // Dumps carry original keys; the wrapper escapes reserved-prefix keys
@@ -96,7 +107,8 @@ export async function POST(req: NextRequest) {
 
     const counts: Array<[string, number]> = [];
     for (const [table, docs] of Object.entries(tables)) {
-      for (const batch of chunk(docs, CHUNK_SIZE)) {
+      const selectedRepoDocs = docs.map((doc) => ({ ...doc, tenantId }));
+      for (const batch of chunk(selectedRepoDocs, CHUNK_SIZE)) {
         await withWriteRetry(() =>
           client.mutation(backendApi.importExport.importChunk, {
             table,

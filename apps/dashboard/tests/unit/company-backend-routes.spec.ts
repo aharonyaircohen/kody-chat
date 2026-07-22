@@ -166,6 +166,9 @@ describe("GET /api/kody/company/backend/export", () => {
         (call) => (call[1] as { tenantId: string }).tenantId === "acme/widgets",
       ),
     ).toBe(true);
+    expect(queriedTables).not.toContain("userPreferences");
+    expect(queriedTables).not.toContain("actionStates");
+    expect(queriedTables).not.toContain("eventLog");
     // …but only non-empty ones land in the dump.
     expect(body.tables).toEqual({
       workflows: [{ tenantId: "acme/widgets", workflowId: "bug" }],
@@ -263,6 +266,53 @@ describe("POST /api/kody/company/backend/import", () => {
       .filter((call) => (call[1] as { table: string }).table === "goals")
       .map((call) => (call[1] as { docs: unknown[] }).docs.length);
     expect(goalChunks).toEqual([50, 50, 50, 50, 50]);
+  });
+
+  it("imports every document into the selected repo, not the dump's source repo", async () => {
+    vi.stubEnv("CONVEX_URL", "https://demo.convex.cloud");
+
+    const res = await IMPORT(
+      req("/api/kody/company/backend/import", "POST", {
+        ...dump,
+        tenantId: "other/source",
+        clearFirst: true,
+        tables: {
+          workflows: [
+            { tenantId: "other/source", workflowId: "bug" },
+            { tenantId: "third/repo", workflowId: "feature" },
+          ],
+        },
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(convex.mutation.mock.calls[0][1]).toEqual({
+      tenantId: "acme/widgets",
+    });
+    expect(convex.mutation.mock.calls[1][1]).toEqual({
+      table: "workflows",
+      docs: [
+        { tenantId: "acme/widgets", workflowId: "bug" },
+        { tenantId: "acme/widgets", workflowId: "feature" },
+      ],
+    });
+  });
+
+  it("rejects global tables that are not owned by the selected repo", async () => {
+    vi.stubEnv("CONVEX_URL", "https://demo.convex.cloud");
+
+    const res = await IMPORT(
+      req("/api/kody/company/backend/import", "POST", {
+        ...dump,
+        tables: {
+          userPreferences: [{ namespace: "nav", userKey: "alice" }],
+        },
+      }),
+    );
+
+    expect(res.status).toBe(400);
+    expect((await res.json()).error).toBe("non_repo_table");
+    expect(convex.mutation).not.toHaveBeenCalled();
   });
 
   it("retries a chunk when Convex throttles writes, then succeeds", async () => {
