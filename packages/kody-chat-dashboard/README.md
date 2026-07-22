@@ -1,12 +1,11 @@
-# kody-chat
+# Kody Chat Dashboard integration
 
-Multi-tenant, brand-themed client chat product — and the embeddable chat
-platform behind the Kody dashboard.
+Private Kody-specific chat integration consumed by the Dashboard host. This is
+a source package, not a second deployable Next.js application.
 
-Extracted from [Kody-Dashboard](https://github.com/aguyaharonyair/Kody-Dashboard):
-this repo owns the **chat product** (client surfaces, chat backends, the
-plugin platform); the dashboard keeps the admin rail and its plugins and
-consumes this package.
+The public, host-neutral package is `@kody-ade/kody-chat`. This private package
+owns Kody-specific client surfaces, chat backends, plugins, and route handlers.
+The Dashboard owns route mounting and deployment.
 
 ## What's inside
 
@@ -30,25 +29,22 @@ consumes this package.
 Consumers (the dashboard, future hosts) import via package exports:
 
 ```ts
-import { ... } from "@kody-ade/kody-chat/platform";
-import KodyChat from "@kody-ade/kody-chat/components/KodyChat";
-import { resolveClientBrand } from "@kody-ade/kody-chat/client-brand";
+import { ... } from "@kody-ade/kody-chat-dashboard/platform";
+import KodyChat from "@kody-ade/kody-chat-dashboard/components/KodyChat";
+import { resolveClientBrand } from "@kody-ade/kody-chat-dashboard/client-brand";
 ```
 
 Source-level TS exports — Next.js consumers add
-`transpilePackages: ["@kody-ade/kody-chat"]`.
+`transpilePackages: ["@kody-ade/kody-chat-dashboard"]`.
 
 ## Development
 
 ```bash
 pnpm install
-pnpm dev        # http://localhost:3344
 pnpm build
 pnpm typecheck
 pnpm lint
 ```
-
-Port is **3344** (the dashboard owns 3333, so both run side by side).
 
 ### Environment
 
@@ -62,17 +58,12 @@ Same contract as the dashboard — one secret, everything else optional:
 | `KODY_CHAT_WORKFLOW_REPO` | No       | Engine repo for chat (default: connected repo)       |
 | `KODY_CHAT_WORKFLOW_ID`   | No       | Chat workflow file (default `kody.yml`)              |
 
-## Testing — four layers
+## Testing
 
 | Layer | Command          | What it proves                                                        |
 | ----- | ---------------- | --------------------------------------------------------------------- |
 | Unit  | `pnpm test:unit` | Pure logic: reducers, parsers, stores, token/vault crypto (vitest, node env, no DOM) |
 | Int   | `pnpm test:int`  | API route handlers against mocked GitHub (vitest + nock)              |
-| Smoke | `pnpm test:smoke`| Server boots; key pages/APIs respond without 500s (plain node, no browser; `BASE_URL=` probes a deployment) |
-| E2E   | `pnpm test:e2e:local` | Real browser flows on the client surface (Playwright; starts its own dev server) |
-
-`pnpm test:gate` runs all four in order. Extending a layer = drop a spec in
-`tests/{unit,int,e2e}` or add a check to `tests/smoke/run-smoke.mjs`.
-
-E2E specs that exercise authenticated API branches read `E2E_GITHUB_TOKEN`
-from `.env` (never committed).
+The canonical browser and live integration journeys run through
+`apps/dashboard` on port 3333. Package tests cover private integration logic;
+the public package also has a clean external-consumer browser test.

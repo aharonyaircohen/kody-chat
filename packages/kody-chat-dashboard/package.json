@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.7",
   "license": "MIT",
-  "description": "Private Kody Dashboard chat integration and development harness",
+  "description": "Private Kody-specific chat integration consumed by the Dashboard host",
   "repository": {
     "type": "git",
     "url": "https://github.com/aharonyaircohen/kody-chat.git"
@@ -78,15 +78,13 @@
     "./chat-tools/position": "./app/api/kody/chat/tools/position-tools.ts"
   },
   "scripts": {
-    "dev": "next dev --turbopack -p 3344",
-    "build": "next build",
+    "build": "tsc --noEmit",
     "build:library": "pnpm --dir ../kody-chat build",
     "pack:library": "pnpm build:library && npm pack ../kody-chat",
     "test:external-package": "pnpm build:library && node scripts/verify-external-package.mjs",
     "test:external-package:registry": "pnpm build:library && KODY_CHAT_PACKAGE_SPEC=registry node scripts/verify-external-package.mjs",
     "publish:library:next": "pnpm test:external-package && npm publish ../kody-chat --tag next --access public",
     "publish:library:latest": "pnpm test:external-package && npm publish ../kody-chat --tag latest --access public",
-    "start": "next start -p 3344",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
@@ -95,10 +93,6 @@
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "test:int": "vitest run tests/int",
-    "test:smoke": "node tests/smoke/run-smoke.mjs",
-    "test:e2e": "playwright test",
-    "test:e2e:local": "PW_LOCAL=1 BASE_URL=http://127.0.0.1:3344 playwright test --project=chromium",
-    "test:gate": "pnpm test:unit && pnpm test:int && pnpm test:smoke && pnpm test:e2e:local",
     "vault:init": "node scripts/generate-vault-key.mjs"
   },
   "dependencies": {

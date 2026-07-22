@@ -8,11 +8,19 @@ import { existsSync, readFileSync } from "fs";
 import { describe, expect, it } from "vitest";
 
 describe("view renderers management page", () => {
-  it("has a routed Dashboard page, API, and nav entry", () => {
-    expect(existsSync("app/(shell)/views/renderers/page.tsx")).toBe(true);
-    expect(existsSync("app/(shell)/views/renderers/[slug]/page.tsx")).toBe(
-      true,
+  it("exports the integration pages, API, and navigation entry", () => {
+    const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
+      exports: Record<string, string>;
+    };
+    expect(packageJson.exports["./pages/*"]).toBe(
+      "./src/dashboard/lib/pages/*.tsx",
     );
+    expect(
+      existsSync("src/dashboard/lib/pages/view-renderers.tsx"),
+    ).toBe(true);
+    expect(
+      existsSync("src/dashboard/lib/pages/view-renderer-detail.tsx"),
+    ).toBe(true);
     expect(existsSync("app/api/kody/view-renderers/route.ts")).toBe(true);
     expect(existsSync("app/api/kody/view-renderers/[slug]/route.ts")).toBe(
       true,

@@ -5,7 +5,6 @@
   "scripts": {
     "dev": "pnpm --filter kody-dashboard dev",
     "dev:dashboard": "pnpm --filter kody-dashboard dev",
-    "dev:chat-integration": "pnpm --filter @kody-ade/kody-chat-dashboard dev",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",

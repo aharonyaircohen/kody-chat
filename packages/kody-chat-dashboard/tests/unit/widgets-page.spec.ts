@@ -8,8 +8,14 @@ import { existsSync, readFileSync } from "fs";
 import { describe, expect, it } from "vitest";
 
 describe("widgets management page", () => {
-  it("has a routed Dashboard page, API, and nav entry", () => {
-    expect(existsSync("app/(shell)/views/widgets/page.tsx")).toBe(true);
+  it("exports the integration page, API, and navigation entry", () => {
+    const packageJson = JSON.parse(readFileSync("package.json", "utf8")) as {
+      exports: Record<string, string>;
+    };
+    expect(packageJson.exports["./pages/*"]).toBe(
+      "./src/dashboard/lib/pages/*.tsx",
+    );
+    expect(existsSync("src/dashboard/lib/pages/widgets.tsx")).toBe(true);
     expect(existsSync("app/api/kody/widgets/route.ts")).toBe(true);
     expect(existsSync("app/api/kody/widgets/[slug]/route.ts")).toBe(true);
     expect(

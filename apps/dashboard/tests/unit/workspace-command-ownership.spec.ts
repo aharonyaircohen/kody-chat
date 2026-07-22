@@ -23,17 +23,15 @@ describe("workspace command ownership", () => {
     );
   });
 
-  it("names the private integration harness explicitly", () => {
+  it("does not expose the private integration as a second application", () => {
     const rootPackage = readPackage("package.json");
     const integrationPackage = readPackage(
       "packages/kody-chat-dashboard/package.json",
     );
 
-    expect(rootPackage.scripts?.["dev:chat-integration"]).toBe(
-      "pnpm --filter @kody-ade/kody-chat-dashboard dev",
-    );
+    expect(rootPackage.scripts).not.toHaveProperty("dev:chat-integration");
     expect(integrationPackage.description).toBe(
-      "Private Kody Dashboard chat integration and development harness",
+      "Private Kody-specific chat integration consumed by the Dashboard host",
     );
   });
 });
