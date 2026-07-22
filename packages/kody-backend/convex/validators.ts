@@ -1,4 +1,4 @@
-import { v } from "convex/values"
+import { v } from "convex/values";
 
 // Shared document validators — the DB-enforced contract for stable platform
 // shapes. Brand-defined / open payloads (user-state data, repo docs, view
@@ -10,14 +10,14 @@ export const workflowTransitionValidator = v.object({
   when: v.optional(v.union(v.string(), v.record(v.string(), v.any()))),
   default: v.optional(v.boolean()),
   maxIterations: v.optional(v.number()),
-})
+});
 
 export const workflowStepValidator = v.object({
   id: v.string(),
   capability: v.string(),
   inputs: v.optional(v.record(v.string(), v.object({ from: v.string() }))),
   next: v.optional(v.array(workflowTransitionValidator)),
-})
+});
 
 export const workflowDefinitionValidator = v.object({
   version: v.literal(1),
@@ -28,14 +28,14 @@ export const workflowDefinitionValidator = v.object({
   runWithoutApproval: v.optional(v.boolean()),
   createdAt: v.optional(v.string()),
   updatedAt: v.optional(v.string()),
-})
+});
 
 export const workflowRunStatusValidator = v.union(
   v.literal("running"),
   v.literal("blocked"),
   v.literal("failed"),
   v.literal("done"),
-)
+);
 
 export const workflowRunStateValidator = v.object({
   status: workflowRunStatusValidator,
@@ -54,18 +54,18 @@ export const workflowRunStateValidator = v.object({
     ),
   ),
   blocker: v.optional(v.string()),
-})
+});
 
 export const workflowRunnerValidator = v.object({
   kind: v.union(v.literal("pool"), v.literal("fly")),
   machineId: v.string(),
-})
+});
 
 export const guidedFlowStatusValidator = v.union(
   v.literal("active"),
   v.literal("completed"),
   v.literal("cancelled"),
-)
+);
 
 export const macroValidator = v.object({
   id: v.string(),
@@ -73,19 +73,50 @@ export const macroValidator = v.object({
   // Dashboard stamps Unix-ms numbers; legacy rows may hold ISO strings.
   createdAt: v.optional(v.union(v.number(), v.string())),
   steps: v.optional(v.array(v.any())),
-})
+});
 
 export const releaseCadenceValidator = v.union(
   v.literal("manual"),
   v.literal("15m"),
   v.literal("1d"),
   v.literal("1w"),
-)
+);
 
-export const companyIntentValidator = v.object({
+const intentControlsValidator = v.object({
+  release: v.optional(
+    v.object({
+      cadence: v.optional(releaseCadenceValidator),
+      qaDepth: v.optional(
+        v.union(v.literal("light"), v.literal("standard"), v.literal("strict")),
+      ),
+      blockerLevel: v.optional(
+        v.union(v.literal("low"), v.literal("standard"), v.literal("strict")),
+      ),
+      approval: v.optional(
+        v.union(
+          v.literal("none"),
+          v.literal("before-production"),
+          v.literal("before-risky-actions"),
+        ),
+      ),
+    }),
+  ),
+  automation: v.object({
+    authority: v.literal("full-auto"),
+    maxConcurrentGoals: v.number(),
+    maxDailyActions: v.number(),
+    requiresHumanFor: v.array(v.string()),
+  }),
+});
+
+const companyIntentBase = {
   version: v.literal(1),
   id: v.string(),
-  status: v.union(v.literal("active"), v.literal("paused"), v.literal("archived")),
+  status: v.union(
+    v.literal("active"),
+    v.literal("paused"),
+    v.literal("archived"),
+  ),
   for: v.string(),
   description: v.optional(v.string()),
   priority: v.number(),
@@ -108,33 +139,6 @@ export const companyIntentValidator = v.object({
   ),
   principles: v.array(v.string()),
   metrics: v.array(v.string()),
-  policyRefs: v.array(v.string()),
-  controls: v.object({
-    release: v.optional(
-      v.object({
-        cadence: v.optional(releaseCadenceValidator),
-        qaDepth: v.optional(
-          v.union(v.literal("light"), v.literal("standard"), v.literal("strict")),
-        ),
-        blockerLevel: v.optional(
-          v.union(v.literal("low"), v.literal("standard"), v.literal("strict")),
-        ),
-        approval: v.optional(
-          v.union(
-            v.literal("none"),
-            v.literal("before-production"),
-            v.literal("before-risky-actions"),
-          ),
-        ),
-      }),
-    ),
-    automation: v.object({
-      authority: v.literal("full-auto"),
-      maxConcurrentGoals: v.number(),
-      maxDailyActions: v.number(),
-      requiresHumanFor: v.array(v.string()),
-    }),
-  }),
   portfolio: v.object({
     goals: v.array(v.string()),
     loops: v.array(v.string()),
@@ -142,7 +146,19 @@ export const companyIntentValidator = v.object({
   }),
   createdAt: v.string(),
   updatedAt: v.string(),
-})
+};
+
+export const companyIntentValidator = v.union(
+  v.object({
+    ...companyIntentBase,
+    policyRefs: v.array(v.string()),
+    controls: intentControlsValidator,
+  }),
+  v.object({
+    ...companyIntentBase,
+    policy: intentControlsValidator,
+  }),
+);
 
 export const intentDecisionValidator = v.object({
   at: v.string(),
@@ -153,7 +169,7 @@ export const intentDecisionValidator = v.object({
   before: v.optional(v.any()),
   after: v.optional(v.any()),
   resources: v.optional(v.array(v.string())),
-})
+});
 
 export const inboxEntryValidator = v.object({
   id: v.string(),
@@ -181,4 +197,4 @@ export const inboxEntryValidator = v.object({
   ctoCapability: v.optional(v.string()),
   ctoRepo: v.optional(v.string()),
   category: v.optional(v.string()),
-})
+});
