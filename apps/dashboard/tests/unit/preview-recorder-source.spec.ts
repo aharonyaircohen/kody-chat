@@ -27,7 +27,10 @@ const FIREFOX_MANIFEST = JSON.parse(
   ),
 );
 const PICKER_SOURCE = readFileSync(
-  resolve(__dirname, "../../src/dashboard/lib/picker/useElementPicker.ts"),
+  resolve(
+    __dirname,
+    "../../../../packages/kody-chat-dashboard/src/dashboard/lib/picker/useElementPicker.ts",
+  ),
   "utf8",
 );
 

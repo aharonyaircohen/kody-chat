@@ -1,2 +1,1 @@
-/** Barrel — implementation lives in @kody-ade/base/activity/action-log. */
-export * from "@kody-ade/base/activity/action-log";
+export * from "@kody-ade/kody-chat-dashboard/integration-ts/lib/activity/action-log";

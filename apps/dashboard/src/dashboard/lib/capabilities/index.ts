@@ -1,2 +1,1 @@
-/** Barrel — implementation lives in @kody-ade/agency/capabilities/index. */
-export * from "@kody-ade/agency/capabilities/index";
+export * from "@kody-ade/kody-chat-dashboard/integration-ts/lib/capabilities/index";

@@ -10,6 +10,11 @@ const integrationTests = join(
   repositoryRoot,
   "packages/kody-chat-dashboard/tests",
 );
+const dashboardSource = join(repositoryRoot, "apps/dashboard/src/dashboard");
+const integrationSource = join(
+  repositoryRoot,
+  "packages/kody-chat-dashboard/src/dashboard",
+);
 
 function files(root: string): string[] {
   return readdirSync(root, { withFileTypes: true }).flatMap((entry) => {
@@ -45,6 +50,30 @@ describe("private integration app ownership", () => {
           return (
             readFileSync(join(dashboardTests, path), "utf8") ===
             readFileSync(join(integrationTests, path), "utf8")
+          );
+        } catch {
+          return false;
+        }
+      });
+
+    expect(duplicated).toEqual([]);
+  });
+
+  it("does not keep byte-identical source implementations in both workspaces", () => {
+    const duplicated = files(integrationSource)
+      .map((path) => relative(integrationSource, path))
+      // This hook intentionally resolves each workspace's different local
+      // inbox type contract, so identical source text is not shared ownership.
+      .filter(
+        (path) =>
+          path !== "lib/inbox/useInbox.ts" &&
+          path !== "lib/chat-defaults/index.ts",
+      )
+      .filter((path) => {
+        try {
+          return (
+            readFileSync(join(dashboardSource, path), "utf8") ===
+            readFileSync(join(integrationSource, path), "utf8")
           );
         } catch {
           return false;

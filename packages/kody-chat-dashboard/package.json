@@ -97,7 +97,12 @@
     "./chat-tools/todo": "./app/api/kody/chat/tools/todo-tools.ts",
     "./chat-tools/variables": "./app/api/kody/chat/tools/variables-tools.ts",
     "./routes/kody/secrets-vault": "./app/api/kody/secrets/vault/route.ts",
-    "./routes/kody/vibe-execute": "./app/api/kody/vibe/execute/route.ts"
+    "./routes/kody/vibe-execute": "./app/api/kody/vibe/execute/route.ts",
+    "./integration-ts/lib/*": "./src/dashboard/lib/*.ts",
+    "./integration-ts/providers/*": "./src/dashboard/providers/*.ts",
+    "./integration-tsx/lib/*": "./src/dashboard/lib/*.tsx",
+    "./integration-tsx/providers/*": "./src/dashboard/providers/*.tsx",
+    "./integration-js/lib/*": "./src/dashboard/lib/*.js"
   },
   "scripts": {
     "build": "tsc --noEmit",

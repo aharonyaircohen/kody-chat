@@ -49,12 +49,16 @@ describe("repo-scoped panel route surfaces", () => {
 
     expect(existsSync(hookPath)).toBe(true);
     expect(existsSync(linkPath)).toBe(true);
-    expect(read("src/dashboard/lib/hooks/useRepoScopedHref.ts")).toContain(
-      "repoScopedHref",
-    );
-    expect(read("src/dashboard/lib/components/RepoScopedLink.tsx")).toContain(
-      "useRepoScopedHref",
-    );
+    expect(
+      read(
+        "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/hooks/useRepoScopedHref.ts",
+      ),
+    ).toContain("repoScopedHref");
+    expect(
+      read(
+        "node_modules/@kody-ade/kody-chat-dashboard/src/dashboard/lib/components/RepoScopedLink.tsx",
+      ),
+    ).toContain("useRepoScopedHref");
   });
 
   it("does not render direct repo-owned href literals in panel components", () => {

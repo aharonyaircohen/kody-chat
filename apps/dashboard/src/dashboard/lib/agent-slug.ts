@@ -1,2 +1,1 @@
-/** Barrel — implementation lives in @kody-ade/agency/agent-slug. */
-export * from "@kody-ade/agency/agent-slug";
+export * from "@kody-ade/kody-chat-dashboard/integration-ts/lib/agent-slug";

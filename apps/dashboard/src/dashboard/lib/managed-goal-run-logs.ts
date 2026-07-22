@@ -1,2 +1,1 @@
-/** Barrel — implementation lives in @kody-ade/agency/managed-goal-run-logs. */
-export * from "@kody-ade/agency/managed-goal-run-logs";
+export * from "@kody-ade/kody-chat-dashboard/integration-ts/lib/managed-goal-run-logs";

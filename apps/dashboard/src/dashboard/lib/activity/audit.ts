@@ -1,2 +1,1 @@
-/** Barrel — implementation lives in @kody-ade/base/activity/audit. */
-export * from "@kody-ade/base/activity/audit";
+export * from "@kody-ade/kody-chat-dashboard/integration-ts/lib/activity/audit";

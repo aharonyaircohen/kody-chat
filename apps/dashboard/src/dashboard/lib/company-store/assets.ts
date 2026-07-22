@@ -1,2 +1,1 @@
-/** Barrel — implementation lives in @kody-ade/base/company-store/assets. */
-export * from "@kody-ade/base/company-store/assets";
+export * from "@kody-ade/kody-chat-dashboard/integration-ts/lib/company-store/assets";
